@@ -16,5 +16,5 @@ it('depends on the contracts and never on the core, so addons can use it without
 
 it('is autoloadable from the Cbox\Cms\Testkit namespace', function (): void {
     expect(PackageManifest::of('testkit')->psr4())->toBe(['Cbox\\Cms\\Testkit\\' => 'src/'])
-        ->and(is_dir(dirname(__DIR__).'/src'))->toBeTrue();
+        ->and(is_dir(__DIR__.'/../src'))->toBeTrue();
 });

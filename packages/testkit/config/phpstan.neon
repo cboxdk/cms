@@ -1,0 +1,19 @@
+# Shared PHPStan configuration for the Cbox CMS kernel, the app template and addons.
+# GUARDRAILS 1, 2.2 and 10 (gate 3): level 10 with Larastan, and never a baseline.
+#
+# A repo includes this file from vendor/cboxdk/cms-testkit/config/phpstan.neon and adds only
+# its own paths. It must not lower the level, add a baseline or add ignoreErrors
+# (GUARDRAILS 7.3). Larastan is found through PHPStan's own directory, so the include works
+# from vendor/ and from a symlinked path package.
+
+includes:
+    - %rootDir%/../../larastan/larastan/extension.neon
+
+parameters:
+    level: 10
+
+    # Stricter than level 10 alone.
+    checkUninitializedProperties: true
+    checkMissingCallableSignature: true
+    reportAnyTypeWideningInVarTag: true
+    reportUnmatchedIgnoredErrors: true

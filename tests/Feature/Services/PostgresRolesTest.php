@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Assert;
 
 /*
  * The role part of the Postgres operating contract (PRD 4.2, GUARDRAILS 4.1 and 6),
@@ -17,10 +18,34 @@ use Illuminate\Support\Str;
  */
 function expectInsufficientPrivilege(string $sql, ?string $connection = null): void
 {
-    expect(fn (): bool => DB::connection($connection)->statement($sql))
-        ->toThrow(function (QueryException $exception): void {
-            expect($exception->getCode())->toBe('42501');
-        });
+    try {
+        DB::connection($connection)->statement($sql);
+    } catch (QueryException $exception) {
+        expect($exception->getCode())->toBe('42501');
+
+        return;
+    }
+
+    Assert::fail("Expected [{$sql}] to fail with SQLSTATE 42501, but it succeeded.");
+}
+
+/**
+ * Runs the callback with a fresh table created by the owner role, and drops the table after.
+ *
+ * @param  Closure(string): void  $callback  receives the table name
+ */
+function withOwnerTable(Closure $callback): void
+{
+    $table = 'contract_probe_'.Str::lower(Str::random(8));
+    $owner = DB::connection('pgsql_owner');
+    $owner->statement("create table {$table} (id bigserial primary key, x int not null)");
+
+    try {
+        $callback($table);
+    } finally {
+        $owner->statement("drop table if exists {$table}");
+        $owner->disconnect();
+    }
 }
 
 it('connects to Postgres 17 as the app role in the cms schema', function (): void {
@@ -81,27 +106,20 @@ it('gives the owner role no transaction_timeout, because index DDL runs outside 
 });
 
 describe('a table the owner role creates', function (): void {
-    beforeEach(function (): void {
-        $this->table = 'contract_probe_'.Str::lower(Str::random(8));
-
-        DB::connection('pgsql_owner')->statement("create table {$this->table} (id bigserial primary key, x int not null)");
-    });
-
-    afterEach(function (): void {
-        DB::connection('pgsql_owner')->statement("drop table if exists {$this->table}");
-        DB::connection('pgsql_owner')->disconnect();
-    });
-
     it('is writable by the app role through the default privileges', function (): void {
-        $id = DB::table($this->table)->insertGetId(['x' => 1]);
+        withOwnerTable(function (string $table): void {
+            $id = DB::table($table)->insertGetId(['x' => 1]);
 
-        expect(DB::table($this->table)->where('id', $id)->update(['x' => 2]))->toBe(1)
-            ->and(DB::table($this->table)->where('id', $id)->value('x'))->toBe(2)
-            ->and(DB::table($this->table)->where('id', $id)->delete())->toBe(1);
+            expect(DB::table($table)->where('id', $id)->update(['x' => 2]))->toBe(1)
+                ->and(DB::table($table)->where('id', $id)->value('x'))->toBe(2)
+                ->and(DB::table($table)->where('id', $id)->delete())->toBe(1);
+        });
     });
 
     it('cannot be altered, truncated or dropped by the app role', function (string $sql): void {
-        expectInsufficientPrivilege(sprintf($sql, $this->table));
+        withOwnerTable(function (string $table) use ($sql): void {
+            expectInsufficientPrivilege(sprintf($sql, $table));
+        });
     })->with([
         'alter' => 'alter table %s add column y int',
         'index' => 'create index on %s (x)',

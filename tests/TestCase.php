@@ -6,6 +6,7 @@ namespace Cbox\Cms\Tests;
 
 use Orchestra\Testbench\Concerns\WithWorkbench;
 use Orchestra\Testbench\TestCase as Orchestra;
+use Override;
 
 /**
  * Boots the workbench application from testbench.yaml with package discovery on,
@@ -21,5 +22,6 @@ abstract class TestCase extends Orchestra
      *
      * @var bool
      */
+    #[Override]
     protected $enablesPackageDiscoveries = true;
 }

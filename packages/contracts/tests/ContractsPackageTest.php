@@ -10,5 +10,5 @@ it('depends on nothing but PHP, so addons can require it alone', function (): vo
 
 it('is autoloadable from the Cbox\Cms\Contracts namespace', function (): void {
     expect(PackageManifest::of('contracts')->psr4())->toBe(['Cbox\\Cms\\Contracts\\' => 'src/'])
-        ->and(is_dir(dirname(__DIR__).'/src'))->toBeTrue();
+        ->and(is_dir(__DIR__.'/../src'))->toBeTrue();
 });

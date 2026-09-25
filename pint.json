@@ -1,0 +1,3 @@
+{
+    "extend": "vendor/cboxdk/cms-testkit/config/pint.json"
+}

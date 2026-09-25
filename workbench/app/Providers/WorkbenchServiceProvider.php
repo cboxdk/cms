@@ -28,16 +28,16 @@ final class WorkbenchServiceProvider extends ServiceProvider
             return;
         }
 
-        $app['search_path'] = self::env('DB_SCHEMA', 'cms');
+        $app['search_path'] = $this->env('DB_SCHEMA', 'cms');
 
         $config->set('database.connections.pgsql', $app);
         $config->set('database.connections.pgsql_owner', array_merge($app, [
-            'username' => self::env('DB_OWNER_USERNAME', 'cms_owner'),
-            'password' => self::env('DB_OWNER_PASSWORD', ''),
+            'username' => $this->env('DB_OWNER_USERNAME', 'cms_owner'),
+            'password' => $this->env('DB_OWNER_PASSWORD', ''),
         ]));
     }
 
-    private static function env(string $key, string $default): string
+    private function env(string $key, string $default): string
     {
         $value = Env::get($key);
 

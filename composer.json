@@ -16,10 +16,10 @@
         "cboxdk/cms-core": "^0.1@dev",
         "cboxdk/cms-generators": "^0.1@dev",
         "cboxdk/cms-http": "^0.1@dev",
-        "cboxdk/cms-testkit": "^0.1@dev",
         "laravel/framework": "^13.0"
     },
     "require-dev": {
+        "cboxdk/cms-testkit": "^0.1@dev",
         "orchestra/testbench": "^11.0",
         "pestphp/pest": "^4.7",
         "pestphp/pest-plugin-arch": "^4.0",
@@ -66,7 +66,12 @@
             "Composer\\Config::disableProcessTimeout",
             "docker compose up -d --wait"
         ],
-        "services:down": "docker compose down"
+        "services:down": "docker compose down",
+        "lint": "@php vendor/bin/pint",
+        "lint:check": "@php vendor/bin/pint --test",
+        "rector": "@php vendor/bin/rector process",
+        "rector:check": "@php vendor/bin/rector process --dry-run",
+        "analyse": "@php vendor/bin/phpstan analyse --no-progress"
     },
     "config": {
         "sort-packages": true,
@@ -79,6 +84,11 @@
         "prepare": "Discover the packages' service providers for the Testbench application.",
         "test": "Run the Pest suite for the monorepo and every package.",
         "services:up": "Start PHP 8.5, Postgres 17 and Valkey from compose.yaml and wait until they are healthy.",
-        "services:down": "Stop the services from compose.yaml. The data volumes are kept."
+        "services:down": "Stop the services from compose.yaml. The data volumes are kept.",
+        "lint": "Format the PHP code with Pint and the shared configuration from the testkit.",
+        "lint:check": "Gate 1: fail if Pint would change any file.",
+        "rector": "Apply the shared Rector sets from the testkit.",
+        "rector:check": "Gate 2: fail if Rector would change any file.",
+        "analyse": "Gate 3: PHPStan level 10 with Larastan over the packages, the tests and the workbench, without a baseline."
     }
 }
