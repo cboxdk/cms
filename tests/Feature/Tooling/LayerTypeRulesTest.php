@@ -2,9 +2,17 @@
 
 declare(strict_types=1);
 
+namespace Cbox\Cms\Tests\Feature\Tooling;
+
+use Cbox\Cms\Testkit\Phpstan\InternalClassConstantUsageExtension;
+use Cbox\Cms\Testkit\Phpstan\InternalClassNameUsageExtension;
+use Cbox\Cms\Testkit\Phpstan\InternalMethodUsageExtension;
 use Cbox\Cms\Testkit\Phpstan\LayerScope;
 use Cbox\Cms\Testkit\Phpstan\PhpstanIgnoreCollector;
 use Cbox\Cms\Testkit\Phpstan\PhpstanIgnoreRule;
+use Cbox\Cms\Testkit\Phpstan\SavepointStringsRule;
+use Cbox\Cms\Testkit\Phpstan\StringIdsRule;
+use Cbox\Cms\Testkit\Phpstan\TransactionCallsRule;
 use Cbox\Cms\Testkit\Phpstan\TypedArrowFunctionsRule;
 use Cbox\Cms\Testkit\Phpstan\TypedClassTagsRule;
 use Cbox\Cms\Testkit\Phpstan\TypedClosuresRule;
@@ -16,7 +24,7 @@ use Cbox\Cms\Tests\Support\Phpstan;
 use Cbox\Cms\Tests\Support\PhpstanAnalysis;
 
 /*
- * The testkit's PHPStan rules for Boundary and Adapter (GUARDRAILS 2.2, gate 3) through the
+ * The testkit's PHPStan rules (GUARDRAILS 2.2, 2.3 and 4.1, PRD 4.2 and 5.3, gate 3) through the
  * real configuration: the testkit neon registers them, the root includes it, and
  * vendor/bin/phpstan reports them. The rules themselves are tested with RuleTestCase in
  * packages/testkit/tests/Phpstan.
@@ -45,7 +53,7 @@ function analyseProbe(string $code): PhpstanAnalysis
     }
 }
 
-it('registers every rule and the collector in the testkit neon, which the root includes', function (): void {
+it('registers every rule, the collector and the extensions in the testkit neon, which the root includes', function (): void {
     $testkit = (string) file_get_contents(Phpstan::root().'/packages/testkit/config/phpstan.neon');
     $root = (string) file_get_contents(Phpstan::root().'/phpstan.neon');
     $rules = [
@@ -56,14 +64,26 @@ it('registers every rule and the collector in the testkit neon, which the root i
         TypedPropertiesRule::class,
         TypedClassTagsRule::class,
         PhpstanIgnoreRule::class,
+        TransactionCallsRule::class,
+        SavepointStringsRule::class,
+        StringIdsRule::class,
+    ];
+    $services = [
+        PhpstanIgnoreCollector::class => 'phpstan.collector',
+        InternalClassNameUsageExtension::class => 'phpstan.restrictedClassNameUsageExtension',
+        InternalMethodUsageExtension::class => 'phpstan.restrictedMethodUsageExtension',
+        InternalClassConstantUsageExtension::class => 'phpstan.restrictedClassConstantUsageExtension',
     ];
 
     foreach ($rules as $rule) {
         expect($testkit)->toMatch('/^\s+- '.preg_quote($rule, '/').'$/m');
     }
 
-    expect($testkit)->toMatch('/class: '.preg_quote(PhpstanIgnoreCollector::class, '/').'\s+tags:\s+- phpstan\.collector/')
-        ->and($root)->toMatch('/^includes:\s+- vendor\/cboxdk\/cms-testkit\/config\/phpstan\.neon$/m');
+    foreach ($services as $service => $tag) {
+        expect($testkit)->toMatch('/class: '.preg_quote($service, '/').'\s+tags:\s+- '.preg_quote($tag, '/').'$/m');
+    }
+
+    expect($root)->toMatch('/^includes:\s+- vendor\/cboxdk\/cms-testkit\/config\/phpstan\.neon$/m');
 });
 
 it('fails the analysis on an untyped array return in the domain', function (): void {
@@ -138,6 +158,100 @@ it('allows mixed and a precise ignore comment in an Adapter', function (): void 
     expect($analysis->exitCode)->toBe(0)
         ->and($analysis->identifiers)->toBe([]);
 });
+
+it('fails the analysis on a transaction call and a SAVEPOINT statement in an action', function (): void {
+    $analysis = analyseProbe(<<<'PHP'
+        <?php
+
+        declare(strict_types=1);
+
+        namespace Cbox\Cms\Core\Entries\Actions;
+
+        use Illuminate\Support\Facades\DB;
+
+        final readonly class Probe
+        {
+            public function f(): void
+            {
+                DB::transaction(static function (): void {
+                    DB::statement('SAVEPOINT chunk');
+                });
+            }
+        }
+        PHP);
+
+    expect($analysis->exitCode)->not->toBe(0)
+        ->and($analysis->identifiers)->toEqualCanonicalizing(['cboxCms.transaction', 'cboxCms.savepoint']);
+});
+
+it('allows the same transaction calls in an Adapter', function (): void {
+    $analysis = analyseProbe(<<<'PHP'
+        <?php
+
+        declare(strict_types=1);
+
+        namespace Cbox\Cms\Core\Entries\Adapter;
+
+        use Illuminate\Support\Facades\DB;
+
+        final readonly class Probe
+        {
+            public function f(): void
+            {
+                DB::transaction(static function (): void {
+                    DB::statement('SAVEPOINT chunk');
+                });
+            }
+        }
+        PHP);
+
+    expect($analysis->exitCode)->toBe(0)
+        ->and($analysis->identifiers)->toBe([]);
+});
+
+it('fails the analysis on a public string id in the domain', function (): void {
+    $analysis = analyseProbe(<<<'PHP'
+        <?php
+
+        declare(strict_types=1);
+
+        namespace Cbox\Cms\Core\Changesets\Domain;
+
+        interface Probe
+        {
+            public function find(string $changesetId): ?self;
+        }
+        PHP);
+
+    expect($analysis->exitCode)->not->toBe(0)
+        ->and($analysis->identifiers)->toBe(['cboxCms.stringId']);
+});
+
+it('fails the analysis when an addon uses an internal class of the testkit, and allows it in the core', function (string $namespace, bool $allowed): void {
+    $analysis = analyseProbe(<<<PHP
+        <?php
+
+        declare(strict_types=1);
+
+        namespace {$namespace};
+
+        use Cbox\\Cms\\Testkit\\Phpstan\\LayerScope;
+
+        final readonly class Probe
+        {
+            public function f(): bool
+            {
+                return LayerScope::isTestCode('Acme');
+            }
+        }
+        PHP);
+
+    expect($analysis->exitCode === 0)->toBe($allowed)
+        ->and($analysis->identifiers)->toBe($allowed ? [] : ['cboxCms.internalUse']);
+})->with([
+    'an addon' => ['Acme\Blog', false],
+    'the core' => ['Cbox\Cms\Core\Entries', true],
+]);
 
 it('uses the same layer names and the same innermost-segment reading as the Arch suite', function (string $namespace): void {
     $layer = Layer::of($namespace);

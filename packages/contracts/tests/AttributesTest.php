@@ -47,13 +47,21 @@ function expectInvalid(Closure $build, string $message): void
     Assert::fail('Expected an InvalidArgumentException.');
 }
 
-it('declares every attribute for classes only', function (): void {
-    foreach ([Stable::class, Experimental::class, Internal::class, Command::class, Action::class, Hook::class] as $attribute) {
+it('declares every attribute but Internal for classes only', function (): void {
+    foreach ([Stable::class, Experimental::class, Command::class, Action::class, Hook::class] as $attribute) {
         $declarations = new ReflectionClass($attribute)->getAttributes(Attribute::class);
 
         expect($declarations)->toHaveCount(1)
             ->and($declarations[0]->newInstance()->flags)->toBe(Attribute::TARGET_CLASS);
     }
+});
+
+it('declares Internal for classes, methods and class constants, and not as repeatable', function (): void {
+    $declarations = new ReflectionClass(Internal::class)->getAttributes(Attribute::class);
+
+    expect($declarations)->toHaveCount(1)
+        ->and($declarations[0]->newInstance()->flags)
+        ->toBe(Attribute::TARGET_CLASS | Attribute::TARGET_METHOD | Attribute::TARGET_CLASS_CONSTANT);
 });
 
 it('reads a command name and version from the command DTO', function (): void {

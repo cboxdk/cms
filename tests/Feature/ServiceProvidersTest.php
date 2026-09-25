@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+namespace Cbox\Cms\Tests\Feature;
+
 use Cbox\Cms\Cli\CliServiceProvider;
 use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Generators\GeneratorsServiceProvider;

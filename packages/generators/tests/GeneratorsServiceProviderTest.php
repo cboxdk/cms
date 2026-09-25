@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+namespace Cbox\Cms\Generators\Tests;
+
 use Cbox\Cms\Generators\GeneratorsServiceProvider;
 
 it('is loaded through package discovery', function (): void {

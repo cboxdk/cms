@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+namespace Cbox\Cms\Testkit\Tests\Phpstan;
+
 use Cbox\Cms\Testkit\Phpstan\IgnoreComment;
 use Cbox\Cms\Testkit\Phpstan\IgnoreCommentScanner;
 

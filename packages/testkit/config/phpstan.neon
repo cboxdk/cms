@@ -22,7 +22,12 @@ parameters:
 # Rule 1, the Typed*Rule classes: no mixed, untyped arrays or array shapes in declarations
 # outside Boundary and Adapter. Rule 2, PhpstanIgnoreRule with its collector: no phpstan-ignore
 # comment outside Boundary and Adapter, read from the file tokens.
-# Both report non-ignorable errors, so no comment and no ignoreErrors entry can hide them.
+# Rule 3, TransactionCallsRule and SavepointStringsRule (GUARDRAILS 4.1, PRD 4.2): no transaction
+# calls and no SAVEPOINT statements in Actions and Jobs. Rule 4, StringIdsRule (PRD 5.3): no
+# public string ids outside Boundary and Adapter. These report non-ignorable errors, so no
+# comment and no ignoreErrors entry can hide them.
+# Rule 5, the Internal*UsageExtension services (GUARDRAILS 2.3): code outside Cbox\Cms may not
+# use what is marked #[Internal]. PHPStan's restricted usage rules report them.
 rules:
     - Cbox\Cms\Testkit\Phpstan\TypedMethodsRule
     - Cbox\Cms\Testkit\Phpstan\TypedFunctionsRule
@@ -31,9 +36,24 @@ rules:
     - Cbox\Cms\Testkit\Phpstan\TypedPropertiesRule
     - Cbox\Cms\Testkit\Phpstan\TypedClassTagsRule
     - Cbox\Cms\Testkit\Phpstan\PhpstanIgnoreRule
+    - Cbox\Cms\Testkit\Phpstan\TransactionCallsRule
+    - Cbox\Cms\Testkit\Phpstan\SavepointStringsRule
+    - Cbox\Cms\Testkit\Phpstan\StringIdsRule
 
 services:
     -
         class: Cbox\Cms\Testkit\Phpstan\PhpstanIgnoreCollector
         tags:
             - phpstan.collector
+    -
+        class: Cbox\Cms\Testkit\Phpstan\InternalClassNameUsageExtension
+        tags:
+            - phpstan.restrictedClassNameUsageExtension
+    -
+        class: Cbox\Cms\Testkit\Phpstan\InternalMethodUsageExtension
+        tags:
+            - phpstan.restrictedMethodUsageExtension
+    -
+        class: Cbox\Cms\Testkit\Phpstan\InternalClassConstantUsageExtension
+        tags:
+            - phpstan.restrictedClassConstantUsageExtension

@@ -2,9 +2,12 @@
 
 declare(strict_types=1);
 
+namespace Cbox\Cms\Tests\Arch;
+
 use Cbox\Cms\Testkit\Phpstan\LayerScope;
 use Cbox\Cms\Tests\Support\Arch\Codebase;
 use Cbox\Cms\Tests\Support\Arch\Rules;
+use PhpToken;
 
 /*
  * The testkit's PHPStan rule for mixed and untyped arrays skips test code: a namespace with a

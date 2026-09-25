@@ -1,0 +1,17 @@
+# The three extensions of rule 5, registered as in config/phpstan.neon. The real file also
+# includes Larastan, which boots a Laravel application and leaves its error handlers behind in
+# a RuleTestCase. tests/Feature/Tooling/LayerTypeRulesTest.php checks the real registration.
+
+services:
+    -
+        class: Cbox\Cms\Testkit\Phpstan\InternalClassNameUsageExtension
+        tags:
+            - phpstan.restrictedClassNameUsageExtension
+    -
+        class: Cbox\Cms\Testkit\Phpstan\InternalMethodUsageExtension
+        tags:
+            - phpstan.restrictedMethodUsageExtension
+    -
+        class: Cbox\Cms\Testkit\Phpstan\InternalClassConstantUsageExtension
+        tags:
+            - phpstan.restrictedClassConstantUsageExtension
