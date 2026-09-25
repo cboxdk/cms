@@ -61,7 +61,12 @@
         ],
         "clear": "@php vendor/bin/testbench package:purge-skeleton --ansi",
         "prepare": "@php vendor/bin/testbench package:discover --ansi",
-        "test": "@php vendor/bin/pest"
+        "test": "@php vendor/bin/pest",
+        "services:up": [
+            "Composer\\Config::disableProcessTimeout",
+            "docker compose up -d --wait"
+        ],
+        "services:down": "docker compose down"
     },
     "config": {
         "sort-packages": true,
@@ -72,6 +77,8 @@
     "scripts-descriptions": {
         "clear": "Reset the Testbench application skeleton in vendor/.",
         "prepare": "Discover the packages' service providers for the Testbench application.",
-        "test": "Run the Pest suite for the monorepo and every package."
+        "test": "Run the Pest suite for the monorepo and every package.",
+        "services:up": "Start PHP 8.5, Postgres 17 and Valkey from compose.yaml and wait until they are healthy.",
+        "services:down": "Stop the services from compose.yaml. The data volumes are kept."
     }
 }

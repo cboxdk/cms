@@ -30,5 +30,23 @@
     </source>
     <php>
         <env name="APP_ENV" value="testing"/>
+        <!--
+            The services from compose.yaml on their host ports. Inside the php container,
+            compose sets DB_HOST, DB_PORT, REDIS_HOST and REDIS_PORT to the service names,
+            and PHPUnit keeps a variable that is already set.
+            Tests run as the app role (GUARDRAILS 6); pgsql_owner is the owner role.
+        -->
+        <env name="DB_CONNECTION" value="pgsql"/>
+        <env name="DB_HOST" value="127.0.0.1"/>
+        <env name="DB_PORT" value="54317"/>
+        <env name="DB_DATABASE" value="cms_test"/>
+        <env name="DB_SCHEMA" value="cms"/>
+        <env name="DB_USERNAME" value="cms_app"/>
+        <env name="DB_PASSWORD" value="cms_app"/>
+        <env name="DB_OWNER_USERNAME" value="cms_owner"/>
+        <env name="DB_OWNER_PASSWORD" value="cms_owner"/>
+        <env name="REDIS_CLIENT" value="phpredis"/>
+        <env name="REDIS_HOST" value="127.0.0.1"/>
+        <env name="REDIS_PORT" value="63797"/>
     </php>
 </phpunit>

@@ -1,0 +1,101 @@
+# Development and test services for the laravel-cms monorepo.
+#
+# Lives here until the name of the app template is decided (see "Blokeret" in PROGRESS.md);
+# then it moves to the template and this file follows it.
+#
+# Host ports: Postgres 54317, Valkey 63797. They are fixed so the tests on the host
+# (phpunit.xml) and in the php container reach the same services.
+#
+# Roles follow the operating contract in PRD 4.2 and GUARDRAILS 6:
+#   cms_owner  owns the databases and the cms schema, runs migrations and partition maintenance
+#   cms_app    the application and the tests: no DDL, NOBYPASSRLS, transaction_timeout 5s
+# The init script in docker/postgres is idempotent and runs on an empty data volume.
+
+name: laravel-cms
+
+services:
+  php:
+    # The v1 release channel of php-baseimages, never the rolling tag (PROGRESS.md, decisions).
+    # The dev tier has Xdebug and PCOV.
+    image: ghcr.io/cboxdk/php-baseimages/php-cli:8.5-bookworm-dev-v1
+    # The image entrypoint prints a banner to stdout and runs chown -R on /var/www/html,
+    # which would rewrite ownership of the bind-mounted repo. This container is a toolbox,
+    # so it runs commands directly under tini.
+    entrypoint: []
+    init: true
+    command: ["sleep", "infinity"]
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+    environment:
+      # Service names and container ports. These win over the host ports in phpunit.xml,
+      # because PHPUnit does not overwrite an environment variable that is already set.
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      REDIS_HOST: valkey
+      REDIS_PORT: "6379"
+      # Xdebug is loaded but off by default; run with -e XDEBUG_MODE=debug to step through code.
+      XDEBUG_MODE: ${XDEBUG_MODE:-off}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(extension_loaded('pdo_pgsql') && extension_loaded('redis') ? 0 : 1);"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:17
+    command:
+      - postgres
+      # PRD 4.2: no prepared transactions. It is also the default; it is set so the contract is visible.
+      - -c
+      - max_prepared_transactions=0
+    ports:
+      - "54317:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      # Read by docker/postgres/initdb.d/10-cms.sh. Development credentials only.
+      CMS_DATABASES: cms cms_test
+      CMS_SCHEMA: cms
+      CMS_OWNER_ROLE: cms_owner
+      CMS_OWNER_PASSWORD: cms_owner
+      CMS_APP_ROLE: cms_app
+      CMS_APP_PASSWORD: cms_app
+      # The command budget in GUARDRAILS 4.1 and PRD 7.4.
+      CMS_APP_TRANSACTION_TIMEOUT: 5s
+      # Default database for psql inside the container, so `psql -U cms_owner` works without -d.
+      PGDATABASE: cms
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/initdb.d:/docker-entrypoint-initdb.d:ro
+      - ./docker/postgres/sql:/cms-init:ro
+    healthcheck:
+      # TCP on purpose: during first-time init the entrypoint runs a temporary server that only
+      # listens on the socket, so TCP readiness means the init script has finished.
+      test: ["CMD", "pg_isready", "--host=127.0.0.1", "--port=5432", "--username=cms_owner", "--dbname=cms_test"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  valkey:
+    image: valkey/valkey:8.1
+    ports:
+      - "63797:6379"
+    volumes:
+      - valkey-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli ping | grep -q PONG"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  postgres-data:
+  valkey-data:
