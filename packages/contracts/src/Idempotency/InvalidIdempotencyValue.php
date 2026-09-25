@@ -8,7 +8,7 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
 use InvalidArgumentException;
 
 /**
- * An idempotency key, scope or content hash that is not in its form.
+ * An idempotency key, scope, content hash or wait budget that is not in its form.
  */
 #[Experimental]
 final class InvalidIdempotencyValue extends InvalidArgumentException
@@ -48,6 +48,15 @@ final class InvalidIdempotencyValue extends InvalidArgumentException
         return new self(sprintf(
             'A content hash is a SHA-256 digest as 64 hex digits, got "%s".',
             self::shown($value),
+        ));
+    }
+
+    public static function waitBudget(int $milliseconds): self
+    {
+        return new self(sprintf(
+            'A wait budget is 0 to %d milliseconds, the most a command transaction may take, got %d.',
+            WaitBudget::MAX_MILLISECONDS,
+            $milliseconds,
         ));
     }
 

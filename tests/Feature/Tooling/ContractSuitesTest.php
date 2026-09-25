@@ -7,9 +7,11 @@ namespace Cbox\Cms\Tests\Feature\Tooling;
 use Cbox\Cms\Core\Tests\Contract\SystemClockContractTest;
 use Cbox\Cms\Core\Tests\Contract\SystemIdGeneratorContractTest;
 use Cbox\Cms\Testkit\Clock\ClockContract;
+use Cbox\Cms\Testkit\Idempotency\IdempotencyStoreContract;
 use Cbox\Cms\Testkit\Ids\IdGeneratorContract;
 use Cbox\Cms\Testkit\ReceiptStore\ReceiptStoreContract;
 use Cbox\Cms\Testkit\Tests\Contract\FakeClockContractTest;
+use Cbox\Cms\Testkit\Tests\Contract\FakeIdempotencyStoreContractTest;
 use Cbox\Cms\Testkit\Tests\Contract\FakeIdGeneratorContractTest;
 use Cbox\Cms\Testkit\Tests\Contract\FakeReceiptStoreContractTest;
 use Cbox\Cms\Tests\Support\Phpstan;
@@ -118,5 +120,25 @@ it('runs every shared ReceiptStore case once for the FakeReceiptStore', function
         'a_standard_receipt_expires_seven_days_after_its_changeset_time',
         'a_store_in_a_rolled_back_transaction_is_not_visible',
         'a_store_is_not_visible_to_another_session_until_commit',
+    )->and($listed)->toBe($expected);
+});
+
+it('runs every shared IdempotencyStore case once for the FakeIdempotencyStore', function (): void {
+    $cases = sharedCases(IdempotencyStoreContract::class);
+
+    $expected = array_map(static fn (string $case): string => FakeIdempotencyStoreContractTest::class.'::'.$case, $cases);
+
+    $listed = contractTests('IdempotencyStore');
+    sort($expected);
+    sort($listed);
+
+    expect($cases)->toContain(
+        'the_first_claim_on_a_key_is_fresh',
+        'a_completed_and_committed_claim_replays_its_changeset',
+        'the_same_key_with_another_content_hash_is_a_conflict',
+        'a_claim_completed_in_a_rolled_back_transaction_leaves_the_key_fresh',
+        'a_fresh_claim_committed_without_complete_leaves_the_key_fresh',
+        'a_claim_held_by_an_open_transaction_is_in_flight_for_another_session',
+        'five_claims_with_the_same_key_and_hash_after_one_completed_commit_all_replay',
     )->and($listed)->toBe($expected);
 });
