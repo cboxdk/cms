@@ -18,7 +18,11 @@ use InvalidArgumentException;
 #[Experimental]
 final readonly class Command
 {
-    private const string NAME_PATTERN = '/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/';
+    /**
+     * The form of a command name. \A and \z anchor the whole string, so a trailing newline is not
+     * accepted as $ would.
+     */
+    public const string NAME_PATTERN = '/\A[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+\z/';
 
     public function __construct(
         public string $name,

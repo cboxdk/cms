@@ -77,7 +77,7 @@ it('accepts dot-separated snake_case command names', function (string $name): vo
 
 it('rejects a command name that is not dot-separated snake_case', function (string $name): void {
     expectInvalid(static fn (): Command => new Command($name, 1), 'dot-separated snake_case');
-})->with(['', 'entry', 'Entry.release', 'entry.Release', 'entry..release', '.entry', 'entry.', 'entry-release.x', '1entry.release']);
+})->with(['', 'entry', 'Entry.release', 'entry.Release', 'entry..release', '.entry', 'entry.', 'entry-release.x', '1entry.release', "entry.release\n", "entry.release\r\n", ' entry.release']);
 
 it('rejects a command version below 1', function (int $version): void {
     expectInvalid(static fn (): Command => new Command('entry.release', $version), 'Versions start at 1');
