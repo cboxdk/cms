@@ -1,0 +1,31 @@
+{
+  "name": "@cboxdk/cms-tooling",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The shared TypeScript, ESLint and Prettier configuration for Cbox CMS repositories (GUARDRAILS 1 and 10).",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    "./tsconfig.base.json": "./tsconfig.base.json",
+    "./eslint": "./eslint.js",
+    "./prettier": "./prettier.js"
+  },
+  "files": [
+    "tsconfig.base.json",
+    "eslint.js",
+    "prettier.js"
+  ],
+  "engines": {
+    "node": "^22.13.0 || >=24"
+  },
+  "dependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "typescript-eslint": "8.70.1"
+  },
+  "peerDependencies": {
+    "eslint": "10.11.0",
+    "prettier": "3.9.9",
+    "typescript": "6.0.3"
+  }
+}

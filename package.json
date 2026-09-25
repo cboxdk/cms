@@ -1,0 +1,26 @@
+{
+  "name": "laravel-cms",
+  "private": true,
+  "description": "Cbox CMS monorepo: the npm workspaces under js/ and the JS gates.",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "js/*"
+  ],
+  "engines": {
+    "node": "^22.13.0 || >=24"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint --max-warnings=0 .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@cboxdk/cms-tooling": "0.1.0",
+    "@types/node": "22.20.4",
+    "eslint": "10.11.0",
+    "prettier": "3.9.9",
+    "typescript": "6.0.3"
+  }
+}

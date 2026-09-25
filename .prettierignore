@@ -1,0 +1,16 @@
+# Prettier owns the JS side of the monorepo (GUARDRAILS 10, gate 1): js/, the workbench's
+# TypeScript and the root JS and JSON config. The rest has another owner and stays out:
+# Pint formats PHP, Composer writes its JSON with four spaces, the compose and Testbench YAML
+# belong to the PHP toolchain, and the Markdown guides and PROGRESS.md are written by hand and
+# by the agent harness.
+/vendor/
+/.claude/
+/.harness/
+/packages/
+/docker/
+/composer.json
+/composer.lock
+/pint.json
+/compose.yaml
+/testbench.yaml
+*.md
