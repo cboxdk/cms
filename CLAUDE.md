@@ -20,6 +20,7 @@ These live in the planning repo and are read-only unless a rule below says other
 - PHP 8.5, Laravel 13 only, PHPStan level 10 without baseline, Pest 4, Rector, Pint, React 19 with strict TypeScript.
 - Run the checks before saying a task is done. Until `composer check` exists (milestone 0 creates it), run the individual tools that exist.
 - The JS gates run from the root after `npm ci`: `npm run typecheck`, `npm run lint` and `npm run format:check`. The shared tsconfig, ESLint and Prettier configuration lives in the `js/tooling` workspace; the root files only point at it.
+- The Pest suites are gate 5 of GUARDRAILS 10: `Unit`, `Codecs`, `Contract`, `Postgres` and `Arch` in `phpunit.xml`. A package puts tests for a suite in `packages/<package>/tests/<Suite>`; its other tests are `Unit`. The `Postgres` suite needs `composer services:up` and runs through the testkit's `RealPostgres` harness: the app role on the default connection, migrations by the owner role, no wrapping transaction, the owner truncates after each test, and a nested transaction fails the test. Helpers: `app(IndependentConnections::class)` and `app(ChildProcesses::class)`.
 - Services for tests run in Docker on cboxdk images: `ghcr.io/cboxdk/postgres:18` and `ghcr.io/cboxdk/valkey:8`; PHP on `ghcr.io/cboxdk/php-baseimages/php-cli:8.5-bookworm-dev-v1`. Do not use Herd's Postgres for tests. Postgres 17 stays the minimum, so never use features that arrived in 18 (GUARDRAILS 1.2).
 
 ## Hvor ting bor

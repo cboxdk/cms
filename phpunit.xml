@@ -14,16 +14,39 @@
          displayDetailsOnTestsThatTriggerErrors="true"
          displayDetailsOnPhpunitDeprecations="true"
 >
+    <!--
+        The Pest suites of gate 5 in GUARDRAILS 10. The actions suite arrives in M1 with the first
+        action, and the browser suite with the browser plugin.
+          Unit      no services: the monorepo's tooling, manifest and provider tests, and every
+                    package test outside the directories below
+          Codecs    PHP codec output against the browser's validator
+          Contract  the same suite against the fake and the real adapter of each contract
+          Postgres  real Postgres and Valkey from compose.yaml; run `composer services:up` first
+          Arch      the architecture rules
+        A package puts its tests for a suite in packages/<package>/tests/<Suite>.
+    -->
     <testsuites>
-        <testsuite name="Monorepo">
-            <directory suffix="Test.php">tests</directory>
-            <exclude>tests/Arch</exclude>
+        <testsuite name="Unit">
+            <directory suffix="Test.php">tests/Feature</directory>
+            <directory suffix="Test.php">packages/*/tests</directory>
+            <exclude>packages/*/tests/Codecs</exclude>
+            <exclude>packages/*/tests/Contract</exclude>
+            <exclude>packages/*/tests/Postgres</exclude>
+        </testsuite>
+        <testsuite name="Codecs">
+            <directory suffix="Test.php">tests/Codecs</directory>
+            <directory suffix="Test.php">packages/*/tests/Codecs</directory>
+        </testsuite>
+        <testsuite name="Contract">
+            <directory suffix="Test.php">tests/Contract</directory>
+            <directory suffix="Test.php">packages/*/tests/Contract</directory>
+        </testsuite>
+        <testsuite name="Postgres">
+            <directory suffix="Test.php">tests/Postgres</directory>
+            <directory suffix="Test.php">packages/*/tests/Postgres</directory>
         </testsuite>
         <testsuite name="Arch">
             <directory suffix="Test.php">tests/Arch</directory>
-        </testsuite>
-        <testsuite name="Packages">
-            <directory suffix="Test.php">packages/*/tests</directory>
         </testsuite>
     </testsuites>
     <source>

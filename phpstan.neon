@@ -18,6 +18,7 @@ parameters:
         - packages/generators/tests
         - packages/http/src
         - packages/http/tests
+        - packages/testkit/bin
         - packages/testkit/src
         - packages/testkit/tests
         - tests

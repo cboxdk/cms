@@ -6161,17 +6161,21 @@
             "dist": {
                 "type": "path",
                 "url": "packages/testkit",
-                "reference": "f9b8881fc65f155b989aa71f7d039d9e3a8f24ab"
+                "reference": "a51ea6ffa7ea7bbed8b23a1ddc6bdc82d76b54da"
             },
             "require": {
                 "cboxdk/cms-contracts": "^0.1",
                 "driftingly/rector-laravel": "^2.6",
                 "larastan/larastan": "^3.12",
+                "laravel/framework": "^13.0",
                 "laravel/pint": "^1.32",
+                "laravel/serializable-closure": "^2.0.10",
                 "orchestra/testbench": "^11.0",
                 "php": "^8.5",
                 "phpstan/phpstan": "^2.2",
-                "rector/rector": "^2.6"
+                "phpunit/phpunit": "^12.5",
+                "rector/rector": "^2.6",
+                "symfony/process": "^7.4.5 || ^8.0.5"
             },
             "type": "library",
             "autoload": {
@@ -6182,7 +6186,10 @@
             "autoload-dev": {
                 "psr-4": {
                     "Cbox\\Cms\\Testkit\\Tests\\": "tests/"
-                }
+                },
+                "classmap": [
+                    "tests/Phpstan/Fixtures/"
+                ]
             },
             "license": [
                 "MIT"
@@ -6193,7 +6200,7 @@
                     "homepage": "https://cboxdk.com"
                 }
             ],
-            "description": "Cbox CMS testkit: fakes, shared contract tests and the shared Pint, Rector and PHPStan configuration for the core and for addons.",
+            "description": "Cbox CMS testkit: fakes, shared contract tests, the real-Postgres test harness and the shared Pint, Rector and PHPStan configuration for the core and for addons.",
             "transport-options": {
                 "symlink": true,
                 "relative": true
