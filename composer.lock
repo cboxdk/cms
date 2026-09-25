@@ -146,9 +146,10 @@
             "dist": {
                 "type": "path",
                 "url": "packages/cli",
-                "reference": "2a028f2de91d7b0df6a6acbe35948e1dec3e12c4"
+                "reference": "c29ca80c4255492964f8f139729b9884539346ce"
             },
             "require": {
+                "cboxdk/cms-contracts": "^0.1",
                 "cboxdk/cms-core": "^0.1",
                 "illuminate/support": "^13.0",
                 "php": "^8.5"
@@ -321,9 +322,10 @@
             "dist": {
                 "type": "path",
                 "url": "packages/http",
-                "reference": "536501c3ea4ee9fc1459e64148e2632b46d91f8d"
+                "reference": "ed426a2cac885c24eee83a2cdfd0c3fe621972b6"
             },
             "require": {
+                "cboxdk/cms-contracts": "^0.1",
                 "cboxdk/cms-core": "^0.1",
                 "illuminate/support": "^13.0",
                 "php": "^8.5"

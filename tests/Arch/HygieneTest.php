@@ -1,0 +1,89 @@
+<?php
+
+declare(strict_types=1);
+
+use Cbox\Cms\Tests\Support\Arch\Codebase;
+use Cbox\Cms\Tests\Support\Arch\Rules;
+use Cbox\Cms\Tests\Support\Arch\SourceFile;
+use Cbox\Cms\Tests\Support\PackageManifest;
+use Illuminate\Support\Facades\Facade;
+use Illuminate\Support\Facades\Http;
+
+/*
+ * strict_types, debug helpers, raw HTTP and facade aliases (GUARDRAILS 2.2, 3 and 9).
+ */
+
+/**
+ * The PSR-4 namespaces of every package, the monorepo tests and the workbench.
+ *
+ * Pest resolves a namespace through the Composer autoloader. There is no mapping for the
+ * bare Cbox\Cms prefix, so it must list each package namespace, or the packages are skipped.
+ *
+ * @return list<string>
+ */
+function codeNamespaces(): array
+{
+    $namespaces = ['Cbox\Cms\Tests', 'Workbench\App'];
+
+    foreach (glob(__DIR__.'/../../packages/*/composer.json') ?: [] as $manifest) {
+        foreach (array_keys(PackageManifest::of(basename(dirname($manifest)))->psr4()) as $prefix) {
+            $namespaces[] = rtrim($prefix, '\\');
+        }
+    }
+
+    return $namespaces;
+}
+
+arch('strict_types: every class in the packages and the workbench declares strict types', function (): void {
+    expect(codeNamespaces())->toHaveCount(8)->toUseStrictTypes();
+});
+
+arch('strict_types: every PHP file in the packages, tests, workbench and root starts with declare(strict_types=1)', function (): void {
+    $files = Codebase::allPhpFiles();
+    $violations = array_map(
+        static fn (SourceFile $file): string => Codebase::relative($file->path),
+        array_values(array_filter($files, static fn (SourceFile $file): bool => ! $file->declaresStrictTypes)),
+    );
+
+    expect(count($files))->toBeGreaterThan(20);
+    Rules::none($violations, 'These files do not start with declare(strict_types=1):');
+});
+
+arch('debug functions: no dd, dump, ddd, ray or var_dump is left in the code', function (): void {
+    expect(['dd', 'dump', 'ddd', 'ray', 'var_dump'])->not->toBeUsed();
+});
+
+arch('raw HTTP: no Guzzle, Http facade, HTTP client, curl_*, sockets or file_get_contents outside the gateway namespace', function (): void {
+    $curl = array_values(array_filter(
+        get_extension_funcs('curl') ?: [],
+        static fn (string $function): bool => str_starts_with($function, 'curl_'),
+    ));
+
+    Rules::forbid(Codebase::classesOutsideGateway(), [
+        'GuzzleHttp',
+        Http::class,
+        'Illuminate\Http\Client',
+        'Symfony\Component\HttpClient',
+        'Psr\Http\Client',
+        'file_get_contents',
+        'fsockopen',
+        'stream_socket_client',
+        ...$curl,
+    ]);
+});
+
+arch('facades: no global facade aliases and no real-time facades, so the layer rules see every facade', function (): void {
+    $aliases = array_keys(Facade::defaultAliases()->all());
+    $violations = [];
+
+    foreach (Codebase::code() as $file) {
+        foreach ($file->globalNames as $name) {
+            if (in_array($name->name, $aliases, true) || str_starts_with($name->name, 'Facades\\')) {
+                $violations[] = sprintf('%s uses %s.', Codebase::relative($name->location()), $name->name);
+            }
+        }
+    }
+
+    expect($aliases)->toContain('DB', 'Http');
+    Rules::none($violations, 'Import facades by their full class name under Illuminate\Support\Facades:');
+});
