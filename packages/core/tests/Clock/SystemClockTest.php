@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Clock;
 
 use Cbox\Cms\Contracts\Clock;
+use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Core\Bindings\Boundary\InvalidContractBinding;
 use Cbox\Cms\Core\Clock\Adapter\SystemClock;
 use Cbox\Cms\Core\CoreServiceProvider;
+use Cbox\Cms\Core\Ids\Adapter\SystemIdGenerator;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -59,15 +61,17 @@ it('lets the application configuration win over the package default', function (
         ->and(app(Clock::class))->toBeInstanceOf(FakeClock::class);
 });
 
-it('keeps the default clock when the application configures only other contracts', function (): void {
+it('keeps the default clock and id generator when the application configures only other contracts', function (): void {
     config()->set('cms', ['contracts' => ['Acme\\Contracts\\Other' => 'Acme\\Other']]);
 
     new CoreServiceProvider(app())->register();
 
     expect(config('cms.contracts'))->toBe([
         Clock::class => SystemClock::class,
+        IdGenerator::class => SystemIdGenerator::class,
         'Acme\\Contracts\\Other' => 'Acme\\Other',
-    ])->and(app(Clock::class))->toBeInstanceOf(SystemClock::class);
+    ])->and(app(Clock::class))->toBeInstanceOf(SystemClock::class)
+        ->and(app(IdGenerator::class))->toBeInstanceOf(SystemIdGenerator::class);
 });
 
 it('refuses a configured class that is not a clock', function (): void {

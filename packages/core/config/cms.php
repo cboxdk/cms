@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 use Cbox\Cms\Contracts\Clock;
+use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Core\Clock\Adapter\SystemClock;
+use Cbox\Cms\Core\Ids\Adapter\SystemIdGenerator;
 
 return [
     /*
@@ -13,5 +15,6 @@ return [
      */
     'contracts' => [
         Clock::class => SystemClock::class,
+        IdGenerator::class => SystemIdGenerator::class,
     ],
 ];

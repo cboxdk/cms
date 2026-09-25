@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Cbox\Cms\Tests\Feature\Tooling;
 
 use Cbox\Cms\Core\Tests\Contract\SystemClockContractTest;
+use Cbox\Cms\Core\Tests\Contract\SystemIdGeneratorContractTest;
 use Cbox\Cms\Testkit\Clock\ClockContract;
+use Cbox\Cms\Testkit\Ids\IdGeneratorContract;
 use Cbox\Cms\Testkit\Tests\Contract\FakeClockContractTest;
+use Cbox\Cms\Testkit\Tests\Contract\FakeIdGeneratorContractTest;
 use Cbox\Cms\Tests\Support\Phpstan;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionClass;
@@ -73,4 +76,27 @@ it('runs every shared Clock case once for the SystemClock and once for the FakeC
 
     expect($cases)->toContain('now_is_in_the_utc_time_zone', 'now_is_an_immutable_value', 'now_keeps_microseconds')
         ->and($listed)->toBe($expected);
+});
+
+it('runs every shared IdGenerator case once for the SystemIdGenerator and once for the FakeIdGenerator', function (): void {
+    $cases = sharedCases(IdGeneratorContract::class);
+
+    $expected = [];
+
+    foreach ([SystemIdGeneratorContractTest::class, FakeIdGeneratorContractTest::class] as $class) {
+        foreach ($cases as $case) {
+            $expected[] = $class.'::'.$case;
+        }
+    }
+
+    $listed = contractTests('IdGenerator');
+    sort($expected);
+    sort($listed);
+
+    expect($cases)->toContain(
+        'ids_have_version_7_and_the_rfc_9562_variant',
+        'ids_made_while_time_stands_still_are_unique_and_sort_in_generation_order',
+        'the_embedded_unix_milliseconds_are_the_current_time',
+        'an_id_made_after_time_steps_back_one_second_sorts_after_the_one_before',
+    )->and($listed)->toBe($expected);
 });

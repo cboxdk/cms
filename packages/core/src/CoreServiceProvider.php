@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Clock;
+use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Core\Bindings\Boundary\ContractBindings;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
@@ -27,6 +28,11 @@ final class CoreServiceProvider extends ServiceProvider
         $this->app->singleton(
             Clock::class,
             static fn (Application $app): Clock => $app->make(ContractBindings::class)->resolve($app, Clock::class),
+        );
+
+        $this->app->singleton(
+            IdGenerator::class,
+            static fn (Application $app): IdGenerator => $app->make(ContractBindings::class)->resolve($app, IdGenerator::class),
         );
     }
 }
