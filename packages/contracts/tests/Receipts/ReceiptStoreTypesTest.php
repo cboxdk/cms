@@ -1,0 +1,82 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Cbox\Cms\Contracts\Tests\Receipts;
+
+use Cbox\Cms\Contracts\Consistency\DuplicateReceipt;
+use Cbox\Cms\Contracts\Consistency\Outcome;
+use Cbox\Cms\Contracts\Consistency\RetentionClass;
+use Cbox\Cms\Contracts\Consistency\UnstorableReceipt;
+use Cbox\Cms\Contracts\Ids\ChangesetId;
+use Cbox\Cms\Contracts\Ids\Uuid7;
+use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
+use Cbox\Cms\Contracts\Receipts\Receipt;
+use Cbox\Cms\Contracts\ReceiptStore;
+use DateTimeImmutable;
+use InvalidArgumentException;
+use ReflectionClass;
+use ReflectionNamedType;
+use RuntimeException;
+
+/*
+ * The types around the ReceiptStore contract (PRD 4, 8.4): when a receipt expires, the errors a
+ * store throws, and the shape of the contract itself.
+ */
+
+function changesetAt(string $time): ChangesetId
+{
+    return new ChangesetId(Uuid7::lowestAt(Uuid7::unixMillisecondsOf(new DateTimeImmutable($time))));
+}
+
+it('expires a Standard receipt exactly seven days after the time in its changeset id, in UTC', function (string $created, string $expires): void {
+    $expiresAt = RetentionClass::Standard->expiresAt(changesetAt($created));
+
+    expect($expiresAt?->format('Y-m-d\TH:i:s.u e'))->toBe($expires);
+})->with([
+    'with milliseconds' => ['2026-01-01T00:00:00.123456+00:00', '2026-01-08T00:00:00.123000 UTC'],
+    'across a DST change in the caller\'s zone' => ['2026-03-25T12:00:00.999+01:00', '2026-04-01T11:00:00.999000 UTC'],
+    'at the epoch' => ['1970-01-01T00:00:00+00:00', '1970-01-08T00:00:00.000000 UTC'],
+    'at the end of 9999' => ['9999-12-31T23:59:59.999+00:00', '10000-01-07T23:59:59.999000 UTC'],
+]);
+
+it('gives no fixed expiry for an Evidence receipt', function (): void {
+    expect(RetentionClass::Evidence->expiresAt(changesetAt('2026-01-01T00:00:00Z')))->toBeNull();
+});
+
+it('names the changeset of a duplicate receipt', function (): void {
+    $changesetId = changesetAt('2026-01-01T00:00:00Z');
+    $duplicate = DuplicateReceipt::forChangeset($changesetId);
+
+    expect($duplicate)->toBeInstanceOf(RuntimeException::class)
+        ->and($duplicate->getMessage())->toContain($changesetId->toString());
+});
+
+it('names the outcome of a receipt that is not stored', function (Outcome $outcome): void {
+    $unstorable = UnstorableReceipt::notCommitted($outcome);
+
+    expect($unstorable)->toBeInstanceOf(InvalidArgumentException::class)
+        ->and($unstorable->getMessage())->toContain($outcome->value.' receipt is not stored');
+})->with([Outcome::Rejected, Outcome::DryRun]);
+
+it('has store, find and markProjection with typed ids and no string ids', function (): void {
+    $methods = [];
+
+    foreach (new ReflectionClass(ReceiptStore::class)->getMethods() as $method) {
+        $types = [];
+
+        foreach ($method->getParameters() as $parameter) {
+            $type = $parameter->getType();
+            $types[] = $type instanceof ReflectionNamedType ? $type->getName() : 'untyped';
+        }
+
+        $return = $method->getReturnType();
+        $methods[$method->getName()] = [$types, (string) $return];
+    }
+
+    expect($methods)->toBe([
+        'store' => [[Receipt::class], 'void'],
+        'find' => [[ChangesetId::class], '?Cbox\Cms\Contracts\Receipts\Receipt'],
+        'markProjection' => [[ChangesetId::class, ProjectionStatus::class], 'bool'],
+    ]);
+});

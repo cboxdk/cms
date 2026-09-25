@@ -8,8 +8,10 @@ use Cbox\Cms\Core\Tests\Contract\SystemClockContractTest;
 use Cbox\Cms\Core\Tests\Contract\SystemIdGeneratorContractTest;
 use Cbox\Cms\Testkit\Clock\ClockContract;
 use Cbox\Cms\Testkit\Ids\IdGeneratorContract;
+use Cbox\Cms\Testkit\ReceiptStore\ReceiptStoreContract;
 use Cbox\Cms\Testkit\Tests\Contract\FakeClockContractTest;
 use Cbox\Cms\Testkit\Tests\Contract\FakeIdGeneratorContractTest;
+use Cbox\Cms\Testkit\Tests\Contract\FakeReceiptStoreContractTest;
 use Cbox\Cms\Tests\Support\Phpstan;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionClass;
@@ -98,5 +100,23 @@ it('runs every shared IdGenerator case once for the SystemIdGenerator and once f
         'ids_made_while_time_stands_still_are_unique_and_sort_in_generation_order',
         'the_embedded_unix_milliseconds_are_the_current_time',
         'an_id_made_after_time_steps_back_one_second_sorts_after_the_one_before',
+    )->and($listed)->toBe($expected);
+});
+
+it('runs every shared ReceiptStore case once for the FakeReceiptStore', function (): void {
+    $cases = sharedCases(ReceiptStoreContract::class);
+
+    $expected = array_map(static fn (string $case): string => FakeReceiptStoreContractTest::class.'::'.$case, $cases);
+
+    $listed = contractTests('ReceiptStore');
+    sort($expected);
+    sort($listed);
+
+    expect($cases)->toContain(
+        'a_stored_receipt_is_found_equal',
+        'mark_projection_updates_only_that_projection',
+        'a_standard_receipt_expires_seven_days_after_its_changeset_time',
+        'a_store_in_a_rolled_back_transaction_is_not_visible',
+        'a_store_is_not_visible_to_another_session_until_commit',
     )->and($listed)->toBe($expected);
 });
