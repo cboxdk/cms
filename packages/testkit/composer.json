@@ -1,0 +1,29 @@
+{
+  "name": "cboxdk/cms-testkit",
+  "description": "Cbox CMS testkit: fakes and shared contract tests for the core and for addons.",
+  "type": "library",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Cbox",
+      "homepage": "https://cboxdk.com"
+    }
+  ],
+  "require": {
+    "php": "^8.5",
+    "cboxdk/cms-contracts": "^0.1"
+  },
+  "autoload": {
+    "psr-4": {
+      "Cbox\\Cms\\Testkit\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Cbox\\Cms\\Testkit\\Tests\\": "tests/"
+    }
+  },
+  "config": {
+    "sort-packages": true
+  }
+}

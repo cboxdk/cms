@@ -1,0 +1,28 @@
+{
+  "name": "cboxdk/cms-contracts",
+  "description": "Cbox CMS contracts: the interfaces, DTOs and protocols that the core, addons and sidecars share.",
+  "type": "library",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Cbox",
+      "homepage": "https://cboxdk.com"
+    }
+  ],
+  "require": {
+    "php": "^8.5"
+  },
+  "autoload": {
+    "psr-4": {
+      "Cbox\\Cms\\Contracts\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Cbox\\Cms\\Contracts\\Tests\\": "tests/"
+    }
+  },
+  "config": {
+    "sort-packages": true
+  }
+}
