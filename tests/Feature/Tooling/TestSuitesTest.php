@@ -106,3 +106,9 @@ it('applies the real-Postgres harness to the Postgres directories', function ():
 
     expect($pest)->toContain("pest()->use(RealPostgres::class)->in('Postgres', '../packages/*/tests/Postgres');");
 });
+
+it('applies the real-Valkey harness to the Postgres directories', function (): void {
+    $pest = (string) file_get_contents(Phpstan::root().'/tests/Pest.php');
+
+    expect($pest)->toContain("pest()->use(RealValkey::class)->in('Postgres', '../packages/*/tests/Postgres');");
+});
