@@ -52,7 +52,10 @@
             "Cbox\\Cms\\Testkit\\Tests\\": "packages/testkit/tests/",
             "Cbox\\Cms\\Tests\\": "tests/",
             "Workbench\\App\\": "workbench/app/"
-        }
+        },
+        "classmap": [
+            "packages/testkit/tests/Phpstan/Fixtures/"
+        ]
     },
     "scripts": {
         "post-autoload-dump": [

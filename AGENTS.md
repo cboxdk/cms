@@ -4,7 +4,7 @@ Read `CLAUDE.md` in this repo. It applies to every agent, whatever the tool. The
 
 ## Hvor ting bor
 
-The namespace layout for the layers of GUARDRAILS 2.5. The Arch suite (`vendor/bin/pest --testsuite=Arch`, files in `tests/Arch`) enforces it over `packages/*/src` and `workbench/app`. The Arch suite checks the "May not use" column and the only-use rules for Domain and Actions; the `mixed` and `array` column is the PHPStan rule from M0-T4. This section is the same in `CLAUDE.md` and `AGENTS.md`; a test keeps them equal.
+The namespace layout for the layers of GUARDRAILS 2.5. The Arch suite (`vendor/bin/pest --testsuite=Arch`, files in `tests/Arch`) enforces it over `packages/*/src` and `workbench/app`. The Arch suite checks the "May not use" column and the only-use rules for Domain and Actions; the `mixed` and `array` column is enforced by the testkit's PHPStan rules in `packages/testkit/src/Phpstan`. This section is the same in `CLAUDE.md` and `AGENTS.md`; a test keeps them equal.
 
 Code sits in a module below the package, and the layer is a namespace segment below the module: `Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant`, `Cbox\Cms\Core\Receipts\Adapter\PostgresReceiptStore`. A namespace is in a layer when one of its segments is the layer name, either as the last segment or with more segments below it. When several segments match, the innermost one decides: `Cbox\Cms\Http\Boundary\RequestParser` is Boundary. `Domain` does not match `DomainEvents`.
 
@@ -26,7 +26,9 @@ More rules:
 - `Commands`, `Queries`, `Dto` and `Receipts` namespaces sit only below `Domain` or in the contracts package.
 - Every class, interface, trait and enum in `packages/*/src` carries exactly one of `#[Stable]`, `#[Experimental]` and `#[Internal]`. Service providers are `#[Internal]`.
 - Outbound HTTP (Guzzle, the Http facade, HTTP clients, `curl_*`, sockets, `file_get_contents`) is allowed only in the gateway namespace `Cbox\Cms\Core\Egress`, which goes through the SSRF guard.
-- `@phpstan-ignore` is allowed only in Boundary and Adapter. A token scan finds it wherever it is, also where PHPStan would not.
+- `mixed`, untyped arrays and array shapes are allowed only in Boundary and Adapter. The PHPStan rules report them in parameters, returns, properties, template bounds and class PHPDoc tags as `cboxCms.mixed`, `cboxCms.untypedArray` and `cboxCms.arrayShape`. A typed array is `list<T>` or `array<K, V>` where neither K nor V is `mixed`; `Foo[]` and `array<Foo>` have no key type and count as untyped. Structured data is a DTO. Closures are checked on their native types only.
+- Test code, meaning a namespace with a `Tests` segment or the global namespace of Pest files, is exempt from that rule. Code in `packages/*/src` and `workbench/app` therefore always declares a namespace without a `Tests` segment; the Arch suite checks it.
+- `@phpstan-ignore` in any form is allowed only in Boundary and Adapter. The PHPStan rule `cboxCms.phpstanIgnore` reads the tokens of every analysed file, tests included, and a token scan in the Arch suite checks `packages/*/src` and `workbench/app`. The PHPStan rules report errors that no ignore comment and no `ignoreErrors` entry can hide.
 - Facades are imported by their full class name. Global aliases such as `\DB` and real-time facades are not allowed.
 - A service provider at the package root has no layer. It wires contracts to adapters. A namespace without a layer segment has only the global rules; put code in a layer.
 - `declare(strict_types=1)` in every PHP file, and no `dd`, `dump`, `ddd`, `ray` or `var_dump`.

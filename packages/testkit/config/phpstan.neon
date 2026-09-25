@@ -17,3 +17,23 @@ parameters:
     checkMissingCallableSignature: true
     reportAnyTypeWideningInVarTag: true
     reportUnmatchedIgnoredErrors: true
+
+# The layer rules of GUARDRAILS 2.2, gate 3. They reach every repo that includes this file.
+# Rule 1, the Typed*Rule classes: no mixed, untyped arrays or array shapes in declarations
+# outside Boundary and Adapter. Rule 2, PhpstanIgnoreRule with its collector: no phpstan-ignore
+# comment outside Boundary and Adapter, read from the file tokens.
+# Both report non-ignorable errors, so no comment and no ignoreErrors entry can hide them.
+rules:
+    - Cbox\Cms\Testkit\Phpstan\TypedMethodsRule
+    - Cbox\Cms\Testkit\Phpstan\TypedFunctionsRule
+    - Cbox\Cms\Testkit\Phpstan\TypedClosuresRule
+    - Cbox\Cms\Testkit\Phpstan\TypedArrowFunctionsRule
+    - Cbox\Cms\Testkit\Phpstan\TypedPropertiesRule
+    - Cbox\Cms\Testkit\Phpstan\TypedClassTagsRule
+    - Cbox\Cms\Testkit\Phpstan\PhpstanIgnoreRule
+
+services:
+    -
+        class: Cbox\Cms\Testkit\Phpstan\PhpstanIgnoreCollector
+        tags:
+            - phpstan.collector
