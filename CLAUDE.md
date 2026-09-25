@@ -19,7 +19,7 @@ These live in the planning repo and are read-only unless a rule below says other
 - A bug fix has a regression test that fails before the fix.
 - PHP 8.5, Laravel 13 only, PHPStan level 10 without baseline, Pest 4, Rector, Pint, React 19 with strict TypeScript.
 - Run the checks before saying a task is done. Until `composer check` exists (milestone 0 creates it), run the individual tools that exist.
-- Services for tests run in Docker: Postgres 17 and Valkey. Do not use Herd's Postgres (it is 18) for tests.
+- Services for tests run in Docker on cboxdk images: `ghcr.io/cboxdk/postgres:18` and `ghcr.io/cboxdk/valkey:8`; PHP on `ghcr.io/cboxdk/php-baseimages/php-cli:8.5-bookworm-dev-v1`. Do not use Herd's Postgres for tests. Postgres 17 stays the minimum, so never use features that arrived in 18 (GUARDRAILS 1.2).
 
 ## When the PRD is unclear
 
