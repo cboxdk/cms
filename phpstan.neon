@@ -12,6 +12,7 @@ parameters:
         - packages/cli/tests
         - packages/contracts/src
         - packages/contracts/tests
+        - packages/core/config
         - packages/core/src
         - packages/core/tests
         - packages/generators/src
