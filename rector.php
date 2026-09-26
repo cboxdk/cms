@@ -17,6 +17,7 @@ return $config
         __DIR__.'/packages/*/src',
         __DIR__.'/packages/*/tests',
         __DIR__.'/tests',
+        __DIR__.'/tools',
         __DIR__.'/workbench',
     ])
     ->withRootFiles();

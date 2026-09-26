@@ -55,6 +55,7 @@
             "Cbox\\Cms\\Http\\Tests\\": "packages/http/tests/",
             "Cbox\\Cms\\Testkit\\Tests\\": "packages/testkit/tests/",
             "Cbox\\Cms\\Tests\\": "tests/",
+            "Cbox\\Cms\\Tooling\\": "tools/src/",
             "Workbench\\App\\": "workbench/app/"
         },
         "classmap": [
@@ -76,6 +77,14 @@
         "rector": "@php vendor/bin/rector process",
         "rector:check": "@php vendor/bin/rector process --dry-run",
         "analyse": "@php vendor/bin/phpstan analyse --no-progress",
+        "check": [
+            "Composer\\Config::disableProcessTimeout",
+            "@php tools/bin/check.php"
+        ],
+        "check:selftest": [
+            "Composer\\Config::disableProcessTimeout",
+            "@php tools/bin/check-selftest.php"
+        ],
         "check:generated": [
             "@check:generated:committed",
             "@php vendor/bin/testbench cms:generate --ansi",
@@ -103,6 +112,8 @@
         "rector": "Apply the shared Rector sets from the testkit.",
         "rector:check": "Gate 2: fail if Rector would change any file.",
         "analyse": "Gate 3: PHPStan level 10 with Larastan over the packages, the tests and the workbench, without a baseline.",
+        "check": "The local profile of GUARDRAILS 10: gates 1 to 6 in order, each marked pass, fail or not run. Exits 1 when a gate fails. Gate 5 needs `composer services:up`. Options after --: --report=<file> writes a JSON report, --brief leaves failed output out of the console.",
+        "check:selftest": "Plant one known violation per gate in a temporary git worktree of HEAD, run composer check there, and fail unless each gate catches its violation with a path inside the worktree. Removes the worktree afterwards.",
         "check:generated": "Gate 6: regenerate the workbench's code from its fixture schema and fail if the generated code differs from the committed code, before or after, or a generated file is untracked (PRD 11.12).",
         "check:generated:committed": "Fail if the workbench's generated code has unstaged changes or untracked files."
     }

@@ -1,0 +1,140 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Cbox\Cms\Tests\Feature\Tooling\Check;
+
+use Cbox\Cms\Tests\Support\Tooling\RecordedCommand;
+use Cbox\Cms\Tests\Support\Tooling\ScriptedProcessRunner;
+use Cbox\Cms\Tooling\Check\Domain\CheckListener;
+use Cbox\Cms\Tooling\Check\Domain\CheckRunner;
+use Cbox\Cms\Tooling\Check\Domain\Gate;
+use Cbox\Cms\Tooling\Check\Domain\GateResult;
+use Cbox\Cms\Tooling\Check\Domain\ProcessOutcome;
+use Cbox\Cms\Tooling\Check\Domain\Step;
+use Cbox\Cms\Tooling\Check\Domain\StepResult;
+use Cbox\Cms\Tooling\Check\Domain\StepStatus;
+use InvalidArgumentException;
+
+/*
+ * The gate runner behind `composer check` (GUARDRAILS 10): every gate and step runs in order,
+ * also after a failure, a step outside the profile is reported with its reason and never run,
+ * and a gate's status follows its steps.
+ */
+
+final class RecordingListener implements CheckListener
+{
+    /** @var list<string> */
+    public array $events = [];
+
+    public function gateStarted(Gate $gate): void
+    {
+        $this->events[] = "gate {$gate->number}";
+    }
+
+    public function stepFinished(Gate $gate, StepResult $result): void
+    {
+        $this->events[] = "{$result->step} {$result->status->value}";
+    }
+}
+
+/**
+ * @return list<Gate>
+ */
+function sampleGates(): array
+{
+    return [
+        new Gate(1, 'Format', [Step::run('Pint', ['pint']), Step::run('Prettier', ['prettier'])]),
+        new Gate(2, 'Analyse', [Step::run('PHPStan', ['phpstan'])]),
+        new Gate(5, 'Pest', [Step::run('Unit', ['pest', 'Unit']), Step::notRun('Actions', 'no tests until M1')]),
+        new Gate(7, 'Storybook', [Step::notRun('Storybook', 'not in the local profile')]),
+    ];
+}
+
+it('runs every step of every gate in order in the checked directory, also after a failure', function (): void {
+    $runner = new ScriptedProcessRunner(static fn (array $command): ProcessOutcome => new ProcessOutcome(
+        $command === ['pint'] ? 1 : 0,
+        $command === ['pint'] ? 'packages/core/src/Bad.php' : 'ok',
+        0.5,
+    ));
+    $listener = new RecordingListener;
+
+    $report = new CheckRunner($runner, $listener)->run(sampleGates(), '/srv/checkout');
+
+    expect($runner->commandLines())->toBe(['pint', 'prettier', 'phpstan', 'pest Unit'])
+        ->and(array_unique(array_map(static fn (RecordedCommand $call): string => $call->directory, $runner->calls)))->toBe(['/srv/checkout'])
+        ->and($listener->events)->toBe([
+            'gate 1', 'Pint fail', 'Prettier pass',
+            'gate 2', 'PHPStan pass',
+            'gate 5', 'Unit pass', 'Actions not run',
+            'gate 7', 'Storybook not run',
+        ])
+        ->and($report->directory)->toBe('/srv/checkout')
+        ->and($report->passed())->toBeFalse()
+        ->and($report->failedGates())->toBe([1])
+        ->and($report->gate(1)?->step('Pint')?->output)->toBe('packages/core/src/Bad.php')
+        ->and($report->gate(1)?->step('Pint')?->exitCode)->toBe(1);
+});
+
+it('never runs a step that is not in the profile and reports it with its reason', function (): void {
+    $runner = ScriptedProcessRunner::passing();
+
+    $report = new CheckRunner($runner, new RecordingListener)->run(sampleGates(), '/srv/checkout');
+    $actions = $report->gate(5)?->step('Actions');
+
+    expect($runner->commandLines())->not->toContain('Actions', 'Storybook')
+        ->and($actions?->status)->toBe(StepStatus::NotRun)
+        ->and($actions?->reason)->toBe('no tests until M1')
+        ->and($actions?->exitCode)->toBeNull()
+        ->and($report->gate(5)?->status())->toBe(StepStatus::Pass)
+        ->and($report->gate(7)?->status())->toBe(StepStatus::NotRun)
+        ->and($report->gate(7)?->notRunReason())->toBe('not in the local profile')
+        ->and($report->passed())->toBeTrue();
+});
+
+it('lifts Composer\'s process timeout for every command', function (): void {
+    $runner = ScriptedProcessRunner::passing();
+
+    new CheckRunner($runner, new RecordingListener)->run(sampleGates(), '/srv/checkout');
+
+    expect($runner->calls)->not->toBeEmpty();
+
+    foreach ($runner->calls as $call) {
+        expect($call->environment)->toBe(['COMPOSER_PROCESS_TIMEOUT' => '0']);
+    }
+});
+
+it('fails a step that timed out, was killed or did not start, whatever its output', function (?int $exitCode, bool $timedOut): void {
+    $runner = new ScriptedProcessRunner(static fn (): ProcessOutcome => new ProcessOutcome($exitCode, 'all good', 1.0, $timedOut));
+
+    $report = new CheckRunner($runner, new RecordingListener)->run([new Gate(3, 'PHPStan', [Step::run('PHPStan', ['phpstan'])])], '/srv');
+
+    expect($report->gate(3)?->status())->toBe(StepStatus::Fail)
+        ->and($report->passed())->toBeFalse();
+})->with([
+    'timed out' => [null, true],
+    'no exit code' => [null, false],
+    'exit code 255' => [255, false],
+]);
+
+it('gives a gate the status of its steps: fail beats pass, pass beats not run', function (): void {
+    $pass = StepResult::ran('a', new ProcessOutcome(0, '', 0.0));
+    $fail = StepResult::ran('b', new ProcessOutcome(2, '', 0.0));
+    $notRun = StepResult::notRun('c', 'later');
+
+    expect(new GateResult(1, 'g', [$pass, $notRun])->status())->toBe(StepStatus::Pass)
+        ->and(new GateResult(1, 'g', [$notRun, $fail, $pass])->status())->toBe(StepStatus::Fail)
+        ->and(new GateResult(1, 'g', [$notRun])->status())->toBe(StepStatus::NotRun)
+        ->and(new GateResult(1, 'g', [$pass, $notRun])->notRunReason())->toBeNull();
+});
+
+it('refuses gates and steps that cannot be reported', function (callable $make): void {
+    expect($make)->toThrow(InvalidArgumentException::class);
+})->with([
+    'a gate without steps' => [static fn (): Gate => new Gate(1, 'Empty', [])],
+    'gate number 0' => [static fn (): Gate => new Gate(0, 'Zero', [Step::run('a', ['a'])])],
+    'a step named twice' => [static fn (): Gate => new Gate(1, 'Twice', [Step::run('a', ['a']), Step::run('a', ['b'])])],
+    'a step without a command' => [static fn (): Step => Step::run('a', [])],
+    'a step not run without a reason' => [static fn (): Step => Step::notRun('a', '')],
+    'a step without a name' => [static fn (): Step => Step::run('', ['a'])],
+]);

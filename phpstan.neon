@@ -25,4 +25,5 @@ parameters:
         - packages/testkit/src
         - packages/testkit/tests
         - tests
+        - tools
         - workbench

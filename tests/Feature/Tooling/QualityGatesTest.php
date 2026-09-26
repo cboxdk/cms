@@ -48,7 +48,7 @@ function repositoryFiles(): array
     return $files;
 }
 
-it('analyses every package, the tests and the workbench at level 10 with no ignored errors', function (): void {
+it('analyses every package, the tests, the tooling and the workbench at level 10 with no ignored errors', function (): void {
     $root = Phpstan::root();
     $parameters = Phpstan::parameters('phpstan.neon');
     $packageDirectories = array_merge(
@@ -60,7 +60,7 @@ it('analyses every package, the tests and the workbench at level 10 with no igno
         ->and($parameters->value('level'))->toBe(10)
         ->and($parameters->value('ignoreErrors'))->toBe([])
         ->and($parameters->strings('analysedPathsFromConfig'))
-        ->toContain(...[...$packageDirectories, $root.'/tests', $root.'/workbench']);
+        ->toContain(...[...$packageDirectories, $root.'/tests', $root.'/tools', $root.'/workbench']);
 });
 
 it('uses the shared configuration from the testkit for all three tools', function (): void {

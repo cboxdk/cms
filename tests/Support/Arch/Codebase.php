@@ -43,8 +43,8 @@ final class Codebase
     }
 
     /**
-     * Every PHP file that must declare strict types: the packages, the tests, the workbench
-     * and the tool configuration in the root.
+     * Every PHP file that must declare strict types: the packages, the tests, the workbench,
+     * the monorepo tooling in tools/ and the tool configuration in the root.
      *
      * @return list<SourceFile>
      */
@@ -53,7 +53,7 @@ final class Codebase
         $root = self::root();
 
         return array_map(SourceFile::read(...), [
-            ...self::phpFiles([$root.'/packages', $root.'/tests', $root.'/workbench']),
+            ...self::phpFiles([$root.'/packages', $root.'/tests', $root.'/tools', $root.'/workbench']),
             ...(glob($root.'/*.php') ?: []),
         ]);
     }

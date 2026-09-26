@@ -212,6 +212,14 @@ Valg truffet hvor PRD'en var tvetydig:
 - M0-T18: JSON-dokumentet har version 1, alle nøgler altid, sorterede nøgler, kontrollerne i den rækkefølge de kørte, og ingen tider. Skemaet `packages/contracts/resources/schemas/doctor.v1.json` er draft 2020-12 uden `$id`, fordi en URL er et navnevalg. Testene validerer med opis/json-schema ^2.6, en ny `require-dev` i roden.
 - M0-T18: En ugyldig værdi under `cms.doctor` giver den ene fejlende kontrol `doctor.config` og exitkode 78, så dokumentet altid kan skrives. En kontrol der kaster, eller svarer for en anden id, bliver fejlen `doctor_check_crashed`.
 - M0-T18: Workbench sætter `cms.doctor.vendor_manifest` og `cms.doctor.project_path` til monorepoets rod. Testbench lænker kun `vendor/` ind i sin base path, mens en kommando kører, så standarden under base path findes ikke i testene.
+- M0-T19: `composer check` kører portene 1 til 6 med hele Pest-suiterne. GUARDRAILS 10 nævner "tests for ændrede filer" i den lokale profil. Med M0's størrelse tager alt omkring 3,5 minutter, så alle tests kører. Udvælgelse efter ændrede filer kan komme, når suiterne bliver for langsomme.
+- M0-T19: Alle porte kører, også efter en fejl, så én kørsel viser hele tilstanden. Portene 7 til 11 står som "not run" med grunden "not in the local profile", fordi en port der ikke blev kørt skal rapporteres eksplicit (GUARDRAILS 10).
+- M0-T19: Port 5 kører hver suite for sig med `--fail-on-skipped --fail-on-incomplete`. En sprunget test fejler porten, så en manglende tjeneste aldrig ser grøn ud. Actions står som "not run: no tests until M1", indtil `phpunit.xml` får en Actions-suite. Så kører den af sig selv. Browser er port 8 og hører til PR-profilen. En test fejler, hvis `phpunit.xml` får en suite som porten ikke kender.
+- M0-T19: Portene kalder de scripts en udvikler kører i hånden: `composer lint:check`, `npm run format:check`, `composer rector:check`, `composer analyse`, `npm run typecheck`, `npm run lint` og `composer check:generated`. Hver kommando er dermed defineret ét sted.
+- M0-T19: Værktøjet ligger i `tools/` med namespace `Cbox\Cms\Tooling` som autoload-dev, ikke i en pakke. Det er monorepoets egen værktøjskæde. Testkittet deler konfigurationen med addons, ikke runneren. Den kan flyttes til testkittet, når addons skal have `composer check`. PHPStan, Rector, Pint og strict_types-testen dækker `tools/`, lagreglerne i Arch-suiten gør ikke, som for `tests/Support`.
+- M0-T19: Selftesten kører hele `composer check` i worktreet med alle plantede overtrædelser på én gang. For hver overtrædelse kræver den at netop dens trin fejlede, at outputtet har regelens id, og at det nævner filen på en sti der fører ind i worktreet. Stien følges med realpath, også gennem symlinks i `vendor/`. Et navn der fører til en eksisterende fil uden for worktreet tæller som fejl, fordi det betyder at værktøjet læste et andet checkout.
+- M0-T19: Hvor en port har to værktøjer (Pint og Prettier, tsc og ESLint), planter selftesten én overtrædelse per værktøj: 11 i alt. Ignore-kommentaren på næste linje skjuler en rigtig fejl, så kun testkittets regel kan melde filen. Den selvrettede `@phpstan-ignore cboxCms.phpstanIgnore` bliver kun meldt, fordi regelens fejl ikke kan ignoreres.
+- M0-T19: Selftesten tjekker HEAD, som opgaven siger. Ucommittede ændringer er ikke med, så en ændring af portene committes før selftesten.
 
 ## Til review af Sylvester
 
@@ -310,9 +318,12 @@ Valg truffet hvor PRD'en var tvetydig:
 - M0-T18: Nye afhængigheder: core kræver nu `illuminate/redis` og `symfony/process`, og roden har opis/json-schema ^2.6 i `require-dev`. opis/json-schema er Apache-2.0, kun til tests.
 - M0-T18: Nye kontroller (GUARDRAILS 7.3): `DoctorCheckContract` med fem fælles cases og 15 kontraktklasser, `tests/Feature/Tooling/DoctorExitCodesTest.php` (tallene 75 og 78 kun i `DoctorExitCode`, ét exit-enum i pakkerne), en ny case i `ContractSuitesTest` der kræver en kontrakttest for hver kernekontrol, og Codecs-tests der validerer dokumentet mod skemaet.
 - M0-T18: Udviklingsdatabasen `cms` blev migreret som ejerrollen, og partitionerne vedligeholdt, for at køre acceptkriteriet med `vendor/bin/testbench cms:doctor --dev --json` i hånden. Det er databasens tilstand, ikke repoets.
+- M0-T19: Nye og skærpede kontroller (GUARDRAILS 7.3): `composer check` og `composer check:selftest`. Pest i port 5 fejler nu på sprungne og ufuldstændige tests. `tools/` er med i PHPStan, Rector og strict_types-testen, og `QualityGatesTest` kræver at PHPStan analyserer `tools`. Nye tests i `tests/Feature/Tooling/Check` og `tests/Feature/Tooling/Selftest`.
+- M0-T19: Selftesten bruger samme testdatabase `cms_test` og Valkey-database 15 som hovedcheckoutet. Den må ikke køre samtidig med en anden Postgres-suite. Den tager omkring 4 minutter.
+- M0-T19: `compose.yaml` bruger stadig `postgres:17` og `valkey/valkey:8.1`, mens "Beslutninger fra Sylvester" og `CLAUDE.md` siger `ghcr.io/cboxdk/postgres:18` og `ghcr.io/cboxdk/valkey:8`. T19 har ikke rørt det. Alle kørsler i T19 er mod Postgres 17.
 
 ## Kontroller kørt
 
 Seneste resultat per port:
 
-- Ingen endnu.
+- 2026-09-26, M0-T19: `composer check` med tjenesterne oppe: portene 1 til 6 pass, Actions not run (ingen tests før M1), portene 7 til 11 not run (PR-profilen). Med Postgres stoppet: port 5 fail på Postgres-suiten, exitkode 1. `composer check:selftest`: alle 11 plantede overtrædelser fanget af deres port, med stien inde i worktreet, og worktreet fjernet. Browser-suiten (port 8) er ikke kørt i T19.
