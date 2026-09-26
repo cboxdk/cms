@@ -20,7 +20,7 @@ use Symfony\Component\Process\Process;
 use UnexpectedValueException;
 
 /*
- * cms:doctor against the real services from compose.yaml (PRD 3.3, 4.2, 13.2): Postgres 17 as the
+ * cms:doctor against the real services from compose.yaml (PRD 3.3, 4.2, 13.2): Postgres 18 as the
  * app role, Valkey, the partitions of cms_test, the registry cache and the Node toolchain. Some
  * tests run it in-process with a FakeClock; the others run vendor/bin/testbench cms:doctor as a
  * developer or a deploy script would, with the environment changed for the case.

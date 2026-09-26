@@ -9,7 +9,7 @@ use PHPUnit\Framework\Assert;
 
 /*
  * The role part of the Postgres operating contract (PRD 4.2, GUARDRAILS 4.1 and 6),
- * checked against the Postgres 17 service in compose.yaml. The default connection is the
+ * checked against the Postgres 18 service in compose.yaml. The default connection is the
  * app role; pgsql_owner is the owner role that runs migrations.
  */
 
@@ -48,13 +48,15 @@ function withOwnerTable(Closure $callback): void
     }
 }
 
-it('connects to Postgres 17 as the app role in the cms schema', function (): void {
+it('connects to Postgres 18 as the app role in the cms schema', function (): void {
     $row = DB::selectOne(
         "select current_user as role, current_setting('server_version_num')::int / 10000 as major, current_schema() as schema"
     );
 
-    // Pinned to 17, not "at least 17": the tests must not reach Herd's Postgres 18 by mistake.
-    expect($row)->toEqual((object) ['role' => 'cms_app', 'major' => 17, 'schema' => 'cms']);
+    // Pinned to 18, the major of ghcr.io/cboxdk/postgres:18 in compose.yaml, not "at least 17":
+    // the roles are checked on the server the tests run on. 17 stays the minimum (GUARDRAILS 1.2).
+    expect($row)->toEqual((object) ['role' => 'cms_app', 'major' => 18, 'schema' => 'cms'])
+        ->and(DB::scalar('select version()'))->toBeString()->toStartWith('PostgreSQL 18');
 });
 
 it('gives the app role no superuser, no BYPASSRLS and no role or database creation', function (): void {

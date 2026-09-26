@@ -34,26 +34,30 @@ jobs:
     container:
       image: ghcr.io/cboxdk/php-baseimages/php-cli:8.5-bookworm-dev-v1
     services:
-      # The images of compose.yaml. max_prepared_transactions is 0 by default (PRD 4.2); bin/ci
-      # creates the roles and databases, because a service starts before the checkout.
+      # The images of compose.yaml: the cboxdk database images, with cbox-init as PID 1. Their
+      # readiness file is the health check, as in compose.yaml. A service starts before the
+      # checkout, so it mounts nothing: bin/ci creates the roles and databases over TCP, and
+      # max_prepared_transactions is Postgres' default, 0 (PRD 4.2), as in compose.ci.yaml.
       postgres:
-        image: postgres:17
+        image: ghcr.io/cboxdk/postgres:18
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: postgres
         options: >-
-          --health-cmd "pg_isready --host=127.0.0.1 --port=5432 --username=postgres"
+          --health-cmd "test -f /tmp/cbox-ready"
           --health-interval 2s
           --health-timeout 5s
           --health-retries 30
+          --health-start-period 60s
       valkey:
-        image: valkey/valkey:8.1
+        image: ghcr.io/cboxdk/valkey:8
         options: >-
-          --health-cmd "valkey-cli ping"
+          --health-cmd "test -f /tmp/cbox-ready"
           --health-interval 2s
           --health-timeout 5s
           --health-retries 30
+          --health-start-period 30s
     env:
       CMS_CI_RUNNER: 'ubuntu-latest, 4 vCPU'
       CMS_CI_PROVISION_POSTGRES: '1'

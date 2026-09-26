@@ -19,13 +19,15 @@ use PHPUnit\Framework\AssertionFailedError;
 use stdClass;
 
 /*
- * The real-Postgres harness (GUARDRAILS 9; PRD 4.2): the test connection is Postgres 17 as the
- * app role, the owner role builds the schema, no transaction wraps a test, and the owner
+ * The real-Postgres harness (GUARDRAILS 9; PRD 4.2): the test connection is Postgres 18 of
+ * compose.yaml as the app role, the owner role builds the schema, no transaction wraps a test, and the owner
  * truncates what a test committed.
  */
 
-it('runs on Postgres 17', function (): void {
-    expect(DB::scalar('select version()'))->toBeString()->toStartWith('PostgreSQL 17');
+it('runs on Postgres 18, the major compose.yaml runs', function (): void {
+    // Pinned to the major of ghcr.io/cboxdk/postgres:18, not "at least 17": a test run on another
+    // server fails here. 17 stays the minimum, which cms:doctor checks (GUARDRAILS 1.2).
+    expect(DB::scalar('select version()'))->toBeString()->toStartWith('PostgreSQL 18');
 });
 
 it('runs as the app role on the default connection, which has no DDL', function (): void {

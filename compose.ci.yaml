@@ -9,7 +9,10 @@
 # docker/ci.Dockerfile: the PHP 8.5 base image of the v1 channel, the job container of ci.yml,
 # with docker/ci-setup.sh, the setup step of ci.yml. postgres and valkey are the services of
 # compose.yaml without host ports, so the run works next to the dev services, and with their data
-# on tmpfs, so every run starts empty. bin/ci creates the roles and databases over TCP, as in ci.yml.
+# on tmpfs, so every run starts empty. Their volumes are replaced, not merged: postgres mounts
+# nothing from the working tree, neither the init script nor the conf.d drop-in, as a service of
+# ci.yml, which starts before the checkout, cannot either. bin/ci creates the roles and databases
+# over TCP from HEAD's archive, as in ci.yml, and max_prepared_transactions is Postgres' default, 0.
 #
 # Declared runner: GitHub-hosted ubuntu-latest, 4 vCPU and 16 GB RAM (the standard Linux runner
 # for public repositories; a private repository gets 2 vCPU there and needs a 4-core larger runner).
@@ -65,9 +68,10 @@ services:
       service: postgres
     ports: !reset []
     cpuset: '0-3'
-    volumes:
+    # The data mount of ghcr.io/cboxdk/postgres; the cluster is created in 18/docker below it.
+    volumes: !override
       - type: tmpfs
-        target: /var/lib/postgresql/data
+        target: /var/lib/postgresql
 
   valkey:
     extends:
@@ -75,6 +79,6 @@ services:
       service: valkey
     ports: !reset []
     cpuset: '0-3'
-    volumes:
+    volumes: !override
       - type: tmpfs
         target: /data

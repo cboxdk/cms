@@ -50,14 +50,23 @@ it('runs on the declared runner, ubuntu-latest, with PHP 8.5 of the v1 channel a
     expect(CiFiles::at($job, 'runs-on'))->toBe('ubuntu-latest')
         ->and(CiFiles::at($job, 'container', 'image'))->toBe('ghcr.io/cboxdk/php-baseimages/php-cli:8.5-bookworm-dev-v1')
         ->and(CiFiles::at($job, 'container', 'image'))->toBe(CiFiles::at($compose, 'services', 'php', 'image'))
-        ->and(CiFiles::at($job, 'services', 'postgres', 'image'))->toBe('postgres:17')
+        ->and(CiFiles::at($job, 'services', 'postgres', 'image'))->toBe('ghcr.io/cboxdk/postgres:18')
         ->and(CiFiles::at($job, 'services', 'postgres', 'image'))->toBe(CiFiles::at($compose, 'services', 'postgres', 'image'))
+        ->and(CiFiles::at($job, 'services', 'valkey', 'image'))->toBe('ghcr.io/cboxdk/valkey:8')
         ->and(CiFiles::at($job, 'services', 'valkey', 'image'))->toBe(CiFiles::at($compose, 'services', 'valkey', 'image'))
-        ->and(CiFiles::at($job, 'services', 'postgres', 'options'))->toContain('--health-cmd')
-        ->and(CiFiles::at($job, 'services', 'valkey', 'options'))->toContain('--health-cmd')
         ->and(CiFiles::at($job, 'timeout-minutes'))->toBeInt()
         ->and(CiFiles::text(CiFiles::WORKFLOW))->toContain(DECLARED_RUNNER);
 });
+
+it('checks the health of the services as compose.yaml does, with the readiness file of cbox-init, and mounts nothing into them', function (string $name): void {
+    $test = CiFiles::at(CiFiles::yaml(CiFiles::COMPOSE), 'services', $name, 'healthcheck', 'test');
+    $service = CiFiles::at(workflowJob(), 'services', $name);
+
+    expect($test)->toBe(['CMD', 'test', '-f', '/tmp/cbox-ready'])
+        ->and(CiFiles::at(is_array($service) ? $service : [], 'options'))->toBeString()
+        ->toContain('--health-cmd "test -f /tmp/cbox-ready"')
+        ->and(is_array($service) ? array_keys($service) : null)->not->toContain('volumes');
+})->with(['postgres', 'valkey']);
 
 it('runs every pull request and has only setup steps besides bin/ci', function (): void {
     $workflow = CiFiles::yaml(CiFiles::WORKFLOW);
@@ -165,18 +174,43 @@ it('runs the ci service on a read-only .git, next to compose.yaml\'s services wi
         ])
         ->and(CiFiles::text(CiFiles::COMPOSE_CI))->toContain(DECLARED_RUNNER);
 
-    foreach (['postgres' => '/var/lib/postgresql/data', 'valkey' => '/data'] as $name => $data) {
+    // The data mounts of the cboxdk images. !override replaces compose.yaml's volumes instead of
+    // merging them by target, so nothing else of the service's mounts reaches the run.
+    foreach (['postgres' => '/var/lib/postgresql', 'valkey' => '/data'] as $name => $data) {
         $ports = CiFiles::at($compose, 'services', $name, 'ports');
+        $volumes = CiFiles::at($compose, 'services', $name, 'volumes');
 
         expect(CiFiles::at($compose, 'services', $name, 'extends'))->toBe(['file' => 'compose.yaml', 'service' => $name])
             ->and($ports)->toBeInstanceOf(TaggedValue::class)
             ->and($ports instanceof TaggedValue ? [$ports->getTag(), $ports->getValue()] : null)->toBe(['reset', []])
-            ->and(CiFiles::at($compose, 'services', $name, 'volumes'))->toBe([['type' => 'tmpfs', 'target' => $data]]);
+            ->and($volumes)->toBeInstanceOf(TaggedValue::class)
+            ->and($volumes instanceof TaggedValue ? [$volumes->getTag(), $volumes->getValue()] : null)
+            ->toBe(['override', [['type' => 'tmpfs', 'target' => $data]]]);
     }
 
     foreach (['ci', 'postgres', 'valkey'] as $name) {
         expect(CiFiles::at($compose, 'services', $name, 'cpuset'))->toBe('0-3');
     }
+});
+
+it('mounts nothing from the working tree into the ci run\'s postgres, so bin/ci provisions it from HEAD\'s archive', function (): void {
+    $compose = CiFiles::yaml(CiFiles::COMPOSE_CI);
+    $volumes = CiFiles::at($compose, 'services', 'postgres', 'volumes');
+    $mounts = $volumes instanceof TaggedValue && $volumes->getTag() === 'override' ? $volumes->getValue() : null;
+
+    // Without !override, compose merges the bind mounts of compose.yaml's postgres into the run.
+    expect(is_array($mounts) && $mounts !== [])->toBeTrue();
+
+    foreach (is_array($mounts) ? $mounts : [] as $mount) {
+        $text = is_string($mount) ? $mount : json_encode($mount, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+
+        expect(is_array($mount) ? $mount['type'] ?? null : 'short syntax')->toBe('tmpfs')
+            ->and($text)->not->toContain('docker/postgres/initdb.d')
+            ->and($text)->not->toContain('docker-entrypoint-initdb.d');
+    }
+
+    expect(CiFiles::strings($compose, 'services', 'ci', 'environment')['CMS_CI_PROVISION_POSTGRES'] ?? null)->toBe('1')
+        ->and(CiFiles::codeLines(CiFiles::ENTRY))->toContain('CMS_INIT_PGHOST="$DB_HOST" PGPORT="$DB_PORT" CMS_INIT_SQL_DIR=docker/postgres/sql \\');
 });
 
 it('keeps bin/ci and the docker scripts executable in git', function (string $file): void {

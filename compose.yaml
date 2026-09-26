@@ -3,13 +3,28 @@
 # Lives here until the name of the app template is decided (see "Blokeret" in PROGRESS.md);
 # then it moves to the template and this file follows it.
 #
+#   composer services:up      # exports CMS_UID and CMS_GID, then docker compose up -d --wait
+#   composer services:down    # stops the services; the data volumes are kept
+#
 # Host ports: Postgres 54317, Valkey 63797. They are fixed so the tests on the host
 # (phpunit.xml) and in the php container reach the same services.
+#
+# Postgres and Valkey run on the cboxdk database images (PROGRESS.md, decisions), with
+# cbox-init as PID 1. Its readiness file, /tmp/cbox-ready, is the health check of both: the
+# supervisor writes it once the engine accepts connections, and for Postgres not while the
+# first-run init scripts still run on the entrypoint's temporary, socket-only server
+# (~/Projects/db-baseimages/README.md). The tests run on Postgres 18; 17 stays the minimum
+# (GUARDRAILS 1.2), so code never uses what arrived in 18.
 #
 # Roles follow the operating contract in PRD 4.2 and GUARDRAILS 6:
 #   cms_owner  owns the databases and the cms schema, runs migrations and partition maintenance
 #   cms_app    the application and the tests: no DDL, NOBYPASSRLS, transaction_timeout 5s
-# The init script in docker/postgres is idempotent and runs on an empty data volume.
+# The init script in docker/postgres is idempotent and runs on an empty data volume. The server
+# settings, max_prepared_transactions 0, are the drop-in docker/postgres/conf.d/cms.conf.
+#
+# A data volume from before the switch to Postgres 18 holds a Postgres 17 cluster in data/. The
+# entrypoint then refuses to start and says so in `docker compose logs postgres`. It is test
+# data: remove it with `docker compose down -v` and run `composer services:up` again.
 
 name: laravel-cms
 
@@ -24,10 +39,18 @@ services:
     entrypoint: []
     init: true
     command: ["sleep", "infinity"]
+    # The host user, never root: files written into the bind mount belong to the developer on
+    # Linux, and the tests of unwritable files run instead of skipping, because root ignores
+    # file permissions and gate 5 fails a skipped test. `composer services:up` exports CMS_UID
+    # and CMS_GID from `id -u` and `id -g`; 1000 is the first user of a Linux host.
+    user: "${CMS_UID:-1000}:${CMS_GID:-1000}"
     working_dir: /var/www/html
     volumes:
       - .:/var/www/html
     environment:
+      # The host user has no entry in the image's /etc/passwd, so HOME would be /, which it
+      # cannot write. Composer and npm keep their caches below HOME.
+      HOME: /tmp
       # Service names and container ports. These win over the host ports in phpunit.xml,
       # because PHPUnit does not overwrite an environment variable that is already set.
       DB_HOST: postgres
@@ -48,12 +71,13 @@ services:
       retries: 5
 
   postgres:
-    image: postgres:17
-    command:
-      - postgres
-      # PRD 4.2: no prepared transactions. It is also the default; it is set so the contract is visible.
-      - -c
-      - max_prepared_transactions=0
+    # docker.io/library/postgres:18-trixie with cbox-init as PID 1; the postmaster runs as
+    # postgres, uid 999, through the official entrypoint, so POSTGRES_* and initdb.d work as
+    # upstream documents them.
+    image: ghcr.io/cboxdk/postgres:18
+    # cbox-init stops Postgres with a fast shutdown and escalates after 100 s; Docker's default
+    # of 10 s would SIGKILL the shutdown checkpoint (db-baseimages README).
+    stop_grace_period: 130s
     ports:
       - "54317:5432"
     environment:
@@ -72,29 +96,36 @@ services:
       # Default database for psql inside the container, so `psql -U cms_owner` works without -d.
       PGDATABASE: cms
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      # The image's data mount; the cluster is PGDATA=/var/lib/postgresql/18/docker below it.
+      - postgres-data:/var/lib/postgresql
+      # Server settings as a drop-in, read after the generated postgresql.conf.
+      - ./docker/postgres/conf.d:/etc/postgresql/conf.d:ro
       - ./docker/postgres/initdb.d:/docker-entrypoint-initdb.d:ro
       - ./docker/postgres/sql:/cms-init:ro
     healthcheck:
-      # TCP on purpose: during first-time init the entrypoint runs a temporary server that only
-      # listens on the socket, so TCP readiness means the init script has finished.
-      test: ["CMD", "pg_isready", "--host=127.0.0.1", "--port=5432", "--username=cms_owner", "--dbname=cms_test"]
+      # The supervisor's readiness verdict: no client tools, and never a login to the database.
+      test: ["CMD", "test", "-f", "/tmp/cbox-ready"]
       interval: 2s
       timeout: 5s
       retries: 30
-      start_period: 30s
+      start_period: 60s
 
   valkey:
-    image: valkey/valkey:8.1
+    # The official Valkey 8 image on Alpine with cbox-init as PID 1, AOF on and the data in /data.
+    image: ghcr.io/cboxdk/valkey:8
+    # cbox-init runs SHUTDOWN SAVE before it stops Valkey and gives the stop 30 s; Docker's
+    # default of 10 s would SIGKILL the save.
+    stop_grace_period: 40s
     ports:
       - "63797:6379"
     volumes:
       - valkey-data:/data
     healthcheck:
-      test: ["CMD-SHELL", "valkey-cli ping | grep -q PONG"]
+      test: ["CMD", "test", "-f", "/tmp/cbox-ready"]
       interval: 2s
       timeout: 5s
       retries: 30
+      start_period: 30s
 
 volumes:
   postgres-data:
