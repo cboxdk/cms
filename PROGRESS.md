@@ -33,7 +33,7 @@ Status er `todo`, `next`, `in_progress`, `done`, `incomplete` eller `blocked`.
 
 ## Seneste kørsel
 
-M0, anden kørsel, stoppet 26. september efter T47, fordi Sylvester tog løftet af økosystemets pakker ud af M0 (GUARDRAILS 1.7) og godkendte blueprint v1. Committet i kørslen: T36 til T39, T42, T44 til T47, T57 og T66. Ikke nået: T49 til T51, T58 til T64. Sprunget over som blokeret: T40, T41 og T43. M0 køres igen.
+M0, tredje kørsel, stoppet 26. september efter T67 for at bygge resten parallelt med den nye cms-milestone. Committet: T71, T73 og T67 (en testdatabase per checkout; verifikationen blev afbrudt og skal køres igen). Resten af M0 bygges parallelt.
 
 ## Blokeret
 
