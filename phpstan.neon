@@ -22,6 +22,7 @@ parameters:
         - packages/http/src
         - packages/http/tests
         - packages/testkit/bin
+        - packages/testkit/config
         - packages/testkit/src
         - packages/testkit/tests
         - tests

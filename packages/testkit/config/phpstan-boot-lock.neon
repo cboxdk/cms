@@ -1,0 +1,6 @@
+# Included by phpstan.neon ahead of Larastan's extension, so this bootstrap file runs just before
+# Larastan's. phpstan.neon lists phpstan-boot-unlock.php itself, so it runs just after.
+
+parameters:
+    bootstrapFiles:
+        - phpstan-boot-lock.php

@@ -7,10 +7,19 @@
 # from vendor/ and from a symlinked path package.
 
 includes:
+    # First, so its bootstrap file takes the boot lock before Larastan's bootstrap boots Laravel.
+    - phpstan-boot-lock.neon
     - %rootDir%/../../larastan/larastan/extension.neon
 
 parameters:
     level: 10
+
+    # Runs after Larastan's bootstrap, which the includes above list first, and releases the boot
+    # lock. PHPStan's workers boot Laravel at the same moment, and each boot writes shared files in
+    # Testbench's skeleton, so the lock lets one process at a time boot
+    # (Cbox\Cms\Testkit\Phpstan\LaravelBootLock).
+    bootstrapFiles:
+        - phpstan-boot-unlock.php
 
     # Stricter than level 10 alone.
     checkUninitializedProperties: true

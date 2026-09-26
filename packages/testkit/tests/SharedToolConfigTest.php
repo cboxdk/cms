@@ -42,6 +42,22 @@ it('runs PHPStan at level 10 with Larastan and ignores no errors', function (): 
         ->and($parameters->value('reportUnmatchedIgnoredErrors'))->toBeTrue();
 });
 
+it('boots Laravel for Larastan in one PHPStan process at a time', function (string $configuration): void {
+    // The root reaches the testkit through its vendor symlink, so compare real paths.
+    $bootstrapFiles = array_map(realpath(...), Phpstan::parameters($configuration)->strings('bootstrapFiles'));
+    $larastan = realpath(Phpstan::root().'/vendor/larastan/larastan/bootstrap.php');
+    $position = array_search($larastan, $bootstrapFiles, true);
+
+    // PHPStan's workers boot at the same moment, and each boot writes shared files in Testbench's
+    // skeleton; LaravelBootLockTest covers the lock itself.
+    expect($position)->toBeInt()
+        ->and(array_slice($bootstrapFiles, (int) $position - 1, 3))->toBe([
+            realpath(testkitConfig('phpstan-boot-lock.php')),
+            $larastan,
+            realpath(testkitConfig('phpstan-boot-unlock.php')),
+        ]);
+})->with(['packages/testkit/config/phpstan.neon', 'phpstan.neon']);
+
 it('adds no paths, so every repo decides what it analyses', function (): void {
     expect(Phpstan::parameters('packages/testkit/config/phpstan.neon')->value('analysedPathsFromConfig'))->toBe([]);
 });
