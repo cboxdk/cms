@@ -9,10 +9,12 @@ use Cbox\Cms\Core\Tests\Contract\SystemIdGeneratorContractTest;
 use Cbox\Cms\Core\Tests\Postgres\PostgresIdempotencyStoreContractTest;
 use Cbox\Cms\Core\Tests\Postgres\PostgresReceiptStoreContractTest;
 use Cbox\Cms\Testkit\Clock\ClockContract;
+use Cbox\Cms\Testkit\Doctor\DoctorCheckContract;
 use Cbox\Cms\Testkit\Idempotency\IdempotencyStoreContract;
 use Cbox\Cms\Testkit\Ids\IdGeneratorContract;
 use Cbox\Cms\Testkit\ReceiptStore\ReceiptStoreContract;
 use Cbox\Cms\Testkit\Tests\Contract\FakeClockContractTest;
+use Cbox\Cms\Testkit\Tests\Contract\FakeDoctorCheckContractTest;
 use Cbox\Cms\Testkit\Tests\Contract\FakeIdempotencyStoreContractTest;
 use Cbox\Cms\Testkit\Tests\Contract\FakeIdGeneratorContractTest;
 use Cbox\Cms\Testkit\Tests\Contract\FakeReceiptStoreContractTest;
@@ -170,4 +172,37 @@ it('runs every shared IdempotencyStore case once for the PostgresIdempotencyStor
 
     expect($cases)->toHaveCount(14)
         ->and($listed)->toBe($expected);
+});
+
+it('runs every shared DoctorCheck case once for the fake and once for each check of the core', function (): void {
+    $cases = sharedCases(DoctorCheckContract::class);
+    $classes = [FakeDoctorCheckContractTest::class];
+
+    // Every core check but doctor.config, which only exists to fail and has no passing state.
+    foreach (glob(Phpstan::root().'/packages/core/src/Doctor/Domain/Checks/*Check.php') ?: [] as $file) {
+        $check = basename($file, 'Check.php');
+
+        if ($check !== 'InvalidConfiguration') {
+            $classes[] = 'Cbox\\Cms\\Core\\Tests\\Contract\\'.$check.'DoctorCheckContractTest';
+        }
+    }
+
+    $expected = [];
+
+    foreach ($classes as $class) {
+        foreach ($cases as $case) {
+            $expected[] = $class.'::'.$case;
+        }
+    }
+
+    $listed = contractTests('DoctorCheck');
+    sort($expected);
+    sort($listed);
+
+    expect($classes)->toHaveCount(15)
+        ->and($cases)->toContain(
+            'a_passing_check_returns_a_pass_for_itself',
+            'a_failing_check_returns_a_fail_with_its_kind_code_cause_and_fix',
+            'running_a_check_again_gives_the_same_result',
+        )->and($listed)->toBe($expected);
 });

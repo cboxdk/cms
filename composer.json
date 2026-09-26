@@ -21,6 +21,7 @@
     "require-dev": {
         "cboxdk/cms-testkit": "^0.1@dev",
         "nikic/php-parser": "^5.7",
+        "opis/json-schema": "^2.6",
         "orchestra/testbench": "^11.0",
         "pestphp/pest": "^4.7",
         "pestphp/pest-plugin-arch": "^4.0",

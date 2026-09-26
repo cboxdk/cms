@@ -12,6 +12,38 @@ use Cbox\Cms\Contracts\IdempotencyStore;
 use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Contracts\ReceiptStore;
 use Cbox\Cms\Core\Bindings\Boundary\ContractBindings;
+use Cbox\Cms\Core\Doctor\Adapter\CatalogPartitionRunwayProbe;
+use Cbox\Cms\Core\Doctor\Adapter\ConnectionPostgresProbe;
+use Cbox\Cms\Core\Doctor\Adapter\DoctorConnection;
+use Cbox\Cms\Core\Doctor\Adapter\FileRegistryCacheProbe;
+use Cbox\Cms\Core\Doctor\Adapter\FrameworkRuntimeProbe;
+use Cbox\Cms\Core\Doctor\Adapter\ProcessToolProbe;
+use Cbox\Cms\Core\Doctor\Adapter\RedisValkeyProbe;
+use Cbox\Cms\Core\Doctor\Boundary\DoctorConfig;
+use Cbox\Cms\Core\Doctor\Domain\Checks\AppRoleCheck;
+use Cbox\Cms\Core\Doctor\Domain\Checks\ChromiumCheck;
+use Cbox\Cms\Core\Doctor\Domain\Checks\DdlPrivilegesCheck;
+use Cbox\Cms\Core\Doctor\Domain\Checks\InvalidConfigurationCheck;
+use Cbox\Cms\Core\Doctor\Domain\Checks\LaravelVersionCheck;
+use Cbox\Cms\Core\Doctor\Domain\Checks\NodeCheck;
+use Cbox\Cms\Core\Doctor\Domain\Checks\PartitionRunwayCheck;
+use Cbox\Cms\Core\Doctor\Domain\Checks\PhpVersionCheck;
+use Cbox\Cms\Core\Doctor\Domain\Checks\PlaywrightCheck;
+use Cbox\Cms\Core\Doctor\Domain\Checks\PostgresReachableCheck;
+use Cbox\Cms\Core\Doctor\Domain\Checks\PostgresVersionCheck;
+use Cbox\Cms\Core\Doctor\Domain\Checks\PreparedTransactionsCheck;
+use Cbox\Cms\Core\Doctor\Domain\Checks\RegistryCacheCheck;
+use Cbox\Cms\Core\Doctor\Domain\Checks\TransactionTimeoutCheck;
+use Cbox\Cms\Core\Doctor\Domain\Checks\ValkeyReachableCheck;
+use Cbox\Cms\Core\Doctor\Domain\DoctorChecks;
+use Cbox\Cms\Core\Doctor\Domain\Dto\DoctorSettings;
+use Cbox\Cms\Core\Doctor\Domain\InvalidDoctorConfig;
+use Cbox\Cms\Core\Doctor\Domain\Probes\PartitionRunwayProbe;
+use Cbox\Cms\Core\Doctor\Domain\Probes\PostgresProbe;
+use Cbox\Cms\Core\Doctor\Domain\Probes\RegistryCacheProbe;
+use Cbox\Cms\Core\Doctor\Domain\Probes\RuntimeProbe;
+use Cbox\Cms\Core\Doctor\Domain\Probes\ToolProbe;
+use Cbox\Cms\Core\Doctor\Domain\Probes\ValkeyProbe;
 use Cbox\Cms\Core\Partitions\Boundary\PartitionConfig;
 use Cbox\Cms\Core\Partitions\Domain\PartitionMaintenance;
 use Cbox\Cms\Core\Partitions\Infrastructure\PostgresPartitionManager;
@@ -25,6 +57,7 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Database\ConnectionResolverInterface;
+use Illuminate\Database\DatabaseManager;
 use Illuminate\Support\ServiceProvider;
 use Override;
 
@@ -34,7 +67,8 @@ use Override;
  * Binds each contract to the implementation configured in `cms.contracts` (GUARDRAILS 2.3), loads
  * the core's migrations, binds partition maintenance to the Postgres partition manager, and
  * schedules it. Wires the registry that cms:build compiles to bootstrap/cache/cms/ (PRD 13.2), and
- * declares the core's own classes as a scan root.
+ * declares the core's own classes as a scan root. Wires the checks of cms:doctor (PRD 3.3, 4.2) to
+ * their probes; a test swaps a probe by binding its interface.
  */
 #[Internal]
 final class CoreServiceProvider extends ServiceProvider implements DeclaresScanRoots
@@ -93,6 +127,8 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
             CompiledRegistry::class,
             static fn (Application $app): CompiledRegistry => $app->make(RegistryCache::class)->read(),
         );
+
+        $this->registerDoctor();
     }
 
     public function boot(): void
@@ -104,6 +140,79 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         // Runs never overlap: the manager holds an advisory lock in Postgres for the whole run.
         $this->callAfterResolving(Schedule::class, static function (Schedule $schedule): void {
             $schedule->command(self::PARTITIONS_COMMAND)->hourly();
+        });
+    }
+
+    /**
+     * The checks of cms:doctor and their probes. The checks are built per resolution, so they
+     * follow the configuration; the Postgres probes share one scoped connection. An invalid
+     * `cms.doctor` gives the one failing check doctor.config instead of an exception.
+     */
+    private function registerDoctor(): void
+    {
+        $this->app->bind(
+            DoctorSettings::class,
+            static fn (Application $app): DoctorSettings => DoctorConfig::read($app->make(Repository::class), $app->basePath()),
+        );
+
+        // One connection for every Postgres probe of a run; scoped, so a new request or job gets a new one.
+        $this->app->scoped(
+            DoctorConnection::class,
+            static fn (Application $app): DoctorConnection => new DoctorConnection(
+                $app->make(DatabaseManager::class),
+                $app->make(Repository::class),
+                $app->make(DoctorSettings::class),
+            ),
+        );
+
+        $this->app->bind(RuntimeProbe::class, FrameworkRuntimeProbe::class);
+        $this->app->bind(PostgresProbe::class, ConnectionPostgresProbe::class);
+        $this->app->bind(PartitionRunwayProbe::class, CatalogPartitionRunwayProbe::class);
+        $this->app->bind(ValkeyProbe::class, RedisValkeyProbe::class);
+        $this->app->bind(
+            RegistryCacheProbe::class,
+            static fn (Application $app): RegistryCacheProbe => new FileRegistryCacheProbe($app->make(RegistryCache::class), $app->make(DoctorSettings::class)->vendorManifest),
+        );
+        $this->app->bind(
+            ToolProbe::class,
+            static fn (Application $app): ToolProbe => new ProcessToolProbe($app->make(DoctorSettings::class)->projectPath),
+        );
+
+        $this->app->bind(static function (Application $app): DoctorChecks {
+            try {
+                $settings = DoctorConfig::read($app->make(Repository::class), $app->basePath());
+            } catch (InvalidDoctorConfig $invalid) {
+                return new DoctorChecks([new InvalidConfigurationCheck($invalid->getMessage())], []);
+            }
+
+            $runtime = $app->make(RuntimeProbe::class);
+            $postgres = $app->make(PostgresProbe::class);
+            $tools = $app->make(ToolProbe::class);
+
+            return new DoctorChecks(
+                runtime: [
+                    new PhpVersionCheck($runtime),
+                    new LaravelVersionCheck($runtime),
+                    new PostgresReachableCheck($postgres),
+                    new PostgresVersionCheck($postgres),
+                    new AppRoleCheck($postgres),
+                    new TransactionTimeoutCheck($postgres),
+                    new PreparedTransactionsCheck($postgres),
+                    new DdlPrivilegesCheck($postgres),
+                    new ValkeyReachableCheck($app->make(ValkeyProbe::class)),
+                    new PartitionRunwayCheck(
+                        $app->make(PartitionRunwayProbe::class),
+                        $app->make(Clock::class),
+                        $settings->runwayDays,
+                    ),
+                    new RegistryCacheCheck($app->make(RegistryCacheProbe::class)),
+                ],
+                dev: [
+                    new NodeCheck($tools, $settings->nodeMinimum),
+                    new PlaywrightCheck($tools),
+                    new ChromiumCheck($tools),
+                ],
+            );
         });
     }
 

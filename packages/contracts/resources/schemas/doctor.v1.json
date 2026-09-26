@@ -1,0 +1,307 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "cms:doctor --json, version 1",
+  "description": "The document `cms:doctor --json` prints (PRD 3.3, 4.2). Every key is always present; a value that does not apply is null. Keys are sorted. The process exits with exit_code, defined by Cbox\\Cms\\Contracts\\Doctor\\DoctorExitCode.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "checks",
+    "dev",
+    "exit_code",
+    "status",
+    "version"
+  ],
+  "properties": {
+    "version": {
+      "description": "The version of this document. A change that is not backwards compatible gets a new schema file.",
+      "const": 1
+    },
+    "dev": {
+      "description": "Whether the development checks of --dev ran.",
+      "type": "boolean"
+    },
+    "status": {
+      "description": "The name of the exit code: ok when nothing failed, violation when the configuration or the runtime contract is broken, unavailable when a dependency could not be reached and nothing is broken.",
+      "enum": [
+        "ok",
+        "violation",
+        "unavailable"
+      ]
+    },
+    "exit_code": {
+      "description": "The exit code of the process, the value of DoctorExitCode for status.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 255
+    },
+    "checks": {
+      "description": "The checks in the order they ran.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/check"
+      }
+    }
+  },
+  "$defs": {
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "blocking",
+        "cause",
+        "code",
+        "explanation",
+        "failure",
+        "fix",
+        "id",
+        "status"
+      ],
+      "properties": {
+        "id": {
+          "description": "The stable id of the check, such as postgres.reachable.",
+          "type": "string",
+          "maxLength": 63,
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"
+        },
+        "status": {
+          "description": "pass, fail, or skip when a check it requires did not pass.",
+          "enum": [
+            "pass",
+            "fail",
+            "skip"
+          ]
+        },
+        "blocking": {
+          "description": "Whether the kernel refuses to start while this check fails. A check that is not blocking only affects readiness.",
+          "type": "boolean"
+        },
+        "failure": {
+          "description": "For a failing check: violation or unavailable. Otherwise null.",
+          "enum": [
+            "violation",
+            "unavailable",
+            null
+          ]
+        },
+        "code": {
+          "description": "For a failing check: the error code. Otherwise null.",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "maxLength": 63,
+              "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)+$"
+            }
+          ]
+        },
+        "explanation": {
+          "description": "What the check looked at and what it found, in plain words.",
+          "$ref": "#/$defs/text"
+        },
+        "cause": {
+          "description": "For a failing check: the concrete cause. For a skipped check: which requirement did not pass. Otherwise null.",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/text"
+            }
+          ]
+        },
+        "fix": {
+          "description": "For a failing check: how to fix it. Otherwise null.",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/text"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "pass"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "failure": {
+                "const": null
+              },
+              "code": {
+                "const": null
+              },
+              "cause": {
+                "const": null
+              },
+              "fix": {
+                "const": null
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "fail"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "failure": {
+                "enum": [
+                  "violation",
+                  "unavailable"
+                ]
+              },
+              "code": {
+                "type": "string"
+              },
+              "cause": {
+                "type": "string"
+              },
+              "fix": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "skip"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "failure": {
+                "const": null
+              },
+              "code": {
+                "const": null
+              },
+              "cause": {
+                "type": "string"
+              },
+              "fix": {
+                "const": null
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "ok"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "exit_code": {
+            "const": 0
+          },
+          "checks": {
+            "items": {
+              "properties": {
+                "failure": {
+                  "const": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "violation"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "exit_code": {
+            "minimum": 1
+          },
+          "checks": {
+            "contains": {
+              "properties": {
+                "failure": {
+                  "const": "violation"
+                }
+              },
+              "required": [
+                "failure"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "unavailable"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "exit_code": {
+            "minimum": 1
+          },
+          "checks": {
+            "contains": {
+              "properties": {
+                "failure": {
+                  "const": "unavailable"
+                }
+              },
+              "required": [
+                "failure"
+              ]
+            },
+            "items": {
+              "properties": {
+                "failure": {
+                  "enum": [
+                    "unavailable",
+                    null
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

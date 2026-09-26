@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Cli;
 
 use Cbox\Cms\Cli\Console\BuildCommand;
+use Cbox\Cms\Cli\Console\DoctorCommand;
 use Cbox\Cms\Cli\Console\MaintainPartitionsCommand;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Build\DeclaresScanRoots;
@@ -27,6 +28,7 @@ final class CliServiceProvider extends ServiceProvider implements DeclaresScanRo
         if ($this->app->runningInConsole()) {
             $this->commands([
                 BuildCommand::class,
+                DoctorCommand::class,
                 MaintainPartitionsCommand::class,
             ]);
         }

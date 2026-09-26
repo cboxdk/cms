@@ -65,4 +65,23 @@ return [
             ],
         ],
     ],
+
+    /*
+     * cms:doctor (PRD 3.3, 4.2, 13.2). The Postgres checks connect with the connection's settings
+     * as the app role; null means the default connection. Postgres and Valkey get
+     * connect_timeout_seconds to answer. partition_runway_days is how far ahead every table in
+     * database.partitions.tables must have partitions; keep it below runway_days, which maintenance
+     * creates. The registry cache must not be older than vendor_manifest, Composer's
+     * vendor/composer/installed.json below the base path when null. --dev looks for node_modules in
+     * project_path, the base path when null, and wants Node node_minimum or newer.
+     */
+    'doctor' => [
+        'connection' => null,
+        'redis_connection' => 'default',
+        'connect_timeout_seconds' => 3,
+        'partition_runway_days' => 7,
+        'vendor_manifest' => null,
+        'project_path' => null,
+        'node_minimum' => '22.13.0',
+    ],
 ];

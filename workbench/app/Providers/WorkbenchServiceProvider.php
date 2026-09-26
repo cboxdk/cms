@@ -17,7 +17,10 @@ use Illuminate\Support\ServiceProvider;
  * dedicated schema instead of Laravel's default search_path of public.
  *
  * It also points cms:generate (PRD 11.12) at the workbench's fixture schema and its committed
- * generated code (GUARDRAILS 2.6), relative to the monorepo root.
+ * generated code (GUARDRAILS 2.6), relative to the monorepo root, and cms:doctor at the monorepo's
+ * vendor/composer/installed.json and at the root, where package.json and node_modules are for
+ * --dev. Testbench's application links vendor/ into its base path only while a command runs, so
+ * the default below the base path is not there in the tests.
  */
 final class WorkbenchServiceProvider extends ServiceProvider
 {
@@ -32,6 +35,9 @@ final class WorkbenchServiceProvider extends ServiceProvider
             'php_namespace' => 'Workbench\\App\\Cms\\Generated',
             'typescript_directory' => 'workbench/resources/js/cms/generated',
         ]);
+
+        $config->set('cms.doctor.project_path', dirname(__DIR__, 3));
+        $config->set('cms.doctor.vendor_manifest', dirname(__DIR__, 3).'/vendor/composer/installed.json');
 
         $app = $config->get('database.connections.pgsql');
 
