@@ -20,6 +20,7 @@
     "@cboxdk/cms-tooling": "0.1.0",
     "@types/node": "22.20.4",
     "eslint": "10.11.0",
+    "playwright": "1.63.0",
     "prettier": "3.9.9",
     "typescript": "6.0.3"
   }

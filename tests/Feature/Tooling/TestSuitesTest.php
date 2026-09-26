@@ -6,10 +6,10 @@ use Cbox\Cms\Tests\Support\Phpstan;
 use Symfony\Component\Process\Process;
 
 /*
- * Gate 5 of GUARDRAILS 10: the Pest suites Unit, Codecs, Contract, Postgres and Arch. These
- * tests guard the layout itself (GUARDRAILS 7.3): every test file is in exactly one suite, the
- * Postgres suite holds the tests below a Postgres directory and nothing else does, and the
- * harness trait is applied to those directories.
+ * Gate 5 of GUARDRAILS 10: the Pest suites Unit, Codecs, Contract, Postgres and Arch, and the
+ * Browser suite of gate 8. These tests guard the layout itself (GUARDRAILS 7.3): every test file
+ * is in exactly one suite, the Postgres suite holds the tests below a Postgres directory and
+ * nothing else does, and the harness trait is applied to those directories.
  */
 
 /**
@@ -66,7 +66,7 @@ function listedTests(?string $suite): array
     return array_values(array_unique($matches[1]));
 }
 
-it('defines the suites of gate 5: Unit, Codecs, Contract, Postgres and Arch', function (): void {
+it('defines the suites of gate 5, Unit, Codecs, Contract, Postgres and Arch, and Browser for gate 8', function (): void {
     expect(configuredSuites())->toBe([
         'Unit' => [
             'directories' => ['tests/Feature', 'packages/*/tests'],
@@ -76,6 +76,7 @@ it('defines the suites of gate 5: Unit, Codecs, Contract, Postgres and Arch', fu
         'Contract' => ['directories' => ['tests/Contract', 'packages/*/tests/Contract'], 'excludes' => []],
         'Postgres' => ['directories' => ['tests/Postgres', 'packages/*/tests/Postgres'], 'excludes' => []],
         'Arch' => ['directories' => ['tests/Arch'], 'excludes' => []],
+        'Browser' => ['directories' => ['tests/Browser'], 'excludes' => []],
     ]);
 });
 
@@ -98,7 +99,14 @@ it('puts every test in exactly one suite, and only Postgres tests in the Postgre
         ->and($bySuite['Postgres'])->not->toBeEmpty()
         ->and(array_values(array_filter($bySuite['Postgres'], static fn (string $class): bool => ! $isPostgres($class))))->toBe([])
         ->and(array_values(array_filter($bySuite['Unit'], $isPostgres)))->toBe([])
-        ->and($bySuite['Postgres'])->toContain('P\Tests\Postgres\RolesTest', 'P\Packages\testkit\tests\Postgres\HarnessTest');
+        ->and($bySuite['Postgres'])->toContain('P\Tests\Postgres\RolesTest', 'P\Packages\testkit\tests\Postgres\HarnessTest')
+        ->and($bySuite['Browser'])->toBe(['P\Tests\Browser\WorkbenchPageTest']);
+});
+
+it('boots the workbench application for the browser tests', function (): void {
+    $pest = (string) file_get_contents(Phpstan::root().'/tests/Pest.php');
+
+    expect($pest)->toContain("pest()->extend(TestCase::class)->in('Feature', 'Codecs', 'Contract', 'Postgres', 'Browser', '../packages/*/tests');");
 });
 
 it('applies the real-Postgres harness to the Postgres directories', function (): void {

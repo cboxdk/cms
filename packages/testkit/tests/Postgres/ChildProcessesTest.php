@@ -9,6 +9,7 @@ use Cbox\Cms\Testkit\Postgres\ProcessContext;
 use Closure;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
+use Laravel\SerializableClosure\SerializableClosure;
 use PHPUnit\Framework\AssertionFailedError;
 
 /*
@@ -54,6 +55,20 @@ it('makes the parent wait while a child holds pg_advisory_xact_lock(1) for 500 m
 
     expect($waitedMs)->toBeGreaterThanOrEqual(400.0)
         ->and($child->signals())->toBe(['locked']);
+});
+
+it('runs a closure in the child when the application signs serialised closures with its key', function (): void {
+    // Laravel's encryption provider sets this key from app.key, as in every application with an
+    // APP_KEY. The child has no application and no key, so a signed closure cannot be read there.
+    SerializableClosure::setSecretKey('an application key the child does not know');
+
+    $child = app(ChildProcesses::class)->start(static function (ProcessContext $context): void {
+        $context->signal('ran');
+    });
+
+    $child->wait();
+
+    expect($child->signals())->toBe(['ran']);
 });
 
 it('runs the child on its own backend as the same role, with what the closure captured', function (): void {

@@ -12,8 +12,8 @@ use Composer\Autoload\ClassLoader;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Database\DatabaseManager;
 use InvalidArgumentException;
-use Laravel\SerializableClosure\SerializableClosure;
 use Laravel\SerializableClosure\Support\ReflectionClosure;
+use Laravel\SerializableClosure\UnsignedSerializableClosure;
 use LogicException;
 use Symfony\Component\Process\Process;
 
@@ -69,7 +69,9 @@ final class ChildProcesses
 
             $payload = new ChildPayload($settings, script: $script);
         } else {
-            $payload = new ChildPayload($settings, closure: serialize(new SerializableClosure($this->unbound($callback))));
+            // Unsigned: the payload goes to the child over stdin, and the child has no application
+            // key to check a signature with. Laravel signs a SerializableClosure whenever app.key is set.
+            $payload = new ChildPayload($settings, closure: serialize(new UnsignedSerializableClosure($this->unbound($callback))));
         }
 
         $process = new Process([PHP_BINARY, self::entryScript(), self::autoloader()]);

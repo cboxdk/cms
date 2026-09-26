@@ -12,7 +12,7 @@ use Illuminate\Database\Capsule\Manager;
 use Illuminate\Database\PostgresConnection;
 use Illuminate\Events\Dispatcher;
 use InvalidArgumentException;
-use Laravel\SerializableClosure\SerializableClosure;
+use Laravel\SerializableClosure\UnsignedSerializableClosure;
 use Throwable;
 
 /**
@@ -69,7 +69,7 @@ final class ChildProcessMain
         if ($payload->closure !== null) {
             $wrapper = unserialize($payload->closure);
 
-            if (! $wrapper instanceof SerializableClosure) {
+            if (! $wrapper instanceof UnsignedSerializableClosure) {
                 throw new InvalidArgumentException('The child payload does not hold a serialised closure.');
             }
 

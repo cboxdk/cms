@@ -5,3 +5,4 @@
 .harness/autopilot.on
 .harness/waiting
 .harness/iterations
+/tests/Browser/Screenshots/

@@ -9,7 +9,7 @@ workbench:
   start: '/'
   install: false
   discovers:
-    web: false
+    web: true
     api: false
     commands: false
     components: false
