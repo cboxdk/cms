@@ -33,7 +33,7 @@ Status er `todo`, `next`, `in_progress`, `done`, `incomplete` eller `blocked`.
 
 ## Seneste kørsel
 
-M0, første kørsel, stoppet 26. september efter T20 af 35, fordi Sylvester besluttede Pest 5, cboxdk's database-images og ingen pladsholdere. T1 til T20 og T28 til T30 er committet og var grønne på Pest 4. Ikke startet: T31, T32 og løftet af ecosystem-pakkerne (T21 til T27, T33 til T35). M0 køres igen med de nye beslutninger.
+M0, anden kørsel, stoppet 26. september efter T47, fordi Sylvester tog løftet af økosystemets pakker ud af M0 (GUARDRAILS 1.7) og godkendte blueprint v1. Committet i kørslen: T36 til T39, T42, T44 til T47, T57 og T66. Ikke nået: T49 til T51, T58 til T64. Sprunget over som blokeret: T40, T41 og T43. M0 køres igen.
 
 ## Blokeret
 
@@ -50,14 +50,6 @@ Beslutninger der venter på Sylvester, og hvad de blokerer:
 - PRD 26, spørgsmål 8: kommentarer i kernen. Blokerer den del af B13 der handler om kommentarer.
 - PRD 26, spørgsmål 13: prioritetsskala og forudindstillinger. Blokerer standardværdierne i B9, ikke modellen.
 - PRD 26, spørgsmål 16: udbyder efter AI-forordningen. Blokerer intet i kernen.
-- **Blueprint-schemaet v1 (M0-T57).** Forslaget ligger i `~/Projects/cbox-cms/proposals/blueprint-schema-v1.md` med et afprøvet udkast til JSON Schema. Fem beslutninger, hver med en anbefaling og alternativer:
-  1. Felttyperne i v1 og hver types valg, med det B2 (relationsattributter, taksonomier, varianter) og B8 (assets) skal bruge.
-  2. Udviklingen: om en felttype der kommer i B2 eller B8, stadig er v1 (additiv vækst, og addons' felttyper åbne som `<navnerum>:<handle>`), eller om den giver en ny version.
-  3. Hvordan editorer får schemaet: en stabil `$id`-URL, som er et navn, eller en `# yaml-language-server: $schema=`-linje med stien til schemaet i den installerede pakke, skrevet af en kommando.
-  4. Om blueprint v1 flyttes fra M1 punkt 1 til M0, eller om fixture-schemaet og `cms:generate` tages ud af M0 til M1, så port 6 forlader M0.
-  5. Om `cboxdk/cms-generators` kræver `symfony/yaml` og `opis/json-schema`, så læseren validerer mod det udgivne JSON Schema i stedet for at gentage reglerne i PHP (GUARDRAILS 2.2). Punktet afløser den tidligere post om symfony/yaml: i dag står den kun under `suggest` i `packages/generators/composer.json` og i rodens `require-dev`, og `packages/generators/tests/DependenciesTest.php` holder hullet synligt. Det blokerer udgivelse af `cboxdk/cms-generators` og `cms:generate` i en installation uden dev-afhængigheder, fx Composer-hooken i PRD 11.12.
-
-  Blokerer T40 (schemaet udgivet i `packages/contracts`), T41 (læseren, fixturet i v1 og `m0-provisional` fjernet) og T43 (porten for pladsholdermarkører, der først kan bestå når `provisional` er væk), og milepælens kriterier E1 (fixture-schemaet i v1 og valideret) og E9 (ingen pladsholdere).
 
 ## Beslutninger fra Sylvester
 
@@ -67,6 +59,7 @@ Gælder for alle opgaver:
 - Postgres og Valkey bruger cboxdk db-baseimages: `ghcr.io/cboxdk/postgres:18` og `ghcr.io/cboxdk/valkey:8`. Testene kører dermed på Postgres 18, selvom 17 er minimum (GUARDRAILS 1.2). Kode må ikke bruge noget der først findes i 18, for eksempel `uuidv7()` og `pg_wal_replay_wait()`. Imaget har cbox-init som PID 1; hent init-scripts og healthcheck fra dets README (`~/Projects/db-baseimages`).
 - Pest 5 og pest-plugin-browser 5, ikke Pest 4 (GUARDRAILS 1.3). M0 er bygget på Pest 4 og skal løftes.
 - Alt der committes, er klar til produktion. Ingen pladsholdere (GUARDRAILS 11): ingen midlertidige formater som `m0-provisional` eller den midlertidige `ReceiptCodecV1`, ingen porte der står som "ikke kørt" fordi arbejdet mangler, ingen TODO/FIXME. Det der allerede er committet i M0 og bryder reglen, skal gøres færdigt eller fjernes.
+- Kernen kender ingen indholdstyper (GUARDRAILS 2.4). Alle typer, felter, bloktyper og kapabiliteter er brugerdefinerede schema-filer fra Data Studio, en skabelon eller `workbench/`. `article` og `measurement` i M1 er fixtures, ikke kernetyper. Moduler og addons må eje egne typer. Ingen type, felt eller rute ved navn i kernepakkerne (GUARDRAILS 1.5).
 
 ## Fjernet fra M0
 
@@ -76,6 +69,9 @@ Pladsholdere der er fjernet efter GUARDRAILS 11, og den blok der bygger dem igen
 - Registret over abonnenter (`subscribers.php`, PRD 7.6 og 13.2, fjernet i M0-T38): M1, punkt 4, hvor den første abonnent kommer (invalidering af fragmenter i Valkey). Det kommer tilbage som et case i `RegistryName` med sin egen entry-type og kilde.
 - Registret over schema-bidrag (`schema.php`, PRD 13.3, fjernet i M0-T38): M1, punkt 7, med blueprint-udvidelsen fra fixture-addonet.
 - Registret over UI-slots (`slots.php`, PRD 13.4, fjernet i M0-T38): B1, Panel-skelet, hvor panelet og komponentkittet kommer; slot-props er PHP-DTO'er med genereret TypeScript.
+- Blueprint-schemaet v1 (M0-T57): alle fem anbefalinger i `~/Projects/cbox-cms/proposals/blueprint-schema-v1.md` er godkendt 26. september. Kommandoen der skriver editorlinjen, hedder `cms:schema:editor`, ikke `cms:schema:associate`. T40, T41 og T43 er ikke længere blokeret, og blueprint v1 flyttes til M0 (MILESTONES 1.3).
+- Rør aldrig økosystemets pakker (laravel-telemetry, laravel-id og de andre cboxdk-repoer). CMS-arbejdet bruger dem som de er udgivet. Løftet til PHPStan på højeste niveau er et separat spor og ikke en del af M0 (GUARDRAILS 1.7, MILESTONES 1.3). Mangler en pakke noget, skrives det under "Til review af Sylvester".
+- Fra M1 bygges uafhængige opgaver parallelt, hver i sin git worktree, og flettes gennem en kø der kører alle porte på det flettede resultat før `main` rykkes. M0 skal derfor gøre testene isolerede per worktree: hver checkout får sin egen Postgres-testdatabase (fx `cms_test_<kort hash af checkoutens sti>`, oprettet og migreret af testkittet med ejerrollen, når den mangler) og sin egen Valkey-præfiks, så to worktrees kan køre alle suiter, `composer check` og `check:selftest` samtidig uden at se hinandens data. `composer check` og CI-profilen skal virke uændret for én checkout. `composer services:up` fra en worktree må kun starte de delte tjenester (Postgres og Valkey) og aldrig genskabe en container med worktreens sti monteret. Bevis: to worktrees kører Postgres-suiten samtidig og begge er grønne; en test viser at navnene er forskellige per sti og ens for samme sti.
 
 ## Tolkninger
 
