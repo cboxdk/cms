@@ -14,5 +14,6 @@ final readonly class RecordedCommand
         public array $command,
         public string $directory,
         public array $environment,
+        public bool $ownProcessGroup = false,
     ) {}
 }

@@ -141,15 +141,55 @@ it('keeps POSTGRES_* out of the environment bin/ci runs in, because Testbench co
     }
 });
 
-it('builds the ci service from docker/ci.Dockerfile on the v1 PHP image, with the setup ci.yml runs', function (): void {
+it('builds the ci service from docker/ci.Dockerfile on the v1 PHP image, adding only the entry point', function (): void {
     $service = CiFiles::at(CiFiles::yaml(CiFiles::COMPOSE_CI), 'services', 'ci');
-    $dockerfile = CiFiles::codeLines(CiFiles::DOCKERFILE);
 
     expect(CiFiles::at(is_array($service) ? $service : [], 'build'))->toBe(['context' => 'docker', 'dockerfile' => 'ci.Dockerfile'])
-        ->and($dockerfile[0] ?? null)->toBe('FROM ghcr.io/cboxdk/php-baseimages/php-cli:8.5-bookworm-dev-v1')
-        ->and($dockerfile)->toContain('RUN /usr/local/lib/cbox-ci/ci-setup.sh')
-        ->and($dockerfile)->toContain('ENTRYPOINT ["/usr/local/lib/cbox-ci/ci-entry.sh"]')
+        ->and(CiFiles::codeLines(CiFiles::DOCKERFILE))->toBe([
+            'FROM ghcr.io/cboxdk/php-baseimages/php-cli:8.5-bookworm-dev-v1',
+            'COPY ci-entry.sh /usr/local/lib/cbox-ci/',
+            'ENTRYPOINT ["/usr/local/lib/cbox-ci/ci-entry.sh"]',
+        ])
         ->and(CiFiles::text('docker/ci-setup.sh'))->toContain('required_node_major=22');
+});
+
+it('runs the same setup script in ci.yml and compose.ci.yaml: HEAD\'s docker/ci-setup.sh in the checkout, then bin/ci', function (): void {
+    $runs = array_values(array_filter(array_map(static fn (array $step): mixed => CiFiles::at($step, 'run'), workflowSteps()), is_string(...)));
+    $service = CiFiles::at(CiFiles::yaml(CiFiles::COMPOSE_CI), 'services', 'ci');
+    $entry = CiFiles::codeLines('docker/ci-entry.sh');
+    $default = array_search('if [[ $# -eq 0 ]]; then', $entry, true);
+
+    // The job runs both after its checkout; the ci service's entry point runs both, in the same
+    // order, from the archive of HEAD when it is given no command, as compose.ci.yaml gives none.
+    expect($runs)->toBe(['docker/ci-setup.sh', 'bin/ci'])
+        ->and(is_array($service) ? array_keys($service) : [])->not->toContain('command')
+        ->and(is_array($service) ? array_keys($service) : [])->not->toContain('entrypoint')
+        ->and(CiFiles::codeLines(CiFiles::DOCKERFILE))->toContain('ENTRYPOINT ["/usr/local/lib/cbox-ci/ci-entry.sh"]')
+        ->and($default)->toBeInt()
+        ->and(array_slice($entry, is_int($default) ? $default : 0, 4))->toBe(['if [[ $# -eq 0 ]]; then', 'docker/ci-setup.sh', 'set -- bin/ci', 'fi'])
+        ->and(array_search('cd "$work"', $entry, true))->toBeLessThan(is_int($default) ? $default : 0)
+        ->and(array_slice($entry, -1))->toBe(['exec "$@"']);
+});
+
+it('pins every action to the commit of a release tag, named in a comment', function (): void {
+    $lines = array_values(array_filter(explode("\n", CiFiles::text(CiFiles::WORKFLOW)), static fn (string $line): bool => str_contains($line, 'uses:')));
+
+    expect($lines)->toHaveCount(2);
+
+    foreach ($lines as $line) {
+        expect($line)->toMatch('/^\s+(- )?uses: [A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$/');
+    }
+});
+
+it('stops the job after 20 minutes, above the PR profile\'s budget of 15', function (): void {
+    expect(CiFiles::at(workflowJob(), 'timeout-minutes'))->toBe(20);
+});
+
+it('names the gates CI runs outside the local profile in bin/ci and ci.yml', function (): void {
+    $bin = CiFiles::text(CiFiles::ENTRY);
+
+    expect($bin)->toContain('gate 8  vendor/bin/pest --testsuite=Browser', 'gate 9  composer audit --locked --abandoned=report, npm audit', 'gates 7, 10 and 11')
+        ->and(CiFiles::text(CiFiles::WORKFLOW))->toContain('gate 8, the Browser suite', 'gate 9, composer audit and npm audit', 'gates 7, 10 and 11');
 });
 
 it('runs the gates as the user ci that the setup creates, never as root, whose tests of file permissions skip', function (): void {

@@ -26,9 +26,9 @@ final class ScriptedProcessRunner implements ProcessRunner
         return new self(static fn (array $command, string $directory): ProcessOutcome => new ProcessOutcome(0, 'ok', 0.1));
     }
 
-    public function run(array $command, string $directory, array $environment = [], ?Closure $echo = null): ProcessOutcome
+    public function run(array $command, string $directory, array $environment = [], ?Closure $echo = null, bool $ownProcessGroup = false): ProcessOutcome
     {
-        $this->calls[] = new RecordedCommand($command, $directory, $environment);
+        $this->calls[] = new RecordedCommand($command, $directory, $environment, $ownProcessGroup);
         $outcome = ($this->script)($command, $directory);
 
         if ($echo instanceof Closure) {

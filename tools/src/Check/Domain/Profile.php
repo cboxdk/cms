@@ -30,7 +30,7 @@ enum Profile: string
     {
         return match ($this) {
             self::Local => 'the local profile of GUARDRAILS 10, gates 1 to 6',
-            self::Pr => 'the PR profile of GUARDRAILS 10 as CI runs it today, gates 1 to 6, with 7 to 11 reported as not run',
+            self::Pr => 'the PR profile of GUARDRAILS 10 as CI runs it today, gates 1 to 6, 8 and 9, with 7, 10 and 11 reported as not run',
         };
     }
 }

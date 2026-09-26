@@ -6,7 +6,8 @@ namespace Cbox\Cms\Tooling\Check\Domain;
 
 /**
  * Runs the gates in order and every step of each gate, also after a failure, so one run shows
- * every gate's state. A step that is not run is reported with its reason (GUARDRAILS 10).
+ * every gate's state. A step that is not run is reported with its reason (GUARDRAILS 10). A step
+ * that asks for its own process group gets one, and its output reader reads what it printed.
  */
 final readonly class CheckRunner
 {
@@ -35,7 +36,7 @@ final readonly class CheckRunner
             foreach ($gate->steps as $step) {
                 $result = $step->notRunReason !== null
                     ? StepResult::notRun($step->name, $step->notRunReason)
-                    : StepResult::ran($step->name, $this->processes->run($step->command, $directory, self::ENVIRONMENT));
+                    : $this->runStep($step, $directory);
                 $this->listener->stepFinished($gate, $result);
                 $steps[] = $result;
             }
@@ -44,5 +45,14 @@ final readonly class CheckRunner
         }
 
         return new CheckReport($directory, $results);
+    }
+
+    private function runStep(Step $step, string $directory): StepResult
+    {
+        $outcome = $this->processes->run($step->command, $directory, self::ENVIRONMENT, ownProcessGroup: $step->ownProcessGroup);
+
+        return $step->reader instanceof OutputReader
+            ? StepResult::ran($step->name, $outcome, $step->reader->read($outcome))
+            : StepResult::ran($step->name, $outcome);
     }
 }

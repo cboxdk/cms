@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Sets up the CI environment on top of ghcr.io/cboxdk/php-baseimages/php-cli:8.5-bookworm-dev-v1,
-# the PHP 8.5 image of the v1 channel. docker/ci.Dockerfile runs it to build the ci image of
-# compose.ci.yaml, and .github/workflows/ci.yml runs it in its job container, which is the same
-# base image. So bin/ci runs on the same setup in both places.
+# the PHP 8.5 image of the v1 channel. It runs as root in the root of the checkout, before bin/ci:
+# .github/workflows/ci.yml runs it as the step before bin/ci in its job container, and
+# docker/ci-entry.sh, the entry point of compose.ci.yaml's ci service, runs it from the archive of
+# HEAD before bin/ci. So bin/ci runs on the same setup in both places, and it is the setup of the
+# commit that is checked.
 #
 # - Node 22: the base image ships it. The script checks the major version and does not install
 #   a second Node.
@@ -13,6 +15,12 @@
 # - the user ci, uid 1001: bin/ci runs the gates as ci, never as root. Root ignores file
 #   permissions, so the tests of unwritable files skip, and gate 5 fails a skipped test. 1001 is
 #   the uid of GitHub's runner user, so the files the runner hands the job stay writable.
+# - Chromium for the Playwright that package-lock.json pins, for the Browser suite of gate 8. The
+#   image keeps its browsers in PLAYWRIGHT_BROWSERS_PATH (/ms-playwright), where the user ci
+#   finds them too. The pinned Playwright names the builds it needs, Chromium and its headless
+#   shell, each in a directory named after its revision. A build the image has is used as it is;
+#   a missing one is installed with the pinned Playwright, and the script fails when a build is
+#   still missing afterwards, so gate 8 never runs a Chromium that Playwright was not built for.
 set -euo pipefail
 
 required_node_major=22
@@ -22,6 +30,28 @@ if [[ "$node_major" != "$required_node_major" ]]; then
     echo "ci-setup: Node ${required_node_major} is required, the image has $(node --version)." >&2
     exit 1
 fi
+
+if [[ ! -f package-lock.json ]]; then
+    echo "ci-setup: run it in the root of the checkout; there is no package-lock.json in ${PWD}." >&2
+    exit 1
+fi
+
+if [[ -z "${PLAYWRIGHT_BROWSERS_PATH:-}" ]]; then
+    echo 'ci-setup: PLAYWRIGHT_BROWSERS_PATH is not set. The image keeps its browsers there, and without it Playwright would install them below the home directory of root, where the user ci cannot use them.' >&2
+    exit 1
+fi
+
+playwright_version="$(node -e '
+    const lock = require(process.argv[1]);
+    const entry = (lock.packages || {})["node_modules/playwright"];
+    if (!entry || typeof entry.version !== "string") {
+        process.exit(1);
+    }
+    process.stdout.write(entry.version);
+' "$PWD/package-lock.json")" || {
+    echo 'ci-setup: package-lock.json locks no version of playwright.' >&2
+    exit 1
+}
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update --quiet
@@ -34,4 +64,46 @@ if ! getent passwd ci >/dev/null; then
     useradd --uid 1001 --user-group --create-home --shell /bin/bash ci
 fi
 
+# The pinned Playwright in a directory of its own, outside the checkout, so bin/ci's npm ci
+# still installs node_modules from the lock file alone.
+playwright_dir="$(mktemp -d)"
+trap 'rm -rf "$playwright_dir"' EXIT
+npm install --prefix "$playwright_dir" --cache "$playwright_dir/.npm" --no-save --no-audit --no-fund \
+    --no-update-notifier --ignore-scripts --loglevel=error "playwright@${playwright_version}" >/dev/null
+playwright="$playwright_dir/node_modules/.bin/playwright"
+
+# The install directories of the builds `playwright install chromium` needs, from its dry run.
+chromium_builds() {
+    (cd "$playwright_dir" && "$playwright" install --dry-run chromium) |
+        sed -n -E 's/^[[:space:]]*Install location:[[:space:]]+(.*(chromium|chromium_headless_shell)-[0-9]+)[[:space:]]*$/\1/p'
+}
+
+missing_builds() {
+    local builds
+
+    if ! builds="$(chromium_builds)" || [[ -z "$builds" ]]; then
+        echo "ci-setup: Playwright ${playwright_version} names no Chromium build to install." >&2
+        return 2
+    fi
+
+    while IFS= read -r build; do
+        [[ -f "$build/INSTALLATION_COMPLETE" ]] || echo "$build"
+    done <<<"$builds"
+}
+
+missing="$(missing_builds)"
+
+if [[ -n "$missing" ]]; then
+    echo "ci-setup: the image lacks the Chromium builds of Playwright ${playwright_version}: ${missing//$'\n'/ }"
+    (cd "$playwright_dir" && "$playwright" install --with-deps chromium)
+    missing="$(missing_builds)"
+
+    if [[ -n "$missing" ]]; then
+        echo "ci-setup: Playwright ${playwright_version} needs Chromium builds that are still missing after the install: ${missing//$'\n'/ }" >&2
+        exit 1
+    fi
+fi
+
 echo "ci-setup: PHP $(php -r 'echo PHP_VERSION;'), Node $(node --version), $(psql --version), $(git --version)"
+builds="$(chromium_builds)"
+echo "ci-setup: Playwright ${playwright_version} with Chromium in ${builds//$'\n'/ }"

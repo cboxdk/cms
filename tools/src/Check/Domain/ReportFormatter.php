@@ -6,7 +6,8 @@ namespace Cbox\Cms\Tooling\Check\Domain;
 
 /**
  * The plain text of `composer check`: a line per step while it runs, and a summary with every
- * gate and step marked pass, fail or not run.
+ * gate and step marked pass, fail or not run. The notes of a step, such as the abandoned packages
+ * composer audit found, are listed below it in both.
  */
 final readonly class ReportFormatter
 {
@@ -34,7 +35,8 @@ final readonly class ReportFormatter
             ),
         };
 
-        return '  '.str_pad($result->status->value, self::STATUS_WIDTH).' '.$result->step.$detail."\n";
+        return '  '.str_pad($result->status->value, self::STATUS_WIDTH).' '.$result->step.$detail."\n"
+            .implode('', array_map(static fn (string $line): string => $line."\n", self::noteLines($result, 5 + self::STATUS_WIDTH)));
     }
 
     public static function failureOutput(StepResult $result): string
@@ -59,13 +61,20 @@ final readonly class ReportFormatter
                 $reason === null ? '' : ': '.$reason,
             );
 
-            if ($reason !== null || count($gate->steps) === 1) {
+            if ($reason !== null) {
+                continue;
+            }
+
+            if (count($gate->steps) === 1) {
+                array_push($lines, ...self::noteLines($gate->steps[0], 14 + self::STATUS_WIDTH));
+
                 continue;
             }
 
             foreach ($gate->steps as $step) {
                 $lines[] = '           '.str_pad($step->status->value, self::STATUS_WIDTH).' '.$step->step
                     .($step->reason === null ? '' : ': '.$step->reason);
+                array_push($lines, ...self::noteLines($step, 14 + self::STATUS_WIDTH));
             }
         }
 
@@ -76,6 +85,16 @@ final readonly class ReportFormatter
             : 'composer check failed: '.(count($failed) === 1 ? 'gate ' : 'gates ').self::numbers($failed).' failed.';
 
         return implode("\n", $lines)."\n";
+    }
+
+    /**
+     * The notes of a step, one per line, indented to stand below the step's name.
+     *
+     * @return list<string>
+     */
+    private static function noteLines(StepResult $result, int $indent): array
+    {
+        return array_map(static fn (string $note): string => str_repeat(' ', $indent).$note, $result->notes);
     }
 
     /**

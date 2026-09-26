@@ -142,3 +142,21 @@ it('refuses a step whose status does not match its exit code', function (StepSta
     'not run with an exit code' => [StepStatus::NotRun, 0, 'later'],
     'not run without a reason' => [StepStatus::NotRun, null, null],
 ]);
+
+it('restores a step that failed with exit code 0 because its output reader found a failure, and its notes', function (): void {
+    $restored = StepResult::restore('composer audit', StepStatus::Fail, 0, '{}', 0.1, '1 security advisory: acme/parser', ['advisory: acme/parser']);
+
+    expect($restored->status)->toBe(StepStatus::Fail)
+        ->and($restored->notes)->toBe(['advisory: acme/parser'])
+        ->and(static fn (): StepResult => StepResult::restore('a', StepStatus::NotRun, null, '', 0.0, 'later', ['a note']))->toThrow(InvalidArgumentException::class)
+        ->and(static fn (): StepResult => StepResult::restore('a', StepStatus::Pass, 0, '', 0.0, null, ["two\nlines"]))->toThrow(InvalidArgumentException::class);
+});
+
+it('reads a report without notes as steps without notes, and refuses notes that are not strings', function (): void {
+    $step = '{"name": "a", "status": "pass", "exit_code": 0, "output": "", "reason": null, "seconds": 0%s}';
+    $report = static fn (string $notes): string => '{"directory": "/srv", "format": 1, "gates": [{"number": 1, "title": "a", "steps": ['.sprintf($step, $notes).']}]}';
+
+    expect(CheckReportJson::decode($report(''))->gate(1)?->step('a')?->notes)->toBe([])
+        ->and(static fn (): CheckReport => CheckReportJson::decode($report(', "notes": [1]')))->toThrow(UnexpectedValueException::class)
+        ->and(static fn (): CheckReport => CheckReportJson::decode($report(', "notes": "a"')))->toThrow(UnexpectedValueException::class);
+});

@@ -10,8 +10,13 @@
 #   gate 4  npm run typecheck, npm run lint
 #   gate 5  vendor/bin/pest --testsuite=<suite> for each suite of the local profile
 #   gate 6  composer check:generated
-# and reports what CI does not run yet as not run: gates 7 to 11 and mutation on changed files.
-# tests/Feature/Tooling/Ci keeps this list and the one in ci.yml equal to the local profile.
+# and the gates of the PR profile outside the local profile that CI runs:
+#   gate 8  vendor/bin/pest --testsuite=Browser, in a process group of its own that the runner
+#           kills when the step ends, so a Playwright server left by a dead Pest cannot hold the
+#           output open; docker/ci-setup.sh gives the image the pinned Playwright's Chromium
+#   gate 9  composer audit --locked --abandoned=report, npm audit
+# and reports what CI does not run yet as not run: gates 7, 10 and 11 and mutation on changed
+# files. tests/Feature/Tooling/Ci keeps this list and the one in ci.yml equal to the profiles.
 #
 # Environment:
 #   CMS_CI_PROVISION_POSTGRES=1  first create the roles and databases on the Postgres at

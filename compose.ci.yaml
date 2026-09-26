@@ -3,16 +3,18 @@
 #   docker compose -f compose.ci.yaml run --rm ci
 #   docker compose -f compose.ci.yaml down      # stops postgres and valkey afterwards
 #
-# The ci service runs bin/ci, the entry script .github/workflows/ci.yml runs, on a clean git
-# archive of HEAD: the repository's .git is mounted read-only and docker/ci-entry.sh exports HEAD,
-# so uncommitted and untracked files never reach the run. Commit first. The image is
-# docker/ci.Dockerfile: the PHP 8.5 base image of the v1 channel, the job container of ci.yml,
-# with docker/ci-setup.sh, the setup step of ci.yml. postgres and valkey are the services of
-# compose.yaml without host ports, so the run works next to the dev services, and with their data
-# on tmpfs, so every run starts empty. Their volumes are replaced, not merged: postgres mounts
-# nothing from the working tree, neither the init script nor the conf.d drop-in, as a service of
-# ci.yml, which starts before the checkout, cannot either. bin/ci creates the roles and databases
-# over TCP from HEAD's archive, as in ci.yml, and max_prepared_transactions is Postgres' default, 0.
+# The ci service runs the two steps .github/workflows/ci.yml runs after its checkout,
+# docker/ci-setup.sh and bin/ci, on a clean git archive of HEAD: the repository's .git is mounted
+# read-only and docker/ci-entry.sh exports HEAD and runs both from it, so uncommitted and untracked
+# files never reach the run. Commit first. The image is docker/ci.Dockerfile: the PHP 8.5 base
+# image of the v1 channel, the job container of ci.yml, with only the entry point added. The setup
+# installs psql and verifies the Chromium of the pinned Playwright, or installs it, as in ci.yml.
+# postgres and valkey are the services of compose.yaml without host ports, so the run works next
+# to the dev services, and with their data on tmpfs, so every run starts empty. Their volumes are
+# replaced, not merged: postgres mounts nothing from the working tree, neither the init script nor
+# the conf.d drop-in, as a service of ci.yml, which starts before the checkout, cannot either.
+# bin/ci creates the roles and databases over TCP from HEAD's archive, as in ci.yml, and
+# max_prepared_transactions is Postgres' default, 0.
 #
 # Declared runner: GitHub-hosted ubuntu-latest, 4 vCPU and 16 GB RAM (the standard Linux runner
 # for public repositories; a private repository gets 2 vCPU there and needs a 4-core larger runner).

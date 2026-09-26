@@ -3,8 +3,13 @@
 # Every step is setup, except bin/ci, the single CI entry script. bin/ci installs the locked
 # dependencies and runs `composer check -- --pr`, which calls the same Composer and npm
 # scripts as `composer check`: lint:check, format:check, rector:check, analyse, typecheck, lint
-# and check:generated, and the Pest suites of gate 5. It reports what it did not run: gates 7 to
-# 11 and mutation on changed files, each with the reason, in the log and the job summary.
+# and check:generated, and the Pest suites of gate 5. It also runs gate 8, the Browser suite, and
+# gate 9, composer audit and npm audit. It reports what it did not run: gates 7, 10 and 11 and
+# mutation on changed files, each with the reason, in the log and the job summary.
+#
+# Every action is pinned to the commit of its release tag, which the comment names; a tag can be
+# moved, a commit cannot. docker/ci-setup.sh is the setup compose.ci.yaml runs too: psql, git,
+# the user ci and Chromium for the pinned Playwright.
 #
 # Declared runner: GitHub-hosted ubuntu-latest, 4 vCPU and 16 GB RAM, the standard Linux runner
 # for public repositories. A private repository gets 2 vCPU on ubuntu-latest and needs a 4-core
@@ -29,7 +34,9 @@ jobs:
   pr-profile:
     name: PR profile (GUARDRAILS 10)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # The PR profile's budget is 15 minutes (GUARDRAILS 10); the limit leaves room for the setup
+    # and stops a hung job long before GitHub's default of six hours.
+    timeout-minutes: 20
     # PHP 8.5 of the v1 channel with Node 22, the base of docker/ci.Dockerfile.
     container:
       image: ghcr.io/cboxdk/php-baseimages/php-cli:8.5-bookworm-dev-v1
@@ -80,9 +87,9 @@ jobs:
       CMS_APP_TRANSACTION_TIMEOUT: 5s
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - name: Set up psql and git as docker/ci.Dockerfile does
+      - name: Set up psql, git, the user ci and Chromium, as compose.ci.yaml does
         run: docker/ci-setup.sh
 
       - name: bin/ci
@@ -90,7 +97,7 @@ jobs:
 
       - name: Keep the gate report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: gate-report
           path: build/ci/

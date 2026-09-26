@@ -181,3 +181,51 @@ it('runs its command on a clean archive of HEAD: committed files only, in a repo
         ]))
         ->and($git('status', '--porcelain'))->toBe("M committed.php\n?? untracked.php");
 });
+
+it('runs HEAD\'s docker/ci-setup.sh and then HEAD\'s bin/ci in the archive when it is given no command, as ci.yml runs them', function (): void {
+    $source = ScratchDirectory::make();
+    $work = ScratchDirectory::make().'/work';
+    $git = static function (string ...$arguments) use ($source): void {
+        new Process(['git', '-c', 'user.name=Ci Test', '-c', 'user.email=ci@example.test', '-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null', ...array_values($arguments)], $source)->mustRun();
+    };
+
+    $git('init', '--quiet');
+    ScratchDirectory::write($source.'/docker/ci-setup.sh', "#!/usr/bin/env bash\necho \"setup in \$PWD\"\n");
+    ScratchDirectory::write($source.'/bin/ci', "#!/usr/bin/env bash\necho \"bin/ci in \$PWD\"\n");
+    chmod($source.'/docker/ci-setup.sh', 0o755);
+    chmod($source.'/bin/ci', 0o755);
+    $git('add', 'docker/ci-setup.sh', 'bin/ci');
+    $git('commit', '--quiet', '--message=fixture');
+    // A working-tree change that must not run.
+    ScratchDirectory::write($source.'/docker/ci-setup.sh', "#!/usr/bin/env bash\necho 'setup from the working tree'\n");
+
+    $process = new Process([Phpstan::root().'/docker/ci-entry.sh'], null, ['CMS_CI_SOURCE' => $source.'/.git', 'CMS_CI_WORK' => $work], null, 60);
+    $process->run();
+    $lines = explode("\n", trim($process->getOutput()));
+
+    expect($process->getExitCode())->toBe(0, $process->getErrorOutput())
+        ->and(array_slice($lines, 1))->toBe(["setup in {$work}", "bin/ci in {$work}"]);
+});
+
+it('stops before bin/ci when the setup fails', function (): void {
+    $source = ScratchDirectory::make();
+    $work = ScratchDirectory::make().'/work';
+    $git = static function (string ...$arguments) use ($source): void {
+        new Process(['git', '-c', 'user.name=Ci Test', '-c', 'user.email=ci@example.test', '-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null', ...array_values($arguments)], $source)->mustRun();
+    };
+
+    $git('init', '--quiet');
+    ScratchDirectory::write($source.'/docker/ci-setup.sh', "#!/usr/bin/env bash\necho 'no Chromium' >&2\nexit 1\n");
+    ScratchDirectory::write($source.'/bin/ci', "#!/usr/bin/env bash\necho 'bin/ci ran'\n");
+    chmod($source.'/docker/ci-setup.sh', 0o755);
+    chmod($source.'/bin/ci', 0o755);
+    $git('add', 'docker/ci-setup.sh', 'bin/ci');
+    $git('commit', '--quiet', '--message=fixture');
+
+    $process = new Process([Phpstan::root().'/docker/ci-entry.sh'], null, ['CMS_CI_SOURCE' => $source.'/.git', 'CMS_CI_WORK' => $work], null, 60);
+    $process->run();
+
+    expect($process->getExitCode())->toBe(1)
+        ->and($process->getOutput())->not->toContain('bin/ci ran')
+        ->and($process->getErrorOutput())->toContain('no Chromium');
+});

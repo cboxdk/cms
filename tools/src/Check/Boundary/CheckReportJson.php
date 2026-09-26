@@ -13,7 +13,7 @@ use UnexpectedValueException;
 
 /**
  * The report file of `composer check --report=<file>`: the checked directory, and every gate
- * with its steps' status, exit code, time, reason and full output. `composer check:selftest`
+ * with its steps' status, exit code, time, reason, notes and full output. `composer check:selftest`
  * reads it to see which gate caught which planted violation.
  */
 final readonly class CheckReportJson
@@ -28,6 +28,7 @@ final readonly class CheckReportJson
             'steps' => array_map(static fn (StepResult $step): array => [
                 'exit_code' => $step->exitCode,
                 'name' => $step->step,
+                'notes' => $step->notes,
                 'output' => $step->output,
                 'reason' => $step->reason,
                 'seconds' => round($step->seconds, 3),
@@ -70,6 +71,11 @@ final readonly class CheckReportJson
                 $exitCode = $step['exit_code'] ?? null;
                 $reason = $step['reason'] ?? null;
                 $seconds = $step['seconds'] ?? null;
+                $notes = [];
+
+                foreach (self::list($step['notes'] ?? [], "{$path}.notes") as $noteIndex => $note) {
+                    $notes[] = self::string($note, "{$path}.notes[{$noteIndex}]");
+                }
 
                 $steps[] = StepResult::restore(
                     self::string($step['name'] ?? null, "{$path}.name"),
@@ -78,6 +84,7 @@ final readonly class CheckReportJson
                     self::string($step['output'] ?? null, "{$path}.output"),
                     is_int($seconds) || is_float($seconds) ? (float) $seconds : throw new UnexpectedValueException("{$path}.seconds is not a number."),
                     is_string($reason) || $reason === null ? $reason : throw new UnexpectedValueException("{$path}.reason is not a string."),
+                    $notes,
                 );
             }
 
