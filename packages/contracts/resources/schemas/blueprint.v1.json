@@ -1,0 +1,330 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Cbox CMS blueprint, version 1",
+  "description": "One schema file under schema/**/*.yaml: a type, or an extension of another owner's type (PRD 11.12, 13.1). Version 1 grows only by additions: a file that is valid stays valid and keeps its meaning. The reference page is blueprint.v1.md next to this file.",
+  "type": "object",
+  "required": ["blueprint", "kind"],
+  "properties": {
+    "blueprint": {
+      "description": "The format marker. A reader refuses any other version.",
+      "const": 1
+    },
+    "kind": {
+      "description": "What the file defines.",
+      "enum": ["type", "extension"]
+    }
+  },
+  "allOf": [
+    {
+      "if": { "required": ["kind"], "properties": { "kind": { "const": "type" } } },
+      "then": { "$ref": "#/$defs/typeDocument" }
+    },
+    {
+      "if": { "required": ["kind"], "properties": { "kind": { "const": "extension" } } },
+      "then": { "$ref": "#/$defs/extensionDocument" }
+    }
+  ],
+  "$defs": {
+    "uuid7": {
+      "description": "A UUIDv7 in lowercase hexadecimal.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "handle": {
+      "description": "Lowercase snake_case of at most 63 bytes, without a double underscore. `ext` and the prefix `cms_` are reserved (PRD 11.12).",
+      "type": "string",
+      "maxLength": 63,
+      "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$",
+      "not": { "anyOf": [{ "const": "ext" }, { "pattern": "^cms_" }] }
+    },
+    "label": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "description": { "type": "string", "minLength": 1, "maxLength": 1000 },
+    "classification": {
+      "description": "The data classification of the field (PRD 12.2). Fields inside a group inherit it.",
+      "enum": ["public", "internal", "confidential", "personal", "sensitive"]
+    },
+    "version": {
+      "description": "The owner's version of the definition, which upcasters are keyed on (PRD 11.4, 11.12).",
+      "type": "integer",
+      "minimum": 1
+    },
+
+    "typeDocument": {
+      "type": "object",
+      "required": ["blueprint", "kind", "type_id", "handle", "label", "version", "capabilities", "fields"],
+      "additionalProperties": false,
+      "properties": {
+        "blueprint": true,
+        "kind": true,
+        "type_id": {
+          "description": "The stable id of the type, unchanged when the type is renamed (PRD 11.2).",
+          "$ref": "#/$defs/uuid7"
+        },
+        "handle": { "$ref": "#/$defs/handle" },
+        "label": { "$ref": "#/$defs/label" },
+        "description": { "$ref": "#/$defs/description" },
+        "version": { "$ref": "#/$defs/version" },
+        "capabilities": { "$ref": "#/$defs/capabilities" },
+        "fields": { "$ref": "#/$defs/topLevelFields" }
+      }
+    },
+
+    "capabilities": {
+      "description": "The capabilities of the type (PRD 3.1, 5).",
+      "type": "object",
+      "required": ["history", "stages", "localization"],
+      "additionalProperties": false,
+      "properties": {
+        "history": { "enum": ["full", "audit-only", "none"] },
+        "stages": { "enum": ["none", "draft-release"] },
+        "localization": { "enum": ["none"] },
+        "routable": { "type": "boolean", "default": false }
+      }
+    },
+
+    "extensionDocument": {
+      "type": "object",
+      "required": ["blueprint", "kind", "extends", "version", "fields"],
+      "additionalProperties": false,
+      "properties": {
+        "blueprint": true,
+        "kind": true,
+        "extends": {
+          "description": "The type_id of the type that the fields are added to, in the extender's namespace (PRD 11.12).",
+          "$ref": "#/$defs/uuid7"
+        },
+        "version": { "$ref": "#/$defs/version" },
+        "fields": { "$ref": "#/$defs/topLevelFields" }
+      }
+    },
+
+    "topLevelFields": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 200,
+      "items": {
+        "allOf": [{ "$ref": "#/$defs/field" }, { "required": ["classification"] }]
+      }
+    },
+
+    "nestedFields": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 200,
+      "items": {
+        "allOf": [
+          { "$ref": "#/$defs/field" },
+          {
+            "not": {
+              "anyOf": [
+                { "required": ["classification"] },
+                { "required": ["filterable"] },
+                { "required": ["sortable"] }
+              ]
+            }
+          }
+        ]
+      }
+    },
+
+    "field": {
+      "type": "object",
+      "required": ["handle", "label", "type"],
+      "properties": {
+        "handle": { "$ref": "#/$defs/handle" },
+        "label": { "$ref": "#/$defs/label" },
+        "description": {
+          "description": "What the field holds. Required for a field that agents see (PRD 14.5); it is also the help text in the panel.",
+          "$ref": "#/$defs/description"
+        },
+        "type": {
+          "description": "A core field type, or `<namespace>:<handle>` for a field type an addon contributes (PRD 13.1).",
+          "anyOf": [
+            {
+              "enum": [
+                "text",
+                "long_text",
+                "integer",
+                "decimal",
+                "boolean",
+                "date",
+                "datetime",
+                "select",
+                "rich_text",
+                "group"
+              ]
+            },
+            { "type": "string", "pattern": "^[a-z][a-z0-9]{0,19}:[a-z][a-z0-9]*(_[a-z0-9]+)*$" }
+          ]
+        },
+        "required": { "type": "boolean", "default": false },
+        "classification": { "$ref": "#/$defs/classification" },
+        "filterable": { "type": "boolean", "default": false },
+        "sortable": { "type": "boolean", "default": false },
+        "agents": {
+          "description": "Whether MCP tools and agents see the field (PRD 14.5). A field agents see needs a description.",
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "allOf": [
+        {
+          "if": { "not": { "required": ["agents"], "properties": { "agents": { "const": false } } } },
+          "then": { "required": ["description"] }
+        },
+        {
+          "if": {
+            "required": ["classification"],
+            "properties": { "classification": { "enum": ["confidential", "personal", "sensitive"] } }
+          },
+          "then": { "properties": { "filterable": { "const": false }, "sortable": { "const": false } } }
+        },
+        { "if": { "properties": { "type": { "const": "text" } } }, "then": { "$ref": "#/$defs/textOptions" } },
+        { "if": { "properties": { "type": { "const": "long_text" } } }, "then": { "$ref": "#/$defs/longTextOptions" } },
+        { "if": { "properties": { "type": { "const": "integer" } } }, "then": { "$ref": "#/$defs/integerOptions" } },
+        { "if": { "properties": { "type": { "const": "decimal" } } }, "then": { "$ref": "#/$defs/decimalOptions" } },
+        { "if": { "properties": { "type": { "const": "date" } } }, "then": { "$ref": "#/$defs/dateOptions" } },
+        { "if": { "properties": { "type": { "const": "datetime" } } }, "then": { "$ref": "#/$defs/datetimeOptions" } },
+        { "if": { "properties": { "type": { "const": "select" } } }, "then": { "$ref": "#/$defs/selectOptions" } },
+        { "if": { "properties": { "type": { "const": "rich_text" } } }, "then": { "$ref": "#/$defs/richTextOptions" } },
+        { "if": { "properties": { "type": { "const": "group" } } }, "then": { "$ref": "#/$defs/groupOptions" } },
+        {
+          "if": { "properties": { "type": { "type": "string", "pattern": ":" } } },
+          "then": { "$ref": "#/$defs/addonOptions" }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+
+    "textOptions": {
+      "properties": {
+        "min_length": { "type": "integer", "minimum": 0 },
+        "max_length": { "type": "integer", "minimum": 1, "maximum": 10000, "default": 255 },
+        "format": { "enum": ["plain", "email", "url"], "default": "plain" }
+      }
+    },
+    "longTextOptions": {
+      "properties": {
+        "min_length": { "type": "integer", "minimum": 0 },
+        "max_length": { "type": "integer", "minimum": 1, "maximum": 1000000, "default": 10000 }
+      },
+      "not": { "anyOf": [{ "required": ["filterable"] }, { "required": ["sortable"] }] }
+    },
+    "integerOptions": {
+      "properties": {
+        "min": { "type": "integer" },
+        "max": { "type": "integer" },
+        "unit": { "type": "string", "minLength": 1, "maxLength": 20 }
+      }
+    },
+    "decimalOptions": {
+      "required": ["precision", "scale"],
+      "properties": {
+        "precision": { "type": "integer", "minimum": 1, "maximum": 38 },
+        "scale": { "type": "integer", "minimum": 0, "maximum": 38 },
+        "min": {
+          "description": "A decimal number as a string, so that it is read without rounding.",
+          "type": "string",
+          "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+        },
+        "max": {
+          "description": "A decimal number as a string, so that it is read without rounding.",
+          "type": "string",
+          "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+        },
+        "unit": { "type": "string", "minLength": 1, "maxLength": 20 }
+      }
+    },
+    "dateOptions": {
+      "properties": {
+        "min": {
+          "description": "A date as a quoted string. A YAML parser reads an unquoted date as a number.",
+          "type": "string",
+          "format": "date"
+        },
+        "max": {
+          "description": "A date as a quoted string. A YAML parser reads an unquoted date as a number.",
+          "type": "string",
+          "format": "date"
+        }
+      }
+    },
+    "datetimeOptions": {
+      "properties": {
+        "min": {
+          "description": "A time in RFC 3339 as a quoted string. A YAML parser reads an unquoted time as a number.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "max": {
+          "description": "A time in RFC 3339 as a quoted string. A YAML parser reads an unquoted time as a number.",
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "selectOptions": {
+      "required": ["options"],
+      "properties": {
+        "options": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 500,
+          "items": {
+            "type": "object",
+            "required": ["value", "label"],
+            "additionalProperties": false,
+            "properties": {
+              "value": { "$ref": "#/$defs/handle" },
+              "label": { "$ref": "#/$defs/label" }
+            }
+          }
+        },
+        "multiple": { "type": "boolean", "default": false },
+        "min_items": { "type": "integer", "minimum": 0 },
+        "max_items": { "type": "integer", "minimum": 1, "maximum": 500 }
+      },
+      "if": { "not": { "required": ["multiple"], "properties": { "multiple": { "const": true } } } },
+      "then": { "not": { "anyOf": [{ "required": ["min_items"] }, { "required": ["max_items"] }] } }
+    },
+    "richTextOptions": {
+      "description": "Portable Text (PRD 11.10).",
+      "properties": {
+        "styles": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["normal", "h2", "h3", "h4", "h5", "h6", "blockquote"] }
+        },
+        "marks": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["strong", "em", "underline", "strike", "code", "sub", "sup"] }
+        },
+        "lists": { "type": "array", "uniqueItems": true, "items": { "enum": ["bullet", "number"] } },
+        "links": { "type": "array", "uniqueItems": true, "items": { "enum": ["url"] } }
+      },
+      "not": { "anyOf": [{ "required": ["filterable"] }, { "required": ["sortable"] }] }
+    },
+    "groupOptions": {
+      "properties": {
+        "fields": { "$ref": "#/$defs/nestedFields" },
+        "repeat": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "min_items": { "type": "integer", "minimum": 0 },
+            "max_items": { "type": "integer", "minimum": 1, "maximum": 500 }
+          }
+        }
+      },
+      "required": ["fields"],
+      "not": { "anyOf": [{ "required": ["filterable"] }, { "required": ["sortable"] }] }
+    },
+    "addonOptions": {
+      "description": "The choices of an addon's field type sit under `options`, so they never collide with a choice that version 1 adds to every field. The reader checks them against the JSON Schema that the addon contributes.",
+      "properties": {
+        "options": { "type": "object" }
+      }
+    }
+  }
+}

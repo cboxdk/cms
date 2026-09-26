@@ -1,0 +1,109 @@
+blueprint: 1
+kind: type
+type_id: 0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b
+handle: article
+label: Article
+description: A news article with a headline, a body and its credits.
+version: 1
+capabilities:
+  history: full
+  stages: draft-release
+  localization: none
+  routable: true
+fields:
+  - handle: title
+    label: Headline
+    description: The headline as it is shown on the page and in lists.
+    type: text
+    max_length: 120
+    required: true
+    classification: public
+    sortable: true
+  - handle: summary
+    label: Summary
+    description: A short plain-text summary for lists and search results.
+    type: long_text
+    max_length: 500
+    classification: public
+  - handle: reading_minutes
+    label: Reading time
+    description: The estimated reading time in whole minutes.
+    type: integer
+    min: 1
+    max: 120
+    unit: min
+    classification: public
+    filterable: true
+  - handle: rating
+    label: Rating
+    description: The editors' rating of the article, from 0 to 5.
+    type: decimal
+    precision: 3
+    scale: 2
+    min: '0'
+    max: '5.00'
+    classification: internal
+  - handle: featured
+    label: Featured
+    description: Whether the article is shown on the front page.
+    type: boolean
+    classification: public
+    filterable: true
+  - handle: event_date
+    label: Event date
+    description: The date of the event the article covers.
+    type: date
+    min: '2000-01-01'
+    classification: public
+    sortable: true
+  - handle: embargo_until
+    label: Embargo until
+    description: The time before which the article may not be published.
+    type: datetime
+    min: '2000-01-01T00:00:00Z'
+    classification: internal
+  - handle: section
+    label: Section
+    description: The sections of the site the article is listed under.
+    type: select
+    options:
+      - value: news
+        label: News
+      - value: sport
+        label: Sport
+      - value: culture
+        label: Culture
+    multiple: true
+    min_items: 1
+    max_items: 2
+    classification: public
+    filterable: true
+  - handle: body
+    label: Body
+    description: The body text of the article.
+    type: rich_text
+    styles: [normal, h2, h3, blockquote]
+    marks: [strong, em]
+    lists: [bullet, number]
+    links: [url]
+    classification: public
+  - handle: credits
+    label: Credits
+    description: The people who made the article, in the order they are credited.
+    type: group
+    repeat:
+      min_items: 1
+      max_items: 10
+    fields:
+      - handle: name
+        label: Name
+        description: The name of the person as it is printed.
+        type: text
+        max_length: 100
+        required: true
+      - handle: role
+        label: Role
+        type: text
+        max_length: 50
+        agents: false
+    classification: personal

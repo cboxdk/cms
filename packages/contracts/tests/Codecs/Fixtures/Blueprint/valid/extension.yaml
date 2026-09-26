@@ -1,0 +1,11 @@
+blueprint: 1
+kind: extension
+extends: 0192a3b4-c5d6-7e8f-9a0b-aaaaaaaaaaaa
+version: 1
+fields:
+  - handle: tax_code
+    label: Tax code
+    description: The customer's tax code for the product.
+    type: text
+    max_length: 20
+    classification: internal

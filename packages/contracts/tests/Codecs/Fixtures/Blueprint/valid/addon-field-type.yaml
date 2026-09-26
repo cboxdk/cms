@@ -1,0 +1,26 @@
+blueprint: 1
+kind: type
+type_id: 0192a3b4-c5d6-7e8f-9a0b-bbbbbbbbbbbb
+handle: product
+label: Product
+description: A product in the shop.
+version: 1
+capabilities:
+  history: audit-only
+  stages: none
+  localization: none
+fields:
+  - handle: name
+    label: Name
+    description: The name of the product.
+    type: text
+    required: true
+    classification: public
+  - handle: colour
+    label: Colour
+    description: The colour of the product, picked from the shop's palette.
+    type: acme:colour
+    options:
+      palette: shop
+      allow_custom: false
+    classification: public
