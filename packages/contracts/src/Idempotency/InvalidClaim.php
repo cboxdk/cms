@@ -39,6 +39,18 @@ final class InvalidClaim extends LogicException
         ));
     }
 
+    /**
+     * The store's claims need to see commits made while they waited, which only READ COMMITTED
+     * gives: under REPEATABLE READ or SERIALIZABLE the snapshot is older than the wait.
+     */
+    public static function isolationLevel(string $level): self
+    {
+        return new self(sprintf(
+            'IdempotencyStore::claim() needs the command transaction at READ COMMITTED, and it is %s. A statement after the claim must see a commit made while the claim waited.',
+            strtoupper($level),
+        ));
+    }
+
     private static function named(ClaimToken $token): string
     {
         return sprintf(

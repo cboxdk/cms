@@ -146,7 +146,7 @@ it('drops the Standard receipt partitions a week after their day ends and keeps 
     $clock->set(new DateTimeImmutable('2026-01-09T00:00:00Z'));
     $report = app(MaintainPartitions::class)->maintain();
 
-    expect($report->partitions(PartitionChangeKind::Dropped))->toBe(['receipts_standard_p20260101', 'receipt_projections_standard_p20260101'])
+    expect($report->partitions(PartitionChangeKind::Dropped))->toBe(['receipts_standard_p20260101', 'receipt_projections_standard_p20260101', 'idempotency_keys_p20260101'])
         ->and(ReceiptTables::texts(ReceiptTables::owner(), "select relname::text as value from pg_class where relname in ('receipts_standard_p20260101', 'receipts_standard_p20260102', 'receipts_evidence_p202601') order by 1"))
         ->toBe(['receipts_evidence_p202601', 'receipts_standard_p20260102'])
         ->and($store->find(ReceiptTables::changesetOf($evidence)))->toEqual($evidence);

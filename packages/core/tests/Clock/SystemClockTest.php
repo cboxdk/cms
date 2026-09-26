@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Clock;
 
 use Cbox\Cms\Contracts\Clock;
+use Cbox\Cms\Contracts\IdempotencyStore;
 use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Contracts\ReceiptStore;
 use Cbox\Cms\Core\Bindings\Boundary\InvalidContractBinding;
 use Cbox\Cms\Core\Clock\Adapter\SystemClock;
 use Cbox\Cms\Core\CoreServiceProvider;
+use Cbox\Cms\Core\IdempotencyStore\Adapter\PostgresIdempotencyStore;
 use Cbox\Cms\Core\Ids\Adapter\SystemIdGenerator;
 use Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore;
 use Cbox\Cms\Testkit\Clock\FakeClock;
@@ -72,6 +74,7 @@ it('keeps the default clock and id generator when the application configures onl
         Clock::class => SystemClock::class,
         IdGenerator::class => SystemIdGenerator::class,
         ReceiptStore::class => PostgresReceiptStore::class,
+        IdempotencyStore::class => PostgresIdempotencyStore::class,
         'Acme\\Contracts\\Other' => 'Acme\\Other',
     ])->and(app(Clock::class))->toBeInstanceOf(SystemClock::class)
         ->and(app(IdGenerator::class))->toBeInstanceOf(SystemIdGenerator::class);

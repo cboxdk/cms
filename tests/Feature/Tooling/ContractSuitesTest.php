@@ -6,6 +6,7 @@ namespace Cbox\Cms\Tests\Feature\Tooling;
 
 use Cbox\Cms\Core\Tests\Contract\SystemClockContractTest;
 use Cbox\Cms\Core\Tests\Contract\SystemIdGeneratorContractTest;
+use Cbox\Cms\Core\Tests\Postgres\PostgresIdempotencyStoreContractTest;
 use Cbox\Cms\Core\Tests\Postgres\PostgresReceiptStoreContractTest;
 use Cbox\Cms\Testkit\Clock\ClockContract;
 use Cbox\Cms\Testkit\Idempotency\IdempotencyStoreContract;
@@ -156,4 +157,17 @@ it('runs every shared IdempotencyStore case once for the FakeIdempotencyStore', 
         'a_claim_held_by_an_open_transaction_is_in_flight_for_another_session',
         'five_claims_with_the_same_key_and_hash_after_one_completed_commit_all_replay',
     )->and($listed)->toBe($expected);
+});
+
+it('runs every shared IdempotencyStore case once for the PostgresIdempotencyStore, in the Postgres suite', function (): void {
+    $cases = sharedCases(IdempotencyStoreContract::class);
+
+    $expected = array_map(static fn (string $case): string => PostgresIdempotencyStoreContractTest::class.'::'.$case, $cases);
+
+    $listed = contractTests('IdempotencyStoreContract', 'Postgres');
+    sort($expected);
+    sort($listed);
+
+    expect($cases)->toHaveCount(14)
+        ->and($listed)->toBe($expected);
 });

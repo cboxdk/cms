@@ -65,7 +65,9 @@ interface IdempotencyStore
      *
      * @return Fresh|Replay|Conflict|InFlight
      *
-     * @throws InvalidClaim when the caller has no transaction open
+     * @throws InvalidClaim when the caller has no transaction open, or when its isolation level
+     *                      would hide a commit made while the claim waited (a store on Postgres
+     *                      needs READ COMMITTED)
      */
     public function claim(IdempotencyScope $scope, IdempotencyKey $key, ContentHash $hash, WaitBudget $waitBudget): ClaimResult;
 

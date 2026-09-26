@@ -3,9 +3,11 @@
 declare(strict_types=1);
 
 use Cbox\Cms\Contracts\Clock;
+use Cbox\Cms\Contracts\IdempotencyStore;
 use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Contracts\ReceiptStore;
 use Cbox\Cms\Core\Clock\Adapter\SystemClock;
+use Cbox\Cms\Core\IdempotencyStore\Adapter\PostgresIdempotencyStore;
 use Cbox\Cms\Core\Ids\Adapter\SystemIdGenerator;
 use Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore;
 
@@ -19,6 +21,7 @@ return [
         Clock::class => SystemClock::class,
         IdGenerator::class => SystemIdGenerator::class,
         ReceiptStore::class => PostgresReceiptStore::class,
+        IdempotencyStore::class => PostgresIdempotencyStore::class,
     ],
 
     'database' => [
@@ -44,7 +47,9 @@ return [
          * The core's own tables are listed here; an application adds its tables next to them. The
          * receipt tables are partitioned by retention class first (PRD 4, 8.4), and each class is
          * managed as its own table: Standard receipts per day, dropped a week after the day ends,
-         * and Evidence receipts per month, never dropped here.
+         * and Evidence receipts per month, never dropped here. Idempotency records are partitioned
+         * per day on created_at and dropped a week after the day ends, when every record in it has
+         * expired (PRD 4, 6.1).
          */
         'partitions' => [
             'runway_days' => 14,
@@ -56,6 +61,7 @@ return [
                 'receipts_evidence' => ['key' => 'uuid7', 'interval' => 'month', 'retention_days' => null],
                 'receipt_projections_standard' => ['key' => 'uuid7', 'interval' => 'day', 'retention_days' => 7],
                 'receipt_projections_evidence' => ['key' => 'uuid7', 'interval' => 'month', 'retention_days' => null],
+                'idempotency_keys' => ['key' => 'timestamp', 'interval' => 'day', 'retention_days' => 7],
             ],
         ],
     ],

@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Clock;
+use Cbox\Cms\Contracts\IdempotencyStore;
 use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Contracts\ReceiptStore;
 use Cbox\Cms\Core\Bindings\Boundary\ContractBindings;
@@ -50,6 +51,11 @@ final class CoreServiceProvider extends ServiceProvider
         $this->app->singleton(
             ReceiptStore::class,
             static fn (Application $app): ReceiptStore => $app->make(ContractBindings::class)->resolve($app, ReceiptStore::class),
+        );
+
+        $this->app->singleton(
+            IdempotencyStore::class,
+            static fn (Application $app): IdempotencyStore => $app->make(ContractBindings::class)->resolve($app, IdempotencyStore::class),
         );
 
         // Built on each resolution, so the policy follows the configuration.

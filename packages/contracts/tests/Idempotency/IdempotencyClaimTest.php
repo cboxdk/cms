@@ -101,6 +101,11 @@ it('names the key and scope of a token the transaction does not hold', function 
         ->toBe('The claim on key "retry-me" of actor "user:7" for command type entry.release was already completed in this transaction. A claim records one changeset.');
 });
 
+it('explains a claim outside READ COMMITTED', function (): void {
+    expect(InvalidClaim::isolationLevel('repeatable read')->getMessage())
+        ->toBe('IdempotencyStore::claim() needs the command transaction at READ COMMITTED, and it is REPEATABLE READ. A statement after the claim must see a commit made while the claim waited.');
+});
+
 it('has claim and complete, and no release', function (): void {
     $contract = new ReflectionClass(IdempotencyStore::class);
     $methods = array_map(static fn (ReflectionMethod $method): string => $method->getName(), $contract->getMethods());
