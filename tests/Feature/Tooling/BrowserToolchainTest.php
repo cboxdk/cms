@@ -6,8 +6,12 @@ namespace Cbox\Cms\Tests\Feature\Tooling;
 
 use Cbox\Cms\Tests\Support\Node;
 use Cbox\Cms\Tests\Support\Phpstan;
+use Composer\InstalledVersions;
+use Illuminate\Filesystem\Filesystem;
 use Pest\Browser\Playwright\Servers\PlaywrightNpmServer;
 use ReflectionClassConstant;
+use RuntimeException;
+use Symfony\Component\Process\Process;
 use UnexpectedValueException;
 
 use function Orchestra\Testbench\workbench_path;
@@ -25,8 +29,9 @@ it('requires the Pest browser plugin as a dev dependency', function (): void {
 
     $require = $composer['require'] ?? null;
 
-    expect($composer['require-dev'] ?? null)->toBeArray()->toHaveKey('pestphp/pest-plugin-browser', '^4.3')
-        ->and(is_array($require) && array_key_exists('pestphp/pest-plugin-browser', $require))->toBeFalse();
+    expect($composer['require-dev'] ?? null)->toBeArray()->toHaveKey('pestphp/pest-plugin-browser', '^5.0')
+        ->and(is_array($require) && array_key_exists('pestphp/pest-plugin-browser', $require))->toBeFalse()
+        ->and(InstalledVersions::getVersion('pestphp/pest-plugin-browser'))->toStartWith('5.');
 });
 
 it('pins Playwright in package.json and the lock file, and installs that version', function (): void {
@@ -59,6 +64,48 @@ it('pins a Playwright that the browser plugin accepts', function (): void {
 
     expect(version_compare($pinned, $minimum, '>='))
         ->toBeTrue("Playwright {$pinned} is older than {$minimum}, the minimum of the browser plugin.");
+});
+
+it('exits 0 from a browser run that finds the screenshots of an earlier run', function (): void {
+    // Before the first browser test the plugin empties tests/Browser/Screenshots with @rmdir() on
+    // subdirectories that need not exist. PHPUnit 13 counts such a warning outside a test, even
+    // suppressed, unless the file is on its exclude list, so without tests/Pest.php adding the
+    // plugin there every browser run after one that left a screenshot exited 1 and printed no
+    // failure. The screenshots already there are kept aside and put back afterwards.
+    $root = Phpstan::root();
+    $screenshots = $root.'/tests/Browser/Screenshots';
+    $files = new Filesystem;
+    $kept = sys_get_temp_dir().'/cms-browser-screenshots-'.bin2hex(random_bytes(8));
+    $hadScreenshots = $files->isDirectory($screenshots);
+
+    // A copy, not a rename: the system temp directory can be on another file system.
+    if ($hadScreenshots && (! $files->copyDirectory($screenshots, $kept) || ! $files->deleteDirectory($screenshots))) {
+        throw new RuntimeException("Could not keep {$screenshots} aside in {$kept}.");
+    }
+
+    try {
+        $files->ensureDirectoryExists($screenshots);
+        $files->put($screenshots.'/from-an-earlier-run.png', 'png');
+
+        $run = new Process(
+            [PHP_BINARY, 'vendor/bin/pest', 'tests/Feature/Tooling/fixtures/browser-plugin-boot.php', '--colors=never'],
+            $root,
+            timeout: 120,
+        );
+        $run->run();
+        $output = $run->getOutput().$run->getErrorOutput();
+
+        expect($run->getExitCode())->toBe(0, $output)
+            ->and($output)->toContain('1 passed')
+            // The plugin's clean-up ran, so the run met the directory it failed on.
+            ->and($screenshots)->not->toBeDirectory();
+    } finally {
+        $files->deleteDirectory($screenshots);
+
+        if ($hadScreenshots && (! $files->copyDirectory($kept, $screenshots) || ! $files->deleteDirectory($kept))) {
+            throw new RuntimeException("Could not put the screenshots back from {$kept}.");
+        }
+    }
 });
 
 it('serves the workbench web routes, which the browser tests visit', function (): void {
