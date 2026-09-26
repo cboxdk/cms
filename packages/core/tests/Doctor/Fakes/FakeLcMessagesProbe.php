@@ -16,6 +16,9 @@ final class FakeLcMessagesProbe implements LcMessagesProbe
 {
     public string $appRole = 'C';
 
+    /** The role of the app connection; an installation may use one role for both. */
+    public string $appRoleName = 'cms_app';
+
     public string $appSource = 'user';
 
     public string $ownerRole = 'C';
@@ -29,7 +32,7 @@ final class FakeLcMessagesProbe implements LcMessagesProbe
 
     public function appRole(): RoleLcMessages
     {
-        return new RoleLcMessages('cms_app', 'pgsql', $this->appRole, $this->appSource);
+        return new RoleLcMessages($this->appRoleName, 'pgsql', $this->appRole, $this->appSource);
     }
 
     public function ownerRole(): RoleLcMessages

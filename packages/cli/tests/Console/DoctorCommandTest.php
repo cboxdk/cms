@@ -6,6 +6,9 @@ namespace Cbox\Cms\Cli\Tests\Console;
 
 use Cbox\Cms\Cli\Console\DoctorCommand;
 use Cbox\Cms\Contracts\Clock;
+use Cbox\Cms\Core\Doctor\Actions\RunDoctor;
+use Cbox\Cms\Core\Doctor\Boundary\DoctorReportJson;
+use Cbox\Cms\Core\Doctor\Domain\Dto\DoctorRunOptions;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PartitionCoverage;
 use Cbox\Cms\Core\Doctor\Domain\ProbeFailed;
 use Cbox\Cms\Core\Doctor\Domain\Probes\LcMessagesProbe;
@@ -323,4 +326,71 @@ it('logs the failing checks with their codes', function (): void {
             'dev' => false,
             'failed' => ['postgres.transaction_timeout doctor_transaction_timeout_missing'],
         ]]]);
+});
+
+it('prints exactly the JSON document with --json, without a line break of its own', function (): void {
+    new DoctorFakes;
+
+    [, $output] = doctor(['--json' => true]);
+
+    expect($output)->toBe(DoctorReportJson::encode(app(RunDoctor::class)->run(new DoctorRunOptions)));
+});
+
+it('lines up every check under the longest id and prints the cause, fix and code of a failure indented past the id', function (): void {
+    $fakes = new DoctorFakes;
+    $fakes->partitions->runways = [new PartitionCoverage('receipts_standard', new DateTimeImmutable('2026-03-12T00:00:00Z'))];
+    $fakes->lcMessages->ownerRole = 'de_DE.UTF-8';
+
+    [, $document] = doctorJson();
+    [$status, $output] = doctor();
+    $checks = is_array($document['checks'] ?? null) ? $document['checks'] : [];
+    $ids = array_keys(checkStatuses($document));
+    $width = max(0, ...array_map(strlen(...), $ids));
+    $indent = str_repeat(' ', $width + 9);
+    $expected = [];
+
+    foreach ($checks as $check) {
+        expect($check)->toBeArray();
+
+        if (! is_array($check)) {
+            continue;
+        }
+
+        $label = match ($check['status'] ?? null) {
+            'pass' => 'pass',
+            'fail' => 'FAIL',
+            default => 'skip',
+        };
+        $id = is_string($check['id'] ?? null) ? $check['id'] : '';
+        $explanation = is_string($check['explanation'] ?? null) ? $check['explanation'] : '';
+        $expected[] = sprintf(' %s  %s  %s', $label, str_pad($id, $width), $explanation);
+
+        if (is_string($check['cause'] ?? null)) {
+            $expected[] = $indent.'cause  '.$check['cause'];
+        }
+
+        if (is_string($check['fix'] ?? null)) {
+            $expected[] = $indent.'fix    '.$check['fix'];
+        }
+
+        if (is_string($check['code'] ?? null) && is_string($check['failure'] ?? null)) {
+            $expected[] = sprintf('%scode   %s (%s, %s)', $indent, $check['code'], $check['failure'], $check['blocking'] === true ? 'blocks the kernel from starting' : 'affects readiness only');
+        }
+    }
+
+    expect($status)->toBe(78)
+        ->and($width)->toBe(strlen('postgres.prepared_transactions'))
+        ->and(explode("\n", $output))->toBe([...$expected, '', 'cms:doctor: violation (exit 78).', ''])
+        ->and($output)->toContain('code   doctor_lc_messages_not_english (violation, blocks the kernel from starting)', 'code   doctor_partition_runway_short (violation, affects readiness only)');
+});
+
+it('ends a clean run with the summary as information after an empty line', function (): void {
+    new DoctorFakes;
+
+    [$status, $output] = doctor();
+    $lines = explode("\n", $output);
+
+    expect($status)->toBe(0)
+        ->and(array_slice($lines, -3))->toBe(['', 'cms:doctor: ok (exit 0).', ''])
+        ->and($output)->not->toContain('cause  ');
 });

@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Tooling\Check\Domain;
 
+use Cbox\Cms\Tooling\Mutation\Domain\MutationScope;
+use Cbox\Cms\Tooling\Mutation\Domain\MutationSteps;
+
 /**
  * The PR profile of GUARDRAILS 10 as CI runs it today, through `bin/ci`: the steps of gates 1 to
- * 6 from the local profile, unchanged, gate 8 (the Browser suite) and gate 9 (composer audit and
- * npm audit), and gates 7, 10 and 11 and mutation on changed files reported as not run, each with
- * the reason. GUARDRAILS 10 wants every gate that did not run reported explicitly; a gate that
- * starts running in CI moves out of NOT_RUN.
+ * 6 from the local profile, unchanged, with gate 5 adding the Mutation suite and mutation on
+ * changed files (MutationSteps), gate 8 (the Browser suite) and gate 9 (composer audit and npm
+ * audit), and gates 7, 10 and 11 reported as not run, each with the reason. GUARDRAILS 10 wants
+ * every gate that did not run reported explicitly; a gate that starts running in CI moves out of
+ * NOT_RUN.
  */
 final readonly class PrProfile
 {
@@ -23,11 +27,10 @@ final readonly class PrProfile
     ];
 
     /**
-     * Mutation on changed files belongs to the PR profile. It is reported under gate 5, the Pest gate.
+     * The Pest suite of the tests that need a coverage driver, one of LocalProfile::OTHER_SUITES.
+     * It runs in gate 5 before mutation on changed files, which it tests.
      */
-    public const string MUTATION = 'Mutation on changed files';
-
-    public const string MUTATION_NOT_RUN = 'not run in CI yet: mutation testing is not set up';
+    public const string MUTATION_SUITE = 'Mutation';
 
     /**
      * The Pest suite of gate 8, one of LocalProfile::OTHER_SUITES.
@@ -37,16 +40,21 @@ final readonly class PrProfile
     /**
      * @param  string  $php  the PHP binary
      * @param  list<string>  $composer  the command that runs Composer
+     * @param  MutationScope  $mutation  what changed since the base of the change, for mutation on changed files
      * @return list<Gate>
      */
-    public static function gates(string $php, array $composer): array
+    public static function gates(string $php, array $composer, MutationScope $mutation): array
     {
         $gates = [];
 
         foreach (LocalProfile::gates($php, $composer) as $gate) {
             $gates[] = match (true) {
                 isset(self::NOT_RUN[$gate->number]) => new Gate($gate->number, $gate->title, [Step::notRun($gate->title, self::NOT_RUN[$gate->number])]),
-                $gate->number === 5 => new Gate(5, $gate->title, [...$gate->steps, Step::notRun(self::MUTATION, self::MUTATION_NOT_RUN)]),
+                $gate->number === 5 => new Gate(5, $gate->title, [
+                    ...$gate->steps,
+                    LocalProfile::suiteStep($php, self::MUTATION_SUITE),
+                    ...MutationSteps::for($mutation, $php),
+                ]),
                 $gate->number === 8 => self::browser($gate, $php),
                 $gate->number === 9 => self::audit($gate, $composer),
                 default => $gate,

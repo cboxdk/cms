@@ -6,11 +6,12 @@ namespace Cbox\Cms\Tests\Feature\Tooling\Ci;
 
 use Cbox\Cms\Tests\Support\Phpstan;
 use Cbox\Cms\Tests\Support\Tooling\ScratchDirectory;
+use Cbox\Cms\Tests\Support\Tooling\ScratchRepository;
 use Symfony\Component\Process\Process;
 
 /*
  * bin/ci, the single CI entry script, and docker/ci-entry.sh, which runs it on a clean git
- * archive of HEAD in compose.ci.yaml. bin/ci runs here with fake composer, npm, php, node, psql
+ * archive of HEAD in compose.ci.yaml, on the merge base of CMS_CI_BASE_REF when that is set. bin/ci runs here with fake composer, npm, php, node, psql
  * and pg_isready on the PATH, which record how they were called; ci-entry.sh runs on a scratch
  * repository.
  */
@@ -166,7 +167,7 @@ it('runs its command on a clean archive of HEAD: committed files only, in a repo
     $process = new Process([
         Phpstan::root().'/docker/ci-entry.sh',
         'bash', '-c', 'ls -A | sort | tr "\n" " "; echo; git status --porcelain --ignored; git rev-list --count HEAD; git log --format=%s; cat committed.php',
-    ], null, ['CMS_CI_SOURCE' => $source.'/.git', 'CMS_CI_WORK' => $work], null, 60);
+    ], null, ['CMS_CI_SOURCE' => $source.'/.git', 'CMS_CI_WORK' => $work, 'CMS_CI_BASE_REF' => false], null, 60);
     $process->run();
 
     expect($process->getExitCode())->toBe(0)
@@ -199,7 +200,7 @@ it('runs HEAD\'s docker/ci-setup.sh and then HEAD\'s bin/ci in the archive when 
     // A working-tree change that must not run.
     ScratchDirectory::write($source.'/docker/ci-setup.sh', "#!/usr/bin/env bash\necho 'setup from the working tree'\n");
 
-    $process = new Process([Phpstan::root().'/docker/ci-entry.sh'], null, ['CMS_CI_SOURCE' => $source.'/.git', 'CMS_CI_WORK' => $work], null, 60);
+    $process = new Process([Phpstan::root().'/docker/ci-entry.sh'], null, ['CMS_CI_SOURCE' => $source.'/.git', 'CMS_CI_WORK' => $work, 'CMS_CI_BASE_REF' => false], null, 60);
     $process->run();
     $lines = explode("\n", trim($process->getOutput()));
 
@@ -222,10 +223,83 @@ it('stops before bin/ci when the setup fails', function (): void {
     $git('add', 'docker/ci-setup.sh', 'bin/ci');
     $git('commit', '--quiet', '--message=fixture');
 
-    $process = new Process([Phpstan::root().'/docker/ci-entry.sh'], null, ['CMS_CI_SOURCE' => $source.'/.git', 'CMS_CI_WORK' => $work], null, 60);
+    $process = new Process([Phpstan::root().'/docker/ci-entry.sh'], null, ['CMS_CI_SOURCE' => $source.'/.git', 'CMS_CI_WORK' => $work, 'CMS_CI_BASE_REF' => false], null, 60);
     $process->run();
 
     expect($process->getExitCode())->toBe(1)
         ->and($process->getOutput())->not->toContain('bin/ci ran')
         ->and($process->getErrorOutput())->toContain('no Chromium');
 });
+
+it('builds the archive as the merge base\'s tree and then HEAD\'s, and runs with CMS_CI_BASE_REF=HEAD~1', function (): void {
+    $source = ScratchRepository::make();
+    $work = ScratchDirectory::make().'/work';
+    $source->write('packages/demo/src/Kept.php', "<?php\n// base\n")->write('packages/demo/src/Removed.php', "<?php\n")->write('.gitignore', "ignored.txt\n");
+    $base = $source->commit('base');
+    $source->git('checkout', '--quiet', '-b', 'feature');
+    $source->write('packages/demo/src/Kept.php', "<?php\n// feature\n")->write('packages/demo/src/Added.php', "<?php\n")->delete('packages/demo/src/Removed.php');
+    $head = $source->commit('feature');
+    // main moves on after the fork; its change is not the feature's.
+    $source->git('checkout', '--quiet', 'main');
+    $source->write('packages/demo/src/OnMain.php', "<?php\n")->commit('main moves on');
+    $source->git('checkout', '--quiet', 'feature');
+
+    $process = new Process([
+        Phpstan::root().'/docker/ci-entry.sh',
+        'bash', '-c', 'echo "ref=$CMS_CI_BASE_REF"; git rev-list --count HEAD; git log --format=%s; git diff --no-renames --name-status HEAD~1 HEAD; git status --porcelain --ignored; cat packages/demo/src/Kept.php',
+    ], null, ['CMS_CI_SOURCE' => $source->root.'/.git', 'CMS_CI_WORK' => $work, 'CMS_CI_BASE_REF' => 'main'], null, 60);
+    $process->run();
+
+    expect($process->getExitCode())->toBe(0, $process->getErrorOutput())
+        ->and($process->getOutput())->toBe(implode("\n", [
+            "ci-entry: HEAD {$head} archived to {$work} on its merge base {$base}; CMS_CI_BASE_REF=HEAD~1",
+            'ref=HEAD~1',
+            '2',
+            "HEAD {$head} of the mounted repository",
+            "the merge base {$base} of CMS_CI_BASE_REF=main and HEAD",
+            "A\tpackages/demo/src/Added.php",
+            "M\tpackages/demo/src/Kept.php",
+            "D\tpackages/demo/src/Removed.php",
+            '<?php',
+            '// feature',
+            '',
+        ]));
+});
+
+it('keeps HEAD\'s tree as the second commit when HEAD is the merge base, so nothing changed', function (): void {
+    $source = ScratchRepository::make();
+    $work = ScratchDirectory::make().'/work';
+    $head = $source->write('packages/demo/src/Kept.php', "<?php\n")->commit('base');
+
+    $process = new Process([Phpstan::root().'/docker/ci-entry.sh', 'bash', '-c', 'git rev-list --count HEAD; git diff --name-only HEAD~1 HEAD | wc -l'],
+        null, ['CMS_CI_SOURCE' => $source->root.'/.git', 'CMS_CI_WORK' => $work, 'CMS_CI_BASE_REF' => $head], null, 60);
+    $process->run();
+
+    expect($process->getExitCode())->toBe(0, $process->getErrorOutput())
+        ->and(array_map(trim(...), explode("\n", trim($process->getOutput()))))->toBe([
+            "ci-entry: HEAD {$head} archived to {$work} on its merge base {$head}; CMS_CI_BASE_REF=HEAD~1",
+            '2',
+            '0',
+        ]);
+});
+
+it('stops before anything runs when CMS_CI_BASE_REF names no commit or has no merge base with HEAD', function (string $ref, string $message): void {
+    $source = ScratchRepository::make();
+    $work = ScratchDirectory::make().'/work';
+    $source->write('packages/demo/src/Kept.php', "<?php\n")->commit('base');
+    $source->git('checkout', '--quiet', '--orphan', 'unrelated');
+    $source->write('packages/demo/src/Other.php', "<?php\n")->commit('unrelated');
+    $source->git('checkout', '--quiet', 'main');
+
+    $process = new Process([Phpstan::root().'/docker/ci-entry.sh', 'bash', '-c', 'echo ran'],
+        null, ['CMS_CI_SOURCE' => $source->root.'/.git', 'CMS_CI_WORK' => $work, 'CMS_CI_BASE_REF' => $ref], null, 60);
+    $process->run();
+
+    expect($process->getExitCode())->toBe(1)
+        ->and($process->getOutput())->not->toContain('ran')
+        ->and($process->getErrorOutput())->toContain($message)
+        ->and($work)->not->toBeDirectory();
+})->with([
+    'an unknown ref' => ['origin/no-such-branch', 'ci-entry: CMS_CI_BASE_REF=origin/no-such-branch names no commit in the mounted repository.'],
+    'unrelated history' => ['unrelated', 'ci-entry: CMS_CI_BASE_REF=unrelated has no merge base with HEAD'],
+]);

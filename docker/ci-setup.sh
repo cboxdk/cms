@@ -15,6 +15,9 @@
 # - the user ci, uid 1001: bin/ci runs the gates as ci, never as root. Root ignores file
 #   permissions, so the tests of unwritable files skip, and gate 5 fails a skipped test. 1001 is
 #   the uid of GitHub's runner user, so the files the runner hands the job stay writable.
+# - PCOV: mutation on changed files in gate 5 needs a coverage driver. The image loads the
+#   extension and leaves it off; tools/mutation/pcov.ini turns it on for the mutation step. The
+#   script fails when the extension is not loaded, so the step never runs without coverage.
 # - Chromium for the Playwright that package-lock.json pins, for the Browser suite of gate 8. The
 #   image keeps its browsers in PLAYWRIGHT_BROWSERS_PATH (/ms-playwright), where the user ci
 #   finds them too. The pinned Playwright names the builds it needs, Chromium and its headless
@@ -28,6 +31,11 @@ node_major="$(node --version | sed -E 's/^v([0-9]+)\..*$/\1/')"
 
 if [[ "$node_major" != "$required_node_major" ]]; then
     echo "ci-setup: Node ${required_node_major} is required, the image has $(node --version)." >&2
+    exit 1
+fi
+
+if ! php -r 'exit(extension_loaded("pcov") ? 0 : 1);'; then
+    echo 'ci-setup: the PHP extension pcov is not loaded. Mutation on changed files in gate 5 needs it for code coverage; tools/mutation/pcov.ini turns it on for the step.' >&2
     exit 1
 fi
 
@@ -104,6 +112,6 @@ if [[ -n "$missing" ]]; then
     fi
 fi
 
-echo "ci-setup: PHP $(php -r 'echo PHP_VERSION;'), Node $(node --version), $(psql --version), $(git --version)"
+echo "ci-setup: PHP $(php -r 'echo PHP_VERSION;') with pcov, Node $(node --version), $(psql --version), $(git --version)"
 builds="$(chromium_builds)"
 echo "ci-setup: Playwright ${playwright_version} with Chromium in ${builds//$'\n'/ }"

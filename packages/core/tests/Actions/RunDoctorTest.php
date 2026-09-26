@@ -135,7 +135,7 @@ it('turns a check that throws or answers for another check into a violation', fu
         ->and($report->results[0]->cause)->toBe('It threw RuntimeException: The probe exploded.')
         ->and($report->results[1]->id->value)->toBe('fake.impostor')
         ->and($report->results[1]->blocking)->toBeFalse()
-        ->and($report->results[1]->cause)->toContain('answered for fake.other')
+        ->and($report->results[1]->cause)->toBe('It answered for fake.other with blocking false instead of for itself.')
         ->and($report->exit)->toBe(DoctorExitCode::Violation);
 });
 

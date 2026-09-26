@@ -93,10 +93,12 @@ it('leaves the processes of a command that is not in a group of its own alone', 
 
 it('passes a SIGTERM to the runner on to the group and then ends by it', function (): void {
     $pidFile = ScratchDirectory::make().'/sleep.pid';
-    $runner = new Process([PHP_BINARY, 'tests/Feature/Tooling/fixtures/grouped-step.php', $pidFile], Phpstan::root(), timeout: 30);
+    $runner = new Process([PHP_BINARY, 'tests/Feature/Tooling/fixtures/grouped-step.php', $pidFile], Phpstan::root(), timeout: 60);
     $runner->start();
 
-    $deadline = hrtime(true) + 10 * 1_000_000_000;
+    // Generous, because the fast suites also run in parallel workers with coverage, where a
+    // starting PHP process can take seconds.
+    $deadline = hrtime(true) + 45 * 1_000_000_000;
 
     while (Processes::idsIn($pidFile) === [] && hrtime(true) < $deadline) {
         usleep(20_000);

@@ -1,7 +1,12 @@
 # The containerized CI run of the PR profile (GUARDRAILS 10):
 #
-#   docker compose -f compose.ci.yaml run --rm ci
+#   CMS_CI_BASE_REF=<base> docker compose -f compose.ci.yaml run --rm ci
 #   docker compose -f compose.ci.yaml down      # stops postgres and valkey afterwards
+#
+# CMS_CI_BASE_REF is the base of the change, such as main or HEAD~3, for mutation on changed files
+# in gate 5; ci.yml sets it to the pull request's base commit. docker/ci-entry.sh resolves it in
+# the mounted .git and builds the archive as two commits, the merge base's tree and HEAD's, with
+# CMS_CI_BASE_REF=HEAD~1 inside. Without it the mutation step fails, as it does in ci.yml.
 #
 # The ci service runs the two steps .github/workflows/ci.yml runs after its checkout,
 # docker/ci-setup.sh and bin/ci, on a clean git archive of HEAD: the repository's .git is mounted
@@ -39,6 +44,8 @@ services:
     environment:
       CI: 'true'
       CMS_CI_RUNNER: 'Docker Desktop, 4 CPUs, as the proxy for ubuntu-latest, 4 vCPU'
+      # The base of the change from the host's environment; empty counts as unset.
+      CMS_CI_BASE_REF: ${CMS_CI_BASE_REF:-}
       CMS_CI_PROVISION_POSTGRES: '1'
       CMS_CI_USER: ci
       DB_HOST: postgres

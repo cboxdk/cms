@@ -1,0 +1,178 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Cbox\Cms\Tests\Mutation;
+
+use Cbox\Cms\Tests\Support\Phpstan;
+use Cbox\Cms\Tests\Support\Tooling\ScratchDirectory;
+use Cbox\Cms\Tests\Support\Tooling\ScratchRepository;
+use Cbox\Cms\Tooling\Check\Adapter\SymfonyProcessRunner;
+use Cbox\Cms\Tooling\Check\Domain\CheckListener;
+use Cbox\Cms\Tooling\Check\Domain\CheckRunner;
+use Cbox\Cms\Tooling\Check\Domain\Gate;
+use Cbox\Cms\Tooling\Check\Domain\Step;
+use Cbox\Cms\Tooling\Check\Domain\StepResult;
+use Cbox\Cms\Tooling\Check\Domain\StepStatus;
+use Cbox\Cms\Tooling\Mutation\Boundary\GitMutationScope;
+use Cbox\Cms\Tooling\Mutation\Domain\MutationSteps;
+
+/*
+ * Mutation on changed files for real (M0-T47): the steps MutationSteps builds run Pest's
+ * --mutate with PCOV on a scratch repository that uses this checkout's vendor, and the report
+ * plugin in composer.json's extra.pest.plugins gives each class its score. A test that runs a
+ * branch without asserting what it returns scores below 80 and fails the step, naming the class;
+ * the assertion makes it pass. It needs PCOV, which the php container and the CI image have and
+ * the host does not, so it is the Mutation suite, which the PR profile runs in gate 5.
+ *
+ * The class is an adapter, so the step is the serial one with the Postgres suite. The parallel
+ * step cannot run here: Pest's parallel workers take the directory above the real vendor, this
+ * checkout, for the project, and the scratch repository shares the vendor through a symlink. The
+ * PR profile runs the parallel step on this checkout.
+ */
+
+afterEach(function (): void {
+    ScratchDirectory::cleanUp();
+});
+
+final class SilentMutationListener implements CheckListener
+{
+    public function gateStarted(Gate $gate): void {}
+
+    public function stepFinished(Gate $gate, StepResult $result): void {}
+}
+
+/**
+ * A repository laid out like this one: phpunit.xml with the suites and packages/*\/src as the
+ * source, the checkout's vendor, and tools/mutation/pcov.ini, committed without a package.
+ */
+function mutationRepository(): ScratchRepository
+{
+    $root = Phpstan::root();
+    $suites = implode("\n", array_map(
+        static fn (string $suite): string => "        <testsuite name=\"{$suite}\"><directory suffix=\"Test.php\">tests/{$suite}</directory></testsuite>",
+        MutationSteps::POSTGRES_SUITES,
+    ));
+    $repository = ScratchRepository::make('cbox-cms-mutation-test-')
+        ->write('phpunit.xml', <<<XML
+            <?xml version="1.0" encoding="UTF-8"?>
+            <phpunit bootstrap="bootstrap.php" colors="false" cacheDirectory=".phpunit.cache">
+                <testsuites>
+            {$suites}
+                </testsuites>
+                <source>
+                    <include>
+                        <directory>packages/*/src</directory>
+                    </include>
+                </source>
+            </phpunit>
+            XML)
+        ->write('bootstrap.php', <<<'PHP'
+            <?php
+
+            declare(strict_types=1);
+
+            require __DIR__.'/vendor/autoload.php';
+
+            spl_autoload_register(static function (string $class): void {
+                $prefix = 'Acme\\Parity\\';
+
+                if (str_starts_with($class, $prefix)) {
+                    require __DIR__.'/packages/parity/src/'.str_replace('\\', '/', substr($class, strlen($prefix))).'.php';
+                }
+            });
+            PHP)
+        ->write('.gitignore', "/vendor\n/.phpunit.cache/\n")
+        ->write(MutationSteps::PCOV_INI_DIRECTORY.'/pcov.ini', (string) file_get_contents($root.'/'.MutationSteps::PCOV_INI_DIRECTORY.'/pcov.ini'));
+
+    foreach (MutationSteps::POSTGRES_SUITES as $suite) {
+        $repository->write("tests/{$suite}/.gitkeep", '');
+    }
+
+    symlink($root.'/vendor', $repository->root.'/vendor');
+    $repository->commit('the layout, without a package');
+
+    return $repository;
+}
+
+/**
+ * Runs the steps of mutation on changed files since the given base in the repository.
+ */
+function runMutation(ScratchRepository $repository, string $baseRef): ?StepResult
+{
+    $steps = MutationSteps::for(GitMutationScope::resolve($repository->root, $baseRef), PHP_BINARY);
+
+    expect(array_map(static fn (Step $step): string => $step->name, $steps))->toBe([MutationSteps::POSTGRES_NAME]);
+
+    $report = new CheckRunner(new SymfonyProcessRunner(600.0), new SilentMutationListener)->run([new Gate(5, 'Pest', $steps)], $repository->root);
+
+    return $report->gate(5)?->step(MutationSteps::POSTGRES_NAME);
+}
+
+it('fails the step below 80 and names the class when a test leaves a branch unasserted, and passes once it is asserted', function (): void {
+    expect(extension_loaded('pcov'))->toBeTrue('The Mutation suite needs PCOV, as in the php container and the CI image: docker compose exec php vendor/bin/pest --testsuite=Mutation');
+
+    $repository = mutationRepository();
+    $repository
+        ->write('packages/parity/src/Adapter/Parity.php', <<<'PHP'
+            <?php
+
+            declare(strict_types=1);
+
+            namespace Acme\Parity\Adapter;
+
+            final readonly class Parity
+            {
+                public static function of(int $number): string
+                {
+                    if ($number % 2 === 0) {
+                        return 'even';
+                    }
+
+                    return sprintf('odd, next %d, half %d, square %d', $number + 1, intdiv($number, 2), $number * $number);
+                }
+            }
+            PHP)
+        ->write('tests/Unit/ParityTest.php', <<<'PHP'
+            <?php
+
+            declare(strict_types=1);
+
+            use Acme\Parity\Adapter\Parity;
+
+            it('names numbers', function (): void {
+                expect(Parity::of(4))->toBe('even');
+
+                // The odd branch runs, but nothing asserts what it returns.
+                Parity::of(7);
+            });
+            PHP)
+        ->commit('Parity, with the odd branch unasserted');
+
+    $unasserted = runMutation($repository, 'HEAD~1');
+
+    expect($unasserted?->status)->toBe(StepStatus::Fail, $unasserted->output ?? '')
+        ->and($unasserted?->reason)->toMatch('/^mutation score \d+\.\d\d% is below 80%; below it: Acme\\\\Parity\\\\Adapter\\\\Parity \d+\.\d\d%$/')
+        ->and($unasserted?->notes[0] ?? '')->toStartWith('Acme\Parity\Adapter\Parity: ');
+
+    $repository
+        ->write('tests/Unit/ParityTest.php', <<<'PHP'
+            <?php
+
+            declare(strict_types=1);
+
+            use Acme\Parity\Adapter\Parity;
+
+            it('names numbers', function (): void {
+                expect(Parity::of(4))->toBe('even')
+                    ->and(Parity::of(7))->toBe('odd, next 8, half 3, square 49');
+            });
+            PHP)
+        ->commit('assert the odd branch');
+
+    $asserted = runMutation($repository, 'HEAD~2');
+
+    expect($asserted?->status)->toBe(StepStatus::Pass, $asserted->output ?? '')
+        ->and($asserted?->reason)->toBeNull()
+        ->and($asserted?->notes[0] ?? '')->toMatch('/^Acme\\\\Parity\\\\Adapter\\\\Parity: (8\d|9\d|100)\.\d\d%, \d+ of \d+ mutations caught$/');
+});

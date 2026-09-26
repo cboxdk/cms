@@ -95,6 +95,13 @@
             "git ls-files --others --exclude-standard -- workbench/app/Cms/Generated workbench/resources/js/cms/generated | awk '{ print \"Untracked generated file: \" $0; n++ } END { if (n > 0) print \"Commit what cms:generate writes, and remove files it did not write.\"; exit n > 0 }'"
         ]
     },
+    "extra": {
+        "pest": {
+            "plugins": [
+                "Cbox\\Cms\\Tooling\\Mutation\\Adapter\\PestMutationReport"
+            ]
+        }
+    },
     "config": {
         "sort-packages": true,
         "allow-plugins": {

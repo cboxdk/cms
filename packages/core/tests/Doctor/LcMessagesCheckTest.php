@@ -118,3 +118,33 @@ it('runs after postgres.reachable and blocks the kernel', function (): void {
         ->and($check->blocking())->toBeTrue()
         ->and(array_map(static fn (CheckId $id): string => $id->value, $check->requires()))->toBe(['postgres.reachable']);
 });
+
+it('names each role\'s value and the process\'s in the explanation of a pass', function (): void {
+    $result = new LcMessagesCheck(lcMessages(static function (FakeLcMessagesProbe $probe): void {
+        $probe->appRole = 'POSIX';
+        $probe->ownerRole = 'en_GB.UTF-8';
+        $probe->process = 'C.UTF-8';
+    }))->run();
+
+    expect($result->explanation)->toBe('Messages are English: lc_messages is POSIX for the role cms_app and en_GB.UTF-8 for the role cms_owner, and LC_MESSAGES of the PHP process is C.UTF-8.');
+});
+
+it('asks for one ALTER ROLE when the app and the owner connection share a role', function (): void {
+    $result = new LcMessagesCheck(lcMessages(static function (FakeLcMessagesProbe $probe): void {
+        $probe->appRoleName = 'cms_owner';
+        $probe->appRole = 'de_DE.UTF-8';
+        $probe->ownerRole = 'de_DE.UTF-8';
+    }))->run();
+
+    expect(substr_count((string) $result->fix, "ALTER ROLE cms_owner SET lc_messages = 'C'"))->toBe(1)
+        ->and($result->fix)->toContain("and ALTER ROLE cms_owner SET lc_messages = 'C'. A value set");
+});
+
+it('blocks the kernel when it cannot read the messages\' language', function (): void {
+    $result = new LcMessagesCheck(lcMessages(static function (FakeLcMessagesProbe $probe): void {
+        $probe->ownerFailure = ProbeFailed::unavailable('Connection refused');
+    }))->run();
+
+    expect($result->blocking)->toBeTrue()
+        ->and($result->explanation)->toBe('The doctor could not read the language of the messages from Postgres or from the PHP process.');
+});

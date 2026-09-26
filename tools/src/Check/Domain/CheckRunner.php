@@ -6,8 +6,10 @@ namespace Cbox\Cms\Tooling\Check\Domain;
 
 /**
  * Runs the gates in order and every step of each gate, also after a failure, so one run shows
- * every gate's state. A step that is not run is reported with its reason (GUARDRAILS 10). A step
- * that asks for its own process group gets one, and its output reader reads what it printed.
+ * every gate's state. A step that is not run is reported with its reason (GUARDRAILS 10), and a
+ * step decided without a command with its note or reason. A step that asks for its own process
+ * group gets one, its variables are set on top of the runner's, and its output reader reads what
+ * it printed.
  */
 final readonly class CheckRunner
 {
@@ -34,9 +36,11 @@ final readonly class CheckRunner
             $steps = [];
 
             foreach ($gate->steps as $step) {
-                $result = $step->notRunReason !== null
-                    ? StepResult::notRun($step->name, $step->notRunReason)
-                    : $this->runStep($step, $directory);
+                $result = match (true) {
+                    $step->notRunReason !== null => StepResult::notRun($step->name, $step->notRunReason),
+                    $step->decided instanceof StepStatus => StepResult::decided($step->name, $step->decided, (string) $step->decision),
+                    default => $this->runStep($step, $directory),
+                };
                 $this->listener->stepFinished($gate, $result);
                 $steps[] = $result;
             }
@@ -49,7 +53,7 @@ final readonly class CheckRunner
 
     private function runStep(Step $step, string $directory): StepResult
     {
-        $outcome = $this->processes->run($step->command, $directory, self::ENVIRONMENT, ownProcessGroup: $step->ownProcessGroup);
+        $outcome = $this->processes->run($step->command, $directory, [...self::ENVIRONMENT, ...$step->environment], ownProcessGroup: $step->ownProcessGroup);
 
         return $step->reader instanceof OutputReader
             ? StepResult::ran($step->name, $outcome, $step->reader->read($outcome))

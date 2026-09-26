@@ -32,6 +32,24 @@ it('reads the defaults of the core package', function (): void {
         ->and($settings->nodeMinimum)->toBe('22.13.0');
 });
 
+it('falls back to its own defaults for the settings cms.doctor leaves out', function (): void {
+    $settings = DoctorConfig::read(new Repository(['database' => ['default' => 'pgsql'], 'cms' => ['database' => ['owner_connection' => 'pgsql_owner']]]), '/srv/app');
+
+    expect($settings->redisConnection)->toBe('default')
+        ->and($settings->connectTimeoutSeconds)->toBe(3)
+        ->and($settings->runwayDays)->toBe(7)
+        ->and($settings->vendorManifest)->toBe('/srv/app/vendor/composer/installed.json')
+        ->and($settings->projectPath)->toBe('/srv/app')
+        ->and($settings->nodeMinimum)->toBe('22.13.0');
+});
+
+it('refuses an empty connection name', function (string $key): void {
+    $config = new Repository(['database' => ['default' => 'pgsql'], 'cms' => ['database' => ['owner_connection' => 'pgsql_owner'], 'doctor' => [$key => '']]]);
+
+    expect(static fn (): DoctorSettings => DoctorConfig::read($config, '/srv/app'))
+        ->toThrow(InvalidDoctorConfig::class, "cms.doctor.{$key}");
+})->with(['connection', 'owner_connection', 'redis_connection']);
+
 it('points the workbench at the monorepo\'s vendor manifest and node_modules', function (): void {
     $settings = app(DoctorSettings::class);
     $root = dirname(__DIR__, 4);

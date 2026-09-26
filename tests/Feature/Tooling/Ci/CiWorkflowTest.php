@@ -118,7 +118,8 @@ it('gives the job and the ci service the same environment, and the roles of comp
     $postgres = CiFiles::strings(CiFiles::yaml(CiFiles::COMPOSE), 'services', 'postgres', 'environment');
     $roles = array_filter($postgres, static fn (string $key): bool => str_starts_with($key, 'CMS_'), ARRAY_FILTER_USE_KEY);
 
-    unset($job['CMS_CI_RUNNER'], $service['CMS_CI_RUNNER'], $service['CI']);
+    // The runner and the base of the change differ by design; the next test pins the base.
+    unset($job['CMS_CI_RUNNER'], $service['CMS_CI_RUNNER'], $service['CI'], $job['CMS_CI_BASE_REF'], $service['CMS_CI_BASE_REF']);
     ksort($job);
     ksort($service);
     ksort($roles);
@@ -130,6 +131,26 @@ it('gives the job and the ci service the same environment, and the roles of comp
         ->and($job['CMS_CI_POSTGRES_PASSWORD'] ?? null)->toBe($postgres['POSTGRES_PASSWORD'] ?? null)
         ->and($job['CMS_CI_PROVISION_POSTGRES'] ?? null)->toBe('1')
         ->and($job['XDEBUG_MODE'] ?? null)->toBe('off');
+});
+
+it('gives mutation on changed files its base: the pull request\'s base commit in ci.yml with the whole history, the host\'s CMS_CI_BASE_REF in compose.ci.yaml', function (): void {
+    $checkout = array_values(array_filter(workflowSteps(), static fn (array $step): bool => is_string(CiFiles::at($step, 'uses')) && str_starts_with(CiFiles::at($step, 'uses'), 'actions/checkout@')));
+
+    expect(CiFiles::strings(workflowJob(), 'env')['CMS_CI_BASE_REF'] ?? null)->toBe('${{ github.event.pull_request.base.sha || github.event.before }}')
+        ->and(CiFiles::strings(CiFiles::yaml(CiFiles::COMPOSE_CI), 'services', 'ci', 'environment')['CMS_CI_BASE_REF'] ?? null)->toBe('${CMS_CI_BASE_REF:-}')
+        ->and($checkout)->toHaveCount(1)
+        ->and(CiFiles::at($checkout[0] ?? [], 'with', 'fetch-depth'))->toBe(0);
+
+    foreach ([CiFiles::ENTRY, CiFiles::WORKFLOW, CiFiles::COMPOSE_CI, 'docker/ci-entry.sh', 'CLAUDE.md', 'AGENTS.md'] as $file) {
+        expect(CiFiles::text($file))->toContain('CMS_CI_BASE_REF');
+    }
+});
+
+it('names mutation on changed files as a step CI runs in gate 5, with --min=80, and never as not run', function (): void {
+    expect(CiFiles::text(CiFiles::ENTRY))->toContain('vendor/bin/pest --mutate --everything --path=<files> --min=80', 'gate 5  vendor/bin/pest --testsuite=Mutation')
+        ->and(CiFiles::text(CiFiles::WORKFLOW))->toContain('mutation on changed files: Pest\'s --mutate with PCOV and --min=80')
+        ->and(CiFiles::text(CiFiles::ENTRY))->not->toContain('and mutation on changed')
+        ->and(CiFiles::text(CiFiles::WORKFLOW))->not->toContain('11 and mutation');
 });
 
 it('keeps POSTGRES_* out of the environment bin/ci runs in, because Testbench copies them into the pgsql connection', function (): void {

@@ -3,13 +3,18 @@
 # Every step is setup, except bin/ci, the single CI entry script. bin/ci installs the locked
 # dependencies and runs `composer check -- --pr`, which calls the same Composer and npm
 # scripts as `composer check`: lint:check, format:check, rector:check, analyse, typecheck, lint
-# and check:generated, and the Pest suites of gate 5. It also runs gate 8, the Browser suite, and
-# gate 9, composer audit and npm audit. It reports what it did not run: gates 7, 10 and 11 and
-# mutation on changed files, each with the reason, in the log and the job summary.
+# and check:generated, and the Pest suites of gate 5. Gate 5 adds the Mutation suite and
+# mutation on changed files: Pest's --mutate with PCOV and --min=80 on the files below
+# packages/*/src changed since the merge base of CMS_CI_BASE_REF and HEAD. It also runs
+# gate 8, the Browser suite, and gate 9, composer audit and npm audit. It reports what it did not
+# run: gates 7, 10 and 11, each with the reason, in the log and the job summary.
+#
+# CMS_CI_BASE_REF is the pull request's base commit, or for a push to main the commit before the
+# push. The checkout fetches the whole history (fetch-depth: 0), so the merge base is there.
 #
 # Every action is pinned to the commit of its release tag, which the comment names; a tag can be
 # moved, a commit cannot. docker/ci-setup.sh is the setup compose.ci.yaml runs too: psql, git,
-# the user ci and Chromium for the pinned Playwright.
+# the user ci, PCOV and Chromium for the pinned Playwright.
 #
 # Declared runner: GitHub-hosted ubuntu-latest, 4 vCPU and 16 GB RAM, the standard Linux runner
 # for public repositories. A private repository gets 2 vCPU on ubuntu-latest and needs a 4-core
@@ -67,6 +72,7 @@ jobs:
           --health-start-period 30s
     env:
       CMS_CI_RUNNER: 'ubuntu-latest, 4 vCPU'
+      CMS_CI_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
       CMS_CI_PROVISION_POSTGRES: '1'
       CMS_CI_USER: ci
       DB_HOST: postgres
@@ -88,8 +94,11 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # The whole history, for the merge base of CMS_CI_BASE_REF and HEAD.
+          fetch-depth: 0
 
-      - name: Set up psql, git, the user ci and Chromium, as compose.ci.yaml does
+      - name: Set up psql, git, the user ci and Chromium, and check PCOV, as compose.ci.yaml does
         run: docker/ci-setup.sh
 
       - name: bin/ci

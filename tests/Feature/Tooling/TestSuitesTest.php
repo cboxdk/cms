@@ -7,10 +7,10 @@ use Symfony\Component\Process\Process;
 
 /*
  * Gate 5 of GUARDRAILS 10: the Pest suites Unit, Codecs, Contract, Postgres, Arch and Actions,
- * and the Browser suite of gate 8. These tests guard the layout itself (GUARDRAILS 7.3): every
- * test file is in exactly one suite, the Postgres and Actions suites hold the tests below a
- * Postgres or Actions directory and nothing else does, and the harness trait is applied to the
- * Postgres directories.
+ * the Browser suite of gate 8 and the Mutation suite of the PR profile. These tests guard the
+ * layout itself (GUARDRAILS 7.3): every test file is in exactly one suite, the Postgres and Actions
+ * suites hold the tests below a Postgres or Actions directory and nothing else does, and the
+ * harness trait is applied to the Postgres directories.
  */
 
 /**
@@ -108,7 +108,7 @@ function testFilesOnDisk(): array
     return $classes;
 }
 
-it('defines the suites of gate 5, Unit, Codecs, Contract, Postgres, Arch and Actions, and Browser for gate 8', function (): void {
+it('defines the suites of gate 5, Unit, Codecs, Contract, Postgres, Arch and Actions, Browser for gate 8, and Mutation for the PR profile\'s gate 5', function (): void {
     expect(configuredSuites())->toBe([
         'Unit' => [
             'directories' => ['tests/Feature', 'packages/*/tests'],
@@ -120,6 +120,7 @@ it('defines the suites of gate 5, Unit, Codecs, Contract, Postgres, Arch and Act
         'Arch' => ['directories' => ['tests/Arch'], 'excludes' => []],
         'Actions' => ['directories' => ['tests/Actions', 'packages/*/tests/Actions'], 'excludes' => []],
         'Browser' => ['directories' => ['tests/Browser'], 'excludes' => []],
+        'Mutation' => ['directories' => ['tests/Mutation'], 'excludes' => []],
     ]);
 });
 

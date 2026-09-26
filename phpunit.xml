@@ -25,6 +25,9 @@
           Actions   each action called directly with its DTOs and the fakes of its ports (GUARDRAILS 9)
           Browser   Chromium through the Pest browser plugin and Playwright, against the workbench
                     application served in-process; run `npm ci` and `npx playwright install chromium` first
+          Mutation  the tests that need a coverage driver: mutation on changed files for real, on a
+                    scratch repository. PCOV is in the php container and the CI image, not on the
+                    host; the PR profile runs it in gate 5
         A package puts its tests for a suite in packages/<package>/tests/<Suite>.
     -->
     <testsuites>
@@ -57,6 +60,9 @@
         </testsuite>
         <testsuite name="Browser">
             <directory suffix="Test.php">tests/Browser</directory>
+        </testsuite>
+        <testsuite name="Mutation">
+            <directory suffix="Test.php">tests/Mutation</directory>
         </testsuite>
     </testsuites>
     <source>

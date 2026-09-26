@@ -6,6 +6,7 @@ namespace Cbox\Cms\Tests\Feature\Tooling;
 
 use Cbox\Cms\Tests\Support\Node;
 use Cbox\Cms\Tests\Support\Phpstan;
+use Cbox\Cms\Tests\Support\Tooling\ParallelWorker;
 use Composer\InstalledVersions;
 use Illuminate\Filesystem\Filesystem;
 use Pest\Browser\Playwright\Servers\PlaywrightNpmServer;
@@ -87,9 +88,11 @@ it('exits 0 from a browser run that finds the screenshots of an earlier run', fu
         $files->ensureDirectoryExists($screenshots);
         $files->put($screenshots.'/from-an-earlier-run.png', 'png');
 
+        // Its own Pest run, also when this test runs in a parallel worker.
         $run = new Process(
             [PHP_BINARY, 'vendor/bin/pest', 'tests/Feature/Tooling/fixtures/browser-plugin-boot.php', '--colors=never'],
             $root,
+            ParallelWorker::cleared(),
             timeout: 120,
         );
         $run->run();

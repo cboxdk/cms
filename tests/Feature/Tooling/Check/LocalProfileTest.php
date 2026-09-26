@@ -122,13 +122,13 @@ it('runs the Actions suite as an ordinary step of gate 5, never as not run', fun
         ->and(array_last($steps)?->command)->toBe(['/usr/bin/php', 'vendor/bin/pest', '--testsuite=Actions', '--fail-on-skipped', '--fail-on-incomplete']);
 });
 
-it('covers every suite in phpunit.xml except Browser, which is gate 8', function (): void {
+it('covers every suite in phpunit.xml except Browser, which is gate 8, and Mutation, which needs a coverage driver and runs in the PR profile', function (): void {
     $suites = PhpunitSuites::in(Phpstan::root().'/phpunit.xml');
     $covered = [...LocalProfile::SUITES, ...LocalProfile::OTHER_SUITES];
 
     expect(array_values(array_diff($suites, $covered)))->toBe([])
         ->and($suites)->toContain(...LocalProfile::SUITES)
-        ->and(LocalProfile::OTHER_SUITES)->toBe(['Browser']);
+        ->and(LocalProfile::OTHER_SUITES)->toBe(['Browser', 'Mutation']);
 });
 
 it('reads the suite names from phpunit.xml and refuses a file that is not XML', function (): void {

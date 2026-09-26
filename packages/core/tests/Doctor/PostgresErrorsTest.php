@@ -47,3 +47,28 @@ it('passes a probe failure through unchanged', function (): void {
 
     expect(PostgresErrors::classify($failed))->toBe($failed);
 });
+
+it('reads the driver\'s message below any wrapper, and keeps the failure it classified', function (): void {
+    $pdo = new PDOException('SQLSTATE[08006] [7] connection to server failed: FATAL:  role "nobody" does not exist');
+    $wrapped = new RuntimeException('Could not open the connection.', 0, $pdo);
+    $failed = PostgresErrors::classify($wrapped);
+
+    expect($failed->cause)->toBe('SQLSTATE[08006] [7] connection to server failed: FATAL: role "nobody" does not exist')
+        ->and($failed->kind)->toBe(FailureKind::Violation)
+        ->and($failed->getPrevious())->toBe($wrapped)
+        ->and(PostgresErrors::classify(new RuntimeException('no driver below'))->cause)->toBe('no driver below');
+});
+
+it('trims the message to one line, and names an empty or blank one', function (): void {
+    expect(PostgresErrors::classify(new PDOException("  refused\n\tagain  "))->cause)->toBe('refused again')
+        ->and(PostgresErrors::classify(new PDOException(" \n\t "))->cause)->toBe('The driver gave no message.');
+});
+
+it('treats the server\'s temporary refusals as unavailable in any case', function (string $message): void {
+    expect(PostgresErrors::classify(new PDOException('SQLSTATE[08006] [7] connection to server failed: FATAL:  '.$message))->kind)->toBe(FailureKind::Unavailable);
+})->with([
+    'The Database System Is Starting Up',
+    'the database system is not yet accepting connections',
+    'the database system is not accepting connections',
+    'remaining connection slots are reserved for roles with the SUPERUSER attribute',
+]);

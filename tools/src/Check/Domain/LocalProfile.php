@@ -20,9 +20,11 @@ final readonly class LocalProfile
     public const array SUITES = ['Unit', 'Codecs', 'Contract', 'Postgres', 'Arch', 'Actions'];
 
     /**
-     * The suites that are not part of gate 5. Browser is gate 8, in the PR profile.
+     * The suites that are not part of the local profile's gate 5. Browser is gate 8, in the PR
+     * profile. Mutation holds the tests that need a coverage driver, which the PR profile runs in
+     * gate 5 next to mutation on changed files; the host PHP of a developer has none.
      */
-    public const array OTHER_SUITES = ['Browser'];
+    public const array OTHER_SUITES = ['Browser', 'Mutation'];
 
     public const string OUTSIDE_PROFILE = 'not in the local profile; the PR profile runs it (GUARDRAILS 10)';
 
@@ -33,7 +35,7 @@ final readonly class LocalProfile
      */
     public static function gates(string $php, array $composer): array
     {
-        $pest = static fn (string $suite): Step => Step::run($suite, [$php, 'vendor/bin/pest', '--testsuite='.$suite, '--fail-on-skipped', '--fail-on-incomplete']);
+        $pest = static fn (string $suite): Step => self::suiteStep($php, $suite);
 
         return [
             new Gate(1, 'Pint and Prettier', [
@@ -60,6 +62,14 @@ final readonly class LocalProfile
             self::outside(10, 'Documentation for new extension points'),
             self::outside(11, 'Review of changed checks'),
         ];
+    }
+
+    /**
+     * The step that runs one Pest suite, failing on a skipped or incomplete test.
+     */
+    public static function suiteStep(string $php, string $suite): Step
+    {
+        return Step::run($suite, [$php, 'vendor/bin/pest', '--testsuite='.$suite, '--fail-on-skipped', '--fail-on-incomplete']);
     }
 
     private static function outside(int $number, string $title): Gate

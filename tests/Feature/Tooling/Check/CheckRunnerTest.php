@@ -104,6 +104,49 @@ it('lifts Composer\'s process timeout for every command', function (): void {
     }
 });
 
+it('sets a step\'s own variables on top of the runner\'s, and only for that step', function (): void {
+    $runner = ScriptedProcessRunner::passing();
+    $gates = [new Gate(5, 'Pest', [
+        Step::run('Unit', ['pest', 'Unit']),
+        Step::run('Mutation', ['pest', '--mutate'], environment: ['PHP_INI_SCAN_DIR' => ':tools/mutation', 'COMPOSER_PROCESS_TIMEOUT' => '5']),
+    ])];
+
+    new CheckRunner($runner, new RecordingListener)->run($gates, '/srv/checkout');
+
+    expect(array_map(static fn (RecordedCommand $call): array => $call->environment, $runner->calls))->toBe([
+        ['COMPOSER_PROCESS_TIMEOUT' => '0'],
+        ['COMPOSER_PROCESS_TIMEOUT' => '5', 'PHP_INI_SCAN_DIR' => ':tools/mutation'],
+    ]);
+});
+
+it('reports a step decided without a command, a pass with its note and a fail with its reason, and runs nothing for it', function (): void {
+    $runner = ScriptedProcessRunner::passing();
+    $listener = new RecordingListener;
+    $gates = [
+        new Gate(5, 'Pest', [Step::run('Unit', ['pest', 'Unit']), Step::passed('Mutation', '0 changed classes since abc')]),
+        new Gate(6, 'Other', [Step::failed('Mutation', 'CMS_CI_BASE_REF is not set')]),
+    ];
+
+    $report = new CheckRunner($runner, $listener)->run($gates, '/srv/checkout');
+    $passed = $report->gate(5)?->step('Mutation');
+    $failed = $report->gate(6)?->step('Mutation');
+
+    expect($runner->commandLines())->toBe(['pest Unit'])
+        ->and($listener->events)->toBe(['gate 5', 'Unit pass', 'Mutation pass', 'gate 6', 'Mutation fail'])
+        ->and($passed?->status)->toBe(StepStatus::Pass)
+        ->and($passed?->notes)->toBe(['0 changed classes since abc'])
+        ->and($passed?->exitCode)->toBeNull()
+        ->and($passed?->reason)->toBeNull()
+        ->and($failed?->status)->toBe(StepStatus::Fail)
+        ->and($failed?->reason)->toBe('CMS_CI_BASE_REF is not set')
+        ->and($failed?->exitCode)->toBeNull()
+        ->and($report->failedGates())->toBe([6])
+        ->and(Step::passed('a', 'why')->runs())->toBeFalse()
+        ->and(Step::failed('a', 'why')->runs())->toBeFalse()
+        ->and(Step::notRun('a', 'why')->runs())->toBeFalse()
+        ->and(Step::run('a', ['a'])->runs())->toBeTrue();
+});
+
 it('fails a step that timed out, was killed or did not start, whatever its output', function (?int $exitCode, bool $timedOut): void {
     $runner = new ScriptedProcessRunner(static fn (): ProcessOutcome => new ProcessOutcome($exitCode, 'all good', 1.0, $timedOut));
 
@@ -137,4 +180,9 @@ it('refuses gates and steps that cannot be reported', function (callable $make):
     'a step without a command' => [static fn (): Step => Step::run('a', [])],
     'a step not run without a reason' => [static fn (): Step => Step::notRun('a', '')],
     'a step without a name' => [static fn (): Step => Step::run('', ['a'])],
+    'a variable that is not a variable name' => [static fn (): Step => Step::run('a', ['a'], environment: ['NOT A NAME' => '1'])],
+    'a pass without a note' => [static fn (): Step => Step::passed('a', '')],
+    'a pass with a note of two lines' => [static fn (): Step => Step::passed('a', "two\nlines")],
+    'a fail without a reason' => [static fn (): Step => Step::failed('a', '')],
+    'a decided result that is not run' => [static fn (): StepResult => StepResult::decided('a', StepStatus::NotRun, 'why')],
 ]);

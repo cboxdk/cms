@@ -8,7 +8,8 @@ use InvalidArgumentException;
 
 /**
  * What one step did: its status, the exit code and the combined output of its command, or why
- * it did not run, and the notes its output reader found.
+ * it did not run, and the notes its output reader found. A step decided without a command has no
+ * exit code and no output: it failed with a reason, or passed with a note.
  */
 final readonly class StepResult
 {
@@ -47,9 +48,22 @@ final readonly class StepResult
     }
 
     /**
+     * The result of a step decided without a command: a pass lists its note, a fail its reason.
+     */
+    public static function decided(string $step, StepStatus $status, string $decision): self
+    {
+        return match ($status) {
+            StepStatus::Pass => new self($step, StepStatus::Pass, null, '', 0.0, null, new OutputReading([$decision])->notes),
+            StepStatus::Fail => new self($step, StepStatus::Fail, null, '', 0.0, $decision),
+            StepStatus::NotRun => throw new InvalidArgumentException("Step {$step} is not run; it is not decided."),
+        };
+    }
+
+    /**
      * Rebuilds a result from a report. The status must fit the rest: a step that did not run has
      * a reason and no exit code, and a step that ran has an exit code that matches its status,
-     * unless a reason says why a step with exit code 0 failed.
+     * unless a reason says why a step with exit code 0 failed. A step decided without a command
+     * has no exit code: it passed with a note and no reason, or failed with a reason.
      *
      * @param  list<string>  $notes
      */
@@ -57,7 +71,7 @@ final readonly class StepResult
     {
         $consistent = match ($status) {
             StepStatus::NotRun => $exitCode === null && $reason !== null && $notes === [],
-            StepStatus::Pass => $exitCode === 0,
+            StepStatus::Pass => $exitCode === 0 || $exitCode === null && $reason === null && $notes !== [],
             StepStatus::Fail => $exitCode !== 0 || $reason !== null,
         };
 

@@ -13,7 +13,8 @@ use Symfony\Component\Process\Process;
 /*
  * docker/ci-setup.sh gives the CI image Chromium for the Playwright that package-lock.json pins
  * (M0-T46): a build the image has in PLAYWRIGHT_BROWSERS_PATH is used, a missing one is installed
- * with the pinned Playwright, and a build still missing afterwards fails the setup. It runs here
+ * with the pinned Playwright, and a build still missing afterwards fails the setup. It also checks
+ * that PCOV is loaded, for mutation on changed files (M0-T47), and fails first when it is not. It runs here
  * in a scratch checkout with fake apt-get, git, getent, useradd, psql, php, npm and Playwright on
  * the PATH, and the real node.
  */
@@ -104,6 +105,28 @@ function completeBuild(string $browsers, string $build): void
     ScratchDirectory::write("{$browsers}/{$build}/INSTALLATION_COMPLETE");
 }
 
+const PCOV_CHECK = 'php -r exit(extension_loaded("pcov") ? 0 : 1);';
+
+it('checks that PCOV is loaded, for mutation on changed files, and fails before any change when it is not', function (): void {
+    [$scratch, $browsers] = setupScratch();
+    completeBuild($browsers, 'chromium-1243');
+    completeBuild($browsers, 'chromium_headless_shell-1243');
+    [$passing, $passingCalls] = runSetup($scratch);
+
+    // A PHP without PCOV answers the check with exit code 1.
+    ScratchDirectory::write($scratch.'/bin/php', "#!/usr/bin/env bash\nprintf '%s %s\\n' \"\$(basename \"\$0\")\" \"\$*\" >> \"\$FAKE_CALLS\"\n[[ \"\$*\" == *pcov* ]] && exit 1\necho php 1.0\n");
+    chmod($scratch.'/bin/php', 0o755);
+    unlink($scratch.'/calls.log');
+    [$failing, $failingCalls] = runSetup($scratch);
+
+    expect($passing->getExitCode())->toBe(0, $passing->getErrorOutput())
+        ->and($passingCalls[0] ?? null)->toBe(PCOV_CHECK)
+        ->and($passing->getOutput())->toContain('with pcov')
+        ->and($failing->getExitCode())->toBe(1)
+        ->and($failing->getErrorOutput())->toContain('ci-setup: the PHP extension pcov is not loaded.')
+        ->and($failingCalls)->toBe([PCOV_CHECK]);
+});
+
 it('uses the Chromium builds the image has for the pinned Playwright, and installs nothing', function (): void {
     [$scratch, $browsers] = setupScratch();
     completeBuild($browsers, 'chromium-1243');
@@ -150,9 +173,10 @@ it('fails before any change without PLAYWRIGHT_BROWSERS_PATH, or without Playwri
 
     [$process, $calls] = runSetup($scratch, $browsersPath === false ? ['PLAYWRIGHT_BROWSERS_PATH' => false] : []);
 
+    // Only the read-only check that PCOV is loaded runs before them.
     expect($process->getExitCode())->toBe(1)
         ->and($process->getErrorOutput())->toContain($message)
-        ->and($calls)->toBe([]);
+        ->and($calls)->toBe([PCOV_CHECK]);
 })->with([
     'no browsers path' => [false, '{"packages": {"node_modules/playwright": {"version": "1.63.0"}}}', 'PLAYWRIGHT_BROWSERS_PATH is not set'],
     'no Playwright locked' => ['set', '{"packages": {"": {}}}', 'package-lock.json locks no version of playwright'],
