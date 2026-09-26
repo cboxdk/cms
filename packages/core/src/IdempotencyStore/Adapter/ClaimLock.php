@@ -39,7 +39,7 @@ final readonly class ClaimLock
     public static function of(IdempotencyScope $scope, IdempotencyKey $key): self
     {
         $encoded = json_encode(
-            [self::VERSION, $scope->kind->value, $scope->principal, $scope->commandType, $key->value],
+            [self::VERSION, $scope->kind->value, $scope->principal->value, $scope->commandType->value, $key->value],
             JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES,
         );
         $digest = hash('sha256', $encoded);

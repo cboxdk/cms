@@ -83,7 +83,7 @@ final class FakeIdempotencyStore implements IdempotencyStoreHarness
     #[Internal]
     public static function claimName(IdempotencyScope $scope, IdempotencyKey $key): string
     {
-        return implode(' ', [$scope->kind->value, $scope->principal, $scope->commandType, $key->value]);
+        return implode(' ', [$scope->kind->value, $scope->principal->value, $scope->commandType->value, $key->value]);
     }
 
     /**

@@ -7,6 +7,8 @@ namespace Cbox\Cms\Core\Tests\IdempotencyStore;
 use Cbox\Cms\Contracts\Idempotency\ContentHash;
 use Cbox\Cms\Contracts\Idempotency\IdempotencyKey;
 use Cbox\Cms\Contracts\Idempotency\IdempotencyScope;
+use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Ids\PrincipalId;
 use Cbox\Cms\Core\IdempotencyStore\Adapter\ClaimLock;
 use Cbox\Cms\Core\IdempotencyStore\Adapter\ClaimsInTransaction;
 use LogicException;
@@ -17,7 +19,7 @@ use LogicException;
 
 function claimLock(string $key): ClaimLock
 {
-    return ClaimLock::of(IdempotencyScope::forActor('user:7', 'entry.release'), new IdempotencyKey($key));
+    return ClaimLock::of(IdempotencyScope::forActor(new PrincipalId('user:7'), new CommandName('entry.release')), new IdempotencyKey($key));
 }
 
 it('starts empty from no setting and from the empty setting Postgres leaves after the transaction', function (?string $setting): void {

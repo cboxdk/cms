@@ -8,7 +8,7 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
 use InvalidArgumentException;
 
 /**
- * An idempotency key, scope, content hash or wait budget that is not in its form.
+ * An idempotency key, content hash or wait budget that is not in its form.
  */
 #[Experimental]
 final class InvalidIdempotencyValue extends InvalidArgumentException
@@ -21,24 +21,6 @@ final class InvalidIdempotencyValue extends InvalidArgumentException
         return new self(sprintf(
             'An idempotency key is 1 to %d visible ASCII characters, without spaces, got "%s".',
             IdempotencyKey::MAX_LENGTH,
-            self::shown($value),
-        ));
-    }
-
-    public static function principal(PrincipalKind $kind, string $value): self
-    {
-        return new self(sprintf(
-            'An idempotency scope names its %s with 1 to %d visible ASCII characters, without spaces, got "%s".',
-            $kind->value,
-            IdempotencyScope::MAX_PRINCIPAL_LENGTH,
-            self::shown($value),
-        ));
-    }
-
-    public static function commandType(string $value): self
-    {
-        return new self(sprintf(
-            'An idempotency scope names a command type as dot-separated snake_case segments, for example "entry.release", got "%s".',
             self::shown($value),
         ));
     }

@@ -18,6 +18,8 @@ use Cbox\Cms\Contracts\Idempotency\Replay;
 use Cbox\Cms\Contracts\Idempotency\WaitBudget;
 use Cbox\Cms\Contracts\IdempotencyStore;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
+use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Ids\PrincipalId;
 use Cbox\Cms\Contracts\Ids\Uuid7;
 use LogicException;
 use ReflectionClass;
@@ -32,7 +34,7 @@ use ReflectionParameter;
 
 function claimToken(string $key = 'retry-me', string $content = 'A'): ClaimToken
 {
-    return new ClaimToken(IdempotencyScope::forActor('user:7', 'entry.release'), new IdempotencyKey($key), ContentHash::of($content));
+    return new ClaimToken(IdempotencyScope::forActor(new PrincipalId('user:7'), new CommandName('entry.release')), new IdempotencyKey($key), ContentHash::of($content));
 }
 
 it('takes a wait budget from 0 up to the 5 second limit of a command transaction', function (int $milliseconds): void {
@@ -55,8 +57,8 @@ it('compares claim tokens by scope, key and hash', function (): void {
     expect($token->equals(claimToken()))->toBeTrue()
         ->and($token->equals(claimToken(key: 'other')))->toBeFalse()
         ->and($token->equals(claimToken(content: 'B')))->toBeFalse()
-        ->and($token->equals(new ClaimToken(IdempotencyScope::forSource('user:7', 'entry.release'), $token->key, $token->hash)))->toBeFalse()
-        ->and($token->equals(new ClaimToken(IdempotencyScope::forActor('user:7', 'entry.publish'), $token->key, $token->hash)))->toBeFalse();
+        ->and($token->equals(new ClaimToken(IdempotencyScope::forSource(new PrincipalId('user:7'), new CommandName('entry.release')), $token->key, $token->hash)))->toBeFalse()
+        ->and($token->equals(new ClaimToken(IdempotencyScope::forActor(new PrincipalId('user:7'), new CommandName('entry.publish')), $token->key, $token->hash)))->toBeFalse();
 });
 
 it('has exactly four claim results, each a final readonly class', function (): void {

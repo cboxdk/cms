@@ -8,6 +8,8 @@ use Cbox\Cms\Contracts\Idempotency\ContentHash;
 use Cbox\Cms\Contracts\Idempotency\IdempotencyKey;
 use Cbox\Cms\Contracts\Idempotency\IdempotencyScope;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
+use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Ids\PrincipalId;
 use Cbox\Cms\Contracts\Ids\Uuid7;
 use Cbox\Cms\Core\IdempotencyStore\Adapter\ClaimLock;
 use Cbox\Cms\Core\IdempotencyStore\Adapter\PostgresIdempotencyStore;
@@ -23,7 +25,7 @@ final class IdempotencyTables
 {
     public static function scope(): IdempotencyScope
     {
-        return IdempotencyScope::forActor('user:7', 'entry.release');
+        return IdempotencyScope::forActor(new PrincipalId('user:7'), new CommandName('entry.release'));
     }
 
     public static function key(string $value = 'retry-me'): IdempotencyKey

@@ -6,6 +6,8 @@ namespace Cbox\Cms\Core\Tests\IdempotencyStore;
 
 use Cbox\Cms\Contracts\Idempotency\IdempotencyKey;
 use Cbox\Cms\Contracts\Idempotency\IdempotencyScope;
+use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Ids\PrincipalId;
 use Cbox\Cms\Core\IdempotencyStore\Adapter\ClaimLock;
 
 /*
@@ -14,7 +16,7 @@ use Cbox\Cms\Core\IdempotencyStore\Adapter\ClaimLock;
  */
 
 it('derives the digest and the lock key from the versioned encoding of the scope and key', function (string $key, string $digest, int $lockKey): void {
-    $lock = ClaimLock::of(IdempotencyScope::forActor('user:7', 'entry.release'), new IdempotencyKey($key));
+    $lock = ClaimLock::of(IdempotencyScope::forActor(new PrincipalId('user:7'), new CommandName('entry.release')), new IdempotencyKey($key));
 
     expect($lock->digest)->toBe($digest)
         ->and($lock->key)->toBe($lockKey)
@@ -26,14 +28,14 @@ it('derives the digest and the lock key from the versioned encoding of the scope
 
 it('gives a different claim for every part of the scope and the key', function (): void {
     $claims = [
-        ClaimLock::of(IdempotencyScope::forActor('user:7', 'entry.release'), new IdempotencyKey('k')),
-        ClaimLock::of(IdempotencyScope::forSource('user:7', 'entry.release'), new IdempotencyKey('k')),
-        ClaimLock::of(IdempotencyScope::forActor('user:8', 'entry.release'), new IdempotencyKey('k')),
-        ClaimLock::of(IdempotencyScope::forActor('user:7', 'entry.publish'), new IdempotencyKey('k')),
-        ClaimLock::of(IdempotencyScope::forActor('user:7', 'entry.release'), new IdempotencyKey('k2')),
+        ClaimLock::of(IdempotencyScope::forActor(new PrincipalId('user:7'), new CommandName('entry.release')), new IdempotencyKey('k')),
+        ClaimLock::of(IdempotencyScope::forSource(new PrincipalId('user:7'), new CommandName('entry.release')), new IdempotencyKey('k')),
+        ClaimLock::of(IdempotencyScope::forActor(new PrincipalId('user:8'), new CommandName('entry.release')), new IdempotencyKey('k')),
+        ClaimLock::of(IdempotencyScope::forActor(new PrincipalId('user:7'), new CommandName('entry.publish')), new IdempotencyKey('k')),
+        ClaimLock::of(IdempotencyScope::forActor(new PrincipalId('user:7'), new CommandName('entry.release')), new IdempotencyKey('k2')),
         // The same characters split differently between principal and key.
-        ClaimLock::of(IdempotencyScope::forActor('user:7k', 'entry.release'), new IdempotencyKey('2')),
-        ClaimLock::of(IdempotencyScope::forActor('user:7"', 'entry.release'), new IdempotencyKey('k')),
+        ClaimLock::of(IdempotencyScope::forActor(new PrincipalId('user:7k'), new CommandName('entry.release')), new IdempotencyKey('2')),
+        ClaimLock::of(IdempotencyScope::forActor(new PrincipalId('user:7"'), new CommandName('entry.release')), new IdempotencyKey('k')),
     ];
 
     $digests = array_map(static fn (ClaimLock $lock): string => $lock->digest, $claims);
@@ -41,6 +43,6 @@ it('gives a different claim for every part of the scope and the key', function (
 
     expect(array_unique($digests))->toHaveCount(count($claims))
         ->and(array_unique($keys))->toHaveCount(count($claims))
-        ->and(ClaimLock::of(IdempotencyScope::forActor('user:7', 'entry.release'), new IdempotencyKey('k')))->toEqual($claims[0])
+        ->and(ClaimLock::of(IdempotencyScope::forActor(new PrincipalId('user:7'), new CommandName('entry.release')), new IdempotencyKey('k')))->toEqual($claims[0])
         ->and(ClaimLock::VERSION)->toBe('cbox_cms.idempotency.v1');
 });

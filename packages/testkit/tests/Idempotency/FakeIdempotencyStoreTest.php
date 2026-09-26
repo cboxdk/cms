@@ -14,6 +14,8 @@ use Cbox\Cms\Contracts\Idempotency\InvalidClaim;
 use Cbox\Cms\Contracts\Idempotency\Replay;
 use Cbox\Cms\Contracts\Idempotency\WaitBudget;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
+use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Ids\PrincipalId;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\Idempotency\FakeIdempotencySession;
 use Cbox\Cms\Testkit\Idempotency\FakeIdempotencyStore;
@@ -29,7 +31,7 @@ use LogicException;
 function fakeClaim(FakeIdempotencySession $session, int $budget = 0): ClaimResult
 {
     return $session->claim(
-        IdempotencyScope::forActor('user:7', 'entry.release'),
+        IdempotencyScope::forActor(new PrincipalId('user:7'), new CommandName('entry.release')),
         new IdempotencyKey('retry-me'),
         ContentHash::of('{"title":"A"}'),
         WaitBudget::milliseconds($budget),
@@ -184,6 +186,6 @@ it('refuses a wait event before the wait starts', function (): void {
 });
 
 it('keeps each claim under its scope and key', function (): void {
-    expect(FakeIdempotencyStore::claimName(IdempotencyScope::forSource('feed:ap', 'entry.create'), new IdempotencyKey('ap:42:v7')))
+    expect(FakeIdempotencyStore::claimName(IdempotencyScope::forSource(new PrincipalId('feed:ap'), new CommandName('entry.create')), new IdempotencyKey('ap:42:v7')))
         ->toBe('source feed:ap entry.create ap:42:v7');
 });

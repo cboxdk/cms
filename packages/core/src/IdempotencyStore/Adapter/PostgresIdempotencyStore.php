@@ -152,8 +152,8 @@ final readonly class PostgresIdempotencyStore implements IdempotencyStore
             $db->table(self::TABLE)->insert([
                 'lock_key' => $lock->key,
                 'principal_kind' => $token->scope->kind->value,
-                'principal' => $token->scope->principal,
-                'command_type' => $token->scope->commandType,
+                'principal' => $token->scope->principal->value,
+                'command_type' => $token->scope->commandType->value,
                 'idempotency_key' => $token->key->value,
                 'content_hash' => $token->hash->value,
                 'changeset_id' => $changesetId->toString(),
@@ -236,8 +236,8 @@ final readonly class PostgresIdempotencyStore implements IdempotencyStore
             ->select(['content_hash', 'changeset_id'])
             ->where('lock_key', $lock->key)
             ->where('principal_kind', $scope->kind->value)
-            ->where('principal', $scope->principal)
-            ->where('command_type', $scope->commandType)
+            ->where('principal', $scope->principal->value)
+            ->where('command_type', $scope->commandType->value)
             ->where('idempotency_key', $key->value)
             ->where('created_at', '>=', $this->timestamp($from))
             ->where('created_at', '<', $this->timestamp($until))

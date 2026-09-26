@@ -18,6 +18,8 @@ use Cbox\Cms\Contracts\Idempotency\InvalidClaim;
 use Cbox\Cms\Contracts\Idempotency\Replay;
 use Cbox\Cms\Contracts\Idempotency\WaitBudget;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
+use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Ids\PrincipalId;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
 use Closure;
@@ -114,9 +116,9 @@ trait IdempotencyStoreContract
         $changesetId = $this->completedKey($harness, $clock);
 
         $independent = [
-            'another command type' => [IdempotencyScope::forActor('user:7', 'entry.publish'), $this->key()],
-            'another actor' => [IdempotencyScope::forActor('user:8', 'entry.release'), $this->key()],
-            'a source with the same reference' => [IdempotencyScope::forSource('user:7', 'entry.release'), $this->key()],
+            'another command type' => [IdempotencyScope::forActor(new PrincipalId('user:7'), new CommandName('entry.publish')), $this->key()],
+            'another actor' => [IdempotencyScope::forActor(new PrincipalId('user:8'), new CommandName('entry.release')), $this->key()],
+            'a source with the same reference' => [IdempotencyScope::forSource(new PrincipalId('user:7'), new CommandName('entry.release')), $this->key()],
             'another key' => [$this->scope(), new IdempotencyKey('01936f5e-8a2b-7c3d-9e4f-5a6b7c8d9e10')],
         ];
 
@@ -377,7 +379,7 @@ trait IdempotencyStoreContract
 
     private function scope(): IdempotencyScope
     {
-        return IdempotencyScope::forActor('user:7', 'entry.release');
+        return IdempotencyScope::forActor(new PrincipalId('user:7'), new CommandName('entry.release'));
     }
 
     private function key(): IdempotencyKey

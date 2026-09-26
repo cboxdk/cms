@@ -9,6 +9,10 @@ use Cbox\Cms\Contracts\Idempotency\IdempotencyKey;
 use Cbox\Cms\Contracts\Idempotency\IdempotencyScope;
 use Cbox\Cms\Contracts\Idempotency\InvalidIdempotencyValue;
 use Cbox\Cms\Contracts\Idempotency\PrincipalKind;
+use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Ids\PrincipalId;
+use ReflectionMethod;
+use ReflectionParameter;
 
 /*
  * The idempotency value objects of PRD 6.1: the key, the scope it is unique in (actor or source,
@@ -46,40 +50,32 @@ it('compares idempotency keys exactly, case included', function (): void {
 });
 
 it('scopes a key to an actor or a source and a command type', function (): void {
-    $actor = IdempotencyScope::forActor('user:42', 'entry.release');
-    $source = IdempotencyScope::forSource('feed_reuters', 'entry.create');
+    $actor = IdempotencyScope::forActor(new PrincipalId('user:42'), new CommandName('entry.release'));
+    $source = IdempotencyScope::forSource(new PrincipalId('feed_reuters'), new CommandName('entry.create'));
 
     expect($actor->kind)->toBe(PrincipalKind::Actor)
-        ->and($actor->principal)->toBe('user:42')
-        ->and($actor->commandType)->toBe('entry.release')
-        ->and($actor)->toEqual(new IdempotencyScope(PrincipalKind::Actor, 'user:42', 'entry.release'))
+        ->and($actor->principal->value)->toBe('user:42')
+        ->and($actor->commandType->value)->toBe('entry.release')
+        ->and($actor)->toEqual(new IdempotencyScope(PrincipalKind::Actor, new PrincipalId('user:42'), new CommandName('entry.release')))
         ->and($source->kind)->toBe(PrincipalKind::Source)
-        ->and($source)->toEqual(new IdempotencyScope(PrincipalKind::Source, 'feed_reuters', 'entry.create'));
+        ->and($source)->toEqual(new IdempotencyScope(PrincipalKind::Source, new PrincipalId('feed_reuters'), new CommandName('entry.create')));
 });
 
 it('treats another kind, principal or command type as another scope', function (): void {
-    $scope = IdempotencyScope::forActor('user:42', 'entry.release');
+    $scope = IdempotencyScope::forActor(new PrincipalId('user:42'), new CommandName('entry.release'));
 
-    expect($scope->equals(IdempotencyScope::forActor('user:42', 'entry.release')))->toBeTrue()
-        ->and($scope->equals(IdempotencyScope::forSource('user:42', 'entry.release')))->toBeFalse()
-        ->and($scope->equals(IdempotencyScope::forActor('user:43', 'entry.release')))->toBeFalse()
-        ->and($scope->equals(IdempotencyScope::forActor('user:42', 'entry.publish')))->toBeFalse();
+    expect($scope->equals(IdempotencyScope::forActor(new PrincipalId('user:42'), new CommandName('entry.release'))))->toBeTrue()
+        ->and($scope->equals(IdempotencyScope::forSource(new PrincipalId('user:42'), new CommandName('entry.release'))))->toBeFalse()
+        ->and($scope->equals(IdempotencyScope::forActor(new PrincipalId('user:43'), new CommandName('entry.release'))))->toBeFalse()
+        ->and($scope->equals(IdempotencyScope::forActor(new PrincipalId('user:42'), new CommandName('entry.publish'))))->toBeFalse();
 });
 
-it('rejects a principal that is empty, too long or not visible ASCII', function (PrincipalKind $kind, string $principal): void {
-    expect(static fn (): IdempotencyScope => new IdempotencyScope($kind, $principal, 'entry.release'))
-        ->toThrow(InvalidIdempotencyValue::class, "An idempotency scope names its {$kind->value} with 1 to 255 visible ASCII characters");
-})->with([PrincipalKind::Actor, PrincipalKind::Source])->with([
-    'empty' => '',
-    'too long' => str_repeat('p', IdempotencyScope::MAX_PRINCIPAL_LENGTH + 1),
-    'space' => 'user 42',
-    'trailing newline' => "user:42\n",
-]);
+it('takes the principal and the command type only as value objects', function (): void {
+    $parameters = new ReflectionMethod(IdempotencyScope::class, '__construct')->getParameters();
+    $types = array_map(static fn (ReflectionParameter $parameter): string => (string) $parameter->getType(), $parameters);
 
-it('rejects a command type that is not a command name', function (string $type): void {
-    expect(static fn (): IdempotencyScope => IdempotencyScope::forActor('user:42', $type))
-        ->toThrow(InvalidIdempotencyValue::class, 'names a command type as dot-separated snake_case segments');
-})->with(['', 'entry', 'Entry.release', 'entry.release@1', "entry.release\n"]);
+    expect($types)->toBe([PrincipalKind::class, PrincipalId::class, CommandName::class]);
+});
 
 it('hashes content with SHA-256', function (): void {
     expect(ContentHash::of('abc')->value)->toBe(SHA256_OF_ABC)

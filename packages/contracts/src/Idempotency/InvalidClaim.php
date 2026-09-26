@@ -57,8 +57,8 @@ final class InvalidClaim extends LogicException
             'key "%s" of %s "%s" for command type %s',
             $token->key->value,
             $token->scope->kind->value,
-            $token->scope->principal,
-            $token->scope->commandType,
+            $token->scope->principal->value,
+            $token->scope->commandType->value,
         );
     }
 }

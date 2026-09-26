@@ -18,6 +18,8 @@ use Cbox\Cms\Contracts\Idempotency\Replay;
 use Cbox\Cms\Contracts\Idempotency\WaitBudget;
 use Cbox\Cms\Contracts\IdempotencyStore;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
+use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Ids\PrincipalId;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\Idempotency\FakeIdempotencySession;
 use Cbox\Cms\Testkit\Idempotency\FakeIdempotencyStore;
@@ -121,7 +123,7 @@ final readonly class BrokenIdempotencySession implements IdempotencyStore, Idemp
         $this->beginWhenBroken();
 
         if ($this->breach === IdempotencyBreach::IgnoresScope) {
-            $scope = IdempotencyScope::forActor('everyone', 'any.command');
+            $scope = IdempotencyScope::forActor(new PrincipalId('everyone'), new CommandName('any.command'));
         }
 
         $name = FakeIdempotencyStore::claimName($scope, $key);
