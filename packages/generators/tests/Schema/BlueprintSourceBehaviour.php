@@ -178,6 +178,73 @@ trait BlueprintSourceBehaviour
         );
     }
 
+    #[Test]
+    public function a_type_id_belongs_to_one_type_across_every_owner(): void
+    {
+        $app = $this->schemaRoot(Owner::app(), 'schema');
+        $acme = $this->schemaRoot(new Owner('acme'), 'vendor/acme/shop/schema');
+        $this->putBlueprint($app, 'article.yaml', BlueprintFixtures::type($app, 'article.yaml', self::ARTICLE_ID, 'article'));
+        $this->putBlueprint($acme, 'product.yaml', BlueprintFixtures::type($acme, 'product.yaml', self::ARTICLE_ID, 'product'));
+
+        $failed = $this->failure([$app, $acme]);
+
+        Assert::assertSame([GenerateErrorCode::DuplicateTypeId], $failed->codes());
+        Assert::assertSame(
+            sprintf('[generate_duplicate_type_id] vendor/acme/shop/schema/product.yaml, /type_id: the type_id %s is already the type_id of the type in schema/article.yaml. Every type needs its own type_id: give one of them a new UUIDv7.', self::ARTICLE_ID),
+            $failed->problems[0]->describe(),
+        );
+    }
+
+    #[Test]
+    public function a_type_handle_belongs_to_one_type_of_each_owner(): void
+    {
+        $app = $this->schemaRoot(Owner::app(), 'schema');
+        $acme = $this->schemaRoot(new Owner('acme'), 'vendor/acme/shop/schema');
+        $appProduct = BlueprintFixtures::type($app, 'product.yaml', self::ARTICLE_ID, 'product');
+        $acmeProduct = BlueprintFixtures::type($acme, 'product.yaml', self::PRODUCT_ID, 'product');
+        $this->putBlueprint($app, 'product.yaml', $appProduct);
+        $this->putBlueprint($acme, 'product.yaml', $acmeProduct);
+
+        Assert::assertEquals(new Blueprints([$appProduct, $acmeProduct], []), $this->blueprintSource()->read([$app, $acme]), 'Two owners may each have a type with the same handle.');
+
+        $this->putBlueprint($app, 'shop/product.yaml', BlueprintFixtures::type($app, 'shop/product.yaml', '0192a3b4-c5d6-7e8f-9a0b-000000000001', 'product'));
+        $failed = $this->failure([$app, $acme]);
+
+        Assert::assertSame([GenerateErrorCode::DuplicateTypeHandle], $failed->codes());
+        Assert::assertSame(
+            '[generate_duplicate_type_handle] schema/shop/product.yaml, /handle: the handle product is already the handle of the type in schema/product.yaml. The types of app need different handles.',
+            $failed->problems[0]->describe(),
+        );
+    }
+
+    #[Test]
+    public function an_extension_extends_a_type_of_some_root(): void
+    {
+        $app = $this->schemaRoot(Owner::app(), 'schema');
+        $acme = $this->schemaRoot(new Owner('acme'), 'vendor/acme/shop/schema');
+        $this->putBlueprint($app, 'tax_code.yaml', BlueprintFixtures::extension($app, 'tax_code.yaml', self::PRODUCT_ID));
+        $this->putBlueprint($acme, 'product.yaml', BlueprintFixtures::type($acme, 'product.yaml', self::PRODUCT_ID, 'product'));
+
+        $failed = $this->failure([$app]);
+
+        Assert::assertSame([GenerateErrorCode::UnknownExtendsTarget], $failed->codes());
+        Assert::assertSame(
+            sprintf('[generate_unknown_extends_target] schema/tax_code.yaml, /extends: no blueprint file below the schema roots defines a type with the type_id %s. Extend the type_id of an existing type, or add the schema root of the owner of the type.', self::PRODUCT_ID),
+            $failed->problems[0]->describe(),
+        );
+        Assert::assertCount(1, $this->blueprintSource()->read([$app, $acme])->extensions, 'The type may be in the root of another owner.');
+    }
+
+    #[Test]
+    public function an_unknown_extends_is_not_reported_while_a_file_that_may_define_the_type_is_unread(): void
+    {
+        $app = $this->schemaRoot(Owner::app(), 'schema');
+        $this->putBlueprint($app, 'tax_code.yaml', BlueprintFixtures::extension($app, 'tax_code.yaml', self::PRODUCT_ID));
+        $this->putInvalidHandle($app, 'product.yaml');
+
+        Assert::assertSame([GenerateErrorCode::SchemaInvalid], $this->failure([$app])->codes());
+    }
+
     /**
      * @param  list<SchemaRoot>  $roots
      */

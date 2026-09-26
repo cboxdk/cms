@@ -7,10 +7,12 @@ namespace Cbox\Cms\Generators\Tests\Schema;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintDocumentReader;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintSchemaFile;
 use Cbox\Cms\Generators\Schema\Boundary\YamlBlueprintSource;
+use Cbox\Cms\Generators\Schema\Domain\BlueprintRules;
 use Cbox\Cms\Generators\Schema\Domain\BlueprintSource;
 use Cbox\Cms\Generators\Schema\Domain\Dto\ExtensionBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
 use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
+use Cbox\Cms\Generators\Schema\Domain\NoContributedFieldTypes;
 use Cbox\Cms\Generators\Schema\Domain\Owner;
 use Cbox\Cms\Generators\Tests\SchemaFixtures;
 use Override;
@@ -37,7 +39,7 @@ final class YamlBlueprintSourceBehaviourTest extends TestCase
     #[Override]
     protected function blueprintSource(): BlueprintSource
     {
-        return new YamlBlueprintSource(new BlueprintSchemaFile, new BlueprintDocumentReader);
+        return new YamlBlueprintSource(new BlueprintSchemaFile, new BlueprintDocumentReader, new BlueprintRules(new NoContributedFieldTypes));
     }
 
     #[Override]

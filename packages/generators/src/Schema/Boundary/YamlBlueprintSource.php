@@ -8,6 +8,7 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationProblem;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
+use Cbox\Cms\Generators\Schema\Domain\BlueprintRules;
 use Cbox\Cms\Generators\Schema\Domain\BlueprintSource;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Blueprints;
 use Cbox\Cms\Generators\Schema\Domain\Dto\ExtensionBlueprint;
@@ -40,7 +41,9 @@ use UnexpectedValueException;
  * A file whose `blueprint` marker is above 1 is not validated but reported as
  * generate_schema_unsupported_version, and so is a value that the installed schema allows and this
  * generator cannot map. Every validation error is generate_schema_invalid with the file and the
- * JSON pointer. read() fails after the last file with the problems of all of them.
+ * JSON pointer. The blueprints that were read are then held to BlueprintRules, the rules that
+ * compare values within a file and across files, each with its own code. read() fails after the
+ * last file with the problems of all of them.
  */
 #[Internal]
 final readonly class YamlBlueprintSource implements BlueprintSource
@@ -53,6 +56,7 @@ final readonly class YamlBlueprintSource implements BlueprintSource
     public function __construct(
         private BlueprintSchemaFile $schema,
         private BlueprintDocumentReader $documents,
+        private BlueprintRules $rules,
     ) {}
 
     #[Override]
@@ -92,11 +96,14 @@ final readonly class YamlBlueprintSource implements BlueprintSource
             }
         }
 
+        $blueprints = new Blueprints($types, $extensions);
+        array_push($problems, ...$this->rules->check($blueprints, $problems === []));
+
         if ($problems !== []) {
             throw GenerationFailed::with($problems);
         }
 
-        return new Blueprints($types, $extensions);
+        return $blueprints;
     }
 
     /**

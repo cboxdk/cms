@@ -11,8 +11,10 @@ use Cbox\Cms\Generators\Schema\Boundary\BlueprintDocumentReader;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintSchemaFile;
 use Cbox\Cms\Generators\Schema\Boundary\YamlBlueprintSource;
 use Cbox\Cms\Generators\Schema\Domain\AddonFieldType;
+use Cbox\Cms\Generators\Schema\Domain\BlueprintRules;
 use Cbox\Cms\Generators\Schema\Domain\BlueprintSource;
 use Cbox\Cms\Generators\Schema\Domain\Classification;
+use Cbox\Cms\Generators\Schema\Domain\ContributedFieldTypes;
 use Cbox\Cms\Generators\Schema\Domain\Dto\AddonOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Blueprints;
 use Cbox\Cms\Generators\Schema\Domain\Dto\BooleanOptions;
@@ -36,6 +38,7 @@ use Cbox\Cms\Generators\Schema\Domain\FieldOptions;
 use Cbox\Cms\Generators\Schema\Domain\Handle;
 use Cbox\Cms\Generators\Schema\Domain\History;
 use Cbox\Cms\Generators\Schema\Domain\Localization;
+use Cbox\Cms\Generators\Schema\Domain\NoContributedFieldTypes;
 use Cbox\Cms\Generators\Schema\Domain\Owner;
 use Cbox\Cms\Generators\Schema\Domain\RichTextLink;
 use Cbox\Cms\Generators\Schema\Domain\RichTextList;
@@ -45,6 +48,7 @@ use Cbox\Cms\Generators\Schema\Domain\SourceLocation;
 use Cbox\Cms\Generators\Schema\Domain\Stages;
 use Cbox\Cms\Generators\Schema\Domain\TextFormat;
 use Cbox\Cms\Generators\Schema\Domain\TypeId;
+use Cbox\Cms\Generators\Tests\Schema\Fakes\FakeContributedFieldTypes;
 use Cbox\Cms\Generators\Tests\SchemaFixtures;
 use Composer\InstalledVersions;
 use PHPUnit\Framework\Assert;
@@ -85,9 +89,20 @@ function contractFixture(string $path): string
     return (string) file_get_contents(BlueprintFixtures::CONTRACT_FIXTURES.'/'.$path);
 }
 
-function yamlBlueprints(?BlueprintSchemaFile $schema = null): YamlBlueprintSource
+function yamlBlueprints(?BlueprintSchemaFile $schema = null, ContributedFieldTypes $fieldTypes = new NoContributedFieldTypes): YamlBlueprintSource
 {
-    return new YamlBlueprintSource($schema ?? new BlueprintSchemaFile, new BlueprintDocumentReader);
+    return new YamlBlueprintSource($schema ?? new BlueprintSchemaFile, new BlueprintDocumentReader, new BlueprintRules($fieldTypes));
+}
+
+/**
+ * A root of acme with the type that T40's valid extension extends.
+ */
+function extendedProductRoot(): SchemaRoot
+{
+    $acme = blueprintRoot([], 'acme', 'vendor/acme/shop/schema');
+    SchemaFixtures::write($acme->path().'/product.yaml', BlueprintFixtures::yaml(BlueprintFixtures::type($acme, 'product.yaml', '0192a3b4-c5d6-7e8f-9a0b-aaaaaaaaaaaa', 'product')));
+
+    return $acme;
 }
 
 /**
@@ -276,7 +291,7 @@ it('reads the valid extension of T40 into the model', function (): void {
     $root = blueprintRoot(['extension.yaml' => contractFixture('valid/extension.yaml')]);
     $at = new SourceLocation('schema/extension.yaml', '');
 
-    expect(yamlBlueprints()->read([$root])->extensions)->toEqual([new ExtensionBlueprint(
+    expect(yamlBlueprints()->read([$root, extendedProductRoot()])->extensions)->toEqual([new ExtensionBlueprint(
         TypeId::fromString('0192a3b4-c5d6-7e8f-9a0b-aaaaaaaaaaaa'),
         1,
         [new FieldBlueprint(new Handle('tax_code'), 'Tax code', "The customer's tax code for the product.", false, Classification::Internal, false, false, true, new TextOptions(null, 20, TextFormat::Plain), Owner::app(), $at->below('fields', 0))],
@@ -288,7 +303,7 @@ it('reads the valid extension of T40 into the model', function (): void {
 it('reads the addon field type of T40 with its options as canonical JSON', function (): void {
     $root = blueprintRoot(['product.yaml' => contractFixture('valid/addon-field-type.yaml')], 'acme', 'vendor/acme/shop/schema');
 
-    $product = yamlBlueprints()->read([$root])->types[0];
+    $product = yamlBlueprints(fieldTypes: new FakeContributedFieldTypes('acme:colour'))->read([$root])->types[0];
     $colour = $product->fields[1];
 
     expect($product->owner->value)->toBe('acme')
@@ -300,14 +315,16 @@ it('reads the addon field type of T40 with its options as canonical JSON', funct
 
 it('reads a model it writes back into the same model', function (): void {
     $root = blueprintRoot(['article.yaml' => contractFixture('valid/article.yaml'), 'product.yaml' => contractFixture('valid/addon-field-type.yaml'), 'extension.yaml' => contractFixture('valid/extension.yaml')]);
-    $read = yamlBlueprints()->read([$root]);
+    SchemaFixtures::write($root->path().'/extended.yaml', BlueprintFixtures::yaml(BlueprintFixtures::type($root, 'extended.yaml', '0192a3b4-c5d6-7e8f-9a0b-aaaaaaaaaaaa', 'extended')));
+    $blueprints = yamlBlueprints(fieldTypes: new FakeContributedFieldTypes('acme:colour'));
+    $read = $blueprints->read([$root]);
     $again = blueprintRoot();
 
     foreach ([...$read->types, ...$read->extensions] as $blueprint) {
         SchemaFixtures::write($again->path().'/'.basename($blueprint->location->file), BlueprintFixtures::yaml($blueprint));
     }
 
-    expect(yamlBlueprints()->read([$again]))->toEqual($read);
+    expect($blueprints->read([$again]))->toEqual($read);
 });
 
 it('rejects each invalid fixture of T40 with generate_schema_invalid at the JSON pointer it breaks', function (string $fixture, string $pointer): void {

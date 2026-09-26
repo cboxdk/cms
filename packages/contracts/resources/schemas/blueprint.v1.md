@@ -1,6 +1,6 @@
 # Blueprint schema, version 1
 
-A blueprint file defines one content type, or adds fields to another owner's type. Blueprint files live under `schema/**/*.yaml` (PRD 11.12). Their format is the JSON Schema [`blueprint.v1.json`](blueprint.v1.json) next to this page, JSON Schema draft 2020-12, and it is the one source of the format's rules.
+A blueprint file defines one content type, or adds fields to another owner's type. Blueprint files live under `schema/**/*.yaml` (PRD 11.12). Their format is the JSON Schema [`blueprint.v1.json`](blueprint.v1.json) next to this page, JSON Schema draft 2020-12, and it is the one source of the rules for a single file. The rules that compare values with each other, in one file or across files, are listed under [Rules across values and files](#rules-across-values-and-files).
 
 This is the first edition of version 1. Version 1 grows only by additions: a new field type, a new optional choice, a new enum value or a new `kind` keeps the marker `blueprint: 1`, and a file that is valid stays valid and keeps its meaning. A change that would make a valid file invalid or change its meaning is version 2.
 
@@ -94,7 +94,27 @@ A choice that the field's type does not have is refused.
 
 ## Addon field types
 
-An addon contributes a field type as `<namespace>:<handle>` (PRD 13.1), such as `acme:colour`. The namespace is the addon's name: a lowercase letter and up to 19 lowercase letters or digits. The choices of an addon's field type sit under `options`, an object, so they never collide with a choice that version 1 adds to every field later. The published schema checks only the form of the name and that `options` is an object; the addon's own JSON Schema describes what goes in it.
+An addon contributes a field type as `<namespace>:<handle>` (PRD 13.1), such as `acme:colour`. The namespace is the addon's name: a lowercase letter and up to 19 lowercase letters or digits. The choices of an addon's field type sit under `options`, an object, so they never collide with a choice that version 1 adds to every field later. The published schema checks only the form of the name and that `options` is an object; the addon's own JSON Schema describes what goes in it. `cms:generate` also checks that a registered contributor provides the field type.
+
+## Rules across values and files
+
+JSON Schema checks one file at a time and cannot compare values with each other. `cms:generate` reads every blueprint file below the schema roots and also checks these rules. Each has its own error code, and each problem names the file and the JSON pointer of the value that breaks the rule; when two places collide, the later file or item is named with the earlier one.
+
+| Rule | Error code |
+|---|---|
+| Every type has its own `type_id`, across the application, modules and addons. | `generate_duplicate_type_id` |
+| The types of one owner have different handles. Two owners may each have a type with the same handle. | `generate_duplicate_type_handle` |
+| The fields of one namespace have different handles: the fields of a type, the fields that one owner adds to one type in all its extension files, and the fields of each group. | `generate_duplicate_field_handle` |
+| The options of a `select` field have different values. | `generate_duplicate_select_value` |
+| `extends` is the `type_id` of a type in a blueprint file below the schema roots. | `generate_unknown_extends_target` |
+| A column name has at most 63 bytes. A field that an extension adds has the column `ext__<namespace>__<handle>`, where the namespace is the extender's, `app` for the application, so its handle has at most 56 bytes less the length of the namespace: 53 for `app`. | `generate_column_name_too_long` |
+| `min` is at most `max`. Decimals are compared by value, dates by day and times as instants. | `generate_min_above_max` |
+| `min_length` is at most `max_length`, or at most the default `max_length` when the field has none. | `generate_min_length_above_max_length` |
+| `min_items` is at most `max_items`, on a `select` field and in the `repeat` of a group. | `generate_min_items_above_max_items` |
+| The `scale` of a `decimal` is at most its `precision`. | `generate_scale_above_precision` |
+| An addon field type is one that a registered contributor provides (PRD 13.3). | `generate_unknown_field_type` |
+
+An unknown `extends` is reported only when every file was read, because a file that cannot be read may be the one that defines the type.
 
 ## Examples
 

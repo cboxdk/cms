@@ -33,6 +33,45 @@ enum GenerateErrorCode: string
      */
     case SchemaUnsupportedVersion = 'generate_schema_unsupported_version';
 
+    /** Two blueprint files define a type with the same type_id, in one owner's schema root or in two. */
+    case DuplicateTypeId = 'generate_duplicate_type_id';
+
+    /** Two blueprint files of one owner define a type with the same handle. */
+    case DuplicateTypeHandle = 'generate_duplicate_type_handle';
+
+    /**
+     * Two fields in one namespace have the same handle: the fields of a type, the fields that one
+     * owner adds to one type in all its extension files, or the fields of one group.
+     */
+    case DuplicateFieldHandle = 'generate_duplicate_field_handle';
+
+    /** Two options of one select field have the same value. */
+    case DuplicateSelectValue = 'generate_duplicate_select_value';
+
+    /** An extension's `extends` is a type_id that no blueprint file below the schema roots defines. */
+    case UnknownExtendsTarget = 'generate_unknown_extends_target';
+
+    /**
+     * A field's column name is longer than 63 bytes, Postgres' limit for an identifier. The column
+     * of an extension field is `ext__<namespace>__<handle>` (PRD 11.12).
+     */
+    case ColumnNameTooLong = 'generate_column_name_too_long';
+
+    /** A field's `min` is greater than its `max`. */
+    case MinAboveMax = 'generate_min_above_max';
+
+    /** A field's `min_length` is greater than its `max_length`, or than the default `max_length` of its type. */
+    case MinLengthAboveMaxLength = 'generate_min_length_above_max_length';
+
+    /** A field's `min_items` is greater than its `max_items`. */
+    case MinItemsAboveMaxItems = 'generate_min_items_above_max_items';
+
+    /** A decimal field's `scale` is greater than its `precision`. */
+    case ScaleAbovePrecision = 'generate_scale_above_precision';
+
+    /** A field's type is an addon field type `<namespace>:<handle>` that no registered contributor provides (PRD 13.3). */
+    case UnknownFieldType = 'generate_unknown_field_type';
+
     /** Two types have the same handle. */
     case DuplicateType = 'generate_duplicate_type';
 
