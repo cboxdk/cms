@@ -47,6 +47,12 @@ enum GenerateErrorCode: string
     case UnknownExtendsTarget = 'generate_unknown_extends_target';
 
     /**
+     * An extension extends a type of its own owner. A type has one owner, and only others extend it
+     * (PRD 11.12, 13.3): the owner adds fields to its type in the type file, never under `ext`.
+     */
+    case ExtensionOfOwnType = 'generate_extension_of_own_type';
+
+    /**
      * A field's column name is longer than 63 bytes, Postgres' limit for an identifier. The column
      * of an extension field is `ext__<namespace>__<handle>` (PRD 11.12).
      */

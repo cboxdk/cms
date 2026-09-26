@@ -148,6 +148,16 @@ it('refuses an extension of a type_id that no schema root defines with generate_
         ->and($failed->problems[0]->message)->toBe(sprintf('schema/shop/product.yaml, /extends extends the type_id %s, which no schema root defines. Check the type_id, or add the schema root of the type\'s owner.', $missing->toString()));
 });
 
+it('refuses an extension of a type of its own owner with generate_extension_of_own_type', function (): void {
+    $app = SchemaFixtures::root();
+    $page = SchemaFixtures::type($app, 'page', ['title' => 'text']);
+
+    $failed = resolveFails([$page], [SchemaFixtures::extension($app, 'page_extra.yaml', $page->typeId, ['teaser' => 'text'])]);
+
+    expect($failed->codes())->toBe([GenerateErrorCode::ExtensionOfOwnType])
+        ->and($failed->problems[0]->message)->toBe('schema/page_extra.yaml, /extends extends the type "page" in schema/page.yaml, which app owns. An owner adds fields to its own type in the type file, not with an extension: add the fields to schema/page.yaml.');
+});
+
 it('refuses a field name twice in one type with generate_duplicate_field_handle', function (): void {
     $app = SchemaFixtures::root();
     $acme = SchemaFixtures::root('acme', 'vendor/acme/shop/schema');

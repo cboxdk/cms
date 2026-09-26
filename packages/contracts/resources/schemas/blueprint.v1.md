@@ -111,6 +111,7 @@ JSON Schema checks one file at a time and cannot compare values with each other.
 | The fields of one namespace have different handles: the fields of a type, the fields that one owner adds to one type in all its extension files, and the fields of each group. | `generate_duplicate_field_handle` |
 | The options of a `select` field have different values. | `generate_duplicate_select_value` |
 | `extends` is the `type_id` of a type in a blueprint file below the schema roots. | `generate_unknown_extends_target` |
+| `extends` is the `type_id` of a type of another owner. A type has one owner and only others extend it, so an owner adds fields to its own type in the type file. | `generate_extension_of_own_type` |
 | A column name has at most 63 bytes. A field that an extension adds has the column `ext__<namespace>__<handle>`, where the namespace is the extender's, `app` for the application, so its handle has at most 56 bytes less the length of the namespace: 53 for `app`. | `generate_column_name_too_long` |
 | `min` is at most `max`. Decimals are compared by value, dates by day and times as instants. | `generate_min_above_max` |
 | `min_length` is at most `max_length`, or at most the default `max_length` when the field has none. | `generate_min_length_above_max_length` |

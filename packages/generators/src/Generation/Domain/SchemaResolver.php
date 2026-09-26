@@ -25,6 +25,8 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
  * - a type_id is defined by one file (generate_duplicate_type_id);
  * - a type handle is used once by its owner (generate_duplicate_type_handle);
  * - an extension extends a type that a schema root defines (generate_unknown_extends_target);
+ * - an extension extends a type of another owner, because a type has one owner and only others
+ *   extend it (generate_extension_of_own_type);
  * - a field name is used once in its type: a handle once among the owner's fields, and an
  *   extension field once in its namespace (generate_duplicate_field_handle);
  * - the column name of an extension field, `ext__<namespace>__<handle>`, has at most 63 bytes, the
@@ -111,6 +113,21 @@ final readonly class SchemaResolver
                 continue;
             }
 
+            $target = $byId[$id];
+
+            if ($extension->owner->equals($target->owner)) {
+                $problems[] = new GenerationProblem(GenerateErrorCode::ExtensionOfOwnType, sprintf(
+                    '%s extends the type "%s" in %s, which %s owns. An owner adds fields to its own type in the type file, not with an extension: add the fields to %s.',
+                    $extension->location->below('extends')->describe(),
+                    $target->handle->value,
+                    $target->location->file,
+                    $target->owner->value,
+                    $target->location->file,
+                ));
+
+                continue;
+            }
+
             foreach ($extension->fields as $field) {
                 $resolved = ResolvedField::extension($field);
 
@@ -126,7 +143,7 @@ final readonly class SchemaResolver
                     continue;
                 }
 
-                self::add($fields[$id], $resolved, $byId[$id], $problems);
+                self::add($fields[$id], $resolved, $target, $problems);
             }
         }
 

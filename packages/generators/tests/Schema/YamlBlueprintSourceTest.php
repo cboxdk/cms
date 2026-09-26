@@ -315,16 +315,17 @@ it('reads the addon field type of T40 with its options as canonical JSON', funct
 
 it('reads a model it writes back into the same model', function (): void {
     $root = blueprintRoot(['article.yaml' => contractFixture('valid/article.yaml'), 'product.yaml' => contractFixture('valid/addon-field-type.yaml'), 'extension.yaml' => contractFixture('valid/extension.yaml')]);
-    SchemaFixtures::write($root->path().'/extended.yaml', BlueprintFixtures::yaml(BlueprintFixtures::type($root, 'extended.yaml', '0192a3b4-c5d6-7e8f-9a0b-aaaaaaaaaaaa', 'extended')));
     $blueprints = yamlBlueprints(fieldTypes: new FakeContributedFieldTypes('acme:colour'));
-    $read = $blueprints->read([$root]);
-    $again = blueprintRoot();
+    $read = $blueprints->read([$root, extendedProductRoot()]);
+    $again = ['app' => blueprintRoot(), 'acme' => blueprintRoot([], 'acme', 'vendor/acme/shop/schema')];
 
     foreach ([...$read->types, ...$read->extensions] as $blueprint) {
-        SchemaFixtures::write($again->path().'/'.basename($blueprint->location->file), BlueprintFixtures::yaml($blueprint));
+        SchemaFixtures::write($again[$blueprint->owner->value]->path().'/'.basename($blueprint->location->file), BlueprintFixtures::yaml($blueprint));
     }
 
-    expect($blueprints->read([$again]))->toEqual($read);
+    expect($read->types)->toHaveCount(3)
+        ->and($read->extensions)->toHaveCount(1)
+        ->and($blueprints->read(array_values($again)))->toEqual($read);
 });
 
 it('rejects each invalid fixture of T40 with generate_schema_invalid at the JSON pointer it breaks', function (string $fixture, string $pointer): void {

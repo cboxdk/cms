@@ -265,15 +265,15 @@ it('reads the same field handle in different namespaces', function (): void {
     $base = SchemaFixtures::scratch();
     $acme = rulesRoot($base, [
         'product.yaml' => rulesType(RULES_PRODUCT_ID, 'product', rulesField('name', 'text'), rulesGroup('variants', 'name')),
-        'own.yaml' => rulesExtension(RULES_PRODUCT_ID, rulesField('name', 'text')),
+        'article_name.yaml' => rulesExtension(RULES_ARTICLE_ID, rulesField('name', 'text')),
     ], 'acme', 'vendor/acme/shop/schema');
+    $blog = rulesRoot($base, ['product_name.yaml' => rulesExtension(RULES_PRODUCT_ID, rulesField('name', 'text'))], 'blog', 'vendor/acme/blog/schema');
     $app = rulesRoot($base, [
         'article.yaml' => rulesType(RULES_ARTICLE_ID, 'article', rulesField('name', 'text'), rulesGroup('credits', 'name'), rulesGroup('sources', 'name')),
         'product_name.yaml' => rulesExtension(RULES_PRODUCT_ID, rulesField('name', 'text')),
-        'article_name.yaml' => rulesExtension(RULES_ARTICLE_ID, rulesField('name', 'text')),
     ]);
 
-    $blueprints = rulesRead([$app, $acme]);
+    $blueprints = rulesRead([$app, $acme, $blog]);
 
     expect($blueprints->types)->toHaveCount(2)
         ->and($blueprints->extensions)->toHaveCount(3);
@@ -303,6 +303,29 @@ it('rejects an extension of a type_id that no file defines with generate_unknown
     $problem = rulesProblem(rulesFailure([$app]), GenerateErrorCode::UnknownExtendsTarget, 'schema/tax.yaml, /extends');
 
     expect($problem->message)->toContain('type_id '.RULES_PRODUCT_ID);
+});
+
+it('rejects an extension of a type of its own owner with generate_extension_of_own_type', function (): void {
+    $app = rulesRoot(SchemaFixtures::scratch(), [
+        'product.yaml' => rulesType(RULES_PRODUCT_ID, 'product', rulesField('name', 'text')),
+        'tax.yaml' => rulesExtension(RULES_PRODUCT_ID, rulesField('tax_code', 'text')),
+    ]);
+
+    $problem = rulesProblem(rulesFailure([$app]), GenerateErrorCode::ExtensionOfOwnType, 'schema/tax.yaml, /extends');
+
+    expect($problem->message)->toContain('the type product in schema/product.yaml, which app owns')
+        ->and($problem->message)->toContain('add the fields to schema/product.yaml');
+});
+
+it('accepts an extension of a type of another owner, also when the extender owns a type with the same handle', function (): void {
+    $base = SchemaFixtures::scratch();
+    $shop = rulesRoot($base, ['product.yaml' => rulesType(RULES_PRODUCT_ID, 'product', rulesField('name', 'text'))], 'shop', 'vendor/acme/shop/schema');
+    $app = rulesRoot($base, [
+        'product.yaml' => rulesType(RULES_ARTICLE_ID, 'product', rulesField('name', 'text')),
+        'tax.yaml' => rulesExtension(RULES_PRODUCT_ID, rulesField('tax_code', 'text')),
+    ]);
+
+    expect(rulesRead([$shop, $app])->extensions)->toHaveCount(1);
 });
 
 it('rejects an extension field whose column ext__<namespace>__<handle> is over 63 bytes with generate_column_name_too_long', function (string $owner, int $length, bool $fits): void {

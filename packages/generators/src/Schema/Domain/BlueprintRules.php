@@ -34,7 +34,8 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
  * - A handle belongs to one field in each namespace: a type's own fields, the fields one owner adds
  *   to one type across all its extension files, and the fields of each group.
  * - A value belongs to one option of a select field.
- * - An extension extends a type that a blueprint file defines.
+ * - An extension extends a type that a blueprint file defines, and one that another owner owns: a
+ *   type has one owner and only others extend it (PRD 11.12, 13.3).
  * - A column name has at most 63 bytes, the extension field's `ext__<namespace>__<handle>` too.
  * - `min` is at most `max`, `min_length` at most `max_length`, `min_items` at most `max_items`,
  *   and a decimal's `scale` at most its `precision`.
@@ -112,10 +113,11 @@ final readonly class BlueprintRules
      */
     private function extensions(Blueprints $blueprints, bool $complete, array &$problems): void
     {
+        /** @var array<string, TypeBlueprint> $known the types read, by type_id; the first of a duplicate type_id */
         $known = [];
 
         foreach ($blueprints->types as $type) {
-            $known[$type->typeId->toString()] = true;
+            $known[$type->typeId->toString()] ??= $type;
         }
 
         /** @var array<string, array<string, FieldBlueprint>> $namespaces the fields seen by extended type and extender, by handle */
@@ -123,11 +125,23 @@ final readonly class BlueprintRules
 
         foreach ($blueprints->extensions as $extension) {
             $extends = $extension->extends->toString();
+            $target = $known[$extends] ?? null;
 
-            if ($complete && ! array_key_exists($extends, $known)) {
+            if ($target === null && $complete) {
                 $problems[] = $this->problem(GenerateErrorCode::UnknownExtendsTarget, $extension->location->below('extends'), sprintf(
                     'no blueprint file below the schema roots defines a type with the type_id %s. Extend the type_id of an existing type, or add the schema root of the owner of the type.',
                     $extends,
+                ));
+            }
+
+            if ($target !== null && $extension->owner->equals($target->owner)) {
+                $problems[] = $this->problem(GenerateErrorCode::ExtensionOfOwnType, $extension->location->below('extends'), sprintf(
+                    'the type_id %s is the type %s in %s, which %s owns. A type has one owner and only others extend it, so an owner adds fields to its own type in the type file: add the fields to %s.',
+                    $extends,
+                    $target->handle->value,
+                    $target->location->file,
+                    $target->owner->value,
+                    $target->location->file,
                 ));
             }
 

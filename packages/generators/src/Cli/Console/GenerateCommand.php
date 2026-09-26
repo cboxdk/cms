@@ -94,6 +94,7 @@ final class GenerateCommand extends Command
             GenerateErrorCode::DuplicateFieldHandle,
             GenerateErrorCode::DuplicateSelectValue,
             GenerateErrorCode::UnknownExtendsTarget,
+            GenerateErrorCode::ExtensionOfOwnType,
             GenerateErrorCode::ColumnNameTooLong,
             GenerateErrorCode::MinAboveMax,
             GenerateErrorCode::MinLengthAboveMaxLength,
