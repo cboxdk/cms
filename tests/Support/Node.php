@@ -36,7 +36,9 @@ final readonly class Node
         }
 
         $process = new Process($command, $root, null, null, 180);
-        $process->run();
+
+        // A whole-project run such as tsc must not see another process's probe (JsToolchainLock).
+        JsToolchainLock::shared(static fn (): int => $process->run());
 
         return $process;
     }
@@ -84,7 +86,9 @@ final readonly class Node
 
     /**
      * Writes a probe file below PROBE_DIRECTORY, hands its path relative to the root to the
-     * callback and deletes it again, also when the callback throws.
+     * callback and deletes it again, also when the callback throws. The whole of it runs under the
+     * exclusive JsToolchainLock, so the tool runs in the callback see this probe and no other, and
+     * no other process's tool run sees this one.
      *
      * @template TResult
      *
@@ -93,17 +97,19 @@ final readonly class Node
      */
     public static function withProbe(string $extension, string $code, Closure $callback): mixed
     {
-        $path = self::PROBE_DIRECTORY.'/cms-probe-'.bin2hex(random_bytes(4)).'.'.$extension;
-        $absolute = Phpstan::root().'/'.$path;
-        file_put_contents($absolute, $code);
+        return JsToolchainLock::exclusive(static function () use ($extension, $code, $callback) {
+            $path = self::PROBE_DIRECTORY.'/cms-probe-'.bin2hex(random_bytes(4)).'.'.$extension;
+            $absolute = Phpstan::root().'/'.$path;
+            file_put_contents($absolute, $code);
 
-        try {
-            return $callback($path);
-        } finally {
-            if (is_file($absolute)) {
-                unlink($absolute);
+            try {
+                return $callback($path);
+            } finally {
+                if (is_file($absolute)) {
+                    unlink($absolute);
+                }
             }
-        }
+        });
     }
 
     /**
