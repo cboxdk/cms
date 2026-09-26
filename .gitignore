@@ -6,3 +6,4 @@
 .harness/waiting
 .harness/iterations
 /tests/Browser/Screenshots/
+/build/

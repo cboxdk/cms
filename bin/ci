@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# The single CI entry script (GUARDRAILS 10). .github/workflows/ci.yml runs it on every pull
+# request, and compose.ci.yaml runs it in a container on a clean git archive of HEAD.
+#
+# It installs the locked dependencies and runs `composer check -- --pr`. That calls the
+# same Composer and npm scripts as `composer check`, in the same order:
+#   gate 1  composer lint:check, npm run format:check
+#   gate 2  composer rector:check
+#   gate 3  composer analyse
+#   gate 4  npm run typecheck, npm run lint
+#   gate 5  vendor/bin/pest --testsuite=<suite> for each suite of the local profile
+#   gate 6  composer check:generated
+# and reports what CI does not run yet as not run: gates 7 to 11 and mutation on changed files.
+# tests/Feature/Tooling/Ci keeps this list and the one in ci.yml equal to the local profile.
+#
+# Environment:
+#   CMS_CI_PROVISION_POSTGRES=1  first create the roles and databases on the Postgres at
+#                                DB_HOST:DB_PORT as CMS_CI_POSTGRES_SUPERUSER (default postgres)
+#                                with CMS_CI_POSTGRES_PASSWORD, using the CMS_* variables and
+#                                docker/postgres/initdb.d/10-cms.sh. Not POSTGRES_USER and
+#                                POSTGRES_PASSWORD: Testbench copies POSTGRES_* variables into the
+#                                pgsql connection, so the tests would run as the superuser.
+#   CMS_CI_USER                  the user bin/ci runs as when it is started as root, such as ci
+#                                from docker/ci-setup.sh. It never runs the gates as root: root
+#                                ignores file permissions, so the tests of unwritable files skip,
+#                                and gate 5 fails a skipped test. Started as root, it hands the
+#                                checkout to that user and runs itself again as that user.
+#   CMS_CI_REPORT                the JSON report of the gates (default build/ci/check.json)
+#   CMS_CI_RUNNER                the declared runner, printed with the wall time
+#   GITHUB_STEP_SUMMARY          set by GitHub Actions; the gate summary is appended to it
+#
+# Exit code: 0 when every gate that ran passed, 1 when a gate failed, and the failing command's
+# code when provisioning or installing fails.
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+if [[ $EUID -eq 0 ]]; then
+    if [[ -z "${CMS_CI_USER:-}" ]]; then
+        echo 'bin/ci: will not run the gates as root, because root ignores file permissions and the tests that check them skip. Set CMS_CI_USER to the user to run as.' >&2
+        exit 1
+    fi
+
+    chown -R "${CMS_CI_USER}:" .
+    exec setpriv --reuid="$CMS_CI_USER" --regid="$CMS_CI_USER" --init-groups \
+        env HOME="$(getent passwd "$CMS_CI_USER" | cut -d: -f6)" "$PWD/bin/ci" "$@"
+fi
+
+readonly budget_minutes=15
+report="${CMS_CI_REPORT:-build/ci/check.json}"
+log="$(dirname "$report")/check.log"
+runner="${CMS_CI_RUNNER:-not declared}"
+started=$SECONDS
+
+section() {
+    printf '\n== bin/ci: %s\n' "$1"
+}
+
+section 'environment'
+echo "runner: ${runner}"
+echo "commit: $(git rev-parse HEAD 2>/dev/null || echo 'not a git checkout')"
+php --version | head -n 1
+echo "node $(node --version), npm $(npm --version)"
+composer --version --no-interaction 2>/dev/null | head -n 1
+
+if [[ "${CMS_CI_PROVISION_POSTGRES:-0}" == 1 ]]; then
+    : "${DB_HOST:?}" "${DB_PORT:?}" "${CMS_CI_POSTGRES_PASSWORD:?}"
+    section "provision Postgres at ${DB_HOST}:${DB_PORT}"
+
+    for _ in $(seq 1 60); do
+        if pg_isready --quiet --host="$DB_HOST" --port="$DB_PORT"; then
+            break
+        fi
+        sleep 1
+    done
+
+    POSTGRES_USER="${CMS_CI_POSTGRES_SUPERUSER:-postgres}" PGPASSWORD="$CMS_CI_POSTGRES_PASSWORD" \
+        CMS_INIT_PGHOST="$DB_HOST" PGPORT="$DB_PORT" CMS_INIT_SQL_DIR=docker/postgres/sql \
+        docker/postgres/initdb.d/10-cms.sh
+fi
+
+section 'install'
+composer install --no-interaction --no-progress --prefer-dist
+npm ci --no-audit --no-fund
+
+section 'gates'
+mkdir -p "$(dirname "$report")"
+set +e
+composer check -- --pr --report="$report" 2>&1 | tee "$log"
+status=${PIPESTATUS[0]}
+set -e
+
+elapsed=$((SECONDS - started))
+timing="$(printf 'bin/ci: %dm %02ds wall time on %s; the GUARDRAILS 10 budget is %d minutes.' \
+    $((elapsed / 60)) $((elapsed % 60)) "$runner" "$budget_minutes")"
+section 'done'
+echo "$timing"
+
+if ((elapsed > budget_minutes * 60)); then
+    echo "bin/ci: over the budget. Parallelise the profile; never drop a gate (GUARDRAILS 10)." >&2
+fi
+
+if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+    {
+        echo '### PR profile (GUARDRAILS 10)'
+        echo
+        echo '```text'
+        sed -n '/^Summary$/,$p' "$log"
+        echo '```'
+        echo
+        echo "$timing"
+    } >>"$GITHUB_STEP_SUMMARY" || echo 'bin/ci: cannot write the job summary.' >&2
+fi
+
+exit "$status"

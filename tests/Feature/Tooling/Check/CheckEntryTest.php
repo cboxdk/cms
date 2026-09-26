@@ -10,6 +10,7 @@ use Cbox\Cms\Tooling\Check\Adapter\SymfonyProcessRunner;
 use Cbox\Cms\Tooling\Check\Boundary\CheckOptions;
 use Cbox\Cms\Tooling\Check\Boundary\ComposerCommand;
 use Cbox\Cms\Tooling\Check\Boundary\PhpunitSuites;
+use Cbox\Cms\Tooling\Check\Domain\Profile;
 use InvalidArgumentException;
 use Symfony\Component\Process\Process;
 use UnexpectedValueException;
@@ -48,6 +49,14 @@ it('parses --report and --brief and refuses anything else', function (): void {
         ->and(CheckOptions::parse([])->brief)->toBeFalse()
         ->and(static fn (): CheckOptions => CheckOptions::parse(['--report=']))->toThrow(InvalidArgumentException::class)
         ->and(static fn (): CheckOptions => CheckOptions::parse(['--gate=3']))->toThrow(InvalidArgumentException::class, 'Unknown option --gate=3');
+});
+
+it('runs the local profile unless --pr asks for the PR profile, and refuses --profile, which is Composer\'s', function (): void {
+    expect(CheckOptions::parse([])->profile)->toBe(Profile::Local)
+        ->and(CheckOptions::parse(['--pr'])->profile)->toBe(Profile::Pr)
+        ->and(CheckOptions::parse(['--brief', '--pr', '--report=/tmp/r.json'])->profile)->toBe(Profile::Pr)
+        ->and(static fn (): CheckOptions => CheckOptions::parse(['--profile=pr']))->toThrow(InvalidArgumentException::class, 'Unknown option --profile=pr')
+        ->and(CheckOptions::USAGE)->toContain('[--pr]');
 });
 
 it('exits 2 on an unknown option before running any gate', function (): void {

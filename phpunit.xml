@@ -61,6 +61,12 @@
         </include>
     </source>
     <php>
+        <!--
+            The Unit suite runs PHPStan's rule tests in-process and needs more than the 256M of
+            the PHP images' default; this makes the suites run the same on the host, in the php
+            container and in CI.
+        -->
+        <ini name="memory_limit" value="512M"/>
         <env name="APP_ENV" value="testing"/>
         <!-- A fixed key for the test application only; the web middleware encrypts cookies. -->
         <env name="APP_KEY" value="base64:mAfSx1dFf0ps0RjZgJUdiGI87gLFyYzz5H7IqMVPD0M="/>

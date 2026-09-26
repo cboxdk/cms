@@ -1,0 +1,93 @@
+# CI for the laravel-cms monorepo: the PR profile of GUARDRAILS 10.
+#
+# Every step is setup, except bin/ci, the single CI entry script. bin/ci installs the locked
+# dependencies and runs `composer check -- --pr`, which calls the same Composer and npm
+# scripts as `composer check`: lint:check, format:check, rector:check, analyse, typecheck, lint
+# and check:generated, and the Pest suites of gate 5. It reports what it did not run: gates 7 to
+# 11 and mutation on changed files, each with the reason, in the log and the job summary.
+#
+# Declared runner: GitHub-hosted ubuntu-latest, 4 vCPU and 16 GB RAM, the standard Linux runner
+# for public repositories. A private repository gets 2 vCPU on ubuntu-latest and needs a 4-core
+# larger runner for the same shape. The budget is 15 minutes (GUARDRAILS 10). compose.ci.yaml
+# runs the same bin/ci on the same image locally, and PROGRESS.md records its wall time as the proxy.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pr-profile:
+    name: PR profile (GUARDRAILS 10)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # PHP 8.5 of the v1 channel with Node 22, the base of docker/ci.Dockerfile.
+    container:
+      image: ghcr.io/cboxdk/php-baseimages/php-cli:8.5-bookworm-dev-v1
+    services:
+      # The images of compose.yaml. max_prepared_transactions is 0 by default (PRD 4.2); bin/ci
+      # creates the roles and databases, because a service starts before the checkout.
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "pg_isready --host=127.0.0.1 --port=5432 --username=postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+      valkey:
+        image: valkey/valkey:8.1
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      CMS_CI_RUNNER: 'ubuntu-latest, 4 vCPU'
+      CMS_CI_PROVISION_POSTGRES: '1'
+      CMS_CI_USER: ci
+      DB_HOST: postgres
+      DB_PORT: '5432'
+      REDIS_HOST: valkey
+      REDIS_PORT: '6379'
+      XDEBUG_MODE: 'off'
+      # The superuser and roles of compose.yaml. Never POSTGRES_* in the job's environment:
+      # Testbench copies those into the pgsql connection, and the tests would run as the superuser.
+      CMS_CI_POSTGRES_SUPERUSER: postgres
+      CMS_CI_POSTGRES_PASSWORD: postgres
+      CMS_DATABASES: cms cms_test
+      CMS_SCHEMA: cms
+      CMS_OWNER_ROLE: cms_owner
+      CMS_OWNER_PASSWORD: cms_owner
+      CMS_APP_ROLE: cms_app
+      CMS_APP_PASSWORD: cms_app
+      CMS_APP_TRANSACTION_TIMEOUT: 5s
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up psql and git as docker/ci.Dockerfile does
+        run: docker/ci-setup.sh
+
+      - name: bin/ci
+        run: bin/ci
+
+      - name: Keep the gate report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-report
+          path: build/ci/
+          if-no-files-found: warn

@@ -1,0 +1,80 @@
+# The containerized CI run of the PR profile (GUARDRAILS 10):
+#
+#   docker compose -f compose.ci.yaml run --rm ci
+#   docker compose -f compose.ci.yaml down      # stops postgres and valkey afterwards
+#
+# The ci service runs bin/ci, the entry script .github/workflows/ci.yml runs, on a clean git
+# archive of HEAD: the repository's .git is mounted read-only and docker/ci-entry.sh exports HEAD,
+# so uncommitted and untracked files never reach the run. Commit first. The image is
+# docker/ci.Dockerfile: the PHP 8.5 base image of the v1 channel, the job container of ci.yml,
+# with docker/ci-setup.sh, the setup step of ci.yml. postgres and valkey are the services of
+# compose.yaml without host ports, so the run works next to the dev services, and with their data
+# on tmpfs, so every run starts empty. bin/ci creates the roles and databases over TCP, as in ci.yml.
+#
+# Declared runner: GitHub-hosted ubuntu-latest, 4 vCPU and 16 GB RAM (the standard Linux runner
+# for public repositories; a private repository gets 2 vCPU there and needs a 4-core larger runner).
+# This run on Docker Desktop is the recorded proxy: ci, postgres and valkey share CPUs 0 to 3, as
+# the job and its service containers share the runner's 4 vCPU. PROGRESS.md records its wall time
+# against the 15-minute budget of GUARDRAILS 10.
+
+name: laravel-cms-ci
+
+services:
+  ci:
+    build:
+      context: docker
+      dockerfile: ci.Dockerfile
+    image: laravel-cms-ci:local
+    init: true
+    cpuset: '0-3'
+    mem_limit: 16g
+    volumes:
+      # CMS_CI_SOURCE_GIT runs the HEAD of another repository's .git instead.
+      - ${CMS_CI_SOURCE_GIT:-./.git}:/source.git:ro
+    environment:
+      CI: 'true'
+      CMS_CI_RUNNER: 'Docker Desktop, 4 CPUs, as the proxy for ubuntu-latest, 4 vCPU'
+      CMS_CI_PROVISION_POSTGRES: '1'
+      CMS_CI_USER: ci
+      DB_HOST: postgres
+      DB_PORT: '5432'
+      REDIS_HOST: valkey
+      REDIS_PORT: '6379'
+      XDEBUG_MODE: 'off'
+      # The superuser and the roles of compose.yaml's postgres service; tests/Feature/Tooling/Ci
+      # keeps them equal. Development credentials only. Never POSTGRES_* here: Testbench copies
+      # those into the pgsql connection, and the tests would run as the superuser.
+      CMS_CI_POSTGRES_SUPERUSER: postgres
+      CMS_CI_POSTGRES_PASSWORD: postgres
+      CMS_DATABASES: cms cms_test
+      CMS_SCHEMA: cms
+      CMS_OWNER_ROLE: cms_owner
+      CMS_OWNER_PASSWORD: cms_owner
+      CMS_APP_ROLE: cms_app
+      CMS_APP_PASSWORD: cms_app
+      CMS_APP_TRANSACTION_TIMEOUT: 5s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+
+  postgres:
+    extends:
+      file: compose.yaml
+      service: postgres
+    ports: !reset []
+    cpuset: '0-3'
+    volumes:
+      - type: tmpfs
+        target: /var/lib/postgresql/data
+
+  valkey:
+    extends:
+      file: compose.yaml
+      service: valkey
+    ports: !reset []
+    cpuset: '0-3'
+    volumes:
+      - type: tmpfs
+        target: /data

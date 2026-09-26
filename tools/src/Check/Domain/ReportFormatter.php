@@ -12,9 +12,9 @@ final readonly class ReportFormatter
 {
     private const int STATUS_WIDTH = 9;
 
-    public static function header(string $directory): string
+    public static function header(string $directory, Profile $profile = Profile::Local): string
     {
-        return "composer check: the local profile of GUARDRAILS 10, gates 1 to 6, in {$directory}\n";
+        return "composer check: {$profile->description()}, in {$directory}\n";
     }
 
     public static function gateHeading(Gate $gate): string
