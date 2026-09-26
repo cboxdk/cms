@@ -54,8 +54,8 @@ it('applies an extension of another root to the type it extends', function (): v
 
     generateCode($blueprints, $output)->generate(SchemaFixtures::target('/srv/app', [$app, $acme]));
 
-    expect($output->contents('/srv/app/app/Cms/Generated/TypeHandle.php'))->toContain("                'ext__app__tax_code' => 'text',")
-        ->and($output->contents('/srv/app/resources/js/cms/generated/index.ts'))->toContain("    ext__app__tax_code: 'text';");
+    expect($output->contents('/srv/app/app/Cms/Generated/TypeHandle.php'))->toContain("            self::Product => [\n                'app' => [\n                    'tax_code' => 'text',\n")
+        ->and($output->contents('/srv/app/resources/js/cms/generated/index.ts'))->toContain("    ext: {\n      app: {\n        tax_code: 'text';\n");
 });
 
 it('generates the enum without cases and never from a root without blueprints', function (): void {

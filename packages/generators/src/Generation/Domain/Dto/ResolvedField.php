@@ -12,16 +12,20 @@ use Cbox\Cms\Generators\Schema\Domain\Handle;
 use Cbox\Cms\Generators\Schema\Domain\Owner;
 
 /**
- * A top-level field of a type as the generators write it: the owner's own field under its handle,
- * or an extension field under its column name `ext__<namespace>__<handle>` (PRD 11.12), where the
- * namespace is the extender. Handles have no double underscore and namespaces no underscore, so
- * the encoding is injective and never gives the name of one of the owner's fields.
+ * A top-level field of a type: the owner's own field, or an extension field of the namespace of its
+ * extender (PRD 11.12). The generated code addresses an owner's field by its handle and an
+ * extension field as `ext.<namespace>.<handle>`, from handle() and $namespace.
+ *
+ * $name is the field's column in the type table: the handle, or `ext__<namespace>__<handle>` for
+ * an extension field. Handles have no double underscore and namespaces no underscore, so the
+ * encoding is injective and never gives the column of one of the owner's fields; the resolver
+ * keeps the fields of a type unique and sorted by it.
  */
 #[Internal]
 final readonly class ResolvedField
 {
     /**
-     * @param  string  $name  the handle, or `ext__<namespace>__<handle>` for an extension field
+     * @param  string  $name  the column: the handle, or `ext__<namespace>__<handle>` for an extension field
      * @param  ?Owner  $namespace  the extender, or null for a field of the type's owner
      */
     public function __construct(
@@ -36,7 +40,7 @@ final readonly class ResolvedField
     }
 
     /**
-     * An extension field, named by its column name.
+     * An extension field, with its column name.
      */
     public static function extension(FieldBlueprint $blueprint): self
     {
@@ -49,6 +53,14 @@ final readonly class ResolvedField
     public static function columnName(Owner $namespace, Handle $handle): string
     {
         return ColumnName::ofExtensionField($namespace, $handle)->value;
+    }
+
+    /**
+     * The field's handle, without the extender's namespace.
+     */
+    public function handle(): string
+    {
+        return $this->blueprint->handle->value;
     }
 
     /**

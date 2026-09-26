@@ -17,11 +17,13 @@ use Cbox\Cms\Generators\Generation\Domain\Generator;
 use Override;
 
 /**
- * The M0 PHP link of the type chain: a string-backed enum `TypeHandle` with one case per type, and
- * `fields()` that maps each field name of the type to its field type. The case name is the handle
- * in TitleCase: `blog_post` becomes `BlogPost`. An extension field is named by its column name,
- * `ext__<namespace>__<handle>`. Without types the enum has no cases, and `fields()` returns an
- * empty array, because a match over an enum without cases handles no value.
+ * The M0 PHP link of the type chain: a string-backed enum `TypeHandle` with one case per type,
+ * `fields()` that maps each handle of the owner's fields to its field type, and `extensionFields()`
+ * that maps the namespace of each extender to its fields, handle to field type, the way PHP
+ * addresses an extension field as `ext->app->taxCode` (PRD 11.12); the column name
+ * `ext__<namespace>__<handle>` belongs to the type table alone. The case name is the handle in
+ * TitleCase: `blog_post` becomes `BlogPost`. Without types the enum has no cases, and both methods
+ * return an empty array, because a match over an enum without cases handles no value.
  *
  * The output is formatted the way Pint, Rector and PHPStan level 10 accept it unchanged.
  */
@@ -57,8 +59,8 @@ final readonly class PhpTypeHandleEnum implements Generator
      * @var array<string, string>
      */
     public const array KINDS = [
-        'extension' => 'its fields in the fields() arm of the type it extends, named ext__<namespace>__<handle>',
-        'type' => 'a case named after the handle, and an arm of fields() with the type\'s own fields',
+        'extension' => 'its fields in the extensionFields() arm of the type it extends, under its namespace',
+        'type' => 'a case named after the handle, an arm of fields() with the type\'s own fields and an arm of extensionFields()',
     ];
 
     #[Override]
@@ -97,8 +99,7 @@ final readonly class PhpTypeHandleEnum implements Generator
             '{',
             ...($cases === [] ? [] : [...$cases, '']),
             '    /**',
-            '     * The fields of the type: field name to field type, sorted by name. An extension field is',
-            '     * named by its column, ext__<namespace>__<handle>.',
+            "     * The type's own fields: field handle to field type, sorted by handle.",
             '     *',
             '     * @return array<string, string>',
             '     */',
@@ -107,6 +108,21 @@ final readonly class PhpTypeHandleEnum implements Generator
             ...($cases === [] ? ['        return [];'] : [
                 '        return match ($this) {',
                 ...array_merge(...array_map($this->fieldsArm(...), $schema->types)),
+                '        };',
+            ]),
+            '    }',
+            '',
+            '    /**',
+            '     * The fields that extensions add to the type, addressed as ext.<namespace>.<handle>:',
+            '     * namespace to field handle to field type, sorted by namespace and handle.',
+            '     *',
+            '     * @return array<string, array<string, string>>',
+            '     */',
+            '    public function extensionFields(): array',
+            '    {',
+            ...($cases === [] ? ['        return [];'] : [
+                '        return match ($this) {',
+                ...array_merge(...array_map($this->extensionFieldsArm(...), $schema->types)),
                 '        };',
             ]),
             '    }',
@@ -175,8 +191,38 @@ final readonly class PhpTypeHandleEnum implements Generator
     {
         $lines = ['            self::'.self::caseName($type).' => ['];
 
-        foreach ($type->fields as $field) {
-            $lines[] = sprintf("                '%s' => '%s',", $field->name, $this->fieldType($field));
+        foreach ($type->ownFields() as $field) {
+            $lines[] = sprintf("                '%s' => '%s',", $field->handle(), $this->fieldType($field));
+        }
+
+        $lines[] = '            ],';
+
+        return $lines;
+    }
+
+    /**
+     * @return list<string>
+     *
+     * @throws GenerationFailed with GenerateErrorCode::InvalidOutput
+     */
+    private function extensionFieldsArm(ResolvedType $type): array
+    {
+        $extensions = $type->extensionFields();
+
+        if ($extensions === []) {
+            return ['            self::'.self::caseName($type).' => [],'];
+        }
+
+        $lines = ['            self::'.self::caseName($type).' => ['];
+
+        foreach ($extensions as $namespace => $fields) {
+            $lines[] = "                '".$namespace."' => [";
+
+            foreach ($fields as $field) {
+                $lines[] = sprintf("                    '%s' => '%s',", $field->handle(), $this->fieldType($field));
+            }
+
+            $lines[] = '                ],';
         }
 
         $lines[] = '            ],';

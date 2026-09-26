@@ -9,7 +9,7 @@
 /** The handle of each type in the schema. */
 export type TypeHandle = 'article';
 
-/** The fields of each type: field name to field type. */
+/** The fields of each type: field handle to field type, extension fields under ext.<namespace>. */
 export interface TypeFields {
   article: {
     body: 'rich_text';

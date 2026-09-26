@@ -17,9 +17,12 @@ use Override;
 /**
  * The M0 TypeScript link of the type chain, in `index.ts`: the union type `TypeHandle` of the
  * type handles, and the interface `TypeFields` that maps each type to its fields and their field
- * types. An extension field is named by its column name, `ext__<namespace>__<handle>`. Without
- * types, `TypeHandle` is `never` and `TypeFields` the mapped type over it, which has no keys; an
- * empty interface would accept any value that is not null.
+ * types. The owner's fields are keyed by handle, sorted, and the extension fields follow under the
+ * reserved key `ext`, by namespace and then by handle, so TypeScript addresses one as
+ * `ext.<namespace>.<handle>` (PRD 11.12); the column name `ext__<namespace>__<handle>` belongs to
+ * the type table alone. A type without extension fields has no `ext`. Without types,
+ * `TypeHandle` is `never` and `TypeFields` the mapped type over it, which has no keys; an empty
+ * interface would accept any value that is not null.
  *
  * The output is formatted the way the shared Prettier configuration prints it (printWidth 100,
  * single quotes), so `prettier --check` accepts it unchanged. A union that fits on one line stays
@@ -60,7 +63,7 @@ final readonly class TypeScriptTypeHandles implements Generator
      * @var array<string, string>
      */
     public const array KINDS = [
-        'extension' => 'its fields in the TypeFields entry of the type it extends, named ext__<namespace>__<handle>',
+        'extension' => 'its fields in the TypeFields entry of the type it extends, under ext.<namespace>.<handle>',
         'type' => 'a member of TypeHandle, and an entry of TypeFields with the type\'s own fields',
     ];
 
@@ -85,7 +88,7 @@ final readonly class TypeScriptTypeHandles implements Generator
             '/** The handle of each type in the schema. */',
             ...$this->union($schema),
             '',
-            '/** The fields of each type: field name to field type. */',
+            '/** The fields of each type: field handle to field type, extension fields under ext.<namespace>. */',
             ...($schema->types === [] ? ['export type TypeFields = { [Handle in TypeHandle]: never };'] : [
                 'export interface TypeFields {',
                 ...array_merge(...array_map($this->fields(...), $schema->types)),
@@ -132,8 +135,26 @@ final readonly class TypeScriptTypeHandles implements Generator
     {
         $lines = ['  '.$type->handle().': {'];
 
-        foreach ($type->fields as $field) {
-            $lines[] = sprintf("    %s: '%s';", $field->name, $this->fieldType($field));
+        foreach ($type->ownFields() as $field) {
+            $lines[] = sprintf("    %s: '%s';", $field->handle(), $this->fieldType($field));
+        }
+
+        $extensions = $type->extensionFields();
+
+        if ($extensions !== []) {
+            $lines[] = '    ext: {';
+
+            foreach ($extensions as $namespace => $fields) {
+                $lines[] = '      '.$namespace.': {';
+
+                foreach ($fields as $field) {
+                    $lines[] = sprintf("        %s: '%s';", $field->handle(), $this->fieldType($field));
+                }
+
+                $lines[] = '      };';
+            }
+
+            $lines[] = '    };';
         }
 
         $lines[] = '  };';

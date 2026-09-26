@@ -18,8 +18,7 @@ enum TypeHandle: string
     case Article = 'article';
 
     /**
-     * The fields of the type: field name to field type, sorted by name. An extension field is
-     * named by its column, ext__<namespace>__<handle>.
+     * The type's own fields: field handle to field type, sorted by handle.
      *
      * @return array<string, string>
      */
@@ -30,6 +29,19 @@ enum TypeHandle: string
                 'body' => 'rich_text',
                 'title' => 'text',
             ],
+        };
+    }
+
+    /**
+     * The fields that extensions add to the type, addressed as ext.<namespace>.<handle>:
+     * namespace to field handle to field type, sorted by namespace and handle.
+     *
+     * @return array<string, array<string, string>>
+     */
+    public function extensionFields(): array
+    {
+        return match ($this) {
+            self::Article => [],
         };
     }
 }

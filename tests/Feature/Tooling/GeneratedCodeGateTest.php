@@ -276,3 +276,29 @@ it('generates code that Pint, Rector, PHPStan, tsc, ESLint and Prettier accept u
     'a larger schema with an extension' => [false, "export type TypeHandle =\n  | 'fairly_long_type_handle_number_1'\n"],
     'no types' => [true, "export type TypeHandle = never;\n"],
 ]);
+
+it('gives tsc the extension fields of a type at ext.<namespace>.<handle> and the owner\'s fields at their handles', function (): void {
+    $directory = SchemaFixtures::scratch();
+    $app = SchemaFixtures::root(base: $directory);
+    $target = new GenerationTarget($directory, [$app], 'app/Generated', 'Cbox\Cms\Probe\Generated', 'js/generated');
+    $typeScript = new TypeScriptTypeHandles()->generate(largerSchema($app), $target)[0]->contents;
+
+    $usage = <<<'TS'
+
+        export const taxCode: TypeFields['product']['ext']['app']['tax_code'] = 'text';
+        export const title: TypeFields['product']['title'] = 'text';
+
+        TS;
+    $misuse = <<<'TS'
+
+        export const taxCode: TypeFields['product']['ext__app__tax_code'] = 'text';
+
+        TS;
+
+    $accepted = Node::withProbe('ts', $typeScript.$usage, static fn (): Process => Node::run(['npm', 'run', '--silent', 'typecheck']));
+    $refused = Node::withProbe('ts', $typeScript.$misuse, static fn (): Process => Node::run(['npm', 'run', '--silent', 'typecheck']));
+
+    expect($accepted->getExitCode())->toBe(0, $accepted->getOutput())
+        ->and($refused->getExitCode())->not->toBe(0)
+        ->and($refused->getOutput())->toContain("Property 'ext__app__tax_code' does not exist");
+});

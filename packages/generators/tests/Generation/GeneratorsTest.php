@@ -21,7 +21,7 @@ use PHPUnit\Framework\Assert;
 
 /*
  * The two M0 generators: the PHP enum and the TypeScript union of the type handles, with the
- * fields of each type and the extension fields under their column names. Their output is a pure
+ * fields of each type and the extension fields under ext by namespace. Their output is a pure
  * function of the resolved schema: byte-identical for the same input, sorted whatever order the
  * blueprint files use, and without timestamps.
  */
@@ -77,8 +77,7 @@ it('writes a string-backed PHP enum with one case per type and the fields of eac
             case Page = 'page';
 
             /**
-             * The fields of the type: field name to field type, sorted by name. An extension field is
-             * named by its column, ext__<namespace>__<handle>.
+             * The type's own fields: field handle to field type, sorted by handle.
              *
              * @return array<string, string>
              */
@@ -94,6 +93,20 @@ it('writes a string-backed PHP enum with one case per type and the fields of eac
                         'slug' => 'text',
                         'title' => 'text',
                     ],
+                };
+            }
+
+            /**
+             * The fields that extensions add to the type, addressed as ext.<namespace>.<handle>:
+             * namespace to field handle to field type, sorted by namespace and handle.
+             *
+             * @return array<string, array<string, string>>
+             */
+            public function extensionFields(): array
+            {
+                return match ($this) {
+                    self::BlogPost => [],
+                    self::Page => [],
                 };
             }
         }
@@ -114,7 +127,7 @@ it('writes a TypeScript union of the type handles and an interface of their fiel
         /** The handle of each type in the schema. */
         export type TypeHandle = 'blog_post' | 'page';
 
-        /** The fields of each type: field name to field type. */
+        /** The fields of each type: field handle to field type, extension fields under ext.<namespace>. */
         export interface TypeFields {
           blog_post: {
             author: 'acme:person';
@@ -207,33 +220,80 @@ it('keeps a union that fits in Prettier\'s print width on one line, and breaks a
         ->and(max(array_map(strlen(...), explode("\n", $long))))->toBeLessThanOrEqual(TypeScriptTypeHandles::PRINT_WIDTH);
 });
 
-it('writes an app extension field of another owner\'s type as ext__app__<handle> in both languages', function (): void {
+it('writes the owner\'s fields by handle and extension fields under ext, by namespace and handle', function (): void {
     $app = SchemaFixtures::root();
     $acme = SchemaFixtures::root('acme', 'vendor/acme/shop/schema');
+    $blog = SchemaFixtures::root('blog', 'vendor/acme/blog/schema');
     $product = SchemaFixtures::type($acme, 'product', ['title' => 'text', 'price' => 'decimal']);
-    $schema = SchemaResolver::resolve(new Blueprints([$product], [
+    $page = SchemaFixtures::type($acme, 'page', ['title' => 'text']);
+    $schema = SchemaResolver::resolve(new Blueprints([$product, $page], [
+        SchemaFixtures::extension($blog, 'product.yaml', $product->typeId, ['teaser' => 'long_text']),
         SchemaFixtures::extension($app, 'shop/product.yaml', $product->typeId, ['tax_code' => 'text', 'colour' => 'acme:colour']),
     ]));
 
-    $output = contentsOf(new GeneratorRunner([new PhpTypeHandleEnum, new TypeScriptTypeHandles])->run($schema, SchemaFixtures::target(roots: [$app, $acme]))->files);
+    $output = contentsOf(new GeneratorRunner([new PhpTypeHandleEnum, new TypeScriptTypeHandles])->run($schema, SchemaFixtures::target(roots: [$app, $acme, $blog]))->files);
 
     expect($output['app/Cms/Generated/TypeHandle.php'])->toContain(<<<'PHP'
+            public function fields(): array
+            {
+                return match ($this) {
+                    self::Page => [
+                        'title' => 'text',
+                    ],
                     self::Product => [
-                        'ext__app__colour' => 'acme:colour',
-                        'ext__app__tax_code' => 'text',
                         'price' => 'decimal',
                         'title' => 'text',
                     ],
+                };
+            }
+
+            /**
+             * The fields that extensions add to the type, addressed as ext.<namespace>.<handle>:
+             * namespace to field handle to field type, sorted by namespace and handle.
+             *
+             * @return array<string, array<string, string>>
+             */
+            public function extensionFields(): array
+            {
+                return match ($this) {
+                    self::Page => [],
+                    self::Product => [
+                        'app' => [
+                            'colour' => 'acme:colour',
+                            'tax_code' => 'text',
+                        ],
+                        'blog' => [
+                            'teaser' => 'long_text',
+                        ],
+                    ],
+                };
+            }
+        }
+
         PHP)
-        ->and($output['app/Cms/Generated/TypeHandle.php'])->toContain(" * Schema roots, by owner:\n *   acme: vendor/acme/shop/schema\n *   app: schema\n")
+        ->and($output['app/Cms/Generated/TypeHandle.php'])->toContain(" * Schema roots, by owner:\n *   acme: vendor/acme/shop/schema\n *   app: schema\n *   blog: vendor/acme/blog/schema\n")
         ->and($output['resources/js/cms/generated/index.ts'])->toContain(<<<'TS'
-          product: {
-            ext__app__colour: 'acme:colour';
-            ext__app__tax_code: 'text';
-            price: 'decimal';
+        export interface TypeFields {
+          page: {
             title: 'text';
           };
-        TS);
+          product: {
+            price: 'decimal';
+            title: 'text';
+            ext: {
+              app: {
+                colour: 'acme:colour';
+                tax_code: 'text';
+              };
+              blog: {
+                teaser: 'long_text';
+              };
+            };
+          };
+        }
+
+        TS)
+        ->and(implode("\n", $output))->not->toContain('ext__');
 });
 
 it('writes an enum without cases and never when the schema roots hold no types', function (): void {
@@ -259,12 +319,22 @@ it('writes an enum without cases and never when the schema roots hold no types',
             enum TypeHandle: string
             {
                 /**
-                 * The fields of the type: field name to field type, sorted by name. An extension field is
-                 * named by its column, ext__<namespace>__<handle>.
+                 * The type's own fields: field handle to field type, sorted by handle.
                  *
                  * @return array<string, string>
                  */
                 public function fields(): array
+                {
+                    return [];
+                }
+
+                /**
+                 * The fields that extensions add to the type, addressed as ext.<namespace>.<handle>:
+                 * namespace to field handle to field type, sorted by namespace and handle.
+                 *
+                 * @return array<string, array<string, string>>
+                 */
+                public function extensionFields(): array
                 {
                     return [];
                 }
@@ -283,7 +353,7 @@ it('writes an enum without cases and never when the schema roots hold no types',
             /** The handle of each type in the schema. */
             export type TypeHandle = never;
 
-            /** The fields of each type: field name to field type. */
+            /** The fields of each type: field handle to field type, extension fields under ext.<namespace>. */
             export type TypeFields = { [Handle in TypeHandle]: never };
 
             TS,
