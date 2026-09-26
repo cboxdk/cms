@@ -21,6 +21,7 @@ use Cbox\Cms\Core\Doctor\Domain\Checks\PostgresReachableCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\PostgresVersionCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\PreparedTransactionsCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\RegistryCacheCheck;
+use Cbox\Cms\Core\Doctor\Domain\Checks\RowSecurityCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\TransactionTimeoutCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\ValkeyReachableCheck;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PartitionCoverage;
@@ -187,11 +188,34 @@ it('fails an app role that owns relations or may create objects', function (): v
         ->and($result->fix)->toContain('REVOKE CREATE ON SCHEMA cms, public FROM cms_app');
 });
 
+it('fails a table with row level security that does not force it, and blocks', function (): void {
+    $postgres = new FakePostgresProbe;
+    $check = new RowSecurityCheck($postgres);
+
+    expect($check->blocking())->toBeTrue()
+        ->and($check->requires()[0]->value)->toBe(PostgresReachableCheck::ID)
+        ->and($check->run()->passed())->toBeTrue()
+        ->and($check->run()->explanation)->toBe('All 2 tables with row level security in the database cms force it on their owner.');
+
+    $postgres->rowSecurityTables = 0;
+
+    expect($check->run()->passed())->toBeTrue()
+        ->and($check->run()->explanation)->toBe('No table in the database cms has row level security yet.');
+
+    $postgres->rowSecurityTables = 3;
+    $postgres->unforcedTables = ['cms.entries', 'cms.entries_p20260310'];
+    $result = $check->run();
+
+    expectFailure($result, FailureKind::Violation, RowSecurityCheck::CODE, '2 of the 3 tables with row level security in the database cms do not force it, such as cms.entries, cms.entries_p20260310.');
+    expect($result->blocking)->toBeTrue()
+        ->and($result->fix)->toContain('ALTER TABLE cms.entries FORCE ROW LEVEL SECURITY');
+});
+
 it('fails a Postgres check whose query fails with the probe\'s kind', function (FailureKind $kind): void {
     $postgres = new FakePostgresProbe;
     $postgres->queryFailure = $kind === FailureKind::Unavailable ? ProbeFailed::unavailable('server closed the connection') : ProbeFailed::violation('permission denied');
 
-    foreach ([new PostgresVersionCheck($postgres), new AppRoleCheck($postgres), new TransactionTimeoutCheck($postgres), new PreparedTransactionsCheck($postgres), new DdlPrivilegesCheck($postgres)] as $check) {
+    foreach ([new PostgresVersionCheck($postgres), new AppRoleCheck($postgres), new TransactionTimeoutCheck($postgres), new PreparedTransactionsCheck($postgres), new DdlPrivilegesCheck($postgres), new RowSecurityCheck($postgres)] as $check) {
         $result = $check->run();
 
         expect($result->failure)->toBe($kind)

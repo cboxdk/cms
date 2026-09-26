@@ -119,12 +119,13 @@ it('wires the runtime checks in order and the dev checks after them', function (
             'postgres.prepared_transactions',
             'postgres.lc_messages',
             'postgres.ddl_privileges',
+            'postgres.row_security',
             'valkey.reachable',
             'partitions.runway',
             'registry.cache',
         ])
         ->and($ids(...$dev))->toBe(['dev.node', 'dev.playwright', 'dev.chromium'])
-        ->and(array_map(static fn (DoctorCheck $check): bool => $check->blocking(), $runtime))->toBe([true, true, true, true, true, true, true, true, true, true, false, true])
+        ->and(array_map(static fn (DoctorCheck $check): bool => $check->blocking(), $runtime))->toBe([true, true, true, true, true, true, true, true, true, true, true, false, true])
         ->and(array_map(static fn (DoctorCheck $check): bool => $check->blocking(), $dev))->toBe([false, false, false]);
 });
 

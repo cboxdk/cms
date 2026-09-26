@@ -9,6 +9,7 @@ use Cbox\Cms\Core\Doctor\Domain\Dto\DdlPrivileges;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PostgresRole;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PostgresVersion;
 use Cbox\Cms\Core\Doctor\Domain\Dto\RoleMembership;
+use Cbox\Cms\Core\Doctor\Domain\Dto\RowSecurity;
 use Cbox\Cms\Core\Doctor\Domain\Dto\TimeoutSetting;
 use Cbox\Cms\Core\Doctor\Domain\ProbeFailed;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PostgresProbe;
@@ -176,6 +177,48 @@ final readonly class ConnectionPostgresProbe implements PostgresProbe
             ownerRoles: $owners,
             createOnDatabase: $summary->bool('create_on_database'),
             schemasWithCreate: $schemas,
+        );
+    }
+
+    /**
+     * Tables and partitioned tables, partitions included, since a partition read directly applies
+     * its own row level security and not its parent's.
+     */
+    #[Override]
+    public function rowSecurity(): RowSecurity
+    {
+        $tables = <<<'SQL'
+            from pg_class c
+            join pg_namespace n on n.oid = c.relnamespace
+            where c.relkind in ('r', 'p')
+              and c.relrowsecurity
+              and n.nspname not in ('pg_catalog', 'information_schema')
+              and n.nspname not like 'pg\_temp\_%'
+              and n.nspname not like 'pg\_toast%'
+            SQL;
+
+        $summary = CatalogRow::one($this->connection->rows(<<<SQL
+            select current_database()::text as database,
+                   (select count(*) {$tables})::int as enabled_count,
+                   (select count(*) {$tables} and not c.relforcerowsecurity)::int as unforced_count
+            SQL));
+
+        // How many unforced tables the cause names; parents come before partitions.
+        $shown = 5;
+        $names = array_map(
+            static fn (CatalogRow $row): string => $row->string('name'),
+            CatalogRow::all($this->connection->rows(sprintf(
+                "select format('%%I.%%I', n.nspname, c.relname) as name %s and not c.relforcerowsecurity order by c.relispartition, 1 limit %d",
+                $tables,
+                $shown,
+            ))),
+        );
+
+        return new RowSecurity(
+            database: $summary->string('database'),
+            enabledCount: $summary->int('enabled_count'),
+            unforcedTables: $names,
+            unforcedCount: $summary->int('unforced_count'),
         );
     }
 }

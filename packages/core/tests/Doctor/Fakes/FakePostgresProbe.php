@@ -8,6 +8,7 @@ use Cbox\Cms\Core\Doctor\Domain\Dto\DdlPrivileges;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PostgresRole;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PostgresVersion;
 use Cbox\Cms\Core\Doctor\Domain\Dto\RoleMembership;
+use Cbox\Cms\Core\Doctor\Domain\Dto\RowSecurity;
 use Cbox\Cms\Core\Doctor\Domain\Dto\TimeoutSetting;
 use Cbox\Cms\Core\Doctor\Domain\ProbeFailed;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PostgresProbe;
@@ -15,7 +16,8 @@ use Cbox\Cms\Core\Doctor\Domain\Probes\PostgresProbe;
 /**
  * A Postgres that keeps the runtime contract until the test changes a property: version 17.11,
  * the app role cms_app without superuser or BYPASSRLS and without privileged memberships,
- * transaction_timeout 5 s from the role, no prepared transactions and no DDL.
+ * transaction_timeout 5 s from the role, no prepared transactions, no DDL, and two tables with row
+ * level security that force it.
  */
 final class FakePostgresProbe implements PostgresProbe
 {
@@ -51,6 +53,11 @@ final class FakePostgresProbe implements PostgresProbe
 
     /** @var list<string> */
     public array $schemasWithCreate = [];
+
+    public int $rowSecurityTables = 2;
+
+    /** @var list<string> Tables with row level security that do not force it. */
+    public array $unforcedTables = [];
 
     public int $connects = 0;
 
@@ -109,6 +116,13 @@ final class FakePostgresProbe implements PostgresProbe
             $this->createOnDatabase,
             $this->schemasWithCreate,
         );
+    }
+
+    public function rowSecurity(): RowSecurity
+    {
+        $this->query();
+
+        return new RowSecurity('cms', $this->rowSecurityTables, $this->unforcedTables, count($this->unforcedTables));
     }
 
     private function query(): void

@@ -8,6 +8,7 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Core\Doctor\Domain\Dto\DdlPrivileges;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PostgresRole;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PostgresVersion;
+use Cbox\Cms\Core\Doctor\Domain\Dto\RowSecurity;
 use Cbox\Cms\Core\Doctor\Domain\Dto\TimeoutSetting;
 use Cbox\Cms\Core\Doctor\Domain\ProbeFailed;
 
@@ -45,4 +46,11 @@ interface PostgresProbe
 
     /** @throws ProbeFailed */
     public function ddlPrivileges(): DdlPrivileges;
+
+    /**
+     * The row level security of the tables and partitioned tables outside the system schemas.
+     *
+     * @throws ProbeFailed
+     */
+    public function rowSecurity(): RowSecurity;
 }

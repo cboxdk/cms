@@ -35,6 +35,7 @@ use Cbox\Cms\Core\Doctor\Domain\Checks\PostgresReachableCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\PostgresVersionCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\PreparedTransactionsCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\RegistryCacheCheck;
+use Cbox\Cms\Core\Doctor\Domain\Checks\RowSecurityCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\TransactionTimeoutCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\ValkeyReachableCheck;
 use Cbox\Cms\Core\Doctor\Domain\DoctorChecks;
@@ -220,6 +221,7 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
                     new PreparedTransactionsCheck($postgres),
                     new LcMessagesCheck($app->make(LcMessagesProbe::class)),
                     new DdlPrivilegesCheck($postgres),
+                    new RowSecurityCheck($postgres),
                     new ValkeyReachableCheck($app->make(ValkeyProbe::class)),
                     new PartitionRunwayCheck(
                         $app->make(PartitionRunwayProbe::class),
