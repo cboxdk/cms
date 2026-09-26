@@ -9,9 +9,11 @@ use Cbox\Cms\Testkit\Postgres\OwnerTruncation;
 use Cbox\Cms\Testkit\Postgres\PostgresHarness;
 use Cbox\Cms\Testkit\Postgres\RealPostgres;
 use Cbox\Cms\Tests\TestCase;
+use Illuminate\Database\Connection;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
+use LogicException;
 use PHPUnit\Framework\Assert;
 use PHPUnit\Framework\AssertionFailedError;
 use stdClass;
@@ -94,6 +96,38 @@ it('finds the rows of the previous test truncated by the owner, with the identit
     expect(DB::table($table)->count())->toBe(0)
         ->and(DB::table($table)->insertGetId(['note' => 'first again']))->toBe(1);
 })->depends('it leaves a committed row behind when the test ends');
+
+it('uses a backend of each role that the test does not close itself', function (): array {
+    $backend = static function (Connection $connection): string {
+        $backend = $connection->scalar("select pg_backend_pid()::text || '@' || backend_start::text from pg_stat_activity where pid = pg_backend_pid()");
+
+        return is_string($backend) ? $backend : throw new LogicException('Expected the backend of the connection.');
+    };
+
+    $backends = ['app' => $backend(Probe::app()), 'owner' => $backend(Probe::owner())];
+
+    expect($backends['app'])->toMatch('/^\d+@/')
+        ->and($backends['owner'])->toMatch('/^\d+@/')
+        ->and($backends['app'])->not->toBe($backends['owner']);
+
+    return $backends;
+});
+
+it('finds the backends of the previous test closed by its tear-down, not left to the garbage collector', function (array $previous): void {
+    // Each role sees the start time of its own backends only, so each looks for its own. The
+    // start time tells a reused pid from the old backend.
+    $alive = static function (Connection $connection, mixed $backend): bool {
+        if (! is_string($backend)) {
+            throw new LogicException('Expected the backend the previous test recorded.');
+        }
+
+        return $connection->scalar("select exists (select from pg_stat_activity where pid::text || '@' || backend_start::text = ?)", [$backend]) === true;
+    };
+
+    expect($previous)->toHaveKeys(['app', 'owner'])
+        ->and($alive(Probe::app(), $previous['app']))->toBeFalse()
+        ->and($alive(Probe::owner(), $previous['owner']))->toBeFalse();
+})->depends('it uses a backend of each role that the test does not close itself');
 
 describe('OwnerTruncation', function (): void {
     it('truncates every table in the search path as the owner, except the migration log', function (): void {

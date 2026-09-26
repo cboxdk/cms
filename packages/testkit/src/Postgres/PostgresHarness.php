@@ -24,8 +24,12 @@ use PHPUnit\Framework\AssertionFailedError;
  * process, checks that no transaction wraps the test, and installs the nested transaction
  * guard. The test then runs as the app role on the default connection, and its commits are
  * real. Tear-down stops child processes, closes independent connections, rolls back what the
- * test left open, truncates every table as the owner role, and fails the test if the guard saw
- * a nested transaction.
+ * test left open, truncates every table as the owner role, disconnects every connection of the
+ * application, and fails the test if the guard saw a nested transaction.
+ *
+ * The disconnect is what frees the test's backends. The application's object graph has cycles,
+ * so without it a connection's PDO lives until PHP's cycle collector runs, and a suite that
+ * opens owner and app connections test after test runs Postgres out of connection slots.
  *
  * Tests reach the helpers through the container: `app(IndependentConnections::class)`,
  * `app(ChildProcesses::class)` and `app(NestedTransactionGuard::class)`.
@@ -111,7 +115,21 @@ final readonly class PostgresHarness
             $owner->rollBack(0);
             new OwnerTruncation($owner)->truncate();
         } finally {
-            $this->guard->assertClean();
+            try {
+                $this->disconnectAll();
+            } finally {
+                $this->guard->assertClean();
+            }
+        }
+    }
+
+    /**
+     * Closes every connection the application opened, so their backends end with the test.
+     */
+    private function disconnectAll(): void
+    {
+        foreach (array_keys($this->database->getConnections()) as $name) {
+            $this->database->purge($name);
         }
     }
 }
