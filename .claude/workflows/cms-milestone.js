@@ -163,7 +163,8 @@ const VERIFY_RULES = `Run the real checks in the worktree, do not assume: "compo
 // ---------------------------------------------------------------- Plan
 phase('Plan')
 
-let plan = await agent(
+// args.plan reuses a plan from an earlier run of the same block and skips planning.
+let plan = (args && args.plan) || await agent(
   `${CONTEXT}
 
 Plan block ${BLOCK}. Read PROGRESS.md, the block in MILESTONES.md, the PRD sections it depends on, GUARDRAILS.md and the current repo state (git log, files). Work that is already committed and green counts as done; plan only what remains.
@@ -176,7 +177,7 @@ Put decisions reserved for Sylvester (see CLAUDE.md) in blockers, and plan aroun
   { schema: PLAN, label: `plan ${BLOCK}`, effort: 'high' },
 )
 
-const critique = await agent(
+const critique = (args && args.plan) ? null : await agent(
   `${CONTEXT}
 
 Here is a plan for block ${BLOCK}:
