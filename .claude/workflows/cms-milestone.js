@@ -163,8 +163,12 @@ const VERIFY_RULES = `Run the real checks in the worktree, do not assume: "compo
 // ---------------------------------------------------------------- Plan
 phase('Plan')
 
-// args.plan reuses a plan from an earlier run of the same block and skips planning.
-let plan = (args && args.plan) || await agent(
+// args.planFile reuses a plan from an earlier run of the same block (a JSON file with the PLAN shape) and skips planning.
+const PLAN_FILE = args && args.planFile
+let plan = PLAN_FILE ? await agent(
+  `Read the JSON file ${PLAN_FILE} and return its content as the plan, exactly as it is: same tasks, ids, dependsOn, acceptance items and exit criteria. Do not change any files.`,
+  { schema: PLAN, label: `load plan ${BLOCK}`, effort: 'low' },
+) : await agent(
   `${CONTEXT}
 
 Plan block ${BLOCK}. Read PROGRESS.md, the block in MILESTONES.md, the PRD sections it depends on, GUARDRAILS.md and the current repo state (git log, files). Work that is already committed and green counts as done; plan only what remains.
@@ -177,7 +181,7 @@ Put decisions reserved for Sylvester (see CLAUDE.md) in blockers, and plan aroun
   { schema: PLAN, label: `plan ${BLOCK}`, effort: 'high' },
 )
 
-const critique = (args && args.plan) ? null : await agent(
+const critique = PLAN_FILE ? null : await agent(
   `${CONTEXT}
 
 Here is a plan for block ${BLOCK}:
