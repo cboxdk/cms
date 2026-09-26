@@ -7,7 +7,8 @@ namespace Cbox\Cms\Generators\Generation\Domain;
 use Cbox\Cms\Contracts\Attributes\Internal;
 
 /**
- * Why cms:generate refused to generate or write. Each case is an error code (GUARDRAILS 7.2).
+ * Why cms:generate refused to generate or write, or cms:schema:editor could not edit a blueprint
+ * file. Each case is an error code (GUARDRAILS 7.2).
  */
 #[Internal]
 enum GenerateErrorCode: string
@@ -80,4 +81,7 @@ enum GenerateErrorCode: string
 
     /** A generated file could not be written, or a stale one could not be removed. */
     case OutputUnwritable = 'generate_output_unwritable';
+
+    /** cms:schema:editor could not write the editor line into a blueprint file. */
+    case SchemaUnwritable = 'generate_schema_unwritable';
 }

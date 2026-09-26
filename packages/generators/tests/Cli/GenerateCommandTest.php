@@ -246,7 +246,7 @@ it('has an exit code for every error code', function (GenerateErrorCode $code): 
         GenerateErrorCode::InvalidConfig => 78,
         GenerateErrorCode::SchemaMissing => 66,
         GenerateErrorCode::InvalidOutput => 70,
-        GenerateErrorCode::OutputUnwritable => 73,
+        GenerateErrorCode::OutputUnwritable, GenerateErrorCode::SchemaUnwritable => 73,
         default => 65,
     });
 })->with(GenerateErrorCode::cases());

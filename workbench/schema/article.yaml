@@ -1,7 +1,9 @@
+# yaml-language-server: $schema=../../vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json
 # The workbench's fixture type (GUARDRAILS 2.4, 2.6, PRD 11.12), a blueprint v1 file of the
 # workbench's schema root, owner app. cms:generate reads it and writes the committed code in
 # workbench/app/Cms/Generated and workbench/resources/js/cms/generated, and
-# `composer check:generated` fails when that code is not what the blueprints generate.
+# `composer check:generated` fails when that code is not what the blueprints generate. The first
+# line, which points editors at the blueprint schema, is written by cms:schema:editor.
 blueprint: 1
 kind: type
 type_id: 01a0df3e-8cef-7e9f-8daf-9faa60f1faa6

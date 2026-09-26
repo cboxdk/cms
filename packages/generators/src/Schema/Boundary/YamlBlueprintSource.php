@@ -14,27 +14,22 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\Blueprints;
 use Cbox\Cms\Generators\Schema\Domain\Dto\ExtensionBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
 use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
-use FilesystemIterator;
 use Opis\JsonSchema\CompliantValidator;
 use Opis\JsonSchema\Errors\ErrorFormatter;
 use Opis\JsonSchema\Errors\ValidationError;
 use Override;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
-use SplFileInfo;
 use stdClass;
 use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
-use UnexpectedValueException;
 
 /**
  * Reads the blueprint files below schema roots with symfony/yaml and validates each one against
  * the blueprint schema v1 with opis/json-schema (PRD 11.12, blueprint decision 5).
  *
- * Every `*.yaml` file below a root, at any depth, is a blueprint file; the files of all roots are
- * read in sorted order of the path that problems name. A file is parsed with PARSE_OBJECT_FOR_MAP,
- * so a mapping stays an object and an empty mapping differs from an empty list, and without custom
- * tags or PHP objects, so `!tag` and a duplicate key fail with their line. The document is then
+ * Every `*.yaml` file below a root, at any depth, is a blueprint file (BlueprintFiles); the files
+ * of all roots are read in sorted order of the path that problems name. A file is parsed with
+ * PARSE_OBJECT_FOR_MAP, so a mapping stays an object and an empty mapping differs from an empty
+ * list, and without custom tags or PHP objects, so `!tag` and a duplicate key fail with their line. The document is then
  * validated with CompliantValidator, which follows the specification and never writes a default
  * into the data, against blueprint.v1.json in the installed cboxdk/cms-contracts.
  *
@@ -51,8 +46,6 @@ final readonly class YamlBlueprintSource implements BlueprintSource
     /** The most validation errors reported for one file. */
     public const int MAX_ERRORS_PER_FILE = 100;
 
-    public const string EXTENSION = 'yaml';
-
     public function __construct(
         private BlueprintSchemaFile $schema,
         private BlueprintDocumentReader $documents,
@@ -62,7 +55,7 @@ final readonly class YamlBlueprintSource implements BlueprintSource
     #[Override]
     public function read(array $roots): Blueprints
     {
-        $overlapping = $this->overlapping($roots);
+        $overlapping = BlueprintFiles::overlapping($roots);
 
         if ($overlapping !== []) {
             throw GenerationFailed::with($overlapping);
@@ -72,7 +65,7 @@ final readonly class YamlBlueprintSource implements BlueprintSource
         $files = [];
 
         foreach ($roots as $root) {
-            array_push($files, ...$this->filesBelow($root, $problems));
+            array_push($files, ...BlueprintFiles::below($root, $problems));
         }
 
         usort($files, static fn (array $a, array $b): int => [$a['file'], $a['root']->owner->value, $a['path']] <=> [$b['file'], $b['root']->owner->value, $b['path']]);
@@ -176,84 +169,6 @@ final readonly class YamlBlueprintSource implements BlueprintSource
                     $pointer === '' ? '/' : $pointer,
                     is_string($message) ? $message : 'is not valid',
                 ));
-            }
-        }
-
-        return $problems;
-    }
-
-    /**
-     * The blueprint files below a root, each with the path problems name it by.
-     *
-     * @param  list<GenerationProblem>  $problems
-     * @return list<array{root: SchemaRoot, path: string, file: string}>
-     */
-    private function filesBelow(SchemaRoot $root, array &$problems): array
-    {
-        $directory = $root->path();
-
-        if (! is_dir($directory) || ! is_readable($directory)) {
-            $problems[] = new GenerationProblem(GenerateErrorCode::SchemaMissing, sprintf(
-                'The schema root %s of %s does not exist or cannot be read. Create the directory, or remove the root.',
-                $directory,
-                $root->owner->value,
-            ));
-
-            return [];
-        }
-
-        $files = [];
-
-        try {
-            $entries = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS | FilesystemIterator::UNIX_PATHS));
-
-            foreach ($entries as $entry) {
-                if ($entry instanceof SplFileInfo && $entry->isFile() && $entry->getExtension() === self::EXTENSION) {
-                    $relative = substr($entry->getPathname(), strlen($directory) + 1);
-                    $files[] = ['root' => $root, 'path' => $entry->getPathname(), 'file' => $root->file($relative)];
-                }
-            }
-        } catch (UnexpectedValueException $unreadable) {
-            $problems[] = new GenerationProblem(GenerateErrorCode::SchemaMissing, sprintf(
-                'A directory below the schema root %s of %s cannot be read: %s',
-                $directory,
-                $root->owner->value,
-                $unreadable->getMessage(),
-            ));
-        }
-
-        return $files;
-    }
-
-    /**
-     * A problem for each pair of roots where one lies in the other, so no file is read twice.
-     *
-     * @param  list<SchemaRoot>  $roots
-     * @return list<GenerationProblem>
-     */
-    private function overlapping(array $roots): array
-    {
-        $problems = [];
-        $paths = array_map(static fn (SchemaRoot $root): string|false => realpath($root->path()), $roots);
-
-        foreach ($roots as $i => $root) {
-            foreach ($roots as $j => $other) {
-                $path = $paths[$i];
-                $otherPath = $paths[$j];
-
-                if ($i === $j || ! is_string($path) || ! is_string($otherPath)) {
-                    continue;
-                }
-
-                if (str_starts_with($otherPath, $path.'/') || ($path === $otherPath && $i < $j)) {
-                    $problems[] = new GenerationProblem(GenerateErrorCode::InvalidConfig, sprintf(
-                        'The schema root %s of %s lies in the schema root %s of %s, so its files would be read twice. Give each directory once.',
-                        $other->path(),
-                        $other->owner->value,
-                        $root->path(),
-                        $root->owner->value,
-                    ));
-                }
             }
         }
 

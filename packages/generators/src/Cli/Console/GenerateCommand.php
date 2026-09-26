@@ -102,7 +102,8 @@ final class GenerateCommand extends Command
             GenerateErrorCode::UnknownFieldType,
             GenerateErrorCode::InvalidCaseName => self::EXIT_INVALID_SCHEMA,
             GenerateErrorCode::InvalidOutput => self::EXIT_INVALID_OUTPUT,
-            GenerateErrorCode::OutputUnwritable => self::EXIT_UNWRITABLE,
+            GenerateErrorCode::OutputUnwritable,
+            GenerateErrorCode::SchemaUnwritable => self::EXIT_UNWRITABLE,
         };
     }
 }

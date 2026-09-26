@@ -4,6 +4,10 @@ A blueprint file defines one content type, or adds fields to another owner's typ
 
 This is the first edition of version 1. Version 1 grows only by additions: a new field type, a new optional choice, a new enum value or a new `kind` keeps the marker `blueprint: 1`, and a file that is valid stays valid and keeps its meaning. A change that would make a valid file invalid or change its meaning is version 2.
 
+## Editors
+
+`php artisan cms:schema:editor` (in `cboxdk/cms-generators`) gives every blueprint file below the schema roots a first line such as `# yaml-language-server: $schema=../vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json`. The path is relative to the file and points at this schema in the installed `cboxdk/cms-contracts`, so an editor with yaml-language-server, such as Red Hat's YAML extension for VS Code, completes and checks the file against the same version of the schema that `cms:generate` validates against, offline. The command replaces a line with another path, keeps the rest of the file as it is and changes nothing when every file has the right line. Run it again after moving a file or adding one.
+
 ## Dates must be quoted
 
 Write every date and time in quotes: `min: '2026-01-01'`, not `min: 2026-01-01`. A YAML parser reads an unquoted date as a number, so the schema refuses it at the field's `min` or `max`. The same holds for a `datetime` value, such as `'2026-01-01T00:00:00Z'`, and for the `min` and `max` of a `decimal`, which are strings so that they are read without rounding.

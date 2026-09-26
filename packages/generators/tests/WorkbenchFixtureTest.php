@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Generators\Tests;
 
+use Cbox\Cms\Generators\Editor\Domain\EditorLine;
 use Cbox\Cms\Generators\Generation\Boundary\GeneratorConfig;
 use Cbox\Cms\Generators\Generation\Domain\GeneratorRunner;
 use Cbox\Cms\Generators\Generation\Domain\SchemaResolver;
+use Cbox\Cms\Generators\Schema\Boundary\BlueprintSchemaFile;
 use Cbox\Cms\Generators\Schema\Boundary\YamlBlueprintSource;
 use Cbox\Cms\Generators\Schema\Domain\BlueprintSource;
 use Cbox\Cms\Generators\Schema\Domain\Classification;
@@ -23,7 +25,8 @@ use Illuminate\Contracts\Config\Repository;
  * The workbench's schema root and its committed generated code (GUARDRAILS 2.6). Every file in
  * workbench/schema is a blueprint v1 file that YamlBlueprintSource reads without problems, and the
  * committed files are exactly what the generators produce from them: the same check as
- * `composer check:generated`, without writing.
+ * `composer check:generated`, without writing. Every file starts with the editor line that
+ * cms:schema:editor writes, so running it changes nothing.
  */
 
 it('holds only blueprint v1 files, which the YAML source reads without problems', function (): void {
@@ -68,5 +71,27 @@ it('has committed generated code that matches the schema', function (): void {
 
     foreach ($result->files as $file) {
         expect(file_get_contents($target->root.'/'.$file->path))->toBe($file->contents, $file->path.' differs from what the schema generates. Run `vendor/bin/testbench cms:generate`.');
+    }
+});
+
+it('starts every file with the editor line, through vendor to the installed blueprint schema', function (): void {
+    $target = GeneratorConfig::read(app(Repository::class), base_path());
+    $directory = $target->roots[0]->path();
+    $schema = new BlueprintSchemaFile()->editorPath();
+    $files = SchemaFixtures::files($directory);
+
+    expect($files)->not->toBe([]);
+
+    foreach ($files as $file) {
+        $contents = (string) file_get_contents($directory.'/'.$file);
+        $first = explode("\n", $contents, 2)[0];
+
+        expect($first)->toStartWith(EditorLine::PREFIX, $file.' does not start with the editor line. Run `vendor/bin/testbench cms:schema:editor`.');
+
+        $path = substr($first, strlen(EditorLine::PREFIX));
+
+        expect($path)->toContain('vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json')
+            ->and(realpath(dirname($directory.'/'.$file).'/'.$path))->toBe(realpath(dirname(__DIR__, 3).'/packages/contracts/resources/schemas/blueprint.v1.json'))
+            ->and(EditorLine::towards($schema, (string) realpath(dirname($directory.'/'.$file)))->apply($contents))->toBe($contents, $file.' is not what cms:schema:editor writes. Run `vendor/bin/testbench cms:schema:editor`.');
     }
 });

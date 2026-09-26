@@ -37,10 +37,49 @@ final readonly class BlueprintSchemaFile
      */
     public function path(): string
     {
+        return $this->path ?? $this->installPath().'/'.self::PATH_IN_PACKAGE;
+    }
+
+    /**
+     * The path editors are pointed at (blueprint decision 3): the schema file in the installed
+     * package's own directory, vendor/cboxdk/cms-contracts in an application, with the directories
+     * above that one resolved to their real path. The package's directory itself is kept as Composer
+     * installed it, so in the monorepo, where it is the path repository's symlink to
+     * packages/contracts, the path still goes through vendor and has the same form in an
+     * installation, a checkout and a worktree. A path given to the constructor is kept as its file
+     * name in the real path of its directory.
+     *
+     * @throws GenerationFailed with GenerateErrorCode::InvalidConfig when the package is not installed or the file is missing
+     */
+    public function editorPath(): string
+    {
         if ($this->path !== null) {
-            return $this->path;
+            $directory = realpath(dirname($this->path));
+            $path = is_string($directory) ? $directory.'/'.basename($this->path) : $this->path;
+        } else {
+            $package = $this->installPath();
+            $parent = realpath(dirname($package));
+            $path = (is_string($parent) ? $parent : dirname($package)).'/'.basename($package).'/'.self::PATH_IN_PACKAGE;
         }
 
+        if (! is_file($path)) {
+            throw GenerationFailed::because(GenerateErrorCode::InvalidConfig, sprintf(
+                'The blueprint schema %s does not exist. Reinstall %s with `composer install`.',
+                $path,
+                self::PACKAGE,
+            ));
+        }
+
+        return $path;
+    }
+
+    /**
+     * The directory Composer installed cboxdk/cms-contracts in, without a trailing separator.
+     *
+     * @throws GenerationFailed with GenerateErrorCode::InvalidConfig when the package is not installed
+     */
+    private function installPath(): string
+    {
         try {
             $directory = InstalledVersions::getInstallPath(self::PACKAGE);
         } catch (OutOfBoundsException $missing) {
@@ -57,7 +96,7 @@ final readonly class BlueprintSchemaFile
             ));
         }
 
-        return rtrim($directory, '/\\').'/'.self::PATH_IN_PACKAGE;
+        return rtrim($directory, '/\\');
     }
 
     /**
