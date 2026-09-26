@@ -12,8 +12,7 @@ use Cbox\Cms\Core\Registry\Domain\RegistryName;
  *
  * Actions are sorted by class. Commands are sorted by name, then version. Hooks are sorted by
  * command name and version, then phase in pipeline order (authorize, transform, validate), then
- * priority with the lowest first, then package, then class. The subscriber, slot and schema
- * registries have no entry types yet and are always empty.
+ * priority with the lowest first, then package, then class.
  */
 #[Experimental]
 final readonly class CompiledRegistry
@@ -40,7 +39,6 @@ final readonly class CompiledRegistry
             RegistryName::Actions => count($this->actions),
             RegistryName::Commands => count($this->commands),
             RegistryName::Hooks => count($this->hooks),
-            RegistryName::Subscribers, RegistryName::Slots, RegistryName::Schema => 0,
         };
     }
 }

@@ -16,15 +16,15 @@ use Illuminate\Console\Command;
 use Illuminate\Contracts\Foundation\Application;
 
 /**
- * `cms:build`: compiles the registries of actions, commands, hooks, subscribers, slots and schema
- * contributions to bootstrap/cache/cms/ (PRD 13.2, GUARDRAILS 7.1), from the scan roots the
- * service providers declare. Composer runs it after every dump-autoload.
+ * `cms:build`: compiles the registries of actions, commands and hooks to bootstrap/cache/cms/
+ * (PRD 13.2, GUARDRAILS 7.1), from the scan roots the service providers declare, and removes any
+ * other file in that directory. Composer runs it after every dump-autoload.
  *
  * Exit codes: 0 written, 65 the declarations are invalid and nothing was written (each problem is
  * printed with its code), 73 a cache file could not be written.
  */
 #[Internal]
-#[Description('Compile the registries of actions, commands, hooks, subscribers, slots and schema to bootstrap/cache/cms')]
+#[Description('Compile the registries of actions, commands and hooks to bootstrap/cache/cms')]
 #[Signature('cms:build')]
 final class BuildCommand extends Command
 {

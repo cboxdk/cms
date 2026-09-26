@@ -55,11 +55,11 @@ it('registers exactly the fixture action, command and hook from the fixture scan
         ]);
 });
 
-it('writes the six files, and reading them back gives the registry that was built', function (): void {
+it('writes the three files, and reading them back gives the registry that was built', function (): void {
     $directory = RegistryFixtures::scratch();
     $built = RegistryFixtures::builder($directory)->build([RegistryFixtures::root('Valid')]);
 
-    expect(RegistryFixtures::files($directory))->toBe(['actions.php', 'commands.php', 'hooks.php', 'schema.php', 'slots.php', 'subscribers.php'])
+    expect(RegistryFixtures::files($directory))->toBe(['actions.php', 'commands.php', 'hooks.php'])
         ->and(RegistryFixtures::cache($directory)->read())->toEqual($built);
 
     $actions = RegistryFixtures::load($directory.'/actions.php');
@@ -73,7 +73,7 @@ it('writes the six files, and reading them back gives the registry that was buil
     ]);
 });
 
-it('writes six empty registries when there are no scan roots', function (): void {
+it('writes three empty registries when there are no scan roots', function (): void {
     $directory = RegistryFixtures::scratch();
     $registry = RegistryFixtures::builder($directory)->build([]);
 
@@ -85,6 +85,20 @@ it('writes six empty registries when there are no scan roots', function (): void
         expect(RegistryFixtures::load($directory.'/'.$name->fileName()))
             ->toBe(['entries' => [], 'format' => 1, 'registry' => $name->value]);
     }
+});
+
+it('removes the subscriber, slot and schema files an earlier version wrote', function (): void {
+    $directory = RegistryFixtures::scratch();
+    mkdir($directory);
+
+    foreach (['subscribers', 'slots', 'schema'] as $registry) {
+        file_put_contents($directory.'/'.$registry.'.php', sprintf("<?php return ['entries' => [], 'format' => 1, 'registry' => '%s'];\n", $registry));
+    }
+
+    $built = RegistryFixtures::builder($directory)->build([RegistryFixtures::root('Valid')]);
+
+    expect(RegistryFixtures::files($directory))->toBe(['actions.php', 'commands.php', 'hooks.php'])
+        ->and(RegistryFixtures::cache($directory)->read())->toEqual($built);
 });
 
 it('gives byte-identical files when it builds twice, into the same or another directory', function (): void {
@@ -99,7 +113,7 @@ it('gives byte-identical files when it builds twice, into the same or another di
     RegistryFixtures::builder($other)->build(array_reverse([...$roots, RegistryFixtures::root('Valid')]));
     $elsewhere = RegistryFixtures::hashes($other);
 
-    expect($first)->toHaveCount(6)
+    expect($first)->toHaveCount(3)
         ->and($second)->toBe($first)
         ->and($elsewhere)->toBe($first);
 });
@@ -109,7 +123,7 @@ it('keeps no temporary files next to the cache', function (): void {
     RegistryFixtures::builder($directory)->build([RegistryFixtures::root('Valid')]);
     RegistryFixtures::builder($directory)->build([RegistryFixtures::root('Valid')]);
 
-    expect(RegistryFixtures::files($directory))->toHaveCount(6);
+    expect(RegistryFixtures::files($directory))->toBe(['actions.php', 'commands.php', 'hooks.php']);
 });
 
 it('refuses two classes with the same command name and version, and writes nothing', function (): void {

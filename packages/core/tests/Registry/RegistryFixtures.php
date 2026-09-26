@@ -82,7 +82,7 @@ final class RegistryFixtures
     }
 
     /**
-     * The sha256 of each of the six files, by file name.
+     * The sha256 of the file of each registry, by file name.
      *
      * @return array<string, string>
      */

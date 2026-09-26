@@ -7,11 +7,12 @@ namespace Cbox\Cms\Core\Registry\Domain;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 
 /**
- * The six registries cms:build writes to bootstrap/cache/cms/ (PRD 13.2), one file each.
+ * The registries cms:build writes to bootstrap/cache/cms/ (PRD 13.2), one file each, compiled from
+ * the #[Action], #[Command] and #[Hook] attributes.
  *
- * Actions, commands and hooks come from the attributes. Subscribers, slots and schema
- * contributions have no source yet: their files hold empty lists until the blocks that bring them
- * (PRD 7, 13.3 and 13.4) add entry types and raise the format.
+ * A registry is a case here only when it has an entry type and a source. Subscribers (PRD 7.6),
+ * schema contributions (PRD 13.3) and UI slots (PRD 13.4) become cases with the blocks that bring
+ * them.
  */
 #[Experimental]
 enum RegistryName: string
@@ -19,9 +20,6 @@ enum RegistryName: string
     case Actions = 'actions';
     case Commands = 'commands';
     case Hooks = 'hooks';
-    case Subscribers = 'subscribers';
-    case Slots = 'slots';
-    case Schema = 'schema';
 
     public function fileName(): string
     {

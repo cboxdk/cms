@@ -66,9 +66,6 @@ final readonly class RegistryCacheCodec
                 'phase' => $hook->phase->value,
                 'priority' => $hook->priority,
             ], $registry->hooks),
-            RegistryName::Subscribers->value => [],
-            RegistryName::Slots->value => [],
-            RegistryName::Schema->value => [],
         ];
 
         $files = [];
@@ -108,12 +105,6 @@ final readonly class RegistryCacheCodec
             }
 
             $entries[$name->value] = $this->list($data['entries'], $path, 'entries');
-        }
-
-        foreach ([RegistryName::Subscribers, RegistryName::Slots, RegistryName::Schema] as $empty) {
-            if ($entries[$empty->value] !== []) {
-                throw MalformedRegistryCache::at($directory.'/'.$empty->fileName(), 'entries', sprintf('format %d has no %s entries', self::FORMAT, $empty->value));
-            }
         }
 
         $actions = [];

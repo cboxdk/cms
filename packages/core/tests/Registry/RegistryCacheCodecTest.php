@@ -69,7 +69,7 @@ it('writes the exact bytes of format 1', function (): void {
     $files = new RegistryCacheCodec()->encode(codecRegistry());
     $header = "<?php\n\ndeclare(strict_types=1);\n\n// Written by php artisan cms:build from the attributes in the declared scan roots (PRD 13.2).\n// Do not edit and do not commit; run cms:build again instead.\n\n";
 
-    expect(array_keys($files))->toBe(['actions', 'commands', 'hooks', 'subscribers', 'slots', 'schema'])
+    expect(array_keys($files))->toBe(['actions', 'commands', 'hooks'])
         ->and($files['actions'])->toBe($header.<<<'PHP'
             return [
                 'entries' => [
@@ -106,7 +106,7 @@ it('writes the exact bytes of format 1', function (): void {
             ];
 
             PHP)
-        ->and($files['slots'])->toBe($header."return [\n    'entries' => [],\n    'format' => 1,\n    'registry' => 'slots',\n];\n");
+        ->and(new RegistryCacheCodec()->encode(CompiledRegistry::empty())['commands'])->toBe($header."return [\n    'entries' => [],\n    'format' => 1,\n    'registry' => 'commands',\n];\n");
 });
 
 it('reads back what it writes', function (): void {
@@ -151,10 +151,10 @@ it('refuses a malformed cache with the file and the place in it', function (call
         return $files;
     }, 'commands.php', "at registry: it names the registry 'actions', not \"commands\""],
     'an extra key' => [static function (array $files): array {
-        $files['slots'] = ['entries' => [], 'format' => 1, 'registry' => 'slots', 'built_at' => 1];
+        $files['commands'] = ['entries' => [], 'format' => 1, 'registry' => 'commands', 'built_at' => 1];
 
         return $files;
-    }, 'slots.php', 'expected the keys entries, format, registry, got built_at, entries, format, registry'],
+    }, 'commands.php', 'expected the keys entries, format, registry, got built_at, entries, format, registry'],
     'entries that are not a list' => [static function (array $files): array {
         $files['actions'] = ['entries' => ['a' => []], 'format' => 1, 'registry' => 'actions'];
 
@@ -197,15 +197,10 @@ it('refuses a malformed cache with the file and the place in it', function (call
 
         return $files;
     }, 'actions.php', 'lists surface "mcp" more than once'],
-    'a subscriber entry' => [static function (array $files): array {
-        $files['subscribers'] = ['entries' => [['class' => 'App\S']], 'format' => 1, 'registry' => 'subscribers'];
-
-        return $files;
-    }, 'subscribers.php', 'format 1 has no subscribers entries'],
 ]);
 
 it('knows how many entries each registry holds', function (): void {
     $registry = codecRegistry();
 
-    expect(array_map($registry->count(...), RegistryName::cases()))->toBe([1, 1, 1, 0, 0, 0]);
+    expect(array_map($registry->count(...), RegistryName::cases()))->toBe([1, 1, 1]);
 });

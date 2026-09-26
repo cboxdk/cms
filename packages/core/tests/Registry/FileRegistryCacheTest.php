@@ -20,9 +20,50 @@ it('creates the directory and its parents when they do not exist', function (): 
 
     $cache->write(CompiledRegistry::empty());
 
-    expect(RegistryFixtures::files($directory.'/bootstrap/cache/cms'))->toHaveCount(6)
+    expect(RegistryFixtures::files($directory.'/bootstrap/cache/cms'))->toBe(['actions.php', 'commands.php', 'hooks.php'])
         ->and($cache->read())->toEqual(CompiledRegistry::empty())
         ->and($cache->location())->toBe($directory.'/bootstrap/cache/cms');
+});
+
+it('owns its directory: every file it does not write is removed, whatever its name', function (): void {
+    $directory = RegistryFixtures::scratch();
+    mkdir($directory);
+    file_put_contents($directory.'/subscribers.php', "<?php return [];\n");
+    file_put_contents($directory.'/notes.txt', 'left by hand');
+    file_put_contents($directory.'/.hidden', 'left by hand');
+    file_put_contents($directory.'/subscribers.php.0123456789abcdef.tmp', 'from an old build');
+    file_put_contents($directory.'/actions.php.0123456789abcdef.tmp.bak', 'not a temporary file of a write');
+    file_put_contents($directory."/hooks.php\n", 'a registry name with a line break after it');
+    symlink($directory.'/notes.txt', $directory.'/link.php');
+    symlink($directory.'/missing', $directory.'/dangling.php');
+
+    RegistryFixtures::cache($directory)->write(CompiledRegistry::empty());
+
+    expect(RegistryFixtures::files($directory))->toBe(['actions.php', 'commands.php', 'hooks.php']);
+});
+
+it('leaves subdirectories and the temporary file of a concurrent write in place', function (): void {
+    $directory = RegistryFixtures::scratch();
+    mkdir($directory.'/nested', 0o775, true);
+    file_put_contents($directory.'/nested/subscribers.php', "<?php return [];\n");
+    file_put_contents($directory.'/hooks.php.0123456789abcdef.tmp', 'being written by another cms:build');
+
+    RegistryFixtures::cache($directory)->write(CompiledRegistry::empty());
+
+    expect(RegistryFixtures::files($directory))->toBe(['actions.php', 'commands.php', 'hooks.php', 'hooks.php.0123456789abcdef.tmp', 'nested'])
+        ->and(RegistryFixtures::files($directory.'/nested'))->toBe(['subscribers.php']);
+});
+
+it('replaces the files before it removes the others, so a failed write keeps what was there', function (): void {
+    $directory = RegistryFixtures::scratch();
+    mkdir($directory);
+    file_put_contents($directory.'/subscribers.php', "<?php return [];\n");
+    mkdir($directory.'/hooks.php');
+
+    expect(fn () => RegistryFixtures::cache($directory)->write(CompiledRegistry::empty()))
+        ->toThrow(RegistryCacheUnwritable::class, $directory.'/hooks.php');
+
+    expect(RegistryFixtures::files($directory))->toBe(['actions.php', 'commands.php', 'hooks.php', 'subscribers.php']);
 });
 
 it('refuses to read a cache that was never built, and says how to build it', function (): void {
@@ -42,10 +83,10 @@ it('refuses to read a cache that was never built, and says how to build it', fun
 it('refuses to read a cache with one file missing', function (): void {
     $directory = RegistryFixtures::scratch();
     RegistryFixtures::cache($directory)->write(CompiledRegistry::empty());
-    unlink($directory.'/slots.php');
+    unlink($directory.'/commands.php');
 
     expect(fn (): CompiledRegistry => RegistryFixtures::cache($directory)->read())
-        ->toThrow(RegistryCacheMissing::class, $directory.'/slots.php');
+        ->toThrow(RegistryCacheMissing::class, $directory.'/commands.php');
 });
 
 it('refuses a cache file that is not valid PHP', function (): void {
@@ -60,7 +101,7 @@ it('refuses a cache file that is not valid PHP', function (): void {
 it('refuses a cache file that returns something else', function (): void {
     $directory = RegistryFixtures::scratch();
     RegistryFixtures::cache($directory)->write(CompiledRegistry::empty());
-    file_put_contents($directory.'/schema.php', "<?php return 'schema';\n");
+    file_put_contents($directory.'/actions.php', "<?php return 'actions';\n");
 
     expect(fn (): CompiledRegistry => RegistryFixtures::cache($directory)->read())
         ->toThrow(MalformedRegistryCache::class, 'expected an array with the keys entries, format, registry, got string');

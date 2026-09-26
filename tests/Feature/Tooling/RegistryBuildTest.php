@@ -52,14 +52,22 @@ it('runs cms:build after composer has discovered the providers on every dump-aut
         ->and($line[0] ?? '')->toContain('cms:build');
 });
 
-it('builds the six files from the command line, byte for byte the same each time', function (): void {
+it('builds the three files from the command line, byte for byte the same each time, and removes the files it no longer writes', function (): void {
+    $directory = Phpstan::root().'/'.REGISTRY_CACHE;
+
+    if (! is_dir($directory)) {
+        mkdir($directory, 0o775, true);
+    }
+
+    file_put_contents($directory.'/subscribers.php', "<?php return ['entries' => [], 'format' => 1, 'registry' => 'subscribers'];\n");
+
     $first = testbenchBuild();
     $firstHashes = registryHashes();
     $second = testbenchBuild();
 
     expect($first->getExitCode())->toBe(0, $first->getErrorOutput().$first->getOutput())
         ->and($first->getOutput())->toContain('Registry written to')
-        ->and(array_keys($firstHashes))->toBe(['actions.php', 'commands.php', 'hooks.php', 'schema.php', 'slots.php', 'subscribers.php'])
+        ->and(array_keys($firstHashes))->toBe(['actions.php', 'commands.php', 'hooks.php'])
         ->and($second->getExitCode())->toBe(0)
         ->and(registryHashes())->toBe($firstHashes);
 });

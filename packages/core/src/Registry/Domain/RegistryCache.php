@@ -15,14 +15,16 @@ use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 interface RegistryCache
 {
     /**
-     * Writes all six files. Each file is replaced as a whole, so a reader never sees half a file.
+     * Writes one file per RegistryName and then removes every other file in the directory, which
+     * the cache owns, so a registry that is no longer written does not linger. Each file is
+     * replaced as a whole, so a reader never sees half a file.
      *
      * @throws RegistryCacheUnwritable
      */
     public function write(CompiledRegistry $registry): void;
 
     /**
-     * Reads the six files into typed entries.
+     * Reads the file of each RegistryName into typed entries.
      *
      * @throws RegistryCacheMissing
      * @throws MalformedRegistryCache
