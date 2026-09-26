@@ -11,8 +11,8 @@ use Cbox\Cms\Generators\Generation\Domain\Generators\TypeScriptTypeHandles;
 use Cbox\Cms\Generators\Tests\SchemaFixtures;
 use Cbox\Cms\Tests\Support\Node;
 use Cbox\Cms\Tests\Support\Phpstan;
+use Cbox\Cms\Tests\Support\Tooling\ComposerScripts;
 use Illuminate\Contracts\Console\Kernel;
-use RuntimeException;
 use Symfony\Component\Process\Process;
 
 /*
@@ -30,49 +30,6 @@ const GENERATED_PATHS = ['workbench/app/Cms/Generated', 'workbench/resources/js/
 afterEach(function (): void {
     SchemaFixtures::cleanUp();
 });
-
-/**
- * @return array<string, mixed>
- */
-function composerScripts(): array
-{
-    $composer = json_decode((string) file_get_contents(Phpstan::root().'/composer.json'), true, 512, JSON_THROW_ON_ERROR);
-
-    if (! is_array($composer) || ! is_array($composer['scripts'] ?? null)) {
-        throw new RuntimeException('composer.json has no scripts.');
-    }
-
-    $scripts = [];
-
-    foreach ($composer['scripts'] as $name => $script) {
-        $scripts[(string) $name] = $script;
-    }
-
-    return $scripts;
-}
-
-/**
- * The commands of a Composer script, with @script references expanded.
- *
- * @return list<string>
- */
-function scriptSteps(string $name): array
-{
-    $script = composerScripts()[$name] ?? throw new RuntimeException("composer.json has no script {$name}.");
-    $steps = [];
-
-    foreach (is_array($script) ? $script : [$script] as $step) {
-        if (! is_string($step)) {
-            throw new RuntimeException("Script {$name} has a step that is not a string.");
-        }
-
-        $reference = str_starts_with($step, '@') && ! str_starts_with($step, '@php ') ? substr($step, 1) : null;
-
-        array_push($steps, ...($reference !== null && array_key_exists($reference, composerScripts()) ? scriptSteps($reference) : [$step]));
-    }
-
-    return $steps;
-}
 
 /**
  * A git repository with the workbench's schema and generated code, committed.
@@ -112,7 +69,7 @@ function runGate(string $root): array
 {
     $output = '';
 
-    foreach (scriptSteps('check:generated') as $step) {
+    foreach (ComposerScripts::steps('check:generated') as $step) {
         if (str_starts_with($step, '@php vendor/bin/testbench cms:generate')) {
             $artisan = app(Kernel::class);
             $status = $artisan->call('cms:generate');
@@ -139,14 +96,14 @@ function appendTo(string $path, string $text): void
 it('regenerates, then fails on a diff or an untracked file under the generated paths, checked before and after', function (): void {
     $paths = implode(' ', GENERATED_PATHS);
 
-    expect(scriptSteps('check:generated'))->toHaveCount(5)
-        ->and(scriptSteps('check:generated')[2])->toBe('@php vendor/bin/testbench cms:generate --ansi')
-        ->and(scriptSteps('check:generated:committed')[0])->toStartWith('git diff --exit-code -- '.$paths.' || ')
-        ->and(scriptSteps('check:generated:committed')[1])->toStartWith('git ls-files --others --exclude-standard -- '.$paths.' | ')
-        ->and(scriptSteps('check:generated'))->toBe([
-            ...scriptSteps('check:generated:committed'),
+    expect(ComposerScripts::steps('check:generated'))->toHaveCount(5)
+        ->and(ComposerScripts::steps('check:generated')[2])->toBe('@php vendor/bin/testbench cms:generate --ansi')
+        ->and(ComposerScripts::steps('check:generated:committed')[0])->toStartWith('git diff --exit-code -- '.$paths.' || ')
+        ->and(ComposerScripts::steps('check:generated:committed')[1])->toStartWith('git ls-files --others --exclude-standard -- '.$paths.' | ')
+        ->and(ComposerScripts::steps('check:generated'))->toBe([
+            ...ComposerScripts::steps('check:generated:committed'),
             '@php vendor/bin/testbench cms:generate --ansi',
-            ...scriptSteps('check:generated:committed'),
+            ...ComposerScripts::steps('check:generated:committed'),
         ]);
 });
 
