@@ -81,6 +81,29 @@ it('runs with max_prepared_transactions set to 0', function (): void {
     expect(DB::selectOne('show max_prepared_transactions'))->toEqual((object) ['max_prepared_transactions' => '0']);
 });
 
+it('gives the app role and the owner role English messages, lc_messages C from the role', function (): void {
+    $query = "select current_user as role, setting, source from pg_settings where name = 'lc_messages'";
+
+    expect(DB::selectOne($query))->toEqual((object) ['role' => 'cms_app', 'setting' => 'C', 'source' => 'user'])
+        ->and(DB::connection('pgsql_owner')->selectOne($query))->toEqual((object) ['role' => 'cms_owner', 'setting' => 'C', 'source' => 'user']);
+});
+
+it('refuses a wrong password with an English FATAL, which comes before the role settings apply', function (): void {
+    config(['database.connections.pgsql_wrong_password' => array_merge((array) config('database.connections.pgsql'), ['password' => 'not-the-password'])]);
+
+    try {
+        DB::connection('pgsql_wrong_password')->select('select 1');
+    } catch (QueryException $exception) {
+        expect($exception->getMessage())->toContain('FATAL:  password authentication failed for user "cms_app"');
+
+        return;
+    } finally {
+        DB::purge('pgsql_wrong_password');
+    }
+
+    Assert::fail('Expected the login with a wrong password to fail.');
+});
+
 it('denies the app role DDL: tables, schemas and temporary tables', function (string $sql): void {
     expectInsufficientPrivilege($sql);
 })->with([

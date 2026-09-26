@@ -17,7 +17,8 @@ use Throwable;
  * from the server itself starts with "FATAL:": a wrong password, an unknown role or database is a
  * violation, while a server that is starting, stopping, recovering or full is unavailable. A
  * failure before the server answered, such as a refused TCP connection or a timeout, is
- * unavailable. The server's messages are matched in English, its default lc_messages.
+ * unavailable. The server's messages are matched in English: English messages are part of the
+ * operating contract (PRD 4.2), and cms:doctor checks them in postgres.lc_messages.
  */
 #[Internal]
 final readonly class PostgresErrors

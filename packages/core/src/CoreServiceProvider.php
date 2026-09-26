@@ -13,6 +13,7 @@ use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Contracts\ReceiptStore;
 use Cbox\Cms\Core\Bindings\Boundary\ContractBindings;
 use Cbox\Cms\Core\Doctor\Adapter\CatalogPartitionRunwayProbe;
+use Cbox\Cms\Core\Doctor\Adapter\ConnectionLcMessagesProbe;
 use Cbox\Cms\Core\Doctor\Adapter\ConnectionPostgresProbe;
 use Cbox\Cms\Core\Doctor\Adapter\DoctorConnection;
 use Cbox\Cms\Core\Doctor\Adapter\FileRegistryCacheProbe;
@@ -25,6 +26,7 @@ use Cbox\Cms\Core\Doctor\Domain\Checks\ChromiumCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\DdlPrivilegesCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\InvalidConfigurationCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\LaravelVersionCheck;
+use Cbox\Cms\Core\Doctor\Domain\Checks\LcMessagesCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\NodeCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\PartitionRunwayCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\PhpVersionCheck;
@@ -39,6 +41,7 @@ use Cbox\Cms\Core\Doctor\Domain\DoctorChecks;
 use Cbox\Cms\Core\Doctor\Domain\Dto\DoctorSettings;
 use Cbox\Cms\Core\Doctor\Domain\InvalidDoctorConfig;
 use Cbox\Cms\Core\Doctor\Domain\OrderedDoctorChecks;
+use Cbox\Cms\Core\Doctor\Domain\Probes\LcMessagesProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PartitionRunwayProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PostgresProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\RegistryCacheProbe;
@@ -162,7 +165,9 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
             static fn (Application $app): DoctorConnection => new DoctorConnection(
                 $app->make(DatabaseManager::class),
                 $app->make(Repository::class),
-                $app->make(DoctorSettings::class),
+                $app->make(DoctorSettings::class)->connection,
+                DoctorConnection::NAME,
+                $app->make(DoctorSettings::class)->connectTimeoutSeconds,
             ),
         );
 
@@ -170,6 +175,20 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->bind(PostgresProbe::class, ConnectionPostgresProbe::class);
         $this->app->bind(PartitionRunwayProbe::class, CatalogPartitionRunwayProbe::class);
         $this->app->bind(ValkeyProbe::class, RedisValkeyProbe::class);
+        // The owner role's connection is read by postgres.lc_messages only, so the probe has its own.
+        $this->app->bind(
+            LcMessagesProbe::class,
+            static fn (Application $app): LcMessagesProbe => new ConnectionLcMessagesProbe(
+                $app->make(DoctorConnection::class),
+                new DoctorConnection(
+                    $app->make(DatabaseManager::class),
+                    $app->make(Repository::class),
+                    $app->make(DoctorSettings::class)->ownerConnection,
+                    DoctorConnection::OWNER_NAME,
+                    $app->make(DoctorSettings::class)->connectTimeoutSeconds,
+                ),
+            ),
+        );
         $this->app->bind(
             RegistryCacheProbe::class,
             static fn (Application $app): RegistryCacheProbe => new FileRegistryCacheProbe($app->make(RegistryCache::class), $app->make(DoctorSettings::class)->vendorManifest),
@@ -199,6 +218,7 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
                     new AppRoleCheck($postgres),
                     new TransactionTimeoutCheck($postgres),
                     new PreparedTransactionsCheck($postgres),
+                    new LcMessagesCheck($app->make(LcMessagesProbe::class)),
                     new DdlPrivilegesCheck($postgres),
                     new ValkeyReachableCheck($app->make(ValkeyProbe::class)),
                     new PartitionRunwayCheck(

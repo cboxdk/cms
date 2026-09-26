@@ -35,4 +35,13 @@ final class ProbeFailed extends RuntimeException
     {
         return new self(FailureKind::Violation, $cause, $previous);
     }
+
+    /**
+     * The same failure with the place it happened in front of the cause, such as "On the
+     * connection pgsql_owner".
+     */
+    public function at(string $where): self
+    {
+        return new self($this->kind, $where.': '.$this->cause, $this);
+    }
 }

@@ -8,12 +8,14 @@ use Cbox\Cms\Cli\Console\DoctorCommand;
 use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PartitionCoverage;
 use Cbox\Cms\Core\Doctor\Domain\ProbeFailed;
+use Cbox\Cms\Core\Doctor\Domain\Probes\LcMessagesProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PartitionRunwayProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PostgresProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\RegistryCacheProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\RuntimeProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\ToolProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\ValkeyProbe;
+use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeLcMessagesProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePartitionRunwayProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePostgresProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeRegistryCacheProbe;
@@ -56,6 +58,8 @@ final class DoctorFakes
 
     public FakePostgresProbe $postgres;
 
+    public FakeLcMessagesProbe $lcMessages;
+
     public FakeValkeyProbe $valkey;
 
     public FakePartitionRunwayProbe $partitions;
@@ -72,6 +76,7 @@ final class DoctorFakes
 
         $this->runtime = new FakeRuntimeProbe;
         $this->postgres = new FakePostgresProbe;
+        $this->lcMessages = new FakeLcMessagesProbe;
         $this->valkey = new FakeValkeyProbe;
         $this->partitions = new FakePartitionRunwayProbe([new PartitionCoverage('receipts_standard', new DateTimeImmutable('2026-03-24T00:00:00Z'))]);
         $this->registry = new FakeRegistryCacheProbe;
@@ -80,6 +85,7 @@ final class DoctorFakes
         app()->instance(Clock::class, $clock);
         app()->instance(RuntimeProbe::class, $this->runtime);
         app()->instance(PostgresProbe::class, $this->postgres);
+        app()->instance(LcMessagesProbe::class, $this->lcMessages);
         app()->instance(ValkeyProbe::class, $this->valkey);
         app()->instance(PartitionRunwayProbe::class, $this->partitions);
         app()->instance(RegistryCacheProbe::class, $this->registry);
@@ -187,7 +193,7 @@ it('prints the JSON document and nothing else with --json', function (): void {
         ->and($document['dev'])->toBeFalse()
         ->and($document['status'])->toBe('ok')
         ->and($document['exit_code'])->toBe(0)
-        ->and(checkStatuses($document))->toHaveCount(11)
+        ->and(checkStatuses($document))->toHaveCount(12)
         ->and(array_keys(checkOf($document, 'php.version')))->toBe(['blocking', 'cause', 'code', 'explanation', 'failure', 'fix', 'id', 'status']);
 });
 
@@ -210,6 +216,23 @@ it('exits 78 when a fake version probe says Postgres 16, and skips what needs 17
         ->and(checkStatuses($document)['postgres.app_role'])->toBe('pass');
 });
 
+it('exits 78 when the owner role writes its messages in German', function (): void {
+    $fakes = new DoctorFakes;
+    $fakes->lcMessages->ownerRole = 'de_DE.UTF-8';
+
+    [$status, $document] = doctorJson();
+    $messages = checkOf($document, 'postgres.lc_messages');
+
+    expect($status)->toBe(78)
+        ->and($document['status'])->toBe('violation')
+        ->and($messages['status'])->toBe('fail')
+        ->and($messages['blocking'])->toBeTrue()
+        ->and($messages['failure'])->toBe('violation')
+        ->and($messages['code'])->toBe('doctor_lc_messages_not_english')
+        ->and($messages['cause'])->toBe('lc_messages is \'de_DE.UTF-8\' for the role cms_owner on the connection pgsql_owner; Postgres took it from "user".')
+        ->and($messages['fix'])->toBeString()->toContain("ALTER ROLE cms_owner SET lc_messages = 'C'");
+});
+
 it('exits 75 when Postgres cannot be reached, and skips the checks that need it', function (): void {
     $fakes = new DoctorFakes;
     $fakes->postgres->connectFailure = ProbeFailed::unavailable('SQLSTATE[08006] [7] connection to server at "127.0.0.1", port 1 failed: Connection refused');
@@ -227,6 +250,7 @@ it('exits 75 when Postgres cannot be reached, and skips the checks that need it'
             'postgres.app_role' => 'skip',
             'postgres.transaction_timeout' => 'skip',
             'postgres.prepared_transactions' => 'skip',
+            'postgres.lc_messages' => 'skip',
             'postgres.ddl_privileges' => 'skip',
             'partitions.runway' => 'skip',
         ]);

@@ -13,7 +13,6 @@ use Cbox\Cms\Core\Doctor\Domain\ProbeFailed;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PostgresProbe;
 use Cbox\Cms\Core\Partitions\Boundary\CatalogRow;
 use Override;
-use Throwable;
 
 /**
  * The Postgres probe on the doctor's connection, which logs in as the app role (PRD 4.2). It only
@@ -36,13 +35,13 @@ final readonly class ConnectionPostgresProbe implements PostgresProbe
     #[Override]
     public function connect(): void
     {
-        $this->rows('select 1 as one');
+        $this->connection->rows('select 1 as one');
     }
 
     #[Override]
     public function version(): PostgresVersion
     {
-        $row = CatalogRow::one($this->rows(
+        $row = CatalogRow::one($this->connection->rows(
             "select current_setting('server_version_num')::int as number, current_setting('server_version')::text as text",
         ));
 
@@ -52,7 +51,7 @@ final readonly class ConnectionPostgresProbe implements PostgresProbe
     #[Override]
     public function role(): PostgresRole
     {
-        $row = CatalogRow::one($this->rows(
+        $row = CatalogRow::one($this->connection->rows(
             'select r.rolname::text as name, r.rolsuper as superuser, r.rolbypassrls as bypass from pg_roles r where r.rolname = current_user',
         ));
 
@@ -62,7 +61,7 @@ final readonly class ConnectionPostgresProbe implements PostgresProbe
     #[Override]
     public function transactionTimeout(): TimeoutSetting
     {
-        $rows = $this->rows(
+        $rows = $this->connection->rows(
             "select current_user::text as role, s.setting::bigint as milliseconds, s.source::text as source from pg_settings s where s.name = 'transaction_timeout'",
         );
 
@@ -78,7 +77,7 @@ final readonly class ConnectionPostgresProbe implements PostgresProbe
     #[Override]
     public function maxPreparedTransactions(): int
     {
-        return CatalogRow::one($this->rows("select current_setting('max_prepared_transactions')::int as prepared"))->int('prepared');
+        return CatalogRow::one($this->connection->rows("select current_setting('max_prepared_transactions')::int as prepared"))->int('prepared');
     }
 
     #[Override]
@@ -94,7 +93,7 @@ final readonly class ConnectionPostgresProbe implements PostgresProbe
               and n.nspname not like 'pg\_toast%'
             SQL;
 
-        $summary = CatalogRow::one($this->rows(<<<SQL
+        $summary = CatalogRow::one($this->connection->rows(<<<SQL
             select current_user::text as role,
                    current_database()::text as database,
                    has_database_privilege(current_database(), 'CREATE') as create_on_database,
@@ -103,12 +102,12 @@ final readonly class ConnectionPostgresProbe implements PostgresProbe
 
         $names = array_map(
             static fn (CatalogRow $row): string => $row->string('name'),
-            CatalogRow::all($this->rows(sprintf("select format('%%I.%%I', n.nspname, c.relname) as name %s order by 1 limit %d", $owned, self::OWNED_SHOWN))),
+            CatalogRow::all($this->connection->rows(sprintf("select format('%%I.%%I', n.nspname, c.relname) as name %s order by 1 limit %d", $owned, self::OWNED_SHOWN))),
         );
 
         $schemas = array_map(
             static fn (CatalogRow $row): string => $row->string('name'),
-            CatalogRow::all($this->rows(<<<'SQL'
+            CatalogRow::all($this->connection->rows(<<<'SQL'
                 select nspname::text as name
                 from pg_namespace
                 where has_schema_privilege(oid, 'CREATE')
@@ -126,21 +125,5 @@ final readonly class ConnectionPostgresProbe implements PostgresProbe
             createOnDatabase: $summary->bool('create_on_database'),
             schemasWithCreate: $schemas,
         );
-    }
-
-    /**
-     * @return list<mixed>
-     *
-     * @throws ProbeFailed
-     */
-    private function rows(string $sql): array
-    {
-        $connection = $this->connection->get();
-
-        try {
-            return array_values($connection->select($sql, [], false));
-        } catch (Throwable $thrown) {
-            throw PostgresErrors::classify($thrown);
-        }
     }
 }

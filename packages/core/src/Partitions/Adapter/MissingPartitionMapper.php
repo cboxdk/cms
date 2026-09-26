@@ -17,7 +17,8 @@ use Throwable;
  * Postgres reports a row that no partition covers as SQLSTATE 23514 with the message
  * `no partition of relation "<table>" found for row`. The same SQLSTATE is also a violated CHECK
  * constraint, so the message decides. The message is Postgres' English text; the operating
- * contract keeps lc_messages in English so errors can be read.
+ * contract keeps lc_messages in English so errors can be read (PRD 4.2), and cms:doctor checks it
+ * in postgres.lc_messages.
  *
  *     try {
  *         $connection->insert($sql, $bindings);

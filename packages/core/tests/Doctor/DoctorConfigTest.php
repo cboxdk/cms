@@ -23,6 +23,7 @@ it('reads the defaults of the core package', function (): void {
     $settings = DoctorConfig::read(new Repository(['database' => ['default' => 'pgsql'], 'cms' => require __DIR__.'/../../config/cms.php']), '/app');
 
     expect($settings->connection)->toBe('pgsql')
+        ->and($settings->ownerConnection)->toBe('pgsql_owner')
         ->and($settings->redisConnection)->toBe('default')
         ->and($settings->connectTimeoutSeconds)->toBe(3)
         ->and($settings->runwayDays)->toBe(7)
@@ -43,6 +44,7 @@ it('points the workbench at the monorepo\'s vendor manifest and node_modules', f
 it('takes the connection and paths the application sets', function (): void {
     $settings = DoctorConfig::read(new Repository(['database' => ['default' => 'pgsql'], 'cms' => ['doctor' => [
         'connection' => 'pgsql_app',
+        'owner_connection' => 'pgsql_migrations',
         'redis_connection' => 'cache',
         'connect_timeout_seconds' => 1,
         'partition_runway_days' => 3,
@@ -51,16 +53,30 @@ it('takes the connection and paths the application sets', function (): void {
         'node_minimum' => '24.0.0',
     ]]]), '/app');
 
-    expect([$settings->connection, $settings->redisConnection, $settings->connectTimeoutSeconds, $settings->runwayDays, $settings->vendorManifest, $settings->projectPath, $settings->nodeMinimum])
-        ->toBe(['pgsql_app', 'cache', 1, 3, '/srv/vendor/composer/installed.json', '/srv', '24.0.0']);
+    expect([$settings->connection, $settings->ownerConnection, $settings->redisConnection, $settings->connectTimeoutSeconds, $settings->runwayDays, $settings->vendorManifest, $settings->projectPath, $settings->nodeMinimum])
+        ->toBe(['pgsql_app', 'pgsql_migrations', 'cache', 1, 3, '/srv/vendor/composer/installed.json', '/srv', '24.0.0']);
+});
+
+it('takes the owner connection from cms.database.owner_connection when cms.doctor has none', function (): void {
+    $settings = DoctorConfig::read(new Repository(['database' => ['default' => 'pgsql'], 'cms' => ['database' => ['owner_connection' => 'pgsql_ddl']]]), '/app');
+
+    expect($settings->ownerConnection)->toBe('pgsql_ddl');
+});
+
+it('refuses a missing owner connection, as when cms.database.owner_connection is null', function (): void {
+    $config = new Repository(['database' => ['default' => 'pgsql'], 'cms' => ['database' => ['owner_connection' => null]]]);
+
+    expect(fn (): DoctorSettings => DoctorConfig::read($config, '/app'))
+        ->toThrow(InvalidDoctorConfig::class, 'The setting cms.doctor.owner_connection must be a connection name; it is null.');
 });
 
 it('refuses invalid settings with the key and the value', function (string $key, mixed $value, string $message): void {
-    $config = new Repository(['database' => ['default' => 'pgsql'], 'cms' => ['doctor' => [$key => $value]]]);
+    $config = new Repository(['database' => ['default' => 'pgsql'], 'cms' => ['database' => ['owner_connection' => 'pgsql_owner'], 'doctor' => [$key => $value]]]);
 
     expect(fn (): DoctorSettings => DoctorConfig::read($config, '/app'))->toThrow(InvalidDoctorConfig::class, $message);
 })->with([
     ['connection', 7, 'The setting cms.doctor.connection must be a connection name; it is 7.'],
+    ['owner_connection', false, 'The setting cms.doctor.owner_connection must be a connection name; it is false.'],
     ['redis_connection', '', "cms.doctor.redis_connection must be a connection name; it is ''."],
     ['connect_timeout_seconds', 0, 'cms.doctor.connect_timeout_seconds must be a whole number of at least 1; it is 0.'],
     ['partition_runway_days', '7', "cms.doctor.partition_runway_days must be a whole number of at least 1; it is '7'."],
@@ -83,13 +99,14 @@ it('wires the runtime checks in order and the dev checks after them', function (
             'postgres.app_role',
             'postgres.transaction_timeout',
             'postgres.prepared_transactions',
+            'postgres.lc_messages',
             'postgres.ddl_privileges',
             'valkey.reachable',
             'partitions.runway',
             'registry.cache',
         ])
         ->and($ids(...$dev))->toBe(['dev.node', 'dev.playwright', 'dev.chromium'])
-        ->and(array_map(static fn (DoctorCheck $check): bool => $check->blocking(), $runtime))->toBe([true, true, true, true, true, true, true, true, true, false, true])
+        ->and(array_map(static fn (DoctorCheck $check): bool => $check->blocking(), $runtime))->toBe([true, true, true, true, true, true, true, true, true, true, false, true])
         ->and(array_map(static fn (DoctorCheck $check): bool => $check->blocking(), $dev))->toBe([false, false, false]);
 });
 

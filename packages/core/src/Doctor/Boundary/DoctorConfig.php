@@ -14,6 +14,7 @@ use Illuminate\Contracts\Config\Repository;
  *
  *     'doctor' => [
  *         'connection' => null,              // null: the default connection
+ *         'owner_connection' => null,        // null: cms.database.owner_connection
  *         'redis_connection' => 'default',
  *         'connect_timeout_seconds' => 3,
  *         'partition_runway_days' => 7,
@@ -33,9 +34,11 @@ final readonly class DoctorConfig
     public static function read(Repository $config, string $basePath): DoctorSettings
     {
         $connection = $config->get(self::CONFIG_KEY.'.connection') ?? $config->get('database.default');
+        $ownerConnection = $config->get(self::CONFIG_KEY.'.owner_connection') ?? $config->get('cms.database.owner_connection');
 
         return new DoctorSettings(
             connection: self::name('connection', $connection),
+            ownerConnection: self::name('owner_connection', $ownerConnection),
             redisConnection: self::name('redis_connection', $config->get(self::CONFIG_KEY.'.redis_connection', 'default')),
             connectTimeoutSeconds: self::positive($config, 'connect_timeout_seconds', 3),
             runwayDays: self::positive($config, 'partition_runway_days', 7),
