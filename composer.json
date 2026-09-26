@@ -80,6 +80,10 @@
             "@php vendor/bin/testbench cms:partitions:maintain --ansi",
             "@php vendor/bin/testbench cms:build --ansi"
         ],
+        "test-db:prune": [
+            "Composer\\Config::disableProcessTimeout",
+            "@php tools/bin/prune-test-databases.php"
+        ],
         "lint": "@php tools/bin/pint.php",
         "lint:check": "@php tools/bin/pint.php --test",
         "rector": "@php vendor/bin/rector process",
@@ -123,6 +127,7 @@
         "services:up": "Start PHP 8.5 as the host user, Postgres 18 and Valkey 8 from the main checkout's compose.yaml and wait until they are healthy, then run the idempotent init script again, so an existing data volume gets the current roles and databases. From a linked worktree it starts only Postgres and Valkey, never recreates a container and says that the php container mounts the main checkout. Runs tools/bin/services.php.",
         "services:down": "Stop the services from the main checkout's compose.yaml; the data volumes are kept. Refuses with exit 1 in a linked worktree, because the services are shared. Runs tools/bin/services.php.",
         "dev:prepare": "Ready the workbench's dev database for cms:doctor, after `composer services:up`, from the main checkout: run the migrations as the owner role on pgsql_owner (cms.database.owner_connection), create the partition runway with cms:partitions:maintain on that connection, and build the registry cache with cms:build. Every step is idempotent; the script stops at a failing step and exits with its code.",
+        "test-db:prune": "Drop the Postgres test databases of removed checkouts: those named <configured database>_<12 hex digits> whose testkit comment names this host and a checkout path that no longer exists or no longer derives the name, with DROP DATABASE ... WITH (FORCE). Keeps the configured database, this checkout's, other hosts' and those without a valid comment, and prints each name with its verdict and reason. Option after --: --dry-run drops nothing. Runs tools/bin/prune-test-databases.php.",
         "lint": "Format the PHP code with Pint and the shared configuration from the testkit.",
         "lint:check": "Gate 1: fail if Pint would change any file.",
         "rector": "Apply the shared Rector sets from the testkit.",

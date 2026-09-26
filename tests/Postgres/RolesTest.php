@@ -84,6 +84,21 @@ it('gives the owner role CREATEDB, for the test database of each checkout, and t
     ]);
 });
 
+it('makes the owner role a member of pg_signal_backend only, for composer test-db:prune, and the app role a member of nothing', function (): void {
+    $memberships = DB::connection('pgsql_owner')->select(
+        "select member.rolname as member, granted.rolname as role, pg_has_role(member.oid, granted.oid, 'USAGE') as inherits
+        from pg_auth_members m
+        join pg_roles member on member.oid = m.member
+        join pg_roles granted on granted.oid = m.roleid
+        where member.rolname in ('cms_owner', 'cms_app')
+        order by 1, 2"
+    );
+
+    expect($memberships)->toEqual([
+        (object) ['member' => 'cms_owner', 'role' => 'pg_signal_backend', 'inherits' => true],
+    ]);
+});
+
 it('caps every transaction of the app role at the 5 second command budget', function (): void {
     expect(DB::selectOne('show transaction_timeout'))->toEqual((object) ['transaction_timeout' => '5s']);
 });

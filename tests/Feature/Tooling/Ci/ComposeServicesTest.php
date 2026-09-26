@@ -69,6 +69,8 @@ it('provisions the roles of the operating contract with the init script', functi
         ->and($environment['CMS_APP_ROLE'] ?? null)->toBe('cms_app')
         ->and($environment['CMS_APP_TRANSACTION_TIMEOUT'] ?? null)->toBe('5s')
         ->and($roles)->toContain('ALTER ROLE :"owner_role" WITH LOGIN NOSUPERUSER CREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS')
+        ->and($roles)->toContain('GRANT pg_signal_backend TO :"owner_role";')
+        ->and(substr_count($roles, 'GRANT '))->toBe(1)
         ->and($roles)->toContain('ALTER ROLE :"app_role" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS')
         ->and($roles)->toContain('ALTER ROLE :"app_role" SET transaction_timeout = :\'app_transaction_timeout\';');
 });

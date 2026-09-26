@@ -250,7 +250,7 @@ Integrate task ${task.id} "${task.title}" of block ${BLOCK} into main. You are t
 1. In the worktree ${wtOf(task.id)} on branch ${branchOf(task.id)}: rebase onto the current main of ${REPO} ("git rebase main"). Resolve conflicts so both sides' intent survives; if a conflict cannot be resolved faithfully, abort the rebase and report it as a failure.
 2. In the worktree, reinstall if composer.lock or package-lock.json changed, then run every gate on the rebased result: "composer check". Also run "composer check:selftest" if the task or main since the task started changed a gate, the tool configuration or the check itself, and the containerized CI run (docker compose -f compose.ci.yaml run --rm ci, then down) if bin/ci, the CI files or the environment the gates need changed. Record the CI wall time.
 3. Only if everything is green: fast-forward main ("git -C ${REPO} merge --ff-only ${branchOf(task.id)}"). If git refuses because the main checkout has local changes that the merge would overwrite, do not stash or discard them; report it as a failure.
-4. After a successful merge, remove the worktree and delete the branch.
+4. After a successful merge, remove the worktree and delete the branch, then run "composer test-db:prune" in ${REPO}, which drops the removed worktree's test database; report what it dropped.
 Never push. Do not edit PROGRESS.md.`,
       { schema: INTEGRATION, label: `integrate ${task.id}${round ? ' #' + round : ''}`, phase: 'Integrate', effort: 'medium' },
     )
