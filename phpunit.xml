@@ -99,6 +99,13 @@
         <env name="DB_PASSWORD" value="cms_app"/>
         <env name="DB_OWNER_USERNAME" value="cms_owner"/>
         <env name="DB_OWNER_PASSWORD" value="cms_owner"/>
+        <!--
+            The superuser of compose.yaml, compose.ci.yaml and ci.yml. Only Postgres tests that make
+            scratch roles use it (packages/core/tests/Postgres/DoctorRoleMembershipTest.php); the
+            application never connects as it.
+        -->
+        <env name="DB_SUPERUSER_USERNAME" value="postgres"/>
+        <env name="DB_SUPERUSER_PASSWORD" value="postgres"/>
         <env name="REDIS_CLIENT" value="phpredis"/>
         <env name="REDIS_HOST" value="127.0.0.1"/>
         <env name="REDIS_PORT" value="63797"/>

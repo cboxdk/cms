@@ -24,6 +24,7 @@ use Cbox\Cms\Core\Doctor\Domain\Checks\RegistryCacheCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\TransactionTimeoutCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\ValkeyReachableCheck;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PartitionCoverage;
+use Cbox\Cms\Core\Doctor\Domain\Dto\RoleMembership;
 use Cbox\Cms\Core\Doctor\Domain\ProbeFailed;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePartitionRunwayProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePostgresProbe;
@@ -104,6 +105,39 @@ it('fails an app role that is a superuser or bypasses row level security', funct
 
     $postgres->superuser = true;
     expectFailure(new AppRoleCheck($postgres)->run(), FailureKind::Violation, AppRoleCheck::CODE_SUPERUSER, 'cms_app has SUPERUSER');
+});
+
+it('fails an app role that is a member of a superuser, a BYPASSRLS role or an owner of relations, naming each', function (): void {
+    $postgres = new FakePostgresProbe;
+    $postgres->memberships = [
+        new RoleMembership('cms_owner', false, false, true),
+        new RoleMembership('platform_admin', true, true, false),
+        new RoleMembership('reporting', false, true, true),
+    ];
+    $result = new AppRoleCheck($postgres)->run();
+
+    expectFailure($result, FailureKind::Violation, AppRoleCheck::CODE_MEMBERSHIP, 'The role cms_app is a member of cms_owner, which owns relations; platform_admin, which has SUPERUSER and BYPASSRLS; reporting, which has BYPASSRLS and owns relations.');
+    expect($result->fix)->toStartWith('Run REVOKE cms_owner, platform_admin, reporting FROM cms_app as a superuser');
+
+    $postgres->bypassRowSecurity = true;
+    expectFailure(new AppRoleCheck($postgres)->run(), FailureKind::Violation, AppRoleCheck::CODE_BYPASSRLS, 'cms_app has BYPASSRLS');
+});
+
+it('names the roles through which the app role owns relations, and fixes each way it owns them', function (): void {
+    $postgres = new FakePostgresProbe;
+    $postgres->ownedRelations = ['cms.receipts', 'cms.notes'];
+    $postgres->ownerRoles = ['cms_owner'];
+    $result = new DdlPrivilegesCheck($postgres)->run();
+
+    expectFailure($result, FailureKind::Violation, DdlPrivilegesCheck::CODE, 'The role cms_app: it owns 2 relations through its membership of cms_owner, such as cms.receipts, cms.notes.');
+    expect($result->fix)->toBe('REVOKE cms_owner FROM cms_app as a superuser, or revoke the grant that leads to it when the membership is indirect. Run the migrations as the owner role.');
+
+    $postgres->ownerRoles = ['cms_app', 'cms_owner', 'legacy'];
+    $result = new DdlPrivilegesCheck($postgres)->run();
+
+    expectFailure($result, FailureKind::Violation, DdlPrivilegesCheck::CODE, 'it owns 2 relations, directly and through its membership of cms_owner, legacy, such as cms.receipts, cms.notes');
+    expect($result->fix)->toContain('REASSIGN OWNED BY cms_app')
+        ->and($result->fix)->toContain('REVOKE cms_owner, legacy FROM cms_app');
 });
 
 it('passes a transaction_timeout above zero that comes from the role', function (int $milliseconds, string $source, bool $passes, string $cause): void {

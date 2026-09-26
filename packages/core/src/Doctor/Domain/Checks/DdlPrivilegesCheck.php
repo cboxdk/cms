@@ -14,9 +14,9 @@ use Cbox\Cms\Core\Doctor\Domain\Probes\PostgresProbe;
 use Override;
 
 /**
- * The app role has no DDL (PRD 4.2, GUARDRAILS 6): it owns no tables, views or sequences, and has
- * no CREATE on the database or on any schema outside the system schemas. Migrations run as the
- * separate owner role.
+ * The app role has no DDL (PRD 4.2, GUARDRAILS 6): it owns no tables, views or sequences, itself or
+ * through a role it is a member of, and has no CREATE on the database or on any schema outside the
+ * system schemas. Migrations run as the separate owner role.
  */
 #[Internal]
 final readonly class DdlPrivilegesCheck implements DoctorCheck
@@ -58,8 +58,23 @@ final readonly class DdlPrivilegesCheck implements DoctorCheck
         $fixes = [];
 
         if ($ddl->ownedCount > 0) {
-            $causes[] = sprintf('it owns %d relations, such as %s', $ddl->ownedCount, implode(', ', $ddl->ownedRelations));
-            $fixes[] = sprintf('give them to the owner role with ALTER TABLE ... OWNER TO, or REASSIGN OWNED BY %s TO the owner role', $ddl->role);
+            $direct = in_array($ddl->role, $ddl->ownerRoles, true);
+            $through = array_values(array_diff($ddl->ownerRoles, [$ddl->role]));
+            $how = match (true) {
+                $through === [] => '',
+                $direct => sprintf(', directly and through its membership of %s,', implode(', ', $through)),
+                default => sprintf(' through its membership of %s,', implode(', ', $through)),
+            };
+
+            $causes[] = sprintf('it owns %d relations%s such as %s', $ddl->ownedCount, $how === '' ? ',' : $how, implode(', ', $ddl->ownedRelations));
+
+            if ($direct) {
+                $fixes[] = sprintf('give them to the owner role with ALTER TABLE ... OWNER TO, or REASSIGN OWNED BY %s TO the owner role', $ddl->role);
+            }
+
+            if ($through !== []) {
+                $fixes[] = sprintf('REVOKE %s FROM %s as a superuser, or revoke the grant that leads to it when the membership is indirect', implode(', ', $through), $ddl->role);
+            }
         }
 
         if ($ddl->createOnDatabase) {

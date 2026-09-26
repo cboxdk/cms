@@ -8,6 +8,7 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Core\Doctor\Domain\Dto\DdlPrivileges;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PostgresRole;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PostgresVersion;
+use Cbox\Cms\Core\Doctor\Domain\Dto\RoleMembership;
 use Cbox\Cms\Core\Doctor\Domain\Dto\TimeoutSetting;
 use Cbox\Cms\Core\Doctor\Domain\ProbeFailed;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PostgresProbe;
@@ -21,8 +22,17 @@ use Override;
 #[Internal]
 final readonly class ConnectionPostgresProbe implements PostgresProbe
 {
-    /** How many owned relations the cause names. */
-    public const int OWNED_SHOWN = 5;
+    /**
+     * The relations that count as owned: tables, partitioned tables, views, materialized views,
+     * foreign tables and sequences outside the system and temporary schemas, for c in pg_class
+     * joined with n in pg_namespace.
+     */
+    private const string OWNED_RELATIONS = <<<'SQL'
+        c.relkind in ('r', 'p', 'v', 'm', 'f', 'S')
+          and n.nspname not in ('pg_catalog', 'information_schema')
+          and n.nspname not like 'pg\_temp\_%'
+          and n.nspname not like 'pg\_toast%'
+        SQL;
 
     public function __construct(private DoctorConnection $connection) {}
 
@@ -48,6 +58,12 @@ final readonly class ConnectionPostgresProbe implements PostgresProbe
         return new PostgresVersion($row->int('number'), $row->string('text'));
     }
 
+    /**
+     * The role's own attributes, and the roles it is a member of, directly or through other roles
+     * and whether or not the grant has INHERIT or SET, that are superusers, have BYPASSRLS or own
+     * relations. Attributes are never inherited, but SET ROLE reaches them, and an owner's rights
+     * pass to the members that inherit them.
+     */
     #[Override]
     public function role(): PostgresRole
     {
@@ -55,7 +71,36 @@ final readonly class ConnectionPostgresProbe implements PostgresProbe
             'select r.rolname::text as name, r.rolsuper as superuser, r.rolbypassrls as bypass from pg_roles r where r.rolname = current_user',
         ));
 
-        return new PostgresRole($row->string('name'), $row->bool('superuser'), $row->bool('bypass'));
+        $memberships = array_map(
+            static fn (CatalogRow $membership): RoleMembership => new RoleMembership(
+                $membership->string('name'),
+                $membership->bool('superuser'),
+                $membership->bool('bypass'),
+                $membership->bool('owns_relations'),
+            ),
+            CatalogRow::all($this->connection->rows(sprintf(<<<'SQL'
+                select name, superuser, bypass, owns_relations
+                from (
+                    select m.rolname::text as name,
+                           m.rolsuper as superuser,
+                           m.rolbypassrls as bypass,
+                           exists (
+                               select 1
+                               from pg_class c
+                               join pg_namespace n on n.oid = c.relnamespace
+                               where c.relowner = m.oid
+                                 and %s
+                           ) as owns_relations
+                    from pg_roles m
+                    where m.rolname <> current_user
+                      and pg_has_role(current_user, m.oid, 'MEMBER')
+                ) memberships
+                where superuser or bypass or owns_relations
+                order by name
+                SQL, self::OWNED_RELATIONS))),
+        );
+
+        return new PostgresRole($row->string('name'), $row->bool('superuser'), $row->bool('bypass'), $memberships);
     }
 
     #[Override]
@@ -83,15 +128,14 @@ final readonly class ConnectionPostgresProbe implements PostgresProbe
     #[Override]
     public function ddlPrivileges(): DdlPrivileges
     {
-        $owned = <<<'SQL'
+        // A member of the owner can alter and drop a relation like its owner: with INHERIT it has
+        // the owner's rights, with SET it can become the owner.
+        $owned = sprintf(<<<'SQL'
             from pg_class c
             join pg_namespace n on n.oid = c.relnamespace
-            where c.relowner = (select oid from pg_roles where rolname = current_user)
-              and c.relkind in ('r', 'p', 'v', 'm', 'f', 'S')
-              and n.nspname not in ('pg_catalog', 'information_schema')
-              and n.nspname not like 'pg\_temp\_%'
-              and n.nspname not like 'pg\_toast%'
-            SQL;
+            where pg_has_role(current_user, c.relowner, 'MEMBER')
+              and %s
+            SQL, self::OWNED_RELATIONS);
 
         $summary = CatalogRow::one($this->connection->rows(<<<SQL
             select current_user::text as role,
@@ -100,9 +144,16 @@ final readonly class ConnectionPostgresProbe implements PostgresProbe
                    (select count(*) {$owned})::int as owned_count
             SQL));
 
+        // How many owned relations the cause names.
+        $shown = 5;
         $names = array_map(
             static fn (CatalogRow $row): string => $row->string('name'),
-            CatalogRow::all($this->connection->rows(sprintf("select format('%%I.%%I', n.nspname, c.relname) as name %s order by 1 limit %d", $owned, self::OWNED_SHOWN))),
+            CatalogRow::all($this->connection->rows(sprintf("select format('%%I.%%I', n.nspname, c.relname) as name %s order by 1 limit %d", $owned, $shown))),
+        );
+
+        $owners = array_map(
+            static fn (CatalogRow $row): string => $row->string('name'),
+            CatalogRow::all($this->connection->rows(sprintf('select distinct pg_get_userbyid(c.relowner)::text as name %s order by 1', $owned))),
         );
 
         $schemas = array_map(
@@ -122,6 +173,7 @@ final readonly class ConnectionPostgresProbe implements PostgresProbe
             database: $summary->string('database'),
             ownedRelations: $names,
             ownedCount: $summary->int('owned_count'),
+            ownerRoles: $owners,
             createOnDatabase: $summary->bool('create_on_database'),
             schemasWithCreate: $schemas,
         );

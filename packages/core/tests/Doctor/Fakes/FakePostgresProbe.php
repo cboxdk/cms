@@ -7,14 +7,15 @@ namespace Cbox\Cms\Core\Tests\Doctor\Fakes;
 use Cbox\Cms\Core\Doctor\Domain\Dto\DdlPrivileges;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PostgresRole;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PostgresVersion;
+use Cbox\Cms\Core\Doctor\Domain\Dto\RoleMembership;
 use Cbox\Cms\Core\Doctor\Domain\Dto\TimeoutSetting;
 use Cbox\Cms\Core\Doctor\Domain\ProbeFailed;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PostgresProbe;
 
 /**
  * A Postgres that keeps the runtime contract until the test changes a property: version 17.11,
- * the app role cms_app without superuser or BYPASSRLS, transaction_timeout 5 s from the role,
- * no prepared transactions and no DDL.
+ * the app role cms_app without superuser or BYPASSRLS and without privileged memberships,
+ * transaction_timeout 5 s from the role, no prepared transactions and no DDL.
  */
 final class FakePostgresProbe implements PostgresProbe
 {
@@ -31,6 +32,9 @@ final class FakePostgresProbe implements PostgresProbe
 
     public bool $bypassRowSecurity = false;
 
+    /** @var list<RoleMembership> */
+    public array $memberships = [];
+
     public int $transactionTimeoutMs = 5000;
 
     public string $transactionTimeoutSource = 'user';
@@ -39,6 +43,9 @@ final class FakePostgresProbe implements PostgresProbe
 
     /** @var list<string> */
     public array $ownedRelations = [];
+
+    /** @var list<string> The owners of ownedRelations, when there are any. */
+    public array $ownerRoles = ['cms_app'];
 
     public bool $createOnDatabase = false;
 
@@ -72,7 +79,7 @@ final class FakePostgresProbe implements PostgresProbe
     {
         $this->query();
 
-        return new PostgresRole('cms_app', $this->superuser, $this->bypassRowSecurity);
+        return new PostgresRole('cms_app', $this->superuser, $this->bypassRowSecurity, $this->memberships);
     }
 
     public function transactionTimeout(): TimeoutSetting
@@ -93,7 +100,15 @@ final class FakePostgresProbe implements PostgresProbe
     {
         $this->query();
 
-        return new DdlPrivileges('cms_app', 'cms', $this->ownedRelations, count($this->ownedRelations), $this->createOnDatabase, $this->schemasWithCreate);
+        return new DdlPrivileges(
+            'cms_app',
+            'cms',
+            $this->ownedRelations,
+            count($this->ownedRelations),
+            $this->ownedRelations === [] ? [] : $this->ownerRoles,
+            $this->createOnDatabase,
+            $this->schemasWithCreate,
+        );
     }
 
     private function query(): void
