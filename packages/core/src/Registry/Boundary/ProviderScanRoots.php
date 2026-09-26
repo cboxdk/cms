@@ -6,7 +6,7 @@ namespace Cbox\Cms\Core\Registry\Boundary;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Build\DeclaresScanRoots;
-use Cbox\Cms\Contracts\Build\ScanRoot;
+use Cbox\Cms\Core\Registry\Domain\Dto\ScanRoots;
 use Illuminate\Contracts\Foundation\Application;
 
 /**
@@ -16,10 +16,7 @@ use Illuminate\Contracts\Foundation\Application;
 #[Internal]
 final readonly class ProviderScanRoots
 {
-    /**
-     * @return list<ScanRoot>
-     */
-    public static function of(Application $app): array
+    public static function of(Application $app): ScanRoots
     {
         $app->loadDeferredProviders();
 
@@ -31,6 +28,6 @@ final readonly class ProviderScanRoots
             }
         }
 
-        return $roots;
+        return new ScanRoots(...$roots);
     }
 }

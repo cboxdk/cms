@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Registry\Actions;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
-use Cbox\Cms\Contracts\Build\ScanRoot;
 use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
+use Cbox\Cms\Core\Registry\Domain\Dto\ScanRoots;
 use Cbox\Cms\Core\Registry\Domain\RegistryBuildFailed;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Registry\Domain\RegistryCacheUnwritable;
@@ -27,12 +27,10 @@ final readonly class BuildRegistry
     ) {}
 
     /**
-     * @param  list<ScanRoot>  $roots
-     *
      * @throws RegistryBuildFailed
      * @throws RegistryCacheUnwritable
      */
-    public function build(array $roots): CompiledRegistry
+    public function build(ScanRoots $roots): CompiledRegistry
     {
         $registry = $this->compiler->compile($this->scanner->scan($roots));
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Cli\Console;
 
+use Cbox\Cms\Cli\Boundary\DoctorOptions;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Doctor\CheckResult;
 use Cbox\Cms\Contracts\Doctor\CheckStatus;
@@ -35,7 +36,7 @@ final class DoctorCommand extends Command
 {
     public function handle(RunDoctor $doctor, LoggerInterface $log): int
     {
-        $report = $doctor->run($this->option('dev') === true);
+        $report = $doctor->run(DoctorOptions::parse($this->option('dev')));
 
         if ($this->option('json') === true) {
             $this->output->write(DoctorReportJson::encode($report), false, OutputInterface::OUTPUT_RAW);

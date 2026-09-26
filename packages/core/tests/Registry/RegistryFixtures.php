@@ -4,13 +4,22 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Registry;
 
+use Cbox\Cms\Contracts\Attributes\Phase;
+use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Build\ScanRoot;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
 use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
 use Cbox\Cms\Core\Registry\Boundary\RegistryCacheCodec;
+use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
+use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
+use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredHook;
+use Cbox\Cms\Core\Registry\Domain\Dto\Discovery;
 use Cbox\Cms\Core\Registry\Domain\RegistryCompiler;
 use Cbox\Cms\Core\Registry\Domain\RegistryName;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNote;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNoteAction;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\TrimNoteTitle;
 use FilesystemIterator;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -29,6 +38,20 @@ final class RegistryFixtures
     public static function root(string $fixture, string $package = self::PACKAGE): ScanRoot
     {
         return new ScanRoot($package, __DIR__.'/Fixtures/'.$fixture);
+    }
+
+    /**
+     * What the scan of the Valid fixture finds through a root of the given package: the action
+     * CreateNoteAction, the command CreateNote and the hook TrimNoteTitle.
+     */
+    public static function validDiscovery(string $package = self::PACKAGE): Discovery
+    {
+        return new Discovery(
+            [new ActionEntry(CreateNoteAction::class, $package, [Surface::Rest, Surface::Cli])],
+            [new CommandEntry('fixture.note.create', 1, CreateNote::class, $package)],
+            [new DiscoveredHook(TrimNoteTitle::class, $package, CreateNote::class, Phase::Transform, 10, 5)],
+            [],
+        );
     }
 
     public static function builder(string $directory): BuildRegistry

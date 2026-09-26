@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Registry\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
-use Cbox\Cms\Contracts\Build\ScanRoot;
 use Cbox\Cms\Core\Registry\Domain\Dto\Discovery;
+use Cbox\Cms\Core\Registry\Domain\Dto\ScanRoots;
 
 /**
  * Finds the classes declared with #[Action], #[Command] and #[Hook] in the scan roots. Reflection
@@ -18,8 +18,5 @@ use Cbox\Cms\Core\Registry\Domain\Dto\Discovery;
 #[Experimental]
 interface DeclarationScanner
 {
-    /**
-     * @param  list<ScanRoot>  $roots
-     */
-    public function scan(array $roots): Discovery;
+    public function scan(ScanRoots $roots): Discovery;
 }

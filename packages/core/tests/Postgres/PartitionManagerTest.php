@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Storage\PartitionMissing;
 use Cbox\Cms\Core\Partitions\Actions\MaintainPartitions;
 use Cbox\Cms\Core\Partitions\Adapter\MissingPartitionMapper;
 use Cbox\Cms\Core\Partitions\Domain\DdlStep;
+use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionRange;
 use Cbox\Cms\Core\Partitions\Domain\LockTimeout;
 use Cbox\Cms\Core\Partitions\Domain\OwnerConnectionRequired;
 use Cbox\Cms\Core\Partitions\Domain\PartitionChangeKind;
@@ -237,7 +238,7 @@ it('gives new partitions the parent\'s grants, not the owner\'s default privileg
 
 it('removes expired partitions with DETACH CONCURRENTLY and DROP TABLE, and never deletes rows', function (): void {
     PartitionScratch::manage([PartitionScratch::UUID_TABLE => PartitionScratch::daily(['retention_days' => 7])]);
-    app(MaintainPartitions::class)->cover(new DateTimeImmutable('2026-01-01T00:00:00Z'), new DateTimeImmutable('2026-01-14T00:00:00Z'));
+    app(MaintainPartitions::class)->cover(new PartitionRange(new DateTimeImmutable('2026-01-01T00:00:00Z'), new DateTimeImmutable('2026-01-14T00:00:00Z')));
     PartitionScratch::app()->insert('insert into partition_scratch (id) values (?), (?), (?)', [
         idAt('2026-01-05T10:00:00Z'),
         idAt('2026-01-12T23:59:59.999Z'),
@@ -276,7 +277,7 @@ it('removes expired partitions with DETACH CONCURRENTLY and DROP TABLE, and neve
 
 it('keeps every partition of a table without retention', function (): void {
     PartitionScratch::manage([PartitionScratch::UUID_TABLE => PartitionScratch::daily()]);
-    app(MaintainPartitions::class)->cover(new DateTimeImmutable('2020-01-01T00:00:00Z'), new DateTimeImmutable('2020-01-02T00:00:00Z'));
+    app(MaintainPartitions::class)->cover(new PartitionRange(new DateTimeImmutable('2020-01-01T00:00:00Z'), new DateTimeImmutable('2020-01-02T00:00:00Z')));
     PartitionScratch::clockAt('2026-01-20T00:00:00Z');
 
     $report = app(MaintainPartitions::class)->maintain();
@@ -290,7 +291,7 @@ it('gives up with LockTimeout while another process holds ACCESS SHARE on the pa
         [PartitionScratch::UUID_TABLE => PartitionScratch::daily(['retention_days' => 1])],
         ['runway_days' => 1, 'attempts' => 2, 'backoff_ms' => 50],
     );
-    app(MaintainPartitions::class)->cover(new DateTimeImmutable('2026-01-01T00:00:00Z'), new DateTimeImmutable('2026-01-11T00:00:00Z'));
+    app(MaintainPartitions::class)->cover(new PartitionRange(new DateTimeImmutable('2026-01-01T00:00:00Z'), new DateTimeImmutable('2026-01-11T00:00:00Z')));
     PartitionScratch::clockAt('2026-01-10T12:00:00Z');
 
     $child = holdLock('access share');
@@ -347,7 +348,7 @@ it('rolls a create back when ATTACH passes lock_timeout, so no stray table is le
 
 it('finalizes a detach that an earlier run left pending, then drops the partition', function (): void {
     PartitionScratch::manage([PartitionScratch::UUID_TABLE => PartitionScratch::daily(['retention_days' => 1])], ['runway_days' => 1]);
-    app(MaintainPartitions::class)->cover(new DateTimeImmutable('2026-01-01T00:00:00Z'), new DateTimeImmutable('2026-01-01T00:00:00Z'));
+    app(MaintainPartitions::class)->cover(new PartitionRange(new DateTimeImmutable('2026-01-01T00:00:00Z'), new DateTimeImmutable('2026-01-01T00:00:00Z')));
 
     // A detach that passes lock_timeout in its second phase leaves the partition pending.
     $child = holdLock('access share');
@@ -375,7 +376,7 @@ it('finalizes a detach that an earlier run left pending, then drops the partitio
 
 it('drops an expired partition that was detached but not dropped', function (): void {
     PartitionScratch::manage([PartitionScratch::UUID_TABLE => PartitionScratch::daily(['retention_days' => 1])], ['runway_days' => 1]);
-    app(MaintainPartitions::class)->cover(new DateTimeImmutable('2026-01-01T00:00:00Z'), new DateTimeImmutable('2026-01-01T00:00:00Z'));
+    app(MaintainPartitions::class)->cover(new PartitionRange(new DateTimeImmutable('2026-01-01T00:00:00Z'), new DateTimeImmutable('2026-01-01T00:00:00Z')));
     PartitionScratch::owner()->statement('alter table partition_scratch detach partition partition_scratch_p20260101');
     PartitionScratch::clockAt('2026-01-10T00:00:00Z');
 

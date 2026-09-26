@@ -38,6 +38,7 @@ use Cbox\Cms\Core\Doctor\Domain\Checks\ValkeyReachableCheck;
 use Cbox\Cms\Core\Doctor\Domain\DoctorChecks;
 use Cbox\Cms\Core\Doctor\Domain\Dto\DoctorSettings;
 use Cbox\Cms\Core\Doctor\Domain\InvalidDoctorConfig;
+use Cbox\Cms\Core\Doctor\Domain\OrderedDoctorChecks;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PartitionRunwayProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PostgresProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\RegistryCacheProbe;
@@ -182,14 +183,14 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
             try {
                 $settings = DoctorConfig::read($app->make(Repository::class), $app->basePath());
             } catch (InvalidDoctorConfig $invalid) {
-                return new DoctorChecks([new InvalidConfigurationCheck($invalid->getMessage())], []);
+                return new OrderedDoctorChecks([new InvalidConfigurationCheck($invalid->getMessage())], []);
             }
 
             $runtime = $app->make(RuntimeProbe::class);
             $postgres = $app->make(PostgresProbe::class);
             $tools = $app->make(ToolProbe::class);
 
-            return new DoctorChecks(
+            return new OrderedDoctorChecks(
                 runtime: [
                     new PhpVersionCheck($runtime),
                     new LaravelVersionCheck($runtime),

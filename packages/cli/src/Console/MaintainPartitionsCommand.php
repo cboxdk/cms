@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Cli\Console;
 
-use Cbox\Cms\Cli\Boundary\TimeOption;
+use Cbox\Cms\Cli\Boundary\PartitionRangeOptions;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Core\Partitions\Actions\MaintainPartitions;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionChange;
+use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionRange;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionReport;
 use Cbox\Cms\Core\Partitions\Domain\Dto\TableRunway;
 use Cbox\Cms\Core\Partitions\Domain\LockTimeout;
 use Cbox\Cms\Core\Partitions\Domain\OwnerConnectionRequired;
-use DateTimeImmutable;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -48,22 +48,15 @@ final class MaintainPartitionsCommand extends Command
     public function handle(MaintainPartitions $partitions, LoggerInterface $log): int
     {
         try {
-            $from = TimeOption::parse('from', $this->option('from'));
-            $to = TimeOption::parse('to', $this->option('to'));
+            $range = PartitionRangeOptions::parse($this->option('from'), $this->option('to'));
         } catch (InvalidArgumentException $invalid) {
             $this->error($invalid->getMessage());
 
             return self::EXIT_INVALID;
         }
 
-        if ((! $from instanceof DateTimeImmutable) !== (! $to instanceof DateTimeImmutable)) {
-            $this->error('Give both --from and --to, or neither.');
-
-            return self::EXIT_INVALID;
-        }
-
         try {
-            $report = $from instanceof DateTimeImmutable && $to instanceof DateTimeImmutable ? $partitions->cover($from, $to) : $partitions->maintain();
+            $report = $range instanceof PartitionRange ? $partitions->cover($range) : $partitions->maintain();
         } catch (InvalidArgumentException $invalid) {
             $this->error($invalid->getMessage());
 

@@ -9,8 +9,10 @@ use Cbox\Cms\Contracts\Doctor\DoctorCheck;
 use Cbox\Cms\Core\Doctor\Boundary\DoctorConfig;
 use Cbox\Cms\Core\Doctor\Domain\Checks\InvalidConfigurationCheck;
 use Cbox\Cms\Core\Doctor\Domain\DoctorChecks;
+use Cbox\Cms\Core\Doctor\Domain\Dto\DoctorRunOptions;
 use Cbox\Cms\Core\Doctor\Domain\Dto\DoctorSettings;
 use Cbox\Cms\Core\Doctor\Domain\InvalidDoctorConfig;
+use Cbox\Cms\Core\Doctor\Domain\OrderedDoctorChecks;
 use Illuminate\Config\Repository;
 
 /*
@@ -68,34 +70,38 @@ it('refuses invalid settings with the key and the value', function (string $key,
 
 it('wires the runtime checks in order and the dev checks after them', function (): void {
     $checks = app(DoctorChecks::class);
+    $runtime = $checks->for(new DoctorRunOptions);
+    $dev = array_slice($checks->for(new DoctorRunOptions(dev: true)), count($runtime));
     $ids = static fn (DoctorCheck ...$list): array => array_map(static fn (DoctorCheck $check): string => $check->id()->value, $list);
 
-    expect($ids(...$checks->runtime))->toBe([
-        'php.version',
-        'laravel.version',
-        'postgres.reachable',
-        'postgres.version',
-        'postgres.app_role',
-        'postgres.transaction_timeout',
-        'postgres.prepared_transactions',
-        'postgres.ddl_privileges',
-        'valkey.reachable',
-        'partitions.runway',
-        'registry.cache',
-    ])
-        ->and($ids(...$checks->dev))->toBe(['dev.node', 'dev.playwright', 'dev.chromium'])
-        ->and(array_map(static fn (DoctorCheck $check): bool => $check->blocking(), $checks->runtime))->toBe([true, true, true, true, true, true, true, true, true, false, true])
-        ->and(array_map(static fn (DoctorCheck $check): bool => $check->blocking(), $checks->dev))->toBe([false, false, false]);
+    expect($checks)->toBeInstanceOf(OrderedDoctorChecks::class)
+        ->and($ids(...$runtime))->toBe([
+            'php.version',
+            'laravel.version',
+            'postgres.reachable',
+            'postgres.version',
+            'postgres.app_role',
+            'postgres.transaction_timeout',
+            'postgres.prepared_transactions',
+            'postgres.ddl_privileges',
+            'valkey.reachable',
+            'partitions.runway',
+            'registry.cache',
+        ])
+        ->and($ids(...$dev))->toBe(['dev.node', 'dev.playwright', 'dev.chromium'])
+        ->and(array_map(static fn (DoctorCheck $check): bool => $check->blocking(), $runtime))->toBe([true, true, true, true, true, true, true, true, true, false, true])
+        ->and(array_map(static fn (DoctorCheck $check): bool => $check->blocking(), $dev))->toBe([false, false, false]);
 });
 
 it('gives the one failing check doctor.config when cms.doctor is invalid', function (): void {
     config(['cms.doctor.partition_runway_days' => -1]);
 
     $checks = app(DoctorChecks::class);
+    $runtime = $checks->for(new DoctorRunOptions);
 
-    expect($checks->runtime)->toHaveCount(1)
-        ->and($checks->runtime[0])->toBeInstanceOf(InvalidConfigurationCheck::class)
-        ->and($checks->runtime[0]->id()->equals(new CheckId(InvalidConfigurationCheck::ID)))->toBeTrue()
-        ->and($checks->dev)->toBe([])
-        ->and($checks->runtime[0]->run()->cause)->toContain('partition_runway_days');
+    expect($runtime)->toHaveCount(1)
+        ->and($runtime[0])->toBeInstanceOf(InvalidConfigurationCheck::class)
+        ->and($runtime[0]->id()->equals(new CheckId(InvalidConfigurationCheck::ID)))->toBeTrue()
+        ->and($checks->for(new DoctorRunOptions(dev: true)))->toBe($runtime)
+        ->and($runtime[0]->run()->cause)->toContain('partition_runway_days');
 });

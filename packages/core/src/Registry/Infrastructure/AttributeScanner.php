@@ -16,6 +16,7 @@ use Cbox\Cms\Core\Registry\Domain\Dto\BuildProblem;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredHook;
 use Cbox\Cms\Core\Registry\Domain\Dto\Discovery;
+use Cbox\Cms\Core\Registry\Domain\Dto\ScanRoots;
 use FilesystemIterator;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -36,7 +37,7 @@ use Throwable;
 #[Internal]
 final readonly class AttributeScanner implements DeclarationScanner
 {
-    public function scan(array $roots): Discovery
+    public function scan(ScanRoots $roots): Discovery
     {
         $actions = [];
         $commands = [];
@@ -46,7 +47,7 @@ final readonly class AttributeScanner implements DeclarationScanner
         /** @var array<string, ResolvedRoot> $owners the root each class was first found in, by lower-case class name */
         $owners = [];
 
-        foreach ($this->uniqueRoots($roots, $problems) as $resolved) {
+        foreach ($this->uniqueRoots($roots->roots, $problems) as $resolved) {
             $root = $resolved->root;
 
             foreach ($this->phpFiles($resolved->directory) as $file) {

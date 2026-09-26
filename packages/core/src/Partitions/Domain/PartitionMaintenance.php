@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Partitions\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionRange;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionReport;
 use DateTimeImmutable;
 
@@ -25,8 +26,12 @@ interface PartitionMaintenance
     public function maintain(DateTimeImmutable $now): PartitionReport;
 
     /**
-     * Creates the partitions whose spans overlap [$from, $to], and removes nothing. For rows that
+     * Creates the partitions whose spans overlap the range, and removes nothing. For rows that
      * arrive with past or future keys, and for tests at any date.
+     *
+     * @throws InvalidPartitionPolicy when the range needs more than
+     *                                PartitionedTable::MAX_PARTITIONS_PER_CALL partitions of a table;
+     *                                nothing is created then
      */
-    public function cover(DateTimeImmutable $from, DateTimeImmutable $to): PartitionReport;
+    public function cover(PartitionRange $range): PartitionReport;
 }

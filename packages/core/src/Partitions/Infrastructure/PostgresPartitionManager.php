@@ -7,6 +7,7 @@ namespace Cbox\Cms\Core\Partitions\Infrastructure;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Core\Database\Infrastructure\TablePrivileges;
 use Cbox\Cms\Core\Partitions\Domain\DdlStep;
+use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionRange;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionReport;
 use Cbox\Cms\Core\Partitions\Domain\Dto\TableRunway;
 use Cbox\Cms\Core\Partitions\Domain\OwnerConnectionRequired;
@@ -61,14 +62,14 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
         });
     }
 
-    public function cover(DateTimeImmutable $from, DateTimeImmutable $to): PartitionReport
+    public function cover(PartitionRange $range): PartitionReport
     {
         foreach ($this->policy->tables as $table) {
-            $table->partitionsCovering($from, $to);
+            $table->partitionsCovering($range->from, $range->to);
         }
 
-        return $this->run(function (Run $run, CatalogTable $table) use ($from, $to): void {
-            $this->create($run, $table, $table->table->partitionsCovering($from, $to));
+        return $this->run(function (Run $run, CatalogTable $table) use ($range): void {
+            $this->create($run, $table, $table->table->partitionsCovering($range->from, $range->to));
         });
     }
 

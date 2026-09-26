@@ -11,6 +11,7 @@ use Cbox\Cms\Contracts\Doctor\DoctorCheck;
 use Cbox\Cms\Contracts\Doctor\FailureKind;
 use Cbox\Cms\Core\Doctor\Domain\DoctorChecks;
 use Cbox\Cms\Core\Doctor\Domain\Dto\DoctorReport;
+use Cbox\Cms\Core\Doctor\Domain\Dto\DoctorRunOptions;
 use Throwable;
 
 /**
@@ -28,19 +29,16 @@ final readonly class RunDoctor
 
     public function __construct(private DoctorChecks $checks) {}
 
-    /**
-     * @param  bool  $dev  also run the development checks
-     */
-    public function run(bool $dev): DoctorReport
+    public function run(DoctorRunOptions $options): DoctorReport
     {
         /** @var array<string, CheckResult> $results */
         $results = [];
 
-        foreach ($this->checks->for($dev) as $check) {
+        foreach ($this->checks->for($options) as $check) {
             $results[$check->id()->value] = $this->result($check, $results);
         }
 
-        return new DoctorReport($dev, array_values($results));
+        return new DoctorReport($options->dev, array_values($results));
     }
 
     /**

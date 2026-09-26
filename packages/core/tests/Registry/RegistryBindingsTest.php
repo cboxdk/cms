@@ -12,6 +12,7 @@ use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
 use Cbox\Cms\Core\Registry\Boundary\ProviderScanRoots;
 use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
+use Cbox\Cms\Core\Registry\Domain\Dto\ScanRoots;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
 use Cbox\Cms\Core\Tests\Registry\Providers\DeferredRootProvider;
@@ -25,19 +26,17 @@ afterEach(function (): void {
 
 /**
  * The scan roots of the four package providers, which every application has.
- *
- * @return list<ScanRoot>
  */
-function packageScanRoots(): array
+function packageScanRoots(): ScanRoots
 {
     $packages = dirname(__DIR__, 3);
 
-    return [
+    return new ScanRoots(
         new ScanRoot('cboxdk/cms-core', $packages.'/core/src'),
         new ScanRoot('cboxdk/cms-http', $packages.'/http/src'),
         new ScanRoot('cboxdk/cms-cli', $packages.'/cli/src'),
         new ScanRoot('cboxdk/cms-generators', $packages.'/generators/src'),
-    ];
+    );
 }
 
 it('lets each package provider declare its own src directory as a scan root', function (): void {
@@ -50,7 +49,7 @@ it('lets each package provider declare its own src directory as a scan root', fu
 });
 
 it('collects the scan roots of every registered provider that declares them', function (): void {
-    $roots = ProviderScanRoots::of(app());
+    $roots = ProviderScanRoots::of(app())->roots;
 
     expect($roots)->toHaveCount(4)
         ->and(array_map(static fn (ScanRoot $root): string => $root->package, $roots))->toEqualCanonicalizing([
@@ -59,14 +58,14 @@ it('collects the scan roots of every registered provider that declares them', fu
 
     app()->register(FixtureRootProvider::class);
 
-    expect(ProviderScanRoots::of(app()))->toHaveCount(5)->toContainEqual(RegistryFixtures::root('Valid'));
+    expect(ProviderScanRoots::of(app())->roots)->toHaveCount(5)->toContainEqual(RegistryFixtures::root('Valid'));
 });
 
 it('registers deferred providers first, so their scan roots are not missed', function (): void {
     app()->addDeferredServices([DeferredRootProvider::SERVICE => DeferredRootProvider::class]);
 
     expect(app()->getProviders(DeferredRootProvider::class))->toBe([])
-        ->and(ProviderScanRoots::of(app()))->toContainEqual(new ScanRoot('acme/deferred', __DIR__.'/Providers'));
+        ->and(ProviderScanRoots::of(app())->roots)->toContainEqual(new ScanRoot('acme/deferred', __DIR__.'/Providers'));
 });
 
 it('scans the packages\' own classes without a problem; none of them is declared yet', function (): void {
@@ -87,7 +86,7 @@ it('loads the registry at run time from the files cms:build wrote, once per proc
     app()->instance(RegistryCache::class, RegistryFixtures::cache($directory));
     app()->forgetInstance(CompiledRegistry::class);
 
-    $built = app(BuildRegistry::class)->build([RegistryFixtures::root('Valid')]);
+    $built = app(BuildRegistry::class)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
     expect(app(CompiledRegistry::class))->toEqual($built)
         ->and(app(CompiledRegistry::class))->toBe(app(CompiledRegistry::class));

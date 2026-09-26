@@ -6,9 +6,9 @@ namespace Cbox\Cms\Core\Partitions\Actions;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Clock;
+use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionRange;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionReport;
 use Cbox\Cms\Core\Partitions\Domain\PartitionMaintenance;
-use DateTimeImmutable;
 
 /**
  * Partition maintenance as the surfaces call it: `cms:partitions:maintain` and the schedule.
@@ -32,10 +32,10 @@ final readonly class MaintainPartitions
     }
 
     /**
-     * Creates the partitions that cover [$from, $to] and removes nothing.
+     * Creates the partitions that cover the range and removes nothing.
      */
-    public function cover(DateTimeImmutable $from, DateTimeImmutable $to): PartitionReport
+    public function cover(PartitionRange $range): PartitionReport
     {
-        return $this->partitions->cover($from, $to);
+        return $this->partitions->cover($range);
     }
 }
