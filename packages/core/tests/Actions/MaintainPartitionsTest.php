@@ -49,15 +49,21 @@ it('maintains the partitions at the Clock\'s time', function (): void {
         ->and($partitions->partitions('events'))->toBe(['events_p20260503', 'events_p20260504', 'events_p20260505', 'events_p20260506']);
 });
 
-it('covers the range it is given, whatever the Clock shows, and removes nothing', function (): void {
+it('covers the range it is given, whatever the Clock shows, removes nothing, and reports the runway from the Clock', function (): void {
     $partitions = fakePartitions(retentionDays: 1);
-    $action = new MaintainPartitions($partitions, new FakeClock(new DateTimeImmutable('2031-01-01T00:00:00Z')));
+    $clock = new FakeClock(new DateTimeImmutable('2031-01-01T00:00:00Z'));
+    $action = new MaintainPartitions($partitions, $clock);
 
     $report = $action->cover(new PartitionRange(new DateTimeImmutable('2024-02-28T23:00:00Z'), new DateTimeImmutable('2024-03-01T00:00:00Z')));
 
     expect($report->partitions(PartitionChangeKind::Created))->toBe(['events_p20240228', 'events_p20240229', 'events_p20240301'])
         ->and($report->partitions(PartitionChangeKind::Dropped))->toBe([])
-        ->and($report->runways[0]->coveredUntil?->format(DATE_ATOM))->toBe('2024-03-02T00:00:00+00:00');
+        ->and($report->runways[0]->coveredUntil)->toBeNull();
+
+    $clock->set(new DateTimeImmutable('2024-02-29T08:00:00Z'));
+
+    expect($action->cover(new PartitionRange(new DateTimeImmutable('2024-03-03T00:00:00Z'), new DateTimeImmutable('2024-03-03T00:00:00Z')))->runways[0]->coveredUntil?->format(DATE_ATOM))
+        ->toBe('2024-03-02T00:00:00+00:00');
 });
 
 it('passes a busy lock on as LockTimeout, and the next run after it is released does the work', function (): void {

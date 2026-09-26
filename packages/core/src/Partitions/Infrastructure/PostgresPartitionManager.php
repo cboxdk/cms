@@ -15,6 +15,7 @@ use Cbox\Cms\Core\Partitions\Domain\Partition;
 use Cbox\Cms\Core\Partitions\Domain\PartitionChangeKind;
 use Cbox\Cms\Core\Partitions\Domain\PartitionMaintenance;
 use Cbox\Cms\Core\Partitions\Domain\PartitionPolicy;
+use Cbox\Cms\Core\Partitions\Domain\PartitionRunway;
 use Cbox\Cms\Core\Partitions\Domain\UnmanageableTable;
 use Closure;
 use DateTimeImmutable;
@@ -56,27 +57,28 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
     {
         $until = $now->modify(sprintf('+%d days', $this->policy->runwayDays));
 
-        return $this->run(function (Run $run, CatalogTable $table) use ($now, $until): void {
+        return $this->run($now, function (Run $run, CatalogTable $table) use ($now, $until): void {
             $this->create($run, $table, $table->table->partitionsCovering($now, $until));
             $this->retire($run, $table, $now);
         });
     }
 
-    public function cover(PartitionRange $range): PartitionReport
+    public function cover(PartitionRange $range, DateTimeImmutable $now): PartitionReport
     {
         foreach ($this->policy->tables as $table) {
             $table->partitionsCovering($range->from, $range->to);
         }
 
-        return $this->run(function (Run $run, CatalogTable $table) use ($range): void {
+        return $this->run($now, function (Run $run, CatalogTable $table) use ($range): void {
             $this->create($run, $table, $table->table->partitionsCovering($range->from, $range->to));
         });
     }
 
     /**
+     * @param  DateTimeImmutable  $now  the instant the report measures each table's runway from
      * @param  Closure(Run, CatalogTable): void  $work
      */
-    private function run(Closure $work): PartitionReport
+    private function run(DateTimeImmutable $now, Closure $work): PartitionReport
     {
         $connection = $this->ownerConnection();
         $catalog = new PartitionCatalog($connection);
@@ -104,7 +106,7 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
         return new PartitionReport(
             role: $role,
             changes: $run->changes(),
-            runways: array_map(fn (CatalogTable $table): TableRunway => $this->runway($catalog, $table), $tables),
+            runways: array_map(fn (CatalogTable $table): TableRunway => $this->runway($catalog, $table, $now), $tables),
         );
     }
 
@@ -242,13 +244,21 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
         $run->record($table, $partition, $done);
     }
 
-    private function runway(PartitionCatalog $catalog, CatalogTable $table): TableRunway
+    /**
+     * The table's runway from $now after the run, measured with PartitionRunway as the doctor's
+     * partitions.runway check measures it: a gap ends it, however far the partitions after the gap
+     * reach.
+     */
+    private function runway(PartitionCatalog $catalog, CatalogTable $table, DateTimeImmutable $now): TableRunway
     {
-        $ends = array_map(
-            static fn (CatalogPartition $found): DateTimeImmutable => $found->partition->end,
-            array_filter($catalog->partitions($table), static fn (CatalogPartition $found): bool => $found->state === PartitionState::Attached),
-        );
+        $attached = [];
 
-        return new TableRunway($table->table->name, $ends === [] ? null : max($ends));
+        foreach ($catalog->partitions($table) as $found) {
+            if ($found->state === PartitionState::Attached) {
+                $attached[] = $found->partition;
+            }
+        }
+
+        return new TableRunway($table->table->name, PartitionRunway::end($table->table, $attached, $now));
     }
 }

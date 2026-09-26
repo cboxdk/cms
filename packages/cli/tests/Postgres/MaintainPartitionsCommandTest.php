@@ -62,10 +62,33 @@ it('creates only the partitions of the range given with --from and --to, and rem
     expect(maintainCommand(['--from' => '2024-02-28T23:00:00+00:00', '--to' => '2024-03-01T00:30:00.500000+02:00']))->toBe([0, [
         'created partition_scratch.partition_scratch_p20240228',
         'created partition_scratch.partition_scratch_p20240229',
-        'runway partition_scratch until 2024-03-01T00:00:00Z',
+        'runway partition_scratch until none',
         'Partitions maintained as role cms_owner: 2 changes.',
     ]])
         ->and(PartitionScratch::partitions(PartitionScratch::UUID_TABLE))->toBe(['partition_scratch_p20240228', 'partition_scratch_p20240229']);
+});
+
+it('ends the report\'s runway at a detached partition, whichever side of the gap --from and --to cover', function (): void {
+    PartitionScratch::clockAt('2026-01-01T10:00:00Z');
+
+    expect(maintainCommand(['--from' => '2026-01-01', '--to' => '2026-01-05'])[1])->toContain('runway partition_scratch until 2026-01-06T00:00:00Z');
+
+    PartitionScratch::owner()->statement('alter table partition_scratch detach partition partition_scratch_p20260103');
+
+    expect(maintainCommand(['--from' => '2026-01-01', '--to' => '2026-01-02']))->toBe([0, [
+        'runway partition_scratch until 2026-01-03T00:00:00Z',
+        'Partitions maintained as role cms_owner: 0 changes.',
+    ]])
+        ->and(maintainCommand(['--from' => '2026-01-04', '--to' => '2026-01-05']))->toBe([0, [
+            'runway partition_scratch until 2026-01-03T00:00:00Z',
+            'Partitions maintained as role cms_owner: 0 changes.',
+        ]])
+        ->and(PartitionScratch::partitions(PartitionScratch::UUID_TABLE))->toBe([
+            'partition_scratch_p20260101',
+            'partition_scratch_p20260102',
+            'partition_scratch_p20260104',
+            'partition_scratch_p20260105',
+        ]);
 });
 
 it('exits 2 on invalid options, without touching the database', function (array $options, string $message): void {

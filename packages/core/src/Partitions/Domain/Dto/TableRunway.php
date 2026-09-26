@@ -8,8 +8,10 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
 use DateTimeImmutable;
 
 /**
- * How far a table's partitions reach after a run: the exclusive end of its last managed
- * partition, or null when it has none. A write keyed at or after it fails with PartitionMissing.
+ * How far writes to a table can go after a run, measured from the run's time with
+ * PartitionRunway: the exclusive end of the unbroken run of attached partitions that starts with
+ * the partition holding that time, or null when no partition holds it. A write keyed at or after
+ * it can fail with PartitionMissing, because a gap ends the run.
  */
 #[Experimental]
 final readonly class TableRunway

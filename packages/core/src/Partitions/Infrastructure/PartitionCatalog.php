@@ -12,7 +12,8 @@ use Cbox\Cms\Core\Partitions\Domain\UnmanageableTable;
 use Illuminate\Database\Connection;
 
 /**
- * What the partition manager reads from the Postgres catalog, on the owner connection.
+ * What the partition manager reads from the Postgres catalog, on the owner connection, and the
+ * doctor on its own connection as the app role.
  */
 #[Internal]
 final readonly class PartitionCatalog
@@ -66,7 +67,7 @@ final readonly class PartitionCatalog
         ));
 
         if ($rows === []) {
-            throw UnmanageableTable::missing($table->name);
+            throw UnmanageableTable::missing($table->name, $this->connectionName());
         }
 
         $row = $rows[0];
@@ -198,6 +199,15 @@ final readonly class PartitionCatalog
 
             usleep(self::POLL_MICROSECONDS);
         }
+    }
+
+    /**
+     * The connection's name in config/database.php. A connection made without the database
+     * manager has none.
+     */
+    private function connectionName(): string
+    {
+        return $this->connection->getName() ?? 'without a name';
     }
 
     private function stillLocked(CatalogTable $table, string $lockers): bool

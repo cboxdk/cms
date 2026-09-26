@@ -117,16 +117,40 @@ trait PartitionMaintenanceBehaviour
     {
         $maintenance = $this->partitionMaintenance($this->policy([$this->dailyTable(retentionDays: 1)]));
 
-        $report = $maintenance->cover($this->range('2026-01-01T12:00:00Z', '2026-01-03T00:00:00Z'));
+        $now = new DateTimeImmutable('2026-01-01T12:00:00Z');
+
+        $report = $maintenance->cover($this->range('2026-01-01T12:00:00Z', '2026-01-03T00:00:00Z'), $now);
 
         Assert::assertSame($this->changes('created', $this->daily('2026-01-01', 3)), $this->describe($report));
         Assert::assertSame('2026-01-04T00:00:00+00:00', $report->runways[0]->coveredUntil?->format(DATE_ATOM));
 
-        $later = $maintenance->cover($this->range('2026-06-01T00:00:00Z', '2026-06-01T00:00:00Z'));
+        $later = $maintenance->cover($this->range('2026-06-01T00:00:00Z', '2026-06-01T00:00:00Z'), $now);
 
         Assert::assertSame($this->changes('created', ['partition_scratch_p20260601']), $this->describe($later));
+        Assert::assertSame('2026-01-04T00:00:00+00:00', $later->runways[0]->coveredUntil?->format(DATE_ATOM));
         Assert::assertSame([...$this->daily('2026-01-01', 3), 'partition_scratch_p20260601'], $this->partitionsOf(self::UUID_TABLE));
-        Assert::assertSame([], $maintenance->cover($this->range('2026-01-02T00:00:00Z', '2026-01-02T23:59:59Z'))->changes);
+        Assert::assertSame([], $maintenance->cover($this->range('2026-01-02T00:00:00Z', '2026-01-02T23:59:59Z'), $now)->changes);
+    }
+
+    #[Test]
+    public function the_report_measures_the_runway_from_now_to_the_first_gap_not_to_the_last_partition(): void
+    {
+        $maintenance = $this->partitionMaintenance($this->policy([$this->dailyTable()]));
+        $now = new DateTimeImmutable('2026-01-01T06:00:00Z');
+
+        $ahead = $maintenance->cover($this->range('2026-01-05T00:00:00Z', '2026-01-06T00:00:00Z'), $now);
+
+        Assert::assertNull($ahead->runways[0]->coveredUntil);
+
+        $before = $maintenance->cover($this->range('2026-01-01T00:00:00Z', '2026-01-02T00:00:00Z'), $now);
+
+        Assert::assertSame('2026-01-03T00:00:00+00:00', $before->runways[0]->coveredUntil?->format(DATE_ATOM));
+
+        $gapClosed = $maintenance->cover($this->range('2026-01-03T00:00:00Z', '2026-01-04T00:00:00Z'), $now);
+
+        Assert::assertSame('2026-01-07T00:00:00+00:00', $gapClosed->runways[0]->coveredUntil?->format(DATE_ATOM));
+        Assert::assertSame('2026-01-07T00:00:00+00:00', $maintenance->cover($this->range('2026-02-01T00:00:00Z', '2026-02-01T00:00:00Z'), $now)->runways[0]->coveredUntil?->format(DATE_ATOM));
+        Assert::assertNull($maintenance->cover($this->range('2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'), new DateTimeImmutable('2025-12-31T23:59:59Z'))->runways[0]->coveredUntil);
     }
 
     #[Test]
@@ -140,7 +164,7 @@ trait PartitionMaintenanceBehaviour
         $refused = $this->thrown(static fn (): PartitionReport => $maintenance->cover(new PartitionRange(
             new DateTimeImmutable('2020-01-01T00:00:00Z'),
             new DateTimeImmutable('2023-01-01T00:00:00Z'),
-        )));
+        ), new DateTimeImmutable('2020-01-01T00:00:00Z')));
 
         Assert::assertInstanceOf(InvalidPartitionPolicy::class, $refused);
         Assert::assertStringContainsString('needs more than '.PartitionedTable::MAX_PARTITIONS_PER_CALL.' partitions of table "'.self::UUID_TABLE.'"', $refused->getMessage());
@@ -152,7 +176,7 @@ trait PartitionMaintenanceBehaviour
     public function maintain_detaches_and_drops_the_partitions_past_retention_one_at_a_time(): void
     {
         $maintenance = $this->partitionMaintenance($this->policy([$this->dailyTable(retentionDays: 7)], runwayDays: 1));
-        $maintenance->cover($this->range('2026-01-01T00:00:00Z', '2026-01-14T00:00:00Z'));
+        $maintenance->cover($this->range('2026-01-01T00:00:00Z', '2026-01-14T00:00:00Z'), new DateTimeImmutable('2026-01-01T00:00:00Z'));
 
         // At 2026-01-20 with 7 days of retention, a partition has expired when its span ended at
         // 2026-01-13 or before: 2026-01-12 has, 2026-01-13 has not.
@@ -173,7 +197,7 @@ trait PartitionMaintenanceBehaviour
     public function a_table_without_retention_keeps_every_partition(): void
     {
         $maintenance = $this->partitionMaintenance($this->policy([$this->dailyTable()], runwayDays: 1));
-        $maintenance->cover($this->range('2020-01-01T00:00:00Z', '2020-01-01T00:00:00Z'));
+        $maintenance->cover($this->range('2020-01-01T00:00:00Z', '2020-01-01T00:00:00Z'), new DateTimeImmutable('2020-01-01T00:00:00Z'));
 
         $report = $maintenance->maintain(new DateTimeImmutable('2026-01-20T00:00:00Z'));
 
@@ -190,7 +214,7 @@ trait PartitionMaintenanceBehaviour
 
         try {
             $timeout = $this->thrown(static fn (): PartitionReport => $maintenance->maintain($now));
-            $coverTimeout = $this->thrown(fn (): PartitionReport => $maintenance->cover($this->range('2025-12-01T00:00:00Z', '2025-12-01T00:00:00Z')));
+            $coverTimeout = $this->thrown(fn (): PartitionReport => $maintenance->cover($this->range('2025-12-01T00:00:00Z', '2025-12-01T00:00:00Z'), $now));
         } finally {
             $this->releaseRunLock();
         }
@@ -234,7 +258,7 @@ trait PartitionMaintenanceBehaviour
     public function a_busy_table_makes_the_run_give_up_before_a_detach_and_leaves_the_partition_attached(): void
     {
         $maintenance = $this->partitionMaintenance($this->policy([$this->dailyTable(retentionDays: 1)], runwayDays: 1, attempts: 2));
-        $maintenance->cover($this->range('2026-01-01T00:00:00Z', '2026-01-11T00:00:00Z'));
+        $maintenance->cover($this->range('2026-01-01T00:00:00Z', '2026-01-11T00:00:00Z'), new DateTimeImmutable('2026-01-01T00:00:00Z'));
         $now = new DateTimeImmutable('2026-01-10T12:00:00Z');
         $this->lockTable(self::UUID_TABLE);
 

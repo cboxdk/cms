@@ -16,6 +16,7 @@ use Cbox\Cms\Core\Partitions\Domain\PartitionChangeKind;
 use Cbox\Cms\Core\Partitions\Domain\PartitionedTable;
 use Cbox\Cms\Core\Partitions\Domain\PartitionMaintenance;
 use Cbox\Cms\Core\Partitions\Domain\PartitionPolicy;
+use Cbox\Cms\Core\Partitions\Domain\PartitionRunway;
 use Closure;
 use DateTimeImmutable;
 use Override;
@@ -62,20 +63,20 @@ final class FakePartitionMaintenance implements PartitionMaintenance
     {
         $until = $now->modify(sprintf('+%d days', $this->policy->runwayDays));
 
-        return $this->run(function (PartitionedTable $table) use ($now, $until): void {
+        return $this->run($now, function (PartitionedTable $table) use ($now, $until): void {
             $this->create($table, $table->partitionsCovering($now, $until));
             $this->retire($table, $now);
         });
     }
 
     #[Override]
-    public function cover(PartitionRange $range): PartitionReport
+    public function cover(PartitionRange $range, DateTimeImmutable $now): PartitionReport
     {
         foreach ($this->policy->tables as $table) {
             $table->partitionsCovering($range->from, $range->to);
         }
 
-        return $this->run(function (PartitionedTable $table) use ($range): void {
+        return $this->run($now, function (PartitionedTable $table) use ($range): void {
             $this->create($table, $table->partitionsCovering($range->from, $range->to));
         });
     }
@@ -123,7 +124,7 @@ final class FakePartitionMaintenance implements PartitionMaintenance
     /**
      * @param  Closure(PartitionedTable): void  $work
      */
-    private function run(Closure $work): PartitionReport
+    private function run(DateTimeImmutable $now, Closure $work): PartitionReport
     {
         if ($this->policy->ownerConnection === $this->appConnection) {
             throw OwnerConnectionRequired::appConnection($this->policy->ownerConnection);
@@ -142,7 +143,7 @@ final class FakePartitionMaintenance implements PartitionMaintenance
         return new PartitionReport(
             role: $this->role,
             changes: $this->changes,
-            runways: array_map($this->runway(...), $this->policy->tables),
+            runways: array_map(fn (PartitionedTable $table): TableRunway => $this->runway($table, $now), $this->policy->tables),
         );
     }
 
@@ -184,11 +185,9 @@ final class FakePartitionMaintenance implements PartitionMaintenance
         }
     }
 
-    private function runway(PartitionedTable $table): TableRunway
+    private function runway(PartitionedTable $table, DateTimeImmutable $now): TableRunway
     {
-        $ends = array_map(static fn (Partition $partition): DateTimeImmutable => $partition->end, $this->attached[$table->name] ?? []);
-
-        return new TableRunway($table->name, $ends === [] ? null : max($ends));
+        return new TableRunway($table->name, PartitionRunway::end($table, array_values($this->attached[$table->name] ?? []), $now));
     }
 
     private function gaveUp(DdlStep $step, ?string $table, ?string $partition): LockTimeout

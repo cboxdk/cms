@@ -32,10 +32,11 @@ final readonly class MaintainPartitions
     }
 
     /**
-     * Creates the partitions that cover the range and removes nothing.
+     * Creates the partitions that cover the range and removes nothing. The report's runway is
+     * measured from the Clock's time, whatever the range.
      */
     public function cover(PartitionRange $range): PartitionReport
     {
-        return $this->partitions->cover($range);
+        return $this->partitions->cover($range, $this->clock->now());
     }
 }

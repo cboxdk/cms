@@ -13,11 +13,15 @@ use LogicException;
 #[Experimental]
 final class UnmanageableTable extends LogicException
 {
-    public static function missing(string $table): self
+    /**
+     * @param  string  $connection  the connection that read the catalog: the owner connection for the partition manager, the doctor's for the doctor
+     */
+    public static function missing(string $table, string $connection): self
     {
         return new self(sprintf(
-            'The table "%s" is listed in [cms.database.partitions.tables] but does not exist in the owner connection\'s search path. Run the migrations first.',
+            'The table "%s" is listed in [cms.database.partitions.tables] but does not exist in the search path of the connection [%s]. Run the migrations first.',
             $table,
+            $connection,
         ));
     }
 

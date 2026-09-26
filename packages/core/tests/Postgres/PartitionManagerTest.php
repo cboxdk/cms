@@ -13,7 +13,11 @@ use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionRange;
 use Cbox\Cms\Core\Partitions\Domain\LockTimeout;
 use Cbox\Cms\Core\Partitions\Domain\OwnerConnectionRequired;
 use Cbox\Cms\Core\Partitions\Domain\PartitionChangeKind;
+use Cbox\Cms\Core\Partitions\Domain\PartitionedTable;
+use Cbox\Cms\Core\Partitions\Domain\PartitionInterval;
+use Cbox\Cms\Core\Partitions\Domain\PartitionKey;
 use Cbox\Cms\Core\Partitions\Domain\UnmanageableTable;
+use Cbox\Cms\Core\Partitions\Infrastructure\PartitionCatalog;
 use Cbox\Cms\Core\Partitions\Infrastructure\PostgresPartitionManager;
 use Cbox\Cms\Testkit\Postgres\ChildProcess;
 use Cbox\Cms\Testkit\Postgres\ChildProcesses;
@@ -492,4 +496,17 @@ it('refuses a table that is missing, not partitioned by range, or has a DEFAULT 
             ->and($refused->getMessage())->toContain($message)
             ->and(PartitionScratch::treeCount(PartitionScratch::UUID_TABLE))->toBe(1);
     }
+});
+
+it('names the connection that read the catalog when a managed table is missing', function (): void {
+    $missing = new PartitionedTable('partition_scratch_nowhere', PartitionKey::Timestamp, PartitionInterval::Day, null);
+
+    $asApp = thrownBy(static fn (): mixed => new PartitionCatalog(PartitionScratch::app())->table($missing));
+    $asOwner = thrownBy(static fn (): mixed => new PartitionCatalog(PartitionScratch::owner())->table($missing));
+
+    expect(PartitionScratch::app()->getName())->toBe('pgsql')
+        ->and($asApp)->toBeInstanceOf(UnmanageableTable::class)
+        ->and($asApp->getMessage())->toBe('The table "partition_scratch_nowhere" is listed in [cms.database.partitions.tables] but does not exist in the search path of the connection [pgsql]. Run the migrations first.')
+        ->and($asOwner)->toBeInstanceOf(UnmanageableTable::class)
+        ->and($asOwner->getMessage())->toContain('the search path of the connection [pgsql_owner].');
 });
