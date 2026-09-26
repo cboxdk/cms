@@ -19,9 +19,10 @@ use UnexpectedValueException;
 /*
  * Every gate tool that keeps a cache or other state between runs keeps it in this checkout, in
  * the git-ignored .cache/ with a directory per tool, so parallel worktrees never share it. PHPStan,
- * Rector and Pint default to the shared system temp directory; the root configuration moves them.
- * PHPUnit's cache directory was in the checkout already. tsc, ESLint and Prettier keep no cache
- * with the flags the gates run them with.
+ * Rector and Pint default to the shared system temp directory; the root configuration moves them,
+ * and Pint, whose compiled views pint.json cannot move, runs through tools/bin/pint.php with the
+ * temp directory in .cache/pint/tmp. PHPUnit's cache directory was in the checkout already. tsc,
+ * ESLint and Prettier keep no cache with the flags the gates run them with.
  */
 
 afterEach(function (): void {
@@ -116,16 +117,55 @@ function toolCacheLocations(): array
 }
 
 /**
- * Runs a command from the repository root with the system temp directory pointed at an empty
- * scratch directory, and returns what the command left there, relative to it.
+ * Where tools/bin/pint.php points Pint's temp directory, relative to the repository root.
+ */
+const PINT_TEMP = TOOL_CACHE.'/pint/tmp';
+
+/**
+ * The environment of a terminal or a CI job, with the system temp directory at $temporary: every
+ * inherited variable removed but those PHP needs to start as it does here. Tools write differently
+ * under a coding agent: Pint finds one by variables such as CLAUDECODE and AI_AGENT
+ * (laravel/agent-detector) and then prints JSON instead of rendering its summary views, so under an
+ * agent it left nothing in the temp directory while in CI it did.
+ *
+ * @return array<string, string|false>
+ */
+function terminalEnvironment(string $temporary): array
+{
+    $environment = [];
+
+    foreach ([...array_keys(getenv()), ...array_keys($_ENV), ...array_keys($_SERVER)] as $name) {
+        if (is_string($name)) {
+            $environment[$name] = false;
+        }
+    }
+
+    foreach (['PATH', 'HOME', 'PHP_INI_SCAN_DIR', 'XDEBUG_MODE'] as $name) {
+        $value = getenv($name);
+
+        if (is_string($value)) {
+            $environment[$name] = $value;
+        }
+    }
+
+    return ['TMPDIR' => $temporary] + $environment;
+}
+
+/**
+ * Runs a command from the repository root in a terminal's environment with the system temp
+ * directory pointed at an empty scratch directory, and returns what the command left there,
+ * relative to it. $output receives what the command printed.
  *
  * @param  list<string>  $command
+ *
+ * @param-out  string  $output
+ *
  * @return list<string>
  */
-function leftInSystemTemp(array $command): array
+function leftInSystemTemp(array $command, ?string &$output = null): array
 {
     $temporary = ScratchDirectory::make('cbox-cms-tool-temp-');
-    $environment = ['TMPDIR' => $temporary];
+    $environment = terminalEnvironment($temporary);
 
     // PHP's sys_temp_dir setting would win over TMPDIR and make this test pass without looking.
     $probe = new Process([PHP_BINARY, '-r', 'echo realpath(sys_get_temp_dir());'], toolCacheRoot(), $environment);
@@ -141,6 +181,8 @@ function leftInSystemTemp(array $command): array
     if (! $process->isSuccessful()) {
         throw new RuntimeException(implode(' ', $command)." failed:\n".$process->getOutput().$process->getErrorOutput());
     }
+
+    $output = $process->getOutput();
 
     $left = [];
 
@@ -226,11 +268,26 @@ it('leaves nothing in the system temp directory when Rector runs', function (): 
         ->and(glob(toolCacheRoot().'/'.TOOL_CACHE.'/rector/container/*') ?: [])->not->toBeEmpty();
 });
 
-it('leaves nothing in the system temp directory when Pint runs', function (): void {
-    $left = leftInSystemTemp([PHP_BINARY, 'vendor/bin/pint', '--test', toolCacheProbe()]);
+it('leaves nothing in the system temp directory when Pint runs as the lint scripts run it', function (): void {
+    $left = leftInSystemTemp([PHP_BINARY, 'tools/bin/pint.php', '--test', toolCacheProbe()], $output);
 
-    expect($left)->toBe([])
-        ->and(pintCacheFile())->toBeFile();
+    // Pint rendered its summary views, as in a terminal and not as under an agent, and compiled
+    // them below .cache/pint. Laravel rewrites a compiled view only when it changes, so its time
+    // says nothing about this run.
+    expect($output)->toContain('PASS')
+        ->and($output)->not->toContain('"tool":"pint"')
+        ->and($left)->toBe([])
+        ->and(pintCacheFile())->toBeFile()
+        ->and(glob(toolCacheRoot().'/'.PINT_TEMP.'/*.php') ?: [])->not->toBeEmpty();
+});
+
+it('runs Pint through tools/bin/pint.php in the lint scripts', function (): void {
+    $composer = json_decode((string) file_get_contents(toolCacheRoot().'/composer.json'), true, 512, JSON_THROW_ON_ERROR);
+    $scripts = is_array($composer) && is_array($composer['scripts'] ?? null) ? $composer['scripts'] : [];
+
+    expect($scripts['lint'] ?? null)->toBe('@php tools/bin/pint.php')
+        ->and($scripts['lint:check'] ?? null)->toBe('@php tools/bin/pint.php --test')
+        ->and(dirname(toolCacheRoot().'/'.PINT_TEMP))->toBe(dirname(pintCacheFile()));
 });
 
 it('runs tsc, ESLint and Prettier without a cache, so they keep no state to share', function (): void {

@@ -92,7 +92,7 @@ it('uses scripts that exist and run the gate commands in composer.json and packa
     $npmScripts = Node::jsonFile('package.json')['scripts'] ?? null;
 
     expect($scripts)->toHaveKeys(['lint:check', 'rector:check', 'analyse', 'check:generated'])
-        ->and($scripts['lint:check'] ?? null)->toBe('@php vendor/bin/pint --test')
+        ->and($scripts['lint:check'] ?? null)->toBe('@php tools/bin/pint.php --test')
         ->and($scripts['rector:check'] ?? null)->toBe('@php vendor/bin/rector process --dry-run')
         ->and($scripts['analyse'] ?? null)->toBe('@php vendor/bin/phpstan analyse --no-progress')
         ->and($npmScripts)->toBeArray()

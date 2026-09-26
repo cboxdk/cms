@@ -132,8 +132,8 @@ it('fails the analysis on a method call on mixed, and passes once the value is n
 it('exposes gates 1 to 3 as composer scripts', function (): void {
     expect(rootComposer()['scripts'] ?? null)->toBeArray()
         ->toMatchArray([
-            'lint' => '@php vendor/bin/pint',
-            'lint:check' => '@php vendor/bin/pint --test',
+            'lint' => '@php tools/bin/pint.php',
+            'lint:check' => '@php tools/bin/pint.php --test',
             'rector:check' => '@php vendor/bin/rector process --dry-run',
             'analyse' => '@php vendor/bin/phpstan analyse --no-progress',
         ]);

@@ -80,8 +80,8 @@
             "@php vendor/bin/testbench cms:partitions:maintain --ansi",
             "@php vendor/bin/testbench cms:build --ansi"
         ],
-        "lint": "@php vendor/bin/pint",
-        "lint:check": "@php vendor/bin/pint --test",
+        "lint": "@php tools/bin/pint.php",
+        "lint:check": "@php tools/bin/pint.php --test",
         "rector": "@php vendor/bin/rector process",
         "rector:check": "@php vendor/bin/rector process --dry-run",
         "analyse": "@php vendor/bin/phpstan analyse --no-progress",

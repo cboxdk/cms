@@ -195,7 +195,7 @@ it('generates code for a larger schema that Pint, Rector, PHPStan, tsc, ESLint a
     $phpFile = $directory.'/TypeHandle.php';
     file_put_contents($phpFile, $php);
 
-    $pint = new Process([Phpstan::root().'/vendor/bin/pint', '--test', '--config='.Phpstan::root().'/pint.json', $phpFile], Phpstan::root());
+    $pint = new Process([PHP_BINARY, Phpstan::root().'/tools/bin/pint.php', '--test', '--config='.Phpstan::root().'/pint.json', $phpFile], Phpstan::root());
     $pint->run();
     $rector = new Process([Phpstan::root().'/vendor/bin/rector', 'process', '--dry-run', '--no-progress-bar', $phpFile], Phpstan::root());
     $rector->run();
