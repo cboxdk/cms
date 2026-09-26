@@ -7,6 +7,11 @@ includes:
     - vendor/cboxdk/cms-testkit/config/phpstan.neon
 
 parameters:
+    # PHPStan's result cache, its container cache and Larastan's migration cache stay in this
+    # checkout, never in the shared system temp directory, so parallel worktrees keep their own.
+    # PHPStan resolves the path against this file's directory; .cache/ is git-ignored.
+    tmpDir: .cache/phpstan
+
     paths:
         - packages/cli/src
         - packages/cli/tests

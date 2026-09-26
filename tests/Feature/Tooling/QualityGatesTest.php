@@ -68,7 +68,7 @@ it('uses the shared configuration from the testkit for all three tools', functio
     $pint = json_decode((string) file_get_contents(Phpstan::root().'/pint.json'), true, 512, JSON_THROW_ON_ERROR);
 
     expect($parameters->strings('bootstrapFiles'))->toContain(Phpstan::root().'/vendor/larastan/larastan/bootstrap.php')
-        ->and($pint)->toBe(['extend' => 'vendor/cboxdk/cms-testkit/config/pint.json'])
+        ->and($pint)->toBe(['extend' => 'vendor/cboxdk/cms-testkit/config/pint.json', 'cache-file' => '.cache/pint/pint.cache'])
         ->and((string) file_get_contents(Phpstan::root().'/rector.php'))
         ->toContain("require __DIR__.'/vendor/cboxdk/cms-testkit/config/rector.php'");
 });

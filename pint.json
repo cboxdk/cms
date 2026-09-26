@@ -1,3 +1,4 @@
 {
-    "extend": "vendor/cboxdk/cms-testkit/config/pint.json"
+    "extend": "vendor/cboxdk/cms-testkit/config/pint.json",
+    "cache-file": ".cache/pint/pint.cache"
 }
