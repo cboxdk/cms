@@ -28,21 +28,28 @@ use UnexpectedValueException;
  * point into the worktree), and asserts that vendor/cboxdk/* resolves inside the worktree. It
  * plants the violations from Plants, runs `composer check` in the worktree with a report file,
  * and asserts that each violation made the right step fail with a path inside the worktree.
- * Finally it removes the worktree and its temporary directory, also after an error or Ctrl-C,
- * and asserts that git no longer lists the worktree.
+ * Finally it drops the worktree's own Postgres test database, which the Postgres suite in the
+ * worktree created (cms_test_<hash of the worktree's path>), removes the worktree and its
+ * temporary directory, also after an error or Ctrl-C, and asserts that git no longer lists the
+ * worktree. So a run leaves no worktree and no database behind.
  */
 final readonly class GateSelftest
 {
     public const string PREFIX = 'cbox-cms-selftest-';
 
+    /** The script that drops a checkout's test database, relative to the repository. */
+    public const string DROP_DATABASE = 'tools/bin/drop-test-database.php';
+
     /**
      * @param  list<string>  $composer  the command that runs Composer
      * @param  resource  $stream
+     * @param  string  $php  the PHP binary that runs the repository's tool scripts
      */
     public function __construct(
         private ProcessRunner $processes,
         private array $composer,
         private mixed $stream,
+        private string $php = PHP_BINARY,
     ) {}
 
     public function run(string $repository): int
@@ -194,14 +201,17 @@ final readonly class GateSelftest
     }
 
     /**
-     * Removes the worktree, prunes git's record of it and deletes the temporary directory, then
-     * checks that git lists the worktree no more and the directory is gone.
+     * Drops the worktree's test database, removes the worktree, prunes git's record of it and
+     * deletes the temporary directory, then checks that git lists the worktree no more and the
+     * directory is gone.
      */
     private function removeWorktree(string $repository, string $worktree, string $base): bool
     {
         $this->ignoreSignals();
+        $dropped = true;
 
         if (is_dir($worktree)) {
+            $dropped = $this->dropDatabase($repository, $worktree);
             $this->processes->run(['git', 'worktree', 'remove', '--force', $worktree], $repository);
         }
 
@@ -233,6 +243,24 @@ final readonly class GateSelftest
         }
 
         $this->write("{$base} is removed.\n");
+
+        return $dropped;
+    }
+
+    /**
+     * Drops the Postgres test database that the worktree's suites created, as the owner role. It
+     * runs while the worktree still exists, because the name is derived from its real path.
+     */
+    private function dropDatabase(string $repository, string $worktree): bool
+    {
+        $outcome = $this->processes->run([$this->php, $repository.'/'.self::DROP_DATABASE, $worktree], $repository);
+        $this->write("\n".rtrim($outcome->output)."\n");
+
+        if (! $outcome->succeeded()) {
+            $this->write('Could not drop the test database of the worktree; exit code '.($outcome->exitCode ?? 'none').".\n");
+
+            return false;
+        }
 
         return true;
     }

@@ -38,6 +38,11 @@ final class FakeSelftestWorld
 
     public bool $checkRanInWorktree = false;
 
+    public int $dropExitCode = 0;
+
+    /** @var list<string> the worktrees whose test database was dropped while they still existed */
+    public array $droppedWhileExisting = [];
+
     /**
      * @param  list<string>  $command
      */
@@ -48,6 +53,7 @@ final class FakeSelftestWorld
             array_slice($command, 0, 3) === ['git', 'worktree', 'add'] => $this->addWorktree($command[4]),
             array_slice($command, 0, 2) === ['composer', 'check'] => $this->check($command, $directory),
             array_slice($command, 0, 3) === ['git', 'worktree', 'remove'] => $this->removeWorktree($command[4]),
+            array_slice($command, 0, 2) === ['php', '/srv/main/'.GateSelftest::DROP_DATABASE] => $this->drop($command[2]),
             $command === ['git', 'worktree', 'list', '--porcelain'] => new ProcessOutcome(0, "worktree /srv/main\nHEAD 0123abc\n\n".($this->stillListed ? "worktree {$this->worktree}\n" : ''), 0.0),
             default => new ProcessOutcome(0, '', 0.1),
         };
@@ -96,6 +102,17 @@ final class FakeSelftestWorld
         return new ProcessOutcome($this->checkExitCode, "Gate 1  Pint and Prettier\n", 1.0);
     }
 
+    private function drop(string $worktree): ProcessOutcome
+    {
+        if (is_dir($worktree)) {
+            $this->droppedWhileExisting[] = $worktree;
+        }
+
+        return $this->dropExitCode === 0
+            ? new ProcessOutcome(0, "Dropped the test database cms_test_0123456789ab of {$worktree}.\n", 0.1)
+            : new ProcessOutcome($this->dropExitCode, "The owner role cms_owner has no CREATEDB.\n", 0.1);
+    }
+
     private function removeWorktree(string $path): ProcessOutcome
     {
         ScratchDirectory::delete($path);
@@ -111,7 +128,7 @@ function runSelftest(FakeSelftestWorld $world): array
 {
     $runner = new ScriptedProcessRunner($world->outcome(...));
     $stream = fopen('php://memory', 'w+') ?: throw new RuntimeException('No memory stream.');
-    $exitCode = new GateSelftest($runner, ['composer'], $stream)->run('/srv/main');
+    $exitCode = new GateSelftest($runner, ['composer'], $stream, 'php')->run('/srv/main');
     rewind($stream);
 
     return ['exitCode' => $exitCode, 'output' => (string) stream_get_contents($stream), 'runner' => $runner];
@@ -142,7 +159,15 @@ it('installs a worktree of HEAD in the temporary directory, runs composer check 
         ->and($commands[2])->toBe('composer install --no-interaction --no-progress')
         ->and($commands[3])->toBe('npm ci --no-audit --no-fund')
         ->and($commands[4])->toBe("composer check -- --report={$base}/check-report.json --brief")
-        ->and(array_slice($commands, 5))->toBe(["git worktree remove --force {$worktree}", 'git worktree prune', 'git worktree list --porcelain'])
+        ->and(array_slice($commands, 5))->toBe([
+            'php /srv/main/tools/bin/drop-test-database.php '.$worktree,
+            "git worktree remove --force {$worktree}",
+            'git worktree prune',
+            'git worktree list --porcelain',
+        ])
+        ->and($runner->calls[5]->directory)->toBe('/srv/main')
+        ->and($world->droppedWhileExisting)->toBe([$worktree])
+        ->and($output)->toContain("Dropped the test database cms_test_0123456789ab of {$worktree}.")
         ->and($runner->calls[2]->directory)->toBe($worktree)
         ->and($runner->calls[3]->environment)->toHaveKey('PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD')
         ->and($world->checkRanInWorktree)->toBeTrue()
@@ -161,6 +186,7 @@ it('stops before planting when vendor/cboxdk resolves outside the worktree, and 
     expect($exitCode)->toBe(1)
         ->and($output)->toContain('(OUTSIDE the worktree)', 'vendor/cboxdk/cms-core resolves to', 'Selftest failed.')
         ->and(implode("\n", $runner->commandLines()))->not->toContain('composer check')
+        ->and($world->droppedWhileExisting)->toBe([selftestBase($world).'/laravel-cms'])
         ->and(file_exists(selftestBase($world)))->toBeFalse();
 });
 
@@ -177,14 +203,31 @@ it('fails when a gate misses its planted violation, and prints that step\'s outp
         ->and(file_exists(selftestBase($world)))->toBeFalse();
 });
 
-it('fails when composer check passes with the violations planted', function (): void {
+it('fails when composer check passes with the violations planted, and still drops the worktree\'s test database', function (): void {
     $world = new FakeSelftestWorld;
     $world->checkExitCode = 0;
+
+    ['exitCode' => $exitCode, 'output' => $output, 'runner' => $runner] = runSelftest($world);
+    $worktree = selftestBase($world).'/laravel-cms';
+
+    expect($exitCode)->toBe(1)
+        ->and($output)->toContain('composer check passed with the violations planted.', 'Selftest failed.')
+        ->and($runner->commandLines())->toContain('php /srv/main/tools/bin/drop-test-database.php '.$worktree)
+        ->and($world->droppedWhileExisting)->toBe([$worktree])
+        ->and($output)->toContain("Dropped the test database cms_test_0123456789ab of {$worktree}.");
+});
+
+it('fails when the worktree\'s test database cannot be dropped, and still removes the worktree', function (): void {
+    $world = new FakeSelftestWorld;
+    $world->dropExitCode = 1;
 
     ['exitCode' => $exitCode, 'output' => $output] = runSelftest($world);
 
     expect($exitCode)->toBe(1)
-        ->and($output)->toContain('composer check passed with the violations planted.', 'Selftest failed.');
+        ->and(substr_count($output, '  caught '))->toBe(count(Plants::all()))
+        ->and($output)->toContain('The owner role cms_owner has no CREATEDB.', 'Could not drop the test database of the worktree; exit code 1.', 'Selftest failed.')
+        ->and($output)->not->toContain('Selftest passed')
+        ->and(file_exists(selftestBase($world)))->toBeFalse();
 });
 
 it('fails when git still lists the worktree after the clean-up', function (): void {
@@ -205,10 +248,11 @@ it('removes the temporary directory when a step before the worktree fails', func
     $stream = fopen('php://memory', 'w+') ?: throw new RuntimeException('No memory stream.');
     $before = glob(realpath(sys_get_temp_dir()).'/'.GateSelftest::PREFIX.'*') ?: [];
 
-    $exitCode = new GateSelftest($runner, ['composer'], $stream)->run('/srv/main');
+    $exitCode = new GateSelftest($runner, ['composer'], $stream, 'php')->run('/srv/main');
     rewind($stream);
 
     expect($exitCode)->toBe(1)
+        ->and(implode("\n", $runner->commandLines()))->not->toContain('drop-test-database')
         ->and((string) stream_get_contents($stream))->toContain('git rev-parse HEAD failed with exit code 128', 'fatal: not a git repository')
         ->and(glob(realpath(sys_get_temp_dir()).'/'.GateSelftest::PREFIX.'*') ?: [])->toBe($before);
 });

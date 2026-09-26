@@ -69,7 +69,8 @@
         "test": "@php vendor/bin/pest",
         "services:up": [
             "Composer\\Config::disableProcessTimeout",
-            "export CMS_UID=\"$(id -u)\" CMS_GID=\"$(id -g)\" && docker compose up -d --wait"
+            "export CMS_UID=\"$(id -u)\" CMS_GID=\"$(id -g)\" && docker compose up -d --wait",
+            "docker compose exec -T postgres /docker-entrypoint-initdb.d/10-cms.sh"
         ],
         "services:down": "docker compose down",
         "lint": "@php vendor/bin/pint",
@@ -112,7 +113,7 @@
         "clear": "Reset the Testbench application skeleton in vendor/.",
         "prepare": "Discover the packages' service providers for the Testbench application.",
         "test": "Run the Pest suite for the monorepo and every package.",
-        "services:up": "Start PHP 8.5 as the host user, Postgres 18 and Valkey 8 from compose.yaml and wait until they are healthy. Exports CMS_UID and CMS_GID from id -u and id -g for the php container.",
+        "services:up": "Start PHP 8.5 as the host user, Postgres 18 and Valkey 8 from compose.yaml and wait until they are healthy, then run the idempotent init script again, so an existing data volume gets the current roles and databases. Exports CMS_UID and CMS_GID from id -u and id -g for the php container.",
         "services:down": "Stop the services from compose.yaml. The data volumes are kept.",
         "lint": "Format the PHP code with Pint and the shared configuration from the testkit.",
         "lint:check": "Gate 1: fail if Pint would change any file.",

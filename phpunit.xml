@@ -86,6 +86,9 @@
             compose sets DB_HOST, DB_PORT, REDIS_HOST and REDIS_PORT to the service names,
             and PHPUnit keeps a variable that is already set.
             Tests run as the app role (GUARDRAILS 6); pgsql_owner is the owner role.
+            DB_DATABASE is the configured database the harness connects to as the owner role; the
+            tests run in this checkout's own database, cms_test_<hash of the checkout's path>,
+            which the harness creates there (packages/testkit, TestDatabase).
         -->
         <env name="DB_CONNECTION" value="pgsql"/>
         <env name="DB_HOST" value="127.0.0.1"/>

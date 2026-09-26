@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Testkit\Tests\Harness;
 
+use Cbox\Cms\Testkit\Postgres\Boundary\CheckoutRoot;
 use Cbox\Cms\Testkit\Postgres\Boundary\ConnectionSettings;
 use Cbox\Cms\Testkit\Postgres\ServiceCheck;
+use Cbox\Cms\Testkit\Postgres\TestDatabaseName;
 use LogicException;
 
 /*
@@ -28,25 +30,29 @@ function unreachable(): ConnectionSettings
 
 it('fails within seconds when nothing listens, and points to composer services:up', function (): void {
     $started = hrtime(true);
-    $failure = ServiceCheck::probe(unreachable());
+    $failure = ServiceCheck::probe('cms_test_0123456789ab', unreachable());
     $seconds = (hrtime(true) - $started) / 1e9;
 
     expect($failure)->toBeString()
         ->toContain('The Postgres test service is not reachable at 127.0.0.1:1 (database cms_test, role cms_app, connection [pgsql]).')
+        ->toContain('The tests of this checkout run in the database cms_test_0123456789ab, which the harness creates on that server.')
         ->toContain('Reason: SQLSTATE[08006]')
         ->toContain('`composer services:up`')
         ->and($failure)->not->toContain('secret-password')
         ->and($seconds)->toBeLessThan(ServiceCheck::CONNECT_TIMEOUT_SECONDS + 1.0);
 });
 
-it('reads a pgsql connection from the configuration', function (): void {
+it('reads a pgsql connection from the configuration, which names the checkout\'s own test database', function (): void {
     $settings = ConnectionSettings::of('pgsql', config());
+    $database = TestDatabaseName::for('cms_test', CheckoutRoot::current());
 
     expect($settings->username)->toBe('cms_app')
-        ->and($settings->database)->toBe('cms_test')
+        ->and($settings->database)->toBe($database)
         ->and($settings->searchPath)->toBe('cms')
-        ->and($settings->dsn(2))->toEndWith(';dbname=cms_test;connect_timeout=2')
-        ->and(ConnectionSettings::of('pgsql_owner', config())->username)->toBe('cms_owner');
+        ->and($settings->dsn(2))->toEndWith(";dbname={$database};connect_timeout=2")
+        ->and($settings->withDatabase('cms_test')->dsn(2))->toEndWith(';dbname=cms_test;connect_timeout=2')
+        ->and(ConnectionSettings::of('pgsql_owner', config())->username)->toBe('cms_owner')
+        ->and(ConnectionSettings::of('pgsql_owner', config())->database)->toBe($database);
 });
 
 it('refuses a connection that is missing or not pgsql', function (string $connection, string $message): void {

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Cbox\Cms\Testkit\Postgres;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Testkit\Postgres\Boundary\CheckoutConnections;
+use Cbox\Cms\Testkit\Postgres\Boundary\CheckoutRoot;
 use Cbox\Cms\Testkit\Postgres\Boundary\ConnectionSettings;
 use Cbox\Cms\Testkit\Postgres\Infrastructure\OwnerTruncation;
 use Illuminate\Contracts\Config\Repository;
@@ -21,12 +23,14 @@ use PHPUnit\Framework\AssertionFailedError;
 /**
  * One Postgres test from set-up to tear-down (GUARDRAILS 9, real Postgres; PRD 4.2).
  *
- * Set-up fails fast when the services are down, builds the schema as the owner role once per
- * process, checks that no transaction wraps the test, and installs the nested transaction
- * guard. The test then runs as the app role on the default connection, and its commits are
- * real. Tear-down stops child processes, closes independent connections, rolls back what the
- * test left open, truncates every table as the owner role, disconnects every connection of the
- * application, and fails the test if the guard saw a nested transaction.
+ * Set-up checks that no transaction wraps the test, points every pgsql connection at the
+ * checkout's own test database (TestDatabase), provisions that database once per process and
+ * fails fast when the services are down or the owner role lacks CREATEDB, builds the schema as
+ * the owner role once per process, and installs the nested transaction guard. The test then
+ * runs as the app role on the default connection, and its commits are real. Tear-down stops
+ * child processes, closes independent connections, rolls back what the test left open,
+ * truncates every table as the owner role, disconnects every connection of the application,
+ * and fails the test if the guard saw a nested transaction.
  *
  * The disconnect is what frees the test's backends. The application's object graph has cycles,
  * so without it a connection's PDO lives until PHP's cycle collector runs, and a suite that
@@ -71,13 +75,6 @@ final readonly class PostgresHarness
         $config = $app->make(Repository::class);
         $database = $app->make(DatabaseManager::class);
 
-        ServiceCheck::ensureReachable(
-            ConnectionSettings::of($database->getDefaultConnection(), $config),
-            ConnectionSettings::of($ownerConnection, $config),
-        );
-
-        OwnerMigrations::ensure($app->make(Kernel::class), $ownerConnection);
-
         foreach ($database->getConnections() as $name => $connection) {
             if ($connection->transactionLevel() > 0) {
                 throw new AssertionFailedError(sprintf(
@@ -86,6 +83,23 @@ final readonly class PostgresHarness
                 ));
             }
         }
+
+        // Every pgsql connection reaches the checkout's own database; one opened before now is
+        // closed, so it reconnects there.
+        $root = CheckoutRoot::current();
+        CheckoutConnections::point($config, $root);
+
+        foreach (array_keys($database->getConnections()) as $name) {
+            $database->purge($name);
+        }
+
+        TestDatabase::ensure(
+            ConnectionSettings::of($ownerConnection, $config),
+            ConnectionSettings::of($database->getDefaultConnection(), $config),
+            $root,
+        );
+
+        OwnerMigrations::ensure($app->make(Kernel::class), $ownerConnection);
 
         $guard = new NestedTransactionGuard;
         $guard->install($app->make(Dispatcher::class));

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Tests;
 
+use Cbox\Cms\Testkit\Postgres\Boundary\CheckoutConnections;
+use Cbox\Cms\Testkit\Postgres\Boundary\CheckoutRoot;
+use Illuminate\Contracts\Config\Repository;
 use Orchestra\Testbench\Concerns\WithWorkbench;
 use Orchestra\Testbench\TestCase as Orchestra;
 use Override;
@@ -11,6 +14,11 @@ use Override;
 /**
  * Boots the workbench application from testbench.yaml with package discovery on,
  * so the packages load the same way they do in an installed application.
+ *
+ * Every suite runs against this checkout's own Postgres test database: before the first
+ * connection opens, every pgsql connection that names the configured database (DB_DATABASE,
+ * cms_test) is pointed at cms_test_<hash of the checkout's path>, so two checkouts never share
+ * rows. The Postgres suite's harness provisions and migrates it.
  */
 abstract class TestCase extends Orchestra
 {
@@ -24,4 +32,10 @@ abstract class TestCase extends Orchestra
      */
     #[Override]
     protected $enablesPackageDiscoveries = true;
+
+    #[Override]
+    protected function defineEnvironment($app): void
+    {
+        CheckoutConnections::point($app->make(Repository::class), CheckoutRoot::current());
+    }
 }

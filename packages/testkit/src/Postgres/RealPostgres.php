@@ -12,7 +12,9 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
  * Testbench calls setUpRealPostgres() after the application has booted and tearDownRealPostgres()
  * before it is destroyed. The work is in PostgresHarness. The default connection must be the
  * app role; the owner role's connection is `pgsql_owner` unless the test case overrides
- * postgresOwnerConnection().
+ * postgresOwnerConnection(). Both are pointed at the checkout's own test database, which the
+ * harness creates as the owner role when it is missing (TestDatabase), so the owner role needs
+ * CREATEDB.
  *
  *     pest()->extend(TestCase::class)->use(RealPostgres::class)->in('Postgres');
  */

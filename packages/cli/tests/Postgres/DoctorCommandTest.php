@@ -11,6 +11,7 @@ use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Tests\Doctor\DoctorSchema;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\Postgres\PartitionFixtures;
+use Cbox\Cms\Tests\Support\CheckoutDatabase;
 use Cbox\Cms\Tests\Support\Phpstan;
 use DateInterval;
 use DateTimeImmutable;
@@ -21,9 +22,10 @@ use UnexpectedValueException;
 
 /*
  * cms:doctor against the real services from compose.yaml (PRD 3.3, 4.2, 13.2): Postgres 18 as the
- * app role, Valkey, the partitions of cms_test, the registry cache and the Node toolchain. Some
- * tests run it in-process with a FakeClock; the others run vendor/bin/testbench cms:doctor as a
- * developer or a deploy script would, with the environment changed for the case.
+ * app role, Valkey, the partitions of this checkout's test database (cms_test_<hash of the
+ * checkout's path>), the registry cache and the Node toolchain. Some tests run it in-process with a
+ * FakeClock; the others run vendor/bin/testbench cms:doctor as a developer or a deploy script
+ * would, with the environment changed for the case and DB_DATABASE set to that database.
  */
 
 afterEach(function (): void {
@@ -93,6 +95,7 @@ function inProcessDoctor(array $options = []): array
  */
 function testbenchDoctor(array $options = [], array $environment = []): array
 {
+    $environment += ['DB_DATABASE' => CheckoutDatabase::name()];
     $process = new Process([PHP_BINARY, 'vendor/bin/testbench', 'cms:doctor', '--json', ...$options], Phpstan::root(), $environment, null, 120);
     $process->run();
 
@@ -167,7 +170,7 @@ it('passes every runtime check against the services, in-process', function (): v
         ->and(doctorStatuses($document))->toHaveCount(12)
         ->and(doctorCheck($document, 'postgres.transaction_timeout')['explanation'])->toBe('transaction_timeout is 5000 ms on the app role cms_app.')
         ->and(doctorCheck($document, 'postgres.lc_messages')['explanation'])->toBe('Messages are English: lc_messages is C for the role cms_app and C for the role cms_owner, and LC_MESSAGES of the PHP process is C.')
-        ->and(doctorCheck($document, 'postgres.ddl_privileges')['explanation'])->toBe('The app role cms_app owns nothing and cannot create objects in the database cms_test or its schemas.');
+        ->and(doctorCheck($document, 'postgres.ddl_privileges')['explanation'])->toBe('The app role cms_app owns nothing and cannot create objects in the database '.CheckoutDatabase::name().' or its schemas.');
 });
 
 it('fails transaction_timeout and DDL for a role without the timeout that owns the schema, with 78', function (): void {
@@ -187,7 +190,7 @@ it('fails transaction_timeout and DDL for a role without the timeout that owns t
         ->and($timeout['cause'])->toBe('transaction_timeout is 0 (off) for the role cms_owner; Postgres took the value from "default".')
         ->and($ddl['status'])->toBe('fail')
         ->and($ddl['cause'])->toContain('The role cms_owner: it owns ')
-        ->and($ddl['cause'])->toContain('it has CREATE on the database cms_test')
+        ->and($ddl['cause'])->toContain('it has CREATE on the database '.CheckoutDatabase::name())
         ->and($ddl['cause'])->toContain('it has CREATE on the schemas cms, public')
         ->and(doctorCheck($document, 'postgres.app_role')['status'])->toBe('pass');
 });

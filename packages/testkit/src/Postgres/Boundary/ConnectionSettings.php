@@ -6,6 +6,7 @@ namespace Cbox\Cms\Testkit\Postgres\Boundary;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Illuminate\Contracts\Config\Repository;
+use InvalidArgumentException;
 use LogicException;
 
 /**
@@ -54,6 +55,56 @@ final readonly class ConnectionSettings
     }
 
     /**
+     * The same connection to another database on the same server.
+     */
+    public function withDatabase(string $database): self
+    {
+        return new self($this->name, $this->host, $this->port, $database, $this->username, $this->password, $this->searchPath);
+    }
+
+    /**
+     * The settings as the payloads of the harness's child processes carry them.
+     *
+     * @return array{name: string, host: string, port: int, database: string, username: string, password: string, search_path: string}
+     */
+    public function toPayload(): array
+    {
+        return [
+            'name' => $this->name,
+            'host' => $this->host,
+            'port' => $this->port,
+            'database' => $this->database,
+            'username' => $this->username,
+            'password' => $this->password,
+            'search_path' => $this->searchPath,
+        ];
+    }
+
+    /**
+     * Reads what toPayload() wrote.
+     *
+     * @throws InvalidArgumentException when a key is missing or has the wrong type
+     */
+    public static function fromPayload(mixed $values): self
+    {
+        if (! is_array($values)) {
+            throw new InvalidArgumentException('The payload has no connection.');
+        }
+
+        $port = $values['port'] ?? null;
+
+        return new self(
+            name: self::payloadString($values, 'name'),
+            host: self::payloadString($values, 'host'),
+            port: is_int($port) ? $port : throw new InvalidArgumentException('The payload has no port.'),
+            database: self::payloadString($values, 'database'),
+            username: self::payloadString($values, 'username'),
+            password: self::payloadString($values, 'password'),
+            searchPath: self::payloadString($values, 'search_path'),
+        );
+    }
+
+    /**
      * The PDO data source name, with a connect timeout so an unreachable server fails fast.
      */
     public function dsn(int $connectTimeoutSeconds): string
@@ -86,6 +137,20 @@ final readonly class ConnectionSettings
             'search_path' => $this->searchPath,
             'sslmode' => 'prefer',
         ];
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $values
+     */
+    private static function payloadString(array $values, string $key): string
+    {
+        $value = $values[$key] ?? null;
+
+        if (! is_string($value)) {
+            throw new InvalidArgumentException(sprintf('The payload has no %s.', $key));
+        }
+
+        return $value;
     }
 
     /**

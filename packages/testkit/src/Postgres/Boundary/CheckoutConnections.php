@@ -1,0 +1,64 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Cbox\Cms\Testkit\Postgres\Boundary;
+
+use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Testkit\Postgres\TestDatabaseName;
+use Illuminate\Contracts\Config\Repository;
+
+/**
+ * Points the application's Postgres connections at the checkout's own test database.
+ *
+ * The configured database of the default connection, such as `cms_test`, is the base. Every pgsql
+ * connection that names the base is changed to name TestDatabaseName::for(base, root) instead, so
+ * the owner connection, the independent connections and the child processes the harness opens,
+ * and the copies the doctor makes, all reach the checkout's database. Running it again changes
+ * nothing. It only changes the configuration: a connection that is already open keeps its
+ * database until it is purged.
+ */
+#[Experimental]
+final readonly class CheckoutConnections
+{
+    /**
+     * Returns the checkout's database, or null when the default connection is not pgsql.
+     */
+    public static function point(Repository $config, string $root): ?string
+    {
+        $default = $config->get('database.default');
+        $connections = $config->get('database.connections');
+
+        if (! is_string($default) || ! is_array($connections)) {
+            return null;
+        }
+
+        $database = self::pgsqlDatabase($connections[$default] ?? null);
+
+        if ($database === null) {
+            return null;
+        }
+
+        $base = TestDatabaseName::base($database, $root);
+        $derived = TestDatabaseName::for($base, $root);
+
+        foreach ($connections as $name => $settings) {
+            if (is_array($settings) && self::pgsqlDatabase($settings) === $base) {
+                $config->set('database.connections.'.$name.'.database', $derived);
+            }
+        }
+
+        return $derived;
+    }
+
+    private static function pgsqlDatabase(mixed $settings): ?string
+    {
+        if (! is_array($settings) || ($settings['driver'] ?? null) !== 'pgsql') {
+            return null;
+        }
+
+        $database = $settings['database'] ?? null;
+
+        return is_string($database) && $database !== '' ? $database : null;
+    }
+}

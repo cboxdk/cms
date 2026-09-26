@@ -1,6 +1,11 @@
 -- One Cbox CMS database with its schema. Run by docker/postgres/initdb.d/10-cms.sh once per
 -- database; idempotent.
 --
+-- The test harness sets up each checkout's own test database, cms_test_<hash of the checkout's
+-- path>, with the same statements as the owner role (packages/testkit, TestDatabaseSetup), because
+-- the testkit cannot read this file when it is installed on its own.
+-- tests/Feature/Tooling/TestDatabaseSetupTest.php keeps the two equal, statement for statement.
+--
 -- The app role gets CONNECT only: no CREATE (no schemas) and no TEMPORARY on the database,
 -- and USAGE without CREATE on the schema, so it cannot run DDL. It gets DML on tables through
 -- the owner's default privileges, so a table a migration creates is usable at once. A migration

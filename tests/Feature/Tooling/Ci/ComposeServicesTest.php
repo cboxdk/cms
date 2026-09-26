@@ -68,6 +68,7 @@ it('provisions the roles of the operating contract with the init script', functi
     expect($environment['CMS_OWNER_ROLE'] ?? null)->toBe('cms_owner')
         ->and($environment['CMS_APP_ROLE'] ?? null)->toBe('cms_app')
         ->and($environment['CMS_APP_TRANSACTION_TIMEOUT'] ?? null)->toBe('5s')
+        ->and($roles)->toContain('ALTER ROLE :"owner_role" WITH LOGIN NOSUPERUSER CREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS')
         ->and($roles)->toContain('ALTER ROLE :"app_role" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS')
         ->and($roles)->toContain('ALTER ROLE :"app_role" SET transaction_timeout = :\'app_transaction_timeout\';');
 });
@@ -80,7 +81,7 @@ it('gives Valkey its data mount and the time cbox-init needs to save before it s
         ->and(CiFiles::at($valkey, 'ports'))->toBe(['63797:6379']);
 });
 
-it('runs the php container as the host user that composer services:up exports, never as root', function (): void {
+it('runs the php container as the host user that composer services:up exports, never as root, and converges an existing volume with the init script', function (): void {
     $php = composeService('php');
     $composer = json_decode(CiFiles::text('composer.json'), true, flags: JSON_THROW_ON_ERROR);
     $script = is_array($composer) ? CiFiles::at($composer, 'scripts', 'services:up') : null;
@@ -90,5 +91,6 @@ it('runs the php container as the host user that composer services:up exports, n
         ->and($script)->toBe([
             'Composer\\Config::disableProcessTimeout',
             'export CMS_UID="$(id -u)" CMS_GID="$(id -g)" && docker compose up -d --wait',
+            'docker compose exec -T postgres /docker-entrypoint-initdb.d/10-cms.sh',
         ]);
 });

@@ -5,16 +5,15 @@ declare(strict_types=1);
 namespace Cbox\Cms\Testkit\Postgres;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Testkit\Postgres\Boundary\CheckoutRoot;
 use Cbox\Cms\Testkit\Postgres\Boundary\ChildPayload;
 use Cbox\Cms\Testkit\Postgres\Boundary\ConnectionSettings;
 use Closure;
-use Composer\Autoload\ClassLoader;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Database\DatabaseManager;
 use InvalidArgumentException;
 use Laravel\SerializableClosure\Support\ReflectionClosure;
 use Laravel\SerializableClosure\UnsignedSerializableClosure;
-use LogicException;
 use Symfony\Component\Process\Process;
 
 /**
@@ -130,19 +129,9 @@ final class ChildProcesses
 
     /**
      * The Composer autoloader that loaded the testkit, so the child loads the same classes.
-     *
-     * The class ClassLoader itself may come from elsewhere: Herd's PHP, for one, prepends a
-     * phar with its own Composer. So the vendor directory is the registered loader that finds
-     * this class, not the file ClassLoader was read from.
      */
     public static function autoloader(): string
     {
-        foreach (ClassLoader::getRegisteredLoaders() as $vendorDir => $loader) {
-            if ($loader->findFile(ChildProcessMain::class) !== false && is_file($vendorDir.'/autoload.php')) {
-                return $vendorDir.'/autoload.php';
-            }
-        }
-
-        throw new LogicException('No registered Composer autoloader loads the testkit.');
+        return CheckoutRoot::vendorDirectory().'/autoload.php';
     }
 }

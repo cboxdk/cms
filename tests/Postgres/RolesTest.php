@@ -73,6 +73,17 @@ it('gives the app role no superuser, no BYPASSRLS and no role or database creati
     ]);
 });
 
+it('gives the owner role CREATEDB, for the test database of each checkout, and the app role none', function (): void {
+    $roles = DB::connection('pgsql_owner')->select(
+        "select rolname, rolcreatedb, rolsuper, rolcreaterole from pg_roles where rolname in ('cms_owner', 'cms_app') order by rolname"
+    );
+
+    expect($roles)->toEqual([
+        (object) ['rolname' => 'cms_app', 'rolcreatedb' => false, 'rolsuper' => false, 'rolcreaterole' => false],
+        (object) ['rolname' => 'cms_owner', 'rolcreatedb' => true, 'rolsuper' => false, 'rolcreaterole' => false],
+    ]);
+});
+
 it('caps every transaction of the app role at the 5 second command budget', function (): void {
     expect(DB::selectOne('show transaction_timeout'))->toEqual((object) ['transaction_timeout' => '5s']);
 });
