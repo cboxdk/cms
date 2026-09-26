@@ -1,0 +1,27 @@
+# The workbench's fixture type (GUARDRAILS 2.4, 2.6, PRD 11.12), a blueprint v1 file of the
+# workbench's schema root, owner app. cms:generate reads it and writes the committed code in
+# workbench/app/Cms/Generated and workbench/resources/js/cms/generated, and
+# `composer check:generated` fails when that code is not what the blueprints generate.
+blueprint: 1
+kind: type
+type_id: 01a0df3e-8cef-7e9f-8daf-9faa60f1faa6
+handle: article
+label: Article
+description: A news article with a title and a body.
+version: 1
+capabilities:
+  history: full
+  stages: draft-release
+  localization: none
+  routable: true
+fields:
+  - handle: title
+    label: Title
+    description: The title of the article, as it is shown on the page and in lists.
+    type: text
+    classification: public
+  - handle: body
+    label: Body
+    description: The body of the article.
+    type: rich_text
+    classification: public

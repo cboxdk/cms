@@ -9,12 +9,14 @@ use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationProblem;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationTarget;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
+use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
+use Cbox\Cms\Generators\Schema\Domain\Owner;
 use Illuminate\Contracts\Config\Repository;
 
 /**
  * Reads `cms.generators` into a GenerationTarget. The defaults in the package's
  * config/generators.php follow the application layout of PRD 11.12; the workbench points them at
- * workbench/.
+ * workbench/. `roots` maps each owner to its schema directory below the root.
  */
 #[Internal]
 final readonly class GeneratorConfig
@@ -38,7 +40,7 @@ final readonly class GeneratorConfig
         $strings = [];
         $problems = [];
 
-        foreach (['schema', 'php_directory', 'php_namespace', 'typescript_directory'] as $key) {
+        foreach (['php_directory', 'php_namespace', 'typescript_directory'] as $key) {
             $value = $values[$key] ?? null;
 
             if (! is_string($value)) {
@@ -54,16 +56,55 @@ final readonly class GeneratorConfig
             $problems[] = new GenerationProblem(GenerateErrorCode::InvalidConfig, sprintf('%s.root must be an absolute path, or null for the application\'s base path.', self::KEY));
         }
 
+        $base = is_string($root) ? rtrim($root, '/') : $basePath;
+        $roots = self::roots($values['roots'] ?? null, $base, $problems);
+
         if ($problems !== []) {
             throw GenerationFailed::with($problems);
         }
 
         return new GenerationTarget(
-            is_string($root) ? rtrim($root, '/') : $basePath,
-            $strings['schema'] ?? '',
+            $base,
+            $roots,
             $strings['php_directory'] ?? '',
             $strings['php_namespace'] ?? '',
             $strings['typescript_directory'] ?? '',
         );
+    }
+
+    /**
+     * The schema roots of `roots`, a map from owner to directory below the root.
+     *
+     * @param  list<GenerationProblem>  $problems
+     * @return list<SchemaRoot>
+     */
+    private static function roots(mixed $value, string $base, array &$problems): array
+    {
+        if (! is_array($value) || $value === [] || array_is_list($value)) {
+            $problems[] = new GenerationProblem(GenerateErrorCode::InvalidConfig, sprintf(
+                '%s.roots must map each owner to its schema directory below the root, such as [\'app\' => \'schema\'].',
+                self::KEY,
+            ));
+
+            return [];
+        }
+
+        $roots = [];
+
+        foreach ($value as $owner => $directory) {
+            if (! is_string($directory)) {
+                $problems[] = new GenerationProblem(GenerateErrorCode::InvalidConfig, sprintf('%s.roots.%s must be a directory below the root, such as "schema".', self::KEY, $owner));
+
+                continue;
+            }
+
+            try {
+                $roots[] = new SchemaRoot(new Owner((string) $owner), $base, $directory);
+            } catch (GenerationFailed $failed) {
+                array_push($problems, ...$failed->problems);
+            }
+        }
+
+        return $roots;
     }
 }

@@ -6,11 +6,11 @@ namespace Cbox\Cms\Generators\Tests\Generation;
 
 use Cbox\Cms\Generators\Generation\Domain\Dto\GeneratedFile;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationTarget;
+use Cbox\Cms\Generators\Generation\Domain\Dto\ResolvedSchema;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Generation\Domain\Generator;
 use Cbox\Cms\Generators\Generation\Domain\GeneratorRunner;
-use Cbox\Cms\Generators\Schema\Domain\FixtureSchema;
 use Cbox\Cms\Generators\Tests\SchemaFixtures;
 use Override;
 use PHPUnit\Framework\Assert;
@@ -37,7 +37,7 @@ final readonly class FixedGenerator implements Generator
     }
 
     #[Override]
-    public function generate(FixtureSchema $schema, GenerationTarget $target): array
+    public function generate(ResolvedSchema $schema, GenerationTarget $target): array
     {
         return array_map(static fn (string $path): GeneratedFile => new GeneratedFile($path, $path."\n"), $this->paths);
     }

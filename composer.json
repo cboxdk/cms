@@ -103,7 +103,7 @@
             "@check:generated:committed"
         ],
         "check:generated:committed": [
-            "git diff --exit-code -- workbench/app/Cms/Generated workbench/resources/js/cms/generated || { echo 'The generated code above is not the committed code. Generated code changes only through its schema: edit workbench/schema/fixture.yaml, run cms:generate and commit both.' >&2; exit 1; }",
+            "git diff --exit-code -- workbench/app/Cms/Generated workbench/resources/js/cms/generated || { echo 'The generated code above is not the committed code. Generated code changes only through its schema: edit the blueprints in workbench/schema, run cms:generate and commit both.' >&2; exit 1; }",
             "git ls-files --others --exclude-standard -- workbench/app/Cms/Generated workbench/resources/js/cms/generated | awk '{ print \"Untracked generated file: \" $0; n++ } END { if (n > 0) print \"Commit what cms:generate writes, and remove files it did not write.\"; exit n > 0 }'"
         ]
     },

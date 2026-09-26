@@ -5,10 +5,9 @@ declare(strict_types=1);
 /*
  * cms:generate (PRD 11.12), merged into `cms.generators`.
  *
- * Milestone 0 reads one fixture schema in the provisional format `m0-provisional` and writes a PHP
- * enum of the type handles and a TypeScript union of them. The paths follow the application
- * layout in PRD 11.12 and are relative to `root`. Milestone 1's blueprint schema v1 replaces the
- * schema setting.
+ * cms:generate reads the blueprint v1 files below the schema roots and writes a PHP enum of the
+ * type handles and a TypeScript union of them, each with the fields of every type. The paths follow
+ * the application layout in PRD 11.12 and are relative to `root`.
  *
  * cms:generate owns php_directory and typescript_directory: it removes every file there that it
  * did not generate. Both must therefore end in a directory named Generated or generated.
@@ -18,8 +17,12 @@ return [
     // The directory the other paths are relative to. Null is the application's base path.
     'root' => null,
 
-    // The schema file.
-    'schema' => 'schema/fixture.yaml',
+    // The schema roots: each owner and the directory of its blueprint files. Every *.yaml file
+    // below a directory is a blueprint file, and its owner is the owner of every definition in it.
+    // The application's own types and extensions are owner `app`.
+    'roots' => [
+        'app' => 'schema',
+    ],
 
     // Where the PHP code goes, and its namespace.
     'php_directory' => 'app/Cms/Generated',

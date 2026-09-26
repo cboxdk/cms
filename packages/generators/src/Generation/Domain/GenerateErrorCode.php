@@ -15,16 +15,10 @@ enum GenerateErrorCode: string
     /** The configuration under cms.generators is missing a value or has an invalid one. */
     case InvalidConfig = 'generate_invalid_config';
 
-    /** The schema file does not exist or cannot be read. */
+    /** A schema root, or a blueprint file below one, does not exist or cannot be read. */
     case SchemaMissing = 'generate_schema_missing';
 
-    /** The schema file is not valid YAML. */
-    case SchemaSyntax = 'generate_schema_syntax';
-
-    /** The schema does not declare `format: m0-provisional`. */
-    case SchemaFormat = 'generate_schema_format';
-
-    /** A key is missing, unknown or has a value of the wrong kind. */
+    /** A blueprint file is not valid YAML or not a valid blueprint of the blueprint schema v1. */
     case SchemaInvalid = 'generate_schema_invalid';
 
     /**
@@ -72,11 +66,11 @@ enum GenerateErrorCode: string
     /** A field's type is an addon field type `<namespace>:<handle>` that no registered contributor provides (PRD 13.3). */
     case UnknownFieldType = 'generate_unknown_field_type';
 
-    /** Two types have the same handle. */
-    case DuplicateType = 'generate_duplicate_type';
-
-    /** Two fields of one type have the same handle. */
-    case DuplicateField = 'generate_duplicate_field';
+    /**
+     * Types of two owners have the same handle. The generated code names a type by its handle
+     * alone, so the handles of all owners share one space.
+     */
+    case HandleCollision = 'generate_handle_collision';
 
     /** A handle gives no valid PHP enum case name, or two handles give the same one. */
     case InvalidCaseName = 'generate_invalid_case_name';

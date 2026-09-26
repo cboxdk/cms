@@ -6,28 +6,62 @@ namespace Cbox\Cms\Generators\Tests;
 
 use Cbox\Cms\Generators\Generation\Boundary\GeneratorConfig;
 use Cbox\Cms\Generators\Generation\Domain\GeneratorRunner;
-use Cbox\Cms\Generators\Schema\Domain\FixtureSchema;
-use Cbox\Cms\Generators\Schema\Domain\SchemaSource;
-use Cbox\Cms\Generators\Schema\Domain\TypeDefinition;
+use Cbox\Cms\Generators\Generation\Domain\SchemaResolver;
+use Cbox\Cms\Generators\Schema\Boundary\YamlBlueprintSource;
+use Cbox\Cms\Generators\Schema\Domain\BlueprintSource;
+use Cbox\Cms\Generators\Schema\Domain\Classification;
+use Cbox\Cms\Generators\Schema\Domain\Dto\FieldBlueprint;
+use Cbox\Cms\Generators\Schema\Domain\Dto\RichTextOptions;
+use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
+use Cbox\Cms\Generators\Schema\Domain\Dto\TextOptions;
+use Cbox\Cms\Generators\Schema\Domain\History;
+use Cbox\Cms\Generators\Schema\Domain\Localization;
+use Cbox\Cms\Generators\Schema\Domain\Stages;
 use Illuminate\Contracts\Config\Repository;
 
 /*
- * The workbench's fixture schema and its committed generated code (GUARDRAILS 2.6). The same
- * check as `composer check:generated`, without writing: the committed files are exactly what the
- * generators produce from the committed schema.
+ * The workbench's schema root and its committed generated code (GUARDRAILS 2.6). Every file in
+ * workbench/schema is a blueprint v1 file that YamlBlueprintSource reads without problems, and the
+ * committed files are exactly what the generators produce from them: the same check as
+ * `composer check:generated`, without writing.
  */
 
-it('has one type in the provisional M0 format', function (): void {
+it('holds only blueprint v1 files, which the YAML source reads without problems', function (): void {
     $target = GeneratorConfig::read(app(Repository::class), base_path());
-    $schema = app(SchemaSource::class)->load($target->root.'/'.$target->schema);
+    $directory = $target->roots[0]->path();
+    $files = SchemaFixtures::files($directory);
 
-    expect((string) file_get_contents($target->root.'/'.$target->schema))->toContain("\nformat: ".FixtureSchema::FORMAT."\n")
-        ->and(array_map(static fn (TypeDefinition $type): string => $type->handle->value, $schema->types))->toBe(['article']);
+    $blueprints = app(BlueprintSource::class)->read($target->roots);
+
+    expect(app(BlueprintSource::class))->toBeInstanceOf(YamlBlueprintSource::class)
+        ->and(array_map(static fn (SchemaRoot $root): string => $root->owner->value.': '.$root->directory, $target->roots))->toBe(['app: workbench/schema'])
+        ->and($files)->toBe(['article.yaml']);
+
+    foreach ($files as $file) {
+        expect((string) file_get_contents($directory.'/'.$file))->toMatch('/^blueprint: 1$/m');
+    }
+
+    expect($blueprints->extensions)->toBe([])
+        ->and($blueprints->types)->toHaveCount(1);
+
+    $article = $blueprints->types[0];
+
+    expect($article->handle->value)->toBe('article')
+        ->and($article->owner->value)->toBe('app')
+        ->and($article->version)->toBe(1)
+        ->and($article->typeId->value->value)->toMatch('/\A[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\z/')
+        ->and([$article->capabilities->history, $article->capabilities->stages, $article->capabilities->localization, $article->capabilities->routable])
+        ->toBe([History::Full, Stages::DraftRelease, Localization::None, true])
+        ->and(array_map(static fn (FieldBlueprint $field): array => [$field->handle->value, $field->options::class, $field->classification, $field->description !== null], $article->fields))
+        ->toBe([
+            ['title', TextOptions::class, Classification::Public, true],
+            ['body', RichTextOptions::class, Classification::Public, true],
+        ]);
 });
 
 it('has committed generated code that matches the schema', function (): void {
     $target = GeneratorConfig::read(app(Repository::class), base_path());
-    $schema = app(SchemaSource::class)->load($target->root.'/'.$target->schema);
+    $schema = SchemaResolver::resolve(app(BlueprintSource::class)->read($target->roots));
     $result = app(GeneratorRunner::class)->run($schema, $target);
 
     expect($result->paths())->toBe(['workbench/app/Cms/Generated/TypeHandle.php', 'workbench/resources/js/cms/generated/index.ts']);

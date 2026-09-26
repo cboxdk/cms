@@ -7,10 +7,11 @@ namespace Cbox\Cms\Generators\Generation\Domain;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GeneratedFile;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationTarget;
-use Cbox\Cms\Generators\Schema\Domain\FixtureSchema;
+use Cbox\Cms\Generators\Generation\Domain\Dto\ResolvedSchema;
 
 /**
- * One link of the type chain (PRD 11.12): turns the schema into files.
+ * One link of the type chain (PRD 11.12): turns the resolved schema, the types of all schema roots
+ * with their extensions applied, into files.
  *
  * Internal to the generators package in milestone 0. It is not a contract in Cbox\Cms\Contracts,
  * so no fake is owed (GUARDRAILS 2.3); milestone 1 decides whether addons get a generator
@@ -18,7 +19,7 @@ use Cbox\Cms\Generators\Schema\Domain\FixtureSchema;
  *
  * A generator is a pure function of the schema and the target: the same input gives the same
  * bytes, with no timestamps, no absolute paths and nothing that depends on the order of the
- * schema file. It owns its directory: cms:generate removes every file there that no generator
+ * blueprint files. It owns its directory: cms:generate removes every file there that no generator
  * produced.
  */
 #[Internal]
@@ -35,5 +36,5 @@ interface Generator
      *
      * @throws GenerationFailed
      */
-    public function generate(FixtureSchema $schema, GenerationTarget $target): array;
+    public function generate(ResolvedSchema $schema, GenerationTarget $target): array;
 }

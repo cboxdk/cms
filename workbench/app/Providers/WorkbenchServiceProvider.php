@@ -16,10 +16,10 @@ use Illuminate\Support\ServiceProvider;
  * `pgsql_owner` connects as the owner role, which runs migrations. Both use the
  * dedicated schema instead of Laravel's default search_path of public.
  *
- * It also points cms:generate (PRD 11.12) at the workbench's fixture schema and its committed
- * generated code (GUARDRAILS 2.6), relative to the monorepo root, and cms:doctor at the monorepo's
- * vendor/composer/installed.json and at the root, where package.json and node_modules are for
- * --dev. Testbench's application links vendor/ into its base path only while a command runs, so
+ * It also points cms:generate (PRD 11.12) at the workbench's schema root, owner app, and its
+ * committed generated code (GUARDRAILS 2.6), relative to the monorepo root, and cms:doctor at the
+ * monorepo's vendor/composer/installed.json and at the root, where package.json and node_modules
+ * are for --dev. Testbench's application links vendor/ into its base path only while a command runs, so
  * the default below the base path is not there in the tests.
  */
 final class WorkbenchServiceProvider extends ServiceProvider
@@ -30,7 +30,7 @@ final class WorkbenchServiceProvider extends ServiceProvider
 
         $config->set('cms.generators', [
             'root' => dirname(__DIR__, 3),
-            'schema' => 'workbench/schema/fixture.yaml',
+            'roots' => ['app' => 'workbench/schema'],
             'php_directory' => 'workbench/app/Cms/Generated',
             'php_namespace' => 'Workbench\\App\\Cms\\Generated',
             'typescript_directory' => 'workbench/resources/js/cms/generated',

@@ -16,15 +16,16 @@ use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Foundation\Application;
 
 /**
- * `cms:generate`: the type chain from the schema (PRD 11.12, GUARDRAILS 7.1). In milestone 0 it
- * reads the fixture schema in format m0-provisional and writes a PHP enum and a TypeScript union
- * of the type handles. The output is deterministic, so a second run changes nothing, and the gate
- * `composer check:generated` fails when the committed code is not what the schema generates.
+ * `cms:generate`: the type chain from the schema (PRD 11.12, GUARDRAILS 7.1). It reads the
+ * blueprint v1 files below the configured schema roots and writes a PHP enum and a TypeScript union
+ * of the type handles, each with the fields of every type. The output is deterministic, so a second
+ * run changes nothing, and the gate `composer check:generated` fails when the committed code is not
+ * what the schema generates.
  *
- * Exit codes: 0 generated, 65 the schema is invalid or needs a newer cboxdk/cms-generators, 66 the
- * schema file is missing, 70 a generator produced invalid output, 73 a file could not be written,
- * 78 the configuration is invalid. Each problem is printed with its code, and nothing is written
- * unless generation succeeded.
+ * Exit codes: 0 generated, 65 the schema is invalid or needs a newer cboxdk/cms-generators, 66 a
+ * schema root or a blueprint file is missing, 70 a generator produced invalid output, 73 a file
+ * could not be written, 78 the configuration is invalid. Each problem is printed with its code, and
+ * nothing is written unless generation succeeded.
  */
 #[Internal]
 #[Description('Generate the typed PHP and TypeScript code from the schema')]
@@ -85,14 +86,11 @@ final class GenerateCommand extends Command
         return match ($code) {
             GenerateErrorCode::InvalidConfig => self::EXIT_INVALID_CONFIG,
             GenerateErrorCode::SchemaMissing => self::EXIT_SCHEMA_MISSING,
-            GenerateErrorCode::SchemaSyntax,
-            GenerateErrorCode::SchemaFormat,
             GenerateErrorCode::SchemaInvalid,
             GenerateErrorCode::SchemaUnsupportedVersion,
-            GenerateErrorCode::DuplicateType,
-            GenerateErrorCode::DuplicateField,
             GenerateErrorCode::DuplicateTypeId,
             GenerateErrorCode::DuplicateTypeHandle,
+            GenerateErrorCode::HandleCollision,
             GenerateErrorCode::DuplicateFieldHandle,
             GenerateErrorCode::DuplicateSelectValue,
             GenerateErrorCode::UnknownExtendsTarget,

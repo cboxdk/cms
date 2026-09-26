@@ -7,11 +7,13 @@ namespace Cbox\Cms\Generators\Generation\Domain\Dto;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
+use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
 
 /**
- * Where cms:generate reads the schema and writes the generated code (PRD 11.12). Every path but
- * the root is relative to the root, uses forward slashes and has no "." or ".." segment, so the
- * generated code never names a machine-specific path.
+ * Where cms:generate reads the schema and writes the generated code (PRD 11.12): the schema roots,
+ * each a directory of blueprint files and its owner, and the directories of the generated code.
+ * Every path but the root is relative to the root, uses forward slashes and has no "." or ".."
+ * segment, so the generated code never names a machine-specific path.
  */
 #[Internal]
 final readonly class GenerationTarget
@@ -20,9 +22,12 @@ final readonly class GenerationTarget
 
     private const string NAMESPACE = '/\A[A-Z][A-Za-z0-9]*(?:\\\\[A-Z][A-Za-z0-9]*)*\z/';
 
+    /** @var non-empty-list<SchemaRoot> sorted by owner */
+    public array $roots;
+
     /**
      * @param  string  $root  the absolute directory the other paths are relative to
-     * @param  string  $schema  the schema file
+     * @param  list<SchemaRoot>  $roots  the schema roots, each below $root and with its own owner
      * @param  string  $phpDirectory  where the PHP code goes, in the namespace $phpNamespace
      * @param  string  $typeScriptDirectory  where the TypeScript goes
      *
@@ -30,7 +35,7 @@ final readonly class GenerationTarget
      */
     public function __construct(
         public string $root,
-        public string $schema,
+        array $roots,
         public string $phpDirectory,
         public string $phpNamespace,
         public string $typeScriptDirectory,
@@ -41,7 +46,9 @@ final readonly class GenerationTarget
             $problems[] = new GenerationProblem(GenerateErrorCode::InvalidConfig, sprintf('cms.generators.root "%s" is not an absolute path.', $root));
         }
 
-        foreach (['schema' => $schema, 'php_directory' => $phpDirectory, 'typescript_directory' => $typeScriptDirectory] as $key => $path) {
+        $problems = [...$problems, ...$this->rootProblems($root, $roots)];
+
+        foreach (['php_directory' => $phpDirectory, 'typescript_directory' => $typeScriptDirectory] as $key => $path) {
             if (preg_match(self::RELATIVE_PATH, $path) !== 1) {
                 $problems[] = new GenerationProblem(GenerateErrorCode::InvalidConfig, sprintf(
                     'cms.generators.%s "%s" is not a relative path below the root, such as "app/Cms/Generated". Use forward slashes and no "." or ".." segments.',
@@ -58,8 +65,56 @@ final readonly class GenerationTarget
             ));
         }
 
+        if ($roots === []) {
+            throw GenerationFailed::with([...$problems, $this->noRoots()]);
+        }
+
         if ($problems !== []) {
             throw GenerationFailed::with($problems);
         }
+
+        usort($roots, static fn (SchemaRoot $a, SchemaRoot $b): int => strcmp($a->owner->value, $b->owner->value));
+        $this->roots = $roots;
+    }
+
+    /**
+     * A problem for a root below another base than the target's root, and for an owner with more
+     * than one root.
+     *
+     * @param  list<SchemaRoot>  $roots
+     * @return list<GenerationProblem>
+     */
+    private function rootProblems(string $root, array $roots): array
+    {
+        $problems = [];
+        $owners = [];
+
+        foreach ($roots as $schemaRoot) {
+            if (rtrim($schemaRoot->base, '/\\') !== $root) {
+                $problems[] = new GenerationProblem(GenerateErrorCode::InvalidConfig, sprintf(
+                    'The schema root %s of %s lies below %s, not below cms.generators.root %s.',
+                    $schemaRoot->directory,
+                    $schemaRoot->owner->value,
+                    $schemaRoot->base,
+                    $root,
+                ));
+            }
+
+            if (isset($owners[$schemaRoot->owner->value])) {
+                $problems[] = new GenerationProblem(GenerateErrorCode::InvalidConfig, sprintf(
+                    '%s has more than one schema root. Give each owner one directory in cms.generators.roots.',
+                    $schemaRoot->owner->value,
+                ));
+            }
+
+            $owners[$schemaRoot->owner->value] = true;
+        }
+
+        return $problems;
+    }
+
+    private function noRoots(): GenerationProblem
+    {
+        return new GenerationProblem(GenerateErrorCode::InvalidConfig, 'cms.generators.roots names no schema root. Map each owner to its directory below the root, such as [\'app\' => \'schema\'].');
     }
 }

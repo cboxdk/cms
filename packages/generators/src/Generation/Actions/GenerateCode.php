@@ -10,17 +10,19 @@ use Cbox\Cms\Generators\Generation\Domain\Dto\WriteReport;
 use Cbox\Cms\Generators\Generation\Domain\GeneratedOutput;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Generation\Domain\GeneratorRunner;
-use Cbox\Cms\Generators\Schema\Domain\SchemaSource;
+use Cbox\Cms\Generators\Generation\Domain\SchemaResolver;
+use Cbox\Cms\Generators\Schema\Domain\BlueprintSource;
 
 /**
- * cms:generate (PRD 11.12, GUARDRAILS 7.1): reads the schema, runs the generators and writes the
- * result. Nothing is written unless the schema is valid and every generator succeeded.
+ * cms:generate (PRD 11.12, GUARDRAILS 7.1): reads the blueprint files below the target's schema
+ * roots, applies the extensions to the types they extend, runs the generators and writes the
+ * result. Nothing is written unless every blueprint is valid and every generator succeeded.
  */
 #[Internal]
 final readonly class GenerateCode
 {
     public function __construct(
-        private SchemaSource $schemas,
+        private BlueprintSource $blueprints,
         private GeneratorRunner $runner,
         private GeneratedOutput $output,
     ) {}
@@ -30,7 +32,7 @@ final readonly class GenerateCode
      */
     public function generate(GenerationTarget $target): WriteReport
     {
-        $schema = $this->schemas->load($target->root.'/'.$target->schema);
+        $schema = SchemaResolver::resolve($this->blueprints->read($target->roots));
 
         return $this->output->write($target->root, $this->runner->run($schema, $target));
     }
