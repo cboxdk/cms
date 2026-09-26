@@ -6,10 +6,12 @@ namespace Cbox\Cms\Core\Tests\Clock;
 
 use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\IdGenerator;
+use Cbox\Cms\Contracts\ReceiptStore;
 use Cbox\Cms\Core\Bindings\Boundary\InvalidContractBinding;
 use Cbox\Cms\Core\Clock\Adapter\SystemClock;
 use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Core\Ids\Adapter\SystemIdGenerator;
+use Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -69,6 +71,7 @@ it('keeps the default clock and id generator when the application configures onl
     expect(config('cms.contracts'))->toBe([
         Clock::class => SystemClock::class,
         IdGenerator::class => SystemIdGenerator::class,
+        ReceiptStore::class => PostgresReceiptStore::class,
         'Acme\\Contracts\\Other' => 'Acme\\Other',
     ])->and(app(Clock::class))->toBeInstanceOf(SystemClock::class)
         ->and(app(IdGenerator::class))->toBeInstanceOf(SystemIdGenerator::class);

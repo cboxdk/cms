@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Testkit\Tests\Postgres;
 
 use Cbox\Cms\Testkit\Postgres\IndependentConnections;
-use Cbox\Cms\Testkit\Postgres\OwnerTruncation;
+use Cbox\Cms\Testkit\Postgres\Infrastructure\OwnerTruncation;
 use Cbox\Cms\Testkit\Postgres\PostgresHarness;
 use Cbox\Cms\Testkit\Postgres\RealPostgres;
 use Cbox\Cms\Tests\TestCase;

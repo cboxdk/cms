@@ -10,6 +10,7 @@ use Cbox\Cms\Testkit\Phpstan\InternalMethodUsageExtension;
 use Cbox\Cms\Testkit\Phpstan\LayerScope;
 use Cbox\Cms\Testkit\Phpstan\PhpstanIgnoreCollector;
 use Cbox\Cms\Testkit\Phpstan\PhpstanIgnoreRule;
+use Cbox\Cms\Testkit\Phpstan\RawSqlRule;
 use Cbox\Cms\Testkit\Phpstan\SavepointStringsRule;
 use Cbox\Cms\Testkit\Phpstan\StringIdsRule;
 use Cbox\Cms\Testkit\Phpstan\TransactionCallsRule;
@@ -67,6 +68,7 @@ it('registers every rule, the collector and the extensions in the testkit neon, 
         TransactionCallsRule::class,
         SavepointStringsRule::class,
         StringIdsRule::class,
+        RawSqlRule::class,
     ];
     $services = [
         PhpstanIgnoreCollector::class => 'phpstan.collector',
@@ -181,7 +183,8 @@ it('fails the analysis on a transaction call and a SAVEPOINT statement in an act
         PHP);
 
     expect($analysis->exitCode)->not->toBe(0)
-        ->and($analysis->identifiers)->toEqualCanonicalizing(['cboxCms.transaction', 'cboxCms.savepoint']);
+        // DB::statement() is also raw SQL outside Infrastructure and Adapter (GUARDRAILS 6).
+        ->and($analysis->identifiers)->toEqualCanonicalizing(['cboxCms.transaction', 'cboxCms.savepoint', 'cboxCms.rawSql']);
 });
 
 it('allows the same transaction calls in an Adapter', function (): void {
@@ -208,6 +211,43 @@ it('allows the same transaction calls in an Adapter', function (): void {
     expect($analysis->exitCode)->toBe(0)
         ->and($analysis->identifiers)->toBe([]);
 });
+
+it('fails the analysis on raw SQL in the domain and allows it in Infrastructure and an Adapter', function (string $layer, bool $allowed): void {
+    $analysis = analyseProbe(<<<PHP
+        <?php
+
+        declare(strict_types=1);
+
+        namespace Cbox\\Cms\\Core\\Entries\\{$layer};
+
+        use Illuminate\\Database\\ConnectionInterface;
+
+        final readonly class Probe
+        {
+            public function __construct(private ConnectionInterface \$connection) {}
+
+            public function f(): int
+            {
+                return \$this->connection->table('entries')->whereRaw('id > 0')->count();
+            }
+        }
+        PHP);
+
+    if ($allowed) {
+        expect($analysis->exitCode)->toBe(0)
+            ->and($analysis->identifiers)->toBe([]);
+
+        return;
+    }
+
+    expect($analysis->exitCode)->not->toBe(0)
+        ->and($analysis->identifiers)->toBe(['cboxCms.rawSql']);
+})->with([
+    'Domain' => ['Domain', false],
+    'Boundary' => ['Boundary', false],
+    'Infrastructure' => ['Infrastructure', true],
+    'Adapter' => ['Adapter', true],
+]);
 
 it('fails the analysis on a public string id in the domain', function (): void {
     $analysis = analyseProbe(<<<'PHP'

@@ -6,6 +6,7 @@ namespace Cbox\Cms\Testkit\Postgres;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Testkit\Postgres\Boundary\ConnectionSettings;
+use Cbox\Cms\Testkit\Postgres\Infrastructure\OwnerTruncation;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Contracts\Events\Dispatcher;

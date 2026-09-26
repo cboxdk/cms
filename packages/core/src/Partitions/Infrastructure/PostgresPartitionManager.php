@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Partitions\Infrastructure;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Core\Database\Infrastructure\TablePrivileges;
 use Cbox\Cms\Core\Partitions\Domain\DdlStep;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionReport;
 use Cbox\Cms\Core\Partitions\Domain\Dto\TableRunway;
@@ -26,8 +27,9 @@ use LogicException;
  * Creating a partition takes no heavy lock on the parent: the partition is created as a table of
  * its own (LIKE the parent) and attached, in one transaction, and ATTACH PARTITION takes SHARE
  * UPDATE EXCLUSIVE on the parent where CREATE TABLE ... PARTITION OF takes ACCESS EXCLUSIVE. The
- * new partition gets the parent's row security flags, so reading it directly is not a way around
- * the parent's policies.
+ * new partition gets the parent's row security flags and the parent's grants, so reading or
+ * writing it directly is not a way around the parent's policies or privileges. Without the copy,
+ * the owner's default privileges would give the app role DELETE on every new partition.
  *
  * Removing a partition past retention is ALTER TABLE ... DETACH PARTITION ... CONCURRENTLY,
  * outside a transaction, then DROP TABLE. Rows are never deleted. Before the detach the manager
@@ -168,6 +170,8 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
         if ($table->forceRowSecurity) {
             $connection->statement(sprintf('alter table %s force row level security', $name));
         }
+
+        new TablePrivileges($connection)->copy($table->qualifiedName(), $name);
 
         $connection->statement(sprintf(
             'alter table %s attach partition %s for values from (%s) to (%s)',

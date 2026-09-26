@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\IdGenerator;
+use Cbox\Cms\Contracts\ReceiptStore;
 use Cbox\Cms\Core\Clock\Adapter\SystemClock;
 use Cbox\Cms\Core\Ids\Adapter\SystemIdGenerator;
+use Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore;
 
 return [
     /*
@@ -16,6 +18,7 @@ return [
     'contracts' => [
         Clock::class => SystemClock::class,
         IdGenerator::class => SystemIdGenerator::class,
+        ReceiptStore::class => PostgresReceiptStore::class,
     ],
 
     'database' => [
@@ -37,13 +40,23 @@ return [
          *     'receipts' => ['key' => 'uuid7', 'interval' => 'day', 'retention_days' => 7],
          * key is 'uuid7' (an id column of UUIDv7s) or 'timestamp' (a timestamptz column), interval is
          * 'day' or 'month', and retention_days is a whole number or null to keep every partition.
+         *
+         * The core's own tables are listed here; an application adds its tables next to them. The
+         * receipt tables are partitioned by retention class first (PRD 4, 8.4), and each class is
+         * managed as its own table: Standard receipts per day, dropped a week after the day ends,
+         * and Evidence receipts per month, never dropped here.
          */
         'partitions' => [
             'runway_days' => 14,
             'lock_timeout_ms' => 2000,
             'attempts' => 3,
             'backoff_ms' => 250,
-            'tables' => [],
+            'tables' => [
+                'receipts_standard' => ['key' => 'uuid7', 'interval' => 'day', 'retention_days' => 7],
+                'receipts_evidence' => ['key' => 'uuid7', 'interval' => 'month', 'retention_days' => null],
+                'receipt_projections_standard' => ['key' => 'uuid7', 'interval' => 'day', 'retention_days' => 7],
+                'receipt_projections_evidence' => ['key' => 'uuid7', 'interval' => 'month', 'retention_days' => null],
+            ],
         ],
     ],
 ];

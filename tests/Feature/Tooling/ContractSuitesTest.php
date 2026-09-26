@@ -6,6 +6,7 @@ namespace Cbox\Cms\Tests\Feature\Tooling;
 
 use Cbox\Cms\Core\Tests\Contract\SystemClockContractTest;
 use Cbox\Cms\Core\Tests\Contract\SystemIdGeneratorContractTest;
+use Cbox\Cms\Core\Tests\Postgres\PostgresReceiptStoreContractTest;
 use Cbox\Cms\Testkit\Clock\ClockContract;
 use Cbox\Cms\Testkit\Idempotency\IdempotencyStoreContract;
 use Cbox\Cms\Testkit\Ids\IdGeneratorContract;
@@ -27,14 +28,15 @@ use Symfony\Component\Process\Process;
  */
 
 /**
- * The test ids (Class::method) that Pest lists for the Contract suite with the given filter.
+ * The test ids (Class::method) that Pest lists for a suite, the Contract suite by default, with
+ * the given filter.
  *
  * @return list<string>
  */
-function contractTests(string $filter): array
+function contractTests(string $filter, string $suite = 'Contract'): array
 {
     $process = new Process(
-        [PHP_BINARY, 'vendor/bin/pest', '--list-tests', '--colors=never', '--testsuite=Contract', '--filter='.$filter],
+        [PHP_BINARY, 'vendor/bin/pest', '--list-tests', '--colors=never', '--testsuite='.$suite, '--filter='.$filter],
         Phpstan::root(),
         null,
         null,
@@ -121,6 +123,19 @@ it('runs every shared ReceiptStore case once for the FakeReceiptStore', function
         'a_store_in_a_rolled_back_transaction_is_not_visible',
         'a_store_is_not_visible_to_another_session_until_commit',
     )->and($listed)->toBe($expected);
+});
+
+it('runs every shared ReceiptStore case once for the PostgresReceiptStore, in the Postgres suite', function (): void {
+    $cases = sharedCases(ReceiptStoreContract::class);
+
+    $expected = array_map(static fn (string $case): string => PostgresReceiptStoreContractTest::class.'::'.$case, $cases);
+
+    $listed = contractTests('ReceiptStoreContract', 'Postgres');
+    sort($expected);
+    sort($listed);
+
+    expect($cases)->toHaveCount(15)
+        ->and($listed)->toBe($expected);
 });
 
 it('runs every shared IdempotencyStore case once for the FakeIdempotencyStore', function (): void {

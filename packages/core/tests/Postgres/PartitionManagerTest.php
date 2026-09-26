@@ -208,6 +208,33 @@ it('gives new partitions the parent\'s row security, so reading a partition dire
         ->and(PartitionScratch::app()->scalar('select count(*) from partition_scratch_p20260310'))->toBe(0);
 });
 
+it('gives new partitions the parent\'s grants, not the owner\'s default privileges', function (): void {
+    PartitionScratch::owner()->statement('revoke all on partition_scratch from cms_app');
+    PartitionScratch::owner()->statement('grant select, insert on partition_scratch to cms_app');
+    PartitionScratch::owner()->statement('grant select on partition_scratch to public');
+    PartitionScratch::clockAt('2026-03-10T15:00:00Z');
+    PartitionScratch::manage([PartitionScratch::UUID_TABLE => PartitionScratch::daily()], ['runway_days' => 1]);
+
+    app(MaintainPartitions::class)->maintain();
+
+    $grants = static fn (string $table): array => ReceiptTables::texts(
+        PartitionScratch::owner(),
+        "select case when a.grantee = 0 then 'public' else pg_get_userbyid(a.grantee)::text end || ' ' || a.privilege_type as value from pg_class c cross join lateral aclexplode(c.relacl) a where c.oid = ?::regclass and a.grantee <> c.relowner order by 1",
+        [$table],
+    );
+
+    expect($grants('partition_scratch'))->toBe(['cms_app INSERT', 'cms_app SELECT', 'public SELECT'])
+        ->and($grants('partition_scratch_p20260310'))->toBe($grants('partition_scratch'))
+        ->and($grants('partition_scratch_p20260311'))->toBe($grants('partition_scratch'));
+
+    try {
+        PartitionScratch::app()->statement('delete from partition_scratch_p20260310');
+        throw new AssertionFailedError('The app role deleted from a partition whose parent does not grant DELETE.');
+    } catch (QueryException $exception) {
+        expect($exception->getCode())->toBe('42501');
+    }
+});
+
 it('removes expired partitions with DETACH CONCURRENTLY and DROP TABLE, and never deletes rows', function (): void {
     PartitionScratch::manage([PartitionScratch::UUID_TABLE => PartitionScratch::daily(['retention_days' => 7])]);
     app(MaintainPartitions::class)->cover(new DateTimeImmutable('2026-01-01T00:00:00Z'), new DateTimeImmutable('2026-01-14T00:00:00Z'));

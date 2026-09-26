@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cbox\Cms\Testkit\Postgres;
+namespace Cbox\Cms\Testkit\Postgres\Infrastructure;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Illuminate\Database\Connection;

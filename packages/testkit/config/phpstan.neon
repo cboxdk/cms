@@ -28,6 +28,8 @@ parameters:
 # comment and no ignoreErrors entry can hide them.
 # Rule 5, the Internal*UsageExtension services (GUARDRAILS 2.3): code outside Cbox\Cms may not
 # use what is marked #[Internal]. PHPStan's restricted usage rules report them.
+# Rule 6, RawSqlRule (GUARDRAILS 6): raw SQL only in migrations and in Infrastructure and Adapter;
+# everything else uses the query builder. Its errors are non-ignorable too.
 rules:
     - Cbox\Cms\Testkit\Phpstan\TypedMethodsRule
     - Cbox\Cms\Testkit\Phpstan\TypedFunctionsRule
@@ -39,6 +41,7 @@ rules:
     - Cbox\Cms\Testkit\Phpstan\TransactionCallsRule
     - Cbox\Cms\Testkit\Phpstan\SavepointStringsRule
     - Cbox\Cms\Testkit\Phpstan\StringIdsRule
+    - Cbox\Cms\Testkit\Phpstan\RawSqlRule
 
 services:
     -

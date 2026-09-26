@@ -13,6 +13,7 @@ return $config
     ->withPaths([
         __DIR__.'/packages/*/bin',
         __DIR__.'/packages/*/config',
+        __DIR__.'/packages/*/database',
         __DIR__.'/packages/*/src',
         __DIR__.'/packages/*/tests',
         __DIR__.'/tests',

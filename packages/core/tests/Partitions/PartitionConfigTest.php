@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\Tests\Partitions;
 
 use Cbox\Cms\Core\Partitions\Boundary\PartitionConfig;
 use Cbox\Cms\Core\Partitions\Domain\InvalidPartitionPolicy;
+use Cbox\Cms\Core\Partitions\Domain\PartitionedTable;
 use Cbox\Cms\Core\Partitions\Domain\PartitionInterval;
 use Cbox\Cms\Core\Partitions\Domain\PartitionKey;
 use Cbox\Cms\Core\Partitions\Domain\PartitionMaintenance;
@@ -13,7 +14,7 @@ use Cbox\Cms\Core\Partitions\Domain\PartitionPolicy;
 use Cbox\Cms\Core\Partitions\Infrastructure\PostgresPartitionManager;
 use Illuminate\Config\Repository;
 
-it('reads the package defaults: the pgsql_owner connection, a 14-day runway and no tables', function (): void {
+it('reads the package defaults: the pgsql_owner connection, a 14-day runway and the receipt tables', function (): void {
     $policy = PartitionConfig::read(config());
 
     expect($policy->ownerConnection)->toBe('pgsql_owner')
@@ -21,7 +22,15 @@ it('reads the package defaults: the pgsql_owner connection, a 14-day runway and 
         ->and($policy->lockTimeoutMs)->toBe(2000)
         ->and($policy->attempts)->toBe(3)
         ->and($policy->backoffMs)->toBe(250)
-        ->and($policy->tables)->toBe([]);
+        ->and(array_map(
+            static fn (PartitionedTable $table): string => sprintf('%s %s %s %s', $table->name, $table->key->value, $table->interval->value, $table->retentionDays ?? 'keep'),
+            $policy->tables,
+        ))->toBe([
+            'receipts_standard uuid7 day 7',
+            'receipts_evidence uuid7 month keep',
+            'receipt_projections_standard uuid7 day 7',
+            'receipt_projections_evidence uuid7 month keep',
+        ]);
 });
 
 it('reads each table with its key, interval and retention', function (): void {
