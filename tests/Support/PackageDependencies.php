@@ -28,10 +28,15 @@ use SplFileInfo;
  * code: imports, type declarations, `new`, static calls, `instanceof`, `catch` and attributes. The
  * class is found through the autoloader and mapped to the installed package that holds the file.
  * A class from laravel/framework maps to the illuminate/* package the framework replaces, by its
- * directory, so a package can require illuminate/support instead of the whole framework.
+ * directory, so a package can require illuminate/support instead of the whole framework. Composer's
+ * runtime classes, such as Composer\InstalledVersions, live in the vendor directory itself and map
+ * to the platform package composer-runtime-api, which a package requires to use them.
  */
 final readonly class PackageDependencies
 {
+    /** The classes Composer generates into every vendor directory, which composer-runtime-api provides. */
+    private const array COMPOSER_RUNTIME = [ClassLoader::class, InstalledVersions::class];
+
     /**
      * The packages src uses, sorted. PHP's own classes and the package's own classes are left
      * out. A class the autoloader cannot find is reported as `unresolved:<class>`.
@@ -128,6 +133,10 @@ final readonly class PackageDependencies
      */
     private static function owner(string $class): ?string
     {
+        if (in_array($class, self::COMPOSER_RUNTIME, true)) {
+            return 'composer-runtime-api';
+        }
+
         if ((class_exists($class) || interface_exists($class) || trait_exists($class) || enum_exists($class)) && new ReflectionClass($class)->isInternal()) {
             return null;
         }

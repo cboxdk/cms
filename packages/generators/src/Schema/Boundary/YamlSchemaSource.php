@@ -17,10 +17,6 @@ use Symfony\Component\Yaml\Yaml;
 
 /**
  * Reads the schema from a YAML file with symfony/yaml (PRD 11.12: the input is YAML).
- *
- * symfony/yaml is only suggested by the generators package in milestone 0, because whether the
- * package requires it is not decided yet (PROGRESS.md, Blokeret). Without it, cms:generate stops
- * with generate_yaml_unavailable and says how to install it.
  */
 #[Internal]
 final readonly class YamlSchemaSource implements SchemaSource
@@ -30,13 +26,6 @@ final readonly class YamlSchemaSource implements SchemaSource
     #[Override]
     public function load(string $path): FixtureSchema
     {
-        if (! class_exists(Yaml::class)) {
-            throw GenerationFailed::because(
-                GenerateErrorCode::YamlUnavailable,
-                'Reading the schema needs symfony/yaml, which cboxdk/cms-generators only suggests in milestone 0. Run `composer require --dev symfony/yaml`.',
-            );
-        }
-
         $contents = $this->read($path);
 
         if ($contents === null) {

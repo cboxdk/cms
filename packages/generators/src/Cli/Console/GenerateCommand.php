@@ -21,10 +21,10 @@ use Illuminate\Contracts\Foundation\Application;
  * of the type handles. The output is deterministic, so a second run changes nothing, and the gate
  * `composer check:generated` fails when the committed code is not what the schema generates.
  *
- * Exit codes: 0 generated, 65 the schema is invalid, 66 the schema file is missing, 69 symfony/yaml
- * is not installed, 70 a generator produced invalid output, 73 a file could not be written, 78 the
- * configuration is invalid. Each problem is printed with its code, and nothing is written unless
- * generation succeeded.
+ * Exit codes: 0 generated, 65 the schema is invalid or needs a newer cboxdk/cms-generators, 66 the
+ * schema file is missing, 70 a generator produced invalid output, 73 a file could not be written,
+ * 78 the configuration is invalid. Each problem is printed with its code, and nothing is written
+ * unless generation succeeded.
  */
 #[Internal]
 #[Description('Generate the typed PHP and TypeScript code from the schema')]
@@ -36,9 +36,6 @@ final class GenerateCommand extends Command
 
     /** EX_NOINPUT from sysexits.h. */
     public const int EXIT_SCHEMA_MISSING = 66;
-
-    /** EX_UNAVAILABLE from sysexits.h. */
-    public const int EXIT_YAML_UNAVAILABLE = 69;
 
     /** EX_SOFTWARE from sysexits.h. */
     public const int EXIT_INVALID_OUTPUT = 70;
@@ -87,11 +84,11 @@ final class GenerateCommand extends Command
     {
         return match ($code) {
             GenerateErrorCode::InvalidConfig => self::EXIT_INVALID_CONFIG,
-            GenerateErrorCode::YamlUnavailable => self::EXIT_YAML_UNAVAILABLE,
             GenerateErrorCode::SchemaMissing => self::EXIT_SCHEMA_MISSING,
             GenerateErrorCode::SchemaSyntax,
             GenerateErrorCode::SchemaFormat,
             GenerateErrorCode::SchemaInvalid,
+            GenerateErrorCode::SchemaUnsupportedVersion,
             GenerateErrorCode::DuplicateType,
             GenerateErrorCode::DuplicateField,
             GenerateErrorCode::InvalidCaseName => self::EXIT_INVALID_SCHEMA,

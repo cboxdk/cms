@@ -15,9 +15,6 @@ enum GenerateErrorCode: string
     /** The configuration under cms.generators is missing a value or has an invalid one. */
     case InvalidConfig = 'generate_invalid_config';
 
-    /** symfony/yaml is not installed, so the schema cannot be read. */
-    case YamlUnavailable = 'generate_yaml_unavailable';
-
     /** The schema file does not exist or cannot be read. */
     case SchemaMissing = 'generate_schema_missing';
 
@@ -29,6 +26,12 @@ enum GenerateErrorCode: string
 
     /** A key is missing, unknown or has a value of the wrong kind. */
     case SchemaInvalid = 'generate_schema_invalid';
+
+    /**
+     * A blueprint file is of a later version than 1, or holds a value that the installed blueprint
+     * schema allows and this cboxdk/cms-generators does not know. It needs a newer cboxdk/cms-generators.
+     */
+    case SchemaUnsupportedVersion = 'generate_schema_unsupported_version';
 
     /** Two types have the same handle. */
     case DuplicateType = 'generate_duplicate_type';

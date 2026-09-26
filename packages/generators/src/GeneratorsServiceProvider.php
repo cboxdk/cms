@@ -14,7 +14,9 @@ use Cbox\Cms\Generators\Generation\Domain\GeneratedOutput;
 use Cbox\Cms\Generators\Generation\Domain\GeneratorRunner;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeHandleEnum;
 use Cbox\Cms\Generators\Generation\Domain\Generators\TypeScriptTypeHandles;
+use Cbox\Cms\Generators\Schema\Boundary\YamlBlueprintSource;
 use Cbox\Cms\Generators\Schema\Boundary\YamlSchemaSource;
+use Cbox\Cms\Generators\Schema\Domain\BlueprintSource;
 use Cbox\Cms\Generators\Schema\Domain\SchemaSource;
 use Illuminate\Support\ServiceProvider;
 use Override;
@@ -23,8 +25,9 @@ use Override;
  * Registers the generators package in a Laravel application. Loaded through package discovery.
  *
  * Merges the defaults for `cms.generators`, wires cms:generate (PRD 11.12) to the YAML schema
- * source, the M0 generators and the filesystem, registers the command, and declares the
- * package's classes as a scan root for cms:build (PRD 13.2).
+ * source, the M0 generators and the filesystem, binds the blueprint reader that validates against
+ * the installed blueprint schema v1, registers the command, and declares the package's classes as a
+ * scan root for cms:build (PRD 13.2).
  */
 #[Internal]
 final class GeneratorsServiceProvider extends ServiceProvider implements DeclaresScanRoots
@@ -37,6 +40,7 @@ final class GeneratorsServiceProvider extends ServiceProvider implements Declare
         $this->replaceConfigRecursivelyFrom(__DIR__.'/../config/generators.php', GeneratorConfig::KEY);
 
         $this->app->bind(SchemaSource::class, YamlSchemaSource::class);
+        $this->app->bind(BlueprintSource::class, YamlBlueprintSource::class);
         $this->app->bind(GeneratedOutput::class, FilesystemGeneratedOutput::class);
 
         // The M0 links of the type chain. Their order does not matter: the runner sorts the output.
