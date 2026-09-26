@@ -1,0 +1,240 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Cbox\Cms\Tests\Support\Arch;
+
+use RuntimeException;
+use Symfony\Component\Process\Process;
+
+/**
+ * The marker gate of GUARDRAILS 11: no code or configuration file carries one of the five marker
+ * words, matched as whole words and in any case, the fourth also in the plural.
+ *
+ * The files are the ones git knows in the checkout: tracked files and untracked files that are
+ * not ignored, so a new file is checked before it is committed. From those it takes files with
+ * one of the EXTENSIONS, the NAMES, Dockerfiles, everything under .github/ and every file without
+ * an extension that is executable or starts with a shebang, and leaves out what EXCLUDED lists.
+ *
+ * The words are written in parts here and in the tests, so the gate checks its own files too.
+ */
+final readonly class MarkerScan
+{
+    /**
+     * The five marker words of GUARDRAILS 11, in lower case.
+     *
+     * @var list<string>
+     */
+    public const array WORDS = ['to'.'do', 'fix'.'me', 'x'.'xx', 'place'.'holder', 'provi'.'sional'];
+
+    /**
+     * The word that also matches in the plural.
+     */
+    public const string PLURAL = 'place'.'holder';
+
+    /**
+     * @var list<string>
+     */
+    public const array EXTENSIONS = ['cjs', 'css', 'html', 'js', 'json', 'mjs', 'neon', 'php', 'sh', 'sql', 'ts', 'tsx', 'xml', 'yaml', 'yml'];
+
+    /**
+     * File names that are selected whatever their directory.
+     *
+     * @var list<string>
+     */
+    public const array NAMES = ['Dockerfile', 'composer.json', 'package.json'];
+
+    public const string DOCKERFILE_SUFFIX = '.Dockerfile';
+
+    /**
+     * Every file below this directory is selected.
+     */
+    public const string ALL_FILES_BELOW = '.github/';
+
+    /**
+     * What the gate never reads, with the reason: `*.<extension>` is every file with that
+     * extension, a path ending in a slash is everything below that directory at the root, and
+     * any other entry is one file at the root.
+     *
+     * @var array<string, string>
+     */
+    public const array EXCLUDED = [
+        '*.md' => 'Markdown is prose: the guides, the PRD extracts and PROGRESS.md name the words when they describe the rule.',
+        'composer.lock' => 'third-party metadata written by Composer.',
+        'package-lock.json' => 'third-party metadata written by npm.',
+        '.claude/' => 'agent orchestration, not product code or configuration: its workflow uses the words in prompt text and as a PROGRESS.md status.',
+        '.harness/' => 'agent orchestration, not product code or configuration.',
+    ];
+
+    /**
+     * @param  list<string>  $files  the selected files, relative to the root and sorted
+     * @param  list<string>  $hits  one line per line with a marker: `<file>:<line>: <words>`
+     */
+    private function __construct(
+        public string $root,
+        public array $files,
+        public array $hits,
+    ) {}
+
+    /**
+     * Selects the files of the checkout at the root and reads each one.
+     */
+    public static function of(string $root): self
+    {
+        $files = [];
+
+        foreach (self::listed($root) as $path => $executable) {
+            $file = $root.'/'.$path;
+
+            if (! is_file($file) || is_link($file)) {
+                continue;
+            }
+
+            if (self::selects($path, $executable, self::head($file))) {
+                $files[] = $path;
+            }
+        }
+
+        sort($files, SORT_STRING);
+        $hits = [];
+
+        foreach ($files as $path) {
+            $contents = file_get_contents($root.'/'.$path);
+
+            if ($contents === false) {
+                throw new RuntimeException("Cannot read {$path}.");
+            }
+
+            array_push($hits, ...self::hitsIn($path, $contents));
+        }
+
+        return new self($root, $files, $hits);
+    }
+
+    /**
+     * Whether the gate reads a file, given its path relative to the root, whether it is
+     * executable and its first bytes.
+     */
+    public static function selects(string $path, bool $executable, string $head): bool
+    {
+        if (self::excluded($path)) {
+            return false;
+        }
+
+        $name = basename($path);
+        $extension = pathinfo($name, PATHINFO_EXTENSION);
+
+        return in_array(strtolower($extension), self::EXTENSIONS, true)
+            || in_array($name, self::NAMES, true)
+            || str_ends_with($name, self::DOCKERFILE_SUFFIX)
+            || str_starts_with($path, self::ALL_FILES_BELOW)
+            || ($extension === '' && ($executable || str_starts_with($head, '#!')));
+    }
+
+    public static function excluded(string $path): bool
+    {
+        foreach (array_keys(self::EXCLUDED) as $entry) {
+            $matches = match (true) {
+                str_starts_with($entry, '*.') => strtolower(pathinfo($path, PATHINFO_EXTENSION)) === substr($entry, 2),
+                str_ends_with($entry, '/') => str_starts_with($path, $entry),
+                default => $path === $entry,
+            };
+
+            if ($matches) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * The lines of a file that carry a marker, as `<file>:<line>: <words>`.
+     *
+     * @return list<string>
+     */
+    public static function hitsIn(string $path, string $contents): array
+    {
+        $hits = [];
+
+        foreach (explode("\n", $contents) as $index => $line) {
+            if (preg_match_all(self::pattern(), $line, $matches) > 0) {
+                $hits[] = sprintf('%s:%d: %s', $path, $index + 1, implode(', ', $matches[0]));
+            }
+        }
+
+        return $hits;
+    }
+
+    /**
+     * Whole words in any case, as `git grep -w -i` matches them: a word character is a letter,
+     * a digit or an underscore.
+     */
+    public static function pattern(): string
+    {
+        $words = array_map(
+            static fn (string $word): string => $word === self::PLURAL ? $word.'s?' : $word,
+            self::WORDS,
+        );
+
+        return '/(?<![A-Za-z0-9_])(?:'.implode('|', $words).')(?![A-Za-z0-9_])/i';
+    }
+
+    /**
+     * The files git lists in the checkout, each with whether it is executable. A tracked file
+     * is executable when its mode in the index is 100755, an untracked one when its execute bit
+     * is set. Symlinks and submodules are not files and are left out.
+     *
+     * @return array<string, bool>
+     */
+    private static function listed(string $root): array
+    {
+        $listed = [];
+
+        foreach (self::entries($root, ['ls-files', '-z', '--stage']) as $entry) {
+            if (preg_match('/^(\d{6}) [0-9a-f]+ \d\t(.+)$/s', $entry, $match) !== 1) {
+                throw new RuntimeException("Cannot read the git ls-files entry '{$entry}'.");
+            }
+
+            if (in_array($match[1], ['100644', '100755'], true)) {
+                $listed[$match[2]] = $match[1] === '100755';
+            }
+        }
+
+        foreach (self::entries($root, ['ls-files', '-z', '--others', '--exclude-standard']) as $path) {
+            $file = $root.'/'.$path;
+            $listed[$path] = ! is_link($file) && is_file($file) && (fileperms($file) & 0o111) !== 0;
+        }
+
+        return $listed;
+    }
+
+    /**
+     * @param  list<string>  $arguments
+     * @return list<string>
+     */
+    private static function entries(string $root, array $arguments): array
+    {
+        $process = new Process(['git', '-c', 'core.quotePath=false', ...$arguments], $root);
+        $process->mustRun();
+
+        return array_values(array_filter(
+            explode("\0", $process->getOutput()),
+            static fn (string $entry): bool => $entry !== '',
+        ));
+    }
+
+    private static function head(string $file): string
+    {
+        $handle = fopen($file, 'rb');
+
+        if ($handle === false) {
+            throw new RuntimeException("Cannot open {$file}.");
+        }
+
+        $head = fread($handle, 2);
+        fclose($handle);
+
+        return $head === false ? '' : $head;
+    }
+}

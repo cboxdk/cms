@@ -19,6 +19,8 @@ final readonly class Plants
      */
     public static function all(): array
     {
+        $marker = 'TO'.'DO';
+
         return [
             new Plant(1, 'Pint', 'PHP that Pint would reformat', self::MODULE.'/Domain/Formatting.php', <<<'PHP'
                 <?php
@@ -170,6 +172,27 @@ final readonly class Plants
                 }
 
                 PHP, false, ['Illuminate\Http']),
+            // The marker is joined from parts, so this file passes the marker gate itself.
+            new Plant(5, 'Arch', 'a marker word of GUARDRAILS 11 in a comment', self::MODULE.'/Domain/MarkerComment.php', <<<PHP
+                <?php
+
+                declare(strict_types=1);
+
+                namespace Cbox\\Cms\\Core\\Selftest\\Domain;
+
+                use Cbox\\Cms\\Contracts\\Attributes\\Internal;
+
+                #[Internal]
+                final readonly class MarkerComment
+                {
+                    // {$marker}: return the real value.
+                    public function value(): int
+                    {
+                        return 1;
+                    }
+                }
+
+                PHP, false, [self::MODULE.'/Domain/MarkerComment.php:12: '.$marker]),
             new Plant(6, 'check:generated', 'a generated file edited by hand', 'workbench/app/Cms/Generated/TypeHandle.php', <<<'PHP'
 
                 // Edited by hand.

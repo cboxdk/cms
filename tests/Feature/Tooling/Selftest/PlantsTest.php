@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Tests\Feature\Tooling\Selftest;
 
+use Cbox\Cms\Tests\Support\Arch\MarkerScan;
 use Cbox\Cms\Tests\Support\Phpstan;
 use Cbox\Cms\Tests\Support\Tooling\ScratchDirectory;
+use Cbox\Cms\Tests\Support\Tooling\ScratchRepository;
 use Cbox\Cms\Tooling\Check\Domain\CheckReport;
 use Cbox\Cms\Tooling\Check\Domain\GateResult;
 use Cbox\Cms\Tooling\Check\Domain\LocalProfile;
@@ -43,6 +45,21 @@ it('plants what the task names: mixed, both kinds of phpstan-ignore, a transacti
 
     expect($markers)->toContain('cboxCms.mixed', 'cboxCms.phpstanIgnore', 'cboxCms.transaction', 'no-explicit-any', 'Illuminate\Http', 'SimplifyIfReturnBoolRector')
         ->and($contents)->toContain('// @phpstan-ignore-next-line', '// @phpstan-ignore cboxCms.phpstanIgnore', '->beginTransaction()', '): any {', 'use Illuminate\Http\Request;');
+});
+
+it('plants a marker word of GUARDRAILS 11 that the marker gate reports at the file and line the plant expects', function (): void {
+    $plants = array_values(array_filter(Plants::all(), static fn (Plant $plant): bool => $plant->path === Plants::MODULE.'/Domain/MarkerComment.php'));
+    $repository = ScratchRepository::make();
+    $repository->write('README.md', "# Scratch\n")->commit('initial');
+
+    expect($plants)->toHaveCount(1);
+
+    $plants[0]->plantIn($repository->root);
+
+    expect($plants[0]->gate)->toBe(5)
+        ->and($plants[0]->step)->toBe('Arch')
+        ->and($plants[0]->markers)->toBe([Plants::MODULE.'/Domain/MarkerComment.php:12: '.strtoupper(MarkerScan::WORDS[0])])
+        ->and(MarkerScan::of($repository->root)->hits)->toBe($plants[0]->markers);
 });
 
 it('aims every violation at a step the local profile runs', function (): void {
