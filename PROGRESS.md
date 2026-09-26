@@ -33,7 +33,7 @@ Status er `todo`, `next`, `in_progress`, `done`, `incomplete` eller `blocked`.
 
 ## Seneste kørsel
 
-Ingen endnu.
+M0, første kørsel, stoppet 26. september efter T20 af 35, fordi Sylvester besluttede Pest 5, cboxdk's database-images og ingen pladsholdere. T1 til T20 og T28 til T30 er committet og var grønne på Pest 4. Ikke startet: T31, T32 og løftet af ecosystem-pakkerne (T21 til T27, T33 til T35). M0 køres igen med de nye beslutninger.
 
 ## Blokeret
 
@@ -45,6 +45,15 @@ Beslutninger der venter på Sylvester, og hvad de blokerer:
 - PRD 26, spørgsmål 13: prioritetsskala og forudindstillinger. Blokerer standardværdierne i B9, ikke modellen.
 - PRD 26, spørgsmål 16: udbyder efter AI-forordningen. Blokerer intet i kernen.
 - **symfony/yaml i `cboxdk/cms-generators`.** `cms:generate` læser schemaet med symfony/yaml. I M0 står den kun under `suggest` i `packages/generators/composer.json` og i rodens `require-dev`. Om pakken skal kræve den, og i hvilken version, er en beslutning om afhængigheder. Blokerer udgivelse af `cboxdk/cms-generators` og `cms:generate` i en installation uden dev-afhængigheder, fx Composer-hooken i PRD 11.12. `packages/generators/tests/DependenciesTest.php` holder hullet synligt: fjernes `suggest`, fejler den.
+
+## Beslutninger fra Sylvester
+
+Gælder for alle opgaver:
+
+- PHP-containere bygger på cboxdk php-baseimages, PHP 8.5, release-kanalen v1. Til udvikling og tests: `ghcr.io/cboxdk/php-baseimages/php-cli:8.5-bookworm-dev-v1`. Brug altid `-v1`-tags, aldrig de rullende tags uden kanal.
+- Postgres og Valkey bruger cboxdk db-baseimages: `ghcr.io/cboxdk/postgres:18` og `ghcr.io/cboxdk/valkey:8`. Testene kører dermed på Postgres 18, selvom 17 er minimum (GUARDRAILS 1.2). Kode må ikke bruge noget der først findes i 18, for eksempel `uuidv7()` og `pg_wal_replay_wait()`. Imaget har cbox-init som PID 1; hent init-scripts og healthcheck fra dets README (`~/Projects/db-baseimages`).
+- Pest 5 og pest-plugin-browser 5, ikke Pest 4 (GUARDRAILS 1.3). M0 er bygget på Pest 4 og skal løftes.
+- Alt der committes, er klar til produktion. Ingen pladsholdere (GUARDRAILS 11): ingen midlertidige formater som `m0-provisional` eller den midlertidige `ReceiptCodecV1`, ingen porte der står som "ikke kørt" fordi arbejdet mangler, ingen TODO/FIXME. Det der allerede er committet i M0 og bryder reglen, skal gøres færdigt eller fjernes.
 
 ## Tolkninger
 
