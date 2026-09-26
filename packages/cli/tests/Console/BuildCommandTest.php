@@ -1,0 +1,102 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Cbox\Cms\Cli\Tests\Console;
+
+use Cbox\Cms\Cli\Console\BuildCommand;
+use Cbox\Cms\Core\Registry\Domain\RegistryCache;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNote;
+use Cbox\Cms\Core\Tests\Registry\Providers\FixtureRootProvider;
+use Cbox\Cms\Core\Tests\Registry\RegistryFixtures;
+use Illuminate\Contracts\Console\Kernel;
+
+/*
+ * cms:build in the testbench application: it compiles the scan roots the providers declare and
+ * writes the six files, or prints each problem with its code and exits with 65.
+ */
+
+afterEach(function (): void {
+    RegistryFixtures::cleanUp();
+    FixtureRootProvider::$fixture = 'Valid';
+});
+
+/**
+ * Runs cms:build and returns its exit code and output lines.
+ *
+ * @return array{int, list<string>}
+ */
+function buildCommand(): array
+{
+    $artisan = app(Kernel::class);
+    $status = $artisan->call('cms:build');
+
+    return [$status, array_values(array_filter(array_map(trim(...), explode("\n", $artisan->output())), static fn (string $line): bool => $line !== ''))];
+}
+
+it('is registered', function (): void {
+    expect(app(Kernel::class)->all())->toHaveKey('cms:build')
+        ->and(app(Kernel::class)->all()['cms:build'])->toBeInstanceOf(BuildCommand::class);
+});
+
+it('writes the six registries to the application\'s bootstrap/cache/cms', function (): void {
+    $directory = app()->bootstrapPath('cache/cms');
+
+    [$status, $output] = buildCommand();
+
+    expect($status)->toBe(0)
+        ->and($output)->toBe([
+            'actions: 0',
+            'commands: 0',
+            'hooks: 0',
+            'subscribers: 0',
+            'slots: 0',
+            'schema: 0',
+            sprintf('Registry written to %s.', $directory),
+        ])
+        ->and(RegistryFixtures::files($directory))->toBe(['actions.php', 'commands.php', 'hooks.php', 'schema.php', 'slots.php', 'subscribers.php']);
+});
+
+it('adds what an addon provider\'s scan root declares', function (): void {
+    $directory = RegistryFixtures::scratch();
+    app()->instance(RegistryCache::class, RegistryFixtures::cache($directory));
+    app()->register(FixtureRootProvider::class);
+
+    [$status, $output] = buildCommand();
+
+    expect($status)->toBe(0)
+        ->and(array_slice($output, 0, 3))->toBe(['actions: 1', 'commands: 1', 'hooks: 1'])
+        ->and(RegistryFixtures::load($directory.'/commands.php'))->toMatchArray(['entries' => [[
+            'class' => CreateNote::class,
+            'name' => 'fixture.note.create',
+            'package' => RegistryFixtures::PACKAGE,
+            'version' => 1,
+        ]]]);
+});
+
+it('exits with 65 and prints the error code when two classes declare the same command and version', function (): void {
+    $directory = RegistryFixtures::scratch();
+    app()->instance(RegistryCache::class, RegistryFixtures::cache($directory));
+    FixtureRootProvider::$fixture = 'DuplicateCommand';
+    app()->register(FixtureRootProvider::class);
+
+    [$status, $output] = buildCommand();
+
+    expect($status)->toBe(BuildCommand::EXIT_INVALID_DECLARATIONS)
+        ->and($status)->toBe(65)
+        ->and($output[0])->toStartWith('[registry_duplicate_command] Command "x.y" version 1 is declared by ')
+        ->and($output[1])->toBe('The registry was not built, and the cache was left as it was.')
+        ->and(is_dir($directory))->toBeFalse();
+});
+
+it('exits with 73 when the cache cannot be written', function (): void {
+    $directory = RegistryFixtures::scratch();
+    mkdir($directory);
+    file_put_contents($directory.'/bootstrap', '');
+    app()->instance(RegistryCache::class, RegistryFixtures::cache($directory.'/bootstrap/cache/cms'));
+
+    [$status, $output] = buildCommand();
+
+    expect($status)->toBe(BuildCommand::EXIT_UNWRITABLE)
+        ->and($output[0])->toStartWith('[registry_cache_unwritable] ');
+});

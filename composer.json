@@ -58,10 +58,7 @@
         ]
     },
     "scripts": {
-        "post-autoload-dump": [
-            "@clear",
-            "@prepare"
-        ],
+        "post-autoload-dump": ["@clear", "@prepare", "@php vendor/bin/testbench cms:build --ansi"],
         "clear": "@php vendor/bin/testbench package:purge-skeleton --ansi",
         "prepare": "@php vendor/bin/testbench package:discover --ansi",
         "test": "@php vendor/bin/pest",

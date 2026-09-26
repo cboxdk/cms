@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Build\DeclaresScanRoots;
+use Cbox\Cms\Contracts\Build\ScanRoot;
 use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\IdempotencyStore;
 use Cbox\Cms\Contracts\IdGenerator;
@@ -13,6 +15,12 @@ use Cbox\Cms\Core\Bindings\Boundary\ContractBindings;
 use Cbox\Cms\Core\Partitions\Boundary\PartitionConfig;
 use Cbox\Cms\Core\Partitions\Domain\PartitionMaintenance;
 use Cbox\Cms\Core\Partitions\Infrastructure\PostgresPartitionManager;
+use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
+use Cbox\Cms\Core\Registry\Boundary\RegistryCacheCodec;
+use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
+use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
+use Cbox\Cms\Core\Registry\Domain\RegistryCache;
+use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Foundation\Application;
@@ -25,13 +33,19 @@ use Override;
  *
  * Binds each contract to the implementation configured in `cms.contracts` (GUARDRAILS 2.3), loads
  * the core's migrations, binds partition maintenance to the Postgres partition manager, and
- * schedules it.
+ * schedules it. Wires the registry that cms:build compiles to bootstrap/cache/cms/ (PRD 13.2), and
+ * declares the core's own classes as a scan root.
  */
 #[Internal]
-final class CoreServiceProvider extends ServiceProvider
+final class CoreServiceProvider extends ServiceProvider implements DeclaresScanRoots
 {
     /** The command the cli package registers for partition maintenance. */
     public const string PARTITIONS_COMMAND = 'cms:partitions:maintain';
+
+    public const string PACKAGE = 'cboxdk/cms-core';
+
+    /** Where cms:build writes the registry, below the application's bootstrap path. */
+    public const string REGISTRY_CACHE = 'cache/cms';
 
     #[Override]
     public function register(): void
@@ -66,6 +80,19 @@ final class CoreServiceProvider extends ServiceProvider
                 PartitionConfig::read($app->make(Repository::class)),
             ),
         );
+
+        $this->app->bind(DeclarationScanner::class, AttributeScanner::class);
+
+        $this->app->bind(
+            RegistryCache::class,
+            static fn (Application $app): RegistryCache => new FileRegistryCache($app->bootstrapPath(self::REGISTRY_CACHE), new RegistryCacheCodec),
+        );
+
+        // Read once per process from the files cms:build wrote; a missing file throws RegistryCacheMissing.
+        $this->app->singleton(
+            CompiledRegistry::class,
+            static fn (Application $app): CompiledRegistry => $app->make(RegistryCache::class)->read(),
+        );
     }
 
     public function boot(): void
@@ -78,5 +105,10 @@ final class CoreServiceProvider extends ServiceProvider
         $this->callAfterResolving(Schedule::class, static function (Schedule $schedule): void {
             $schedule->command(self::PARTITIONS_COMMAND)->hourly();
         });
+    }
+
+    public function scanRoots(): array
+    {
+        return [new ScanRoot(self::PACKAGE, __DIR__)];
     }
 }
