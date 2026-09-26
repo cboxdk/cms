@@ -1,0 +1,16 @@
+# The workbench's fixture schema (GUARDRAILS 2.6, PRD 11.12). cms:generate reads it and writes the
+# committed code in workbench/app/Cms/Generated and workbench/resources/js/cms/generated, and
+# `composer check:generated` fails when that code is not what this file generates.
+#
+# The format is provisional for milestone 0: types with a handle and a label, and fields with a
+# handle and a type. It does not pre-empt the blueprint schema v1, which milestone 1 defines and
+# which replaces this format.
+format: m0-provisional
+types:
+  - handle: article
+    label: Article
+    fields:
+      - handle: title
+        type: text
+      - handle: body
+        type: markdown

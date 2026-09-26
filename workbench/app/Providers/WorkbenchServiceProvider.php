@@ -15,12 +15,23 @@ use Illuminate\Support\ServiceProvider;
  * `pgsql` connects as the app role, which the application and the tests use, and
  * `pgsql_owner` connects as the owner role, which runs migrations. Both use the
  * dedicated schema instead of Laravel's default search_path of public.
+ *
+ * It also points cms:generate (PRD 11.12) at the workbench's fixture schema and its committed
+ * generated code (GUARDRAILS 2.6), relative to the monorepo root.
  */
 final class WorkbenchServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
         $config = $this->app->make(Repository::class);
+
+        $config->set('cms.generators', [
+            'root' => dirname(__DIR__, 3),
+            'schema' => 'workbench/schema/fixture.yaml',
+            'php_directory' => 'workbench/app/Cms/Generated',
+            'php_namespace' => 'Workbench\\App\\Cms\\Generated',
+            'typescript_directory' => 'workbench/resources/js/cms/generated',
+        ]);
 
         $app = $config->get('database.connections.pgsql');
 

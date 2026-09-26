@@ -20,10 +20,12 @@
     },
     "require-dev": {
         "cboxdk/cms-testkit": "^0.1@dev",
+        "nikic/php-parser": "^5.7",
         "orchestra/testbench": "^11.0",
         "pestphp/pest": "^4.7",
         "pestphp/pest-plugin-arch": "^4.0",
-        "pestphp/pest-plugin-laravel": "^4.1"
+        "pestphp/pest-plugin-laravel": "^4.1",
+        "symfony/yaml": "^8.0"
     },
     "repositories": [
         {
@@ -71,7 +73,16 @@
         "lint:check": "@php vendor/bin/pint --test",
         "rector": "@php vendor/bin/rector process",
         "rector:check": "@php vendor/bin/rector process --dry-run",
-        "analyse": "@php vendor/bin/phpstan analyse --no-progress"
+        "analyse": "@php vendor/bin/phpstan analyse --no-progress",
+        "check:generated": [
+            "@check:generated:committed",
+            "@php vendor/bin/testbench cms:generate --ansi",
+            "@check:generated:committed"
+        ],
+        "check:generated:committed": [
+            "git diff --exit-code -- workbench/app/Cms/Generated workbench/resources/js/cms/generated || { echo 'The generated code above is not the committed code. Generated code changes only through its schema: edit workbench/schema/fixture.yaml, run cms:generate and commit both.' >&2; exit 1; }",
+            "git ls-files --others --exclude-standard -- workbench/app/Cms/Generated workbench/resources/js/cms/generated | awk '{ print \"Untracked generated file: \" $0; n++ } END { if (n > 0) print \"Commit what cms:generate writes, and remove files it did not write.\"; exit n > 0 }'"
+        ]
     },
     "config": {
         "sort-packages": true,
@@ -89,6 +100,8 @@
         "lint:check": "Gate 1: fail if Pint would change any file.",
         "rector": "Apply the shared Rector sets from the testkit.",
         "rector:check": "Gate 2: fail if Rector would change any file.",
-        "analyse": "Gate 3: PHPStan level 10 with Larastan over the packages, the tests and the workbench, without a baseline."
+        "analyse": "Gate 3: PHPStan level 10 with Larastan over the packages, the tests and the workbench, without a baseline.",
+        "check:generated": "Gate 6: regenerate the workbench's code from its fixture schema and fail if the generated code differs from the committed code, before or after, or a generated file is untracked (PRD 11.12).",
+        "check:generated:committed": "Fail if the workbench's generated code has unstaged changes or untracked files."
     }
 }

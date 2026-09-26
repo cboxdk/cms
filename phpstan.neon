@@ -16,6 +16,7 @@ parameters:
         - packages/core/database
         - packages/core/src
         - packages/core/tests
+        - packages/generators/config
         - packages/generators/src
         - packages/generators/tests
         - packages/http/src

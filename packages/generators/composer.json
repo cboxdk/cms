@@ -12,7 +12,12 @@
   "require": {
     "php": "^8.5",
     "cboxdk/cms-contracts": "^0.1",
+    "illuminate/console": "^13.0",
+    "illuminate/contracts": "^13.0",
     "illuminate/support": "^13.0"
+  },
+  "suggest": {
+    "symfony/yaml": "Required by cms:generate to read the schema. Only suggested in milestone 0, until the dependency is decided (PROGRESS.md, Blokeret)."
   },
   "autoload": {
     "psr-4": {

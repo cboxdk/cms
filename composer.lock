@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "e0a409beb7a1867b0fde7a3181e6a7bd",
+    "content-hash": "6d6b6b3b637167030363628fefafb677",
     "packages": [
         {
             "name": "brick/math",
@@ -280,12 +280,17 @@
             "dist": {
                 "type": "path",
                 "url": "packages/generators",
-                "reference": "f190bb9927a45747b353f63f48cb7e606c1aabb8"
+                "reference": "41332215f4384713176ed9524461fce443b86d9f"
             },
             "require": {
                 "cboxdk/cms-contracts": "^0.1",
+                "illuminate/console": "^13.0",
+                "illuminate/contracts": "^13.0",
                 "illuminate/support": "^13.0",
                 "php": "^8.5"
+            },
+            "suggest": {
+                "symfony/yaml": "Required by cms:generate to read the schema. Only suggested in milestone 0, until the dependency is decided (PROGRESS.md, Blokeret)."
             },
             "type": "library",
             "extra": {
