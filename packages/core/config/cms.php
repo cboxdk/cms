@@ -17,4 +17,33 @@ return [
         Clock::class => SystemClock::class,
         IdGenerator::class => SystemIdGenerator::class,
     ],
+
+    'database' => [
+        /*
+         * The connection of the owner role, which owns the schema and runs migrations and partition
+         * maintenance (PRD 4.2). The app role on the default connection has no DDL, and the
+         * partition manager refuses to run on it.
+         */
+        'owner_connection' => 'pgsql_owner',
+
+        /*
+         * Range partitions kept by `cms:partitions:maintain`, which the scheduler runs every hour.
+         * Partitions exist from the span that holds now to runway_days ahead; a partition is removed,
+         * with DETACH PARTITION CONCURRENTLY and DROP TABLE, when its span ended retention_days ago.
+         * Every DDL statement runs with lock_timeout lock_timeout_ms and is tried up to attempts
+         * times, waiting backoff_ms before the second attempt and twice as long before each after.
+         *
+         * tables maps a table name in the owner connection's search path to its settings:
+         *     'receipts' => ['key' => 'uuid7', 'interval' => 'day', 'retention_days' => 7],
+         * key is 'uuid7' (an id column of UUIDv7s) or 'timestamp' (a timestamptz column), interval is
+         * 'day' or 'month', and retention_days is a whole number or null to keep every partition.
+         */
+        'partitions' => [
+            'runway_days' => 14,
+            'lock_timeout_ms' => 2000,
+            'attempts' => 3,
+            'backoff_ms' => 250,
+            'tables' => [],
+        ],
+    ],
 ];

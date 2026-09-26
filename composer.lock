@@ -146,13 +146,15 @@
             "dist": {
                 "type": "path",
                 "url": "packages/cli",
-                "reference": "c29ca80c4255492964f8f139729b9884539346ce"
+                "reference": "5cfc4f39378fb628796fea4a3b5a59129a92a01f"
             },
             "require": {
                 "cboxdk/cms-contracts": "^0.1",
                 "cboxdk/cms-core": "^0.1",
+                "illuminate/console": "^13.0",
                 "illuminate/support": "^13.0",
-                "php": "^8.5"
+                "php": "^8.5",
+                "psr/log": "^3.0"
             },
             "type": "library",
             "extra": {
@@ -230,10 +232,12 @@
             "dist": {
                 "type": "path",
                 "url": "packages/core",
-                "reference": "1ca93c8bec434813c6c146b58d2d1a8f95cdeee5"
+                "reference": "cd43505b1fcc8237b365fea49a1dc9026c5cf412"
             },
             "require": {
                 "cboxdk/cms-contracts": "^0.1",
+                "illuminate/console": "^13.0",
+                "illuminate/database": "^13.0",
                 "illuminate/support": "^13.0",
                 "php": "^8.5"
             },

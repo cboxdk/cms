@@ -8,18 +8,28 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Core\Bindings\Boundary\ContractBindings;
+use Cbox\Cms\Core\Partitions\Boundary\PartitionConfig;
+use Cbox\Cms\Core\Partitions\Domain\PartitionMaintenance;
+use Cbox\Cms\Core\Partitions\Infrastructure\PostgresPartitionManager;
+use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Database\ConnectionResolverInterface;
 use Illuminate\Support\ServiceProvider;
 use Override;
 
 /**
  * Registers the core package in a Laravel application. Loaded through package discovery.
  *
- * Binds each contract to the implementation configured in `cms.contracts` (GUARDRAILS 2.3).
+ * Binds each contract to the implementation configured in `cms.contracts` (GUARDRAILS 2.3), binds
+ * partition maintenance to the Postgres partition manager, and schedules it.
  */
 #[Internal]
 final class CoreServiceProvider extends ServiceProvider
 {
+    /** The command the cli package registers for partition maintenance. */
+    public const string PARTITIONS_COMMAND = 'cms:partitions:maintain';
+
     #[Override]
     public function register(): void
     {
@@ -34,5 +44,23 @@ final class CoreServiceProvider extends ServiceProvider
             IdGenerator::class,
             static fn (Application $app): IdGenerator => $app->make(ContractBindings::class)->resolve($app, IdGenerator::class),
         );
+
+        // Built on each resolution, so the policy follows the configuration.
+        $this->app->bind(
+            PartitionMaintenance::class,
+            static fn (Application $app): PartitionMaintenance => new PostgresPartitionManager(
+                $app->make(ConnectionResolverInterface::class),
+                PartitionConfig::read($app->make(Repository::class)),
+            ),
+        );
+    }
+
+    public function boot(): void
+    {
+        // Every hour, so a missed run costs an hour of a 14-day runway and retention runs on time.
+        // Runs never overlap: the manager holds an advisory lock in Postgres for the whole run.
+        $this->callAfterResolving(Schedule::class, static function (Schedule $schedule): void {
+            $schedule->command(self::PARTITIONS_COMMAND)->hourly();
+        });
     }
 }
