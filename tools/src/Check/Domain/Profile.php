@@ -16,14 +16,13 @@ enum Profile: string
 
     /**
      * @param  list<string>  $composer
-     * @param  list<string>  $phpunitSuites
      * @return list<Gate>
      */
-    public function gates(string $php, array $composer, array $phpunitSuites): array
+    public function gates(string $php, array $composer): array
     {
         return match ($this) {
-            self::Local => LocalProfile::gates($php, $composer, $phpunitSuites),
-            self::Pr => PrProfile::gates($php, $composer, $phpunitSuites),
+            self::Local => LocalProfile::gates($php, $composer),
+            self::Pr => PrProfile::gates($php, $composer),
         };
     }
 

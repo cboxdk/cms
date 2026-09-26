@@ -18,14 +18,13 @@ use Cbox\Cms\Tooling\Check\Domain\Step;
  */
 
 const PR_COMPOSER = ['/usr/bin/php', '/usr/bin/composer'];
-const PR_SUITES = ['Unit', 'Codecs', 'Contract', 'Postgres', 'Arch', 'Browser'];
 
 /**
  * @return list<Gate>
  */
 function prGates(): array
 {
-    return PrProfile::gates('/usr/bin/php', PR_COMPOSER, PR_SUITES);
+    return PrProfile::gates('/usr/bin/php', PR_COMPOSER);
 }
 
 /**
@@ -38,7 +37,7 @@ function stepTriples(array $steps): array
 }
 
 it('runs the local profile\'s steps for gates 1 to 6, unchanged, and adds only mutation to gate 5', function (): void {
-    $local = LocalProfile::gates('/usr/bin/php', PR_COMPOSER, PR_SUITES);
+    $local = LocalProfile::gates('/usr/bin/php', PR_COMPOSER);
     $pr = prGates();
 
     expect(array_map(static fn (Gate $gate): int => $gate->number, $pr))->toBe(range(1, 11));
@@ -73,8 +72,8 @@ it('reports gates 7 to 11 as not run, each with its own reason and never the loc
 });
 
 it('picks the gates by profile and names the profile in the header', function (): void {
-    expect(Profile::Local->gates('/usr/bin/php', PR_COMPOSER, PR_SUITES))->toEqual(LocalProfile::gates('/usr/bin/php', PR_COMPOSER, PR_SUITES))
-        ->and(Profile::Pr->gates('/usr/bin/php', PR_COMPOSER, PR_SUITES))->toEqual(prGates())
+    expect(Profile::Local->gates('/usr/bin/php', PR_COMPOSER))->toEqual(LocalProfile::gates('/usr/bin/php', PR_COMPOSER))
+        ->and(Profile::Pr->gates('/usr/bin/php', PR_COMPOSER))->toEqual(prGates())
         ->and(ReportFormatter::header('/repo'))->toBe("composer check: the local profile of GUARDRAILS 10, gates 1 to 6, in /repo\n")
         ->and(ReportFormatter::header('/repo', Profile::Pr))->toBe("composer check: the PR profile of GUARDRAILS 10 as CI runs it today, gates 1 to 6, with 7 to 11 reported as not run, in /repo\n");
 });

@@ -2,13 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Cbox\Cms\Tooling\Check\Boundary;
+namespace Cbox\Cms\Tests\Support\Tooling;
 
 use DOMDocument;
 use UnexpectedValueException;
 
 /**
- * Reads the names of the test suites from a phpunit.xml.
+ * Reads the names of the test suites from a phpunit.xml, so the tests can hold the local profile
+ * to it.
  */
 final readonly class PhpunitSuites
 {

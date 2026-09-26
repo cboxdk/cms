@@ -6,11 +6,13 @@ namespace Cbox\Cms\Tests\Feature\Tooling\Check;
 
 use Cbox\Cms\Tests\Support\Node;
 use Cbox\Cms\Tests\Support\Phpstan;
-use Cbox\Cms\Tooling\Check\Boundary\PhpunitSuites;
+use Cbox\Cms\Tests\Support\Tooling\PhpunitSuites;
+use Cbox\Cms\Tests\Support\Tooling\ScratchDirectory;
 use Cbox\Cms\Tooling\Check\Domain\Gate;
 use Cbox\Cms\Tooling\Check\Domain\LocalProfile;
 use Cbox\Cms\Tooling\Check\Domain\Step;
 use RuntimeException;
+use UnexpectedValueException;
 
 /*
  * The local profile of GUARDRAILS 10 (`composer check`): gates 1 to 6 in order, with the
@@ -20,13 +22,16 @@ use RuntimeException;
 
 const COMPOSER = ['/usr/bin/php', '/usr/bin/composer'];
 
+afterEach(function (): void {
+    ScratchDirectory::cleanUp();
+});
+
 /**
- * @param  list<string>  $suites
  * @return list<Gate>
  */
-function localGates(array $suites = ['Unit', 'Codecs', 'Contract', 'Postgres', 'Arch', 'Browser']): array
+function localGates(): array
 {
-    return LocalProfile::gates('/usr/bin/php', COMPOSER, $suites);
+    return LocalProfile::gates('/usr/bin/php', COMPOSER);
 }
 
 function localGate(int $number): Gate
@@ -108,23 +113,30 @@ it('runs each Pest suite on its own in gate 5 and fails a suite with a skipped o
     }
 });
 
-it('reports the Actions suite as not run until phpunit.xml has it, and runs it once it does', function (): void {
-    $without = LocalProfile::gates('php', COMPOSER, ['Unit'])[4];
-    $with = LocalProfile::gates('php', COMPOSER, ['Unit', 'Actions'])[4];
+it('runs the Actions suite as an ordinary step of gate 5, never as not run', function (): void {
+    $steps = localGate(5)->steps;
 
-    expect($without->number)->toBe(5)
-        ->and(array_last($without->steps)?->name)->toBe('Actions')
-        ->and(array_last($without->steps)?->notRunReason)->toBe('no tests until M1')
-        ->and(array_last($without->steps)?->runs())->toBeFalse()
-        ->and(array_last($with->steps)?->runs())->toBeTrue()
-        ->and(array_last($with->steps)?->command)->toBe(['php', 'vendor/bin/pest', '--testsuite=Actions', '--fail-on-skipped', '--fail-on-incomplete']);
+    expect(LocalProfile::SUITES)->toContain('Actions')
+        ->and(array_filter($steps, static fn (Step $step): bool => ! $step->runs()))->toBe([])
+        ->and(array_last($steps)?->name)->toBe('Actions')
+        ->and(array_last($steps)?->command)->toBe(['/usr/bin/php', 'vendor/bin/pest', '--testsuite=Actions', '--fail-on-skipped', '--fail-on-incomplete']);
 });
 
 it('covers every suite in phpunit.xml except Browser, which is gate 8', function (): void {
     $suites = PhpunitSuites::in(Phpstan::root().'/phpunit.xml');
-    $covered = [...LocalProfile::SUITES, LocalProfile::ACTIONS_SUITE, ...LocalProfile::OTHER_SUITES];
+    $covered = [...LocalProfile::SUITES, ...LocalProfile::OTHER_SUITES];
 
     expect(array_values(array_diff($suites, $covered)))->toBe([])
         ->and($suites)->toContain(...LocalProfile::SUITES)
         ->and(LocalProfile::OTHER_SUITES)->toBe(['Browser']);
+});
+
+it('reads the suite names from phpunit.xml and refuses a file that is not XML', function (): void {
+    $directory = ScratchDirectory::make();
+    ScratchDirectory::write($directory.'/phpunit.xml', '<phpunit><testsuites><testsuite name="Unit"/><testsuite name="Arch"/></testsuites></phpunit>');
+    ScratchDirectory::write($directory.'/broken.xml', '<phpunit>');
+
+    expect(PhpunitSuites::in($directory.'/phpunit.xml'))->toBe(['Unit', 'Arch'])
+        ->and(static fn (): array => PhpunitSuites::in($directory.'/broken.xml'))->toThrow(UnexpectedValueException::class)
+        ->and(static fn (): array => PhpunitSuites::in($directory.'/missing.xml'))->toThrow(UnexpectedValueException::class);
 });

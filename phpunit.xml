@@ -15,14 +15,14 @@
          displayDetailsOnPhpunitDeprecations="true"
 >
     <!--
-        The Pest suites of gate 5 in GUARDRAILS 10, and Browser for gate 8. The actions suite
-        arrives in M1 with the first action.
+        The Pest suites of gate 5 in GUARDRAILS 10, and Browser for gate 8.
           Unit      no services: the monorepo's tooling, manifest and provider tests, and every
                     package test outside the directories below
           Codecs    PHP codec output against the browser's validator
           Contract  the same suite against the fake and the real adapter of each contract
           Postgres  real Postgres and Valkey from compose.yaml; run `composer services:up` first
           Arch      the architecture rules
+          Actions   each action called directly with its DTOs and the fakes of its ports (GUARDRAILS 9)
           Browser   Chromium through the Pest browser plugin and Playwright, against the workbench
                     application served in-process; run `npm ci` and `npx playwright install chromium` first
         A package puts its tests for a suite in packages/<package>/tests/<Suite>.
@@ -34,6 +34,7 @@
             <exclude>packages/*/tests/Codecs</exclude>
             <exclude>packages/*/tests/Contract</exclude>
             <exclude>packages/*/tests/Postgres</exclude>
+            <exclude>packages/*/tests/Actions</exclude>
         </testsuite>
         <testsuite name="Codecs">
             <directory suffix="Test.php">tests/Codecs</directory>
@@ -49,6 +50,10 @@
         </testsuite>
         <testsuite name="Arch">
             <directory suffix="Test.php">tests/Arch</directory>
+        </testsuite>
+        <testsuite name="Actions">
+            <directory suffix="Test.php">tests/Actions</directory>
+            <directory suffix="Test.php">packages/*/tests/Actions</directory>
         </testsuite>
         <testsuite name="Browser">
             <directory suffix="Test.php">tests/Browser</directory>

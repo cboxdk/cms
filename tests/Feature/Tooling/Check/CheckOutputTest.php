@@ -33,7 +33,7 @@ function sampleReport(bool $postgresUp = true): CheckReport
         new GateResult(5, 'Pest', [
             $pass('Unit'),
             $postgresUp ? $pass('Postgres') : StepResult::ran('Postgres', new ProcessOutcome(1, "Start the services with `composer services:up`.\n", 1.0)),
-            StepResult::notRun('Actions', 'no tests until M1'),
+            StepResult::notRun('Mutation', 'mutation testing is not set up'),
         ]),
         new GateResult(6, 'Generated code', [$pass('check:generated')]),
         new GateResult(8, 'Browser tests', [StepResult::notRun('Browser tests', 'not in the local profile')]),
@@ -69,7 +69,7 @@ it('summarises every gate and every step of a gate with several steps, with the 
           Gate 5   pass      Pest
                    pass      Unit
                    pass      Postgres
-                   not run   Actions: no tests until M1
+                   not run   Mutation: mutation testing is not set up
           Gate 6   pass      Generated code
           Gate 8   not run   Browser tests: not in the local profile
 
@@ -118,7 +118,7 @@ it('writes a JSON report with every gate and step and reads it back unchanged', 
         ->and($decoded->directory)->toBe('/srv/checkout')
         ->and($decoded->failedGates())->toBe([5])
         ->and($decoded->gate(5)?->step('Postgres')?->output)->toBe("Start the services with `composer services:up`.\n")
-        ->and($decoded->gate(5)?->step('Actions')?->status)->toBe(StepStatus::NotRun)
+        ->and($decoded->gate(5)?->step('Mutation')?->status)->toBe(StepStatus::NotRun)
         ->and($json)->toContain('"passed": false', '"directory": "/srv/checkout"', '"format": 1');
 });
 

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cbox\Cms\Core\Tests\Registry;
+namespace Cbox\Cms\Core\Tests\Actions;
 
 use Cbox\Cms\Contracts\Attributes\Phase;
 use Cbox\Cms\Contracts\Attributes\Surface;
@@ -26,6 +26,7 @@ use Cbox\Cms\Core\Tests\Registry\Fixtures\Elsewhere\Misplaced;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNote;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNoteAction;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\TrimNoteTitle;
+use Cbox\Cms\Core\Tests\Registry\RegistryFixtures;
 use PHPUnit\Framework\Assert;
 
 /*

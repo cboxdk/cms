@@ -33,14 +33,13 @@ final readonly class PrProfile
     /**
      * @param  string  $php  the PHP binary
      * @param  list<string>  $composer  the command that runs Composer
-     * @param  list<string>  $phpunitSuites  the names of the test suites in phpunit.xml
      * @return list<Gate>
      */
-    public static function gates(string $php, array $composer, array $phpunitSuites): array
+    public static function gates(string $php, array $composer): array
     {
         $gates = [];
 
-        foreach (LocalProfile::gates($php, $composer, $phpunitSuites) as $gate) {
+        foreach (LocalProfile::gates($php, $composer) as $gate) {
             $gates[] = match (true) {
                 isset(self::NOT_RUN[$gate->number]) => new Gate($gate->number, $gate->title, [Step::notRun($gate->title, self::NOT_RUN[$gate->number])]),
                 $gate->number === 5 => new Gate(5, $gate->title, [...$gate->steps, Step::notRun(self::MUTATION, self::MUTATION_NOT_RUN)]),

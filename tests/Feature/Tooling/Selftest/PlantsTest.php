@@ -48,7 +48,7 @@ it('plants what the task names: mixed, both kinds of phpstan-ignore, a transacti
 it('aims every violation at a step the local profile runs', function (): void {
     $running = [];
 
-    foreach (LocalProfile::gates('php', ['composer'], ['Unit']) as $gate) {
+    foreach (LocalProfile::gates('php', ['composer']) as $gate) {
         foreach ($gate->steps as $step) {
             if ($step->runs()) {
                 $running[] = "{$gate->number} {$step->name}";
@@ -108,7 +108,7 @@ function phpstanReport(int $exitCode, string $output): CheckReport
 {
     return new CheckReport('/unused', [
         new GateResult(3, 'PHPStan', [StepResult::ran('PHPStan', new ProcessOutcome($exitCode, $output, 1.0))]),
-        new GateResult(5, 'Pest', [StepResult::notRun('Actions', 'no tests until M1')]),
+        new GateResult(5, 'Pest', [StepResult::notRun('Mutation', 'mutation testing is not set up')]),
     ]);
 }
 
@@ -132,10 +132,10 @@ it('counts a violation as caught only when its step failed, printed every marker
 it('does not count a violation aimed at a step the report does not have or did not run', function (): void {
     $worktree = ScratchDirectory::make();
     $missing = new Plant(4, 'ESLint', 'any', 'x.ts', "x\n", false, []);
-    $notRun = new Plant(5, 'Actions', 'none', 'y.php', "x\n", false, []);
+    $notRun = new Plant(5, 'Mutation', 'none', 'y.php', "x\n", false, []);
 
     expect(PlantVerdict::of($missing, phpstanReport(1, ''), $worktree)->problems)->toBe(['the report has no step ESLint in gate 4'])
-        ->and(PlantVerdict::of($notRun, phpstanReport(1, ''), $worktree)->problems)->toContain('Actions did not fail, its status is not run');
+        ->and(PlantVerdict::of($notRun, phpstanReport(1, ''), $worktree)->problems)->toContain('Mutation did not fail, its status is not run');
 });
 
 it('does not count a violation named in another checkout as well', function (): void {

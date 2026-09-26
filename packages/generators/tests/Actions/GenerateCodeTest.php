@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cbox\Cms\Generators\Tests\Generation;
+namespace Cbox\Cms\Generators\Tests\Actions;
 
 use Cbox\Cms\Generators\Generation\Actions\GenerateCode;
 use Cbox\Cms\Generators\Generation\Domain\Dto\WriteReport;

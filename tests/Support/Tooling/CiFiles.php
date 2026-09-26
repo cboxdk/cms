@@ -110,7 +110,7 @@ final readonly class CiFiles
         $composer = ['/usr/bin/php', '/usr/bin/composer'];
         $scripts = [];
 
-        foreach (LocalProfile::gates('/usr/bin/php', $composer, LocalProfile::SUITES) as $gate) {
+        foreach (LocalProfile::gates('/usr/bin/php', $composer) as $gate) {
             foreach (self::runningCommands($gate) as $command) {
                 if (array_slice($command, 0, 2) === ['npm', 'run']) {
                     $scripts[] = $command[2] ?? throw new RuntimeException('npm run without a script.');

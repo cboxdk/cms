@@ -28,7 +28,7 @@ $browserPlugin = InstalledVersions::getInstallPath('pestphp/pest-plugin-browser'
 
 ExcludeList::addDirectory($browserPlugin.'/src');
 
-pest()->extend(TestCase::class)->in('Feature', 'Codecs', 'Contract', 'Postgres', 'Browser', '../packages/*/tests');
+pest()->extend(TestCase::class)->in('Feature', 'Codecs', 'Contract', 'Postgres', 'Actions', 'Browser', '../packages/*/tests');
 
 // Real Postgres as the app role, schema built by the owner role, no wrapping transaction (GUARDRAILS 9).
 pest()->use(RealPostgres::class)->in('Postgres', '../packages/*/tests/Postgres');

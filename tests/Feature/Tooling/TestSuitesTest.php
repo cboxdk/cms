@@ -6,10 +6,11 @@ use Cbox\Cms\Tests\Support\Phpstan;
 use Symfony\Component\Process\Process;
 
 /*
- * Gate 5 of GUARDRAILS 10: the Pest suites Unit, Codecs, Contract, Postgres and Arch, and the
- * Browser suite of gate 8. These tests guard the layout itself (GUARDRAILS 7.3): every test file
- * is in exactly one suite, the Postgres suite holds the tests below a Postgres directory and
- * nothing else does, and the harness trait is applied to those directories.
+ * Gate 5 of GUARDRAILS 10: the Pest suites Unit, Codecs, Contract, Postgres, Arch and Actions,
+ * and the Browser suite of gate 8. These tests guard the layout itself (GUARDRAILS 7.3): every
+ * test file is in exactly one suite, the Postgres and Actions suites hold the tests below a
+ * Postgres or Actions directory and nothing else does, and the harness trait is applied to the
+ * Postgres directories.
  */
 
 /**
@@ -66,21 +67,63 @@ function listedTests(?string $suite): array
     return array_values(array_unique($matches[1]));
 }
 
-it('defines the suites of gate 5, Unit, Codecs, Contract, Postgres and Arch, and Browser for gate 8', function (): void {
+/**
+ * The test class of each file named like a test below tests and each package's tests directory,
+ * outside the fixture directories: the class of the file's name that a PHPUnit file declares, or
+ * the name Pest gives a file of test functions.
+ *
+ * @return list<string>
+ */
+function testFilesOnDisk(): array
+{
+    $root = Phpstan::root();
+    $classes = [];
+
+    foreach ([$root.'/tests', ...(glob($root.'/packages/*/tests', GLOB_ONLYDIR) ?: [])] as $directory) {
+        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS)) as $file) {
+            if (! $file instanceof SplFileInfo) {
+                continue;
+            }
+
+            $path = substr($file->getPathname(), strlen($root) + 1);
+
+            if (! str_ends_with($path, 'Test.php') || str_contains($path, '/Fixtures/')) {
+                continue;
+            }
+
+            $source = (string) file_get_contents($file->getPathname());
+            $name = basename($path, '.php');
+
+            if (preg_match('/^(?:final |abstract |readonly )*class '.$name.'\\b/m', $source) === 1) {
+                preg_match('/^namespace ([^;]+);/m', $source, $namespace);
+                $classes[] = ($namespace[1] ?? '').'\\'.$name;
+            } else {
+                $classes[] = 'P\\'.str_replace('/', '\\', ucfirst(substr($path, 0, -strlen('.php'))));
+            }
+        }
+    }
+
+    sort($classes);
+
+    return $classes;
+}
+
+it('defines the suites of gate 5, Unit, Codecs, Contract, Postgres, Arch and Actions, and Browser for gate 8', function (): void {
     expect(configuredSuites())->toBe([
         'Unit' => [
             'directories' => ['tests/Feature', 'packages/*/tests'],
-            'excludes' => ['packages/*/tests/Codecs', 'packages/*/tests/Contract', 'packages/*/tests/Postgres'],
+            'excludes' => ['packages/*/tests/Codecs', 'packages/*/tests/Contract', 'packages/*/tests/Postgres', 'packages/*/tests/Actions'],
         ],
         'Codecs' => ['directories' => ['tests/Codecs', 'packages/*/tests/Codecs'], 'excludes' => []],
         'Contract' => ['directories' => ['tests/Contract', 'packages/*/tests/Contract'], 'excludes' => []],
         'Postgres' => ['directories' => ['tests/Postgres', 'packages/*/tests/Postgres'], 'excludes' => []],
         'Arch' => ['directories' => ['tests/Arch'], 'excludes' => []],
+        'Actions' => ['directories' => ['tests/Actions', 'packages/*/tests/Actions'], 'excludes' => []],
         'Browser' => ['directories' => ['tests/Browser'], 'excludes' => []],
     ]);
 });
 
-it('puts every test in exactly one suite, and only Postgres tests in the Postgres suite', function (): void {
+it('puts every test in exactly one suite, only Postgres tests in the Postgres suite and only action tests in the Actions suite', function (): void {
     $bySuite = [];
 
     foreach (array_keys(configuredSuites()) as $suite) {
@@ -93,20 +136,30 @@ it('puts every test in exactly one suite, and only Postgres tests in the Postgre
     sort($all);
 
     $isPostgres = static fn (string $class): bool => preg_match('/\\\\(Tests|tests)\\\\Postgres\\\\/', $class) === 1;
+    $isActions = static fn (string $class): bool => preg_match('/\\\\(Tests|tests)\\\\Actions\\\\/', $class) === 1;
 
     expect($all)->not->toBeEmpty()
         ->and($inSuites)->toBe($all)
+        ->and($all)->toBe(testFilesOnDisk())
         ->and($bySuite['Postgres'])->not->toBeEmpty()
         ->and(array_values(array_filter($bySuite['Postgres'], static fn (string $class): bool => ! $isPostgres($class))))->toBe([])
         ->and(array_values(array_filter($bySuite['Unit'], $isPostgres)))->toBe([])
         ->and($bySuite['Postgres'])->toContain('P\Tests\Postgres\RolesTest', 'P\Packages\testkit\tests\Postgres\HarnessTest')
+        ->and(array_values(array_filter($bySuite['Actions'], static fn (string $class): bool => ! $isActions($class))))->toBe([])
+        ->and(array_values(array_filter($bySuite['Unit'], $isActions)))->toBe([])
+        ->and($bySuite['Actions'])->toContain(
+            'P\Packages\core\tests\Actions\BuildRegistryTest',
+            'P\Packages\core\tests\Actions\MaintainPartitionsTest',
+            'P\Packages\core\tests\Actions\RunDoctorTest',
+            'P\Packages\generators\tests\Actions\GenerateCodeTest',
+        )
         ->and($bySuite['Browser'])->toBe(['P\Tests\Browser\WorkbenchPageTest']);
 });
 
 it('boots the workbench application for the browser tests', function (): void {
     $pest = (string) file_get_contents(Phpstan::root().'/tests/Pest.php');
 
-    expect($pest)->toContain("pest()->extend(TestCase::class)->in('Feature', 'Codecs', 'Contract', 'Postgres', 'Browser', '../packages/*/tests');");
+    expect($pest)->toContain("pest()->extend(TestCase::class)->in('Feature', 'Codecs', 'Contract', 'Postgres', 'Actions', 'Browser', '../packages/*/tests');");
 });
 
 it('applies the real-Postgres harness to the Postgres directories', function (): void {

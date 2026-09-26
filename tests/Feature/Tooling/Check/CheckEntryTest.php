@@ -9,11 +9,9 @@ use Cbox\Cms\Tests\Support\Tooling\ScratchDirectory;
 use Cbox\Cms\Tooling\Check\Adapter\SymfonyProcessRunner;
 use Cbox\Cms\Tooling\Check\Boundary\CheckOptions;
 use Cbox\Cms\Tooling\Check\Boundary\ComposerCommand;
-use Cbox\Cms\Tooling\Check\Boundary\PhpunitSuites;
 use Cbox\Cms\Tooling\Check\Domain\Profile;
 use InvalidArgumentException;
 use Symfony\Component\Process\Process;
-use UnexpectedValueException;
 
 /*
  * The way into `composer check` and `composer check:selftest`: the Composer scripts, the options,
@@ -75,16 +73,6 @@ it('runs Composer as Composer runs @composer inside a script, and from the PATH 
 
     expect($inside)->toBe(['/usr/bin/php', '/opt/composer.phar'])
         ->and(ComposerCommand::resolve('/usr/bin/php'))->toBe(['composer']);
-});
-
-it('reads the suite names from phpunit.xml and refuses a file that is not XML', function (): void {
-    $directory = ScratchDirectory::make();
-    ScratchDirectory::write($directory.'/phpunit.xml', '<phpunit><testsuites><testsuite name="Unit"/><testsuite name="Arch"/></testsuites></phpunit>');
-    ScratchDirectory::write($directory.'/broken.xml', '<phpunit>');
-
-    expect(PhpunitSuites::in($directory.'/phpunit.xml'))->toBe(['Unit', 'Arch'])
-        ->and(static fn (): array => PhpunitSuites::in($directory.'/broken.xml'))->toThrow(UnexpectedValueException::class)
-        ->and(static fn (): array => PhpunitSuites::in($directory.'/missing.xml'))->toThrow(UnexpectedValueException::class);
 });
 
 it('runs a command without a shell and keeps its output and exit code', function (): void {

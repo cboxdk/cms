@@ -73,7 +73,7 @@ final class FakeSelftestWorld
         $reportFile = substr($command[3], strlen('--report='));
         $gates = [];
 
-        foreach (LocalProfile::gates('php', ['composer'], []) as $gate) {
+        foreach (LocalProfile::gates('php', ['composer']) as $gate) {
             $steps = [];
 
             foreach ($gate->steps as $step) {

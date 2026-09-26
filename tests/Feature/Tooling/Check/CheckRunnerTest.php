@@ -46,7 +46,7 @@ function sampleGates(): array
     return [
         new Gate(1, 'Format', [Step::run('Pint', ['pint']), Step::run('Prettier', ['prettier'])]),
         new Gate(2, 'Analyse', [Step::run('PHPStan', ['phpstan'])]),
-        new Gate(5, 'Pest', [Step::run('Unit', ['pest', 'Unit']), Step::notRun('Actions', 'no tests until M1')]),
+        new Gate(5, 'Pest', [Step::run('Unit', ['pest', 'Unit']), Step::notRun('Mutation', 'mutation testing is not set up')]),
         new Gate(7, 'Storybook', [Step::notRun('Storybook', 'not in the local profile')]),
     ];
 }
@@ -66,7 +66,7 @@ it('runs every step of every gate in order in the checked directory, also after 
         ->and($listener->events)->toBe([
             'gate 1', 'Pint fail', 'Prettier pass',
             'gate 2', 'PHPStan pass',
-            'gate 5', 'Unit pass', 'Actions not run',
+            'gate 5', 'Unit pass', 'Mutation not run',
             'gate 7', 'Storybook not run',
         ])
         ->and($report->directory)->toBe('/srv/checkout')
@@ -80,12 +80,12 @@ it('never runs a step that is not in the profile and reports it with its reason'
     $runner = ScriptedProcessRunner::passing();
 
     $report = new CheckRunner($runner, new RecordingListener)->run(sampleGates(), '/srv/checkout');
-    $actions = $report->gate(5)?->step('Actions');
+    $mutation = $report->gate(5)?->step('Mutation');
 
-    expect($runner->commandLines())->not->toContain('Actions', 'Storybook')
-        ->and($actions?->status)->toBe(StepStatus::NotRun)
-        ->and($actions?->reason)->toBe('no tests until M1')
-        ->and($actions?->exitCode)->toBeNull()
+    expect($runner->commandLines())->not->toContain('Mutation', 'Storybook')
+        ->and($mutation?->status)->toBe(StepStatus::NotRun)
+        ->and($mutation?->reason)->toBe('mutation testing is not set up')
+        ->and($mutation?->exitCode)->toBeNull()
         ->and($report->gate(5)?->status())->toBe(StepStatus::Pass)
         ->and($report->gate(7)?->status())->toBe(StepStatus::NotRun)
         ->and($report->gate(7)?->notRunReason())->toBe('not in the local profile')

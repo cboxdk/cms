@@ -16,7 +16,6 @@ use Cbox\Cms\Tooling\Check\Boundary\CheckOptions;
 use Cbox\Cms\Tooling\Check\Boundary\CheckReportJson;
 use Cbox\Cms\Tooling\Check\Boundary\CommandLine;
 use Cbox\Cms\Tooling\Check\Boundary\ComposerCommand;
-use Cbox\Cms\Tooling\Check\Boundary\PhpunitSuites;
 use Cbox\Cms\Tooling\Check\Domain\CheckRunner;
 use Cbox\Cms\Tooling\Check\Domain\ReportFormatter;
 
@@ -34,7 +33,7 @@ try {
 $listener = new ConsoleListener(STDOUT, $options->brief);
 $listener->write(ReportFormatter::header($root, $options->profile));
 
-$gates = $options->profile->gates(PHP_BINARY, ComposerCommand::resolve(PHP_BINARY), PhpunitSuites::in($root.'/phpunit.xml'));
+$gates = $options->profile->gates(PHP_BINARY, ComposerCommand::resolve(PHP_BINARY));
 $report = new CheckRunner(new SymfonyProcessRunner, $listener)->run($gates, $root);
 
 $listener->write(ReportFormatter::summary($report));

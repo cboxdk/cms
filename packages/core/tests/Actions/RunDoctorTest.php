@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cbox\Cms\Core\Tests\Doctor;
+namespace Cbox\Cms\Core\Tests\Actions;
 
 use Cbox\Cms\Contracts\Doctor\CheckId;
 use Cbox\Cms\Contracts\Doctor\CheckResult;
