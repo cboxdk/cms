@@ -69,10 +69,12 @@
         "test": "@php vendor/bin/pest",
         "services:up": [
             "Composer\\Config::disableProcessTimeout",
-            "export CMS_UID=\"$(id -u)\" CMS_GID=\"$(id -g)\" && docker compose up -d --wait",
-            "docker compose exec -T postgres /docker-entrypoint-initdb.d/10-cms.sh"
+            "@php tools/bin/services.php up"
         ],
-        "services:down": "docker compose down",
+        "services:down": [
+            "Composer\\Config::disableProcessTimeout",
+            "@php tools/bin/services.php down"
+        ],
         "lint": "@php vendor/bin/pint",
         "lint:check": "@php vendor/bin/pint --test",
         "rector": "@php vendor/bin/rector process",
@@ -113,8 +115,8 @@
         "clear": "Reset the Testbench application skeleton in vendor/.",
         "prepare": "Discover the packages' service providers for the Testbench application.",
         "test": "Run the Pest suite for the monorepo and every package.",
-        "services:up": "Start PHP 8.5 as the host user, Postgres 18 and Valkey 8 from compose.yaml and wait until they are healthy, then run the idempotent init script again, so an existing data volume gets the current roles and databases. Exports CMS_UID and CMS_GID from id -u and id -g for the php container.",
-        "services:down": "Stop the services from compose.yaml. The data volumes are kept.",
+        "services:up": "Start PHP 8.5 as the host user, Postgres 18 and Valkey 8 from the main checkout's compose.yaml and wait until they are healthy, then run the idempotent init script again, so an existing data volume gets the current roles and databases. From a linked worktree it starts only Postgres and Valkey, never recreates a container and says that the php container mounts the main checkout. Runs tools/bin/services.php.",
+        "services:down": "Stop the services from the main checkout's compose.yaml; the data volumes are kept. Refuses with exit 1 in a linked worktree, because the services are shared. Runs tools/bin/services.php.",
         "lint": "Format the PHP code with Pint and the shared configuration from the testkit.",
         "lint:check": "Gate 1: fail if Pint would change any file.",
         "rector": "Apply the shared Rector sets from the testkit.",

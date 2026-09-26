@@ -6,6 +6,11 @@
 #   composer services:up      # exports CMS_UID and CMS_GID, then docker compose up -d --wait
 #   composer services:down    # stops the services; the data volumes are kept
 #
+# Both run tools/bin/services.php, which always uses the main checkout's compose.yaml and the main
+# checkout as the project directory, so the bind mounts below are the main checkout's paths. From a
+# linked worktree, services:up starts only postgres and valkey with --no-recreate, and
+# services:down refuses, because the services are shared.
+#
 # Host ports: Postgres 54317, Valkey 63797. They are fixed so the tests on the host
 # (phpunit.xml) and in the php container reach the same services.
 #

@@ -81,16 +81,19 @@ it('gives Valkey its data mount and the time cbox-init needs to save before it s
         ->and(CiFiles::at($valkey, 'ports'))->toBe(['63797:6379']);
 });
 
-it('runs the php container as the host user that composer services:up exports, never as root, and converges an existing volume with the init script', function (): void {
+it('runs the php container as the host user that composer services:up exports, never as root', function (): void {
     $php = composeService('php');
-    $composer = json_decode(CiFiles::text('composer.json'), true, flags: JSON_THROW_ON_ERROR);
-    $script = is_array($composer) ? CiFiles::at($composer, 'scripts', 'services:up') : null;
 
     expect(CiFiles::at($php, 'user'))->toBe('${CMS_UID:-1000}:${CMS_GID:-1000}')
         ->and(CiFiles::strings($php, 'environment')['HOME'] ?? null)->toBe('/tmp')
-        ->and($script)->toBe([
-            'Composer\\Config::disableProcessTimeout',
-            'export CMS_UID="$(id -u)" CMS_GID="$(id -g)" && docker compose up -d --wait',
-            'docker compose exec -T postgres /docker-entrypoint-initdb.d/10-cms.sh',
-        ]);
+        ->and(CiFiles::at($php, 'volumes'))->toBe(['.:/var/www/html']);
 });
+
+it('runs composer services:up and services:down through tools/bin/services.php, which ServicesScriptTest covers', function (string $script): void {
+    $composer = json_decode(CiFiles::text('composer.json'), true, flags: JSON_THROW_ON_ERROR);
+
+    expect(is_array($composer) ? CiFiles::at($composer, 'scripts', 'services:'.$script) : null)->toBe([
+        'Composer\\Config::disableProcessTimeout',
+        '@php tools/bin/services.php '.$script,
+    ]);
+})->with(['up', 'down']);
