@@ -10,8 +10,12 @@ use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\Idempotency\IdempotencyKey;
 use Cbox\Cms\Contracts\Idempotency\IdempotencyScope;
 use Cbox\Cms\Contracts\Idempotency\WaitBudget;
+use Cbox\Cms\Contracts\Ids\ChangesetId;
+use Cbox\Cms\Contracts\Storage\PartitionMissing;
 use Cbox\Cms\Testkit\Clock\FakeClock;
+use Cbox\Cms\Testkit\Storage\UncoveredRange;
 use Closure;
+use DateTimeImmutable;
 use InvalidArgumentException;
 
 /**
@@ -32,10 +36,21 @@ use InvalidArgumentException;
  *
  * Expiry reads the clock, so a test moves a FakeClock past the record's expiry to make a key
  * fresh again.
+ *
+ * Every record date is covered by a partition until uncover() takes a range away. A record's date
+ * is the Clock's time, or the changeset's time when that is later, as in the Postgres store.
+ * complete() of a record whose date is in an uncovered range then throws PartitionMissing for the
+ * table TABLE and records nothing, after the checks of the token.
  */
 #[Experimental]
 final class FakeIdempotencyStore implements IdempotencyStoreHarness
 {
+    /** The table PartitionMissing names. */
+    public const string TABLE = 'idempotency_keys';
+
+    /** @var list<UncoveredRange> record dates that no partition covers */
+    private array $uncovered = [];
+
     /** @var array<string, FakeIdempotencyRecord> committed records by claim name */
     private array $records = [];
 
@@ -50,6 +65,14 @@ final class FakeIdempotencyStore implements IdempotencyStoreHarness
     public function session(): FakeIdempotencySession
     {
         return new FakeIdempotencySession($this);
+    }
+
+    /**
+     * Takes the record dates from $from to $to, both inclusive, out of the partitions.
+     */
+    public function uncover(DateTimeImmutable $from, DateTimeImmutable $to): void
+    {
+        $this->uncovered[] = new UncoveredRange($from, $to);
     }
 
     /**
@@ -147,6 +170,20 @@ final class FakeIdempotencyStore implements IdempotencyStoreHarness
     public function release(FakeIdempotencySession $session): void
     {
         $this->claims = array_filter($this->claims, static fn (FakeIdempotencySession $holder): bool => $holder !== $session);
+    }
+
+    /**
+     * Throws PartitionMissing when no partition covers the date of a record for the changeset:
+     * the Clock's time, or the changeset's time when that is later.
+     *
+     * @throws PartitionMissing
+     */
+    #[Internal]
+    public function assertCovered(ChangesetId $changesetId): void
+    {
+        $date = max($this->clock->now(), UncoveredRange::timeOf($changesetId->unixMilliseconds()));
+
+        UncoveredRange::check($this->uncovered, self::TABLE, $date);
     }
 
     #[Internal]

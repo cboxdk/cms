@@ -9,12 +9,14 @@ use Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore;
 use Cbox\Cms\Testkit\Postgres\IndependentConnections;
 use Cbox\Cms\Testkit\Postgres\PartitionFixtures;
 use Cbox\Cms\Testkit\ReceiptStore\ReceiptStoreHarness;
+use DateTimeImmutable;
 use Illuminate\Database\DatabaseManager;
 
 /**
  * The shared ReceiptStoreContract suite's harness for the Postgres store: each session is an
  * independent connection as the app role, with its own backend, and a PostgresReceiptStore bound
- * to it. The partitions for the clock's date exist before the first session.
+ * to it. The partitions for the clock's date exist before the first session; uncover() drops the
+ * partitions of a range with PartitionGaps.
  */
 final readonly class PostgresReceiptSessions implements ReceiptStoreHarness
 {
@@ -36,5 +38,10 @@ final readonly class PostgresReceiptSessions implements ReceiptStoreHarness
             $connection,
             new PostgresReceiptStore(app(DatabaseManager::class), $this->clock, $connection->getName()),
         );
+    }
+
+    public function uncover(DateTimeImmutable $from, DateTimeImmutable $to): void
+    {
+        PartitionGaps::open($from, $to);
     }
 }

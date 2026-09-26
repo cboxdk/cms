@@ -15,12 +15,15 @@ use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Ids\Uuid7;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Receipts\Receipt;
+use Cbox\Cms\Contracts\Storage\PartitionMissing;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
+use Closure;
 use DateInterval;
 use DateTimeImmutable;
 use PHPUnit\Framework\Assert;
 use PHPUnit\Framework\Attributes\Test;
+use Throwable;
 
 /**
  * The shared contract suite for ReceiptStore (GUARDRAILS 2.3 and 9). The FakeReceiptStore and
@@ -40,7 +43,8 @@ use PHPUnit\Framework\Attributes\Test;
  *         }
  *     }
  *
- * The cases cover storing and finding, marking projections, typed errors, logical expiry and the
+ * The cases cover storing and finding, marking projections, typed errors, logical expiry, a
+ * changeset time that no partition covers (through ReceiptStoreHarness::uncover()) and the
  * transactions of the caller: a store runs inside the caller's transaction and never begins one.
  */
 #[Experimental]
@@ -299,6 +303,58 @@ trait ReceiptStoreContract
     }
 
     #[Test]
+    public function a_store_where_no_partition_covers_the_changeset_throws_partition_missing_and_keeps_nothing(): void
+    {
+        $clock = new FakeClock;
+        $harness = $this->receiptStores($clock);
+        $ids = new FakeIdGenerator(clock: $clock);
+        $writer = $harness->session();
+        $reader = $harness->session();
+        $start = $clock->now();
+        $covered = $this->receiptWithProjections($ids->next(), RetentionClass::Standard);
+
+        $day = $start->setTime(0, 0)->add(new DateInterval('P2Y'));
+        $harness->uncover($day, $day->setTime(23, 59, 59, 999_999));
+        $clock->set($day->setTime(12, 0, 0, 250_000));
+        $uncovered = [
+            $this->receiptWithProjections($ids->next(), RetentionClass::Standard),
+            Receipt::committed(new ChangesetId($ids->next()), WaitLevel::Commit, RetentionClass::Evidence),
+        ];
+
+        foreach ($uncovered as $receipt) {
+            $this->assertPartitionMissing(static function () use ($writer, $receipt): void {
+                $writer->receipts()->store($receipt);
+            }, sprintf('The store took a %s receipt whose changeset time no partition covers.', $receipt->retentionClass->value));
+            Assert::assertFalse($writer->inTransaction(), 'A store() that no partition covered left a transaction open.');
+            Assert::assertNull($reader->receipts()->find($this->changesetOf($receipt)), 'A store() that no partition covered left a receipt.');
+        }
+
+        $writer->begin();
+        $writer->receipts()->store($covered);
+        $this->assertPartitionMissing(static function () use ($writer, $uncovered): void {
+            $writer->receipts()->store($uncovered[0]);
+        }, 'The store took a receipt no partition covers inside a transaction.');
+        Assert::assertTrue($writer->inTransaction(), 'store() ended the caller\'s transaction on PartitionMissing.');
+        $refused = false;
+
+        try {
+            $writer->receipts()->find($this->changesetOf($covered));
+        } catch (Throwable) {
+            $refused = true;
+        }
+
+        Assert::assertTrue($refused, 'The transaction took another statement after PartitionMissing; it has failed and only rolls back.');
+        $writer->rollBack();
+
+        $clock->set($start);
+        Assert::assertNull($writer->receipts()->find($this->changesetOf($covered)), 'The rollback after PartitionMissing kept the transaction\'s earlier receipt.');
+        Assert::assertNull($reader->receipts()->find($this->changesetOf($uncovered[0])), 'The rollback after PartitionMissing kept the receipt no partition covers.');
+
+        $writer->receipts()->store($covered);
+        $this->assertSameReceipt($covered, $reader->receipts()->find($this->changesetOf($covered)), 'The receipt could not be stored again after the rollback.');
+    }
+
+    #[Test]
     public function a_store_in_a_rolled_back_transaction_is_not_visible(): void
     {
         $clock = new FakeClock;
@@ -419,6 +475,25 @@ trait ReceiptStoreContract
             ProjectionStatus::pending(new ProjectionName('edge')),
             ProjectionStatus::pending(new ProjectionName('search')),
         ]);
+    }
+
+    /**
+     * Runs the call and asserts that it throws PartitionMissing with its error code.
+     *
+     * @param  Closure(): void  $call
+     */
+    private function assertPartitionMissing(Closure $call, string $message): void
+    {
+        try {
+            $call();
+        } catch (PartitionMissing $missing) {
+            Assert::assertSame('partition_missing', PartitionMissing::CODE);
+            Assert::assertStringStartsWith('[partition_missing] ', $missing->getMessage());
+
+            return;
+        }
+
+        Assert::fail($message);
     }
 
     private function changesetOf(Receipt $receipt): ChangesetId

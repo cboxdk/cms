@@ -18,6 +18,7 @@ use Cbox\Cms\Contracts\Idempotency\Replay;
 use Cbox\Cms\Contracts\Idempotency\WaitBudget;
 use Cbox\Cms\Contracts\IdempotencyStore;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
+use Cbox\Cms\Contracts\Storage\PartitionMissing;
 use LogicException;
 
 /**
@@ -27,11 +28,19 @@ use LogicException;
  * claims and its completed records to itself, and reads its own records before the committed
  * ones. Commit writes the records to the store; commit and rollback both release the claims.
  * Without a transaction, claim() and complete() throw InvalidClaim.
+ *
+ * A PartitionMissing from complete() fails the transaction, as it does on Postgres: until
+ * rollBack(), claim(), complete() and commit() throw a LogicException. Postgres would take a
+ * COMMIT and roll back instead; the fake refuses it, so a caller that commits after the error
+ * shows up in its tests.
  */
 #[Experimental]
 final class FakeIdempotencySession implements IdempotencyStore, IdempotencyStoreSession
 {
     private bool $open = false;
+
+    /** Whether the open transaction met PartitionMissing and takes nothing but a rollback. */
+    private bool $failed = false;
 
     /** @var array<string, ClaimToken> the token of each Fresh claim not completed yet, by claim name */
     private array $fresh = [];
@@ -61,6 +70,8 @@ final class FakeIdempotencySession implements IdempotencyStore, IdempotencyStore
             throw new LogicException('The session has no transaction to commit.');
         }
 
+        $this->refuseWhenFailed();
+
         $completed = $this->completed;
         $this->end();
         $this->database->commitAndRelease($this, $completed);
@@ -87,6 +98,8 @@ final class FakeIdempotencySession implements IdempotencyStore, IdempotencyStore
             throw InvalidClaim::outsideTransaction('claim');
         }
 
+        $this->refuseWhenFailed();
+
         $name = FakeIdempotencyStore::claimName($scope, $key);
 
         if (! $this->database->acquire($name, $this, $waitBudget)) {
@@ -111,6 +124,8 @@ final class FakeIdempotencySession implements IdempotencyStore, IdempotencyStore
             throw InvalidClaim::outsideTransaction('complete');
         }
 
+        $this->refuseWhenFailed();
+
         $name = FakeIdempotencyStore::claimName($token->scope, $token->key);
 
         if (isset($this->completed[$name])) {
@@ -123,13 +138,29 @@ final class FakeIdempotencySession implements IdempotencyStore, IdempotencyStore
             throw InvalidClaim::notHeld($token);
         }
 
+        try {
+            $this->database->assertCovered($changesetId);
+        } catch (PartitionMissing $missing) {
+            $this->failed = true;
+
+            throw $missing;
+        }
+
         unset($this->fresh[$name]);
         $this->completed[$name] = new FakeIdempotencyRecord($token->hash, $changesetId);
+    }
+
+    private function refuseWhenFailed(): void
+    {
+        if ($this->failed) {
+            throw new LogicException('The transaction failed with PartitionMissing and takes no further statements. Roll it back.');
+        }
     }
 
     private function end(): void
     {
         $this->open = false;
+        $this->failed = false;
         $this->fresh = [];
         $this->completed = [];
     }

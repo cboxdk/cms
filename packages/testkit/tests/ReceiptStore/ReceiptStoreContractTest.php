@@ -59,6 +59,12 @@ enum Breach
 
     /** An Evidence receipt expires like a Standard one. */
     case ExpiresEvidence;
+
+    /** uncover() does nothing, so a receipt at any changeset time is stored. */
+    case CoversEveryDate;
+
+    /** A transaction that met PartitionMissing takes further calls. */
+    case KeepsFailedTransactions;
 }
 
 /**
@@ -120,7 +126,15 @@ final class BrokenSession implements ReceiptStore, ReceiptStoreSession
 
     public function find(ChangesetId $changesetId): ?Receipt
     {
-        $receipt = $this->inner->find($changesetId);
+        try {
+            $receipt = $this->inner->find($changesetId);
+        } catch (LogicException $failed) {
+            if ($this->breach !== Breach::KeepsFailedTransactions) {
+                throw $failed;
+            }
+
+            return null;
+        }
 
         if ($this->breach === Breach::ExpiresEvidence && $this->database->clock()->now() > RetentionClass::Standard->expiresAt($changesetId)) {
             return null;
@@ -207,6 +221,13 @@ function brokenStores(Breach $breach): Closure
             {
                 return new BrokenSession($this->database->session(), $this->database, $this->breach);
             }
+
+            public function uncover(DateTimeImmutable $from, DateTimeImmutable $to): void
+            {
+                if ($this->breach !== Breach::CoversEveryDate) {
+                    $this->database->uncover($from, $to);
+                }
+            }
         };
     };
 }
@@ -234,7 +255,7 @@ it('passes the fake on every shared case', function (): void {
         $case->{$name}();
     }
 
-    expect($cases)->toHaveCount(15);
+    expect($cases)->toHaveCount(16);
 });
 
 it('fails a store that breaks the contract', function (Closure $harness, string $name): void {
@@ -253,4 +274,7 @@ it('fails a store that breaks the contract', function (Closure $harness, string 
     'a later acknowledgement that wins' => [brokenStores(Breach::ReacknowledgesProjection), 'an_acknowledged_projection_keeps_its_first_acknowledgement'],
     'a store that never expires' => [static fn (Clock $clock): ReceiptStoreHarness => new FakeReceiptStore(new FakeClock), 'a_standard_receipt_expires_seven_days_after_its_changeset_time'],
     'a store that expires evidence' => [brokenStores(Breach::ExpiresEvidence), 'an_evidence_receipt_does_not_expire'],
+    'a store that writes where no partition covers' => [brokenStores(Breach::CoversEveryDate), 'a_store_where_no_partition_covers_the_changeset_throws_partition_missing_and_keeps_nothing'],
+    'a failed transaction that keeps its writes' => [brokenStores(Breach::IgnoresTransactions), 'a_store_where_no_partition_covers_the_changeset_throws_partition_missing_and_keeps_nothing'],
+    'a failed transaction that takes further calls' => [brokenStores(Breach::KeepsFailedTransactions), 'a_store_where_no_partition_covers_the_changeset_throws_partition_missing_and_keeps_nothing'],
 ]);

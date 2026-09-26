@@ -11,7 +11,10 @@ use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Receipts\Receipt;
 use Cbox\Cms\Contracts\ReceiptStore;
+use Cbox\Cms\Contracts\Storage\PartitionMissing;
 use Cbox\Cms\Testkit\Clock\FakeClock;
+use Cbox\Cms\Testkit\Storage\UncoveredRange;
+use DateTimeImmutable;
 
 /**
  * An in-memory receipt store for tests (GUARDRAILS 2.3).
@@ -27,12 +30,23 @@ use Cbox\Cms\Testkit\Clock\FakeClock;
  *
  * Expiry reads the clock, so a test moves a FakeClock past RetentionClass::expiresAt() to expire a
  * Standard receipt.
+ *
+ * Every changeset time is covered by a partition until uncover() takes a range away. store() of a
+ * receipt whose changeset time is in an uncovered range then throws PartitionMissing for the table
+ * TABLE and stores nothing, after the checks for an unstorable and a duplicate receipt, in the
+ * order of the Postgres store.
  */
 #[Experimental]
 final class FakeReceiptStore implements ReceiptStore, ReceiptStoreHarness
 {
+    /** The table PartitionMissing names. */
+    public const string TABLE = 'receipts';
+
     /** @var array<string, Receipt> committed receipts by changeset id */
     private array $rows = [];
+
+    /** @var list<UncoveredRange> changeset times that no partition covers */
+    private array $uncovered = [];
 
     public function __construct(private readonly Clock $clock = new FakeClock) {}
 
@@ -41,9 +55,19 @@ final class FakeReceiptStore implements ReceiptStore, ReceiptStoreHarness
         return new FakeReceiptSession($this);
     }
 
+    /**
+     * Takes the changeset times from $from to $to, both inclusive, out of the partitions.
+     */
+    public function uncover(DateTimeImmutable $from, DateTimeImmutable $to): void
+    {
+        $this->uncovered[] = new UncoveredRange($from, $to);
+    }
+
     public function store(Receipt $receipt): void
     {
-        $this->rows = FakeReceiptRows::stored($this->rows, $receipt);
+        $rows = FakeReceiptRows::stored($this->rows, $receipt);
+        $this->assertCovered($receipt);
+        $this->rows = $rows;
     }
 
     public function find(ChangesetId $changesetId): ?Receipt
@@ -84,6 +108,19 @@ final class FakeReceiptStore implements ReceiptStore, ReceiptStoreHarness
     public function commitRows(array $rows): void
     {
         $this->rows = $rows;
+    }
+
+    /**
+     * Throws PartitionMissing when no partition covers the receipt's changeset time.
+     *
+     * @throws PartitionMissing
+     */
+    #[Internal]
+    public function assertCovered(Receipt $receipt): void
+    {
+        $changesetId = FakeReceiptRows::storable($receipt);
+
+        UncoveredRange::check($this->uncovered, self::TABLE, UncoveredRange::timeOf($changesetId->unixMilliseconds()));
     }
 
     #[Internal]

@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Receipts\Receipt;
 use Cbox\Cms\Contracts\ReceiptStore;
+use Cbox\Cms\Contracts\Storage\PartitionMissing;
 use LogicException;
 
 /**
@@ -19,13 +20,21 @@ use LogicException;
  *
  * A write is checked when it is made, as a database checks a statement, and again at commit
  * against what other sessions committed meanwhile. A commit that fails there throws the write's
- * error, applies nothing and ends the transaction.
+ * error, applies nothing and ends the transaction. Whether a partition covers the changeset is
+ * checked only when the write is made: that is when a database routes the row.
+ *
+ * A PartitionMissing inside a transaction fails it, as it does on Postgres: until rollBack(), every
+ * call and commit() throw a LogicException. Postgres would take a COMMIT and roll back instead; the
+ * fake refuses it, so a caller that commits after the error shows up in its tests.
  */
 #[Experimental]
 final class FakeReceiptSession implements ReceiptStore, ReceiptStoreSession
 {
     /** @var list<FakeReceiptWrite>|null the writes of the open transaction */
     private ?array $writes = null;
+
+    /** Whether the open transaction met PartitionMissing and takes nothing but a rollback. */
+    private bool $failed = false;
 
     public function __construct(private readonly FakeReceiptStore $database) {}
 
@@ -46,6 +55,7 @@ final class FakeReceiptSession implements ReceiptStore, ReceiptStoreSession
     public function commit(): void
     {
         $writes = $this->writes ?? throw new LogicException('The session has no transaction to commit.');
+        $this->refuseWhenFailed();
         $this->writes = null;
 
         $rows = $this->database->committedRows();
@@ -64,6 +74,7 @@ final class FakeReceiptSession implements ReceiptStore, ReceiptStoreSession
         }
 
         $this->writes = null;
+        $this->failed = false;
     }
 
     public function inTransaction(): bool
@@ -73,6 +84,8 @@ final class FakeReceiptSession implements ReceiptStore, ReceiptStoreSession
 
     public function store(Receipt $receipt): void
     {
+        $this->refuseWhenFailed();
+
         if ($this->writes === null) {
             $this->database->store($receipt);
 
@@ -81,16 +94,28 @@ final class FakeReceiptSession implements ReceiptStore, ReceiptStoreSession
 
         FakeReceiptRows::stored($this->rows(), $receipt);
 
+        try {
+            $this->database->assertCovered($receipt);
+        } catch (PartitionMissing $missing) {
+            $this->failed = true;
+
+            throw $missing;
+        }
+
         $this->writes[] = FakeReceiptWrite::store($receipt);
     }
 
     public function find(ChangesetId $changesetId): ?Receipt
     {
+        $this->refuseWhenFailed();
+
         return FakeReceiptRows::live($this->rows(), $changesetId, $this->database->clock()->now());
     }
 
     public function markProjection(ChangesetId $changesetId, ProjectionStatus $status): bool
     {
+        $this->refuseWhenFailed();
+
         if ($this->writes === null) {
             return $this->database->markProjection($changesetId, $status);
         }
@@ -104,6 +129,13 @@ final class FakeReceiptSession implements ReceiptStore, ReceiptStoreSession
         $this->writes[] = FakeReceiptWrite::mark($changesetId, $status, $now);
 
         return true;
+    }
+
+    private function refuseWhenFailed(): void
+    {
+        if ($this->failed) {
+            throw new LogicException('The transaction failed with PartitionMissing and takes no further statements. Roll it back.');
+        }
     }
 
     /**

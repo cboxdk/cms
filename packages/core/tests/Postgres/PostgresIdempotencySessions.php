@@ -10,13 +10,15 @@ use Cbox\Cms\Testkit\Idempotency\IdempotencyStoreHarness;
 use Cbox\Cms\Testkit\Postgres\IndependentConnections;
 use Cbox\Cms\Testkit\Postgres\PartitionFixtures;
 use DateInterval;
+use DateTimeImmutable;
 use Illuminate\Database\DatabaseManager;
 
 /**
  * The shared IdempotencyStoreContract suite's harness for the Postgres store: each session is an
  * independent connection as the app role, with its own backend, and a PostgresIdempotencyStore
  * bound to it. The partitions from the clock's date to 8 days later exist before the first
- * session, because the suite completes claims after moving the clock past the 7-day expiry.
+ * session, because the suite completes claims after moving the clock past the 7-day expiry;
+ * uncover() drops the partitions of a range with PartitionGaps.
  */
 final readonly class PostgresIdempotencySessions implements IdempotencyStoreHarness
 {
@@ -38,5 +40,10 @@ final readonly class PostgresIdempotencySessions implements IdempotencyStoreHarn
             $connection,
             new PostgresIdempotencyStore(app(DatabaseManager::class), $this->clock, $connection->getName()),
         );
+    }
+
+    public function uncover(DateTimeImmutable $from, DateTimeImmutable $to): void
+    {
+        PartitionGaps::open($from, $to);
     }
 }

@@ -20,6 +20,7 @@ use Cbox\Cms\Contracts\Idempotency\WaitBudget;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\PrincipalId;
+use Cbox\Cms\Contracts\Storage\PartitionMissing;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
 use Closure;
@@ -27,6 +28,7 @@ use DateInterval;
 use DateTimeImmutable;
 use PHPUnit\Framework\Assert;
 use PHPUnit\Framework\Attributes\Test;
+use Throwable;
 
 /**
  * The shared contract suite for IdempotencyStore (GUARDRAILS 2.3 and 9). The fake and every real
@@ -46,9 +48,10 @@ use PHPUnit\Framework\Attributes\Test;
  *         }
  *     }
  *
- * The cases cover the four results, scopes, logical expiry and the claim model: a claim lasts
- * until the caller's transaction ends, complete() writes in that transaction, and a rollback or a
- * commit without complete() leaves the key fresh.
+ * The cases cover the four results, scopes, logical expiry, a record date that no partition
+ * covers (through IdempotencyStoreHarness::uncover()) and the claim model: a claim lasts until the
+ * caller's transaction ends, complete() writes in that transaction, and a rollback or a commit
+ * without complete() leaves the key fresh.
  */
 #[Experimental]
 trait IdempotencyStoreContract
@@ -182,6 +185,50 @@ trait IdempotencyStoreContract
         Assert::assertFalse($writer->inTransaction());
         $reader->begin();
         $this->assertFresh($this->claimOn($reader), message: 'A claim completed in a rolled back transaction left a record or a claim.');
+    }
+
+    #[Test]
+    public function a_complete_where_no_partition_covers_the_record_throws_partition_missing_and_leaves_the_key_fresh(): void
+    {
+        $clock = new FakeClock;
+        $harness = $this->idempotencyStores($clock);
+        $day = $clock->now()->setTime(0, 0)->add(new DateInterval('P2Y'));
+        $harness->uncover($day, $day->setTime(23, 59, 59, 999_999));
+        $changesetId = new ChangesetId(new FakeIdGenerator(clock: new FakeClock($day->setTime(12, 0, 0, 250_000)))->next());
+        $writer = $harness->session();
+        $reader = $harness->session();
+
+        // The Clock's day is covered; the later changeset time decides the record's date.
+        // Then the Clock is in the uncovered day and later than the changeset.
+        foreach (['a changeset time' => $clock->now(), 'a Clock time' => $day->setTime(18, 0)] as $what => $now) {
+            $clock->set($now);
+            $writer->begin();
+            $token = $this->assertFresh($this->claimOn($writer));
+
+            try {
+                $writer->idempotency()->complete($token, $changesetId);
+                Assert::fail("complete() recorded a key at {$what} that no partition covers.");
+            } catch (PartitionMissing $missing) {
+                Assert::assertSame('partition_missing', PartitionMissing::CODE);
+                Assert::assertStringStartsWith('[partition_missing] ', $missing->getMessage());
+            }
+
+            Assert::assertTrue($writer->inTransaction(), 'complete() ended the caller\'s transaction on PartitionMissing.');
+            $refused = false;
+
+            try {
+                $this->claimOn($writer);
+            } catch (Throwable) {
+                $refused = true;
+            }
+
+            Assert::assertTrue($refused, 'The transaction took another claim after PartitionMissing; it has failed and only rolls back.');
+            $writer->rollBack();
+
+            $reader->begin();
+            $this->assertFresh($this->claimOn($reader), message: "A complete() at {$what} that no partition covered left a record or a claim.");
+            $reader->rollBack();
+        }
     }
 
     #[Test]

@@ -27,6 +27,7 @@ use Cbox\Cms\Testkit\Idempotency\IdempotencyStoreContract;
 use Cbox\Cms\Testkit\Idempotency\IdempotencyStoreHarness;
 use Cbox\Cms\Testkit\Idempotency\IdempotencyStoreSession;
 use Closure;
+use DateTimeImmutable;
 use LogicException;
 use Override;
 use PHPUnit\Framework\AssertionFailedError;
@@ -72,6 +73,12 @@ enum IdempotencyBreach
 
     /** claim() and complete() open a transaction when none is open. */
     case RunsOutsideTransactions;
+
+    /** uncover() does nothing, so a record at any date is written. */
+    case CoversEveryDate;
+
+    /** A transaction that met PartitionMissing takes further claims. */
+    case KeepsFailedTransactions;
 }
 
 /**
@@ -133,7 +140,15 @@ final readonly class BrokenIdempotencySession implements IdempotencyStore, Idemp
             return new InFlight($scope, $key, $waitBudget);
         }
 
-        $result = $this->inner->claim($scope, $key, $hash, $waitBudget);
+        try {
+            $result = $this->inner->claim($scope, $key, $hash, $waitBudget);
+        } catch (LogicException $failed) {
+            if ($this->breach !== IdempotencyBreach::KeepsFailedTransactions) {
+                throw $failed;
+            }
+
+            return new InFlight($scope, $key, $waitBudget);
+        }
 
         if ($this->breach === IdempotencyBreach::IgnoresHash && $result instanceof Conflict && isset($this->state->completed[$name])) {
             return new Replay($this->state->completed[$name]);
@@ -239,6 +254,13 @@ function brokenIdempotencyStores(IdempotencyBreach $breach): Closure
         {
             return new BrokenIdempotencySession($this->database->session(), $this->state, $this->breach);
         }
+
+        public function uncover(DateTimeImmutable $from, DateTimeImmutable $to): void
+        {
+            if ($this->breach !== IdempotencyBreach::CoversEveryDate) {
+                $this->database->uncover($from, $to);
+            }
+        }
     };
 }
 
@@ -265,7 +287,7 @@ it('passes the fake on every shared case', function (): void {
         $case->{$name}();
     }
 
-    expect($cases)->toHaveCount(14);
+    expect($cases)->toHaveCount(15);
 });
 
 it('fails a store that breaks the contract', function (Closure $harness, string $name): void {
@@ -284,5 +306,7 @@ it('fails a store that breaks the contract', function (Closure $harness, string 
     'keys without scope' => [brokenIdempotencyStores(IdempotencyBreach::IgnoresScope), 'the_same_key_under_another_command_type_or_principal_is_independent'],
     'a complete() that takes any token' => [brokenIdempotencyStores(IdempotencyBreach::AcceptsAnyToken), 'complete_needs_a_fresh_claim_held_by_the_transaction'],
     'a store that opens its own transaction' => [brokenIdempotencyStores(IdempotencyBreach::RunsOutsideTransactions), 'claim_and_complete_need_an_open_transaction'],
+    'a store that writes where no partition covers' => [brokenIdempotencyStores(IdempotencyBreach::CoversEveryDate), 'a_complete_where_no_partition_covers_the_record_throws_partition_missing_and_leaves_the_key_fresh'],
+    'a failed transaction that takes further claims' => [brokenIdempotencyStores(IdempotencyBreach::KeepsFailedTransactions), 'a_complete_where_no_partition_covers_the_record_throws_partition_missing_and_leaves_the_key_fresh'],
     'a store that never expires' => [static fn (Clock $clock): IdempotencyStoreHarness => new FakeIdempotencyStore(new FakeClock), 'a_completed_key_is_fresh_again_seven_days_after_its_changeset'],
 ]);

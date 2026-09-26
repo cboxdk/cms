@@ -16,16 +16,20 @@ use Cbox\Cms\Contracts\Idempotency\WaitBudget;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\PrincipalId;
+use Cbox\Cms\Contracts\Storage\PartitionMissing;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\Idempotency\FakeIdempotencySession;
 use Cbox\Cms\Testkit\Idempotency\FakeIdempotencyStore;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
+use DateTimeImmutable;
 use InvalidArgumentException;
 use LogicException;
 
 /*
  * The fake's own behaviour beyond the shared suite: its sessions refuse nesting and stray
  * commits, and whenWaiting() models what happens while a contested claim waits within its budget.
+ * uncover() takes exactly its range out of the partitions, and PartitionMissing fails a
+ * transaction.
  */
 
 function fakeClaim(FakeIdempotencySession $session, int $budget = 0): ClaimResult
@@ -188,4 +192,61 @@ it('refuses a wait event before the wait starts', function (): void {
 it('keeps each claim under its scope and key', function (): void {
     expect(FakeIdempotencyStore::claimName(IdempotencyScope::forSource(new PrincipalId('feed:ap'), new CommandName('entry.create')), new IdempotencyKey('ap:42:v7')))
         ->toBe('source feed:ap entry.create ap:42:v7');
+});
+
+it('refuses an uncovered range that ends before it starts', function (): void {
+    $store = new FakeIdempotencyStore;
+    $at = $store->clock()->now();
+
+    expect(fn () => $store->uncover($at, $at->modify('-1 microsecond')))->toThrow(InvalidArgumentException::class, 'ends at or after it starts');
+});
+
+it('dates a record at the later of the Clock and the changeset, and names its table', function (): void {
+    $clock = new FakeClock(new DateTimeImmutable('2031-05-01T10:00:00Z'));
+    $store = new FakeIdempotencyStore($clock);
+    $store->uncover(new DateTimeImmutable('2031-05-02T00:00:00Z'), new DateTimeImmutable('2031-05-02T23:59:59.999999Z'));
+    $early = new ChangesetId(new FakeIdGenerator(clock: new FakeClock(new DateTimeImmutable('2031-05-01T09:00:00Z')))->next());
+    $late = new ChangesetId(new FakeIdGenerator(clock: new FakeClock(new DateTimeImmutable('2031-05-02T09:00:00Z')))->next());
+    $session = $store->session();
+
+    $session->begin();
+    expect(fn () => $session->complete(fakeFreshClaim($session)->token, $late))->toThrow(PartitionMissing::class, 'No partition of table "idempotency_keys" covers the row');
+    $session->rollBack();
+
+    $session->begin();
+    $session->complete(fakeFreshClaim($session)->token, $early);
+    $session->rollBack();
+
+    $clock->set(new DateTimeImmutable('2031-05-02T12:00:00Z'));
+    $session->begin();
+    expect(fn () => $session->complete(fakeFreshClaim($session)->token, $early))->toThrow(PartitionMissing::class);
+    $session->rollBack();
+});
+
+it('refuses a claim, a complete and a commit after PartitionMissing until the transaction rolls back', function (): void {
+    $clock = new FakeClock;
+    $store = new FakeIdempotencyStore($clock);
+    $store->uncover($clock->now()->setTime(0, 0), $clock->now()->modify('+1 day'));
+    $changesetId = new ChangesetId(new FakeIdGenerator(clock: $clock)->next());
+    $session = $store->session();
+    $session->begin();
+    $token = fakeFreshClaim($session)->token;
+
+    expect(fn () => $session->complete($token, $changesetId))->toThrow(PartitionMissing::class);
+
+    foreach ([
+        fn (): ClaimResult => fakeClaim($session),
+        fn () => $session->complete($token, $changesetId),
+        $session->commit(...),
+    ] as $call) {
+        expect($call)->toThrow(LogicException::class, 'Roll it back.');
+    }
+
+    expect($session->inTransaction())->toBeTrue();
+    $session->rollBack();
+
+    $other = $store->session();
+    $other->begin();
+
+    expect(fakeClaim($other))->toBeInstanceOf(Fresh::class);
 });

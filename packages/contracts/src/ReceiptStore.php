@@ -11,6 +11,7 @@ use Cbox\Cms\Contracts\Consistency\UnstorableReceipt;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Receipts\Receipt;
+use Cbox\Cms\Contracts\Storage\PartitionMissing;
 
 /**
  * The receipt store (GUARDRAILS 2.3, PRD 4 and 8.4): one stored receipt per committed changeset,
@@ -29,6 +30,12 @@ use Cbox\Cms\Contracts\Receipts\Receipt;
  * separate job that drops whole partitions (PRD 4); until it has run, an expired receipt still
  * holds its changeset, so a second store() for it still fails.
  *
+ * Partitions. A store on a database keeps receipts in tables partitioned by the changeset's time
+ * (PRD 4, 4.2), with no DEFAULT partition. When no partition covers the changeset's time, store()
+ * throws PartitionMissing and stores nothing. Inside a transaction the caller then rolls back: a
+ * database has failed the transaction and takes no further statements in it, so nothing the
+ * transaction wrote before is kept.
+ *
  * The shared contract suite is the testkit's ReceiptStoreContract. Every implementation runs it.
  */
 #[Experimental]
@@ -41,6 +48,8 @@ interface ReceiptStore
      *                           there is no changeset to store the receipt under
      * @throws DuplicateReceipt when the store already holds a receipt for the changeset, expired
      *                          or not; the stored receipt is left as it was
+     * @throws PartitionMissing when no partition covers the changeset's time; nothing is stored,
+     *                          and a caller inside a transaction rolls it back
      */
     public function store(Receipt $receipt): void;
 

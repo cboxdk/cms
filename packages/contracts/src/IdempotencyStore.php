@@ -18,6 +18,7 @@ use Cbox\Cms\Contracts\Idempotency\InvalidClaim;
 use Cbox\Cms\Contracts\Idempotency\Replay;
 use Cbox\Cms\Contracts\Idempotency\WaitBudget;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
+use Cbox\Cms\Contracts\Storage\PartitionMissing;
 
 /**
  * The idempotency store (GUARDRAILS 2.3, PRD 6.1 and 4): which changeset a command with a given
@@ -53,6 +54,12 @@ use Cbox\Cms\Contracts\Ids\ChangesetId;
  * Standard receipt has expired. Once a record has expired, the key is Fresh again, and complete()
  * replaces the record. Removing rows is a separate job that drops whole partitions.
  *
+ * Partitions. A store on a database keeps records in a table partitioned by the record's date
+ * (PRD 4, 4.2), with no DEFAULT partition: the Clock's time, or the changeset's time when that is
+ * later. When no partition covers that date, complete() throws PartitionMissing and records
+ * nothing. The caller then rolls back: a database has failed the transaction and takes no further
+ * statements in it, and the rollback releases the claim, so the key stays fresh.
+ *
  * The shared contract suite is the testkit's IdempotencyStoreContract. Every implementation runs it.
  */
 #[Experimental]
@@ -77,6 +84,9 @@ interface IdempotencyStore
      *
      * @throws InvalidClaim when the caller has no transaction open, when the token is not from a
      *                      Fresh claim held by this transaction, or when it was already completed
+     * @throws PartitionMissing when no partition covers the record's date, the later of the Clock's
+     *                          time and the changeset's time; nothing is recorded, and the caller
+     *                          rolls its transaction back
      */
     public function complete(ClaimToken $token, ChangesetId $changesetId): void;
 }
