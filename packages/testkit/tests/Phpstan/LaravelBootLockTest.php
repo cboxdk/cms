@@ -46,15 +46,31 @@ function bootLockProcess(string $workingDirectory, string $lockDirectory, InputS
     return $process;
 }
 
+/**
+ * Waits until $process has printed $line, within the process's own timeout.
+ *
+ * This polls the whole output instead of calling waitUntil(). waitUntil() reads the pipes once
+ * before it starts calling its callback, and output from that read reaches the buffer without the
+ * callback. A child that prints its line just then, as a child that takes the lock the moment the
+ * test releases it does, and then waits on its input, prints nothing more, so waitUntil() waited
+ * until the timeout with the line already in the buffer.
+ */
 function waitForOutput(Process $process, string $line): void
 {
-    // waitUntil() sees only output that arrives while it waits, so look at what came before first.
-    if (! str_contains($process->getOutput(), $line)) {
-        $process->waitUntil(static fn (string $type, string $output): bool => str_contains($process->getOutput(), $line));
-    }
+    while (true) {
+        // Ask whether it runs before reading, so the read after it ended includes all it printed.
+        $running = $process->isRunning();
 
-    if (! str_contains($process->getOutput(), $line)) {
-        throw new RuntimeException("The process ended without printing {$line}: {$process->getErrorOutput()}");
+        if (str_contains($process->getOutput(), $line)) {
+            return;
+        }
+
+        if (! $running) {
+            throw new RuntimeException("The process ended without printing {$line}: {$process->getErrorOutput()}");
+        }
+
+        $process->checkTimeout();
+        usleep(1_000);
     }
 }
 
@@ -74,6 +90,38 @@ afterEach(function (): void {
         array_map(unlink(...), glob($directory.'/*') ?: []);
         rmdir($directory);
     }
+});
+
+it('sees a line that the process prints while the wait is between two reads of its output', function (): void {
+    // The child prints the line 200 ms after it starts and then waits on its input, like the lock
+    // tests' children. The first read comes before the line, and the process then pauses long enough
+    // for the line to arrive before the next read, as a test process does when the machine is busy
+    // just as a child takes the lock the test released.
+    $input = new InputStream;
+    $process = new class([PHP_BINARY, '-r', 'usleep(200_000); echo "locked\\n"; fgets(STDIN);'], null, null, $input, 5) extends Process
+    {
+        private bool $paused = false;
+
+        public function getOutput(): string
+        {
+            $output = parent::getOutput();
+
+            if (! $this->paused) {
+                $this->paused = true;
+                usleep(600_000);
+            }
+
+            return $output;
+        }
+    };
+    $process->start();
+
+    waitForOutput($process, 'locked');
+    $input->write("go\n");
+    $input->close();
+
+    expect($process->wait())->toBe(0)
+        ->and($process->getOutput())->toBe("locked\n");
 });
 
 it('lets one process at a time through from the lock file to the unlock file', function (): void {
