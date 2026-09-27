@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Contracts\Attributes;
 
 /**
- * The pipeline phase a hook runs in (PRD 6.2 and 6.3). One case per hook interface:
- * AuthorizeHook, TransformHook and ValidateHook.
+ * The pipeline phase a hook runs in (PRD 6.2 and 6.3).
  */
 #[Experimental]
 enum Phase: string

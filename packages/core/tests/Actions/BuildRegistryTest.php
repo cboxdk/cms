@@ -23,6 +23,9 @@ use Cbox\Cms\Core\Registry\Domain\RegistryName;
 use Cbox\Cms\Core\Tests\Registry\Fakes\FakeDeclarationScanner;
 use Cbox\Cms\Core\Tests\Registry\Fakes\FakeRegistryCache;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Elsewhere\Misplaced;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\NeitherFinalNorReadonly\PlainCommandAction;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\NotFinalReadonly\MutableCommand;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\NotFinalReadonly\OpenAction;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNote;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNoteAction;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\TrimNoteTitle;
@@ -258,6 +261,26 @@ it('refuses an attribute on an abstract class', function (): void {
 
     expect($failed->codes())->toBe([BuildErrorCode::NotAConcreteClass])
         ->and($failed->getMessage())->toContain('BaseAction')->toContain('an abstract class');
+});
+
+it('refuses a command or an action that is not a final readonly class', function (): void {
+    $directory = RegistryFixtures::scratch();
+    $failed = failedRegistryBuild($directory, new ScanRoots(RegistryFixtures::root('NotFinalReadonly')));
+
+    expect($failed->codes())->toBe([BuildErrorCode::NotFinalReadonly, BuildErrorCode::NotFinalReadonly])
+        ->and($failed->getMessage())->toContain('[registry_not_final_readonly]')
+        ->toContain('#[Command] on '.MutableCommand::class.' ('.RegistryFixtures::PACKAGE.') is not readonly')
+        ->toContain('#[Action] on '.OpenAction::class.' ('.RegistryFixtures::PACKAGE.') is not final')
+        ->toContain('final readonly class')
+        ->and(is_dir($directory))->toBeFalse();
+});
+
+it('refuses a command or an action that is neither final nor readonly, once per class', function (): void {
+    $directory = RegistryFixtures::scratch();
+    $failed = failedRegistryBuild($directory, new ScanRoots(RegistryFixtures::root('NeitherFinalNorReadonly')));
+
+    expect($failed->codes())->toBe([BuildErrorCode::NotFinalReadonly])
+        ->and($failed->getMessage())->toContain(PlainCommandAction::class.' ('.RegistryFixtures::PACKAGE.') is not final and not readonly');
 });
 
 it('refuses a class the autoloader cannot find', function (): void {

@@ -224,6 +224,8 @@ final readonly class AttributeScanner implements DeclarationScanner
             return;
         }
 
+        $this->checkShape($class, $root, $problems);
+
         foreach ($attributes as $attribute) {
             try {
                 $declaration = $attribute->newInstance();
@@ -252,6 +254,40 @@ final readonly class AttributeScanner implements DeclarationScanner
                 ));
             }
         }
+    }
+
+    /**
+     * Reports a #[Command] or #[Action] class that is not a final readonly class (GUARDRAILS 2.1):
+     * a command must not change after the pipeline has authorized and validated it, and an action
+     * must not be replaced by a subclass the registry does not list. The class's entries are still
+     * read, so a hook for the command does not also fail as a hook for an unknown command.
+     *
+     * @param  ReflectionClass<object>  $class
+     * @param  list<BuildProblem>  $problems
+     */
+    private function checkShape(ReflectionClass $class, ScanRoot $root, array &$problems): void
+    {
+        $declarations = [
+            ...$class->getAttributes(Command::class),
+            ...$class->getAttributes(Action::class),
+        ];
+
+        if ($declarations === [] || ($class->isFinal() && $class->isReadOnly())) {
+            return;
+        }
+
+        $missing = implode(' and ', array_keys(array_filter(
+            ['not final' => ! $class->isFinal(), 'not readonly' => ! $class->isReadOnly()],
+        )));
+
+        $problems[] = new BuildProblem(BuildErrorCode::NotFinalReadonly, sprintf(
+            '#[%s] on %s (%s) is %s. A command, a WriteAction and a QueryAction are each a final readonly class (GUARDRAILS 2.1). Declare it as final readonly class %s.',
+            implode('] and #[', array_map($this->shortName(...), $declarations)),
+            $class->getName(),
+            $root->package,
+            $missing,
+            $class->getShortName(),
+        ));
     }
 
     /**
