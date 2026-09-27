@@ -41,10 +41,11 @@ use Throwable;
  *         }
  *     }
  *
- * The cases cover storing and finding, a stored receipt that holds only the facts of its changeset
- * and no call's wait result, marking projections, typed errors, logical expiry, a changeset time
- * that no partition covers (through ReceiptStoreHarness::uncover()) and the transactions of the
- * caller: a store runs inside the caller's transaction and never begins one.
+ * The cases cover storing and finding, one receipt per changeset across the retention classes and
+ * transactions, a stored receipt that holds only the facts of its changeset and no call's wait
+ * result, marking projections, typed errors, logical expiry, a changeset time that no partition
+ * covers (through ReceiptStoreHarness::uncover()) and the transactions of the caller: a store runs
+ * inside the caller's transaction and never begins one.
  */
 #[Experimental]
 trait ReceiptStoreContract
@@ -214,6 +215,48 @@ trait ReceiptStoreContract
             }
 
             $this->assertSameReceipt($receipt, $receipts->find($changesetId), 'The refused receipt changed the stored one.');
+        }
+    }
+
+    #[Test]
+    public function a_receipt_of_either_class_for_a_changeset_another_transaction_stored_is_refused(): void
+    {
+        $clock = new FakeClock;
+        $harness = $this->receiptStores($clock);
+        $ids = new FakeIdGenerator(clock: $clock);
+        $reader = $harness->session();
+
+        foreach ([[RetentionClass::Standard, RetentionClass::Evidence], [RetentionClass::Evidence, RetentionClass::Standard]] as [$firstClass, $secondClass]) {
+            $first = $harness->session();
+            $second = $harness->session();
+            $receipt = $this->receiptWithProjections($ids->next(), $firstClass);
+            $changesetId = $receipt->changesetId;
+            $label = sprintf('%s, then %s', $firstClass->value, $secondClass->value);
+
+            // Both transactions are open at once. A database store may make the second store wait
+            // for the first transaction, so the second stores only after the first commits; a store
+            // that does not wait may refuse it at the second commit instead.
+            $first->begin();
+            $first->receipts()->store($receipt);
+            $second->begin();
+            Assert::assertNull($second->receipts()->find($changesetId), "Another session sees an uncommitted receipt ({$label}).");
+            $first->commit();
+
+            try {
+                $second->receipts()->store(new StoredReceipt($changesetId, $secondClass, [
+                    ProjectionStatus::pending(new ProjectionName('edge')),
+                ]));
+                $second->commit();
+                Assert::fail("The store kept a second receipt for a changeset another transaction stored ({$label}).");
+            } catch (DuplicateReceipt $duplicate) {
+                Assert::assertStringContainsString($changesetId->toString(), $duplicate->getMessage());
+            }
+
+            if ($second->inTransaction()) {
+                $second->rollBack();
+            }
+
+            $this->assertSameReceipt($receipt, $reader->receipts()->find($changesetId), "The refused receipt changed the stored one ({$label}).");
         }
     }
 

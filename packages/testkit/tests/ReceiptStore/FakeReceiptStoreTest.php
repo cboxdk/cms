@@ -111,6 +111,27 @@ it('fails the second commit of the same changeset and applies none of its writes
         ->and($store->find($receipt->changesetId))->toEqual($receipt);
 });
 
+it('fails the second commit of a changeset stored in the other retention class too', function (RetentionClass $firstClass, RetentionClass $secondClass): void {
+    $clock = new FakeClock;
+    $store = new FakeReceiptStore($clock);
+    $receipt = new StoredReceipt(new ChangesetId(new FakeIdGenerator(clock: $clock)->next()), $firstClass);
+    $first = $store->session();
+    $second = $store->session();
+
+    $first->begin();
+    $second->begin();
+    $first->store($receipt);
+    $second->store(new StoredReceipt($receipt->changesetId, $secondClass));
+    $first->commit();
+
+    expect(fn () => $second->commit())->toThrow(DuplicateReceipt::class)
+        ->and($second->inTransaction())->toBeFalse()
+        ->and($store->find($receipt->changesetId))->toEqual($receipt);
+})->with([
+    'standard, then evidence' => [RetentionClass::Standard, RetentionClass::Evidence],
+    'evidence, then standard' => [RetentionClass::Evidence, RetentionClass::Standard],
+]);
+
 it('checks a write when it is made, inside a transaction too, and keeps the transaction open', function (): void {
     $store = new FakeReceiptStore;
     $receipt = fakeReceipt(new FakeIdGenerator);

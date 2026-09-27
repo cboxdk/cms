@@ -75,14 +75,40 @@ function waitForReceiptLockWaiter(): void
 }
 
 /**
+ * Waits until the child either waits for a lock or has committed, for at most five seconds. A test
+ * of a race uses it where the store under test must wait: the child that did not wait has
+ * committed, and the test's assertions show what it did instead of a timeout.
+ */
+function waitForReceiptLockWaiterOrCommit(ChildProcess $child): void
+{
+    $deadline = microtime(true) + 5;
+
+    while (microtime(true) < $deadline) {
+        $waiting = DB::connection()->scalar(
+            "select count(*) from pg_stat_activity where datname = current_database() and usename = 'cms_app' and wait_event_type = 'Lock'",
+        );
+
+        if ($waiting === 1 || in_array('committed', $child->signals(), true)) {
+            return;
+        }
+
+        usleep(20_000);
+    }
+
+    throw new AssertionFailedError(sprintf("The child neither waited for a lock nor committed within five seconds.\nSignals: %s", implode(', ', $child->signals())));
+}
+
+/**
  * Starts a child process that runs $work against its own PostgresReceiptStore, as the app role,
  * inside a transaction it commits, with a FakeClock at $at. The child signals `begun` first.
  *
  * @param  string  $work  'mark' acknowledges the projection edge at $at; 'store' stores the fixture receipt
+ *                        of 2026-01-01T00:00:00Z in the retention class $retention
+ * @param  string  $retention  the value of a RetentionClass, for 'store'
  */
-function receiptChild(string $work, string $id, string $at): ChildProcess
+function receiptChild(string $work, string $id, string $at, string $retention = 'standard'): ChildProcess
 {
-    $child = app(ChildProcesses::class)->start(static function (ProcessContext $context) use ($work, $id, $at): void {
+    $child = app(ChildProcesses::class)->start(static function (ProcessContext $context) use ($work, $id, $at, $retention): void {
         $connection = $context->connection();
         $resolver = new ConnectionResolver(['child' => $connection]);
         $resolver->setDefaultConnection('child');
@@ -98,7 +124,7 @@ function receiptChild(string $work, string $id, string $at): ChildProcess
             $context->signal($marked ? 'marked' : 'not-marked');
         } else {
             try {
-                $store->store(ReceiptTables::receipt('2026-01-01T00:00:00Z'));
+                $store->store(ReceiptTables::receipt('2026-01-01T00:00:00Z', RetentionClass::from($retention)));
                 $context->signal('stored');
             } catch (DuplicateReceipt) {
                 $context->signal('duplicate');
@@ -186,7 +212,14 @@ it('makes no call outside Postgres inside the transaction: no queue job, no HTTP
         ->and($valkeyKeys)->toBe([])
         ->and($statements)->not->toBeEmpty();
 
-    foreach ($statements as $sql) {
+    // The one Postgres function the store calls: the transaction-scoped lock on the changeset,
+    // once per store(). Every other statement reads or writes the receipt tables only.
+    $locks = array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, 'pg_')));
+
+    expect($locks)->toBe(['select pg_advisory_xact_lock(?)'])
+        ->and(PostgresReceiptStore::LOCK_CHANGESET)->toBe('select pg_advisory_xact_lock(?)');
+
+    foreach (array_diff($statements, $locks) as $sql) {
         preg_match_all('/\b(?:from|into|update) "([a-z_]+)"/', $sql, $tables);
 
         expect($sql)->toMatch('/^(select|insert|update) /')
@@ -269,8 +302,8 @@ it('gives one receipt and one DuplicateReceipt for two concurrent stores, withou
     $a->begin();
     $a->receipts()->store($receipt);
 
-    // The child cannot see A's uncommitted row, so its insert waits on the key, and ON CONFLICT
-    // DO NOTHING decides once A commits.
+    // The child waits for A's lock on the changeset, and its lookup, a new statement, sees A's row
+    // once A commits.
     $child = receiptChild('store', $changesetId->toString(), '2026-01-01T00:00:01Z');
     waitForReceiptLockWaiter();
     $a->commit();
@@ -280,6 +313,34 @@ it('gives one receipt and one DuplicateReceipt for two concurrent stores, withou
         ->and(ReceiptTables::rows(PostgresReceiptStore::RECEIPTS, $changesetId))->toBe(1)
         ->and(ReceiptTables::rows(PostgresReceiptStore::PROJECTIONS, $changesetId))->toBe(3);
 });
+
+it('gives one receipt and one DuplicateReceipt for two concurrent stores of one changeset in different retention classes', function (string $first, string $second): void {
+    app(PartitionFixtures::class)->cover(new DateTimeImmutable('2026-01-01T00:00:00Z'), new DateTimeImmutable('2026-01-31T23:59:59Z'));
+    $clock = new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z'));
+    $harness = PostgresReceiptSessions::at($clock);
+    $receipt = ReceiptTables::receipt('2026-01-01T00:00:00Z', RetentionClass::from($first));
+    $changesetId = $receipt->changesetId;
+
+    $a = $harness->session();
+    $a->begin();
+    $a->receipts()->store($receipt);
+
+    // The primary key holds the retention class, so no key conflict makes the child wait: only
+    // the store's lock on the changeset does. Without it, the child's lookup misses A's
+    // uncommitted row, its insert goes into the other class's partition, and both commit.
+    $child = receiptChild('store', $changesetId->toString(), '2026-01-01T00:00:01Z', $second);
+    waitForReceiptLockWaiterOrCommit($child);
+    $a->commit();
+    $child->waitForSignal('committed');
+
+    expect($child->signals())->toBe(['begun', 'duplicate', 'committed'])
+        ->and(ReceiptTables::rows(PostgresReceiptStore::RECEIPTS, $changesetId))->toBe(1)
+        ->and(ReceiptTables::rows(PostgresReceiptStore::PROJECTIONS, $changesetId))->toBe(3)
+        ->and($harness->session()->receipts()->find($changesetId))->toEqual($receipt);
+})->with([
+    'standard first, evidence second' => ['standard', 'evidence'],
+    'evidence first, standard second' => ['evidence', 'standard'],
+]);
 
 it('reports a duplicate inside the caller\'s transaction and leaves the transaction usable', function (): void {
     $clock = new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z'));

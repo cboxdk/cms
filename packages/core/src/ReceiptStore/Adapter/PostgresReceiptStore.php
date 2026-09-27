@@ -39,6 +39,18 @@ use Illuminate\Database\QueryException;
  * other, and the row lock orders workers that mark the same one. The update only changes a
  * pending row, so the first acknowledgement stays.
  *
+ * One receipt per changeset: the primary key is (changeset_id, retention_class), because a key on
+ * a partitioned table must hold the LIST partition key, so it cannot refuse a second receipt of the
+ * other class. store() therefore first takes a transaction-scoped advisory lock on the changeset
+ * (ReceiptLock), then looks for a receipt of either class, then inserts with ON CONFLICT DO
+ * NOTHING. A concurrent store of the same changeset waits for the lock until the first transaction
+ * ends, and its lookup, a new statement under READ COMMITTED, the command transaction's level, sees
+ * the committed receipt. Under SERIALIZABLE the second transaction fails to serialise instead.
+ * Without a transaction the lock ends with its statement, so only a caller's transaction makes the
+ * lookup and the insert one step. The lock is a blocking wait, as the key wait of the insert was
+ * before it: the second store of a changeset is a caller's error, not a path that is expected to
+ * wait.
+ *
  * Expiry is logical, as the contract says: find() and markProjection() only match a Standard
  * receipt whose changeset id is at or after the lowest id that is still live at the Clock's time.
  * The partition manager drops the rows later, a week after their day ends.
@@ -51,6 +63,9 @@ final readonly class PostgresReceiptStore implements ReceiptStore
     public const string RECEIPTS = 'receipts';
 
     public const string PROJECTIONS = 'receipt_projections';
+
+    /** The transaction-scoped lock on a changeset's receipt, keyed by ReceiptLock. */
+    public const string LOCK_CHANGESET = 'select pg_advisory_xact_lock(?)';
 
     private const int MILLISECONDS_PER_DAY = 86_400_000;
 
@@ -74,8 +89,12 @@ final readonly class PostgresReceiptStore implements ReceiptStore
         $id = $changesetId->toString();
 
         try {
-            // The primary key covers one retention class, so a receipt of the other class for the
-            // same changeset is found here. Expired or not, it holds the changeset.
+            // The primary key covers one retention class, so only this lock keeps one receipt per
+            // changeset across the classes: a second store of the changeset waits here until the
+            // first transaction ends, and the lookup below, a new statement, sees its receipt.
+            $db->select(self::LOCK_CHANGESET, [ReceiptLock::of($changesetId)->key]);
+
+            // A receipt of either class for the changeset, expired or not, holds the changeset.
             if ($db->table(self::RECEIPTS)->where('changeset_id', $id)->exists()) {
                 throw DuplicateReceipt::forChangeset($changesetId);
             }
