@@ -29,6 +29,14 @@ arch('markers: no code or configuration file carries a marker word of GUARDRAILS
         'docker/postgres/initdb.d/10-cms.sh',
         'tests/Support/Arch/MarkerScan.php',
         'tests/Arch/MarkersTest.php',
+        'docker/postgres/conf.d/cms.conf',
+        'docker/php/conf.d/cms.ini',
+        'tools/mutation/pcov.ini',
+        'workbench/.env.example',
+        '.prettierrc',
+        '.prettierignore',
+        '.gitignore',
+        'packages/testkit/tests/Phpstan/Fixtures/Layers.php.inc',
     )->and($scan->files)->not->toContain('composer.lock', 'package-lock.json', 'CLAUDE.md', '.claude/workflows/cms-milestone.js');
 
     Rules::none($scan->hits, 'Code and configuration may not carry a marker word (GUARDRAILS 11). Finish the work or record it in PROGRESS.md:');

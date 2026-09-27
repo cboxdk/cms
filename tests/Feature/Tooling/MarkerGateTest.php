@@ -84,6 +84,29 @@ it('fails on a marker in a PHP path, a YAML config file and a script without an 
     'the fifth word in upper case' => [marker('PROVI|SIONAL')],
 ]);
 
+it('fails on a marker in a configuration file whatever its name, naming file:line', function (string $path): void {
+    $word = marker('to|do');
+    $repository = markerRepository();
+    $repository->write($path, "# settings\n# {$word}: decide\n")->commit('configuration');
+
+    $scan = MarkerScan::of($repository->root);
+
+    expect($scan->files)->toBe([$path])
+        ->and($scan->hits)->toBe(["{$path}:2: {$word}"]);
+})->with([
+    'a PHP ini file' => ['docker/php/conf.d/cms.ini'],
+    'a Postgres conf file' => ['docker/postgres/conf.d/cms.conf'],
+    'an ini file below tools' => ['tools/mutation/pcov.ini'],
+    'an example environment file' => ['workbench/.env.example'],
+    'the Prettier configuration' => ['.prettierrc'],
+    'the Prettier ignore file' => ['.prettierignore'],
+    'the git ignore file' => ['.gitignore'],
+    'the editor configuration' => ['.editorconfig'],
+    'a PHPStan rule fixture' => ['packages/testkit/tests/Phpstan/Fixtures/Layers.php.inc'],
+    'a text file' => ['notes.txt'],
+    'a file without an extension that is not executable' => ['tools/data'],
+]);
+
 it('reads a new file that git does not ignore, and leaves out an ignored one', function (): void {
     $repository = markerRepository();
     $repository->write('.gitignore', "/ignored/\n")->commit('ignore');
@@ -93,7 +116,7 @@ it('reads a new file that git does not ignore, and leaves out an ignored one', f
 
     $scan = MarkerScan::of($repository->root);
 
-    expect($scan->files)->toBe(['src/New.php'])
+    expect($scan->files)->toBe(['.gitignore', 'src/New.php'])
         ->and($scan->hits)->toBe(['src/New.php:1: '.marker('fix|me')]);
 });
 
@@ -153,40 +176,50 @@ it('reports every line with a marker and every marker on a line', function (): v
     ]);
 });
 
-it('selects code and configuration by extension, name, directory, execute bit and shebang', function (): void {
+it('selects every text file git lists whatever its name, and leaves out binary files, Markdown and symlinks', function (): void {
     $repository = markerRepository();
     $selected = [
-        '.github/CODEOWNERS', '.github/workflows/ci.yml', 'Dockerfile', 'bin/ci', 'bin/run', 'composer.json',
-        'docker/ci.Dockerfile', 'docker/php/Dockerfile', 'package.json', 'src/a.cjs', 'src/a.css', 'src/a.html',
-        'src/a.js', 'src/a.json', 'src/a.mjs', 'src/a.neon', 'src/a.php', 'src/a.sh', 'src/a.sql', 'src/a.ts',
-        'src/a.tsx', 'src/a.xml', 'src/a.yaml', 'src/a.yml', 'src/b.PHP',
+        '.editorconfig', '.github/CODEOWNERS', '.github/workflows/ci.yml', '.gitignore', '.prettierignore', '.prettierrc',
+        'Dockerfile', 'LICENSE', 'bin/ci', 'bin/run', 'composer.json', 'docker/ci.Dockerfile', 'docker/php/Dockerfile',
+        'docker/php/conf.d/cms.ini', 'docker/postgres/conf.d/cms.conf', 'notes.txt', 'package.json', 'src/a.cjs',
+        'src/a.css', 'src/a.html', 'src/a.js', 'src/a.json', 'src/a.mjs', 'src/a.neon', 'src/a.php', 'src/a.sh',
+        'src/a.sql', 'src/a.ts', 'src/a.tsx', 'src/a.xml', 'src/a.yaml', 'src/a.yml', 'src/b.PHP', 'src/empty.txt',
+        'tests/Fixtures/Rule.php.inc', 'tools/data', 'workbench/.env.example',
     ];
-    $left = ['.editorconfig', '.gitignore', 'LICENSE', 'notes.txt', 'src/a.md', 'src/image.png', 'tools/data'];
 
-    foreach ([...$selected, ...$left] as $path) {
+    foreach ([...$selected, 'src/a.md'] as $path) {
         $repository->write($path, "content\n");
     }
 
-    $repository->write('bin/run', "#!/usr/bin/env bash\necho run\n");
+    $repository
+        ->write('bin/run', "#!/usr/bin/env bash\necho run\n")
+        ->write('src/empty.txt', '')
+        ->write('src/image.png', "\x89PNG\r\n\x1a\n\0\0\0\rIHDR")
+        ->write('src/late.bin', str_repeat('a', MarkerScan::BINARY_PROBE_BYTES - 1)."\0")
+        ->write('src/text-after-probe.txt', str_repeat('a', MarkerScan::BINARY_PROBE_BYTES)."\0");
     chmod($repository->root.'/bin/ci', 0o755);
     symlink('src/a.php', $repository->root.'/link.php');
     $repository->commit('files');
 
     expect($repository->git('ls-files', '--stage', '--', 'bin/ci'))->toStartWith('100755')
         ->and($repository->git('ls-files', '--stage', '--', 'link.php'))->toStartWith('120000')
-        ->and(MarkerScan::of($repository->root)->files)->toBe(sortedPaths($selected));
+        ->and(MarkerScan::of($repository->root)->files)->toBe(sortedPaths([...$selected, 'src/text-after-probe.txt']));
 });
 
-it('decides the selection from the path, the execute bit and the first bytes', function (string $path, bool $executable, string $head, bool $selected): void {
-    expect(MarkerScan::selects($path, $executable, $head))->toBe($selected);
+it('decides the selection from the path and the first bytes', function (string $path, string $head, bool $selected): void {
+    expect(MarkerScan::selects($path, $head))->toBe($selected);
 })->with([
-    'an executable script without an extension' => ['bin/ci', true, 'se', true],
-    'a script without an extension that starts with a shebang' => ['docker/run', false, '#!', true],
-    'a file without an extension, not executable and without a shebang' => ['LICENSE', false, 'MI', false],
-    'an executable file with another extension' => ['tools/run.txt', true, '#!', false],
-    'Markdown under .github' => ['.github/README.md', false, '# ', false],
-    'a shell script under .harness' => ['.harness/stop-hook.sh', true, '#!', false],
-    'a JavaScript file under .claude' => ['.claude/workflows/cms-milestone.js', false, '//', false],
-    'a lock file below the root, which has no selected extension' => ['packages/core/composer.lock', false, '{', false],
-    'a package-lock.json below the root' => ['js/tooling/package-lock.json', false, '{', true],
+    'an executable script without an extension' => ['bin/ci', 'set -e', true],
+    'a file without an extension that is not executable' => ['LICENSE', 'MIT License', true],
+    'an ini file' => ['docker/php/conf.d/cms.ini', 'allow_url_fopen = Off', true],
+    'a conf file' => ['docker/postgres/conf.d/cms.conf', 'max_connections = 100', true],
+    'an env example' => ['workbench/.env.example', 'APP_ENV=local', true],
+    'a dotfile' => ['.prettierrc', '{', true],
+    'an empty file' => ['tests/Contract/.gitkeep', '', true],
+    'a binary file' => ['public/logo.png', "\x89PNG\r\n\x1a\n\0\0", false],
+    'Markdown under .github' => ['.github/README.md', '# ', false],
+    'a shell script under .harness' => ['.harness/stop-hook.sh', '#!', false],
+    'a JavaScript file under .claude' => ['.claude/workflows/cms-milestone.js', '//', false],
+    'a lock file below the root, which EXCLUDED lists only at the root' => ['packages/core/composer.lock', '{', true],
+    'a package-lock.json below the root' => ['js/tooling/package-lock.json', '{', true],
 ]);

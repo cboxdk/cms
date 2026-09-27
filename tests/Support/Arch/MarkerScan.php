@@ -12,9 +12,11 @@ use Symfony\Component\Process\Process;
  * words, matched as whole words and in any case, the fourth also in the plural.
  *
  * The files are the ones git knows in the checkout: tracked files and untracked files that are
- * not ignored, so a new file is checked before it is committed. From those it takes files with
- * one of the EXTENSIONS, the NAMES, Dockerfiles, everything under .github/ and every file without
- * an extension that is executable or starts with a shebang, and leaves out what EXCLUDED lists.
+ * not ignored, so a new file is checked before it is committed. It reads every one of them that
+ * is text, whatever its name or extension, so a configuration file such as an ini, a conf, an
+ * env example or a dotfile is read as code is, and leaves out what EXCLUDED lists. A file is
+ * binary, and not read, when its first BINARY_PROBE_BYTES bytes hold a NUL byte, the rule git
+ * uses to tell text from binary. Symlinks and submodules are not files and are left out.
  *
  * The words are written in parts here and in the tests, so the gate checks its own files too.
  */
@@ -33,23 +35,9 @@ final readonly class MarkerScan
     public const string PLURAL = 'place'.'holder';
 
     /**
-     * @var list<string>
+     * How many bytes from the start of a file decide whether it is binary, as git decides it.
      */
-    public const array EXTENSIONS = ['cjs', 'css', 'html', 'js', 'json', 'mjs', 'neon', 'php', 'sh', 'sql', 'ts', 'tsx', 'xml', 'yaml', 'yml'];
-
-    /**
-     * File names that are selected whatever their directory.
-     *
-     * @var list<string>
-     */
-    public const array NAMES = ['Dockerfile', 'composer.json', 'package.json'];
-
-    public const string DOCKERFILE_SUFFIX = '.Dockerfile';
-
-    /**
-     * Every file below this directory is selected.
-     */
-    public const string ALL_FILES_BELOW = '.github/';
+    public const int BINARY_PROBE_BYTES = 8000;
 
     /**
      * What the gate never reads, with the reason: `*.<extension>` is every file with that
@@ -83,14 +71,14 @@ final readonly class MarkerScan
     {
         $files = [];
 
-        foreach (self::listed($root) as $path => $executable) {
+        foreach (self::listed($root) as $path) {
             $file = $root.'/'.$path;
 
             if (! is_file($file) || is_link($file)) {
                 continue;
             }
 
-            if (self::selects($path, $executable, self::head($file))) {
+            if (self::selects($path, self::head($file))) {
                 $files[] = $path;
             }
         }
@@ -112,23 +100,12 @@ final readonly class MarkerScan
     }
 
     /**
-     * Whether the gate reads a file, given its path relative to the root, whether it is
-     * executable and its first bytes.
+     * Whether the gate reads a file, given its path relative to the root and its first
+     * BINARY_PROBE_BYTES bytes: every file that EXCLUDED does not list and that is text.
      */
-    public static function selects(string $path, bool $executable, string $head): bool
+    public static function selects(string $path, string $head): bool
     {
-        if (self::excluded($path)) {
-            return false;
-        }
-
-        $name = basename($path);
-        $extension = pathinfo($name, PATHINFO_EXTENSION);
-
-        return in_array(strtolower($extension), self::EXTENSIONS, true)
-            || in_array($name, self::NAMES, true)
-            || str_ends_with($name, self::DOCKERFILE_SUFFIX)
-            || str_starts_with($path, self::ALL_FILES_BELOW)
-            || ($extension === '' && ($executable || str_starts_with($head, '#!')));
+        return ! self::excluded($path) && ! str_contains($head, "\0");
     }
 
     public static function excluded(string $path): bool
@@ -181,11 +158,10 @@ final readonly class MarkerScan
     }
 
     /**
-     * The files git lists in the checkout, each with whether it is executable. A tracked file
-     * is executable when its mode in the index is 100755, an untracked one when its execute bit
-     * is set. Symlinks and submodules are not files and are left out.
+     * The files git lists in the checkout: tracked regular files, executable or not, and
+     * untracked files that are not ignored. Symlinks and submodules in the index are left out.
      *
-     * @return array<string, bool>
+     * @return list<string>
      */
     private static function listed(string $root): array
     {
@@ -197,16 +173,14 @@ final readonly class MarkerScan
             }
 
             if (in_array($match[1], ['100644', '100755'], true)) {
-                $listed[$match[2]] = $match[1] === '100755';
+                $listed[] = $match[2];
             }
         }
 
-        foreach (self::entries($root, ['ls-files', '-z', '--others', '--exclude-standard']) as $path) {
-            $file = $root.'/'.$path;
-            $listed[$path] = ! is_link($file) && is_file($file) && (fileperms($file) & 0o111) !== 0;
-        }
-
-        return $listed;
+        return array_values(array_unique([
+            ...$listed,
+            ...self::entries($root, ['ls-files', '-z', '--others', '--exclude-standard']),
+        ]));
     }
 
     /**
@@ -232,7 +206,7 @@ final readonly class MarkerScan
             throw new RuntimeException("Cannot open {$file}.");
         }
 
-        $head = fread($handle, 2);
+        $head = fread($handle, self::BINARY_PROBE_BYTES);
         fclose($handle);
 
         return $head === false ? '' : $head;
