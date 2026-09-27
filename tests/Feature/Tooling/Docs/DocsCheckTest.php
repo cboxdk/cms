@@ -536,7 +536,7 @@ it('fails on a copy of this repository with one new public interface in the cont
     ScratchDirectory::delete($scratch);
 
     expect(explode("\n", $beforeOutput))->not->toContain('Cbox\Cms\Contracts\Salutation: undocumented')
-        ->and($before)->toBe(1)
+        ->and($before)->toBe(0)
         ->and($exitCode)->toBe(1)
         ->and(explode("\n", $output))->toContain('Cbox\Cms\Contracts\Salutation: undocumented')
         ->and($errors)->toContain('docs:check:')

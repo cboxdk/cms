@@ -20,6 +20,7 @@ use Cbox\Cms\Testkit\Tests\Contract\FakeIdGeneratorContractTest;
 use Cbox\Cms\Testkit\Tests\Contract\FakeReceiptStoreContractTest;
 use Cbox\Cms\Tests\Support\Phpstan;
 use Examples\Contract\Clock\StagingClockContractTest;
+use Examples\Contract\Doctor\UploadsDirectoryDoctorCheckContractTest;
 use Examples\Contract\IdempotencyStore\CountingIdempotencyStoreContractTest;
 use Examples\Contract\Ids\CountingIdGeneratorContractTest;
 use Examples\Contract\ReceiptStore\ArrayReceiptStoreContractTest;
@@ -193,9 +194,9 @@ it('runs every shared IdempotencyStore case once for the PostgresIdempotencyStor
         ->and($listed)->toBe($expected);
 });
 
-it('runs every shared DoctorCheck case once for the fake and once for each check of the core', function (): void {
+it('runs every shared DoctorCheck case once for the fake, once for each check of the core and once for the documented UploadsDirectoryCheck example', function (): void {
     $cases = sharedCases(DoctorCheckContract::class);
-    $classes = [FakeDoctorCheckContractTest::class];
+    $classes = [FakeDoctorCheckContractTest::class, UploadsDirectoryDoctorCheckContractTest::class];
 
     // Every core check but doctor.config, which only exists to fail and has no passing state.
     foreach (glob(Phpstan::root().'/packages/core/src/Doctor/Domain/Checks/*Check.php') ?: [] as $file) {
@@ -214,11 +215,14 @@ it('runs every shared DoctorCheck case once for the fake and once for each check
         }
     }
 
+    // The example's own case for its failure code.
+    $expected[] = UploadsDirectoryDoctorCheckContractTest::class.'::a_missing_directory_is_a_violation_that_names_the_directory';
+
     $listed = contractTests('DoctorCheck');
     sort($expected);
     sort($listed);
 
-    expect($classes)->toHaveCount(19)
+    expect($classes)->toHaveCount(20)
         ->and($cases)->toContain(
             'a_passing_check_returns_a_pass_for_itself',
             'a_failing_check_returns_a_fail_with_its_kind_code_cause_and_fix',
