@@ -48,7 +48,7 @@ function repositoryFiles(): array
     return $files;
 }
 
-it('analyses every package, the tests, the tooling and the workbench at level 10 with no ignored errors', function (): void {
+it('analyses every package, the tests, the tooling, the workbench and the examples at level 10 with no ignored errors', function (): void {
     $root = Phpstan::root();
     $parameters = Phpstan::parameters('phpstan.neon');
     $packageDirectories = array_merge(
@@ -67,7 +67,7 @@ it('analyses every package, the tests, the tooling and the workbench at level 10
         ->and($parameters->value('level'))->toBe(10)
         ->and($parameters->value('ignoreErrors'))->toBe([])
         ->and($parameters->strings('analysedPathsFromConfig'))
-        ->toContain(...[...$packageDirectories, ...$supportDirectories, $root.'/tests', $root.'/tools', $root.'/workbench']);
+        ->toContain(...[...$packageDirectories, ...$supportDirectories, $root.'/tests', $root.'/tools', $root.'/workbench', $root.'/examples']);
 });
 
 it('analyses every root PHP file that Rector covers with withRootFiles() at level 10', function (): void {

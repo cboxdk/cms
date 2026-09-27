@@ -22,6 +22,7 @@ $config = require __DIR__.'/vendor/cboxdk/cms-testkit/config/rector.php';
 
 return $config
     ->withPaths([
+        __DIR__.'/examples',
         __DIR__.'/packages/*/bin',
         __DIR__.'/packages/*/config',
         __DIR__.'/packages/*/database',

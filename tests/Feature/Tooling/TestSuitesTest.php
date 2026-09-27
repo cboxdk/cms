@@ -68,7 +68,7 @@ function listedTests(?string $suite): array
 }
 
 /**
- * The test class of each file named like a test below tests and each package's tests directory,
+ * The test class of each file named like a test below tests, examples and each package's tests directory,
  * outside the fixture directories: the class of the file's name that a PHPUnit file declares, or
  * the name Pest gives a file of test functions.
  *
@@ -79,7 +79,7 @@ function testFilesOnDisk(): array
     $root = Phpstan::root();
     $classes = [];
 
-    foreach ([$root.'/tests', ...(glob($root.'/packages/*/tests', GLOB_ONLYDIR) ?: [])] as $directory) {
+    foreach ([$root.'/tests', $root.'/examples', ...(glob($root.'/packages/*/tests', GLOB_ONLYDIR) ?: [])] as $directory) {
         foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS)) as $file) {
             if (! $file instanceof SplFileInfo) {
                 continue;
@@ -111,12 +111,12 @@ function testFilesOnDisk(): array
 it('defines the suites of gate 5, Unit, Codecs, Contract, Postgres, Arch and Actions, Browser for gate 8, and Mutation for the PR profile\'s gate 5', function (): void {
     expect(configuredSuites())->toBe([
         'Unit' => [
-            'directories' => ['tests/Feature', 'packages/*/tests'],
+            'directories' => ['tests/Feature', 'examples/Unit', 'packages/*/tests'],
             'excludes' => ['packages/*/tests/Codecs', 'packages/*/tests/Contract', 'packages/*/tests/Postgres', 'packages/*/tests/Actions'],
         ],
-        'Codecs' => ['directories' => ['tests/Codecs', 'packages/*/tests/Codecs'], 'excludes' => []],
-        'Contract' => ['directories' => ['tests/Contract', 'packages/*/tests/Contract'], 'excludes' => []],
-        'Postgres' => ['directories' => ['tests/Postgres', 'packages/*/tests/Postgres'], 'excludes' => []],
+        'Codecs' => ['directories' => ['tests/Codecs', 'examples/Codecs', 'packages/*/tests/Codecs'], 'excludes' => []],
+        'Contract' => ['directories' => ['tests/Contract', 'examples/Contract', 'packages/*/tests/Contract'], 'excludes' => []],
+        'Postgres' => ['directories' => ['tests/Postgres', 'examples/Postgres', 'packages/*/tests/Postgres'], 'excludes' => []],
         'Arch' => ['directories' => ['tests/Arch'], 'excludes' => []],
         'Actions' => ['directories' => ['tests/Actions', 'packages/*/tests/Actions'], 'excludes' => []],
         'Browser' => ['directories' => ['tests/Browser'], 'excludes' => []],
@@ -136,7 +136,7 @@ it('puts every test in exactly one suite, only Postgres tests in the Postgres su
     sort($inSuites);
     sort($all);
 
-    $isPostgres = static fn (string $class): bool => preg_match('/\\\\(Tests|tests)\\\\Postgres\\\\/', $class) === 1;
+    $isPostgres = static fn (string $class): bool => preg_match('/\\\\(Tests|tests|Examples)\\\\Postgres\\\\/', $class) === 1;
     $isActions = static fn (string $class): bool => preg_match('/\\\\(Tests|tests)\\\\Actions\\\\/', $class) === 1;
 
     expect($all)->not->toBeEmpty()
@@ -160,17 +160,17 @@ it('puts every test in exactly one suite, only Postgres tests in the Postgres su
 it('boots the workbench application for the browser tests', function (): void {
     $pest = (string) file_get_contents(Phpstan::root().'/tests/Pest.php');
 
-    expect($pest)->toContain("pest()->extend(TestCase::class)->in('Feature', 'Codecs', 'Contract', 'Postgres', 'Actions', 'Browser', '../packages/*/tests');");
+    expect($pest)->toContain("pest()->extend(TestCase::class)->in('Feature', 'Codecs', 'Contract', 'Postgres', 'Actions', 'Browser', '../packages/*/tests', '../examples');");
 });
 
 it('applies the real-Postgres harness to the Postgres directories', function (): void {
     $pest = (string) file_get_contents(Phpstan::root().'/tests/Pest.php');
 
-    expect($pest)->toContain("pest()->use(RealPostgres::class)->in('Postgres', '../packages/*/tests/Postgres');");
+    expect($pest)->toContain("pest()->use(RealPostgres::class)->in('Postgres', '../packages/*/tests/Postgres', '../examples/Postgres');");
 });
 
 it('applies the real-Valkey harness to the Postgres directories', function (): void {
     $pest = (string) file_get_contents(Phpstan::root().'/tests/Pest.php');
 
-    expect($pest)->toContain("pest()->use(RealValkey::class)->in('Postgres', '../packages/*/tests/Postgres');");
+    expect($pest)->toContain("pest()->use(RealValkey::class)->in('Postgres', '../packages/*/tests/Postgres', '../examples/Postgres');");
 });

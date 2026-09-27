@@ -28,11 +28,13 @@
           Mutation  the tests that need a coverage driver: mutation on changed files for real, on a
                     scratch repository. PCOV is in the php container and the CI image, not on the
                     host; the PR profile runs it in gate 5
-        A package puts its tests for a suite in packages/<package>/tests/<Suite>.
+        A package puts its tests for a suite in packages/<package>/tests/<Suite>. The running examples
+        of the documentation pages (gate 10, composer docs:check) live in examples/<Suite>/<Topic>.
     -->
     <testsuites>
         <testsuite name="Unit">
             <directory suffix="Test.php">tests/Feature</directory>
+            <directory suffix="Test.php">examples/Unit</directory>
             <directory suffix="Test.php">packages/*/tests</directory>
             <exclude>packages/*/tests/Codecs</exclude>
             <exclude>packages/*/tests/Contract</exclude>
@@ -41,14 +43,17 @@
         </testsuite>
         <testsuite name="Codecs">
             <directory suffix="Test.php">tests/Codecs</directory>
+            <directory suffix="Test.php">examples/Codecs</directory>
             <directory suffix="Test.php">packages/*/tests/Codecs</directory>
         </testsuite>
         <testsuite name="Contract">
             <directory suffix="Test.php">tests/Contract</directory>
+            <directory suffix="Test.php">examples/Contract</directory>
             <directory suffix="Test.php">packages/*/tests/Contract</directory>
         </testsuite>
         <testsuite name="Postgres">
             <directory suffix="Test.php">tests/Postgres</directory>
+            <directory suffix="Test.php">examples/Postgres</directory>
             <directory suffix="Test.php">packages/*/tests/Postgres</directory>
         </testsuite>
         <testsuite name="Arch">

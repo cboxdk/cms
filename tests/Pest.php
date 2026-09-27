@@ -28,10 +28,10 @@ $browserPlugin = InstalledVersions::getInstallPath('pestphp/pest-plugin-browser'
 
 ExcludeList::addDirectory($browserPlugin.'/src');
 
-pest()->extend(TestCase::class)->in('Feature', 'Codecs', 'Contract', 'Postgres', 'Actions', 'Browser', '../packages/*/tests');
+pest()->extend(TestCase::class)->in('Feature', 'Codecs', 'Contract', 'Postgres', 'Actions', 'Browser', '../packages/*/tests', '../examples');
 
 // Real Postgres as the app role, schema built by the owner role, no wrapping transaction (GUARDRAILS 9).
-pest()->use(RealPostgres::class)->in('Postgres', '../packages/*/tests/Postgres');
+pest()->use(RealPostgres::class)->in('Postgres', '../packages/*/tests/Postgres', '../examples/Postgres');
 
 // Real Valkey on the test database index, with a key prefix per run that is cleaned after each test.
-pest()->use(RealValkey::class)->in('Postgres', '../packages/*/tests/Postgres');
+pest()->use(RealValkey::class)->in('Postgres', '../packages/*/tests/Postgres', '../examples/Postgres');

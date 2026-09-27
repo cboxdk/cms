@@ -15,6 +15,7 @@ parameters:
     tmpDir: .cache/phpstan
 
     paths:
+        - examples
         - packages/cli/src
         - packages/cli/tests
         - packages/contracts/src

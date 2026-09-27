@@ -56,6 +56,7 @@
             "Cbox\\Cms\\Testkit\\Tests\\": "packages/testkit/tests/",
             "Cbox\\Cms\\Tests\\": "tests/",
             "Cbox\\Cms\\Tooling\\": "tools/src/",
+            "Examples\\": "examples/",
             "Workbench\\App\\": "workbench/app/"
         },
         "classmap": [
@@ -85,6 +86,7 @@
             "@php tools/bin/prune-test-databases.php"
         ],
         "progress:check": "@php tools/bin/progress-check.php",
+        "docs:check": "@php tools/bin/docs-check.php",
         "lint": "@php tools/bin/pint.php",
         "lint:check": "@php tools/bin/pint.php --test",
         "rector": "@php vendor/bin/rector process",
@@ -129,6 +131,7 @@
         "services:down": "Stop the services from the main checkout's compose.yaml; the data volumes are kept. Refuses with exit 1 in a linked worktree, because the services are shared. Runs tools/bin/services.php.",
         "dev:prepare": "Ready the workbench's dev database for cms:doctor, after `composer services:up`, from the main checkout: run the migrations as the owner role on pgsql_owner (cms.database.owner_connection), create the partition runway with cms:partitions:maintain on that connection, and build the registry cache with cms:build. Every step is idempotent; the script stops at a failing step and exits with its code.",
         "test-db:prune": "Drop the Postgres test databases of removed checkouts: those named <configured database>_<12 hex digits> whose testkit comment names this host and a checkout path that no longer exists or no longer derives the name, with DROP DATABASE ... WITH (FORCE). Keeps the configured database, this checkout's, other hosts' and those without a valid comment, and prints each name with its verdict and reason. Option after --: --dry-run drops nothing. Runs tools/bin/prune-test-databases.php.",
+        "docs:check": "Gate 10 of GUARDRAILS 10: fail with exit 1 when a public extension point of packages/*/src or packages/*/resources/schemas has no page with a running example, or a page, marker, embedded example or file below examples/ breaks the rules of Cbox\\Cms\\Tooling\\Docs\\Domain\\DocsAudit (GUARDRAILS 2.4, PRD 14.4). Prints each finding as <file>:<line>: <message> or <extension point>: undocumented. Option after --: --root=<dir> checks another tree. Runs tools/bin/docs-check.php.",
         "progress:check": "Fail unless PROGRESS.md records a task before the merge queue moves main: an entry for it under Kontroller kørt, with --changed-checks also one under Til review af Sylvester that says GUARDRAILS 7.3, and with --range=<range> no commit of the range that changes no file. Arguments after --: <block>-<task> [--changed-checks] [--range=main..HEAD]. Runs tools/bin/progress-check.php.",
         "lint": "Format the PHP code with Pint and the shared configuration from the testkit.",
         "lint:check": "Gate 1: fail if Pint would change any file.",

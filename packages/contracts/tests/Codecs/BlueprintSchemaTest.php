@@ -16,7 +16,8 @@ use Symfony\Component\Yaml\Yaml;
  * PARSE_OBJECT_FOR_MAP so that an empty map stays an object, and validated with opis'
  * CompliantValidator, which never writes defaults into the data. Every invalid fixture fails at
  * exactly the JSON pointer it is written to break, and the examples on the reference page are the
- * valid fixtures, byte for byte.
+ * valid fixtures, byte for byte, each named by an example-file marker with its repo-relative path,
+ * the one convention of composer docs:check (gate 10).
  */
 
 const BLUEPRINT_PACKAGE = __DIR__.'/../..';
@@ -26,6 +27,8 @@ const BLUEPRINT_SCHEMA = BLUEPRINT_PACKAGE.'/resources/schemas/blueprint.v1.json
 const BLUEPRINT_PAGE = BLUEPRINT_PACKAGE.'/resources/schemas/blueprint.v1.md';
 
 const BLUEPRINT_FIXTURES = __DIR__.'/Fixtures/Blueprint';
+
+const BLUEPRINT_REPOSITORY = BLUEPRINT_PACKAGE.'/../..';
 
 function blueprintRead(string $path): string
 {
@@ -122,15 +125,15 @@ function blueprintFieldTypes(mixed $fields): array
 }
 
 /**
- * The fenced YAML blocks of the reference page, keyed by the fixture that the comment above each
- * one names.
+ * The fenced YAML blocks of the reference page, keyed by the repo-relative path of the fixture that
+ * the example-file marker above each one names.
  *
  * @return array<string, string>
  */
 function blueprintPageExamples(): array
 {
     preg_match_all(
-        '/^<!-- fixture: (?<path>\S+) -->\n```yaml\n(?<body>.*?)^```$/ms',
+        '/^<!-- example-file: (?<path>\S+) -->\n```yaml\n(?<body>.*?)^```$/ms',
         blueprintRead(BLUEPRINT_PAGE),
         $matches,
         PREG_SET_ORDER,
@@ -315,13 +318,13 @@ it('embeds each valid fixture on the reference page, byte for byte', function ()
     $examples = blueprintPageExamples();
 
     expect(array_keys($examples))->toBe([
-        'tests/Codecs/Fixtures/Blueprint/valid/article.yaml',
-        'tests/Codecs/Fixtures/Blueprint/valid/extension.yaml',
-        'tests/Codecs/Fixtures/Blueprint/valid/addon-field-type.yaml',
+        'packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/article.yaml',
+        'packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/extension.yaml',
+        'packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/addon-field-type.yaml',
     ]);
 
     foreach ($examples as $path => $body) {
-        expect($body)->toBe(blueprintRead(BLUEPRINT_PACKAGE.'/'.$path));
+        expect($body)->toBe(blueprintRead(BLUEPRINT_REPOSITORY.'/'.$path));
     }
 });
 

@@ -1,5 +1,7 @@
 # Blueprint schema, version 1
 
+<!-- extension-point: packages/contracts/resources/schemas/blueprint.v1.json -->
+
 A blueprint file defines one content type, or adds fields to another owner's type. Blueprint files live under `schema/**/*.yaml` (PRD 11.12). Their format is the JSON Schema [`blueprint.v1.json`](blueprint.v1.json) next to this page, JSON Schema draft 2020-12, and it is the one source of the rules for a single file. The rules that compare values with each other, in one file or across files, are listed under [Rules across values and files](#rules-across-values-and-files).
 
 This is the first edition of version 1. Version 1 grows only by additions: a new field type, a new optional choice, a new enum value or a new `kind` keeps the marker `blueprint: 1`, and a file that is valid stays valid and keeps its meaning. A change that would make a valid file invalid or change its meaning is version 2.
@@ -138,11 +140,11 @@ An unknown `extends` is reported only when every file was read, because a file t
 
 ## Examples
 
-These examples are the test fixtures of the schema, and a test checks that each block below is byte for byte the fixture it names.
+These examples are the test fixtures of the schema. `composer docs:check` checks that each block below is byte for byte the file it names, and the test at the end validates the three files against the schema, as an application's or addon's own tests can.
 
 A type with every core field type:
 
-<!-- fixture: tests/Codecs/Fixtures/Blueprint/valid/article.yaml -->
+<!-- example-file: packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/article.yaml -->
 ```yaml
 blueprint: 1
 kind: type
@@ -257,7 +259,7 @@ fields:
 
 An extension that adds a field to another owner's type:
 
-<!-- fixture: tests/Codecs/Fixtures/Blueprint/valid/extension.yaml -->
+<!-- example-file: packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/extension.yaml -->
 ```yaml
 blueprint: 1
 kind: extension
@@ -274,7 +276,7 @@ fields:
 
 A type with a field of an addon's field type, `acme:colour`, and its choices under `options`:
 
-<!-- fixture: tests/Codecs/Fixtures/Blueprint/valid/addon-field-type.yaml -->
+<!-- example-file: packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/addon-field-type.yaml -->
 ```yaml
 blueprint: 1
 kind: type
@@ -302,4 +304,37 @@ fields:
       palette: shop
       allow_custom: false
     classification: public
+```
+
+The test that validates them, in the `Codecs` suite:
+
+<!-- example: examples/Codecs/Blueprint/ValidBlueprintsTest.php -->
+```php
+<?php
+
+declare(strict_types=1);
+
+use Opis\JsonSchema\CompliantValidator;
+use Opis\JsonSchema\Errors\ErrorFormatter;
+use Opis\JsonSchema\Errors\ValidationError;
+use Symfony\Component\Yaml\Yaml;
+
+// Validates blueprint files against blueprint.v1.json from the installed cboxdk/cms-contracts, the
+// schema cms:generate validates against. Read YAML with PARSE_OBJECT_FOR_MAP, so that a map stays
+// an object, and validate with CompliantValidator, which never writes defaults into the data.
+
+it('accepts the blueprint file', function (string $file): void {
+    $root = dirname(__DIR__, 3);
+    $schema = file_get_contents($root.'/vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json')
+        ?: throw new RuntimeException('Cannot read blueprint.v1.json.');
+    $blueprint = Yaml::parseFile($root.'/'.$file, Yaml::PARSE_OBJECT_FOR_MAP);
+
+    $error = new CompliantValidator()->validate($blueprint, $schema)->error();
+
+    expect($error instanceof ValidationError ? new ErrorFormatter()->format($error) : [])->toBe([]);
+})->with([
+    'the type article' => ['packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/article.yaml'],
+    'the extension of another owner\'s type' => ['packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/extension.yaml'],
+    'the type product with the addon field type acme:colour' => ['packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/addon-field-type.yaml'],
+]);
 ```
