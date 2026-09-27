@@ -111,7 +111,9 @@ final readonly class PostgresTestDatabases
 
     /**
      * Drops $database when it exists, and says whether it did. Postgres waits up to 5 seconds
-     * for the backends of clients that just disconnected.
+     * for the backends of clients that just disconnected, and then for a forced checkpoint of the
+     * whole server, which on a server that other checkouts' suites keep busy can take more than a
+     * minute. The drop sets no statement timeout of its own.
      */
     public function drop(string $database): bool
     {

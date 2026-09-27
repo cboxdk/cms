@@ -11,6 +11,7 @@ use Cbox\Cms\Testkit\Postgres\Infrastructure\TestDatabaseSetup;
 use Cbox\Cms\Testkit\Postgres\TestDatabase;
 use Cbox\Cms\Testkit\Postgres\TestDatabaseName;
 use Cbox\Cms\Tests\Support\Phpstan;
+use Cbox\Cms\Tests\Support\Tooling\DropDatabaseScripts;
 use Cbox\Cms\Tests\Support\Tooling\ScratchDirectory;
 use Illuminate\Support\Facades\DB;
 use PDO;
@@ -42,7 +43,7 @@ afterEach(function (): void {
  */
 function pruneScript(string $configured, string ...$arguments): Process
 {
-    $process = new Process([PHP_BINARY, 'tools/bin/prune-test-databases.php', ...$arguments], Phpstan::root(), ['DB_DATABASE' => $configured], null, 300);
+    $process = DropDatabaseScripts::process([PHP_BINARY, 'tools/bin/prune-test-databases.php', ...array_values($arguments)], ['DB_DATABASE' => $configured]);
     $process->run();
 
     return $process;
