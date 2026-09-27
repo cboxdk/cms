@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Cbox\Cms\Tests\Support\Arch;
 
 use FilesystemIterator;
+use Illuminate\Contracts\Database\Eloquent\CastsAttributes;
+use Illuminate\Contracts\Database\Eloquent\CastsInboundAttributes;
 use RecursiveCallbackFilterIterator;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -92,6 +94,39 @@ final class Codebase
             self::types(),
             static fn (DeclaredType $type): bool => in_array($type->layer(), $layers, true),
         ));
+    }
+
+    /**
+     * What Infrastructure may use (GUARDRAILS 2.5 with 2.2, "Hvor ting bor" in CLAUDE.md): the
+     * domain and the contracts, Infrastructure itself, Illuminate\Database, the Boundary row
+     * mappers and error readers that turn what Postgres returns into typed values, and the
+     * Eloquent casts in Adapter. Anything else, the rest of Adapter and the framework included,
+     * is outside the layer.
+     *
+     * @return list<string>
+     */
+    public static function infrastructureMayUse(): array
+    {
+        return [
+            ...self::classesIn(Layer::Domain, Layer::Infrastructure, Layer::Boundary),
+            ...array_values(array_filter(self::classesIn(Layer::Adapter), self::isCast(...))),
+            'Illuminate\Database',
+        ];
+    }
+
+    /**
+     * Whether the class is an Eloquent cast, the only part of Adapter an Eloquent model in
+     * Infrastructure may name.
+     */
+    public static function isCast(string $class): bool
+    {
+        if (! class_exists($class)) {
+            return false;
+        }
+
+        $interfaces = class_implements($class);
+
+        return isset($interfaces[CastsAttributes::class]) || isset($interfaces[CastsInboundAttributes::class]);
     }
 
     /**

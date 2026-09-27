@@ -45,6 +45,10 @@ arch('layers: surfaces do not use Infrastructure, Adapter or Eloquent', function
     ]);
 });
 
+arch('layers: infrastructure uses only the domain, the contracts, Illuminate\Database, Boundary and casts in Adapter', function (): void {
+    expect(Codebase::classesIn(Layer::Infrastructure))->toOnlyUse(Codebase::infrastructureMayUse());
+});
+
 arch('layers: infrastructure does not use Illuminate\Http, facades, actions or surfaces', function (): void {
     Rules::forbid(Codebase::classesIn(Layer::Infrastructure), [
         'Illuminate\Http',
