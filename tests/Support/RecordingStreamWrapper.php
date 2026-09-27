@@ -5,9 +5,14 @@ declare(strict_types=1);
 namespace Cbox\Cms\Tests\Support;
 
 /**
- * A URL stream wrapper that stands in for ftp:// and http://: it records every call PHP makes to it
+ * A stream wrapper that stands in for ftp:// and http://: it records every call PHP makes to it
  * and fails each one, so a test sees whether code handed a path to a stream wrapper at all
  * (GUARDRAILS 3).
+ *
+ * It is registered without STREAM_IS_URL. PHP refuses a URL wrapper before calling it when
+ * allow_url_fopen is off, as it is in the php container (docker/php/conf.d/cms.ini), and a test
+ * that expects no call would then pass whatever the code under test did. The writers refuse every
+ * wrapper by the form of the path (LocalPath), not only URL wrappers.
  */
 final class RecordingStreamWrapper
 {
@@ -20,14 +25,14 @@ final class RecordingStreamWrapper
     public $context;
 
     /**
-     * Registers the wrapper as a URL wrapper and forgets the calls recorded before.
+     * Registers the wrapper, in every allow_url_fopen setting, and forgets the calls recorded before.
      */
     public static function register(): void
     {
         self::$calls = [];
 
         if (! in_array(self::SCHEME, stream_get_wrappers(), true)) {
-            stream_wrapper_register(self::SCHEME, self::class, STREAM_IS_URL);
+            stream_wrapper_register(self::SCHEME, self::class);
         }
     }
 

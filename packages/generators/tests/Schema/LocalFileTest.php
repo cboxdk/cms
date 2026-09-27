@@ -5,83 +5,14 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Tests\Schema;
 
 use Cbox\Cms\Generators\Schema\Boundary\LocalFile;
+use Cbox\Cms\Generators\Tests\Schema\Fakes\RecordingUrlWrapper;
 use Cbox\Cms\Generators\Tests\SchemaFixtures;
 
 /*
- * LocalFile reads local files and never a URL (GUARDRAILS 3). A stream wrapper registered as a URL
- * wrapper stands in for http:// and ftp://: it records every call PHP makes to it, so a test sees
- * whether LocalFile handed the path to a wrapper at all.
+ * LocalFile reads local files and never a URL (GUARDRAILS 3). RecordingUrlWrapper stands in for
+ * http:// and ftp://: it records every call PHP makes to it, so a test sees whether LocalFile
+ * handed the path to a wrapper at all, with allow_url_fopen on or off.
  */
-
-/**
- * A URL stream wrapper that serves one file and records each call.
- */
-final class RecordingUrlWrapper
-{
-    public const string SCHEME = 'cmslocalfileprobe';
-
-    /** @var list<string> */
-    public static array $calls = [];
-
-    /** @var resource|null */
-    public $context;
-
-    private int $position = 0;
-
-    public static function register(): void
-    {
-        self::$calls = [];
-
-        if (! in_array(self::SCHEME, stream_get_wrappers(), true)) {
-            stream_wrapper_register(self::SCHEME, self::class, STREAM_IS_URL);
-        }
-    }
-
-    public static function unregister(): void
-    {
-        if (in_array(self::SCHEME, stream_get_wrappers(), true)) {
-            stream_wrapper_unregister(self::SCHEME);
-        }
-    }
-
-    /**
-     * @return array<int|string, int>
-     */
-    public function url_stat(string $path): array
-    {
-        self::$calls[] = 'url_stat '.$path;
-
-        return ['mode' => 0o100644, 'size' => 11];
-    }
-
-    public function stream_open(string $path): bool
-    {
-        self::$calls[] = 'stream_open '.$path;
-
-        return true;
-    }
-
-    public function stream_read(int $count): string
-    {
-        $data = substr('remote: yes', $this->position, $count);
-        $this->position += strlen($data);
-
-        return $data;
-    }
-
-    public function stream_eof(): bool
-    {
-        return $this->position >= 11;
-    }
-
-    /**
-     * @return array<int|string, int>
-     */
-    public function stream_stat(): array
-    {
-        return ['mode' => 0o100644, 'size' => 11];
-    }
-}
 
 beforeEach(function (): void {
     RecordingUrlWrapper::register();

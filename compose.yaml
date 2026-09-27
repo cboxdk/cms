@@ -30,6 +30,11 @@
 # The init script in docker/postgres is idempotent and runs on an empty data volume. The server
 # settings, max_prepared_transactions 0, are the drop-in docker/postgres/conf.d/cms.conf.
 #
+# The php service runs with the PHP settings of the runtime contract from the drop-in
+# docker/php/conf.d/cms.ini: allow_url_fopen = Off (GUARDRAILS 3), which cms:doctor checks as
+# php.allow_url_fopen, so `docker compose exec php vendor/bin/testbench cms:doctor` needs no -d
+# flag. Composer downloads through the curl extension. The CI files keep the image's default.
+#
 # A data volume from before the switch to Postgres 18 holds a Postgres 17 cluster in data/. The
 # entrypoint then refuses to start and says so in `docker compose logs postgres`. It is test
 # data: remove it with `docker compose down -v` and run `composer services:up` again.
@@ -55,6 +60,10 @@ services:
     working_dir: /var/www/html
     volumes:
       - .:/var/www/html
+      # allow_url_fopen = Off, as the runtime contract says. PHP reads conf.d in name order, so
+      # zz-cms.ini comes after the image's 99-cbox.ini, which turns it on. A single file, so the
+      # image's own conf.d files stay.
+      - ./docker/php/conf.d/cms.ini:/usr/local/etc/php/conf.d/zz-cms.ini:ro
     environment:
       # The host user has no entry in the image's /etc/passwd, so HOME would be /, which it
       # cannot write. Composer and npm keep their caches below HOME.

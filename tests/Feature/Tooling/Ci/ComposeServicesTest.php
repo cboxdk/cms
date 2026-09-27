@@ -4,14 +4,27 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Tests\Feature\Tooling\Ci;
 
+use Cbox\Cms\Tests\Support\Phpstan;
 use Cbox\Cms\Tests\Support\Tooling\CiFiles;
 
 /*
  * The development and test services of compose.yaml (GUARDRAILS 9, PRD 4.2): the cboxdk database
  * images with cbox-init as PID 1, set up as the db-baseimages README says, the server settings of
  * the operating contract as a conf.d drop-in, and the php toolbox as the host user. The CI files
- * extend these services; CiWorkflowTest holds them to each other.
+ * extend these services; CiWorkflowTest holds them to each other. The php service reads the PHP
+ * settings of the runtime contract from the drop-in docker/php/conf.d/cms.ini; PhpDropInTest starts
+ * PHP with it.
  */
+
+const PHP_DROP_IN = 'docker/php/conf.d/cms.ini';
+
+/**
+ * The php service's mount of the PHP settings drop-in, as compose.yaml writes it.
+ */
+function composePhpDropIn(): string
+{
+    return './'.PHP_DROP_IN.':/usr/local/etc/php/conf.d/zz-cms.ini:ro';
+}
 
 /**
  * @return array<array-key, mixed>
@@ -88,7 +101,27 @@ it('runs the php container as the host user that composer services:up exports, n
 
     expect(CiFiles::at($php, 'user'))->toBe('${CMS_UID:-1000}:${CMS_GID:-1000}')
         ->and(CiFiles::strings($php, 'environment')['HOME'] ?? null)->toBe('/tmp')
-        ->and(CiFiles::at($php, 'volumes'))->toBe(['.:/var/www/html']);
+        ->and(CiFiles::at($php, 'volumes'))->toBe(['.:/var/www/html', composePhpDropIn()]);
+});
+
+it('mounts the PHP settings of the runtime contract read-only into conf.d, after the image\'s own files, with allow_url_fopen off', function (): void {
+    $volumes = CiFiles::at(composeService('php'), 'volumes');
+    $mount = explode(':', composePhpDropIn());
+    $file = Phpstan::root().'/'.PHP_DROP_IN;
+
+    expect(is_file($file))->toBeTrue();
+
+    $settings = parse_ini_file($file, false, INI_SCANNER_TYPED);
+
+    expect($volumes)->toBeArray()->toContain(composePhpDropIn())
+        ->and($mount)->toHaveCount(3)
+        ->and($mount[0])->toBe('./'.PHP_DROP_IN)
+        ->and(dirname($mount[1]))->toBe('/usr/local/etc/php/conf.d')
+        ->and($mount[2])->toBe('ro')
+        // PHP reads conf.d in name order, and the image's 99-cbox.ini sets allow_url_fopen = On.
+        ->and(strcmp(basename($mount[1]), '99-cbox.ini'))->toBeGreaterThan(0)
+        ->and(strcmp(basename($mount[1]), 'docker-php-ext-zzz.ini'))->toBeGreaterThan(0)
+        ->and($settings)->toBe(['allow_url_fopen' => false]);
 });
 
 it('runs composer services:up and services:down through tools/bin/services.php, which ServicesScriptTest covers', function (string $script): void {
