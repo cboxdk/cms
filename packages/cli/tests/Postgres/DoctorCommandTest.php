@@ -176,10 +176,10 @@ it('fails transaction_timeout, DDL and the app role for a role without the timeo
         ->and($ddl['cause'])->toContain('it has CREATE on the database '.CheckoutDatabase::name())
         ->and($ddl['cause'])->toContain('it has CREATE on the schemas cms, public')
         // The owner role owns the database, which makes it a member of pg_database_owner, the
-        // owner of the schema public.
+        // owner of the schema public, and roles.sql makes it a member of pg_signal_backend.
         ->and($appRole['status'])->toBe('fail')
         ->and($appRole['code'])->toBe('doctor_app_role_privileged_membership')
-        ->and($appRole['cause'])->toBe('The role cms_owner is a member of pg_database_owner, which owns or may create objects in the database or its schemas.');
+        ->and($appRole['cause'])->toBe('The role cms_owner is a member of pg_database_owner, which owns or may create objects in the database or its schemas; pg_signal_backend, which cancels and terminates the sessions of every other non-superuser role, the owner\'s migrations and partition maintenance included.');
 });
 
 it('fails the partition runway with 78 when only 2 days of partitions exist', function (): void {

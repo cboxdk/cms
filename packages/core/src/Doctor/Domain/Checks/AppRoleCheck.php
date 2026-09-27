@@ -19,9 +19,10 @@ use Override;
  * (PRD 4.2, GUARDRAILS 6), and has NOCREATEROLE, so it cannot make or grant roles. Nor is it a
  * member, directly or through other roles, of a role with more power: a superuser, a role with
  * BYPASSRLS or CREATEROLE, a role that owns relations, a role that owns or may create objects in
- * the database or its schemas, or a predefined role that reads or writes every table or reaches
- * the server's files and programs. SET ROLE reaches the attributes of such a role, the owner of a
- * table can turn its row level security off, and a member that inherits gets the role's grants.
+ * the database or its schemas, or a predefined role that reads or writes every table, reaches the
+ * server's files and programs, cancels and terminates other sessions or reads their query text.
+ * SET ROLE reaches the attributes of such a role, the owner of a table can turn its row level
+ * security off, and a member that inherits gets the role's grants.
  */
 #[Internal]
 final readonly class AppRoleCheck implements DoctorCheck
@@ -107,14 +108,14 @@ final readonly class AppRoleCheck implements DoctorCheck
                 true,
                 FailureKind::Violation,
                 self::CODE_MEMBERSHIP,
-                'The app role is a member of a role with more power: it can SET ROLE to a superuser or a BYPASSRLS role and skip row level security, to a CREATEROLE role and make roles, act as the owner of tables and alter, drop or turn off row level security on them, create objects in the database or its schemas, or use a predefined role to read or write every table or reach the server\'s files and programs.',
+                'The app role is a member of a role with more power: it can SET ROLE to a superuser or a BYPASSRLS role and skip row level security, to a CREATEROLE role and make roles, act as the owner of tables and alter, drop or turn off row level security on them, create objects in the database or its schemas, or use a predefined role to read or write every table, reach the server\'s files and programs, cancel and terminate the sessions of other roles, the owner\'s migrations and partition maintenance included, or read the query text of every session.',
                 sprintf('The role %s is a member of %s.', $role->name, implode('; ', array_map($this->describe(...), $role->memberships))),
                 $this->membershipFix($role->name, $role->memberships),
             );
         }
 
         return CheckResult::pass($this->id(), true, sprintf(
-            'The app role %s is not a superuser, has NOBYPASSRLS and NOCREATEROLE, and is not a member of a superuser, a BYPASSRLS or CREATEROLE role, a role that owns relations or may create objects, or a predefined role that reaches every table or the server.',
+            'The app role %s is not a superuser, has NOBYPASSRLS and NOCREATEROLE, and is not a member of a superuser, a BYPASSRLS or CREATEROLE role, a role that owns relations or may create objects, or a predefined role that reaches every table or the server, signals other sessions or reads their query text.',
             $role->name,
         ));
     }

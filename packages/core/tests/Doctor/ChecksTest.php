@@ -168,6 +168,21 @@ it('fails an app role that is a member of a CREATEROLE role, a role that may cre
     expectFailure(new AppRoleCheck($postgres)->run(), FailureKind::Violation, AppRoleCheck::CODE_CREATEROLE, 'cms_app has CREATEROLE');
 });
 
+it('fails an app role that is a member of a predefined role that signals other sessions or reads their query text, naming what each gives', function (): void {
+    $postgres = new FakePostgresProbe;
+    $postgres->memberships = [
+        new RoleMembership('pg_monitor', superuser: false, bypassRowSecurity: false, ownsRelations: false, createRole: false, createsObjects: false),
+        new RoleMembership('pg_read_all_stats', superuser: false, bypassRowSecurity: false, ownsRelations: false, createRole: false, createsObjects: false),
+        new RoleMembership('pg_signal_backend', superuser: false, bypassRowSecurity: false, ownsRelations: false, createRole: false, createsObjects: false),
+    ];
+    $result = new AppRoleCheck($postgres)->run();
+
+    expectFailure($result, FailureKind::Violation, AppRoleCheck::CODE_MEMBERSHIP, 'The role cms_app is a member of pg_monitor, which reads the query text of every session and every server setting; pg_read_all_stats, which reads the query text of every session; pg_signal_backend, which cancels and terminates the sessions of every other non-superuser role, the owner\'s migrations and partition maintenance included.');
+    expect($result->fix)->toBe('Run REVOKE pg_monitor, pg_read_all_stats, pg_signal_backend FROM cms_app as a superuser, or revoke the grant that leads to it when the membership is indirect. The app role reads and writes rows only.')
+        ->and($result->explanation)->toContain('cancel and terminate the sessions of other roles')
+        ->and($result->explanation)->toContain('read the query text of every session');
+});
+
 it('fixes a membership of pg_database_owner by the ownership of the database, not by REVOKE', function (): void {
     $postgres = new FakePostgresProbe;
     $postgres->memberships = [
