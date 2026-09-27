@@ -34,8 +34,8 @@ final readonly class DateFieldType implements FieldType
     public function options(FieldValues $field): DateOptions
     {
         return new DateOptions(
-            $field->optionalString('min'),
-            $field->optionalString('max'),
+            $field->optionalDate('min'),
+            $field->optionalDate('max'),
         );
     }
 }

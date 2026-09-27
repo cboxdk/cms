@@ -44,8 +44,8 @@ final readonly class DecimalFieldType implements FieldType
         return new DecimalOptions(
             $precision,
             $scale,
-            $field->optionalString('min'),
-            $field->optionalString('max'),
+            $field->optionalDecimal('min'),
+            $field->optionalDecimal('max'),
             $field->optionalString('unit'),
         );
     }

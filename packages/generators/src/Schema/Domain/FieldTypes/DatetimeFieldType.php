@@ -34,8 +34,8 @@ final readonly class DatetimeFieldType implements FieldType
     public function options(FieldValues $field): DatetimeOptions
     {
         return new DatetimeOptions(
-            $field->optionalString('min'),
-            $field->optionalString('max'),
+            $field->optionalDatetime('min'),
+            $field->optionalDatetime('max'),
         );
     }
 }

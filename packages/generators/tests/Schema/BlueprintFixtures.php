@@ -178,9 +178,9 @@ final class BlueprintFixtures
             $options instanceof TextOptions => ['min_length' => $options->minLength, 'max_length' => $options->maxLength, 'format' => $options->format->value],
             $options instanceof LongTextOptions => ['min_length' => $options->minLength, 'max_length' => $options->maxLength],
             $options instanceof IntegerOptions => ['min' => $options->min, 'max' => $options->max, 'unit' => $options->unit],
-            $options instanceof DecimalOptions => ['precision' => $options->precision, 'scale' => $options->scale, 'min' => $options->min, 'max' => $options->max, 'unit' => $options->unit],
+            $options instanceof DecimalOptions => ['precision' => $options->precision, 'scale' => $options->scale, 'min' => $options->min?->value, 'max' => $options->max?->value, 'unit' => $options->unit],
             $options instanceof BooleanOptions => [],
-            $options instanceof DateOptions, $options instanceof DatetimeOptions => ['min' => $options->min, 'max' => $options->max],
+            $options instanceof DateOptions, $options instanceof DatetimeOptions => ['min' => $options->min?->value, 'max' => $options->max?->value],
             $options instanceof SelectOptions => [
                 'options' => array_map(static fn (SelectOption $option): array => ['value' => $option->value->value, 'label' => $option->label], $options->options),
                 'multiple' => $options->multiple,

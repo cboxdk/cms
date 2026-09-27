@@ -7,6 +7,7 @@ namespace Cbox\Cms\Generators\Schema\Domain\Dto;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Schema\Domain\Bounds;
+use Cbox\Cms\Generators\Schema\Domain\DecimalBound;
 use Cbox\Cms\Generators\Schema\Domain\FieldOptions;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypes\DecimalFieldType;
 use Cbox\Cms\Generators\Schema\Domain\OptionRules;
@@ -15,7 +16,7 @@ use Override;
 
 /**
  * A `decimal` field: a number without rounding, `numeric(precision, scale)` (PRD 11.6). The bounds
- * are decimal strings such as "-12.50", so they are never read as floats.
+ * are decimal numbers such as "-12.50" kept as their digits, so they are never read as floats.
  */
 #[Internal]
 final readonly class DecimalOptions implements FieldOptions
@@ -23,8 +24,8 @@ final readonly class DecimalOptions implements FieldOptions
     public function __construct(
         public int $precision,
         public int $scale,
-        public ?string $min,
-        public ?string $max,
+        public ?DecimalBound $min,
+        public ?DecimalBound $max,
         public ?string $unit,
     ) {}
 
@@ -47,8 +48,8 @@ final readonly class DecimalOptions implements FieldOptions
             ));
         }
 
-        if ($this->min !== null && $this->max !== null) {
-            array_push($problems, ...OptionRules::range(Bounds::compareDecimals($this->min, $this->max), $this->min, $this->max, $field));
+        if ($this->min instanceof DecimalBound && $this->max instanceof DecimalBound) {
+            array_push($problems, ...OptionRules::range(Bounds::compareDecimals($this->min, $this->max), $this->min->value, $this->max->value, $field));
         }
 
         return $problems;

@@ -37,12 +37,12 @@ final readonly class OptionRules
     /**
      * `min` at most `max`.
      *
-     * @param  ?int  $comparison  min compared with max, or null when a bound is not of its form
+     * @param  int  $comparison  min compared with max
      * @return list<GenerationProblem>
      */
-    public static function range(?int $comparison, string $min, string $max, SourceLocation $field): array
+    public static function range(int $comparison, string $min, string $max, SourceLocation $field): array
     {
-        if ($comparison === null || $comparison <= 0) {
+        if ($comparison <= 0) {
             return [];
         }
 

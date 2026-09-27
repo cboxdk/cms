@@ -10,9 +10,12 @@ use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintDocumentReader;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintSchemaFile;
 use Cbox\Cms\Generators\Schema\Boundary\YamlBlueprintSource;
+use Cbox\Cms\Generators\Schema\Domain\BlueprintDate;
+use Cbox\Cms\Generators\Schema\Domain\BlueprintDatetime;
 use Cbox\Cms\Generators\Schema\Domain\BlueprintRules;
 use Cbox\Cms\Generators\Schema\Domain\BlueprintSource;
 use Cbox\Cms\Generators\Schema\Domain\Classification;
+use Cbox\Cms\Generators\Schema\Domain\DecimalBound;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Blueprints;
 use Cbox\Cms\Generators\Schema\Domain\Dto\BooleanOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Capabilities;
@@ -199,6 +202,7 @@ function invalidContractFixtures(): array
         'a field without a description and without agents: false' => ['missing-description.yaml', '/fields/0'],
         'history: audit_only' => ['history-audit-only-underscore.yaml', '/capabilities/history'],
         'an unquoted date in min' => ['unquoted-date.yaml', '/fields/1/min'],
+        'a datetime in min without its offset' => ['datetime-without-offset.yaml', '/fields/1/min'],
         'a decimal without scale' => ['decimal-without-scale.yaml', '/fields/0'],
         'a classification on a field inside a group' => ['classification-in-group.yaml', '/fields/0/fields/0'],
         'the field type relation' => ['field-type-relation.yaml', '/fields/0/type'],
@@ -243,10 +247,10 @@ function expectedArticle(SchemaRoot $root): TypeBlueprint
             $field(0, 'title', 'Headline', 'The headline as it is shown on the page and in lists.', new TextOptions(null, 120, TextFormat::Plain), Classification::Public, required: true, sortable: true),
             $field(1, 'summary', 'Summary', 'A short plain-text summary for lists and search results.', new LongTextOptions(null, 500), Classification::Public),
             $field(2, 'reading_minutes', 'Reading time', 'The estimated reading time in whole minutes.', new IntegerOptions(1, 120, 'min'), Classification::Public, filterable: true),
-            $field(3, 'rating', 'Rating', "The editors' rating of the article, from 0 to 5.", new DecimalOptions(3, 2, '0', '5.00', null), Classification::Internal),
+            $field(3, 'rating', 'Rating', "The editors' rating of the article, from 0 to 5.", new DecimalOptions(3, 2, new DecimalBound('0'), new DecimalBound('5.00'), null), Classification::Internal),
             $field(4, 'featured', 'Featured', 'Whether the article is shown on the front page.', new BooleanOptions, Classification::Public, filterable: true),
-            $field(5, 'event_date', 'Event date', 'The date of the event the article covers.', new DateOptions('2000-01-01', null), Classification::Public, sortable: true),
-            $field(6, 'embargo_until', 'Embargo until', 'The time before which the article may not be published.', new DatetimeOptions('2000-01-01T00:00:00Z', null), Classification::Internal),
+            $field(5, 'event_date', 'Event date', 'The date of the event the article covers.', new DateOptions(new BlueprintDate('2000-01-01'), null), Classification::Public, sortable: true),
+            $field(6, 'embargo_until', 'Embargo until', 'The time before which the article may not be published.', new DatetimeOptions(new BlueprintDatetime('2000-01-01T00:00:00Z'), null), Classification::Internal),
             $field(7, 'section', 'Section', 'The sections of the site the article is listed under.', new SelectOptions([
                 new SelectOption(new Handle('news'), 'News'),
                 new SelectOption(new Handle('sport'), 'Sport'),
@@ -433,6 +437,21 @@ it('rejects a value the installed schema allows and this generator does not know
         '/properties/kind/enum', 'fieldset', true,
         "blueprint: 1\nkind: fieldset\n",
         '/kind',
+    ],
+    'a new form of a decimal bound' => [
+        '/$defs/decimalOptions/properties/min/pattern', '^[-0-9.e]+$', false,
+        str_replace("    min: '0'\n", "    min: '1e0'\n", contractFixture('valid/article.yaml')),
+        '/fields/3/min',
+    ],
+    'a new form of a date bound' => [
+        '/$defs/dateOptions/properties/min/format', 'regex', false,
+        str_replace("    min: '2000-01-01'\n", "    min: '2000-1-1'\n", contractFixture('valid/article.yaml')),
+        '/fields/5/min',
+    ],
+    'a new form of a datetime bound' => [
+        '/$defs/datetimeOptions/properties/min/pattern', '.*', false,
+        str_replace("    min: '2000-01-01T00:00:00Z'\n", "    min: '2000-01-01T00:00:00'\n", contractFixture('valid/article.yaml')),
+        '/fields/6/min',
     ],
 ]);
 

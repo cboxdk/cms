@@ -161,6 +161,7 @@ function blueprintInvalidCases(): array
         'a field without a description and without agents: false' => ['missing-description.yaml', '/fields/0', '(description)'],
         'history: audit_only' => ['history-audit-only-underscore.yaml', '/capabilities/history', 'enum'],
         'an unquoted date in min' => ['unquoted-date.yaml', '/fields/1/min', 'must match the type: string'],
+        'a datetime in min without its offset' => ['datetime-without-offset.yaml', '/fields/1/min', 'should match pattern'],
         'a decimal without scale' => ['decimal-without-scale.yaml', '/fields/0', '(scale)'],
         'a classification on a field inside a group' => ['classification-in-group.yaml', '/fields/0/fields/0', 'must not match schema'],
         'the field type relation' => ['field-type-relation.yaml', '/fields/0/type', 'enum'],

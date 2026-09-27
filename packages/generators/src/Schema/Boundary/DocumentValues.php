@@ -10,6 +10,9 @@ use Cbox\Cms\Contracts\Ids\InvalidUuid7;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationProblem;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
+use Cbox\Cms\Generators\Schema\Domain\BlueprintDate;
+use Cbox\Cms\Generators\Schema\Domain\BlueprintDatetime;
+use Cbox\Cms\Generators\Schema\Domain\DecimalBound;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\FieldValues;
 use Cbox\Cms\Generators\Schema\Domain\Handle;
@@ -86,6 +89,24 @@ final readonly class DocumentValues implements FieldValues
     public function optionalString(string $key): ?string
     {
         return $this->has($key) ? $this->string($key) : null;
+    }
+
+    #[Override]
+    public function optionalDecimal(string $key): ?DecimalBound
+    {
+        return $this->optionalValue($key, static fn (string $value): DecimalBound => new DecimalBound($value));
+    }
+
+    #[Override]
+    public function optionalDate(string $key): ?BlueprintDate
+    {
+        return $this->optionalValue($key, static fn (string $value): BlueprintDate => new BlueprintDate($value));
+    }
+
+    #[Override]
+    public function optionalDatetime(string $key): ?BlueprintDatetime
+    {
+        return $this->optionalValue($key, static fn (string $value): BlueprintDatetime => new BlueprintDatetime($value));
     }
 
     #[Override]
@@ -319,6 +340,33 @@ final readonly class DocumentValues implements FieldValues
         $this->problems->add(is_string($value)
             ? self::unsupported($at, sprintf('the value "%s" is not one this %s knows', $value, BlueprintDocumentReader::PACKAGE))
             : self::unreadableAt($at));
+    }
+
+    /**
+     * The value object made from the string at the key, or null when the object has no such key. A
+     * string the value object refuses was allowed by the installed blueprint schema, so it is
+     * recorded as unreadable, as for a handle.
+     *
+     * @template T of object
+     *
+     * @param  Closure(string): T  $make  throws GenerationFailed for a string of another form
+     * @return ?T
+     */
+    private function optionalValue(string $key, Closure $make): ?object
+    {
+        $value = $this->optionalString($key);
+
+        if ($value === null) {
+            return null;
+        }
+
+        try {
+            return $make($value);
+        } catch (GenerationFailed) {
+            $this->unreadable($key);
+
+            return null;
+        }
     }
 
     private function below(stdClass $object, SourceLocation $at): self

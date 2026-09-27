@@ -89,7 +89,7 @@ A field that is `confidential`, `personal` or `sensitive` cannot be `filterable`
 | `decimal` | a decimal number without rounding | `precision` (1 to 38) and `scale` (0 to 38) are required; `min` and `max` as quoted strings; `unit` |
 | `boolean` | a flag | none |
 | `date` | a date | `min`, `max`, quoted |
-| `datetime` | a time in UTC | `min`, `max`, quoted, in RFC 3339 |
+| `datetime` | a time in UTC | `min`, `max`, quoted, in RFC 3339 with an offset such as `Z` or `+01:00` |
 | `select` | a choice from a fixed list | `options`, a list of 1 to 500 items with `value` (a handle) and `label`, is required; `multiple`; `min_items` and `max_items` only with `multiple: true` |
 | `rich_text` | Portable Text (PRD 11.10) | `styles`, `marks`, `lists`, `links`: `url` |
 | `group` | nested fields, once or repeated | `fields` is required; `repeat` with `min_items` and `max_items` (at most 500) |

@@ -47,6 +47,21 @@ interface FieldValues
     public function optionalString(string $key): ?string;
 
     /**
+     * The decimal number at the key, or null when the object has no such key.
+     */
+    public function optionalDecimal(string $key): ?DecimalBound;
+
+    /**
+     * The date at the key, or null when the object has no such key.
+     */
+    public function optionalDate(string $key): ?BlueprintDate;
+
+    /**
+     * The date-time at the key, or null when the object has no such key.
+     */
+    public function optionalDatetime(string $key): ?BlueprintDatetime;
+
+    /**
      * The integer at the key, which the object must have. A number with a zero fraction, such as
      * YAML's `3.0`, is an integer, as JSON Schema counts it.
      */

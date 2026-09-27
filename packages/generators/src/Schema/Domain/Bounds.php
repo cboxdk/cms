@@ -5,86 +5,55 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Schema\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
-use DateMalformedStringException;
-use DateTimeImmutable;
 
 /**
- * Compares the `min` and `max` of a field in the forms the blueprint schema v1 gives them: a
- * decimal number as a string, a date as `YYYY-MM-DD` and a time in RFC 3339. Each comparison
- * returns less than, equal to or greater than zero like the spaceship operator, or null when a
- * value is not of its form, which the blueprint schema has already reported.
+ * Compares the `min` and `max` of a field, each already a value object that checked its form: a
+ * decimal number, a date and a time. Each comparison returns less than, equal to or greater than
+ * zero like the spaceship operator.
  */
 #[Internal]
 final readonly class Bounds
 {
-    /** The pattern of `min` and `max` of a decimal field in blueprint.v1.json. */
-    public const string DECIMAL = '/\A-?[0-9]+(?:\.[0-9]+)?\z/';
-
-    /** A full date of RFC 3339. */
-    public const string DATE = '/\A[0-9]{4}-[0-9]{2}-[0-9]{2}\z/';
-
-    /** A date-time of RFC 3339, with the fraction of a second apart so no digit of it is lost. */
-    public const string DATETIME = '/\A([0-9]{4}-[0-9]{2}-[0-9]{2}[Tt ][0-9]{2}:[0-9]{2}:[0-9]{2})(?:\.([0-9]+))?([Zz]|[+-][0-9]{2}:[0-9]{2})\z/';
-
     /**
      * Two decimal numbers compared by value without rounding, whatever their digits: `1.50` equals
      * `1.5`, `-0` equals `0`, and `10` is greater than `9.999999999999999999`.
      */
-    public static function compareDecimals(string $a, string $b): ?int
+    public static function compareDecimals(DecimalBound $a, DecimalBound $b): int
     {
-        if (preg_match(self::DECIMAL, $a) !== 1 || preg_match(self::DECIMAL, $b) !== 1) {
-            return null;
-        }
-
-        $signA = self::sign($a);
-        $signB = self::sign($b);
+        $signA = self::sign($a->value);
+        $signB = self::sign($b->value);
 
         if ($signA !== $signB || $signA === 0) {
             return $signA <=> $signB;
         }
 
-        return $signA * self::compareMagnitudes(ltrim($a, '-'), ltrim($b, '-'));
+        return $signA * self::compareMagnitudes(ltrim($a->value, '-'), ltrim($b->value, '-'));
     }
 
     /**
      * Two dates compared by day.
      */
-    public static function compareDates(string $a, string $b): ?int
+    public static function compareDates(BlueprintDate $a, BlueprintDate $b): int
     {
-        if (preg_match(self::DATE, $a) !== 1 || preg_match(self::DATE, $b) !== 1) {
-            return null;
-        }
-
-        return self::order(strcmp($a, $b));
+        return self::order(strcmp($a->value, $b->value));
     }
 
     /**
      * Two times compared as instants, whatever their offsets, to every digit of the fraction.
      */
-    public static function compareDatetimes(string $a, string $b): ?int
+    public static function compareDatetimes(BlueprintDatetime $a, BlueprintDatetime $b): int
     {
-        if (preg_match(self::DATETIME, $a, $partsA) !== 1 || preg_match(self::DATETIME, $b, $partsB) !== 1) {
-            return null;
+        if ($a->seconds !== $b->seconds) {
+            return $a->seconds <=> $b->seconds;
         }
 
-        try {
-            $secondsA = new DateTimeImmutable(strtoupper($partsA[1].$partsA[3]))->getTimestamp();
-            $secondsB = new DateTimeImmutable(strtoupper($partsB[1].$partsB[3]))->getTimestamp();
-        } catch (DateMalformedStringException) {
-            return null;
-        }
+        $length = max(strlen($a->fraction), strlen($b->fraction));
 
-        if ($secondsA !== $secondsB) {
-            return $secondsA <=> $secondsB;
-        }
-
-        $length = max(strlen($partsA[2]), strlen($partsB[2]));
-
-        return self::order(strcmp(str_pad($partsA[2], $length, '0'), str_pad($partsB[2], $length, '0')));
+        return self::order(strcmp(str_pad($a->fraction, $length, '0'), str_pad($b->fraction, $length, '0')));
     }
 
     /**
-     * -1, 0 or 1 for a decimal number that matches DECIMAL.
+     * -1, 0 or 1 for a decimal number of DecimalBound::PATTERN.
      */
     private static function sign(string $decimal): int
     {
