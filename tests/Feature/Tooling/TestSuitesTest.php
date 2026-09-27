@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Cbox\Cms\Tests\Support\Phpstan;
+use Examples\Postgres\Harness\RealServicesTest;
 use Symfony\Component\Process\Process;
 
 /*
@@ -136,7 +137,8 @@ it('puts every test in exactly one suite, only Postgres tests in the Postgres su
     sort($inSuites);
     sort($all);
 
-    $isPostgres = static fn (string $class): bool => preg_match('/\\\\(Tests|tests|Examples)\\\\Postgres\\\\/', $class) === 1;
+    // A PHPUnit class below examples/Postgres is named Examples\Postgres\..., with nothing before it.
+    $isPostgres = static fn (string $class): bool => preg_match('/(?:^|\\\\)(Tests|tests|Examples)\\\\Postgres\\\\/', $class) === 1;
     $isActions = static fn (string $class): bool => preg_match('/\\\\(Tests|tests)\\\\Actions\\\\/', $class) === 1;
 
     expect($all)->not->toBeEmpty()
@@ -145,7 +147,7 @@ it('puts every test in exactly one suite, only Postgres tests in the Postgres su
         ->and($bySuite['Postgres'])->not->toBeEmpty()
         ->and(array_values(array_filter($bySuite['Postgres'], static fn (string $class): bool => ! $isPostgres($class))))->toBe([])
         ->and(array_values(array_filter($bySuite['Unit'], $isPostgres)))->toBe([])
-        ->and($bySuite['Postgres'])->toContain('P\Tests\Postgres\RolesTest', 'P\Packages\testkit\tests\Postgres\HarnessTest')
+        ->and($bySuite['Postgres'])->toContain('P\Tests\Postgres\RolesTest', 'P\Packages\testkit\tests\Postgres\HarnessTest', RealServicesTest::class)
         ->and(array_values(array_filter($bySuite['Actions'], static fn (string $class): bool => ! $isActions($class))))->toBe([])
         ->and(array_values(array_filter($bySuite['Unit'], $isActions)))->toBe([])
         ->and($bySuite['Actions'])->toContain(

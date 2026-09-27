@@ -21,7 +21,9 @@ use Cbox\Cms\Tooling\Docs\Domain\DocsAudit;
 use Cbox\Cms\Tooling\Docs\Domain\Exclusion;
 use Cbox\Cms\Tooling\Docs\Domain\Exclusions;
 use Cbox\Cms\Tooling\Docs\Domain\Finding;
+use Cbox\Cms\Tooling\Docs\Domain\Inventory;
 use Cbox\Cms\Tooling\Docs\Domain\Marker;
+use Cbox\Cms\Tooling\Docs\Domain\MarkerKind;
 use Cbox\Cms\Tooling\Docs\Domain\PageParser;
 use Cbox\Cms\Tooling\Docs\Domain\TypeKind;
 use FilesystemIterator;
@@ -416,11 +418,34 @@ it('gives every exclusion of the Docs module a reason, and each names something 
         Stable::class,
         Experimental::class,
         Internal::class,
-        RealPostgres::class,
-        RealValkey::class,
     ])
         ->and(array_filter(Exclusions::all(), static fn (Exclusion $exclusion): bool => ! $exclusion->hasReason()))->toBe([])
         ->and(array_values(array_filter($findings, static fn (string $finding): bool => array_any($names, static fn (string $name): bool => str_starts_with($finding, $name.':')))))->toBe([]);
+});
+
+it('excludes nothing of the testkit, the API an addon tests with, and documents its Postgres and Valkey harnesses on one page', function (): void {
+    $tree = LocalDocsTree::read(Phpstan::root());
+    $inventory = Inventory::of($tree->sources, $tree->schemas, Exclusions::all());
+    /** @var array<string, list<string>> $pagesOf the pages that declare each extension point */
+    $pagesOf = [];
+
+    foreach ($tree->pages as $page) {
+        foreach ($page->markers(MarkerKind::ExtensionPoint) as $marker) {
+            $pagesOf[$marker->target][] = $page->path;
+        }
+    }
+
+    $testkit = array_values(array_filter(
+        array_map(static fn (Exclusion $exclusion): string => $exclusion->name, Exclusions::all()),
+        static fn (string $name): bool => str_starts_with($name, 'Cbox\\Cms\\Testkit\\'),
+    ));
+
+    expect($testkit)->toBe([])
+        ->and($inventory->excluded)->not->toHaveKeys([RealPostgres::class, RealValkey::class])
+        ->and($inventory->has(RealPostgres::class))->toBeTrue()
+        ->and($inventory->has(RealValkey::class))->toBeTrue()
+        ->and($pagesOf[RealPostgres::class] ?? [])->toBe(['packages/testkit/docs/real-services.md'])
+        ->and($pagesOf[RealValkey::class] ?? [])->toBe(['packages/testkit/docs/real-services.md']);
 });
 
 it('finds in this repository nothing but undocumented extension points, and nothing for the blueprint schema and its page', function (): void {
