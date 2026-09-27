@@ -85,6 +85,12 @@ final readonly class PartitionRunwayCheck implements DoctorCheck
             return CheckResult::pass($this->id(), false, 'No tables are listed in cms.database.partitions.tables, so there is no runway to check.');
         }
 
+        $unmanageable = array_values(array_filter($runways, static fn (PartitionCoverage $runway): bool => ! $runway->isManageable()));
+
+        if ($unmanageable !== []) {
+            return $this->unmanageable($unmanageable, array_values(array_filter($runways, static fn (PartitionCoverage $runway): bool => $runway->isManageable())), $now);
+        }
+
         $needed = $now->modify(sprintf('+%d days', $this->runwayDays));
         $short = array_values(array_filter(
             $runways,
@@ -110,6 +116,40 @@ final readonly class PartitionRunwayCheck implements DoctorCheck
             ),
             sprintf('At %s: %s.', $now->format(self::TIME), $this->describe($short, $now)),
             'Run php artisan cms:partitions:maintain, which runs as the owner role, and check that the scheduler runs it every hour (php artisan schedule:list).',
+        );
+    }
+
+    /**
+     * Fails for the tables the partition manager cannot manage, and names the coverage of the
+     * other tables, which the manager still maintains.
+     *
+     * @param  non-empty-list<PartitionCoverage>  $unmanageable
+     * @param  list<PartitionCoverage>  $others
+     */
+    private function unmanageable(array $unmanageable, array $others, DateTimeImmutable $now): CheckResult
+    {
+        $cause = implode(' ', array_map(
+            static fn (PartitionCoverage $table): string => sprintf('%s: %s', $table->table, $table->unmanageable),
+            $unmanageable,
+        ));
+
+        if ($others !== []) {
+            $cause .= sprintf(' The other tables at %s: %s.', $now->format(self::TIME), $this->describe($others, $now));
+        }
+
+        return CheckResult::fail(
+            $this->id(),
+            false,
+            FailureKind::Violation,
+            self::CODE_UNMANAGEABLE,
+            sprintf(
+                'The partition manager cannot manage %s %s listed in cms.database.partitions.tables, so %s no new partitions; it still maintains the other tables.',
+                count($unmanageable) === 1 ? 'the table' : 'the tables',
+                implode(', ', array_map(static fn (PartitionCoverage $table): string => '"'.$table->table.'"', $unmanageable)),
+                count($unmanageable) === 1 ? 'it gets' : 'they get',
+            ),
+            $cause,
+            'Run the migrations as the owner role, and fix or remove each table named in the cause; then run php artisan cms:partitions:maintain.',
         );
     }
 

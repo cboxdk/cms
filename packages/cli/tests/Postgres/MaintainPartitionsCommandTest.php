@@ -7,6 +7,7 @@ namespace Cbox\Cms\Cli\Tests\Postgres;
 use Cbox\Cms\Cli\Console\MaintainPartitionsCommand;
 use Cbox\Cms\Core\Partitions\Domain\LockTimeout;
 use Cbox\Cms\Core\Partitions\Domain\OwnerConnectionRequired;
+use Cbox\Cms\Core\Partitions\Domain\UnmanageableTable;
 use Cbox\Cms\Core\Partitions\Infrastructure\PostgresPartitionManager;
 use Cbox\Cms\Core\Tests\Postgres\PartitionScratch;
 use Cbox\Cms\Testkit\Postgres\IndependentConnections;
@@ -14,7 +15,8 @@ use Illuminate\Contracts\Console\Kernel;
 
 /*
  * `cms:partitions:maintain` against real Postgres: it maintains at the Clock's time, creates a
- * range with --from and --to, and turns the manager's typed errors into exit codes.
+ * range with --from and --to, and turns the manager's typed errors and the tables it could not
+ * manage into exit codes.
  */
 
 beforeEach(function (): void {
@@ -162,4 +164,40 @@ it('maintains every other table when one table\'s lock stays busy, prints what i
         'runway partition_scratch_ts until 2026-01-12T00:00:00Z',
         'Partitions maintained as role cms_owner: 2 changes.',
     ]]);
+});
+
+it('maintains every other table when a listed table has not been migrated yet, prints why, and then exits 78', function (): void {
+    PartitionScratch::manage([
+        'partition_scratch_audit' => PartitionScratch::daily(),
+        PartitionScratch::UUID_TABLE => PartitionScratch::daily(),
+    ], ['runway_days' => 1]);
+    PartitionScratch::clockAt('2026-01-10T10:00:00Z');
+
+    [$status, $output] = maintainCommand();
+
+    expect($status)->toBe(MaintainPartitionsCommand::EXIT_UNMANAGEABLE)
+        ->and($output)->toBe([
+            'created partition_scratch.partition_scratch_p20260110',
+            'created partition_scratch.partition_scratch_p20260111',
+            'runway partition_scratch until 2026-01-12T00:00:00Z',
+            'Partitions maintained as role cms_owner: 2 changes.',
+            '['.UnmanageableTable::CODE.'] The table "partition_scratch_audit" is listed in [cms.database.partitions.tables] but does not exist in the search path of the connection [pgsql_owner]. Run the migrations first.',
+        ])
+        ->and(PartitionScratch::partitions(PartitionScratch::UUID_TABLE))->toBe(['partition_scratch_p20260110', 'partition_scratch_p20260111']);
+});
+
+it('exits 78 without a stack trace when the owner connection is inside a transaction, and changes nothing', function (): void {
+    PartitionScratch::clockAt('2026-01-10T10:00:00Z');
+    $owner = PartitionScratch::owner();
+    $owner->beginTransaction();
+
+    try {
+        [$status, $output] = maintainCommand();
+    } finally {
+        $owner->rollBack();
+    }
+
+    expect($status)->toBe(MaintainPartitionsCommand::EXIT_UNMANAGEABLE)
+        ->and($output)->toBe(['['.UnmanageableTable::CODE.'] The connection [pgsql_owner] is inside a transaction. Partition maintenance runs DETACH PARTITION CONCURRENTLY, which Postgres runs only outside a transaction.'])
+        ->and(PartitionScratch::partitions(PartitionScratch::UUID_TABLE))->toBe([]);
 });

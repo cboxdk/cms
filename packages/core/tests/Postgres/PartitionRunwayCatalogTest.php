@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Postgres;
 
 use Cbox\Cms\Core\Doctor\Domain\Dto\PartitionCoverage;
-use Cbox\Cms\Core\Doctor\Domain\ProbeFailed;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PartitionRunwayProbe;
 use Cbox\Cms\Core\Partitions\Actions\MaintainPartitions;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionRange;
@@ -63,15 +62,18 @@ it('gives the report and the doctor the same runway, which ends at a detached pa
         ->and(app(PartitionRunwayProbe::class)->coverage($now)[0]->coveredUntil?->format(DATE_ATOM))->toBe('2026-01-06T00:00:00+00:00');
 });
 
-it('names the doctor\'s own connection when the doctor cannot find a managed table', function (): void {
-    PartitionScratch::manage(['partition_scratch_nowhere' => PartitionScratch::daily()]);
+it('names the doctor\'s own connection when the doctor cannot find a managed table, and still reads the others', function (): void {
+    PartitionScratch::clockAt('2026-01-01T10:00:00Z');
+    app(MaintainPartitions::class)->cover(scratchRange('2026-01-01T00:00:00Z', '2026-01-03T00:00:00Z'));
+    PartitionScratch::manage([
+        'partition_scratch_nowhere' => PartitionScratch::daily(),
+        PartitionScratch::UUID_TABLE => PartitionScratch::daily(),
+    ]);
 
-    try {
-        app(PartitionRunwayProbe::class)->coverage(new DateTimeImmutable('2026-01-01T00:00:00Z'));
-        $failed = null;
-    } catch (ProbeFailed $caught) {
-        $failed = $caught;
-    }
+    $coverage = app(PartitionRunwayProbe::class)->coverage(new DateTimeImmutable('2026-01-01T10:00:00Z'));
 
-    expect($failed?->cause)->toBe('The table "partition_scratch_nowhere" is listed in [cms.database.partitions.tables] but does not exist in the search path of the connection [cms_doctor]. Run the migrations first.');
+    expect(array_map(static fn (PartitionCoverage $runway): array => [$runway->table, $runway->coveredUntil?->format(DATE_ATOM), $runway->unmanageable], $coverage))->toBe([
+        ['partition_scratch_nowhere', null, '[partition_table_unmanageable] The table "partition_scratch_nowhere" is listed in [cms.database.partitions.tables] but does not exist in the search path of the connection [cms_doctor]. Run the migrations first.'],
+        [PartitionScratch::UUID_TABLE, '2026-01-04T00:00:00+00:00', null],
+    ]);
 });

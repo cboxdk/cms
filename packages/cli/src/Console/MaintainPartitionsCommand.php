@@ -7,6 +7,7 @@ namespace Cbox\Cms\Cli\Console;
 use Cbox\Cms\Cli\Boundary\PartitionRangeOptions;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Core\Partitions\Actions\MaintainPartitions;
+use Cbox\Cms\Core\Partitions\Domain\Dto\FailedTable;
 use Cbox\Cms\Core\Partitions\Domain\Dto\GaveUpStep;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionChange;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionRange;
@@ -14,6 +15,7 @@ use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionReport;
 use Cbox\Cms\Core\Partitions\Domain\Dto\TableRunway;
 use Cbox\Cms\Core\Partitions\Domain\LockTimeout;
 use Cbox\Cms\Core\Partitions\Domain\OwnerConnectionRequired;
+use Cbox\Cms\Core\Partitions\Domain\UnmanageableTable;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -28,11 +30,14 @@ use Psr\Log\LoggerInterface;
  * retention. With --from and --to it only creates the partitions that cover that range, for rows
  * that arrive with past or future keys.
  *
- * A table whose lock stays busy does not stop the others: the command prints what the run did,
- * then each step that gave up, and exits 75 after every table has been tried.
+ * A table whose lock stays busy does not stop the others, and nor does a table it cannot manage
+ * (missing, not partitioned by range, with a DEFAULT partition, or a detached table in its runway
+ * that cannot be attached again): the command prints what the run did, then each step that gave
+ * up and each table that failed, and exits after every other table has been maintained.
  *
  * Exit codes: 0 done, 2 invalid options, 75 a lock was busy on every attempt, the maintenance
- * lock or a table's (try again later), 78 not the owner role's connection (configuration).
+ * lock or a table's (try again later), 78 not the owner role's connection, or a table it cannot
+ * manage (configuration: an operator has to fix it, so 78 wins over 75).
  */
 #[Internal]
 #[Description('Create partitions ahead of the clock and remove partitions past retention, as the owner role')]
@@ -48,6 +53,9 @@ final class MaintainPartitionsCommand extends Command
 
     /** EX_CONFIG from sysexits.h. */
     public const int EXIT_NOT_OWNER = 78;
+
+    /** EX_CONFIG from sysexits.h: a table in the policy cannot be managed as it is. */
+    public const int EXIT_UNMANAGEABLE = 78;
 
     public function handle(MaintainPartitions $partitions, LoggerInterface $log): int
     {
@@ -73,6 +81,10 @@ final class MaintainPartitionsCommand extends Command
             $this->error($notOwner->getMessage());
 
             return self::EXIT_NOT_OWNER;
+        } catch (UnmanageableTable $unmanageable) {
+            $this->error($unmanageable->getMessage());
+
+            return self::EXIT_UNMANAGEABLE;
         }
 
         $this->report($report, $log);
@@ -81,7 +93,26 @@ final class MaintainPartitionsCommand extends Command
             $this->gaveUp($step, $log);
         }
 
-        return $report->isComplete() ? self::SUCCESS : self::EXIT_LOCK_TIMEOUT;
+        foreach ($report->failed as $table) {
+            $this->failed($table, $log);
+        }
+
+        return match (true) {
+            $report->failed !== [] => self::EXIT_UNMANAGEABLE,
+            $report->gaveUp !== [] => self::EXIT_LOCK_TIMEOUT,
+            default => self::SUCCESS,
+        };
+    }
+
+    private function failed(FailedTable $table, LoggerInterface $log): void
+    {
+        $log->error('Partition maintenance could not manage a table.', [
+            'code' => UnmanageableTable::CODE,
+            'table' => $table->table,
+            'partition' => $table->partition,
+            'cause' => $table->cause,
+        ]);
+        $this->error($table->message);
     }
 
     private function gaveUp(GaveUpStep $step, LoggerInterface $log): void

@@ -22,7 +22,8 @@ use Throwable;
 /**
  * Reads the coverage of each managed table from the catalog on the doctor's connection, as the app
  * role, with the partition manager's own catalog queries, and measures it with PartitionRunway,
- * as the manager's report does: the unbroken run of attached partitions from now.
+ * as the manager's report does: the unbroken run of attached partitions from now. A table it
+ * cannot manage is reported with the reason, and the other tables are still read.
  */
 #[Internal]
 final readonly class CatalogPartitionRunwayProbe implements PartitionRunwayProbe
@@ -54,7 +55,9 @@ final readonly class CatalogPartitionRunwayProbe implements PartitionRunwayProbe
                     }
                 }
             } catch (UnmanageableTable $unmanageable) {
-                throw ProbeFailed::violation($unmanageable->getMessage(), $unmanageable);
+                $coverage[] = PartitionCoverage::unmanageable($table->name, $unmanageable->getMessage());
+
+                continue;
             } catch (Throwable $thrown) {
                 throw PostgresErrors::classify($thrown);
             }

@@ -17,7 +17,9 @@ use DateTimeImmutable;
  * lock within the lock timeout, on every attempt, it throws LockTimeout before it changes
  * anything. A step on one table that cannot get its lock within the lock timeout, on every
  * attempt, ends that phase for that table only: the report's gaveUp holds it as a GaveUpStep,
- * and the run goes on with the other tables.
+ * and the run goes on with the other tables. A table that cannot be managed as it is in the
+ * database (UnmanageableTable) stops that table only: the report's failed holds it as a
+ * FailedTable, and the run goes on with the other tables.
  */
 #[Internal]
 interface PartitionMaintenance

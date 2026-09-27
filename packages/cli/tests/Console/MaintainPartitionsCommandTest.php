@@ -189,3 +189,46 @@ it('exits 78 when the policy names the application\'s connection, and changes no
         ->and($partitions->partitions('events'))->toBe([])
         ->and($logger->records)->toBe([]);
 });
+
+it('reports the run, then prints and logs each table it could not manage, and exits 78 even when a lock was busy too', function (): void {
+    $partitions = new FakePartitionMaintenance(new PartitionPolicy(
+        'pgsql_owner',
+        [
+            new PartitionedTable('audit', PartitionKey::Uuid7, PartitionInterval::Day, null),
+            new PartitionedTable('events', PartitionKey::Uuid7, PartitionInterval::Day, null),
+            new PartitionedTable('metrics', PartitionKey::Timestamp, PartitionInterval::Day, null),
+        ],
+        runwayDays: 1,
+        attempts: 3,
+    ));
+    $logger = new RecordingLogger;
+    app()->instance(MaintainPartitions::class, new MaintainPartitions($partitions, new FakeClock(new DateTimeImmutable('2026-05-01T10:00:00Z'))));
+    app()->instance(LoggerInterface::class, $logger);
+    $partitions->dropTable('audit');
+    $partitions->lockTable('metrics');
+
+    [$status, $lines] = runPartitionsCommand();
+
+    expect($status)->toBe(MaintainPartitionsCommand::EXIT_UNMANAGEABLE)
+        ->and(array_slice($lines, 0, 5))->toBe([
+            'created events.events_p20260501',
+            'created events.events_p20260502',
+            'runway events until 2026-05-03T00:00:00Z',
+            'runway metrics until none',
+            'Partitions maintained as role cms_owner: 2 changes.',
+        ])
+        ->and(implode("\n", array_slice($lines, 5)))->toStartWith('[partition_lock_timeout] Gave up on step "create" for partition "metrics_p20260501" of table "metrics"')
+        ->and(implode("\n", array_slice($lines, 5)))->toEndWith('[partition_table_unmanageable] The table "audit" is listed in [cms.database.partitions.tables] but does not exist in the search path of the connection [pgsql_owner]. Run the migrations first.')
+        ->and($partitions->partitions('events'))->toBe(['events_p20260501', 'events_p20260502'])
+        ->and($logger->records[2])->toBe(['error', 'Partition maintenance could not manage a table.', [
+            'code' => 'partition_table_unmanageable',
+            'table' => 'audit',
+            'partition' => null,
+            'cause' => null,
+        ]])
+        ->and(array_column($logger->records, 0))->toBe(['info', 'warning', 'error']);
+
+    $partitions->unlockTable('metrics');
+
+    expect(runPartitionsCommand()[0])->toBe(MaintainPartitionsCommand::EXIT_UNMANAGEABLE);
+});

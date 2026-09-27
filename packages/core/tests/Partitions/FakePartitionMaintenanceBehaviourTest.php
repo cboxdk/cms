@@ -70,6 +70,12 @@ final class FakePartitionMaintenanceBehaviourTest extends TestCase
     }
 
     #[Override]
+    protected function dropTable(string $table): void
+    {
+        $this->fake()->dropTable($table);
+    }
+
+    #[Override]
     protected function partitionsOf(string $table): array
     {
         return $this->fake()->partitions($table);

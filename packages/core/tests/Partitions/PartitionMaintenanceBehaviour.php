@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Partitions;
 
 use Cbox\Cms\Core\Partitions\Domain\DdlStep;
+use Cbox\Cms\Core\Partitions\Domain\Dto\FailedTable;
 use Cbox\Cms\Core\Partitions\Domain\Dto\GaveUpStep;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionChange;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionRange;
@@ -19,6 +20,7 @@ use Cbox\Cms\Core\Partitions\Domain\PartitionInterval;
 use Cbox\Cms\Core\Partitions\Domain\PartitionKey;
 use Cbox\Cms\Core\Partitions\Domain\PartitionMaintenance;
 use Cbox\Cms\Core\Partitions\Domain\PartitionPolicy;
+use Cbox\Cms\Core\Partitions\Domain\UnmanageableTable;
 use Closure;
 use DateTimeImmutable;
 use PHPUnit\Framework\Assert;
@@ -63,6 +65,9 @@ trait PartitionMaintenanceBehaviour
     abstract protected function lockTable(string $table): void;
 
     abstract protected function unlockTable(string $table): void;
+
+    /** The table and its partitions are no longer in the database, as before its migration ran. */
+    abstract protected function dropTable(string $table): void;
 
     /**
      * The partitions attached to the table, by name.
@@ -330,6 +335,39 @@ trait PartitionMaintenanceBehaviour
             'detached partition_scratch_p20251231',
             'dropped partition_scratch_p20251231',
         ], $this->describe($next));
+    }
+
+    #[Test]
+    public function a_table_that_is_not_in_the_database_does_not_keep_the_other_tables_from_their_runway(): void
+    {
+        $monthly = new PartitionedTable(self::TIME_TABLE, PartitionKey::Timestamp, PartitionInterval::Month, null);
+        $maintenance = $this->partitionMaintenance($this->policy([$monthly, $this->dailyTable(retentionDays: 1)], runwayDays: 1));
+        $maintenance->cover($this->range('2026-01-20T00:00:00Z', '2026-01-20T00:00:00Z'), new DateTimeImmutable('2026-01-20T00:00:00Z'));
+        $this->dropTable(self::TIME_TABLE);
+        $now = new DateTimeImmutable('2026-01-31T08:00:00Z');
+        $missing = new FailedTable(self::TIME_TABLE, null, UnmanageableTable::missing(self::TIME_TABLE, $this->ownerConnection())->getMessage(), null);
+
+        $report = $maintenance->maintain($now);
+
+        // The table listed first is missing; the one after it gets its runway and its retention.
+        Assert::assertFalse($report->isComplete());
+        Assert::assertSame([], $report->gaveUp);
+        Assert::assertEquals([$missing], $report->failed);
+        Assert::assertStringStartsWith('['.UnmanageableTable::CODE.']', $report->failed[0]->message);
+        Assert::assertSame([
+            ...$this->changes('created', $this->daily('2026-01-31', 2)),
+            'detached partition_scratch_p20260120',
+            'dropped partition_scratch_p20260120',
+        ], $this->describe($report));
+        Assert::assertSame([self::UUID_TABLE], array_map(static fn (TableRunway $runway): string => $runway->table, $report->runways));
+        Assert::assertSame('2026-02-02T00:00:00+00:00', $report->runways[0]->coveredUntil?->format(DATE_ATOM));
+        Assert::assertSame($this->daily('2026-01-31', 2), $this->partitionsOf(self::UUID_TABLE));
+        Assert::assertSame([], $this->throwablesIn($report, 'report'));
+
+        $covered = $maintenance->cover($this->range('2026-02-05T00:00:00Z', '2026-02-05T00:00:00Z'), $now);
+
+        Assert::assertEquals([$missing], $covered->failed);
+        Assert::assertSame($this->changes('created', ['partition_scratch_p20260205']), $this->describe($covered));
     }
 
     #[Test]

@@ -97,6 +97,12 @@ final class PostgresPartitionMaintenanceBehaviourTest extends TestCase
     }
 
     #[Override]
+    protected function dropTable(string $table): void
+    {
+        PartitionScratch::owner()->statement(sprintf('drop table %s', $table));
+    }
+
+    #[Override]
     protected function partitionsOf(string $table): array
     {
         return PartitionScratch::partitions($table);

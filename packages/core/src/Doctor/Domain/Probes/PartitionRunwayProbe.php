@@ -17,11 +17,12 @@ use DateTimeImmutable;
 interface PartitionRunwayProbe
 {
     /**
-     * How far each managed table is covered from $now, in the configured order.
+     * How far each managed table is covered from $now, in the configured order. A table that is
+     * missing or cannot be managed is in the list with the reason instead of a coverage.
      *
      * @return list<PartitionCoverage>
      *
-     * @throws ProbeFailed violation when a table is missing or cannot be managed, or the policy is invalid
+     * @throws ProbeFailed a violation when the policy is invalid, and the kind of the Postgres error when the catalog cannot be read
      */
     public function coverage(DateTimeImmutable $now): array;
 }

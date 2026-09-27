@@ -52,6 +52,13 @@ use LogicException;
  * tables. Retiring a partition waits for every transaction on the parent, which a busy table may
  * never allow within the lock timeout, while creating one does not; a busy table must not use up
  * the runway of the others.
+ *
+ * A table the run cannot manage stops that table only, for the same reason: the UnmanageableTable
+ * goes in the report as a FailedTable. A table that is missing, not partitioned by range or has a
+ * DEFAULT partition gets no phase, and a detached table with a managed name that Postgres refuses
+ * to attach ends the create phase of its table, which is still retired. A table listed before its
+ * migration has run, or a stray table in one table's runway, must not stop the partitions of
+ * every other table.
  */
 #[Internal]
 final readonly class PostgresPartitionManager implements PartitionMaintenance
@@ -92,8 +99,9 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
 
     /**
      * Runs each phase over every table, in policy order, before the next phase starts. A phase
-     * that gives up on a table's lock is recorded in the report, and the run goes on with the
-     * next table: a busy table must not keep the others from their runway.
+     * that gives up on a table's lock, or finds that a table cannot be managed, is recorded in the
+     * report, and the run goes on with the next table: a busy or broken table must not keep the
+     * others from their runway. A table that cannot be read from the catalog gets no phase.
      *
      * @param  DateTimeImmutable  $now  the instant the report measures each table's runway from
      * @param  Closure(Run, CatalogTable): void  ...$phases
@@ -108,8 +116,16 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
             throw OwnerConnectionRequired::withoutDdl($this->policy->ownerConnection, $role);
         }
 
-        $tables = array_map($catalog->table(...), $this->policy->tables);
         $run = new Run($connection, $catalog, new LockedDdl($connection, $this->policy));
+        $tables = [];
+
+        foreach ($this->policy->tables as $table) {
+            try {
+                $tables[] = $catalog->table($table);
+            } catch (UnmanageableTable $unmanageable) {
+                $run->failed($table->name, $unmanageable);
+            }
+        }
 
         $run->ddl->run(DdlStep::Lock, null, null, static function () use ($connection): void {
             $connection->select('select pg_advisory_lock(?)', [self::ADVISORY_LOCK], false);
@@ -122,6 +138,8 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
                         $phase($run, $table);
                     } catch (LockTimeout $timeout) {
                         $run->gaveUp($timeout);
+                    } catch (UnmanageableTable $unmanageable) {
+                        $run->failed($table->table->name, $unmanageable);
                     }
                 }
             }
@@ -134,6 +152,7 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
             changes: $run->changes(),
             runways: array_map(fn (CatalogTable $table): TableRunway => $this->runway($catalog, $table, $now), $tables),
             gaveUp: $run->stepsGivenUp(),
+            failed: $run->tablesFailed(),
         );
     }
 
@@ -166,7 +185,9 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
      *
      * @param  list<Partition>  $wanted
      *
-     * @throws UnmanageableTable when Postgres refuses to attach such a table for its span
+     * @throws UnmanageableTable when Postgres refuses to attach such a table for its span; the
+     *                           partitions before it are kept, and the run records it and goes on
+     *                           with the next table
      */
     private function create(Run $run, CatalogTable $table, array $wanted): void
     {

@@ -9,8 +9,9 @@ use Cbox\Cms\Contracts\Storage\PartitionMissing;
 use Cbox\Cms\Core\Partitions\Actions\MaintainPartitions;
 use Cbox\Cms\Core\Partitions\Adapter\MissingPartitionMapper;
 use Cbox\Cms\Core\Partitions\Domain\DdlStep;
+use Cbox\Cms\Core\Partitions\Domain\Dto\FailedTable;
+use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionChange;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionRange;
-use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionReport;
 use Cbox\Cms\Core\Partitions\Domain\Dto\TableRunway;
 use Cbox\Cms\Core\Partitions\Domain\LockTimeout;
 use Cbox\Cms\Core\Partitions\Domain\OwnerConnectionRequired;
@@ -529,7 +530,7 @@ it('finalizes a detach of a partition in the runway that an earlier run left pen
     expect(PartitionScratch::partitionOfId(idAt('2026-03-11T13:00:00Z')))->toBe('partition_scratch_p20260311');
 });
 
-it('refuses a detached table with a managed name in the runway that its span cannot take, naming it, and leaves it as it is', function (): void {
+it('records a detached table with a managed name in the runway that its span cannot take, naming it, leaves it as it is, and maintains the tables after it', function (): void {
     PartitionScratch::clockAt('2026-03-10T15:00:00Z');
     PartitionScratch::manage([PartitionScratch::UUID_TABLE => PartitionScratch::daily()]);
     app(MaintainPartitions::class)->maintain();
@@ -537,13 +538,25 @@ it('refuses a detached table with a managed name in the runway that its span can
     $owner = PartitionScratch::owner();
     $owner->statement('alter table partition_scratch detach partition partition_scratch_p20260311');
     $owner->insert('insert into partition_scratch_p20260311 (id) values (?)', [idAt('2026-03-12T01:00:00Z')]);
+    PartitionScratch::manage([
+        PartitionScratch::UUID_TABLE => PartitionScratch::daily(),
+        PartitionScratch::TIME_TABLE => PartitionScratch::daily(['key' => 'timestamp', 'interval' => 'month']),
+    ]);
 
-    $refused = thrownBy(static fn (): PartitionReport => app(MaintainPartitions::class)->maintain());
+    $report = app(MaintainPartitions::class)->maintain();
 
-    expect($refused)->toBeInstanceOf(UnmanageableTable::class)
-        ->and($refused->getMessage())->toContain('"partition_scratch_p20260311"')->toContain('"partition_scratch"')
-        ->and($refused->getPrevious())->toBeInstanceOf(QueryException::class)
-        ->and($refused->getPrevious()?->getCode())->toBe('23514')
+    expect($report->isComplete())->toBeFalse()
+        ->and($report->gaveUp)->toBe([])
+        ->and($report->failed)->toHaveCount(1)
+        ->and($report->failed[0]->table)->toBe(PartitionScratch::UUID_TABLE)
+        ->and($report->failed[0]->partition)->toBe('partition_scratch_p20260311')
+        ->and($report->failed[0]->message)->toStartWith('['.UnmanageableTable::CODE.']')->toContain('"partition_scratch_p20260311"')->toContain('"partition_scratch"')
+        ->and($report->failed[0]->cause)->toStartWith('SQLSTATE[23514]')
+        ->and($report->changes)->toEqual([new PartitionChange(PartitionScratch::TIME_TABLE, 'partition_scratch_ts_p202603', PartitionChangeKind::Created)])
+        ->and(array_map(static fn (TableRunway $runway): array => [$runway->table, $runway->coveredUntil?->format(DATE_ATOM)], $report->runways))->toBe([
+            [PartitionScratch::UUID_TABLE, '2026-03-11T00:00:00+00:00'],
+            [PartitionScratch::TIME_TABLE, '2026-04-01T00:00:00+00:00'],
+        ])
         ->and(PartitionScratch::exists('partition_scratch_p20260311'))->toBeTrue()
         ->and(PartitionScratch::isPartition('partition_scratch_p20260311'))->toBeFalse()
         ->and($owner->scalar('select count(*) from partition_scratch_p20260311'))->toBe(1)
@@ -632,29 +645,58 @@ it('waits for the maintenance lock of another run within lock_timeout, then give
     expect(app(MaintainPartitions::class)->maintain()->changes)->not->toBe([]);
 });
 
-it('refuses a table that is missing, not partitioned by range, or has a DEFAULT partition', function (): void {
+it('records a table that is missing, not partitioned by range, or has a DEFAULT partition, and still keeps the runway of the tables after it', function (): void {
     PartitionScratch::clockAt('2026-01-01T00:00:00Z');
     PartitionScratch::owner()->statement('create table partition_scratch_list (kind text not null) partition by list (kind)');
     PartitionScratch::owner()->statement('create table partition_scratch_default partition of partition_scratch_ts default');
 
     $cases = [
-        'partition_scratch_nowhere' => 'does not exist',
+        'partition_scratch_nowhere' => 'does not exist in the search path of the connection [pgsql_owner]',
         'partition_scratch_list' => 'is not partitioned by range',
         PartitionScratch::TIME_TABLE => 'has the DEFAULT partition "partition_scratch_default"',
     ];
 
     foreach ($cases as $table => $message) {
         PartitionScratch::manage([
-            PartitionScratch::UUID_TABLE => PartitionScratch::daily(),
             $table => PartitionScratch::daily(['key' => 'timestamp']),
+            PartitionScratch::UUID_TABLE => PartitionScratch::daily(),
         ]);
 
-        $refused = thrownBy(static fn (): mixed => app(MaintainPartitions::class)->maintain());
+        $report = app(MaintainPartitions::class)->maintain();
 
-        expect($refused)->toBeInstanceOf(UnmanageableTable::class)
-            ->and($refused->getMessage())->toContain($message)
-            ->and(PartitionScratch::treeCount(PartitionScratch::UUID_TABLE))->toBe(1);
+        expect($report->isComplete())->toBeFalse()
+            ->and($report->failed)->toHaveCount(1)
+            ->and($report->failed[0]->table)->toBe($table)
+            ->and($report->failed[0]->partition)->toBeNull()
+            ->and($report->failed[0]->message)->toStartWith('['.UnmanageableTable::CODE.']')->toContain($message)
+            ->and($report->failed[0]->cause)->toBeNull()
+            ->and(array_map(static fn (TableRunway $runway): array => [$runway->table, $runway->coveredUntil?->format(DATE_ATOM)], $report->runways))
+            ->toBe([[PartitionScratch::UUID_TABLE, '2026-01-16T00:00:00+00:00']])
+            ->and(PartitionScratch::partitions(PartitionScratch::UUID_TABLE))->toBe(dailyNames('2026-01-01', 15));
     }
+
+    expect(PartitionScratch::treeCount('partition_scratch_list'))->toBe(1)
+        ->and(PartitionScratch::partitions(PartitionScratch::TIME_TABLE))->toBe(['partition_scratch_default']);
+});
+
+it('creates the runway of every other table while a table in the policy has not been migrated yet', function (): void {
+    PartitionScratch::clockAt('2026-05-20T09:30:00Z');
+    PartitionScratch::manage([
+        'partition_scratch_audit' => PartitionScratch::daily(),
+        PartitionScratch::UUID_TABLE => PartitionScratch::daily(['retention_days' => 7]),
+        PartitionScratch::TIME_TABLE => PartitionScratch::daily(['key' => 'timestamp']),
+    ]);
+    app(MaintainPartitions::class)->cover(new PartitionRange(new DateTimeImmutable('2026-05-01T00:00:00Z'), new DateTimeImmutable('2026-05-01T00:00:00Z')));
+
+    $report = app(MaintainPartitions::class)->maintain();
+
+    expect(array_map(static fn (TableRunway $runway): array => [$runway->table, $runway->coveredUntil?->format(DATE_ATOM)], $report->runways))->toBe([
+        [PartitionScratch::UUID_TABLE, '2026-06-04T00:00:00+00:00'],
+        [PartitionScratch::TIME_TABLE, '2026-06-04T00:00:00+00:00'],
+    ])
+        ->and($report->partitions(PartitionChangeKind::Dropped))->toBe(['partition_scratch_p20260501'])
+        ->and(array_map(static fn (FailedTable $failed): string => $failed->table, $report->failed))->toBe(['partition_scratch_audit'])
+        ->and(PartitionScratch::partitions(PartitionScratch::UUID_TABLE))->toBe(dailyNames('2026-05-20', 15));
 });
 
 it('names the connection that read the catalog when a managed table is missing', function (): void {
@@ -665,7 +707,7 @@ it('names the connection that read the catalog when a managed table is missing',
 
     expect(PartitionScratch::app()->getName())->toBe('pgsql')
         ->and($asApp)->toBeInstanceOf(UnmanageableTable::class)
-        ->and($asApp->getMessage())->toBe('The table "partition_scratch_nowhere" is listed in [cms.database.partitions.tables] but does not exist in the search path of the connection [pgsql]. Run the migrations first.')
+        ->and($asApp->getMessage())->toBe('[partition_table_unmanageable] The table "partition_scratch_nowhere" is listed in [cms.database.partitions.tables] but does not exist in the search path of the connection [pgsql]. Run the migrations first.')
         ->and($asOwner)->toBeInstanceOf(UnmanageableTable::class)
         ->and($asOwner->getMessage())->toContain('the search path of the connection [pgsql_owner].');
 });

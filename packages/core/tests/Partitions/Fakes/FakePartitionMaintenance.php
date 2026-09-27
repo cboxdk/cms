@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Partitions\Fakes;
 
 use Cbox\Cms\Core\Partitions\Domain\DdlStep;
+use Cbox\Cms\Core\Partitions\Domain\Dto\FailedTable;
 use Cbox\Cms\Core\Partitions\Domain\Dto\GaveUpStep;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionChange;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionRange;
@@ -18,6 +19,7 @@ use Cbox\Cms\Core\Partitions\Domain\PartitionedTable;
 use Cbox\Cms\Core\Partitions\Domain\PartitionMaintenance;
 use Cbox\Cms\Core\Partitions\Domain\PartitionPolicy;
 use Cbox\Cms\Core\Partitions\Domain\PartitionRunway;
+use Cbox\Cms\Core\Partitions\Domain\UnmanageableTable;
 use Closure;
 use DateTimeImmutable;
 use Override;
@@ -32,10 +34,15 @@ use Override;
  * session holding a lock on a table, so the next step that creates or detaches a partition of it
  * gives up. Both give up with LockTimeout after the policy's attempts and change nothing in that
  * step, as the real manager does: the run lock is thrown, a table's lock is in the report's
- * gaveUp as a GaveUpStep while the run goes on with the other tables. A policy on the application's connection is refused with
- * OwnerConnectionRequired. PartitionMaintenanceBehaviour holds it to PostgresPartitionManager.
+ * gaveUp as a GaveUpStep while the run goes on with the other tables. dropTable() is a table of
+ * the policy that is not in the database, such as one whose migration has not run: the run records
+ * it in the report's failed as a FailedTable, gives it no phase and no runway, and goes on with the
+ * other tables. A policy on the application's connection is refused with OwnerConnectionRequired.
+ * PartitionMaintenanceBehaviour holds it to PostgresPartitionManager.
  *
- * It does not model a detach that an earlier run left pending, or a table Postgres cannot manage.
+ * It does not model a detach that an earlier run left pending, or a table that exists but that
+ * Postgres cannot manage: one partitioned by list or with a DEFAULT partition, or a detached table
+ * with a managed name that does not fit its span.
  */
 final class FakePartitionMaintenance implements PartitionMaintenance
 {
@@ -46,6 +53,9 @@ final class FakePartitionMaintenance implements PartitionMaintenance
 
     /** @var array<string, true> */
     private array $lockedTables = [];
+
+    /** @var array<string, true> */
+    private array $droppedTables = [];
 
     /** @var list<PartitionChange> */
     private array $changes = [];
@@ -116,6 +126,15 @@ final class FakePartitionMaintenance implements PartitionMaintenance
     }
 
     /**
+     * The table and its partitions are no longer in the database.
+     */
+    public function dropTable(string $table): void
+    {
+        $this->droppedTables[$table] = true;
+        unset($this->attached[$table]);
+    }
+
+    /**
      * The attached partitions of a table, by name.
      *
      * @return list<string>
@@ -130,7 +149,7 @@ final class FakePartitionMaintenance implements PartitionMaintenance
 
     /**
      * Runs each phase over every table before the next phase, and records a table that gives up
-     * instead of stopping the run, as the Postgres manager does.
+     * or is missing instead of stopping the run, as the Postgres manager does.
      *
      * @param  Closure(PartitionedTable): void  ...$phases
      */
@@ -146,9 +165,21 @@ final class FakePartitionMaintenance implements PartitionMaintenance
 
         $this->changes = [];
         $gaveUp = [];
+        $failed = [];
+        $tables = [];
+
+        foreach ($this->policy->tables as $table) {
+            if (isset($this->droppedTables[$table->name])) {
+                $failed[] = FailedTable::of($table->name, UnmanageableTable::missing($table->name, $this->policy->ownerConnection));
+
+                continue;
+            }
+
+            $tables[] = $table;
+        }
 
         foreach ($phases as $phase) {
-            foreach ($this->policy->tables as $table) {
+            foreach ($tables as $table) {
                 try {
                     $phase($table);
                 } catch (LockTimeout $timeout) {
@@ -160,8 +191,9 @@ final class FakePartitionMaintenance implements PartitionMaintenance
         return new PartitionReport(
             role: $this->role,
             changes: $this->changes,
-            runways: array_map(fn (PartitionedTable $table): TableRunway => $this->runway($table, $now), $this->policy->tables),
+            runways: array_map(fn (PartitionedTable $table): TableRunway => $this->runway($table, $now), $tables),
             gaveUp: $gaveUp,
+            failed: $failed,
         );
     }
 
