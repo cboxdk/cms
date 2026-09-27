@@ -32,7 +32,8 @@ const WORKTREE_RULES = `Worktree rules:
 - Work only in your worktree. Never edit files in the main checkout ${REPO}, and never commit on main there.
 - The testkit gives every checkout its own Postgres test database and Valkey prefix, so the Postgres and Valkey suites and "composer check" can run next to other worktrees. The shared services run from the main checkout; if they are down, run "composer services:up" in ${REPO}, never "docker compose up" in a worktree.
 - Do not run "composer check:selftest" or the CI container run (compose.ci.yaml); the integration step runs those one at a time.
-- Do not edit PROGRESS.md. Report interpretations, items for human review and blockers in your result instead.`
+- Do not edit PROGRESS.md: the merge queue writes your task's entries into it from your result before main moves. Report every existing check you changed or removed (a test or its expectation, a suite, tool or analysis configuration, a selftest plant, a CI file: GUARDRAILS 7.3) in changedChecks, with what changed and why, and interpretations, items for human review and blockers in their fields.
+- Never make a commit that changes no file. A task that changes nothing in this repository, such as one that edits only the planning repo, makes no commit here and says so in its result.`
 
 const TASK = {
   type: 'object',
@@ -83,6 +84,7 @@ const TASK_RESULT = {
     blocker: { type: 'string' },
     interpretations: { type: 'array', items: { type: 'string' } },
     forHumanReview: { type: 'array', items: { type: 'string' } },
+    changedChecks: { type: 'array', items: { type: 'string' }, description: 'every existing check the task changed or removed (a test or its expectation, a suite, tool or analysis configuration, a selftest plant, a CI file; GUARDRAILS 7.3), each with what changed and why; empty when none' },
   },
   required: ['status', 'summary'],
 }
@@ -104,8 +106,10 @@ const INTEGRATION = {
     failures: { type: 'array', items: { type: 'string' } },
     checksRun: { type: 'array', items: { type: 'string' } },
     wallTimeSeconds: { type: 'integer' },
+    progressRecorded: { type: 'boolean', description: 'true only when composer progress:check passed for every task before main moved' },
+    progressCheck: { type: 'string', description: 'the last output of composer progress:check' },
   },
-  required: ['merged', 'failures', 'checksRun'],
+  required: ['merged', 'failures', 'checksRun', 'progressRecorded'],
 }
 const FINDINGS = {
   type: 'object',
@@ -220,17 +224,17 @@ const taskResults = {}
 
 // The merge queue: one integration at a time, in completion order.
 let queue = Promise.resolve()
-function integrateSerially(task) {
-  const run = queue.then(() => integrate(task))
+function integrateSerially(task, report) {
+  const run = queue.then(() => integrate(task, report))
   queue = run.catch(() => null)
   return run
 }
 
-async function integrate(task) {
+async function integrate(task, report = {}) {
   let lastFailures = []
   for (let round = 0; round <= MAX_INTEGRATION_ROUNDS; round++) {
     if (round > 0) {
-      await agent(
+      const fixed = await agent(
         `${CONTEXT}
 
 Task ${task.id} "${task.title}" of block ${BLOCK} failed integration in worktree ${wtOf(task.id)} (branch ${branchOf(task.id)}).
@@ -241,6 +245,9 @@ This usually means the task and work merged to main since it started interact. F
 ${WORKTREE_RULES}`,
         { schema: TASK_RESULT, label: `fix integration ${task.id} #${round}`, phase: 'Integrate' },
       )
+      if (fixed) {
+        for (const k of ['changedChecks', 'interpretations', 'forHumanReview', 'checksRun']) report[k] = (report[k] || []).concat(fixed[k] || [])
+      }
     }
     const r = await agent(
       `${CONTEXT}
@@ -249,12 +256,21 @@ Integrate task ${task.id} "${task.title}" of block ${BLOCK} into main. You are t
 
 1. In the worktree ${wtOf(task.id)} on branch ${branchOf(task.id)}: rebase onto the current main of ${REPO} ("git rebase main"). Resolve conflicts so both sides' intent survives; if a conflict cannot be resolved faithfully, abort the rebase and report it as a failure.
 2. In the worktree, reinstall if composer.lock or package-lock.json changed, then run every gate on the rebased result: "composer check". Also run "composer check:selftest" if the task or main since the task started changed a gate, the tool configuration or the check itself, and the containerized CI run (docker compose -f compose.ci.yaml run --rm ci, then down) if bin/ci, the CI files or the environment the gates need changed. Record the CI wall time.
-3. Only if everything is green: fast-forward main ("git -C ${REPO} merge --ff-only ${branchOf(task.id)}"). If git refuses because the main checkout has local changes that the merge would overwrite, do not stash or discard them; report it as a failure.
-4. After a successful merge, remove the worktree and delete the branch, then run "composer test-db:prune" in ${REPO}, which drops the removed worktree's test database; report what it dropped.
-Never push. Do not edit PROGRESS.md.`,
+3. Record the task in PROGRESS.md in the worktree, as the task could not, and commit it on the branch with message "${BLOCK}-${task.id}: progress" (in Danish, as the file is):
+   - under "Til review af Sylvester", one entry that starts "${BLOCK}-${task.id}:" and says "GUARDRAILS 7.3", naming every check the task's commits add, change or remove (tests and their expectations, suites, phpunit.xml, the tool and analysis configuration, selftest plants, CI files; read "git diff main..HEAD"), with what changed and why, followed by the task's items for human review;
+   - under "Tolkninger", the task's interpretations, each starting "${BLOCK}-${task.id}:";
+   - under "Kontroller kørt", one entry "<today>, ${BLOCK}-${task.id}: ..." with the gates you ran in step 2 and their results, and for "composer check:selftest" and the containerized CI run either the result, with the CI wall time against the 15-minute budget, or why it did not run.
+   The task reported: changed checks ${JSON.stringify(report.changedChecks || [])}; interpretations ${JSON.stringify(report.interpretations || [])}; for human review ${JSON.stringify(report.forHumanReview || [])}; checks run ${JSON.stringify(report.checksRun || [])}.
+   Then run "composer progress:check -- ${BLOCK}-${task.id} --range=main..HEAD" in the worktree, with --changed-checks after the task id when the task reported changed checks or its commits add, change or remove a check. It fails when an entry is missing or a commit of the task changes no file: add the entry, or drop the empty commit with a rebase, and run it again. Report its last output in progressCheck, and progressRecorded true only when it passed.
+4. Only if everything is green and "composer progress:check" passed: fast-forward main ("git -C ${REPO} merge --ff-only ${branchOf(task.id)}"). If git refuses because the main checkout has local changes that the merge would overwrite, do not stash or discard them; report it as a failure.
+5. After a successful merge, remove the worktree and delete the branch, then run "composer test-db:prune" in ${REPO}, which drops the removed worktree's test database; report what it dropped.
+Never push. Change PROGRESS.md only as step 3 says.`,
       { schema: INTEGRATION, label: `integrate ${task.id}${round ? ' #' + round : ''}`, phase: 'Integrate', effort: 'medium' },
     )
-    if (r && r.merged) return r
+    if (r && r.merged) {
+      if (!r.progressRecorded) log(`${task.id}: main moved without the task's PROGRESS.md entries`)
+      return r
+    }
     lastFailures = r ? r.failures.concat(r.conflicts || []) : ['integrator died']
   }
   return { merged: false, failures: lastFailures, checksRun: [] }
@@ -314,6 +330,7 @@ ${WORKTREE_RULES}`,
     if (fix) {
       result.interpretations = (result.interpretations || []).concat(fix.interpretations || [])
       result.forHumanReview = (result.forHumanReview || []).concat(fix.forHumanReview || [])
+      result.changedChecks = (result.changedChecks || []).concat(fix.changedChecks || [])
     }
     verdict = await verify(`verify ${task.id} #${round}`)
   }
@@ -325,12 +342,14 @@ ${WORKTREE_RULES}`,
     }
   }
 
-  const merged = await integrateSerially(task)
+  const merged = await integrateSerially(task, result)
   return {
     id: task.id,
-    status: merged.merged ? 'done' : 'failed',
+    status: merged.merged && merged.progressRecorded ? 'done' : 'failed',
     summary: result.summary,
-    failures: merged.merged ? [] : ['integration: ' + JSON.stringify(merged.failures)],
+    failures: merged.merged && merged.progressRecorded
+      ? []
+      : [merged.merged ? 'merged without its PROGRESS.md entries; composer progress:check did not pass: ' + (merged.progressCheck || 'no output') : 'integration: ' + JSON.stringify(merged.failures)],
     integration: { mainHead: merged.mainHead, checksRun: merged.checksRun, wallTimeSeconds: merged.wallTimeSeconds },
     interpretations: result.interpretations || [],
     forHumanReview: result.forHumanReview || [],
@@ -458,7 +477,7 @@ Try to refute it. Read the code and, where possible, run or write a quick test t
 Fix this confirmed problem in block ${BLOCK} on main in ${REPO}:
 ${JSON.stringify(f, null, 2)}
 
-Write a regression test that fails before the fix. Fix the cause, never the check. Run "composer check", then commit with message "${BLOCK}-review: <what>". Never push.`,
+Write a regression test that fails before the fix. Fix the cause, never the check. Run "composer check", then commit with message "${BLOCK}-review: <what>", with PROGRESS.md in the same commit: every check you changed or removed in a GUARDRAILS 7.3 entry under "Til review af Sylvester", and the checks you ran under "Kontroller kørt". Never push.`,
       { schema: TASK_RESULT, label: `fix review: ${f.title}`.slice(0, 60), phase: 'Review' },
     )
     fixed.push({ finding: f.title, severity: f.severity, status: fix ? fix.status : 'agent died' })
@@ -499,7 +518,7 @@ Result:
 Do this:
 1. Set the block's row to ${blockStatus}. If it is done, set the next block that is todo to next.
 2. Replace "Seneste kørsel" with a short summary: block, status, tasks done, failed and blocked, integration failures, review findings fixed, failing exit criteria.
-3. Add new blockers under "Blokeret" with what they block, new interpretations under "Tolkninger", and new items under "Til review af Sylvester". Keep existing entries unless they are resolved.
+3. The merge queue has already written each merged task's entries (under "Til review af Sylvester" with GUARDRAILS 7.3, "Tolkninger" and "Kontroller kørt") and held them to "composer progress:check"; do not repeat them. Add new blockers under "Blokeret" with what they block, and the interpretations and items for human review of the results above that are not there yet. Keep existing entries unless they are resolved.
 4. Update "Kontroller kørt" with the latest result per check, including the CI wall time against the 15-minute budget.
 5. List any worktree or wip/${BLOCK}-* branch left behind for a task that was not merged, so the next run can reuse or remove it.
 6. Leave the STATUS line as it is; the main session decides it.`,
