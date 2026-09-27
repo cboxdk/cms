@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Tests\Feature\Tooling;
 
+use Cbox\Cms\Tests\Support\Arch\InputHintAttributes;
 use Cbox\Cms\Tests\Support\Arch\MarkerScan;
 use Cbox\Cms\Tests\Support\Tooling\ScratchDirectory;
 use Cbox\Cms\Tests\Support\Tooling\ScratchRepository;
@@ -222,4 +223,136 @@ it('decides the selection from the path and the first bytes', function (string $
     'a JavaScript file under .claude' => ['.claude/workflows/cms-milestone.js', '//', false],
     'a lock file below the root, which EXCLUDED lists only at the root' => ['packages/core/composer.lock', '{', true],
     'a package-lock.json below the root' => ['js/tooling/package-lock.json', '{', true],
+]);
+
+/**
+ * The contents with every `{w}` replaced by the fourth word, and every `{W}` by it in upper case.
+ */
+function withHintWord(string $contents): string
+{
+    return str_replace(['{w}', '{W}'], [marker('place|holder'), strtoupper(marker('place|holder'))], $contents);
+}
+
+it('passes the input hint attribute in .tsx and .html files, and the prop key in .tsx', function (): void {
+    $repository = markerRepository();
+    $repository
+        ->write('resources/js/Search.tsx', withHintWord(<<<'TSX'
+            import type { ReactElement } from "react";
+
+            interface SearchProps {
+              label: string;
+              {w}?: string;
+            }
+
+            const inputProps = { type: "search", {w}: "Search entries" };
+            const fieldProps = {
+              name: "q",
+              {w}:
+                "A long hint that Prettier puts on its own line",
+            };
+
+            export function Search({ label }: SearchProps): ReactElement {
+              return (
+                <label>
+                  {label}
+                  <input
+                    name="q"
+                    {w}="Title or slug"
+                    aria-label={label}
+                  />
+                  <input {w}={label} {...inputProps} />
+                  <input {w}='Author' {...fieldProps} />
+                </label>
+              );
+            }
+
+            TSX))
+        ->write('public/form.html', withHintWord(<<<'HTML'
+            <!doctype html>
+            <form>
+              <label>Name <input type="text" {w}="Your name"></label>
+              <textarea name="note" {w}='A short note'></textarea>
+              <input
+                type="email"
+                {w}="you@example.com"
+              >
+            </form>
+
+            HTML))
+        ->commit('forms');
+
+    $scan = MarkerScan::of($repository->root);
+
+    expect($scan->files)->toBe(['public/form.html', 'resources/js/Search.tsx'])
+        ->and($scan->hits)->toBe([])
+        ->and(InputHintAttributes::EXTENSIONS)->toBe(['html', 'tsx']);
+});
+
+it('fails the word in a PHP comment, and the attribute in every file type but .tsx and .html', function (string $path, string $contents): void {
+    $repository = markerRepository();
+    $repository->write($path, withHintWord($contents))->commit('word');
+
+    expect(MarkerScan::of($repository->root)->hits)->toBe(["{$path}:2: ".marker('place|holder')]);
+})->with([
+    'a PHP line comment' => ['packages/core/src/Scratch/Domain/Form.php', "<?php\n// {w}: finish the form\n"],
+    'a PHP block comment' => ['packages/core/src/Scratch/Domain/Form.php', "<?php\n/* {w}=\"Name\" */\n"],
+    'the attribute in a PHP string' => ['packages/core/src/Scratch/Domain/Form.php', "<?php\necho '<input {w}=\"Name\">';\n"],
+    'the attribute in a Blade view' => ['resources/views/form.blade.php', "<form>\n<input {w}=\"Name\">\n"],
+    'the attribute in a .ts file' => ['resources/js/form.ts', "const a = 1;\nconst b = <input {w}=\"Name\" />;\n"],
+    'the attribute in a .jsx file' => ['resources/js/Form.jsx', "const a = 1;\nconst b = <input {w}=\"Name\" />;\n"],
+    'the attribute in a .htm file' => ['public/form.htm', "<form>\n<input {w}=\"Name\">\n"],
+    'the prop key in a .ts file' => ['resources/js/props.ts', "export const props = {\n  {w}: \"Name\",\n};\n"],
+    'the prop key in a .html file' => ['public/form.html', "<script>\nconst props = { {w}: \"Name\" };\n</script>\n"],
+]);
+
+it('fails the word anywhere else in a .tsx file', function (string $line, string $words): void {
+    $contents = withHintWord("import type { ReactElement } from \"react\";\n{$line}\n");
+
+    expect(MarkerScan::hitsIn('resources/js/Form.tsx', $contents))->toBe(['resources/js/Form.tsx:2: '.withHintWord($words)]);
+})->with([
+    'a line comment' => ['// {w}: finish the form', '{w}'],
+    'a line comment with the attribute' => ['const a = 1; // <input {w}="Name" />', '{w}'],
+    'a block comment' => ['/* {w}: finish the form */', '{w}'],
+    'a JSX comment with the attribute' => ['const a = <div>{/* <input {w}="Name" /> */}</div>;', '{w}'],
+    'a variable' => ['const {w} = "Search";', '{w}'],
+    'the attribute value' => ['const a = <input {w}={{w}} />;', '{w}'],
+    'a shorthand property' => ['const props = { {w} };', '{w}'],
+    'a ternary' => ['const a = ok ? {w} : other;', '{w}'],
+    'a member access' => ['input.{w} = "Name";', '{w}'],
+    'JSX text' => ['const a = <p>A {w} for the list</p>;', '{w}'],
+    'JSX text that reads like the prop key' => ['const a = <p>{w}: soon</p>;', '{w}'],
+    'JSX text after an apostrophe' => ['const a = <p>Don\'t <input {w}="Name" /></p>;', '{w}'],
+    'a double-quoted string' => ['const a = "{w}: none";', '{w}'],
+    'a single-quoted string with the attribute' => ['const a = \' {w}="Name"\';', '{w}'],
+    'a template literal' => ['const a = `<input {w}="Name">`;', '{w}'],
+    'a template literal around an expression' => ['const a = `${b} {w}={c} ${`{w}: d`}`;', '{w}, {w}'],
+    'the attribute in upper case' => ['const a = <input {W}="Name" />;', '{W}'],
+    'the attribute in the plural' => ['const a = <input {w}s="Name" />;', '{w}s'],
+    'the attribute with spaces around =' => ['const a = <input {w} = "Name" />;', '{w}'],
+    'the prop key with a space before the colon' => ['const props = { {w} : "Name" };', '{w}'],
+    'the prop key in the plural' => ['const props = { {w}s: "Name" };', '{w}s'],
+]);
+
+it('passes the attribute after a template literal around an expression in a .tsx file', function (): void {
+    $contents = withHintWord('const a = `${b} ${`c`}`;'."\n".'const i = <input {w}="Name" />;'."\n");
+
+    expect(MarkerScan::hitsIn('resources/js/Form.tsx', $contents))->toBe([])
+        ->and(InputHintAttributes::offsets('resources/js/Form.tsx', $contents))->toBe([strpos($contents, marker('place|holder'))]);
+});
+
+it('fails the word anywhere else in a .html file', function (string $contents, string $words): void {
+    expect(MarkerScan::hitsIn('public/form.html', withHintWord("<form>\n{$contents}\n</form>\n")))->toBe(['public/form.html:2: '.withHintWord($words)]);
+})->with([
+    'text' => ['<p>A {w} for the list</p>', '{w}'],
+    'text that reads like the attribute' => ['<p>Use {w}="Name" here</p>', '{w}'],
+    'a comment with the attribute' => ['<!-- <input {w}="Name"> -->', '{w}'],
+    'an attribute value' => ['<input title="{w}" {w}="Name">', '{w}'],
+    'a script' => ['<script>const a = "<input {w}=\'Name\'>"; input.{w}="b";</script>', '{w}, {w}'],
+    'a style' => ['<style>input::{w} { color: red; }</style>', '{w}'],
+    'a textarea' => ['<textarea><input {w}="Name"></textarea>', '{w}'],
+    'an unquoted value' => ['<input {w}=Name>', '{w}'],
+    'the attribute with spaces around =' => ['<input {w} = "Name">', '{w}'],
+    'the attribute in upper case' => ['<input {W}="Name">', '{W}'],
+    'the attribute in the plural' => ['<input {w}s="Name">', '{w}s'],
+    'the attribute value that names the attribute' => ['<input {w}="{w}">', '{w}'],
 ]);

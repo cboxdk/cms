@@ -18,6 +18,10 @@ use Symfony\Component\Process\Process;
  * binary, and not read, when its first BINARY_PROBE_BYTES bytes hold a NUL byte, the rule git
  * uses to tell text from binary. Symlinks and submodules are not files and are left out.
  *
+ * The fourth word is also the name of the HTML attribute for the input hint of a form control.
+ * In `.html` and `.tsx` files that attribute, and in `.tsx` the prop key of the same name, is
+ * not a marker (InputHintAttributes); the word anywhere else in those files still is.
+ *
  * The words are written in parts here and in the tests, so the gate checks its own files too.
  */
 final readonly class MarkerScan
@@ -126,18 +130,33 @@ final readonly class MarkerScan
     }
 
     /**
-     * The lines of a file that carry a marker, as `<file>:<line>: <words>`.
+     * The lines of a file that carry a marker, as `<file>:<line>: <words>`. The input hint
+     * attribute of a form control in a `.html` or `.tsx` file is not a marker; InputHintAttributes
+     * says where it is.
      *
      * @return list<string>
      */
     public static function hitsIn(string $path, string $contents): array
     {
+        $allowed = array_flip(InputHintAttributes::offsets($path, $contents));
         $hits = [];
+        $lineStart = 0;
 
         foreach (explode("\n", $contents) as $index => $line) {
-            if (preg_match_all(self::pattern(), $line, $matches) > 0) {
-                $hits[] = sprintf('%s:%d: %s', $path, $index + 1, implode(', ', $matches[0]));
+            preg_match_all(self::pattern(), $line, $matches, PREG_OFFSET_CAPTURE);
+            $words = [];
+
+            foreach ($matches[0] as [$word, $offset]) {
+                if (! array_key_exists($lineStart + $offset, $allowed)) {
+                    $words[] = $word;
+                }
             }
+
+            if ($words !== []) {
+                $hits[] = sprintf('%s:%d: %s', $path, $index + 1, implode(', ', $words));
+            }
+
+            $lineStart += strlen($line) + 1;
         }
 
         return $hits;
