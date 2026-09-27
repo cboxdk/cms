@@ -39,7 +39,7 @@ it('reads the target\'s schema roots, generates from them and writes the code be
         ->and($report->written)->toBe(['app/Cms/Generated/TypeHandle.php', 'resources/js/cms/generated/index.ts'])
         ->and($report->removed)->toBe(['app/Cms/Generated/Stale.php'])
         ->and($output->files('/srv/app'))->toBe(['app/Cms/Generated/TypeHandle.php', 'resources/js/cms/generated/index.ts'])
-        ->and($output->contents('/srv/app/app/Cms/Generated/TypeHandle.php'))->toContain("    case Page = 'page';")
+        ->and($output->contents('/srv/app/app/Cms/Generated/TypeHandle.php'))->toContain("    case AppPage = 'app:page';")
         ->and(generateCode($blueprints, $output)->generate(SchemaFixtures::target('/srv/app'))->changed())->toBeFalse();
 });
 
@@ -54,7 +54,7 @@ it('applies an extension of another root to the type it extends', function (): v
 
     generateCode($blueprints, $output)->generate(SchemaFixtures::target('/srv/app', [$app, $acme]));
 
-    expect($output->contents('/srv/app/app/Cms/Generated/TypeHandle.php'))->toContain("            self::Product => [\n                'app' => [\n                    'tax_code' => 'text',\n")
+    expect($output->contents('/srv/app/app/Cms/Generated/TypeHandle.php'))->toContain("            self::AcmeProduct => [\n                'app' => [\n                    'tax_code' => 'text',\n")
         ->and($output->contents('/srv/app/resources/js/cms/generated/index.ts'))->toContain("    ext: {\n      app: {\n        tax_code: 'text';\n");
 });
 
@@ -88,7 +88,7 @@ it('passes on the problems of a blueprint file the source refuses, and writes no
         ->and($output->files('/srv/app'))->toBe([]);
 });
 
-it('refuses the same type handle from two owners with generate_handle_collision, and writes nothing', function (): void {
+it('generates the same type handle from two owners as two types, named by owner and handle', function (): void {
     $app = SchemaFixtures::root();
     $acme = SchemaFixtures::root('acme', 'vendor/acme/shop/schema');
     $blueprints = new FakeBlueprintSource;
@@ -96,9 +96,11 @@ it('refuses the same type handle from two owners with generate_handle_collision,
     $blueprints->put($acme, 'product.yaml', SchemaFixtures::type($acme, 'product', ['title' => 'text']));
     $output = new FakeGeneratedOutput;
 
-    expect(static fn (): WriteReport => generateCode($blueprints, $output)->generate(SchemaFixtures::target('/srv/app', [$app, $acme])))
-        ->toThrow(GenerationFailed::class, '[generate_handle_collision] The type "product" of app (schema/product.yaml) and the type "product" of acme')
-        ->and($output->files('/srv/app'))->toBe([]);
+    $report = generateCode($blueprints, $output)->generate(SchemaFixtures::target('/srv/app', [$app, $acme]));
+
+    expect($report->written)->toBe(['app/Cms/Generated/TypeHandle.php', 'resources/js/cms/generated/index.ts'])
+        ->and($output->contents('/srv/app/app/Cms/Generated/TypeHandle.php'))->toContain("    case AcmeProduct = 'acme:product';\n    case AppProduct = 'app:product';\n")
+        ->and($output->contents('/srv/app/resources/js/cms/generated/index.ts'))->toContain("export type TypeHandle = 'acme:product' | 'app:product';\n");
 });
 
 it('passes on an output that cannot be written', function (): void {

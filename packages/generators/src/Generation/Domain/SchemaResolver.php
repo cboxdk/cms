@@ -14,10 +14,11 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\Blueprints;
 use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
 
 /**
- * Applies the extensions of all schema roots to the types they extend and checks that the generated
- * code can name every type (PRD 11.12): a type handle is used once across owners
- * (generate_handle_collision), because the generated code names a type by its handle alone. The
- * blueprint reader's BlueprintRules allow the same handle for two owners.
+ * Applies the extensions of all schema roots to the types they extend (PRD 11.12). Two owners may
+ * each have a type with the same handle: the type_id is a type's identity (PRD 11.2), and the
+ * generated code names a type by its owner and handle (ResolvedType::name()), so a module release
+ * that adds a type the application already has is never a compile error mid-upgrade (PRD 11.12
+ * point 2, 13.3).
  *
  * The resolver takes any Blueprints, so it does not rely on the reader for what it needs to build
  * the model, and refuses with the reader's codes what the reader's BlueprintRules already refuse:
@@ -47,11 +48,11 @@ final readonly class SchemaResolver
         $problems = [];
 
         $byId = [];
-        $byHandle = [];
+        $byName = [];
 
         foreach ($blueprints->types as $type) {
             $id = $type->typeId->toString();
-            $handle = $type->handle->value;
+            $name = ResolvedType::nameOf($type->owner, $type->handle);
 
             if (isset($byId[$id])) {
                 $problems[] = new GenerationProblem(GenerateErrorCode::DuplicateTypeId, sprintf(
@@ -64,31 +65,19 @@ final readonly class SchemaResolver
                 $byId[$id] = $type;
             }
 
-            if (! isset($byHandle[$handle])) {
-                $byHandle[$handle] = $type;
+            if (! isset($byName[$name])) {
+                $byName[$name] = $type;
 
                 continue;
             }
 
-            $first = $byHandle[$handle];
-
-            $problems[] = $first->owner->equals($type->owner)
-                ? new GenerationProblem(GenerateErrorCode::DuplicateTypeHandle, sprintf(
-                    '%s and %s both define a type "%s" of %s. A type handle is unique for its owner.',
-                    $first->location->file,
-                    $type->location->file,
-                    $handle,
-                    $type->owner->value,
-                ))
-                : new GenerationProblem(GenerateErrorCode::HandleCollision, sprintf(
-                    'The type "%s" of %s (%s) and the type "%s" of %s (%s) have the same handle. cms:generate names a type by its handle alone, so the handles of all owners must differ: rename one of the types.',
-                    $handle,
-                    $first->owner->value,
-                    $first->location->file,
-                    $handle,
-                    $type->owner->value,
-                    $type->location->file,
-                ));
+            $problems[] = new GenerationProblem(GenerateErrorCode::DuplicateTypeHandle, sprintf(
+                '%s and %s both define a type "%s" of %s. A type handle is unique for its owner.',
+                $byName[$name]->location->file,
+                $type->location->file,
+                $type->handle->value,
+                $type->owner->value,
+            ));
         }
 
         // The fields of each type, by type_id and then by name.
@@ -170,7 +159,7 @@ final readonly class SchemaResolver
             throw GenerationFailed::with($problems);
         }
 
-        ksort($byHandle, SORT_STRING);
+        ksort($byName, SORT_STRING);
 
         return new ResolvedSchema(array_values(array_map(
             static function (TypeBlueprint $type) use ($fields): ResolvedType {
@@ -179,7 +168,7 @@ final readonly class SchemaResolver
 
                 return new ResolvedType($type, array_values($typeFields));
             },
-            $byHandle,
+            $byName,
         )));
     }
 

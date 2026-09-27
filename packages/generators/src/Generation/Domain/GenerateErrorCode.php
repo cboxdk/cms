@@ -84,12 +84,9 @@ enum GenerateErrorCode: string
     case UnknownFieldType = 'generate_unknown_field_type';
 
     /**
-     * Types of two owners have the same handle. The generated code names a type by its handle
-     * alone, so the handles of all owners share one space.
+     * A type's owner and handle give no valid PHP enum case name, or two types of one owner give
+     * the same one.
      */
-    case HandleCollision = 'generate_handle_collision';
-
-    /** A handle gives no valid PHP enum case name, or two handles give the same one. */
     case InvalidCaseName = 'generate_invalid_case_name';
 
     /** A generator produced a file outside its directory, or two files with the same path. */

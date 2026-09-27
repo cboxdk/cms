@@ -19,8 +19,9 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
  * the file and the JSON pointer of the value that breaks it; where the rule compares two places,
  * the later one in file order is reported and names the earlier one.
  *
- * - A type_id belongs to one type across every owner, and a handle to one type of each owner. The
- *   same handle under two owners is allowed here; the generators decide what it may become.
+ * - A type_id belongs to one type across every owner, and a handle to one type of each owner. Two
+ *   owners may each have a type with the same handle (PRD 11.2), and the generated code names a
+ *   type by its owner and handle.
  * - A handle belongs to one field in each namespace: a type's own fields, the fields one owner adds
  *   to one type across all its extension files, and the nested fields of each field, such as the
  *   fields of a group.

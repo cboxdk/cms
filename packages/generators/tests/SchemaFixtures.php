@@ -61,14 +61,14 @@ final class SchemaFixtures
     private static array $scratch = [];
 
     /**
-     * The schema of types in the app's root: type handle to field handle to field type, such as
-     * `text`, in the given order.
+     * The schema of types in the owner's root, the app's by default: type handle to field handle
+     * to field type, such as `text`, in the given order.
      *
      * @param  array<string, array<string, string>>  $types
      */
-    public static function schema(array $types): ResolvedSchema
+    public static function schema(array $types, string $owner = Owner::APP): ResolvedSchema
     {
-        $root = self::root();
+        $root = self::root($owner);
 
         return SchemaResolver::resolve(new Blueprints(
             array_map(

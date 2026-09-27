@@ -127,7 +127,7 @@ JSON Schema checks one file at a time and cannot compare values with each other.
 | Rule | Error code |
 |---|---|
 | Every type has its own `type_id`, across the application, modules and addons. | `generate_duplicate_type_id` |
-| The types of one owner have different handles. Two owners may each have a type with the same handle. | `generate_duplicate_type_handle` |
+| The types of one owner have different handles. Two owners may each have a type with the same handle: the generated code names a type by its owner and handle, `<owner>:<handle>` such as `acme:product`, so a module that adds a type later never collides with a type of the application. | `generate_duplicate_type_handle` |
 | The fields of one namespace have different handles: the fields of a type, the fields that one owner adds to one type in all its extension files, and the fields of each group. | `generate_duplicate_field_handle` |
 | The options of a `select` field have different values. | `generate_duplicate_select_value` |
 | `extends` is the `type_id` of a type in a blueprint file below the schema roots. | `generate_unknown_extends_target` |
@@ -139,6 +139,7 @@ JSON Schema checks one file at a time and cannot compare values with each other.
 | `min_items` is at most `max_items`, on a `select` field and in the `repeat` of a group. | `generate_min_items_above_max_items` |
 | The `scale` of a `decimal` is at most its `precision`. | `generate_scale_above_precision` |
 | A field type `<namespace>:<handle>` is one that a contributor has registered (PRD 13.3). | `generate_unknown_field_type` |
+| The types of one owner give different PHP enum cases, the owner and the handle in TitleCase: `item_2` and `item2` both give `AppItem2`, so an owner cannot have both. A type whose case would read `class` in any letter case, such as the handle `lass` of an owner `c`, is refused, because PHP reserves it. | `generate_invalid_case_name` |
 
 An unknown `extends` is reported only when every file was read, because a file that cannot be read may be the one that defines the type.
 

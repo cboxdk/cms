@@ -129,16 +129,30 @@ it('exits with 65, prints each problem with its code and writes nothing when a b
         ->and(SchemaFixtures::files($root))->toBe(['schema/page.yaml']);
 });
 
-it('exits with 65 when two owners define the same type handle', function (): void {
+it('generates when a module release adds a type with the handle of an app type, and keeps the app\'s names', function (): void {
     $root = generateRoot();
-    SchemaFixtures::write($root.'/vendor/acme/shop/schema/page.yaml', str_replace('1c2d3e4f5a6b', 'aaaaaaaaaaaa', VALID_BLUEPRINT));
+    mkdir($root.'/vendor/acme/shop/schema', 0o777, true);
     config()->set('cbox-cms.generators.roots', ['app' => 'schema', 'acme' => 'vendor/acme/shop/schema']);
 
-    [$status, $output] = generateCommand();
+    [$before] = generateCommand();
+    $php = (string) file_get_contents($root.'/app/Cms/Generated/TypeHandle.php');
+    $typeScript = (string) file_get_contents($root.'/resources/js/cms/generated/index.ts');
 
-    expect($status)->toBe(GenerateCommand::EXIT_INVALID_SCHEMA)
-        ->and($output[0])->toBe('[generate_handle_collision] The type "page" of app (schema/page.yaml) and the type "page" of acme (vendor/acme/shop/schema/page.yaml) have the same handle. cms:generate names a type by its handle alone, so the handles of all owners must differ: rename one of the types.')
-        ->and(SchemaFixtures::files($root))->toBe(['schema/page.yaml', 'vendor/acme/shop/schema/page.yaml']);
+    SchemaFixtures::write($root.'/vendor/acme/shop/schema/page.yaml', str_replace('1c2d3e4f5a6b', 'aaaaaaaaaaaa', VALID_BLUEPRINT));
+
+    [$after, $output] = generateCommand();
+
+    expect($before)->toBe(0)
+        ->and($php)->toContain("    case AppPage = 'app:page';\n")
+        ->and($after)->toBe(0)
+        ->and($output)->toBe([
+            'written: app/Cms/Generated/TypeHandle.php',
+            'written: resources/js/cms/generated/index.ts',
+            'Generated 2 files: 2 written, 0 unchanged, 0 stale removed.',
+        ])
+        ->and((string) file_get_contents($root.'/app/Cms/Generated/TypeHandle.php'))->toContain("    case AcmePage = 'acme:page';\n    case AppPage = 'app:page';\n")
+        ->and($typeScript)->toContain("export type TypeHandle = 'app:page';\n")
+        ->and((string) file_get_contents($root.'/resources/js/cms/generated/index.ts'))->toContain("export type TypeHandle = 'acme:page' | 'app:page';\n");
 });
 
 it('exits with 66 when a schema root is missing', function (): void {

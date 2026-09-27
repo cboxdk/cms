@@ -160,7 +160,7 @@ it('leaves files the reader still accepts', function (): void {
 
     expect($status)->toBe(0)
         ->and($output)->toContain('Generated 2 files: 2 written, 0 unchanged, 0 stale removed.')
-        ->and((string) file_get_contents($root.'/app/Cms/Generated/TypeHandle.php'))->toContain("    case Page = 'page';");
+        ->and((string) file_get_contents($root.'/app/Cms/Generated/TypeHandle.php'))->toContain("    case AppPage = 'app:page';");
 });
 
 it('checks a root without blueprint files and changes nothing', function (): void {

@@ -180,7 +180,7 @@ it('fails after a field or a type is added to the blueprints without regeneratin
         ->and($output)->toContain($generated);
 })->with([
     'a field' => ['fixture_article.yaml', SUMMARY_FIELD, "+                'fixture_summary' => 'text',"],
-    'a type' => ['fixture_page.yaml', PAGE_TYPE, "+    case FixturePage = 'fixture_page';"],
+    'a type' => ['fixture_page.yaml', PAGE_TYPE, "+    case AppFixturePage = 'app:fixture_page';"],
 ]);
 
 it('passes once the regenerated code is staged with the blueprint change', function (): void {
@@ -217,8 +217,9 @@ it('fails when a file cms:generate writes is not committed', function (): void {
 });
 
 /**
- * Twelve types with long handles, every core field type and an extension field of another owner,
- * so the union breaks over lines and every mapping is written.
+ * Twelve types with long handles, every core field type, an extension field of another owner, and
+ * a type of that owner and one of the app with the same handle, so the union breaks over lines,
+ * every mapping is written and the tools accept two types that share a handle.
  */
 function largerSchema(SchemaRoot $app): ResolvedSchema
 {
@@ -236,8 +237,9 @@ function largerSchema(SchemaRoot $app): ResolvedSchema
     }
 
     $product = SchemaFixtures::type($acme, 'product', ['title' => 'text']);
+    $appProduct = SchemaFixtures::type($app, 'product', ['sku' => 'text']);
 
-    return SchemaResolver::resolve(new Blueprints([...$types, $product], [
+    return SchemaResolver::resolve(new Blueprints([...$types, $product, $appProduct], [
         SchemaFixtures::extension($app, 'shop/product.yaml', $product->typeId, ['tax_code' => 'text']),
     ]));
 }
@@ -274,7 +276,7 @@ it('generates code that Pint, Rector, PHPStan, tsc, ESLint and Prettier accept u
         ->and($typecheck->getExitCode())->toBe(0, $typecheck->getOutput())
         ->and($format->getExitCode())->toBe(0, $format->getOutput());
 })->with([
-    'a larger schema with an extension' => [false, "export type TypeHandle =\n  | 'fairly_long_type_handle_number_1'\n"],
+    'a larger schema with an extension' => [false, "export type TypeHandle =\n  | 'acme:product'\n  | 'app:fairly_long_type_handle_number_1'\n"],
     'no types' => [true, "export type TypeHandle = never;\n"],
 ]);
 
@@ -286,13 +288,15 @@ it('gives tsc the extension fields of a type at ext.<namespace>.<handle> and the
 
     $usage = <<<'TS'
 
-        export const taxCode: TypeFields['product']['ext']['app']['tax_code'] = 'text';
-        export const title: TypeFields['product']['title'] = 'text';
+        export const taxCode: TypeFields['acme:product']['ext']['app']['tax_code'] = 'text';
+        export const title: TypeFields['acme:product']['title'] = 'text';
+        export const sku: TypeFields['app:product']['sku'] = 'text';
+        export const product: TypeHandle = 'app:product';
 
         TS;
     $misuse = <<<'TS'
 
-        export const taxCode: TypeFields['product']['ext__app__tax_code'] = 'text';
+        export const taxCode: TypeFields['acme:product']['ext__app__tax_code'] = 'text';
 
         TS;
 

@@ -90,7 +90,6 @@ final class GenerateCommand extends Command
             GenerateErrorCode::SchemaUnsupportedVersion,
             GenerateErrorCode::DuplicateTypeId,
             GenerateErrorCode::DuplicateTypeHandle,
-            GenerateErrorCode::HandleCollision,
             GenerateErrorCode::DuplicateFieldHandle,
             GenerateErrorCode::DuplicateSelectValue,
             GenerateErrorCode::UnknownExtendsTarget,

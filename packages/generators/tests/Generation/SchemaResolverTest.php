@@ -40,14 +40,14 @@ function resolveFails(array $types, array $extensions = []): GenerationFailed
 }
 
 /**
- * @return array<string, list<string>> type handle to field names
+ * @return array<string, list<string>> type name (`<owner>:<handle>`) to field names
  */
 function fieldNames(ResolvedSchema $schema): array
 {
     $names = [];
 
     foreach ($schema->types as $type) {
-        $names[$type->handle()] = array_map(static fn (ResolvedField $field): string => $field->name, $type->fields);
+        $names[$type->name()] = array_map(static fn (ResolvedField $field): string => $field->name, $type->fields);
     }
 
     return $names;
@@ -66,13 +66,13 @@ it('applies the extensions of every namespace to the type they extend, sorted by
     ]));
 
     expect(fieldNames($schema))->toBe([
-        'page' => ['title'],
-        'product' => ['ext__app__tax_code', 'ext__blog__tax_code', 'ext__blog__teaser', 'sku', 'title'],
+        'acme:product' => ['ext__app__tax_code', 'ext__blog__tax_code', 'ext__blog__teaser', 'sku', 'title'],
+        'app:page' => ['title'],
     ])
-        ->and(array_map(static fn (ResolvedType $type): string => $type->blueprint->owner->value, $schema->types))->toBe(['app', 'acme'])
-        ->and($schema->types[1]->fields[0]->namespace?->value)->toBe('app')
-        ->and($schema->types[1]->fields[3]->namespace)->toBeNull()
-        ->and($schema->types[1]->fields[2]->typeName())->toBe('long_text');
+        ->and(array_map(static fn (ResolvedType $type): string => $type->blueprint->owner->value, $schema->types))->toBe(['acme', 'app'])
+        ->and($schema->types[0]->fields[0]->namespace?->value)->toBe('app')
+        ->and($schema->types[0]->fields[3]->namespace)->toBeNull()
+        ->and($schema->types[0]->fields[2]->typeName())->toBe('long_text');
 });
 
 it('encodes an extension field as ext__<namespace>__<handle>, which no handle of the owner can be', function (): void {
@@ -92,14 +92,44 @@ it('gives the same schema whatever order the blueprint files come in', function 
         ->toEqual(SchemaResolver::resolve(new Blueprints([$page, $product], [$colour, $taxCode])));
 });
 
-it('refuses the same type handle from two owners with generate_handle_collision', function (): void {
-    $failed = resolveFails([
-        SchemaFixtures::type(SchemaFixtures::root(), 'product', ['title' => 'text']),
-        SchemaFixtures::type(SchemaFixtures::root('acme', 'vendor/acme/shop/schema'), 'product', ['title' => 'text']),
-    ]);
+it('resolves the same type handle from two owners as two types, named by owner and handle', function (): void {
+    $app = SchemaFixtures::root();
+    $acme = SchemaFixtures::root('acme', 'vendor/acme/shop/schema');
+    $blog = SchemaFixtures::root('blog', 'vendor/acme/blog/schema');
+    $appProduct = SchemaFixtures::type($app, 'product', ['title' => 'text', 'tax_code' => 'text']);
+    $acmeProduct = SchemaFixtures::type($acme, 'product', ['title' => 'text', 'sku' => 'text']);
 
-    expect($failed->codes())->toBe([GenerateErrorCode::HandleCollision])
-        ->and($failed->problems[0]->message)->toBe('The type "product" of app (schema/product.yaml) and the type "product" of acme (vendor/acme/shop/schema/product.yaml) have the same handle. cms:generate names a type by its handle alone, so the handles of all owners must differ: rename one of the types.');
+    $schema = SchemaResolver::resolve(new Blueprints([$appProduct, $acmeProduct], [
+        SchemaFixtures::extension($blog, 'product.yaml', $acmeProduct->typeId, ['teaser' => 'text']),
+        SchemaFixtures::extension($acme, 'app_product.yaml', $appProduct->typeId, ['colour' => 'text']),
+    ]));
+
+    expect(fieldNames($schema))->toBe([
+        'acme:product' => ['ext__blog__teaser', 'sku', 'title'],
+        'app:product' => ['ext__acme__colour', 'tax_code', 'title'],
+    ])
+        ->and(array_map(static fn (ResolvedType $type): string => $type->handle(), $schema->types))->toBe(['product', 'product'])
+        ->and($schema->types[0]->blueprint)->toBe($acmeProduct)
+        ->and($schema->types[1]->blueprint)->toBe($appProduct);
+});
+
+it('names a type <owner>:<handle>, and no two owner and handle pairs share a name', function (): void {
+    $owners = ['a', 'ab', 'a1', 'app', 'acme', 'b'];
+    $handles = ['a', 'b', 'ab', 'a_b', 'b_a', 'app_b', 'acme_product', 'product'];
+    $names = [];
+
+    foreach ($owners as $owner) {
+        foreach ($handles as $handle) {
+            $name = ResolvedType::nameOf(new Owner($owner), new Handle($handle));
+
+            expect(explode(ResolvedType::SEPARATOR, $name))->toBe([$owner, $handle])
+                ->and($names)->not->toHaveKey($name);
+
+            $names[$name] = true;
+        }
+    }
+
+    expect(ResolvedType::nameOf(new Owner('acme'), new Handle('product')))->toBe('acme:product');
 });
 
 it('refuses the same type handle twice from one owner with generate_duplicate_type_handle', function (): void {
@@ -184,7 +214,7 @@ it('resolves extension files of one owner for one type with the same version, be
         SchemaFixtures::extension($blog, 'product.yaml', $product->typeId, ['teaser' => 'text'], 1),
     ]));
 
-    expect(fieldNames($schema))->toBe(['product' => ['ext__app__note', 'ext__app__tax_code', 'ext__blog__teaser', 'title']]);
+    expect(fieldNames($schema))->toBe(['acme:product' => ['ext__app__note', 'ext__app__tax_code', 'ext__blog__teaser', 'title']]);
 });
 
 it('refuses a field name twice in one type with generate_duplicate_field_handle', function (): void {
@@ -219,11 +249,13 @@ it('refuses the column name of an extension field over 63 bytes with generate_co
 
 it('reports every problem of the blueprints at once', function (): void {
     $app = SchemaFixtures::root();
+    $page = SchemaFixtures::type($app, 'page', ['title' => 'text']);
+    $post = SchemaFixtures::type($app, 'post', ['title' => 'text']);
 
     $failed = resolveFails(
-        [SchemaFixtures::type($app, 'page', ['title' => 'text']), SchemaFixtures::type(SchemaFixtures::root('acme', 'vendor/acme/schema'), 'page', ['title' => 'text'])],
+        [$page, new TypeBlueprint($page->typeId, $post->handle, $post->label, null, 1, $post->capabilities, $post->fields, $post->owner, $post->location)],
         [SchemaFixtures::extension($app, 'x.yaml', SchemaFixtures::typeId('acme', 'missing'), ['tax_code' => 'text'])],
     );
 
-    expect($failed->codes())->toBe([GenerateErrorCode::HandleCollision, GenerateErrorCode::UnknownExtendsTarget]);
+    expect($failed->codes())->toBe([GenerateErrorCode::DuplicateTypeId, GenerateErrorCode::UnknownExtendsTarget]);
 });
