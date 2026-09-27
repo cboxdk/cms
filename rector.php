@@ -5,7 +5,7 @@ declare(strict_types=1);
 // The shared configuration from the testkit (GUARDRAILS 10). This file adds only the paths and
 // keeps Rector's caches in this checkout.
 
-use Rector\Config\RectorConfigBuilder;
+use Rector\Configuration\RectorConfigBuilder;
 
 // Rector's file cache and the container cache of the PHPStan it runs default to the shared system
 // temp directory; here they stay in the git-ignored .cache/ of this checkout, so parallel worktrees

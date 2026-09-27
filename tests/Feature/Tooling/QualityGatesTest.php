@@ -70,6 +70,20 @@ it('analyses every package, the tests, the tooling and the workbench at level 10
         ->toContain(...[...$packageDirectories, ...$supportDirectories, $root.'/tests', $root.'/tools', $root.'/workbench']);
 });
 
+it('analyses every root PHP file that Rector covers with withRootFiles() at level 10', function (): void {
+    $root = Phpstan::root();
+    // RectorConfigBuilder::withRootFiles() adds each *.php and .*.php in the root but .phpstorm.meta.php,
+    // and Pint formats them too; PHPStan analyses only the paths listed, so each one must be listed.
+    $rootFiles = array_values(array_filter(
+        glob($root.'/{,.}*.php', GLOB_BRACE) ?: [],
+        static fn (string $file): bool => is_file($file) && basename($file) !== '.phpstorm.meta.php',
+    ));
+
+    expect((string) file_get_contents($root.'/rector.php'))->toContain('->withRootFiles()')
+        ->and($rootFiles)->toContain($root.'/rector.php')
+        ->and(Phpstan::parameters('phpstan.neon')->strings('analysedPathsFromConfig'))->toContain(...$rootFiles);
+});
+
 it('uses the shared configuration from the testkit for all three tools', function (): void {
     $parameters = Phpstan::parameters('phpstan.neon');
     $pint = json_decode((string) file_get_contents(Phpstan::root().'/pint.json'), true, 512, JSON_THROW_ON_ERROR);

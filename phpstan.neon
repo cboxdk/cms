@@ -2,7 +2,8 @@
 # Level 10 covers the tests as well; there is no baseline and there are no ignoreErrors.
 # PHPStan does not expand globs in paths, so every package directory is listed. A test in
 # tests/Feature/Tooling checks that each packages/*/src, packages/*/tests, packages/*/bin,
-# packages/*/config and packages/*/database is here, the directories rector.php covers by glob.
+# packages/*/config and packages/*/database is here, the directories rector.php covers by glob,
+# and every root PHP file, which rector.php covers with withRootFiles() and Pint formats.
 
 includes:
     - vendor/cboxdk/cms-testkit/config/phpstan.neon
@@ -31,6 +32,7 @@ parameters:
         - packages/testkit/config
         - packages/testkit/src
         - packages/testkit/tests
+        - rector.php
         - tests
         - tools
         - workbench
