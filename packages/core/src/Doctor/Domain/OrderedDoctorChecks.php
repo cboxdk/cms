@@ -50,6 +50,21 @@ final readonly class OrderedDoctorChecks implements DoctorChecks
         }
     }
 
+    /**
+     * These checks with more after them: $runtime after the runtime checks and $dev after the dev
+     * checks, checked by the same rules, so an added check may require any check that runs before
+     * it, and may not repeat an id.
+     *
+     * @param  list<DoctorCheck>  $runtime
+     * @param  list<DoctorCheck>  $dev
+     *
+     * @throws InvalidDoctorCheck when an id repeats or a check requires one that is not before it
+     */
+    public function with(array $runtime, array $dev): self
+    {
+        return new self([...$this->runtime, ...$runtime], [...$this->dev, ...$dev]);
+    }
+
     #[Override]
     public function for(DoctorRunOptions $options): array
     {

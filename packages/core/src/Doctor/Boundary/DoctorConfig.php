@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Doctor\Boundary;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Doctor\DoctorCheck;
 use Cbox\Cms\Core\Doctor\Domain\Dto\DoctorSettings;
 use Cbox\Cms\Core\Doctor\Domain\InvalidDoctorConfig;
 use Illuminate\Contracts\Config\Repository;
@@ -23,12 +24,22 @@ use Illuminate\Contracts\Config\Repository;
  *         'vendor_manifest' => null,         // null: <base path>/vendor/composer/installed.json
  *         'project_path' => null,            // null: the base path
  *         'node_minimum' => '22.13.0',
+ *         'checks' => [],                    // classes of DoctorCheck, run after the core's runtime checks
+ *         'dev_checks' => [],                // classes of DoctorCheck, run with --dev after the core's development checks
  *     ],
+ *
+ * A class in checks or dev_checks must exist and implement DoctorCheck; the container builds it.
  */
 #[Internal]
 final readonly class DoctorConfig
 {
     public const string CONFIG_KEY = 'cms.doctor';
+
+    /** The checks an application or addon adds to the runtime checks. */
+    public const string CHECKS = 'checks';
+
+    /** The checks an application or addon adds to the development checks of --dev. */
+    public const string DEV_CHECKS = 'dev_checks';
 
     /**
      * @throws InvalidDoctorConfig
@@ -51,7 +62,36 @@ final readonly class DoctorConfig
             vendorManifest: self::path($config, 'vendor_manifest', $basePath.'/vendor/composer/installed.json'),
             projectPath: self::path($config, 'project_path', $basePath),
             nodeMinimum: self::version($config->get(self::CONFIG_KEY.'.node_minimum', '22.13.0')),
+            checks: self::checks($config, self::CHECKS),
+            devChecks: self::checks($config, self::DEV_CHECKS),
         );
+    }
+
+    /**
+     * A list of class names, each of a class that implements DoctorCheck. Only the names are read;
+     * the container builds the checks when the doctor's list is made.
+     *
+     * @return list<class-string<DoctorCheck>>
+     */
+    private static function checks(Repository $config, string $key): array
+    {
+        $value = $config->get(self::CONFIG_KEY.'.'.$key, []);
+
+        if (! is_array($value) || ! array_is_list($value)) {
+            throw InvalidDoctorConfig::value($key, 'a list of class names of doctor checks', self::shown($value));
+        }
+
+        $checks = [];
+
+        foreach ($value as $index => $class) {
+            if (! is_string($class) || ! class_exists($class) || ! is_subclass_of($class, DoctorCheck::class)) {
+                throw InvalidDoctorConfig::value($key.'.'.$index, 'the name of a class that implements '.DoctorCheck::class, self::shown($class));
+            }
+
+            $checks[] = $class;
+        }
+
+        return $checks;
     }
 
     private static function name(string $key, mixed $value): string

@@ -8,6 +8,7 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Build\DeclaresScanRoots;
 use Cbox\Cms\Contracts\Build\ScanRoot;
 use Cbox\Cms\Contracts\Clock;
+use Cbox\Cms\Contracts\Doctor\InvalidDoctorCheck;
 use Cbox\Cms\Contracts\IdempotencyStore;
 use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Contracts\ReceiptStore;
@@ -15,6 +16,7 @@ use Cbox\Cms\Core\Bindings\Boundary\ContractBindings;
 use Cbox\Cms\Core\Doctor\Adapter\CatalogPartitionRunwayProbe;
 use Cbox\Cms\Core\Doctor\Adapter\ConnectionLcMessagesProbe;
 use Cbox\Cms\Core\Doctor\Adapter\ConnectionPostgresProbe;
+use Cbox\Cms\Core\Doctor\Adapter\ContainerDoctorChecks;
 use Cbox\Cms\Core\Doctor\Adapter\DoctorConnection;
 use Cbox\Cms\Core\Doctor\Adapter\FileRegistryCacheProbe;
 use Cbox\Cms\Core\Doctor\Adapter\FrameworkProcessProbe;
@@ -170,8 +172,11 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
 
     /**
      * The checks of cms:doctor and their probes. The checks are built per resolution, so they
-     * follow the configuration; the Postgres probes share one scoped connection. An invalid
-     * `cms.doctor` gives the one failing check doctor.config instead of an exception.
+     * follow the configuration; the Postgres probes share one scoped connection. The checks that
+     * an application or addon names in `cms.doctor.checks` run after the core's runtime checks, and
+     * those in `cms.doctor.dev_checks` after the core's development checks. An invalid
+     * `cms.doctor`, or a named check that cannot be used, gives the one failing check doctor.config
+     * instead of an exception.
      */
     private function registerDoctor(): void
     {
@@ -227,7 +232,7 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
             $postgres = $app->make(PostgresProbe::class);
             $tools = $app->make(ToolProbe::class);
 
-            return new OrderedDoctorChecks(
+            $core = new OrderedDoctorChecks(
                 runtime: [
                     new PhpVersionCheck($runtime),
                     new AllowUrlFopenCheck($app->make(PhpSettingsProbe::class)),
@@ -255,6 +260,21 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
                     new ChromiumCheck($tools),
                 ],
             );
+
+            // The checks an application or addon names in cms.doctor.checks and dev_checks, after
+            // the core's, under the same rules. A check that cannot be used gives doctor.config.
+            try {
+                $configured = new ContainerDoctorChecks($app);
+
+                return $core->with(
+                    $configured->build(DoctorConfig::CHECKS, $settings->checks),
+                    $configured->build(DoctorConfig::DEV_CHECKS, $settings->devChecks),
+                );
+            } catch (InvalidDoctorConfig $invalid) {
+                return new OrderedDoctorChecks([new InvalidConfigurationCheck($invalid->getMessage())], []);
+            } catch (InvalidDoctorCheck $invalid) {
+                return new OrderedDoctorChecks([new InvalidConfigurationCheck(InvalidDoctorConfig::order($invalid)->getMessage())], []);
+            }
         });
     }
 

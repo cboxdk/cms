@@ -6,13 +6,13 @@
 
 `cms:doctor` checks the installation and the runtime contract (PRD 3.3, 4.2, 13.2). For each part it says whether it is in order, and for each problem what is wrong and how to fix it (GUARDRAILS 7.1). `--dev` adds the development tools, and `--json` prints only a document that a deploy script or a readiness probe reads. The process exits with a fixed code: ok, a violation, or a dependency that is unavailable right now.
 
-This page covers the contract a check keeps, `Cbox\Cms\Contracts\Doctor\DoctorCheck`, how the doctor turns the results into an exit code, the document of `--json`, described by the JSON Schema [`doctor.v1.json`](../resources/schemas/doctor.v1.json), and how a check is tested with the testkit's shared suite `Cbox\Cms\Testkit\Doctor\DoctorCheckContract` and its fake `FakeDoctorCheck`. All of them are `#[Experimental]`.
+This page covers the contract a check keeps, `Cbox\Cms\Contracts\Doctor\DoctorCheck`, how an application or addon adds a check to `cms:doctor`, how the doctor turns the results into an exit code, the document of `--json`, described by the JSON Schema [`doctor.v1.json`](../resources/schemas/doctor.v1.json), and how a check is tested with the testkit's shared suite `Cbox\Cms\Testkit\Doctor\DoctorCheckContract` and its fake `FakeDoctorCheck`. All of them are `#[Experimental]`.
 
 ## Which checks run
 
-In milestone 0 the checks of `cms:doctor` are the core's own list, which `CoreServiceProvider` in `cboxdk/cms-core` builds. A package or an application cannot add a check to `cms:doctor` yet, and there is no configuration for it. A class that implements `DoctorCheck` outside the core, such as the example at the end of this page, keeps the contract and runs through the shared suite, but `cms:doctor` does not run it.
+`cms:doctor` runs the core's own checks, which `CoreServiceProvider` in `cboxdk/cms-core` builds, and after them the checks an application or addon adds in `cms.doctor.checks` and `cms.doctor.dev_checks` (see [Adding a check](#adding-a-check)).
 
-The doctor runs the checks in this order. The last three run only with `--dev`. A check that is not blocking only affects readiness: the kernel still starts while it fails.
+The core's checks run in this order. The last three run only with `--dev`. A check that is not blocking only affects readiness: the kernel still starts while it fails.
 
 | Id | Blocking | Requires | What it looks at |
 |---|---|---|---|
@@ -35,7 +35,108 @@ The doctor runs the checks in this order. The last three run only with `--dev`. 
 | `dev.playwright` | no | `dev.node` | Playwright is installed in the project |
 | `dev.chromium` | no | `dev.playwright` | Playwright's Chromium is downloaded |
 
-When the doctor's own settings, `cms.doctor`, are invalid, the doctor runs none of these. It runs the single check `doctor.config` instead, which fails as a violation with the code `doctor_config_invalid`, so the command still prints its document and exits with the violation code.
+When the doctor's own settings, `cms.doctor`, are invalid, or a check added there cannot be used, the doctor runs none of these. It runs the single check `doctor.config` instead, which fails as a violation with the code `doctor_config_invalid` and names the setting in its cause, so the command still prints its document and exits with the violation code.
+
+## Adding a check
+
+An application or addon adds its own checks by class name in two lists of the core's configuration:
+
+- `cms.doctor.checks`: the checks run after the core's runtime checks, in the order of the list, with and without `--dev`.
+- `cms.doctor.dev_checks`: the checks run only with `--dev`, after the core's development checks, in the order of the list.
+
+An application sets them in its `config/cms.php`, for example `'doctor' => ['checks' => [UploadsDirectoryCheck::class]]`. An addon ships the check class and names it in its installation guide, so the application decides which checks its doctor runs. Both lists are empty by default.
+
+The container builds each check when the doctor makes its list, so a check gets what it looks at through its constructor, as the contract asks: bind a class it needs, or give a value such as a path with a contextual binding in a service provider's `register()`, for example `$this->app->when(UploadsDirectoryCheck::class)->needs('$directory')->give(storage_path('uploads'))`.
+
+The added checks keep the same rules as the core's:
+
+- every id is unique, among the core's checks too;
+- a check requires only checks that run before it. A check in `checks` may require any of the core's runtime checks, such as `postgres.reachable`, and a check before it in the list. A check in `dev_checks` may also require the core's development checks and every check in `checks`. A check in `checks` cannot require a development check, because it also runs without `--dev`.
+
+A problem with an added check is a configuration problem, and the doctor reports it as the failing check `doctor.config` in place of every other check, with a cause that names the setting:
+
+- the list is not a list, or an entry is not the name of a class that implements `DoctorCheck`, as in `The setting cms.doctor.checks.0 must be the name of a class that implements Cbox\Cms\Contracts\Doctor\DoctorCheck; it is 'stdClass'.`;
+- the container cannot build the class, a binding gives something that does not implement `DoctorCheck`, or the check's `id()` or `requires()` throws, as for an invalid `CheckId`;
+- an id repeats, or a check requires one that does not run before it.
+
+Once it is in the list, an added check runs like the core's: the doctor skips it when a check it requires did not pass, its failure counts in the exit code, and a `run()` that breaks the contract fails as `doctor_check_crashed`.
+
+This example adds the check from the end of this page, `UploadsDirectoryCheck`, and gives it its directory with a contextual binding. It runs `cms:doctor --json` and finds the check last among the runtime checks, before the development checks of `--dev`, with its own code, cause and fix when the directory is missing. It asserts only the added check, because the results of the core's checks depend on the host running it. It is in the `Postgres` suite, which needs `composer services:up`:
+
+<!-- example: examples/Postgres/Doctor/AddCheckTest.php -->
+```php
+<?php
+
+declare(strict_types=1);
+
+use Examples\Contract\Doctor\UploadsDirectoryCheck;
+use Illuminate\Support\Facades\Artisan;
+
+// Adds UploadsDirectoryCheck to cms:doctor the way an application does it: the class name in
+// cms.doctor.checks, which an application sets in its config/cms.php, and a contextual binding for
+// the directory, which it makes in a service provider's register(). The container builds the check,
+// and the doctor runs it after the core's runtime checks. The test asserts only the added check and
+// the order, because the results of the core's checks depend on the host running it.
+
+/**
+ * Runs cms:doctor --json and returns the ids of the checks in the document, in the order they
+ * ran, and the added check's entry.
+ *
+ * @param  array<string, bool>  $options
+ * @return array{list<string>, array<string, mixed>}
+ */
+function doctorWithUploads(string $directory, array $options = []): array
+{
+    config(['cms.doctor.checks' => [UploadsDirectoryCheck::class]]);
+    app()->when(UploadsDirectoryCheck::class)->needs('$directory')->give($directory);
+
+    Artisan::call('cms:doctor', ['--json' => true, ...$options]);
+    $document = json_decode(Artisan::output(), true, 512, JSON_THROW_ON_ERROR);
+    $checks = is_array($document) && is_array($document['checks'] ?? null) ? $document['checks'] : [];
+    $ids = [];
+    $added = [];
+
+    foreach ($checks as $check) {
+        if (is_array($check) && is_string($check['id'] ?? null)) {
+            $ids[] = $check['id'];
+
+            if ($check['id'] === UploadsDirectoryCheck::ID) {
+                /** @var array<string, mixed> $check */
+                $added = $check;
+            }
+        }
+    }
+
+    return [$ids, $added];
+}
+
+it('runs the added check after the core\'s runtime checks and reports it in --json', function (): void {
+    [$ids, $uploads] = doctorWithUploads(sys_get_temp_dir());
+
+    expect(array_last($ids))->toBe(UploadsDirectoryCheck::ID)
+        ->and($uploads['status'])->toBe('pass')
+        ->and($uploads['blocking'])->toBeFalse()
+        ->and($uploads['explanation'])->toBe(sprintf('Uploads can be written to %s.', sys_get_temp_dir()));
+});
+
+it('keeps the added check before the development checks of --dev', function (): void {
+    [$ids] = doctorWithUploads(sys_get_temp_dir(), ['--dev' => true]);
+
+    expect(array_slice($ids, -4))->toBe([UploadsDirectoryCheck::ID, 'dev.node', 'dev.playwright', 'dev.chromium']);
+});
+
+it('reports the failure of the added check with its own code, cause and fix', function (): void {
+    $missing = sys_get_temp_dir().'/cbox-cms-example-uploads-that-do-not-exist';
+
+    [, $uploads] = doctorWithUploads($missing);
+
+    expect($uploads['status'])->toBe('fail')
+        ->and($uploads['failure'])->toBe('violation')
+        ->and($uploads['code'])->toBe(UploadsDirectoryCheck::CODE_MISSING)
+        ->and($uploads['cause'])->toBe(sprintf('%s does not exist or is not a directory.', $missing))
+        ->and($uploads['fix'])->toBe(sprintf('Create %s and give the user that runs PHP write access to it.', $missing));
+});
+```
 
 ## The contract: DoctorCheck
 

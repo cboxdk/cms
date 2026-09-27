@@ -84,6 +84,12 @@ return [
      * creates. The registry cache must not be older than vendor_manifest, Composer's
      * vendor/composer/installed.json below the base path when null. --dev looks for node_modules in
      * project_path, the base path when null, and wants Node node_minimum or newer.
+     *
+     * An application or addon adds its own checks by class name: those in checks run after the
+     * core's runtime checks, and those in dev_checks run with --dev after the core's development
+     * checks, each list in its order. Each class implements Cbox\Cms\Contracts\Doctor\DoctorCheck
+     * and is built by the container. Every id must be unique, and a check may require only checks
+     * that run before it, the core's included. A class that cannot be used fails doctor.config.
      */
     'doctor' => [
         'connection' => null,
@@ -96,5 +102,7 @@ return [
         'vendor_manifest' => null,
         'project_path' => null,
         'node_minimum' => '22.13.0',
+        'checks' => [],
+        'dev_checks' => [],
     ],
 ];

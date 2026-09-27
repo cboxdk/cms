@@ -5,13 +5,18 @@ declare(strict_types=1);
 namespace Cbox\Cms\Cli\Tests\Console;
 
 use Cbox\Cms\Cli\Console\DoctorCommand;
+use Cbox\Cms\Contracts\Doctor\CheckId;
+use Cbox\Cms\Contracts\Doctor\FailureKind;
 use Cbox\Cms\Core\Doctor\Actions\RunDoctor;
 use Cbox\Cms\Core\Doctor\Boundary\DoctorReportJson;
 use Cbox\Cms\Core\Doctor\Domain\Dto\DoctorRunOptions;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PartitionCoverage;
 use Cbox\Cms\Core\Doctor\Domain\ProbeFailed;
 use Cbox\Cms\Core\Doctor\Domain\SettingSource;
+use Cbox\Cms\Core\Tests\Doctor\Fakes\AddonReadyCheck;
+use Cbox\Cms\Core\Tests\Doctor\Fakes\AddonToolCheck;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeRegistryCacheProbe;
+use Cbox\Cms\Testkit\Doctor\FakeDoctorCheck;
 use DateTimeImmutable;
 use Illuminate\Contracts\Console\Kernel;
 use UnexpectedValueException;
@@ -254,6 +259,55 @@ it('adds the development checks with --dev and asks for no tool without it', fun
         ->and(array_slice(checkStatuses($dev), -3))->toBe(['dev.node' => 'fail', 'dev.playwright' => 'skip', 'dev.chromium' => 'skip'])
         ->and(checkOf($dev, 'dev.node')['code'])->toBe('doctor_node_missing')
         ->and(checkOf($dev, 'dev.node')['blocking'])->toBeFalse();
+});
+
+it('runs the checks an application or addon names in cms.doctor.checks and dev_checks after the core\'s', function (): void {
+    new DoctorFakes;
+    config(['cms.doctor.checks' => [AddonReadyCheck::class], 'cms.doctor.dev_checks' => [AddonToolCheck::class]]);
+
+    [$runtimeStatus, $runtime] = doctorJson();
+    [$devStatus, $dev] = doctorJson(['--dev' => true]);
+
+    expect($runtimeStatus)->toBe(0)
+        ->and(checkStatuses($runtime))->toHaveCount(16)
+        ->and(array_slice(checkStatuses($runtime), -2))->toBe(['postgres.owner_credentials' => 'pass', 'addon.ready' => 'pass'])
+        ->and(checkOf($runtime, 'addon.ready')['blocking'])->toBeFalse()
+        ->and(checkOf($runtime, 'addon.ready')['explanation'])->toBe('The fixed check addon.ready passes.')
+        ->and($devStatus)->toBe(0)
+        ->and(array_slice(checkStatuses($dev), -5))->toBe([
+            'addon.ready' => 'pass',
+            'dev.node' => 'pass',
+            'dev.playwright' => 'pass',
+            'dev.chromium' => 'pass',
+            'addon.tool' => 'pass',
+        ]);
+});
+
+it('skips an added check whose requirement fails, and counts the failure of an added check in the exit code', function (): void {
+    $fakes = new DoctorFakes;
+    $fakes->postgres->connectFailure = ProbeFailed::unavailable('SQLSTATE[08006] [7] connection to server at "127.0.0.1", port 1 failed: Connection refused');
+    app()->instance(FakeDoctorCheck::class, FakeDoctorCheck::failing(new CheckId('addon.settings'), FailureKind::Violation, blocking: false));
+    config(['cms.doctor.checks' => [AddonReadyCheck::class, FakeDoctorCheck::class]]);
+
+    [$status, $document] = doctorJson();
+
+    expect($status)->toBe(78)
+        ->and($document['status'])->toBe('violation')
+        ->and(checkOf($document, 'addon.ready')['status'])->toBe('skip')
+        ->and(checkOf($document, 'addon.ready')['cause'])->toBe('postgres.reachable did not pass.')
+        ->and(checkOf($document, 'addon.settings')['status'])->toBe('fail')
+        ->and(checkOf($document, 'addon.settings')['code'])->toBe(FakeDoctorCheck::CODE);
+});
+
+it('reports an added check that cannot be used as the failing check doctor.config', function (): void {
+    new DoctorFakes;
+    config(['cms.doctor.dev_checks' => [AddonReadyCheck::class, AddonReadyCheck::class]]);
+
+    [$status, $document] = doctorJson(['--dev' => true]);
+
+    expect($status)->toBe(78)
+        ->and(checkStatuses($document))->toBe(['doctor.config' => 'fail'])
+        ->and(checkOf($document, 'doctor.config')['cause'])->toBe('The checks in cms.doctor.checks and cms.doctor.dev_checks cannot run after the core\'s checks: The check "addon.ready" is listed twice. Every check has its own id.');
 });
 
 it('reports invalid settings as the failing check doctor.config', function (): void {

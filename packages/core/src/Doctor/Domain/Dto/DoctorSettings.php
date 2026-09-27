@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Doctor\Domain\Dto;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Doctor\DoctorCheck;
 
 /**
  * The settings of cms:doctor, read from `cms.doctor` with its paths resolved.
@@ -23,6 +24,8 @@ final readonly class DoctorSettings
      * @param  string  $vendorManifest  Composer's vendor/composer/installed.json, which the registry cache must not be older than
      * @param  string  $projectPath  the directory with package.json and node_modules, for --dev
      * @param  string  $nodeMinimum  the lowest Node version --dev accepts
+     * @param  list<class-string<DoctorCheck>>  $checks  the checks an application or addon adds, run after the core's runtime checks
+     * @param  list<class-string<DoctorCheck>>  $devChecks  the checks an application or addon adds to --dev, run after the core's development checks
      */
     public function __construct(
         public string $connection,
@@ -35,5 +38,7 @@ final readonly class DoctorSettings
         public string $vendorManifest,
         public string $projectPath,
         public string $nodeMinimum,
+        public array $checks,
+        public array $devChecks,
     ) {}
 }

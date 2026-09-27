@@ -13,7 +13,14 @@ use Cbox\Cms\Core\Doctor\Domain\Dto\DoctorRunOptions;
 use Cbox\Cms\Core\Doctor\Domain\Dto\DoctorSettings;
 use Cbox\Cms\Core\Doctor\Domain\InvalidDoctorConfig;
 use Cbox\Cms\Core\Doctor\Domain\OrderedDoctorChecks;
+use Cbox\Cms\Core\Tests\Doctor\Fakes\AddonReadyCheck;
+use Cbox\Cms\Core\Tests\Doctor\Fakes\AddonToolCheck;
+use Cbox\Cms\Core\Tests\Doctor\Fakes\InvalidIdCheck;
+use Cbox\Cms\Core\Tests\Doctor\Fakes\RepeatedIdCheck;
+use Cbox\Cms\Core\Tests\Doctor\Fakes\UnbuildableCheck;
+use Cbox\Cms\Testkit\Doctor\FakeDoctorCheck;
 use Illuminate\Config\Repository;
+use stdClass;
 
 /*
  * The settings under cms.doctor, their defaults, and the checks the core wires from them.
@@ -161,4 +168,113 @@ it('gives the one failing check doctor.config when cms.doctor is invalid', funct
         ->and($runtime[0]->id()->equals(new CheckId(InvalidConfigurationCheck::ID)))->toBeTrue()
         ->and($checks->for(new DoctorRunOptions(dev: true)))->toBe($runtime)
         ->and($runtime[0]->run()->cause)->toContain('partition_runway_days');
+});
+
+/**
+ * The ids of the checks of one run.
+ *
+ * @return list<string>
+ */
+function configuredCheckIds(bool $dev): array
+{
+    return array_map(static fn (DoctorCheck $check): string => $check->id()->value, app(DoctorChecks::class)->for(new DoctorRunOptions(dev: $dev)));
+}
+
+/**
+ * The cause of the one failing check doctor.config, which must be the only check of a run.
+ */
+function configurationFailure(): string
+{
+    $checks = app(DoctorChecks::class);
+    $runtime = $checks->for(new DoctorRunOptions);
+
+    expect($runtime)->toHaveCount(1)
+        ->and($runtime[0])->toBeInstanceOf(InvalidConfigurationCheck::class)
+        ->and($checks->for(new DoctorRunOptions(dev: true)))->toBe($runtime);
+
+    return (string) $runtime[0]->run()->cause;
+}
+
+it('adds no checks of its own by default', function (): void {
+    $settings = DoctorConfig::read(new Repository(['database' => ['default' => 'pgsql'], 'cms' => require __DIR__.'/../../config/cms.php']), '/app');
+    $leftOut = DoctorConfig::read(new Repository(['database' => ['default' => 'pgsql'], 'cms' => ['database' => ['owner_connection' => 'pgsql_owner']]]), '/app');
+
+    expect([$settings->checks, $settings->devChecks, $leftOut->checks, $leftOut->devChecks])->toBe([[], [], [], []]);
+});
+
+it('reads the class names of the checks an application or addon adds, in their order', function (): void {
+    $settings = DoctorConfig::read(new Repository(['database' => ['default' => 'pgsql'], 'cms' => ['database' => ['owner_connection' => 'pgsql_owner'], 'doctor' => [
+        'checks' => [AddonReadyCheck::class, RepeatedIdCheck::class],
+        'dev_checks' => [AddonToolCheck::class],
+    ]]]), '/app');
+
+    expect($settings->checks)->toBe([AddonReadyCheck::class, RepeatedIdCheck::class])
+        ->and($settings->devChecks)->toBe([AddonToolCheck::class]);
+});
+
+it('refuses a check list that is not a list of classes that implement DoctorCheck', function (string $key, mixed $value, string $message): void {
+    $config = new Repository(['database' => ['default' => 'pgsql'], 'cms' => ['database' => ['owner_connection' => 'pgsql_owner'], 'doctor' => [$key => $value]]]);
+
+    expect(fn (): DoctorSettings => DoctorConfig::read($config, '/app'))->toThrow(InvalidDoctorConfig::class, $message);
+})->with([
+    'a class name instead of a list' => ['checks', AddonReadyCheck::class, 'The setting cms.doctor.checks must be a list of class names of doctor checks; it is '],
+    'a map instead of a list' => ['dev_checks', ['tool' => AddonToolCheck::class], 'The setting cms.doctor.dev_checks must be a list of class names of doctor checks; it is array.'],
+    'null' => ['checks', null, 'The setting cms.doctor.checks must be a list of class names of doctor checks; it is null.'],
+    'a number in the list' => ['checks', [AddonReadyCheck::class, 5], 'The setting cms.doctor.checks.1 must be the name of a class that implements Cbox\Cms\Contracts\Doctor\DoctorCheck; it is 5.'],
+    'a class that does not exist' => ['checks', ['Acme\Missing\Check'], "The setting cms.doctor.checks.0 must be the name of a class that implements Cbox\Cms\Contracts\Doctor\DoctorCheck; it is 'Acme\\\\Missing\\\\Check'."],
+    'a class that is no check' => ['dev_checks', [stdClass::class], "The setting cms.doctor.dev_checks.0 must be the name of a class that implements Cbox\Cms\Contracts\Doctor\DoctorCheck; it is 'stdClass'."],
+    'the contract itself' => ['checks', [DoctorCheck::class], 'The setting cms.doctor.checks.0 must be the name of a class that implements'],
+]);
+
+it('runs the checks of cms.doctor.checks after the core\'s runtime checks, and those of dev_checks after the dev checks', function (): void {
+    $core = configuredCheckIds(false);
+    $coreDev = configuredCheckIds(true);
+
+    config(['cms.doctor.checks' => [AddonReadyCheck::class], 'cms.doctor.dev_checks' => [AddonToolCheck::class]]);
+
+    $runtime = app(DoctorChecks::class)->for(new DoctorRunOptions);
+
+    expect(configuredCheckIds(false))->toBe([...$core, AddonReadyCheck::ID])
+        ->and(configuredCheckIds(true))->toBe([...$core, AddonReadyCheck::ID, ...array_slice($coreDev, count($core)), AddonToolCheck::ID])
+        ->and($runtime[count($core)])->toBeInstanceOf(AddonReadyCheck::class)
+        ->and($runtime[count($core)]->run()->passed())->toBeTrue();
+});
+
+it('builds each added check with the container, so a binding hands it what it looks at', function (): void {
+    $fake = FakeDoctorCheck::failing(new CheckId('addon.fake'), blocking: false);
+    app()->instance(FakeDoctorCheck::class, $fake);
+    app()->when(UnbuildableCheck::class)->needs('$directory')->give('/srv/uploads');
+
+    config(['cms.doctor.checks' => [UnbuildableCheck::class, FakeDoctorCheck::class]]);
+
+    $runtime = app(DoctorChecks::class)->for(new DoctorRunOptions);
+    [$directory, $added] = array_slice($runtime, -2);
+
+    expect($added)->toBe($fake)
+        ->and($directory)->toBeInstanceOf(UnbuildableCheck::class)
+        ->and($directory instanceof UnbuildableCheck ? $directory->directory : null)->toBe('/srv/uploads');
+});
+
+it('gives the one failing check doctor.config when an added check cannot be used', function (string $key, string $class, string $cause): void {
+    config(['cms.doctor.'.$key => [$class]]);
+
+    expect(configurationFailure())->toContain($cause);
+})->with([
+    'a class the container cannot build' => ['checks', UnbuildableCheck::class, 'The check '.UnbuildableCheck::class.' in cms.doctor.checks cannot be used: Illuminate\Contracts\Container\BindingResolutionException: Unresolvable dependency resolving [Parameter #0 [ <required> string $directory ]]'],
+    'an id that is not a check id' => ['dev_checks', InvalidIdCheck::class, 'The check '.InvalidIdCheck::class.' in cms.doctor.dev_checks cannot be used: Cbox\Cms\Contracts\Doctor\InvalidDoctorCheck: The check id "Addon Ready" is invalid.'],
+    'the id of a core check' => ['checks', RepeatedIdCheck::class, 'The checks in cms.doctor.checks and cms.doctor.dev_checks cannot run after the core\'s checks: The check "php.version" is listed twice.'],
+    'a runtime check that requires a dev check' => ['checks', AddonToolCheck::class, 'The checks in cms.doctor.checks and cms.doctor.dev_checks cannot run after the core\'s checks: The check "addon.tool" requires "dev.node", which is not listed before it.'],
+]);
+
+it('gives doctor.config when an added check names a class that is no check', function (): void {
+    config(['cms.doctor.checks' => [stdClass::class]]);
+
+    expect(configurationFailure())->toContain('cms.doctor.checks.0 must be the name of a class that implements');
+});
+
+it('gives doctor.config when a binding makes an added check into something that is no check', function (): void {
+    app()->bind(AddonReadyCheck::class, static fn (): stdClass => new stdClass);
+    config(['cms.doctor.checks' => [AddonReadyCheck::class]]);
+
+    expect(configurationFailure())->toBe('The check '.AddonReadyCheck::class.' in cms.doctor.checks cannot be used: UnexpectedValueException: The container gives stdClass, which does not implement Cbox\Cms\Contracts\Doctor\DoctorCheck.');
 });
