@@ -8,7 +8,8 @@
 #   gate 2  composer rector:check
 #   gate 3  composer analyse
 #   gate 4  npm run typecheck, npm run lint
-#   gate 5  vendor/bin/pest --testsuite=<suite> for each suite of the local profile
+#   gate 5  composer install:check, then vendor/bin/pest --testsuite=<suite> for each suite of
+#           the local profile
 #   gate 6  composer check:generated
 # and what the PR profile adds that CI runs:
 #   gate 5  vendor/bin/pest --testsuite=Mutation, the tests that need PCOV, and mutation on

@@ -167,11 +167,13 @@ it('fails gate 10 when composer docs:check has a finding', function (): void {
 it('runs the Browser suite as gate 8, in a process group of its own, failing skipped and incomplete tests as gate 5 does', function (): void {
     $gate = prGates()[7];
     $step = $gate->steps[0] ?? null;
-    $gate5Flags = array_slice(prGates()[4]->steps[0]->command, 3);
+    $unit = array_first(array_filter(prGates()[4]->steps, static fn (Step $step): bool => $step->name === 'Unit'));
+    $gate5Flags = array_slice($unit->command ?? [], 3);
 
     expect($gate->number)->toBe(8)
         ->and($gate->steps)->toHaveCount(1)
         ->and($step?->name)->toBe('Browser')
+        ->and($gate5Flags)->toBe(['--fail-on-skipped', '--fail-on-incomplete'])
         ->and(LocalProfile::OTHER_SUITES)->toBe([PrProfile::BROWSER_SUITE, PrProfile::MUTATION_SUITE])
         ->and($step?->command)->toBe(['/usr/bin/php', 'vendor/bin/pest', '--testsuite=Browser', '--fail-on-skipped', '--fail-on-incomplete'])
         ->and(array_slice($step->command ?? [], 3))->toBe($gate5Flags)

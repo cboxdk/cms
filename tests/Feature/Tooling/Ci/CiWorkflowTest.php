@@ -99,7 +99,7 @@ it('names the scripts of the local profile in both bin/ci and ci.yml, and bin/ci
     $scripts = CiFiles::profileScripts();
     $code = CiFiles::codeLines(CiFiles::ENTRY);
 
-    expect($scripts)->toBe(['lint:check', 'format:check', 'rector:check', 'analyse', 'typecheck', 'lint', 'check:generated'])
+    expect($scripts)->toBe(['lint:check', 'format:check', 'rector:check', 'analyse', 'typecheck', 'lint', 'install:check', 'check:generated'])
         ->and(CiFiles::text(CiFiles::ENTRY))->toContain(...$scripts)
         ->and(CiFiles::text(CiFiles::WORKFLOW))->toContain(...$scripts)
         ->and(array_values(array_filter($code, static fn (string $line): bool => str_contains($line, 'composer check'))))

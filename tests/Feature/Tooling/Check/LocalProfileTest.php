@@ -103,14 +103,23 @@ it('uses scripts that exist and run the gate commands in composer.json and packa
         ]);
 });
 
-it('runs each Pest suite on its own in gate 5 and fails a suite with a skipped or incomplete test', function (): void {
+it('runs each Pest suite on its own in gate 5, after the installation check, and fails a suite with a skipped or incomplete test', function (): void {
     $commands = stepCommands(localGate(5));
 
-    expect(array_keys($commands))->toBe(['Unit', 'Codecs', 'Contract', 'Postgres', 'Arch', 'Actions']);
+    expect(array_keys($commands))->toBe([LocalProfile::INSTALLATION, 'Unit', 'Codecs', 'Contract', 'Postgres', 'Arch', 'Actions']);
 
     foreach (LocalProfile::SUITES as $suite) {
         expect($commands[$suite])->toBe(['/usr/bin/php', 'vendor/bin/pest', '--testsuite='.$suite, '--fail-on-skipped', '--fail-on-incomplete']);
     }
+});
+
+it('checks in gate 5, before the suites load any class, that vendor/ is the installation composer.lock and composer.json describe', function (): void {
+    $steps = localGate(5)->steps;
+
+    expect(LocalProfile::INSTALLATION)->toBe('Installation')
+        ->and($steps[0]->name)->toBe(LocalProfile::INSTALLATION)
+        ->and($steps[0]->runs())->toBeTrue()
+        ->and($steps[0]->command)->toBe([...COMPOSER, 'install:check']);
 });
 
 it('runs the Actions suite as an ordinary step of gate 5, never as not run', function (): void {

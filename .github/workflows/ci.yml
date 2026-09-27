@@ -2,8 +2,8 @@
 #
 # Every step is setup, except bin/ci, the single CI entry script. bin/ci installs the locked
 # dependencies and runs `composer check -- --pr`, which calls the same Composer and npm
-# scripts as `composer check`: lint:check, format:check, rector:check, analyse, typecheck, lint
-# and check:generated, and the Pest suites of gate 5. Gate 5 adds the Mutation suite and
+# scripts as `composer check`: lint:check, format:check, rector:check, analyse, typecheck, lint,
+# install:check and check:generated, and the Pest suites of gate 5. Gate 5 adds the Mutation suite and
 # mutation on changed files: Pest's --mutate with PCOV and --min=80 on the files below
 # packages/*/src changed since the merge base of CMS_CI_BASE_REF and HEAD. It also runs
 # gate 8, the Browser suite, gate 9, composer audit and npm audit, and
