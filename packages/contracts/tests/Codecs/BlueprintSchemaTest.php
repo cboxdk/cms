@@ -249,7 +249,7 @@ function blueprintFieldsErrors(string ...$fields): array
     return $errors;
 }
 
-it('lets agents see a top-level field without agents only when it is public, so only then it needs a description (PRD 12.2, 14.5)', function (string $classification, bool $seen): void {
+it('lets agents see a top-level field without agents only when it is public or internal, so only then it needs a description (PRD 12.2, 14.5)', function (string $classification, bool $seen): void {
     $errors = blueprintFieldsErrors("  - handle: body\n    label: Body\n    type: text\n    classification: {$classification}\n");
 
     expect($errors === [])->toBe(! $seen);
@@ -260,16 +260,17 @@ it('lets agents see a top-level field without agents only when it is public, so 
     }
 })->with([
     'public' => ['public', true],
-    'internal' => ['internal', false],
+    'internal' => ['internal', true],
     'confidential' => ['confidential', false],
 ]);
 
-it('lets a blueprint opt an internal or confidential field in with agents: true, and a public one out with agents: false', function (string $classification, string $agents, bool $seen): void {
+it('lets a blueprint opt a confidential field in with agents: true, and a public or internal one out with agents: false', function (string $classification, string $agents, bool $seen): void {
     $errors = blueprintFieldsErrors("  - handle: body\n    label: Body\n    type: text\n    classification: {$classification}\n    agents: {$agents}\n");
 
     expect(array_keys($errors))->toBe($seen ? ['/fields/0'] : []);
 })->with([
     'public, agents: false' => ['public', 'false', false],
+    'internal, agents: false' => ['internal', 'false', false],
     'internal, agents: true' => ['internal', 'true', true],
     'confidential, agents: true' => ['confidential', 'true', true],
     'confidential, agents: false' => ['confidential', 'false', false],
@@ -286,6 +287,8 @@ it('gives the fields of a group the group\'s agents, so they need a description 
 })->with([
     'a public group' => ["    classification: public\n", '', ['/fields/0/fields/0', '/fields/0/fields/1/fields/0']],
     'a public group, the field hidden' => ["    classification: public\n", "        agents: false\n", ['/fields/0/fields/1/fields/0']],
+    'an internal group' => ["    classification: internal\n", '', ['/fields/0/fields/0', '/fields/0/fields/1/fields/0']],
+    'an internal group hidden from agents' => ["    classification: internal\n    agents: false\n", '', []],
     'a confidential group' => ["    classification: confidential\n", '', []],
     'a confidential group, the field seen' => ["    classification: confidential\n", "        agents: true\n", ['/fields/0/fields/0']],
     'a public group hidden from agents' => ["    classification: public\n    agents: false\n", '', []],

@@ -112,7 +112,7 @@
     },
 
     "topLevelAgents": {
-      "description": "Whether MCP tools and agents see a top-level field (PRD 12.2, 14.5): as its `agents` says, or else only when it is public. An internal field reaches an external model only as the installation configures it, and a confidential one not by default, so each is seen only with `agents: true`.",
+      "description": "Whether MCP tools and agents see a top-level field (PRD 12.2, 14.5): as its `agents` says, or else when it is public or internal. A confidential field is seen only with `agents: true`. This edition has no `personal` or `sensitive`, which agents never see (PRD 2.31, 12.2).",
       "if": { "required": ["agents"] },
       "then": {
         "if": { "properties": { "agents": { "const": true } } },
@@ -120,7 +120,7 @@
         "else": { "$ref": "#/$defs/hiddenFromAgents" }
       },
       "else": {
-        "if": { "required": ["classification"], "properties": { "classification": { "const": "public" } } },
+        "if": { "required": ["classification"], "properties": { "classification": { "enum": ["public", "internal"] } } },
         "then": { "$ref": "#/$defs/seenByAgents" },
         "else": { "$ref": "#/$defs/hiddenFromAgents" }
       }
@@ -210,7 +210,7 @@
         "filterable": { "type": "boolean", "default": false },
         "sortable": { "type": "boolean", "default": false },
         "agents": {
-          "description": "Whether MCP tools and agents see the field (PRD 12.2, 14.5). Without it, a top-level field is seen only when it is public, and a field inside a group as the group is. A field agents see needs a description.",
+          "description": "Whether MCP tools and agents see the field (PRD 12.2, 14.5). Without it, a top-level field is seen when it is public or internal, and a field inside a group as the group is. A field agents see needs a description.",
           "type": "boolean"
         }
       },

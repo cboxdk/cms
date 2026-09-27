@@ -16,10 +16,11 @@ use Cbox\Cms\Contracts\Attributes\Internal;
  * refuses them. A later schema that allows them is read as needing a newer cboxdk/cms-generators,
  * so this generator never maps personal data without its processing record.
  *
- * The classification decides whether MCP tools and agents see a field whose blueprint does not say
- * (PRD 12.2, 14.5): only a public one. An internal field reaches an external model only as the
- * installation configures it, and a confidential one not by default, so a blueprint opts each of
- * them in with `agents: true`. The core enforces this, not the blueprint author (GUARDRAILS 6).
+ * The classification decides whether MCP tools and agents see a field (PRD 2.31, 12.2, 14.5): a
+ * public or internal field is seen unless its blueprint says `agents: false`, and a confidential
+ * field only when its blueprint says `agents: true`, because an MCP token's classification
+ * ceiling is at most confidential. Agents never see personal or sensitive data, which this model
+ * does not have. The core enforces this, not the blueprint author (GUARDRAILS 6).
  */
 #[Internal]
 enum Classification: string
@@ -35,6 +36,6 @@ enum Classification: string
      */
     public function seenByAgentsByDefault(): bool
     {
-        return $this === self::Public;
+        return $this === self::Public || $this === self::Internal;
     }
 }

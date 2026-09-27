@@ -18,7 +18,7 @@ use Cbox\Cms\Generators\Schema\Domain\SourceLocation;
  * A top-level field has a classification (PRD 12.2); a field inside a group has none and inherits
  * the group's. The values the blueprint file leaves out have their defaults from the blueprint
  * schema v1: not required, not filterable, not sortable. Whether agents see a field the file does
- * not decide for follows its classification: a top-level field only when it is public
+ * not decide for follows its classification: a top-level field when it is public or internal
  * (Classification::seenByAgentsByDefault()), and a field inside a group when agents see the group.
  */
 #[Internal]

@@ -83,15 +83,15 @@ A field that is `confidential` cannot be `filterable` or `sortable`. The types `
 
 ### Agents
 
-Whether MCP tools and agents see a field follows its classification (PRD 12.2), so a field is never exposed to agents because its author left a key out:
+Whether MCP tools and agents see a field follows its classification (PRD 2.31, 12.2), so a field is never exposed to agents because its author left a key out:
 
 | Classification | Without `agents` | `agents: true` |
 |---|---|---|
 | `public` | seen | seen |
-| `internal` | hidden | seen; whether an external model receives it is the installation's configuration |
+| `internal` | seen | seen |
 | `confidential` | hidden | seen |
 
-`agents: false` hides any field. A field inside a group has the group's value unless it says otherwise. A field that agents see needs a `description`; a hidden one may leave it out.
+`agents: false` hides any field. A field inside a group has the group's value unless it says otherwise. An MCP token reaches at most `confidential` fields, and agents never see `personal` or `sensitive` data (PRD 2.31, 12.2), which this edition does not have, see [Personal data](#personal-data). A field that agents see needs a `description`; a hidden one may leave it out.
 
 ### Personal data
 

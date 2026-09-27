@@ -251,10 +251,10 @@ function expectedArticle(SchemaRoot $root): TypeBlueprint
             $field(0, 'title', 'Headline', 'The headline as it is shown on the page and in lists.', new TextOptions(null, 120, TextFormat::Plain), Classification::Public, required: true, sortable: true),
             $field(1, 'summary', 'Summary', 'A short plain-text summary for lists and search results.', new LongTextOptions(null, 500), Classification::Public),
             $field(2, 'reading_minutes', 'Reading time', 'The estimated reading time in whole minutes.', new IntegerOptions(1, 120, 'min'), Classification::Public, filterable: true),
-            $field(3, 'rating', 'Rating', "The editors' rating of the article, from 0 to 5.", new DecimalOptions(3, 2, new DecimalBound('0'), new DecimalBound('5.00'), null), Classification::Internal, agents: false),
+            $field(3, 'rating', 'Rating', "The editors' rating of the article, from 0 to 5.", new DecimalOptions(3, 2, new DecimalBound('0'), new DecimalBound('5.00'), null), Classification::Internal),
             $field(4, 'featured', 'Featured', 'Whether the article is shown on the front page.', new BooleanOptions, Classification::Public, filterable: true),
             $field(5, 'event_date', 'Event date', 'The date of the event the article covers.', new DateOptions(new BlueprintDate('2000-01-01'), null), Classification::Public, sortable: true),
-            $field(6, 'embargo_until', 'Embargo until', 'The time before which the article may not be published.', new DatetimeOptions(new BlueprintDatetime('2000-01-01T00:00:00Z'), null), Classification::Internal, agents: false),
+            $field(6, 'embargo_until', 'Embargo until', 'The time before which the article may not be published.', new DatetimeOptions(new BlueprintDatetime('2000-01-01T00:00:00Z'), null), Classification::Internal),
             $field(7, 'section', 'Section', 'The sections of the site the article is listed under.', new SelectOptions([
                 new SelectOption(new Handle('news'), 'News'),
                 new SelectOption(new Handle('sport'), 'Sport'),
@@ -308,7 +308,7 @@ it('reads the valid extension of T40 into the model', function (): void {
     expect(yamlBlueprints()->read([$root, extendedProductRoot()])->extensions)->toEqual([new ExtensionBlueprint(
         TypeId::fromString('0192a3b4-c5d6-7e8f-9a0b-aaaaaaaaaaaa'),
         1,
-        [new FieldBlueprint(new Handle('tax_code'), 'Tax code', "The customer's tax code for the product.", false, Classification::Internal, false, false, false, new TextOptions(null, 20, TextFormat::Plain), Owner::app(), $at->below('fields', 0))],
+        [new FieldBlueprint(new Handle('tax_code'), 'Tax code', "The customer's tax code for the product.", false, Classification::Internal, false, false, true, new TextOptions(null, 20, TextFormat::Plain), Owner::app(), $at->below('fields', 0))],
         Owner::app(),
         $at,
     )]);
@@ -512,21 +512,27 @@ function typeWithFields(string ...$fields): string
     return "blueprint: 1\nkind: type\ntype_id: 0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b\nhandle: note\nlabel: Note\nversion: 1\ncapabilities:\n  history: full\n  stages: none\n  localization: none\nfields:\n".implode('', $fields);
 }
 
-it('lets agents see a field whose blueprint does not say so only when it is public (PRD 12.2)', function (Classification $classification, bool $agents): void {
+it('lets agents see a field whose blueprint does not say so only when it is public or internal (PRD 12.2)', function (Classification $classification, bool $agents): void {
     $root = blueprintRoot(['note.yaml' => typeWithFields("  - handle: body\n    label: Body\n    description: The body of the note.\n    type: text\n    classification: {$classification->value}\n")]);
 
     expect(yamlBlueprints()->read([$root])->types[0]->fields[0]->agents)->toBe($agents);
 })->with([
     'public' => [Classification::Public, true],
-    'internal' => [Classification::Internal, false],
+    'internal' => [Classification::Internal, true],
     'confidential' => [Classification::Confidential, false],
 ]);
 
-it('lets agents see a confidential or internal field when its blueprint says agents: true', function (Classification $classification): void {
+it('lets agents see a public, internal or confidential field when its blueprint says agents: true', function (Classification $classification): void {
     $root = blueprintRoot(['note.yaml' => typeWithFields("  - handle: body\n    label: Body\n    description: The body of the note.\n    type: text\n    classification: {$classification->value}\n    agents: true\n")]);
 
     expect(yamlBlueprints()->read([$root])->types[0]->fields[0]->agents)->toBeTrue();
-})->with([Classification::Internal, Classification::Confidential]);
+})->with([Classification::Public, Classification::Internal, Classification::Confidential]);
+
+it('hides a field of any classification whose blueprint says agents: false', function (Classification $classification): void {
+    $root = blueprintRoot(['note.yaml' => typeWithFields("  - handle: body\n    label: Body\n    description: The body of the note.\n    type: text\n    classification: {$classification->value}\n    agents: false\n")]);
+
+    expect(yamlBlueprints()->read([$root])->types[0]->fields[0]->agents)->toBeFalse();
+})->with(Classification::cases());
 
 it('gives the fields of a group the group\'s agents unless they say otherwise', function (string $group, bool $name, bool $role): void {
     $root = blueprintRoot(['note.yaml' => typeWithFields(
@@ -543,8 +549,10 @@ it('gives the fields of a group the group\'s agents unless they say otherwise', 
         ->and($nested->fields[1]->agents)->toBe($role);
 })->with([
     'a public group' => ["    classification: public\n", true, false],
+    'an internal group' => ["    classification: internal\n", true, false],
     'a confidential group' => ["    classification: confidential\n", false, true],
     'a public group hidden from agents' => ["    classification: public\n    agents: false\n", false, true],
+    'an internal group hidden from agents' => ["    classification: internal\n    agents: false\n", false, true],
     'a confidential group agents see' => ["    classification: confidential\n    agents: true\n", true, false],
 ]);
 

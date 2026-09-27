@@ -42,7 +42,7 @@ use stdClass;
  *
  * Whether agents see a field is read with its classification, because the core, not the blueprint
  * author, enforces the classification (PRD 12.2, GUARDRAILS 6): a field without `agents` is seen
- * only when it is public, and a field inside a group as the group is.
+ * when it is public or internal, and a field inside a group as the group is.
  *
  * The classifications `personal` and `sensitive` are not in the model (PRD 12.4, 12.14): a field
  * of either needs a processing record that blueprint v1 cannot declare yet. An installed schema
