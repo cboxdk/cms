@@ -181,6 +181,19 @@ it('places a schema root below its base and names its files from the base', func
         ->and($root->file('types/product.yaml'))->toBe('vendor/acme/shop/schema/types/product.yaml');
 });
 
+it('knows a schema root in vendor/ below its base, where Composer installs packages', function (string $directory, bool $belowVendor): void {
+    expect(new SchemaRoot(new Owner('acme'), '/srv/app', $directory)->belowVendor())->toBe($belowVendor);
+})->with([
+    'an addon root' => ['vendor/acme/shop/schema', true],
+    'vendor itself' => ['vendor', true],
+    'a file-like name in vendor' => ['vendor/acme.schema', true],
+    'the application root' => ['schema', false],
+    'a longer first segment' => ['vendors/acme/schema', false],
+    'a first segment that starts like it' => ['vendor-schema', false],
+    'vendor further down' => ['modules/vendor/schema', false],
+    'another case, as a case-insensitive filesystem finds it' => ['Vendor/acme/schema', true],
+]);
+
 it('refuses a schema root that is not a directory below an absolute base', function (string $base, string $directory): void {
     try {
         new SchemaRoot(Owner::app(), $base, $directory);

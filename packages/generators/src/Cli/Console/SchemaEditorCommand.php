@@ -25,7 +25,9 @@ use Illuminate\Contracts\Foundation\Application;
  * the same form in an installation, a checkout and a worktree.
  *
  * A wrong line is replaced, never duplicated, and every other byte of a file is kept. Only files
- * whose bytes change are written, and each is named; a second run changes nothing.
+ * whose bytes change are written, and each is named; a second run changes nothing. A schema root
+ * below vendor/, such as an addon's `vendor/acme/shop/schema`, is skipped and named: Composer
+ * installs those files, and the installation does not edit them.
  *
  * Exit codes, as cms:generate's: 0 every file has the line, 66 a schema root or a file cannot be
  * read, 73 a file could not be written, 78 the configuration is invalid or cboxdk/cms-contracts is
@@ -53,6 +55,10 @@ final class SchemaEditorCommand extends Command
             return GenerateCommand::exitCode($failed->problems[0]->code);
         }
 
+        foreach ($report->skipped as $root) {
+            $this->line(sprintf('skipped: %s, a schema root below vendor/ whose files Composer installs', $root));
+        }
+
         foreach ($report->changed as $file) {
             $this->line('changed: '.$file);
         }
@@ -65,6 +71,10 @@ final class SchemaEditorCommand extends Command
             count($report->changed),
             count($report->unchanged),
         );
+
+        if ($report->skipped !== []) {
+            $summary .= sprintf(', %d schema %s below vendor/ skipped', count($report->skipped), count($report->skipped) === 1 ? 'root' : 'roots');
+        }
 
         if ($report->problems === []) {
             $this->info($summary.'.');

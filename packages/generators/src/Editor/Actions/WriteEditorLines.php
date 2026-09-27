@@ -18,6 +18,11 @@ use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
  * path relative from the file's directory to the target's schema. A file that already has the
  * line keeps its bytes and is not written; a file with another `$schema` line gets it replaced.
  *
+ * A schema root below vendor/ (SchemaRoot::belowVendor()), an addon's root such as
+ * `vendor/acme/shop/schema`, is skipped and named in the report: Composer installs those files and
+ * would see an edited file as a changed package, and the installation does not own them. Its
+ * files are neither listed nor read, and cms:generate still reads them.
+ *
  * A file that cannot be read or written is reported and the other files are still edited, so one
  * run shows every problem. Each file is written all or nothing.
  */
@@ -28,15 +33,28 @@ final readonly class WriteEditorLines
 
     /**
      * @throws GenerationFailed with generate_invalid_config or generate_schema_missing when the
-     *                          files below the roots cannot be listed; nothing is written then
+     *                          files below the roots that are not skipped cannot be listed;
+     *                          nothing is written then
      */
     public function write(EditorTarget $target): EditorReport
     {
         $changed = [];
         $unchanged = [];
         $problems = [];
+        $roots = [];
+        $skipped = [];
 
-        foreach ($this->files->find($target->roots) as $file) {
+        foreach ($target->roots as $root) {
+            if ($root->belowVendor()) {
+                $skipped[] = $root->directory;
+            } else {
+                $roots[] = $root;
+            }
+        }
+
+        sort($skipped);
+
+        foreach ($roots === [] ? [] : $this->files->find($roots) as $file) {
             try {
                 $contents = $this->files->read($file);
                 $edited = EditorLine::towards($target->schema, $file->directory)->apply($contents);
@@ -56,6 +74,6 @@ final readonly class WriteEditorLines
 
         usort($problems, static fn (GenerationProblem $a, GenerationProblem $b): int => [$a->code->value, $a->message] <=> [$b->code->value, $b->message]);
 
-        return new EditorReport($changed, $unchanged, $problems);
+        return new EditorReport($changed, $unchanged, $problems, $skipped);
     }
 }

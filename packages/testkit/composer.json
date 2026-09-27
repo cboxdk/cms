@@ -20,6 +20,7 @@
     "orchestra/testbench": "^11.0",
     "phpstan/phpstan": "^2.2",
     "phpunit/phpunit": "^13.3.4",
+    "psr/clock": "^1.0",
     "rector/rector": "^2.6",
     "symfony/process": "^7.4.5 || ^8.0.5"
   },

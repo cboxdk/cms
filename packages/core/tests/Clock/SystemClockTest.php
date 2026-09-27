@@ -17,6 +17,7 @@ use Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use DateTimeImmutable;
 use DateTimeZone;
+use Psr\Clock\ClockInterface;
 use stdClass;
 
 /*
@@ -39,6 +40,21 @@ it('reads the clock again on every call', function (): void {
     usleep(2000);
 
     expect($clock->now())->not->toEqual($first);
+});
+
+it('is a PSR-20 clock that reads the same system time through either interface', function (): void {
+    $clock = new SystemClock;
+    $psr = static fn (ClockInterface $clock): DateTimeImmutable => $clock->now();
+    $contract = static fn (Clock $clock): DateTimeImmutable => $clock->now();
+
+    $before = $contract($clock);
+    $now = $psr($clock);
+    $after = $contract($clock);
+
+    expect($clock)->toBeInstanceOf(ClockInterface::class)
+        ->and($now >= $before && $now <= $after)->toBeTrue()
+        ->and($now->getTimezone()->getName())->toBe('UTC')
+        ->and($now->format('u'))->toMatch('/\A\d{6}\z/');
 });
 
 it('resolves the system clock from the container, once', function (): void {

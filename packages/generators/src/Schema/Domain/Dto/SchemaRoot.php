@@ -18,6 +18,9 @@ use Cbox\Cms\Generators\Schema\Domain\Owner;
 #[Internal]
 final readonly class SchemaRoot
 {
+    /** The directory below the base that Composer installs packages in. */
+    public const string VENDOR = 'vendor';
+
     private const string RELATIVE_PATH = '/\A[A-Za-z0-9_-][A-Za-z0-9_.-]*(?:\/[A-Za-z0-9_-][A-Za-z0-9_.-]*)*\z/';
 
     /**
@@ -56,6 +59,17 @@ final readonly class SchemaRoot
     public function path(): string
     {
         return rtrim($this->base, '/\\').'/'.$this->directory;
+    }
+
+    /**
+     * Whether the directory lies in vendor/ below its base, where Composer installs packages: an
+     * addon's root such as `vendor/acme/shop/schema`. Composer owns those files, so
+     * cms:schema:editor leaves them alone; cms:generate still reads them. The first segment is
+     * compared without case, because a case-insensitive filesystem finds vendor/ as Vendor/ too.
+     */
+    public function belowVendor(): bool
+    {
+        return strtolower(explode('/', $this->directory, 2)[0]) === self::VENDOR;
     }
 
     /**

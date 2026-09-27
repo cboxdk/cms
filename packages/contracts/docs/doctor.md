@@ -37,6 +37,29 @@ The core's checks run in this order. The last three run only with `--dev`. A che
 
 When the doctor's own settings, `cbox-cms.doctor`, are invalid, or a check added there cannot be used, the doctor runs none of these. It runs the single check `doctor.config` instead, which fails as a violation with the code `doctor_config_invalid` and names the setting in its cause, so the command still prints its document and exits with the violation code.
 
+## Processes: web, queue and maintenance
+
+An installation runs the kernel in three types of process. They run the same code against the same database, but only one of them holds the owner role's credentials (PRD 4.2). The app role on the default connection owns no tables and has no DDL, so code in the web and queue processes, an addon's included, cannot change the schema or pass row level security as the owner of the tables. Run `cms:doctor` in each of them, with that process's configuration.
+
+| Process | What it runs | Its database connections | `cbox-cms.doctor.maintenance_process` |
+|---|---|---|---|
+| Web | HTTP requests | the default connection, as the app role | `false` |
+| Queue | queued jobs, `php artisan queue:work` | the default connection, as the app role | `false` |
+| Maintenance | the migrations on the owner connection, `php artisan migrate --database=pgsql_owner`, and the scheduler, `php artisan schedule:work` or `php artisan schedule:run` every minute, which runs `cms:partitions:maintain` every hour | the default connection, and the owner role's connection that `cbox-cms.database.owner_connection` names, `pgsql_owner` by default | `true` |
+
+- **Only the maintenance process has the owner connection.** Leave `database.connections.pgsql_owner` and the owner's password out of the web and queue processes' configuration. `postgres.owner_credentials` fails in a process that has the owner connection unless `cbox-cms.doctor.maintenance_process` is `true` there and the process serves no HTTP, so a web or queue process that was given the owner's credentials by mistake is not ready.
+- **The maintenance process serves no HTTP and runs no queue worker.** It is a console process, such as a container that runs `php artisan schedule:work` and runs `php artisan migrate --database=pgsql_owner --force` on deploy. The migrations run as the owner role, because the app role cannot create tables. Run one of them; two do no harm, because `cms:partitions:maintain` holds an advisory lock in Postgres for a whole run, so runs never overlap.
+- **Only the maintenance process schedules partition maintenance.** The core adds `cms:partitions:maintain` to the schedule only in a process whose configuration has the owner connection, so a scheduler in the web or queue process schedules nothing of the kernel's. Without a maintenance process no new partitions are created: `partitions.runway` fails, in every process, once a partitioned table has partitions for less than `cbox-cms.doctor.partition_runway_days` ahead, and a write past the last partition fails with `partition_missing`.
+
+### Postgres messages in English
+
+The kernel recognises some Postgres errors by their text, because the SQLSTATE does not tell them apart, so the messages must be English (PRD 4.2). Setting that up is the operator's job, done once for the database server and its roles; the kernel never changes a role or a server setting itself. `postgres.lc_messages`, which blocks, checks that a new session of the app role and of the owner role gets `lc_messages` `C`, `POSIX`, `C.<charset>` or `en_*`, and that the PHP process's `LC_MESSAGES`, which libpq's own messages follow, is English too. It reads the owner role's setting from the catalog as the app role, so it runs in the web and queue processes without the owner's credentials. As a superuser, run:
+
+- `ALTER SYSTEM SET lc_messages = 'C'` and then `SELECT pg_reload_conf()`, so the errors from before a login are English as well;
+- `ALTER ROLE <app role> SET lc_messages = 'C'` and `ALTER ROLE <owner role> SET lc_messages = 'C'`, so a session of either role is English whatever the server's default.
+
+A value set with `ALTER ROLE ... IN DATABASE` wins over both, so reset it there. Start PHP with `LC_ALL` and `LC_MESSAGES` unset, `C` or `en_*`. When the check fails, its fix names the roles and the commands for this installation.
+
 ## Adding a check
 
 An application or addon adds its own checks by class name in two lists of the core's configuration:

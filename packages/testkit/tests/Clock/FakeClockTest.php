@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Testkit\Tests\Clock;
 
+use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use DateInterval;
 use DateTime;
 use DateTimeImmutable;
 use DateTimeZone;
 use InvalidArgumentException;
+use Psr\Clock\ClockInterface;
 
 /*
  * The FakeClock's own behaviour. The shared contract suite (tests/Contract) checks what every clock
@@ -167,4 +169,19 @@ it('freezes at the system time and then stays there', function (): void {
         ->and($frozen->getTimezone()->getName())->toBe('UTC')
         ->and($clock->now())->toEqual($frozen)
         ->and($clock->now()->format(PRECISE))->toBe($frozen->format(PRECISE));
+});
+
+it('is a PSR-20 clock that gives the same instant as its now(), and follows the test', function (): void {
+    $clock = new FakeClock;
+    $psr = static fn (ClockInterface $clock): DateTimeImmutable => $clock->now();
+    $contract = static fn (Clock $clock): DateTimeImmutable => $clock->now();
+
+    expect($clock)->toBeInstanceOf(ClockInterface::class)
+        ->and($psr($clock))->toBe($contract($clock))
+        ->and($psr($clock)->format(PRECISE))->toBe(FakeClock::START);
+
+    $clock->advance(new DateInterval('PT1S'));
+
+    expect($psr($clock))->toBe($clock->now())
+        ->and($psr($clock)->format(PRECISE))->toBe('2026-01-01T00:00:01.123456+00:00');
 });

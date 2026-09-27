@@ -22,9 +22,16 @@ const EDITOR_TARGET_SCHEMA = '/srv/app/vendor/cboxdk/cms-contracts/resources/sch
 
 const EDITOR_TARGET_LINE = '# yaml-language-server: $schema=../vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json';
 
+/**
+ * The application's root, a module's root outside vendor/ and an addon's root below vendor/.
+ */
 function editorTarget(): EditorTarget
 {
-    return new EditorTarget([SchemaFixtures::root(), SchemaFixtures::root('acme', 'vendor/acme/shop/schema')], EDITOR_TARGET_SCHEMA);
+    return new EditorTarget([
+        SchemaFixtures::root(),
+        SchemaFixtures::root('acme', 'vendor/acme/shop/schema'),
+        SchemaFixtures::root('shop', 'modules/shop/schema'),
+    ], EDITOR_TARGET_SCHEMA);
 }
 
 it('adds the line relative to each file\'s directory, writes only the files it changes and names them', function (): void {
@@ -32,31 +39,73 @@ it('adds the line relative to each file\'s directory, writes only the files it c
     $files->put('/srv/app/schema/page.yaml', "# The page.\nblueprint: 1\n");
     $files->put('/srv/app/schema/blog/article.yaml', "# yaml-language-server: \$schema=../../vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json\nblueprint: 1\n");
     $files->put('/srv/app/schema/blog/post.yaml', "blueprint: 1\n");
+    $files->put('/srv/app/modules/shop/schema/product.yaml', "blueprint: 1\n");
     $files->put('/srv/app/vendor/acme/shop/schema/product.yaml', "blueprint: 1\n");
 
     $report = new WriteEditorLines($files)->write(editorTarget());
 
     expect($report)->toEqual(new EditorReport(
-        ['schema/blog/post.yaml', 'schema/page.yaml', 'vendor/acme/shop/schema/product.yaml'],
+        ['modules/shop/schema/product.yaml', 'schema/blog/post.yaml', 'schema/page.yaml'],
         ['schema/blog/article.yaml'],
         [],
+        ['vendor/acme/shop/schema'],
     ))
         ->and($files->contents('/srv/app/schema/page.yaml'))->toBe(EDITOR_TARGET_LINE."\n# The page.\nblueprint: 1\n")
         ->and($files->contents('/srv/app/schema/blog/post.yaml'))->toBe("# yaml-language-server: \$schema=../../vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json\nblueprint: 1\n")
-        ->and($files->contents('/srv/app/vendor/acme/shop/schema/product.yaml'))->toBe("# yaml-language-server: \$schema=../../../cboxdk/cms-contracts/resources/schemas/blueprint.v1.json\nblueprint: 1\n")
-        ->and($files->writes)->toBe(['/srv/app/schema/blog/post.yaml', '/srv/app/schema/page.yaml', '/srv/app/vendor/acme/shop/schema/product.yaml']);
+        ->and($files->contents('/srv/app/modules/shop/schema/product.yaml'))->toBe("# yaml-language-server: \$schema=../../../vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json\nblueprint: 1\n")
+        ->and($files->contents('/srv/app/vendor/acme/shop/schema/product.yaml'))->toBe("blueprint: 1\n")
+        ->and($files->writes)->toBe(['/srv/app/modules/shop/schema/product.yaml', '/srv/app/schema/blog/post.yaml', '/srv/app/schema/page.yaml']);
+});
+
+it('skips every schema root below vendor/ and names it, without listing, reading or writing its files', function (): void {
+    $files = new FakeSchemaFiles;
+    $files->put('/srv/app/schema/page.yaml', "blueprint: 1\n");
+    $files->put('/srv/app/vendor/acme/shop/schema/product.yaml', "blueprint: 1\n");
+    $files->put('/srv/app/vendor/acme/extra/schema/other.yaml', "blueprint: 1\n");
+    $files->block('/srv/app/vendor/acme/shop/schema/product.yaml');
+    $files->hide('/srv/app/vendor/acme/extra/schema/other.yaml');
+
+    $report = new WriteEditorLines($files)->write(new EditorTarget([
+        SchemaFixtures::root(),
+        SchemaFixtures::root('acme', 'vendor/acme/shop/schema'),
+        SchemaFixtures::root('extra', 'vendor/acme/extra/schema'),
+        SchemaFixtures::root('gone', 'vendor/gone/schema'),
+    ], EDITOR_TARGET_SCHEMA));
+
+    expect($report)->toEqual(new EditorReport(
+        ['schema/page.yaml'],
+        [],
+        [],
+        ['vendor/acme/extra/schema', 'vendor/acme/shop/schema', 'vendor/gone/schema'],
+    ))
+        ->and($files->contents('/srv/app/vendor/acme/shop/schema/product.yaml'))->toBe("blueprint: 1\n")
+        ->and($files->writes)->toBe(['/srv/app/schema/page.yaml']);
+});
+
+it('lists no files when every schema root is below vendor/', function (): void {
+    $files = new FakeSchemaFiles;
+    $files->put('/srv/app/vendor/acme/shop/schema/product.yaml', "blueprint: 1\n");
+
+    $report = new WriteEditorLines($files)->write(new EditorTarget([
+        SchemaFixtures::root('acme', 'vendor/acme/shop/schema'),
+        SchemaFixtures::root('gone', 'vendor/gone/schema'),
+    ], EDITOR_TARGET_SCHEMA));
+
+    expect($report)->toEqual(new EditorReport([], [], [], ['vendor/acme/shop/schema', 'vendor/gone/schema']))
+        ->and($files->contents('/srv/app/vendor/acme/shop/schema/product.yaml'))->toBe("blueprint: 1\n")
+        ->and($files->writes)->toBe([]);
 });
 
 it('changes nothing the second time', function (): void {
     $files = new FakeSchemaFiles;
     $files->put('/srv/app/schema/page.yaml', "# yaml-language-server: \$schema=../wrong.json\nblueprint: 1\n");
-    $files->directory('/srv/app/vendor/acme/shop/schema');
+    $files->directory('/srv/app/modules/shop/schema');
     new WriteEditorLines($files)->write(editorTarget());
     $files->writes = [];
 
     $report = new WriteEditorLines($files)->write(editorTarget());
 
-    expect($report)->toEqual(new EditorReport([], ['schema/page.yaml'], []))
+    expect($report)->toEqual(new EditorReport([], ['schema/page.yaml'], [], ['vendor/acme/shop/schema']))
         ->and($files->writes)->toBe([])
         ->and($files->contents('/srv/app/schema/page.yaml'))->toBe(EDITOR_TARGET_LINE."\nblueprint: 1\n");
 });
@@ -64,7 +113,7 @@ it('changes nothing the second time', function (): void {
 it('replaces a wrong line instead of adding a second one', function (): void {
     $files = new FakeSchemaFiles;
     $files->put('/srv/app/schema/page.yaml', "# yaml-language-server: \$schema=../packages/contracts/resources/schemas/blueprint.v1.json\n# The page.\nblueprint: 1\n");
-    $files->directory('/srv/app/vendor/acme/shop/schema');
+    $files->directory('/srv/app/modules/shop/schema');
 
     $report = new WriteEditorLines($files)->write(editorTarget());
 
@@ -78,7 +127,7 @@ it('reports a file it cannot read or write and still edits the others', function
     $files->put('/srv/app/schema/b.yaml', "blueprint: 1\n");
     $files->put('/srv/app/schema/c.yaml', "blueprint: 1\n");
     $files->put('/srv/app/schema/d.yaml', EDITOR_TARGET_LINE."\nblueprint: 1\n");
-    $files->directory('/srv/app/vendor/acme/shop/schema');
+    $files->directory('/srv/app/modules/shop/schema');
     $files->block('/srv/app/schema/a.yaml');
     $files->block('/srv/app/schema/d.yaml');
     $files->hide('/srv/app/schema/b.yaml');
@@ -100,7 +149,7 @@ it('refuses roots it cannot list and writes nothing', function (): void {
     $files->put('/srv/app/schema/page.yaml', "blueprint: 1\n");
 
     expect(static fn (): EditorReport => new WriteEditorLines($files)->write(editorTarget()))
-        ->toThrow(GenerationFailed::class, '[generate_schema_missing] The schema root /srv/app/vendor/acme/shop/schema of acme does not exist')
+        ->toThrow(GenerationFailed::class, '[generate_schema_missing] The schema root /srv/app/modules/shop/schema of shop does not exist')
         ->and($files->writes)->toBe([]);
 });
 

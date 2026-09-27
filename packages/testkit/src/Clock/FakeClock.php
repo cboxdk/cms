@@ -11,6 +11,7 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
 use InvalidArgumentException;
+use Psr\Clock\ClockInterface;
 
 /**
  * A clock that only moves when a test moves it (GUARDRAILS 2.3).
@@ -21,9 +22,12 @@ use InvalidArgumentException;
  *
  * set() can move the clock backwards, to test code that must survive a wall clock that steps back.
  * advance() only moves forwards.
+ *
+ * It is also a PSR-20 clock, as the core's SystemClock is, so a test gives the same fake to a
+ * library that asks for Psr\Clock\ClockInterface.
  */
 #[Experimental]
-final class FakeClock implements Clock
+final class FakeClock implements Clock, ClockInterface
 {
     /** The instant a new FakeClock starts at. */
     public const string START = '2026-01-01T00:00:00.123456+00:00';

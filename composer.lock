@@ -232,7 +232,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/core",
-                "reference": "265fe34e87c031efab93a6017dbf82dc7d300fa4"
+                "reference": "8231c379fdfc2f75c2fead870a8f2df6f460dbbb"
             },
             "require": {
                 "cboxdk/cms-contracts": "^0.1",
@@ -241,6 +241,7 @@
                 "illuminate/redis": "^13.0",
                 "illuminate/support": "^13.0",
                 "php": "^8.5",
+                "psr/clock": "^1.0",
                 "symfony/process": "^7.4.5 || ^8.0.5"
             },
             "type": "library",
@@ -7668,7 +7669,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/testkit",
-                "reference": "f432f537e6ddcb36a851670d6eee276147b8ff65"
+                "reference": "31678426d973cc48ad38490ebaea611aaa0c6bce"
             },
             "require": {
                 "cboxdk/cms-contracts": "^0.1",
@@ -7681,6 +7682,7 @@
                 "php": "^8.5",
                 "phpstan/phpstan": "^2.2",
                 "phpunit/phpunit": "^13.3.4",
+                "psr/clock": "^1.0",
                 "rector/rector": "^2.6",
                 "symfony/process": "^7.4.5 || ^8.0.5"
             },

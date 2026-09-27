@@ -175,6 +175,46 @@ it('checks a root without blueprint files and changes nothing', function (): voi
         ->and(file_get_contents($root.'/schema/README.md'))->toBe("No blueprints yet.\n");
 });
 
+it('leaves the files of a schema root below vendor/ untouched and names the root', function (): void {
+    $root = editorRoot();
+    SchemaFixtures::write($root.'/vendor/acme/shop/schema/product.yaml', "blueprint: 1\n");
+    SchemaFixtures::write($root.'/vendor/acme/shop/schema/wrong.yaml', "# yaml-language-server: \$schema=../wrong.json\nblueprint: 1\n");
+    touch($root.'/vendor/acme/shop/schema/product.yaml', 1_000_000_000);
+    config()->set('cbox-cms.generators.roots', ['app' => 'schema', 'acme' => 'vendor/acme/shop/schema', 'gone' => 'vendor/gone/schema']);
+
+    [$status, $output] = editorCommand();
+    clearstatcache();
+
+    expect($status)->toBe(0)
+        ->and($output)->toBe([
+            'skipped: vendor/acme/shop/schema, a schema root below vendor/ whose files Composer installs',
+            'skipped: vendor/gone/schema, a schema root below vendor/ whose files Composer installs',
+            'changed: schema/page.yaml',
+            'Checked 1 blueprint file: 1 changed, 0 unchanged, 2 schema roots below vendor/ skipped.',
+        ])
+        ->and(file_get_contents($root.'/vendor/acme/shop/schema/product.yaml'))->toBe("blueprint: 1\n")
+        ->and(file_get_contents($root.'/vendor/acme/shop/schema/wrong.yaml'))->toBe("# yaml-language-server: \$schema=../wrong.json\nblueprint: 1\n")
+        ->and(filemtime($root.'/vendor/acme/shop/schema/product.yaml'))->toBe(1_000_000_000)
+        ->and(editorPathOf($root.'/schema/page.yaml'))->toBeString();
+});
+
+it('names the skipped root in the summary when a file fails', function (): void {
+    $root = editorRoot();
+    SchemaFixtures::write($root.'/vendor/acme/shop/schema/product.yaml', "blueprint: 1\n");
+    config()->set('cbox-cms.generators.roots', ['app' => 'schema', 'acme' => 'vendor/acme/shop/schema']);
+    chmod($root.'/schema/page.yaml', 0o444);
+
+    [$status, $output] = editorCommand();
+
+    expect($status)->toBe(GenerateCommand::EXIT_UNWRITABLE)
+        ->and($output)->toBe([
+            'skipped: vendor/acme/shop/schema, a schema root below vendor/ whose files Composer installs',
+            '[generate_schema_unwritable] schema/page.yaml cannot be written: the file is read-only. Its editor line was not changed; make it writable and run cms:schema:editor again.',
+            'Checked 1 blueprint file: 0 changed, 0 unchanged, 1 schema root below vendor/ skipped, 1 failed.',
+        ])
+        ->and(file_get_contents($root.'/vendor/acme/shop/schema/product.yaml'))->toBe("blueprint: 1\n");
+})->skip(fn (): bool => function_exists('posix_geteuid') && posix_geteuid() === 0, 'root ignores file permissions');
+
 it('exits with 73 when a file cannot be written, and still edits the others', function (): void {
     $root = editorRoot();
     SchemaFixtures::write($root.'/schema/other.yaml', "blueprint: 1\n");
@@ -204,13 +244,13 @@ it('exits with 66 when a file cannot be read', function (): void {
 
 it('exits with 66 and changes nothing when a schema root is missing', function (): void {
     $root = editorRoot();
-    config()->set('cbox-cms.generators.roots', ['app' => 'schema', 'acme' => 'vendor/acme/shop/schema']);
+    config()->set('cbox-cms.generators.roots', ['app' => 'schema', 'shop' => 'modules/shop/schema']);
 
     [$status, $output] = editorCommand();
 
     expect($status)->toBe(GenerateCommand::EXIT_SCHEMA_MISSING)
         ->and($output)->toBe([
-            sprintf('[generate_schema_missing] The schema root %s/vendor/acme/shop/schema of acme does not exist or cannot be read. Create the directory, or remove the root.', $root),
+            sprintf('[generate_schema_missing] The schema root %s/modules/shop/schema of shop does not exist or cannot be read. Create the directory, or remove the root.', $root),
             'No blueprint file was changed.',
         ])
         ->and(file_get_contents($root.'/schema/page.yaml'))->toBe(EDITOR_BLUEPRINT);
