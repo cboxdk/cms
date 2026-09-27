@@ -15,6 +15,11 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
  * decides only when a record expires. It is 0 to MAX_MILLISECONDS: the claim runs inside the
  * command transaction, which may take at most 5 seconds (GUARDRAILS 4.1), so the kernel picks a
  * budget that leaves time for the command itself. 0 means do not wait.
+ *
+ * The budget is an upper bound. A store whose database ends a transaction after a time limit, such
+ * as Postgres' transaction_timeout, ends the wait sooner, with InFlight, while the transaction still
+ * has time to roll back; the time limit counts from the start of the transaction, so a budget that
+ * reaches past it is clamped there.
  */
 #[Experimental]
 final readonly class WaitBudget

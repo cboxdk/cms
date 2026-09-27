@@ -44,7 +44,9 @@ use LogicException;
  * 1. The claim is a transaction-scoped advisory lock on ClaimLock::of($scope, $key), a 64-bit hash
  *    of the scope and key. It is taken with pg_try_advisory_xact_lock, polled with a short,
  *    growing sleep until it is granted or the wait budget has passed, which gives InFlight. The
- *    store never blocks in Postgres: a lock_timeout error would abort the caller's transaction,
+ *    wait also ends TRANSACTION_MARGIN_MILLISECONDS before the transaction's transaction_timeout
+ *    (5 s on the app role, counted from the start of the transaction), which would otherwise
+ *    terminate the session while it waits. The store never blocks in Postgres: a lock_timeout error would abort the caller's transaction,
  *    and getting it back needs a savepoint, which PRD 4.2 forbids. The lock is released when the
  *    transaction ends, so there is no release(). The same statement checks the isolation level
  *    and takes no lock unless it is READ COMMITTED.
@@ -81,6 +83,12 @@ final readonly class PostgresIdempotencyStore implements IdempotencyStore
 
     /** The longest sleep between two tries of the lock, in microseconds. */
     private const int MAX_BACKOFF_MICROSECONDS = 50_000;
+
+    /**
+     * The time a claim leaves the caller's transaction before its transaction_timeout when the wait
+     * ends there: enough to take InFlight and roll back or commit.
+     */
+    public const int TRANSACTION_MARGIN_MILLISECONDS = 250;
 
     private const string READ_COMMITTED = 'read committed';
 
@@ -182,18 +190,29 @@ final readonly class PostgresIdempotencyStore implements IdempotencyStore
     }
 
     /**
-     * Tries the advisory lock until it is granted or the budget has passed. Real time, measured
+     * Tries the advisory lock until it is granted or the wait has to end. Real time, measured
      * here; the Clock only decides expiry.
+     *
+     * The wait ends when the budget has passed, or TRANSACTION_MARGIN_MILLISECONDS before the
+     * transaction's transaction_timeout would end the session, whichever comes first. The timeout
+     * counts from the start of the transaction and terminates the session (FATAL 25P04), so a claim
+     * whose transaction began just before the holder's would otherwise be killed while it waits,
+     * instead of returning InFlight to a transaction the caller can still roll back. The first try
+     * reads the time left from transaction_timestamp(), clock_timestamp() and the setting; none is
+     * left to wait when the setting is 0 (off). The time is taken before the statement is sent, so
+     * the deadline errs early.
      */
     private function acquire(ConnectionInterface $db, ClaimLock $lock, WaitBudget $budget): bool
     {
-        $deadline = hrtime(true) + $budget->milliseconds * 1_000_000;
+        $started = hrtime(true);
+        $deadline = $started + $budget->milliseconds * 1_000_000;
         $backoff = self::FIRST_BACKOFF_MICROSECONDS;
+        $first = true;
 
         while (true) {
             // No lock is taken outside READ COMMITTED; CASE evaluates the lock only in its branch.
             $row = $db->selectOne(
-                "select current_setting('transaction_isolation') as isolation, case when current_setting('transaction_isolation') = ? then pg_try_advisory_xact_lock(?) end as locked",
+                "select current_setting('transaction_isolation') as isolation, case when current_setting('transaction_isolation') = ? then pg_try_advisory_xact_lock(?) end as locked, (select case when s.setting::bigint > 0 then floor(s.setting::bigint - extract(epoch from clock_timestamp() - transaction_timestamp()) * 1000)::bigint end from pg_settings s where s.name = 'transaction_timeout') as transaction_remaining",
                 [self::READ_COMMITTED, $lock->key],
                 false,
             );
@@ -208,6 +227,11 @@ final readonly class PostgresIdempotencyStore implements IdempotencyStore
                 return true;
             }
 
+            if ($first) {
+                $deadline = min($deadline, $this->transactionDeadline($started, $row));
+                $first = false;
+            }
+
             $remaining = intdiv($deadline - hrtime(true), 1000);
 
             if ($remaining <= 0) {
@@ -217,6 +241,25 @@ final readonly class PostgresIdempotencyStore implements IdempotencyStore
             usleep(min($backoff, $remaining));
             $backoff = min($backoff * 2, self::MAX_BACKOFF_MICROSECONDS);
         }
+    }
+
+    /**
+     * The hrtime, in nanoseconds, at which a wait must end so the transaction keeps
+     * TRANSACTION_MARGIN_MILLISECONDS before its transaction_timeout; PHP_INT_MAX without a timeout.
+     */
+    private function transactionDeadline(int $sentAt, mixed $row): int
+    {
+        $remaining = is_object($row) && property_exists($row, 'transaction_remaining') ? $row->transaction_remaining : null;
+
+        if ($remaining === null) {
+            return PHP_INT_MAX;
+        }
+
+        if (! is_int($remaining)) {
+            throw new LogicException('Postgres did not report the time left before transaction_timeout as an integer.');
+        }
+
+        return $sentAt + ($remaining - self::TRANSACTION_MARGIN_MILLISECONDS) * 1_000_000;
     }
 
     /**

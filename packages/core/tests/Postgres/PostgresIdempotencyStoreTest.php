@@ -39,7 +39,7 @@ use PHPUnit\Framework\AssertionFailedError;
 /*
  * The Postgres idempotency store beyond the shared suite (GUARDRAILS 4.1 and 9, PRD 6.1, 4, 4.1,
  * 4.2): claims that wait for another process's commit, a race of two claims, InFlight without
- * aborting the caller's transaction, the day boundary between partitions, one row for repeated
+ * aborting the caller's transaction, InFlight before transaction_timeout ends the session, the day boundary between partitions, one row for repeated
  * claims, one transaction with the caller's own writes, no effect outside Postgres, partition
  * pruning, hash collisions and the isolation level. The shared cases run in
  * PostgresIdempotencyStoreContractTest.
@@ -237,6 +237,77 @@ it('returns InFlight within the budget while another process holds the claim, an
     expect(ReceiptTables::callerRows())->toBe(1);
 });
 
+it('returns InFlight before the app role\'s transaction_timeout ends a claim whose transaction began just before the holder\'s', function (): void {
+    $clock = new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z'));
+    $harness = PostgresIdempotencySessions::at($clock);
+    $waiter = $harness->session();
+    $holder = $harness->session();
+
+    // A double submit: the waiter's transaction begins first, the holder's 20 ms later, and the
+    // holder claims the key and sits on it. The role's transaction_timeout (5 s) would end the
+    // waiter's session before a 5000 ms budget runs out.
+    $waiter->begin();
+    usleep(20_000);
+    $holder->begin();
+    expect(claimDefault($holder))->toBeInstanceOf(Fresh::class);
+
+    $timeout = $waiter->connection->scalar("select setting::bigint from pg_settings where name = 'transaction_timeout'");
+    $started = hrtime(true);
+    $result = claimDefault($waiter, WaitBudget::MAX_MILLISECONDS);
+    $waited = elapsedMilliseconds($started);
+
+    expect($timeout)->toBe(5000)
+        ->and($result)->toBeInstanceOf(InFlight::class)
+        ->and($waited)->toBeGreaterThanOrEqual(4000.0)
+        ->and($waited)->toBeLessThan(5000.0 - PostgresIdempotencyStore::TRANSACTION_MARGIN_MILLISECONDS / 2)
+        ->and($waiter->connection->scalar('select 1'))->toBe(1);
+
+    $waiter->connection->table(ReceiptTables::CALLER_TABLE)->insert(['id' => 1, 'note' => 'after in flight']);
+    $waiter->commit();
+    $holder->rollBack();
+
+    expect(ReceiptTables::callerRows())->toBe(1);
+});
+
+it('ends the wait at the transaction\'s own transaction_timeout, less the margin, and waits the whole budget without one', function (): void {
+    $clock = new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z'));
+    $harness = PostgresIdempotencySessions::at($clock);
+    $holder = $harness->session();
+    $holder->connection->statement("set transaction_timeout = '0'");
+    $holder->begin();
+    expect(claimDefault($holder))->toBeInstanceOf(Fresh::class);
+
+    // A shorter timeout than the role's, set on the session before the transaction begins.
+    $short = $harness->session();
+    $short->connection->statement("set transaction_timeout = '1500ms'");
+    $short->begin();
+    $started = hrtime(true);
+    $result = claimDefault($short, 3000);
+    $waited = elapsedMilliseconds($started);
+
+    expect($result)->toBeInstanceOf(InFlight::class)
+        ->and($waited)->toBeGreaterThanOrEqual(1500.0 - PostgresIdempotencyStore::TRANSACTION_MARGIN_MILLISECONDS - 50)
+        ->and($waited)->toBeLessThan(1500.0 - PostgresIdempotencyStore::TRANSACTION_MARGIN_MILLISECONDS / 2)
+        ->and($short->connection->scalar('select 1'))->toBe(1);
+
+    $short->rollBack();
+
+    // With transaction_timeout off, the budget alone decides.
+    $unbounded = $harness->session();
+    $unbounded->connection->statement("set transaction_timeout = '0'");
+    $unbounded->begin();
+    $started = hrtime(true);
+    $result = claimDefault($unbounded, 1200);
+    $waited = elapsedMilliseconds($started);
+
+    expect($result)->toBeInstanceOf(InFlight::class)
+        ->and($waited)->toBeGreaterThanOrEqual(1200.0)
+        ->and($waited)->toBeLessThan(2000.0);
+
+    $unbounded->rollBack();
+    $holder->rollBack();
+});
+
 it('replays a key completed just before midnight UTC just after it, from the previous day\'s partition', function (): void {
     $clock = new FakeClock(new DateTimeImmutable('2026-01-01T23:59:59.900Z'));
     $harness = PostgresIdempotencySessions::at($clock);
@@ -401,7 +472,7 @@ it('makes no call outside Postgres and runs only its own statements inside the t
         ->and($statements)->not->toBeEmpty();
 
     $allowed = [
-        '/^select current_setting\(\'transaction_isolation\'\) as isolation, case when current_setting\(\'transaction_isolation\'\) = \? then pg_try_advisory_xact_lock\(\?\) end as locked$/',
+        '/^select current_setting\(\'transaction_isolation\'\) as isolation, case when current_setting\(\'transaction_isolation\'\) = \? then pg_try_advisory_xact_lock\(\?\) end as locked, \(select case when s\.setting::bigint > 0 then floor\(s\.setting::bigint - extract\(epoch from clock_timestamp\(\) - transaction_timestamp\(\)\) \* 1000\)::bigint end from pg_settings s where s\.name = \'transaction_timeout\'\) as transaction_remaining$/',
         '/^select current_setting\(\?, true\) as claims$/',
         '/^select set_config\(\?, \?, true\)$/',
         '/^select "content_hash", "changeset_id" from "idempotency_keys" where /',

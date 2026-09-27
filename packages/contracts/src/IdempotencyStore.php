@@ -32,7 +32,9 @@ use Cbox\Cms\Contracts\Storage\PartitionMissing;
  * - claim() first takes a claim on (scope, key); the scope is the actor or source plus the command
  *   type. The claim lasts until the caller's transaction ends, by commit or rollback. When another
  *   open transaction holds it, claim() waits for that transaction to end, at most the wait budget,
- *   and then returns InFlight. Two transactions never hold the claim on one key at once.
+ *   and then returns InFlight. A store on a database that ends a transaction after a time limit
+ *   ends the wait sooner, with time left before that limit, so the caller gets InFlight and not a
+ *   terminated session. Two transactions never hold the claim on one key at once.
  * - With the claim held, claim() looks up the completed record for the key: none gives Fresh with
  *   a token, the same content hash gives Replay with the stored changeset id, another hash gives
  *   Conflict. Every result but InFlight holds the claim until the transaction ends.
