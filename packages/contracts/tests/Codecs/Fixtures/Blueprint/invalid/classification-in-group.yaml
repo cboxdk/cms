@@ -18,5 +18,5 @@ fields:
         label: Name
         description: The author's name.
         type: text
-        classification: personal
-    classification: personal
+        classification: confidential
+    classification: confidential

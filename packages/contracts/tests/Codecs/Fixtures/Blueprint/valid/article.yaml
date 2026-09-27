@@ -106,4 +106,4 @@ fields:
         type: text
         max_length: 50
         agents: false
-    classification: personal
+    classification: confidential

@@ -29,7 +29,7 @@ use stdClass;
  * Turns a blueprint document that the blueprint schema v1 has accepted into the typed model.
  *
  * The schema is the only source of the rules for a file (blueprint decision 5), so this class
- * checks none of them again but the one about agents below. It only has to notice what it cannot map: a key, an enum value or a
+ * checks none of them again. It only has to notice what it cannot map: a key, an enum value or a
  * kind of value that the installed schema allows and this generator does not know. That happens
  * when cboxdk/cms-contracts ships an addition to v1 (decision 2) before cboxdk/cms-generators is
  * updated for it, and each such place is reported as generate_schema_unsupported_version at its
@@ -42,9 +42,12 @@ use stdClass;
  *
  * Whether agents see a field is read with its classification, because the core, not the blueprint
  * author, enforces the classification (PRD 12.2, GUARDRAILS 6): a field without `agents` is seen
- * only when it is public, and a field inside a group as the group is. `agents: true` on a
- * sensitive field or inside a sensitive group is generate_schema_invalid here too, so an installed
- * blueprint schema that let it through never lets agents see the field.
+ * only when it is public, and a field inside a group as the group is.
+ *
+ * The classifications `personal` and `sensitive` are not in the model (PRD 12.4, 12.14): a field
+ * of either needs a processing record that blueprint v1 cannot declare yet. An installed schema
+ * that allows them is a later release, so such a field is generate_schema_unsupported_version at
+ * its `classification`, and personal data never reaches the generated code without its record.
  */
 #[Internal]
 final readonly class BlueprintDocumentReader
@@ -196,7 +199,8 @@ final readonly class BlueprintDocumentReader
 
     private function field(DocumentValues $field, Owner $owner, ?EnclosingGroup $group, ReadProblems $problems): ?FieldBlueprint
     {
-        // The classification and agents come first, because the fields of a group inherit them.
+        // The classification and agents come first: the default of agents follows the
+        // classification, and the fields of a group inherit agents.
         $classification = null;
 
         if ($field->has('classification')) {
@@ -205,9 +209,8 @@ final readonly class BlueprintDocumentReader
             $field->unreadable('classification');
         }
 
-        $inherited = $group instanceof EnclosingGroup ? $group->classification : $classification;
-        $agents = $this->agents($field, $inherited, $group);
-        $field = $field->withNestedFields(fn (mixed $value, SourceLocation $fieldsAt): ?array => $this->fields($value, $owner, $fieldsAt, new EnclosingGroup($inherited, $agents), $problems));
+        $agents = $this->agents($field, $classification, $group);
+        $field = $field->withNestedFields(fn (mixed $value, SourceLocation $fieldsAt): ?array => $this->fields($value, $owner, $fieldsAt, new EnclosingGroup($agents), $problems));
 
         $type = $field->value('type');
         $fieldType = is_string($type) ? $this->fieldTypes->find($type) : null;
@@ -244,27 +247,15 @@ final readonly class BlueprintDocumentReader
     /**
      * Whether agents see the field: as its `agents` says, or else as its group, or for a top-level
      * field as its classification decides. A field whose classification could not be read is not
-     * seen. `agents: true` where the classification is sensitive is refused.
+     * seen.
      *
-     * @param  ?Classification  $classification  the field's classification, or the one it inherits from its group
+     * @param  ?Classification  $classification  the field's own classification, or null inside a group
      */
     private function agents(DocumentValues $field, ?Classification $classification, ?EnclosingGroup $group): bool
     {
         $default = $group instanceof EnclosingGroup ? $group->agents : ($classification?->seenByAgentsByDefault() ?? false);
-        $agents = $field->bool('agents', $default);
 
-        if ($agents && $classification instanceof Classification && ! $classification->mayBeSeenByAgents()) {
-            $field->problem(new GenerationProblem(GenerateErrorCode::SchemaInvalid, sprintf(
-                '%s: agents never see a field %s %s (PRD 12.2): it reaches an external model only under a data processing agreement or BAA, which a blueprint cannot declare. Remove agents: true.',
-                $field->at()->below('agents')->describe(),
-                $group instanceof EnclosingGroup ? 'inside a group classified' : 'classified',
-                $classification->value,
-            )));
-
-            return false;
-        }
-
-        return $agents;
+        return $field->bool('agents', $default);
     }
 
     /**

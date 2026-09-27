@@ -510,7 +510,7 @@ it('checks the field type of a field inside a group', function (): void {
         '    label: Credits',
         '    description: The people who made the article.',
         '    type: group',
-        '    classification: personal',
+        '    classification: confidential',
         '    fields:',
         '      - handle: portrait',
         '        label: Portrait',

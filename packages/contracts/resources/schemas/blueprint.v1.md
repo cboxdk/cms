@@ -75,11 +75,11 @@ A field in `fields` at the top of the document also has:
 
 | Key | Required | Value |
 |---|---|---|
-| `classification` | yes | `public`, `internal`, `confidential`, `personal` or `sensitive` (PRD 12.2). |
+| `classification` | yes | `public`, `internal` or `confidential` (PRD 12.2). `personal` and `sensitive` are not in this edition, see [Personal data](#personal-data). |
 | `filterable` | no | `true` or `false`, default `false`. |
 | `sortable` | no | `true` or `false`, default `false`. |
 
-A field that is `confidential`, `personal` or `sensitive` cannot be `filterable` or `sortable`. The types `long_text`, `rich_text` and `group` cannot have either key. A field inside a group has none of the three keys: it inherits the group's classification.
+A field that is `confidential` cannot be `filterable` or `sortable`. The types `long_text`, `rich_text` and `group` cannot have either key. A field inside a group has none of the three keys: it inherits the group's classification.
 
 ### Agents
 
@@ -90,10 +90,14 @@ Whether MCP tools and agents see a field follows its classification (PRD 12.2), 
 | `public` | seen | seen |
 | `internal` | hidden | seen; whether an external model receives it is the installation's configuration |
 | `confidential` | hidden | seen |
-| `personal` | hidden | seen |
-| `sensitive` | hidden | refused: a sensitive field reaches an external model only under a data processing agreement or BAA, which a blueprint cannot declare |
 
-`agents: false` hides any field. A field inside a group has the group's value unless it says otherwise, and a field inside a `sensitive` group can never say `agents: true`, at any depth. A field that agents see needs a `description`; a hidden one may leave it out.
+`agents: false` hides any field. A field inside a group has the group's value unless it says otherwise. A field that agents see needs a `description`; a hidden one may leave it out.
+
+### Personal data
+
+This edition refuses the classifications `personal` and `sensitive` (PRD 12.2). A field that holds personal data declares in its blueprint the purpose of the processing, its legal basis, its retention and its recipients, and the compiler refuses the field without them (PRD 12.14). It also declares which subject the data belongs to, so that the subject's key encrypts it and erasure reaches it (PRD 12.3, 12.4). `cms:ropa`, crypto-shredding and requests from data subjects read these declarations. This edition has no keys for them, so the schema refuses `classification: personal` and `classification: sensitive` at the field's `classification`, and `cms:generate` refuses them with `generate_schema_invalid`.
+
+Both classifications arrive as an addition to version 1, together with the keys they require. No valid file can use them now, so every valid file stays valid and keeps its meaning when they arrive.
 
 ## Core field types
 
@@ -254,7 +258,7 @@ fields:
         type: text
         max_length: 50
         agents: false
-    classification: personal
+    classification: confidential
 ```
 
 An extension that adds a field to another owner's type:

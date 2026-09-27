@@ -67,7 +67,7 @@ final class BlueprintFixtures
                 ], false, null, null), Classification::Public, filterable: true),
                 self::field($root, $fields->below(2), 'credits', new GroupOptions([
                     self::field($root, $fields->below(2, 'fields', 0), 'name', new TextOptions(null, 100, TextFormat::Plain), null),
-                ], new GroupRepeat(1, 10)), Classification::Personal),
+                ], new GroupRepeat(1, 10)), Classification::Confidential),
             ],
             $root->owner,
             $at,

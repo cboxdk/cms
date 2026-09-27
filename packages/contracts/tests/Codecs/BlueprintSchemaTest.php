@@ -164,8 +164,8 @@ function blueprintInvalidCases(): array
         'a public field without a description and without agents: false' => ['missing-description.yaml', '/fields/0', '(description)'],
         'a confidential field with agents: true and without a description' => ['missing-description-agents-true.yaml', '/fields/0', '(description)'],
         'a field without a description in a public group' => ['missing-description-in-group.yaml', '/fields/0/fields/0', '(description)'],
-        'agents: true on a sensitive field' => ['agents-on-sensitive.yaml', '/fields/0/agents', 'const'],
-        'agents: true on a field in a sensitive group' => ['agents-in-sensitive-group.yaml', '/fields/0/fields/0/agents', 'const'],
+        'a personal field, which cannot declare its purpose, legal basis, retention, recipients and subject' => ['classification-personal.yaml', '/fields/0/classification', 'enum'],
+        'a sensitive field, which cannot declare its purpose, legal basis, retention, recipients and subject' => ['classification-sensitive.yaml', '/fields/0/classification', 'enum'],
         'history: audit_only' => ['history-audit-only-underscore.yaml', '/capabilities/history', 'enum'],
         'an unquoted date in min' => ['unquoted-date.yaml', '/fields/1/min', 'must match the type: string'],
         'a datetime in min without its offset' => ['datetime-without-offset.yaml', '/fields/1/min', 'should match pattern'],
@@ -262,11 +262,9 @@ it('lets agents see a top-level field without agents only when it is public, so 
     'public' => ['public', true],
     'internal' => ['internal', false],
     'confidential' => ['confidential', false],
-    'personal' => ['personal', false],
-    'sensitive' => ['sensitive', false],
 ]);
 
-it('lets a blueprint opt an internal, confidential or personal field in with agents: true, and a public one out with agents: false', function (string $classification, string $agents, bool $seen): void {
+it('lets a blueprint opt an internal or confidential field in with agents: true, and a public one out with agents: false', function (string $classification, string $agents, bool $seen): void {
     $errors = blueprintFieldsErrors("  - handle: body\n    label: Body\n    type: text\n    classification: {$classification}\n    agents: {$agents}\n");
 
     expect(array_keys($errors))->toBe($seen ? ['/fields/0'] : []);
@@ -274,8 +272,7 @@ it('lets a blueprint opt an internal, confidential or personal field in with age
     'public, agents: false' => ['public', 'false', false],
     'internal, agents: true' => ['internal', 'true', true],
     'confidential, agents: true' => ['confidential', 'true', true],
-    'personal, agents: true' => ['personal', 'true', true],
-    'sensitive, agents: false' => ['sensitive', 'false', false],
+    'confidential, agents: false' => ['confidential', 'false', false],
 ]);
 
 it('gives the fields of a group the group\'s agents, so they need a description only when agents see them', function (string $group, string $nested, array $pointers): void {
@@ -289,21 +286,26 @@ it('gives the fields of a group the group\'s agents, so they need a description 
 })->with([
     'a public group' => ["    classification: public\n", '', ['/fields/0/fields/0', '/fields/0/fields/1/fields/0']],
     'a public group, the field hidden' => ["    classification: public\n", "        agents: false\n", ['/fields/0/fields/1/fields/0']],
-    'a personal group' => ["    classification: personal\n", '', []],
-    'a personal group, the field seen' => ["    classification: personal\n", "        agents: true\n", ['/fields/0/fields/0']],
+    'a confidential group' => ["    classification: confidential\n", '', []],
+    'a confidential group, the field seen' => ["    classification: confidential\n", "        agents: true\n", ['/fields/0/fields/0']],
     'a public group hidden from agents' => ["    classification: public\n    agents: false\n", '', []],
-    'a personal group agents see' => ["    classification: personal\n    agents: true\n", '', ['/fields/0/fields/0', '/fields/0/fields/1/fields/0']],
-    'a sensitive group, a field hidden' => ["    classification: sensitive\n", "        agents: false\n", []],
+    'a confidential group agents see' => ["    classification: confidential\n    agents: true\n", '', ['/fields/0/fields/0', '/fields/0/fields/1/fields/0']],
 ]);
 
-it('refuses agents: true at any depth below a sensitive field', function (): void {
-    $errors = blueprintFieldsErrors(
-        "  - handle: health\n    label: Health\n    type: group\n    classification: sensitive\n    fields:\n",
-        "      - handle: visits\n        label: Visits\n        type: group\n        fields:\n",
-        "          - handle: diagnosis\n            label: Diagnosis\n            description: The diagnosis.\n            type: text\n            agents: true\n",
-    );
+it('refuses personal and sensitive, whose purpose, legal basis, retention, recipients and subject this edition cannot declare (PRD 12.4, 12.14)', function (string $classification, string $agents): void {
+    $errors = blueprintFieldsErrors("  - handle: contact\n    label: Contact\n    description: How to reach the person.\n    type: text\n    classification: {$classification}\n{$agents}");
 
-    expect(array_keys($errors))->toBe(['/fields/0/fields/0/fields/0/agents']);
+    expect(array_keys($errors))->toBe(['/fields/0/classification'])
+        ->and(implode("\n", $errors['/fields/0/classification']))->toContain('enum');
+})->with([
+    'personal' => ['personal', ''],
+    'personal, agents: false' => ['personal', "    agents: false\n"],
+    'sensitive' => ['sensitive', ''],
+    'sensitive, agents: false' => ['sensitive', "    agents: false\n"],
+]);
+
+it('allows exactly the classifications public, internal and confidential in this edition', function (): void {
+    expect(data_get(blueprintSchema(), '$defs.classification.enum'))->toBe(['public', 'internal', 'confidential']);
 });
 
 it('has a case for every invalid fixture', function (): void {

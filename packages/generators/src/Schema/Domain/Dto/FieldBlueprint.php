@@ -20,7 +20,6 @@ use Cbox\Cms\Generators\Schema\Domain\SourceLocation;
  * schema v1: not required, not filterable, not sortable. Whether agents see a field the file does
  * not decide for follows its classification: a top-level field only when it is public
  * (Classification::seenByAgentsByDefault()), and a field inside a group when agents see the group.
- * Agents never see a sensitive field, nor a field inside a sensitive group.
  */
 #[Internal]
 final readonly class FieldBlueprint

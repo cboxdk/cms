@@ -14,4 +14,3 @@ fields:
     description: The diagnosis of the patient.
     type: text
     classification: sensitive
-    agents: true

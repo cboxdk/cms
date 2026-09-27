@@ -40,8 +40,8 @@
     "label": { "type": "string", "minLength": 1, "maxLength": 100 },
     "description": { "type": "string", "minLength": 1, "maxLength": 1000 },
     "classification": {
-      "description": "The data classification of the field (PRD 12.2). Fields inside a group inherit it.",
-      "enum": ["public", "internal", "confidential", "personal", "sensitive"]
+      "description": "The data classification of the field (PRD 12.2). Fields inside a group inherit it. This edition has no `personal` or `sensitive`: such a field must declare its purpose, legal basis, retention, recipients and subject (PRD 12.4, 12.14), which this edition cannot express, so it is refused until an addition to version 1 brings them with those keys.",
+      "enum": ["public", "internal", "confidential"]
     },
     "version": {
       "description": "The owner's version of the definition, which upcasters are keyed on (PRD 11.4, 11.12).",
@@ -106,17 +106,13 @@
         "allOf": [
           { "$ref": "#/$defs/field" },
           { "required": ["classification"] },
-          { "$ref": "#/$defs/topLevelAgents" },
-          {
-            "if": { "required": ["classification"], "properties": { "classification": { "const": "sensitive" } } },
-            "then": { "$ref": "#/$defs/neverSeenByAgents" }
-          }
+          { "$ref": "#/$defs/topLevelAgents" }
         ]
       }
     },
 
     "topLevelAgents": {
-      "description": "Whether MCP tools and agents see a top-level field (PRD 12.2, 14.5): as its `agents` says, or else only when it is public. An internal field reaches an external model only as the installation configures it, and a confidential or personal one not by default, so each is seen only with `agents: true`.",
+      "description": "Whether MCP tools and agents see a top-level field (PRD 12.2, 14.5): as its `agents` says, or else only when it is public. An internal field reaches an external model only as the installation configures it, and a confidential one not by default, so each is seen only with `agents: true`.",
       "if": { "required": ["agents"] },
       "then": {
         "if": { "properties": { "agents": { "const": true } } },
@@ -152,13 +148,6 @@
             "else": { "$ref": "#/$defs/hiddenFromAgents" }
           }
         }
-      }
-    },
-    "neverSeenByAgents": {
-      "description": "A sensitive field reaches an external model only under a data processing agreement or BAA, which a blueprint cannot declare (PRD 12.2), so neither it nor a field inside it may say `agents: true`.",
-      "properties": {
-        "agents": { "const": false },
-        "fields": { "items": { "$ref": "#/$defs/neverSeenByAgents" } }
       }
     },
 
@@ -221,16 +210,13 @@
         "filterable": { "type": "boolean", "default": false },
         "sortable": { "type": "boolean", "default": false },
         "agents": {
-          "description": "Whether MCP tools and agents see the field (PRD 12.2, 14.5). Without it, a top-level field is seen only when it is public, and a field inside a group as the group is. Never true for a sensitive field. A field agents see needs a description.",
+          "description": "Whether MCP tools and agents see the field (PRD 12.2, 14.5). Without it, a top-level field is seen only when it is public, and a field inside a group as the group is. A field agents see needs a description.",
           "type": "boolean"
         }
       },
       "allOf": [
         {
-          "if": {
-            "required": ["classification"],
-            "properties": { "classification": { "enum": ["confidential", "personal", "sensitive"] } }
-          },
+          "if": { "required": ["classification"], "properties": { "classification": { "const": "confidential" } } },
           "then": { "properties": { "filterable": { "const": false }, "sortable": { "const": false } } }
         },
         { "if": { "properties": { "type": { "const": "text" } } }, "then": { "$ref": "#/$defs/textOptions" } },
