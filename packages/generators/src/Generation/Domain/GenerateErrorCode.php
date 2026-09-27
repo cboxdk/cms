@@ -53,6 +53,13 @@ enum GenerateErrorCode: string
     case ExtensionOfOwnType = 'generate_extension_of_own_type';
 
     /**
+     * Two extension files of one owner for one type declare different versions. The fields one
+     * owner adds to one type are one namespace with one version, the extender's part of the type's
+     * composite version (PRD 11.2, 11.12 point 5), which upcasters are keyed on (PRD 11.4).
+     */
+    case ExtensionVersionMismatch = 'generate_extension_version_mismatch';
+
+    /**
      * A field's column name is longer than 63 bytes, Postgres' limit for an identifier. The column
      * of an extension field is `ext__<namespace>__<handle>` (PRD 11.12).
      */

@@ -80,11 +80,19 @@ function rulesType(string $typeId, string $handle, string ...$fields): string
  */
 function rulesExtension(string $extends, string ...$fields): string
 {
+    return rulesVersionedExtension(1, $extends, ...$fields);
+}
+
+/**
+ * An extension file of the given version with the given top-level fields.
+ */
+function rulesVersionedExtension(int $version, string $extends, string ...$fields): string
+{
     return <<<YAML
         blueprint: 1
         kind: extension
         extends: {$extends}
-        version: 1
+        version: {$version}
         fields:
 
         YAML.implode('', $fields);
@@ -316,6 +324,53 @@ it('rejects an extension of a type of its own owner with generate_extension_of_o
 
     expect($problem->message)->toContain('the type product in schema/product.yaml, which app owns')
         ->and($problem->message)->toContain('add the fields to schema/product.yaml');
+});
+
+it('rejects extension files of one owner for one type with different versions with generate_extension_version_mismatch', function (): void {
+    $base = SchemaFixtures::scratch();
+    $acme = rulesRoot($base, ['product.yaml' => rulesType(RULES_PRODUCT_ID, 'product', rulesField('name', 'text'))], 'acme', 'vendor/acme/shop/schema');
+    $app = rulesRoot($base, [
+        'a.yaml' => rulesVersionedExtension(1, RULES_PRODUCT_ID, rulesField('tax_code', 'text')),
+        'b.yaml' => rulesVersionedExtension(3, RULES_PRODUCT_ID, rulesField('note', 'text')),
+    ]);
+
+    $problem = rulesProblem(rulesFailure([$acme, $app]), GenerateErrorCode::ExtensionVersionMismatch, 'schema/b.yaml, /version');
+
+    expect($problem->message)->toContain('the version 3 differs from the version 1 of schema/a.yaml')
+        ->and($problem->message)->toContain('the fields app adds to the type '.RULES_PRODUCT_ID);
+});
+
+it('reports each extension file whose version differs from the first file of its owner for the type', function (): void {
+    $base = SchemaFixtures::scratch();
+    $acme = rulesRoot($base, ['product.yaml' => rulesType(RULES_PRODUCT_ID, 'product', rulesField('name', 'text'))], 'acme', 'vendor/acme/shop/schema');
+    $app = rulesRoot($base, [
+        'a.yaml' => rulesVersionedExtension(2, RULES_PRODUCT_ID, rulesField('tax_code', 'text')),
+        'b.yaml' => rulesVersionedExtension(2, RULES_PRODUCT_ID, rulesField('note', 'text')),
+        'c.yaml' => rulesVersionedExtension(1, RULES_PRODUCT_ID, rulesField('colour', 'text')),
+        'd.yaml' => rulesVersionedExtension(3, RULES_PRODUCT_ID, rulesField('size', 'text')),
+    ]);
+
+    $failed = rulesFailure([$acme, $app]);
+
+    expect($failed->codes())->toBe([GenerateErrorCode::ExtensionVersionMismatch, GenerateErrorCode::ExtensionVersionMismatch])
+        ->and($failed->problems[0]->message)->toStartWith('schema/c.yaml, /version: the version 1 differs from the version 2 of schema/a.yaml')
+        ->and($failed->problems[1]->message)->toStartWith('schema/d.yaml, /version: the version 3 differs from the version 2 of schema/a.yaml');
+});
+
+it('reads extension files of one owner for one type with the same version, and other owners\' extensions of the type at other versions', function (): void {
+    $base = SchemaFixtures::scratch();
+    $acme = rulesRoot($base, [
+        'product.yaml' => rulesType(RULES_PRODUCT_ID, 'product', rulesField('name', 'text')),
+        'article_tax.yaml' => rulesVersionedExtension(5, RULES_ARTICLE_ID, rulesField('tax_code', 'text')),
+    ], 'acme', 'vendor/acme/shop/schema');
+    $blog = rulesRoot($base, ['product_teaser.yaml' => rulesVersionedExtension(1, RULES_PRODUCT_ID, rulesField('teaser', 'text'))], 'blog', 'vendor/acme/blog/schema');
+    $app = rulesRoot($base, [
+        'article.yaml' => rulesType(RULES_ARTICLE_ID, 'article', rulesField('title', 'text')),
+        'a.yaml' => rulesVersionedExtension(3, RULES_PRODUCT_ID, rulesField('tax_code', 'text')),
+        'b.yaml' => rulesVersionedExtension(3, RULES_PRODUCT_ID, rulesField('note', 'text')),
+    ]);
+
+    expect(rulesRead([$acme, $blog, $app])->extensions)->toHaveCount(4);
 });
 
 it('accepts an extension of a type of another owner, also when the extender owns a type with the same handle', function (): void {

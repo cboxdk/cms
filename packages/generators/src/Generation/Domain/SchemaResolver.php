@@ -27,6 +27,8 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
  * - an extension extends a type that a schema root defines (generate_unknown_extends_target);
  * - an extension extends a type of another owner, because a type has one owner and only others
  *   extend it (generate_extension_of_own_type);
+ * - the extension files of one owner for one type declare the same version, the extender's part
+ *   of the type's composite version (generate_extension_version_mismatch);
  * - a field name is used once in its type: a handle once among the owner's fields, and an
  *   extension field once in its namespace (generate_duplicate_field_handle);
  * - the column name of an extension field, `ext__<namespace>__<handle>`, has at most 63 bytes, the
@@ -100,8 +102,25 @@ final readonly class SchemaResolver
             }
         }
 
+        // The first extension file of each extended type and extender, whose version the others must have.
+        $firsts = [];
+
         foreach ($blueprints->extensions as $extension) {
             $id = $extension->extends->toString();
+            $first = $firsts[$id.'/'.$extension->owner->value] ??= $extension;
+
+            if ($first->version !== $extension->version) {
+                $problems[] = new GenerationProblem(GenerateErrorCode::ExtensionVersionMismatch, sprintf(
+                    '%s is the version %d of the fields %s adds to the type %s, and %s is the version %d. The fields one owner adds to one type have one version, its part of the type\'s composite version: give every extension file of %s for the type the same version.',
+                    $extension->location->below('version')->describe(),
+                    $extension->version,
+                    $extension->owner->value,
+                    isset($byId[$id]) ? '"'.$byId[$id]->handle->value.'"' : $id,
+                    $first->location->below('version')->describe(),
+                    $first->version,
+                    $extension->owner->value,
+                ));
+            }
 
             if (! isset($byId[$id])) {
                 $problems[] = new GenerationProblem(GenerateErrorCode::UnknownExtendsTarget, sprintf(

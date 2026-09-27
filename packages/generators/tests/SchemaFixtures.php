@@ -114,12 +114,13 @@ final class SchemaFixtures
      * An extension in `<path>` of the root that adds fields to the type with the given id.
      *
      * @param  array<string, string>  $fields  field handle to field type
+     * @param  int  $version  the extender's version of the definition
      */
-    public static function extension(SchemaRoot $root, string $path, TypeId $extends, array $fields): ExtensionBlueprint
+    public static function extension(SchemaRoot $root, string $path, TypeId $extends, array $fields, int $version = 1): ExtensionBlueprint
     {
         $at = new SourceLocation($root->file($path), '');
 
-        return new ExtensionBlueprint($extends, 1, self::fields($root, $at, $fields), $root->owner, $at);
+        return new ExtensionBlueprint($extends, $version, self::fields($root, $at, $fields), $root->owner, $at);
     }
 
     /**

@@ -38,7 +38,7 @@ An `extension` adds fields to a type that someone else owns (PRD 11.12). The fie
 | Key | Required | Value |
 |---|---|---|
 | `extends` | yes | The `type_id` of the type it extends. |
-| `version` | yes | An integer from 1. |
+| `version` | yes | An integer from 1: the extender's part of the type's composite version (PRD 11.2). Every extension file of one owner for one type has the same version. |
 | `fields` | yes | 1 to 200 fields. |
 
 No other keys are allowed in either kind.
@@ -112,6 +112,7 @@ JSON Schema checks one file at a time and cannot compare values with each other.
 | The options of a `select` field have different values. | `generate_duplicate_select_value` |
 | `extends` is the `type_id` of a type in a blueprint file below the schema roots. | `generate_unknown_extends_target` |
 | `extends` is the `type_id` of a type of another owner. A type has one owner and only others extend it, so an owner adds fields to its own type in the type file. | `generate_extension_of_own_type` |
+| The extension files of one owner for one type have the same `version`. Their fields are one namespace, and its version is the extender's part of the type's composite version, which upcasters are keyed on. | `generate_extension_version_mismatch` |
 | A column name has at most 63 bytes. A field that an extension adds has the column `ext__<namespace>__<handle>`, where the namespace is the extender's, `app` for the application, so its handle has at most 56 bytes less the length of the namespace: 53 for `app`. | `generate_column_name_too_long` |
 | `min` is at most `max`. Decimals are compared by value, dates by day and times as instants. | `generate_min_above_max` |
 | `min_length` is at most `max_length`, or at most the default `max_length` when the field has none. | `generate_min_length_above_max_length` |

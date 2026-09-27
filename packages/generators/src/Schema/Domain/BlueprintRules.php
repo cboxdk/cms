@@ -29,6 +29,10 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
  *   `max_length`, `min_items` at most `max_items`, and a decimal's `scale` at most its `precision`.
  * - An extension extends a type that a blueprint file defines, and one that another owner owns: a
  *   type has one owner and only others extend it (PRD 11.12, 13.3).
+ * - The extension files one owner writes for one type declare the same `version`: their fields are
+ *   one namespace, whose version is the extender's part of the type's composite version (PRD 11.2,
+ *   11.12 point 5), and upcasters are keyed on it (PRD 11.4). Each file whose version differs from
+ *   the first file of the namespace is reported and names that file.
  * - A column name has at most 63 bytes, the extension field's `ext__<namespace>__<handle>` too.
  *
  * The rules run on the blueprints that were read. When a file could not be read, the type it
@@ -110,6 +114,8 @@ final readonly class BlueprintRules
 
         /** @var array<string, array<string, FieldBlueprint>> $namespaces the fields seen by extended type and extender, by handle */
         $namespaces = [];
+        /** @var array<string, ExtensionBlueprint> $firsts the first extension file of each extended type and extender */
+        $firsts = [];
 
         foreach ($blueprints->extensions as $extension) {
             $extends = $extension->extends->toString();
@@ -134,6 +140,19 @@ final readonly class BlueprintRules
             }
 
             $namespace = $extends.'/'.$extension->owner->value;
+            $first = $firsts[$namespace] ??= $extension;
+
+            if ($first->version !== $extension->version) {
+                $problems[] = $this->problem(GenerateErrorCode::ExtensionVersionMismatch, $extension->location->below('version'), sprintf(
+                    'the version %d differs from the version %d of %s, which also holds %s. The fields one owner adds to one type have one version, its part of the type\'s composite version: give every extension file of %s for the type the same version.',
+                    $extension->version,
+                    $first->version,
+                    $first->location->file,
+                    $this->extensionNamespace($extension),
+                    $extension->owner->value,
+                ));
+            }
+
             $namespaces[$namespace] ??= [];
             $this->fields($extension->fields, $this->extensionNamespace($extension), $namespaces[$namespace], $problems);
 

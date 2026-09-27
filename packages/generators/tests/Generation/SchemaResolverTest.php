@@ -158,6 +158,35 @@ it('refuses an extension of a type of its own owner with generate_extension_of_o
         ->and($failed->problems[0]->message)->toBe('schema/page_extra.yaml, /extends extends the type "page" in schema/page.yaml, which app owns. An owner adds fields to its own type in the type file, not with an extension: add the fields to schema/page.yaml.');
 });
 
+it('refuses extension files of one owner for one type with different versions with generate_extension_version_mismatch', function (): void {
+    $app = SchemaFixtures::root();
+    $acme = SchemaFixtures::root('acme', 'vendor/acme/shop/schema');
+    $product = SchemaFixtures::type($acme, 'product', ['title' => 'text']);
+
+    $failed = resolveFails([$product], [
+        SchemaFixtures::extension($app, 'shop/a.yaml', $product->typeId, ['tax_code' => 'text'], 1),
+        SchemaFixtures::extension($app, 'shop/b.yaml', $product->typeId, ['note' => 'text'], 3),
+    ]);
+
+    expect($failed->codes())->toBe([GenerateErrorCode::ExtensionVersionMismatch])
+        ->and($failed->problems[0]->message)->toBe('schema/shop/b.yaml, /version is the version 3 of the fields app adds to the type "product", and schema/shop/a.yaml, /version is the version 1. The fields one owner adds to one type have one version, its part of the type\'s composite version: give every extension file of app for the type the same version.');
+});
+
+it('resolves extension files of one owner for one type with the same version, beside another owner\'s extension at another version', function (): void {
+    $app = SchemaFixtures::root();
+    $acme = SchemaFixtures::root('acme', 'vendor/acme/shop/schema');
+    $blog = SchemaFixtures::root('blog', 'vendor/acme/blog/schema');
+    $product = SchemaFixtures::type($acme, 'product', ['title' => 'text']);
+
+    $schema = SchemaResolver::resolve(new Blueprints([$product], [
+        SchemaFixtures::extension($app, 'shop/a.yaml', $product->typeId, ['tax_code' => 'text'], 3),
+        SchemaFixtures::extension($app, 'shop/b.yaml', $product->typeId, ['note' => 'text'], 3),
+        SchemaFixtures::extension($blog, 'product.yaml', $product->typeId, ['teaser' => 'text'], 1),
+    ]));
+
+    expect(fieldNames($schema))->toBe(['product' => ['ext__app__note', 'ext__app__tax_code', 'ext__blog__teaser', 'title']]);
+});
+
 it('refuses a field name twice in one type with generate_duplicate_field_handle', function (): void {
     $app = SchemaFixtures::root();
     $acme = SchemaFixtures::root('acme', 'vendor/acme/shop/schema');
