@@ -12,7 +12,10 @@
 # services:down refuses, because the services are shared.
 #
 # Host ports: Postgres 54317, Valkey 63797. They are fixed so the tests on the host
-# (phpunit.xml) and in the php container reach the same services.
+# (phpunit.xml) and in the php container reach the same services. They bind to 127.0.0.1 only:
+# the credentials below are fixed, Valkey has no password, and a port without a host address is
+# published on every interface, which Docker Desktop forwards to the LAN. The php container
+# reaches the services on the compose network. ComposePortsTest fails on a port without it.
 #
 # Postgres and Valkey run on the cboxdk database images (PROGRESS.md, decisions), with
 # cbox-init as PID 1. Its readiness file, /tmp/cbox-ready, is the health check of both: the
@@ -84,7 +87,7 @@ services:
     # of 10 s would SIGKILL the shutdown checkpoint (db-baseimages README).
     stop_grace_period: 130s
     ports:
-      - "54317:5432"
+      - "127.0.0.1:54317:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -122,7 +125,7 @@ services:
     # default of 10 s would SIGKILL the save.
     stop_grace_period: 40s
     ports:
-      - "63797:6379"
+      - "127.0.0.1:63797:6379"
     volumes:
       - valkey-data:/data
     healthcheck:

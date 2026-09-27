@@ -53,7 +53,7 @@ it('gives Postgres its data mount, the conf.d drop-in, the init script and 130 s
             './docker/postgres/initdb.d:/docker-entrypoint-initdb.d:ro',
             './docker/postgres/sql:/cms-init:ro',
         ])
-        ->and(CiFiles::at($postgres, 'ports'))->toBe(['54317:5432']);
+        ->and(CiFiles::at($postgres, 'ports'))->toBe(['127.0.0.1:54317:5432']);
 });
 
 it('sets the server settings of the operating contract in docker/postgres/conf.d/cms.conf, not on the command line', function (): void {
@@ -80,7 +80,7 @@ it('gives Valkey its data mount and the time cbox-init needs to save before it s
 
     expect(CiFiles::at($valkey, 'volumes'))->toBe(['valkey-data:/data'])
         ->and(CiFiles::at($valkey, 'stop_grace_period'))->toBe('40s')
-        ->and(CiFiles::at($valkey, 'ports'))->toBe(['63797:6379']);
+        ->and(CiFiles::at($valkey, 'ports'))->toBe(['127.0.0.1:63797:6379']);
 });
 
 it('runs the php container as the host user that composer services:up exports, never as root', function (): void {
