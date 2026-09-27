@@ -16,4 +16,7 @@ enum PartitionChangeKind: string
     case Detached = 'detached';
     case Finalized = 'finalized';
     case Dropped = 'dropped';
+
+    /** A table with a managed name that was not a partition was attached again, because its span is wanted and not past retention. */
+    case Reattached = 'reattached';
 }

@@ -6,9 +6,13 @@ namespace Cbox\Cms\Core\Partitions\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use LogicException;
+use Throwable;
 
 /**
- * A table in the partition policy cannot be managed as it is in the database. Nothing was changed.
+ * A table in the partition policy cannot be managed as it is in the database. The run stops: a
+ * table that is missing, not partitioned by range or has a DEFAULT partition stops it before it
+ * changes anything, and a detached partition that cannot be attached again stops it at that
+ * partition, with the changes made before it kept.
  */
 #[Experimental]
 final class UnmanageableTable extends LogicException
@@ -48,5 +52,24 @@ final class UnmanageableTable extends LogicException
             'The connection [%s] is inside a transaction. Partition maintenance runs DETACH PARTITION CONCURRENTLY, which Postgres runs only outside a transaction.',
             $connection,
         ));
+    }
+
+    /**
+     * A table with the managed name of a partition the run needs is not a partition, and Postgres
+     * refused to attach it for the partition's span: its columns or constraints differ from the
+     * parent's, or it holds rows outside the span.
+     *
+     * @param  Throwable  $refusal  Postgres's error from the attach
+     */
+    public static function detachedPartition(string $table, string $partition, string $from, string $to, Throwable $refusal): self
+    {
+        return new self(sprintf(
+            'The table "%s" has the managed name of a partition of "%s" that the run needs, but it is not a partition, and attaching it for the span from %s to %s failed. Postgres said: %s. Make it fit the span and the parent, or rename it or drop it, and run partition maintenance again. Until then a write in the span fails.',
+            $partition,
+            $table,
+            $from,
+            $to,
+            $refusal->getMessage(),
+        ), 0, $refusal);
     }
 }

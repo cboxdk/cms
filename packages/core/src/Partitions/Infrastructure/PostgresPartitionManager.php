@@ -22,6 +22,7 @@ use Closure;
 use DateTimeImmutable;
 use Illuminate\Database\Connection;
 use Illuminate\Database\ConnectionResolverInterface;
+use Illuminate\Database\QueryException;
 use LogicException;
 
 /**
@@ -39,6 +40,10 @@ use LogicException;
  * waits for the transactions that use the parent, within the lock timeout, so a busy parent makes
  * it give up before the detach starts rather than halfway. A detach that was interrupted halfway
  * anyway is finalized, and a detached table that was not dropped is dropped, on the next run.
+ * A table with a managed name that is not a partition and is not past retention, because it was
+ * detached by hand or by a run whose Clock was ahead, is attached again when a run needs its span,
+ * and a run that needs the span of one left pending detach finalizes the detach and attaches it
+ * again. A write in the span fails until then, so neither is skipped as if it were attached.
  *
  * Every step runs under LockedDdl: lock_timeout and a bounded retry with backoff. One run at a
  * time holds a session advisory lock on the owner connection. A run creates the partitions of
@@ -154,25 +159,45 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
     }
 
     /**
+     * Creates each wanted partition that is missing. A wanted partition whose name belongs to a
+     * table that is not a partition, detached by hand or by a run whose Clock was ahead and not
+     * dropped, is attached again rather than skipped, and one left pending detach is finalized
+     * first: a write in its span fails until it is attached.
+     *
      * @param  list<Partition>  $wanted
+     *
+     * @throws UnmanageableTable when Postgres refuses to attach such a table for its span
      */
     private function create(Run $run, CatalogTable $table, array $wanted): void
     {
-        $existing = array_map(
-            static fn (CatalogPartition $found): string => $found->partition->name,
-            $run->catalog->partitions($table),
-        );
+        $states = [];
+
+        foreach ($run->catalog->partitions($table) as $found) {
+            $states[$found->partition->name] = $found->state;
+        }
 
         foreach ($wanted as $partition) {
-            if (in_array($partition->name, $existing, true)) {
+            $state = $states[$partition->name] ?? null;
+
+            if ($state === PartitionState::Attached) {
                 continue;
             }
 
-            $run->ddl->run(DdlStep::Create, $table->table->name, $partition->name, function () use ($run, $table, $partition): void {
-                $this->createPartition($run->connection, $table, $partition);
-            });
+            if ($state === null) {
+                $run->ddl->run(DdlStep::Create, $table->table->name, $partition->name, function () use ($run, $table, $partition): void {
+                    $this->createPartition($run->connection, $table, $partition);
+                });
 
-            $run->record($table, $partition, PartitionChangeKind::Created);
+                $run->record($table, $partition, PartitionChangeKind::Created);
+
+                continue;
+            }
+
+            if ($state === PartitionState::DetachPending) {
+                $this->detach($run, $table, $partition);
+            }
+
+            $this->reattach($run, $table, $partition);
         }
     }
 
@@ -195,6 +220,49 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
         if ($table->forceRowSecurity) {
             $connection->statement(sprintf('alter table %s force row level security', $name));
         }
+
+        new TablePrivileges($connection)->copy($table->qualifiedName(), $name);
+
+        $connection->statement(sprintf(
+            'alter table %s attach partition %s for values from (%s) to (%s)',
+            $table->qualifiedName(),
+            $name,
+            Sql::literal($partition->from()),
+            Sql::literal($partition->to()),
+        ));
+
+        $connection->commit();
+    }
+
+    /**
+     * Attaches a table with the partition's managed name that is not a partition, for the
+     * partition's span, with the parent's row security and grants, in one transaction. Postgres
+     * checks that its columns and constraints match the parent's and that its rows lie in the
+     * span; when they do not, nothing changes and the operator decides what the table is.
+     *
+     * @throws UnmanageableTable when Postgres refuses the attach
+     */
+    private function reattach(Run $run, CatalogTable $table, Partition $partition): void
+    {
+        try {
+            $run->ddl->run(DdlStep::Attach, $table->table->name, $partition->name, function () use ($run, $table, $partition): void {
+                $this->attachPartition($run->connection, $table, $partition);
+            });
+        } catch (QueryException $refused) {
+            throw UnmanageableTable::detachedPartition($table->table->name, $partition->name, $partition->from(), $partition->to(), $refused);
+        }
+
+        $run->record($table, $partition, PartitionChangeKind::Reattached);
+    }
+
+    private function attachPartition(Connection $connection, CatalogTable $table, Partition $partition): void
+    {
+        $name = $table->qualifiedPartition($partition->name);
+
+        $connection->beginTransaction();
+
+        $connection->statement(sprintf('alter table %s %s row level security', $name, $table->rowSecurity ? 'enable' : 'disable'));
+        $connection->statement(sprintf('alter table %s %s row level security', $name, $table->forceRowSecurity ? 'force' : 'no force'));
 
         new TablePrivileges($connection)->copy($table->qualifiedName(), $name);
 

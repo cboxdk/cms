@@ -35,6 +35,7 @@ final readonly class LockedDdl
      * @param  Closure(): void  $work
      *
      * @throws LockTimeout
+     * @throws QueryException when a statement fails for another reason than a lock wait
      */
     public function run(DdlStep $step, ?string $table, ?string $partition, Closure $work): void
     {

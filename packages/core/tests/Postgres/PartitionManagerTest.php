@@ -10,6 +10,7 @@ use Cbox\Cms\Core\Partitions\Actions\MaintainPartitions;
 use Cbox\Cms\Core\Partitions\Adapter\MissingPartitionMapper;
 use Cbox\Cms\Core\Partitions\Domain\DdlStep;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionRange;
+use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionReport;
 use Cbox\Cms\Core\Partitions\Domain\Dto\TableRunway;
 use Cbox\Cms\Core\Partitions\Domain\LockTimeout;
 use Cbox\Cms\Core\Partitions\Domain\OwnerConnectionRequired;
@@ -444,6 +445,109 @@ it('drops an expired partition that was detached but not dropped', function (): 
     expect($report->partitions(PartitionChangeKind::Detached))->toBe([])
         ->and($report->partitions(PartitionChangeKind::Dropped))->toBe(['partition_scratch_p20260101'])
         ->and(PartitionScratch::exists('partition_scratch_p20260101'))->toBeFalse();
+});
+
+it('attaches a partition in the runway again that was detached before it expired, with its rows and the parent\'s grants and row security', function (): void {
+    $owner = PartitionScratch::owner();
+    $owner->statement('revoke all on partition_scratch from cms_app');
+    $owner->statement('grant select, insert on partition_scratch to cms_app');
+    $owner->statement('alter table partition_scratch enable row level security');
+    $owner->statement('create policy scratch_all on partition_scratch using (true) with check (true)');
+    PartitionScratch::clockAt('2026-03-10T15:00:00Z');
+    PartitionScratch::manage([PartitionScratch::UUID_TABLE => PartitionScratch::daily()]);
+    app(MaintainPartitions::class)->maintain();
+
+    $kept = idAt('2026-03-11T12:00:00Z');
+    PartitionScratch::app()->insert('insert into partition_scratch (id, note) values (?, ?)', [$kept, 'kept']);
+
+    // Detached by hand, and changed while it was a table of its own.
+    $owner->statement('alter table partition_scratch detach partition partition_scratch_p20260311');
+    $owner->statement('grant delete on partition_scratch_p20260311 to cms_app');
+    $owner->statement('alter table partition_scratch_p20260311 disable row level security');
+
+    $missing = thrownBy(static fn (): bool => PartitionScratch::app()->insert('insert into partition_scratch (id) values (?)', [idAt('2026-03-11T13:00:00Z')]));
+
+    expect($missing)->toBeInstanceOf(QueryException::class)
+        ->and($missing->getCode())->toBe('23514');
+
+    $report = app(MaintainPartitions::class)->maintain();
+
+    $grants = static fn (string $table): array => ReceiptTables::texts(
+        $owner,
+        "select case when a.grantee = 0 then 'public' else pg_get_userbyid(a.grantee)::text end || ' ' || a.privilege_type as value from pg_class c cross join lateral aclexplode(c.relacl) a where c.oid = ?::regclass and a.grantee <> c.relowner order by 1",
+        [$table],
+    );
+
+    expect($report->partitions(PartitionChangeKind::Reattached))->toBe(['partition_scratch_p20260311'])
+        ->and($report->changes)->toHaveCount(1)
+        ->and(PartitionScratch::partitions(PartitionScratch::UUID_TABLE))->toBe(dailyNames('2026-03-10', 15))
+        ->and(PartitionScratch::bounds('partition_scratch_p20260311'))
+        ->toBe(sprintf("FOR VALUES FROM ('%s') TO ('%s')", idAt('2026-03-11T00:00:00Z'), idAt('2026-03-12T00:00:00Z')))
+        ->and($report->runways[0]->coveredUntil?->format(DATE_ATOM))->toBe('2026-03-25T00:00:00+00:00')
+        ->and(PartitionScratch::app()->scalar('select note from partition_scratch where id = ?', [$kept]))->toBe('kept')
+        ->and($grants('partition_scratch_p20260311'))->toBe(['cms_app INSERT', 'cms_app SELECT'])
+        ->and($owner->selectOne("select relrowsecurity as rls, relforcerowsecurity as forced from pg_class where oid = 'partition_scratch_p20260311'::regclass"))
+        ->toEqual((object) ['rls' => true, 'forced' => false]);
+
+    PartitionScratch::app()->insert('insert into partition_scratch (id) values (?)', [idAt('2026-03-11T13:00:00Z')]);
+
+    expect(PartitionScratch::partitionOfId(idAt('2026-03-11T13:00:00Z')))->toBe('partition_scratch_p20260311')
+        ->and(app(MaintainPartitions::class)->maintain()->changes)->toBe([]);
+});
+
+it('finalizes a detach of a partition in the runway that an earlier run left pending, then attaches it again', function (): void {
+    PartitionScratch::clockAt('2026-03-10T15:00:00Z');
+    PartitionScratch::manage([PartitionScratch::UUID_TABLE => PartitionScratch::daily()]);
+    app(MaintainPartitions::class)->maintain();
+
+    $child = holdLock('access share');
+
+    $owner = PartitionScratch::owner();
+    $owner->statement("set lock_timeout = '200ms'");
+    $interrupted = thrownBy(static fn (): bool => $owner->statement('alter table partition_scratch detach partition partition_scratch_p20260311 concurrently'));
+    $owner->statement('reset lock_timeout');
+    $child->stop();
+
+    $missing = thrownBy(static fn (): bool => PartitionScratch::app()->insert('insert into partition_scratch (id) values (?)', [idAt('2026-03-11T13:00:00Z')]));
+
+    expect($interrupted)->toBeInstanceOf(QueryException::class)
+        ->and(PartitionScratch::pendingDetach(PartitionScratch::UUID_TABLE))->toBe(['partition_scratch_p20260311'])
+        ->and($missing)->toBeInstanceOf(QueryException::class)
+        ->and($missing->getCode())->toBe('23514');
+
+    $report = app(MaintainPartitions::class)->maintain();
+
+    expect($report->partitions(PartitionChangeKind::Finalized))->toBe(['partition_scratch_p20260311'])
+        ->and($report->partitions(PartitionChangeKind::Reattached))->toBe(['partition_scratch_p20260311'])
+        ->and($report->changes)->toHaveCount(2)
+        ->and(PartitionScratch::pendingDetach(PartitionScratch::UUID_TABLE))->toBe([])
+        ->and(PartitionScratch::partitions(PartitionScratch::UUID_TABLE))->toBe(dailyNames('2026-03-10', 15))
+        ->and($report->runways[0]->coveredUntil?->format(DATE_ATOM))->toBe('2026-03-25T00:00:00+00:00');
+
+    PartitionScratch::app()->insert('insert into partition_scratch (id) values (?)', [idAt('2026-03-11T13:00:00Z')]);
+
+    expect(PartitionScratch::partitionOfId(idAt('2026-03-11T13:00:00Z')))->toBe('partition_scratch_p20260311');
+});
+
+it('refuses a detached table with a managed name in the runway that its span cannot take, naming it, and leaves it as it is', function (): void {
+    PartitionScratch::clockAt('2026-03-10T15:00:00Z');
+    PartitionScratch::manage([PartitionScratch::UUID_TABLE => PartitionScratch::daily()]);
+    app(MaintainPartitions::class)->maintain();
+
+    $owner = PartitionScratch::owner();
+    $owner->statement('alter table partition_scratch detach partition partition_scratch_p20260311');
+    $owner->insert('insert into partition_scratch_p20260311 (id) values (?)', [idAt('2026-03-12T01:00:00Z')]);
+
+    $refused = thrownBy(static fn (): PartitionReport => app(MaintainPartitions::class)->maintain());
+
+    expect($refused)->toBeInstanceOf(UnmanageableTable::class)
+        ->and($refused->getMessage())->toContain('"partition_scratch_p20260311"')->toContain('"partition_scratch"')
+        ->and($refused->getPrevious())->toBeInstanceOf(QueryException::class)
+        ->and($refused->getPrevious()?->getCode())->toBe('23514')
+        ->and(PartitionScratch::exists('partition_scratch_p20260311'))->toBeTrue()
+        ->and(PartitionScratch::isPartition('partition_scratch_p20260311'))->toBeFalse()
+        ->and($owner->scalar('select count(*) from partition_scratch_p20260311'))->toBe(1)
+        ->and(PartitionScratch::partitions(PartitionScratch::UUID_TABLE))->not->toContain('partition_scratch_p20260311');
 });
 
 it('refuses to run on the app connection, before it changes anything', function (): void {
