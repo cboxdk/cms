@@ -8,6 +8,9 @@ use Cbox\Cms\Testkit\Phpstan\FunctionCallablesRule;
 use Cbox\Cms\Testkit\Phpstan\InternalClassConstantUsageExtension;
 use Cbox\Cms\Testkit\Phpstan\InternalClassNameUsageExtension;
 use Cbox\Cms\Testkit\Phpstan\InternalMethodUsageExtension;
+use Cbox\Cms\Testkit\Phpstan\InternalUseCollector;
+use Cbox\Cms\Testkit\Phpstan\InternalUseIgnoreErrorExtension;
+use Cbox\Cms\Testkit\Phpstan\InternalUseRule;
 use Cbox\Cms\Testkit\Phpstan\LayerScope;
 use Cbox\Cms\Testkit\Phpstan\MethodCallablesRule;
 use Cbox\Cms\Testkit\Phpstan\PhpstanIgnoreCollector;
@@ -41,23 +44,63 @@ use Cbox\Cms\Tests\Support\PhpstanAnalysis;
  * Analyses one probe file with the monorepo configuration, from a temporary directory.
  * Where the file lives does not matter to the rules; its namespace does.
  */
-function analyseProbe(string $code): PhpstanAnalysis
+function analyseProbe(string $code, ?string $parameters = null): PhpstanAnalysis
 {
     $directory = sys_get_temp_dir().'/cms-layer-probe-'.bin2hex(random_bytes(4));
     mkdir($directory);
     $probe = $directory.'/Probe.php';
+    $configuration = $directory.'/phpstan.neon';
 
     try {
         file_put_contents($probe, $code);
 
-        return Phpstan::analyse($probe);
+        if ($parameters === null) {
+            return Phpstan::analyse($probe);
+        }
+
+        // An addon's configuration: the shared one, through the monorepo's, and its own
+        // parameters. %currentWorkingDirectory% is the monorepo root, where PHPStan runs.
+        file_put_contents($configuration, "includes:\n    - %currentWorkingDirectory%/phpstan.neon\n\nparameters:\n".$parameters);
+
+        return Phpstan::analyse($probe, $configuration);
     } finally {
-        if (is_file($probe)) {
-            unlink($probe);
+        foreach ([$probe, $configuration] as $file) {
+            if (is_file($file)) {
+                unlink($file);
+            }
         }
 
         rmdir($directory);
     }
+}
+
+/**
+ * An addon class in the given namespace that calls a method of LayerScope, an #[Internal] class
+ * of the testkit, on the line with the comment, or below it when the comment has a line of its
+ * own. A probe with a comment of its own has no trailing comment.
+ */
+function internalUseProbe(string $namespace, string $trailing = '', string $above = ''): string
+{
+    $above = $above === '' ? '' : "\n        {$above}";
+    $trailing = $trailing === '' ? '' : " {$trailing}";
+
+    return <<<PHP
+        <?php
+
+        declare(strict_types=1);
+
+        namespace {$namespace};
+
+        use Cbox\\Cms\\Testkit\\Phpstan\\LayerScope;
+
+        final readonly class Probe
+        {
+            public function f(): bool
+            {{$above}
+                return LayerScope::isTestCode('Acme');{$trailing}
+            }
+        }
+        PHP;
 }
 
 it('registers every rule, the collector and the extensions in the testkit neon, which the root includes', function (): void {
@@ -81,9 +124,12 @@ it('registers every rule, the collector and the extensions in the testkit neon, 
         FunctionCallablesRule::class,
         MethodCallablesRule::class,
         StaticMethodCallablesRule::class,
+        InternalUseRule::class,
     ];
     $services = [
         PhpstanIgnoreCollector::class => 'phpstan.collector',
+        InternalUseCollector::class => 'phpstan.collector',
+        InternalUseIgnoreErrorExtension::class => 'phpstan.ignoreErrorExtension',
         InternalClassNameUsageExtension::class => 'phpstan.restrictedClassNameUsageExtension',
         InternalMethodUsageExtension::class => 'phpstan.restrictedMethodUsageExtension',
         InternalClassConstantUsageExtension::class => 'phpstan.restrictedClassConstantUsageExtension',
@@ -430,6 +476,40 @@ it('fails the analysis when an addon uses an internal class of the testkit, and 
 })->with([
     'an addon' => ['Acme\Blog', false],
     'the core' => ['Cbox\Cms\Core\Entries', true],
+]);
+
+it('hides an internal use in an addon Adapter only with an ignore comment that names cboxCms.internalUse', function (string $trailing, string $above, array $identifiers): void {
+    $analysis = analyseProbe(internalUseProbe('Acme\Blog\Adapter', $trailing, $above));
+
+    expect($analysis->exitCode === 0)->toBe($identifiers === [])
+        ->and($analysis->identifiers)->toEqualCanonicalizing($identifiers);
+})->with([
+    'the identifier at the end of the line, with a reason' => ['// @phpstan-ignore cboxCms.internalUse (no stable API yet)', '', []],
+    'the identifier on the line above' => ['', '// @phpstan-ignore cboxCms.internalUse', []],
+    '@phpstan-ignore-line' => ['// @phpstan-ignore-line', '', ['cboxCms.internalUse', 'ignore.unmatchedLine']],
+    '@phpstan-ignore-next-line' => ['', '// @phpstan-ignore-next-line', ['cboxCms.internalUse', 'ignore.unmatchedLine']],
+    '@phpstan-ignore without an identifier' => ['// @phpstan-ignore', '', ['cboxCms.internalUse', 'ignore.parseError']],
+    '@phpstan-ignore for another identifier' => ['// @phpstan-ignore staticMethod.internal', '', ['cboxCms.internalUse', 'ignore.unmatchedIdentifier']],
+]);
+
+it('reports the ignore comment that hides an internal use outside Boundary and Adapter', function (): void {
+    $analysis = analyseProbe(internalUseProbe('Acme\Blog\Domain', '// @phpstan-ignore cboxCms.internalUse'));
+
+    expect($analysis->exitCode)->not->toBe(0)
+        ->and($analysis->identifiers)->toBe(['cboxCms.phpstanIgnore']);
+});
+
+it('reports an internal use that an ignoreErrors entry of the addon matches', function (string $entry): void {
+    $analysis = analyseProbe(internalUseProbe('Acme\Blog\Adapter'), "    reportUnmatchedIgnoredErrors: false\n    ignoreErrors:\n{$entry}");
+
+    expect($analysis->exitCode)->not->toBe(0)
+        ->and($analysis->identifiers)->toBe(['cboxCms.internalUse']);
+})->with([
+    'a message pattern' => ["        - '#internal class#'\n"],
+    'a pattern for every message' => ["        - '#.*#'\n"],
+    'the identifier' => ["        -\n            identifier: cboxCms.internalUse\n"],
+    'a raw message' => ["        -\n            rawMessage: 'Call to method isTestCode() of internal class Cbox\\Cms\\Testkit\\Phpstan\\LayerScope. It is marked #[Internal], and only code in the Cbox\\Cms namespace may use it (GUARDRAILS 2.3). Use a #[Stable] or #[Experimental] contract instead.'\n"],
+    'the path of the file' => ["        -\n            message: '#.*#'\n            path: Probe.php\n"],
 ]);
 
 it('uses the same layer names and the same innermost-segment reading as the Arch suite', function (string $namespace): void {

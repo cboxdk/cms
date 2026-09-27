@@ -43,13 +43,14 @@ final readonly class Phpstan
     }
 
     /**
-     * Analyses one file with the monorepo configuration.
+     * Analyses one file with the monorepo configuration, or with another configuration file.
      *
      * @throws JsonException
      */
-    public static function analyse(string $file): PhpstanAnalysis
+    public static function analyse(string $file, ?string $configuration = null): PhpstanAnalysis
     {
-        $process = self::run(['analyse', '--no-progress', '--error-format=json', $file]);
+        $options = $configuration === null ? [] : ['--configuration='.$configuration];
+        $process = self::run(['analyse', '--no-progress', '--error-format=json', ...$options, $file]);
 
         return PhpstanAnalysis::fromJson($process->getExitCode() ?? -1, $process->getOutput());
     }

@@ -4,7 +4,8 @@
 # A repo includes this file from vendor/cboxdk/cms-testkit/config/phpstan.neon and adds only
 # its own paths. It must not lower the level, add a baseline or add ignoreErrors
 # (GUARDRAILS 7.3). Larastan is found through PHPStan's own directory, so the include works
-# from vendor/ and from a symlinked path package.
+# from vendor/ and from a symlinked path package. packages/testkit/docs/static-analysis.md
+# describes this configuration for addon authors.
 
 includes:
     # First, so its bootstrap file takes the boot lock before Larastan's bootstrap boots Laravel.
@@ -36,8 +37,12 @@ parameters:
 # public string ids outside Boundary and Adapter, except in a signature a framework interface or
 # parent class requires. These report non-ignorable errors, so no
 # comment and no ignoreErrors entry can hide them.
-# Rule 5, the Internal*UsageExtension services (GUARDRAILS 2.3): code outside Cbox\Cms may not
-# use what is marked #[Internal]. PHPStan's restricted usage rules report them.
+# Rule 5, the Internal*UsageExtension services with InternalUseIgnoreErrorExtension,
+# InternalUseCollector and InternalUseRule (GUARDRAILS 2.3): code outside Cbox\Cms may not use
+# what is marked #[Internal]. PHPStan's restricted usage rules find the uses; the extension takes
+# them out of the ignorable errors and InternalUseRule reports them non-ignorable, so only an
+# explicit @phpstan-ignore cboxCms.internalUse on the line hides one, never a bare ignore comment
+# or an ignoreErrors entry.
 # Rule 6, RawSqlRule (GUARDRAILS 6): raw SQL only in migrations and in Infrastructure and Adapter;
 # everything else uses the query builder. Its errors are non-ignorable too.
 # Rule 7, SystemClockRule and UuidCreationRule (GUARDRAILS 2.3, PRD 5.3): only a Clock
@@ -63,6 +68,7 @@ rules:
     - Cbox\Cms\Testkit\Phpstan\FunctionCallablesRule
     - Cbox\Cms\Testkit\Phpstan\MethodCallablesRule
     - Cbox\Cms\Testkit\Phpstan\StaticMethodCallablesRule
+    - Cbox\Cms\Testkit\Phpstan\InternalUseRule
 
 services:
     -
@@ -81,3 +87,11 @@ services:
         class: Cbox\Cms\Testkit\Phpstan\InternalClassConstantUsageExtension
         tags:
             - phpstan.restrictedClassConstantUsageExtension
+    -
+        class: Cbox\Cms\Testkit\Phpstan\InternalUseIgnoreErrorExtension
+        tags:
+            - phpstan.ignoreErrorExtension
+    -
+        class: Cbox\Cms\Testkit\Phpstan\InternalUseCollector
+        tags:
+            - phpstan.collector

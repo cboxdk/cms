@@ -17,7 +17,8 @@ use PHPStan\Rules\RestrictedUsage\RestrictedUsage;
  * other namespace, an addon, the app template or the global namespace, may not. PHPStan's
  * restricted usage rules find the uses: class names in new, static calls, constants,
  * instanceof, catch, extends, implements, trait use, attributes, native types and PHPDoc
- * types, and calls to methods.
+ * types, and calls to methods. InternalUseIgnoreErrorExtension and InternalUseRule then make
+ * the errors non-ignorable, except where a comment names the identifier.
  */
 #[Internal]
 final class InternalUse
