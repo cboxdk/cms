@@ -6,8 +6,9 @@
 # and check:generated, and the Pest suites of gate 5. Gate 5 adds the Mutation suite and
 # mutation on changed files: Pest's --mutate with PCOV and --min=80 on the files below
 # packages/*/src changed since the merge base of CMS_CI_BASE_REF and HEAD. It also runs
-# gate 8, the Browser suite, and gate 9, composer audit and npm audit. It reports what it did not
-# run: gates 7, 10 and 11, each with the reason, in the log and the job summary.
+# gate 8, the Browser suite, gate 9, composer audit and npm audit, and
+# gate 10, composer docs:check. It reports what it did not run: gates 7 and 11, each with the
+# reason, in the log and the job summary.
 #
 # CMS_CI_BASE_REF is the pull request's base commit, or for a push to main the commit before the
 # push. The checkout fetches the whole history (fetch-depth: 0), so the merge base is there.

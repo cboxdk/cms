@@ -20,7 +20,9 @@
 #           kills when the step ends, so a Playwright server left by a dead Pest cannot hold the
 #           output open; docker/ci-setup.sh gives the image the pinned Playwright's Chromium
 #   gate 9  composer audit --locked --abandoned=report, npm audit
-# and reports what CI does not run yet as not run: gates 7, 10 and 11. tests/Feature/Tooling/Ci
+#   gate 10 composer docs:check, documentation with running examples for every public extension
+#           point; gate 5 runs the same audit in tests/Feature/Tooling/Docs/RepositoryDocsTest.php
+# and reports what CI does not run yet as not run: gates 7 and 11. tests/Feature/Tooling/Ci
 # keeps this list and the one in ci.yml equal to the profiles.
 #
 # Environment:

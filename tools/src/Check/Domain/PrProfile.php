@@ -10,10 +10,13 @@ use Cbox\Cms\Tooling\Mutation\Domain\MutationSteps;
 /**
  * The PR profile of GUARDRAILS 10 as CI runs it today, through `bin/ci`: the steps of gates 1 to
  * 6 from the local profile, unchanged, with gate 5 adding the Mutation suite and mutation on
- * changed files (MutationSteps), gate 8 (the Browser suite) and gate 9 (composer audit and npm
- * audit), and gates 7, 10 and 11 reported as not run, each with the reason. GUARDRAILS 10 wants
- * every gate that did not run reported explicitly; a gate that starts running in CI moves out of
- * NOT_RUN.
+ * changed files (MutationSteps), gate 8 (the Browser suite), gate 9 (composer audit and npm
+ * audit) and gate 10 (`composer docs:check`, documentation with running examples for every
+ * public extension point), and gates 7 and 11 reported as not run, each with the reason.
+ * GUARDRAILS 10 wants every gate that did not run reported explicitly; a gate that starts running
+ * in CI moves out of NOT_RUN. The local profile leaves gate 10 out, as GUARDRAILS 10 says, but
+ * gate 5 runs the same audit on the repository in tests/Feature/Tooling/Docs/RepositoryDocsTest.php,
+ * so `composer check` fails on every finding of gate 10 as well (GUARDRAILS 7.3).
  */
 final readonly class PrProfile
 {
@@ -24,7 +27,6 @@ final readonly class PrProfile
      */
     public const array NOT_RUN = [
         7 => 'not run in CI yet: there is no panel UI or Storybook before the panel skeleton (B1)',
-        10 => 'not run in CI yet: there is no check for the documentation of extension points (PRD 14.4)',
         11 => 'not a command: review by someone other than the author needs a remote with branch protection, and there is no remote',
     ];
 
@@ -59,6 +61,7 @@ final readonly class PrProfile
                 ]),
                 $gate->number === 8 => self::browser($gate, $php),
                 $gate->number === 9 => self::audit($gate, $composer),
+                $gate->number === 10 => self::docs($gate, $composer),
                 default => $gate,
             };
         }
@@ -99,6 +102,20 @@ final readonly class PrProfile
                 reader: new ComposerAuditReader,
             ),
             Step::run('npm audit', ['npm', 'audit']),
+        ]);
+    }
+
+    /**
+     * Gate 10 (GUARDRAILS 2.4, PRD 14.4): `composer docs:check`, which fails on an extension point
+     * without a page and a running example, and on a page whose embedded code is not the tested
+     * file byte for byte.
+     *
+     * @param  list<string>  $composer
+     */
+    private static function docs(Gate $gate, array $composer): Gate
+    {
+        return new Gate($gate->number, $gate->title, [
+            Step::run('docs:check', [...$composer, 'docs:check']),
         ]);
     }
 }

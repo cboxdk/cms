@@ -209,8 +209,10 @@ it('stops the job after 20 minutes, above the PR profile\'s budget of 15', funct
 it('names the gates CI runs outside the local profile in bin/ci and ci.yml', function (): void {
     $bin = CiFiles::text(CiFiles::ENTRY);
 
-    expect($bin)->toContain('gate 8  vendor/bin/pest --testsuite=Browser', 'gate 9  composer audit --locked --abandoned=report, npm audit', 'gates 7, 10 and 11')
-        ->and(CiFiles::text(CiFiles::WORKFLOW))->toContain('gate 8, the Browser suite', 'gate 9, composer audit and npm audit', 'gates 7, 10 and 11');
+    expect($bin)->toContain('gate 8  vendor/bin/pest --testsuite=Browser', 'gate 9  composer audit --locked --abandoned=report, npm audit', 'gate 10 composer docs:check', 'gates 7 and 11')
+        ->and(CiFiles::text(CiFiles::WORKFLOW))->toContain('gate 8, the Browser suite', 'gate 9, composer audit and npm audit', 'gate 10, composer docs:check', 'gates 7 and 11')
+        ->and($bin)->not->toContain('gates 7, 10 and 11')
+        ->and(CiFiles::text(CiFiles::WORKFLOW))->not->toContain('gates 7, 10 and 11');
 });
 
 it('runs the gates as the user ci that the setup creates, never as root, whose tests of file permissions skip', function (): void {

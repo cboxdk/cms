@@ -7,8 +7,8 @@ declare(strict_types=1);
  * every gate, also after a failure, prints each gate and step as pass, fail or not run, and exits
  * 1 when a gate fails. Options: --report=<file> writes the report as JSON, --brief leaves the
  * output of failed steps out of the console, --pr runs the PR profile as CI runs it
- * (bin/ci): the same steps, mutation on changed files in gate 5, gates 8 and 9, and the gates CI
- * does not run yet reported as not run. Mutation on changed files mutates what changed since the
+ * (bin/ci): the same steps, mutation on changed files in gate 5, gates 8, 9 and 10, and the gates
+ * CI does not run yet reported as not run. Mutation on changed files mutates what changed since the
  * merge base of CMS_CI_BASE_REF and HEAD; without that variable its step fails.
  */
 

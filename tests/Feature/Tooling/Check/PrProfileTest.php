@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Tests\Feature\Tooling\Check;
 
 use Cbox\Cms\Contracts\Ids\PrincipalId;
+use Cbox\Cms\Tests\Support\Phpstan;
 use Cbox\Cms\Tests\Support\Tooling\RecordedCommand;
 use Cbox\Cms\Tests\Support\Tooling\ScriptedProcessRunner;
 use Cbox\Cms\Tooling\Check\Boundary\CheckReportJson;
@@ -29,8 +30,8 @@ use InvalidArgumentException;
  * The PR profile as CI runs it through bin/ci (`composer check -- --pr`): the steps of gates 1 to
  * 6 are the local profile's, so CI and a developer run the same commands, and gate 5 adds the
  * Mutation suite and mutation on changed files; gate 8 runs the Browser suite in a process group
- * of its own and gate 9 runs composer audit and npm audit; everything else of the PR profile in
- * GUARDRAILS 10 is reported as not run with a reason. The runs here use the scripted process
+ * of its own, gate 9 runs composer audit and npm audit and gate 10 runs composer docs:check;
+ * everything else of the PR profile in GUARDRAILS 10 is reported as not run with a reason. The runs here use the scripted process
  * runner; BrowserStepTest runs a Browser step for real, tests/Mutation a mutation step.
  */
 
@@ -111,8 +112,8 @@ it('runs mutation on changed files in gate 5 and never reports it as not run: a 
         ->and(array_last($unchanged->steps)?->decision)->toBe('0 changed classes since abc123');
 });
 
-it('reports gates 7, 10 and 11 as not run, each with its own reason and never the local profile\'s', function (): void {
-    expect(array_keys(PrProfile::NOT_RUN))->toBe([7, 10, 11]);
+it('reports gates 7 and 11 as not run, each with its own reason and never the local profile\'s', function (): void {
+    expect(array_keys(PrProfile::NOT_RUN))->toBe([7, 11]);
 
     foreach (prGates() as $gate) {
         if (! isset(PrProfile::NOT_RUN[$gate->number])) {
@@ -125,7 +126,42 @@ it('reports gates 7, 10 and 11 as not run, each with its own reason and never th
             ->and($gate->steps[0]->notRunReason)->not->toBe(LocalProfile::OUTSIDE_PROFILE);
     }
 
-    expect(array_unique(PrProfile::NOT_RUN))->toHaveCount(3);
+    expect(array_unique(PrProfile::NOT_RUN))->toHaveCount(2)
+        ->and(array_map(static fn (Gate $gate): int => $gate->number, array_values(array_filter(prGates(), static fn (Gate $gate): bool => array_any($gate->steps, static fn (Step $step): bool => $step->notRunReason !== null)))))->toBe([7, 11]);
+});
+
+it('runs composer docs:check as gate 10, the single step, under the local profile\'s title', function (): void {
+    $gate = prGates()[9];
+
+    expect($gate->number)->toBe(10)
+        ->and($gate->title)->toBe(LocalProfile::gates('/usr/bin/php', PR_COMPOSER)[9]->title)
+        ->and(stepTriples($gate->steps))->toBe([
+            ['docs:check', [...PR_COMPOSER, 'docs:check'], null],
+        ])
+        ->and($gate->steps[0]->runs())->toBeTrue()
+        ->and($gate->steps[0]->ownProcessGroup)->toBeFalse()
+        ->and($gate->steps[0]->reader)->toBeNull();
+});
+
+it('keeps gate 10 outside the local profile, whose gate 5 runs the same audit on the repository', function (): void {
+    $gate = LocalProfile::gates('/usr/bin/php', PR_COMPOSER)[9];
+
+    expect($gate->number)->toBe(10)
+        ->and(stepTriples($gate->steps))->toBe([[$gate->title, [], LocalProfile::OUTSIDE_PROFILE]])
+        ->and(LocalProfile::SUITES)->toContain('Unit')
+        ->and(is_file(Phpstan::root().'/tests/Feature/Tooling/Docs/RepositoryDocsTest.php'))->toBeTrue();
+});
+
+it('fails gate 10 when composer docs:check has a finding', function (): void {
+    $runner = new ScriptedProcessRunner(static fn (array $command): ProcessOutcome => array_last($command) === 'docs:check'
+        ? new ProcessOutcome(1, "Cbox\\Cms\\Contracts\\Salutation: undocumented\n", 0.2)
+        : new ProcessOutcome(0, composerAuditJson(), 0.1));
+
+    $report = new CheckRunner($runner, new SilentListener)->run(prGates(), '/srv/checkout');
+
+    expect($report->failedGates())->toBe([10])
+        ->and($report->gate(10)?->step('docs:check')?->status)->toBe(StepStatus::Fail)
+        ->and(ReportFormatter::summary($report))->toContain('composer check failed: gate 10 failed.');
 });
 
 it('runs the Browser suite as gate 8, in a process group of its own, failing skipped and incomplete tests as gate 5 does', function (): void {
@@ -251,5 +287,5 @@ it('picks the gates by profile and names the profile in the header', function ()
         ->and(Profile::Pr->mutates())->toBeTrue()
         ->and(Profile::Local->mutates())->toBeFalse()
         ->and(ReportFormatter::header('/repo'))->toBe("composer check: the local profile of GUARDRAILS 10, gates 1 to 6, in /repo\n")
-        ->and(ReportFormatter::header('/repo', Profile::Pr))->toBe("composer check: the PR profile of GUARDRAILS 10 as CI runs it today, gates 1 to 6 with mutation on changed files, 8 and 9, with 7, 10 and 11 reported as not run, in /repo\n");
+        ->and(ReportFormatter::header('/repo', Profile::Pr))->toBe("composer check: the PR profile of GUARDRAILS 10 as CI runs it today, gates 1 to 6 with mutation on changed files, 8, 9 and 10, with 7 and 11 reported as not run, in /repo\n");
 });
