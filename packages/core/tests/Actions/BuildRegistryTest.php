@@ -7,6 +7,7 @@ namespace Cbox\Cms\Core\Tests\Actions;
 use Cbox\Cms\Contracts\Attributes\Phase;
 use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Build\ScanRoot;
+use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
 use Cbox\Cms\Core\Registry\Domain\BuildErrorCode;
 use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
@@ -73,8 +74,8 @@ it('writes nothing when the scan found a problem, and keeps the cache that was t
 
 it('writes nothing when two roots declare the same command', function (): void {
     $scanner = new FakeDeclarationScanner([
-        '/srv/one/src' => new Discovery([], [new CommandEntry('x.y', 1, CreateNote::class, 'acme/one')], [], []),
-        '/srv/two/src' => new Discovery([], [new CommandEntry('x.y', 1, CreateNoteAction::class, 'acme/two')], [], []),
+        '/srv/one/src' => new Discovery([], [new CommandEntry(new CommandName('x.y'), 1, CreateNote::class, 'acme/one')], [], []),
+        '/srv/two/src' => new Discovery([], [new CommandEntry(new CommandName('x.y'), 1, CreateNoteAction::class, 'acme/two')], [], []),
     ]);
     $cache = new FakeRegistryCache;
     $build = new BuildRegistry($scanner, new RegistryCompiler, $cache);
@@ -117,11 +118,22 @@ it('registers exactly the fixture action, command and hook from the fixture scan
     ])
         ->and($registry->actions[0]->surfaces)->toBe([Surface::Rest, Surface::Cli])
         ->and($registry->commands)->toEqual([
-            new CommandEntry('fixture.note.create', 1, CreateNote::class, RegistryFixtures::PACKAGE),
+            new CommandEntry(new CommandName('fixture.note.create'), 1, CreateNote::class, RegistryFixtures::PACKAGE),
         ])
         ->and($registry->hooks)->toEqual([
-            new HookEntry(TrimNoteTitle::class, RegistryFixtures::PACKAGE, 'fixture.note.create', 1, CreateNote::class, Phase::Transform, 10, 5),
+            new HookEntry(TrimNoteTitle::class, RegistryFixtures::PACKAGE, new CommandName('fixture.note.create'), 1, CreateNote::class, Phase::Transform, 10, 5),
         ]);
+});
+
+it('keeps the command name as the CommandName value that the hooks and the idempotency scope join on', function (): void {
+    $directory = RegistryFixtures::scratch();
+    RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
+    $read = RegistryFixtures::cache($directory)->read();
+    $name = new CommandName('fixture.note.create');
+
+    expect($read->commands[0]->name)->toEqual($name)
+        ->and($read->hooks[0]->command)->toEqual($name)
+        ->and($read->commands[0]->name->equals($read->hooks[0]->command))->toBeTrue();
 });
 
 it('writes the three files, and reading them back gives the registry that was built', function (): void {

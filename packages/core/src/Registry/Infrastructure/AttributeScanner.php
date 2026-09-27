@@ -233,7 +233,7 @@ final readonly class AttributeScanner implements DeclarationScanner
                 if ($declaration instanceof Action) {
                     $actions[] = new ActionEntry($class->getName(), $root->package, $declaration->surfaces);
                 } elseif ($declaration instanceof Command) {
-                    $commands[] = new CommandEntry($declaration->name, $declaration->version, $class->getName(), $root->package);
+                    $commands[] = new CommandEntry($declaration->name(), $declaration->version, $class->getName(), $root->package);
                 } elseif ($declaration instanceof Hook) {
                     $hooks[] = new DiscoveredHook(
                         $class->getName(),

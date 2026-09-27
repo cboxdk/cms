@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Registry\Domain\Dto;
 
-use Cbox\Cms\Contracts\Attributes\Command;
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Core\Registry\Domain\InvalidRegistryEntry;
 
 /**
@@ -20,17 +20,13 @@ final readonly class CommandEntry
     public string $package;
 
     public function __construct(
-        public string $name,
+        public CommandName $name,
         public int $version,
         string $class,
         string $package,
     ) {
-        if (preg_match(Command::NAME_PATTERN, $name) !== 1) {
-            throw InvalidRegistryEntry::because(sprintf('The command name "%s" is not dot-separated snake_case.', $name));
-        }
-
         if ($version < 1) {
-            throw InvalidRegistryEntry::because(sprintf('Command "%s" has version %d. Versions start at 1.', $name, $version));
+            throw InvalidRegistryEntry::because(sprintf('Command "%s" has version %d. Versions start at 1.', $name->value, $version));
         }
 
         $this->class = InvalidRegistryEntry::checkClass('command class', $class);

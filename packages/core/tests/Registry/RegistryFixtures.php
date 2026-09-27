@@ -7,6 +7,7 @@ namespace Cbox\Cms\Core\Tests\Registry;
 use Cbox\Cms\Contracts\Attributes\Phase;
 use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Build\ScanRoot;
+use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
 use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
 use Cbox\Cms\Core\Registry\Boundary\RegistryCacheCodec;
@@ -48,7 +49,7 @@ final class RegistryFixtures
     {
         return new Discovery(
             [new ActionEntry(CreateNoteAction::class, $package, [Surface::Rest, Surface::Cli])],
-            [new CommandEntry('fixture.note.create', 1, CreateNote::class, $package)],
+            [new CommandEntry(new CommandName('fixture.note.create'), 1, CreateNote::class, $package)],
             [new DiscoveredHook(TrimNoteTitle::class, $package, CreateNote::class, Phase::Transform, 10, 5)],
             [],
         );

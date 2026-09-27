@@ -7,6 +7,8 @@ namespace Cbox\Cms\Core\Registry\Boundary;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Attributes\Phase;
 use Cbox\Cms\Contracts\Attributes\Surface;
+use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Ids\InvalidCommandName;
 use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
@@ -103,14 +105,14 @@ final readonly class RegistryCacheCodec
             ], $registry->actions),
             RegistryName::Commands->value => array_map(static fn (CommandEntry $command): array => [
                 'class' => $command->class,
-                'name' => $command->name,
+                'name' => $command->name->value,
                 'package' => $command->package,
                 'version' => $command->version,
             ], $registry->commands),
             RegistryName::Hooks->value => array_map(static fn (HookEntry $hook): array => [
                 'budget_ms' => $hook->budgetMs,
                 'class' => $hook->class,
-                'command' => $hook->command,
+                'command' => $hook->command->value,
                 'command_class' => $hook->commandClass,
                 'command_version' => $hook->commandVersion,
                 'package' => $hook->package,
@@ -206,9 +208,10 @@ final readonly class RegistryCacheCodec
             $path = $directory.'/'.RegistryName::Commands->fileName();
             $at = sprintf('entries[%d]', $index);
             $data = $this->map($entry, $path, $at, ['class', 'name', 'package', 'version']);
+            $name = $this->commandName($data['name'], $path, $at.'.name');
 
             $commands[] = $this->entry($path, $at, fn (): CommandEntry => new CommandEntry(
-                $this->string($data['name'], $path, $at.'.name'),
+                $name,
                 $this->int($data['version'], $path, $at.'.version'),
                 $this->string($data['class'], $path, $at.'.class'),
                 $this->string($data['package'], $path, $at.'.package'),
@@ -220,11 +223,12 @@ final readonly class RegistryCacheCodec
             $at = sprintf('entries[%d]', $index);
             $data = $this->map($entry, $path, $at, ['budget_ms', 'class', 'command', 'command_class', 'command_version', 'package', 'phase', 'priority']);
             $phase = $this->string($data['phase'], $path, $at.'.phase');
+            $command = $this->commandName($data['command'], $path, $at.'.command');
 
             $hooks[] = $this->entry($path, $at, fn (): HookEntry => new HookEntry(
                 $this->string($data['class'], $path, $at.'.class'),
                 $this->string($data['package'], $path, $at.'.package'),
-                $this->string($data['command'], $path, $at.'.command'),
+                $command,
                 $this->int($data['command_version'], $path, $at.'.command_version'),
                 $this->string($data['command_class'], $path, $at.'.command_class'),
                 Phase::tryFrom($phase) ?? throw MalformedRegistryCache::at($path, $at.'.phase', sprintf('"%s" is not a hook phase', $phase)),
@@ -338,6 +342,17 @@ final readonly class RegistryCacheCodec
         }
 
         return $value;
+    }
+
+    private function commandName(mixed $value, string $path, string $at): CommandName
+    {
+        $name = $this->string($value, $path, $at);
+
+        try {
+            return new CommandName($name);
+        } catch (InvalidCommandName $invalid) {
+            throw MalformedRegistryCache::at($path, $at, rtrim($invalid->getMessage(), '.'), $invalid);
+        }
     }
 
     private function int(mixed $value, string $path, string $at): int

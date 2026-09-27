@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\Tests\Registry;
 
 use Cbox\Cms\Contracts\Attributes\Phase;
 use Cbox\Cms\Contracts\Attributes\Surface;
+use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Core\Registry\Boundary\RegistryCacheCodec;
 use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
@@ -19,8 +20,8 @@ function codecRegistry(): CompiledRegistry
 {
     return new CompiledRegistry(
         [new ActionEntry('App\Actions\CreateNote', 'acme/notes', [Surface::Cli, Surface::Rest])],
-        [new CommandEntry('note.create', 1, 'App\Commands\CreateNote', 'acme/notes')],
-        [new HookEntry('App\Hooks\Trim', 'acme/notes', 'note.create', 1, 'App\Commands\CreateNote', Phase::Transform, -5, 3)],
+        [new CommandEntry(new CommandName('note.create'), 1, 'App\Commands\CreateNote', 'acme/notes')],
+        [new HookEntry('App\Hooks\Trim', 'acme/notes', new CommandName('note.create'), 1, 'App\Commands\CreateNote', Phase::Transform, -5, 3)],
     );
 }
 
@@ -208,6 +209,22 @@ it('refuses a malformed cache with the file and the place in it', function (call
 
         return $files;
     }, 'hooks.php', 'at entries[0]: Hook "App\H" has a budget of 21 ms'],
+    'a command name that is not one' => [static function (array $files): array {
+        $files['commands'] = [...codecFile($files, 'commands'), 'entries' => [['class' => 'App\C', 'name' => 'Note.Create', 'package' => 'acme/a', 'version' => 1]]];
+
+        return $files;
+    }, 'commands.php', 'at entries[0].name: A command name is dot-separated snake_case segments, for example "entry.release", got "Note.Create". Do not edit'],
+    'a hook for a command name that is not one' => [static function (array $files): array {
+        $entry = ['budget_ms' => 1, 'class' => 'App\H', 'command' => 'note', 'command_class' => 'App\C', 'command_version' => 1, 'package' => 'acme/a', 'phase' => 'validate', 'priority' => 0];
+        $files['hooks'] = [...codecFile($files, 'hooks'), 'entries' => [$entry]];
+
+        return $files;
+    }, 'hooks.php', 'at entries[0].command: A command name is dot-separated snake_case segments, for example "entry.release", got "note". Do not edit'],
+    'a command name that is not a string' => [static function (array $files): array {
+        $files['commands'] = [...codecFile($files, 'commands'), 'entries' => [['class' => 'App\C', 'name' => 7, 'package' => 'acme/a', 'version' => 1]]];
+
+        return $files;
+    }, 'commands.php', 'at entries[0].name: expected a string, got int'],
     'a class name that is not one' => [static function (array $files): array {
         $files['actions'] = [...codecFile($files, 'actions'), 'entries' => [['class' => 'App\\', 'package' => 'acme/a', 'surfaces' => []]]];
 

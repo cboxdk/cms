@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Registry\Domain\Dto;
 
-use Cbox\Cms\Contracts\Attributes\Command;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Attributes\Hook;
 use Cbox\Cms\Contracts\Attributes\Phase;
+use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Core\Registry\Domain\InvalidRegistryEntry;
 
 /**
@@ -26,7 +26,7 @@ final readonly class HookEntry
     public function __construct(
         string $class,
         string $package,
-        public string $command,
+        public CommandName $command,
         public int $commandVersion,
         string $commandClass,
         public Phase $phase,
@@ -37,12 +37,8 @@ final readonly class HookEntry
         $this->package = InvalidRegistryEntry::checkPackage($package);
         $this->commandClass = InvalidRegistryEntry::checkClass('hook command class', $commandClass);
 
-        if (preg_match(Command::NAME_PATTERN, $command) !== 1) {
-            throw InvalidRegistryEntry::because(sprintf('Hook "%s" runs for "%s", which is not a command name.', $class, $command));
-        }
-
         if ($commandVersion < 1) {
-            throw InvalidRegistryEntry::because(sprintf('Hook "%s" runs for version %d of "%s". Versions start at 1.', $class, $commandVersion, $command));
+            throw InvalidRegistryEntry::because(sprintf('Hook "%s" runs for version %d of "%s". Versions start at 1.', $class, $commandVersion, $command->value));
         }
 
         if ($budgetMs < 1 || $budgetMs > Hook::MAX_BUDGET_MS) {

@@ -32,7 +32,7 @@ final readonly class RegistryCompiler
 
         foreach ($discovery->commands as $command) {
             $commandsByClass[strtolower($command->class)] = $command;
-            $declarations[$command->name][$command->version][] = $command;
+            $declarations[$command->name->value][$command->version][] = $command;
         }
 
         foreach ($declarations as $versions) {
@@ -79,9 +79,9 @@ final readonly class RegistryCompiler
         $commands = $discovery->commands;
 
         usort($actions, static fn (ActionEntry $a, ActionEntry $b): int => strcmp($a->class, $b->class));
-        usort($commands, static fn (CommandEntry $a, CommandEntry $b): int => [$a->name, $a->version] <=> [$b->name, $b->version]);
-        usort($hooks, static fn (HookEntry $a, HookEntry $b): int => [$a->command, $a->commandVersion, self::rank($a->phase), $a->priority, $a->package, $a->class]
-            <=> [$b->command, $b->commandVersion, self::rank($b->phase), $b->priority, $b->package, $b->class]);
+        usort($commands, static fn (CommandEntry $a, CommandEntry $b): int => [$a->name->value, $a->version] <=> [$b->name->value, $b->version]);
+        usort($hooks, static fn (HookEntry $a, HookEntry $b): int => [$a->command->value, $a->commandVersion, self::rank($a->phase), $a->priority, $a->package, $a->class]
+            <=> [$b->command->value, $b->commandVersion, self::rank($b->phase), $b->priority, $b->package, $b->class]);
 
         return new CompiledRegistry($actions, $commands, $hooks);
     }
@@ -96,7 +96,7 @@ final readonly class RegistryCompiler
 
         return new BuildProblem(BuildErrorCode::DuplicateCommand, sprintf(
             'Command "%s" version %d is declared by %s. A name and version belong to one class: give the new shape the next version, or rename one of the commands.',
-            $sharing[0]->name,
+            $sharing[0]->name->value,
             $sharing[0]->version,
             implode(' and ', $classes),
         ));

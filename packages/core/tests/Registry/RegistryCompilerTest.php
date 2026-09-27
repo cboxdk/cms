@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\Tests\Registry;
 
 use Cbox\Cms\Contracts\Attributes\Phase;
 use Cbox\Cms\Contracts\Attributes\Surface;
+use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Core\Registry\Domain\BuildErrorCode;
 use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\BuildProblem;
@@ -35,9 +36,9 @@ function registryCompilerFailure(array $commands, array $hooks = [], array $acti
 
 it('sorts actions by class, commands by name and version, and hooks by command, phase, priority, package and class', function (): void {
     $commands = [
-        new CommandEntry('b.b', 2, 'App\B2', 'acme/b'),
-        new CommandEntry('b.b', 1, 'App\B1', 'acme/b'),
-        new CommandEntry('a.a', 1, 'App\A1', 'acme/a'),
+        new CommandEntry(new CommandName('b.b'), 2, 'App\B2', 'acme/b'),
+        new CommandEntry(new CommandName('b.b'), 1, 'App\B1', 'acme/b'),
+        new CommandEntry(new CommandName('a.a'), 1, 'App\A1', 'acme/a'),
     ];
     $hooks = [
         new DiscoveredHook('App\Hooks\Late', 'acme/z', 'App\A1', Phase::Validate, 0, 1),
@@ -57,7 +58,7 @@ it('sorts actions by class, commands by name and version, and hooks by command, 
     $registry = new RegistryCompiler()->compile(new Discovery($actions, $commands, $hooks, []));
 
     expect(array_map(static fn (ActionEntry $action): string => $action->class, $registry->actions))->toBe(['App\Alpha', 'App\Zeta'])
-        ->and(array_map(static fn (CommandEntry $command): string => $command->name.' v'.$command->version, $registry->commands))->toBe(['a.a v1', 'b.b v1', 'b.b v2'])
+        ->and(array_map(static fn (CommandEntry $command): string => $command->name->value.' v'.$command->version, $registry->commands))->toBe(['a.a v1', 'b.b v1', 'b.b v2'])
         ->and(array_map(static fn (HookEntry $hook): string => $hook->class, $registry->hooks))->toBe([
             'App\Hooks\Authorize',
             'App\Hooks\Negative',
@@ -68,13 +69,13 @@ it('sorts actions by class, commands by name and version, and hooks by command, 
             'App\Hooks\FirstVersion',
             'App\Hooks\SecondVersion',
         ])
-        ->and($registry->hooks[6]->command)->toBe('b.b')
+        ->and($registry->hooks[6]->command)->toEqual(new CommandName('b.b'))
         ->and($registry->hooks[6]->commandVersion)->toBe(1)
         ->and($registry->hooks[7]->commandVersion)->toBe(2);
 });
 
 it('gives the same registry for the declarations in any order', function (): void {
-    $commands = [new CommandEntry('a.a', 1, 'App\A1', 'acme/a'), new CommandEntry('a.a', 2, 'App\A2', 'acme/a')];
+    $commands = [new CommandEntry(new CommandName('a.a'), 1, 'App\A1', 'acme/a'), new CommandEntry(new CommandName('a.a'), 2, 'App\A2', 'acme/a')];
     $hooks = [
         new DiscoveredHook('App\H1', 'acme/a', 'App\A1', Phase::Transform, 1, 1),
         new DiscoveredHook('App\H2', 'acme/a', 'App\A2', Phase::Transform, 1, 1),
@@ -89,7 +90,7 @@ it('gives the same registry for the declarations in any order', function (): voi
 it('resolves a hook\'s command class without regard to case, as PHP does', function (): void {
     $registry = new RegistryCompiler()->compile(new Discovery(
         [],
-        [new CommandEntry('a.a', 1, 'App\Commands\Create', 'acme/a')],
+        [new CommandEntry(new CommandName('a.a'), 1, 'App\Commands\Create', 'acme/a')],
         [new DiscoveredHook('App\H', 'acme/a', 'app\commands\CREATE', Phase::Validate, 0, 1)],
         [],
     ));
@@ -99,9 +100,9 @@ it('resolves a hook\'s command class without regard to case, as PHP does', funct
 
 it('allows the same command name in different versions, and refuses the same version twice', function (): void {
     $failed = registryCompilerFailure([
-        new CommandEntry('entry.release', 1, 'App\ReleaseV1', 'acme/a'),
-        new CommandEntry('entry.release', 2, 'App\ReleaseV2', 'acme/a'),
-        new CommandEntry('entry.release', 2, 'App\ReleaseAgain', 'acme/b'),
+        new CommandEntry(new CommandName('entry.release'), 1, 'App\ReleaseV1', 'acme/a'),
+        new CommandEntry(new CommandName('entry.release'), 2, 'App\ReleaseV2', 'acme/a'),
+        new CommandEntry(new CommandName('entry.release'), 2, 'App\ReleaseAgain', 'acme/b'),
     ]);
 
     expect($failed->problems)->toEqual([

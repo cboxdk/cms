@@ -10,6 +10,7 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Attributes\Phase;
 use Cbox\Cms\Contracts\Attributes\Stable;
 use Cbox\Cms\Contracts\Attributes\Surface;
+use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Tests\Fixtures\ReleaseVariant;
 use Cbox\Cms\Contracts\Tests\Fixtures\ReleaseVariantAction;
 use Cbox\Cms\Contracts\Tests\Fixtures\SlugHook;
@@ -74,6 +75,10 @@ it('reads a command name and version from the command DTO', function (): void {
 it('accepts dot-separated snake_case command names', function (string $name): void {
     expect((new Command($name, 1))->name)->toBe($name);
 })->with(['entry.release', 'curation.assign', 'order_line.add_item', 'shop.ticket.scan']);
+
+it('gives the command name as a CommandName', function (): void {
+    expect(attributeOf(ReleaseVariant::class, Command::class)->name())->toEqual(new CommandName('entry.release'));
+});
 
 it('rejects a command name that is not dot-separated snake_case', function (string $name): void {
     expectInvalid(static fn (): Command => new Command($name, 1), 'dot-separated snake_case');

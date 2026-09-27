@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Contracts\Attributes;
 
 use Attribute;
+use Cbox\Cms\Contracts\Ids\CommandName;
 use InvalidArgumentException;
 
 /**
@@ -42,5 +43,14 @@ final readonly class Command
                 $version,
             ));
         }
+    }
+
+    /**
+     * The name as the value object that the registry, the hooks and the idempotency scope join on
+     * (GUARDRAILS 2.2).
+     */
+    public function name(): CommandName
+    {
+        return new CommandName($this->name);
     }
 }
