@@ -7,6 +7,7 @@ namespace Cbox\Cms\Cli\Console;
 use Cbox\Cms\Cli\Boundary\PartitionRangeOptions;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Core\Partitions\Actions\MaintainPartitions;
+use Cbox\Cms\Core\Partitions\Domain\Dto\GaveUpStep;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionChange;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionRange;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionReport;
@@ -65,7 +66,7 @@ final class MaintainPartitionsCommand extends Command
 
             return self::EXIT_INVALID;
         } catch (LockTimeout $timeout) {
-            $this->gaveUp($timeout, $log);
+            $this->gaveUp(GaveUpStep::of($timeout), $log);
 
             return self::EXIT_LOCK_TIMEOUT;
         } catch (OwnerConnectionRequired $notOwner) {
@@ -76,17 +77,24 @@ final class MaintainPartitionsCommand extends Command
 
         $this->report($report, $log);
 
-        foreach ($report->gaveUp as $timeout) {
-            $this->gaveUp($timeout, $log);
+        foreach ($report->gaveUp as $step) {
+            $this->gaveUp($step, $log);
         }
 
         return $report->isComplete() ? self::SUCCESS : self::EXIT_LOCK_TIMEOUT;
     }
 
-    private function gaveUp(LockTimeout $timeout, LoggerInterface $log): void
+    private function gaveUp(GaveUpStep $step, LoggerInterface $log): void
     {
-        $log->warning('Partition maintenance gave up on a lock.', ['code' => LockTimeout::CODE, 'step' => $timeout->step->value, 'table' => $timeout->table, 'partition' => $timeout->partition, 'attempts' => $timeout->attempts]);
-        $this->error($timeout->getMessage());
+        $log->warning('Partition maintenance gave up on a lock.', [
+            'code' => LockTimeout::CODE,
+            'step' => $step->step->value,
+            'table' => $step->table,
+            'partition' => $step->partition,
+            'attempts' => $step->attempts,
+            'cause' => $step->cause,
+        ]);
+        $this->error($step->message);
     }
 
     private function report(PartitionReport $report, LoggerInterface $log): void

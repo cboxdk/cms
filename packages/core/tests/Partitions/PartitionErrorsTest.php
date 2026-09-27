@@ -7,6 +7,7 @@ namespace Cbox\Cms\Core\Tests\Partitions;
 use Cbox\Cms\Contracts\Storage\PartitionMissing;
 use Cbox\Cms\Core\Partitions\Adapter\MissingPartitionMapper;
 use Cbox\Cms\Core\Partitions\Domain\DdlStep;
+use Cbox\Cms\Core\Partitions\Domain\Dto\GaveUpStep;
 use Cbox\Cms\Core\Partitions\Domain\LockTimeout;
 use Cbox\Cms\Core\Partitions\Domain\OwnerConnectionRequired;
 use Illuminate\Database\QueryException;
@@ -52,4 +53,17 @@ it('writes its codes into the messages of the partition errors', function (): vo
         ->toContain('Gave up on step "lock" for the partition maintenance lock after 1 attempt:')
         ->and(OwnerConnectionRequired::appConnection('pgsql')->getMessage())
         ->toStartWith('[partition_owner_required] Partition maintenance is set to run on the connection [pgsql]');
+});
+
+it('turns a LockTimeout into a GaveUpStep of its values and the message of its cause, without the exceptions', function (): void {
+    $timeout = LockTimeout::gaveUp(DdlStep::Create, 'receipts', 'receipts_p20260101', 3, '2s', queryError('55P03', 'canceling statement due to lock timeout'));
+    $step = GaveUpStep::of($timeout);
+
+    expect($step->step)->toBe(DdlStep::Create)
+        ->and($step->table)->toBe('receipts')
+        ->and($step->partition)->toBe('receipts_p20260101')
+        ->and($step->attempts)->toBe(3)
+        ->and($step->message)->toBe($timeout->getMessage())
+        ->and($step->cause)->toStartWith('SQLSTATE[55P03]: canceling statement due to lock timeout')
+        ->and(GaveUpStep::of(LockTimeout::gaveUp(DdlStep::Lock, null, null, 1, '2s'))->cause)->toBeNull();
 });

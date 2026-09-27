@@ -96,7 +96,7 @@ it('reports a LockTimeout on a table another session holds, still maintains the 
         ->and($timeout?->table)->toBe('audit')
         ->and($timeout?->partition)->toBe('audit_p20260501')
         ->and($timeout?->attempts)->toBe(2)
-        ->and($timeout?->getMessage())->toStartWith('['.LockTimeout::CODE.'] Gave up on step "create" for partition "audit_p20260501" of table "audit" after 2 attempts')
+        ->and($timeout?->message)->toStartWith('['.LockTimeout::CODE.'] Gave up on step "create" for partition "audit_p20260501" of table "audit" after 2 attempts')
         ->toContain('lock_timeout 1500ms')
         ->and($report->partitions(PartitionChangeKind::Created))->toBe(['events_p20260501', 'events_p20260502'])
         ->and($partitions->partitions('events'))->toBe(['events_p20260501', 'events_p20260502'])
@@ -126,8 +126,8 @@ it('creates the runway of every table before it retires any, and a busy table ke
     // The lock keeps both phases from the events table: the create gives up first, because every
     // table is created before any is retired, and the audit table is maintained in full.
     expect($report->gaveUp)->toHaveCount(2)
-        ->and($report->gaveUp[0]->getMessage())->toContain('Gave up on step "'.DdlStep::Create->value.'" for partition "events_p20260504" of table "events"')
-        ->and($report->gaveUp[1]->getMessage())->toContain('Gave up on step "'.DdlStep::Detach->value.'" for partition "events_p20260501" of table "events"')
+        ->and($report->gaveUp[0]->message)->toContain('Gave up on step "'.DdlStep::Create->value.'" for partition "events_p20260504" of table "events"')
+        ->and($report->gaveUp[1]->message)->toContain('Gave up on step "'.DdlStep::Detach->value.'" for partition "events_p20260501" of table "events"')
         ->and($report->partitions(PartitionChangeKind::Created))->toBe(['audit_p20260504', 'audit_p20260505'])
         ->and($report->partitions(PartitionChangeKind::Dropped))->toBe(['audit_p20260501'])
         ->and($partitions->partitions('events'))->toBe(['events_p20260501', 'events_p20260502', 'events_p20260503'])

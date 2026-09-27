@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Partitions;
 
 use Cbox\Cms\Core\Partitions\Domain\DdlStep;
+use Cbox\Cms\Core\Partitions\Domain\Dto\GaveUpStep;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionChange;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionRange;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionReport;
@@ -255,7 +256,7 @@ trait PartitionMaintenanceBehaviour
         Assert::assertSame(self::UUID_TABLE, $timeout->table);
         Assert::assertSame('partition_scratch_p20260110', $timeout->partition);
         Assert::assertSame(2, $timeout->attempts);
-        Assert::assertStringStartsWith('['.LockTimeout::CODE.']', $timeout->getMessage());
+        Assert::assertStringStartsWith('['.LockTimeout::CODE.']', $timeout->message);
         Assert::assertSame([], $this->partitionsOf(self::UUID_TABLE));
 
         $next = $maintenance->maintain($now);
@@ -314,7 +315,7 @@ trait PartitionMaintenanceBehaviour
         Assert::assertSame([
             'create '.self::UUID_TABLE.' partition_scratch_p20260110',
             'detach '.self::UUID_TABLE.' partition_scratch_p20251231',
-        ], array_map(static fn (LockTimeout $timeout): string => $timeout->step->value.' '.$timeout->table.' '.$timeout->partition, $report->gaveUp));
+        ], array_map(static fn (GaveUpStep $step): string => $step->step->value.' '.$step->table.' '.$step->partition, $report->gaveUp));
         Assert::assertSame(['created '.self::TIME_TABLE.'_p202601'], $this->describe($report));
         Assert::assertSame([self::TIME_TABLE.'_p202512', self::TIME_TABLE.'_p202601'], $this->partitionsOf(self::TIME_TABLE));
         Assert::assertSame(['partition_scratch_p20251231'], $this->partitionsOf(self::UUID_TABLE));
@@ -329,6 +330,25 @@ trait PartitionMaintenanceBehaviour
             'detached partition_scratch_p20251231',
             'dropped partition_scratch_p20251231',
         ], $this->describe($next));
+    }
+
+    #[Test]
+    public function a_report_holds_the_steps_that_gave_up_as_values_and_no_exception(): void
+    {
+        $maintenance = $this->partitionMaintenance($this->policy([$this->dailyTable(retentionDays: 1)], runwayDays: 1, attempts: 2));
+        $maintenance->cover($this->range('2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'), new DateTimeImmutable('2026-01-01T00:00:00Z'));
+        $this->lockTable(self::UUID_TABLE);
+
+        try {
+            $report = $maintenance->maintain(new DateTimeImmutable('2026-01-10T12:00:00Z'));
+        } finally {
+            $this->unlockTable(self::UUID_TABLE);
+        }
+
+        // A DTO holds immutable values only (GUARDRAILS 2.2): an exception would carry its stack
+        // and, from the Postgres manager, the framework's QueryException out of Infrastructure.
+        Assert::assertCount(2, $report->gaveUp);
+        Assert::assertSame([], $this->throwablesIn($report, 'report'));
     }
 
     #[Test]
@@ -397,6 +417,31 @@ trait PartitionMaintenanceBehaviour
     private function describe(PartitionReport $report): array
     {
         return array_map(static fn (PartitionChange $change): string => $change->kind->value.' '.$change->partition, $report->changes);
+    }
+
+    /**
+     * The paths of every Throwable in the value, its properties of any visibility and its array
+     * elements, at any depth.
+     *
+     * @return list<string>
+     */
+    private function throwablesIn(mixed $value, string $path): array
+    {
+        if ($value instanceof Throwable) {
+            return [$path.' ('.$value::class.')'];
+        }
+
+        if (! is_array($value) && ! is_object($value)) {
+            return [];
+        }
+
+        $found = [];
+
+        foreach ((array) $value as $key => $element) {
+            $found = [...$found, ...$this->throwablesIn($element, $path.'.'.str_replace("\0", '', (string) $key))];
+        }
+
+        return $found;
     }
 
     /**

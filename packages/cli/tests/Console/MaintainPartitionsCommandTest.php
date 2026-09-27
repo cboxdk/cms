@@ -166,6 +166,7 @@ it('exits 75 when a lock stays busy, prints why and logs the step as a warning',
             'table' => null,
             'partition' => null,
             'attempts' => 3,
+            'cause' => null,
         ]]]);
 });
 
@@ -189,6 +190,7 @@ it('reports the run, then logs the table and partition of a lock that stays busy
                 'table' => 'events',
                 'partition' => 'events_p20260501',
                 'attempts' => 3,
+                'cause' => null,
             ]],
         ]);
 });

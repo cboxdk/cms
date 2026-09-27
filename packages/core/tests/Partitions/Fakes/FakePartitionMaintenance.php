@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Partitions\Fakes;
 
 use Cbox\Cms\Core\Partitions\Domain\DdlStep;
+use Cbox\Cms\Core\Partitions\Domain\Dto\GaveUpStep;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionChange;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionRange;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionReport;
@@ -31,7 +32,7 @@ use Override;
  * session holding a lock on a table, so the next step that creates or detaches a partition of it
  * gives up. Both give up with LockTimeout after the policy's attempts and change nothing in that
  * step, as the real manager does: the run lock is thrown, a table's lock is in the report's
- * gaveUp while the run goes on with the other tables. A policy on the application's connection is refused with
+ * gaveUp as a GaveUpStep while the run goes on with the other tables. A policy on the application's connection is refused with
  * OwnerConnectionRequired. PartitionMaintenanceBehaviour holds it to PostgresPartitionManager.
  *
  * It does not model a detach that an earlier run left pending, or a table Postgres cannot manage.
@@ -151,7 +152,7 @@ final class FakePartitionMaintenance implements PartitionMaintenance
                 try {
                     $phase($table);
                 } catch (LockTimeout $timeout) {
-                    $gaveUp[] = $timeout;
+                    $gaveUp[] = GaveUpStep::of($timeout);
                 }
             }
         }

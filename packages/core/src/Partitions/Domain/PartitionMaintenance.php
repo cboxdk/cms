@@ -16,8 +16,8 @@ use DateTimeImmutable;
  * OwnerConnectionRequired before it changes anything. When another run holds the maintenance
  * lock within the lock timeout, on every attempt, it throws LockTimeout before it changes
  * anything. A step on one table that cannot get its lock within the lock timeout, on every
- * attempt, ends that phase for that table only: the LockTimeout is in the report's gaveUp, and
- * the run goes on with the other tables.
+ * attempt, ends that phase for that table only: the report's gaveUp holds it as a GaveUpStep,
+ * and the run goes on with the other tables.
  */
 #[Experimental]
 interface PartitionMaintenance

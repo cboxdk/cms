@@ -43,7 +43,7 @@ use LogicException;
  * Every step runs under LockedDdl: lock_timeout and a bounded retry with backoff. One run at a
  * time holds a session advisory lock on the owner connection. A run creates the partitions of
  * every table before it retires any, and a step that gives up on a table's lock ends that phase
- * for that table only: the LockTimeout goes in the report and the run goes on with the other
+ * for that table only: the LockTimeout goes in the report as a GaveUpStep and the run goes on with the other
  * tables. Retiring a partition waits for every transaction on the parent, which a busy table may
  * never allow within the lock timeout, while creating one does not; a busy table must not use up
  * the runway of the others.
@@ -128,7 +128,7 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
             role: $role,
             changes: $run->changes(),
             runways: array_map(fn (CatalogTable $table): TableRunway => $this->runway($catalog, $table, $now), $tables),
-            gaveUp: $run->timeouts(),
+            gaveUp: $run->stepsGivenUp(),
         );
     }
 

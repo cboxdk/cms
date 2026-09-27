@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Partitions\Infrastructure;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Core\Partitions\Domain\Dto\GaveUpStep;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionChange;
 use Cbox\Cms\Core\Partitions\Domain\LockTimeout;
 use Cbox\Cms\Core\Partitions\Domain\Partition;
@@ -21,7 +22,7 @@ final class Run
     /** @var list<PartitionChange> */
     private array $changes = [];
 
-    /** @var list<LockTimeout> */
+    /** @var list<GaveUpStep> */
     private array $gaveUp = [];
 
     public function __construct(
@@ -43,15 +44,18 @@ final class Run
         return $this->changes;
     }
 
+    /**
+     * Records a step that gave up for the report, as values: the exception and its cause stay out.
+     */
     public function gaveUp(LockTimeout $timeout): void
     {
-        $this->gaveUp[] = $timeout;
+        $this->gaveUp[] = GaveUpStep::of($timeout);
     }
 
     /**
-     * @return list<LockTimeout>
+     * @return list<GaveUpStep>
      */
-    public function timeouts(): array
+    public function stepsGivenUp(): array
     {
         return $this->gaveUp;
     }

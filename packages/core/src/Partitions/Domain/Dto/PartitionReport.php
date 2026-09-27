@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Partitions\Domain\Dto;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
-use Cbox\Cms\Core\Partitions\Domain\LockTimeout;
 use Cbox\Cms\Core\Partitions\Domain\PartitionChangeKind;
 
 /**
@@ -13,7 +12,7 @@ use Cbox\Cms\Core\Partitions\Domain\PartitionChangeKind;
  *
  * A table whose lock stayed busy does not stop the run: the step that gave up is in $gaveUp, and
  * the run went on with the other tables and the next phase. The run is complete when nothing
- * gave up.
+ * gave up. The report holds values only; the LockTimeout of each step that gave up is not kept.
  */
 #[Experimental]
 final readonly class PartitionReport
@@ -22,8 +21,8 @@ final readonly class PartitionReport
      * @param  string  $role  the database role that ran the DDL
      * @param  list<PartitionChange>  $changes  in the order they were made
      * @param  list<TableRunway>  $runways  one per managed table, in policy order
-     * @param  list<LockTimeout>  $gaveUp  the steps that gave up on a busy lock, in the order they
-     *                                     were tried: at most one per table and phase
+     * @param  list<GaveUpStep>  $gaveUp  the steps that gave up on a busy lock, in the order they
+     *                                    were tried: at most one per table and phase
      */
     public function __construct(
         public string $role,

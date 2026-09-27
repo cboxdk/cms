@@ -315,7 +315,7 @@ it('gives up on the detach with LockTimeout while another process holds ACCESS S
         ->and($timeout->table)->toBe('partition_scratch')
         ->and($timeout->partition)->toBe('partition_scratch_p20260101')
         ->and($timeout->attempts)->toBe(2)
-        ->and($timeout->getMessage())->toStartWith('['.LockTimeout::CODE.']')
+        ->and($timeout->message)->toStartWith('['.LockTimeout::CODE.']')
         ->and($elapsedMs)->toBeGreaterThan(4000.0)->toBeLessThan(10_000.0)
         // Nothing half-detached: the partition is still attached and not pending, in both catalogs.
         ->and(PartitionScratch::partitions(PartitionScratch::UUID_TABLE))->toContain('partition_scratch_p20260101')
@@ -399,7 +399,7 @@ it('rolls a create back when ATTACH passes lock_timeout, so no stray table is le
 
     expect($timeout->step)->toBe(DdlStep::Create)
         ->and($timeout->partition)->toBe('partition_scratch_p20260110')
-        ->and($timeout->getPrevious())->toBeInstanceOf(QueryException::class)
+        ->and($timeout->cause)->toContain('SQLSTATE[55P03]')->toContain('attach partition')
         ->and($elapsedMs)->toBeGreaterThan(4000.0)->toBeLessThan(10_000.0)
         ->and(PartitionScratch::exists('partition_scratch_p20260110'))->toBeFalse()
         ->and(PartitionScratch::treeCount(PartitionScratch::UUID_TABLE))->toBe(1);
