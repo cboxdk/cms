@@ -31,6 +31,7 @@ final class FakeDoctorChecks implements DoctorChecks
         private readonly array $dev = [],
     ) {
         $listed = [];
+        $blocking = [];
 
         foreach ([...$runtime, ...$dev] as $check) {
             if (in_array($check->id()->value, $listed, true)) {
@@ -41,9 +42,17 @@ final class FakeDoctorChecks implements DoctorChecks
                 if (! in_array($required->value, $listed, true)) {
                     throw InvalidDoctorCheck::requirement($check->id(), $required);
                 }
+
+                if ($check->blocking() && ! in_array($required->value, $blocking, true)) {
+                    throw InvalidDoctorCheck::blockingRequirement($check->id(), $required);
+                }
             }
 
             $listed[] = $check->id()->value;
+
+            if ($check->blocking()) {
+                $blocking[] = $check->id()->value;
+            }
         }
     }
 

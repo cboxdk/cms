@@ -182,14 +182,16 @@ it('fails transaction_timeout, DDL and the app role for a role without the timeo
         ->and($appRole['cause'])->toBe('The role cms_owner is a member of pg_database_owner, which owns or may create objects in the database or its schemas; pg_signal_backend, which cancels and terminates the sessions of every other non-superuser role, the owner\'s migrations and partition maintenance included.');
 });
 
-it('fails the partition runway with 78 when only 2 days of partitions exist', function (): void {
+it('fails the partition runway with 79 when only 2 days of partitions exist, because it only affects readiness', function (): void {
     doctorClock('2047-03-10T12:00:00Z', 'P2D');
     buildRegistry();
 
     [$status, $document] = inProcessDoctor();
     $runway = doctorCheck($document, 'partitions.runway');
 
-    expect($status)->toBe(78)
+    expect($status)->toBe(79)
+        ->and($document['status'])->toBe('not_ready')
+        ->and(array_filter(doctorStatuses($document), static fn (string $status): bool => $status !== 'pass'))->toBe(['partitions.runway' => 'fail'])
         ->and($runway['status'])->toBe('fail')
         ->and($runway['blocking'])->toBeFalse()
         ->and($runway['failure'])->toBe('violation')
@@ -209,7 +211,7 @@ it('ends the runway at a gap in the partitions, not at the last partition', func
     [$status, $document] = inProcessDoctor();
     $runway = doctorCheck($document, 'partitions.runway');
 
-    expect($status)->toBe(78)
+    expect($status)->toBe(79)
         ->and($runway['cause'])->toContain('receipts_standard until 2047-09-13T00:00:00Z (2.5 days)')
         ->and($runway['cause'])->not->toContain('receipts_evidence');
 
@@ -328,7 +330,7 @@ it('reports node as failing with --dev when PATH lacks it, and does not check no
     buildRegistry();
     $environment = ['PATH' => '/usr/bin:/bin'];
 
-    [, $dev] = testbenchDoctor(['--dev'], $environment);
+    [$devStatus, $dev, $errors] = testbenchDoctor(['--dev'], $environment);
     [, $runtime] = testbenchDoctor([], $environment);
     $node = doctorCheck($dev, 'dev.node');
 
@@ -337,7 +339,8 @@ it('reports node as failing with --dev when PATH lacks it, and does not check no
         ->and($node['cause'])->toBe('There is no node on PATH (/usr/bin:/bin).')
         ->and(doctorStatuses($dev)['dev.playwright'])->toBe('skip')
         ->and($dev['dev'])->toBeTrue()
-        ->and($dev['status'])->toBe('violation')
+        ->and($dev['status'])->toBe('not_ready')
+        ->and($devStatus)->toBe(79, $errors)
         ->and(array_keys(doctorStatuses($runtime)))->not->toContain('dev.node')
         ->and($runtime['dev'])->toBeFalse();
 });

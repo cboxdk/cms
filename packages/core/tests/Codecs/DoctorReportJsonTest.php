@@ -81,8 +81,13 @@ it('encodes every kind of report so that it validates against doctor.v1.json', f
     'all pass' => [new DoctorReport(false, [passed('a.first'), passed('b.second', false)]), 'ok', 0],
     'pass and skip' => [new DoctorReport(true, [passed('a.first'), skipped('b.second')]), 'ok', 0],
     'unavailable' => [new DoctorReport(false, [failedAs('a.first', FailureKind::Unavailable), skipped('b.second')]), 'unavailable', 75],
-    'violation' => [new DoctorReport(false, [passed('a.first'), failedAs('b.second', FailureKind::Violation, false)]), 'violation', 78],
+    'violation' => [new DoctorReport(false, [passed('a.first'), failedAs('b.second', FailureKind::Violation)]), 'violation', 78],
     'both' => [new DoctorReport(true, [failedAs('a.first', FailureKind::Unavailable), failedAs('b.second', FailureKind::Violation)]), 'violation', 78],
+    'violation with readiness failures' => [new DoctorReport(false, [failedAs('a.first', FailureKind::Unavailable, false), failedAs('b.second', FailureKind::Violation), failedAs('c.third', FailureKind::Violation, false)]), 'violation', 78],
+    'unavailable with a readiness violation' => [new DoctorReport(false, [failedAs('a.first', FailureKind::Unavailable), failedAs('b.second', FailureKind::Violation, false)]), 'unavailable', 75],
+    'a readiness violation' => [new DoctorReport(false, [passed('a.first'), failedAs('b.second', FailureKind::Violation, false)]), 'not_ready', 79],
+    'a readiness unavailable' => [new DoctorReport(true, [passed('a.first'), failedAs('b.second', FailureKind::Unavailable, false)]), 'not_ready', 79],
+    'readiness failures and a skip' => [new DoctorReport(true, [passed('a.first'), failedAs('b.second', FailureKind::Unavailable, false), failedAs('c.third', FailureKind::Violation, false), skipped('d.fourth')]), 'not_ready', 79],
 ]);
 
 it('writes the exact bytes of version 1', function (): void {
@@ -150,6 +155,12 @@ it('has a schema that refuses documents breaking the rules of a result', functio
     'a skip without a cause' => ['{"checks":[{"blocking":true,"cause":null,"code":null,"explanation":"x","failure":null,"fix":null,"id":"a.b","status":"skip"}],"dev":false,"exit_code":0,"status":"ok","version":1}', '/checks/0/cause'],
     'ok with a failure' => ['{"checks":[{"blocking":true,"cause":"c","code":"doctor_x","explanation":"x","failure":"violation","fix":"f","id":"a.b","status":"fail"}],"dev":false,"exit_code":0,"status":"ok","version":1}', '/checks/0/failure'],
     'violation without one' => ['{"checks":[{"blocking":true,"cause":"c","code":"doctor_x","explanation":"x","failure":"unavailable","fix":"f","id":"a.b","status":"fail"}],"dev":false,"exit_code":78,"status":"violation","version":1}', '/checks/0/failure'],
+    'violation only from a readiness check' => ['{"checks":[{"blocking":false,"cause":"c","code":"doctor_x","explanation":"x","failure":"violation","fix":"f","id":"a.b","status":"fail"}],"dev":false,"exit_code":78,"status":"violation","version":1}', '/checks/0/blocking'],
+    'unavailable only from a readiness check' => ['{"checks":[{"blocking":false,"cause":"c","code":"doctor_x","explanation":"x","failure":"unavailable","fix":"f","id":"a.b","status":"fail"}],"dev":false,"exit_code":75,"status":"unavailable","version":1}', '/checks/0/blocking'],
+    'unavailable with a blocking violation' => ['{"checks":[{"blocking":true,"cause":"c","code":"doctor_x","explanation":"x","failure":"unavailable","fix":"f","id":"a.b","status":"fail"},{"blocking":true,"cause":"c","code":"doctor_x","explanation":"x","failure":"violation","fix":"f","id":"a.c","status":"fail"}],"dev":false,"exit_code":75,"status":"unavailable","version":1}', '/checks/1/failure'],
+    'not_ready with a blocking failure' => ['{"checks":[{"blocking":false,"cause":"c","code":"doctor_x","explanation":"x","failure":"violation","fix":"f","id":"a.b","status":"fail"},{"blocking":true,"cause":"c","code":"doctor_x","explanation":"x","failure":"unavailable","fix":"f","id":"a.c","status":"fail"}],"dev":false,"exit_code":79,"status":"not_ready","version":1}', '/checks/1/failure'],
+    'not_ready without a readiness failure' => ['{"checks":[{"blocking":false,"cause":null,"code":null,"explanation":"x","failure":null,"fix":null,"id":"a.b","status":"pass"}],"dev":false,"exit_code":79,"status":"not_ready","version":1}', '/checks/0/failure'],
+    'not_ready with exit code 0' => ['{"checks":[{"blocking":false,"cause":"c","code":"doctor_x","explanation":"x","failure":"violation","fix":"f","id":"a.b","status":"fail"}],"dev":false,"exit_code":0,"status":"not_ready","version":1}', '/exit_code'],
     'an invalid id' => ['{"checks":[{"blocking":true,"cause":null,"code":null,"explanation":"x","failure":null,"fix":null,"id":"php","status":"pass"}],"dev":false,"exit_code":0,"status":"ok","version":1}', '/checks/0/id'],
     'an empty explanation' => ['{"checks":[{"blocking":true,"cause":null,"code":null,"explanation":" ","failure":null,"fix":null,"id":"a.b","status":"pass"}],"dev":false,"exit_code":0,"status":"ok","version":1}', '/checks/0/explanation'],
 ]);

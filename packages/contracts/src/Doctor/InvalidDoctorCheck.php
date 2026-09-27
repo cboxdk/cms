@@ -61,4 +61,13 @@ final class InvalidDoctorCheck extends InvalidArgumentException
             $required->value,
         ));
     }
+
+    public static function blockingRequirement(CheckId $id, CheckId $required): self
+    {
+        return new self(sprintf(
+            'The blocking check "%s" requires "%s", which does not block. A blocking check can only require blocking checks, because a readiness failure that skips it would let the kernel start without it.',
+            $id->value,
+            $required->value,
+        ));
+    }
 }

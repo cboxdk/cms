@@ -17,8 +17,9 @@ use UnexpectedValueException;
  * constructor, as the contract asks.
  *
  * A check that cannot be used is a configuration problem, not a crash of cms:doctor: when the
- * container cannot build the class, a binding gives something that is not a DoctorCheck, or its id()
- * or requires() throws, as for an invalid CheckId, this throws InvalidDoctorConfig, and the doctor reports the failing check doctor.config.
+ * container cannot build the class, a binding gives something that is not a DoctorCheck, or its id(),
+ * blocking() or requires() throws, as for an invalid CheckId, this throws InvalidDoctorConfig, and
+ * the doctor reports the failing check doctor.config.
  */
 #[Internal]
 final readonly class ContainerDoctorChecks
@@ -47,6 +48,7 @@ final readonly class ContainerDoctorChecks
                 }
 
                 $check->id();
+                $check->blocking();
                 $check->requires();
             } catch (Throwable $thrown) {
                 throw InvalidDoctorConfig::check($key, $class, $thrown);

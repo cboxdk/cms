@@ -17,12 +17,15 @@ use Throwable;
 
 /**
  * cms:doctor as the surfaces call it (PRD 3.3, 4.2, 13.2): runs the checks in their order and
- * adds up the exit code.
+ * adds up the exit code, DoctorExitCode::for(): the blocking failures decide it when there are
+ * any, a violation over an unavailable dependency, and otherwise a failure that only affects
+ * readiness gives NotReady.
  *
  * A check whose requirement did not pass is skipped, and the skip names the requirement. A check
  * that breaks its contract, by throwing, by answering for another id or by returning a skip, which
  * only the doctor gives, fails as a violation with CODE_CRASHED, so the doctor always gives a
- * complete report and never exits Ok for a check that did not look.
+ * complete report and never exits Ok for a check that did not look. The crash keeps the check's
+ * blocking: a crashed blocking check stops the kernel, a crashed readiness check gives NotReady.
  */
 #[Experimental]
 final readonly class RunDoctor

@@ -180,15 +180,17 @@ it('exits 78 when the owner role writes its messages in German', function (): vo
         ->and($messages['fix'])->toBeString()->toContain("ALTER ROLE cms_owner SET lc_messages = 'C'");
 });
 
-it('exits 78 when the owner connection is configured in a process that is not the maintenance process', function (): void {
+it('exits 79 when the owner connection is configured in a process that is not the maintenance process, which only affects readiness', function (): void {
     new DoctorFakes;
     config(['cbox-cms.doctor.maintenance_process' => false]);
 
     [$status, $document] = doctorJson();
     $credentials = checkOf($document, 'postgres.owner_credentials');
 
-    expect($status)->toBe(78)
-        ->and($document['status'])->toBe('violation')
+    expect($status)->toBe(79)
+        ->and($document['status'])->toBe('not_ready')
+        ->and($document['exit_code'])->toBe(79)
+        ->and($credentials['failure'])->toBe('violation')
         ->and($credentials['status'])->toBe('fail')
         ->and($credentials['blocking'])->toBeFalse()
         ->and($credentials['code'])->toBe('doctor_owner_credentials_exposed')
@@ -231,18 +233,59 @@ it('exits 78 when a violation and an unavailable dependency come together', func
         ->and(checkStatuses($document)['registry.cache'])->toBe('fail');
 });
 
-it('exits 78 for a short runway, which only affects readiness', function (): void {
+it('exits 79 for a short runway, which only affects readiness', function (): void {
     $fakes = new DoctorFakes;
     $fakes->partitions->runways = [new PartitionCoverage('receipts_standard', new DateTimeImmutable('2026-03-12T00:00:00Z'))];
 
     [$status, $output] = doctor();
 
-    expect($status)->toBe(78)
+    expect($status)->toBe(79)
         ->and($output)->toContain(' FAIL  partitions.runway ')
         ->and($output)->toContain('code   doctor_partition_runway_short (violation, affects readiness only)')
         ->and($output)->toContain('cause  At 2026-03-10T12:00:00Z: receipts_standard until 2026-03-12T00:00:00Z (1.5 days).')
         ->and($output)->toContain('fix    Run php artisan cms:partitions:maintain')
-        ->and($output)->toContain('cms:doctor: violation (exit 78).');
+        ->and($output)->toContain('cms:doctor: not_ready (exit 79). The kernel may start, but is not ready until the checks that affect readiness pass.')
+        ->and($fakes->log->records)->toBe([['warning', 'cms:doctor found problems.', [
+            'status' => 'not_ready',
+            'exit_code' => 79,
+            'dev' => false,
+            'failed' => ['partitions.runway doctor_partition_runway_short'],
+        ]]]);
+});
+
+it('exits 75 when a blocking check cannot reach its dependency and a readiness check is violated', function (): void {
+    $fakes = new DoctorFakes;
+    $fakes->valkey->failure = ProbeFailed::unavailable('Connection refused');
+    $fakes->partitions->runways = [new PartitionCoverage('receipts_standard', new DateTimeImmutable('2026-03-12T00:00:00Z'))];
+
+    [$status, $document] = doctorJson();
+
+    expect($status)->toBe(75)
+        ->and($document['status'])->toBe('unavailable')
+        ->and($document['exit_code'])->toBe(75)
+        ->and(checkOf($document, 'valkey.reachable')['failure'])->toBe('unavailable')
+        ->and(checkOf($document, 'valkey.reachable')['blocking'])->toBeTrue()
+        ->and(checkOf($document, 'partitions.runway')['failure'])->toBe('violation')
+        ->and(checkOf($document, 'partitions.runway')['blocking'])->toBeFalse();
+});
+
+it('exits 78 when a blocking check is violated, whatever fails that only affects readiness', function (): void {
+    $fakes = new DoctorFakes;
+    $fakes->valkey->failure = ProbeFailed::unavailable('Connection refused');
+    $fakes->lcMessages->ownerRole = 'de_DE.UTF-8';
+    $fakes->partitions->runways = [new PartitionCoverage('receipts_standard', new DateTimeImmutable('2026-03-12T00:00:00Z'))];
+    config(['cbox-cms.doctor.maintenance_process' => false]);
+
+    [$status, $document] = doctorJson();
+
+    expect($status)->toBe(78)
+        ->and($document['status'])->toBe('violation')
+        ->and(array_filter(checkStatuses($document), static fn (string $status): bool => $status === 'fail'))->toBe([
+            'postgres.lc_messages' => 'fail',
+            'valkey.reachable' => 'fail',
+            'partitions.runway' => 'fail',
+            'postgres.owner_credentials' => 'fail',
+        ]);
 });
 
 it('adds the development checks with --dev and asks for no tool without it', function (): void {
@@ -254,7 +297,8 @@ it('adds the development checks with --dev and asks for no tool without it', fun
 
     expect($runtimeStatus)->toBe(0)
         ->and(array_keys(checkStatuses($runtime)))->not->toContain('dev.node')
-        ->and($devStatus)->toBe(78)
+        ->and($devStatus)->toBe(79)
+        ->and($dev['status'])->toBe('not_ready')
         ->and($dev['dev'])->toBeTrue()
         ->and(array_slice(checkStatuses($dev), -3))->toBe(['dev.node' => 'fail', 'dev.playwright' => 'skip', 'dev.chromium' => 'skip'])
         ->and(checkOf($dev, 'dev.node')['code'])->toBe('doctor_node_missing')
@@ -291,12 +335,25 @@ it('skips an added check whose requirement fails, and counts the failure of an a
 
     [$status, $document] = doctorJson();
 
-    expect($status)->toBe(78)
-        ->and($document['status'])->toBe('violation')
+    expect($status)->toBe(75)
+        ->and($document['status'])->toBe('unavailable')
         ->and(checkOf($document, 'addon.ready')['status'])->toBe('skip')
         ->and(checkOf($document, 'addon.ready')['cause'])->toBe('postgres.reachable did not pass.')
         ->and(checkOf($document, 'addon.settings')['status'])->toBe('fail')
         ->and(checkOf($document, 'addon.settings')['code'])->toBe(FakeDoctorCheck::CODE);
+
+    $fakes->postgres->connectFailure = null;
+
+    [$readyStatus, $ready] = doctorJson();
+
+    expect($readyStatus)->toBe(79)
+        ->and($ready['status'])->toBe('not_ready')
+        ->and(checkOf($ready, 'addon.ready')['status'])->toBe('pass')
+        ->and(checkOf($ready, 'addon.settings')['status'])->toBe('fail');
+
+    app()->instance(FakeDoctorCheck::class, FakeDoctorCheck::failing(new CheckId('addon.settings'), FailureKind::Violation));
+
+    expect(doctorJson()[0])->toBe(78);
 });
 
 it('reports an added check that cannot be used as the failing check doctor.config', function (): void {
@@ -389,7 +446,7 @@ it('lines up every check under the longest id and prints the cause, fix and code
 
     expect($status)->toBe(78)
         ->and($width)->toBe(strlen('postgres.prepared_transactions'))
-        ->and(explode("\n", $output))->toBe([...$expected, '', 'cms:doctor: violation (exit 78).', ''])
+        ->and(explode("\n", $output))->toBe([...$expected, '', 'cms:doctor: violation (exit 78). The kernel may not start.', ''])
         ->and($output)->toContain('code   doctor_lc_messages_not_english (violation, blocks the kernel from starting)', 'code   doctor_partition_runway_short (violation, affects readiness only)');
 });
 

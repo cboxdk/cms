@@ -21,11 +21,12 @@
       "type": "boolean"
     },
     "status": {
-      "description": "The name of the exit code: ok when nothing failed, violation when the configuration or the runtime contract is broken, unavailable when a dependency could not be reached and nothing is broken.",
+      "description": "The name of the exit code: ok when nothing failed; violation when a blocking check found the configuration invalid or the runtime contract broken; unavailable when a blocking check could not reach a dependency and no blocking check found a violation; not_ready when no blocking check failed but a check that only affects readiness did. The kernel may start at ok and not_ready, and is ready only at ok.",
       "enum": [
         "ok",
         "violation",
-        "unavailable"
+        "unavailable",
+        "not_ready"
       ]
     },
     "exit_code": {
@@ -253,11 +254,15 @@
           "checks": {
             "contains": {
               "properties": {
+                "blocking": {
+                  "const": true
+                },
                 "failure": {
                   "const": "violation"
                 }
               },
               "required": [
+                "blocking",
                 "failure"
               ]
             }
@@ -281,21 +286,91 @@
           "checks": {
             "contains": {
               "properties": {
+                "blocking": {
+                  "const": true
+                },
                 "failure": {
                   "const": "unavailable"
                 }
               },
               "required": [
+                "blocking",
                 "failure"
               ]
             },
             "items": {
+              "if": {
+                "properties": {
+                  "blocking": {
+                    "const": true
+                  }
+                },
+                "required": [
+                  "blocking"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "failure": {
+                    "enum": [
+                      "unavailable",
+                      null
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "not_ready"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "exit_code": {
+            "minimum": 1
+          },
+          "checks": {
+            "contains": {
               "properties": {
+                "blocking": {
+                  "const": false
+                },
                 "failure": {
                   "enum": [
-                    "unavailable",
-                    null
+                    "violation",
+                    "unavailable"
                   ]
+                }
+              },
+              "required": [
+                "blocking",
+                "failure"
+              ]
+            },
+            "items": {
+              "if": {
+                "properties": {
+                  "blocking": {
+                    "const": true
+                  }
+                },
+                "required": [
+                  "blocking"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "failure": {
+                    "const": null
+                  }
                 }
               }
             }

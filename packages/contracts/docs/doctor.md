@@ -4,7 +4,7 @@
 <!-- extension-point: Cbox\Cms\Testkit\Doctor\DoctorCheckContract -->
 <!-- extension-point: packages/contracts/resources/schemas/doctor.v1.json -->
 
-`cms:doctor` checks the installation and the runtime contract (PRD 3.3, 4.2, 13.2). For each part it says whether it is in order, and for each problem what is wrong and how to fix it (GUARDRAILS 7.1). `--dev` adds the development tools, and `--json` prints only a document that a deploy script or a readiness probe reads. The process exits with a fixed code: ok, a violation, or a dependency that is unavailable right now.
+`cms:doctor` checks the installation and the runtime contract (PRD 3.3, 4.2, 13.2). For each part it says whether it is in order, and for each problem what is wrong and how to fix it (GUARDRAILS 7.1). `--dev` adds the development tools, and `--json` prints only a document that a deploy script or a readiness probe reads. The process exits with a fixed code: ok; a violation or a dependency that is unavailable right now, both from a check that blocks the kernel from starting; or not ready, when only checks that affect readiness fail.
 
 This page covers the contract a check keeps, `Cbox\Cms\Contracts\Doctor\DoctorCheck`, how an application or addon adds a check to `cms:doctor`, how the doctor turns the results into an exit code, the document of `--json`, described by the JSON Schema [`doctor.v1.json`](../resources/schemas/doctor.v1.json), and how a check is tested with the testkit's shared suite `Cbox\Cms\Testkit\Doctor\DoctorCheckContract` and its fake `FakeDoctorCheck`. All of them are `#[Experimental]`.
 
@@ -12,7 +12,7 @@ This page covers the contract a check keeps, `Cbox\Cms\Contracts\Doctor\DoctorCh
 
 `cms:doctor` runs the core's own checks, which `CoreServiceProvider` in `cboxdk/cms-core` builds, and after them the checks an application or addon adds in `cbox-cms.doctor.checks` and `cbox-cms.doctor.dev_checks` (see [Adding a check](#adding-a-check)).
 
-The core's checks run in this order. The last three run only with `--dev`. A check that is not blocking only affects readiness: the kernel still starts while it fails.
+The core's checks run in this order. The last three run only with `--dev`. A check that is not blocking only affects readiness: the kernel still starts while it fails, and when no blocking check fails the doctor exits 79, not ready.
 
 | Id | Blocking | Requires | What it looks at |
 |---|---|---|---|
@@ -51,13 +51,14 @@ The container builds each check when the doctor makes its list, so a check gets 
 The added checks keep the same rules as the core's:
 
 - every id is unique, among the core's checks too;
-- a check requires only checks that run before it. A check in `checks` may require any of the core's runtime checks, such as `postgres.reachable`, and a check before it in the list. A check in `dev_checks` may also require the core's development checks and every check in `checks`. A check in `checks` cannot require a development check, because it also runs without `--dev`.
+- a check requires only checks that run before it. A check in `checks` may require any of the core's runtime checks, such as `postgres.reachable`, and a check before it in the list. A check in `dev_checks` may also require the core's development checks and every check in `checks`. A check in `checks` cannot require a development check, because it also runs without `--dev`;
+- a blocking check requires only blocking checks. A check that does not block, such as `partitions.runway`, can fail while the kernel starts, and the doctor would then skip the blocking check that needs it and exit 79, so the kernel would start without the blocking check having looked. A check that does not block may require checks of either kind.
 
 A problem with an added check is a configuration problem, and the doctor reports it as the failing check `doctor.config` in place of every other check, with a cause that names the setting:
 
 - the list is not a list, or an entry is not the name of a class that implements `DoctorCheck`, as in `The setting cbox-cms.doctor.checks.0 must be the name of a class that implements Cbox\Cms\Contracts\Doctor\DoctorCheck; it is 'stdClass'.`;
-- the container cannot build the class, a binding gives something that does not implement `DoctorCheck`, or the check's `id()` or `requires()` throws, as for an invalid `CheckId`;
-- an id repeats, or a check requires one that does not run before it.
+- the container cannot build the class, a binding gives something that does not implement `DoctorCheck`, or the check's `id()`, `blocking()` or `requires()` throws, as for an invalid `CheckId`;
+- an id repeats, a check requires one that does not run before it, or a blocking check requires one that does not block.
 
 Once it is in the list, an added check runs like the core's: the doctor skips it when a check it requires did not pass, its failure counts in the exit code, and a `run()` that breaks the contract fails as `doctor_check_crashed`.
 
@@ -143,8 +144,8 @@ it('reports the failure of the added check with its own code, cause and fix', fu
 A check has four methods.
 
 - `id(): CheckId` is the check's stable name, such as `postgres.reachable`: two or more lowercase snake_case segments separated by dots, at most 63 characters (`CheckId::MAX_LENGTH`). A bad id throws `InvalidDoctorCheck` when the `CheckId` is made. The id is part of the JSON document, so a check keeps its id.
-- `blocking(): bool` says whether the kernel refuses to start while the check fails. A check that is not blocking only affects readiness, so a cold start never blocks itself: the partition runway, for example, is extended by the scheduler of the started application.
-- `requires(): list<CheckId>` lists the checks that must pass before this one runs, each once and never the check itself. A check can rely on what a requirement showed, such as a reachable Postgres. A requirement is always a check that runs earlier.
+- `blocking(): bool` says whether the kernel refuses to start while the check fails. A check that is not blocking only affects readiness, so a cold start never blocks itself: the partition runway, for example, is extended by the scheduler of the started application. Its failure alone makes the doctor exit 79, not ready.
+- `requires(): list<CheckId>` lists the checks that must pass before this one runs, each once and never the check itself. A check can rely on what a requirement showed, such as a reachable Postgres. A requirement is always a check that runs earlier, and the requirement of a blocking check is always a blocking check.
 - `run(): CheckResult` looks at the part it checks and returns the result.
 
 `run()` only looks. It changes nothing, so running it twice in the same state gives the same result, and it never throws. A dependency that cannot be reached, or a setting that is wrong, is a result, not an exception. It returns one of two results, and each carries the check's own id and blocking:
@@ -152,7 +153,7 @@ A check has four methods.
 - `CheckResult::pass($id, $blocking, $explanation)`: the part is in order. The explanation says what the check looked at and what it found.
 - `CheckResult::fail($id, $blocking, $failure, $code, $explanation, $cause, $fix)`: the part is not in order. `$failure` is a `FailureKind`. `$code` is the error code: lowercase snake_case with at least two words and at most 63 characters (`CheckResult::CODE_PATTERN` and `CheckResult::MAX_CODE_LENGTH`), such as `doctor_postgres_unavailable`. `$cause` is the concrete cause, such as the value that was found, and `$fix` says what to do about it. An error that only says what went wrong is a bug in the error.
 
-The `FailureKind` decides the exit code:
+For a blocking check, the `FailureKind` decides the exit code; the failure of a check that does not block gives 79 whatever its kind, unless a blocking check fails too:
 
 - `Violation`: the configuration is invalid or the runtime contract is broken. Trying again does not help; someone has to change something.
 - `Unavailable`: a dependency such as Postgres or Valkey cannot be reached right now, and nothing is misconfigured. Trying again later may help.
@@ -161,9 +162,9 @@ The constructor of `CheckResult` enforces what goes with each status: a pass has
 
 ## Skips and crashes
 
-A check never returns a skip. Only the doctor skips a check: when a check it requires did not pass, the doctor does not run it and reports it with the status skip and a cause that names the requirement, such as `postgres.reachable did not pass.`. A skip is not a failure and does not change the exit code; the failure of the requirement already does.
+A check never returns a skip. Only the doctor skips a check: when a check it requires did not pass, the doctor does not run it and reports it with the status skip and a cause that names the requirement, such as `postgres.reachable did not pass.`. A skip is not a failure and does not change the exit code; the failure of the requirement already does. A blocking check requires only blocking checks, so a skipped blocking check always comes with a blocking failure, and the kernel never starts without it.
 
-The doctor always gives a complete report and never exits ok for a check that did not look. A check that breaks its contract fails as a `Violation` with the code `doctor_check_crashed`, and its cause says how it broke the contract. That covers a `run()` that throws, a result for another id or with another blocking than the check's own, and a skip returned from `run()`. The fix says it is a bug in the check.
+The doctor always gives a complete report and never exits ok for a check that did not look. A check that breaks its contract fails as a `Violation` with the code `doctor_check_crashed`, and its cause says how it broke the contract. The failure keeps the check's blocking: a crashed blocking check makes the doctor exit 78, a crashed check that does not block 79. That covers a `run()` that throws, a result for another id or with another blocking than the check's own, and a skip returned from `run()`. The fix says it is a bug in the check.
 
 ## Exit codes: DoctorExitCode
 
@@ -172,10 +173,13 @@ The exit codes of `cms:doctor` are defined in one place, the enum `Cbox\Cms\Cont
 | Case | Exit code | `status()` | When |
 |---|---|---|---|
 | `Ok` | 0 | `ok` | every check passed or was skipped |
-| `Unavailable` | 75, `EX_TEMPFAIL` of sysexits.h | `unavailable` | at least one check failed as `Unavailable`, and none as `Violation` |
-| `Violation` | 78, `EX_CONFIG` of sysexits.h | `violation` | at least one check failed as `Violation` |
+| `Unavailable` | 75, `EX_TEMPFAIL` of sysexits.h | `unavailable` | at least one blocking check failed as `Unavailable`, and no blocking check as `Violation` |
+| `Violation` | 78, `EX_CONFIG` of sysexits.h | `violation` | at least one blocking check failed as `Violation` |
+| `NotReady` | 79 | `not_ready` | no blocking check failed, and at least one check that does not block failed, as either kind |
 
-A violation wins over an unavailable dependency, because waiting does not fix it. Every failure counts, blocking or not: a check that does not block the kernel from starting still makes the doctor exit with its failure's code, and the document says which failures block. `DoctorExitCode::for($results)` adds up a list of `CheckResult`s this way. M1 folds these codes into the error catalog.
+When a blocking check fails, the blocking failures alone decide the code, and a violation wins over an unavailable dependency, because waiting does not fix it. The failures of checks that do not block count only when no blocking check fails: then the doctor exits 79. The document lists every failure, blocking or not. `DoctorExitCode::for($results)` adds up a list of `CheckResult`s this way. M1 folds these codes into the error catalog.
+
+A readiness probe or a deploy guard can rely on the exit code alone: the kernel may start at 0 and 79, which `allowsStart()` says, and it is ready only at 0. 79 lies just above the range of sysexits.h, 64 to 78, so it has no other meaning there, and it cannot be mistaken for 1, a general error, or 2, wrong usage.
 
 This example adds up the results of the testkit's `FakeDoctorCheck`, which passes or fails as the test says. It is in the `Unit` suite:
 
@@ -191,8 +195,9 @@ use Cbox\Cms\Contracts\Doctor\FailureKind;
 use Cbox\Cms\Testkit\Doctor\FakeDoctorCheck;
 
 // How cms:doctor adds up its exit code from the results of its checks, with the testkit's
-// FakeDoctorCheck standing in for real checks: a violation wins over an unavailable dependency,
-// and every failure counts, also that of a check that does not block the kernel from starting.
+// FakeDoctorCheck standing in for real checks: the blocking failures decide the code, a violation
+// wins over an unavailable dependency, and a failure of a check that does not block the kernel
+// from starting gives 79 only when no blocking check fails.
 
 it('exits ok when every check passes', function (): void {
     $results = [
@@ -202,30 +207,46 @@ it('exits ok when every check passes', function (): void {
 
     expect(DoctorExitCode::for($results))->toBe(DoctorExitCode::Ok)
         ->and(DoctorExitCode::Ok->value)->toBe(0)
-        ->and(DoctorExitCode::Ok->status())->toBe('ok');
+        ->and(DoctorExitCode::Ok->status())->toBe('ok')
+        ->and(DoctorExitCode::Ok->allowsStart())->toBeTrue();
 });
 
-it('exits unavailable when a dependency cannot be reached, even from a check that does not block', function (): void {
+it('exits unavailable when a blocking check cannot reach a dependency, whatever fails that does not block', function (): void {
     $results = [
-        FakeDoctorCheck::passing(new CheckId('example.first'))->run(),
-        FakeDoctorCheck::failing(new CheckId('example.cache'), FailureKind::Unavailable, blocking: false)->run(),
+        FakeDoctorCheck::failing(new CheckId('example.database'), FailureKind::Unavailable)->run(),
+        FakeDoctorCheck::failing(new CheckId('example.workers'), FailureKind::Violation, blocking: false)->run(),
     ];
 
     expect(DoctorExitCode::for($results))->toBe(DoctorExitCode::Unavailable)
         ->and(DoctorExitCode::Unavailable->value)->toBe(75)
-        ->and(DoctorExitCode::Unavailable->status())->toBe('unavailable');
+        ->and(DoctorExitCode::Unavailable->status())->toBe('unavailable')
+        ->and(DoctorExitCode::Unavailable->allowsStart())->toBeFalse();
 });
 
-it('exits violation when one check is violated, whatever else is unavailable', function (): void {
+it('exits violation when a blocking check is violated, whatever else is unavailable', function (): void {
     $results = [
         FakeDoctorCheck::failing(new CheckId('example.database'), FailureKind::Unavailable)->run(),
-        FakeDoctorCheck::failing(new CheckId('example.setting'), FailureKind::Violation, blocking: false)->run(),
-        FakeDoctorCheck::failing(new CheckId('example.cache'), FailureKind::Unavailable)->run(),
+        FakeDoctorCheck::failing(new CheckId('example.setting'), FailureKind::Violation)->run(),
+        FakeDoctorCheck::failing(new CheckId('example.cache'), FailureKind::Unavailable, blocking: false)->run(),
     ];
 
     expect(DoctorExitCode::for($results))->toBe(DoctorExitCode::Violation)
         ->and(DoctorExitCode::Violation->value)->toBe(78)
-        ->and(DoctorExitCode::Violation->status())->toBe('violation');
+        ->and(DoctorExitCode::Violation->status())->toBe('violation')
+        ->and(DoctorExitCode::Violation->allowsStart())->toBeFalse();
+});
+
+it('exits not ready when only checks that do not block fail, so the kernel may start but is not ready', function (): void {
+    $results = [
+        FakeDoctorCheck::passing(new CheckId('example.first'))->run(),
+        FakeDoctorCheck::failing(new CheckId('example.workers'), FailureKind::Violation, blocking: false)->run(),
+        FakeDoctorCheck::failing(new CheckId('example.cache'), FailureKind::Unavailable, blocking: false)->run(),
+    ];
+
+    expect(DoctorExitCode::for($results))->toBe(DoctorExitCode::NotReady)
+        ->and(DoctorExitCode::NotReady->value)->toBe(79)
+        ->and(DoctorExitCode::NotReady->status())->toBe('not_ready')
+        ->and(DoctorExitCode::NotReady->allowsStart())->toBeTrue();
 });
 
 it('lets a test repair or break a fake check between runs, and counts the runs', function (): void {
@@ -251,7 +272,7 @@ The document has five keys:
 | `checks` | array of check objects, at least one | the checks in the order they ran |
 | `dev` | boolean | whether the development checks of `--dev` ran |
 | `exit_code` | integer, 0 to 255 | the exit code of the process, the value of `DoctorExitCode` |
-| `status` | `ok`, `violation` or `unavailable` | the name of the exit code, `DoctorExitCode::status()` |
+| `status` | `ok`, `violation`, `unavailable` or `not_ready` | the name of the exit code, `DoctorExitCode::status()` |
 | `version` | the number `1` | the version of the document |
 
 Each check object has eight keys:
@@ -273,8 +294,9 @@ Text is a string with at least one character that is not white space. The schema
 - A check with the status `fail` has a `failure`, and text for `code`, `cause` and `fix`.
 - A check with the status `skip` has text for `cause`, and `null` for `failure`, `code` and `fix`.
 - The status `ok` has the exit code 0, and no check has a `failure`.
-- The status `violation` has an exit code of at least 1, and at least one check failed as `violation`.
-- The status `unavailable` has an exit code of at least 1, at least one check failed as `unavailable`, and no check failed as `violation`.
+- The status `violation` has an exit code of at least 1, and at least one blocking check failed as `violation`.
+- The status `unavailable` has an exit code of at least 1, at least one blocking check failed as `unavailable`, and no blocking check failed as `violation`.
+- The status `not_ready` has an exit code of at least 1, at least one check that does not block failed, and no blocking check failed.
 
 This example runs the public command through Artisan against the services of the test environment, with and without `--dev`, validates the document with opis/json-schema and checks that `exit_code` is the command's exit code. It asserts no particular status, because that depends on the host running it, for example on `allow_url_fopen` in its php.ini. It is in the `Postgres` suite, which needs `composer services:up`:
 

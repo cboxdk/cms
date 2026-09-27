@@ -15,9 +15,11 @@ use Cbox\Cms\Core\Doctor\Domain\InvalidDoctorConfig;
 use Cbox\Cms\Core\Doctor\Domain\OrderedDoctorChecks;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\AddonReadyCheck;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\AddonToolCheck;
+use Cbox\Cms\Core\Tests\Doctor\Fakes\BlockingOnReadinessCheck;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\InvalidIdCheck;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\RepeatedIdCheck;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\UnbuildableCheck;
+use Cbox\Cms\Core\Tests\Doctor\Fakes\UndecidedBlockingCheck;
 use Cbox\Cms\Testkit\Doctor\FakeDoctorCheck;
 use Illuminate\Config\Repository;
 use stdClass;
@@ -264,6 +266,8 @@ it('gives the one failing check doctor.config when an added check cannot be used
     'an id that is not a check id' => ['dev_checks', InvalidIdCheck::class, 'The check '.InvalidIdCheck::class.' in cbox-cms.doctor.dev_checks cannot be used: Cbox\Cms\Contracts\Doctor\InvalidDoctorCheck: The check id "Addon Ready" is invalid.'],
     'the id of a core check' => ['checks', RepeatedIdCheck::class, 'The checks in cbox-cms.doctor.checks and cbox-cms.doctor.dev_checks cannot run after the core\'s checks: The check "php.version" is listed twice.'],
     'a runtime check that requires a dev check' => ['checks', AddonToolCheck::class, 'The checks in cbox-cms.doctor.checks and cbox-cms.doctor.dev_checks cannot run after the core\'s checks: The check "addon.tool" requires "dev.node", which is not listed before it.'],
+    'a blocking check that requires one that does not block' => ['checks', BlockingOnReadinessCheck::class, 'The checks in cbox-cms.doctor.checks and cbox-cms.doctor.dev_checks cannot run after the core\'s checks: The blocking check "addon.guard" requires "partitions.runway", which does not block.'],
+    'a check whose blocking() throws' => ['checks', UndecidedBlockingCheck::class, 'The check '.UndecidedBlockingCheck::class.' in cbox-cms.doctor.checks cannot be used: LogicException: The addon has not decided whether this check blocks.'],
 ]);
 
 it('gives doctor.config when an added check names a class that is no check', function (): void {

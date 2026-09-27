@@ -9,13 +9,17 @@ use Cbox\Cms\Contracts\Doctor\CheckId;
 use Cbox\Cms\Contracts\Doctor\CheckResult;
 use Cbox\Cms\Contracts\Doctor\CheckStatus;
 use Cbox\Cms\Contracts\Doctor\DoctorCheck;
+use Cbox\Cms\Contracts\Doctor\DoctorExitCode;
+use Cbox\Cms\Contracts\Doctor\FailureKind;
 use PHPUnit\Framework\Assert;
 use PHPUnit\Framework\Attributes\Test;
 use Throwable;
 
 /**
  * The shared contract suite for DoctorCheck (GUARDRAILS 2.3 and 9): the invariants of a check and
- * its results. FakeDoctorCheck and every real check run the same cases.
+ * its results, and the exit code its failure gives: 75 or 78 for a blocking check, by the failure
+ * kind, and 79 for a check that only affects readiness (PRD 3.3). FakeDoctorCheck and every real
+ * check run the same cases.
  *
  * Use the trait in a PHPUnit test class in the package's tests/Contract directory and return the
  * same check twice: once in a state where it passes and once in a state where it fails, for
@@ -100,6 +104,27 @@ trait DoctorCheckContract
         Assert::assertNotSame('', trim((string) $result->fix));
         Assert::assertNotSame($result->cause, $result->fix, 'The fix says what to do, not what went wrong.');
         Assert::assertNotSame($result->explanation, $result->cause, 'The cause is the concrete cause, not the explanation again.');
+    }
+
+    #[Test]
+    public function the_failure_of_a_check_gives_the_exit_code_of_its_blocking_and_kind(): void
+    {
+        $check = $this->failingDoctorCheck();
+        $failing = self::runCheck($check);
+        $expected = match (true) {
+            ! $check->blocking() => DoctorExitCode::NotReady,
+            $failing->failure === FailureKind::Unavailable => DoctorExitCode::Unavailable,
+            default => DoctorExitCode::Violation,
+        };
+
+        Assert::assertSame(DoctorExitCode::Ok, DoctorExitCode::for([self::runCheck($this->passingDoctorCheck())]), 'A pass leaves cms:doctor at exit 0.');
+        Assert::assertSame($expected, DoctorExitCode::for([$failing]), sprintf(
+            'A failure of %s, which %s, gives exit %d.',
+            $check->id()->value,
+            $check->blocking() ? 'blocks the kernel from starting' : 'only affects readiness',
+            $expected->value,
+        ));
+        Assert::assertSame(! $check->blocking(), DoctorExitCode::for([$failing])->allowsStart(), 'The kernel may start while the check fails exactly when the check does not block.');
     }
 
     #[Test]

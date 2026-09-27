@@ -16,11 +16,13 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
  *
  * blocking() says whether the kernel refuses to start while the check fails. A check that is not
  * blocking only affects readiness, so a cold start never blocks itself: for example the partition
- * runway, which the scheduler of the started application extends.
+ * runway, which the scheduler of the started application extends. When only such checks fail,
+ * cms:doctor exits 79 (DoctorExitCode::NotReady).
  *
  * requires() lists checks that must pass first. The doctor runs the checks in their order and
  * skips a check whose requirement did not pass, so a check can rely on what an earlier one showed,
- * such as a reachable Postgres.
+ * such as a reachable Postgres. A blocking check requires only blocking checks, so a readiness
+ * failure never skips a blocking check.
  *
  * The testkit has a fake, FakeDoctorCheck, and the shared suite DoctorCheckContract.
  */

@@ -24,8 +24,10 @@ use Symfony\Component\Console\Output\OutputInterface;
  *
  * --dev adds the development tools: Node, Playwright and its Chromium. --json prints only the
  * document described by packages/contracts/resources/schemas/doctor.v1.json. The exit code comes
- * from DoctorExitCode, the one place the codes are defined: ok, a violation of the configuration
- * or the contract, or a dependency that is unavailable right now.
+ * from DoctorExitCode, the one place the codes are defined: 0 for ok, 78 for a blocking violation
+ * of the configuration or the contract, 75 for a blocking check whose dependency is unavailable
+ * right now, and 79 when only checks that affect readiness fail, so the kernel may start but is not
+ * ready.
  */
 #[Internal]
 #[Description('Check the installation and the runtime contract, and explain how to fix what is wrong')]
@@ -99,10 +101,10 @@ final class DoctorCommand extends Command
 
         $summary = sprintf('cms:doctor: %s (exit %d).', $report->exit->status(), $report->exit->value);
 
-        if ($report->exit === DoctorExitCode::Ok) {
-            $this->info($summary);
-        } else {
-            $this->error($summary);
-        }
+        match ($report->exit) {
+            DoctorExitCode::Ok => $this->info($summary),
+            DoctorExitCode::NotReady => $this->warn($summary.' The kernel may start, but is not ready until the checks that affect readiness pass.'),
+            DoctorExitCode::Unavailable, DoctorExitCode::Violation => $this->error($summary.' The kernel may not start.'),
+        };
     }
 }

@@ -67,7 +67,7 @@ it('passes the fake on every shared case', function (): void {
         doctorCheckCase($name, fakeChecks())->{$name}();
     }
 
-    expect($cases)->toHaveCount(5);
+    expect($cases)->toHaveCount(6);
 });
 
 it('fails a check that breaks the contract', function (Breach $breach, string $name): void {
@@ -78,6 +78,8 @@ it('fails a check that breaks the contract', function (Breach $breach, string $n
     'a check that throws' => [Breach::Throws, 'a_failing_check_returns_a_fail_with_its_kind_code_cause_and_fix'],
     'a result for another check' => [Breach::AnswersForAnother, 'a_passing_check_returns_a_pass_for_itself'],
     'a result that contradicts blocking' => [Breach::ContradictsBlocking, 'a_failing_check_returns_a_fail_with_its_kind_code_cause_and_fix'],
+    'a failure that gives the exit code of the other blocking' => [Breach::ContradictsBlocking, 'the_failure_of_a_check_gives_the_exit_code_of_its_blocking_and_kind'],
+    'a check that never fails, so its failure gives no exit code' => [Breach::NeverFails, 'the_failure_of_a_check_gives_the_exit_code_of_its_blocking_and_kind'],
     'a check that skips itself' => [Breach::SkipsItself, 'a_failing_check_returns_a_fail_with_its_kind_code_cause_and_fix'],
     'a check that never fails' => [Breach::NeverFails, 'a_failing_check_returns_a_fail_with_its_kind_code_cause_and_fix'],
     'a cause that is the fix' => [Breach::FixAsCause, 'a_failing_check_returns_a_fail_with_its_kind_code_cause_and_fix'],

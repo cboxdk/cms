@@ -70,16 +70,82 @@ it('skips a check whose requirement did not pass, and names the requirement', fu
         ->toBe(['fake.postgres pass', 'fake.roles pass', 'fake.grants pass', 'fake.valkey pass']);
 });
 
-it('adds up the exit code: a violation wins, and a failure that does not block still counts', function (): void {
-    $unavailable = FakeDoctorCheck::failing(doctorId('fake.valkey'), FailureKind::Unavailable);
-    $readiness = FakeDoctorCheck::failing(doctorId('fake.runway'), FailureKind::Violation, false);
+/**
+ * The exit code of one run of these checks.
+ *
+ * @param  list<DoctorCheck>  $runtime
+ * @param  list<DoctorCheck>  $dev
+ */
+function exitOf(array $runtime, array $dev = [], bool $withDev = false): DoctorExitCode
+{
+    return new RunDoctor(new FakeDoctorChecks($runtime, $dev))->run(new DoctorRunOptions($withDev))->exit;
+}
 
-    expect(new RunDoctor(new FakeDoctorChecks([FakeDoctorCheck::passing(doctorId('fake.ok'))], []))->run(new DoctorRunOptions)->exit)->toBe(DoctorExitCode::Ok)
-        ->and(new RunDoctor(new FakeDoctorChecks([$unavailable], []))->run(new DoctorRunOptions)->exit)->toBe(DoctorExitCode::Unavailable)
-        ->and(new RunDoctor(new FakeDoctorChecks([$unavailable, $readiness], []))->run(new DoctorRunOptions)->exit)->toBe(DoctorExitCode::Violation)
-        ->and(new RunDoctor(new FakeDoctorChecks([$readiness], []))->run(new DoctorRunOptions)->exit)->toBe(DoctorExitCode::Violation)
-        ->and(new RunDoctor(new FakeDoctorChecks([], [$unavailable]))->run(new DoctorRunOptions)->exit)->toBe(DoctorExitCode::Ok)
-        ->and(new RunDoctor(new FakeDoctorChecks([], [$unavailable]))->run(new DoctorRunOptions(dev: true))->exit)->toBe(DoctorExitCode::Unavailable);
+it('adds up the exit code: the blocking failures decide it, a violation wins, and a readiness failure alone gives 79', function (): void {
+    $ok = FakeDoctorCheck::passing(doctorId('fake.ok'));
+    $unavailable = FakeDoctorCheck::failing(doctorId('fake.valkey'), FailureKind::Unavailable);
+    $violation = FakeDoctorCheck::failing(doctorId('fake.config'), FailureKind::Violation);
+    $readiness = FakeDoctorCheck::failing(doctorId('fake.runway'), FailureKind::Violation, false);
+    $workers = FakeDoctorCheck::failing(doctorId('fake.workers'), FailureKind::Unavailable, false);
+    $tool = FakeDoctorCheck::failing(doctorId('fake.tool'), FailureKind::Unavailable, false);
+
+    expect(exitOf([$ok]))->toBe(DoctorExitCode::Ok)
+        ->and(exitOf([$ok])->value)->toBe(0)
+        ->and(exitOf([$unavailable]))->toBe(DoctorExitCode::Unavailable)
+        ->and(exitOf([$unavailable])->value)->toBe(75)
+        ->and(exitOf([$violation, $unavailable]))->toBe(DoctorExitCode::Violation)
+        ->and(exitOf([$unavailable, $violation])->value)->toBe(78)
+        ->and(exitOf([$readiness]))->toBe(DoctorExitCode::NotReady)
+        ->and(exitOf([$ok, $workers])->value)->toBe(79)
+        ->and(exitOf([$readiness, $workers]))->toBe(DoctorExitCode::NotReady)
+        ->and(exitOf([$unavailable, $readiness]))->toBe(DoctorExitCode::Unavailable)
+        ->and(exitOf([$readiness, $unavailable, $workers]))->toBe(DoctorExitCode::Unavailable)
+        ->and(exitOf([$readiness, $violation, $workers]))->toBe(DoctorExitCode::Violation)
+        ->and(exitOf([$workers, $unavailable, $readiness, $violation]))->toBe(DoctorExitCode::Violation)
+        ->and(exitOf([$ok], [$tool]))->toBe(DoctorExitCode::Ok)
+        ->and(exitOf([$ok], [$tool], withDev: true))->toBe(DoctorExitCode::NotReady)
+        ->and(exitOf([$unavailable], [$tool], withDev: true))->toBe(DoctorExitCode::Unavailable);
+});
+
+it('gives 79 when a readiness check fails and the readiness checks that require it are skipped', function (): void {
+    $postgres = FakeDoctorCheck::passing(doctorId('fake.postgres'));
+    $runway = FakeDoctorCheck::failing(doctorId('fake.runway'), FailureKind::Violation, false, [doctorId('fake.postgres')]);
+    $archive = FakeDoctorCheck::passing(doctorId('fake.archive'), false, [doctorId('fake.runway')]);
+    $report = new RunDoctor(new FakeDoctorChecks([$postgres, $runway, $archive], []))->run(new DoctorRunOptions);
+
+    expect(array_map(static fn (CheckResult $result): string => $result->status->value, $report->results))->toBe(['pass', 'fail', 'skip'])
+        ->and($report->exit)->toBe(DoctorExitCode::NotReady)
+        ->and($report->exit->allowsStart())->toBeTrue();
+});
+
+it('gives 79 for a readiness check that crashes, and 78 for a blocking one', function (): void {
+    $crashes = static fn (bool $blocking): DoctorCheck => new readonly class($blocking) implements DoctorCheck
+    {
+        public function __construct(private bool $blocking) {}
+
+        public function id(): CheckId
+        {
+            return doctorId('fake.crashes');
+        }
+
+        public function blocking(): bool
+        {
+            return $this->blocking;
+        }
+
+        public function requires(): array
+        {
+            return [];
+        }
+
+        public function run(): CheckResult
+        {
+            throw new RuntimeException('The probe exploded.');
+        }
+    };
+
+    expect(exitOf([$crashes(false)]))->toBe(DoctorExitCode::NotReady)
+        ->and(exitOf([$crashes(true)]))->toBe(DoctorExitCode::Violation);
 });
 
 it('turns a check that throws or answers for another check into a violation', function (): void {
