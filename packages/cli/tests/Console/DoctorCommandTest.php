@@ -13,6 +13,7 @@ use Cbox\Cms\Core\Doctor\Domain\Dto\PartitionCoverage;
 use Cbox\Cms\Core\Doctor\Domain\ProbeFailed;
 use Cbox\Cms\Core\Doctor\Domain\Probes\LcMessagesProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PartitionRunwayProbe;
+use Cbox\Cms\Core\Doctor\Domain\Probes\PhpSettingsProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PostgresProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\RegistryCacheProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\RuntimeProbe;
@@ -20,6 +21,7 @@ use Cbox\Cms\Core\Doctor\Domain\Probes\ToolProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\ValkeyProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeLcMessagesProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePartitionRunwayProbe;
+use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePhpSettingsProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePostgresProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeRegistryCacheProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeRuntimeProbe;
@@ -59,6 +61,8 @@ final class DoctorFakes
 {
     public FakeRuntimeProbe $runtime;
 
+    public FakePhpSettingsProbe $phpSettings;
+
     public FakePostgresProbe $postgres;
 
     public FakeLcMessagesProbe $lcMessages;
@@ -78,6 +82,7 @@ final class DoctorFakes
         $clock = new FakeClock(new DateTimeImmutable('2026-03-10T12:00:00Z'));
 
         $this->runtime = new FakeRuntimeProbe;
+        $this->phpSettings = new FakePhpSettingsProbe;
         $this->postgres = new FakePostgresProbe;
         $this->lcMessages = new FakeLcMessagesProbe;
         $this->valkey = new FakeValkeyProbe;
@@ -87,6 +92,7 @@ final class DoctorFakes
 
         app()->instance(Clock::class, $clock);
         app()->instance(RuntimeProbe::class, $this->runtime);
+        app()->instance(PhpSettingsProbe::class, $this->phpSettings);
         app()->instance(PostgresProbe::class, $this->postgres);
         app()->instance(LcMessagesProbe::class, $this->lcMessages);
         app()->instance(ValkeyProbe::class, $this->valkey);
@@ -196,7 +202,7 @@ it('prints the JSON document and nothing else with --json', function (): void {
         ->and($document['dev'])->toBeFalse()
         ->and($document['status'])->toBe('ok')
         ->and($document['exit_code'])->toBe(0)
-        ->and(checkStatuses($document))->toHaveCount(14)
+        ->and(checkStatuses($document))->toHaveCount(15)
         ->and(array_keys(checkOf($document, 'php.version')))->toBe(['blocking', 'cause', 'code', 'explanation', 'failure', 'fix', 'id', 'status']);
 });
 
@@ -217,6 +223,23 @@ it('exits 78 when a fake version probe says Postgres 16, and skips what needs 17
         ->and($version['cause'])->toBe('The server runs Postgres 16.4 (server_version_num 160004).')
         ->and(checkStatuses($document)['postgres.transaction_timeout'])->toBe('skip')
         ->and(checkStatuses($document)['postgres.app_role'])->toBe('pass');
+});
+
+it('exits 78 when allow_url_fopen is on, and runs every other check', function (): void {
+    $fakes = new DoctorFakes;
+    $fakes->phpSettings->allowUrlFopen = true;
+
+    [$status, $document] = doctorJson();
+    $setting = checkOf($document, 'php.allow_url_fopen');
+
+    expect($status)->toBe(78)
+        ->and($document['status'])->toBe('violation')
+        ->and($setting['status'])->toBe('fail')
+        ->and($setting['blocking'])->toBeTrue()
+        ->and($setting['failure'])->toBe('violation')
+        ->and($setting['code'])->toBe('doctor_php_allow_url_fopen')
+        ->and($setting['fix'])->toBeString()->toContain('-d allow_url_fopen=0')
+        ->and(array_filter(checkStatuses($document), static fn (string $status): bool => $status !== 'pass'))->toBe(['php.allow_url_fopen' => 'fail']);
 });
 
 it('exits 78 when the owner role writes its messages in German', function (): void {

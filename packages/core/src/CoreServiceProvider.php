@@ -19,9 +19,11 @@ use Cbox\Cms\Core\Doctor\Adapter\DoctorConnection;
 use Cbox\Cms\Core\Doctor\Adapter\FileRegistryCacheProbe;
 use Cbox\Cms\Core\Doctor\Adapter\FrameworkProcessProbe;
 use Cbox\Cms\Core\Doctor\Adapter\FrameworkRuntimeProbe;
+use Cbox\Cms\Core\Doctor\Adapter\IniPhpSettingsProbe;
 use Cbox\Cms\Core\Doctor\Adapter\ProcessToolProbe;
 use Cbox\Cms\Core\Doctor\Adapter\RedisValkeyProbe;
 use Cbox\Cms\Core\Doctor\Boundary\DoctorConfig;
+use Cbox\Cms\Core\Doctor\Domain\Checks\AllowUrlFopenCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\AppRoleCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\ChromiumCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\DdlPrivilegesCheck;
@@ -46,6 +48,7 @@ use Cbox\Cms\Core\Doctor\Domain\InvalidDoctorConfig;
 use Cbox\Cms\Core\Doctor\Domain\OrderedDoctorChecks;
 use Cbox\Cms\Core\Doctor\Domain\Probes\LcMessagesProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PartitionRunwayProbe;
+use Cbox\Cms\Core\Doctor\Domain\Probes\PhpSettingsProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PostgresProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\ProcessProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\RegistryCacheProbe;
@@ -190,6 +193,7 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         );
 
         $this->app->bind(RuntimeProbe::class, FrameworkRuntimeProbe::class);
+        $this->app->bind(PhpSettingsProbe::class, IniPhpSettingsProbe::class);
         $this->app->bind(PostgresProbe::class, ConnectionPostgresProbe::class);
         $this->app->bind(PartitionRunwayProbe::class, CatalogPartitionRunwayProbe::class);
         $this->app->bind(ValkeyProbe::class, RedisValkeyProbe::class);
@@ -226,6 +230,7 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
             return new OrderedDoctorChecks(
                 runtime: [
                     new PhpVersionCheck($runtime),
+                    new AllowUrlFopenCheck($app->make(PhpSettingsProbe::class)),
                     new LaravelVersionCheck($runtime),
                     new PostgresReachableCheck($postgres),
                     new PostgresVersionCheck($postgres),

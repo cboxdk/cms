@@ -19,6 +19,7 @@ final readonly class SourceFile
      * @param  list<DeclaredType>  $types
      * @param  list<Comment>  $comments
      * @param  list<GlobalName>  $globalNames
+     * @param  list<Reference>  $references  the functions, methods and classes it uses (ReferenceScan)
      */
     public function __construct(
         public string $path,
@@ -26,6 +27,7 @@ final readonly class SourceFile
         public array $types,
         public array $comments,
         public array $globalNames,
+        public array $references,
     ) {}
 
     public static function read(string $path): self
@@ -128,7 +130,7 @@ final readonly class SourceFile
             }
         }
 
-        return new self($path, self::startsWithStrictTypes($tokens), $types, $comments, $globalNames);
+        return new self($path, self::startsWithStrictTypes($tokens), $types, $comments, $globalNames, ReferenceScan::of($path, $code));
     }
 
     /**

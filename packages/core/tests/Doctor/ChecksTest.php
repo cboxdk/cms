@@ -7,6 +7,7 @@ namespace Cbox\Cms\Core\Tests\Doctor;
 use Cbox\Cms\Contracts\Doctor\CheckResult;
 use Cbox\Cms\Contracts\Doctor\CheckStatus;
 use Cbox\Cms\Contracts\Doctor\FailureKind;
+use Cbox\Cms\Core\Doctor\Domain\Checks\AllowUrlFopenCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\AppRoleCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\ChromiumCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\DdlPrivilegesCheck;
@@ -28,6 +29,7 @@ use Cbox\Cms\Core\Doctor\Domain\Dto\PartitionCoverage;
 use Cbox\Cms\Core\Doctor\Domain\Dto\RoleMembership;
 use Cbox\Cms\Core\Doctor\Domain\ProbeFailed;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePartitionRunwayProbe;
+use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePhpSettingsProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePostgresProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeRegistryCacheProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeRuntimeProbe;
@@ -55,6 +57,18 @@ it('passes PHP 8.5 and newer and fails older PHP', function (): void {
         ->and(new PhpVersionCheck(new FakeRuntimeProbe(php: '8.6.1'))->run()->passed())->toBeTrue();
 
     expectFailure(new PhpVersionCheck(new FakeRuntimeProbe(php: '8.4.99'))->run(), FailureKind::Violation, PhpVersionCheck::CODE, 'PHP 8.4.99');
+});
+
+it('passes allow_url_fopen off and fails it on as a blocking violation, because the file functions then fetch URLs', function (): void {
+    $pass = new AllowUrlFopenCheck(new FakePhpSettingsProbe(allowUrlFopen: false))->run();
+    $fail = new AllowUrlFopenCheck(new FakePhpSettingsProbe(allowUrlFopen: true))->run();
+
+    expect($pass->passed())->toBeTrue()
+        ->and($pass->id->value)->toBe('php.allow_url_fopen')
+        ->and($fail->blocking)->toBeTrue()
+        ->and($fail->fix)->toContain('allow_url_fopen = Off');
+
+    expectFailure($fail, FailureKind::Violation, AllowUrlFopenCheck::CODE, 'allow_url_fopen is on in this process');
 });
 
 it('passes Laravel 13 only', function (string $version, bool $passes): void {

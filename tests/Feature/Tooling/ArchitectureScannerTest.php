@@ -3,10 +3,13 @@
 declare(strict_types=1);
 
 use Cbox\Cms\Tests\Support\Arch\Category;
+use Cbox\Cms\Tests\Support\Arch\Codebase;
 use Cbox\Cms\Tests\Support\Arch\Comment;
 use Cbox\Cms\Tests\Support\Arch\DeclaredType;
+use Cbox\Cms\Tests\Support\Arch\Egress;
 use Cbox\Cms\Tests\Support\Arch\GlobalName;
 use Cbox\Cms\Tests\Support\Arch\Layer;
+use Cbox\Cms\Tests\Support\Arch\Reference;
 use Cbox\Cms\Tests\Support\Arch\SourceFile;
 use Illuminate\Support\Facades\Http;
 
@@ -154,4 +157,211 @@ it('records names that resolve from the global namespace, but not trait uses or 
 
     expect(array_map(static fn (GlobalName $name): string => $name->name, $file->globalNames))
         ->toBe(['DB', Http::class, 'Cache', 'Facades\App\Clock']);
+});
+
+/**
+ * The references of a file as "line kind name", the form the egress tests compare.
+ *
+ * @return list<string>
+ */
+function referencesOf(string $code): array
+{
+    return array_map(
+        static fn (Reference $reference): string => $reference->line.' '.$reference->kind->value.' '.$reference->name,
+        SourceFile::parse('Probe.php', $code)->references,
+    );
+}
+
+it('reads function calls by their exact name, and tells them from methods, declarations and classes', function (): void {
+    expect(referencesOf(<<<'PHP'
+        <?php
+
+        declare(strict_types=1);
+
+        namespace Cbox\Cms\Core\Schema\Adapter;
+
+        use Symfony\Component\Process\Process as Runner;
+        use Symfony\Component\{HttpClient\HttpClient, Process};
+        use function fopen as open;
+        use function Cbox\Cms\Core\Schema\file_contents;
+
+        final class Reader
+        {
+            private const string NAMESPACE = 'x';
+
+            public function copy(): void {}
+
+            public function &file(): array
+            {
+                $handle = open($this->path, 'r');
+                $lines = \file($this->path);
+                $size = filesize($this->path) + file_exists($this->path);
+                $this->pdo->exec('select 1');
+                TablePrivileges::copy('a', 'b');
+                $info?->openFile('r');
+                $local = file_contents('x');
+                $output = `curl http://metadata.internal`;
+                new Runner(['curl']);
+                new Process\ExecutableFinder();
+                new \SplFileObject('http://metadata.internal');
+
+                return self::NAMESPACE === 'x' ? system('id') : [];
+            }
+        }
+        PHP))->toBe([
+        '7 class Symfony\Component\Process\Process',
+        '8 class Symfony\Component\HttpClient\HttpClient',
+        '8 class Symfony\Component\Process',
+        '20 function fopen',
+        '21 function file',
+        '22 function filesize',
+        '22 function file_exists',
+        '23 method exec',
+        '24 method copy',
+        '25 method openfile',
+        '26 function cbox\cms\core\schema\file_contents',
+        '27 function shell_exec',
+        '29 class Symfony\Component\Process\ExecutableFinder',
+        '30 class SplFileObject',
+        '32 function system',
+    ]);
+});
+
+it('reads the classes of a group import, a trait use and a relative name, but not a closure use', function (): void {
+    expect(referencesOf(<<<'PHP'
+        <?php
+
+        declare(strict_types=1);
+
+        namespace Cbox\Cms\Core\Schema\Adapter;
+
+        use GuzzleHttp\{Client, Psr7\Request as Psr7Request};
+
+        final class Fetcher
+        {
+            use \GuzzleHttp\ClientTrait, Loads {
+                Loads::load insteadof ClientTrait;
+            }
+
+            public function run(): \Closure
+            {
+                return function () use ($x): namespace\Local {
+                    return new Psr7Request('GET', 'x');
+                };
+            }
+        }
+        PHP))->toBe([
+        '7 class GuzzleHttp\Client',
+        '7 class GuzzleHttp\Psr7\Request',
+        '11 class GuzzleHttp\ClientTrait',
+        '11 class Cbox\Cms\Core\Schema\Adapter\Loads',
+        '15 class Closure',
+        '17 class Cbox\Cms\Core\Schema\Adapter\Local',
+    ]);
+});
+
+it('reports every URL-capable function, socket, process and class outside the gateway', function (): void {
+    $file = SourceFile::parse('Probe.php', <<<'PHP'
+        <?php
+
+        declare(strict_types=1);
+
+        namespace Cbox\Cms\Core\Schema\Adapter;
+
+        use DOMDocument;
+        use Illuminate\Support\Facades\Process;
+        use SplFileObject;
+        use XMLReader;
+
+        final class Fetcher
+        {
+            public function run(string $url, \SplFileInfo $info): void
+            {
+                fopen($url, 'r');
+                file($url);
+                readfile($url);
+                copy($url, '/tmp/x');
+                get_headers($url);
+                hash_file('sha256', $url);
+                md5_file($url);
+                sha1_file($url);
+                getimagesize($url);
+                simplexml_load_file($url);
+                parse_ini_file($url);
+                pfsockopen('10.0.0.1', 80);
+                stream_context_create([]);
+                socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
+                proc_open(['curl', $url], [], $pipes);
+                exec('curl '.$url);
+                shell_exec('curl '.$url);
+                passthru('curl '.$url);
+                system('curl '.$url);
+                popen('curl '.$url, 'r');
+                $info->openFile('r');
+                new \Symfony\Component\Process\Process(['curl', $url]);
+                new \Illuminate\Process\PendingProcess();
+                is_file($url);
+                file_put_contents('/tmp/x', 'y');
+            }
+        }
+        PHP);
+
+    expect(Egress::violations([$file]))->toBe([
+        'Probe.php:7: class DOMDocument',
+        'Probe.php:8: class Illuminate\Support\Facades\Process',
+        'Probe.php:9: class SplFileObject',
+        'Probe.php:10: class XMLReader',
+        'Probe.php:16: function fopen',
+        'Probe.php:17: function file',
+        'Probe.php:18: function readfile',
+        'Probe.php:19: function copy',
+        'Probe.php:20: function get_headers',
+        'Probe.php:21: function hash_file',
+        'Probe.php:22: function md5_file',
+        'Probe.php:23: function sha1_file',
+        'Probe.php:24: function getimagesize',
+        'Probe.php:25: function simplexml_load_file',
+        'Probe.php:26: function parse_ini_file',
+        'Probe.php:27: function pfsockopen',
+        'Probe.php:28: function stream_context_create',
+        'Probe.php:29: function socket_create',
+        'Probe.php:30: function proc_open',
+        'Probe.php:31: function exec',
+        'Probe.php:32: function shell_exec',
+        'Probe.php:33: function passthru',
+        'Probe.php:34: function system',
+        'Probe.php:35: function popen',
+        'Probe.php:36: method openfile',
+        'Probe.php:37: class Symfony\Component\Process\Process',
+        'Probe.php:38: class Illuminate\Process\PendingProcess',
+    ]);
+});
+
+it('lets the gateway and the allowed local uses through, and only the names they are allowed', function (): void {
+    $gateway = SourceFile::parse('Gateway.php', "<?php\n\nnamespace ".Codebase::GATEWAY."\\Adapter;\n\nfinal class Client\n{\n    public function get(string \$url): void\n    {\n        fopen(\$url, 'r');\n    }\n}\n");
+    $localFile = SourceFile::parse('LocalFile.php', <<<'PHP'
+        <?php
+
+        namespace Cbox\Cms\Generators\Schema\Boundary;
+
+        use SplFileObject;
+
+        final readonly class LocalFile
+        {
+            public static function contents(string $path): void
+            {
+                new SplFileObject($path, 'rb');
+                fopen($path, 'rb');
+            }
+        }
+        PHP);
+
+    expect(Egress::violations([$gateway, $localFile]))->toBe(['LocalFile.php:12: function fopen']);
+});
+
+it('reports an allowance that no code uses any more', function (): void {
+    $processProbe = SourceFile::parse('ProcessToolProbe.php', "<?php\n\nnamespace Cbox\\Cms\\Core\\Doctor\\Adapter;\n\nfinal readonly class ProcessToolProbe {}\n");
+
+    expect(Egress::unusedAllowances([$processProbe]))->toContain('Cbox\Cms\Core\Doctor\Adapter\ProcessToolProbe Symfony\Component\Process\\')
+        ->and(Egress::unusedAllowances(Codebase::code()))->toBe([]);
 });

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Cbox\Cms\Tests\Support\Arch\Codebase;
+use Cbox\Cms\Tests\Support\Arch\Egress;
 use Cbox\Cms\Tests\Support\Arch\Rules;
 use Cbox\Cms\Tests\Support\Arch\SourceFile;
 use Cbox\Cms\Tests\Support\PackageManifest;
@@ -70,6 +71,14 @@ arch('raw HTTP: no Guzzle, Http facade, HTTP client, curl_*, sockets or file_get
         'stream_socket_client',
         ...$curl,
     ]);
+});
+
+arch('egress: no URL-capable file function, socket, stream context, process or XML loader outside the gateway namespace', function (): void {
+    // PHP's URL wrappers fetch http:// and ftp:// through fopen, file, readfile, copy,
+    // SplFileObject and the rest of Egress's lists, so they are outbound HTTP as much as Guzzle
+    // is (GUARDRAILS 3). Egress::ALLOWED names the local uses and why they stay local.
+    Rules::none(Egress::violations(Codebase::code()), 'Only '.Codebase::GATEWAY.' may use these, through the SSRF guard (GUARDRAILS 3):');
+    Rules::none(Egress::unusedAllowances(Codebase::code()), 'These allowances in Egress::ALLOWED are no longer used; remove them:');
 });
 
 arch('facades: no global facade aliases and no real-time facades, so the layer rules see every facade', function (): void {

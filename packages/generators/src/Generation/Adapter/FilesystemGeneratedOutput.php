@@ -10,13 +10,12 @@ use Cbox\Cms\Generators\Generation\Domain\Dto\WriteReport;
 use Cbox\Cms\Generators\Generation\Domain\GeneratedOutput;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
+use Cbox\Cms\Generators\Schema\Boundary\LocalFile;
 use FilesystemIterator;
 use Override;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
-use RuntimeException;
 use SplFileInfo;
-use SplFileObject;
 
 /**
  * Writes the generated code to the filesystem.
@@ -38,7 +37,7 @@ final readonly class FilesystemGeneratedOutput implements GeneratedOutput
         foreach ($result->files as $file) {
             $path = $root.'/'.$file->path;
 
-            if ($this->read($path) === $file->contents) {
+            if (LocalFile::contents($path) === $file->contents) {
                 $unchanged[] = $file->path;
 
                 continue;
@@ -137,26 +136,5 @@ final readonly class FilesystemGeneratedOutput implements GeneratedOutput
         }
 
         return $succeeded ? null : ($warning ?? $fallback);
-    }
-
-    /**
-     * The contents of a local file, or null when it cannot be read. Not file_get_contents, which
-     * is reserved for the egress gateway because it also fetches URLs.
-     */
-    private function read(string $path): ?string
-    {
-        if (! is_file($path) || ! is_readable($path)) {
-            return null;
-        }
-
-        try {
-            $file = new SplFileObject($path, 'rb');
-            $size = $file->getSize();
-            $contents = $size === 0 ? '' : $file->fread($size);
-        } catch (RuntimeException) {
-            return null;
-        }
-
-        return is_string($contents) ? $contents : null;
     }
 }

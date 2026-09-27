@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Cbox\Cms\Cli\Tests\Postgres;
 
 use Cbox\Cms\Contracts\Clock;
+use Cbox\Cms\Core\Doctor\Domain\Probes\PhpSettingsProbe;
 use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
 use Cbox\Cms\Core\Registry\Boundary\RegistryCacheCodec;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Tests\Doctor\DoctorSchema;
+use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePhpSettingsProbe;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\Postgres\PartitionFixtures;
 use Cbox\Cms\Tests\Support\CheckoutDatabase;
@@ -26,6 +28,10 @@ use UnexpectedValueException;
  * checkout's path>), the registry cache and the Node toolchain. Some tests run it in-process with a
  * FakeClock; the others run vendor/bin/testbench cms:doctor as a developer or a deploy script
  * would, with the environment changed for the case and DB_DATABASE set to that database.
+ *
+ * The runtime contract turns allow_url_fopen off (php.allow_url_fopen). It is a php.ini setting,
+ * which a running process cannot change, so the in-process runs fake that one probe, and the
+ * command-line runs start PHP with -d allow_url_fopen=0, or =1 for the test of the check.
  */
 
 afterEach(function (): void {
@@ -80,6 +86,7 @@ function doctorClock(string $at, string $ahead = 'P14D'): FakeClock
  */
 function inProcessDoctor(array $options = []): array
 {
+    app()->instance(PhpSettingsProbe::class, new FakePhpSettingsProbe(allowUrlFopen: false));
     $artisan = app(Kernel::class);
     $status = $artisan->call('cms:doctor', ['--json' => true, ...$options]);
 
@@ -87,16 +94,17 @@ function inProcessDoctor(array $options = []): array
 }
 
 /**
- * Runs vendor/bin/testbench cms:doctor --json with changes to the environment.
+ * Runs vendor/bin/testbench cms:doctor --json with changes to the environment, on PHP with
+ * allow_url_fopen as the runtime contract sets it unless the test says otherwise.
  *
  * @param  list<string>  $options
  * @param  array<string, string>  $environment
  * @return array{int, array<string, mixed>, string}
  */
-function testbenchDoctor(array $options = [], array $environment = []): array
+function testbenchDoctor(array $options = [], array $environment = [], string $allowUrlFopen = '0'): array
 {
     $environment += ['DB_DATABASE' => CheckoutDatabase::name()];
-    $process = new Process([PHP_BINARY, 'vendor/bin/testbench', 'cms:doctor', '--json', ...$options], Phpstan::root(), $environment, null, 120);
+    $process = new Process([PHP_BINARY, '-d', 'allow_url_fopen='.$allowUrlFopen, 'vendor/bin/testbench', 'cms:doctor', '--json', ...$options], Phpstan::root(), $environment, null, 120);
     $process->run();
 
     return [(int) $process->getExitCode(), validDoctorDocument($process->getOutput()), $process->getErrorOutput()];
@@ -167,7 +175,7 @@ it('passes every runtime check against the services, in-process', function (): v
     expect($status)->toBe(0, (string) json_encode($document))
         ->and($document['status'])->toBe('ok')
         ->and(array_unique(doctorStatuses($document)))->toBe(['php.version' => 'pass'])
-        ->and(doctorStatuses($document))->toHaveCount(14)
+        ->and(doctorStatuses($document))->toHaveCount(15)
         ->and(doctorCheck($document, 'postgres.transaction_timeout')['explanation'])->toBe('transaction_timeout is 5000 ms on the app role cms_app.')
         ->and(doctorCheck($document, 'postgres.lc_messages')['explanation'])->toBe('Messages are English: lc_messages is C for the role cms_app and C for the role cms_owner, and LC_MESSAGES of the PHP process is C.')
         ->and(doctorCheck($document, 'postgres.ddl_privileges')['explanation'])->toBe('The app role cms_app owns nothing and cannot create objects in the database '.CheckoutDatabase::name().' or its schemas.');
@@ -323,6 +331,25 @@ it('exits with 75 from the command line when DB_PORT points at a closed port', f
         ->and((hrtime(true) - $started) / 1e9)->toBeLessThan(30.0);
 });
 
+it('exits 78 from the command line when PHP runs with allow_url_fopen on, and passes it off', function (): void {
+    $now = new DateTimeImmutable('now');
+    app(PartitionFixtures::class)->cover($now->sub(new DateInterval('P1D')), $now->add(new DateInterval('P14D')));
+    buildRegistry();
+
+    [$status, $document, $errors] = testbenchDoctor([], [], '1');
+    $setting = doctorCheck($document, 'php.allow_url_fopen');
+    [$offStatus, $off] = testbenchDoctor([], [], 'Off');
+
+    expect($status)->toBe(78, $errors)
+        ->and($document['status'])->toBe('violation')
+        ->and($setting['status'])->toBe('fail')
+        ->and($setting['blocking'])->toBeTrue()
+        ->and($setting['code'])->toBe('doctor_php_allow_url_fopen')
+        ->and(array_filter(doctorStatuses($document), static fn (string $status): bool => $status !== 'pass'))->toBe(['php.allow_url_fopen' => 'fail'])
+        ->and($offStatus)->toBe(0)
+        ->and(doctorCheck($off, 'php.allow_url_fopen')['status'])->toBe('pass');
+});
+
 it('reports node as failing with --dev when PATH lacks it, and does not check node without --dev', function (): void {
     buildRegistry();
     $environment = ['PATH' => '/usr/bin:/bin'];
@@ -351,7 +378,7 @@ it('exits 0 from the command line with --dev --json when the services, partition
     expect($status)->toBe(0, $errors.json_encode($document))
         ->and($document['status'])->toBe('ok')
         ->and($document['dev'])->toBeTrue()
-        ->and(doctorStatuses($document))->toHaveCount(17)
+        ->and(doctorStatuses($document))->toHaveCount(18)
         ->and(doctorStatuses($document)['postgres.lc_messages'])->toBe('pass')
         ->and(array_unique(doctorStatuses($document)))->toBe(['php.version' => 'pass'])
         ->and(array_slice(array_keys(doctorStatuses($document)), -3))->toBe(['dev.node', 'dev.playwright', 'dev.chromium']);

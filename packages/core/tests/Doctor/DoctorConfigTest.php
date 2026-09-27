@@ -130,6 +130,7 @@ it('wires the runtime checks in order and the dev checks after them', function (
     expect($checks)->toBeInstanceOf(OrderedDoctorChecks::class)
         ->and($ids(...$runtime))->toBe([
             'php.version',
+            'php.allow_url_fopen',
             'laravel.version',
             'postgres.reachable',
             'postgres.version',
@@ -145,7 +146,7 @@ it('wires the runtime checks in order and the dev checks after them', function (
             'postgres.owner_credentials',
         ])
         ->and($ids(...$dev))->toBe(['dev.node', 'dev.playwright', 'dev.chromium'])
-        ->and(array_map(static fn (DoctorCheck $check): bool => $check->blocking(), $runtime))->toBe([true, true, true, true, true, true, true, true, true, true, true, false, true, false])
+        ->and(array_map(static fn (DoctorCheck $check): bool => $check->blocking(), $runtime))->toBe([true, true, true, true, true, true, true, true, true, true, true, true, false, true, false])
         ->and(array_map(static fn (DoctorCheck $check): bool => $check->blocking(), $dev))->toBe([false, false, false]);
 });
 

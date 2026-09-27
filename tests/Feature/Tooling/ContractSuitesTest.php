@@ -199,7 +199,7 @@ it('runs every shared DoctorCheck case once for the fake and once for each check
     sort($expected);
     sort($listed);
 
-    expect($classes)->toHaveCount(18)
+    expect($classes)->toHaveCount(19)
         ->and($cases)->toContain(
             'a_passing_check_returns_a_pass_for_itself',
             'a_failing_check_returns_a_fail_with_its_kind_code_cause_and_fix',
