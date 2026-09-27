@@ -20,6 +20,7 @@ use Cbox\Cms\Testkit\Tests\Contract\FakeIdGeneratorContractTest;
 use Cbox\Cms\Testkit\Tests\Contract\FakeReceiptStoreContractTest;
 use Cbox\Cms\Tests\Support\Phpstan;
 use Examples\Contract\IdempotencyStore\CountingIdempotencyStoreContractTest;
+use Examples\Contract\ReceiptStore\ArrayReceiptStoreContractTest;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionClass;
 use ReflectionMethod;
@@ -111,10 +112,16 @@ it('runs every shared IdGenerator case once for the SystemIdGenerator and once f
     )->and($listed)->toBe($expected);
 });
 
-it('runs every shared ReceiptStore case once for the FakeReceiptStore', function (): void {
+it('runs every shared ReceiptStore case once for the FakeReceiptStore and once for the example store of the documentation', function (): void {
     $cases = sharedCases(ReceiptStoreContract::class);
 
-    $expected = array_map(static fn (string $case): string => FakeReceiptStoreContractTest::class.'::'.$case, $cases);
+    $expected = [];
+
+    foreach ([FakeReceiptStoreContractTest::class, ArrayReceiptStoreContractTest::class] as $class) {
+        foreach ($cases as $case) {
+            $expected[] = $class.'::'.$case;
+        }
+    }
 
     $listed = contractTests('ReceiptStore');
     sort($expected);
