@@ -82,7 +82,7 @@ Pladsholdere der er fjernet efter GUARDRAILS 11, og den blok der bygger dem igen
 - Afgjort 27. september ud fra review-listen (213 punkter komprimeret; se `.harness/plans/review-2026-09-27.md` når den findes):
   - Hook-prioritet: laveste kører først. Skrives i PRD 6.3.
   - `cms:doctor` får en fjerde exitkode for "kun ikke-blokerende readiness-checks fejler", så probes kan nøjes med exitkoden. Blokerende fejl giver som før 75 eller 78.
-  - Agenters synlighed i blueprint v1: felter klassificeret `public` og `internal` er synlige for agenter som standard; `confidential` og `personal` kræver `agents: true`; `sensitive` kan aldrig være synligt for agenter.
+  - Agenters synlighed i blueprint v1: felter klassificeret `public` og `internal` er synlige for agenter som standard; `confidential` kræver `agents: true`; `personal` og `sensitive` kan aldrig være synlige for agenter, og MCP-tokens loft er højst `confidential` (PRD 2.31). `cms:doctor` får exitkoden 79 for "kun ikke-blokerende readiness-checks fejler" (PRD 3.3).
   - laravel-cms bliver et offentligt repo på GitHub, når der kommer en remote, så CI kører på ubuntu-latest med 4 kerner. At oprette remote er stadig Sylvesters handling.
   - GUARDRAILS 6, 2.5 og 2.6 rettes, så teksten passer til koden: rå SQL også i Adapter, Infrastructure må bruge Boundary, og `js/tooling` i repostrukturen.
   - Fem tjek strammes før M1: kun Clock og IdGenerator læser uret og laver UUID'er (PHPStan-regel); string-id-reglen fritager kun signaturer frameworket kræver; markørporten tillader HTML-attributten `placeholder=` i .tsx og .html; fixture-handles er ikke almindelige ord; `internalUse` kan kun ignoreres eksplicit i addons.
