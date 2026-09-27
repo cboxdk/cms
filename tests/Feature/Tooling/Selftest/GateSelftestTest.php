@@ -139,6 +139,19 @@ function selftestBase(FakeSelftestWorld $world): string
     return dirname($world->worktree ?? throw new RuntimeException('No worktree was added.'));
 }
 
+/**
+ * The temporary directory the run reported that it made. Selftests in other checkouts make
+ * directories with the same prefix at the same time, so a test asserts on this one only.
+ */
+function selftestTemporaryDirectory(string $output): string
+{
+    if (preg_match('/^'.preg_quote(GateSelftest::TEMPORARY_DIRECTORY, '/').'(.+)$/m', $output, $match) !== 1) {
+        throw new RuntimeException("The selftest did not report its temporary directory:\n{$output}");
+    }
+
+    return $match[1];
+}
+
 afterEach(function (): void {
     ScratchDirectory::cleanUp();
 });
@@ -154,6 +167,7 @@ it('installs a worktree of HEAD in the temporary directory, runs composer check 
     expect($exitCode)->toBe(0)
         ->and(dirname($base))->toBe(realpath(sys_get_temp_dir()))
         ->and(basename($base))->toStartWith(GateSelftest::PREFIX)
+        ->and(selftestTemporaryDirectory($output))->toBe($base)
         ->and($commands[0])->toBe('git rev-parse HEAD')
         ->and($commands[1])->toBe("git worktree add --detach {$worktree} 0123abc")
         ->and($commands[2])->toBe('composer install --no-interaction --no-progress')
@@ -241,18 +255,32 @@ it('fails when git still lists the worktree after the clean-up', function (): vo
         ->and($output)->not->toContain('Selftest passed');
 });
 
-it('removes the temporary directory when a step before the worktree fails', function (): void {
-    $runner = new ScriptedProcessRunner(static fn (array $command): ProcessOutcome => $command === ['git', 'rev-parse', 'HEAD']
-        ? new ProcessOutcome(128, "fatal: not a git repository\n", 0.0)
-        : new ProcessOutcome(0, '', 0.0));
+it('removes its own temporary directory when a step before the worktree fails, and leaves another checkout\'s selftest directory alone', function (): void {
+    $foreign = null;
+    $runner = new ScriptedProcessRunner(static function (array $command) use (&$foreign): ProcessOutcome {
+        if ($command !== ['git', 'rev-parse', 'HEAD']) {
+            return new ProcessOutcome(0, '', 0.0);
+        }
+
+        // A check:selftest in another checkout makes its directory while this run is under way.
+        $foreign = ScratchDirectory::make(GateSelftest::PREFIX);
+
+        return new ProcessOutcome(128, "fatal: not a git repository\n", 0.0);
+    });
     $stream = fopen('php://memory', 'w+') ?: throw new RuntimeException('No memory stream.');
-    $before = glob(realpath(sys_get_temp_dir()).'/'.GateSelftest::PREFIX.'*') ?: [];
 
     $exitCode = new GateSelftest($runner, ['composer'], $stream, 'php')->run('/srv/main');
     rewind($stream);
+    $output = (string) stream_get_contents($stream);
+    $base = selftestTemporaryDirectory($output);
+    $foreign ??= throw new RuntimeException('The run never asked for git rev-parse HEAD.');
 
     expect($exitCode)->toBe(1)
         ->and(implode("\n", $runner->commandLines()))->not->toContain('drop-test-database')
-        ->and((string) stream_get_contents($stream))->toContain('git rev-parse HEAD failed with exit code 128', 'fatal: not a git repository')
-        ->and(glob(realpath(sys_get_temp_dir()).'/'.GateSelftest::PREFIX.'*') ?: [])->toBe($before);
+        ->and($output)->toContain('git rev-parse HEAD failed with exit code 128', 'fatal: not a git repository', "{$base} is removed.")
+        ->and(dirname($base))->toBe(realpath(sys_get_temp_dir()))
+        ->and(basename($base))->toStartWith(GateSelftest::PREFIX)
+        ->and(file_exists($base))->toBeFalse()
+        ->and($foreign)->not->toBe($base)
+        ->and(is_dir($foreign))->toBeTrue();
 });

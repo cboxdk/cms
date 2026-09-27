@@ -24,15 +24,25 @@ use Symfony\Component\Process\Process;
  * an app-role session is still connected to it, and keeps the configured database, this
  * checkout's database, the databases of other hosts and those without a comment. The verdicts
  * themselves are tested in tests/Feature/Tooling/PruneTestDatabasesPlanTest.php.
+ *
+ * The server is shared by every checkout, and another checkout runs this test at the same time
+ * (GUARDRAILS 9). So the test gives the script a configured database of its own, with DB_DATABASE:
+ * the test database of a scratch checkout, `cms_test_<hash>`. The script then lists only the
+ * databases named `cms_test_<hash>_<12 hex digits>`, which this test made, and never drops
+ * another checkout's `cms_test_<12 hex digits>` database, while another run's script never sees
+ * this test's databases.
  */
 
 afterEach(function (): void {
     ScratchDirectory::cleanUp();
 });
 
-function pruneScript(string ...$arguments): Process
+/**
+ * Runs the script with $configured as the configured database.
+ */
+function pruneScript(string $configured, string ...$arguments): Process
 {
-    $process = new Process([PHP_BINARY, 'tools/bin/prune-test-databases.php', ...$arguments], Phpstan::root(), null, null, 300);
+    $process = new Process([PHP_BINARY, 'tools/bin/prune-test-databases.php', ...$arguments], Phpstan::root(), ['DB_DATABASE' => $configured], null, 300);
     $process->run();
 
     return $process;
@@ -44,17 +54,18 @@ function pruneDatabaseExists(string $database): bool
 }
 
 /**
- * The lines of the report that name one of $names, in its order.
+ * The lines of the report: the decisions sorted, which the script prints in the order of the
+ * listing, and the summary last.
  *
- * @param  list<string>  $names
  * @return list<string>
  */
-function pruneLinesOf(string $output, array $names): array
+function pruneReport(string $output): array
 {
-    return array_values(array_filter(
-        explode("\n", $output),
-        static fn (string $line): bool => array_any($names, static fn (string $name): bool => str_contains($line, " {$name}: ")),
-    ));
+    $lines = explode("\n", rtrim($output, "\n"));
+    $summary = array_pop($lines);
+    sort($lines);
+
+    return [...$lines, $summary];
 }
 
 function pruneSessionScalar(PDO $session, string $sql): mixed
@@ -65,74 +76,91 @@ function pruneSessionScalar(PDO $session, string $sql): mixed
 }
 
 it('prunes only the database of a gone checkout on this host, also with an app-role session connected, and a dry run drops nothing', function (): void {
-    $owner = ConnectionSettings::of('pgsql_owner', config())->withDatabase('cms_test');
-    $app = ConnectionSettings::of('pgsql', config())->withDatabase('cms_test');
+    $serverOwner = ConnectionSettings::of('pgsql_owner', config())->withDatabase('cms_test');
+    $serverApp = ConnectionSettings::of('pgsql', config())->withDatabase('cms_test');
     $host = TestDatabaseComment::of(Phpstan::root())->host;
-
-    $roots = [
-        'gone' => ScratchDirectory::make('cbox-cms-prune-gone-'),
-        'existing' => ScratchDirectory::make('cbox-cms-prune-existing-'),
-        'other host' => ScratchDirectory::make('cbox-cms-prune-other-host-'),
-        'no comment' => ScratchDirectory::make('cbox-cms-prune-no-comment-'),
-    ];
-    $names = array_map(static fn (string $root): string => TestDatabase::provision($owner, $app, $root), $roots);
     $ownerDb = DB::connection('pgsql_owner');
-    $ownerDb->statement(sprintf(
-        'COMMENT ON DATABASE %s IS %s',
-        TestDatabaseSetup::identifier($names['other host']),
-        TestDatabaseSetup::literal(new TestDatabaseComment($roots['other host'], 'elsewhere.invalid')->encode()),
-    ));
-    $ownerDb->statement(sprintf('COMMENT ON DATABASE %s IS NULL', TestDatabaseSetup::identifier($names['no comment'])));
-
-    // The checkouts of the database to drop, of the other host's and of the one without a comment
-    // are removed; only the existing checkout stays.
-    foreach (['gone', 'other host', 'no comment'] as $removed) {
-        ScratchDirectory::delete($roots[$removed]);
-    }
-
-    $current = TestDatabaseName::for('cms_test', CheckoutRoot::current());
-    $session = new PDO($app->withDatabase($names['gone'])->dsn(2), $app->username, $app->password, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+    $checkout = ConnectionSettings::of('pgsql', config())->database;
+    /** @var list<string> $made */
+    $made = [];
+    $session = null;
 
     try {
-        expect(pruneSessionScalar($session, 'select current_user'))->toBe('cms_app');
+        // The configured database of this test's prune, and every database below it, are this test's.
+        $made[] = $configured = TestDatabase::provision($serverOwner, $serverApp, ScratchDirectory::make('cbox-cms-prune-configured-'));
+        $owner = $serverOwner->withDatabase($configured);
+        $app = $serverApp->withDatabase($configured);
 
-        $expected = [
-            'keep cms_test: the configured database, which the owner role connects to.',
+        $roots = [
+            'gone' => ScratchDirectory::make('cbox-cms-prune-gone-'),
+            'existing' => ScratchDirectory::make('cbox-cms-prune-existing-'),
+            'other host' => ScratchDirectory::make('cbox-cms-prune-other-host-'),
+            'no comment' => ScratchDirectory::make('cbox-cms-prune-no-comment-'),
+        ];
+        $names = [];
+
+        foreach ($roots as $key => $root) {
+            $made[] = $names[$key] = TestDatabase::provision($owner, $app, $root);
+        }
+
+        $made[] = $current = TestDatabase::provision($owner, $app, CheckoutRoot::current());
+        $ownerDb->statement(sprintf(
+            'COMMENT ON DATABASE %s IS %s',
+            TestDatabaseSetup::identifier($names['other host']),
+            TestDatabaseSetup::literal(new TestDatabaseComment($roots['other host'], 'elsewhere.invalid')->encode()),
+        ));
+        $ownerDb->statement(sprintf('COMMENT ON DATABASE %s IS NULL', TestDatabaseSetup::identifier($names['no comment'])));
+
+        // The checkouts of the database to drop, of the other host's and of the one without a
+        // comment are removed; only the existing checkout stays.
+        foreach (['gone', 'other host', 'no comment'] as $removed) {
+            ScratchDirectory::delete($roots[$removed]);
+        }
+
+        // Another checkout's run of this test leaves the database of a gone checkout on this host
+        // below the shared configured database cms_test, for its own prune, while this one runs.
+        $foreignRoot = ScratchDirectory::make('cbox-cms-prune-foreign-');
+        $made[] = $foreign = TestDatabase::provision($serverOwner, $serverApp, $foreignRoot);
+        ScratchDirectory::delete($foreignRoot);
+
+        $session = new PDO($app->withDatabase($names['gone'])->dsn(2), $app->username, $app->password, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+
+        expect(pruneSessionScalar($session, 'select current_user'))->toBe('cms_app')
+            ->and($current)->toBe(TestDatabaseName::for($configured, CheckoutRoot::current()))
+            ->and($foreign)->toMatch('/\Acms_test_[0-9a-f]{12}\z/');
+
+        $decisions = [
+            "keep {$configured}: the configured database, which the owner role connects to.",
             "keep {$current}: the test database of this checkout.",
             "drop {$names['gone']}: its checkout {$roots['gone']} on this host no longer exists.",
             "keep {$names['existing']}: its checkout {$roots['existing']} exists on this host.",
             "keep {$names['other host']}: its checkout {$roots['other host']} is on the host elsewhere.invalid, not on this host {$host}.",
             "keep {$names['no comment']}: it has no comment, so the testkit did not provision it or cannot tell its checkout.",
         ];
-        sort($expected);
-        $lines = static function (string $output) use ($names, $current): array {
-            $found = pruneLinesOf($output, ['cms_test', $current, ...array_values($names)]);
-            sort($found);
+        sort($decisions);
 
-            return $found;
-        };
-
-        $dryRun = pruneScript('--dry-run');
+        $dryRun = pruneScript($configured, '--dry-run');
 
         expect($dryRun->getExitCode())->toBe(0, $dryRun->getErrorOutput())
-            ->and($lines($dryRun->getOutput()))->toBe($expected)
-            ->and($dryRun->getOutput())->toContain('Dry run: would drop ', '; nothing was dropped.')
+            ->and(pruneReport($dryRun->getOutput()))->toBe([...$decisions, 'Dry run: would drop 1 and keep 5; nothing was dropped.'])
             ->and(array_map(pruneDatabaseExists(...), $names))->toBe(['gone' => true, 'existing' => true, 'other host' => true, 'no comment' => true])
             ->and(pruneSessionScalar($session, 'select 1'))->toBe(1);
 
-        $prune = pruneScript();
+        $prune = pruneScript($configured);
 
         expect($prune->getExitCode())->toBe(0, $prune->getErrorOutput())
-            ->and($lines($prune->getOutput()))->toBe($expected)
-            ->and($prune->getOutput())->toMatch('/^Dropped \d+ and kept \d+\.$/m')
+            ->and(pruneReport($prune->getOutput()))->toBe([...$decisions, 'Dropped 1 and kept 5.'])
             ->and(array_map(pruneDatabaseExists(...), $names))->toBe(['gone' => false, 'existing' => true, 'other host' => true, 'no comment' => true])
-            ->and(pruneDatabaseExists('cms_test'))->toBeTrue()
+            ->and(pruneDatabaseExists($configured))->toBeTrue()
             ->and(pruneDatabaseExists($current))->toBeTrue()
+            ->and(pruneDatabaseExists($checkout))->toBeTrue()
+            ->and(pruneDatabaseExists($foreign))->toBeTrue()
             ->and(static fn (): mixed => pruneSessionScalar($session, 'select 1'))->toThrow(PDOException::class);
     } finally {
-        unset($session);
+        $session = null;
 
-        foreach ($names as $name) {
+        // The databases below the configured one first, then the configured one.
+        foreach (array_reverse($made) as $name) {
             $ownerDb->statement('DROP DATABASE IF EXISTS '.TestDatabaseSetup::identifier($name).' WITH (FORCE)');
         }
     }

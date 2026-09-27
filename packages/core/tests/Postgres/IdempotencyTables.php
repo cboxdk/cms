@@ -69,14 +69,17 @@ final class IdempotencyTables
     }
 
     /**
-     * The advisory locks on the claim's lock key that any backend holds or waits for. A bigint key
-     * shows in pg_locks as classid (the high 32 bits) and objid (the low 32 bits), objsubid 1.
+     * The advisory locks on the claim's lock key that any backend holds or waits for in this
+     * checkout's database. A bigint key shows in pg_locks as classid (the high 32 bits) and objid
+     * (the low 32 bits), objsubid 1. pg_locks lists the locks of every database on the server, and
+     * another checkout's run claims the same keys in its own database at the same time, so the
+     * count is limited to this one (GUARDRAILS 9).
      */
     public static function locks(IdempotencyScope $scope, IdempotencyKey $key): int
     {
         $lock = ClaimLock::of($scope, $key)->key;
         $count = ReceiptTables::owner()->scalar(
-            "select count(*) from pg_locks where locktype = 'advisory' and objsubid = 1 and classid::bigint = ? and objid::bigint = ?",
+            "select count(*) from pg_locks where locktype = 'advisory' and database = (select oid from pg_database where datname = current_database()) and objsubid = 1 and classid::bigint = ? and objid::bigint = ?",
             [($lock >> 32) & 0xFFFFFFFF, $lock & 0xFFFFFFFF],
         );
 

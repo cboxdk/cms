@@ -20,11 +20,14 @@ use Cbox\Cms\Contracts\Storage\PartitionMissing;
 use Cbox\Cms\Core\IdempotencyStore\Adapter\ClaimLock;
 use Cbox\Cms\Core\IdempotencyStore\Adapter\PostgresIdempotencyStore;
 use Cbox\Cms\Testkit\Clock\FakeClock;
+use Cbox\Cms\Testkit\Postgres\Boundary\CheckoutRoot;
+use Cbox\Cms\Testkit\Postgres\Boundary\ConnectionSettings;
 use Cbox\Cms\Testkit\Postgres\ChildProcess;
 use Cbox\Cms\Testkit\Postgres\ChildProcesses;
 use Cbox\Cms\Testkit\Postgres\IndependentConnections;
 use Cbox\Cms\Testkit\Postgres\PartitionFixtures;
 use Cbox\Cms\Testkit\Postgres\ProcessContext;
+use Cbox\Cms\Testkit\Postgres\TestDatabaseName;
 use Cbox\Cms\Testkit\Valkey\ValkeyRun;
 use DateInterval;
 use DateTimeImmutable;
@@ -34,6 +37,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use PDO;
 use PHPUnit\Framework\AssertionFailedError;
 
 /*
@@ -654,6 +658,38 @@ it('holds the advisory lock pg_locks shows for the claim, also when the lock key
 
     expect(IdempotencyTables::locks(IdempotencyTables::scope(), $idempotencyKey))->toBe(0);
 })->with(['a positive lock key' => ['retry-me'], 'a negative lock key' => ['e']]);
+
+it('counts the advisory locks of this checkout\'s database only, not a lock on the same key that a run in another database holds', function (): void {
+    // Another checkout runs this file at the same time and claims the same key in its own test
+    // database; the configured database stands in for it. Advisory locks belong to a database,
+    // but pg_locks lists those of every database on the server. A shared lock never waits for
+    // another run's shared lock on the same key.
+    $settings = ConnectionSettings::of('pgsql_owner', config());
+    $other = $settings->withDatabase(TestDatabaseName::base($settings->database, CheckoutRoot::current()));
+    $foreign = new PDO($other->dsn(2), $other->username, $other->password, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+    $lock = ClaimLock::of(IdempotencyTables::scope(), IdempotencyTables::key())->key;
+
+    try {
+        $taken = $foreign->prepare('select current_database() <> ? and pg_try_advisory_lock_shared(?)');
+        $taken->execute([$settings->database, $lock]);
+
+        expect($taken->fetchColumn())->toBeTrue()
+            ->and(IdempotencyTables::locks(IdempotencyTables::scope(), IdempotencyTables::key()))->toBe(0);
+
+        $session = PostgresIdempotencySessions::at(new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z')))->session();
+        $session->begin();
+
+        expect(claimDefault($session))->toBeInstanceOf(Fresh::class)
+            ->and(IdempotencyTables::locks(IdempotencyTables::scope(), IdempotencyTables::key()))->toBe(1);
+
+        $session->commit();
+
+        expect(IdempotencyTables::locks(IdempotencyTables::scope(), IdempotencyTables::key()))->toBe(0);
+    } finally {
+        // Closing the session releases its lock.
+        $foreign = null;
+    }
+});
 
 it('expires a record with its changeset\'s receipt, not with the time it was completed', function (): void {
     $clock = new FakeClock(new DateTimeImmutable('2026-01-02T00:00:00Z'));

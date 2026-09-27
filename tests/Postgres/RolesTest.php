@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Env;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use PHPUnit\Framework\Assert;
@@ -73,19 +74,27 @@ it('gives the app role no superuser, no BYPASSRLS and no role or database creati
     ]);
 });
 
-it('gives the owner role CREATEDB, for the test database of each checkout, and the app role none', function (): void {
-    $roles = DB::connection('pgsql_owner')->select(
+/**
+ * The attributes of the provisioned roles. Roles belong to the whole server, which other
+ * checkouts' runs share, so the query names the two roles and never lists the others.
+ *
+ * @return array<mixed>
+ */
+function provisionedRoles(): array
+{
+    return DB::connection('pgsql_owner')->select(
         "select rolname, rolcreatedb, rolsuper, rolcreaterole from pg_roles where rolname in ('cms_owner', 'cms_app') order by rolname"
     );
+}
 
-    expect($roles)->toEqual([
-        (object) ['rolname' => 'cms_app', 'rolcreatedb' => false, 'rolsuper' => false, 'rolcreaterole' => false],
-        (object) ['rolname' => 'cms_owner', 'rolcreatedb' => true, 'rolsuper' => false, 'rolcreaterole' => false],
-    ]);
-});
-
-it('makes the owner role a member of pg_signal_backend only, for composer test-db:prune, and the app role a member of nothing', function (): void {
-    $memberships = DB::connection('pgsql_owner')->select(
+/**
+ * The roles the provisioned roles are members of, and never the memberships of other roles.
+ *
+ * @return array<mixed>
+ */
+function provisionedMemberships(): array
+{
+    return DB::connection('pgsql_owner')->select(
         "select member.rolname as member, granted.rolname as role, pg_has_role(member.oid, granted.oid, 'USAGE') as inherits
         from pg_auth_members m
         join pg_roles member on member.oid = m.member
@@ -93,10 +102,47 @@ it('makes the owner role a member of pg_signal_backend only, for composer test-d
         where member.rolname in ('cms_owner', 'cms_app')
         order by 1, 2"
     );
+}
 
-    expect($memberships)->toEqual([
+it('gives the owner role CREATEDB, for the test database of each checkout, and the app role none', function (): void {
+    expect(provisionedRoles())->toEqual([
+        (object) ['rolname' => 'cms_app', 'rolcreatedb' => false, 'rolsuper' => false, 'rolcreaterole' => false],
+        (object) ['rolname' => 'cms_owner', 'rolcreatedb' => true, 'rolsuper' => false, 'rolcreaterole' => false],
+    ]);
+});
+
+it('makes the owner role a member of pg_signal_backend only, for composer test-db:prune, and the app role a member of nothing', function (): void {
+    expect(provisionedMemberships())->toEqual([
         (object) ['member' => 'cms_owner', 'role' => 'pg_signal_backend', 'inherits' => true],
     ]);
+});
+
+it('reads the provisioned roles only, while another checkout\'s run has scratch roles with memberships of its own', function (): void {
+    // The Doctor tests of another checkout make scratch roles as the superuser, grant them the
+    // owner role and predefined roles, and give them CREATEDB, at the same time as this test.
+    config(['database.connections.pgsql_roles_superuser' => array_merge((array) config('database.connections.pgsql'), [
+        'username' => Env::getOrFail('DB_SUPERUSER_USERNAME'),
+        'password' => Env::getOrFail('DB_SUPERUSER_PASSWORD'),
+    ])]);
+    $superuser = DB::connection('pgsql_roles_superuser');
+    $group = 'cms_roles_scratch_'.bin2hex(random_bytes(6));
+    $member = 'cms_roles_scratch_'.bin2hex(random_bytes(6));
+    $rolesBefore = provisionedRoles();
+    $membershipsBefore = provisionedMemberships();
+
+    try {
+        $superuser->statement(sprintf('create role "%s" nologin createdb', $group));
+        $superuser->statement(sprintf('create role "%s" nologin createdb createrole', $member));
+        $superuser->statement(sprintf('grant "cms_owner", "%s", pg_signal_backend, pg_read_all_data to "%s"', $group, $member));
+
+        expect(DB::connection('pgsql_owner')->scalar('select count(*) from pg_auth_members m join pg_roles r on r.oid = m.member where r.rolname = ?', [$member]))->toBe(4)
+            ->and(provisionedRoles())->toEqual($rolesBefore)
+            ->and(provisionedMemberships())->toEqual($membershipsBefore);
+    } finally {
+        $superuser->statement(sprintf('drop role if exists "%s"', $member));
+        $superuser->statement(sprintf('drop role if exists "%s"', $group));
+        DB::purge('pgsql_roles_superuser');
+    }
 });
 
 it('caps every transaction of the app role at the 5 second command budget', function (): void {

@@ -31,11 +31,20 @@ use UnexpectedValueException;
  * Finally it drops the worktree's own Postgres test database, which the Postgres suite in the
  * worktree created (cms_test_<hash of the worktree's path>), removes the worktree and its
  * temporary directory, also after an error or Ctrl-C, and asserts that git no longer lists the
- * worktree. So a run leaves no worktree and no database behind.
+ * worktree. So a run leaves no worktree and no database behind. It prints the temporary
+ * directory it made before anything else runs, and touches no other directory with its prefix:
+ * a selftest in another checkout may run at the same time.
  */
 final readonly class GateSelftest
 {
     public const string PREFIX = 'cbox-cms-selftest-';
+
+    /**
+     * The start of the line that names the temporary directory this run made. Other checkouts'
+     * selftests make directories with the same prefix at the same time, so this line is how a
+     * reader, or a test, tells this run's directory from theirs.
+     */
+    public const string TEMPORARY_DIRECTORY = 'Temporary directory: ';
 
     /** The script that drops a checkout's test database, relative to the repository. */
     public const string DROP_DATABASE = 'tools/bin/drop-test-database.php';
@@ -64,6 +73,8 @@ final readonly class GateSelftest
         if (! mkdir($base, 0o700)) {
             throw new SelftestFailed("Cannot create {$base}.");
         }
+
+        $this->write(self::TEMPORARY_DIRECTORY.$base."\n");
 
         $this->stopOnSignals();
 
