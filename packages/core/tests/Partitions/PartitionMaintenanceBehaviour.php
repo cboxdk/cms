@@ -240,18 +240,28 @@ trait PartitionMaintenanceBehaviour
         $this->lockTable(self::UUID_TABLE);
 
         try {
-            $timeout = $this->thrown(static fn (): PartitionReport => $maintenance->maintain($now));
+            $report = $maintenance->maintain($now);
         } finally {
             $this->unlockTable(self::UUID_TABLE);
         }
 
-        Assert::assertInstanceOf(LockTimeout::class, $timeout);
+        Assert::assertFalse($report->isComplete());
+        Assert::assertCount(1, $report->gaveUp);
+        Assert::assertSame([], $report->changes);
+        Assert::assertNull($report->runways[0]->coveredUntil);
+
+        $timeout = $report->gaveUp[0];
         Assert::assertSame(DdlStep::Create, $timeout->step);
         Assert::assertSame(self::UUID_TABLE, $timeout->table);
         Assert::assertSame('partition_scratch_p20260110', $timeout->partition);
         Assert::assertSame(2, $timeout->attempts);
+        Assert::assertStringStartsWith('['.LockTimeout::CODE.']', $timeout->getMessage());
         Assert::assertSame([], $this->partitionsOf(self::UUID_TABLE));
-        Assert::assertSame($this->changes('created', $this->daily('2026-01-10', 2)), $this->describe($maintenance->maintain($now)));
+
+        $next = $maintenance->maintain($now);
+
+        Assert::assertTrue($next->isComplete());
+        Assert::assertSame($this->changes('created', $this->daily('2026-01-10', 2)), $this->describe($next));
     }
 
     #[Test]
@@ -263,12 +273,15 @@ trait PartitionMaintenanceBehaviour
         $this->lockTable(self::UUID_TABLE);
 
         try {
-            $timeout = $this->thrown(static fn (): PartitionReport => $maintenance->maintain($now));
+            $busy = $maintenance->maintain($now);
         } finally {
             $this->unlockTable(self::UUID_TABLE);
         }
 
-        Assert::assertInstanceOf(LockTimeout::class, $timeout);
+        Assert::assertSame([], $busy->changes);
+        Assert::assertCount(1, $busy->gaveUp);
+
+        $timeout = $busy->gaveUp[0];
         Assert::assertSame(DdlStep::Detach, $timeout->step);
         Assert::assertSame(self::UUID_TABLE, $timeout->table);
         Assert::assertSame('partition_scratch_p20260101', $timeout->partition);
@@ -276,8 +289,46 @@ trait PartitionMaintenanceBehaviour
 
         $report = $maintenance->maintain($now);
 
+        Assert::assertTrue($report->isComplete());
         Assert::assertSame($this->daily('2026-01-01', 8), $report->partitions(PartitionChangeKind::Dropped));
         Assert::assertSame($this->daily('2026-01-09', 3), $this->partitionsOf(self::UUID_TABLE));
+    }
+
+    #[Test]
+    public function a_busy_table_does_not_keep_the_tables_after_it_from_their_runway(): void
+    {
+        $monthly = new PartitionedTable(self::TIME_TABLE, PartitionKey::Timestamp, PartitionInterval::Month, null);
+        $maintenance = $this->partitionMaintenance($this->policy([$this->dailyTable(retentionDays: 1), $monthly], runwayDays: 1));
+        $maintenance->cover($this->range('2025-12-31T00:00:00Z', '2025-12-31T00:00:00Z'), new DateTimeImmutable('2025-12-31T00:00:00Z'));
+        $now = new DateTimeImmutable('2026-01-10T12:00:00Z');
+        $this->lockTable(self::UUID_TABLE);
+
+        try {
+            $report = $maintenance->maintain($now);
+        } finally {
+            $this->unlockTable(self::UUID_TABLE);
+        }
+
+        // Every table is created before any is retired, and each phase gives up on the busy
+        // table alone.
+        Assert::assertSame([
+            'create '.self::UUID_TABLE.' partition_scratch_p20260110',
+            'detach '.self::UUID_TABLE.' partition_scratch_p20251231',
+        ], array_map(static fn (LockTimeout $timeout): string => $timeout->step->value.' '.$timeout->table.' '.$timeout->partition, $report->gaveUp));
+        Assert::assertSame(['created '.self::TIME_TABLE.'_p202601'], $this->describe($report));
+        Assert::assertSame([self::TIME_TABLE.'_p202512', self::TIME_TABLE.'_p202601'], $this->partitionsOf(self::TIME_TABLE));
+        Assert::assertSame(['partition_scratch_p20251231'], $this->partitionsOf(self::UUID_TABLE));
+        Assert::assertNull($report->runways[0]->coveredUntil);
+        Assert::assertSame('2026-02-01T00:00:00+00:00', $report->runways[1]->coveredUntil?->format(DATE_ATOM));
+
+        $next = $maintenance->maintain($now);
+
+        Assert::assertTrue($next->isComplete());
+        Assert::assertSame([
+            ...$this->changes('created', $this->daily('2026-01-10', 2)),
+            'detached partition_scratch_p20251231',
+            'dropped partition_scratch_p20251231',
+        ], $this->describe($next));
     }
 
     #[Test]

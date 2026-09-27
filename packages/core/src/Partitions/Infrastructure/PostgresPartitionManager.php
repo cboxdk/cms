@@ -10,6 +10,7 @@ use Cbox\Cms\Core\Partitions\Domain\DdlStep;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionRange;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionReport;
 use Cbox\Cms\Core\Partitions\Domain\Dto\TableRunway;
+use Cbox\Cms\Core\Partitions\Domain\LockTimeout;
 use Cbox\Cms\Core\Partitions\Domain\OwnerConnectionRequired;
 use Cbox\Cms\Core\Partitions\Domain\Partition;
 use Cbox\Cms\Core\Partitions\Domain\PartitionChangeKind;
@@ -40,7 +41,12 @@ use LogicException;
  * anyway is finalized, and a detached table that was not dropped is dropped, on the next run.
  *
  * Every step runs under LockedDdl: lock_timeout and a bounded retry with backoff. One run at a
- * time holds a session advisory lock on the owner connection.
+ * time holds a session advisory lock on the owner connection. A run creates the partitions of
+ * every table before it retires any, and a step that gives up on a table's lock ends that phase
+ * for that table only: the LockTimeout goes in the report and the run goes on with the other
+ * tables. Retiring a partition waits for every transaction on the parent, which a busy table may
+ * never allow within the lock timeout, while creating one does not; a busy table must not use up
+ * the runway of the others.
  */
 #[Internal]
 final readonly class PostgresPartitionManager implements PartitionMaintenance
@@ -57,10 +63,15 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
     {
         $until = $now->modify(sprintf('+%d days', $this->policy->runwayDays));
 
-        return $this->run($now, function (Run $run, CatalogTable $table) use ($now, $until): void {
-            $this->create($run, $table, $table->table->partitionsCovering($now, $until));
-            $this->retire($run, $table, $now);
-        });
+        return $this->run(
+            $now,
+            function (Run $run, CatalogTable $table) use ($now, $until): void {
+                $this->create($run, $table, $table->table->partitionsCovering($now, $until));
+            },
+            function (Run $run, CatalogTable $table) use ($now): void {
+                $this->retire($run, $table, $now);
+            },
+        );
     }
 
     public function cover(PartitionRange $range, DateTimeImmutable $now): PartitionReport
@@ -75,10 +86,14 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
     }
 
     /**
+     * Runs each phase over every table, in policy order, before the next phase starts. A phase
+     * that gives up on a table's lock is recorded in the report, and the run goes on with the
+     * next table: a busy table must not keep the others from their runway.
+     *
      * @param  DateTimeImmutable  $now  the instant the report measures each table's runway from
-     * @param  Closure(Run, CatalogTable): void  $work
+     * @param  Closure(Run, CatalogTable): void  ...$phases
      */
-    private function run(DateTimeImmutable $now, Closure $work): PartitionReport
+    private function run(DateTimeImmutable $now, Closure ...$phases): PartitionReport
     {
         $connection = $this->ownerConnection();
         $catalog = new PartitionCatalog($connection);
@@ -96,8 +111,14 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
         });
 
         try {
-            foreach ($tables as $table) {
-                $work($run, $table);
+            foreach ($phases as $phase) {
+                foreach ($tables as $table) {
+                    try {
+                        $phase($run, $table);
+                    } catch (LockTimeout $timeout) {
+                        $run->gaveUp($timeout);
+                    }
+                }
             }
         } finally {
             $connection->select('select pg_advisory_unlock(?)', [self::ADVISORY_LOCK], false);
@@ -107,6 +128,7 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
             role: $role,
             changes: $run->changes(),
             runways: array_map(fn (CatalogTable $table): TableRunway => $this->runway($catalog, $table, $now), $tables),
+            gaveUp: $run->timeouts(),
         );
     }
 

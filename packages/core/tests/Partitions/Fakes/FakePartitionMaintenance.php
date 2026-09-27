@@ -30,7 +30,8 @@ use Override;
  * run holding the maintenance lock, so the next run gives up at the lock step; lockTable() is a
  * session holding a lock on a table, so the next step that creates or detaches a partition of it
  * gives up. Both give up with LockTimeout after the policy's attempts and change nothing in that
- * step, as the real manager does. A policy on the application's connection is refused with
+ * step, as the real manager does: the run lock is thrown, a table's lock is in the report's
+ * gaveUp while the run goes on with the other tables. A policy on the application's connection is refused with
  * OwnerConnectionRequired. PartitionMaintenanceBehaviour holds it to PostgresPartitionManager.
  *
  * It does not model a detach that an earlier run left pending, or a table Postgres cannot manage.
@@ -63,10 +64,15 @@ final class FakePartitionMaintenance implements PartitionMaintenance
     {
         $until = $now->modify(sprintf('+%d days', $this->policy->runwayDays));
 
-        return $this->run($now, function (PartitionedTable $table) use ($now, $until): void {
-            $this->create($table, $table->partitionsCovering($now, $until));
-            $this->retire($table, $now);
-        });
+        return $this->run(
+            $now,
+            function (PartitionedTable $table) use ($now, $until): void {
+                $this->create($table, $table->partitionsCovering($now, $until));
+            },
+            function (PartitionedTable $table) use ($now): void {
+                $this->retire($table, $now);
+            },
+        );
     }
 
     #[Override]
@@ -122,9 +128,12 @@ final class FakePartitionMaintenance implements PartitionMaintenance
     }
 
     /**
-     * @param  Closure(PartitionedTable): void  $work
+     * Runs each phase over every table before the next phase, and records a table that gives up
+     * instead of stopping the run, as the Postgres manager does.
+     *
+     * @param  Closure(PartitionedTable): void  ...$phases
      */
-    private function run(DateTimeImmutable $now, Closure $work): PartitionReport
+    private function run(DateTimeImmutable $now, Closure ...$phases): PartitionReport
     {
         if ($this->policy->ownerConnection === $this->appConnection) {
             throw OwnerConnectionRequired::appConnection($this->policy->ownerConnection);
@@ -135,15 +144,23 @@ final class FakePartitionMaintenance implements PartitionMaintenance
         }
 
         $this->changes = [];
+        $gaveUp = [];
 
-        foreach ($this->policy->tables as $table) {
-            $work($table);
+        foreach ($phases as $phase) {
+            foreach ($this->policy->tables as $table) {
+                try {
+                    $phase($table);
+                } catch (LockTimeout $timeout) {
+                    $gaveUp[] = $timeout;
+                }
+            }
         }
 
         return new PartitionReport(
             role: $this->role,
             changes: $this->changes,
             runways: array_map(fn (PartitionedTable $table): TableRunway => $this->runway($table, $now), $this->policy->tables),
+            gaveUp: $gaveUp,
         );
     }
 

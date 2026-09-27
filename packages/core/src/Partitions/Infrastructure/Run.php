@@ -6,18 +6,23 @@ namespace Cbox\Cms\Core\Partitions\Infrastructure;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionChange;
+use Cbox\Cms\Core\Partitions\Domain\LockTimeout;
 use Cbox\Cms\Core\Partitions\Domain\Partition;
 use Cbox\Cms\Core\Partitions\Domain\PartitionChangeKind;
 use Illuminate\Database\Connection;
 
 /**
- * One run of the partition manager: its connection, catalog, DDL runner and the changes so far.
+ * One run of the partition manager: its connection, catalog, DDL runner, the changes so far and
+ * the steps that gave up on a busy lock.
  */
 #[Internal]
 final class Run
 {
     /** @var list<PartitionChange> */
     private array $changes = [];
+
+    /** @var list<LockTimeout> */
+    private array $gaveUp = [];
 
     public function __construct(
         public readonly Connection $connection,
@@ -36,5 +41,18 @@ final class Run
     public function changes(): array
     {
         return $this->changes;
+    }
+
+    public function gaveUp(LockTimeout $timeout): void
+    {
+        $this->gaveUp[] = $timeout;
+    }
+
+    /**
+     * @return list<LockTimeout>
+     */
+    public function timeouts(): array
+    {
+        return $this->gaveUp;
     }
 }

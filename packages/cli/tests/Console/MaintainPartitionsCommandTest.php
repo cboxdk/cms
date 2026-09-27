@@ -169,20 +169,28 @@ it('exits 75 when a lock stays busy, prints why and logs the step as a warning',
         ]]]);
 });
 
-it('logs the table and partition of a lock that stays busy on one table', function (): void {
+it('reports the run, then logs the table and partition of a lock that stays busy on one table', function (): void {
     [$partitions, $logger] = partitionsCommandWith();
     $partitions->lockTable('events');
 
-    [$status] = runPartitionsCommand();
+    [$status, $lines] = runPartitionsCommand();
 
     expect($status)->toBe(MaintainPartitionsCommand::EXIT_LOCK_TIMEOUT)
-        ->and($logger->records)->toBe([['warning', 'Partition maintenance gave up on a lock.', [
-            'code' => 'partition_lock_timeout',
-            'step' => 'create',
-            'table' => 'events',
-            'partition' => 'events_p20260501',
-            'attempts' => 3,
-        ]]]);
+        ->and(array_slice($lines, 0, 2))->toBe([
+            'runway events until none',
+            'Partitions maintained as role cms_owner: 0 changes.',
+        ])
+        ->and(implode("\n", array_slice($lines, 2)))->toStartWith('[partition_lock_timeout] Gave up on step "create" for partition "events_p20260501" of table "events"')
+        ->and($logger->records)->toBe([
+            ['info', 'Partition maintenance ran.', ['role' => 'cms_owner', 'changes' => [], 'runways' => ['events none']]],
+            ['warning', 'Partition maintenance gave up on a lock.', [
+                'code' => 'partition_lock_timeout',
+                'step' => 'create',
+                'table' => 'events',
+                'partition' => 'events_p20260501',
+                'attempts' => 3,
+            ]],
+        ]);
 });
 
 it('exits 78 when the policy names the application\'s connection, and changes nothing', function (): void {

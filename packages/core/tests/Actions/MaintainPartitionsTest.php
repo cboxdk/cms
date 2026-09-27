@@ -79,52 +79,66 @@ it('passes a busy lock on as LockTimeout, and the next run after it is released 
     expect($action->maintain()->changes)->toHaveCount(3);
 });
 
-it('gives up with LockTimeout on a table another session holds, keeps the tables done before it, and finishes on the next run', function (): void {
+it('reports a LockTimeout on a table another session holds, still maintains the other tables, and finishes on the next run', function (): void {
     $partitions = new FakePartitionMaintenance(new PartitionPolicy('pgsql_owner', [
-        new PartitionedTable('events', PartitionKey::Uuid7, PartitionInterval::Day, null),
         new PartitionedTable('audit', PartitionKey::Timestamp, PartitionInterval::Day, null),
+        new PartitionedTable('events', PartitionKey::Uuid7, PartitionInterval::Day, null),
     ], runwayDays: 1, lockTimeoutMs: 1500, attempts: 2));
     $action = new MaintainPartitions($partitions, new FakeClock(new DateTimeImmutable('2026-05-01T10:00:00Z')));
     $partitions->lockTable('audit');
 
-    try {
-        $action->maintain();
-        $timeout = null;
-    } catch (LockTimeout $caught) {
-        $timeout = $caught;
-    }
+    $report = $action->maintain();
+    $timeout = $report->gaveUp[0] ?? null;
 
-    expect($timeout?->step)->toBe(DdlStep::Create)
+    expect($report->gaveUp)->toHaveCount(1)
+        ->and($report->isComplete())->toBeFalse()
+        ->and($timeout?->step)->toBe(DdlStep::Create)
         ->and($timeout?->table)->toBe('audit')
         ->and($timeout?->partition)->toBe('audit_p20260501')
         ->and($timeout?->attempts)->toBe(2)
         ->and($timeout?->getMessage())->toStartWith('['.LockTimeout::CODE.'] Gave up on step "create" for partition "audit_p20260501" of table "audit" after 2 attempts')
         ->toContain('lock_timeout 1500ms')
+        ->and($report->partitions(PartitionChangeKind::Created))->toBe(['events_p20260501', 'events_p20260502'])
         ->and($partitions->partitions('events'))->toBe(['events_p20260501', 'events_p20260502'])
         ->and($partitions->partitions('audit'))->toBe([]);
 
     $partitions->unlockTable('audit');
-    $report = $action->maintain();
+    $next = $action->maintain();
 
-    expect($report->partitions(PartitionChangeKind::Created))->toBe(['audit_p20260501', 'audit_p20260502'])
+    expect($next->isComplete())->toBeTrue()
+        ->and($next->partitions(PartitionChangeKind::Created))->toBe(['audit_p20260501', 'audit_p20260502'])
         ->and($partitions->partitions('audit'))->toBe(['audit_p20260501', 'audit_p20260502']);
 });
 
-it('gives up with LockTimeout before it detaches a partition of a locked table, and keeps the partition', function (): void {
-    $partitions = fakePartitions(retentionDays: 1);
+it('creates the runway of every table before it retires any, and a busy table keeps its partitions while the others are maintained', function (): void {
+    $partitions = new FakePartitionMaintenance(new PartitionPolicy('pgsql_owner', [
+        new PartitionedTable('events', PartitionKey::Uuid7, PartitionInterval::Day, 1),
+        new PartitionedTable('audit', PartitionKey::Timestamp, PartitionInterval::Day, 1),
+    ], runwayDays: 2));
     $clock = new FakeClock(new DateTimeImmutable('2026-05-01T10:00:00Z'));
     $action = new MaintainPartitions($partitions, $clock);
     $action->maintain();
-    $action->cover(new PartitionRange(new DateTimeImmutable('2026-05-04T00:00:00Z'), new DateTimeImmutable('2026-05-05T00:00:00Z')));
     $partitions->lockTable('events');
     $clock->set(new DateTimeImmutable('2026-05-03T00:00:00Z'));
 
-    expect(static fn (): mixed => $action->maintain())->toThrow(LockTimeout::class, 'Gave up on step "'.DdlStep::Detach->value.'" for partition "events_p20260501" of table "events"')
-        ->and($partitions->partitions('events'))->toBe(['events_p20260501', 'events_p20260502', 'events_p20260503', 'events_p20260504', 'events_p20260505']);
+    $report = $action->maintain();
+
+    // The lock keeps both phases from the events table: the create gives up first, because every
+    // table is created before any is retired, and the audit table is maintained in full.
+    expect($report->gaveUp)->toHaveCount(2)
+        ->and($report->gaveUp[0]->getMessage())->toContain('Gave up on step "'.DdlStep::Create->value.'" for partition "events_p20260504" of table "events"')
+        ->and($report->gaveUp[1]->getMessage())->toContain('Gave up on step "'.DdlStep::Detach->value.'" for partition "events_p20260501" of table "events"')
+        ->and($report->partitions(PartitionChangeKind::Created))->toBe(['audit_p20260504', 'audit_p20260505'])
+        ->and($report->partitions(PartitionChangeKind::Dropped))->toBe(['audit_p20260501'])
+        ->and($partitions->partitions('events'))->toBe(['events_p20260501', 'events_p20260502', 'events_p20260503'])
+        ->and($partitions->partitions('audit'))->toBe(['audit_p20260502', 'audit_p20260503', 'audit_p20260504', 'audit_p20260505']);
 
     $partitions->unlockTable('events');
+    $next = $action->maintain();
 
-    expect($action->maintain()->partitions(PartitionChangeKind::Dropped))->toBe(['events_p20260501'])
+    expect($next->isComplete())->toBeTrue()
+        ->and($next->partitions(PartitionChangeKind::Created))->toBe(['events_p20260504', 'events_p20260505'])
+        ->and($next->partitions(PartitionChangeKind::Dropped))->toBe(['events_p20260501'])
         ->and($partitions->partitions('events'))->toBe(['events_p20260502', 'events_p20260503', 'events_p20260504', 'events_p20260505']);
 });
 

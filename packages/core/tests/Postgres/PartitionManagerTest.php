@@ -10,6 +10,7 @@ use Cbox\Cms\Core\Partitions\Actions\MaintainPartitions;
 use Cbox\Cms\Core\Partitions\Adapter\MissingPartitionMapper;
 use Cbox\Cms\Core\Partitions\Domain\DdlStep;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionRange;
+use Cbox\Cms\Core\Partitions\Domain\Dto\TableRunway;
 use Cbox\Cms\Core\Partitions\Domain\LockTimeout;
 use Cbox\Cms\Core\Partitions\Domain\OwnerConnectionRequired;
 use Cbox\Cms\Core\Partitions\Domain\PartitionChangeKind;
@@ -290,7 +291,7 @@ it('keeps every partition of a table without retention', function (): void {
         ->and(PartitionScratch::exists('partition_scratch_p20200101'))->toBeTrue();
 });
 
-it('gives up with LockTimeout while another process holds ACCESS SHARE on the parent, and leaves the partition attached', function (): void {
+it('gives up on the detach with LockTimeout while another process holds ACCESS SHARE on the parent, and leaves the partition attached', function (): void {
     PartitionScratch::manage(
         [PartitionScratch::UUID_TABLE => PartitionScratch::daily(['retention_days' => 1])],
         ['runway_days' => 1, 'attempts' => 2, 'backoff_ms' => 50],
@@ -302,11 +303,13 @@ it('gives up with LockTimeout while another process holds ACCESS SHARE on the pa
     PartitionScratch::recordStatements();
 
     $started = hrtime(true);
-    $timeout = thrownBy(static fn (): mixed => app(MaintainPartitions::class)->maintain());
+    $busy = app(MaintainPartitions::class)->maintain();
     $elapsedMs = (hrtime(true) - $started) / 1e6;
 
-    expect($timeout)->toBeInstanceOf(LockTimeout::class);
-    assert($timeout instanceof LockTimeout);
+    expect($busy->gaveUp)->toHaveCount(1)
+        ->and($busy->partitions(PartitionChangeKind::Detached))->toBe([]);
+
+    $timeout = $busy->gaveUp[0];
 
     expect($timeout->step)->toBe(DdlStep::Detach)
         ->and($timeout->table)->toBe('partition_scratch')
@@ -328,6 +331,56 @@ it('gives up with LockTimeout while another process holds ACCESS SHARE on the pa
         ->and(PartitionScratch::exists('partition_scratch_p20260101'))->toBeFalse();
 });
 
+it('still creates the runway of every table when retiring the first table gives up on a busy parent', function (): void {
+    PartitionScratch::manage(
+        [
+            PartitionScratch::UUID_TABLE => PartitionScratch::daily(['retention_days' => 1]),
+            PartitionScratch::TIME_TABLE => PartitionScratch::daily(['key' => 'timestamp']),
+        ],
+        ['runway_days' => 3, 'attempts' => 1, 'lock_timeout_ms' => 200],
+    );
+    app(MaintainPartitions::class)->cover(new PartitionRange(new DateTimeImmutable('2026-01-01T00:00:00Z'), new DateTimeImmutable('2026-01-01T00:00:00Z')));
+    PartitionScratch::clockAt('2026-01-10T12:00:00Z');
+
+    // An app transaction's ACCESS SHARE on the first table's parent: the wait before DETACH
+    // CONCURRENTLY times out, while ATTACH PARTITION, which takes SHARE UPDATE EXCLUSIVE, does not.
+    $child = holdLock('access share');
+
+    $report = app(MaintainPartitions::class)->maintain();
+
+    expect($report->gaveUp)->toHaveCount(1)
+        ->and($report->gaveUp[0]->step)->toBe(DdlStep::Detach)
+        ->and($report->gaveUp[0]->table)->toBe(PartitionScratch::UUID_TABLE)
+        ->and($report->gaveUp[0]->partition)->toBe('partition_scratch_p20260101')
+        ->and($report->isComplete())->toBeFalse()
+        ->and($report->partitions(PartitionChangeKind::Created))->toBe([
+            ...dailyNames('2026-01-10', 4),
+            'partition_scratch_ts_p20260110',
+            'partition_scratch_ts_p20260111',
+            'partition_scratch_ts_p20260112',
+            'partition_scratch_ts_p20260113',
+        ])
+        ->and($report->partitions(PartitionChangeKind::Dropped))->toBe([])
+        ->and(PartitionScratch::partitions(PartitionScratch::UUID_TABLE))->toBe(['partition_scratch_p20260101', ...dailyNames('2026-01-10', 4)])
+        ->and(PartitionScratch::partitions(PartitionScratch::TIME_TABLE))->toBe([
+            'partition_scratch_ts_p20260101',
+            'partition_scratch_ts_p20260110',
+            'partition_scratch_ts_p20260111',
+            'partition_scratch_ts_p20260112',
+            'partition_scratch_ts_p20260113',
+        ])
+        ->and(array_map(static fn (TableRunway $runway): ?string => $runway->coveredUntil?->format(DATE_ATOM), $report->runways))
+        ->toBe(['2026-01-14T00:00:00+00:00', '2026-01-14T00:00:00+00:00']);
+
+    $child->stop();
+
+    $next = app(MaintainPartitions::class)->maintain();
+
+    expect($next->gaveUp)->toBe([])
+        ->and($next->isComplete())->toBeTrue()
+        ->and($next->partitions(PartitionChangeKind::Dropped))->toBe(['partition_scratch_p20260101']);
+});
+
 it('rolls a create back when ATTACH passes lock_timeout, so no stray table is left', function (): void {
     PartitionScratch::clockAt('2026-01-10T12:00:00Z');
     PartitionScratch::manage([PartitionScratch::UUID_TABLE => PartitionScratch::daily()], ['runway_days' => 1, 'attempts' => 2, 'backoff_ms' => 50]);
@@ -336,11 +389,13 @@ it('rolls a create back when ATTACH passes lock_timeout, so no stray table is le
     $child = holdLock('share');
 
     $started = hrtime(true);
-    $timeout = thrownBy(static fn (): mixed => app(MaintainPartitions::class)->maintain());
+    $busy = app(MaintainPartitions::class)->maintain();
     $elapsedMs = (hrtime(true) - $started) / 1e6;
 
-    expect($timeout)->toBeInstanceOf(LockTimeout::class);
-    assert($timeout instanceof LockTimeout);
+    expect($busy->gaveUp)->toHaveCount(1)
+        ->and($busy->changes)->toBe([]);
+
+    $timeout = $busy->gaveUp[0];
 
     expect($timeout->step)->toBe(DdlStep::Create)
         ->and($timeout->partition)->toBe('partition_scratch_p20260110')

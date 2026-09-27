@@ -125,3 +125,41 @@ it('exits 75 when a lock stays busy on every attempt', function (): void {
     expect($status)->toBe(MaintainPartitionsCommand::EXIT_LOCK_TIMEOUT)
         ->and(implode("\n", $output))->toContain('['.LockTimeout::CODE.']');
 });
+
+it('maintains every other table when one table\'s lock stays busy, prints what it did, and then exits 75', function (): void {
+    PartitionScratch::manage([
+        PartitionScratch::UUID_TABLE => PartitionScratch::daily(['retention_days' => 1]),
+        PartitionScratch::TIME_TABLE => PartitionScratch::daily(['key' => 'timestamp']),
+    ], ['runway_days' => 1, 'attempts' => 1, 'lock_timeout_ms' => 200]);
+    PartitionScratch::clockAt('2026-01-10T10:00:00Z');
+    expect(maintainCommand(['--from' => '2026-01-01', '--to' => '2026-01-01'])[0])->toBe(0);
+
+    // An app transaction's ACCESS SHARE on the uuid table: its detach gives up, its create does not.
+    [$other] = app(IndependentConnections::class)->open(1, 'pgsql_owner');
+    $other->beginTransaction();
+    $other->statement('lock table partition_scratch in access share mode');
+
+    [$status, $output] = maintainCommand();
+    $other->rollBack();
+
+    expect($status)->toBe(MaintainPartitionsCommand::EXIT_LOCK_TIMEOUT)
+        ->and(array_slice($output, 0, 7))->toBe([
+            'created partition_scratch.partition_scratch_p20260110',
+            'created partition_scratch.partition_scratch_p20260111',
+            'created partition_scratch_ts.partition_scratch_ts_p20260110',
+            'created partition_scratch_ts.partition_scratch_ts_p20260111',
+            'runway partition_scratch until 2026-01-12T00:00:00Z',
+            'runway partition_scratch_ts until 2026-01-12T00:00:00Z',
+            'Partitions maintained as role cms_owner: 4 changes.',
+        ])
+        ->and(implode("\n", array_slice($output, 7)))->toStartWith('['.LockTimeout::CODE.'] Gave up on step "detach" for partition "partition_scratch_p20260101" of table "partition_scratch"')
+        ->and(PartitionScratch::partitions(PartitionScratch::UUID_TABLE))->toContain('partition_scratch_p20260101');
+
+    expect(maintainCommand())->toBe([0, [
+        'detached partition_scratch.partition_scratch_p20260101',
+        'dropped partition_scratch.partition_scratch_p20260101',
+        'runway partition_scratch until 2026-01-12T00:00:00Z',
+        'runway partition_scratch_ts until 2026-01-12T00:00:00Z',
+        'Partitions maintained as role cms_owner: 2 changes.',
+    ]]);
+});

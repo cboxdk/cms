@@ -27,8 +27,11 @@ use Psr\Log\LoggerInterface;
  * retention. With --from and --to it only creates the partitions that cover that range, for rows
  * that arrive with past or future keys.
  *
- * Exit codes: 0 done, 2 invalid options, 75 a lock was busy on every attempt (try again later),
- * 78 not the owner role's connection (configuration).
+ * A table whose lock stays busy does not stop the others: the command prints what the run did,
+ * then each step that gave up, and exits 75 after every table has been tried.
+ *
+ * Exit codes: 0 done, 2 invalid options, 75 a lock was busy on every attempt, the maintenance
+ * lock or a table's (try again later), 78 not the owner role's connection (configuration).
  */
 #[Internal]
 #[Description('Create partitions ahead of the clock and remove partitions past retention, as the owner role')]
@@ -62,8 +65,7 @@ final class MaintainPartitionsCommand extends Command
 
             return self::EXIT_INVALID;
         } catch (LockTimeout $timeout) {
-            $log->warning('Partition maintenance gave up on a lock.', ['code' => LockTimeout::CODE, 'step' => $timeout->step->value, 'table' => $timeout->table, 'partition' => $timeout->partition, 'attempts' => $timeout->attempts]);
-            $this->error($timeout->getMessage());
+            $this->gaveUp($timeout, $log);
 
             return self::EXIT_LOCK_TIMEOUT;
         } catch (OwnerConnectionRequired $notOwner) {
@@ -74,7 +76,17 @@ final class MaintainPartitionsCommand extends Command
 
         $this->report($report, $log);
 
-        return self::SUCCESS;
+        foreach ($report->gaveUp as $timeout) {
+            $this->gaveUp($timeout, $log);
+        }
+
+        return $report->isComplete() ? self::SUCCESS : self::EXIT_LOCK_TIMEOUT;
+    }
+
+    private function gaveUp(LockTimeout $timeout, LoggerInterface $log): void
+    {
+        $log->warning('Partition maintenance gave up on a lock.', ['code' => LockTimeout::CODE, 'step' => $timeout->step->value, 'table' => $timeout->table, 'partition' => $timeout->partition, 'attempts' => $timeout->attempts]);
+        $this->error($timeout->getMessage());
     }
 
     private function report(PartitionReport $report, LoggerInterface $log): void
