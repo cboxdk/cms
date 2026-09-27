@@ -139,6 +139,42 @@ it('turns a check that throws or answers for another check into a violation', fu
         ->and($report->exit)->toBe(DoctorExitCode::Violation);
 });
 
+it('turns a check that returns a skip from run() into a violation, because only the doctor skips', function (): void {
+    $skips = new class implements DoctorCheck
+    {
+        public function id(): CheckId
+        {
+            return doctorId('fake.skips');
+        }
+
+        public function blocking(): bool
+        {
+            return true;
+        }
+
+        public function requires(): array
+        {
+            return [];
+        }
+
+        public function run(): CheckResult
+        {
+            return CheckResult::skip(doctorId('fake.skips'), true, 'Nothing to look at.', 'The check chose not to look.');
+        }
+    };
+
+    $report = new RunDoctor(new FakeDoctorChecks([$skips, FakeDoctorCheck::passing(doctorId('fake.ok'))], []))->run(new DoctorRunOptions);
+
+    expect($report->results[0]->id->value)->toBe('fake.skips')
+        ->and($report->results[0]->status)->toBe(CheckStatus::Fail)
+        ->and($report->results[0]->failure)->toBe(FailureKind::Violation)
+        ->and($report->results[0]->code)->toBe(RunDoctor::CODE_CRASHED)
+        ->and($report->results[0]->blocking)->toBeTrue()
+        ->and($report->results[0]->cause)->toBe('It returned a skip from run(); only the doctor skips a check.')
+        ->and($report->results[1]->status)->toBe(CheckStatus::Pass)
+        ->and($report->exit)->toBe(DoctorExitCode::Violation);
+});
+
 it('asks the list of checks for the checks of the options it was given', function (): void {
     $checks = new FakeDoctorChecks([FakeDoctorCheck::passing(doctorId('fake.runtime'))], [FakeDoctorCheck::passing(doctorId('fake.dev'))]);
     $doctor = new RunDoctor($checks);

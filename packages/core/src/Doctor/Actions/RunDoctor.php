@@ -7,6 +7,7 @@ namespace Cbox\Cms\Core\Doctor\Actions;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Doctor\CheckId;
 use Cbox\Cms\Contracts\Doctor\CheckResult;
+use Cbox\Cms\Contracts\Doctor\CheckStatus;
 use Cbox\Cms\Contracts\Doctor\DoctorCheck;
 use Cbox\Cms\Contracts\Doctor\FailureKind;
 use Cbox\Cms\Core\Doctor\Domain\DoctorChecks;
@@ -19,8 +20,9 @@ use Throwable;
  * adds up the exit code.
  *
  * A check whose requirement did not pass is skipped, and the skip names the requirement. A check
- * that breaks its contract, by throwing or by answering for another id, fails as a violation with
- * CODE_CRASHED, so the doctor always gives a complete report.
+ * that breaks its contract, by throwing, by answering for another id or by returning a skip, which
+ * only the doctor gives, fails as a violation with CODE_CRASHED, so the doctor always gives a
+ * complete report and never exits Ok for a check that did not look.
  */
 #[Experimental]
 final readonly class RunDoctor
@@ -74,6 +76,10 @@ final readonly class RunDoctor
                 $result->id->value,
                 $result->blocking ? 'true' : 'false',
             ));
+        }
+
+        if ($result->status === CheckStatus::Skip) {
+            return $this->crashed($id, $blocking, 'It returned a skip from run(); only the doctor skips a check.');
         }
 
         return $result;
