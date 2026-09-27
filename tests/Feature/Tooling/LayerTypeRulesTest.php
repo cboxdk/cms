@@ -15,6 +15,7 @@ use Cbox\Cms\Testkit\Phpstan\SavepointStringsRule;
 use Cbox\Cms\Testkit\Phpstan\StringIdsRule;
 use Cbox\Cms\Testkit\Phpstan\TransactionCallsRule;
 use Cbox\Cms\Testkit\Phpstan\TypedArrowFunctionsRule;
+use Cbox\Cms\Testkit\Phpstan\TypedClassConstantsRule;
 use Cbox\Cms\Testkit\Phpstan\TypedClassTagsRule;
 use Cbox\Cms\Testkit\Phpstan\TypedClosuresRule;
 use Cbox\Cms\Testkit\Phpstan\TypedFunctionsRule;
@@ -63,6 +64,7 @@ it('registers every rule, the collector and the extensions in the testkit neon, 
         TypedClosuresRule::class,
         TypedArrowFunctionsRule::class,
         TypedPropertiesRule::class,
+        TypedClassConstantsRule::class,
         TypedClassTagsRule::class,
         PhpstanIgnoreRule::class,
         TransactionCallsRule::class,
@@ -107,6 +109,27 @@ it('fails the analysis on an untyped array return in the domain', function (): v
 
     expect($analysis->exitCode)->not->toBe(0)
         ->and($analysis->identifiers)->toEqualCanonicalizing(['missingType.iterableValue', 'cboxCms.untypedArray']);
+});
+
+it('fails the analysis on a const array without a typed @var in the domain, which PHPStan alone lets pass', function (): void {
+    $analysis = analyseProbe(<<<'PHP'
+        <?php
+
+        declare(strict_types=1);
+
+        namespace Cbox\Cms\Core\Entries\Domain;
+
+        final class Probe
+        {
+            public const array WORDS = ['SELECT', 'INSERT'];
+
+            /** @var list<string> */
+            public const array TYPED = ['SELECT', 'INSERT'];
+        }
+        PHP);
+
+    expect($analysis->exitCode)->not->toBe(0)
+        ->and($analysis->identifiers)->toBe(['cboxCms.untypedArray']);
 });
 
 it('reports mixed and the ignore comments that try to hide it, through the real configuration', function (): void {

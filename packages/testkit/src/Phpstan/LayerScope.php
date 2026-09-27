@@ -17,10 +17,18 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 #[Internal]
 final class LayerScope
 {
-    /** The layer segments of GUARDRAILS 2.5, as the Arch suite names them. */
+    /**
+     * The layer segments of GUARDRAILS 2.5, as the Arch suite names them.
+     *
+     * @var list<string>
+     */
     public const array LAYERS = ['Domain', 'Actions', 'Boundary', 'Adapter', 'Infrastructure', 'Jobs', 'Http', 'Cli'];
 
-    /** The only layers that may use mixed, untyped arrays and phpstan-ignore comments. */
+    /**
+     * The only layers that may use mixed, untyped arrays and phpstan-ignore comments.
+     *
+     * @var list<string>
+     */
     public const array LOOSE_LAYERS = ['Boundary', 'Adapter'];
 
     /** The namespace segment that marks test code, as in Cbox\Cms\Core\Tests. */

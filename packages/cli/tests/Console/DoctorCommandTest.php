@@ -19,6 +19,7 @@ use Cbox\Cms\Core\Doctor\Domain\Probes\RegistryCacheProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\RuntimeProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\ToolProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\ValkeyProbe;
+use Cbox\Cms\Core\Doctor\Domain\SettingSource;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeLcMessagesProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePartitionRunwayProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePhpSettingsProbe;
@@ -354,7 +355,7 @@ it('reports invalid settings as the failing check doctor.config', function (): v
 it('logs the failing checks with their codes', function (): void {
     $fakes = new DoctorFakes;
     $fakes->postgres->transactionTimeoutMs = 0;
-    $fakes->postgres->transactionTimeoutSource = 'default';
+    $fakes->postgres->transactionTimeoutSource = SettingSource::Default;
 
     [$status] = doctor(['--json' => true]);
 

@@ -16,6 +16,8 @@ final readonly class CheckRunner
     /**
      * Set for every command, so a Composer script run by a gate is never cut off by Composer's
      * default process timeout of 300 seconds.
+     *
+     * @var array<string, string>
      */
     public const array ENVIRONMENT = ['COMPOSER_PROCESS_TIMEOUT' => '0'];
 

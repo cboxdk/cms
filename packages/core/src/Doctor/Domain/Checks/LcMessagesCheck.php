@@ -100,7 +100,7 @@ final readonly class LcMessagesCheck implements DoctorCheck
         }
 
         $causes = array_map(
-            static fn (RoleLcMessages $role): string => sprintf('lc_messages is \'%s\' for the role %s, read on the connection %s; Postgres takes it from "%s".', $role->value, $role->role, $role->connection, $role->source),
+            static fn (RoleLcMessages $role): string => sprintf('lc_messages is \'%s\' for the role %s, read on the connection %s; Postgres takes it from "%s".', $role->value, $role->role, $role->connection, $role->source->value),
             $foreign,
         );
         $fixes = [];

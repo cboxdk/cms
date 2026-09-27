@@ -107,7 +107,7 @@ it('grants the app role only SELECT and INSERT on idempotency_keys, on every lev
 
     foreach ($relations as $relation) {
         $grants = array_map(
-            static fn (TableGrant $grant): string => $grant->role.' '.$grant->privilege.($grant->grantable ? ' grantable' : ''),
+            static fn (TableGrant $grant): string => $grant->role.' '.$grant->privilege->value.($grant->grantable ? ' grantable' : ''),
             new TablePrivileges($owner)->grants($relation),
         );
 

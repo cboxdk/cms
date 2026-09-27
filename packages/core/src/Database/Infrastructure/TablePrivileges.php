@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Database\Infrastructure;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Core\Database\Domain\TablePrivilege;
 use Cbox\Cms\Core\Partitions\Boundary\CatalogRow;
 use Illuminate\Database\ConnectionInterface;
 use LogicException;
@@ -28,9 +29,6 @@ use LogicException;
 #[Experimental]
 final readonly class TablePrivileges
 {
-    /** The table privileges of Postgres 17, the only words written into GRANT. */
-    public const array PRIVILEGES = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER', 'MAINTAIN'];
-
     public function __construct(private ConnectionInterface $connection) {}
 
     /**
@@ -38,11 +36,11 @@ final readonly class TablePrivileges
      * $privileges on the table and on every partition below it.
      *
      * @param  string  $table  a table name as regclass reads it, in the search path or qualified
-     * @param  list<string>  $privileges  from PRIVILEGES; empty takes everything away
+     * @param  list<TablePrivilege>  $privileges  empty takes everything away
      */
     public function limitTo(string $table, array $privileges): void
     {
-        $privileges = array_values(array_unique(array_map($this->privilege(...), $privileges)));
+        $privileges = $this->words($privileges);
         $roles = array_values(array_unique(array_map(
             static fn (TableGrant $grant): string => $grant->role,
             $this->grants($table),
@@ -125,7 +123,12 @@ final readonly class TablePrivileges
     public function grants(string $table): array
     {
         return array_map(
-            static fn (CatalogRow $row): TableGrant => new TableGrant($row->string('role'), $row->string('privilege'), $row->bool('grantable')),
+            static fn (CatalogRow $row): TableGrant => new TableGrant(
+                $row->string('role'),
+                TablePrivilege::tryFrom($row->string('privilege'))
+                    ?? throw new LogicException(sprintf('Postgres reports the table privilege [%s], which TablePrivilege does not know.', $row->string('privilege'))),
+                $row->bool('grantable'),
+            ),
             CatalogRow::all($this->connection->select(
                 <<<'SQL'
                     select case when a.grantee = 0 then 'public' else quote_ident(r.rolname) end as role,
@@ -205,28 +208,31 @@ final readonly class TablePrivileges
         $roles = [];
 
         foreach ($grants as $grant) {
-            $roles[$grant->role][$this->privilege($grant->privilege)] = $grant->grantable;
+            $roles[$grant->role][$grant->privilege->value] = $grant->grantable;
         }
 
         return $roles;
     }
 
     /**
-     * @param  list<string>  $privileges
+     * The privileges as GRANT takes them, once each, in the order of TablePrivilege.
+     *
+     * @param  list<TablePrivilege>  $privileges
+     * @return list<string>
+     */
+    private function words(array $privileges): array
+    {
+        return array_values(array_map(
+            static fn (TablePrivilege $privilege): string => $privilege->value,
+            array_filter(TablePrivilege::cases(), static fn (TablePrivilege $privilege): bool => in_array($privilege, $privileges, true)),
+        ));
+    }
+
+    /**
+     * @param  list<string>  $privileges  privileges as byRole() keys them, which are TablePrivilege values
      */
     private function list(array $privileges): string
     {
-        return implode(', ', array_map($this->privilege(...), $privileges));
-    }
-
-    private function privilege(string $privilege): string
-    {
-        $upper = strtoupper($privilege);
-
-        if (! in_array($upper, self::PRIVILEGES, true)) {
-            throw new LogicException(sprintf('[%s] is not a table privilege. Use one of %s.', $privilege, implode(', ', self::PRIVILEGES)));
-        }
-
-        return $upper;
+        return implode(', ', $privileges);
     }
 }

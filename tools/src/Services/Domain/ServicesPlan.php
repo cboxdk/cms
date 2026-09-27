@@ -24,7 +24,11 @@ final readonly class ServicesPlan
 
     public const string INIT_SCRIPT = '/docker-entrypoint-initdb.d/10-cms.sh';
 
-    /** The services a linked worktree may start: the shared ones, without php. */
+    /**
+     * The services a linked worktree may start: the shared ones, without php.
+     *
+     * @var list<string>
+     */
     public const array SHARED_SERVICES = ['postgres', 'valkey'];
 
     /**

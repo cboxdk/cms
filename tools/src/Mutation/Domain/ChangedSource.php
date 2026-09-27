@@ -16,11 +16,15 @@ final readonly class ChangedSource
 {
     /**
      * The layer segments of GUARDRAILS 2.5, as the Arch suite reads them.
+     *
+     * @var list<string>
      */
     public const array LAYERS = ['Domain', 'Actions', 'Boundary', 'Adapter', 'Infrastructure', 'Jobs', 'Http', 'Cli'];
 
     /**
      * The layers whose classes are mutated against the Postgres suite as well.
+     *
+     * @var list<string>
      */
     public const array POSTGRES_LAYERS = ['Adapter', 'Infrastructure'];
 

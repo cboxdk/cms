@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Cbox\Cms\Core\Database\Domain\TablePrivilege;
 use Cbox\Cms\Core\Database\Infrastructure\TablePrivileges;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
@@ -63,8 +64,8 @@ return new class extends Migration
         $connection->statement("create table receipt_projections_evidence partition of receipt_projections for values in ('evidence') partition by range (changeset_id)");
 
         $privileges = new TablePrivileges($connection);
-        $privileges->limitTo('receipts', ['SELECT', 'INSERT']);
-        $privileges->limitTo('receipt_projections', ['SELECT', 'INSERT', 'UPDATE']);
+        $privileges->limitTo('receipts', [TablePrivilege::Select, TablePrivilege::Insert]);
+        $privileges->limitTo('receipt_projections', [TablePrivilege::Select, TablePrivilege::Insert, TablePrivilege::Update]);
     }
 
     public function down(): void

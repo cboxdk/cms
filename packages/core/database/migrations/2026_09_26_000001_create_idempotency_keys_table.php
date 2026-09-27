@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Cbox\Cms\Core\Database\Domain\TablePrivilege;
 use Cbox\Cms\Core\Database\Infrastructure\TablePrivileges;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
@@ -53,7 +54,7 @@ return new class extends Migration
             SQL);
         $connection->statement('create index idempotency_keys_lock_key on idempotency_keys (lock_key)');
 
-        new TablePrivileges($connection)->limitTo('idempotency_keys', ['SELECT', 'INSERT']);
+        new TablePrivileges($connection)->limitTo('idempotency_keys', [TablePrivilege::Select, TablePrivilege::Insert]);
     }
 
     public function down(): void

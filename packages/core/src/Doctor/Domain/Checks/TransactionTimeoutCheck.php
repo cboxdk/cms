@@ -67,8 +67,8 @@ final readonly class TransactionTimeoutCheck implements DoctorCheck
         }
 
         $cause = $timeout->milliseconds === 0
-            ? sprintf('transaction_timeout is 0 (off) for the role %s; Postgres took the value from "%s".', $timeout->role, $timeout->source)
-            : sprintf('transaction_timeout is %d ms for the role %s, but Postgres took it from "%s", not from the role.', $timeout->milliseconds, $timeout->role, $timeout->source);
+            ? sprintf('transaction_timeout is 0 (off) for the role %s; Postgres took the value from "%s".', $timeout->role, $timeout->source->value)
+            : sprintf('transaction_timeout is %d ms for the role %s, but Postgres took it from "%s", not from the role.', $timeout->milliseconds, $timeout->role, $timeout->source->value);
 
         return CheckResult::fail(
             $this->id(),

@@ -10,6 +10,7 @@ use Cbox\Cms\Contracts\Doctor\FailureKind;
 use Cbox\Cms\Core\Doctor\Domain\Checks\LcMessagesCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\PostgresQueryFailure;
 use Cbox\Cms\Core\Doctor\Domain\ProbeFailed;
+use Cbox\Cms\Core\Doctor\Domain\SettingSource;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeLcMessagesProbe;
 use Closure;
 
@@ -69,7 +70,7 @@ it('names every place in the cause and every fix, with ALTER SYSTEM for the serv
     $result = new LcMessagesCheck(lcMessages(static function (FakeLcMessagesProbe $probe): void {
         $probe->appRole = 'da_DK.UTF-8';
         $probe->ownerRole = 'de_DE.UTF-8';
-        $probe->ownerSource = 'configuration file';
+        $probe->ownerSource = SettingSource::ConfigurationFile;
         $probe->process = 'fr_FR.UTF-8';
     }))->run();
 

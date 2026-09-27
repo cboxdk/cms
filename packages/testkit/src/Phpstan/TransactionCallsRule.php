@@ -42,10 +42,18 @@ final readonly class TransactionCallsRule implements Rule
 {
     public const string IDENTIFIER = 'cboxCms.transaction';
 
-    /** The transaction methods, lower case, since PHP method names are case-insensitive. */
+    /**
+     * The transaction methods, lower case, since PHP method names are case-insensitive.
+     *
+     * @var list<string>
+     */
     public const array METHODS = ['transaction', 'begintransaction', 'commit', 'rollback', 'savepoint', 'createsavepoint'];
 
-    /** The receivers that manage transactions, with their subclasses and implementations. */
+    /**
+     * The receivers that manage transactions, with their subclasses and implementations.
+     *
+     * @var list<string>
+     */
     public const array RECEIVERS = [
         ConnectionInterface::class,
         ConnectionResolverInterface::class,

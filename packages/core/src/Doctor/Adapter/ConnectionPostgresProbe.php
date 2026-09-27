@@ -160,7 +160,11 @@ final readonly class ConnectionPostgresProbe implements PostgresProbe
 
         $row = CatalogRow::one($rows);
 
-        return new TimeoutSetting($row->string('role'), $row->int('milliseconds'), $row->string('source'));
+        return new TimeoutSetting(
+            $row->string('role'),
+            $row->int('milliseconds'),
+            SettingSourceParser::parse('transaction_timeout', $row->string('source')),
+        );
     }
 
     #[Override]

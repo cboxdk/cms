@@ -12,6 +12,7 @@ use Cbox\Cms\Core\Doctor\Domain\Dto\RowSecurity;
 use Cbox\Cms\Core\Doctor\Domain\Dto\TimeoutSetting;
 use Cbox\Cms\Core\Doctor\Domain\ProbeFailed;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PostgresProbe;
+use Cbox\Cms\Core\Doctor\Domain\SettingSource;
 
 /**
  * A Postgres that keeps the runtime contract until the test changes a property: version 17.11,
@@ -41,7 +42,7 @@ final class FakePostgresProbe implements PostgresProbe
 
     public int $transactionTimeoutMs = 5000;
 
-    public string $transactionTimeoutSource = 'user';
+    public SettingSource $transactionTimeoutSource = SettingSource::User;
 
     public int $maxPreparedTransactions = 0;
 

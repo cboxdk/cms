@@ -42,7 +42,11 @@ use PHPUnit\Framework\AssertionFailedError;
 #[Experimental]
 final readonly class PostgresHarness
 {
-    /** Traits that wrap each test in a transaction, which the Postgres suite never does. */
+    /**
+     * Traits that wrap each test in a transaction, which the Postgres suite never does.
+     *
+     * @var list<class-string>
+     */
     public const array WRAPPING_TRAITS = [DatabaseTransactions::class, RefreshDatabase::class, LazilyRefreshDatabase::class];
 
     private function __construct(

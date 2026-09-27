@@ -5,12 +5,11 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Doctor\Domain\Dto;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Core\Doctor\Domain\SettingSource;
 
 /**
- * lc_messages that a new session of a role gets, and where Postgres takes it from: the source as
- * pg_settings names it, such as "user" for ALTER ROLE ... SET, "database user" for ALTER ROLE ...
- * IN DATABASE ... SET, "database" for ALTER DATABASE ... SET, "global" for ALTER ROLE ALL ... SET,
- * "configuration file" or "default".
+ * lc_messages that a new session of a role gets, and where Postgres takes it from, as pg_settings
+ * names the source.
  */
 #[Internal]
 final readonly class RoleLcMessages
@@ -23,6 +22,6 @@ final readonly class RoleLcMessages
         public string $role,
         public string $connection,
         public string $value,
-        public string $source,
+        public SettingSource $source,
     ) {}
 }

@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Doctor\Domain\Dto;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Core\Doctor\Domain\SettingSource;
 
 /**
  * The value of a timeout in a new session of the doctor's connection, and where Postgres took it
- * from: pg_settings.source, such as "user" for ALTER ROLE ... SET, "database user" for ALTER ROLE
- * ... IN DATABASE ... SET, "client" for a connection option, or "default".
+ * from (pg_settings.source).
  */
 #[Internal]
 final readonly class TimeoutSetting
@@ -17,11 +17,12 @@ final readonly class TimeoutSetting
     public function __construct(
         public string $role,
         public int $milliseconds,
-        public string $source,
+        public SettingSource $source,
     ) {}
 
+    /** Whether ALTER ROLE ... SET, with or without IN DATABASE, gave the value. */
     public function isSetOnRole(): bool
     {
-        return $this->source === 'user' || $this->source === 'database user';
+        return $this->source->isRole();
     }
 }

@@ -13,6 +13,7 @@ use Cbox\Cms\Core\Doctor\Domain\Checks\PostgresQueryFailure;
 use Cbox\Cms\Core\Doctor\Domain\Dto\RoleLcMessages;
 use Cbox\Cms\Core\Doctor\Domain\ProbeFailed;
 use Cbox\Cms\Core\Doctor\Domain\Probes\LcMessagesProbe;
+use Cbox\Cms\Core\Doctor\Domain\SettingSource;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Database\Connection;
 use Illuminate\Database\DatabaseManager;
@@ -152,8 +153,8 @@ it('reads lc_messages C from the role for the app role and the owner role, and C
     $probe = app(LcMessagesProbe::class);
 
     expect($probe)->toBeInstanceOf(ConnectionLcMessagesProbe::class)
-        ->and($probe->appRole())->toEqual(new RoleLcMessages('cms_app', 'pgsql', 'C', 'user'))
-        ->and($probe->ownerRole())->toEqual(new RoleLcMessages('cms_owner', 'pgsql', 'C', 'user'))
+        ->and($probe->appRole())->toEqual(new RoleLcMessages('cms_app', 'pgsql', 'C', SettingSource::User))
+        ->and($probe->ownerRole())->toEqual(new RoleLcMessages('cms_owner', 'pgsql', 'C', SettingSource::User))
         ->and($probe->process())->toBe('C');
 });
 
@@ -226,7 +227,7 @@ it('takes the owner role\'s setting for this database over its own, as a new ses
     );
     config(['cms.doctor.owner_role' => $owner]);
 
-    expect(app(LcMessagesProbe::class)->ownerRole())->toEqual(new RoleLcMessages($owner, 'pgsql', 'en_US.utf8', 'database user'));
+    expect(app(LcMessagesProbe::class)->ownerRole())->toEqual(new RoleLcMessages($owner, 'pgsql', 'en_US.utf8', SettingSource::DatabaseUser));
 });
 
 it('reads the owner role\'s own setting from the catalog when it has no setting for this database', function (): void {
@@ -235,7 +236,7 @@ it('reads the owner role\'s own setting from the catalog when it has no setting 
 
     $result = new LcMessagesCheck(app(LcMessagesProbe::class))->run();
 
-    expect(app(LcMessagesProbe::class)->ownerRole())->toEqual(new RoleLcMessages($owner, 'pgsql', 'POSIX', 'user'))
+    expect(app(LcMessagesProbe::class)->ownerRole())->toEqual(new RoleLcMessages($owner, 'pgsql', 'POSIX', SettingSource::User))
         ->and($result->status)->toBe(CheckStatus::Pass, (string) $result->cause)
         ->and($result->explanation)->toBe(sprintf('Messages are English: lc_messages is C for the role cms_app and POSIX for the role %s, and LC_MESSAGES of the PHP process is C.', $owner));
 });
@@ -259,6 +260,6 @@ it('gives an owner role without a setting the server default when the app role\'
     $session = $probe->appRole();
 
     expect($session->role)->toBe($app)
-        ->and($session->source)->toBeIn(['default', 'configuration file', 'command line', 'environment variable'])
+        ->and($session->source)->toBeIn([SettingSource::Default, SettingSource::ConfigurationFile, SettingSource::CommandLine, SettingSource::EnvironmentVariable])
         ->and($probe->ownerRole())->toEqual(new RoleLcMessages($owner, LcMessagesRoles::LOGIN_CONNECTION, $session->value, $session->source));
 });

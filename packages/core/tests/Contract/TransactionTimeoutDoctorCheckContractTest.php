@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\Tests\Contract;
 
 use Cbox\Cms\Contracts\Doctor\DoctorCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\TransactionTimeoutCheck;
+use Cbox\Cms\Core\Doctor\Domain\SettingSource;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePostgresProbe;
 use Cbox\Cms\Testkit\Doctor\DoctorCheckContract;
 use Closure;
@@ -30,7 +31,7 @@ final class TransactionTimeoutDoctorCheckContractTest extends TestCase
     {
         return new TransactionTimeoutCheck($this->postgres(static function (FakePostgresProbe $probe): void {
             $probe->transactionTimeoutMs = 0;
-            $probe->transactionTimeoutSource = 'default';
+            $probe->transactionTimeoutSource = SettingSource::Default;
         }));
     }
 

@@ -28,13 +28,6 @@ use Override;
 #[Internal]
 final readonly class ConnectionLcMessagesProbe implements LcMessagesProbe
 {
-    /**
-     * The sources in pg_settings of a value that no role or database setting gave.
-     *
-     * @var list<string>
-     */
-    private const array SERVER_SOURCES = ['default', 'environment variable', 'configuration file', 'command line'];
-
     private const string OWNER_SQL = <<<'SQL'
         select r.rolname::text as role, l.value, l.source, a.setting::text as session_value, a.source::text as session_source
         from pg_roles r
@@ -86,7 +79,12 @@ final readonly class ConnectionLcMessagesProbe implements LcMessagesProbe
             throw $failed->at('On the connection '.$this->app->source);
         }
 
-        return new RoleLcMessages($row->string('role'), $this->app->source, $row->string('value'), $row->string('source'));
+        return new RoleLcMessages(
+            $row->string('role'),
+            $this->app->source,
+            $row->string('value'),
+            SettingSourceParser::parse('lc_messages', $row->string('source')),
+        );
     }
 
     #[Override]
@@ -111,16 +109,16 @@ final readonly class ConnectionLcMessagesProbe implements LcMessagesProbe
         $source = $row->nullableString('source');
 
         if ($value !== null && $source !== null) {
-            return new RoleLcMessages($row->string('role'), $this->app->source, $value, $source);
+            return new RoleLcMessages($row->string('role'), $this->app->source, $value, SettingSourceParser::parse('lc_messages', $source));
         }
 
-        $sessionSource = $row->string('session_source');
+        $sessionSource = SettingSourceParser::parse('lc_messages', $row->string('session_source'));
 
-        if (! in_array($sessionSource, self::SERVER_SOURCES, true)) {
+        if (! $sessionSource->isServer()) {
             throw ProbeFailed::violation(sprintf(
                 'The owner role %s has no lc_messages of its own, of the database or of ALTER ROLE ALL, so it gets the server\'s default, which the app role cannot read: its own lc_messages comes from "%s".',
                 $row->string('role'),
-                $sessionSource,
+                $sessionSource->value,
             ));
         }
 

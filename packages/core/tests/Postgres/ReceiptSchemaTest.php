@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\Tests\Postgres;
 
 use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
+use Cbox\Cms\Core\Database\Domain\TablePrivilege;
 use Cbox\Cms\Core\Database\Infrastructure\TableGrant;
 use Cbox\Cms\Core\Database\Infrastructure\TablePrivileges;
 use Cbox\Cms\Core\Partitions\Actions\MaintainPartitions;
@@ -118,15 +119,15 @@ it('grants the app role only SELECT and INSERT on receipts and SELECT, INSERT an
 
     foreach ($relations as $relation) {
         $grants = array_map(
-            static fn (TableGrant $grant): string => $grant->role.' '.$grant->privilege.($grant->grantable ? ' grantable' : ''),
+            static fn (TableGrant $grant): string => $grant->role.' '.$grant->privilege->value.($grant->grantable ? ' grantable' : ''),
             new TablePrivileges($owner)->grants($relation),
         );
 
         expect($grants)->toBe(array_map(static fn (string $privilege): string => 'cms_app '.$privilege, $expected), $relation);
 
-        foreach (TablePrivileges::PRIVILEGES as $privilege) {
-            expect($owner->scalar("select has_table_privilege('cms_app', ?::regclass, ?)", [$relation, $privilege]))
-                ->toBe(in_array($privilege, $expected, true), "{$privilege} on {$relation}");
+        foreach (TablePrivilege::cases() as $privilege) {
+            expect($owner->scalar("select has_table_privilege('cms_app', ?::regclass, ?)", [$relation, $privilege->value]))
+                ->toBe(in_array($privilege->value, $expected, true), "{$privilege->value} on {$relation}");
         }
     }
 })->with([

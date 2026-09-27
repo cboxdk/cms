@@ -16,7 +16,11 @@ use PHPStan\Analyser\Scope;
 #[Internal]
 final class TransactionScope
 {
-    /** The layers that may not manage transactions. */
+    /**
+     * The layers that may not manage transactions.
+     *
+     * @var list<string>
+     */
     public const array LAYERS = ['Actions', 'Jobs'];
 
     public static function applies(Scope $scope): bool

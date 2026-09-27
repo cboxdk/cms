@@ -45,6 +45,7 @@ rules:
     - Cbox\Cms\Testkit\Phpstan\TypedClosuresRule
     - Cbox\Cms\Testkit\Phpstan\TypedArrowFunctionsRule
     - Cbox\Cms\Testkit\Phpstan\TypedPropertiesRule
+    - Cbox\Cms\Testkit\Phpstan\TypedClassConstantsRule
     - Cbox\Cms\Testkit\Phpstan\TypedClassTagsRule
     - Cbox\Cms\Testkit\Phpstan\PhpstanIgnoreRule
     - Cbox\Cms\Testkit\Phpstan\TransactionCallsRule

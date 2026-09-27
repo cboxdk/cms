@@ -26,7 +26,11 @@ use LogicException;
 #[Experimental]
 final readonly class ValkeyHarness
 {
-    /** Keys of `database.redis` that are not connections. */
+    /**
+     * Keys of `database.redis` that are not connections.
+     *
+     * @var list<string>
+     */
     public const array NOT_CONNECTIONS = ['client', 'options', 'clusters'];
 
     private function __construct(

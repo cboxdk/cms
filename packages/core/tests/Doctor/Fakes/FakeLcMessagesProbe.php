@@ -7,6 +7,7 @@ namespace Cbox\Cms\Core\Tests\Doctor\Fakes;
 use Cbox\Cms\Core\Doctor\Domain\Dto\RoleLcMessages;
 use Cbox\Cms\Core\Doctor\Domain\ProbeFailed;
 use Cbox\Cms\Core\Doctor\Domain\Probes\LcMessagesProbe;
+use Cbox\Cms\Core\Doctor\Domain\SettingSource;
 
 /**
  * English messages until the test changes a property: lc_messages C from the role for cms_app and
@@ -19,11 +20,11 @@ final class FakeLcMessagesProbe implements LcMessagesProbe
     /** The role of the app connection; an installation may use one role for both. */
     public string $appRoleName = 'cms_app';
 
-    public string $appSource = 'user';
+    public SettingSource $appSource = SettingSource::User;
 
     public string $ownerRole = 'C';
 
-    public string $ownerSource = 'user';
+    public SettingSource $ownerSource = SettingSource::User;
 
     public string $process = 'C';
 

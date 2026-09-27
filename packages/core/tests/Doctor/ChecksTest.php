@@ -28,6 +28,7 @@ use Cbox\Cms\Core\Doctor\Domain\Checks\ValkeyReachableCheck;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PartitionCoverage;
 use Cbox\Cms\Core\Doctor\Domain\Dto\RoleMembership;
 use Cbox\Cms\Core\Doctor\Domain\ProbeFailed;
+use Cbox\Cms\Core\Doctor\Domain\SettingSource;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePartitionRunwayProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePhpSettingsProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePostgresProbe;
@@ -199,7 +200,7 @@ it('names the roles through which the app role owns relations, and fixes each wa
         ->and($result->fix)->toContain('REVOKE cms_owner, legacy FROM cms_app');
 });
 
-it('passes a transaction_timeout above zero that comes from the role', function (int $milliseconds, string $source, bool $passes, string $cause): void {
+it('passes a transaction_timeout above zero that comes from the role', function (int $milliseconds, SettingSource $source, bool $passes, string $cause): void {
     $postgres = new FakePostgresProbe;
     $postgres->transactionTimeoutMs = $milliseconds;
     $postgres->transactionTimeoutSource = $source;
@@ -212,12 +213,15 @@ it('passes a transaction_timeout above zero that comes from the role', function 
         expect($result->fix)->toContain("ALTER ROLE cms_app SET transaction_timeout = '5s'");
     }
 })->with([
-    'set on the role' => [5000, 'user', true, ''],
-    'set on the role in the database' => [5000, 'database user', true, ''],
-    'reset on the role' => [0, 'default', false, 'is 0 (off) for the role cms_app'],
-    'turned off in the database' => [0, 'database user', false, 'is 0 (off)'],
-    'set for the whole server' => [5000, 'configuration file', false, 'took it from "configuration file", not from the role'],
-    'set by the connection' => [5000, 'client', false, 'took it from "client"'],
+    'set on the role' => [5000, SettingSource::User, true, ''],
+    'set on the role in the database' => [5000, SettingSource::DatabaseUser, true, ''],
+    'reset on the role' => [0, SettingSource::Default, false, 'is 0 (off) for the role cms_app'],
+    'turned off in the database' => [0, SettingSource::DatabaseUser, false, 'is 0 (off)'],
+    'set for the whole server' => [5000, SettingSource::ConfigurationFile, false, 'took it from "configuration file", not from the role'],
+    'set by the connection' => [5000, SettingSource::Client, false, 'took it from "client"'],
+    'set for the database' => [5000, SettingSource::Database, false, 'took it from "database", not from the role'],
+    'set for every role' => [5000, SettingSource::Global, false, 'took it from "global", not from the role'],
+    'set in the session' => [5000, SettingSource::Session, false, 'took it from "session", not from the role'],
 ]);
 
 it('fails prepared transactions that are enabled', function (): void {

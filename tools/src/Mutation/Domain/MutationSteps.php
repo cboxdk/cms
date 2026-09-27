@@ -37,11 +37,15 @@ final readonly class MutationSteps
 
     /**
      * The suites whose tests may kill a mutation of a class outside Adapter and Infrastructure.
+     *
+     * @var list<string>
      */
     public const array FAST_SUITES = ['Unit', 'Codecs', 'Contract', 'Actions', 'Arch'];
 
     /**
      * The suites whose tests may kill a mutation of a class in Adapter or Infrastructure.
+     *
+     * @var list<string>
      */
     public const array POSTGRES_SUITES = ['Unit', 'Codecs', 'Contract', 'Postgres', 'Actions', 'Arch'];
 
@@ -53,6 +57,8 @@ final readonly class MutationSteps
 
     /**
      * Set for the Pest run: PCOV on, and the report plugin on.
+     *
+     * @var array<string, string>
      */
     public const array ENVIRONMENT = [
         'PHP_INI_SCAN_DIR' => ':'.self::PCOV_INI_DIRECTORY,

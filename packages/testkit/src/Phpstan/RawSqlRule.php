@@ -50,22 +50,38 @@ final readonly class RawSqlRule implements Rule
 {
     public const string IDENTIFIER = 'cboxCms.rawSql';
 
-    /** The layers where raw SQL is allowed. */
+    /**
+     * The layers where raw SQL is allowed.
+     *
+     * @var list<string>
+     */
     public const array LAYERS = ['Infrastructure', 'Adapter'];
 
-    /** Methods of a connection, the resolver and the DB facade that take SQL, lower case. */
+    /**
+     * Methods of a connection, the resolver and the DB facade that take SQL, lower case.
+     *
+     * @var list<string>
+     */
     public const array CONNECTION_METHODS = [
         'select', 'selectone', 'selectfromwriteconnection', 'selectresultsets', 'scalar', 'cursor',
         'insert', 'update', 'delete', 'statement', 'affectingstatement', 'unprepared', 'raw',
     ];
 
-    /** The raw methods of the query builders, lower case. */
+    /**
+     * The raw methods of the query builders, lower case.
+     *
+     * @var list<string>
+     */
     public const array BUILDER_METHODS = [
         'raw', 'selectraw', 'fromraw', 'whereraw', 'orwhereraw', 'havingraw', 'orhavingraw',
         'orderbyraw', 'groupbyraw',
     ];
 
-    /** The methods of PDO that take SQL, lower case. */
+    /**
+     * The methods of PDO that take SQL, lower case.
+     *
+     * @var list<string>
+     */
     public const array PDO_METHODS = ['query', 'exec', 'prepare'];
 
     public function __construct(private ReflectionProvider $reflectionProvider) {}

@@ -19,6 +19,8 @@ final readonly class PrProfile
 {
     /**
      * The gates of the PR profile that CI does not run yet, by number, with the reason.
+     *
+     * @var array<int, string>
      */
     public const array NOT_RUN = [
         7 => 'not run in CI yet: there is no panel UI or Storybook before the panel skeleton (B1)',

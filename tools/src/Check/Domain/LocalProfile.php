@@ -16,6 +16,8 @@ final readonly class LocalProfile
 {
     /**
      * The Pest suites of gate 5, in the order they run.
+     *
+     * @var list<string>
      */
     public const array SUITES = ['Unit', 'Codecs', 'Contract', 'Postgres', 'Arch', 'Actions'];
 
@@ -23,6 +25,8 @@ final readonly class LocalProfile
      * The suites that are not part of the local profile's gate 5. Browser is gate 8, in the PR
      * profile. Mutation holds the tests that need a coverage driver, which the PR profile runs in
      * gate 5 next to mutation on changed files; the host PHP of a developer has none.
+     *
+     * @var list<string>
      */
     public const array OTHER_SUITES = ['Browser', 'Mutation'];
 
