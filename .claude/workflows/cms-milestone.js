@@ -94,6 +94,7 @@ const VERIFY = {
     pass: { type: 'boolean' },
     failures: { type: 'array', items: { type: 'string' } },
     checksRun: { type: 'array', items: { type: 'string' } },
+    head: { type: 'string', description: 'full sha of the commit the checks ran on (git rev-parse HEAD)' },
   },
   required: ['pass', 'failures', 'checksRun'],
 }
@@ -162,7 +163,7 @@ const PROGRESS_RESULT = {
   required: ['blockStatus'],
 }
 
-const VERIFY_RULES = `Run the real checks in the worktree, do not assume: "composer check" and the task's acceptance items. Report pass only if every gate is green and every acceptance item is met. Do not change any files.`
+const VERIFY_RULES = `Run the real checks in the worktree, do not assume: "composer check" and the task's acceptance items. Report pass only if every gate is green and every acceptance item is met, and report the full sha of HEAD you checked in head (the working tree must be clean). Do not change any files.`
 
 // ---------------------------------------------------------------- Plan
 phase('Plan')
@@ -222,15 +223,69 @@ const state = {}
 plan.tasks.forEach(t => { state[t.id] = 'pending' })
 const taskResults = {}
 
-// The merge queue: one integration at a time, in completion order.
-let queue = Promise.resolve()
-function integrateSerially(task, report) {
-  const run = queue.then(() => integrate(task, report))
-  queue = run.catch(() => null)
-  return run
+// The merge queue: one integration at a time. Tasks that finish while an integration runs wait,
+// and the next integration takes them together as a batch: rebased onto main one after another and
+// checked once, with every gate, on the combined result. A red batch falls back to one task at a
+// time, which finds the task that breaks it. A task whose rebase is a no-op keeps the verification
+// it already has on that exact commit.
+const MAX_BATCH = Math.max(1, (args && args.maxBatch) || MAX_PARALLEL)
+const waiting = []
+let integrating = false
+function integrateSerially(task, verifiedHead, report) {
+  return new Promise(resolve => {
+    waiting.push({ task, verifiedHead, report, resolve })
+    pump()
+  })
+}
+async function pump() {
+  if (integrating || !waiting.length) return
+  integrating = true
+  const batch = waiting.splice(0, MAX_BATCH)
+  let results = []
+  try {
+    if (batch.length === 1) {
+      results = [await integrate(batch[0].task, batch[0].verifiedHead, batch[0].report)]
+    } else {
+      const r = await integrateBatch(batch.map(b => b.task), batch.map(b => Object.assign({ id: b.task.id }, b.report)))
+      if (r && r.merged) {
+        results = batch.map(() => r)
+      } else {
+        log(`batch ${batch.map(b => b.task.id).join('+')} failed; integrating one at a time`)
+        for (const b of batch) results.push(await integrate(b.task, null, b.report))
+      }
+    }
+  } catch (e) {
+    while (results.length < batch.length) results.push({ merged: false, failures: ['merge queue crashed: ' + String(e)], checksRun: [] })
+  }
+  batch.forEach((b, i) => b.resolve(results[i] || { merged: false, failures: ['no result'], checksRun: [] }))
+  integrating = false
+  pump()
 }
 
-async function integrate(task, report = {}) {
+async function integrateBatch(tasks, reports) {
+  const ids = tasks.map(t => t.id).join('+')
+  const intBranch = `int/${BLOCK}-${tasks.map(t => t.id).join('-')}`
+  const intWt = `${WT_ROOT}/${BLOCK}-int-${tasks.map(t => t.id).join('-')}`
+  const list = tasks.map(t => `- ${t.id} "${t.title}": worktree ${wtOf(t.id)}, branch ${branchOf(t.id)}`).join('\n')
+  return agent(
+    `${CONTEXT}
+
+Integrate these verified tasks of block ${BLOCK} into main together, as one batch. You are the only integrator running; nothing else merges while you work.
+${list}
+
+1. Create an integration worktree from the current main: "git -C ${REPO} worktree add ${intWt} -b ${intBranch} main".
+2. For each task in the order listed: in its worktree, rebase its branch onto the tip of ${intBranch} ("git rebase ${intBranch}"), then fast-forward ${intBranch} to it ("git -C ${intWt} merge --ff-only <task branch>"). Resolve conflicts so both sides' intent survives. If a conflict cannot be resolved faithfully, abort, and report the batch as not merged.
+3. In ${intWt}: "composer install" and "npm ci", then run every gate on the combined result: "composer check". Also run "composer check:selftest" if any task in the batch or main since the tasks started changed a gate, the tool configuration or the check itself, and the containerized CI run (docker compose -f compose.ci.yaml run --rm ci, then down) if any changed bin/ci, the CI files or the environment the gates need. Record the CI wall time.
+4. In ${intWt}, record each task in PROGRESS.md, as the tasks could not, in one commit per task on ${intBranch} with message "${BLOCK}-<id>: progress" (in Danish, as the file is): under "Til review af Sylvester", one entry that starts "${BLOCK}-<id>:" and says "GUARDRAILS 7.3", naming every check the task's commits add, change or remove, with what changed and why, followed by its items for human review; under "Tolkninger", its interpretations, each starting "${BLOCK}-<id>:"; and under "Kontroller kørt", one entry "<today>, ${BLOCK}-<id>: ..." with the gates run on the batch in step 3 and their results, and for "composer check:selftest" and the containerized CI run either the result, with the CI wall time against the 15-minute budget, or why it did not run. The tasks reported: ${JSON.stringify(reports)}.
+   Then run "composer progress:check -- ${BLOCK}-<id> --range=main..HEAD" in ${intWt} for each task, with --changed-checks after the task id when the task reported changed checks or its commits add, change or remove a check. It fails when an entry is missing or a commit of the batch changes no file: add the entry, or drop the empty commit with a rebase, and run it again. Report the last outputs in progressCheck, and progressRecorded true only when every one passed.
+5. Only if everything is green and every "composer progress:check" passed: fast-forward main ("git -C ${REPO} merge --ff-only ${intBranch}"). Each task keeps its own commits. If git refuses because the main checkout has local changes that the merge would overwrite, do not stash or discard them; report it as a failure.
+6. After a successful merge, remove every task worktree and branch of the batch. Whatever the outcome, remove ${intWt} and delete ${intBranch}. Then run "composer test-db:prune" in ${REPO} and report what it dropped.
+Never push. Change PROGRESS.md only as step 4 says.`,
+    { schema: INTEGRATION, label: `integrate batch ${ids}`, phase: 'Integrate', effort: 'medium' },
+  )
+}
+
+async function integrate(task, verifiedHead, report = {}) {
   let lastFailures = []
   for (let round = 0; round <= MAX_INTEGRATION_ROUNDS; round++) {
     if (round > 0) {
@@ -255,7 +310,7 @@ ${WORKTREE_RULES}`,
 Integrate task ${task.id} "${task.title}" of block ${BLOCK} into main. You are the only integrator running; nothing else merges while you work.
 
 1. In the worktree ${wtOf(task.id)} on branch ${branchOf(task.id)}: rebase onto the current main of ${REPO} ("git rebase main"). Resolve conflicts so both sides' intent survives; if a conflict cannot be resolved faithfully, abort the rebase and report it as a failure.
-2. In the worktree, reinstall if composer.lock or package-lock.json changed, then run every gate on the rebased result: "composer check". Also run "composer check:selftest" if the task or main since the task started changed a gate, the tool configuration or the check itself, and the containerized CI run (docker compose -f compose.ci.yaml run --rm ci, then down) if bin/ci, the CI files or the environment the gates need changed. Record the CI wall time.
+2. In the worktree, reinstall if composer.lock or package-lock.json changed, then run every gate on the rebased result: "composer check".${verifiedHead ? ` If the rebase left HEAD at ${verifiedHead}, main has not moved since verification and "composer check" already passed on this exact commit; then skip it and apply only the selftest and CI rules below.` : ''} Also run "composer check:selftest" if the task or main since the task started changed a gate, the tool configuration or the check itself, and the containerized CI run (docker compose -f compose.ci.yaml run --rm ci, then down) if bin/ci, the CI files or the environment the gates need changed. Record the CI wall time.
 3. Record the task in PROGRESS.md in the worktree, as the task could not, and commit it on the branch with message "${BLOCK}-${task.id}: progress" (in Danish, as the file is):
    - under "Til review af Sylvester", one entry that starts "${BLOCK}-${task.id}:" and says "GUARDRAILS 7.3", naming every check the task's commits add, change or remove (tests and their expectations, suites, phpunit.xml, the tool and analysis configuration, selftest plants, CI files; read "git diff main..HEAD"), with what changed and why, followed by the task's items for human review;
    - under "Tolkninger", the task's interpretations, each starting "${BLOCK}-${task.id}:";
@@ -276,7 +331,8 @@ Never push. Change PROGRESS.md only as step 3 says.`,
   return { merged: false, failures: lastFailures, checksRun: [] }
 }
 
-async function buildTask(task) {
+async function buildTask(task, phaseName) {
+  const PH = phaseName || 'Build'
   const earlier = Object.values(taskResults).map(r => ({ id: r.id, status: r.status, summary: r.summary }))
   const result = await agent(
     `${CONTEXT}
@@ -292,7 +348,7 @@ First create your worktree from the current main: "git -C ${REPO} worktree add $
 Write the code and its tests following GUARDRAILS.md. Run "composer check" and the acceptance items in the worktree and fix what fails. When green, commit on your branch with message "${BLOCK}-${task.id}: <what>". Do not merge into main; the merge queue does that. Never push. Never weaken a check (GUARDRAILS 7.3); if you think a check is wrong, leave it and report it in forHumanReview. If the task needs a decision reserved for Sylvester, stop and return status blocked with the blocker. Report PRD interpretations you made in interpretations.
 
 ${WORKTREE_RULES}`,
-    { schema: TASK_RESULT, label: `build ${task.id}`, phase: 'Build' },
+    { schema: TASK_RESULT, label: `build ${task.id}`, phase: PH },
   )
   if (!result || result.status === 'blocked') {
     return { id: task.id, status: 'blocked', summary: result ? result.summary : 'agent died', blocker: result && result.blocker }
@@ -308,7 +364,7 @@ Acceptance: ${JSON.stringify(task.acceptance)}
 ${VERIFY_RULES}
 
 ${WORKTREE_RULES}`,
-    { schema: VERIFY, label, phase: 'Build', effort: 'medium' },
+    { schema: VERIFY, label, phase: PH, effort: 'medium' },
   )
 
   let verdict = await verify(`verify ${task.id}`)
@@ -325,7 +381,7 @@ Acceptance: ${JSON.stringify(task.acceptance)}
 Fix the cause, not the check (GUARDRAILS 7.3). Add a regression test when the failure is a bug. Run the checks, then commit on the branch with message "${BLOCK}-${task.id}: fix <what>". Never push.
 
 ${WORKTREE_RULES}`,
-      { schema: TASK_RESULT, label: `fix ${task.id} #${round}`, phase: 'Build' },
+      { schema: TASK_RESULT, label: `fix ${task.id} #${round}`, phase: PH },
     )
     if (fix) {
       result.interpretations = (result.interpretations || []).concat(fix.interpretations || [])
@@ -342,7 +398,7 @@ ${WORKTREE_RULES}`,
     }
   }
 
-  const merged = await integrateSerially(task, result)
+  const merged = await integrateSerially(task, verdict.head || null, result)
   return {
     id: task.id,
     status: merged.merged && merged.progressRecorded ? 'done' : 'failed',
@@ -356,45 +412,55 @@ ${WORKTREE_RULES}`,
   }
 }
 
-phase('Build')
-const running = new Map()
-while (true) {
-  // A task whose dependency failed or was blocked cannot be built.
-  let changed = true
-  while (changed) {
-    changed = false
-    for (const t of plan.tasks) {
-      if (state[t.id] !== 'pending') continue
-      const bad = depsOf(t).find(d => state[d] === 'failed' || state[d] === 'blocked')
-      if (bad) {
-        state[t.id] = 'blocked'
-        taskResults[t.id] = { id: t.id, status: 'blocked', summary: `depends on ${state[bad]} ${bad}` }
-        log(`${t.id} skipped: depends on ${state[bad]} ${bad}`)
-        changed = true
+// Builds tasks in parallel along their dependency graph. Each task is built, verified and fixed in its
+// own worktree and then goes through the merge queue.
+async function runTasks(tasks, phaseName) {
+  const ids = new Set(tasks.map(t => t.id))
+  const depsIn = t => (t.dependsOn || []).filter(d => ids.has(d))
+  tasks.forEach(t => { state[t.id] = 'pending' })
+  const running = new Map()
+  while (true) {
+    // A task whose dependency failed or was blocked cannot be built.
+    let changed = true
+    while (changed) {
+      changed = false
+      for (const t of tasks) {
+        if (state[t.id] !== 'pending') continue
+        const bad = depsIn(t).find(d => state[d] === 'failed' || state[d] === 'blocked')
+        if (bad) {
+          state[t.id] = 'blocked'
+          taskResults[t.id] = { id: t.id, status: 'blocked', summary: `depends on ${state[bad]} ${bad}` }
+          log(`${t.id} skipped: depends on ${state[bad]} ${bad}`)
+          changed = true
+        }
       }
     }
+    const ready = tasks.filter(t => state[t.id] === 'pending' && depsIn(t).every(d => state[d] === 'done'))
+    while (running.size < MAX_PARALLEL && ready.length) {
+      const t = ready.shift()
+      state[t.id] = 'running'
+      running.set(t.id, buildTask(t, phaseName).catch(e => ({ id: t.id, status: 'failed', summary: 'crashed', failures: [String(e)] })).then(r => {
+        state[t.id] = r.status
+        taskResults[t.id] = r
+        running.delete(t.id)
+        log(`${t.id}: ${r.status}`)
+      }))
+    }
+    if (!running.size) break
+    await Promise.race(running.values())
   }
-  const ready = plan.tasks.filter(t => state[t.id] === 'pending' && depsOf(t).every(d => state[d] === 'done'))
-  while (running.size < MAX_PARALLEL && ready.length) {
-    const t = ready.shift()
-    state[t.id] = 'running'
-    running.set(t.id, buildTask(t).catch(e => ({ id: t.id, status: 'failed', summary: 'crashed', failures: [String(e)] })).then(r => {
-      state[t.id] = r.status
-      taskResults[t.id] = r
-      running.delete(t.id)
-      log(`${t.id}: ${r.status}`)
-    }))
+  for (const t of tasks) {
+    if (state[t.id] === 'pending') {
+      state[t.id] = 'blocked'
+      taskResults[t.id] = { id: t.id, status: 'blocked', summary: 'dependency cycle or unknown dependency' }
+      log(`${t.id} never became ready: dependency cycle`)
+    }
   }
-  if (!running.size) break
-  await Promise.race(running.values())
+  return tasks.map(t => taskResults[t.id])
 }
-for (const t of plan.tasks) {
-  if (state[t.id] === 'pending') {
-    state[t.id] = 'blocked'
-    taskResults[t.id] = { id: t.id, status: 'blocked', summary: 'dependency cycle or unknown dependency' }
-    log(`${t.id} never became ready: dependency cycle`)
-  }
-}
+
+phase('Build')
+await runTasks(plan.tasks, 'Build')
 const results = plan.tasks.map(t => taskResults[t.id])
 const blockedTasks = results.filter(r => r.status === 'blocked').map(r => r.id)
 const failedTasks = results.filter(r => r.status === 'failed')
@@ -470,18 +536,16 @@ Try to refute it. Read the code and, where possible, run or write a quick test t
   const confirmed = judged.filter(Boolean).filter(j => j.real).map(j => j.f)
   log(`review round ${reviewRound}: ${fresh.length} new, ${confirmed.length} confirmed`)
 
-  for (const f of confirmed) {
-    const fix = await agent(
-      `${CONTEXT}
-
-Fix this confirmed problem in block ${BLOCK} on main in ${REPO}:
-${JSON.stringify(f, null, 2)}
-
-Write a regression test that fails before the fix. Fix the cause, never the check. Run "composer check", then commit with message "${BLOCK}-review: <what>", with PROGRESS.md in the same commit: every check you changed or removed in a GUARDRAILS 7.3 entry under "Til review af Sylvester", and the checks you ran under "Kontroller kørt". Never push.`,
-      { schema: TASK_RESULT, label: `fix review: ${f.title}`.slice(0, 60), phase: 'Review' },
-    )
-    fixed.push({ finding: f.title, severity: f.severity, status: fix ? fix.status : 'agent died' })
-  }
+  // Confirmed findings become tasks, built in parallel in worktrees and merged through the queue.
+  const fixTasks = confirmed.map((f, i) => ({
+    id: `R${reviewRound}-${i + 1}`,
+    title: `review: ${f.title}`.slice(0, 120),
+    goal: `Fix this confirmed review finding in block ${BLOCK}: ${JSON.stringify(f)}. Fix the cause, never the check.`,
+    acceptance: ['a regression test that fails before the fix and passes after it', '"composer check" is green'],
+    dependsOn: [],
+  }))
+  const fixResults = await runTasks(fixTasks, 'Review')
+  fixResults.forEach((r, i) => fixed.push({ finding: confirmed[i].title, severity: confirmed[i].severity, status: r ? r.status : 'agent died' }))
 }
 
 // ---------------------------------------------------------------- Exit

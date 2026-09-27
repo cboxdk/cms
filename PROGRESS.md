@@ -10,7 +10,7 @@ Rækkefølgen er `MILESTONES.md`. Id'erne bruges af workflowen `cms-milestone`.
 
 | Id | Blok | Status |
 |---|---|---|
-| M0 | Milepæl 0: værktøjskæde | incomplete |
+| M0 | Milepæl 0: værktøjskæde | in_progress |
 | M1 | Milepæl 1: gående skelet | todo |
 | B1 | Panel-skelet | todo |
 | B2 | Model | todo |
@@ -77,6 +77,8 @@ Pladsholdere der er fjernet efter GUARDRAILS 11, og den blok der bygger dem igen
 - Blueprint-schemaet v1 (M0-T57): alle fem anbefalinger i `~/Projects/cbox-cms/proposals/blueprint-schema-v1.md` er godkendt 26. september. Kommandoen der skriver editorlinjen, hedder `cms:schema:editor`, ikke `cms:schema:associate`. T40, T41 og T43 er ikke længere blokeret, og blueprint v1 flyttes til M0 (MILESTONES 1.3).
 - Rør aldrig økosystemets pakker (laravel-telemetry, laravel-id og de andre cboxdk-repoer). CMS-arbejdet bruger dem som de er udgivet. Løftet til PHPStan på højeste niveau er et separat spor og ikke en del af M0 (GUARDRAILS 1.7, MILESTONES 1.3). Mangler en pakke noget, skrives det under "Til review af Sylvester".
 - Fra M1 bygges uafhængige opgaver parallelt, hver i sin git worktree, og flettes gennem en kø der kører alle porte på det flettede resultat før `main` rykkes. M0 skal derfor gøre testene isolerede per worktree: hver checkout får sin egen Postgres-testdatabase (fx `cms_test_<kort hash af checkoutens sti>`, oprettet og migreret af testkittet med ejerrollen, når den mangler) og sin egen Valkey-præfiks, så to worktrees kan køre alle suiter, `composer check` og `check:selftest` samtidig uden at se hinandens data. `composer check` og CI-profilen skal virke uændret for én checkout. `composer services:up` fra en worktree må kun starte de delte tjenester (Postgres og Valkey) og aldrig genskabe en container med worktreens sti monteret. Bevis: to worktrees kører Postgres-suiten samtidig og begge er grønne; en test viser at navnene er forskellige per sti og ens for samme sti.
+- Porte der står som "not run" (GUARDRAILS 11): port 10 (dokumentation af udvidelsespunkter) bygges i M0, fordi arbejdet mangler. Port 7 (Storybook) må stå som not run med grund indtil B1 har UI, og port 11 (review af en anden) indtil der findes en remote med pull requests; begge er ikke mulige endnu, ikke manglende arbejde.
+- Exitkriterier der tjekker en bestemt version af et dokument, tjekker indholdet, ikke versionsnummeret. `cms:doctor` i exitkriterierne køres i PHP-containeren (php-baseimages), som er udviklingsmiljøet, ikke med Herds php.ini.
 
 ## Tolkninger
 
