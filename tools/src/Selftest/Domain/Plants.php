@@ -205,10 +205,10 @@ final readonly class Plants
                 #[Internal]
                 final readonly class ContentType
                 {
-                    public const string HANDLE = 'article';
+                    public const string HANDLE = 'fixture_article';
                 }
 
-                PHP, false, [self::MODULE.'/Domain/ContentType.php:12: article']),
+                PHP, false, [self::MODULE.'/Domain/ContentType.php:12: fixture_article']),
             new Plant(6, 'check:generated', 'a generated file edited by hand', 'workbench/app/Cms/Generated/TypeHandle.php', <<<'PHP'
 
                 // Edited by hand.

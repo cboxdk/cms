@@ -73,7 +73,7 @@ it('plants a handle of the fixture schema that the content type rule reports at 
 
     expect($plants[0]->gate)->toBe(5)
         ->and($plants[0]->step)->toBe('Arch')
-        ->and($plants[0]->markers)->toBe([Plants::MODULE.'/Domain/ContentType.php:12: article'])
+        ->and($plants[0]->markers)->toBe([Plants::MODULE.'/Domain/ContentType.php:12: fixture_article'])
         ->and(ContentTypeScan::of($worktree, ContentTypeScan::handlesBelow(Phpstan::root().'/'.ContentTypeScan::SCHEMA))->hits)->toBe($plants[0]->markers);
 });
 

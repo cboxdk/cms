@@ -25,7 +25,8 @@ arch('content types: the core packages name no type, field or select value of th
     $expected = ContentTypeScan::PACKAGES;
     sort($expected, SORT_STRING);
 
-    expect($scan->handles)->toContain('article', 'title', 'body')
+    expect($scan->handles)->toContain('fixture_article', 'fixture_body', 'fixture_title')
+        ->and(ContentTypeScan::ordinary($scan->handles))->toBe([], 'Every handle of the fixture schema starts with '.ContentTypeScan::PREFIX.', so that it is not an ordinary word in code.')
         ->and($packages)->toBe($expected)
         ->and($scan->files)->toContain('packages/core/src/CoreServiceProvider.php', 'packages/testkit/src/Idempotency/IdempotencyStoreContract.php');
 

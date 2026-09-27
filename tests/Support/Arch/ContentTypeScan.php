@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Cbox\Cms\Tests\Support\Arch;
 
 use FilesystemIterator;
-use PhpToken;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
@@ -17,13 +16,13 @@ use Symfony\Component\Yaml\Yaml;
  * a type, a field or a select value of the workbench's fixture schema.
  *
  * The handles are read from every blueprint file below workbench/schema: the type's handle, the
- * handle of every field, groups included, and the value of every option of a select field. The
- * code is every file below the src directory of each core package. A PHP file is read token by
- * token: string literals, the content of heredocs, nowdocs and interpolated strings, identifiers
- * and qualified names, but no comments, so a doc block may use an example. Any other file is read
- * as text. A handle matches as a whole word in any case, where a word character is a letter, a
- * digit or an underscore, so `article` matches `'article'` and `Article`, but not `articles` or
- * `article_id`.
+ * handle of every field, groups included, and the value of every option of a select field. Each
+ * starts with PREFIX, so a handle is never an ordinary word in code (`title`, `body`) and the rule
+ * can match it in any spelling without false positives. The code is every file below the src
+ * directory of each core package, read as text: code, strings, comments and doc blocks alike. A
+ * handle matches anywhere in a line, in any case, with each underscore written as any run of `_`
+ * and `-` or as nothing, so `fixture_article` matches `'fixture_article'`, `FixtureArticle`, `$fixtureArticle`,
+ * `fixture-article` and `fixture_article_id`.
  */
 final readonly class ContentTypeScan
 {
@@ -37,19 +36,9 @@ final readonly class ContentTypeScan
     public const string SCHEMA = 'workbench/schema';
 
     /**
-     * The tokens of a PHP file whose text is code or data rather than a comment.
-     *
-     * @var list<int>
+     * The start of every handle of the fixture schema.
      */
-    public const array TOKENS = [
-        T_CONSTANT_ENCAPSED_STRING,
-        T_ENCAPSED_AND_WHITESPACE,
-        T_STRING,
-        T_NAME_QUALIFIED,
-        T_NAME_FULLY_QUALIFIED,
-        T_NAME_RELATIVE,
-        T_INLINE_HTML,
-    ];
+    public const string PREFIX = 'fixture_';
 
     /**
      * @param  list<string>  $handles  sorted and unique
@@ -168,8 +157,23 @@ final readonly class ContentTypeScan
     }
 
     /**
-     * The lines of a file that name a handle, as `<file>:<line>: <text>`. A PHP file is read
-     * token by token and its comments are left out.
+     * The handles that do not start with PREFIX followed by at least one character, which the
+     * rule cannot match in every spelling without matching ordinary words.
+     *
+     * @param  list<string>  $handles
+     * @return list<string>
+     */
+    public static function ordinary(array $handles): array
+    {
+        return array_values(array_filter(
+            self::normalized($handles),
+            static fn (string $handle): bool => ! str_starts_with($handle, self::PREFIX) || $handle === self::PREFIX,
+        ));
+    }
+
+    /**
+     * The lines of a file that name a handle, as `<file>:<line>: <text>`, where the text lists
+     * each match as written.
      *
      * @param  list<string>  $handles
      * @return list<string>
@@ -181,58 +185,36 @@ final readonly class ContentTypeScan
         }
 
         $pattern = self::pattern($handles);
-        $found = [];
-
-        foreach (self::fragments($path, $contents) as [$line, $text]) {
-            foreach (explode("\n", $text) as $offset => $part) {
-                if (preg_match_all($pattern, $part, $matches) > 0) {
-                    $found[$line + $offset] = [...$found[$line + $offset] ?? [], ...$matches[0]];
-                }
-            }
-        }
-
-        ksort($found);
         $hits = [];
 
-        foreach ($found as $line => $words) {
-            $hits[] = sprintf('%s:%d: %s', $path, $line, implode(', ', $words));
+        foreach (explode("\n", $contents) as $offset => $line) {
+            if (preg_match_all($pattern, $line, $matches) > 0) {
+                $hits[] = sprintf('%s:%d: %s', $path, $offset + 1, implode(', ', $matches[0]));
+            }
         }
 
         return $hits;
     }
 
     /**
-     * Whole words in any case: a word character is a letter, a digit or an underscore.
+     * Each handle anywhere, in any case, with each underscore as any run of `_` and `-` or as nothing. The
+     * longest handles come first, so a handle that contains another is reported whole.
      *
      * @param  list<string>  $handles
      */
     public static function pattern(array $handles): string
     {
-        $words = array_map(static fn (string $handle): string => preg_quote($handle, '/'), $handles);
+        $handles = self::normalized($handles);
+        usort($handles, static fn (string $a, string $b): int => [strlen($b), $a] <=> [strlen($a), $b]);
+        $words = array_map(
+            static fn (string $handle): string => implode('[_-]*', array_map(
+                static fn (string $part): string => preg_quote($part, '/'),
+                explode('_', $handle),
+            )),
+            $handles,
+        );
 
-        return '/(?<![A-Za-z0-9_])(?:'.implode('|', $words).')(?![A-Za-z0-9_])/i';
-    }
-
-    /**
-     * The text of a file to match, each piece with the line it starts on.
-     *
-     * @return list<array{int, string}>
-     */
-    private static function fragments(string $path, string $contents): array
-    {
-        if (strtolower(pathinfo($path, PATHINFO_EXTENSION)) !== 'php') {
-            return [[1, $contents]];
-        }
-
-        $fragments = [];
-
-        foreach (PhpToken::tokenize($contents) as $token) {
-            if (in_array($token->id, self::TOKENS, true)) {
-                $fragments[] = [$token->line, $token->text];
-            }
-        }
-
-        return $fragments;
+        return '/(?:'.implode('|', $words).')/i';
     }
 
     /**

@@ -38,7 +38,7 @@ afterEach(function (): void {
 });
 
 const SUMMARY_FIELD = <<<'YAML'
-      - handle: summary
+      - handle: fixture_summary
         label: Summary
         description: A short summary of the article.
         type: text
@@ -50,7 +50,7 @@ const PAGE_TYPE = <<<'YAML'
     blueprint: 1
     kind: type
     type_id: 0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b
-    handle: page
+    handle: fixture_page
     label: Page
     version: 1
     capabilities:
@@ -58,7 +58,7 @@ const PAGE_TYPE = <<<'YAML'
       stages: draft-release
       localization: none
     fields:
-      - handle: title
+      - handle: fixture_title
         label: Title
         description: The title of the page.
         type: text
@@ -179,13 +179,13 @@ it('fails after a field or a type is added to the blueprints without regeneratin
     expect($status)->not->toBe(0)
         ->and($output)->toContain($generated);
 })->with([
-    'a field' => ['article.yaml', SUMMARY_FIELD, "+                'summary' => 'text',"],
-    'a type' => ['page.yaml', PAGE_TYPE, "+    case Page = 'page';"],
+    'a field' => ['fixture_article.yaml', SUMMARY_FIELD, "+                'fixture_summary' => 'text',"],
+    'a type' => ['fixture_page.yaml', PAGE_TYPE, "+    case FixturePage = 'fixture_page';"],
 ]);
 
 it('passes once the regenerated code is staged with the blueprint change', function (): void {
     $root = gateRepository();
-    appendTo($root.'/workbench/schema/article.yaml', SUMMARY_FIELD);
+    appendTo($root.'/workbench/schema/fixture_article.yaml', SUMMARY_FIELD);
     app(Kernel::class)->call('cms:generate');
     git($root, 'add', '--all');
 

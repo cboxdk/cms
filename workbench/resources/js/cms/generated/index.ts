@@ -7,12 +7,12 @@
 //   app: workbench/schema
 
 /** The handle of each type in the schema. */
-export type TypeHandle = 'article';
+export type TypeHandle = 'fixture_article';
 
 /** The fields of each type: field handle to field type, extension fields under ext.<namespace>. */
 export interface TypeFields {
-  article: {
-    body: 'rich_text';
-    title: 'text';
+  fixture_article: {
+    fixture_body: 'rich_text';
+    fixture_title: 'text';
   };
 }

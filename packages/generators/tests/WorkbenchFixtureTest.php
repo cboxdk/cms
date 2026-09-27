@@ -38,7 +38,7 @@ it('holds only blueprint v1 files, which the YAML source reads without problems'
 
     expect(app(BlueprintSource::class))->toBeInstanceOf(YamlBlueprintSource::class)
         ->and(array_map(static fn (SchemaRoot $root): string => $root->owner->value.': '.$root->directory, $target->roots))->toBe(['app: workbench/schema'])
-        ->and($files)->toBe(['article.yaml']);
+        ->and($files)->toBe(['fixture_article.yaml']);
 
     foreach ($files as $file) {
         expect((string) file_get_contents($directory.'/'.$file))->toMatch('/^blueprint: 1$/m');
@@ -49,7 +49,7 @@ it('holds only blueprint v1 files, which the YAML source reads without problems'
 
     $article = $blueprints->types[0];
 
-    expect($article->handle->value)->toBe('article')
+    expect($article->handle->value)->toBe('fixture_article')
         ->and($article->owner->value)->toBe('app')
         ->and($article->version)->toBe(1)
         ->and($article->typeId->value->value)->toMatch('/\A[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\z/')
@@ -57,8 +57,8 @@ it('holds only blueprint v1 files, which the YAML source reads without problems'
         ->toBe([History::Full, Stages::DraftRelease, Localization::None, true])
         ->and(array_map(static fn (FieldBlueprint $field): array => [$field->handle->value, $field->options::class, $field->classification, $field->description !== null], $article->fields))
         ->toBe([
-            ['title', TextOptions::class, Classification::Public, true],
-            ['body', RichTextOptions::class, Classification::Public, true],
+            ['fixture_title', TextOptions::class, Classification::Public, true],
+            ['fixture_body', RichTextOptions::class, Classification::Public, true],
         ]);
 });
 

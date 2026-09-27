@@ -15,7 +15,7 @@ namespace Workbench\App\Cms\Generated;
  */
 enum TypeHandle: string
 {
-    case Article = 'article';
+    case FixtureArticle = 'fixture_article';
 
     /**
      * The type's own fields: field handle to field type, sorted by handle.
@@ -25,9 +25,9 @@ enum TypeHandle: string
     public function fields(): array
     {
         return match ($this) {
-            self::Article => [
-                'body' => 'rich_text',
-                'title' => 'text',
+            self::FixtureArticle => [
+                'fixture_body' => 'rich_text',
+                'fixture_title' => 'text',
             ],
         };
     }
@@ -41,7 +41,7 @@ enum TypeHandle: string
     public function extensionFields(): array
     {
         return match ($this) {
-            self::Article => [],
+            self::FixtureArticle => [],
         };
     }
 }
