@@ -21,11 +21,12 @@ use Override;
  * refused login from a server that is starting by the "FATAL:" message. In another language the
  * first becomes a CHECK violation and the second a dependency to wait for.
  *
- * It reads lc_messages of the app role and of the owner role, each in a new session, and
- * LC_MESSAGES of the PHP process, which libpq's own messages follow. Each must be C, POSIX, C
- * with a character set such as C.UTF-8, or an English locale, en_*. A failed login is reported
- * before the role's settings apply, in the server's default, which a session cannot read without
- * superuser; the fix sets that default too.
+ * It reads lc_messages of the app role in a new session, lc_messages that a new session of the
+ * owner role gets, which the probe reads from the catalog as the app role so the process needs no
+ * owner credentials (PRD 4.2), and LC_MESSAGES of the PHP process, which libpq's own messages
+ * follow. Each must be C, POSIX, C with a character set such as C.UTF-8, or an English locale,
+ * en_*. A failed login is reported before the role's settings apply, in the server's default,
+ * which a session cannot read without superuser; the fix sets that default too.
  */
 #[Internal]
 final readonly class LcMessagesCheck implements DoctorCheck
@@ -80,7 +81,7 @@ final readonly class LcMessagesCheck implements DoctorCheck
                 PostgresQueryFailure::CODE,
                 'The doctor could not read the language of the messages from Postgres or from the PHP process.',
                 $failed->cause,
-                'Check that Postgres is running and that the app role\'s connection and the owner connection in cms.database.owner_connection are configured and may log in, then run cms:doctor again.',
+                'Check that Postgres is running and that the app role\'s connection is configured and may log in, and that cms.doctor.owner_role, or the username of the owner connection, names the owner role. When the doctor cannot read the server\'s default, give the owner role a value of its own: as a superuser, run ALTER ROLE <owner role> SET lc_messages = \'C\'. Then run cms:doctor again.',
             );
         }
 
@@ -99,7 +100,7 @@ final readonly class LcMessagesCheck implements DoctorCheck
         }
 
         $causes = array_map(
-            static fn (RoleLcMessages $role): string => sprintf('lc_messages is \'%s\' for the role %s on the connection %s; Postgres took it from "%s".', $role->value, $role->role, $role->connection, $role->source),
+            static fn (RoleLcMessages $role): string => sprintf('lc_messages is \'%s\' for the role %s, read on the connection %s; Postgres takes it from "%s".', $role->value, $role->role, $role->connection, $role->source),
             $foreign,
         );
         $fixes = [];

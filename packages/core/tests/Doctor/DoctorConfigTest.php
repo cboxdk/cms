@@ -24,6 +24,8 @@ it('reads the defaults of the core package', function (): void {
 
     expect($settings->connection)->toBe('pgsql')
         ->and($settings->ownerConnection)->toBe('pgsql_owner')
+        ->and($settings->ownerRole)->toBeNull()
+        ->and($settings->maintenanceProcess)->toBeFalse()
         ->and($settings->redisConnection)->toBe('default')
         ->and($settings->connectTimeoutSeconds)->toBe(3)
         ->and($settings->runwayDays)->toBe(7)
@@ -100,7 +102,24 @@ it('refuses invalid settings with the key and the value', function (string $key,
     ['partition_runway_days', '7', "cms.doctor.partition_runway_days must be a whole number of at least 1; it is '7'."],
     ['vendor_manifest', ['x'], 'cms.doctor.vendor_manifest must be a path, or null for the default; it is array.'],
     ['node_minimum', '22', "cms.doctor.node_minimum must be a version such as \"22.13.0\"; it is '22'."],
+    ['owner_role', '', "cms.doctor.owner_role must be a role name, or null for the username of the owner connection; it is ''."],
+    ['owner_role', 5, 'cms.doctor.owner_role must be a role name, or null for the username of the owner connection; it is 5.'],
+    ['maintenance_process', 'yes', "cms.doctor.maintenance_process must be true or false; it is 'yes'."],
 ]);
+
+it('names the owner role by cms.doctor.owner_role, or by the username of the owner connection this process has', function (): void {
+    $withConnection = ['default' => 'pgsql', 'connections' => ['pgsql_owner' => ['driver' => 'pgsql', 'username' => 'cms_owner']]];
+    $read = static fn (array $database, array $doctor): DoctorSettings => DoctorConfig::read(
+        new Repository(['database' => $database, 'cms' => ['database' => ['owner_connection' => 'pgsql_owner'], 'doctor' => $doctor]]),
+        '/app',
+    );
+
+    expect($read($withConnection, [])->ownerRole)->toBe('cms_owner')
+        ->and($read($withConnection, ['owner_role' => 'schema_owner'])->ownerRole)->toBe('schema_owner')
+        ->and($read(['default' => 'pgsql'], ['owner_role' => 'schema_owner'])->ownerRole)->toBe('schema_owner')
+        ->and($read(['default' => 'pgsql'], [])->ownerRole)->toBeNull()
+        ->and($read(['default' => 'pgsql'], ['maintenance_process' => true])->maintenanceProcess)->toBeTrue();
+});
 
 it('wires the runtime checks in order and the dev checks after them', function (): void {
     $checks = app(DoctorChecks::class);
@@ -123,9 +142,10 @@ it('wires the runtime checks in order and the dev checks after them', function (
             'valkey.reachable',
             'partitions.runway',
             'registry.cache',
+            'postgres.owner_credentials',
         ])
         ->and($ids(...$dev))->toBe(['dev.node', 'dev.playwright', 'dev.chromium'])
-        ->and(array_map(static fn (DoctorCheck $check): bool => $check->blocking(), $runtime))->toBe([true, true, true, true, true, true, true, true, true, true, true, false, true])
+        ->and(array_map(static fn (DoctorCheck $check): bool => $check->blocking(), $runtime))->toBe([true, true, true, true, true, true, true, true, true, true, true, false, true, false])
         ->and(array_map(static fn (DoctorCheck $check): bool => $check->blocking(), $dev))->toBe([false, false, false]);
 });
 

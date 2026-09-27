@@ -12,28 +12,119 @@ use Cbox\Cms\Core\Partitions\Boundary\CatalogRow;
 use Override;
 
 /**
- * Reads lc_messages on the doctor's copy of the app role's connection and on its copy of the
- * owner role's connection, and LC_MESSAGES of this process with setlocale(LC_MESSAGES, '0'),
- * which only reads.
+ * Reads lc_messages on the doctor's copy of the app role's connection, and LC_MESSAGES of this
+ * process with setlocale(LC_MESSAGES, '0'), which only reads.
+ *
+ * The owner role's lc_messages is read on the same connection from pg_db_role_setting, which every
+ * role may read, and never by logging in as the owner role: the process that runs the doctor does
+ * not need the owner's credentials (PRD 4.2). A new session of the owner role in this database
+ * takes the first of its setting for this database (ALTER ROLE ... IN DATABASE), its own setting
+ * (ALTER ROLE), the database's (ALTER DATABASE) and the setting for all roles (ALTER ROLE ALL), and
+ * otherwise the server's default. The server's default is known when the app role's own session
+ * has it, that is when the app role's value comes from the configuration file, the command line,
+ * the environment or the built-in default; otherwise a session cannot read it without superuser,
+ * and the probe says so.
  */
 #[Internal]
 final readonly class ConnectionLcMessagesProbe implements LcMessagesProbe
 {
+    /**
+     * The sources in pg_settings of a value that no role or database setting gave.
+     *
+     * @var list<string>
+     */
+    private const array SERVER_SOURCES = ['default', 'environment variable', 'configuration file', 'command line'];
+
+    private const string OWNER_SQL = <<<'SQL'
+        select r.rolname::text as role, l.value, l.source, a.setting::text as session_value, a.source::text as session_source
+        from pg_roles r
+        cross join pg_database d
+        cross join pg_settings a
+        left join lateral (
+            select substr(c.entry, length('lc_messages=') + 1) as value,
+                case
+                    when s.setrole <> 0 and s.setdatabase <> 0 then 'database user'
+                    when s.setrole <> 0 then 'user'
+                    when s.setdatabase <> 0 then 'database'
+                    else 'global'
+                end as source,
+                case
+                    when s.setrole <> 0 and s.setdatabase <> 0 then 1
+                    when s.setrole <> 0 then 2
+                    when s.setdatabase <> 0 then 3
+                    else 4
+                end as rank
+            from pg_db_role_setting s
+            cross join lateral unnest(s.setconfig) as c(entry)
+            where s.setrole in (r.oid, 0)
+              and s.setdatabase in (d.oid, 0)
+              and starts_with(c.entry, 'lc_messages=')
+            order by rank
+            limit 1
+        ) l on true
+        where r.rolname = ?
+          and d.datname = current_database()
+          and a.name = 'lc_messages'
+        SQL;
+
+    /**
+     * @param  ?string  $ownerRole  the owner role's name, or null when the configuration names none
+     */
     public function __construct(
         private DoctorConnection $app,
-        private DoctorConnection $owner,
+        private ?string $ownerRole,
     ) {}
 
     #[Override]
     public function appRole(): RoleLcMessages
     {
-        return $this->read($this->app);
+        try {
+            $row = CatalogRow::one($this->app->rows(
+                "select current_user::text as role, s.setting::text as value, s.source::text as source from pg_settings s where s.name = 'lc_messages'",
+            ));
+        } catch (ProbeFailed $failed) {
+            throw $failed->at('On the connection '.$this->app->source);
+        }
+
+        return new RoleLcMessages($row->string('role'), $this->app->source, $row->string('value'), $row->string('source'));
     }
 
     #[Override]
     public function ownerRole(): RoleLcMessages
     {
-        return $this->read($this->owner);
+        if ($this->ownerRole === null) {
+            throw ProbeFailed::violation('The owner role is not known: cms.doctor.owner_role is null and this process has no owner connection with a username.');
+        }
+
+        try {
+            $rows = CatalogRow::all($this->app->rows(self::OWNER_SQL, [$this->ownerRole]));
+        } catch (ProbeFailed $failed) {
+            throw $failed->at('On the connection '.$this->app->source);
+        }
+
+        if ($rows === []) {
+            throw ProbeFailed::violation(sprintf('The owner role %s does not exist in the database of the connection %s.', $this->ownerRole, $this->app->source));
+        }
+
+        $row = $rows[0];
+        $value = $row->nullableString('value');
+        $source = $row->nullableString('source');
+
+        if ($value !== null && $source !== null) {
+            return new RoleLcMessages($row->string('role'), $this->app->source, $value, $source);
+        }
+
+        $sessionSource = $row->string('session_source');
+
+        if (! in_array($sessionSource, self::SERVER_SOURCES, true)) {
+            throw ProbeFailed::violation(sprintf(
+                'The owner role %s has no lc_messages of its own, of the database or of ALTER ROLE ALL, so it gets the server\'s default, which the app role cannot read: its own lc_messages comes from "%s".',
+                $row->string('role'),
+                $sessionSource,
+            ));
+        }
+
+        return new RoleLcMessages($row->string('role'), $this->app->source, $row->string('session_value'), $sessionSource);
     }
 
     #[Override]
@@ -46,18 +137,5 @@ final readonly class ConnectionLcMessagesProbe implements LcMessagesProbe
         }
 
         return $locale;
-    }
-
-    private function read(DoctorConnection $connection): RoleLcMessages
-    {
-        try {
-            $row = CatalogRow::one($connection->rows(
-                "select current_user::text as role, s.setting::text as value, s.source::text as source from pg_settings s where s.name = 'lc_messages'",
-            ));
-        } catch (ProbeFailed $failed) {
-            throw $failed->at('On the connection '.$connection->source);
-        }
-
-        return new RoleLcMessages($row->string('role'), $connection->source, $row->string('value'), $row->string('source'));
     }
 }

@@ -53,8 +53,8 @@ it('fails another language for either role or the process as a violation with it
         ->and($result->cause)->toBe($cause)
         ->and($result->fix)->toContain($fix);
 })->with([
-    'the app role' => ['appRole', 'lc_messages is \'de_DE.UTF-8\' for the role cms_app on the connection pgsql; Postgres took it from "user".', "ALTER ROLE cms_app SET lc_messages = 'C'"],
-    'the owner role' => ['ownerRole', 'lc_messages is \'de_DE.UTF-8\' for the role cms_owner on the connection pgsql_owner; Postgres took it from "user".', "ALTER ROLE cms_owner SET lc_messages = 'C'"],
+    'the app role' => ['appRole', 'lc_messages is \'de_DE.UTF-8\' for the role cms_app, read on the connection pgsql; Postgres takes it from "user".', "ALTER ROLE cms_app SET lc_messages = 'C'"],
+    'the owner role' => ['ownerRole', 'lc_messages is \'de_DE.UTF-8\' for the role cms_owner, read on the connection pgsql; Postgres takes it from "user".', "ALTER ROLE cms_owner SET lc_messages = 'C'"],
     'the process' => ['process', "LC_MESSAGES of the PHP process is 'de_DE.UTF-8'.", "setlocale(LC_MESSAGES, 'C')"],
 ]);
 
@@ -74,8 +74,8 @@ it('names every place in the cause and every fix, with ALTER SYSTEM for the serv
     }))->run();
 
     expect($result->cause)->toBe(
-        'lc_messages is \'da_DK.UTF-8\' for the role cms_app on the connection pgsql; Postgres took it from "user". '
-        .'lc_messages is \'de_DE.UTF-8\' for the role cms_owner on the connection pgsql_owner; Postgres took it from "configuration file". '
+        'lc_messages is \'da_DK.UTF-8\' for the role cms_app, read on the connection pgsql; Postgres takes it from "user". '
+        .'lc_messages is \'de_DE.UTF-8\' for the role cms_owner, read on the connection pgsql; Postgres takes it from "configuration file". '
         ."LC_MESSAGES of the PHP process is 'fr_FR.UTF-8'.",
     )->and($result->fix)->toContain("ALTER SYSTEM SET lc_messages = 'C' and SELECT pg_reload_conf()")
         ->and($result->fix)->toContain("ALTER ROLE cms_app SET lc_messages = 'C' and ALTER ROLE cms_owner SET lc_messages = 'C'")
@@ -95,20 +95,22 @@ it('leaves the process out of the fix when only a role is wrong, and the roles o
         ->and($process->fix)->not->toContain('ALTER');
 });
 
-it('reports an owner connection it cannot read with its kind and the connection in the cause', function (FailureKind $kind): void {
+it('reports an owner role it cannot read with its kind and the connection in the cause', function (FailureKind $kind): void {
     $failure = $kind === FailureKind::Violation
-        ? ProbeFailed::violation('FATAL: password authentication failed for user "cms_owner"')
-        : ProbeFailed::unavailable('Connection refused');
+        ? ProbeFailed::violation('The owner role cms_owner does not exist in the database of the connection pgsql.')
+        : ProbeFailed::unavailable('Connection refused')->at('On the connection pgsql');
 
     $result = new LcMessagesCheck(lcMessages(static function (FakeLcMessagesProbe $probe) use ($failure): void {
-        $probe->ownerFailure = $failure->at('On the connection pgsql_owner');
+        $probe->ownerFailure = $failure;
     }))->run();
 
     expect($result->status)->toBe(CheckStatus::Fail)
         ->and($result->failure)->toBe($kind)
         ->and($result->code)->toBe(PostgresQueryFailure::CODE)
-        ->and($result->cause)->toStartWith('On the connection pgsql_owner: ')
-        ->and($result->fix)->toContain('cms.database.owner_connection');
+        ->and($result->cause)->toBe($failure->cause)
+        ->and($result->fix)->toContain('cms.doctor.owner_role')
+        ->and($result->fix)->toContain("ALTER ROLE <owner role> SET lc_messages = 'C'")
+        ->and($result->fix)->not->toContain('owner_connection');
 })->with([FailureKind::Violation, FailureKind::Unavailable]);
 
 it('runs after postgres.reachable and blocks the kernel', function (): void {

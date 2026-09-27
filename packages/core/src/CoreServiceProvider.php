@@ -17,6 +17,7 @@ use Cbox\Cms\Core\Doctor\Adapter\ConnectionLcMessagesProbe;
 use Cbox\Cms\Core\Doctor\Adapter\ConnectionPostgresProbe;
 use Cbox\Cms\Core\Doctor\Adapter\DoctorConnection;
 use Cbox\Cms\Core\Doctor\Adapter\FileRegistryCacheProbe;
+use Cbox\Cms\Core\Doctor\Adapter\FrameworkProcessProbe;
 use Cbox\Cms\Core\Doctor\Adapter\FrameworkRuntimeProbe;
 use Cbox\Cms\Core\Doctor\Adapter\ProcessToolProbe;
 use Cbox\Cms\Core\Doctor\Adapter\RedisValkeyProbe;
@@ -28,6 +29,7 @@ use Cbox\Cms\Core\Doctor\Domain\Checks\InvalidConfigurationCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\LaravelVersionCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\LcMessagesCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\NodeCheck;
+use Cbox\Cms\Core\Doctor\Domain\Checks\OwnerCredentialsCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\PartitionRunwayCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\PhpVersionCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\PlaywrightCheck;
@@ -45,6 +47,7 @@ use Cbox\Cms\Core\Doctor\Domain\OrderedDoctorChecks;
 use Cbox\Cms\Core\Doctor\Domain\Probes\LcMessagesProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PartitionRunwayProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PostgresProbe;
+use Cbox\Cms\Core\Doctor\Domain\Probes\ProcessProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\RegistryCacheProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\RuntimeProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\ToolProbe;
@@ -71,7 +74,7 @@ use Override;
  *
  * Binds each contract to the implementation configured in `cms.contracts` (GUARDRAILS 2.3), loads
  * the core's migrations, binds partition maintenance to the Postgres partition manager, and
- * schedules it. Wires the registry that cms:build compiles to bootstrap/cache/cms/ (PRD 13.2), and
+ * schedules it in a process that has the owner connection. Wires the registry that cms:build compiles to bootstrap/cache/cms/ (PRD 13.2), and
  * declares the core's own classes as a scan root. Wires the checks of cms:doctor (PRD 3.3, 4.2) to
  * their probes; a test swaps a probe by binding its interface.
  */
@@ -143,9 +146,23 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
 
         // Every hour, so a missed run costs an hour of a 14-day runway and retention runs on time.
         // Runs never overlap: the manager holds an advisory lock in Postgres for the whole run.
-        $this->callAfterResolving(Schedule::class, static function (Schedule $schedule): void {
-            $schedule->command(self::PARTITIONS_COMMAND)->hourly();
+        // Only in a process that has the owner connection: the owner credentials belong to the
+        // maintenance process alone (PRD 4.2), so the web and queue processes schedule nothing.
+        $this->callAfterResolving(Schedule::class, static function (Schedule $schedule, Application $app): void {
+            if (self::ownerConnectionConfigured($app->make(Repository::class))) {
+                $schedule->command(self::PARTITIONS_COMMAND)->hourly();
+            }
         });
+    }
+
+    /**
+     * Whether this process has the owner role's connection, the one cms.database.owner_connection names.
+     */
+    public static function ownerConnectionConfigured(Repository $config): bool
+    {
+        $owner = $config->get('cms.database.owner_connection');
+
+        return is_string($owner) && $owner !== '' && is_array($config->get('database.connections.'.$owner));
     }
 
     /**
@@ -176,18 +193,14 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->bind(PostgresProbe::class, ConnectionPostgresProbe::class);
         $this->app->bind(PartitionRunwayProbe::class, CatalogPartitionRunwayProbe::class);
         $this->app->bind(ValkeyProbe::class, RedisValkeyProbe::class);
-        // The owner role's connection is read by postgres.lc_messages only, so the probe has its own.
+        $this->app->bind(ProcessProbe::class, FrameworkProcessProbe::class);
+        // The owner role's lc_messages is read from the catalog on the app role's connection; the
+        // doctor never logs in as the owner role (PRD 4.2).
         $this->app->bind(
             LcMessagesProbe::class,
             static fn (Application $app): LcMessagesProbe => new ConnectionLcMessagesProbe(
                 $app->make(DoctorConnection::class),
-                new DoctorConnection(
-                    $app->make(DatabaseManager::class),
-                    $app->make(Repository::class),
-                    $app->make(DoctorSettings::class)->ownerConnection,
-                    DoctorConnection::OWNER_NAME,
-                    $app->make(DoctorSettings::class)->connectTimeoutSeconds,
-                ),
+                $app->make(DoctorSettings::class)->ownerRole,
             ),
         );
         $this->app->bind(
@@ -229,6 +242,7 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
                         $settings->runwayDays,
                     ),
                     new RegistryCacheCheck($app->make(RegistryCacheProbe::class)),
+                    new OwnerCredentialsCheck($app->make(ProcessProbe::class), $settings->ownerConnection, $settings->maintenanceProcess),
                 ],
                 dev: [
                     new NodeCheck($tools, $settings->nodeMinimum),

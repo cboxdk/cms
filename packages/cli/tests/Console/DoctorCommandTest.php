@@ -196,7 +196,7 @@ it('prints the JSON document and nothing else with --json', function (): void {
         ->and($document['dev'])->toBeFalse()
         ->and($document['status'])->toBe('ok')
         ->and($document['exit_code'])->toBe(0)
-        ->and(checkStatuses($document))->toHaveCount(13)
+        ->and(checkStatuses($document))->toHaveCount(14)
         ->and(array_keys(checkOf($document, 'php.version')))->toBe(['blocking', 'cause', 'code', 'explanation', 'failure', 'fix', 'id', 'status']);
 });
 
@@ -232,8 +232,23 @@ it('exits 78 when the owner role writes its messages in German', function (): vo
         ->and($messages['blocking'])->toBeTrue()
         ->and($messages['failure'])->toBe('violation')
         ->and($messages['code'])->toBe('doctor_lc_messages_not_english')
-        ->and($messages['cause'])->toBe('lc_messages is \'de_DE.UTF-8\' for the role cms_owner on the connection pgsql_owner; Postgres took it from "user".')
+        ->and($messages['cause'])->toBe('lc_messages is \'de_DE.UTF-8\' for the role cms_owner, read on the connection pgsql; Postgres takes it from "user".')
         ->and($messages['fix'])->toBeString()->toContain("ALTER ROLE cms_owner SET lc_messages = 'C'");
+});
+
+it('exits 78 when the owner connection is configured in a process that is not the maintenance process', function (): void {
+    new DoctorFakes;
+    config(['cms.doctor.maintenance_process' => false]);
+
+    [$status, $document] = doctorJson();
+    $credentials = checkOf($document, 'postgres.owner_credentials');
+
+    expect($status)->toBe(78)
+        ->and($document['status'])->toBe('violation')
+        ->and($credentials['status'])->toBe('fail')
+        ->and($credentials['blocking'])->toBeFalse()
+        ->and($credentials['code'])->toBe('doctor_owner_credentials_exposed')
+        ->and(array_filter(checkStatuses($document), static fn (string $status): bool => $status !== 'pass'))->toBe(['postgres.owner_credentials' => 'fail']);
 });
 
 it('exits 75 when Postgres cannot be reached, and skips the checks that need it', function (): void {

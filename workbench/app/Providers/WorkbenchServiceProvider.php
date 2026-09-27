@@ -14,7 +14,10 @@ use Illuminate\Support\ServiceProvider;
  * It wires the two Postgres roles from compose.yaml (PRD 4.2, GUARDRAILS 6):
  * `pgsql` connects as the app role, which the application and the tests use, and
  * `pgsql_owner` connects as the owner role, which runs migrations. Both use the
- * dedicated schema instead of Laravel's default search_path of public.
+ * dedicated schema instead of Laravel's default search_path of public. The workbench is a
+ * development application that runs the migrations and partition maintenance itself, so it is
+ * declared the maintenance process for cms:doctor (cms.doctor.maintenance_process); a production
+ * installation gives the owner connection to its maintenance process only.
  *
  * It also points cms:generate (PRD 11.12) at the workbench's schema root, owner app, and its
  * committed generated code (GUARDRAILS 2.6), relative to the monorepo root, and cms:doctor at the
@@ -38,6 +41,7 @@ final class WorkbenchServiceProvider extends ServiceProvider
 
         $config->set('cms.doctor.project_path', dirname(__DIR__, 3));
         $config->set('cms.doctor.vendor_manifest', dirname(__DIR__, 3).'/vendor/composer/installed.json');
+        $config->set('cms.doctor.maintenance_process', true);
 
         $app = $config->get('database.connections.pgsql');
 

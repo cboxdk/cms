@@ -15,6 +15,8 @@ use Illuminate\Contracts\Config\Repository;
  *     'doctor' => [
  *         'connection' => null,              // null: the default connection
  *         'owner_connection' => null,        // null: cms.database.owner_connection
+ *         'owner_role' => null,              // null: the username of owner_connection, when it is configured
+ *         'maintenance_process' => false,    // true only in the process that runs migrations and maintenance
  *         'redis_connection' => 'default',
  *         'connect_timeout_seconds' => 3,
  *         'partition_runway_days' => 7,
@@ -36,9 +38,13 @@ final readonly class DoctorConfig
         $connection = $config->get(self::CONFIG_KEY.'.connection') ?? $config->get('database.default');
         $ownerConnection = $config->get(self::CONFIG_KEY.'.owner_connection') ?? $config->get('cms.database.owner_connection');
 
+        $ownerConnection = self::name('owner_connection', $ownerConnection);
+
         return new DoctorSettings(
             connection: self::name('connection', $connection),
-            ownerConnection: self::name('owner_connection', $ownerConnection),
+            ownerConnection: $ownerConnection,
+            ownerRole: self::ownerRole($config, $ownerConnection),
+            maintenanceProcess: self::flag($config, 'maintenance_process'),
             redisConnection: self::name('redis_connection', $config->get(self::CONFIG_KEY.'.redis_connection', 'default')),
             connectTimeoutSeconds: self::positive($config, 'connect_timeout_seconds', 3),
             runwayDays: self::positive($config, 'partition_runway_days', 7),
@@ -52,6 +58,38 @@ final readonly class DoctorConfig
     {
         if (! is_string($value) || $value === '') {
             throw InvalidDoctorConfig::value($key, 'a connection name', self::shown($value));
+        }
+
+        return $value;
+    }
+
+    /**
+     * The owner role's name: cms.doctor.owner_role, or the username of the owner connection when this
+     * process has it. Only the name is read; the doctor never logs in as the owner role.
+     */
+    private static function ownerRole(Repository $config, string $ownerConnection): ?string
+    {
+        $value = $config->get(self::CONFIG_KEY.'.owner_role');
+
+        if ($value === null) {
+            $username = $config->get('database.connections.'.$ownerConnection.'.username');
+
+            return is_string($username) && $username !== '' ? $username : null;
+        }
+
+        if (! is_string($value) || $value === '') {
+            throw InvalidDoctorConfig::value('owner_role', 'a role name, or null for the username of the owner connection', self::shown($value));
+        }
+
+        return $value;
+    }
+
+    private static function flag(Repository $config, string $key): bool
+    {
+        $value = $config->get(self::CONFIG_KEY.'.'.$key, false);
+
+        if (! is_bool($value)) {
+            throw InvalidDoctorConfig::value($key, 'true or false', self::shown($value));
         }
 
         return $value;

@@ -7,16 +7,17 @@ namespace Cbox\Cms\Core\Doctor\Domain\Dto;
 use Cbox\Cms\Contracts\Attributes\Internal;
 
 /**
- * lc_messages in a new session of one of the doctor's connections, and where Postgres took it
- * from: pg_settings.source, such as "user" for ALTER ROLE ... SET, "database user" for ALTER ROLE
- * ... IN DATABASE ... SET, "configuration file" or "default".
+ * lc_messages that a new session of a role gets, and where Postgres takes it from: the source as
+ * pg_settings names it, such as "user" for ALTER ROLE ... SET, "database user" for ALTER ROLE ...
+ * IN DATABASE ... SET, "database" for ALTER DATABASE ... SET, "global" for ALTER ROLE ALL ... SET,
+ * "configuration file" or "default".
  */
 #[Internal]
 final readonly class RoleLcMessages
 {
     /**
-     * @param  string  $role  the role the connection logs in as
-     * @param  string  $connection  the application's connection the doctor copied
+     * @param  string  $role  the role whose value it is
+     * @param  string  $connection  the application's connection the doctor read it on
      */
     public function __construct(
         public string $role,

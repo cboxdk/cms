@@ -28,7 +28,11 @@ return [
         /*
          * The connection of the owner role, which owns the schema and runs migrations and partition
          * maintenance (PRD 4.2). The app role on the default connection has no DDL, and the
-         * partition manager refuses to run on it.
+         * partition manager refuses to run on it. Only the maintenance process, which runs the
+         * migrations and cms:partitions:maintain and serves no HTTP, gets this connection and the
+         * owner's credentials; the web and queue processes do not, so code in them cannot reach
+         * DDL or pass the row level security as the owner. The core schedules
+         * cms:partitions:maintain only in a process where this connection is configured.
          */
         'owner_connection' => 'pgsql_owner',
 
@@ -68,8 +72,13 @@ return [
 
     /*
      * cms:doctor (PRD 3.3, 4.2, 13.2). The Postgres checks connect with the connection's settings
-     * as the app role; null means the default connection. postgres.lc_messages also reads the
-     * owner role on owner_connection; null means cms.database.owner_connection. Postgres and
+     * as the app role; null means the default connection. The doctor never logs in as the owner
+     * role: postgres.lc_messages reads the lc_messages of the role owner_role names from the
+     * catalog; null means the username of owner_connection when that connection is configured in
+     * this process, and owner_connection null means cms.database.owner_connection.
+     * postgres.owner_credentials fails when owner_connection is configured in a process that
+     * maintenance_process does not declare the maintenance process, or that serves HTTP; set it to
+     * true only in the process that runs the migrations and maintenance. Postgres and
      * Valkey get connect_timeout_seconds to answer. partition_runway_days is how far ahead every table in
      * database.partitions.tables must have partitions; keep it below runway_days, which maintenance
      * creates. The registry cache must not be older than vendor_manifest, Composer's
@@ -79,6 +88,8 @@ return [
     'doctor' => [
         'connection' => null,
         'owner_connection' => null,
+        'owner_role' => null,
+        'maintenance_process' => false,
         'redis_connection' => 'default',
         'connect_timeout_seconds' => 3,
         'partition_runway_days' => 7,

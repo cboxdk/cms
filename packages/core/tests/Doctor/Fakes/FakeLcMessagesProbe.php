@@ -9,8 +9,8 @@ use Cbox\Cms\Core\Doctor\Domain\ProbeFailed;
 use Cbox\Cms\Core\Doctor\Domain\Probes\LcMessagesProbe;
 
 /**
- * English messages until the test changes a property: lc_messages C from the role for cms_app on
- * the connection pgsql and for cms_owner on pgsql_owner, and LC_MESSAGES C for the process.
+ * English messages until the test changes a property: lc_messages C from the role for cms_app and
+ * for cms_owner, both read on the connection pgsql, and LC_MESSAGES C for the process.
  */
 final class FakeLcMessagesProbe implements LcMessagesProbe
 {
@@ -27,7 +27,7 @@ final class FakeLcMessagesProbe implements LcMessagesProbe
 
     public string $process = 'C';
 
-    /** Thrown by ownerRole(), as when the owner connection refuses the login. */
+    /** Thrown by ownerRole(), as when the owner role is not known or its value cannot be read. */
     public ?ProbeFailed $ownerFailure = null;
 
     public function appRole(): RoleLcMessages
@@ -41,7 +41,7 @@ final class FakeLcMessagesProbe implements LcMessagesProbe
             throw $this->ownerFailure;
         }
 
-        return new RoleLcMessages('cms_owner', 'pgsql_owner', $this->ownerRole, $this->ownerSource);
+        return new RoleLcMessages('cms_owner', 'pgsql', $this->ownerRole, $this->ownerSource);
     }
 
     public function process(): string

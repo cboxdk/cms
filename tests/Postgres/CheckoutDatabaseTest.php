@@ -43,13 +43,11 @@ it('opens the independent connections and the child processes on this checkout\'
         ->and($owner->scalar('select current_database()'))->toBe($name);
 });
 
-it('gives the doctor\'s copies of the app and owner connections, cms_doctor and cms_doctor_owner, this checkout\'s database', function (): void {
+it('gives the doctor\'s copy of the app connection, cms_doctor, this checkout\'s database, and reads the owner role there', function (): void {
     $probe = app(LcMessagesProbe::class);
     $probe->appRole();
     $probe->ownerRole();
 
     expect(config('database.connections.'.DoctorConnection::NAME.'.database'))->toBe(CheckoutDatabase::name())
-        ->and(config('database.connections.'.DoctorConnection::OWNER_NAME.'.database'))->toBe(CheckoutDatabase::name())
-        ->and(DB::connection(DoctorConnection::NAME)->scalar('select current_database()'))->toBe(CheckoutDatabase::name())
-        ->and(DB::connection(DoctorConnection::OWNER_NAME)->scalar('select current_database()'))->toBe(CheckoutDatabase::name());
+        ->and(DB::connection(DoctorConnection::NAME)->scalar('select current_database()'))->toBe(CheckoutDatabase::name());
 });

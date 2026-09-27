@@ -15,8 +15,9 @@ use Throwable;
 /**
  * A Postgres connection of the doctor: the settings of one of the application's connections
  * with a short connect timeout, registered under a name of its own and opened on first use.
- * The app role's copy, cms_doctor, is shared by the Postgres probes of one run; the owner role's
- * copy, cms_doctor_owner, is only read by postgres.lc_messages.
+ * The app role's copy, cms_doctor, is shared by the Postgres probes of one run. The doctor never
+ * logs in as the owner role (PRD 4.2): what it needs to know of the owner role it reads from the
+ * catalog as the app role, so a process without the owner credentials can run every check.
  *
  * A connection of its own, so the doctor never runs inside a transaction of the application and
  * a server that does not answer costs connect_timeout_seconds, not PDO's default of 30 seconds.
@@ -27,9 +28,6 @@ final class DoctorConnection
 {
     /** The copy of the app role's connection. */
     public const string NAME = 'cms_doctor';
-
-    /** The copy of the owner role's connection. */
-    public const string OWNER_NAME = 'cms_doctor_owner';
 
     private ?Connection $connection = null;
 
@@ -99,16 +97,17 @@ final class DoctorConnection
     /**
      * Runs a query that only reads and returns its rows.
      *
+     * @param  list<string>  $bindings
      * @return list<mixed>
      *
      * @throws ProbeFailed classified by PostgresErrors
      */
-    public function rows(string $sql): array
+    public function rows(string $sql, array $bindings = []): array
     {
         $connection = $this->get();
 
         try {
-            return array_values($connection->select($sql, [], false));
+            return array_values($connection->select($sql, $bindings, false));
         } catch (Throwable $thrown) {
             throw PostgresErrors::classify($thrown);
         }

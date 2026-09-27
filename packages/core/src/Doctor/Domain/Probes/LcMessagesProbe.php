@@ -10,8 +10,9 @@ use Cbox\Cms\Core\Doctor\Domain\ProbeFailed;
 
 /**
  * The language of the messages that the kernel reads the text of (PRD 4.2): lc_messages of the
- * app role and of the owner role, each in a new session on its own connection, and LC_MESSAGES
- * of the PHP process, which libpq's own messages follow.
+ * app role in a new session, lc_messages that a new session of the owner role gets, read from the
+ * catalog without logging in as the owner role, and LC_MESSAGES of the PHP process, which libpq's
+ * own messages follow.
  */
 #[Internal]
 interface LcMessagesProbe
