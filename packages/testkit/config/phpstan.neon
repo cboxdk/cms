@@ -33,7 +33,8 @@ parameters:
 # comment outside Boundary and Adapter, read from the file tokens.
 # Rule 3, TransactionCallsRule and SavepointStringsRule (GUARDRAILS 4.1, PRD 4.2): no transaction
 # calls and no SAVEPOINT statements in Actions and Jobs. Rule 4, StringIdsRule (PRD 5.3): no
-# public string ids outside Boundary and Adapter. These report non-ignorable errors, so no
+# public string ids outside Boundary and Adapter, except in a signature a framework interface or
+# parent class requires. These report non-ignorable errors, so no
 # comment and no ignoreErrors entry can hide them.
 # Rule 5, the Internal*UsageExtension services (GUARDRAILS 2.3): code outside Cbox\Cms may not
 # use what is marked #[Internal]. PHPStan's restricted usage rules report them.

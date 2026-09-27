@@ -48,11 +48,42 @@ final class StringIdsRuleTest extends RuleTestCase
         ]);
     }
 
+    public function test_it_exempts_only_string_ids_a_framework_interface_or_parent_class_requires(): void
+    {
+        // Not reported, because the framework declares a string there: getJobId() of Laravel's
+        // queue Job interface (line 16), validateId(string $id) of PHP's
+        // SessionUpdateTimestampHandlerInterface (line 58), and getId() and setId() of the parent
+        // class Illuminate\Session\Store (lines 85 and 93). The addon's own interface in its
+        // Adapter is allowed there (line 104).
+        self::assertSame([
+            '25 cboxCms.stringId',  // getJobId(): string without the Job interface
+            '34 cboxCms.stringId',  // uniqueId(): string, which ShouldBeUnique does not declare
+            '43 cboxCms.stringId',  // id(): string where Guard declares int|string|null
+            '67 cboxCms.stringId',  // validateId(string $id) without the session interface
+            '80 cboxCms.stringId',  // ?string $id in a constructor Store does not make abstract
+            '113 cboxCms.stringId', // customerId(): string of an interface outside the framework
+        ], $this->reported('FrameworkStringIds'));
+    }
+
+    public function test_the_message_of_a_signature_the_framework_does_not_require(): void
+    {
+        $advice = ' Type ids as value objects, such as ChangesetId (PRD 5.3); string ids are only allowed in Boundary and Adapter namespaces.';
+
+        $this->analyse([self::fixture('FrameworkStringIds')], [
+            ['Return type of method Fixture\Queue\Jobs\OwnJob::getJobId() is a string id of type string.'.$advice, 25],
+            ['Return type of method Fixture\Queue\Jobs\UniqueJob::uniqueId() is a string id of type string.'.$advice, 34],
+            ['Return type of method Fixture\Queue\Jobs\CmsGuard::id() is a string id of type string.'.$advice, 43],
+            ['Parameter $id of method Fixture\Sessions\Domain\OwnSessionIds::validateId() is a string id of type string.'.$advice, 67],
+            ['Parameter $id of method Fixture\Sessions\Domain\CmsSession::__construct() is a string id of type string|null.'.$advice, 80],
+            ['Return type of method Acme\Billing\Domain\Customer::customerId() is a string id of type string.'.$advice, 113],
+        ]);
+    }
+
     /**
      * @return Rule<InClassMethodNode>
      */
     protected function getRule(): Rule
     {
-        return new StringIdsRule;
+        return new StringIdsRule(self::createReflectionProvider());
     }
 }

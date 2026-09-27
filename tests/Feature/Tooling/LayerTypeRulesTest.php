@@ -290,6 +290,41 @@ it('fails the analysis on a public string id in the domain', function (): void {
         ->and($analysis->identifiers)->toBe(['cboxCms.stringId']);
 });
 
+it('passes a string id a framework interface requires, also through a parent class, and fails the same name without it', function (string $implements, bool $allowed): void {
+    $analysis = analyseProbe(<<<PHP
+        <?php
+
+        declare(strict_types=1);
+
+        namespace Cbox\\Cms\\Core\\Sessions\\Domain;
+
+        abstract class SessionIds {$implements}
+        {
+        }
+
+        abstract class Probe extends SessionIds
+        {
+            public function validateId(string \$id): bool
+            {
+                return \$id !== '';
+            }
+        }
+        PHP);
+
+    if ($allowed) {
+        expect($analysis->exitCode)->toBe(0)
+            ->and($analysis->identifiers)->toBe([]);
+
+        return;
+    }
+
+    expect($analysis->exitCode)->not->toBe(0)
+        ->and($analysis->identifiers)->toBe(['cboxCms.stringId']);
+})->with([
+    "PHP's session interface" => ['implements \SessionUpdateTimestampHandlerInterface', true],
+    'no interface' => ['', false],
+]);
+
 it('fails the analysis when an addon uses an internal class of the testkit, and allows it in the core', function (string $namespace, bool $allowed): void {
     $analysis = analyseProbe(<<<PHP
         <?php
