@@ -8,9 +8,11 @@ use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\MalformedRegistryCache;
 use Cbox\Cms\Core\Registry\Domain\RegistryCacheMissing;
 use Cbox\Cms\Core\Registry\Domain\RegistryCacheUnwritable;
+use Cbox\Cms\Tests\Support\RecordingStreamWrapper;
 use PHPUnit\Framework\Assert;
 
 afterEach(function (): void {
+    RecordingStreamWrapper::unregister();
     RegistryFixtures::cleanUp();
 });
 
@@ -154,3 +156,23 @@ it('reports a rename that fails, and leaves no temporary file', function (): voi
 
     expect(RegistryFixtures::files($directory))->toBe(['actions.php', 'commands.php', 'hooks.php']);
 });
+
+it('refuses to write to a directory that names a stream wrapper before it touches it, so it never writes to ftp:// (GUARDRAILS 3)', function (string $directory): void {
+    RecordingStreamWrapper::register();
+
+    $failure = null;
+
+    try {
+        RegistryFixtures::cache($directory)->write(CompiledRegistry::empty());
+    } catch (RegistryCacheUnwritable $unwritable) {
+        $failure = $unwritable;
+    }
+
+    expect(RecordingStreamWrapper::$calls)->toBe([])
+        ->and($failure?->getMessage())->toBe('[registry_cache_unwritable] Could not write the registry cache to '.$directory.': the path names a stream wrapper, and the registry cache is written only to a local directory (GUARDRAILS 3). Give the application a local bootstrap path, then run php artisan cms:build again.');
+})->with([
+    'a URL wrapper' => RecordingStreamWrapper::url('/bootstrap/cache/cms'),
+    'a URL wrapper in upper case' => strtoupper(RecordingStreamWrapper::SCHEME).'://files.example.internal/cms',
+    'a URL behind a filter wrapper' => 'compress.zlib://'.RecordingStreamWrapper::url('/cms'),
+    'file://' => 'file:///tmp/cms',
+]);

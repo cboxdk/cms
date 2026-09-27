@@ -11,6 +11,7 @@ use Cbox\Cms\Generators\Generation\Domain\GeneratedOutput;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Tests\SchemaFixtures;
+use Cbox\Cms\Tests\Support\RecordingStreamWrapper;
 use PHPUnit\Framework\Assert;
 
 /*
@@ -19,6 +20,7 @@ use PHPUnit\Framework\Assert;
  */
 
 afterEach(function (): void {
+    RecordingStreamWrapper::unregister();
     SchemaFixtures::cleanUp();
 });
 
@@ -113,3 +115,22 @@ it('stops with generate_output_unwritable when a file cannot be written', functi
 
     expect(SchemaFixtures::files($root))->toBe([]);
 })->skip(fn (): bool => function_exists('posix_geteuid') && posix_geteuid() === 0, 'root ignores file permissions');
+
+it('refuses a root that names a stream wrapper before it touches it, so it never writes to ftp:// (GUARDRAILS 3)', function (string $root): void {
+    RecordingStreamWrapper::register();
+
+    $failure = null;
+
+    try {
+        new FilesystemGeneratedOutput()->write($root, outputResult());
+    } catch (GenerationFailed $failed) {
+        $failure = $failed;
+    }
+
+    expect(RecordingStreamWrapper::$calls)->toBe([])
+        ->and($failure?->codes())->toBe([GenerateErrorCode::OutputUnwritable])
+        ->and($failure?->getMessage())->toContain('The root '.$root.' names a stream wrapper');
+})->with([
+    'a URL wrapper' => RecordingStreamWrapper::url('/app'),
+    'a URL behind a filter wrapper' => 'compress.zlib://'.RecordingStreamWrapper::url('/app'),
+]);

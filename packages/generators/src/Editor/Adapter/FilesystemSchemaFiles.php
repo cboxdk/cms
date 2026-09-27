@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Editor\Adapter;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Storage\LocalPath;
 use Cbox\Cms\Generators\Editor\Domain\Dto\SchemaFile;
 use Cbox\Cms\Generators\Editor\Domain\SchemaFiles;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationProblem;
@@ -20,6 +21,8 @@ use Override;
  * A file's directory is the real path of the directory it was found in. A write refuses a file
  * that is not writable, writes a temporary file beside the real file with the same permissions and
  * renames it into place, so a file is never left half written and a symlink keeps pointing at it.
+ * A file whose path names a stream wrapper, such as ftp://, is refused before any file function
+ * sees it (GUARDRAILS 3).
  */
 #[Internal]
 final readonly class FilesystemSchemaFiles implements SchemaFiles
@@ -68,6 +71,10 @@ final readonly class FilesystemSchemaFiles implements SchemaFiles
     #[Override]
     public function write(SchemaFile $file, string $contents): void
     {
+        if (LocalPath::namesStreamWrapper($file->path)) {
+            throw $this->unwritable($file, sprintf('its path %s names a stream wrapper, and schema files are local files', $file->path));
+        }
+
         $target = realpath($file->path);
 
         if ($target === false || ! is_file($target)) {

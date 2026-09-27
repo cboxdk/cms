@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Tests\Editor;
 
 use Cbox\Cms\Generators\Editor\Adapter\FilesystemSchemaFiles;
+use Cbox\Cms\Generators\Editor\Domain\Dto\SchemaFile;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
 use Cbox\Cms\Generators\Schema\Domain\Owner;
 use Cbox\Cms\Generators\Tests\SchemaFixtures;
+use Cbox\Cms\Tests\Support\RecordingStreamWrapper;
 
 /*
  * What only the filesystem has: permissions, symlinks, temporary files and real paths.
@@ -16,6 +18,7 @@ use Cbox\Cms\Generators\Tests\SchemaFixtures;
  */
 
 afterEach(function (): void {
+    RecordingStreamWrapper::unregister();
     SchemaFixtures::cleanUp();
 });
 
@@ -89,4 +92,13 @@ it('refuses to write a file that is gone', function (): void {
     expect(static fn () => $files->write($file, "# line\n"))
         ->toThrow(GenerationFailed::class, '[generate_schema_unwritable] schema/page.yaml cannot be written: the file no longer exists.')
         ->and(SchemaFixtures::files($base))->toBe([]);
+});
+
+it('refuses to write a file whose path names a stream wrapper before it touches it (GUARDRAILS 3)', function (): void {
+    RecordingStreamWrapper::register();
+    $path = RecordingStreamWrapper::url('/schema/page.yaml');
+
+    expect(static fn () => new FilesystemSchemaFiles()->write(new SchemaFile($path, 'schema/page.yaml', RecordingStreamWrapper::url('/schema')), "# line\n"))
+        ->toThrow(GenerationFailed::class, '[generate_schema_unwritable] schema/page.yaml cannot be written: its path '.$path.' names a stream wrapper')
+        ->and(RecordingStreamWrapper::$calls)->toBe([]);
 });

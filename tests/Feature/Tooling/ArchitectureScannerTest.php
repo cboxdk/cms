@@ -442,6 +442,79 @@ it('reports string callables and class names in strings, the framework filesyste
     ]);
 });
 
+it('reports the functions that write, move, remove or change a file name or directory, which ftp:// and other stream wrappers serve', function (): void {
+    $file = SourceFile::parse('Probe.php', <<<'PHP'
+        <?php
+
+        declare(strict_types=1);
+
+        namespace Cbox\Cms\Core\Schema\Adapter;
+
+        final class Uploader
+        {
+            public function run(string $url, array $urls): void
+            {
+                rename('/tmp/secret', $url);
+                unlink($url);
+                mkdir($url, 0o775, true);
+                rmdir($url);
+                touch($url);
+                chmod($url, 0o644);
+                chown($url, 'www-data');
+                chgrp($url, 'www-data');
+                bzopen($url, 'w');
+                array_map('unlink', $urls);
+                call_user_func('\\RENAME', '/tmp/secret', $url);
+                array_map('bzopen', $urls, ['w']);
+                is_dir($url);
+                file_exists($url);
+                $this->rename($url);
+            }
+        }
+        PHP);
+
+    expect(Egress::violations([$file]))->toBe([
+        'Probe.php:11: function rename',
+        'Probe.php:12: function unlink',
+        'Probe.php:13: function mkdir',
+        'Probe.php:14: function rmdir',
+        'Probe.php:15: function touch',
+        'Probe.php:16: function chmod',
+        'Probe.php:17: function chown',
+        'Probe.php:18: function chgrp',
+        'Probe.php:19: function bzopen',
+        'Probe.php:20: string unlink',
+        'Probe.php:21: string RENAME',
+        'Probe.php:22: string bzopen',
+    ]);
+});
+
+it('allows the local writers the file functions they call, and the other names stay forbidden there', function (): void {
+    $output = SourceFile::parse('FilesystemGeneratedOutput.php', <<<'PHP'
+        <?php
+
+        namespace Cbox\Cms\Generators\Generation\Adapter;
+
+        final readonly class FilesystemGeneratedOutput
+        {
+            public function write(string $path, string $temporary): void
+            {
+                mkdir(dirname($path), 0o775, true);
+                file_put_contents($temporary, 'x');
+                rename($temporary, $path);
+                unlink($temporary);
+                rmdir(dirname($path));
+                touch($path);
+            }
+        }
+        PHP);
+
+    expect(Egress::violations([$output]))->toBe([
+        'FilesystemGeneratedOutput.php:13: function rmdir',
+        'FilesystemGeneratedOutput.php:14: function touch',
+    ]);
+});
+
 it('lets the gateway and the allowed local uses through, and only the names they are allowed', function (): void {
     $gateway = SourceFile::parse('Gateway.php', "<?php\n\nnamespace ".Codebase::GATEWAY."\\Adapter;\n\nfinal class Client\n{\n    public function get(string \$url): void\n    {\n        fopen(\$url, 'r');\n    }\n}\n");
     $localFile = SourceFile::parse('LocalFile.php', <<<'PHP'

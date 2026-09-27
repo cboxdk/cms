@@ -27,6 +27,15 @@ final class RegistryCacheUnwritable extends RuntimeException
         ));
     }
 
+    public static function streamWrapper(string $directory): self
+    {
+        return new self(sprintf(
+            '[%s] Could not write the registry cache to %s: the path names a stream wrapper, and the registry cache is written only to a local directory (GUARDRAILS 3). Give the application a local bootstrap path, then run php artisan cms:build again.',
+            self::CODE,
+            $directory,
+        ));
+    }
+
     public static function removing(string $path, string $reason): self
     {
         return new self(sprintf(

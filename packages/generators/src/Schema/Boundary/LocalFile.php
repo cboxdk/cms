@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Schema\Boundary;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Storage\LocalPath;
 use RuntimeException;
 use SplFileObject;
 
@@ -21,18 +22,12 @@ use SplFileObject;
 final readonly class LocalFile
 {
     /**
-     * A path PHP hands to a stream wrapper instead of the filesystem: `scheme://` with the
-     * characters PHP allows in a scheme (compress.zlib:// among them), or `data:`.
-     */
-    public const string WRAPPER = '~\A(?:[A-Za-z0-9+.-]+://|data:)~i';
-
-    /**
      * The contents of the file, or null when it is not a readable regular file or the path names a
      * stream wrapper.
      */
     public static function contents(string $path): ?string
     {
-        if (preg_match(self::WRAPPER, $path) === 1 || ! is_file($path) || ! is_readable($path)) {
+        if (LocalPath::namesStreamWrapper($path) || ! is_file($path) || ! is_readable($path)) {
             return null;
         }
 

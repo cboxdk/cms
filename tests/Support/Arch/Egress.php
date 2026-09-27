@@ -29,14 +29,19 @@ use Illuminate\Support\Facades\Process;
  * That is more than the HTTP clients. PHP's URL wrappers make every function that opens a file
  * name fetch http://, https:// and ftp:// URLs: fopen, file, readfile, copy, SplFileObject,
  * SplFileInfo::openFile, DOMDocument::load, XMLReader::open and the others below. ftp:// also
- * writes (file_put_contents) and lists directories (scandir, the directory iterators), and the
- * framework's filesystems (Illuminate\Filesystem with the File facade, Symfony's Filesystem) pass
- * a URL on to them. An XML parser fetches external entities and XSLT's document(), and mail() and
+ * writes (file_put_contents), moves and removes files (rename, unlink), makes and removes
+ * directories (mkdir, rmdir) and lists them (opendir, scandir, dir, the directory iterators), and a
+ * wrapper a package registers can also take touch, chmod, chown and chgrp. The framework's
+ * filesystems (Illuminate\Filesystem with the File facade, Symfony's Filesystem) pass a URL on to
+ * them. The stat functions (is_file, file_exists, filesize and the like) are not listed: they only
+ * look, and the local code calls them everywhere. An XML parser fetches external entities and XSLT's document(), and mail() and
  * error_log() send mail. Sockets connect anywhere, and a process can run curl. The rule matches
  * exact names, read by ReferenceScan, also where a string names one: a string callable such as
  * array_map('file_get_contents', ...) or a class resolved from the container by its name.
  *
- * The allowances are the local uses the code has, each with the reason it stays local. Every
+ * The allowances are the local uses the code has, each with the reason it stays local: the local
+ * readers and writers refuse a path that names a stream wrapper (LocalPath::namesStreamWrapper())
+ * before they touch it, or take their directory from a type that is an absolute path. Every
  * allowance must still be in use, so one cannot outlive the code it was made for. At run time
  * allow_url_fopen=Off (php.allow_url_fopen in cms:doctor) turns the URL wrappers off as well.
  */
@@ -48,6 +53,7 @@ final class Egress
      */
     public const array FUNCTIONS = [
         // Reading or fetching a file name.
+        'bzopen',
         'copy',
         'exif_imagetype',
         'exif_read_data',
@@ -74,11 +80,21 @@ final class Egress
         'show_source',
         'simplexml_load_file',
         'simplexml_load_string',
-        // Writing a file name or listing a directory, which ftp:// does remotely.
+        // Writing, moving or removing a file name, or making, removing or listing a directory,
+        // which ftp:// does remotely.
         'dir',
         'file_put_contents',
+        'mkdir',
         'opendir',
+        'rename',
+        'rmdir',
         'scandir',
+        'unlink',
+        // Changing a file name's metadata, which a registered wrapper's stream_metadata() serves.
+        'chgrp',
+        'chmod',
+        'chown',
+        'touch',
         // Sending mail: error_log() with message type 1 mails its message.
         'error_log',
         'mail',
@@ -144,23 +160,31 @@ final class Egress
      * @var array<class-string, list<string>>
      */
     public const array ALLOWED = [
-        // Reads local files: it refuses a path that names a stream wrapper (LocalFile::WRAPPER)
-        // before it touches it, and the generators read every schema and generated file through it.
+        // Reads local files: it refuses a path that names a stream wrapper
+        // (LocalPath::namesStreamWrapper()) before it touches it, and the generators read every
+        // schema and generated file through it.
         LocalFile::class => ['SplFileObject'],
         // Lists a scan root with a RecursiveDirectoryIterator and reads the .php files it finds
-        // there; ScanRoot requires the directory to be an absolute path.
+        // there; ScanRoot requires the directory to be an absolute path, and the scanner lists its
+        // realpath(), which resolves no stream wrapper.
         AttributeScanner::class => ['FilesystemIterator', 'openfile', 'RecursiveDirectoryIterator'],
-        // Lists and writes bootstrap/cache/cms below the application's bootstrap path, the only
-        // directory CoreServiceProvider gives it, under the fixed names of RegistryName.
-        FileRegistryCache::class => ['file_put_contents', 'scandir'],
-        // Lists a schema root, whose base SchemaRoot requires to be an absolute path.
+        // Makes, lists, writes, renames into place and removes files in bootstrap/cache/cms below
+        // the application's bootstrap path, the only directory CoreServiceProvider gives it, under
+        // the fixed names of RegistryName; its constructor refuses a directory that names a
+        // stream wrapper.
+        FileRegistryCache::class => ['file_put_contents', 'mkdir', 'rename', 'scandir', 'unlink'],
+        // Lists a schema root, whose base SchemaRoot requires to be an absolute path, which names
+        // no stream wrapper.
         BlueprintFiles::class => ['FilesystemIterator', 'RecursiveDirectoryIterator'],
-        // Lists and writes the owned directories below cms.generators.root, which
-        // GenerationTarget requires to be an absolute path.
-        FilesystemGeneratedOutput::class => ['file_put_contents', 'FilesystemIterator', 'RecursiveDirectoryIterator'],
+        // Makes, lists, writes, renames into place and removes files in the owned directories
+        // below cms.generators.root, which GenerationTarget requires to be an absolute path; write()
+        // refuses a root that names a stream wrapper.
+        FilesystemGeneratedOutput::class => ['file_put_contents', 'FilesystemIterator', 'mkdir', 'RecursiveDirectoryIterator', 'rename', 'unlink'],
         // Writes a temporary file next to the realpath() of a schema file it found by listing a
-        // schema root; realpath() resolves no stream wrapper.
-        FilesystemSchemaFiles::class => ['file_put_contents'],
+        // schema root, gives it the file's permissions, renames it into place and removes it when
+        // that fails; write() refuses a path that names a stream wrapper, and realpath() resolves
+        // none.
+        FilesystemSchemaFiles::class => ['chmod', 'file_put_contents', 'rename', 'unlink'],
         // Runs `node --version` and `node -e` with a fixed script for cms:doctor --dev.
         ProcessToolProbe::class => ['Symfony\Component\Process\\'],
         // The testkit: PHPStan's analysed files, a lock file in the temporary directory, and child

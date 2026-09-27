@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Generation\Adapter;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Storage\LocalPath;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationResult;
 use Cbox\Cms\Generators\Generation\Domain\Dto\WriteReport;
 use Cbox\Cms\Generators\Generation\Domain\GeneratedOutput;
@@ -24,6 +25,9 @@ use SplFileInfo;
  * even a modification time. A changed file is written to a temporary file in the same directory
  * and renamed into place. Files in the owned directories that the result does not contain are
  * removed, so the output is a function of the schema alone.
+ *
+ * The root is local: a root that names a stream wrapper, such as ftp://, is refused before any file
+ * function sees it (GUARDRAILS 3).
  */
 #[Internal]
 final readonly class FilesystemGeneratedOutput implements GeneratedOutput
@@ -31,6 +35,13 @@ final readonly class FilesystemGeneratedOutput implements GeneratedOutput
     #[Override]
     public function write(string $root, GenerationResult $result): WriteReport
     {
+        if (LocalPath::namesStreamWrapper($root)) {
+            throw GenerationFailed::because(GenerateErrorCode::OutputUnwritable, sprintf(
+                'The root %s names a stream wrapper, and the generated code is written only to a local directory. Set cms.generators.root to an absolute local path.',
+                $root,
+            ));
+        }
+
         $written = [];
         $unchanged = [];
 

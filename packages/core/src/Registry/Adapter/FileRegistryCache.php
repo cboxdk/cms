@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Registry\Adapter;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Storage\LocalPath;
 use Cbox\Cms\Core\Registry\Boundary\RegistryCacheCodec;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\MalformedRegistryCache;
@@ -31,6 +32,9 @@ use Throwable;
  * so a registry an earlier version wrote, or a file someone put there, cannot linger. Two things
  * stay: subdirectories, which the cache never writes, and the temporary file of a registry that a
  * concurrent write has not renamed yet, because removing it would make that write fail.
+ *
+ * The cache writes only a local directory: write() refuses a directory that names a stream wrapper,
+ * such as ftp://, before any file function sees it (GUARDRAILS 3).
  */
 #[Internal]
 final readonly class FileRegistryCache implements RegistryCache
@@ -53,6 +57,10 @@ final readonly class FileRegistryCache implements RegistryCache
 
     public function write(CompiledRegistry $registry): void
     {
+        if (LocalPath::namesStreamWrapper($this->directory)) {
+            throw RegistryCacheUnwritable::streamWrapper($this->directory);
+        }
+
         $sources = $this->codec->encode($registry);
 
         if (! is_dir($this->directory)) {
