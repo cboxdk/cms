@@ -19,6 +19,7 @@ use Cbox\Cms\Testkit\Tests\Contract\FakeIdempotencyStoreContractTest;
 use Cbox\Cms\Testkit\Tests\Contract\FakeIdGeneratorContractTest;
 use Cbox\Cms\Testkit\Tests\Contract\FakeReceiptStoreContractTest;
 use Cbox\Cms\Tests\Support\Phpstan;
+use Examples\Contract\IdempotencyStore\CountingIdempotencyStoreContractTest;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionClass;
 use ReflectionMethod;
@@ -141,10 +142,19 @@ it('runs every shared ReceiptStore case once for the PostgresReceiptStore, in th
         ->and($listed)->toBe($expected);
 });
 
-it('runs every shared IdempotencyStore case once for the FakeIdempotencyStore', function (): void {
+it('runs every shared IdempotencyStore case once for the FakeIdempotencyStore and once for the documented CountingIdempotencyStore example', function (): void {
     $cases = sharedCases(IdempotencyStoreContract::class);
 
-    $expected = array_map(static fn (string $case): string => FakeIdempotencyStoreContractTest::class.'::'.$case, $cases);
+    $expected = [];
+
+    foreach ([FakeIdempotencyStoreContractTest::class, CountingIdempotencyStoreContractTest::class] as $class) {
+        foreach ($cases as $case) {
+            $expected[] = $class.'::'.$case;
+        }
+    }
+
+    // The example's own case for what the decorator adds.
+    $expected[] = CountingIdempotencyStoreContractTest::class.'::the_decorator_counts_every_claim_by_its_result';
 
     $listed = contractTests('IdempotencyStore');
     sort($expected);
