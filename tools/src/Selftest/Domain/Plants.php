@@ -193,6 +193,22 @@ final readonly class Plants
                 }
 
                 PHP, false, [self::MODULE.'/Domain/MarkerComment.php:12: '.$marker]),
+            new Plant(5, 'Arch', 'a handle of the fixture schema in a core package', self::MODULE.'/Domain/ContentType.php', <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace Cbox\Cms\Core\Selftest\Domain;
+
+                use Cbox\Cms\Contracts\Attributes\Internal;
+
+                #[Internal]
+                final readonly class ContentType
+                {
+                    public const string HANDLE = 'article';
+                }
+
+                PHP, false, [self::MODULE.'/Domain/ContentType.php:12: article']),
             new Plant(6, 'check:generated', 'a generated file edited by hand', 'workbench/app/Cms/Generated/TypeHandle.php', <<<'PHP'
 
                 // Edited by hand.

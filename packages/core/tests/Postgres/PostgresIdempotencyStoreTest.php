@@ -142,7 +142,7 @@ it('waits for another process\'s claim and replays its changeset once that trans
     $harness = PostgresIdempotencySessions::at($clock);
     $changeset = IdempotencyTables::changeset('2026-01-01T00:00:00Z');
 
-    $a = idempotencyChild('retry-me', '{"title":"A"}', 0, $changeset, 1000, '2026-01-01T00:00:01Z');
+    $a = idempotencyChild('retry-me', '{"value":"A"}', 0, $changeset, 1000, '2026-01-01T00:00:01Z');
     $a->waitForSignal('fresh');
 
     $b = $harness->session();
@@ -169,12 +169,12 @@ it('gives a claim with another content hash a Conflict once the holder commits',
     $harness = PostgresIdempotencySessions::at($clock);
     $changeset = IdempotencyTables::changeset('2026-01-01T00:00:00Z');
 
-    $a = idempotencyChild('retry-me', '{"title":"A"}', 0, $changeset, 300, '2026-01-01T00:00:01Z');
+    $a = idempotencyChild('retry-me', '{"value":"A"}', 0, $changeset, 300, '2026-01-01T00:00:01Z');
     $a->waitForSignal('fresh');
 
     $b = $harness->session();
     $b->begin();
-    $result = claimDefault($b, 3000, hash: IdempotencyTables::hash('{"title":"B"}'));
+    $result = claimDefault($b, 3000, hash: IdempotencyTables::hash('{"value":"B"}'));
     $a->waitForSignal('committed');
 
     expect($result)->toBeInstanceOf(Conflict::class)
@@ -191,8 +191,8 @@ it('never gives two Fresh claims when two processes race for one key with differ
         // The test holds the barrier; both children wait for it, then claim at the same moment.
         DB::connection()->select('select pg_advisory_lock(?)', [$barrier]);
         $children = [
-            idempotencyChild($key, '{"title":"A"}', 3000, IdempotencyTables::changeset('2026-01-01T00:00:00Z', $round * 2), 200, '2026-01-01T00:00:01Z', $barrier),
-            idempotencyChild($key, '{"title":"B"}', 3000, IdempotencyTables::changeset('2026-01-01T00:00:00Z', $round * 2 + 1), 200, '2026-01-01T00:00:01Z', $barrier),
+            idempotencyChild($key, '{"value":"A"}', 3000, IdempotencyTables::changeset('2026-01-01T00:00:00Z', $round * 2), 200, '2026-01-01T00:00:01Z', $barrier),
+            idempotencyChild($key, '{"value":"B"}', 3000, IdempotencyTables::changeset('2026-01-01T00:00:00Z', $round * 2 + 1), 200, '2026-01-01T00:00:01Z', $barrier),
         ];
         waitForIdempotencyLockWaiters(2);
         DB::connection()->select('select pg_advisory_unlock(?)', [$barrier]);
@@ -215,7 +215,7 @@ it('returns InFlight within the budget while another process holds the claim, an
     $clock = new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z'));
     $harness = PostgresIdempotencySessions::at($clock);
 
-    $a = idempotencyChild('retry-me', '{"title":"A"}', 0, IdempotencyTables::changeset('2026-01-01T00:00:00Z'), 2000, '2026-01-01T00:00:01Z');
+    $a = idempotencyChild('retry-me', '{"value":"A"}', 0, IdempotencyTables::changeset('2026-01-01T00:00:00Z'), 2000, '2026-01-01T00:00:01Z');
     $a->waitForSignal('fresh');
 
     $b = $harness->session();
@@ -426,7 +426,7 @@ it('only serialises two keys whose lock keys collide, and never mixes their reco
         'principal' => 'user:7',
         'command_type' => 'entry.release',
         'idempotency_key' => 'colliding-key',
-        'content_hash' => IdempotencyTables::hash('{"title":"B"}')->value,
+        'content_hash' => IdempotencyTables::hash('{"value":"B"}')->value,
         'changeset_id' => IdempotencyTables::changeset('2026-01-01T00:00:00Z')->toString(),
         'expires_at' => '2026-01-08T00:00:00Z',
         'created_at' => '2026-01-01T00:00:00Z',

@@ -99,7 +99,7 @@ trait IdempotencyStoreContract
 
         $session = $harness->session();
         $session->begin();
-        $result = $session->idempotency()->claim($this->scope(), $this->key(), ContentHash::of('{"title":"B"}'), WaitBudget::none());
+        $result = $session->idempotency()->claim($this->scope(), $this->key(), ContentHash::of('{"value":"B"}'), WaitBudget::none());
 
         Assert::assertInstanceOf(Conflict::class, $result, 'The same key with another content hash is not a conflict.');
         Assert::assertTrue($result->scope->equals($this->scope()) && $result->key->equals($this->key()), 'The conflict names another key.');
@@ -314,7 +314,7 @@ trait IdempotencyStoreContract
         $replaying->commit();
 
         $conflicting->begin();
-        Assert::assertInstanceOf(Conflict::class, $conflicting->idempotency()->claim($this->scope(), $this->key(), ContentHash::of('{"title":"B"}'), WaitBudget::none()));
+        Assert::assertInstanceOf(Conflict::class, $conflicting->idempotency()->claim($this->scope(), $this->key(), ContentHash::of('{"value":"B"}'), WaitBudget::none()));
         Assert::assertInstanceOf(InFlight::class, $this->claimOn($waiter), 'A conflicting claim did not hold the key.');
         $conflicting->rollBack();
 
@@ -352,7 +352,7 @@ trait IdempotencyStoreContract
         $session->idempotency()->complete($token, $changesetId);
 
         $this->assertReplay($changesetId, $this->claimOn($session), 'The holding transaction does not see its own record.');
-        Assert::assertInstanceOf(Conflict::class, $session->idempotency()->claim($this->scope(), $this->key(), ContentHash::of('{"title":"B"}'), WaitBudget::none()));
+        Assert::assertInstanceOf(Conflict::class, $session->idempotency()->claim($this->scope(), $this->key(), ContentHash::of('{"value":"B"}'), WaitBudget::none()));
     }
 
     #[Test]
@@ -436,7 +436,7 @@ trait IdempotencyStoreContract
 
     private function hash(): ContentHash
     {
-        return ContentHash::of('{"title":"A"}');
+        return ContentHash::of('{"value":"A"}');
     }
 
     /**

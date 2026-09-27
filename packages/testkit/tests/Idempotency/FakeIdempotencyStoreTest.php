@@ -37,7 +37,7 @@ function fakeClaim(FakeIdempotencySession $session, int $budget = 0): ClaimResul
     return $session->claim(
         IdempotencyScope::forActor(new PrincipalId('user:7'), new CommandName('entry.release')),
         new IdempotencyKey('retry-me'),
-        ContentHash::of('{"title":"A"}'),
+        ContentHash::of('{"value":"A"}'),
         WaitBudget::milliseconds($budget),
     );
 }

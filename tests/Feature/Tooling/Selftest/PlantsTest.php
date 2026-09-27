@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Tests\Feature\Tooling\Selftest;
 
+use Cbox\Cms\Tests\Support\Arch\ContentTypeScan;
 use Cbox\Cms\Tests\Support\Arch\MarkerScan;
 use Cbox\Cms\Tests\Support\Phpstan;
 use Cbox\Cms\Tests\Support\Tooling\ScratchDirectory;
@@ -60,6 +61,20 @@ it('plants a marker word of GUARDRAILS 11 that the marker gate reports at the fi
         ->and($plants[0]->step)->toBe('Arch')
         ->and($plants[0]->markers)->toBe([Plants::MODULE.'/Domain/MarkerComment.php:12: '.strtoupper(MarkerScan::WORDS[0])])
         ->and(MarkerScan::of($repository->root)->hits)->toBe($plants[0]->markers);
+});
+
+it('plants a handle of the fixture schema that the content type rule reports at the file and line the plant expects', function (): void {
+    $plants = array_values(array_filter(Plants::all(), static fn (Plant $plant): bool => $plant->path === Plants::MODULE.'/Domain/ContentType.php'));
+    $worktree = ScratchDirectory::make();
+
+    expect($plants)->toHaveCount(1);
+
+    $plants[0]->plantIn($worktree);
+
+    expect($plants[0]->gate)->toBe(5)
+        ->and($plants[0]->step)->toBe('Arch')
+        ->and($plants[0]->markers)->toBe([Plants::MODULE.'/Domain/ContentType.php:12: article'])
+        ->and(ContentTypeScan::of($worktree, ContentTypeScan::handlesBelow(Phpstan::root().'/'.ContentTypeScan::SCHEMA))->hits)->toBe($plants[0]->markers);
 });
 
 it('aims every violation at a step the local profile runs', function (): void {

@@ -33,7 +33,7 @@ final class IdempotencyTables
         return new IdempotencyKey($value);
     }
 
-    public static function hash(string $content = '{"title":"A"}'): ContentHash
+    public static function hash(string $content = '{"value":"A"}'): ContentHash
     {
         return ContentHash::of($content);
     }
