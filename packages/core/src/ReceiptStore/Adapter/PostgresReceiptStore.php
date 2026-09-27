@@ -47,12 +47,18 @@ use Illuminate\Database\QueryException;
  * waits for it until the first transaction ends, and its lookup, a new statement under READ
  * COMMITTED, the command transaction's level, sees the committed receipt. Under SERIALIZABLE the
  * second transaction fails to serialise instead. Without a transaction a transaction-scoped lock
- * would end with its own statement, before the lookup and the inserts, so store() takes the
- * session-level lock on the same key and releases it after the inserts, when each of them has
- * committed on its own; the next store's lookup then sees the receipt. The two forms share one
- * key, so a store inside a transaction and one outside wait for each other too. The lock is a
- * blocking wait, as the key wait of the insert was before it: the second store of a changeset is a
- * caller's error, not a path that is expected to wait.
+ * would end with its own statement, before the lookup and the insert, so store() takes the
+ * session-level lock on the same key and releases it after the insert has committed; the next
+ * store's lookup then sees the receipt. The two forms share one key, so a store inside a
+ * transaction and one outside wait for each other too. The lock is a blocking wait, as the key
+ * wait of the insert was before it: the second store of a changeset is a caller's error, not a
+ * path that is expected to wait.
+ *
+ * The receipt row and its projection rows are written by one statement (INSERT_RECEIPT, with a
+ * data-modifying CTE per table), so they commit or fail together also without a transaction, when
+ * every statement commits on its own: a projection row that no partition covers fails the whole
+ * statement, and nothing of the receipt is stored. The projection rows are inserted from the
+ * receipt row the CTE returns, so a receipt that ON CONFLICT DO NOTHING skips writes none.
  *
  * Expiry is logical, as the contract says: find() and markProjection() only match a Standard
  * receipt whose changeset id is at or after the lowest id that is still live at the Clock's time.
@@ -82,6 +88,35 @@ final readonly class PostgresReceiptStore implements ReceiptStore
     /** Releases the session-level lock once the store outside a transaction has committed. */
     public const string UNLOCK_CHANGESET_SESSION = 'select pg_advisory_unlock(?)';
 
+    /**
+     * Inserts the receipt row and, with {@see self::PROJECTION_ROWS} in place of %s, its projection
+     * rows, in one statement. It returns the number of receipt rows inserted: 0 when ON CONFLICT DO
+     * NOTHING skipped a receipt of the changeset and class.
+     */
+    public const string INSERT_RECEIPT = <<<'SQL'
+        with receipt as (
+            insert into "receipts" (changeset_id, retention_class)
+            values (?, ?)
+            on conflict do nothing
+            returning changeset_id, retention_class
+        )%s
+        select count(*) as inserted from receipt
+        SQL;
+
+    /**
+     * The projection rows of INSERT_RECEIPT, one `(?::text, ?::text, ?::timestamptz)` per
+     * projection in place of %s, inserted for the receipt row the statement inserted.
+     */
+    public const string PROJECTION_ROWS = <<<'SQL'
+        , projections as (
+            insert into "receipt_projections" (changeset_id, retention_class, projection, state, acknowledged_at)
+            select receipt.changeset_id, receipt.retention_class, projection.name, projection.state, projection.acknowledged_at
+            from receipt cross join (values %s) as projection (name, state, acknowledged_at)
+        )
+        SQL;
+
+    private const string PROJECTION_ROW = '(?::text, ?::text, ?::timestamptz)';
+
     private const int MILLISECONDS_PER_DAY = 86_400_000;
 
     /**
@@ -106,7 +141,7 @@ final readonly class PostgresReceiptStore implements ReceiptStore
         // changeset across the classes: a second store of the changeset waits here until the first
         // has committed, and its lookup, a new statement, sees that receipt. Inside the caller's
         // transaction the lock lasts until the transaction ends. Without one each statement commits
-        // on its own, so the lock must outlast the inserts: a session-level lock, released below.
+        // on its own, so the lock must outlast the insert: a session-level lock, released below.
         if ($db->transactionLevel() > 0) {
             $this->insert($db, $receipt, self::LOCK_CHANGESET, $lockKey);
 
@@ -138,27 +173,23 @@ final readonly class PostgresReceiptStore implements ReceiptStore
                 throw DuplicateReceipt::forChangeset($changesetId);
             }
 
+            // One statement for the receipt and its projections, so they commit or fail together.
             // ON CONFLICT DO NOTHING: a duplicate is reported without aborting the caller's transaction.
-            $inserted = $db->table(self::RECEIPTS)->insertOrIgnore([
-                'changeset_id' => $id,
-                'retention_class' => $receipt->retentionClass->value,
-            ]);
+            $bindings = [$id, $receipt->retentionClass->value];
+            $rows = [];
 
-            if ($inserted === 0) {
-                throw DuplicateReceipt::forChangeset($changesetId);
+            foreach ($receipt->projections as $status) {
+                $rows[] = self::PROJECTION_ROW;
+                $bindings[] = $status->projection->value;
+                $bindings[] = $status->state->value;
+                $bindings[] = $this->timestamp($status->acknowledgedAt);
             }
 
-            if ($receipt->projections !== []) {
-                $db->table(self::PROJECTIONS)->insert(array_map(
-                    fn (ProjectionStatus $status): array => [
-                        'changeset_id' => $id,
-                        'retention_class' => $receipt->retentionClass->value,
-                        'projection' => $status->projection->value,
-                        'state' => $status->state->value,
-                        'acknowledged_at' => $this->timestamp($status->acknowledgedAt),
-                    ],
-                    $receipt->projections,
-                ));
+            $projections = $rows === [] ? '' : sprintf(self::PROJECTION_ROWS, implode(', ', $rows));
+            $result = $db->selectOne(sprintf(self::INSERT_RECEIPT, $projections), $bindings, false);
+
+            if (! is_object($result) || ! property_exists($result, 'inserted') || $result->inserted !== 1) {
+                throw DuplicateReceipt::forChangeset($changesetId);
             }
         } catch (QueryException $exception) {
             throw MissingPartitionMapper::map($exception);
