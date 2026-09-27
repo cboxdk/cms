@@ -24,7 +24,9 @@ interface RegistryCache
     public function write(CompiledRegistry $registry): void;
 
     /**
-     * Reads the file of each RegistryName into typed entries.
+     * Reads the file of each RegistryName into typed entries, all from one build: a read while a
+     * write replaces the files gives the whole old or the whole new registry, and files that stay
+     * from different builds are MalformedRegistryCache.
      *
      * @throws RegistryCacheMissing
      * @throws MalformedRegistryCache

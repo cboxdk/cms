@@ -18,8 +18,14 @@ use Throwable;
  * The registry cache as PHP files in one directory, bootstrap/cache/cms/ in an application
  * (PRD 13.2). PHP files, so OPcache keeps them in memory and reading them costs no parsing.
  *
- * Each file is written to a temporary file in the same directory and renamed over the old one, so
- * a request that reads the cache while cms:build runs sees either the old file or the new one.
+ * A write puts every file in a temporary file in the same directory first and then renames them
+ * over the old ones, one after the other, so a reader sees either the old or the new version of
+ * each file, but can meet the new actions.php next to the old hooks.php. The files carry the build
+ * they come from (RegistryCacheCodec), and read() does not mix builds: when the files it loaded come
+ * from different builds, it tells OPcache to forget them and loads them again, up to READ_ATTEMPTS
+ * times with READ_PAUSE_MICROSECONDS between, so it gives the whole old or the whole new registry.
+ * Files that stay mixed, as a build that stopped between two renames leaves them, are
+ * MalformedRegistryCache until cms:build runs again.
  *
  * The cache owns its directory. After the files are in place, every other file there is removed,
  * so a registry an earlier version wrote, or a file someone put there, cannot linger. Two things
@@ -29,6 +35,12 @@ use Throwable;
 #[Internal]
 final readonly class FileRegistryCache implements RegistryCache
 {
+    /** How many times read() loads the files when they come from different builds. */
+    public const int READ_ATTEMPTS = 10;
+
+    /** How long read() waits before it loads files from different builds again. */
+    public const int READ_PAUSE_MICROSECONDS = 5_000;
+
     public function __construct(
         private string $directory,
         private RegistryCacheCodec $codec,
@@ -51,14 +63,38 @@ final readonly class FileRegistryCache implements RegistryCache
             }
         }
 
-        foreach (RegistryName::cases() as $name) {
-            $this->replace($this->path($name), $sources[$name->value]);
-        }
-
+        $this->replace($sources);
         $this->removeOthers();
     }
 
     public function read(): CompiledRegistry
+    {
+        for ($attempt = 1; ; $attempt++) {
+            $files = $this->load();
+
+            if ($attempt >= self::READ_ATTEMPTS || ! $this->codec->fromDifferentBuilds($files)) {
+                return $this->codec->decode($files, $this->directory);
+            }
+
+            // A worker's OPcache can keep a file of the old build after the new one is in place.
+            foreach (RegistryName::cases() as $name) {
+                $path = $this->path($name);
+                $this->attempt(static fn (): bool => ! function_exists('opcache_invalidate') || opcache_invalidate($path, true), 'OPcache could not forget the file');
+            }
+
+            usleep(self::READ_PAUSE_MICROSECONDS);
+        }
+    }
+
+    /**
+     * What the file of each registry returns, keyed by registry name.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws RegistryCacheMissing
+     * @throws MalformedRegistryCache
+     */
+    private function load(): array
     {
         $files = [];
 
@@ -76,7 +112,7 @@ final readonly class FileRegistryCache implements RegistryCache
             }
         }
 
-        return $this->codec->decode($files, $this->directory);
+        return $files;
     }
 
     private function path(RegistryName $name): string
@@ -128,22 +164,55 @@ final readonly class FileRegistryCache implements RegistryCache
         }
     }
 
-    private function replace(string $path, string $source): void
+    /**
+     * Writes every file to a temporary file and then renames them into place in the order of
+     * RegistryName, so the files of a build change within a few renames of each other. A failure
+     * removes the temporary files that are left.
+     *
+     * @param  array<string, string>  $sources  the PHP source of each file, keyed by registry name
+     *
+     * @throws RegistryCacheUnwritable
+     */
+    private function replace(array $sources): void
     {
-        $temporary = sprintf('%s.%s.tmp', $path, bin2hex(random_bytes(8)));
+        $temporaries = [];
 
-        $failure = $this->attempt(static fn (): bool => file_put_contents($temporary, $source) === strlen($source), 'the file could not be written')
-            ?? $this->attempt(static fn (): bool => rename($temporary, $path), 'the file could not be moved into place');
+        try {
+            foreach (RegistryName::cases() as $name) {
+                $path = $this->path($name);
+                $source = $sources[$name->value];
+                $temporary = sprintf('%s.%s.tmp', $path, bin2hex(random_bytes(8)));
+                $temporaries[$name->value] = $temporary;
 
-        if ($failure !== null) {
-            $this->attempt(static fn (): bool => ! is_file($temporary) || unlink($temporary), 'the temporary file could not be removed');
+                $failure = $this->attempt(static fn (): bool => file_put_contents($temporary, $source) === strlen($source), 'the file could not be written');
 
-            throw RegistryCacheUnwritable::at($path, $failure);
+                if ($failure !== null) {
+                    throw RegistryCacheUnwritable::at($path, $failure);
+                }
+            }
+
+            foreach ($temporaries as $registry => $temporary) {
+                $path = $this->path(RegistryName::from($registry));
+
+                $failure = $this->attempt(static fn (): bool => rename($temporary, $path), 'the file could not be moved into place');
+
+                if ($failure !== null) {
+                    throw RegistryCacheUnwritable::at($path, $failure);
+                }
+
+                unset($temporaries[$registry]);
+            }
+        } finally {
+            foreach ($temporaries as $temporary) {
+                $this->attempt(static fn (): bool => ! is_file($temporary) || unlink($temporary), 'the temporary file could not be removed');
+            }
         }
 
-        // A long-running worker keeps the old file in OPcache until it is told otherwise.
+        // A long-running worker keeps the old files in OPcache until it is told otherwise.
         if (function_exists('opcache_invalidate')) {
-            opcache_invalidate($path, true);
+            foreach (RegistryName::cases() as $name) {
+                opcache_invalidate($this->path($name), true);
+            }
         }
     }
 

@@ -104,7 +104,7 @@ it('refuses a cache file that returns something else', function (): void {
     file_put_contents($directory.'/actions.php', "<?php return 'actions';\n");
 
     expect(fn (): CompiledRegistry => RegistryFixtures::cache($directory)->read())
-        ->toThrow(MalformedRegistryCache::class, 'expected an array with the keys entries, format, registry, got string');
+        ->toThrow(MalformedRegistryCache::class, 'expected an array with the keys build, entries, format, registry, got string');
 });
 
 it('reports a directory it cannot create with the reason', function (): void {

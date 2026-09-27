@@ -129,14 +129,19 @@ it('writes the three files, and reading them back gives the registry that was bu
         ->and(RegistryFixtures::cache($directory)->read())->toEqual($built);
 
     $actions = RegistryFixtures::load($directory.'/actions.php');
+    $commands = RegistryFixtures::load($directory.'/commands.php');
+    Assert::assertIsArray($actions);
+    Assert::assertIsArray($commands);
 
     expect($actions)->toBe([
+        'build' => $commands['build'],
         'entries' => [
             ['class' => CreateNoteAction::class, 'package' => RegistryFixtures::PACKAGE, 'surfaces' => ['rest', 'cli']],
         ],
-        'format' => 1,
+        'format' => 2,
         'registry' => 'actions',
-    ]);
+    ])
+        ->and($actions['build'])->toMatch('/\A[0-9a-f]{64}\z/');
 });
 
 it('writes three empty registries when there are no scan roots', function (): void {
@@ -147,9 +152,11 @@ it('writes three empty registries when there are no scan roots', function (): vo
         ->and($registry->commands)->toBe([])
         ->and($registry->hooks)->toBe([]);
 
+    $build = hash('sha256', "actions => [];\ncommands => [];\nhooks => [];\n");
+
     foreach (RegistryName::cases() as $name) {
         expect(RegistryFixtures::load($directory.'/'.$name->fileName()))
-            ->toBe(['entries' => [], 'format' => 1, 'registry' => $name->value]);
+            ->toBe(['build' => $build, 'entries' => [], 'format' => 2, 'registry' => $name->value]);
     }
 });
 

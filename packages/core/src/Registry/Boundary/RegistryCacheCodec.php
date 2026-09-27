@@ -17,17 +17,23 @@ use Cbox\Cms\Core\Registry\Domain\RegistryName;
 use LogicException;
 
 /**
- * The registry cache files of format 1, in both directions (PRD 13.2).
+ * The registry cache files of format 2, in both directions (PRD 13.2).
  *
- * A file is PHP that returns ['entries' => [...], 'format' => 1, 'registry' => '<name>']. The keys
- * of every array are written in alphabetical order, lists keep the compiled order, and nothing
- * depends on the time or the machine, so the same registry always gives the same bytes. Reading checks every
- * key and type and builds the typed entries; anything else is MalformedRegistryCache.
+ * A file is PHP that returns ['build' => '<sha256>', 'entries' => [...], 'format' => 2,
+ * 'registry' => '<name>']. The keys of every array are written in alphabetical order, lists keep
+ * the compiled order, and nothing depends on the time or the machine, so the same registry always
+ * gives the same bytes. Reading checks every key and type and builds the typed entries; anything
+ * else is MalformedRegistryCache.
+ *
+ * The build is the sha256 of the entries of every registry, so every file of one cms:build carries
+ * the same build and files of builds with other entries do not. The files are replaced one at a
+ * time, so a reader can meet files of two builds; decode() refuses them, and fromDifferentBuilds()
+ * tells the reader to look again.
  */
 #[Internal]
 final readonly class RegistryCacheCodec
 {
-    public const int FORMAT = 1;
+    public const int FORMAT = 2;
 
     private const string HEADER = <<<'PHP'
         <?php
@@ -44,7 +50,52 @@ final readonly class RegistryCacheCodec
      */
     public function encode(CompiledRegistry $registry): array
     {
-        $entries = [
+        $entries = $this->entries($registry);
+        $build = $this->build($entries);
+        $files = [];
+
+        foreach (RegistryName::cases() as $name) {
+            $files[$name->value] = self::HEADER."\nreturn ".$this->emit([
+                'build' => $build,
+                'entries' => $entries[$name->value],
+                'format' => self::FORMAT,
+                'registry' => $name->value,
+            ], 0).";\n";
+        }
+
+        return $files;
+    }
+
+    /**
+     * Whether the files come from builds with different entries, as they do when they were read
+     * while cms:build replaced them. False when a file does not name its build, which decode()
+     * reports.
+     *
+     * @param  array<string, mixed>  $files  what each file returned, keyed by registry name
+     */
+    public function fromDifferentBuilds(array $files): bool
+    {
+        $builds = [];
+
+        foreach ($files as $file) {
+            if (! is_array($file) || ! is_string($file['build'] ?? null)) {
+                return false;
+            }
+
+            $builds[$file['build']] = true;
+        }
+
+        return count($builds) > 1;
+    }
+
+    /**
+     * The entries of each registry as the files hold them, keyed by registry name.
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private function entries(CompiledRegistry $registry): array
+    {
+        return [
             RegistryName::Actions->value => array_map(static fn (ActionEntry $action): array => [
                 'class' => $action->class,
                 'package' => $action->package,
@@ -67,18 +118,22 @@ final readonly class RegistryCacheCodec
                 'priority' => $hook->priority,
             ], $registry->hooks),
         ];
+    }
 
-        $files = [];
+    /**
+     * The sha256 of the entries of every registry, in the order of RegistryName.
+     *
+     * @param  array<string, list<array<string, mixed>>>  $entries  keyed by registry name
+     */
+    private function build(array $entries): string
+    {
+        $source = '';
 
         foreach (RegistryName::cases() as $name) {
-            $files[$name->value] = self::HEADER."\nreturn ".$this->emit([
-                'entries' => $entries[$name->value],
-                'format' => self::FORMAT,
-                'registry' => $name->value,
-            ], 0).";\n";
+            $source .= $name->value.' => '.$this->emit($entries[$name->value], 0).";\n";
         }
 
-        return $files;
+        return hash('sha256', $source);
     }
 
     /**
@@ -90,18 +145,36 @@ final readonly class RegistryCacheCodec
     public function decode(array $files, string $directory): CompiledRegistry
     {
         $entries = [];
+        $first = null;
 
         foreach (RegistryName::cases() as $name) {
             $path = $directory.'/'.$name->fileName();
             $file = $files[$name->value] ?? null;
-            $data = $this->map($file, $path, '', ['entries', 'format', 'registry']);
 
-            if ($data['format'] !== self::FORMAT) {
-                throw MalformedRegistryCache::at($path, 'format', sprintf('format %s is not format %d, which this version of the core reads', $this->show($data['format']), self::FORMAT));
+            // Checked before the keys, so a cache of another format says so instead of naming keys.
+            if (is_array($file) && array_key_exists('format', $file) && $file['format'] !== self::FORMAT) {
+                throw MalformedRegistryCache::at($path, 'format', sprintf('format %s is not format %d, which this version of the core reads', $this->show($file['format']), self::FORMAT));
             }
+
+            $data = $this->map($file, $path, '', ['build', 'entries', 'format', 'registry']);
 
             if ($data['registry'] !== $name->value) {
                 throw MalformedRegistryCache::at($path, 'registry', sprintf('it names the registry %s, not "%s"', $this->show($data['registry']), $name->value));
+            }
+
+            $build = $this->string($data['build'], $path, 'build');
+
+            if (preg_match('/\A[0-9a-f]{64}\z/', $build) !== 1) {
+                throw MalformedRegistryCache::at($path, 'build', sprintf('"%s" is not a sha256 in lowercase hex', $build));
+            }
+
+            if ($first === null) {
+                $first = [$name, $build];
+            } elseif ($build !== $first[1]) {
+                throw MalformedRegistryCache::at($path, 'build', sprintf(
+                    'it comes from another cms:build than %s: the files were read while a build replaced them, or a build stopped before it had replaced them all',
+                    $first[0]->fileName(),
+                ));
             }
 
             $entries[$name->value] = $this->list($data['entries'], $path, 'entries');
@@ -160,7 +233,13 @@ final readonly class RegistryCacheCodec
             ));
         }
 
-        return new CompiledRegistry($actions, $commands, $hooks);
+        $registry = new CompiledRegistry($actions, $commands, $hooks);
+
+        if ($this->build($this->entries($registry)) !== $first[1]) {
+            throw MalformedRegistryCache::at($directory.'/'.$first[0]->fileName(), 'build', 'the build does not match the entries of the registry files, so they were changed after cms:build wrote them');
+        }
+
+        return $registry;
     }
 
     /**
