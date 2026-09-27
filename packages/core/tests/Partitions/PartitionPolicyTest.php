@@ -28,8 +28,8 @@ it('waits nothing before the first attempt and doubles the backoff after', funct
 it('refuses values outside their range and a table listed twice', function (callable $build, string $message): void {
     expect($build)->toThrow(InvalidPartitionPolicy::class, $message);
 })->with([
-    'no connection' => [static fn (): PartitionPolicy => new PartitionPolicy('', []), '[cms.database.owner_connection]'],
-    'no runway' => [static fn (): PartitionPolicy => new PartitionPolicy('o', [], runwayDays: 0), '[cms.database.partitions.runway_days] is "0"'],
+    'no connection' => [static fn (): PartitionPolicy => new PartitionPolicy('', []), '[cbox-cms.database.owner_connection]'],
+    'no runway' => [static fn (): PartitionPolicy => new PartitionPolicy('o', [], runwayDays: 0), '[cbox-cms.database.partitions.runway_days] is "0"'],
     'long runway' => [static fn (): PartitionPolicy => new PartitionPolicy('o', [], runwayDays: 367), 'from 1 to 366'],
     'no timeout' => [static fn (): PartitionPolicy => new PartitionPolicy('o', [], lockTimeoutMs: 0), 'partitions.lock_timeout_ms'],
     'no attempts' => [static fn (): PartitionPolicy => new PartitionPolicy('o', [], attempts: 0), 'partitions.attempts'],

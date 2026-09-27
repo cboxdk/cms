@@ -12,8 +12,8 @@ use Throwable;
 use UnexpectedValueException;
 
 /**
- * Builds the checks that an application or addon names in `cms.doctor.checks` and
- * `cms.doctor.dev_checks` from the container, so a check gets what it looks at through its
+ * Builds the checks that an application or addon names in `cbox-cms.doctor.checks` and
+ * `cbox-cms.doctor.dev_checks` from the container, so a check gets what it looks at through its
  * constructor, as the contract asks.
  *
  * A check that cannot be used is a configuration problem, not a crash of cms:doctor: when the
@@ -28,7 +28,7 @@ final readonly class ContainerDoctorChecks
     /**
      * The checks of one setting, in its order.
      *
-     * @param  string  $key  the setting below cms.doctor that names the classes, for the message
+     * @param  string  $key  the setting below cbox-cms.doctor that names the classes, for the message
      * @param  list<class-string<DoctorCheck>>  $classes
      * @return list<DoctorCheck>
      *

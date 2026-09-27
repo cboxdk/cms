@@ -10,7 +10,7 @@ use Cbox\Cms\Core\Doctor\Domain\ProbeFailed;
 use DateTimeImmutable;
 
 /**
- * How far the partitions of each table in `cms.database.partitions.tables` reach from now without
+ * How far the partitions of each table in `cbox-cms.database.partitions.tables` reach from now without
  * a gap (PRD 4, 4.2), read from the catalog as the app role.
  */
 #[Internal]

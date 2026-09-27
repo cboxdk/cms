@@ -10,7 +10,7 @@ This page covers the contract a check keeps, `Cbox\Cms\Contracts\Doctor\DoctorCh
 
 ## Which checks run
 
-`cms:doctor` runs the core's own checks, which `CoreServiceProvider` in `cboxdk/cms-core` builds, and after them the checks an application or addon adds in `cms.doctor.checks` and `cms.doctor.dev_checks` (see [Adding a check](#adding-a-check)).
+`cms:doctor` runs the core's own checks, which `CoreServiceProvider` in `cboxdk/cms-core` builds, and after them the checks an application or addon adds in `cbox-cms.doctor.checks` and `cbox-cms.doctor.dev_checks` (see [Adding a check](#adding-a-check)).
 
 The core's checks run in this order. The last three run only with `--dev`. A check that is not blocking only affects readiness: the kernel still starts while it fails.
 
@@ -35,16 +35,16 @@ The core's checks run in this order. The last three run only with `--dev`. A che
 | `dev.playwright` | no | `dev.node` | Playwright is installed in the project |
 | `dev.chromium` | no | `dev.playwright` | Playwright's Chromium is downloaded |
 
-When the doctor's own settings, `cms.doctor`, are invalid, or a check added there cannot be used, the doctor runs none of these. It runs the single check `doctor.config` instead, which fails as a violation with the code `doctor_config_invalid` and names the setting in its cause, so the command still prints its document and exits with the violation code.
+When the doctor's own settings, `cbox-cms.doctor`, are invalid, or a check added there cannot be used, the doctor runs none of these. It runs the single check `doctor.config` instead, which fails as a violation with the code `doctor_config_invalid` and names the setting in its cause, so the command still prints its document and exits with the violation code.
 
 ## Adding a check
 
 An application or addon adds its own checks by class name in two lists of the core's configuration:
 
-- `cms.doctor.checks`: the checks run after the core's runtime checks, in the order of the list, with and without `--dev`.
-- `cms.doctor.dev_checks`: the checks run only with `--dev`, after the core's development checks, in the order of the list.
+- `cbox-cms.doctor.checks`: the checks run after the core's runtime checks, in the order of the list, with and without `--dev`.
+- `cbox-cms.doctor.dev_checks`: the checks run only with `--dev`, after the core's development checks, in the order of the list.
 
-An application sets them in its `config/cms.php`, for example `'doctor' => ['checks' => [UploadsDirectoryCheck::class]]`. An addon ships the check class and names it in its installation guide, so the application decides which checks its doctor runs. Both lists are empty by default.
+An application sets them in its `config/cbox-cms.php`, for example `'doctor' => ['checks' => [UploadsDirectoryCheck::class]]`. An addon ships the check class and names it in its installation guide, so the application decides which checks its doctor runs. Both lists are empty by default.
 
 The container builds each check when the doctor makes its list, so a check gets what it looks at through its constructor, as the contract asks: bind a class it needs, or give a value such as a path with a contextual binding in a service provider's `register()`, for example `$this->app->when(UploadsDirectoryCheck::class)->needs('$directory')->give(storage_path('uploads'))`.
 
@@ -55,7 +55,7 @@ The added checks keep the same rules as the core's:
 
 A problem with an added check is a configuration problem, and the doctor reports it as the failing check `doctor.config` in place of every other check, with a cause that names the setting:
 
-- the list is not a list, or an entry is not the name of a class that implements `DoctorCheck`, as in `The setting cms.doctor.checks.0 must be the name of a class that implements Cbox\Cms\Contracts\Doctor\DoctorCheck; it is 'stdClass'.`;
+- the list is not a list, or an entry is not the name of a class that implements `DoctorCheck`, as in `The setting cbox-cms.doctor.checks.0 must be the name of a class that implements Cbox\Cms\Contracts\Doctor\DoctorCheck; it is 'stdClass'.`;
 - the container cannot build the class, a binding gives something that does not implement `DoctorCheck`, or the check's `id()` or `requires()` throws, as for an invalid `CheckId`;
 - an id repeats, or a check requires one that does not run before it.
 
@@ -73,7 +73,7 @@ use Examples\Contract\Doctor\UploadsDirectoryCheck;
 use Illuminate\Support\Facades\Artisan;
 
 // Adds UploadsDirectoryCheck to cms:doctor the way an application does it: the class name in
-// cms.doctor.checks, which an application sets in its config/cms.php, and a contextual binding for
+// cbox-cms.doctor.checks, which an application sets in its config/cbox-cms.php, and a contextual binding for
 // the directory, which it makes in a service provider's register(). The container builds the check,
 // and the doctor runs it after the core's runtime checks. The test asserts only the added check and
 // the order, because the results of the core's checks depend on the host running it.
@@ -87,7 +87,7 @@ use Illuminate\Support\Facades\Artisan;
  */
 function doctorWithUploads(string $directory, array $options = []): array
 {
-    config(['cms.doctor.checks' => [UploadsDirectoryCheck::class]]);
+    config(['cbox-cms.doctor.checks' => [UploadsDirectoryCheck::class]]);
     app()->when(UploadsDirectoryCheck::class)->needs('$directory')->give($directory);
 
     Artisan::call('cms:doctor', ['--json' => true, ...$options]);

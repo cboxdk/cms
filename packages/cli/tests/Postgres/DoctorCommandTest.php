@@ -158,7 +158,7 @@ it('passes every runtime check against the services, in-process', function (): v
 it('fails transaction_timeout, DDL and the app role for a role without the timeout that owns the database and the schema, with 78', function (): void {
     doctorClock('2047-06-10T09:00:00Z');
     buildRegistry();
-    config(['cms.doctor.connection' => 'pgsql_owner']);
+    config(['cbox-cms.doctor.connection' => 'pgsql_owner']);
 
     [$status, $document] = inProcessDoctor();
     $timeout = doctorCheck($document, 'postgres.transaction_timeout');
@@ -255,7 +255,7 @@ it('reports a Postgres that refuses the login as a violation', function (): void
     buildRegistry();
     config([
         'database.connections.pgsql_wrong_password' => array_merge((array) config('database.connections.pgsql'), ['password' => 'not-the-password']),
-        'cms.doctor.connection' => 'pgsql_wrong_password',
+        'cbox-cms.doctor.connection' => 'pgsql_wrong_password',
     ]);
 
     [$status, $document] = inProcessDoctor();
@@ -272,7 +272,7 @@ it('reports a Valkey that cannot be reached as unavailable with 75', function ()
     buildRegistry();
     config([
         'database.redis.doctor_closed' => ['host' => '127.0.0.1', 'port' => 1, 'database' => 15],
-        'cms.doctor.redis_connection' => 'doctor_closed',
+        'cbox-cms.doctor.redis_connection' => 'doctor_closed',
     ]);
 
     $started = hrtime(true);

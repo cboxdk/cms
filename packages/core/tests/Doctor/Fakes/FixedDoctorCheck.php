@@ -11,8 +11,8 @@ use Override;
 
 /**
  * A check that always passes, with a fixed id, blocking and requirements. Its subclasses have no
- * constructor arguments, so the container builds them from a class name in cms.doctor.checks or
- * cms.doctor.dev_checks, as it builds an application's or addon's check.
+ * constructor arguments, so the container builds them from a class name in cbox-cms.doctor.checks or
+ * cbox-cms.doctor.dev_checks, as it builds an application's or addon's check.
  */
 abstract readonly class FixedDoctorCheck implements DoctorCheck
 {

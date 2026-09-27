@@ -13,13 +13,13 @@ use Illuminate\Container\Container;
 use stdClass;
 
 /*
- * Reading a contract's implementation from `cms.contracts`. A wrong entry is a deploy error with
+ * Reading a contract's implementation from `cbox-cms.contracts`. A wrong entry is a deploy error with
  * a message that names the key.
  */
 
 function bindingsWith(mixed $implementation): ContractBindings
 {
-    return new ContractBindings(new Repository(['cms' => ['contracts' => [Clock::class => $implementation]]]));
+    return new ContractBindings(new Repository(['cbox-cms' => ['contracts' => [Clock::class => $implementation]]]));
 }
 
 it('returns the configured implementation', function (): void {
@@ -27,10 +27,10 @@ it('returns the configured implementation', function (): void {
 });
 
 it('refuses a missing entry and names the key', function (): void {
-    $bindings = new ContractBindings(new Repository(['cms' => ['contracts' => []]]));
+    $bindings = new ContractBindings(new Repository(['cbox-cms' => ['contracts' => []]]));
 
     expect(fn (): string => $bindings->implementationOf(Clock::class))
-        ->toThrow(InvalidContractBinding::class, 'No implementation of ['.Clock::class.'] is configured. Set [cms.contracts.'.Clock::class.']');
+        ->toThrow(InvalidContractBinding::class, 'No implementation of ['.Clock::class.'] is configured. Set [cbox-cms.contracts.'.Clock::class.']');
 });
 
 it('refuses an entry that is not a class implementing the contract', function (mixed $implementation, string $message): void {

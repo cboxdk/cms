@@ -14,14 +14,14 @@ use Cbox\Cms\Generators\Schema\Domain\Owner;
 use Illuminate\Contracts\Config\Repository;
 
 /**
- * Reads `cms.generators` into a GenerationTarget. The defaults in the package's
+ * Reads `cbox-cms.generators` into a GenerationTarget. The defaults in the package's
  * config/generators.php follow the application layout of PRD 11.12; the workbench points them at
  * workbench/. `roots` maps each owner to its schema directory below the root.
  */
 #[Internal]
 final readonly class GeneratorConfig
 {
-    public const string KEY = 'cms.generators';
+    public const string KEY = 'cbox-cms.generators';
 
     /**
      * @param  string  $basePath  the application's base path, used when `root` is null

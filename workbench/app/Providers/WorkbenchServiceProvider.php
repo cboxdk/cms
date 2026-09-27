@@ -16,7 +16,7 @@ use Illuminate\Support\ServiceProvider;
  * `pgsql_owner` connects as the owner role, which runs migrations. Both use the
  * dedicated schema instead of Laravel's default search_path of public. The workbench is a
  * development application that runs the migrations and partition maintenance itself, so it is
- * declared the maintenance process for cms:doctor (cms.doctor.maintenance_process); a production
+ * declared the maintenance process for cms:doctor (cbox-cms.doctor.maintenance_process); a production
  * installation gives the owner connection to its maintenance process only.
  *
  * It also points cms:generate (PRD 11.12) at the workbench's schema root, owner app, and its
@@ -31,7 +31,7 @@ final class WorkbenchServiceProvider extends ServiceProvider
     {
         $config = $this->app->make(Repository::class);
 
-        $config->set('cms.generators', [
+        $config->set('cbox-cms.generators', [
             'root' => dirname(__DIR__, 3),
             'roots' => ['app' => 'workbench/schema'],
             'php_directory' => 'workbench/app/Cms/Generated',
@@ -39,9 +39,9 @@ final class WorkbenchServiceProvider extends ServiceProvider
             'typescript_directory' => 'workbench/resources/js/cms/generated',
         ]);
 
-        $config->set('cms.doctor.project_path', dirname(__DIR__, 3));
-        $config->set('cms.doctor.vendor_manifest', dirname(__DIR__, 3).'/vendor/composer/installed.json');
-        $config->set('cms.doctor.maintenance_process', true);
+        $config->set('cbox-cms.doctor.project_path', dirname(__DIR__, 3));
+        $config->set('cbox-cms.doctor.vendor_manifest', dirname(__DIR__, 3).'/vendor/composer/installed.json');
+        $config->set('cbox-cms.doctor.maintenance_process', true);
 
         $app = $config->get('database.connections.pgsql');
 

@@ -3,7 +3,7 @@
 <!-- extension-point: Cbox\Cms\Contracts\Clock -->
 <!-- extension-point: Cbox\Cms\Testkit\Clock\ClockContract -->
 
-`Cbox\Cms\Contracts\Clock`, in `cboxdk/cms-contracts`, is where the kernel, addons and applications get the current time (GUARDRAILS 2.3). It has one method, `now(): DateTimeImmutable`. The container binds it as a singleton to the class configured in `cms.contracts`; the default is `Cbox\Cms\Core\Clock\Adapter\SystemClock` in `cboxdk/cms-core`, which reads the system's wall clock. Because the time comes from a contract, a test sets it with the testkit's `FakeClock`, and time is deterministic in tests.
+`Cbox\Cms\Contracts\Clock`, in `cboxdk/cms-contracts`, is where the kernel, addons and applications get the current time (GUARDRAILS 2.3). It has one method, `now(): DateTimeImmutable`. The container binds it as a singleton to the class configured in `cbox-cms.contracts`; the default is `Cbox\Cms\Core\Clock\Adapter\SystemClock` in `cboxdk/cms-core`, which reads the system's wall clock. Because the time comes from a contract, a test sets it with the testkit's `FakeClock`, and time is deterministic in tests.
 
 ## What now() returns
 
@@ -18,7 +18,7 @@ Code that needs the time asks for a `Clock` in its constructor and calls `now()`
 
 ## Replacing the clock
 
-An application replaces the clock in its own `config/cms.php`, one entry at a time: `'contracts' => [Clock::class => StagingClock::class]`. The core merges its defaults under the application's configuration when its service provider registers, so every entry the application leaves out keeps its default. The container builds the configured class the first time something resolves `Clock` and keeps that instance for the process. The class must implement `Clock` and be instantiable; otherwise resolving `Clock` fails with a message that names the setting.
+An application replaces the clock in its own `config/cbox-cms.php`, one entry at a time: `'contracts' => [Clock::class => StagingClock::class]`. The core merges its defaults under the application's configuration when its service provider registers, so every entry the application leaves out keeps its default. The container builds the configured class the first time something resolves `Clock` and keeps that instance for the process. The class must implement `Clock` and be instantiable; otherwise resolving `Clock` fails with a message that names the setting.
 
 The container builds the class, so its constructor may ask for anything the container can give. The clock below runs a fixed interval ahead of real time, for a staging environment that shows what scheduled work will do. It takes the interval in its constructor, so the application gives it one with a contextual binding in a service provider's `register()`:
 
@@ -51,7 +51,7 @@ final readonly class StagingClock implements Clock
 }
 ```
 
-A test boots the application with the replacement where the application's configuration would be. Testbench calls `defineEnvironment()` after the service providers register and before they boot, so before anything resolves the clock. By then the core has merged its defaults into `cms.contracts`, so the test case sets the single entry `cms.contracts.<contract>`; setting the whole `cms.contracts` array there would drop the other defaults. Setting the entry inside a test, after the application has booted, is too late for anything that resolved the clock while booting.
+A test boots the application with the replacement where the application's configuration would be. Testbench calls `defineEnvironment()` after the service providers register and before they boot, so before anything resolves the clock. By then the core has merged its defaults into `cbox-cms.contracts`, so the test case sets the single entry `cbox-cms.contracts.<contract>`; setting the whole `cbox-cms.contracts` array there would drop the other defaults. Setting the entry inside a test, after the application has booted, is too late for anything that resolved the clock while booting.
 
 <!-- example-file: examples/Unit/Clock/StagingApplicationTestCase.php -->
 ```php
@@ -79,13 +79,13 @@ abstract class StagingApplicationTestCase extends TestCase
 
     /**
      * Runs after the service providers register and before they boot, so before anything resolves
-     * the Clock. The core has merged its defaults into cms.contracts by then, so the test sets the
-     * one entry and the others keep their defaults, as with an application's config/cms.php.
+     * the Clock. The core has merged its defaults into cbox-cms.contracts by then, so the test sets the
+     * one entry and the others keep their defaults, as with an application's config/cbox-cms.php.
      */
     #[Override]
     protected function defineEnvironment($app): void
     {
-        $app->make(Repository::class)->set('cms.contracts.'.Clock::class, StagingClock::class);
+        $app->make(Repository::class)->set('cbox-cms.contracts.'.Clock::class, StagingClock::class);
 
         // What an application does in a service provider's register(): the container builds the
         // clock, so it gives the clock its constructor argument.

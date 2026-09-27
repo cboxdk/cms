@@ -77,7 +77,7 @@ use Override;
 /**
  * Registers the core package in a Laravel application. Loaded through package discovery.
  *
- * Binds each contract to the implementation configured in `cms.contracts` (GUARDRAILS 2.3), loads
+ * Binds each contract to the implementation configured in `cbox-cms.contracts` (GUARDRAILS 2.3), loads
  * the core's migrations, binds partition maintenance to the Postgres partition manager, and
  * schedules it in a process that has the owner connection. Wires the registry that cms:build compiles to bootstrap/cache/cms/ (PRD 13.2), and
  * declares the core's own classes as a scan root. Wires the checks of cms:doctor (PRD 3.3, 4.2) to
@@ -97,7 +97,7 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
     #[Override]
     public function register(): void
     {
-        $this->replaceConfigRecursivelyFrom(__DIR__.'/../config/cms.php', 'cms');
+        $this->replaceConfigRecursivelyFrom(__DIR__.'/../config/cbox-cms.php', 'cbox-cms');
 
         $this->app->singleton(
             Clock::class,
@@ -161,11 +161,11 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
     }
 
     /**
-     * Whether this process has the owner role's connection, the one cms.database.owner_connection names.
+     * Whether this process has the owner role's connection, the one cbox-cms.database.owner_connection names.
      */
     public static function ownerConnectionConfigured(Repository $config): bool
     {
-        $owner = $config->get('cms.database.owner_connection');
+        $owner = $config->get('cbox-cms.database.owner_connection');
 
         return is_string($owner) && $owner !== '' && is_array($config->get('database.connections.'.$owner));
     }
@@ -173,9 +173,9 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
     /**
      * The checks of cms:doctor and their probes. The checks are built per resolution, so they
      * follow the configuration; the Postgres probes share one scoped connection. The checks that
-     * an application or addon names in `cms.doctor.checks` run after the core's runtime checks, and
-     * those in `cms.doctor.dev_checks` after the core's development checks. An invalid
-     * `cms.doctor`, or a named check that cannot be used, gives the one failing check doctor.config
+     * an application or addon names in `cbox-cms.doctor.checks` run after the core's runtime checks, and
+     * those in `cbox-cms.doctor.dev_checks` after the core's development checks. An invalid
+     * `cbox-cms.doctor`, or a named check that cannot be used, gives the one failing check doctor.config
      * instead of an exception.
      */
     private function registerDoctor(): void
@@ -261,7 +261,7 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
                 ],
             );
 
-            // The checks an application or addon names in cms.doctor.checks and dev_checks, after
+            // The checks an application or addon names in cbox-cms.doctor.checks and dev_checks, after
             // the core's, under the same rules. A check that cannot be used gives doctor.config.
             try {
                 $configured = new ContainerDoctorChecks($app);

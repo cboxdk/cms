@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\DB;
  * whose first 48 bits are the commit's milliseconds. The standard branch has one partition per
  * day and is dropped a week after the day ends. The evidence branch has one partition per month
  * and is never dropped by the partition manager; a policy decides when evidence goes. The
- * partitions come from `cms:partitions:maintain` (cms.database.partitions.tables); there is no
+ * partitions come from `cms:partitions:maintain` (cbox-cms.database.partitions.tables); there is no
  * DEFAULT partition, so a write outside them fails with PartitionMissing.
  *
  * A unique key on a partitioned table must contain every partition key column, so the primary

@@ -43,7 +43,7 @@ final readonly class GenerationTarget
         $problems = [];
 
         if (! str_starts_with($root, '/') && preg_match('/\A[A-Za-z]:[\\\\\/]/', $root) !== 1) {
-            $problems[] = new GenerationProblem(GenerateErrorCode::InvalidConfig, sprintf('cms.generators.root "%s" is not an absolute path.', $root));
+            $problems[] = new GenerationProblem(GenerateErrorCode::InvalidConfig, sprintf('cbox-cms.generators.root "%s" is not an absolute path.', $root));
         }
 
         $problems = [...$problems, ...$this->rootProblems($root, $roots)];
@@ -51,7 +51,7 @@ final readonly class GenerationTarget
         foreach (['php_directory' => $phpDirectory, 'typescript_directory' => $typeScriptDirectory] as $key => $path) {
             if (preg_match(self::RELATIVE_PATH, $path) !== 1) {
                 $problems[] = new GenerationProblem(GenerateErrorCode::InvalidConfig, sprintf(
-                    'cms.generators.%s "%s" is not a relative path below the root, such as "app/Cms/Generated". Use forward slashes and no "." or ".." segments.',
+                    'cbox-cms.generators.%s "%s" is not a relative path below the root, such as "app/Cms/Generated". Use forward slashes and no "." or ".." segments.',
                     $key,
                     $path,
                 ));
@@ -60,7 +60,7 @@ final readonly class GenerationTarget
 
         if (preg_match(self::NAMESPACE, $phpNamespace) !== 1) {
             $problems[] = new GenerationProblem(GenerateErrorCode::InvalidConfig, sprintf(
-                'cms.generators.php_namespace "%s" is not a PHP namespace such as "App\\Cms\\Generated".',
+                'cbox-cms.generators.php_namespace "%s" is not a PHP namespace such as "App\\Cms\\Generated".',
                 $phpNamespace,
             ));
         }
@@ -92,7 +92,7 @@ final readonly class GenerationTarget
         foreach ($roots as $schemaRoot) {
             if (rtrim($schemaRoot->base, '/\\') !== $root) {
                 $problems[] = new GenerationProblem(GenerateErrorCode::InvalidConfig, sprintf(
-                    'The schema root %s of %s lies below %s, not below cms.generators.root %s.',
+                    'The schema root %s of %s lies below %s, not below cbox-cms.generators.root %s.',
                     $schemaRoot->directory,
                     $schemaRoot->owner->value,
                     $schemaRoot->base,
@@ -102,7 +102,7 @@ final readonly class GenerationTarget
 
             if (isset($owners[$schemaRoot->owner->value])) {
                 $problems[] = new GenerationProblem(GenerateErrorCode::InvalidConfig, sprintf(
-                    '%s has more than one schema root. Give each owner one directory in cms.generators.roots.',
+                    '%s has more than one schema root. Give each owner one directory in cbox-cms.generators.roots.',
                     $schemaRoot->owner->value,
                 ));
             }
@@ -115,6 +115,6 @@ final readonly class GenerationTarget
 
     private function noRoots(): GenerationProblem
     {
-        return new GenerationProblem(GenerateErrorCode::InvalidConfig, 'cms.generators.roots names no schema root. Map each owner to its directory below the root, such as [\'app\' => \'schema\'].');
+        return new GenerationProblem(GenerateErrorCode::InvalidConfig, 'cbox-cms.generators.roots names no schema root. Map each owner to its directory below the root, such as [\'app\' => \'schema\'].');
     }
 }

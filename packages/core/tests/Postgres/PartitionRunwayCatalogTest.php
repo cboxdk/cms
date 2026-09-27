@@ -73,7 +73,7 @@ it('names the doctor\'s own connection when the doctor cannot find a managed tab
     $coverage = app(PartitionRunwayProbe::class)->coverage(new DateTimeImmutable('2026-01-01T10:00:00Z'));
 
     expect(array_map(static fn (PartitionCoverage $runway): array => [$runway->table, $runway->coveredUntil?->format(DATE_ATOM), $runway->unmanageable], $coverage))->toBe([
-        ['partition_scratch_nowhere', null, '[partition_table_unmanageable] The table "partition_scratch_nowhere" is listed in [cms.database.partitions.tables] but does not exist in the search path of the connection [cms_doctor]. Run the migrations first.'],
+        ['partition_scratch_nowhere', null, '[partition_table_unmanageable] The table "partition_scratch_nowhere" is listed in [cbox-cms.database.partitions.tables] but does not exist in the search path of the connection [cms_doctor]. Run the migrations first.'],
         [PartitionScratch::UUID_TABLE, '2026-01-04T00:00:00+00:00', null],
     ]);
 });

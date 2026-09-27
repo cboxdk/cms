@@ -22,13 +22,13 @@ abstract class CountingApplicationTestCase extends TestCase
 
     /**
      * Runs after the service providers register and before they boot, so before anything resolves
-     * the IdGenerator. The core has merged its defaults into cms.contracts by then, so the test sets
-     * the one entry and the others keep their defaults, as with an application's config/cms.php.
+     * the IdGenerator. The core has merged its defaults into cbox-cms.contracts by then, so the test sets
+     * the one entry and the others keep their defaults, as with an application's config/cbox-cms.php.
      */
     #[Override]
     protected function defineEnvironment($app): void
     {
-        $app->make(Repository::class)->set('cms.contracts.'.IdGenerator::class, CountingIdGenerator::class);
+        $app->make(Repository::class)->set('cbox-cms.contracts.'.IdGenerator::class, CountingIdGenerator::class);
 
         // What an application does in a service provider's register(): the counting generator
         // wraps the core's generator, which reads the time from the configured Clock.

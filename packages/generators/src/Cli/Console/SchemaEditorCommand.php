@@ -18,7 +18,7 @@ use Illuminate\Contracts\Foundation\Application;
 
 /**
  * `cms:schema:editor`: points editors at the blueprint schema (PRD 14.1, blueprint decision 3). It
- * gives every `*.yaml` file below the schema roots of cms.generators.roots, the files cms:generate
+ * gives every `*.yaml` file below the schema roots of cbox-cms.generators.roots, the files cms:generate
  * reads, the first line `# yaml-language-server: $schema=<path>`. The path is relative from the
  * file's directory to blueprint.v1.json in the installed cboxdk/cms-contracts, found through
  * Composer and always through its install directory, vendor/cboxdk/cms-contracts, so the line has

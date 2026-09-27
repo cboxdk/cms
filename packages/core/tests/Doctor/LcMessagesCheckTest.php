@@ -109,7 +109,7 @@ it('reports an owner role it cannot read with its kind and the connection in the
         ->and($result->failure)->toBe($kind)
         ->and($result->code)->toBe(PostgresQueryFailure::CODE)
         ->and($result->cause)->toBe($failure->cause)
-        ->and($result->fix)->toContain('cms.doctor.owner_role')
+        ->and($result->fix)->toContain('cbox-cms.doctor.owner_role')
         ->and($result->fix)->toContain("ALTER ROLE <owner role> SET lc_messages = 'C'")
         ->and($result->fix)->not->toContain('owner_connection');
 })->with([FailureKind::Violation, FailureKind::Unavailable]);

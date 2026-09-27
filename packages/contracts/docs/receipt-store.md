@@ -42,9 +42,9 @@ A store on a database keeps receipts in tables partitioned by the changeset's ti
 
 ## The default store
 
-`cboxdk/cms-core` binds the contract to `Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore` in `cms.contracts`, as a singleton. It runs on the default connection, the one the command kernel opens its transaction on, through the query builder, and keeps the receipts in `receipts` and `receipt_projections`. Both are partitioned by retention class and then by changeset time: Standard receipts per day, dropped a week after the day ends, and Evidence receipts per month, never dropped by the partition manager.
+`cboxdk/cms-core` binds the contract to `Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore` in `cbox-cms.contracts`, as a singleton. It runs on the default connection, the one the command kernel opens its transaction on, through the query builder, and keeps the receipts in `receipts` and `receipt_projections`. Both are partitioned by retention class and then by changeset time: Standard receipts per day, dropped a week after the day ends, and Evidence receipts per month, never dropped by the partition manager.
 
-An application replaces the store with its own class in the `ReceiptStore::class` entry of `contracts` in its own `config/cms.php`; the entries it leaves out keep their defaults. A replacement passes the shared contract suite first, as shown below.
+An application replaces the store with its own class in the `ReceiptStore::class` entry of `contracts` in its own `config/cbox-cms.php`; the entries it leaves out keep their defaults. A replacement passes the shared contract suite first, as shown below.
 
 ## Testing code that uses the store
 

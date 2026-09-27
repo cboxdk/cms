@@ -3,7 +3,7 @@
 <!-- extension-point: Cbox\Cms\Contracts\IdGenerator -->
 <!-- extension-point: Cbox\Cms\Testkit\Ids\IdGeneratorContract -->
 
-`Cbox\Cms\Contracts\IdGenerator`, in `cboxdk/cms-contracts`, makes the ids of aggregates (GUARDRAILS 2.3, PRD 5.3). It has one method, `next(): Uuid7`. The container binds it as a singleton to the class configured in `cms.contracts`; the default is `Cbox\Cms\Core\Ids\Adapter\SystemIdGenerator` in `cboxdk/cms-core`, which takes the time from the [Clock](clock.md) and the random bits from the system's secure random source. Postgres 17 has no `uuidv7()`, so ids are made in the application, and because they come from a contract, a test gets the same ids on every run from the testkit's `FakeIdGenerator`.
+`Cbox\Cms\Contracts\IdGenerator`, in `cboxdk/cms-contracts`, makes the ids of aggregates (GUARDRAILS 2.3, PRD 5.3). It has one method, `next(): Uuid7`. The container binds it as a singleton to the class configured in `cbox-cms.contracts`; the default is `Cbox\Cms\Core\Ids\Adapter\SystemIdGenerator` in `cboxdk/cms-core`, which takes the time from the [Clock](clock.md) and the random bits from the system's secure random source. Postgres 17 has no `uuidv7()`, so ids are made in the application, and because they come from a contract, a test gets the same ids on every run from the testkit's `FakeIdGenerator`.
 
 Code that creates an aggregate asks for an `IdGenerator` in its constructor and wraps the `Uuid7` from `next()` in the typed id, such as `ChangesetId`. It never makes a UUID itself, with `Str::uuid()`, `random_bytes()` or a UUID library.
 
@@ -25,7 +25,7 @@ An id tells the time it was made to the millisecond, and ids from one generator 
 
 ## Replacing the generator
 
-An application replaces the generator in its own `config/cms.php`, one entry at a time: `'contracts' => [IdGenerator::class => CountingIdGenerator::class]`. The entries it leaves out keep their defaults, and the container builds the configured class the first time something resolves `IdGenerator` and keeps that instance for the process. [Replacing the clock](clock.md#replacing-the-clock) explains the mechanism.
+An application replaces the generator in its own `config/cbox-cms.php`, one entry at a time: `'contracts' => [IdGenerator::class => CountingIdGenerator::class]`. The entries it leaves out keep their defaults, and the container builds the configured class the first time something resolves `IdGenerator` and keeps that instance for the process. [Replacing the clock](clock.md#replacing-the-clock) explains the mechanism.
 
 The generator below wraps another generator and counts the ids this process made. It passes every id on unchanged, so it keeps the guarantees of the generator it wraps:
 
@@ -93,13 +93,13 @@ abstract class CountingApplicationTestCase extends TestCase
 
     /**
      * Runs after the service providers register and before they boot, so before anything resolves
-     * the IdGenerator. The core has merged its defaults into cms.contracts by then, so the test sets
-     * the one entry and the others keep their defaults, as with an application's config/cms.php.
+     * the IdGenerator. The core has merged its defaults into cbox-cms.contracts by then, so the test sets
+     * the one entry and the others keep their defaults, as with an application's config/cbox-cms.php.
      */
     #[Override]
     protected function defineEnvironment($app): void
     {
-        $app->make(Repository::class)->set('cms.contracts.'.IdGenerator::class, CountingIdGenerator::class);
+        $app->make(Repository::class)->set('cbox-cms.contracts.'.IdGenerator::class, CountingIdGenerator::class);
 
         // What an application does in a service provider's register(): the counting generator
         // wraps the core's generator, which reads the time from the configured Clock.

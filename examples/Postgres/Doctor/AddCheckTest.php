@@ -6,7 +6,7 @@ use Examples\Contract\Doctor\UploadsDirectoryCheck;
 use Illuminate\Support\Facades\Artisan;
 
 // Adds UploadsDirectoryCheck to cms:doctor the way an application does it: the class name in
-// cms.doctor.checks, which an application sets in its config/cms.php, and a contextual binding for
+// cbox-cms.doctor.checks, which an application sets in its config/cbox-cms.php, and a contextual binding for
 // the directory, which it makes in a service provider's register(). The container builds the check,
 // and the doctor runs it after the core's runtime checks. The test asserts only the added check and
 // the order, because the results of the core's checks depend on the host running it.
@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\Artisan;
  */
 function doctorWithUploads(string $directory, array $options = []): array
 {
-    config(['cms.doctor.checks' => [UploadsDirectoryCheck::class]]);
+    config(['cbox-cms.doctor.checks' => [UploadsDirectoryCheck::class]]);
     app()->when(UploadsDirectoryCheck::class)->needs('$directory')->give($directory);
 
     Artisan::call('cms:doctor', ['--json' => true, ...$options]);

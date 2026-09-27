@@ -32,7 +32,7 @@ it('passes the declared maintenance process in the console', function (): void {
     $result = new OwnerCredentialsCheck(new FakeProcessProbe(['pgsql_owner']), 'pgsql_owner', true)->run();
 
     expect($result->status)->toBe(CheckStatus::Pass)
-        ->and($result->explanation)->toContain('cms.doctor.maintenance_process declares the maintenance process');
+        ->and($result->explanation)->toContain('cbox-cms.doctor.maintenance_process declares the maintenance process');
 });
 
 it('fails the owner connection outside the maintenance process, and in any process that serves HTTP', function (bool $maintenance, bool $http, string $cause): void {
@@ -45,7 +45,7 @@ it('fails the owner connection outside the maintenance process, and in any proce
         ->and($result->cause)->toBe($cause)
         ->and($result->fix)->toContain('remove database.connections.pgsql_owner from the configuration of the web and queue processes');
 })->with([
-    'a console process that is not declared' => [false, false, 'The owner connection pgsql_owner is configured in this process, and cms.doctor.maintenance_process does not declare it the maintenance process, so it shares its configuration with the web and queue processes.'],
+    'a console process that is not declared' => [false, false, 'The owner connection pgsql_owner is configured in this process, and cbox-cms.doctor.maintenance_process does not declare it the maintenance process, so it shares its configuration with the web and queue processes.'],
     'a web process' => [false, true, 'The owner connection pgsql_owner is configured in a process that serves HTTP.'],
     'a web process declared the maintenance process' => [true, true, 'The owner connection pgsql_owner is configured in a process that serves HTTP.'],
 ]);

@@ -13,7 +13,7 @@ use Cbox\Cms\Core\Partitions\Domain\PartitionPolicy;
 use Illuminate\Contracts\Config\Repository;
 
 /**
- * Reads the partition policy from `cms.database`.
+ * Reads the partition policy from `cbox-cms.database`.
  *
  *     'database' => [
  *         'owner_connection' => 'pgsql_owner',
@@ -31,7 +31,7 @@ use Illuminate\Contracts\Config\Repository;
 #[Internal]
 final readonly class PartitionConfig
 {
-    public const string CONFIG_KEY = 'cms.database';
+    public const string CONFIG_KEY = 'cbox-cms.database';
 
     public static function read(Repository $config): PartitionPolicy
     {

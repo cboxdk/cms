@@ -181,7 +181,7 @@ it('maintains every other table when a listed table has not been migrated yet, p
             'created partition_scratch.partition_scratch_p20260111',
             'runway partition_scratch until 2026-01-12T00:00:00Z',
             'Partitions maintained as role cms_owner: 2 changes.',
-            '['.UnmanageableTable::CODE.'] The table "partition_scratch_audit" is listed in [cms.database.partitions.tables] but does not exist in the search path of the connection [pgsql_owner]. Run the migrations first.',
+            '['.UnmanageableTable::CODE.'] The table "partition_scratch_audit" is listed in [cbox-cms.database.partitions.tables] but does not exist in the search path of the connection [pgsql_owner]. Run the migrations first.',
         ])
         ->and(PartitionScratch::partitions(PartitionScratch::UUID_TABLE))->toBe(['partition_scratch_p20260110', 'partition_scratch_p20260111']);
 });

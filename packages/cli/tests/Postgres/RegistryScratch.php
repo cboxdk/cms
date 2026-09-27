@@ -25,7 +25,7 @@ final class RegistryScratch
         self::$directory = $directory;
 
         app()->instance(RegistryCache::class, new FileRegistryCache($directory.'/cache', new RegistryCacheCodec));
-        config(['cms.doctor.vendor_manifest' => $directory.'/vendor/composer/installed.json']);
+        config(['cbox-cms.doctor.vendor_manifest' => $directory.'/vendor/composer/installed.json']);
 
         return $directory;
     }

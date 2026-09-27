@@ -10,7 +10,7 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
  * How the partition manager runs (PRD 4.2): which connection runs the DDL, how far ahead it
  * creates partitions, how long each DDL statement may wait for a lock, and how often it tries.
  *
- * Read from `cms.database` by PartitionConfig.
+ * Read from `cbox-cms.database` by PartitionConfig.
  */
 #[Experimental]
 final readonly class PartitionPolicy

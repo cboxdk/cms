@@ -10,7 +10,7 @@ use Cbox\Cms\Generators\Tests\SchemaFixtures;
 use Illuminate\Contracts\Console\Kernel;
 
 /*
- * cms:generate in the testbench application, pointed at a scratch root through cms.generators.
+ * cms:generate in the testbench application, pointed at a scratch root through cbox-cms.generators.
  */
 
 afterEach(function (): void {
@@ -38,7 +38,7 @@ const VALID_BLUEPRINT = <<<'YAML'
     YAML;
 
 /**
- * A scratch root with the blueprint in schema/page.yaml, set as cms.generators.root with the
+ * A scratch root with the blueprint in schema/page.yaml, set as cbox-cms.generators.root with the
  * schema root `schema` of app. Without a blueprint, the schema root does not exist.
  */
 function generateRoot(?string $blueprint = VALID_BLUEPRINT): string
@@ -49,7 +49,7 @@ function generateRoot(?string $blueprint = VALID_BLUEPRINT): string
         SchemaFixtures::write($root.'/schema/page.yaml', $blueprint);
     }
 
-    config()->set('cms.generators', [
+    config()->set('cbox-cms.generators', [
         'root' => $root,
         'roots' => ['app' => 'schema'],
         'php_directory' => 'app/Cms/Generated',
@@ -77,7 +77,7 @@ it('is registered', function (): void {
 });
 
 it('points at the workbench\'s schema root in the workbench', function (): void {
-    expect(config('cms.generators'))->toBe([
+    expect(config('cbox-cms.generators'))->toBe([
         'root' => dirname(__DIR__, 4),
         'roots' => ['app' => 'workbench/schema'],
         'php_directory' => 'workbench/app/Cms/Generated',
@@ -132,7 +132,7 @@ it('exits with 65, prints each problem with its code and writes nothing when a b
 it('exits with 65 when two owners define the same type handle', function (): void {
     $root = generateRoot();
     SchemaFixtures::write($root.'/vendor/acme/shop/schema/page.yaml', str_replace('1c2d3e4f5a6b', 'aaaaaaaaaaaa', VALID_BLUEPRINT));
-    config()->set('cms.generators.roots', ['app' => 'schema', 'acme' => 'vendor/acme/shop/schema']);
+    config()->set('cbox-cms.generators.roots', ['app' => 'schema', 'acme' => 'vendor/acme/shop/schema']);
 
     [$status, $output] = generateCommand();
 
@@ -167,36 +167,36 @@ it('generates the enum without cases and never from a schema root without bluepr
 
 it('exits with 78 when the configuration is invalid', function (): void {
     generateRoot();
-    config()->set('cms.generators.php_directory', '../outside/Generated');
-    config()->set('cms.generators.php_namespace', 'app\cms');
+    config()->set('cbox-cms.generators.php_directory', '../outside/Generated');
+    config()->set('cbox-cms.generators.php_namespace', 'app\cms');
 
     [$status, $output] = generateCommand();
 
     expect($status)->toBe(GenerateCommand::EXIT_INVALID_CONFIG)
-        ->and($output[0])->toContain('[generate_invalid_config] cms.generators.php_directory "../outside/Generated" is not a relative path')
-        ->and($output[1])->toContain('[generate_invalid_config] cms.generators.php_namespace "app\cms" is not a PHP namespace');
+        ->and($output[0])->toContain('[generate_invalid_config] cbox-cms.generators.php_directory "../outside/Generated" is not a relative path')
+        ->and($output[1])->toContain('[generate_invalid_config] cbox-cms.generators.php_namespace "app\cms" is not a PHP namespace');
 });
 
 it('exits with 78 when the schema roots are not a map from owner to directory', function (mixed $roots, string $problem): void {
     generateRoot();
-    config()->set('cms.generators.roots', $roots);
+    config()->set('cbox-cms.generators.roots', $roots);
 
     [$status, $output] = generateCommand();
 
     expect($status)->toBe(GenerateCommand::EXIT_INVALID_CONFIG)
         ->and($output[0])->toContain('[generate_invalid_config] '.$problem);
 })->with([
-    'a list' => [['schema'], 'cms.generators.roots must map each owner to its schema directory'],
-    'empty' => [[], 'cms.generators.roots must map each owner to its schema directory'],
+    'a list' => [['schema'], 'cbox-cms.generators.roots must map each owner to its schema directory'],
+    'empty' => [[], 'cbox-cms.generators.roots must map each owner to its schema directory'],
     'an owner that is not a name' => [['App' => 'schema'], '"App" is not an owner.'],
     'a directory outside the root' => [['app' => '../schema'], 'The schema root "../schema" of app is not a relative path below its base'],
-    'a directory that is not a string' => [['app' => ['schema']], 'cms.generators.roots.app must be a directory below the root'],
+    'a directory that is not a string' => [['app' => ['schema']], 'cbox-cms.generators.roots.app must be a directory below the root'],
 ]);
 
 it('exits with 78 when one schema root lies in another', function (): void {
     $root = generateRoot();
     mkdir($root.'/schema/acme');
-    config()->set('cms.generators.roots', ['app' => 'schema', 'acme' => 'schema/acme']);
+    config()->set('cbox-cms.generators.roots', ['app' => 'schema', 'acme' => 'schema/acme']);
 
     [$status, $output] = generateCommand();
 
@@ -207,7 +207,7 @@ it('exits with 78 when one schema root lies in another', function (): void {
 it('exits with 70 when the configured directory is not a Generated directory', function (): void {
     $root = generateRoot();
     SchemaFixtures::write($root.'/app/Models/User.php', "<?php\n");
-    config()->set('cms.generators.php_directory', 'app/Models');
+    config()->set('cbox-cms.generators.php_directory', 'app/Models');
 
     [$status, $output] = generateCommand();
 
@@ -228,8 +228,8 @@ it('exits with 73 when a generated file cannot be written', function (): void {
 
 it('uses the application base path when root is null', function (): void {
     generateRoot();
-    config()->set('cms.generators.root');
-    config()->set('cms.generators.roots', ['app' => 'schema/does-not-exist']);
+    config()->set('cbox-cms.generators.root');
+    config()->set('cbox-cms.generators.roots', ['app' => 'schema/does-not-exist']);
 
     [$status, $output] = generateCommand();
 

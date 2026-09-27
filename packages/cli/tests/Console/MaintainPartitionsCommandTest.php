@@ -218,7 +218,7 @@ it('reports the run, then prints and logs each table it could not manage, and ex
             'Partitions maintained as role cms_owner: 2 changes.',
         ])
         ->and(implode("\n", array_slice($lines, 5)))->toStartWith('[partition_lock_timeout] Gave up on step "create" for partition "metrics_p20260501" of table "metrics"')
-        ->and(implode("\n", array_slice($lines, 5)))->toEndWith('[partition_table_unmanageable] The table "audit" is listed in [cms.database.partitions.tables] but does not exist in the search path of the connection [pgsql_owner]. Run the migrations first.')
+        ->and(implode("\n", array_slice($lines, 5)))->toEndWith('[partition_table_unmanageable] The table "audit" is listed in [cbox-cms.database.partitions.tables] but does not exist in the search path of the connection [pgsql_owner]. Run the migrations first.')
         ->and($partitions->partitions('events'))->toBe(['events_p20260501', 'events_p20260502'])
         ->and($logger->records[2])->toBe(['error', 'Partition maintenance could not manage a table.', [
             'code' => 'partition_table_unmanageable',

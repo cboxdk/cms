@@ -14,7 +14,7 @@ use Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore;
 return [
     /*
      * The implementation of each contract (GUARDRAILS 2.3). An application overrides an entry in
-     * its own config/cms.php; the entries it leaves out keep these defaults. The class is resolved
+     * its own config/cbox-cms.php; the entries it leaves out keep these defaults. The class is resolved
      * from the container when the contract is first resolved, as a singleton.
      */
     'contracts' => [
@@ -75,7 +75,7 @@ return [
      * as the app role; null means the default connection. The doctor never logs in as the owner
      * role: postgres.lc_messages reads the lc_messages of the role owner_role names from the
      * catalog; null means the username of owner_connection when that connection is configured in
-     * this process, and owner_connection null means cms.database.owner_connection.
+     * this process, and owner_connection null means cbox-cms.database.owner_connection.
      * postgres.owner_credentials fails when owner_connection is configured in a process that
      * maintenance_process does not declare the maintenance process, or that serves HTTP; set it to
      * true only in the process that runs the migrations and maintenance. Postgres and

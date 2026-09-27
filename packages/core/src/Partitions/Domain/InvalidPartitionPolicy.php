@@ -36,7 +36,7 @@ final class InvalidPartitionPolicy extends InvalidArgumentException
     public static function value(string $key, string $expected, string $given): self
     {
         return new self(sprintf(
-            'The setting [cms.database.%s] is "%s". Use %s.',
+            'The setting [cbox-cms.database.%s] is "%s". Use %s.',
             $key,
             $given,
             $expected,

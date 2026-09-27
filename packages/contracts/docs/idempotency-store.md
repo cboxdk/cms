@@ -40,9 +40,9 @@ A record holds the changeset id, not a copy of the receipt. The caller resolves 
 
 ## The default: PostgresIdempotencyStore
 
-`cms.contracts` binds `IdempotencyStore` to `Cbox\Cms\Core\IdempotencyStore\Adapter\PostgresIdempotencyStore` (`packages/core/config/cms.php`). It runs on the default connection as the app role, inside the caller's transaction. Its records live in `idempotency_keys`, partitioned per day and kept for 7 days by `cms:partitions:maintain`. Postgres cannot keep a key unique across daily partitions, so the claim is a transaction-scoped advisory lock on a hash of the scope and key, polled with `pg_try_advisory_xact_lock` until it is granted or the budget has passed; it never blocks inside Postgres, where a lock timeout would abort the caller's transaction. The core runs the shared suite against it in `packages/core/tests/Postgres/PostgresIdempotencyStoreContractTest.php`.
+`cbox-cms.contracts` binds `IdempotencyStore` to `Cbox\Cms\Core\IdempotencyStore\Adapter\PostgresIdempotencyStore` (`packages/core/config/cbox-cms.php`). It runs on the default connection as the app role, inside the caller's transaction. Its records live in `idempotency_keys`, partitioned per day and kept for 7 days by `cms:partitions:maintain`. Postgres cannot keep a key unique across daily partitions, so the claim is a transaction-scoped advisory lock on a hash of the scope and key, polled with `pg_try_advisory_xact_lock` until it is granted or the budget has passed; it never blocks inside Postgres, where a lock timeout would abort the caller's transaction. The core runs the shared suite against it in `packages/core/tests/Postgres/PostgresIdempotencyStoreContractTest.php`.
 
-An application replaces the store by overriding that one entry of `cms.contracts` in its `config/cms.php`, `IdempotencyStore::class => CountingIdempotencyStore::class` for the example below. A decorator of the default, like that one, also needs to be given the store it wraps, with a contextual binding in the application's service provider: `$this->app->when(CountingIdempotencyStore::class)->needs(IdempotencyStore::class)->give(PostgresIdempotencyStore::class)`.
+An application replaces the store by overriding that one entry of `cbox-cms.contracts` in its `config/cbox-cms.php`, `IdempotencyStore::class => CountingIdempotencyStore::class` for the example below. A decorator of the default, like that one, also needs to be given the store it wraps, with a contextual binding in the application's service provider: `$this->app->when(CountingIdempotencyStore::class)->needs(IdempotencyStore::class)->give(PostgresIdempotencyStore::class)`.
 
 ## The fake: FakeIdempotencyStore
 
@@ -209,7 +209,7 @@ use Cbox\Cms\Contracts\IdempotencyStore;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 
 /**
- * An IdempotencyStore that an application binds in cms.contracts in place of the default. It
+ * An IdempotencyStore that an application binds in cbox-cms.contracts in place of the default. It
  * passes every call to the store it decorates and counts the claims by result, for a metric.
  */
 final class CountingIdempotencyStore implements IdempotencyStore

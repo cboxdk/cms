@@ -37,7 +37,7 @@ final readonly class FilesystemGeneratedOutput implements GeneratedOutput
     {
         if (LocalPath::namesStreamWrapper($root)) {
             throw GenerationFailed::because(GenerateErrorCode::OutputUnwritable, sprintf(
-                'The root %s names a stream wrapper, and the generated code is written only to a local directory. Set cms.generators.root to an absolute local path.',
+                'The root %s names a stream wrapper, and the generated code is written only to a local directory. Set cbox-cms.generators.root to an absolute local path.',
                 $root,
             ));
         }

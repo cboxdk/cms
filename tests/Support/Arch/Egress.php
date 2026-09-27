@@ -177,7 +177,7 @@ final class Egress
         // no stream wrapper.
         BlueprintFiles::class => ['FilesystemIterator', 'RecursiveDirectoryIterator'],
         // Makes, lists, writes, renames into place and removes files in the owned directories
-        // below cms.generators.root, which GenerationTarget requires to be an absolute path; write()
+        // below cbox-cms.generators.root, which GenerationTarget requires to be an absolute path; write()
         // refuses a root that names a stream wrapper.
         FilesystemGeneratedOutput::class => ['file_put_contents', 'FilesystemIterator', 'mkdir', 'RecursiveDirectoryIterator', 'rename', 'unlink'],
         // Writes a temporary file next to the realpath() of a schema file it found by listing a

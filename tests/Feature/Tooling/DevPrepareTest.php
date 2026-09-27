@@ -62,7 +62,7 @@ it('migrates, then maintains the partitions, then builds the registry, in that o
 
 it('runs the migrations on the owner connection, the owner role and not the app role', function (): void {
     [, $migrate] = testbenchStep(ComposerScripts::steps('dev:prepare')[0]);
-    $owner = config()->string('cms.database.owner_connection');
+    $owner = config()->string('cbox-cms.database.owner_connection');
     $app = config()->string('database.default');
 
     expect($migrate->getOption('database'))->toBe($owner)
@@ -83,7 +83,7 @@ it('maintains every partitioned table ahead of the clock on the owner connection
 
 it('is described, and the agent guides tell to run it after services:up from the main checkout', function (): void {
     expect(ComposerScripts::description('dev:prepare'))
-        ->toContain('composer services:up', 'main checkout', 'cms.database.owner_connection', 'idempotent', 'exits with its code');
+        ->toContain('composer services:up', 'main checkout', 'cbox-cms.database.owner_connection', 'idempotent', 'exits with its code');
 
     foreach (['CLAUDE.md', 'AGENTS.md'] as $guide) {
         $text = (string) file_get_contents(Codebase::root().'/'.$guide);

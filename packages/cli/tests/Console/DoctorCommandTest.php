@@ -182,7 +182,7 @@ it('exits 78 when the owner role writes its messages in German', function (): vo
 
 it('exits 78 when the owner connection is configured in a process that is not the maintenance process', function (): void {
     new DoctorFakes;
-    config(['cms.doctor.maintenance_process' => false]);
+    config(['cbox-cms.doctor.maintenance_process' => false]);
 
     [$status, $document] = doctorJson();
     $credentials = checkOf($document, 'postgres.owner_credentials');
@@ -261,9 +261,9 @@ it('adds the development checks with --dev and asks for no tool without it', fun
         ->and(checkOf($dev, 'dev.node')['blocking'])->toBeFalse();
 });
 
-it('runs the checks an application or addon names in cms.doctor.checks and dev_checks after the core\'s', function (): void {
+it('runs the checks an application or addon names in cbox-cms.doctor.checks and dev_checks after the core\'s', function (): void {
     new DoctorFakes;
-    config(['cms.doctor.checks' => [AddonReadyCheck::class], 'cms.doctor.dev_checks' => [AddonToolCheck::class]]);
+    config(['cbox-cms.doctor.checks' => [AddonReadyCheck::class], 'cbox-cms.doctor.dev_checks' => [AddonToolCheck::class]]);
 
     [$runtimeStatus, $runtime] = doctorJson();
     [$devStatus, $dev] = doctorJson(['--dev' => true]);
@@ -287,7 +287,7 @@ it('skips an added check whose requirement fails, and counts the failure of an a
     $fakes = new DoctorFakes;
     $fakes->postgres->connectFailure = ProbeFailed::unavailable('SQLSTATE[08006] [7] connection to server at "127.0.0.1", port 1 failed: Connection refused');
     app()->instance(FakeDoctorCheck::class, FakeDoctorCheck::failing(new CheckId('addon.settings'), FailureKind::Violation, blocking: false));
-    config(['cms.doctor.checks' => [AddonReadyCheck::class, FakeDoctorCheck::class]]);
+    config(['cbox-cms.doctor.checks' => [AddonReadyCheck::class, FakeDoctorCheck::class]]);
 
     [$status, $document] = doctorJson();
 
@@ -301,24 +301,24 @@ it('skips an added check whose requirement fails, and counts the failure of an a
 
 it('reports an added check that cannot be used as the failing check doctor.config', function (): void {
     new DoctorFakes;
-    config(['cms.doctor.dev_checks' => [AddonReadyCheck::class, AddonReadyCheck::class]]);
+    config(['cbox-cms.doctor.dev_checks' => [AddonReadyCheck::class, AddonReadyCheck::class]]);
 
     [$status, $document] = doctorJson(['--dev' => true]);
 
     expect($status)->toBe(78)
         ->and(checkStatuses($document))->toBe(['doctor.config' => 'fail'])
-        ->and(checkOf($document, 'doctor.config')['cause'])->toBe('The checks in cms.doctor.checks and cms.doctor.dev_checks cannot run after the core\'s checks: The check "addon.ready" is listed twice. Every check has its own id.');
+        ->and(checkOf($document, 'doctor.config')['cause'])->toBe('The checks in cbox-cms.doctor.checks and cbox-cms.doctor.dev_checks cannot run after the core\'s checks: The check "addon.ready" is listed twice. Every check has its own id.');
 });
 
 it('reports invalid settings as the failing check doctor.config', function (): void {
     new DoctorFakes;
-    config(['cms.doctor.connect_timeout_seconds' => 'soon']);
+    config(['cbox-cms.doctor.connect_timeout_seconds' => 'soon']);
 
     [$status, $document] = doctorJson();
 
     expect($status)->toBe(78)
         ->and(checkStatuses($document))->toBe(['doctor.config' => 'fail'])
-        ->and(checkOf($document, 'doctor.config')['cause'])->toBe("The setting cms.doctor.connect_timeout_seconds must be a whole number of at least 1; it is 'soon'.");
+        ->and(checkOf($document, 'doctor.config')['cause'])->toBe("The setting cbox-cms.doctor.connect_timeout_seconds must be a whole number of at least 1; it is 'soon'.");
 });
 
 it('logs the failing checks with their codes', function (): void {

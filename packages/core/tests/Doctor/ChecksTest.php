@@ -335,29 +335,29 @@ it('needs every managed table to have partitions the runway ahead, and does not 
     $probe->runways = [];
     expect($check->run()->passed())->toBeTrue();
 
-    $probe->failure = ProbeFailed::violation('The table "receipts_standard" is listed in [cms.database.partitions.tables] but does not exist.');
+    $probe->failure = ProbeFailed::violation('The table "receipts_standard" is listed in [cbox-cms.database.partitions.tables] but does not exist.');
     expectFailure($check->run(), FailureKind::Violation, PartitionRunwayCheck::CODE_UNMANAGEABLE, 'does not exist');
 });
 
 it('names each table the partition manager cannot manage, and the runway of the tables it still maintains', function (): void {
     $clock = new FakeClock(new DateTimeImmutable('2026-03-10T12:00:00Z'));
     $probe = new FakePartitionRunwayProbe([
-        PartitionCoverage::unmanageable('audit', '[partition_table_unmanageable] The table "audit" is listed in [cms.database.partitions.tables] but does not exist.'),
+        PartitionCoverage::unmanageable('audit', '[partition_table_unmanageable] The table "audit" is listed in [cbox-cms.database.partitions.tables] but does not exist.'),
         new PartitionCoverage('receipts_standard', new DateTimeImmutable('2026-03-24T12:00:00Z')),
         new PartitionCoverage('idempotency_keys', new DateTimeImmutable('2026-03-11T00:00:00Z')),
     ]);
     $result = new PartitionRunwayCheck($probe, $clock, 7)->run();
 
-    expectFailure($result, FailureKind::Violation, PartitionRunwayCheck::CODE_UNMANAGEABLE, 'audit: [partition_table_unmanageable] The table "audit" is listed in [cms.database.partitions.tables] but does not exist.');
+    expectFailure($result, FailureKind::Violation, PartitionRunwayCheck::CODE_UNMANAGEABLE, 'audit: [partition_table_unmanageable] The table "audit" is listed in [cbox-cms.database.partitions.tables] but does not exist.');
     expect($result->blocking)->toBeFalse()
-        ->and($result->explanation)->toBe('The partition manager cannot manage the table "audit" listed in cms.database.partitions.tables, so it gets no new partitions; it still maintains the other tables.')
+        ->and($result->explanation)->toBe('The partition manager cannot manage the table "audit" listed in cbox-cms.database.partitions.tables, so it gets no new partitions; it still maintains the other tables.')
         ->and($result->cause)->toEndWith(' The other tables at 2026-03-10T12:00:00Z: receipts_standard until 2026-03-24T12:00:00Z (14.0 days), idempotency_keys until 2026-03-11T00:00:00Z (0.5 days).')
         ->and($result->fix)->toContain('cms:partitions:maintain');
 
     $probe->runways = [PartitionCoverage::unmanageable('audit', 'missing.'), PartitionCoverage::unmanageable('events', 'not partitioned by range.')];
     $both = new PartitionRunwayCheck($probe, $clock, 7)->run();
 
-    expect($both->explanation)->toStartWith('The partition manager cannot manage the tables "audit", "events" listed in cms.database.partitions.tables, so they get no new partitions;')
+    expect($both->explanation)->toStartWith('The partition manager cannot manage the tables "audit", "events" listed in cbox-cms.database.partitions.tables, so they get no new partitions;')
         ->and($both->cause)->toBe('audit: missing. events: not partitioned by range.');
 });
 
@@ -413,5 +413,5 @@ it('checks Node against the minimum, then Playwright and its Chromium, without b
 });
 
 it('fails for an invalid configuration with its cause', function (): void {
-    expectFailure(new InvalidConfigurationCheck('The setting cms.doctor.partition_runway_days must be a whole number of at least 1; it is 0.')->run(), FailureKind::Violation, InvalidConfigurationCheck::CODE, 'partition_runway_days');
+    expectFailure(new InvalidConfigurationCheck('The setting cbox-cms.doctor.partition_runway_days must be a whole number of at least 1; it is 0.')->run(), FailureKind::Violation, InvalidConfigurationCheck::CODE, 'partition_runway_days');
 });

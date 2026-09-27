@@ -42,7 +42,7 @@ function ownerConnectionWith(array $changes): void
 {
     config([
         'database.connections.pgsql_owner_changed' => array_merge((array) config('database.connections.pgsql_owner'), $changes),
-        'cms.doctor.owner_connection' => 'pgsql_owner_changed',
+        'cbox-cms.doctor.owner_connection' => 'pgsql_owner_changed',
     ]);
 }
 
@@ -71,8 +71,8 @@ it('never logs in as the owner role: a wrong owner password in this process leav
         ->and(array_keys(DB::getConnections()))->not->toContain('pgsql_owner_changed', 'cms_doctor_owner');
 });
 
-it('reads the owner role that cms.doctor.owner_role names in a process without the owner connection', function (): void {
-    config(['cms.doctor.owner_connection' => 'pgsql_owner_missing', 'cms.doctor.owner_role' => 'cms_owner']);
+it('reads the owner role that cbox-cms.doctor.owner_role names in a process without the owner connection', function (): void {
+    config(['cbox-cms.doctor.owner_connection' => 'pgsql_owner_missing', 'cbox-cms.doctor.owner_role' => 'cms_owner']);
 
     $result = new LcMessagesCheck(app(LcMessagesProbe::class))->run();
 
@@ -81,18 +81,18 @@ it('reads the owner role that cms.doctor.owner_role names in a process without t
 });
 
 it('reports an owner role it cannot name as a violation', function (): void {
-    config(['cms.doctor.owner_connection' => 'pgsql_owner_missing']);
+    config(['cbox-cms.doctor.owner_connection' => 'pgsql_owner_missing']);
 
     $result = new LcMessagesCheck(app(LcMessagesProbe::class))->run();
 
     expect($result->status)->toBe(CheckStatus::Fail)
         ->and($result->failure)->toBe(FailureKind::Violation)
         ->and($result->code)->toBe(PostgresQueryFailure::CODE)
-        ->and($result->cause)->toBe('The owner role is not known: cms.doctor.owner_role is null and this process has no owner connection with a username.');
+        ->and($result->cause)->toBe('The owner role is not known: cbox-cms.doctor.owner_role is null and this process has no owner connection with a username.');
 });
 
 it('reports an owner role that does not exist as a violation', function (): void {
-    config(['cms.doctor.owner_role' => 'cms_no_such_owner']);
+    config(['cbox-cms.doctor.owner_role' => 'cms_no_such_owner']);
 
     $result = new LcMessagesCheck(app(LcMessagesProbe::class))->run();
 
@@ -122,14 +122,14 @@ it('takes the owner role\'s setting for this database over its own, as a new ses
         "alter role \"%1\$s\" set lc_messages = 'POSIX'",
         "alter role \"%1\$s\" in database \"%2\$s\" set lc_messages = 'en_US.utf8'",
     );
-    config(['cms.doctor.owner_role' => $owner]);
+    config(['cbox-cms.doctor.owner_role' => $owner]);
 
     expect(app(LcMessagesProbe::class)->ownerRole())->toEqual(new RoleLcMessages($owner, 'pgsql', 'en_US.utf8', SettingSource::DatabaseUser));
 });
 
 it('reads the owner role\'s own setting from the catalog when it has no setting for this database', function (): void {
     $owner = LcMessagesRoles::owner("alter role \"%1\$s\" set lc_messages = 'POSIX'");
-    config(['cms.doctor.owner_role' => $owner]);
+    config(['cbox-cms.doctor.owner_role' => $owner]);
 
     $result = new LcMessagesCheck(app(LcMessagesProbe::class))->run();
 
@@ -140,7 +140,7 @@ it('reads the owner role\'s own setting from the catalog when it has no setting 
 
 it('reports an owner role without a setting as a violation when the app role\'s own setting hides the server default', function (): void {
     $owner = LcMessagesRoles::owner();
-    config(['cms.doctor.owner_role' => $owner]);
+    config(['cbox-cms.doctor.owner_role' => $owner]);
 
     $result = new LcMessagesCheck(app(LcMessagesProbe::class))->run();
 
@@ -151,7 +151,7 @@ it('reports an owner role without a setting as a violation when the app role\'s 
 it('gives an owner role without a setting the server default when the app role\'s session shows it', function (): void {
     $owner = LcMessagesRoles::owner();
     $app = LcMessagesRoles::appWithoutSettings();
-    config(['cms.doctor.owner_role' => $owner]);
+    config(['cbox-cms.doctor.owner_role' => $owner]);
 
     $probe = app(LcMessagesProbe::class);
     $session = $probe->appRole();

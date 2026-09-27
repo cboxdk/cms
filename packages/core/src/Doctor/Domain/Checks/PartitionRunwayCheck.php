@@ -75,14 +75,14 @@ final readonly class PartitionRunwayCheck implements DoctorCheck
                 false,
                 $failed->kind,
                 self::CODE_UNMANAGEABLE,
-                'The doctor could not read the partitions of the tables in cms.database.partitions.tables.',
+                'The doctor could not read the partitions of the tables in cbox-cms.database.partitions.tables.',
                 $failed->cause,
-                'Run the migrations as the owner role, and check the tables listed in cms.database.partitions.tables.',
+                'Run the migrations as the owner role, and check the tables listed in cbox-cms.database.partitions.tables.',
             );
         }
 
         if ($runways === []) {
-            return CheckResult::pass($this->id(), false, 'No tables are listed in cms.database.partitions.tables, so there is no runway to check.');
+            return CheckResult::pass($this->id(), false, 'No tables are listed in cbox-cms.database.partitions.tables, so there is no runway to check.');
         }
 
         $unmanageable = array_values(array_filter($runways, static fn (PartitionCoverage $runway): bool => ! $runway->isManageable()));
@@ -143,7 +143,7 @@ final readonly class PartitionRunwayCheck implements DoctorCheck
             FailureKind::Violation,
             self::CODE_UNMANAGEABLE,
             sprintf(
-                'The partition manager cannot manage %s %s listed in cms.database.partitions.tables, so %s no new partitions; it still maintains the other tables.',
+                'The partition manager cannot manage %s %s listed in cbox-cms.database.partitions.tables, so %s no new partitions; it still maintains the other tables.',
                 count($unmanageable) === 1 ? 'the table' : 'the tables',
                 implode(', ', array_map(static fn (PartitionCoverage $table): string => '"'.$table->table.'"', $unmanageable)),
                 count($unmanageable) === 1 ? 'it gets' : 'they get',

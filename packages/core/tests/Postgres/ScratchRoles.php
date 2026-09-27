@@ -64,7 +64,7 @@ final class ScratchRoles
                 'username' => $role,
                 'password' => $password,
             ]),
-            'cms.doctor.connection' => self::LOGIN_CONNECTION,
+            'cbox-cms.doctor.connection' => self::LOGIN_CONNECTION,
         ]);
 
         return $role;

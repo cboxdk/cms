@@ -11,11 +11,11 @@ use Cbox\Cms\Core\Doctor\Domain\InvalidDoctorConfig;
 use Illuminate\Contracts\Config\Repository;
 
 /**
- * Reads the settings of cms:doctor from `cms.doctor`:
+ * Reads the settings of cms:doctor from `cbox-cms.doctor`:
  *
  *     'doctor' => [
  *         'connection' => null,              // null: the default connection
- *         'owner_connection' => null,        // null: cms.database.owner_connection
+ *         'owner_connection' => null,        // null: cbox-cms.database.owner_connection
  *         'owner_role' => null,              // null: the username of owner_connection, when it is configured
  *         'maintenance_process' => false,    // true only in the process that runs migrations and maintenance
  *         'redis_connection' => 'default',
@@ -33,7 +33,7 @@ use Illuminate\Contracts\Config\Repository;
 #[Internal]
 final readonly class DoctorConfig
 {
-    public const string CONFIG_KEY = 'cms.doctor';
+    public const string CONFIG_KEY = 'cbox-cms.doctor';
 
     /** The checks an application or addon adds to the runtime checks. */
     public const string CHECKS = 'checks';
@@ -47,7 +47,7 @@ final readonly class DoctorConfig
     public static function read(Repository $config, string $basePath): DoctorSettings
     {
         $connection = $config->get(self::CONFIG_KEY.'.connection') ?? $config->get('database.default');
-        $ownerConnection = $config->get(self::CONFIG_KEY.'.owner_connection') ?? $config->get('cms.database.owner_connection');
+        $ownerConnection = $config->get(self::CONFIG_KEY.'.owner_connection') ?? $config->get('cbox-cms.database.owner_connection');
 
         $ownerConnection = self::name('owner_connection', $ownerConnection);
 
@@ -104,7 +104,7 @@ final readonly class DoctorConfig
     }
 
     /**
-     * The owner role's name: cms.doctor.owner_role, or the username of the owner connection when this
+     * The owner role's name: cbox-cms.doctor.owner_role, or the username of the owner connection when this
      * process has it. Only the name is read; the doctor never logs in as the owner role.
      */
     private static function ownerRole(Repository $config, string $ownerConnection): ?string

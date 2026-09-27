@@ -707,7 +707,7 @@ it('names the connection that read the catalog when a managed table is missing',
 
     expect(PartitionScratch::app()->getName())->toBe('pgsql')
         ->and($asApp)->toBeInstanceOf(UnmanageableTable::class)
-        ->and($asApp->getMessage())->toBe('[partition_table_unmanageable] The table "partition_scratch_nowhere" is listed in [cms.database.partitions.tables] but does not exist in the search path of the connection [pgsql]. Run the migrations first.')
+        ->and($asApp->getMessage())->toBe('[partition_table_unmanageable] The table "partition_scratch_nowhere" is listed in [cbox-cms.database.partitions.tables] but does not exist in the search path of the connection [pgsql]. Run the migrations first.')
         ->and($asOwner)->toBeInstanceOf(UnmanageableTable::class)
         ->and($asOwner->getMessage())->toContain('the search path of the connection [pgsql_owner].');
 });

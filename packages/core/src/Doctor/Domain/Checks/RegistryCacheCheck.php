@@ -85,7 +85,7 @@ final readonly class RegistryCacheCheck implements DoctorCheck
                 self::CODE_NO_MANIFEST,
                 'The doctor cannot tell whether the registry cache is older than vendor/, because Composer\'s record of the installed packages is missing.',
                 sprintf('%s does not exist.', $state->manifest),
-                'Run composer install, or set cms.doctor.vendor_manifest to the vendor/composer/installed.json of the application.',
+                'Run composer install, or set cbox-cms.doctor.vendor_manifest to the vendor/composer/installed.json of the application.',
             );
         }
 

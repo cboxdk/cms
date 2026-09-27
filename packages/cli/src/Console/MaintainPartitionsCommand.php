@@ -24,7 +24,7 @@ use Psr\Log\LoggerInterface;
 
 /**
  * `cms:partitions:maintain`: keeps the range partitions of the tables in
- * `cms.database.partitions.tables` (PRD 4, 4.2). The core schedules it every hour.
+ * `cbox-cms.database.partitions.tables` (PRD 4, 4.2). The core schedules it every hour.
  *
  * Without options it creates partitions from now to the runway's end and removes those past
  * retention. With --from and --to it only creates the partitions that cover that range, for rows

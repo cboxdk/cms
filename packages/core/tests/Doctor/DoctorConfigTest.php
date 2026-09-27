@@ -23,11 +23,11 @@ use Illuminate\Config\Repository;
 use stdClass;
 
 /*
- * The settings under cms.doctor, their defaults, and the checks the core wires from them.
+ * The settings under cbox-cms.doctor, their defaults, and the checks the core wires from them.
  */
 
 it('reads the defaults of the core package', function (): void {
-    $settings = DoctorConfig::read(new Repository(['database' => ['default' => 'pgsql'], 'cms' => require __DIR__.'/../../config/cms.php']), '/app');
+    $settings = DoctorConfig::read(new Repository(['database' => ['default' => 'pgsql'], 'cbox-cms' => require __DIR__.'/../../config/cbox-cms.php']), '/app');
 
     expect($settings->connection)->toBe('pgsql')
         ->and($settings->ownerConnection)->toBe('pgsql_owner')
@@ -41,8 +41,8 @@ it('reads the defaults of the core package', function (): void {
         ->and($settings->nodeMinimum)->toBe('22.13.0');
 });
 
-it('falls back to its own defaults for the settings cms.doctor leaves out', function (): void {
-    $settings = DoctorConfig::read(new Repository(['database' => ['default' => 'pgsql'], 'cms' => ['database' => ['owner_connection' => 'pgsql_owner']]]), '/srv/app');
+it('falls back to its own defaults for the settings cbox-cms.doctor leaves out', function (): void {
+    $settings = DoctorConfig::read(new Repository(['database' => ['default' => 'pgsql'], 'cbox-cms' => ['database' => ['owner_connection' => 'pgsql_owner']]]), '/srv/app');
 
     expect($settings->redisConnection)->toBe('default')
         ->and($settings->connectTimeoutSeconds)->toBe(3)
@@ -53,10 +53,10 @@ it('falls back to its own defaults for the settings cms.doctor leaves out', func
 });
 
 it('refuses an empty connection name', function (string $key): void {
-    $config = new Repository(['database' => ['default' => 'pgsql'], 'cms' => ['database' => ['owner_connection' => 'pgsql_owner'], 'doctor' => [$key => '']]]);
+    $config = new Repository(['database' => ['default' => 'pgsql'], 'cbox-cms' => ['database' => ['owner_connection' => 'pgsql_owner'], 'doctor' => [$key => '']]]);
 
     expect(static fn (): DoctorSettings => DoctorConfig::read($config, '/srv/app'))
-        ->toThrow(InvalidDoctorConfig::class, "cms.doctor.{$key}");
+        ->toThrow(InvalidDoctorConfig::class, "cbox-cms.doctor.{$key}");
 })->with(['connection', 'owner_connection', 'redis_connection']);
 
 it('points the workbench at the monorepo\'s vendor manifest and node_modules', function (): void {
@@ -69,7 +69,7 @@ it('points the workbench at the monorepo\'s vendor manifest and node_modules', f
 });
 
 it('takes the connection and paths the application sets', function (): void {
-    $settings = DoctorConfig::read(new Repository(['database' => ['default' => 'pgsql'], 'cms' => ['doctor' => [
+    $settings = DoctorConfig::read(new Repository(['database' => ['default' => 'pgsql'], 'cbox-cms' => ['doctor' => [
         'connection' => 'pgsql_app',
         'owner_connection' => 'pgsql_migrations',
         'redis_connection' => 'cache',
@@ -84,40 +84,40 @@ it('takes the connection and paths the application sets', function (): void {
         ->toBe(['pgsql_app', 'pgsql_migrations', 'cache', 1, 3, '/srv/vendor/composer/installed.json', '/srv', '24.0.0']);
 });
 
-it('takes the owner connection from cms.database.owner_connection when cms.doctor has none', function (): void {
-    $settings = DoctorConfig::read(new Repository(['database' => ['default' => 'pgsql'], 'cms' => ['database' => ['owner_connection' => 'pgsql_ddl']]]), '/app');
+it('takes the owner connection from cbox-cms.database.owner_connection when cbox-cms.doctor has none', function (): void {
+    $settings = DoctorConfig::read(new Repository(['database' => ['default' => 'pgsql'], 'cbox-cms' => ['database' => ['owner_connection' => 'pgsql_ddl']]]), '/app');
 
     expect($settings->ownerConnection)->toBe('pgsql_ddl');
 });
 
-it('refuses a missing owner connection, as when cms.database.owner_connection is null', function (): void {
-    $config = new Repository(['database' => ['default' => 'pgsql'], 'cms' => ['database' => ['owner_connection' => null]]]);
+it('refuses a missing owner connection, as when cbox-cms.database.owner_connection is null', function (): void {
+    $config = new Repository(['database' => ['default' => 'pgsql'], 'cbox-cms' => ['database' => ['owner_connection' => null]]]);
 
     expect(fn (): DoctorSettings => DoctorConfig::read($config, '/app'))
-        ->toThrow(InvalidDoctorConfig::class, 'The setting cms.doctor.owner_connection must be a connection name; it is null.');
+        ->toThrow(InvalidDoctorConfig::class, 'The setting cbox-cms.doctor.owner_connection must be a connection name; it is null.');
 });
 
 it('refuses invalid settings with the key and the value', function (string $key, mixed $value, string $message): void {
-    $config = new Repository(['database' => ['default' => 'pgsql'], 'cms' => ['database' => ['owner_connection' => 'pgsql_owner'], 'doctor' => [$key => $value]]]);
+    $config = new Repository(['database' => ['default' => 'pgsql'], 'cbox-cms' => ['database' => ['owner_connection' => 'pgsql_owner'], 'doctor' => [$key => $value]]]);
 
     expect(fn (): DoctorSettings => DoctorConfig::read($config, '/app'))->toThrow(InvalidDoctorConfig::class, $message);
 })->with([
-    ['connection', 7, 'The setting cms.doctor.connection must be a connection name; it is 7.'],
-    ['owner_connection', false, 'The setting cms.doctor.owner_connection must be a connection name; it is false.'],
-    ['redis_connection', '', "cms.doctor.redis_connection must be a connection name; it is ''."],
-    ['connect_timeout_seconds', 0, 'cms.doctor.connect_timeout_seconds must be a whole number of at least 1; it is 0.'],
-    ['partition_runway_days', '7', "cms.doctor.partition_runway_days must be a whole number of at least 1; it is '7'."],
-    ['vendor_manifest', ['x'], 'cms.doctor.vendor_manifest must be a path, or null for the default; it is array.'],
-    ['node_minimum', '22', "cms.doctor.node_minimum must be a version such as \"22.13.0\"; it is '22'."],
-    ['owner_role', '', "cms.doctor.owner_role must be a role name, or null for the username of the owner connection; it is ''."],
-    ['owner_role', 5, 'cms.doctor.owner_role must be a role name, or null for the username of the owner connection; it is 5.'],
-    ['maintenance_process', 'yes', "cms.doctor.maintenance_process must be true or false; it is 'yes'."],
+    ['connection', 7, 'The setting cbox-cms.doctor.connection must be a connection name; it is 7.'],
+    ['owner_connection', false, 'The setting cbox-cms.doctor.owner_connection must be a connection name; it is false.'],
+    ['redis_connection', '', "cbox-cms.doctor.redis_connection must be a connection name; it is ''."],
+    ['connect_timeout_seconds', 0, 'cbox-cms.doctor.connect_timeout_seconds must be a whole number of at least 1; it is 0.'],
+    ['partition_runway_days', '7', "cbox-cms.doctor.partition_runway_days must be a whole number of at least 1; it is '7'."],
+    ['vendor_manifest', ['x'], 'cbox-cms.doctor.vendor_manifest must be a path, or null for the default; it is array.'],
+    ['node_minimum', '22', "cbox-cms.doctor.node_minimum must be a version such as \"22.13.0\"; it is '22'."],
+    ['owner_role', '', "cbox-cms.doctor.owner_role must be a role name, or null for the username of the owner connection; it is ''."],
+    ['owner_role', 5, 'cbox-cms.doctor.owner_role must be a role name, or null for the username of the owner connection; it is 5.'],
+    ['maintenance_process', 'yes', "cbox-cms.doctor.maintenance_process must be true or false; it is 'yes'."],
 ]);
 
-it('names the owner role by cms.doctor.owner_role, or by the username of the owner connection this process has', function (): void {
+it('names the owner role by cbox-cms.doctor.owner_role, or by the username of the owner connection this process has', function (): void {
     $withConnection = ['default' => 'pgsql', 'connections' => ['pgsql_owner' => ['driver' => 'pgsql', 'username' => 'cms_owner']]];
     $read = static fn (array $database, array $doctor): DoctorSettings => DoctorConfig::read(
-        new Repository(['database' => $database, 'cms' => ['database' => ['owner_connection' => 'pgsql_owner'], 'doctor' => $doctor]]),
+        new Repository(['database' => $database, 'cbox-cms' => ['database' => ['owner_connection' => 'pgsql_owner'], 'doctor' => $doctor]]),
         '/app',
     );
 
@@ -157,8 +157,8 @@ it('wires the runtime checks in order and the dev checks after them', function (
         ->and(array_map(static fn (DoctorCheck $check): bool => $check->blocking(), $dev))->toBe([false, false, false]);
 });
 
-it('gives the one failing check doctor.config when cms.doctor is invalid', function (): void {
-    config(['cms.doctor.partition_runway_days' => -1]);
+it('gives the one failing check doctor.config when cbox-cms.doctor is invalid', function (): void {
+    config(['cbox-cms.doctor.partition_runway_days' => -1]);
 
     $checks = app(DoctorChecks::class);
     $runtime = $checks->for(new DoctorRunOptions);
@@ -196,14 +196,14 @@ function configurationFailure(): string
 }
 
 it('adds no checks of its own by default', function (): void {
-    $settings = DoctorConfig::read(new Repository(['database' => ['default' => 'pgsql'], 'cms' => require __DIR__.'/../../config/cms.php']), '/app');
-    $leftOut = DoctorConfig::read(new Repository(['database' => ['default' => 'pgsql'], 'cms' => ['database' => ['owner_connection' => 'pgsql_owner']]]), '/app');
+    $settings = DoctorConfig::read(new Repository(['database' => ['default' => 'pgsql'], 'cbox-cms' => require __DIR__.'/../../config/cbox-cms.php']), '/app');
+    $leftOut = DoctorConfig::read(new Repository(['database' => ['default' => 'pgsql'], 'cbox-cms' => ['database' => ['owner_connection' => 'pgsql_owner']]]), '/app');
 
     expect([$settings->checks, $settings->devChecks, $leftOut->checks, $leftOut->devChecks])->toBe([[], [], [], []]);
 });
 
 it('reads the class names of the checks an application or addon adds, in their order', function (): void {
-    $settings = DoctorConfig::read(new Repository(['database' => ['default' => 'pgsql'], 'cms' => ['database' => ['owner_connection' => 'pgsql_owner'], 'doctor' => [
+    $settings = DoctorConfig::read(new Repository(['database' => ['default' => 'pgsql'], 'cbox-cms' => ['database' => ['owner_connection' => 'pgsql_owner'], 'doctor' => [
         'checks' => [AddonReadyCheck::class, RepeatedIdCheck::class],
         'dev_checks' => [AddonToolCheck::class],
     ]]]), '/app');
@@ -213,24 +213,24 @@ it('reads the class names of the checks an application or addon adds, in their o
 });
 
 it('refuses a check list that is not a list of classes that implement DoctorCheck', function (string $key, mixed $value, string $message): void {
-    $config = new Repository(['database' => ['default' => 'pgsql'], 'cms' => ['database' => ['owner_connection' => 'pgsql_owner'], 'doctor' => [$key => $value]]]);
+    $config = new Repository(['database' => ['default' => 'pgsql'], 'cbox-cms' => ['database' => ['owner_connection' => 'pgsql_owner'], 'doctor' => [$key => $value]]]);
 
     expect(fn (): DoctorSettings => DoctorConfig::read($config, '/app'))->toThrow(InvalidDoctorConfig::class, $message);
 })->with([
-    'a class name instead of a list' => ['checks', AddonReadyCheck::class, 'The setting cms.doctor.checks must be a list of class names of doctor checks; it is '],
-    'a map instead of a list' => ['dev_checks', ['tool' => AddonToolCheck::class], 'The setting cms.doctor.dev_checks must be a list of class names of doctor checks; it is array.'],
-    'null' => ['checks', null, 'The setting cms.doctor.checks must be a list of class names of doctor checks; it is null.'],
-    'a number in the list' => ['checks', [AddonReadyCheck::class, 5], 'The setting cms.doctor.checks.1 must be the name of a class that implements Cbox\Cms\Contracts\Doctor\DoctorCheck; it is 5.'],
-    'a class that does not exist' => ['checks', ['Acme\Missing\Check'], "The setting cms.doctor.checks.0 must be the name of a class that implements Cbox\Cms\Contracts\Doctor\DoctorCheck; it is 'Acme\\\\Missing\\\\Check'."],
-    'a class that is no check' => ['dev_checks', [stdClass::class], "The setting cms.doctor.dev_checks.0 must be the name of a class that implements Cbox\Cms\Contracts\Doctor\DoctorCheck; it is 'stdClass'."],
-    'the contract itself' => ['checks', [DoctorCheck::class], 'The setting cms.doctor.checks.0 must be the name of a class that implements'],
+    'a class name instead of a list' => ['checks', AddonReadyCheck::class, 'The setting cbox-cms.doctor.checks must be a list of class names of doctor checks; it is '],
+    'a map instead of a list' => ['dev_checks', ['tool' => AddonToolCheck::class], 'The setting cbox-cms.doctor.dev_checks must be a list of class names of doctor checks; it is array.'],
+    'null' => ['checks', null, 'The setting cbox-cms.doctor.checks must be a list of class names of doctor checks; it is null.'],
+    'a number in the list' => ['checks', [AddonReadyCheck::class, 5], 'The setting cbox-cms.doctor.checks.1 must be the name of a class that implements Cbox\Cms\Contracts\Doctor\DoctorCheck; it is 5.'],
+    'a class that does not exist' => ['checks', ['Acme\Missing\Check'], "The setting cbox-cms.doctor.checks.0 must be the name of a class that implements Cbox\Cms\Contracts\Doctor\DoctorCheck; it is 'Acme\\\\Missing\\\\Check'."],
+    'a class that is no check' => ['dev_checks', [stdClass::class], "The setting cbox-cms.doctor.dev_checks.0 must be the name of a class that implements Cbox\Cms\Contracts\Doctor\DoctorCheck; it is 'stdClass'."],
+    'the contract itself' => ['checks', [DoctorCheck::class], 'The setting cbox-cms.doctor.checks.0 must be the name of a class that implements'],
 ]);
 
-it('runs the checks of cms.doctor.checks after the core\'s runtime checks, and those of dev_checks after the dev checks', function (): void {
+it('runs the checks of cbox-cms.doctor.checks after the core\'s runtime checks, and those of dev_checks after the dev checks', function (): void {
     $core = configuredCheckIds(false);
     $coreDev = configuredCheckIds(true);
 
-    config(['cms.doctor.checks' => [AddonReadyCheck::class], 'cms.doctor.dev_checks' => [AddonToolCheck::class]]);
+    config(['cbox-cms.doctor.checks' => [AddonReadyCheck::class], 'cbox-cms.doctor.dev_checks' => [AddonToolCheck::class]]);
 
     $runtime = app(DoctorChecks::class)->for(new DoctorRunOptions);
 
@@ -245,7 +245,7 @@ it('builds each added check with the container, so a binding hands it what it lo
     app()->instance(FakeDoctorCheck::class, $fake);
     app()->when(UnbuildableCheck::class)->needs('$directory')->give('/srv/uploads');
 
-    config(['cms.doctor.checks' => [UnbuildableCheck::class, FakeDoctorCheck::class]]);
+    config(['cbox-cms.doctor.checks' => [UnbuildableCheck::class, FakeDoctorCheck::class]]);
 
     $runtime = app(DoctorChecks::class)->for(new DoctorRunOptions);
     [$directory, $added] = array_slice($runtime, -2);
@@ -256,25 +256,25 @@ it('builds each added check with the container, so a binding hands it what it lo
 });
 
 it('gives the one failing check doctor.config when an added check cannot be used', function (string $key, string $class, string $cause): void {
-    config(['cms.doctor.'.$key => [$class]]);
+    config(['cbox-cms.doctor.'.$key => [$class]]);
 
     expect(configurationFailure())->toContain($cause);
 })->with([
-    'a class the container cannot build' => ['checks', UnbuildableCheck::class, 'The check '.UnbuildableCheck::class.' in cms.doctor.checks cannot be used: Illuminate\Contracts\Container\BindingResolutionException: Unresolvable dependency resolving [Parameter #0 [ <required> string $directory ]]'],
-    'an id that is not a check id' => ['dev_checks', InvalidIdCheck::class, 'The check '.InvalidIdCheck::class.' in cms.doctor.dev_checks cannot be used: Cbox\Cms\Contracts\Doctor\InvalidDoctorCheck: The check id "Addon Ready" is invalid.'],
-    'the id of a core check' => ['checks', RepeatedIdCheck::class, 'The checks in cms.doctor.checks and cms.doctor.dev_checks cannot run after the core\'s checks: The check "php.version" is listed twice.'],
-    'a runtime check that requires a dev check' => ['checks', AddonToolCheck::class, 'The checks in cms.doctor.checks and cms.doctor.dev_checks cannot run after the core\'s checks: The check "addon.tool" requires "dev.node", which is not listed before it.'],
+    'a class the container cannot build' => ['checks', UnbuildableCheck::class, 'The check '.UnbuildableCheck::class.' in cbox-cms.doctor.checks cannot be used: Illuminate\Contracts\Container\BindingResolutionException: Unresolvable dependency resolving [Parameter #0 [ <required> string $directory ]]'],
+    'an id that is not a check id' => ['dev_checks', InvalidIdCheck::class, 'The check '.InvalidIdCheck::class.' in cbox-cms.doctor.dev_checks cannot be used: Cbox\Cms\Contracts\Doctor\InvalidDoctorCheck: The check id "Addon Ready" is invalid.'],
+    'the id of a core check' => ['checks', RepeatedIdCheck::class, 'The checks in cbox-cms.doctor.checks and cbox-cms.doctor.dev_checks cannot run after the core\'s checks: The check "php.version" is listed twice.'],
+    'a runtime check that requires a dev check' => ['checks', AddonToolCheck::class, 'The checks in cbox-cms.doctor.checks and cbox-cms.doctor.dev_checks cannot run after the core\'s checks: The check "addon.tool" requires "dev.node", which is not listed before it.'],
 ]);
 
 it('gives doctor.config when an added check names a class that is no check', function (): void {
-    config(['cms.doctor.checks' => [stdClass::class]]);
+    config(['cbox-cms.doctor.checks' => [stdClass::class]]);
 
-    expect(configurationFailure())->toContain('cms.doctor.checks.0 must be the name of a class that implements');
+    expect(configurationFailure())->toContain('cbox-cms.doctor.checks.0 must be the name of a class that implements');
 });
 
 it('gives doctor.config when a binding makes an added check into something that is no check', function (): void {
     app()->bind(AddonReadyCheck::class, static fn (): stdClass => new stdClass);
-    config(['cms.doctor.checks' => [AddonReadyCheck::class]]);
+    config(['cbox-cms.doctor.checks' => [AddonReadyCheck::class]]);
 
-    expect(configurationFailure())->toBe('The check '.AddonReadyCheck::class.' in cms.doctor.checks cannot be used: UnexpectedValueException: The container gives stdClass, which does not implement Cbox\Cms\Contracts\Doctor\DoctorCheck.');
+    expect(configurationFailure())->toBe('The check '.AddonReadyCheck::class.' in cbox-cms.doctor.checks cannot be used: UnexpectedValueException: The container gives stdClass, which does not implement Cbox\Cms\Contracts\Doctor\DoctorCheck.');
 });

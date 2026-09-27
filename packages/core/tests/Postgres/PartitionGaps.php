@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\DB;
  *
  * PartitionFixtures only creates partitions, and they stay until the schema is rebuilt, so an
  * earlier test may have covered the range. open() drops, as the owner role, every partition of a
- * table in `cms.database.partitions.tables` whose span overlaps [$from, $to]: whole days or months,
+ * table in `cbox-cms.database.partitions.tables` whose span overlaps [$from, $to]: whole days or months,
  * so the gap can be wider than the range. A later test that needs those dates covers them again.
  */
 final class PartitionGaps

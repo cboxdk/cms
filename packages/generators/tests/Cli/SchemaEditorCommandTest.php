@@ -12,7 +12,7 @@ use Illuminate\Contracts\Console\Kernel;
 
 /*
  * cms:schema:editor in the testbench application, pointed at a scratch root through
- * cms.generators and at the blueprint schema of the installed cboxdk/cms-contracts.
+ * cbox-cms.generators and at the blueprint schema of the installed cboxdk/cms-contracts.
  */
 
 afterEach(function (): void {
@@ -42,7 +42,7 @@ const EDITOR_BLUEPRINT = <<<'YAML'
     YAML;
 
 /**
- * A scratch root with the blueprint in schema/page.yaml, set as cms.generators.root with the
+ * A scratch root with the blueprint in schema/page.yaml, set as cbox-cms.generators.root with the
  * schema root `schema` of app.
  */
 function editorRoot(string $blueprint = EDITOR_BLUEPRINT): string
@@ -50,7 +50,7 @@ function editorRoot(string $blueprint = EDITOR_BLUEPRINT): string
     $root = SchemaFixtures::scratch();
     SchemaFixtures::write($root.'/schema/page.yaml', $blueprint);
 
-    config()->set('cms.generators', [
+    config()->set('cbox-cms.generators', [
         'root' => $root,
         'roots' => ['app' => 'schema'],
         'php_directory' => 'app/Cms/Generated',
@@ -204,7 +204,7 @@ it('exits with 66 when a file cannot be read', function (): void {
 
 it('exits with 66 and changes nothing when a schema root is missing', function (): void {
     $root = editorRoot();
-    config()->set('cms.generators.roots', ['app' => 'schema', 'acme' => 'vendor/acme/shop/schema']);
+    config()->set('cbox-cms.generators.roots', ['app' => 'schema', 'acme' => 'vendor/acme/shop/schema']);
 
     [$status, $output] = editorCommand();
 
@@ -218,7 +218,7 @@ it('exits with 66 and changes nothing when a schema root is missing', function (
 
 it('exits with 78 and changes nothing when the configuration is invalid', function (string $key, mixed $value, string $problem): void {
     $root = editorRoot();
-    config()->set('cms.generators.'.$key, $value);
+    config()->set('cbox-cms.generators.'.$key, $value);
 
     [$status, $output] = editorCommand();
 
@@ -227,7 +227,7 @@ it('exits with 78 and changes nothing when the configuration is invalid', functi
         ->and($output[count($output) - 1])->toBe('No blueprint file was changed.')
         ->and(file_get_contents($root.'/schema/page.yaml'))->toBe(EDITOR_BLUEPRINT);
 })->with([
-    'roots that are a list' => ['roots', ['schema'], 'cms.generators.roots must map each owner to its schema directory'],
+    'roots that are a list' => ['roots', ['schema'], 'cbox-cms.generators.roots must map each owner to its schema directory'],
     'a root outside the root' => ['roots', ['app' => '../schema'], 'The schema root "../schema" of app is not a relative path below its base'],
     'two owners with one root' => ['roots', ['app' => 'schema', 'acme' => 'schema'], '/schema of app lies in the schema root '],
     'a root that is not absolute' => ['root', 'relative/path', 'The base "relative/path" of the schema root of app is not an absolute path.'],

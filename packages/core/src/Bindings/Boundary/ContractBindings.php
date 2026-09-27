@@ -13,13 +13,13 @@ use ReflectionClass;
  * Reads which class implements a contract from the configuration (GUARDRAILS 2.3: contracts are
  * bound in the container and can be overridden in the configuration).
  *
- * The map is `cms.contracts`, contract => implementation. The core's config/cms.php has the
+ * The map is `cbox-cms.contracts`, contract => implementation. The core's config/cbox-cms.php has the
  * defaults, and an application overrides one entry at a time.
  */
 #[Internal]
 final readonly class ContractBindings
 {
-    public const string CONFIG_KEY = 'cms.contracts';
+    public const string CONFIG_KEY = 'cbox-cms.contracts';
 
     public function __construct(private Repository $config) {}
 

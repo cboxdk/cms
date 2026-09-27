@@ -25,7 +25,7 @@ use PHPUnit\Framework\AssertionFailedError;
  *
  * It runs `cms:partitions:maintain --from --to`, the command the application schedules, so the
  * partitions are made the same way as in production: as the owner role, for every table in
- * `cms.database.partitions.tables`. It creates only and removes nothing. The partitions stay until
+ * `cbox-cms.database.partitions.tables`. It creates only and removes nothing. The partitions stay until
  * the schema is rebuilt, and the harness truncates their rows after each test.
  */
 #[Experimental]

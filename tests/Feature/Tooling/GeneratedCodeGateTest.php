@@ -28,7 +28,7 @@ use Symfony\Component\Process\Process;
  *
  * The gate is run step by step from composer.json in a scratch git repository with a copy of the
  * workbench's blueprints and generated code, so the test does not depend on the state of this
- * working copy. cms:generate runs in-process with cms.generators.root pointing at the copy.
+ * working copy. cms:generate runs in-process with cbox-cms.generators.root pointing at the copy.
  */
 
 const GENERATED_PATHS = ['workbench/app/Cms/Generated', 'workbench/resources/js/cms/generated'];
@@ -82,7 +82,7 @@ function gateRepository(): string
     git($root, 'add', '--all');
     git($root, 'commit', '--quiet', '--message=fixture');
 
-    config()->set('cms.generators.root', $root);
+    config()->set('cbox-cms.generators.root', $root);
 
     return $root;
 }
@@ -144,7 +144,7 @@ it('regenerates, then fails on a diff or an untracked file under the generated p
 });
 
 it('points the gate at the directories cms:generate writes in the workbench', function (): void {
-    expect([config('cms.generators.php_directory'), config('cms.generators.typescript_directory')])->toBe(GENERATED_PATHS);
+    expect([config('cbox-cms.generators.php_directory'), config('cbox-cms.generators.typescript_directory')])->toBe(GENERATED_PATHS);
 });
 
 it('passes on a clean tree and leaves it clean', function (): void {

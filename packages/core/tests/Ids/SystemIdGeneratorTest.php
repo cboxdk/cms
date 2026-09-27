@@ -41,7 +41,7 @@ it('draws fresh random bits in every instance', function (): void {
 it('resolves the UUIDv7 generator from the container, once', function (): void {
     expect(app(IdGenerator::class))->toBeInstanceOf(SystemIdGenerator::class)
         ->and(app(IdGenerator::class))->toBe(app(IdGenerator::class))
-        ->and(config('cms.contracts.'.IdGenerator::class))->toBe(SystemIdGenerator::class);
+        ->and(config('cbox-cms.contracts.'.IdGenerator::class))->toBe(SystemIdGenerator::class);
 });
 
 it('reads the time from the clock bound in the container', function (): void {
@@ -52,13 +52,13 @@ it('reads the time from the clock bound in the container', function (): void {
 });
 
 it('resolves the generator that the configuration names', function (): void {
-    config()->set('cms.contracts.'.IdGenerator::class, FakeIdGenerator::class);
+    config()->set('cbox-cms.contracts.'.IdGenerator::class, FakeIdGenerator::class);
 
     expect(app(IdGenerator::class))->toBeInstanceOf(FakeIdGenerator::class);
 });
 
 it('refuses a configured class that is not an id generator', function (): void {
-    config()->set('cms.contracts.'.IdGenerator::class, stdClass::class);
+    config()->set('cbox-cms.contracts.'.IdGenerator::class, stdClass::class);
 
     expect(fn (): IdGenerator => app(IdGenerator::class))->toThrow(InvalidContractBinding::class, 'does not implement');
 });

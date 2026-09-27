@@ -8,7 +8,7 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Doctor\DoctorCheck;
 
 /**
- * The settings of cms:doctor, read from `cms.doctor` with its paths resolved.
+ * The settings of cms:doctor, read from `cbox-cms.doctor` with its paths resolved.
  */
 #[Internal]
 final readonly class DoctorSettings
@@ -16,7 +16,7 @@ final readonly class DoctorSettings
     /**
      * @param  string  $connection  the database connection of the app role that the Postgres checks use
      * @param  string  $ownerConnection  the database connection of the owner role; postgres.owner_credentials fails when it is configured outside the maintenance process
-     * @param  ?string  $ownerRole  the name of the owner role, whose lc_messages postgres.lc_messages reads from the catalog; null when neither cms.doctor.owner_role nor the owner connection names it
+     * @param  ?string  $ownerRole  the name of the owner role, whose lc_messages postgres.lc_messages reads from the catalog; null when neither cbox-cms.doctor.owner_role nor the owner connection names it
      * @param  bool  $maintenanceProcess  whether this process is the one that runs migrations and partition maintenance and serves no HTTP
      * @param  string  $redisConnection  the Redis connection that the Valkey check pings
      * @param  int  $connectTimeoutSeconds  how long a connection attempt to Postgres or Valkey may take

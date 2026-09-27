@@ -27,7 +27,7 @@ use Override;
 /**
  * Registers the generators package in a Laravel application. Loaded through package discovery.
  *
- * Merges the defaults for `cms.generators`, wires cms:generate (PRD 11.12) to the blueprint reader
+ * Merges the defaults for `cbox-cms.generators`, wires cms:generate (PRD 11.12) to the blueprint reader
  * that validates against the installed blueprint schema v1, to the registry of field types that
  * the reader resolves every field's type in, with the core's own field types registered through
  * CoreFieldTypes like any contributor's (GUARDRAILS 2.4), to the M0 generators and to the

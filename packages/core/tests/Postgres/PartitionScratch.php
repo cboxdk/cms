@@ -72,14 +72,14 @@ final class PartitionScratch
      * Manages the scratch tables with the given settings, and the policy values given.
      *
      * @param  array<string, array{key: string, interval: string, retention_days: int|null}>  $tables
-     * @param  array<string, int|string>  $policy  keys of cms.database.partitions, and owner_connection
+     * @param  array<string, int|string>  $policy  keys of cbox-cms.database.partitions, and owner_connection
      */
     public static function manage(array $tables, array $policy = []): void
     {
-        config()->set('cms.database.partitions.tables', $tables);
+        config()->set('cbox-cms.database.partitions.tables', $tables);
 
         foreach ($policy as $key => $value) {
-            config()->set($key === 'owner_connection' ? 'cms.database.owner_connection' : 'cms.database.partitions.'.$key, $value);
+            config()->set($key === 'owner_connection' ? 'cbox-cms.database.owner_connection' : 'cbox-cms.database.partitions.'.$key, $value);
         }
     }
 

@@ -35,7 +35,7 @@ it('reads the package defaults: the pgsql_owner connection, a 14-day runway, the
 });
 
 it('reads each table with its key, interval and retention', function (): void {
-    $policy = PartitionConfig::read(new Repository(['cms' => ['database' => [
+    $policy = PartitionConfig::read(new Repository(['cbox-cms' => ['database' => [
         'owner_connection' => 'owner',
         'partitions' => [
             'runway_days' => 30,
@@ -57,23 +57,23 @@ it('reads each table with its key, interval and retention', function (): void {
 });
 
 it('names the setting that is wrong', function (mixed $database, string $message): void {
-    expect(static fn (): PartitionPolicy => PartitionConfig::read(new Repository(['cms' => ['database' => $database]])))
+    expect(static fn (): PartitionPolicy => PartitionConfig::read(new Repository(['cbox-cms' => ['database' => $database]])))
         ->toThrow(InvalidPartitionPolicy::class, $message);
 })->with([
-    'no owner' => [[], '[cms.database.owner_connection] is "null"'],
-    'tables not a map' => [['owner_connection' => 'o', 'partitions' => ['tables' => 'receipts']], '[cms.database.partitions.tables]'],
-    'a list of names' => [['owner_connection' => 'o', 'partitions' => ['tables' => ['receipts']]], '[cms.database.partitions.tables.0]'],
-    'unknown key' => [['owner_connection' => 'o', 'partitions' => ['tables' => ['receipts' => ['key' => 'uuid4', 'interval' => 'day']]]], '[cms.database.partitions.tables.receipts.key] is "uuid4"'],
-    'unknown interval' => [['owner_connection' => 'o', 'partitions' => ['tables' => ['receipts' => ['key' => 'uuid7', 'interval' => 'week']]]], '[cms.database.partitions.tables.receipts.interval] is "week"'],
-    'retention as text' => [['owner_connection' => 'o', 'partitions' => ['tables' => ['receipts' => ['key' => 'uuid7', 'interval' => 'day', 'retention_days' => '7']]]], '[cms.database.partitions.tables.receipts.retention_days] is "7"'],
-    'runway as text' => [['owner_connection' => 'o', 'partitions' => ['runway_days' => '14']], '[cms.database.partitions.runway_days] is "14"'],
+    'no owner' => [[], '[cbox-cms.database.owner_connection] is "null"'],
+    'tables not a map' => [['owner_connection' => 'o', 'partitions' => ['tables' => 'receipts']], '[cbox-cms.database.partitions.tables]'],
+    'a list of names' => [['owner_connection' => 'o', 'partitions' => ['tables' => ['receipts']]], '[cbox-cms.database.partitions.tables.0]'],
+    'unknown key' => [['owner_connection' => 'o', 'partitions' => ['tables' => ['receipts' => ['key' => 'uuid4', 'interval' => 'day']]]], '[cbox-cms.database.partitions.tables.receipts.key] is "uuid4"'],
+    'unknown interval' => [['owner_connection' => 'o', 'partitions' => ['tables' => ['receipts' => ['key' => 'uuid7', 'interval' => 'week']]]], '[cbox-cms.database.partitions.tables.receipts.interval] is "week"'],
+    'retention as text' => [['owner_connection' => 'o', 'partitions' => ['tables' => ['receipts' => ['key' => 'uuid7', 'interval' => 'day', 'retention_days' => '7']]]], '[cbox-cms.database.partitions.tables.receipts.retention_days] is "7"'],
+    'runway as text' => [['owner_connection' => 'o', 'partitions' => ['runway_days' => '14']], '[cbox-cms.database.partitions.runway_days] is "14"'],
 ]);
 
 it('binds partition maintenance to the Postgres manager, built from the configuration on each resolution', function (): void {
     expect(app(PartitionMaintenance::class))->toBeInstanceOf(PostgresPartitionManager::class)
         ->and(app(PartitionMaintenance::class))->not->toBe(app(PartitionMaintenance::class));
 
-    config()->set('cms.database.partitions.runway_days', 0);
+    config()->set('cbox-cms.database.partitions.runway_days', 0);
 
     expect(static fn (): PartitionMaintenance => app(PartitionMaintenance::class))
         ->toThrow(InvalidPartitionPolicy::class, 'runway_days');

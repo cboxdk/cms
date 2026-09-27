@@ -91,7 +91,7 @@ final readonly class ConnectionLcMessagesProbe implements LcMessagesProbe
     public function ownerRole(): RoleLcMessages
     {
         if ($this->ownerRole === null) {
-            throw ProbeFailed::violation('The owner role is not known: cms.doctor.owner_role is null and this process has no owner connection with a username.');
+            throw ProbeFailed::violation('The owner role is not known: cbox-cms.doctor.owner_role is null and this process has no owner connection with a username.');
         }
 
         try {

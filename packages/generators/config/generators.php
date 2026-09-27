@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /*
- * cms:generate (PRD 11.12), merged into `cms.generators`.
+ * cms:generate (PRD 11.12), merged into `cbox-cms.generators`.
  *
  * cms:generate reads the blueprint v1 files below the schema roots and writes a PHP enum of the
  * type handles and a TypeScript union of them, each with the fields of every type. The paths follow

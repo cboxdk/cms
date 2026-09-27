@@ -15,7 +15,7 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
 final readonly class EditorTarget
 {
     /**
-     * @param  non-empty-list<SchemaRoot>  $roots  the schema roots of cms.generators.roots
+     * @param  non-empty-list<SchemaRoot>  $roots  the schema roots of cbox-cms.generators.roots
      * @param  string  $schema  the absolute, canonical path of blueprint.v1.json in the installed cboxdk/cms-contracts
      */
     public function __construct(

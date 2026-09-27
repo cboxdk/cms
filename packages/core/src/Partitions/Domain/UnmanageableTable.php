@@ -42,7 +42,7 @@ final class UnmanageableTable extends LogicException
     public static function missing(string $table, string $connection): self
     {
         return new self(null, sprintf(
-            'The table "%s" is listed in [cms.database.partitions.tables] but does not exist in the search path of the connection [%s]. Run the migrations first.',
+            'The table "%s" is listed in [cbox-cms.database.partitions.tables] but does not exist in the search path of the connection [%s]. Run the migrations first.',
             $table,
             $connection,
         ));

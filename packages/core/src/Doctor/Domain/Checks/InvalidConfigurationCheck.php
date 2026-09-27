@@ -12,7 +12,7 @@ use Cbox\Cms\Contracts\Doctor\FailureKind;
 use Override;
 
 /**
- * Stands in for every other check when `cms.doctor` itself is invalid, so cms:doctor still prints
+ * Stands in for every other check when `cbox-cms.doctor` itself is invalid, so cms:doctor still prints
  * its document and exits with the violation code instead of stopping with an exception.
  */
 #[Internal]
@@ -52,7 +52,7 @@ final readonly class InvalidConfigurationCheck implements DoctorCheck
             self::CODE,
             'The settings of cms:doctor are invalid, so it cannot check the installation.',
             $this->cause,
-            'Fix the setting in config/cms.php, or remove it to use the default.',
+            'Fix the setting in config/cbox-cms.php, or remove it to use the default.',
         );
     }
 }

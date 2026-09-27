@@ -14,7 +14,7 @@ use Cbox\Cms\Contracts\IdempotencyStore;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 
 /**
- * An IdempotencyStore that an application binds in cms.contracts in place of the default. It
+ * An IdempotencyStore that an application binds in cbox-cms.contracts in place of the default. It
  * passes every call to the store it decorates and counts the claims by result, for a metric.
  */
 final class CountingIdempotencyStore implements IdempotencyStore

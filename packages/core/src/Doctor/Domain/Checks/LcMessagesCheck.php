@@ -81,7 +81,7 @@ final readonly class LcMessagesCheck implements DoctorCheck
                 PostgresQueryFailure::CODE,
                 'The doctor could not read the language of the messages from Postgres or from the PHP process.',
                 $failed->cause,
-                'Check that Postgres is running and that the app role\'s connection is configured and may log in, and that cms.doctor.owner_role, or the username of the owner connection, names the owner role. When the doctor cannot read the server\'s default, give the owner role a value of its own: as a superuser, run ALTER ROLE <owner role> SET lc_messages = \'C\'. Then run cms:doctor again.',
+                'Check that Postgres is running and that the app role\'s connection is configured and may log in, and that cbox-cms.doctor.owner_role, or the username of the owner connection, names the owner role. When the doctor cannot read the server\'s default, give the owner role a value of its own: as a superuser, run ALTER ROLE <owner role> SET lc_messages = \'C\'. Then run cms:doctor again.',
             );
         }
 

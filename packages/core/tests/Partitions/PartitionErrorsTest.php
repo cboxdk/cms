@@ -56,7 +56,7 @@ it('writes its codes into the messages of the partition errors', function (): vo
         ->and(OwnerConnectionRequired::appConnection('pgsql')->getMessage())
         ->toStartWith('[partition_owner_required] Partition maintenance is set to run on the connection [pgsql]')
         ->and(UnmanageableTable::missing('audit', 'pgsql_owner')->getMessage())
-        ->toBe('[partition_table_unmanageable] The table "audit" is listed in [cms.database.partitions.tables] but does not exist in the search path of the connection [pgsql_owner]. Run the migrations first.')
+        ->toBe('[partition_table_unmanageable] The table "audit" is listed in [cbox-cms.database.partitions.tables] but does not exist in the search path of the connection [pgsql_owner]. Run the migrations first.')
         ->and(UnmanageableTable::notRangePartitioned('audit')->getMessage())->toStartWith('[partition_table_unmanageable] The table "audit" is not partitioned by range.')
         ->and(UnmanageableTable::hasDefaultPartition('audit', 'audit_default')->getMessage())->toStartWith('[partition_table_unmanageable] The table "audit" has the DEFAULT partition "audit_default".')
         ->and(UnmanageableTable::inTransaction('pgsql_owner')->getMessage())->toStartWith('[partition_table_unmanageable] The connection [pgsql_owner] is inside a transaction.');

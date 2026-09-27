@@ -13,7 +13,7 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 #[Internal]
 enum GenerateErrorCode: string
 {
-    /** The configuration under cms.generators is missing a value or has an invalid one. */
+    /** The configuration under cbox-cms.generators is missing a value or has an invalid one. */
     case InvalidConfig = 'generate_invalid_config';
 
     /** A schema root, or a blueprint file below one, does not exist or cannot be read. */

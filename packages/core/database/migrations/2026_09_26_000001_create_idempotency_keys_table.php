@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\DB;
  * scope and key, so a hash collision never mixes two records.
  *
  * The table is partitioned by RANGE on created_at, one partition per day, and a partition is
- * dropped a week after its day ends (cms.database.partitions.tables). A unique index on a
+ * dropped a week after its day ends (cbox-cms.database.partitions.tables). A unique index on a
  * partitioned table must contain the partition key (PRD 4.1), so no index can keep one record per
  * key across days. The store keeps it with the claim's advisory lock instead, and there is no
  * primary key: nothing updates or deletes a record, whole partitions are dropped.
