@@ -28,6 +28,7 @@ use Cbox\Cms\Testkit\Idempotency\IdempotencyStoreHarness;
 use Cbox\Cms\Testkit\Idempotency\IdempotencyStoreSession;
 use Closure;
 use DateTimeImmutable;
+use DateTimeZone;
 use LogicException;
 use Override;
 use PHPUnit\Framework\AssertionFailedError;
@@ -79,6 +80,9 @@ enum IdempotencyBreach
 
     /** A transaction that met PartitionMissing takes further claims. */
     case KeepsFailedTransactions;
+
+    /** The lookup ends with the Clock's UTC day, so a record created on a later day is not found. */
+    case LooksUpToTheEndOfTheClocksDay;
 }
 
 /**
@@ -88,6 +92,11 @@ final class BrokenIdempotencyState
 {
     /** @var array<string, ChangesetId> */
     public array $completed = [];
+
+    /** @var array<string, DateTimeImmutable> the created_at of each completed record */
+    public array $createdAt = [];
+
+    public function __construct(public readonly Clock $clock) {}
 
     /** @var array<string, BrokenIdempotencySession> */
     public array $stuck = [];
@@ -150,6 +159,12 @@ final readonly class BrokenIdempotencySession implements IdempotencyStore, Idemp
             return new InFlight($scope, $key, $waitBudget);
         }
 
+        if ($this->breach === IdempotencyBreach::LooksUpToTheEndOfTheClocksDay
+            && ($result instanceof Replay || $result instanceof Conflict)
+            && ($this->state->createdAt[$name] ?? null) >= $this->state->clock->now()->setTimezone(new DateTimeZone('UTC'))->setTime(0, 0)->modify('+1 day')) {
+            return new Fresh(new ClaimToken($scope, $key, $hash));
+        }
+
         if ($this->breach === IdempotencyBreach::IgnoresHash && $result instanceof Conflict && isset($this->state->completed[$name])) {
             return new Replay($this->state->completed[$name]);
         }
@@ -190,7 +205,10 @@ final readonly class BrokenIdempotencySession implements IdempotencyStore, Idemp
             return;
         }
 
+        $milliseconds = $changesetId->unixMilliseconds();
+        $changesetTime = new DateTimeImmutable(sprintf('@%d.%03d', intdiv($milliseconds, 1000), $milliseconds % 1000));
         $this->state->completed[$name] = $changesetId;
+        $this->state->createdAt[$name] = max($this->state->clock->now(), $changesetTime);
         unset($this->state->stuck[$name]);
 
         if ($this->breach === IdempotencyBreach::CommitsCompleteAtOnce) {
@@ -246,7 +264,7 @@ function idempotencyStoreCase(string $name, Closure $harness): InjectedIdempoten
  */
 function brokenIdempotencyStores(IdempotencyBreach $breach): Closure
 {
-    return static fn (Clock $clock): IdempotencyStoreHarness => new readonly class(new FakeIdempotencyStore($clock), new BrokenIdempotencyState, $breach) implements IdempotencyStoreHarness
+    return static fn (Clock $clock): IdempotencyStoreHarness => new readonly class(new FakeIdempotencyStore($clock), new BrokenIdempotencyState($clock), $breach) implements IdempotencyStoreHarness
     {
         public function __construct(private FakeIdempotencyStore $database, private BrokenIdempotencyState $state, private IdempotencyBreach $breach) {}
 
@@ -287,7 +305,7 @@ it('passes the fake on every shared case', function (): void {
         $case->{$name}();
     }
 
-    expect($cases)->toHaveCount(15);
+    expect($cases)->toHaveCount(16);
 });
 
 it('fails a store that breaks the contract', function (Closure $harness, string $name): void {
@@ -308,5 +326,6 @@ it('fails a store that breaks the contract', function (Closure $harness, string 
     'a store that opens its own transaction' => [brokenIdempotencyStores(IdempotencyBreach::RunsOutsideTransactions), 'claim_and_complete_need_an_open_transaction'],
     'a store that writes where no partition covers' => [brokenIdempotencyStores(IdempotencyBreach::CoversEveryDate), 'a_complete_where_no_partition_covers_the_record_throws_partition_missing_and_leaves_the_key_fresh'],
     'a failed transaction that takes further claims' => [brokenIdempotencyStores(IdempotencyBreach::KeepsFailedTransactions), 'a_complete_where_no_partition_covers_the_record_throws_partition_missing_and_leaves_the_key_fresh'],
+    'a lookup that ends with the Clock\'s UTC day' => [brokenIdempotencyStores(IdempotencyBreach::LooksUpToTheEndOfTheClocksDay), 'a_record_created_on_a_utc_day_after_the_claim_is_replayed'],
     'a store that never expires' => [static fn (Clock $clock): IdempotencyStoreHarness => new FakeIdempotencyStore(new FakeClock), 'a_completed_key_is_fresh_again_seven_days_after_its_changeset'],
 ]);

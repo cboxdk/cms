@@ -48,10 +48,11 @@ use Throwable;
  *         }
  *     }
  *
- * The cases cover the four results, scopes, logical expiry, a record date that no partition
- * covers (through IdempotencyStoreHarness::uncover()) and the claim model: a claim lasts until the
- * caller's transaction ends, complete() writes in that transaction, and a rollback or a commit
- * without complete() leaves the key fresh.
+ * The cases cover the four results, scopes, logical expiry, a record created on a later UTC day
+ * than the claimer's Clock (a Clock that stepped back, or a changeset ahead of it), a record date
+ * that no partition covers (through IdempotencyStoreHarness::uncover()) and the claim model: a
+ * claim lasts until the caller's transaction ends, complete() writes in that transaction, and a
+ * rollback or a commit without complete() leaves the key fresh.
  */
 #[Experimental]
 trait IdempotencyStoreContract
@@ -168,6 +169,33 @@ trait IdempotencyStoreContract
 
         $session->begin();
         $this->assertReplay($renewed, $this->claimOn($session), 'A completed claim on an expired key did not replace the record.');
+    }
+
+    #[Test]
+    public function a_record_created_on_a_utc_day_after_the_claim_is_replayed(): void
+    {
+        $clock = new FakeClock;
+        $harness = $this->idempotencyStores($clock);
+        $midnight = $clock->now()->setTime(0, 0)->add(new DateInterval('P1D'));
+        $session = $harness->session();
+
+        // The Clock steps back across midnight between complete() and the retry.
+        $clock->set($midnight->modify('+100 milliseconds'));
+        $afterMidnight = $this->completedKey($harness, $clock);
+        $clock->set($midnight->modify('-100 milliseconds'));
+        $session->begin();
+        $this->assertReplay($afterMidnight, $this->claimOn($session), 'A record completed after midnight was not replayed for a Clock that stepped back before midnight.');
+        $session->rollBack();
+
+        // Another node's clock is days ahead, so the record is created at its changeset's time.
+        $ahead = new ChangesetId(new FakeIdGenerator(clock: new FakeClock($midnight->add(new DateInterval('P2DT8H'))))->next());
+        $key = new IdempotencyKey('01936f5e-8a2b-7c3d-9e4f-5a6b7c8d9e11');
+        $session->begin();
+        $session->idempotency()->complete($this->assertFresh($session->idempotency()->claim($this->scope(), $key, $this->hash(), WaitBudget::none()), key: $key), $ahead);
+        $session->commit();
+
+        $session->begin();
+        $this->assertReplay($ahead, $session->idempotency()->claim($this->scope(), $key, $this->hash(), WaitBudget::none()), 'A record whose changeset is days ahead of the Clock was not replayed.');
     }
 
     #[Test]

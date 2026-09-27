@@ -51,7 +51,7 @@ use LogicException;
  * 2. The lookup is a separate statement after the lock. Under READ COMMITTED each statement takes
  *    a new snapshot, so it sees a record that the previous holder committed while this claim
  *    waited. It matches the full scope and key, not only the hash, so two keys whose hashes
- *    collide only wait for each other. It reads the live record inside the window of 7 days.
+ *    collide only wait for each other. It reads the live record created from 7 days ago onward.
  * 3. A Fresh claim is noted in a transaction-local setting (ClaimsInTransaction), which complete()
  *    checks. Postgres resets it when the transaction ends, together with the lock.
  *
@@ -59,8 +59,12 @@ use LogicException;
  * changeset's time when that is later, so a record is never created before its changeset. Its
  * expiry is RetentionClass::Standard->expiresAt(), the changeset's time plus 7 days, so the record
  * never outlives the receipt a Replay points to. Together these bound every live record to
- * created_at >= now - 7 days: the lookup scans at most the 8 daily partitions from 7 days ago up
- * to today, and the partition manager drops a partition a week after its day ends.
+ * created_at >= now - 7 days, so the lookup prunes every older partition, and the partition
+ * manager drops a partition a week after its day ends. Nothing bounds created_at from above: the
+ * changeset's time can be ahead of the claimer's Clock by any amount, because another node's
+ * clock runs ahead or the IdGenerator keeps its last millisecond when a clock steps back. So the
+ * lookup reads every partition from 7 days ago onward, the empty runway partitions included,
+ * each an index probe on lock_key.
  *
  * A write at a date with no partition throws PartitionMissing.
  */
@@ -168,20 +172,13 @@ final readonly class PostgresIdempotencyStore implements IdempotencyStore
     }
 
     /**
-     * The lookup window for the Clock's time $now: from $now minus 7 days, the lowest created_at a
-     * live record can have, to the end of $now's UTC day. The end is a bound for partition pruning;
-     * it lets a record created later on the same day, by a clock that stepped back, still be found.
-     *
-     * @return array{DateTimeImmutable, DateTimeImmutable} the inclusive start and the exclusive end
+     * The lowest created_at a record still live at the Clock's time $now can have: $now minus 7
+     * days, in UTC. The lookup reads from it onward and has no upper bound, because a record's
+     * created_at follows its changeset's time, which can be ahead of $now by any amount.
      */
-    public static function window(DateTimeImmutable $now): array
+    public static function lowestLiveCreatedAt(DateTimeImmutable $now): DateTimeImmutable
     {
-        $utc = $now->setTimezone(new DateTimeZone('UTC'));
-
-        return [
-            $utc->sub(new DateInterval(sprintf('P%dD', RetentionClass::STANDARD_DAYS))),
-            $utc->setTime(0, 0)->add(new DateInterval('P1D')),
-        ];
+        return $now->setTimezone(new DateTimeZone('UTC'))->sub(new DateInterval(sprintf('P%dD', RetentionClass::STANDARD_DAYS)));
     }
 
     /**
@@ -229,7 +226,6 @@ final readonly class PostgresIdempotencyStore implements IdempotencyStore
     private function liveRecord(ConnectionInterface $db, ClaimLock $lock, IdempotencyScope $scope, IdempotencyKey $key): ?IdempotencyRecord
     {
         $now = $this->clock->now();
-        [$from, $until] = self::window($now);
 
         $row = $db->table(self::TABLE)
             ->useWritePdo()
@@ -239,8 +235,7 @@ final readonly class PostgresIdempotencyStore implements IdempotencyStore
             ->where('principal', $scope->principal->value)
             ->where('command_type', $scope->commandType->value)
             ->where('idempotency_key', $key->value)
-            ->where('created_at', '>=', $this->timestamp($from))
-            ->where('created_at', '<', $this->timestamp($until))
+            ->where('created_at', '>=', $this->timestamp(self::lowestLiveCreatedAt($now)))
             ->where('expires_at', '>=', $this->timestamp($now))
             ->orderByDesc('expires_at')
             ->first();

@@ -170,7 +170,7 @@ it('runs every shared IdempotencyStore case once for the PostgresIdempotencyStor
     sort($expected);
     sort($listed);
 
-    expect($cases)->toHaveCount(15)
+    expect($cases)->toHaveCount(16)
         ->and($listed)->toBe($expected);
 });
 

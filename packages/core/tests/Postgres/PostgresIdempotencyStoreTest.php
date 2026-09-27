@@ -257,7 +257,49 @@ it('replays a key completed just before midnight UTC just after it, from the pre
     expect($result)->toBeInstanceOf(Replay::class)
         ->and($result instanceof Replay ? $result->changesetId->toString() : null)->toBe($changeset->toString())
         ->and(IdempotencyTables::partitionsOf(IdempotencyTables::key()))->toBe(['idempotency_keys_p20260101'])
-        ->and(PostgresIdempotencyStore::window($clock->now())[0]->format('Y-m-d'))->toBe('2025-12-26');
+        ->and(PostgresIdempotencyStore::lowestLiveCreatedAt($clock->now())->format('Y-m-d'))->toBe('2025-12-26');
+});
+
+it('replays a key completed just after midnight UTC for a claim whose Clock stepped back before midnight', function (): void {
+    $clock = new FakeClock(new DateTimeImmutable('2026-01-02T00:00:00.100Z'));
+    $harness = PostgresIdempotencySessions::at($clock);
+    $changeset = IdempotencyTables::changeset('2026-01-02T00:00:00.100Z');
+
+    $writer = $harness->session();
+    $writer->begin();
+    $fresh = claimDefault($writer);
+    expect($fresh)->toBeInstanceOf(Fresh::class);
+    $writer->idempotency()->complete($fresh instanceof Fresh ? $fresh->token : throw new AssertionFailedError('Not fresh.'), $changeset);
+    $writer->commit();
+
+    $clock->set(new DateTimeImmutable('2026-01-01T23:59:59.900Z'));
+    $reader = $harness->session();
+    $reader->begin();
+    $result = claimDefault($reader);
+
+    expect($result)->toBeInstanceOf(Replay::class)
+        ->and($result instanceof Replay ? $result->changesetId->toString() : null)->toBe($changeset->toString())
+        ->and(IdempotencyTables::partitionsOf(IdempotencyTables::key()))->toBe(['idempotency_keys_p20260102']);
+});
+
+it('replays a key whose changeset is days ahead of the Clock, as another node\'s clock can be', function (): void {
+    $clock = new FakeClock(new DateTimeImmutable('2026-01-01T12:00:00Z'));
+    $harness = PostgresIdempotencySessions::at($clock);
+    $changeset = IdempotencyTables::changeset('2026-01-04T08:00:00.250Z');
+
+    $writer = $harness->session();
+    $writer->begin();
+    $fresh = claimDefault($writer);
+    $writer->idempotency()->complete($fresh instanceof Fresh ? $fresh->token : throw new AssertionFailedError('Not fresh.'), $changeset);
+    $writer->commit();
+
+    $reader = $harness->session();
+    $reader->begin();
+    $result = claimDefault($reader);
+
+    expect($result)->toBeInstanceOf(Replay::class)
+        ->and($result instanceof Replay ? $result->changesetId->toString() : null)->toBe($changeset->toString())
+        ->and(IdempotencyTables::partitionsOf(IdempotencyTables::key()))->toBe(['idempotency_keys_p20260104']);
 });
 
 it('keeps exactly one row for five sequential claims with the same key and hash', function (): void {
@@ -380,7 +422,7 @@ it('makes no call outside Postgres and runs only its own statements inside the t
     expect(app(ValkeyRun::class)->keys())->toBe([]);
 });
 
-it('scans only the 8 daily partitions inside the 7-day window to look up a key', function (): void {
+it('prunes every partition older than 7 days and scans the partitions from then onward to look up a key', function (): void {
     app(PartitionFixtures::class)->cover(new DateTimeImmutable('2026-02-15T00:00:00Z'), new DateTimeImmutable('2026-03-10T00:00:00Z'));
     $clock = new FakeClock(new DateTimeImmutable('2026-03-06T12:00:00Z'));
     $session = PostgresIdempotencySessions::at($clock)->session();
@@ -401,17 +443,20 @@ it('scans only the 8 daily partitions inside the 7-day window to look up a key',
     $leaves = ReceiptTables::scannedLeaves($session->connection, $lookups[0]['sql'], $lookups[0]['bindings']);
     $all = ReceiptTables::owner()->scalar("select count(*) from pg_partition_tree('idempotency_keys') where isleaf");
 
+    // Every partition before 2026-02-27, 7 days before now, is pruned. Every partition from then
+    // onward is read, the runway after today included, because a record's created_at follows its
+    // changeset's time, which can be ahead of now; other tests may have left later partitions.
+    $names = ReceiptTables::owner()->select("select relid::regclass::text as name from pg_partition_tree('idempotency_keys') where isleaf order by 1");
+    $expected = array_values(array_filter(
+        array_map(static fn (mixed $row): string => is_object($row) && property_exists($row, 'name') && is_string($row->name) ? $row->name : '', $names),
+        static fn (string $name): bool => $name >= 'idempotency_keys_p20260227',
+    ));
+    sort($expected);
+
     expect($all)->toBeGreaterThan(20)
-        ->and($leaves)->toBe([
-            'idempotency_keys_p20260227',
-            'idempotency_keys_p20260228',
-            'idempotency_keys_p20260301',
-            'idempotency_keys_p20260302',
-            'idempotency_keys_p20260303',
-            'idempotency_keys_p20260304',
-            'idempotency_keys_p20260305',
-            'idempotency_keys_p20260306',
-        ]);
+        ->and($expected)->toContain('idempotency_keys_p20260227', 'idempotency_keys_p20260306', 'idempotency_keys_p20260314')
+        ->and($expected)->not->toContain('idempotency_keys_p20260226')
+        ->and($leaves)->toBe($expected);
 });
 
 it('only serialises two keys whose lock keys collide, and never mixes their records', function (): void {
