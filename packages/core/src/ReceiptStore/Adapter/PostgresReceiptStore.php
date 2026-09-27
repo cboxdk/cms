@@ -55,6 +55,12 @@ use Illuminate\Database\QueryException;
  * receipt whose changeset id is at or after the lowest id that is still live at the Clock's time.
  * The partition manager drops the rows later, a week after their day ends.
  *
+ * Every statement runs on the write PDO, the primary, also a select outside a transaction, where
+ * Laravel would send it to a read host: a replica that has not replayed a receipt just stored would
+ * make find() return null, markProjection() report that no live receipt lists the projection, and
+ * store() miss a receipt of the other class. Stickiness does not cover it, because a zero-row
+ * update marks no record as modified.
+ *
  * A write at a date with no partition throws PartitionMissing.
  */
 #[Experimental]
@@ -92,10 +98,10 @@ final readonly class PostgresReceiptStore implements ReceiptStore
             // The primary key covers one retention class, so only this lock keeps one receipt per
             // changeset across the classes: a second store of the changeset waits here until the
             // first transaction ends, and the lookup below, a new statement, sees its receipt.
-            $db->select(self::LOCK_CHANGESET, [ReceiptLock::of($changesetId)->key]);
+            $db->select(self::LOCK_CHANGESET, [ReceiptLock::of($changesetId)->key], false);
 
             // A receipt of either class for the changeset, expired or not, holds the changeset.
-            if ($db->table(self::RECEIPTS)->where('changeset_id', $id)->exists()) {
+            if ($db->table(self::RECEIPTS)->useWritePdo()->where('changeset_id', $id)->exists()) {
                 throw DuplicateReceipt::forChangeset($changesetId);
             }
 
@@ -132,6 +138,7 @@ final readonly class PostgresReceiptStore implements ReceiptStore
         $id = $changesetId->toString();
 
         $receipt = $db->table(self::RECEIPTS)
+            ->useWritePdo()
             ->select(['changeset_id', 'retention_class'])
             ->where('changeset_id', $id)
             ->where($this->live())
@@ -142,6 +149,7 @@ final readonly class PostgresReceiptStore implements ReceiptStore
         }
 
         $projections = $db->table(self::PROJECTIONS)
+            ->useWritePdo()
             ->select(['projection', 'state', 'acknowledged_at'])
             ->where('changeset_id', $id)
             ->where('retention_class', ReceiptRows::retentionClassOf($receipt))
@@ -155,6 +163,7 @@ final readonly class PostgresReceiptStore implements ReceiptStore
     public function markProjection(ChangesetId $changesetId, ProjectionStatus $status): bool
     {
         $row = fn (): Builder => $this->db()->table(self::PROJECTIONS)
+            ->useWritePdo()
             ->where('changeset_id', $changesetId->toString())
             ->where('projection', $status->projection->value)
             ->where($this->live());

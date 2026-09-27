@@ -26,7 +26,9 @@ use Cbox\Cms\Testkit\Valkey\ValkeyRun;
 use DateInterval;
 use DateTimeImmutable;
 use Illuminate\Database\ConnectionResolver;
+use Illuminate\Database\DatabaseManager;
 use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Database\PostgresConnection;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -496,4 +498,59 @@ it('lets the app role read and write what the store needs, through the parents',
     expect($store->markProjection($receipt->changesetId, ProjectionStatus::acknowledged(new ProjectionName('edge'), $clock->now())))->toBeTrue()
         ->and($store->find($receipt->changesetId)?->projections[0]->state)->toBe(ProjectionState::Acknowledged)
         ->and(DB::connection()->scalar('select current_user'))->toBe('cms_app');
+});
+
+/**
+ * A receipt store on an app-role connection whose read PDO is a lagging read replica: a second
+ * backend that holds a REPEATABLE READ snapshot taken now, so it never sees what commits later.
+ * Outside a transaction Laravel sends a select to the read PDO, and a zero-row update does not make
+ * the connection sticky, so every read the store makes must ask for the write PDO itself.
+ *
+ * @return array{PostgresReceiptStore, PostgresConnection}
+ */
+function receiptStoreBehindLaggingReplica(Clock $clock): array
+{
+    [$primary, $replica] = app(IndependentConnections::class)->open(2);
+
+    $replica->beginTransaction();
+    $replica->statement('set transaction isolation level repeatable read');
+    $replica->scalar(sprintf('select count(*) from %s', PostgresReceiptStore::RECEIPTS));
+    $primary->setReadPdo($replica->getPdo());
+
+    return [new PostgresReceiptStore(app(DatabaseManager::class), $clock, $primary->getName()), $replica];
+}
+
+it('reads the primary and not a lagging read replica in find() and markProjection() outside a transaction', function (): void {
+    $clock = new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z'));
+    $harness = PostgresReceiptSessions::at($clock);
+    [$store, $replica] = receiptStoreBehindLaggingReplica($clock);
+    $receipt = ReceiptTables::receipt('2026-01-01T00:00:00Z');
+    $changesetId = $receipt->changesetId;
+    $harness->session()->receipts()->store($receipt);
+    $edge = ProjectionStatus::acknowledged(new ProjectionName('edge'), $clock->now());
+
+    // The replica has not replayed the receipt; the primary has it.
+    expect($replica->table(PostgresReceiptStore::RECEIPTS)->where('changeset_id', $changesetId->toString())->exists())->toBeFalse()
+        ->and($store->find($changesetId))->toEqual($receipt);
+
+    // The first acknowledgement updates the row on the primary; the second and a pending status
+    // update nothing and must still find the live receipt that lists the projection.
+    expect($store->markProjection($changesetId, $edge))->toBeTrue()
+        ->and($store->markProjection($changesetId, $edge))->toBeTrue()
+        ->and($store->markProjection($changesetId, ProjectionStatus::pending(new ProjectionName('search'))))->toBeTrue()
+        ->and($store->find($changesetId)?->projections[0]->state)->toBe(ProjectionState::Acknowledged)
+        ->and($store->find($changesetId)?->projections[2]->state)->toBe(ProjectionState::Pending);
+});
+
+it('reads the primary and not a lagging read replica when store() looks for a receipt of the other class outside a transaction', function (): void {
+    $clock = new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z'));
+    $harness = PostgresReceiptSessions::at($clock);
+    [$store, $replica] = receiptStoreBehindLaggingReplica($clock);
+    $standard = ReceiptTables::receipt('2026-01-01T00:00:00Z');
+    $harness->session()->receipts()->store($standard);
+
+    expect($replica->table(PostgresReceiptStore::RECEIPTS)->where('changeset_id', $standard->changesetId->toString())->exists())->toBeFalse()
+        ->and(fn () => $store->store(ReceiptTables::receipt('2026-01-01T00:00:00Z', RetentionClass::Evidence)))->toThrow(DuplicateReceipt::class)
+        ->and(ReceiptTables::rows(PostgresReceiptStore::RECEIPTS, $standard->changesetId))->toBe(1)
+        ->and(ReceiptTables::rows(PostgresReceiptStore::PROJECTIONS, $standard->changesetId))->toBe(3);
 });
