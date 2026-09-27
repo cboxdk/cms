@@ -15,29 +15,13 @@ use Cbox\Cms\Core\Tests\Partitions\Fakes\FakePartitionMaintenance;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use DateTimeImmutable;
 use Illuminate\Support\Facades\Artisan;
-use Psr\Log\AbstractLogger;
 use Psr\Log\LoggerInterface;
-use Stringable;
 
 /*
  * cms:partitions:maintain with the action on the fake manager and the FakeClock: what it prints,
  * what it logs and how it exits for each outcome. MaintainPartitionsCommandTest in the Postgres
  * suite runs it on real partitions.
  */
-
-final class RecordingLogger extends AbstractLogger
-{
-    /** @var list<array{string, string, array<array-key, mixed>}> */
-    public array $records = [];
-
-    /**
-     * @param  array<array-key, mixed>  $context
-     */
-    public function log(mixed $level, string|Stringable $message, array $context = []): void
-    {
-        $this->records[] = [is_string($level) ? $level : 'unknown', (string) $message, $context];
-    }
-}
 
 /**
  * Binds the action to a fake manager of one daily table at 2026-05-01 10:00 UTC, and a logger.

@@ -5,35 +5,17 @@ declare(strict_types=1);
 namespace Cbox\Cms\Testkit\Tests\Idempotency;
 
 use Cbox\Cms\Contracts\Clock;
-use Cbox\Cms\Contracts\Idempotency\ClaimResult;
-use Cbox\Cms\Contracts\Idempotency\ClaimToken;
-use Cbox\Cms\Contracts\Idempotency\Conflict;
-use Cbox\Cms\Contracts\Idempotency\ContentHash;
-use Cbox\Cms\Contracts\Idempotency\Fresh;
-use Cbox\Cms\Contracts\Idempotency\IdempotencyKey;
-use Cbox\Cms\Contracts\Idempotency\IdempotencyScope;
-use Cbox\Cms\Contracts\Idempotency\InFlight;
-use Cbox\Cms\Contracts\Idempotency\InvalidClaim;
-use Cbox\Cms\Contracts\Idempotency\Replay;
-use Cbox\Cms\Contracts\Idempotency\WaitBudget;
 use Cbox\Cms\Contracts\IdempotencyStore;
-use Cbox\Cms\Contracts\Ids\ChangesetId;
-use Cbox\Cms\Contracts\Ids\CommandName;
-use Cbox\Cms\Contracts\Ids\PrincipalId;
 use Cbox\Cms\Testkit\Clock\FakeClock;
-use Cbox\Cms\Testkit\Idempotency\FakeIdempotencySession;
 use Cbox\Cms\Testkit\Idempotency\FakeIdempotencyStore;
 use Cbox\Cms\Testkit\Idempotency\IdempotencyStoreContract;
 use Cbox\Cms\Testkit\Idempotency\IdempotencyStoreHarness;
 use Cbox\Cms\Testkit\Idempotency\IdempotencyStoreSession;
 use Closure;
 use DateTimeImmutable;
-use DateTimeZone;
 use LogicException;
-use Override;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\Test;
-use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use ReflectionMethod;
 
@@ -42,207 +24,6 @@ use ReflectionMethod;
  * wraps the fake and breaks one rule; the named cases must fail on it, and the fake itself must
  * pass every case.
  */
-
-/**
- * How a broken store breaks the contract.
- */
-enum IdempotencyBreach
-{
-    /** complete() commits at once and opens a new transaction, so the record ignores a rollback. */
-    case CommitsCompleteAtOnce;
-
-    /** complete() records nothing, so a key is never replayed. */
-    case ForgetsRecords;
-
-    /** A Fresh claim is released at once, so another transaction can take the key. */
-    case ReleasesFreshClaims;
-
-    /** A Fresh claim that is not completed stays held after its transaction ends. */
-    case KeepsClaimsWithoutComplete;
-
-    /** A Replay or Conflict does not hold the claim. */
-    case ReleasesReplays;
-
-    /** The same key with another hash replays the stored changeset. */
-    case IgnoresHash;
-
-    /** Keys are unique across all actors, sources and command types. */
-    case IgnoresScope;
-
-    /** complete() accepts a token this transaction does not hold. */
-    case AcceptsAnyToken;
-
-    /** claim() and complete() open a transaction when none is open. */
-    case RunsOutsideTransactions;
-
-    /** uncover() does nothing, so a record at any date is written. */
-    case CoversEveryDate;
-
-    /** A transaction that met PartitionMissing takes further claims. */
-    case KeepsFailedTransactions;
-
-    /** The lookup ends with the Clock's UTC day, so a record created on a later day is not found. */
-    case LooksUpToTheEndOfTheClocksDay;
-}
-
-/**
- * What the broken sessions of one store share.
- */
-final class BrokenIdempotencyState
-{
-    /** @var array<string, ChangesetId> */
-    public array $completed = [];
-
-    /** @var array<string, DateTimeImmutable> the created_at of each completed record */
-    public array $createdAt = [];
-
-    public function __construct(public readonly Clock $clock) {}
-
-    /** @var array<string, BrokenIdempotencySession> */
-    public array $stuck = [];
-}
-
-/**
- * A session of the fake with one rule broken.
- */
-final readonly class BrokenIdempotencySession implements IdempotencyStore, IdempotencyStoreSession
-{
-    public function __construct(private FakeIdempotencySession $inner, private BrokenIdempotencyState $state, private IdempotencyBreach $breach) {}
-
-    public function idempotency(): IdempotencyStore
-    {
-        return $this;
-    }
-
-    public function begin(): void
-    {
-        $this->inner->begin();
-    }
-
-    public function commit(): void
-    {
-        $this->inner->commit();
-    }
-
-    public function rollBack(): void
-    {
-        $this->inner->rollBack();
-    }
-
-    public function inTransaction(): bool
-    {
-        return $this->inner->inTransaction();
-    }
-
-    public function claim(IdempotencyScope $scope, IdempotencyKey $key, ContentHash $hash, WaitBudget $waitBudget): ClaimResult
-    {
-        $this->beginWhenBroken();
-
-        if ($this->breach === IdempotencyBreach::IgnoresScope) {
-            $scope = IdempotencyScope::forActor(new PrincipalId('everyone'), new CommandName('any.command'));
-        }
-
-        $name = FakeIdempotencyStore::claimName($scope, $key);
-        $stuck = $this->state->stuck[$name] ?? null;
-
-        if ($stuck instanceof BrokenIdempotencySession && $stuck !== $this) {
-            return new InFlight($scope, $key, $waitBudget);
-        }
-
-        try {
-            $result = $this->inner->claim($scope, $key, $hash, $waitBudget);
-        } catch (LogicException $failed) {
-            if ($this->breach !== IdempotencyBreach::KeepsFailedTransactions) {
-                throw $failed;
-            }
-
-            return new InFlight($scope, $key, $waitBudget);
-        }
-
-        if ($this->breach === IdempotencyBreach::LooksUpToTheEndOfTheClocksDay
-            && ($result instanceof Replay || $result instanceof Conflict)
-            && ($this->state->createdAt[$name] ?? null) >= $this->state->clock->now()->setTimezone(new DateTimeZone('UTC'))->setTime(0, 0)->modify('+1 day')) {
-            return new Fresh(new ClaimToken($scope, $key, $hash));
-        }
-
-        if ($this->breach === IdempotencyBreach::IgnoresHash && $result instanceof Conflict && isset($this->state->completed[$name])) {
-            return new Replay($this->state->completed[$name]);
-        }
-
-        if ($result instanceof Fresh && $this->breach === IdempotencyBreach::KeepsClaimsWithoutComplete) {
-            $this->state->stuck[$name] = $this;
-        }
-
-        if (($result instanceof Fresh && $this->breach === IdempotencyBreach::ReleasesFreshClaims)
-            || (($result instanceof Replay || $result instanceof Conflict) && $this->breach === IdempotencyBreach::ReleasesReplays)) {
-            $this->inner->commit();
-            $this->inner->begin();
-        }
-
-        return $result;
-    }
-
-    public function complete(ClaimToken $token, ChangesetId $changesetId): void
-    {
-        $this->beginWhenBroken();
-        $name = FakeIdempotencyStore::claimName($token->scope, $token->key);
-
-        if ($this->breach === IdempotencyBreach::ReleasesFreshClaims) {
-            $this->inner->claim($token->scope, $token->key, $token->hash, WaitBudget::none());
-        }
-
-        if ($this->breach === IdempotencyBreach::ForgetsRecords) {
-            return;
-        }
-
-        try {
-            $this->inner->complete($token, $changesetId);
-        } catch (InvalidClaim $invalid) {
-            if ($this->breach !== IdempotencyBreach::AcceptsAnyToken) {
-                throw $invalid;
-            }
-
-            return;
-        }
-
-        $milliseconds = $changesetId->unixMilliseconds();
-        $changesetTime = new DateTimeImmutable(sprintf('@%d.%03d', intdiv($milliseconds, 1000), $milliseconds % 1000));
-        $this->state->completed[$name] = $changesetId;
-        $this->state->createdAt[$name] = max($this->state->clock->now(), $changesetTime);
-        unset($this->state->stuck[$name]);
-
-        if ($this->breach === IdempotencyBreach::CommitsCompleteAtOnce) {
-            $this->inner->commit();
-            $this->inner->begin();
-        }
-    }
-
-    private function beginWhenBroken(): void
-    {
-        if ($this->breach === IdempotencyBreach::RunsOutsideTransactions && ! $this->inner->inTransaction()) {
-            $this->inner->begin();
-        }
-    }
-}
-
-/**
- * The contract suite with the harness under test injected.
- */
-final class InjectedIdempotencyStoreContract extends TestCase
-{
-    use IdempotencyStoreContract;
-
-    /** @var (Closure(Clock): IdempotencyStoreHarness)|null */
-    public ?Closure $harness = null;
-
-    #[Override]
-    protected function idempotencyStores(Clock $clock): IdempotencyStoreHarness
-    {
-        $harness = $this->harness ?? throw new LogicException('No harness was injected.');
-
-        return $harness($clock);
-    }
-}
 
 /**
  * @param  Closure(Clock): IdempotencyStoreHarness  $harness

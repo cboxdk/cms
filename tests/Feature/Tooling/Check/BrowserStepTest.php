@@ -9,12 +9,10 @@ use Cbox\Cms\Tests\Support\Tooling\ParallelWorker;
 use Cbox\Cms\Tests\Support\Tooling\Processes;
 use Cbox\Cms\Tests\Support\Tooling\ScratchDirectory;
 use Cbox\Cms\Tooling\Check\Adapter\SymfonyProcessRunner;
-use Cbox\Cms\Tooling\Check\Domain\CheckListener;
 use Cbox\Cms\Tooling\Check\Domain\CheckRunner;
 use Cbox\Cms\Tooling\Check\Domain\Gate;
 use Cbox\Cms\Tooling\Check\Domain\PrProfile;
 use Cbox\Cms\Tooling\Check\Domain\Step;
-use Cbox\Cms\Tooling\Check\Domain\StepResult;
 use Cbox\Cms\Tooling\Check\Domain\StepStatus;
 use Cbox\Cms\Tooling\Mutation\Domain\MutationScope;
 
@@ -29,13 +27,6 @@ use Cbox\Cms\Tooling\Mutation\Domain\MutationScope;
 afterEach(function (): void {
     ScratchDirectory::cleanUp();
 });
-
-final class QuietListener implements CheckListener
-{
-    public function gateStarted(Gate $gate): void {}
-
-    public function stepFinished(Gate $gate, StepResult $result): void {}
-}
 
 it('fails a Browser step whose Pest dies, within 60 seconds, and leaves no Playwright process running', function (string $how): void {
     $pids = ScratchDirectory::make().'/playwright.pids';

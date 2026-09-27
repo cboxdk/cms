@@ -6,14 +6,8 @@ namespace Cbox\Cms\Tests\Feature\Tooling\Selftest;
 
 use Cbox\Cms\Tests\Support\Tooling\ScratchDirectory;
 use Cbox\Cms\Tests\Support\Tooling\ScriptedProcessRunner;
-use Cbox\Cms\Tooling\Check\Boundary\CheckReportJson;
-use Cbox\Cms\Tooling\Check\Domain\CheckReport;
-use Cbox\Cms\Tooling\Check\Domain\GateResult;
-use Cbox\Cms\Tooling\Check\Domain\LocalProfile;
 use Cbox\Cms\Tooling\Check\Domain\ProcessOutcome;
-use Cbox\Cms\Tooling\Check\Domain\StepResult;
 use Cbox\Cms\Tooling\Selftest\Adapter\GateSelftest;
-use Cbox\Cms\Tooling\Selftest\Domain\Plant;
 use Cbox\Cms\Tooling\Selftest\Domain\Plants;
 use RuntimeException;
 
@@ -22,104 +16,6 @@ use RuntimeException;
  * scripted, so every way it must fail is shown quickly. The real run is `composer
  * check:selftest` itself.
  */
-
-final class FakeSelftestWorld
-{
-    public ?string $worktree = null;
-
-    public string $vendorTarget = '../../packages/core';
-
-    /** @var list<string> steps whose planted files `composer check` does not report */
-    public array $missedSteps = [];
-
-    public int $checkExitCode = 1;
-
-    public bool $stillListed = false;
-
-    public bool $checkRanInWorktree = false;
-
-    public int $dropExitCode = 0;
-
-    /** @var list<string> the worktrees whose test database was dropped while they still existed */
-    public array $droppedWhileExisting = [];
-
-    /**
-     * @param  list<string>  $command
-     */
-    public function outcome(array $command, string $directory): ProcessOutcome
-    {
-        return match (true) {
-            $command === ['git', 'rev-parse', 'HEAD'] => new ProcessOutcome(0, "0123abc\n", 0.0),
-            array_slice($command, 0, 3) === ['git', 'worktree', 'add'] => $this->addWorktree($command[4]),
-            array_slice($command, 0, 2) === ['composer', 'check'] => $this->check($command, $directory),
-            array_slice($command, 0, 3) === ['git', 'worktree', 'remove'] => $this->removeWorktree($command[4]),
-            array_slice($command, 0, 2) === ['php', '/srv/main/'.GateSelftest::DROP_DATABASE] => $this->drop($command[2]),
-            $command === ['git', 'worktree', 'list', '--porcelain'] => new ProcessOutcome(0, "worktree /srv/main\nHEAD 0123abc\n\n".($this->stillListed ? "worktree {$this->worktree}\n" : ''), 0.0),
-            default => new ProcessOutcome(0, '', 0.1),
-        };
-    }
-
-    private function addWorktree(string $path): ProcessOutcome
-    {
-        ScratchDirectory::write($path.'/workbench/app/Cms/Generated/TypeHandle.php', "<?php\n");
-        mkdir($path.'/packages/core', 0o777, true);
-        mkdir($path.'/vendor/cboxdk', 0o777, true);
-        symlink($this->vendorTarget, $path.'/vendor/cboxdk/cms-core');
-        $this->worktree = $path;
-
-        return new ProcessOutcome(0, '', 0.0);
-    }
-
-    /**
-     * @param  list<string>  $command
-     */
-    private function check(array $command, string $directory): ProcessOutcome
-    {
-        $this->checkRanInWorktree = $directory === realpath((string) $this->worktree);
-        $reportFile = substr($command[3], strlen('--report='));
-        $gates = [];
-
-        foreach (LocalProfile::gates('php', ['composer']) as $gate) {
-            $steps = [];
-
-            foreach ($gate->steps as $step) {
-                $plants = array_filter(Plants::all(), static fn (Plant $plant): bool => $plant->gate === $gate->number && $plant->step === $step->name);
-                $output = implode("\n", array_map(static fn (Plant $plant): string => $plant->path.' '.implode(' ', $plant->markers), $plants));
-                $missed = in_array($step->name, $this->missedSteps, true);
-
-                $steps[] = match (true) {
-                    ! $step->runs() => StepResult::notRun($step->name, (string) $step->notRunReason),
-                    $plants === [] || $missed => StepResult::ran($step->name, new ProcessOutcome(0, 'ok', 1.0)),
-                    default => StepResult::ran($step->name, new ProcessOutcome(1, $output, 1.0)),
-                };
-            }
-
-            $gates[] = new GateResult($gate->number, $gate->title, $steps);
-        }
-
-        file_put_contents($reportFile, CheckReportJson::encode(new CheckReport($directory, $gates)));
-
-        return new ProcessOutcome($this->checkExitCode, "Gate 1  Pint and Prettier\n", 1.0);
-    }
-
-    private function drop(string $worktree): ProcessOutcome
-    {
-        if (is_dir($worktree)) {
-            $this->droppedWhileExisting[] = $worktree;
-        }
-
-        return $this->dropExitCode === 0
-            ? new ProcessOutcome(0, "Dropped the test database cms_test_0123456789ab of {$worktree}.\n", 0.1)
-            : new ProcessOutcome($this->dropExitCode, "The owner role cms_owner has no CREATEDB.\n", 0.1);
-    }
-
-    private function removeWorktree(string $path): ProcessOutcome
-    {
-        ScratchDirectory::delete($path);
-
-        return new ProcessOutcome(0, '', 0.0);
-    }
-}
 
 /**
  * @return array{exitCode: int, output: string, runner: ScriptedProcessRunner}

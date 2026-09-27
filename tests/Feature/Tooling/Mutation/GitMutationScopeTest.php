@@ -8,11 +8,8 @@ use Cbox\Cms\Tests\Support\Tooling\RecordedCommand;
 use Cbox\Cms\Tests\Support\Tooling\ScratchDirectory;
 use Cbox\Cms\Tests\Support\Tooling\ScratchRepository;
 use Cbox\Cms\Tests\Support\Tooling\ScriptedProcessRunner;
-use Cbox\Cms\Tooling\Check\Domain\CheckListener;
 use Cbox\Cms\Tooling\Check\Domain\CheckRunner;
-use Cbox\Cms\Tooling\Check\Domain\Gate;
 use Cbox\Cms\Tooling\Check\Domain\PrProfile;
-use Cbox\Cms\Tooling\Check\Domain\StepResult;
 use Cbox\Cms\Tooling\Check\Domain\StepStatus;
 use Cbox\Cms\Tooling\Mutation\Boundary\GitMutationScope;
 use Cbox\Cms\Tooling\Mutation\Domain\ChangedSource;
@@ -29,13 +26,6 @@ use Cbox\Cms\Tooling\Mutation\Domain\MutationSteps;
 afterEach(function (): void {
     ScratchDirectory::cleanUp();
 });
-
-final class GitScopeListener implements CheckListener
-{
-    public function gateStarted(Gate $gate): void {}
-
-    public function stepFinished(Gate $gate, StepResult $result): void {}
-}
 
 /**
  * A repository whose first commit has two classes of a package, one of them to be removed.

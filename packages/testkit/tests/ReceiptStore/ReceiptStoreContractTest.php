@@ -5,14 +5,8 @@ declare(strict_types=1);
 namespace Cbox\Cms\Testkit\Tests\ReceiptStore;
 
 use Cbox\Cms\Contracts\Clock;
-use Cbox\Cms\Contracts\Consistency\DuplicateReceipt;
-use Cbox\Cms\Contracts\Consistency\RetentionClass;
-use Cbox\Cms\Contracts\Ids\ChangesetId;
-use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
-use Cbox\Cms\Contracts\Receipts\StoredReceipt;
 use Cbox\Cms\Contracts\ReceiptStore;
 use Cbox\Cms\Testkit\Clock\FakeClock;
-use Cbox\Cms\Testkit\ReceiptStore\FakeReceiptSession;
 use Cbox\Cms\Testkit\ReceiptStore\FakeReceiptStore;
 use Cbox\Cms\Testkit\ReceiptStore\ReceiptStoreContract;
 use Cbox\Cms\Testkit\ReceiptStore\ReceiptStoreHarness;
@@ -20,10 +14,8 @@ use Cbox\Cms\Testkit\ReceiptStore\ReceiptStoreSession;
 use Closure;
 use DateTimeImmutable;
 use LogicException;
-use Override;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\Test;
-use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use ReflectionMethod;
 
@@ -32,177 +24,6 @@ use ReflectionMethod;
  * wraps the fake and breaks one rule; the named cases must fail on it, and the fake itself must
  * pass every case.
  */
-
-/**
- * How a broken store breaks the contract.
- */
-enum Breach
-{
-    /** begin, commit and rollBack do nothing, so every write commits at once. */
-    case IgnoresTransactions;
-
-    /** store() opens a transaction when none is open and leaves it open. */
-    case BeginsTransaction;
-
-    /** find() returns a receipt as it was stored, so a replay never sees a later mark. */
-    case FreezesStoredReceipt;
-
-    /** A second receipt for a changeset replaces the first without an error. */
-    case OverwritesDuplicate;
-
-    /** markProjection() gives every projection in the receipt the new status. */
-    case MarksEveryProjection;
-
-    /** A later acknowledgement replaces the first one. */
-    case ReacknowledgesProjection;
-
-    /** An Evidence receipt expires like a Standard one. */
-    case ExpiresEvidence;
-
-    /** uncover() does nothing, so a receipt at any changeset time is stored. */
-    case CoversEveryDate;
-
-    /** A transaction that met PartitionMissing takes further calls. */
-    case KeepsFailedTransactions;
-}
-
-/**
- * The receipts as they were stored, shared by the sessions of one broken store.
- */
-final class StoredSnapshots
-{
-    /** @var array<string, StoredReceipt> */
-    public array $receipts = [];
-}
-
-/**
- * A session of the fake with one rule broken.
- */
-final class BrokenSession implements ReceiptStore, ReceiptStoreSession
-{
-    private bool $open = false;
-
-    public function __construct(
-        private readonly FakeReceiptSession $inner,
-        private readonly FakeReceiptStore $database,
-        private readonly Breach $breach,
-        private readonly StoredSnapshots $snapshots,
-    ) {}
-
-    public function receipts(): ReceiptStore
-    {
-        return $this;
-    }
-
-    public function begin(): void
-    {
-        $this->breach === Breach::IgnoresTransactions ? $this->open = true : $this->inner->begin();
-    }
-
-    public function commit(): void
-    {
-        $this->breach === Breach::IgnoresTransactions ? $this->open = false : $this->inner->commit();
-    }
-
-    public function rollBack(): void
-    {
-        $this->breach === Breach::IgnoresTransactions ? $this->open = false : $this->inner->rollBack();
-    }
-
-    public function inTransaction(): bool
-    {
-        return $this->breach === Breach::IgnoresTransactions ? $this->open : $this->inner->inTransaction();
-    }
-
-    public function store(StoredReceipt $receipt): void
-    {
-        if ($this->breach === Breach::BeginsTransaction && ! $this->inner->inTransaction()) {
-            $this->inner->begin();
-        }
-
-        try {
-            $this->inner->store($receipt);
-            $this->snapshots->receipts[$receipt->changesetId->toString()] = $receipt;
-        } catch (DuplicateReceipt $duplicate) {
-            if ($this->breach !== Breach::OverwritesDuplicate) {
-                throw $duplicate;
-            }
-
-            $rows = $this->database->committedRows();
-            $rows[$receipt->changesetId->toString()] = $receipt;
-            $this->database->commitRows($rows);
-        }
-    }
-
-    public function find(ChangesetId $changesetId): ?StoredReceipt
-    {
-        try {
-            $receipt = $this->inner->find($changesetId);
-        } catch (LogicException $failed) {
-            if ($this->breach !== Breach::KeepsFailedTransactions) {
-                throw $failed;
-            }
-
-            return null;
-        }
-
-        if ($this->breach === Breach::ExpiresEvidence && $this->database->clock()->now() > RetentionClass::Standard->expiresAt($changesetId)) {
-            return null;
-        }
-
-        if ($this->breach === Breach::FreezesStoredReceipt && $receipt instanceof StoredReceipt) {
-            return $this->snapshots->receipts[$changesetId->toString()] ?? $receipt;
-        }
-
-        return $receipt;
-    }
-
-    public function markProjection(ChangesetId $changesetId, ProjectionStatus $status): bool
-    {
-        $receipt = $this->inner->find($changesetId);
-
-        if ($this->breach === Breach::MarksEveryProjection && $receipt instanceof StoredReceipt) {
-            foreach ($receipt->projections as $current) {
-                $this->inner->markProjection($changesetId, new ProjectionStatus($current->projection, $status->state, $status->acknowledgedAt));
-            }
-
-            return true;
-        }
-
-        if ($this->breach === Breach::ReacknowledgesProjection && $receipt instanceof StoredReceipt && $status->acknowledgedAt instanceof DateTimeImmutable) {
-            $projections = array_map(
-                static fn (ProjectionStatus $current): ProjectionStatus => $current->projection->equals($status->projection) ? $status : $current,
-                $receipt->projections,
-            );
-            $rows = $this->database->committedRows();
-            $rows[$changesetId->toString()] = new StoredReceipt($receipt->changesetId, $receipt->retentionClass, $projections);
-            $this->database->commitRows($rows);
-
-            return true;
-        }
-
-        return $this->inner->markProjection($changesetId, $status);
-    }
-}
-
-/**
- * The contract suite with the harness under test injected.
- */
-final class InjectedReceiptStoreContract extends TestCase
-{
-    use ReceiptStoreContract;
-
-    /** @var (Closure(Clock): ReceiptStoreHarness)|null */
-    public ?Closure $harness = null;
-
-    #[Override]
-    protected function receiptStores(Clock $clock): ReceiptStoreHarness
-    {
-        $harness = $this->harness ?? throw new LogicException('No harness was injected.');
-
-        return $harness($clock);
-    }
-}
 
 /**
  * @param  Closure(Clock): ReceiptStoreHarness  $harness

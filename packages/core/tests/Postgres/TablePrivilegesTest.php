@@ -26,15 +26,6 @@ const TABLE_PRIVILEGES_SCRATCH = 'table_privileges_scratch';
 
 const TABLE_PRIVILEGES_SUPERUSER = 'pgsql_table_privileges_superuser';
 
-/**
- * The roles one test made, which afterEach drops.
- */
-final class TablePrivilegesScratchRoles
-{
-    /** @var list<string> */
-    public static array $roles = [];
-}
-
 function tablePrivilegesOwner(): Connection
 {
     return DB::connection('pgsql_owner');

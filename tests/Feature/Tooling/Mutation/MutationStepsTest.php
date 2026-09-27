@@ -9,13 +9,11 @@ use Cbox\Cms\Core\Doctor\Adapter\DoctorConnection;
 use Cbox\Cms\Core\Partitions\Infrastructure\PartitionCatalog;
 use Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore;
 use Cbox\Cms\Tests\Support\Tooling\ScriptedProcessRunner;
-use Cbox\Cms\Tooling\Check\Domain\CheckListener;
 use Cbox\Cms\Tooling\Check\Domain\CheckRunner;
 use Cbox\Cms\Tooling\Check\Domain\Gate;
 use Cbox\Cms\Tooling\Check\Domain\GateResult;
 use Cbox\Cms\Tooling\Check\Domain\ProcessOutcome;
 use Cbox\Cms\Tooling\Check\Domain\Step;
-use Cbox\Cms\Tooling\Check\Domain\StepResult;
 use Cbox\Cms\Tooling\Check\Domain\StepStatus;
 use Cbox\Cms\Tooling\Mutation\Domain\ChangedSource;
 use Cbox\Cms\Tooling\Mutation\Domain\MutationReportReader;
@@ -28,13 +26,6 @@ use InvalidArgumentException;
  * profile's gate 5 makes of what changed since the base, with which flags, suites and variables.
  * GitMutationScopeTest finds the changes in git, and tests/Mutation runs the steps for real.
  */
-
-final class MutationListener implements CheckListener
-{
-    public function gateStarted(Gate $gate): void {}
-
-    public function stepFinished(Gate $gate, StepResult $result): void {}
-}
 
 function runMutationSteps(MutationScope $scope, ScriptedProcessRunner $runner): GateResult
 {

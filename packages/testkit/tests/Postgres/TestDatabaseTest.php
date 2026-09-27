@@ -31,20 +31,6 @@ use Symfony\Component\Process\Process;
  * database is never touched.
  */
 
-final class ScratchCheckouts
-{
-    /** @var list<string> */
-    public static array $roots = [];
-
-    public static function make(): string
-    {
-        $root = ScratchDirectory::make('cbox-cms-test-database-');
-        self::$roots[] = $root;
-
-        return $root;
-    }
-}
-
 afterEach(function (): void {
     foreach (ScratchCheckouts::$roots as $root) {
         TestDatabase::drop(baseOwner(), $root);

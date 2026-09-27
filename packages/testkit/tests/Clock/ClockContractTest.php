@@ -5,49 +5,15 @@ declare(strict_types=1);
 namespace Cbox\Cms\Testkit\Tests\Clock;
 
 use Cbox\Cms\Contracts\Clock;
-use Cbox\Cms\Testkit\Clock\ClockContract;
 use Closure;
 use DateTimeImmutable;
 use DateTimeZone;
-use LogicException;
-use Override;
 use PHPUnit\Framework\AssertionFailedError;
-use PHPUnit\Framework\TestCase;
 
 /*
  * The shared Clock suite must fail a clock that breaks the contract. Each case runs one method of
  * the suite against a broken clock and expects an assertion failure.
  */
-
-/**
- * A DateTimeImmutable that changes itself, to prove the suite checks immutability by behaviour.
- */
-final class SelfChangingTime extends DateTimeImmutable
-{
-    #[Override]
-    public function modify(string $modifier): SelfChangingTime
-    {
-        $this->__construct('2000-01-01T00:00:00', new DateTimeZone('UTC'));
-
-        return $this;
-    }
-}
-
-/**
- * The contract suite with the clock under test injected.
- */
-final class InjectedClockContract extends TestCase
-{
-    use ClockContract;
-
-    public ?Clock $subject = null;
-
-    #[Override]
-    protected function clock(): Clock
-    {
-        return $this->subject ?? throw new LogicException('No clock was injected.');
-    }
-}
 
 function clockCase(Clock $clock): InjectedClockContract
 {

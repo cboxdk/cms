@@ -6,7 +6,6 @@ namespace Cbox\Cms\Tests\Feature\Tooling\Check;
 
 use Cbox\Cms\Tests\Support\Tooling\RecordedCommand;
 use Cbox\Cms\Tests\Support\Tooling\ScriptedProcessRunner;
-use Cbox\Cms\Tooling\Check\Domain\CheckListener;
 use Cbox\Cms\Tooling\Check\Domain\CheckRunner;
 use Cbox\Cms\Tooling\Check\Domain\Gate;
 use Cbox\Cms\Tooling\Check\Domain\GateResult;
@@ -21,22 +20,6 @@ use InvalidArgumentException;
  * also after a failure, a step outside the profile is reported with its reason and never run,
  * and a gate's status follows its steps.
  */
-
-final class RecordingListener implements CheckListener
-{
-    /** @var list<string> */
-    public array $events = [];
-
-    public function gateStarted(Gate $gate): void
-    {
-        $this->events[] = "gate {$gate->number}";
-    }
-
-    public function stepFinished(Gate $gate, StepResult $result): void
-    {
-        $this->events[] = "{$result->step} {$result->status->value}";
-    }
-}
 
 /**
  * @return list<Gate>

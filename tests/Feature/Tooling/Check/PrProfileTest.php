@@ -8,7 +8,6 @@ use Cbox\Cms\Contracts\Ids\PrincipalId;
 use Cbox\Cms\Tests\Support\Tooling\RecordedCommand;
 use Cbox\Cms\Tests\Support\Tooling\ScriptedProcessRunner;
 use Cbox\Cms\Tooling\Check\Boundary\CheckReportJson;
-use Cbox\Cms\Tooling\Check\Domain\CheckListener;
 use Cbox\Cms\Tooling\Check\Domain\CheckReport;
 use Cbox\Cms\Tooling\Check\Domain\CheckRunner;
 use Cbox\Cms\Tooling\Check\Domain\ComposerAuditReader;
@@ -43,13 +42,6 @@ const PR_COMPOSER = ['/usr/bin/php', '/usr/bin/composer'];
 function prGates(?MutationScope $mutation = null): array
 {
     return PrProfile::gates('/usr/bin/php', PR_COMPOSER, $mutation ?? MutationScope::changed('abc123', []));
-}
-
-final class SilentListener implements CheckListener
-{
-    public function gateStarted(Gate $gate): void {}
-
-    public function stepFinished(Gate $gate, StepResult $result): void {}
 }
 
 /**

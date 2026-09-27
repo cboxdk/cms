@@ -8,7 +8,6 @@ use Cbox\Cms\Tests\Support\Phpstan;
 use Cbox\Cms\Tests\Support\Tooling\ScratchDirectory;
 use Cbox\Cms\Tests\Support\Tooling\ScratchRepository;
 use Cbox\Cms\Tooling\Check\Adapter\SymfonyProcessRunner;
-use Cbox\Cms\Tooling\Check\Domain\CheckListener;
 use Cbox\Cms\Tooling\Check\Domain\CheckRunner;
 use Cbox\Cms\Tooling\Check\Domain\Gate;
 use Cbox\Cms\Tooling\Check\Domain\Step;
@@ -34,13 +33,6 @@ use Cbox\Cms\Tooling\Mutation\Domain\MutationSteps;
 afterEach(function (): void {
     ScratchDirectory::cleanUp();
 });
-
-final class SilentMutationListener implements CheckListener
-{
-    public function gateStarted(Gate $gate): void {}
-
-    public function stepFinished(Gate $gate, StepResult $result): void {}
-}
 
 /**
  * A repository laid out like this one: phpunit.xml with the suites and packages/*\/src as the

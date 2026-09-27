@@ -14,7 +14,6 @@ use Cbox\Cms\Testkit\Postgres\TestDatabaseMain;
 use Cbox\Cms\Testkit\Postgres\TestDatabaseName;
 use Cbox\Cms\Testkit\Postgres\TestDatabaseUnavailable;
 use Cbox\Cms\Tests\Support\Tooling\ScratchDirectory;
-use Closure;
 use Illuminate\Config\Repository;
 use InvalidArgumentException;
 use PHPUnit\Framework\Assert;
@@ -39,21 +38,6 @@ function ownerAt(int $port): ConnectionSettings
 function appAt(int $port): ConnectionSettings
 {
     return new ConnectionSettings('pgsql', '127.0.0.1', $port, 'cms_test', 'cms_app', 'secret-password', 'cms');
-}
-
-final class CollectedOutput
-{
-    public string $text = '';
-
-    /**
-     * @return Closure(string): void
-     */
-    public function writer(): Closure
-    {
-        return function (string $text): void {
-            $this->text .= $text;
-        };
-    }
 }
 
 /**

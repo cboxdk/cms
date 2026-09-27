@@ -17,8 +17,6 @@ use stdClass;
  * a message that names the key.
  */
 
-abstract class AbstractClock implements Clock {}
-
 function bindingsWith(mixed $implementation): ContractBindings
 {
     return new ContractBindings(new Repository(['cms' => ['contracts' => [Clock::class => $implementation]]]));
