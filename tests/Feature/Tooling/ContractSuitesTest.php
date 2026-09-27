@@ -19,7 +19,9 @@ use Cbox\Cms\Testkit\Tests\Contract\FakeIdempotencyStoreContractTest;
 use Cbox\Cms\Testkit\Tests\Contract\FakeIdGeneratorContractTest;
 use Cbox\Cms\Testkit\Tests\Contract\FakeReceiptStoreContractTest;
 use Cbox\Cms\Tests\Support\Phpstan;
+use Examples\Contract\Clock\StagingClockContractTest;
 use Examples\Contract\IdempotencyStore\CountingIdempotencyStoreContractTest;
+use Examples\Contract\Ids\CountingIdGeneratorContractTest;
 use Examples\Contract\ReceiptStore\ArrayReceiptStoreContractTest;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionClass;
@@ -70,12 +72,12 @@ function sharedCases(string $trait): array
     return array_values(array_map(static fn (ReflectionMethod $method): string => $method->getName(), $methods));
 }
 
-it('runs every shared Clock case once for the SystemClock and once for the FakeClock', function (): void {
+it('runs every shared Clock case once for the SystemClock, the FakeClock and the documentation\'s StagingClock', function (): void {
     $cases = sharedCases(ClockContract::class);
 
     $expected = [];
 
-    foreach ([SystemClockContractTest::class, FakeClockContractTest::class] as $class) {
+    foreach ([SystemClockContractTest::class, FakeClockContractTest::class, StagingClockContractTest::class] as $class) {
         foreach ($cases as $case) {
             $expected[] = $class.'::'.$case;
         }
@@ -89,12 +91,12 @@ it('runs every shared Clock case once for the SystemClock and once for the FakeC
         ->and($listed)->toBe($expected);
 });
 
-it('runs every shared IdGenerator case once for the SystemIdGenerator and once for the FakeIdGenerator', function (): void {
+it('runs every shared IdGenerator case once for the SystemIdGenerator, the FakeIdGenerator and the documentation\'s CountingIdGenerator', function (): void {
     $cases = sharedCases(IdGeneratorContract::class);
 
     $expected = [];
 
-    foreach ([SystemIdGeneratorContractTest::class, FakeIdGeneratorContractTest::class] as $class) {
+    foreach ([SystemIdGeneratorContractTest::class, FakeIdGeneratorContractTest::class, CountingIdGeneratorContractTest::class] as $class) {
         foreach ($cases as $case) {
             $expected[] = $class.'::'.$case;
         }
