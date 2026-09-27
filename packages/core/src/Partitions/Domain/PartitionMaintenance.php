@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Partitions\Domain;
 
-use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionRange;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionReport;
 use DateTimeImmutable;
@@ -19,7 +19,7 @@ use DateTimeImmutable;
  * attempt, ends that phase for that table only: the report's gaveUp holds it as a GaveUpStep,
  * and the run goes on with the other tables.
  */
-#[Experimental]
+#[Internal]
 interface PartitionMaintenance
 {
     /**

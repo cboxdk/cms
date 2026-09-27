@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Registry\Domain;
 
-use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 
 /**
  * The compiled registry on disk, in bootstrap/cache/cms/ (PRD 13.2): one PHP file per registry,
  * sorted and without timestamps, so two builds from the same code give the same bytes.
  */
-#[Experimental]
+#[Internal]
 interface RegistryCache
 {
     /**
