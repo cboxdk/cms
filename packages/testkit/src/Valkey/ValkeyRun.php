@@ -104,6 +104,18 @@ final class ValkeyRun
     }
 
     /**
+     * A key of this run that lies outside every run prefix: `cms_test_<run id>`, the prefix without
+     * its trailing separator. It carries the run id, so no other run writes it, and a run id has no
+     * separator, so it never starts with the prefix of this or any other run and clean() never
+     * removes it. A test writes it through a connection without a prefix to prove that a clean-up
+     * stays inside the prefix, and removes it itself.
+     */
+    public function outsideKey(): string
+    {
+        return substr($this->prefix, 0, -1);
+    }
+
+    /**
      * A new client that puts the run prefix in front of every key. The caller closes it.
      */
     public function client(): Redis

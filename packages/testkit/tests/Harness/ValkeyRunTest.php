@@ -32,6 +32,23 @@ it('makes a fresh prefix of the form cms_test_<run id>_ for each run', function 
         ->and(new ValkeyRun(valkeySettings(), $first)->prefix)->toBe($first);
 });
 
+it('derives the key outside the prefix from the run id, so two runs never share it', function (string $first, string $second): void {
+    $runs = [new ValkeyRun(valkeySettings(), $first), new ValkeyRun(valkeySettings(), $second)];
+
+    expect($runs[0]->outsideKey())->toBe(rtrim($first, '_'))
+        ->and($runs[1]->outsideKey())->toBe(rtrim($second, '_'))
+        ->and($runs[0]->outsideKey())->not->toBe($runs[1]->outsideKey());
+
+    foreach ($runs as $owner) {
+        foreach ($runs as $run) {
+            expect(str_starts_with($owner->outsideKey(), $run->prefix))->toBeFalse();
+        }
+    }
+})->with([
+    'fixed run ids' => ['cms_test_0123456789ab_', 'cms_test_ba9876543210_'],
+    'one run id a prefix of the other' => ['cms_test_ab_', 'cms_test_abc_'],
+]);
+
 it('scans only below the prefix, with glob characters escaped', function (): void {
     expect(ValkeyRun::pattern('cms_test_abc_'))->toBe('cms_test_abc_*')
         ->and(ValkeyRun::pattern('a*b?c[d]^e\\f'))->toBe('a\\*b\\?c\\[d\\]\\^e\\\\f*');

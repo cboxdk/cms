@@ -97,6 +97,7 @@ it('removes every key under the prefix with SCAN and UNLINK, over many SCAN batc
     $mine = $run->client();
     $theirs = $other->client();
     $raw = ValkeyConnector::connect($run->settings);
+    $outside = $run->outsideKey();
 
     try {
         $pipe = $mine->multi(Client::PIPELINE);
@@ -107,15 +108,15 @@ it('removes every key under the prefix with SCAN and UNLINK, over many SCAN batc
 
         $pipe->exec();
         $theirs->set('bulk:0', 'another run');
-        $raw->set('cms_test_without_run_id', 'no prefix');
+        $raw->set($outside, 'no prefix');
 
         expect($run->keys())->toHaveCount($count)
             ->and($run->clean())->toBe($count)
             ->and($run->keys())->toBe([])
             ->and($theirs->get('bulk:0'))->toBe('another run')
-            ->and($raw->get('cms_test_without_run_id'))->toBe('no prefix');
+            ->and($raw->get($outside))->toBe('no prefix');
     } finally {
-        $raw->unlink('cms_test_without_run_id');
+        $raw->unlink($outside);
         $other->clean();
         $mine->close();
         $theirs->close();
@@ -123,6 +124,27 @@ it('removes every key under the prefix with SCAN and UNLINK, over many SCAN batc
     }
 
     expect($other->keys())->toBe([]);
+});
+
+it('leaves the outside key of another run in Valkey when one run cleans up after itself', function (): void {
+    $run = app(ValkeyRun::class);
+    $other = new ValkeyRun($run->settings, ValkeyRun::newPrefix());
+    $raw = ValkeyConnector::connect($run->settings);
+
+    try {
+        $raw->set($other->outsideKey(), 'another run');
+        $raw->set($run->outsideKey(), 'this run');
+
+        // What a test of this run does when it ends: remove its outside key and clean its prefix.
+        $raw->unlink($run->outsideKey());
+        $run->clean();
+
+        expect($raw->get($other->outsideKey()))->toBe('another run')
+            ->and($raw->get($run->outsideKey()))->toBeFalse();
+    } finally {
+        $raw->unlink([$run->outsideKey(), $other->outsideKey()]);
+        $raw->close();
+    }
 });
 
 it('keeps two runs started at the same time apart, and each removes its keys when it ends', function (): void {
