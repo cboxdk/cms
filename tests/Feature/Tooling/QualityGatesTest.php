@@ -55,12 +55,19 @@ it('analyses every package, the tests, the tooling and the workbench at level 10
         glob($root.'/packages/*/src', GLOB_ONLYDIR) ?: [],
         glob($root.'/packages/*/tests', GLOB_ONLYDIR) ?: [],
     );
+    // rector.php covers these by glob; PHPStan does not expand globs, so each one must be listed.
+    $supportDirectories = array_merge(
+        glob($root.'/packages/*/bin', GLOB_ONLYDIR) ?: [],
+        glob($root.'/packages/*/config', GLOB_ONLYDIR) ?: [],
+        glob($root.'/packages/*/database', GLOB_ONLYDIR) ?: [],
+    );
 
     expect($packageDirectories)->toHaveCount(12)
+        ->and($supportDirectories)->toContain($root.'/packages/core/config', $root.'/packages/core/database', $root.'/packages/testkit/bin')
         ->and($parameters->value('level'))->toBe(10)
         ->and($parameters->value('ignoreErrors'))->toBe([])
         ->and($parameters->strings('analysedPathsFromConfig'))
-        ->toContain(...[...$packageDirectories, $root.'/tests', $root.'/tools', $root.'/workbench']);
+        ->toContain(...[...$packageDirectories, ...$supportDirectories, $root.'/tests', $root.'/tools', $root.'/workbench']);
 });
 
 it('uses the shared configuration from the testkit for all three tools', function (): void {

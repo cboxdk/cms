@@ -1,7 +1,8 @@
 # The shared configuration from the testkit (GUARDRAILS 10). This file adds only the paths.
 # Level 10 covers the tests as well; there is no baseline and there are no ignoreErrors.
-# PHPStan does not expand globs in paths, so every package is listed. A test in
-# tests/Feature/Tooling checks that each packages/*/src and packages/*/tests is here.
+# PHPStan does not expand globs in paths, so every package directory is listed. A test in
+# tests/Feature/Tooling checks that each packages/*/src, packages/*/tests, packages/*/bin,
+# packages/*/config and packages/*/database is here, the directories rector.php covers by glob.
 
 includes:
     - vendor/cboxdk/cms-testkit/config/phpstan.neon
