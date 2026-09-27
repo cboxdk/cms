@@ -18,10 +18,12 @@ use LogicException;
  * on every read by this session, and once more at commit, when the result replaces the committed
  * rows. A rollback drops the list.
  *
- * A write is checked when it is made, as a database checks a statement, and again at commit
- * against what other sessions committed meanwhile. A commit that fails there throws the write's
- * error, applies nothing and ends the transaction. Whether a partition covers the changeset is
- * checked only when the write is made: that is when a database routes the row.
+ * A write is checked when it is made, as a database checks a statement. A store first takes the
+ * changeset's lock for the transaction, waiting for another open transaction that holds it (see
+ * FakeReceiptStore::whenWaiting()), and keeps it until commit or rollback. No other session can
+ * store the changeset meanwhile, so a DuplicateReceipt comes from store() and never from commit().
+ * A mark replayed at commit that no longer matches changes nothing. Whether a partition covers the
+ * changeset is checked only when the write is made: that is when a database routes the row.
  *
  * A PartitionMissing inside a transaction fails it, as it does on Postgres: until rollBack(), every
  * call and commit() throw a LogicException. Postgres would take a COMMIT and roll back instead; the
@@ -58,13 +60,17 @@ final class FakeReceiptSession implements ReceiptStore, ReceiptStoreSession
         $this->refuseWhenFailed();
         $this->writes = null;
 
-        $rows = $this->database->committedRows();
+        try {
+            $rows = $this->database->committedRows();
 
-        foreach ($writes as $write) {
-            $rows = $write->applyTo($rows);
+            foreach ($writes as $write) {
+                $rows = $write->applyTo($rows);
+            }
+
+            $this->database->commitRows($rows);
+        } finally {
+            $this->database->unlock($this);
         }
-
-        $this->database->commitRows($rows);
     }
 
     public function rollBack(): void
@@ -75,6 +81,7 @@ final class FakeReceiptSession implements ReceiptStore, ReceiptStoreSession
 
         $this->writes = null;
         $this->failed = false;
+        $this->database->unlock($this);
     }
 
     public function inTransaction(): bool
@@ -92,6 +99,7 @@ final class FakeReceiptSession implements ReceiptStore, ReceiptStoreSession
             return;
         }
 
+        $this->database->lock($receipt->changesetId, $this);
         FakeReceiptRows::stored($this->rows(), $receipt);
 
         try {

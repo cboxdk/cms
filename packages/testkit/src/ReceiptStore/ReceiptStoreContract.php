@@ -233,28 +233,38 @@ trait ReceiptStoreContract
             $changesetId = $receipt->changesetId;
             $label = sprintf('%s, then %s', $firstClass->value, $secondClass->value);
 
-            // Both transactions are open at once. A database store may make the second store wait
-            // for the first transaction, so the second stores only after the first commits; a store
-            // that does not wait may refuse it at the second commit instead.
+            // Both transactions are open at once, and the second stores after the first commits.
+            // The contract refuses the duplicate at store(), which the kernel calls in the command
+            // transaction, and never at commit(): a store that waits for the first transaction, as
+            // a database store does, sees its receipt once it commits.
             $first->begin();
             $first->receipts()->store($receipt);
             $second->begin();
             Assert::assertNull($second->receipts()->find($changesetId), "Another session sees an uncommitted receipt ({$label}).");
             $first->commit();
+            $refused = false;
 
             try {
                 $second->receipts()->store(new StoredReceipt($changesetId, $secondClass, [
                     ProjectionStatus::pending(new ProjectionName('edge')),
                 ]));
-                $second->commit();
-                Assert::fail("The store kept a second receipt for a changeset another transaction stored ({$label}).");
             } catch (DuplicateReceipt $duplicate) {
                 Assert::assertStringContainsString($changesetId->toString(), $duplicate->getMessage());
+                $refused = true;
             }
 
-            if ($second->inTransaction()) {
-                $second->rollBack();
+            if (! $refused) {
+                try {
+                    $second->commit();
+                } catch (DuplicateReceipt) {
+                    Assert::fail("The store refused a second receipt for a changeset another transaction stored at commit(); the contract refuses it at store() ({$label}).");
+                }
+
+                Assert::fail("The store kept a second receipt for a changeset another transaction stored ({$label}).");
             }
+
+            Assert::assertTrue($second->inTransaction(), "store() ended the caller's transaction on DuplicateReceipt ({$label}).");
+            $second->rollBack();
 
             $this->assertSameReceipt($receipt, $reader->receipts()->find($changesetId), "The refused receipt changed the stored one ({$label}).");
         }

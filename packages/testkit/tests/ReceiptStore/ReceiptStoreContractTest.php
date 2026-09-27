@@ -105,6 +105,7 @@ it('fails a store that breaks the contract', function (Closure $harness, string 
     'a receipt frozen as it was stored' => [brokenStores(Breach::FreezesStoredReceipt), 'a_receipt_stored_before_the_wait_holds_no_wait_result_and_shows_the_projections_as_marked'],
     'a duplicate that overwrites' => [brokenStores(Breach::OverwritesDuplicate), 'a_second_receipt_for_the_same_changeset_is_refused'],
     'a duplicate of the other class from another transaction that overwrites' => [brokenStores(Breach::OverwritesDuplicate), 'a_receipt_of_either_class_for_a_changeset_another_transaction_stored_is_refused'],
+    'a duplicate of the other class from another transaction refused only at commit' => [brokenStores(Breach::RefusesDuplicateAtCommit), 'a_receipt_of_either_class_for_a_changeset_another_transaction_stored_is_refused'],
     'a duplicate of the other class seen by another transaction before commit' => [brokenStores(Breach::IgnoresTransactions), 'a_receipt_of_either_class_for_a_changeset_another_transaction_stored_is_refused'],
     'a duplicate accepted after expiry' => [brokenStores(Breach::OverwritesDuplicate), 'an_expired_receipt_ignores_mark_projection_and_still_holds_its_changeset'],
     'a mark that touches every projection' => [brokenStores(Breach::MarksEveryProjection), 'mark_projection_updates_only_that_projection'],

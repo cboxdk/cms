@@ -14,7 +14,9 @@ use Cbox\Cms\Contracts\ReceiptStore;
 use Cbox\Cms\Contracts\Storage\PartitionMissing;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\Storage\UncoveredRange;
+use Closure;
 use DateTimeImmutable;
+use LogicException;
 
 /**
  * An in-memory receipt store for tests (GUARDRAILS 2.3).
@@ -24,9 +26,17 @@ use DateTimeImmutable;
  * rollBack(), so a test can run the transactional cases a database store has. A session's writes
  * inside a transaction are visible to that session only, and to everyone after commit.
  *
- * The fake does not model lock waits. Where a database would make a second writer wait, the fake
- * lets it continue and applies the writes in commit order; a duplicate receipt that two sessions
- * both stored then fails at the second commit.
+ * One receipt per changeset is kept as the Postgres store keeps it: store() first takes a lock on
+ * the changeset, then looks for a receipt of either class. Inside a transaction the lock lasts until
+ * the transaction ends, also when store() throws. A store of a changeset that another open
+ * transaction has stored therefore waits for that transaction, and then throws DuplicateReceipt when
+ * it committed, or stores when it rolled back. The duplicate comes from store(), never from
+ * commit(), as the contract says.
+ *
+ * PHP runs one session at a time, so the other transaction cannot end while a store waits for it.
+ * whenWaiting() models the wait instead: it schedules events, such as the other session committing
+ * or rolling back, that a waiting store runs, in order, until the changeset is free. A store that
+ * would wait with no event left throws a LogicException: on Postgres it would wait for ever.
  *
  * Expiry reads the clock, so a test moves a FakeClock past RetentionClass::expiresAt() to expire a
  * Standard receipt.
@@ -48,6 +58,12 @@ final class FakeReceiptStore implements ReceiptStore, ReceiptStoreHarness
     /** @var list<UncoveredRange> changeset times that no partition covers */
     private array $uncovered = [];
 
+    /** @var array<string, FakeReceiptSession> the open transaction holding each changeset's lock, by changeset id */
+    private array $locks = [];
+
+    /** @var list<Closure(): void> scheduled wait events, in the order they run */
+    private array $events = [];
+
     public function __construct(private readonly Clock $clock = new FakeClock) {}
 
     public function session(): FakeReceiptSession
@@ -63,8 +79,29 @@ final class FakeReceiptStore implements ReceiptStore, ReceiptStoreHarness
         $this->uncovered[] = new UncoveredRange($from, $to);
     }
 
+    /**
+     * Schedules an event for a store that waits for another open transaction's lock on its
+     * changeset, for example that session committing or rolling back. A waiting store runs the
+     * events in the order they were scheduled, one after another, until the changeset is free.
+     *
+     * @param  Closure(): void  $event
+     */
+    public function whenWaiting(Closure $event): void
+    {
+        $this->events[] = $event;
+    }
+
+    /**
+     * How many wait events are still scheduled.
+     */
+    public function scheduledWaitEvents(): int
+    {
+        return count($this->events);
+    }
+
     public function store(StoredReceipt $receipt): void
     {
+        $this->lock($receipt->changesetId, null);
         $rows = FakeReceiptRows::stored($this->rows, $receipt);
         $this->assertCovered($receipt);
         $this->rows = $rows;
@@ -108,6 +145,41 @@ final class FakeReceiptStore implements ReceiptStore, ReceiptStoreHarness
     public function commitRows(array $rows): void
     {
         $this->rows = $rows;
+    }
+
+    /**
+     * Takes the changeset's lock for the session's open transaction, or, with null, waits for the
+     * lock without keeping it, as a store without a transaction does. While another open
+     * transaction holds the lock, it runs the scheduled wait events in order.
+     *
+     * @throws LogicException when the store would wait and no wait event is left
+     */
+    #[Internal]
+    public function lock(ChangesetId $changesetId, ?FakeReceiptSession $session): void
+    {
+        $name = $changesetId->toString();
+
+        while (($holder = $this->locks[$name] ?? null) instanceof FakeReceiptSession && $holder !== $session) {
+            $event = array_shift($this->events) ?? throw new LogicException(sprintf(
+                'Another open transaction stored a receipt for changeset %s, so this store waits until that transaction ends, and no wait event is scheduled: on Postgres it would wait for ever. Schedule what ends that transaction with whenWaiting().',
+                $name,
+            ));
+
+            $event();
+        }
+
+        if ($session instanceof FakeReceiptSession) {
+            $this->locks[$name] = $session;
+        }
+    }
+
+    /**
+     * Releases every changeset lock the session's transaction holds, when that transaction ends.
+     */
+    #[Internal]
+    public function unlock(FakeReceiptSession $session): void
+    {
+        $this->locks = array_filter($this->locks, static fn (FakeReceiptSession $holder): bool => $holder !== $session);
     }
 
     /**

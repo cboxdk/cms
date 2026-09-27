@@ -23,6 +23,9 @@ final class BrokenSession implements ReceiptStore, ReceiptStoreSession
 {
     private bool $open = false;
 
+    /** The DuplicateReceipt that store() held back for commit(), for Breach::RefusesDuplicateAtCommit. */
+    private ?DuplicateReceipt $heldBack = null;
+
     public function __construct(
         private readonly FakeReceiptSession $inner,
         private readonly FakeReceiptStore $database,
@@ -42,11 +45,21 @@ final class BrokenSession implements ReceiptStore, ReceiptStoreSession
 
     public function commit(): void
     {
+        $heldBack = $this->heldBack;
+        $this->heldBack = null;
+
+        if ($heldBack instanceof DuplicateReceipt) {
+            $this->inner->rollBack();
+
+            throw $heldBack;
+        }
+
         $this->breach === Breach::IgnoresTransactions ? $this->open = false : $this->inner->commit();
     }
 
     public function rollBack(): void
     {
+        $this->heldBack = null;
         $this->breach === Breach::IgnoresTransactions ? $this->open = false : $this->inner->rollBack();
     }
 
@@ -65,6 +78,12 @@ final class BrokenSession implements ReceiptStore, ReceiptStoreSession
             $this->inner->store($receipt);
             $this->snapshots->receipts[$receipt->changesetId->toString()] = $receipt;
         } catch (DuplicateReceipt $duplicate) {
+            if ($this->breach === Breach::RefusesDuplicateAtCommit && $this->inner->inTransaction()) {
+                $this->heldBack = $duplicate;
+
+                return;
+            }
+
             if ($this->breach !== Breach::OverwritesDuplicate) {
                 throw $duplicate;
             }

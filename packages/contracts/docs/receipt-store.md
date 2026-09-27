@@ -18,7 +18,7 @@ A `StoredReceipt` (in `Cbox\Cms\Contracts\Receipts`) holds only facts about a co
 
 Only committed changesets are stored. A `StoredReceipt` cannot be made without a `ChangesetId`, and only a committed changeset has one, so a rejected call or a dry run has nothing to store. The `Receipt` a call returns, with its outcome and wait level, is never stored. The receipt is written in the command transaction, before any wait level past commit can be reached, so the kernel builds each call's `Receipt`, a replay's included, from the stored receipt, the wait level the call asks for and whether that level was reached.
 
-A second receipt for a changeset throws `DuplicateReceipt` (in `Cbox\Cms\Contracts\Consistency`), whatever its retention class, and leaves the stored receipt as it was. A changeset has one receipt; mark its projections instead.
+A second receipt for a changeset throws `DuplicateReceipt` (in `Cbox\Cms\Contracts\Consistency`), whatever its retention class, and leaves the stored receipt as it was. A changeset has one receipt; mark its projections instead. When another open transaction has stored the changeset, `store()` waits until that transaction ends: it then throws `DuplicateReceipt` if the other transaction committed, and stores if it rolled back. The duplicate always comes from `store()`, never from the caller's commit.
 
 ## Transactions
 
@@ -48,7 +48,7 @@ An application replaces the store with its own class in the `ReceiptStore::class
 
 ## Testing code that uses the store
 
-`Cbox\Cms\Testkit\ReceiptStore\FakeReceiptStore` in `cboxdk/cms-testkit` is the fake. It keeps receipts in memory and reads the time from the `Clock` it is given, so a test moves a `FakeClock` to expire a Standard receipt. Used directly, the fake behaves like a connection without a transaction: every call commits at once. Its `session()` hands out further connections to the same receipts, with transactions, and its `uncover($from, $to)` takes a range of changeset times out of the partitions, so `store()` in the range throws `PartitionMissing`.
+`Cbox\Cms\Testkit\ReceiptStore\FakeReceiptStore` in `cboxdk/cms-testkit` is the fake. It keeps receipts in memory and reads the time from the `Clock` it is given, so a test moves a `FakeClock` to expire a Standard receipt. Used directly, the fake behaves like a connection without a transaction: every call commits at once. Its `session()` hands out further connections to the same receipts, with transactions, and its `uncover($from, $to)` takes a range of changeset times out of the partitions, so `store()` in the range throws `PartitionMissing`. A store of a changeset that another session's open transaction has stored waits for that transaction, as on Postgres. PHP runs one session at a time, so `whenWaiting($event)` schedules what happens during the wait, such as the other session committing or rolling back; a waiting store runs the events in order until the changeset is free, and throws a `LogicException` when none is left.
 
 The example stores a receipt, finds it and marks its projection, then shows a duplicate and the expiry:
 

@@ -22,8 +22,9 @@ use LogicException;
 
 /*
  * The fake's own behaviour beyond the shared suite: its sessions refuse nesting and stray
- * commits, replay their writes in commit order, and a failed commit applies nothing. uncover()
- * takes exactly its range out of the partitions, and PartitionMissing fails a transaction.
+ * commits and replay their writes in commit order. A store of a changeset another open transaction
+ * stored waits for it through whenWaiting(), as on Postgres, and refuses the duplicate at store().
+ * uncover() takes exactly its range out of the partitions, and PartitionMissing fails a transaction.
  */
 
 function fakeReceipt(FakeIdGenerator $ids): StoredReceipt
@@ -89,48 +90,175 @@ it('keeps both marks when two open transactions mark different projections', fun
     expect($states)->toBe([ProjectionState::Acknowledged, ProjectionState::Acknowledged]);
 });
 
-it('fails the second commit of the same changeset and applies none of its writes', function (): void {
+it('refuses a changeset another open transaction stored at store(), once that transaction commits, and commits the rest', function (RetentionClass $firstClass, RetentionClass $secondClass): void {
     $clock = new FakeClock;
     $store = new FakeReceiptStore($clock);
     $ids = new FakeIdGenerator(clock: $clock);
-    $receipt = fakeReceipt($ids);
+    $receipt = new StoredReceipt(new ChangesetId($ids->next()), $firstClass);
     $other = fakeReceipt($ids);
     $first = $store->session();
     $second = $store->session();
 
     $first->begin();
     $second->begin();
-    $second->store($other);
-    $second->store($receipt);
     $first->store($receipt);
-    $first->commit();
+    $second->store($other);
+    $store->whenWaiting($first->commit(...));
 
-    expect(fn () => $second->commit())->toThrow(DuplicateReceipt::class)
-        ->and($second->inTransaction())->toBeFalse()
-        ->and($store->find($other->changesetId))->toBeNull()
-        ->and($store->find($receipt->changesetId))->toEqual($receipt);
-});
+    // Postgres makes the second store wait for the first transaction's lock on the changeset and
+    // then refuses it; the duplicate comes from store(), never from commit().
+    expect(fn () => $second->store(new StoredReceipt($receipt->changesetId, $secondClass)))->toThrow(DuplicateReceipt::class, $receipt->changesetId->toString())
+        ->and($store->scheduledWaitEvents())->toBe(0)
+        ->and($first->inTransaction())->toBeFalse()
+        ->and($second->inTransaction())->toBeTrue();
 
-it('fails the second commit of a changeset stored in the other retention class too', function (RetentionClass $firstClass, RetentionClass $secondClass): void {
+    $second->commit();
+
+    expect($second->inTransaction())->toBeFalse()
+        ->and($store->find($receipt->changesetId))->toEqual($receipt)
+        ->and($store->find($other->changesetId))->toEqual($other);
+})->with([
+    'standard, then standard' => [RetentionClass::Standard, RetentionClass::Standard],
+    'standard, then evidence' => [RetentionClass::Standard, RetentionClass::Evidence],
+    'evidence, then standard' => [RetentionClass::Evidence, RetentionClass::Standard],
+]);
+
+it('stores the changeset once the other open transaction that stored it rolls back', function (): void {
     $clock = new FakeClock;
     $store = new FakeReceiptStore($clock);
-    $receipt = new StoredReceipt(new ChangesetId(new FakeIdGenerator(clock: $clock)->next()), $firstClass);
+    $ids = new FakeIdGenerator(clock: $clock);
+    $receipt = fakeReceipt($ids);
+    $mine = new StoredReceipt($receipt->changesetId, RetentionClass::Evidence);
     $first = $store->session();
     $second = $store->session();
 
     $first->begin();
-    $second->begin();
     $first->store($receipt);
-    $second->store(new StoredReceipt($receipt->changesetId, $secondClass));
+    $second->begin();
+    $store->whenWaiting($first->rollBack(...));
+    $second->store($mine);
+    $second->commit();
+
+    expect($store->find($receipt->changesetId))->toEqual($mine)
+        ->and($store->scheduledWaitEvents())->toBe(0);
+});
+
+it('refuses with a LogicException a store that would wait with no wait event scheduled, and takes nothing', function (): void {
+    $clock = new FakeClock;
+    $store = new FakeReceiptStore($clock);
+    $receipt = fakeReceipt(new FakeIdGenerator(clock: $clock));
+    $holder = $store->session();
+    $inTransaction = $store->session();
+    $autocommit = $store->session();
+
+    $holder->begin();
+    $holder->store($receipt);
+    $inTransaction->begin();
+
+    foreach ([
+        fn () => $inTransaction->store($receipt),
+        fn () => $autocommit->store($receipt),
+        fn () => $store->store($receipt),
+    ] as $wait) {
+        expect($wait)->toThrow(LogicException::class, sprintf('Another open transaction stored a receipt for changeset %s, so this store waits until that transaction ends, and no wait event is scheduled', $receipt->changesetId->toString()));
+    }
+
+    // The refused store took no lock: once the holder rolls back, a store without a transaction
+    // goes ahead without waiting for the session that was refused.
+    $holder->rollBack();
+    $store->store($receipt);
+    $inTransaction->commit();
+
+    expect($store->find($receipt->changesetId))->toEqual($receipt);
+});
+
+it('makes a store without a transaction wait for an open transaction that stored the changeset too', function (): void {
+    $clock = new FakeClock;
+    $store = new FakeReceiptStore($clock);
+    $receipt = fakeReceipt(new FakeIdGenerator(clock: $clock));
+    $holder = $store->session();
+    $autocommit = $store->session();
+
+    $holder->begin();
+    $holder->store($receipt);
+    $store->whenWaiting($holder->commit(...));
+    $store->whenWaiting(static function (): void {});
+
+    expect(fn () => $autocommit->store($receipt))->toThrow(DuplicateReceipt::class)
+        ->and($store->scheduledWaitEvents())->toBe(1)
+        ->and($autocommit->inTransaction())->toBeFalse();
+});
+
+it('runs the wait events in the order they were scheduled until the changeset is free, and keeps the rest', function (): void {
+    $clock = new FakeClock;
+    $store = new FakeReceiptStore($clock);
+    $receipt = fakeReceipt(new FakeIdGenerator(clock: $clock));
+    $holder = $store->session();
+    $waiter = $store->session();
+    $ran = [];
+
+    $holder->begin();
+    $holder->store($receipt);
+    $store->whenWaiting(static function () use (&$ran): void {
+        $ran[] = 'first';
+    });
+    $store->whenWaiting(static function () use ($holder, &$ran): void {
+        $ran[] = 'second';
+        $holder->rollBack();
+    });
+    $store->whenWaiting(static function () use (&$ran): void {
+        $ran[] = 'third';
+    });
+
+    $waiter->begin();
+    $waiter->store($receipt);
+
+    expect($ran)->toBe(['first', 'second'])
+        ->and($store->scheduledWaitEvents())->toBe(1);
+});
+
+it('keeps the changeset locked until the transaction ends, also after its store threw DuplicateReceipt', function (): void {
+    $clock = new FakeClock;
+    $store = new FakeReceiptStore($clock);
+    $receipt = fakeReceipt(new FakeIdGenerator(clock: $clock));
+    $store->store($receipt);
+    $refused = $store->session();
+    $third = $store->session();
+
+    $refused->begin();
+
+    expect(fn () => $refused->store($receipt))->toThrow(DuplicateReceipt::class)
+        ->and($refused->inTransaction())->toBeTrue()
+        ->and(fn () => $third->store($receipt))->toThrow(LogicException::class, 'no wait event is scheduled');
+
+    $store->whenWaiting($refused->commit(...));
+
+    expect(fn () => $third->store($receipt))->toThrow(DuplicateReceipt::class)
+        ->and($store->scheduledWaitEvents())->toBe(0);
+});
+
+it('never makes a store wait for its own transaction or for another changeset', function (): void {
+    $clock = new FakeClock;
+    $store = new FakeReceiptStore($clock);
+    $ids = new FakeIdGenerator(clock: $clock);
+    $receipt = fakeReceipt($ids);
+    $unrelated = fakeReceipt($ids);
+    $first = $store->session();
+    $second = $store->session();
+
+    $first->begin();
+    $first->store($receipt);
+    $second->begin();
+    $second->store($unrelated);
+
+    expect(fn () => $first->store($receipt))->toThrow(DuplicateReceipt::class);
+
+    $second->commit();
     $first->commit();
 
-    expect(fn () => $second->commit())->toThrow(DuplicateReceipt::class)
-        ->and($second->inTransaction())->toBeFalse()
-        ->and($store->find($receipt->changesetId))->toEqual($receipt);
-})->with([
-    'standard, then evidence' => [RetentionClass::Standard, RetentionClass::Evidence],
-    'evidence, then standard' => [RetentionClass::Evidence, RetentionClass::Standard],
-]);
+    expect($store->find($receipt->changesetId))->toEqual($receipt)
+        ->and($store->find($unrelated->changesetId))->toEqual($unrelated);
+});
 
 it('checks a write when it is made, inside a transaction too, and keeps the transaction open', function (): void {
     $store = new FakeReceiptStore;

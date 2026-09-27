@@ -26,7 +26,10 @@ use Cbox\Cms\Contracts\Storage\PartitionMissing;
  * transaction open, they run inside it, so the receipt commits or rolls back with the changeset
  * (PRD 6.2 phase 7, GUARDRAILS 4.1). They never begin, commit or roll back a transaction and never
  * use a savepoint. Without an open transaction each call commits on its own. find() reads on the
- * same connection, so it sees the caller's uncommitted writes and no one else's.
+ * same connection, so it sees the caller's uncommitted writes and no one else's. A store() of a
+ * changeset that another open transaction has stored waits until that transaction ends, then
+ * throws DuplicateReceipt when it committed and stores when it rolled back. The duplicate always
+ * comes from store(), never from the caller's commit.
  *
  * Expiry is logical. A Standard receipt expires when the Clock is later than
  * RetentionClass::expiresAt() for its changeset: the time in the ChangesetId plus

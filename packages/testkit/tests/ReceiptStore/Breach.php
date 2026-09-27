@@ -21,6 +21,9 @@ enum Breach
     /** A second receipt for a changeset replaces the first without an error. */
     case OverwritesDuplicate;
 
+    /** Inside a transaction, store() takes a second receipt for a changeset and commit() refuses it. */
+    case RefusesDuplicateAtCommit;
+
     /** markProjection() gives every projection in the receipt the new status. */
     case MarksEveryProjection;
 

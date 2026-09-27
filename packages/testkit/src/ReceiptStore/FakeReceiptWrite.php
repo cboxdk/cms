@@ -35,8 +35,9 @@ final readonly class FakeReceiptWrite
     }
 
     /**
-     * The rows with this write applied. A store that meets a receipt committed meanwhile throws
-     * DuplicateReceipt; a mark that no longer matches changes nothing.
+     * The rows with this write applied. A store checks for a duplicate as store() does; at commit
+     * it finds none, because the session holds the changeset's lock and no other session stored
+     * the changeset meanwhile. A mark that no longer matches changes nothing.
      *
      * @param  array<string, StoredReceipt>  $rows
      * @return array<string, StoredReceipt>
