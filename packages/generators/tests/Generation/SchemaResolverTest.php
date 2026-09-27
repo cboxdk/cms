@@ -86,7 +86,7 @@ it('gives the same schema whatever order the blueprint files come in', function 
     $product = SchemaFixtures::type($acme, 'product', ['title' => 'text']);
     $page = SchemaFixtures::type($app, 'page', ['title' => 'text', 'body' => 'rich_text']);
     $taxCode = SchemaFixtures::extension($app, 'shop/tax_code.yaml', $product->typeId, ['tax_code' => 'text']);
-    $colour = SchemaFixtures::extension($app, 'shop/colour.yaml', $product->typeId, ['colour' => 'acme:colour']);
+    $colour = SchemaFixtures::extension($app, 'shop/colour.yaml', $product->typeId, ['colour' => 'select']);
 
     expect(SchemaResolver::resolve(new Blueprints([$product, $page], [$taxCode, $colour])))
         ->toEqual(SchemaResolver::resolve(new Blueprints([$page, $product], [$colour, $taxCode])));

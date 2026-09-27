@@ -70,7 +70,10 @@ enum GenerateErrorCode: string
     /** A decimal field's `scale` is greater than its `precision`. */
     case ScaleAbovePrecision = 'generate_scale_above_precision';
 
-    /** A field's type is an addon field type `<namespace>:<handle>` that no registered contributor provides (PRD 13.3). */
+    /**
+     * A field's type is a `<namespace>:<handle>` that no field type contributor registered, so the
+     * reader cannot resolve it in the field type registry (PRD 13.3, GUARDRAILS 2.4).
+     */
     case UnknownFieldType = 'generate_unknown_field_type';
 
     /**

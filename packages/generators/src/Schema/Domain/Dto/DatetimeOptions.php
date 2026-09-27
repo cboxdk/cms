@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Schema\Domain\Dto;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
-use Cbox\Cms\Generators\Schema\Domain\CoreFieldType;
+use Cbox\Cms\Generators\Schema\Domain\Bounds;
 use Cbox\Cms\Generators\Schema\Domain\FieldOptions;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypes\DatetimeFieldType;
+use Cbox\Cms\Generators\Schema\Domain\OptionRules;
+use Cbox\Cms\Generators\Schema\Domain\SourceLocation;
 use Override;
 
 /**
@@ -24,6 +27,22 @@ final readonly class DatetimeOptions implements FieldOptions
     #[Override]
     public function typeName(): string
     {
-        return CoreFieldType::Datetime->value;
+        return DatetimeFieldType::NAME;
+    }
+
+    #[Override]
+    public function problems(SourceLocation $field): array
+    {
+        if ($this->min === null || $this->max === null) {
+            return [];
+        }
+
+        return OptionRules::range(Bounds::compareDatetimes($this->min, $this->max), $this->min, $this->max, $field);
+    }
+
+    #[Override]
+    public function nestedFields(): array
+    {
+        return [];
     }
 }

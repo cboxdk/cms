@@ -98,7 +98,7 @@ A choice that the field's type does not have is refused.
 
 ## Addon field types
 
-An addon contributes a field type as `<namespace>:<handle>` (PRD 13.1), such as `acme:colour`. The namespace is the addon's name: a lowercase letter and up to 19 lowercase letters or digits. The choices of an addon's field type sit under `options`, an object, so they never collide with a choice that version 1 adds to every field later. The published schema checks only the form of the name and that `options` is an object; the addon's own JSON Schema describes what goes in it. `cms:generate` also checks that a registered contributor provides the field type.
+An addon contributes a field type as `<namespace>:<handle>` (PRD 13.1), such as `acme:colour`. The namespace is the addon's name: a lowercase letter and up to 19 lowercase letters or digits. The choices of an addon's field type sit under `options`, an object, so they never collide with a choice that version 1 adds to every field later. The published schema checks only the form of the name and that `options` is an object; the addon's own JSON Schema describes what goes in it. `cms:generate` resolves the type of every field in its registry of field types, the core field types included, which the core registers through the same extension point as any other contributor, and refuses a field type that no contributor registers.
 
 ## Rules across values and files
 
@@ -117,7 +117,7 @@ JSON Schema checks one file at a time and cannot compare values with each other.
 | `min_length` is at most `max_length`, or at most the default `max_length` when the field has none. | `generate_min_length_above_max_length` |
 | `min_items` is at most `max_items`, on a `select` field and in the `repeat` of a group. | `generate_min_items_above_max_items` |
 | The `scale` of a `decimal` is at most its `precision`. | `generate_scale_above_precision` |
-| An addon field type is one that a registered contributor provides (PRD 13.3). | `generate_unknown_field_type` |
+| A field type `<namespace>:<handle>` is one that a contributor has registered (PRD 13.3). | `generate_unknown_field_type` |
 
 An unknown `extends` is reported only when every file was read, because a file that cannot be read may be the one that defines the type.
 

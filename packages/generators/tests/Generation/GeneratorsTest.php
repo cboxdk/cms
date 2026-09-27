@@ -14,8 +14,9 @@ use Cbox\Cms\Generators\Generation\Domain\Generators\GeneratedLines;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeHandleEnum;
 use Cbox\Cms\Generators\Generation\Domain\Generators\TypeScriptTypeHandles;
 use Cbox\Cms\Generators\Generation\Domain\SchemaResolver;
-use Cbox\Cms\Generators\Schema\Domain\CoreFieldType;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Blueprints;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypeRegistry;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypes\CoreFieldTypes;
 use Cbox\Cms\Generators\Tests\SchemaFixtures;
 use PHPUnit\Framework\Assert;
 
@@ -33,7 +34,7 @@ function generatedBy(Generator ...$generators): array
 {
     $schema = SchemaFixtures::schema([
         'page' => ['title' => 'text', 'slug' => 'text'],
-        'blog_post' => ['title' => 'text', 'body' => 'rich_text', 'author' => 'acme:person'],
+        'blog_post' => ['title' => 'text', 'body' => 'rich_text', 'author' => 'text'],
     ]);
 
     return contentsOf(new GeneratorRunner(array_values($generators))->run($schema, SchemaFixtures::target())->files);
@@ -85,7 +86,7 @@ it('writes a string-backed PHP enum with one case per type and the fields of eac
             {
                 return match ($this) {
                     self::BlogPost => [
-                        'author' => 'acme:person',
+                        'author' => 'text',
                         'body' => 'rich_text',
                         'title' => 'text',
                     ],
@@ -130,7 +131,7 @@ it('writes a TypeScript union of the type handles and an interface of their fiel
         /** The fields of each type: field handle to field type, extension fields under ext.<namespace>. */
         export interface TypeFields {
           blog_post: {
-            author: 'acme:person';
+            author: 'text';
             body: 'rich_text';
             title: 'text';
           };
@@ -228,7 +229,7 @@ it('writes the owner\'s fields by handle and extension fields under ext, by name
     $page = SchemaFixtures::type($acme, 'page', ['title' => 'text']);
     $schema = SchemaResolver::resolve(new Blueprints([$product, $page], [
         SchemaFixtures::extension($blog, 'product.yaml', $product->typeId, ['teaser' => 'long_text']),
-        SchemaFixtures::extension($app, 'shop/product.yaml', $product->typeId, ['tax_code' => 'text', 'colour' => 'acme:colour']),
+        SchemaFixtures::extension($app, 'shop/product.yaml', $product->typeId, ['tax_code' => 'text', 'colour' => 'select']),
     ]));
 
     $output = contentsOf(new GeneratorRunner([new PhpTypeHandleEnum, new TypeScriptTypeHandles])->run($schema, SchemaFixtures::target(roots: [$app, $acme, $blog]))->files);
@@ -259,7 +260,7 @@ it('writes the owner\'s fields by handle and extension fields under ext, by name
                     self::Page => [],
                     self::Product => [
                         'app' => [
-                            'colour' => 'acme:colour',
+                            'colour' => 'select',
                             'tax_code' => 'text',
                         ],
                         'blog' => [
@@ -282,7 +283,7 @@ it('writes the owner\'s fields by handle and extension fields under ext, by name
             title: 'text';
             ext: {
               app: {
-                colour: 'acme:colour';
+                colour: 'select';
                 tax_code: 'text';
               };
               blog: {
@@ -363,15 +364,15 @@ it('writes an enum without cases and never when the schema roots hold no types',
 it('writes every core field type through each generator\'s mapping', function (): void {
     $fields = [];
 
-    foreach (CoreFieldType::cases() as $type) {
-        $fields['a_'.$type->value] = $type->value;
+    foreach (new FieldTypeRegistry(new CoreFieldTypes)->names() as $type) {
+        $fields['a_'.$type] = $type;
     }
 
     $output = contentsOf(new GeneratorRunner([new PhpTypeHandleEnum, new TypeScriptTypeHandles])->run(SchemaFixtures::schema(['page' => $fields]), SchemaFixtures::target())->files);
 
-    foreach (CoreFieldType::cases() as $type) {
-        expect($output['app/Cms/Generated/TypeHandle.php'])->toContain(sprintf("'a_%s' => '%s',", $type->value, PhpTypeHandleEnum::FIELD_TYPES[$type->value]))
-            ->and($output['resources/js/cms/generated/index.ts'])->toContain(sprintf("    a_%s: '%s';", $type->value, TypeScriptTypeHandles::FIELD_TYPES[$type->value]));
+    foreach (new FieldTypeRegistry(new CoreFieldTypes)->names() as $type) {
+        expect($output['app/Cms/Generated/TypeHandle.php'])->toContain(sprintf("'a_%s' => '%s',", $type, PhpTypeHandleEnum::FIELD_TYPES[$type]))
+            ->and($output['resources/js/cms/generated/index.ts'])->toContain(sprintf("    a_%s: '%s';", $type, TypeScriptTypeHandles::FIELD_TYPES[$type]));
     }
 });
 

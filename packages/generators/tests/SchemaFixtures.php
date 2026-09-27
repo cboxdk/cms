@@ -7,10 +7,7 @@ namespace Cbox\Cms\Generators\Tests;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationTarget;
 use Cbox\Cms\Generators\Generation\Domain\Dto\ResolvedSchema;
 use Cbox\Cms\Generators\Generation\Domain\SchemaResolver;
-use Cbox\Cms\Generators\Schema\Domain\AddonFieldType;
 use Cbox\Cms\Generators\Schema\Domain\Classification;
-use Cbox\Cms\Generators\Schema\Domain\CoreFieldType;
-use Cbox\Cms\Generators\Schema\Domain\Dto\AddonOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Blueprints;
 use Cbox\Cms\Generators\Schema\Domain\Dto\BooleanOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Capabilities;
@@ -29,6 +26,16 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\SelectOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\TextOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\FieldOptions;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypes\BooleanFieldType;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypes\DateFieldType;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypes\DatetimeFieldType;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypes\DecimalFieldType;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypes\GroupFieldType;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypes\IntegerFieldType;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypes\LongTextFieldType;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypes\RichTextFieldType;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypes\SelectFieldType;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypes\TextFieldType;
 use Cbox\Cms\Generators\Schema\Domain\Handle;
 use Cbox\Cms\Generators\Schema\Domain\History;
 use Cbox\Cms\Generators\Schema\Domain\Localization;
@@ -38,6 +45,7 @@ use Cbox\Cms\Generators\Schema\Domain\Stages;
 use Cbox\Cms\Generators\Schema\Domain\TextFormat;
 use Cbox\Cms\Generators\Schema\Domain\TypeId;
 use FilesystemIterator;
+use LogicException;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
@@ -54,7 +62,7 @@ final class SchemaFixtures
 
     /**
      * The schema of types in the app's root: type handle to field handle to field type, such as
-     * `text` or `acme:colour`, in the given order.
+     * `text`, in the given order.
      *
      * @param  array<string, array<string, string>>  $types
      */
@@ -132,23 +140,22 @@ final class SchemaFixtures
     }
 
     /**
-     * Field options for a core field type, with the defaults a blueprint file leaves out, or an
-     * addon's field type such as `acme:colour` without options.
+     * Field options for a core field type, with the defaults a blueprint file leaves out.
      */
     public static function options(string $type): FieldOptions
     {
-        return match (CoreFieldType::tryFrom($type)) {
-            CoreFieldType::Text => new TextOptions(null, TextOptions::DEFAULT_MAX_LENGTH, TextFormat::Plain),
-            CoreFieldType::LongText => new LongTextOptions(null, LongTextOptions::DEFAULT_MAX_LENGTH),
-            CoreFieldType::Integer => new IntegerOptions(null, null, null),
-            CoreFieldType::Decimal => new DecimalOptions(10, 2, null, null, null),
-            CoreFieldType::Boolean => new BooleanOptions,
-            CoreFieldType::Date => new DateOptions(null, null),
-            CoreFieldType::Datetime => new DatetimeOptions(null, null),
-            CoreFieldType::Select => new SelectOptions([new SelectOption(new Handle('one'), 'One')], false, null, null),
-            CoreFieldType::RichText => new RichTextOptions(null, null, null, null),
-            CoreFieldType::Group => new GroupOptions([self::field(self::root(), new SourceLocation('schema/group.yaml', '/fields/0/fields/0'), 'name', 'text', null)], null),
-            null => new AddonOptions(new AddonFieldType($type), null),
+        return match ($type) {
+            TextFieldType::NAME => new TextOptions(null, TextOptions::DEFAULT_MAX_LENGTH, TextFormat::Plain),
+            LongTextFieldType::NAME => new LongTextOptions(null, LongTextOptions::DEFAULT_MAX_LENGTH),
+            IntegerFieldType::NAME => new IntegerOptions(null, null, null),
+            DecimalFieldType::NAME => new DecimalOptions(10, 2, null, null, null),
+            BooleanFieldType::NAME => new BooleanOptions,
+            DateFieldType::NAME => new DateOptions(null, null),
+            DatetimeFieldType::NAME => new DatetimeOptions(null, null),
+            SelectFieldType::NAME => new SelectOptions([new SelectOption(new Handle('one'), 'One')], false, null, null),
+            RichTextFieldType::NAME => new RichTextOptions(null, null, null, null),
+            GroupFieldType::NAME => new GroupOptions([self::field(self::root(), new SourceLocation('schema/group.yaml', '/fields/0/fields/0'), 'name', 'text', null)], null),
+            default => throw new LogicException(sprintf('"%s" is not a core field type.', $type)),
         };
     }
 

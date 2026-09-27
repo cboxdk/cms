@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Schema\Domain\Dto;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
-use Cbox\Cms\Generators\Schema\Domain\CoreFieldType;
 use Cbox\Cms\Generators\Schema\Domain\FieldOptions;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypes\LongTextFieldType;
+use Cbox\Cms\Generators\Schema\Domain\OptionRules;
+use Cbox\Cms\Generators\Schema\Domain\SourceLocation;
 use Override;
 
 /**
@@ -26,6 +28,18 @@ final readonly class LongTextOptions implements FieldOptions
     #[Override]
     public function typeName(): string
     {
-        return CoreFieldType::LongText->value;
+        return LongTextFieldType::NAME;
+    }
+
+    #[Override]
+    public function problems(SourceLocation $field): array
+    {
+        return OptionRules::lengths($this->minLength, $this->maxLength, self::DEFAULT_MAX_LENGTH, $field);
+    }
+
+    #[Override]
+    public function nestedFields(): array
+    {
+        return [];
     }
 }

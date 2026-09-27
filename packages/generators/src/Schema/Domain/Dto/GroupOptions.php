@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Schema\Domain\Dto;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
-use Cbox\Cms\Generators\Schema\Domain\CoreFieldType;
 use Cbox\Cms\Generators\Schema\Domain\FieldOptions;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypes\GroupFieldType;
+use Cbox\Cms\Generators\Schema\Domain\OptionRules;
+use Cbox\Cms\Generators\Schema\Domain\SourceLocation;
 use Override;
 
 /**
@@ -28,6 +30,20 @@ final readonly class GroupOptions implements FieldOptions
     #[Override]
     public function typeName(): string
     {
-        return CoreFieldType::Group->value;
+        return GroupFieldType::NAME;
+    }
+
+    #[Override]
+    public function problems(SourceLocation $field): array
+    {
+        return $this->repeat instanceof GroupRepeat
+            ? OptionRules::items($this->repeat->minItems, $this->repeat->maxItems, $field->below('repeat'))
+            : [];
+    }
+
+    #[Override]
+    public function nestedFields(): array
+    {
+        return $this->fields;
     }
 }

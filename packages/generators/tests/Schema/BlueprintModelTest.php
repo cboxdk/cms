@@ -9,7 +9,6 @@ use Cbox\Cms\Generators\Cli\Console\GenerateCommand;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintSchemaFile;
-use Cbox\Cms\Generators\Schema\Domain\AddonFieldType;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Capabilities;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\Dto\LongTextOptions;
@@ -109,21 +108,6 @@ it('accepts exactly the handles the blueprint schema accepts', function (string 
     'article', 'reading_minutes', 'a', 'h2', 'x1_y2', str_repeat('a', 63),
     str_repeat('a', 64), 'Article', 'double__underscore', '_leading', 'trailing_', '1st', 'with-dash', '',
     'ext', 'ext_field', 'extra', 'cms_stage', 'cms', 'cmsx', "article\n",
-]);
-
-it('accepts exactly the addon field types the blueprint schema accepts', function (string $value): void {
-    try {
-        $type = new AddonFieldType($value);
-        $accepted = true;
-        expect($type->namespace.':'.$type->handle)->toBe($value);
-    } catch (GenerationFailed) {
-        $accepted = false;
-    }
-
-    expect($accepted)->toBe(new CompliantValidator()->validate($value, schemaAt('/$defs/field/properties/type/anyOf/1'))->isValid());
-})->with([
-    'acme:colour', 'acme:stars_five', 'a1:x', str_repeat('a', 20).':x', 'acme:ext',
-    str_repeat('a', 21).':x', 'acme', 'Acme:colour', 'acme:Colour', 'acme:colour:x', 'acme_x:colour', ':colour', "acme:colour\n",
 ]);
 
 it('takes every type id the blueprint schema accepts as a UUIDv7', function (string $value): void {

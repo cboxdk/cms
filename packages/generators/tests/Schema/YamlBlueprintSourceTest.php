@@ -10,12 +10,9 @@ use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintDocumentReader;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintSchemaFile;
 use Cbox\Cms\Generators\Schema\Boundary\YamlBlueprintSource;
-use Cbox\Cms\Generators\Schema\Domain\AddonFieldType;
 use Cbox\Cms\Generators\Schema\Domain\BlueprintRules;
 use Cbox\Cms\Generators\Schema\Domain\BlueprintSource;
 use Cbox\Cms\Generators\Schema\Domain\Classification;
-use Cbox\Cms\Generators\Schema\Domain\ContributedFieldTypes;
-use Cbox\Cms\Generators\Schema\Domain\Dto\AddonOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Blueprints;
 use Cbox\Cms\Generators\Schema\Domain\Dto\BooleanOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Capabilities;
@@ -35,10 +32,12 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\SelectOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\TextOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\FieldOptions;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypeContributor;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypeRegistry;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypes\CoreFieldTypes;
 use Cbox\Cms\Generators\Schema\Domain\Handle;
 use Cbox\Cms\Generators\Schema\Domain\History;
 use Cbox\Cms\Generators\Schema\Domain\Localization;
-use Cbox\Cms\Generators\Schema\Domain\NoContributedFieldTypes;
 use Cbox\Cms\Generators\Schema\Domain\Owner;
 use Cbox\Cms\Generators\Schema\Domain\RichTextLink;
 use Cbox\Cms\Generators\Schema\Domain\RichTextList;
@@ -48,7 +47,9 @@ use Cbox\Cms\Generators\Schema\Domain\SourceLocation;
 use Cbox\Cms\Generators\Schema\Domain\Stages;
 use Cbox\Cms\Generators\Schema\Domain\TextFormat;
 use Cbox\Cms\Generators\Schema\Domain\TypeId;
-use Cbox\Cms\Generators\Tests\Schema\Fakes\FakeContributedFieldTypes;
+use Cbox\Cms\Generators\Tests\Schema\Fakes\ColourFieldType;
+use Cbox\Cms\Generators\Tests\Schema\Fakes\ColourOptions;
+use Cbox\Cms\Generators\Tests\Schema\Fakes\FakeFieldTypeContributor;
 use Cbox\Cms\Generators\Tests\SchemaFixtures;
 use Composer\InstalledVersions;
 use PHPUnit\Framework\Assert;
@@ -89,9 +90,12 @@ function contractFixture(string $path): string
     return (string) file_get_contents(BlueprintFixtures::CONTRACT_FIXTURES.'/'.$path);
 }
 
-function yamlBlueprints(?BlueprintSchemaFile $schema = null, ContributedFieldTypes $fieldTypes = new NoContributedFieldTypes): YamlBlueprintSource
+/**
+ * The YAML source with the core's field types and those of the other contributors given.
+ */
+function yamlBlueprints(?BlueprintSchemaFile $schema = null, FieldTypeContributor ...$contributors): YamlBlueprintSource
 {
-    return new YamlBlueprintSource($schema ?? new BlueprintSchemaFile, new BlueprintDocumentReader, new BlueprintRules($fieldTypes));
+    return new YamlBlueprintSource($schema ?? new BlueprintSchemaFile, new BlueprintDocumentReader(new FieldTypeRegistry(new CoreFieldTypes, ...$contributors)), new BlueprintRules);
 }
 
 /**
@@ -300,22 +304,22 @@ it('reads the valid extension of T40 into the model', function (): void {
     )]);
 });
 
-it('reads the addon field type of T40 with its options as canonical JSON', function (): void {
+it('reads the addon field type of T40 through the field type that another contributor registers, as the core registers its own', function (): void {
     $root = blueprintRoot(['product.yaml' => contractFixture('valid/addon-field-type.yaml')], 'acme', 'vendor/acme/shop/schema');
 
-    $product = yamlBlueprints(fieldTypes: new FakeContributedFieldTypes('acme:colour'))->read([$root])->types[0];
+    $product = yamlBlueprints(null, new FakeFieldTypeContributor(new ColourFieldType))->read([$root])->types[0];
     $colour = $product->fields[1];
 
     expect($product->owner->value)->toBe('acme')
         ->and($product->capabilities)->toEqual(new Capabilities(History::AuditOnly, Stages::None, Localization::None, false))
         ->and($colour->location)->toEqual(new SourceLocation('vendor/acme/shop/schema/product.yaml', '/fields/1'))
-        ->and($colour->options)->toEqual(new AddonOptions(new AddonFieldType('acme:colour'), '{"allow_custom":false,"palette":"shop"}'))
+        ->and($colour->options)->toEqual(new ColourOptions('shop', false))
         ->and($colour->options->typeName())->toBe('acme:colour');
 });
 
 it('reads a model it writes back into the same model', function (): void {
     $root = blueprintRoot(['article.yaml' => contractFixture('valid/article.yaml'), 'product.yaml' => contractFixture('valid/addon-field-type.yaml'), 'extension.yaml' => contractFixture('valid/extension.yaml')]);
-    $blueprints = yamlBlueprints(fieldTypes: new FakeContributedFieldTypes('acme:colour'));
+    $blueprints = yamlBlueprints(null, new FakeFieldTypeContributor(new ColourFieldType));
     $read = $blueprints->read([$root, extendedProductRoot()]);
     $again = ['app' => blueprintRoot(), 'acme' => blueprintRoot([], 'acme', 'vendor/acme/shop/schema')];
 

@@ -19,8 +19,8 @@ use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeHandleEnum;
 use Cbox\Cms\Generators\Generation\Domain\Generators\TypeScriptTypeHandles;
 use Cbox\Cms\Generators\Schema\Boundary\YamlBlueprintSource;
 use Cbox\Cms\Generators\Schema\Domain\BlueprintSource;
-use Cbox\Cms\Generators\Schema\Domain\ContributedFieldTypes;
-use Cbox\Cms\Generators\Schema\Domain\NoContributedFieldTypes;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypeRegistry;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypes\CoreFieldTypes;
 use Illuminate\Support\ServiceProvider;
 use Override;
 
@@ -28,8 +28,9 @@ use Override;
  * Registers the generators package in a Laravel application. Loaded through package discovery.
  *
  * Merges the defaults for `cms.generators`, wires cms:generate (PRD 11.12) to the blueprint reader
- * that validates against the installed blueprint schema v1, the addon field types it accepts, none
- * until the registry of schema contributions registers some (PRD 13.3), the M0 generators and the
+ * that validates against the installed blueprint schema v1, to the registry of field types that
+ * the reader resolves every field's type in, with the core's own field types registered through
+ * CoreFieldTypes like any contributor's (GUARDRAILS 2.4), to the M0 generators and to the
  * filesystem, wires cms:schema:editor (blueprint decision 3) to the blueprint files on the
  * filesystem, registers both commands, and declares the package's classes as a scan root for
  * cms:build (PRD 13.2).
@@ -45,7 +46,7 @@ final class GeneratorsServiceProvider extends ServiceProvider implements Declare
         $this->replaceConfigRecursivelyFrom(__DIR__.'/../config/generators.php', GeneratorConfig::KEY);
 
         $this->app->bind(BlueprintSource::class, YamlBlueprintSource::class);
-        $this->app->bind(ContributedFieldTypes::class, NoContributedFieldTypes::class);
+        $this->app->singleton(FieldTypeRegistry::class, static fn (): FieldTypeRegistry => new FieldTypeRegistry(new CoreFieldTypes));
         $this->app->bind(GeneratedOutput::class, FilesystemGeneratedOutput::class);
         $this->app->bind(SchemaFiles::class, FilesystemSchemaFiles::class);
 

@@ -2,24 +2,28 @@
 
 declare(strict_types=1);
 
-namespace Cbox\Cms\Generators\Schema\Domain\Dto;
+namespace Cbox\Cms\Generators\Tests\Schema\Fakes;
 
-use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Generators\Schema\Domain\FieldOptions;
-use Cbox\Cms\Generators\Schema\Domain\FieldTypes\BooleanFieldType;
 use Cbox\Cms\Generators\Schema\Domain\SourceLocation;
 use Override;
 
 /**
- * A `boolean` field. It has no choices of its own.
+ * The options of a field of ColourFieldType. It has no rules that compare its values.
  */
-#[Internal]
-final readonly class BooleanOptions implements FieldOptions
+final readonly class ColourOptions implements FieldOptions
 {
+    public const bool DEFAULT_ALLOW_CUSTOM = false;
+
+    public function __construct(
+        public ?string $palette,
+        public bool $allowCustom,
+    ) {}
+
     #[Override]
     public function typeName(): string
     {
-        return BooleanFieldType::NAME;
+        return ColourFieldType::NAME;
     }
 
     #[Override]

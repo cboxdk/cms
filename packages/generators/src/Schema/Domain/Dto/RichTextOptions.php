@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Schema\Domain\Dto;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
-use Cbox\Cms\Generators\Schema\Domain\CoreFieldType;
 use Cbox\Cms\Generators\Schema\Domain\FieldOptions;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypes\RichTextFieldType;
 use Cbox\Cms\Generators\Schema\Domain\RichTextLink;
 use Cbox\Cms\Generators\Schema\Domain\RichTextList;
 use Cbox\Cms\Generators\Schema\Domain\RichTextMark;
 use Cbox\Cms\Generators\Schema\Domain\RichTextStyle;
+use Cbox\Cms\Generators\Schema\Domain\SourceLocation;
 use Override;
 
 /**
@@ -36,6 +37,18 @@ final readonly class RichTextOptions implements FieldOptions
     #[Override]
     public function typeName(): string
     {
-        return CoreFieldType::RichText->value;
+        return RichTextFieldType::NAME;
+    }
+
+    #[Override]
+    public function problems(SourceLocation $field): array
+    {
+        return [];
+    }
+
+    #[Override]
+    public function nestedFields(): array
+    {
+        return [];
     }
 }

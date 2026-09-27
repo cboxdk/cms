@@ -6,7 +6,6 @@ namespace Cbox\Cms\Generators\Tests\Schema;
 
 use BackedEnum;
 use Cbox\Cms\Generators\Schema\Domain\Classification;
-use Cbox\Cms\Generators\Schema\Domain\Dto\AddonOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\BooleanOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Capabilities;
 use Cbox\Cms\Generators\Schema\Domain\Dto\DateOptions;
@@ -32,8 +31,8 @@ use Cbox\Cms\Generators\Schema\Domain\SourceLocation;
 use Cbox\Cms\Generators\Schema\Domain\Stages;
 use Cbox\Cms\Generators\Schema\Domain\TextFormat;
 use Cbox\Cms\Generators\Schema\Domain\TypeId;
+use Cbox\Cms\Generators\Tests\Schema\Fakes\ColourOptions;
 use LogicException;
-use stdClass;
 use Symfony\Component\Yaml\Yaml;
 
 /**
@@ -201,7 +200,7 @@ final class BlueprintFixtures
                     static fn (?int $value): bool => $value !== null,
                 ) : null,
             ],
-            $options instanceof AddonOptions => ['options' => $options->optionsJson === null ? null : self::decodeObject($options->optionsJson)],
+            $options instanceof ColourOptions => ['options' => array_filter(['palette' => $options->palette, 'allow_custom' => $options->allowCustom], static fn (string|bool|null $value): bool => $value !== null)],
             default => throw new LogicException('No YAML for '.$options::class.'.'),
         };
 
@@ -215,16 +214,5 @@ final class BlueprintFixtures
     private static function values(?array $cases): ?array
     {
         return $cases === null ? null : array_map(static fn (BackedEnum $case): int|string => $case->value, $cases);
-    }
-
-    private static function decodeObject(string $json): stdClass
-    {
-        $decoded = json_decode($json, false, 512, JSON_THROW_ON_ERROR);
-
-        if (! $decoded instanceof stdClass) {
-            throw new LogicException('The options are not a JSON object: '.$json);
-        }
-
-        return $decoded;
     }
 }

@@ -7,6 +7,8 @@ namespace Cbox\Cms\Generators\Tests\Generation;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeHandleEnum;
 use Cbox\Cms\Generators\Generation\Domain\Generators\TypeScriptTypeHandles;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintSchemaFile;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypeRegistry;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypes\CoreFieldTypes;
 use Cbox\Cms\Generators\Tests\SchemaFixtures;
 use LogicException;
 use stdClass;
@@ -16,7 +18,8 @@ use stdClass;
  * core field type and every kind in the installed blueprint.v1.json has a mapping in the PHP and
  * the TypeScript generator, and every mapping names a field type or a kind that the schema has.
  * Version 1 grows by additions, so a new field type or kind in cboxdk/cms-contracts fails here
- * until the generators write it.
+ * until the generators write it. The core's contributor to the field type registry registers
+ * exactly the core field types of the schema, so the reader can read every one of them.
  */
 
 afterEach(function (): void {
@@ -175,4 +178,11 @@ it('fails when a generator maps a field type or a kind that the schema does not 
         PhpTypeHandleEnum::class.' maps the field type "markdown", which the blueprint schema does not have.',
         TypeScriptTypeHandles::class.' maps the kind "block", which the blueprint schema does not have.',
     ]);
+});
+
+it('registers exactly the core field types of the installed blueprint schema through CoreFieldTypes', function (): void {
+    $schemaTypes = schemaValues(new BlueprintSchemaFile()->load())['fieldTypes'];
+    sort($schemaTypes);
+
+    expect(new FieldTypeRegistry(new CoreFieldTypes)->names())->toBe($schemaTypes);
 });

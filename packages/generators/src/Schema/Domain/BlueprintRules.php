@@ -7,19 +7,9 @@ namespace Cbox\Cms\Generators\Schema\Domain;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationProblem;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
-use Cbox\Cms\Generators\Schema\Domain\Dto\AddonOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Blueprints;
-use Cbox\Cms\Generators\Schema\Domain\Dto\DateOptions;
-use Cbox\Cms\Generators\Schema\Domain\Dto\DatetimeOptions;
-use Cbox\Cms\Generators\Schema\Domain\Dto\DecimalOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\ExtensionBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldBlueprint;
-use Cbox\Cms\Generators\Schema\Domain\Dto\GroupOptions;
-use Cbox\Cms\Generators\Schema\Domain\Dto\GroupRepeat;
-use Cbox\Cms\Generators\Schema\Domain\Dto\IntegerOptions;
-use Cbox\Cms\Generators\Schema\Domain\Dto\LongTextOptions;
-use Cbox\Cms\Generators\Schema\Domain\Dto\SelectOptions;
-use Cbox\Cms\Generators\Schema\Domain\Dto\TextOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
 
 /**
@@ -32,14 +22,14 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
  * - A type_id belongs to one type across every owner, and a handle to one type of each owner. The
  *   same handle under two owners is allowed here; the generators decide what it may become.
  * - A handle belongs to one field in each namespace: a type's own fields, the fields one owner adds
- *   to one type across all its extension files, and the fields of each group.
- * - A value belongs to one option of a select field.
+ *   to one type across all its extension files, and the nested fields of each field, such as the
+ *   fields of a group.
+ * - A field type's own rules, which the options of each field carry (FieldOptions::problems()):
+ *   a value belongs to one option of a select field; `min` is at most `max`, `min_length` at most
+ *   `max_length`, `min_items` at most `max_items`, and a decimal's `scale` at most its `precision`.
  * - An extension extends a type that a blueprint file defines, and one that another owner owns: a
  *   type has one owner and only others extend it (PRD 11.12, 13.3).
  * - A column name has at most 63 bytes, the extension field's `ext__<namespace>__<handle>` too.
- * - `min` is at most `max`, `min_length` at most `max_length`, `min_items` at most `max_items`,
- *   and a decimal's `scale` at most its `precision`.
- * - An addon field type `<namespace>:<handle>` is one that a registered contributor provides.
  *
  * The rules run on the blueprints that were read. When a file could not be read, the type it
  * defines is unknown, so an unknown `extends` is reported only when every file was read; the other
@@ -48,8 +38,6 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
 #[Internal]
 final readonly class BlueprintRules
 {
-    public function __construct(private ContributedFieldTypes $fieldTypes) {}
-
     /**
      * @param  bool  $complete  whether every blueprint file below the schema roots was read into the blueprints
      * @return list<GenerationProblem>
@@ -190,153 +178,16 @@ final readonly class BlueprintRules
     }
 
     /**
+     * The rules of the field's type, which its options carry, and the fields nested in it as a
+     * namespace of their own, such as the fields of a group.
+     *
      * @param  list<GenerationProblem>  $problems
      */
     private function options(FieldBlueprint $field, array &$problems): void
     {
-        $options = $field->options;
-        $at = $field->location;
-
-        if ($options instanceof TextOptions) {
-            $this->lengths($options->minLength, $options->maxLength, TextOptions::DEFAULT_MAX_LENGTH, $at, $problems);
-        } elseif ($options instanceof LongTextOptions) {
-            $this->lengths($options->minLength, $options->maxLength, LongTextOptions::DEFAULT_MAX_LENGTH, $at, $problems);
-        } elseif ($options instanceof IntegerOptions && $options->min !== null && $options->max !== null) {
-            $this->range($options->min <=> $options->max, (string) $options->min, (string) $options->max, $at, $problems);
-        } elseif ($options instanceof DecimalOptions) {
-            $this->decimal($options, $at, $problems);
-        } elseif ($options instanceof DateOptions && $options->min !== null && $options->max !== null) {
-            $this->range(Bounds::compareDates($options->min, $options->max), $options->min, $options->max, $at, $problems);
-        } elseif ($options instanceof DatetimeOptions && $options->min !== null && $options->max !== null) {
-            $this->range(Bounds::compareDatetimes($options->min, $options->max), $options->min, $options->max, $at, $problems);
-        } elseif ($options instanceof SelectOptions) {
-            $this->select($options, $at, $problems);
-        } elseif ($options instanceof GroupOptions) {
-            $this->group($field, $options, $problems);
-        } elseif ($options instanceof AddonOptions) {
-            $this->addonType($options->type, $at, $problems);
-        }
-    }
-
-    /**
-     * @param  list<GenerationProblem>  $problems
-     */
-    private function lengths(?int $minLength, int $maxLength, int $defaultMaxLength, SourceLocation $at, array &$problems): void
-    {
-        if ($minLength === null || $minLength <= $maxLength) {
-            return;
-        }
-
-        $problems[] = $this->problem(GenerateErrorCode::MinLengthAboveMaxLength, $at->below('min_length'), sprintf(
-            'min_length %d is greater than max_length %d, which is %d when the field leaves it out. Make min_length at most max_length.',
-            $minLength,
-            $maxLength,
-            $defaultMaxLength,
-        ));
-    }
-
-    /**
-     * @param  ?int  $comparison  min compared with max, or null when a bound is not of its form
-     * @param  list<GenerationProblem>  $problems
-     */
-    private function range(?int $comparison, string $min, string $max, SourceLocation $at, array &$problems): void
-    {
-        if ($comparison === null || $comparison <= 0) {
-            return;
-        }
-
-        $problems[] = $this->problem(GenerateErrorCode::MinAboveMax, $at->below('min'), sprintf(
-            'min %s is greater than max %s, so no value fits. Make min at most max.',
-            $min,
-            $max,
-        ));
-    }
-
-    /**
-     * @param  list<GenerationProblem>  $problems
-     */
-    private function decimal(DecimalOptions $options, SourceLocation $at, array &$problems): void
-    {
-        if ($options->scale > $options->precision) {
-            $problems[] = $this->problem(GenerateErrorCode::ScaleAbovePrecision, $at->below('scale'), sprintf(
-                'scale %d is greater than precision %d. The precision is the number of digits and the scale the number of them after the decimal point, so make the scale at most the precision.',
-                $options->scale,
-                $options->precision,
-            ));
-        }
-
-        if ($options->min !== null && $options->max !== null) {
-            $this->range(Bounds::compareDecimals($options->min, $options->max), $options->min, $options->max, $at, $problems);
-        }
-    }
-
-    /**
-     * @param  list<GenerationProblem>  $problems
-     */
-    private function select(SelectOptions $options, SourceLocation $at, array &$problems): void
-    {
-        $values = [];
-
-        foreach ($options->options as $index => $option) {
-            $value = $option->value->value;
-
-            if (array_key_exists($value, $values)) {
-                $problems[] = $this->problem(GenerateErrorCode::DuplicateSelectValue, $at->below('options', $index, 'value'), sprintf(
-                    'the value %s is already the value of the option at %s. The options of a select field need different values.',
-                    $value,
-                    $at->below('options', $values[$value], 'value')->describe(),
-                ));
-            } else {
-                $values[$value] = $index;
-            }
-        }
-
-        $this->items($options->minItems, $options->maxItems, $at, $problems);
-    }
-
-    /**
-     * @param  list<GenerationProblem>  $problems
-     */
-    private function group(FieldBlueprint $field, GroupOptions $options, array &$problems): void
-    {
         $seen = [];
-        $this->fields($options->fields, sprintf('the group %s at %s', $field->handle->value, $field->location->describe()), $seen, $problems);
-
-        if ($options->repeat instanceof GroupRepeat) {
-            $this->items($options->repeat->minItems, $options->repeat->maxItems, $field->location->below('repeat'), $problems);
-        }
-    }
-
-    /**
-     * @param  list<GenerationProblem>  $problems
-     */
-    private function items(?int $minItems, ?int $maxItems, SourceLocation $at, array &$problems): void
-    {
-        if ($minItems === null || $maxItems === null || $minItems <= $maxItems) {
-            return;
-        }
-
-        $problems[] = $this->problem(GenerateErrorCode::MinItemsAboveMaxItems, $at->below('min_items'), sprintf(
-            'min_items %d is greater than max_items %d, so no list of items fits. Make min_items at most max_items.',
-            $minItems,
-            $maxItems,
-        ));
-    }
-
-    /**
-     * @param  list<GenerationProblem>  $problems
-     */
-    private function addonType(AddonFieldType $type, SourceLocation $at, array &$problems): void
-    {
-        if ($this->fieldTypes->provides($type)) {
-            return;
-        }
-
-        $problems[] = $this->problem(GenerateErrorCode::UnknownFieldType, $at->below('type'), sprintf(
-            'no registered contributor provides the field type %s. Install the addon of the namespace %s that contributes it, or use a core field type.',
-            $type->value,
-            $type->namespace,
-        ));
+        $this->fields($field->options->nestedFields(), sprintf('the %s %s at %s', $field->options->typeName(), $field->handle->value, $field->location->describe()), $seen, $problems);
+        array_push($problems, ...$field->options->problems($field->location));
     }
 
     /**

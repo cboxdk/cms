@@ -9,12 +9,10 @@ use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Schema\Domain\BlueprintRules;
 use Cbox\Cms\Generators\Schema\Domain\BlueprintSource;
-use Cbox\Cms\Generators\Schema\Domain\ContributedFieldTypes;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Blueprints;
 use Cbox\Cms\Generators\Schema\Domain\Dto\ExtensionBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
 use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
-use Cbox\Cms\Generators\Schema\Domain\NoContributedFieldTypes;
 use LogicException;
 use Override;
 
@@ -25,8 +23,8 @@ use Override;
  * with the YAML source's message. put() is a file that reads into a blueprint, which must name
  * that file as its location; refuse() is a file that the YAML source rejects, with its problems.
  * read() collects the files of the roots it is given in sorted path order, holds the blueprints to
- * the same BlueprintRules as the YAML source, with the contributed field types it is given, and
- * fails with every problem at once, as the YAML source does. Every call is kept in $reads.
+ * the same BlueprintRules as the YAML source, and fails with every problem at once, as the YAML
+ * source does. Every call is kept in $reads.
  * BlueprintSourceBehaviour holds it to YamlBlueprintSource.
  */
 final class FakeBlueprintSource implements BlueprintSource
@@ -39,9 +37,9 @@ final class FakeBlueprintSource implements BlueprintSource
     /** @var array<string, array<string, TypeBlueprint|ExtensionBlueprint|list<GenerationProblem>>> by root path, then path below it */
     private array $roots = [];
 
-    public function __construct(ContributedFieldTypes $fieldTypes = new NoContributedFieldTypes)
+    public function __construct()
     {
-        $this->rules = new BlueprintRules($fieldTypes);
+        $this->rules = new BlueprintRules;
     }
 
     public function root(SchemaRoot $root): SchemaRoot

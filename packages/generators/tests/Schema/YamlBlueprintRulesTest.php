@@ -7,15 +7,15 @@ namespace Cbox\Cms\Generators\Tests\Schema;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationProblem;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
-use Cbox\Cms\Generators\Schema\Domain\AddonFieldType;
 use Cbox\Cms\Generators\Schema\Domain\BlueprintSource;
-use Cbox\Cms\Generators\Schema\Domain\ContributedFieldTypes;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Blueprints;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
 use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
-use Cbox\Cms\Generators\Schema\Domain\NoContributedFieldTypes;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypeRegistry;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypes\CoreFieldTypes;
 use Cbox\Cms\Generators\Schema\Domain\Owner;
-use Cbox\Cms\Generators\Tests\Schema\Fakes\FakeContributedFieldTypes;
+use Cbox\Cms\Generators\Tests\Schema\Fakes\ColourFieldType;
+use Cbox\Cms\Generators\Tests\Schema\Fakes\FakeFieldTypeContributor;
 use Cbox\Cms\Generators\Tests\SchemaFixtures;
 use LogicException;
 use PHPUnit\Framework\Assert;
@@ -185,9 +185,10 @@ function rulesProblem(GenerationFailed $failed, GenerateErrorCode $code, string 
     return $failed->problems[0];
 }
 
-it('binds no contributed field types by default', function (): void {
-    expect(app(ContributedFieldTypes::class))->toBeInstanceOf(NoContributedFieldTypes::class)
-        ->and(app(ContributedFieldTypes::class)->provides(new AddonFieldType('acme:colour')))->toBeFalse();
+it('binds the field type registry with the core\'s field types, registered through CoreFieldTypes', function (): void {
+    expect(app(FieldTypeRegistry::class)->names())->toBe(new FieldTypeRegistry(new CoreFieldTypes)->names())
+        ->and(app(FieldTypeRegistry::class))->toBe(app(FieldTypeRegistry::class))
+        ->and(app(FieldTypeRegistry::class)->find('acme:colour'))->toBeNull();
 });
 
 it('rejects two types with the same type_id with generate_duplicate_type_id, in one root and across owners', function (): void {
@@ -426,16 +427,17 @@ it('rejects a scale greater than the precision with generate_scale_above_precisi
     expect($problem->message)->toContain('scale 4 is greater than precision 3');
 });
 
-it('rejects an addon field type that no registered contributor provides with generate_unknown_field_type', function (): void {
+it('rejects a field type that no contributor registers with generate_unknown_field_type', function (): void {
     $app = rulesRoot(SchemaFixtures::scratch(), ['product.yaml' => rulesType(RULES_PRODUCT_ID, 'product', rulesField('name', 'text'), rulesField('colour', 'acme:colour', 'options: { palette: shop }'))]);
 
     $problem = rulesProblem(rulesFailure([$app]), GenerateErrorCode::UnknownFieldType, 'schema/product.yaml, /fields/1/type');
 
-    expect($problem->message)->toContain('no registered contributor provides the field type acme:colour');
+    expect($problem->message)->toContain('no field type contributor registers the field type acme:colour')
+        ->and($problem->message)->toContain('The registered field types are boolean, date, datetime, decimal, group, integer, long_text, rich_text, select, text.');
 });
 
-it('reads the addon field type when a registered contributor provides it, and only that one', function (): void {
-    app()->instance(ContributedFieldTypes::class, new FakeContributedFieldTypes('acme:colour'));
+it('reads a field type that another contributor registers, and only that one', function (): void {
+    app()->instance(FieldTypeRegistry::class, new FieldTypeRegistry(new CoreFieldTypes, new FakeFieldTypeContributor(new ColourFieldType)));
     $app = rulesRoot(SchemaFixtures::scratch(), [
         'product.yaml' => rulesType(RULES_PRODUCT_ID, 'product', rulesField('name', 'text'), rulesField('colour', 'acme:colour', 'options: { palette: shop }')),
     ]);
@@ -466,9 +468,10 @@ it('checks the field type of a field inside a group', function (): void {
 
 it('reports every rule a set of roots breaks in one run, beside the problems of files it could not read', function (): void {
     $app = rulesRoot(SchemaFixtures::scratch(), [
-        'article.yaml' => rulesType(RULES_ARTICLE_ID, 'article', rulesField('title', 'text', 'min_length: 30', 'max_length: 20'), rulesField('rating', 'decimal', 'precision: 2', 'scale: 3'), rulesField('title', 'acme:stars')),
+        'article.yaml' => rulesType(RULES_ARTICLE_ID, 'article', rulesField('title', 'text', 'min_length: 30', 'max_length: 20'), rulesField('rating', 'decimal', 'precision: 2', 'scale: 3'), rulesField('title', 'text')),
         'broken.yaml' => rulesType(RULES_PAGE_ID, 'Page', rulesField('title', 'text')),
         'page.yaml' => rulesType(RULES_ARTICLE_ID, 'article', rulesField('count', 'integer', 'min: 2', 'max: 1')),
+        'product.yaml' => rulesType(RULES_PRODUCT_ID, 'product', rulesField('rating', 'acme:stars')),
     ]);
 
     $failed = rulesFailure([$app]);
@@ -481,6 +484,6 @@ it('reports every rule a set of roots breaks in one run, beside the problems of 
         'generate_min_length_above_max_length schema/article.yaml, /fields/0/min_length',
         'generate_scale_above_precision schema/article.yaml, /fields/1/scale',
         'generate_schema_invalid schema/broken.yaml, /handle',
-        'generate_unknown_field_type schema/article.yaml, /fields/2/type',
+        'generate_unknown_field_type schema/product.yaml, /fields/0/type',
     ]);
 });

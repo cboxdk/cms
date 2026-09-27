@@ -33,8 +33,8 @@ final readonly class PhpTypeHandleEnum implements Generator
     public const string CLASS_NAME = 'TypeHandle';
 
     /**
-     * What `fields()` gives for each core field type of the blueprint schema v1: its name. An
-     * addon's field type is given as its `<namespace>:<handle>`. The generator-coverage test holds
+     * What `fields()` gives for each core field type of the blueprint schema v1: its name. A field
+     * type without a mapping here is refused as invalid output. The generator-coverage test holds
      * the keys to the field types of the installed blueprint.v1.json.
      *
      * @var array<string, string>
@@ -235,8 +235,6 @@ final readonly class PhpTypeHandleEnum implements Generator
      */
     private function fieldType(ResolvedField $field): string
     {
-        return $field->hasAddonType()
-            ? $field->typeName()
-            : GeneratedLines::fieldType(self::class, self::FIELD_TYPES, $field);
+        return GeneratedLines::fieldType(self::class, self::FIELD_TYPES, $field);
     }
 }

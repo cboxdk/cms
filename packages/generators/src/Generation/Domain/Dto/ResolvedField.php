@@ -6,7 +6,6 @@ namespace Cbox\Cms\Generators\Generation\Domain\Dto;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Generators\Schema\Domain\ColumnName;
-use Cbox\Cms\Generators\Schema\Domain\Dto\AddonOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\Handle;
 use Cbox\Cms\Generators\Schema\Domain\Owner;
@@ -64,18 +63,11 @@ final readonly class ResolvedField
     }
 
     /**
-     * The field type as the blueprint file writes it, such as `text` or `acme:colour`.
+     * The field type as the blueprint file writes it, the name of its registered FieldType, such
+     * as `text`.
      */
     public function typeName(): string
     {
         return $this->blueprint->options->typeName();
-    }
-
-    /**
-     * Whether the field type is an addon's `<namespace>:<handle>` rather than a core field type.
-     */
-    public function hasAddonType(): bool
-    {
-        return $this->blueprint->options instanceof AddonOptions;
     }
 }

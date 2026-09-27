@@ -10,9 +10,10 @@ use Cbox\Cms\Generators\Generation\Domain\GeneratorRunner;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeHandleEnum;
 use Cbox\Cms\Generators\Generation\Domain\Generators\TypeScriptTypeHandles;
 use Cbox\Cms\Generators\Generation\Domain\SchemaResolver;
-use Cbox\Cms\Generators\Schema\Domain\CoreFieldType;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Blueprints;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypeRegistry;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypes\CoreFieldTypes;
 use Cbox\Cms\Generators\Tests\SchemaFixtures;
 use Cbox\Cms\Tests\Support\Node;
 use Cbox\Cms\Tests\Support\Phpstan;
@@ -216,8 +217,8 @@ it('fails when a file cms:generate writes is not committed', function (): void {
 });
 
 /**
- * Twelve types with long handles, every core field type, an addon field type and an extension
- * field of another owner, so the union breaks over lines and every mapping is written.
+ * Twelve types with long handles, every core field type and an extension field of another owner,
+ * so the union breaks over lines and every mapping is written.
  */
 function largerSchema(SchemaRoot $app): ResolvedSchema
 {
@@ -225,10 +226,10 @@ function largerSchema(SchemaRoot $app): ResolvedSchema
     $types = [];
 
     foreach (range(1, 12) as $number) {
-        $fields = ['title' => 'text', 'body_'.$number => 'rich_text', 'a_field' => 'acme:reference'];
+        $fields = ['title' => 'text', 'body_'.$number => 'rich_text'];
 
-        foreach (CoreFieldType::cases() as $type) {
-            $fields['a_'.$type->value] = $type->value;
+        foreach (new FieldTypeRegistry(new CoreFieldTypes)->names() as $type) {
+            $fields['a_'.$type] = $type;
         }
 
         $types[] = SchemaFixtures::type($app, sprintf('fairly_long_type_handle_number_%d', $number), $fields);
