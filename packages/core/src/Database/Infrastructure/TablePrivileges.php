@@ -17,7 +17,9 @@ use LogicException;
  * table the owner creates, so a new table is usable at once. A migration whose table needs less,
  * such as an append-only table, narrows it with limitTo(). The roles it narrows are the ones the
  * table grants to now, other than the owner: the roles the default privileges named. No role name
- * is written into a migration, so the same migration works whatever the roles are called.
+ * is written into a migration, so the same migration works whatever the roles are called. It only
+ * takes privileges away: a role the default privileges gave less than the list, or PUBLIC, keeps
+ * what it had and gains nothing.
  *
  * A partition is a table of its own with its own privileges. Reading and writing through the
  * parent checks only the parent's, but a role can also address a partition directly. limitTo()
@@ -32,32 +34,30 @@ final readonly class TablePrivileges
     public function __construct(private ConnectionInterface $connection) {}
 
     /**
-     * Leaves the roles that have privileges on the table, other than its owner, with exactly
-     * $privileges on the table and on every partition below it.
+     * Takes every privilege that is not in $privileges away from the roles with grants on the table,
+     * other than its owner, PUBLIC included, and then gives every partition below it the table's
+     * grants with copy(). It only narrows: a role keeps the privileges it holds that are in the list,
+     * with their grant option, and gains none, so a role the installation gave less than the list,
+     * or PUBLIC, is never widened. A partition gets only what a role holds on the table.
      *
      * @param  string  $table  a table name as regclass reads it, in the search path or qualified
      * @param  list<TablePrivilege>  $privileges  empty takes everything away
      */
     public function limitTo(string $table, array $privileges): void
     {
-        $privileges = $this->words($privileges);
-        $roles = array_values(array_unique(array_map(
-            static fn (TableGrant $grant): string => $grant->role,
-            $this->grants($table),
-        )));
+        $relation = $this->relation($table);
+        $kept = $this->words($privileges);
 
-        foreach ($this->tree($table) as $relation) {
-            foreach ($this->rolesOn($relation, $roles) as $role) {
-                $this->connection->statement(sprintf('revoke all on table %s from %s', $relation, $role));
-            }
+        foreach ($this->byRole($this->grants($relation)) as $role => $held) {
+            $revoke = array_values(array_diff(array_keys($held), $kept));
 
-            if ($privileges === []) {
-                continue;
+            if ($revoke !== []) {
+                $this->connection->statement(sprintf('revoke %s on table %s from %s', $this->list($revoke), $relation, $role));
             }
+        }
 
-            foreach ($roles as $role) {
-                $this->connection->statement(sprintf('grant %s on table %s to %s', implode(', ', $privileges), $relation, $role));
-            }
+        foreach (array_slice($this->tree($relation), 1) as $partition) {
+            $this->copy($relation, $partition);
         }
     }
 
@@ -169,20 +169,6 @@ final readonly class TablePrivileges
         );
 
         return [$relation, ...$below];
-    }
-
-    /**
-     * The roles to revoke from on the relation: the given ones and every other role with a grant
-     * on it, other than the owner.
-     *
-     * @param  list<string>  $roles
-     * @return list<string>
-     */
-    private function rolesOn(string $relation, array $roles): array
-    {
-        $granted = array_map(static fn (TableGrant $grant): string => $grant->role, $this->grants($relation));
-
-        return array_values(array_unique([...$roles, ...$granted]));
     }
 
     /**
