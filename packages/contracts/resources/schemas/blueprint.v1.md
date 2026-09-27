@@ -65,8 +65,8 @@ Every field has these keys:
 | `handle` | yes | The field's handle. |
 | `label` | yes | 1 to 100 characters. |
 | `type` | yes | A core field type from the table below, or an addon's field type. |
-| `description` | unless `agents: false` | What the field holds, 1 to 1,000 characters. MCP tools and agents read it, and the panel shows it as help text (PRD 14.5). |
-| `agents` | no | `false` hides the field from MCP tools and agents. Default `true`. |
+| `description` | when agents see the field | What the field holds, 1 to 1,000 characters. MCP tools and agents read it, and the panel shows it as help text (PRD 14.5). |
+| `agents` | no | Whether MCP tools and agents see the field. The default follows the classification, see [Agents](#agents). |
 | `required` | no | `true` or `false`, default `false`. |
 
 A field in `fields` at the top of the document also has:
@@ -78,6 +78,20 @@ A field in `fields` at the top of the document also has:
 | `sortable` | no | `true` or `false`, default `false`. |
 
 A field that is `confidential`, `personal` or `sensitive` cannot be `filterable` or `sortable`. The types `long_text`, `rich_text` and `group` cannot have either key. A field inside a group has none of the three keys: it inherits the group's classification.
+
+### Agents
+
+Whether MCP tools and agents see a field follows its classification (PRD 12.2), so a field is never exposed to agents because its author left a key out:
+
+| Classification | Without `agents` | `agents: true` |
+|---|---|---|
+| `public` | seen | seen |
+| `internal` | hidden | seen; whether an external model receives it is the installation's configuration |
+| `confidential` | hidden | seen |
+| `personal` | hidden | seen |
+| `sensitive` | hidden | refused: a sensitive field reaches an external model only under a data processing agreement or BAA, which a blueprint cannot declare |
+
+`agents: false` hides any field. A field inside a group has the group's value unless it says otherwise, and a field inside a `sensitive` group can never say `agents: true`, at any depth. A field that agents see needs a `description`; a hidden one may leave it out.
 
 ## Core field types
 

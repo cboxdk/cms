@@ -41,6 +41,16 @@ final readonly class DocumentValues implements FieldValues
         private Closure $nestedFields,
     ) {}
 
+    /**
+     * The same values, with nested fields read by the given reader instead.
+     *
+     * @param  Closure(mixed, SourceLocation): ?list<FieldBlueprint>  $nestedFields
+     */
+    public function withNestedFields(Closure $nestedFields): self
+    {
+        return new self($this->object, $this->at, $this->problems, $nestedFields);
+    }
+
     #[Override]
     public function at(): SourceLocation
     {

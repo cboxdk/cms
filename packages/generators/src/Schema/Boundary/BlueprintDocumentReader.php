@@ -29,7 +29,7 @@ use stdClass;
  * Turns a blueprint document that the blueprint schema v1 has accepted into the typed model.
  *
  * The schema is the only source of the rules for a file (blueprint decision 5), so this class
- * checks none of them again. It only has to notice what it cannot map: a key, an enum value or a
+ * checks none of them again but the one about agents below. It only has to notice what it cannot map: a key, an enum value or a
  * kind of value that the installed schema allows and this generator does not know. That happens
  * when cboxdk/cms-contracts ships an addition to v1 (decision 2) before cboxdk/cms-generators is
  * updated for it, and each such place is reported as generate_schema_unsupported_version at its
@@ -39,6 +39,12 @@ use stdClass;
  * the FieldType found there reads the field's options (GUARDRAILS 2.4). A `<namespace>:<handle>`
  * that no contributor registered is generate_unknown_field_type; any other name the schema allowed
  * and the registry lacks is a core field type this generator does not know.
+ *
+ * Whether agents see a field is read with its classification, because the core, not the blueprint
+ * author, enforces the classification (PRD 12.2, GUARDRAILS 6): a field without `agents` is seen
+ * only when it is public, and a field inside a group as the group is. `agents: true` on a
+ * sensitive field or inside a sensitive group is generate_schema_invalid here too, so an installed
+ * blueprint schema that let it through never lets agents see the field.
  */
 #[Internal]
 final readonly class BlueprintDocumentReader
@@ -84,7 +90,7 @@ final readonly class BlueprintDocumentReader
     public function read(stdClass $document, Owner $owner, string $file): TypeBlueprint|ExtensionBlueprint
     {
         $problems = new ReadProblems;
-        $values = $this->values($document, new SourceLocation($file, ''), $owner, $problems);
+        $values = $this->values($document, new SourceLocation($file, ''), $owner, EnclosingGroup::unknown(), $problems);
 
         $blueprint = match ($values->value('kind')) {
             'type' => $this->type($values, $owner, $problems),
@@ -109,7 +115,7 @@ final readonly class BlueprintDocumentReader
         $description = $document->optionalString('description');
         $version = $document->int('version');
         $capabilities = $this->capabilities($document);
-        $fields = $this->fields($document->value('fields'), $owner, $document->at()->below('fields'), true, $problems);
+        $fields = $this->fields($document->value('fields'), $owner, $document->at()->below('fields'), null, $problems);
 
         if (! $typeId instanceof TypeId || ! $handle instanceof Handle || $label === null || $version === null || ! $capabilities instanceof Capabilities || $fields === null) {
             return null;
@@ -124,7 +130,7 @@ final readonly class BlueprintDocumentReader
 
         $extends = $document->typeId('extends');
         $version = $document->int('version');
-        $fields = $this->fields($document->value('fields'), $owner, $document->at()->below('fields'), true, $problems);
+        $fields = $this->fields($document->value('fields'), $owner, $document->at()->below('fields'), null, $problems);
 
         if (! $extends instanceof TypeId || $version === null || $fields === null) {
             return null;
@@ -156,10 +162,10 @@ final readonly class BlueprintDocumentReader
     }
 
     /**
-     * @param  bool  $topLevel  whether the fields are a type's or an extension's own, which have a classification
+     * @param  ?EnclosingGroup  $group  the group the fields are in, or null for a type's or an extension's own fields, which have a classification
      * @return ?list<FieldBlueprint>
      */
-    private function fields(mixed $value, Owner $owner, SourceLocation $at, bool $topLevel, ReadProblems $problems): ?array
+    private function fields(mixed $value, Owner $owner, SourceLocation $at, ?EnclosingGroup $group, ReadProblems $problems): ?array
     {
         if (! is_array($value) || ! array_is_list($value)) {
             $problems->add(DocumentValues::unreadableAt($at));
@@ -178,7 +184,7 @@ final readonly class BlueprintDocumentReader
                 continue;
             }
 
-            $field = $this->field($this->values($item, $itemAt, $owner, $problems), $owner, $topLevel);
+            $field = $this->field($this->values($item, $itemAt, $owner, EnclosingGroup::unknown(), $problems), $owner, $group, $problems);
 
             if ($field instanceof FieldBlueprint) {
                 $fields[] = $field;
@@ -188,8 +194,21 @@ final readonly class BlueprintDocumentReader
         return count($fields) === count($value) ? $fields : null;
     }
 
-    private function field(DocumentValues $field, Owner $owner, bool $topLevel): ?FieldBlueprint
+    private function field(DocumentValues $field, Owner $owner, ?EnclosingGroup $group, ReadProblems $problems): ?FieldBlueprint
     {
+        // The classification and agents come first, because the fields of a group inherit them.
+        $classification = null;
+
+        if ($field->has('classification')) {
+            $classification = $field->enum(Classification::class, 'classification');
+        } elseif (! $group instanceof EnclosingGroup) {
+            $field->unreadable('classification');
+        }
+
+        $inherited = $group instanceof EnclosingGroup ? $group->classification : $classification;
+        $agents = $this->agents($field, $inherited, $group);
+        $field = $field->withNestedFields(fn (mixed $value, SourceLocation $fieldsAt): ?array => $this->fields($value, $owner, $fieldsAt, new EnclosingGroup($inherited, $agents), $problems));
+
         $type = $field->value('type');
         $fieldType = is_string($type) ? $this->fieldTypes->find($type) : null;
         $options = null;
@@ -214,16 +233,8 @@ final readonly class BlueprintDocumentReader
         $required = $field->bool('required', FieldBlueprint::DEFAULT_REQUIRED);
         $filterable = $field->bool('filterable', FieldBlueprint::DEFAULT_FILTERABLE);
         $sortable = $field->bool('sortable', FieldBlueprint::DEFAULT_SORTABLE);
-        $agents = $field->bool('agents', FieldBlueprint::DEFAULT_AGENTS);
-        $classification = null;
 
-        if ($field->has('classification')) {
-            $classification = $field->enum(Classification::class, 'classification');
-        } elseif ($topLevel) {
-            $field->unreadable('classification');
-        }
-
-        if (! $options instanceof FieldOptions || ! $handle instanceof Handle || $label === null || ($topLevel && ! $classification instanceof Classification)) {
+        if (! $options instanceof FieldOptions || ! $handle instanceof Handle || $label === null || (! $group instanceof EnclosingGroup && ! $classification instanceof Classification)) {
             return null;
         }
 
@@ -231,16 +242,43 @@ final readonly class BlueprintDocumentReader
     }
 
     /**
-     * The values of an object of the document, which read nested fields of the same owner into the
-     * same problems.
+     * Whether agents see the field: as its `agents` says, or else as its group, or for a top-level
+     * field as its classification decides. A field whose classification could not be read is not
+     * seen. `agents: true` where the classification is sensitive is refused.
+     *
+     * @param  ?Classification  $classification  the field's classification, or the one it inherits from its group
      */
-    private function values(stdClass $object, SourceLocation $at, Owner $owner, ReadProblems $problems): DocumentValues
+    private function agents(DocumentValues $field, ?Classification $classification, ?EnclosingGroup $group): bool
+    {
+        $default = $group instanceof EnclosingGroup ? $group->agents : ($classification?->seenByAgentsByDefault() ?? false);
+        $agents = $field->bool('agents', $default);
+
+        if ($agents && $classification instanceof Classification && ! $classification->mayBeSeenByAgents()) {
+            $field->problem(new GenerationProblem(GenerateErrorCode::SchemaInvalid, sprintf(
+                '%s: agents never see a field %s %s (PRD 12.2): it reaches an external model only under a data processing agreement or BAA, which a blueprint cannot declare. Remove agents: true.',
+                $field->at()->below('agents')->describe(),
+                $group instanceof EnclosingGroup ? 'inside a group classified' : 'classified',
+                $classification->value,
+            )));
+
+            return false;
+        }
+
+        return $agents;
+    }
+
+    /**
+     * The values of an object of the document, which read nested fields of the same owner into the
+     * same problems, as the fields of the group given. A field replaces it with itself once its
+     * classification and agents are read.
+     */
+    private function values(stdClass $object, SourceLocation $at, Owner $owner, EnclosingGroup $group, ReadProblems $problems): DocumentValues
     {
         return new DocumentValues(
             $object,
             $at,
             $problems,
-            fn (mixed $value, SourceLocation $fieldsAt): ?array => $this->fields($value, $owner, $fieldsAt, false, $problems),
+            fn (mixed $value, SourceLocation $fieldsAt): ?array => $this->fields($value, $owner, $fieldsAt, $group, $problems),
         );
     }
 }

@@ -158,7 +158,11 @@ function blueprintInvalidCases(): array
         'the reserved handle ext' => ['handle-ext.yaml', '/fields/0/handle', 'must not match schema'],
         'a handle with the reserved prefix cms_' => ['handle-cms-prefix.yaml', '/fields/0/handle', 'must not match schema'],
         'a top-level field without a classification' => ['missing-classification.yaml', '/fields/0', '(classification)'],
-        'a field without a description and without agents: false' => ['missing-description.yaml', '/fields/0', '(description)'],
+        'a public field without a description and without agents: false' => ['missing-description.yaml', '/fields/0', '(description)'],
+        'a confidential field with agents: true and without a description' => ['missing-description-agents-true.yaml', '/fields/0', '(description)'],
+        'a field without a description in a public group' => ['missing-description-in-group.yaml', '/fields/0/fields/0', '(description)'],
+        'agents: true on a sensitive field' => ['agents-on-sensitive.yaml', '/fields/0/agents', 'const'],
+        'agents: true on a field in a sensitive group' => ['agents-in-sensitive-group.yaml', '/fields/0/fields/0/agents', 'const'],
         'history: audit_only' => ['history-audit-only-underscore.yaml', '/capabilities/history', 'enum'],
         'an unquoted date in min' => ['unquoted-date.yaml', '/fields/1/min', 'must match the type: string'],
         'a datetime in min without its offset' => ['datetime-without-offset.yaml', '/fields/1/min', 'should match pattern'],
@@ -214,6 +218,90 @@ it('refuses each invalid fixture at the JSON pointer it breaks', function (strin
     expect(array_keys($errors))->toBe([$pointer])
         ->and(implode("\n", $errors[$pointer]))->toContain($message);
 })->with(blueprintInvalidCases());
+
+/**
+ * The validation errors of a type with the fields given, as YAML list items indented as the fields
+ * of a type.
+ *
+ * @return array<string, list<string>>
+ */
+function blueprintFieldsErrors(string ...$fields): array
+{
+    $document = Yaml::parse(
+        "blueprint: 1\nkind: type\ntype_id: 0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b\nhandle: note\nlabel: Note\nversion: 1\ncapabilities:\n  history: full\n  stages: none\n  localization: none\nfields:\n".implode('', $fields),
+        Yaml::PARSE_OBJECT_FOR_MAP,
+    );
+
+    $validator = new CompliantValidator;
+    $validator->setMaxErrors(100);
+    $error = $validator->validate($document, blueprintRead(BLUEPRINT_SCHEMA))->error();
+
+    if (! $error instanceof ValidationError) {
+        return [];
+    }
+
+    /** @var array<string, list<string>> $errors */
+    $errors = new ErrorFormatter()->format($error, true);
+
+    return $errors;
+}
+
+it('lets agents see a top-level field without agents only when it is public, so only then it needs a description (PRD 12.2, 14.5)', function (string $classification, bool $seen): void {
+    $errors = blueprintFieldsErrors("  - handle: body\n    label: Body\n    type: text\n    classification: {$classification}\n");
+
+    expect($errors === [])->toBe(! $seen);
+
+    if ($seen) {
+        expect(array_keys($errors))->toBe(['/fields/0'])
+            ->and(implode("\n", $errors['/fields/0']))->toContain('(description)');
+    }
+})->with([
+    'public' => ['public', true],
+    'internal' => ['internal', false],
+    'confidential' => ['confidential', false],
+    'personal' => ['personal', false],
+    'sensitive' => ['sensitive', false],
+]);
+
+it('lets a blueprint opt an internal, confidential or personal field in with agents: true, and a public one out with agents: false', function (string $classification, string $agents, bool $seen): void {
+    $errors = blueprintFieldsErrors("  - handle: body\n    label: Body\n    type: text\n    classification: {$classification}\n    agents: {$agents}\n");
+
+    expect(array_keys($errors))->toBe($seen ? ['/fields/0'] : []);
+})->with([
+    'public, agents: false' => ['public', 'false', false],
+    'internal, agents: true' => ['internal', 'true', true],
+    'confidential, agents: true' => ['confidential', 'true', true],
+    'personal, agents: true' => ['personal', 'true', true],
+    'sensitive, agents: false' => ['sensitive', 'false', false],
+]);
+
+it('gives the fields of a group the group\'s agents, so they need a description only when agents see them', function (string $group, string $nested, array $pointers): void {
+    $errors = blueprintFieldsErrors(
+        "  - handle: authors\n    label: Authors\n    description: The authors of the note.\n    type: group\n{$group}    fields:\n",
+        "      - handle: name\n        label: Name\n        type: text\n{$nested}",
+        "      - handle: address\n        label: Address\n        description: The author's address.\n        type: group\n        fields:\n          - handle: city\n            label: City\n            type: text\n",
+    );
+
+    expect(array_keys($errors))->toBe($pointers);
+})->with([
+    'a public group' => ["    classification: public\n", '', ['/fields/0/fields/0', '/fields/0/fields/1/fields/0']],
+    'a public group, the field hidden' => ["    classification: public\n", "        agents: false\n", ['/fields/0/fields/1/fields/0']],
+    'a personal group' => ["    classification: personal\n", '', []],
+    'a personal group, the field seen' => ["    classification: personal\n", "        agents: true\n", ['/fields/0/fields/0']],
+    'a public group hidden from agents' => ["    classification: public\n    agents: false\n", '', []],
+    'a personal group agents see' => ["    classification: personal\n    agents: true\n", '', ['/fields/0/fields/0', '/fields/0/fields/1/fields/0']],
+    'a sensitive group, a field hidden' => ["    classification: sensitive\n", "        agents: false\n", []],
+]);
+
+it('refuses agents: true at any depth below a sensitive field', function (): void {
+    $errors = blueprintFieldsErrors(
+        "  - handle: health\n    label: Health\n    type: group\n    classification: sensitive\n    fields:\n",
+        "      - handle: visits\n        label: Visits\n        type: group\n        fields:\n",
+        "          - handle: diagnosis\n            label: Diagnosis\n            description: The diagnosis.\n            type: text\n            agents: true\n",
+    );
+
+    expect(array_keys($errors))->toBe(['/fields/0/fields/0/fields/0/agents']);
+});
 
 it('has a case for every invalid fixture', function (): void {
     $files = array_map(basename(...), glob(BLUEPRINT_FIXTURES.'/invalid/*.yaml') ?: []);

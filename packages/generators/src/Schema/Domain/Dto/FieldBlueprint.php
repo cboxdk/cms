@@ -17,7 +17,10 @@ use Cbox\Cms\Generators\Schema\Domain\SourceLocation;
  *
  * A top-level field has a classification (PRD 12.2); a field inside a group has none and inherits
  * the group's. The values the blueprint file leaves out have their defaults from the blueprint
- * schema v1: not required, not filterable, not sortable, seen by agents.
+ * schema v1: not required, not filterable, not sortable. Whether agents see a field the file does
+ * not decide for follows its classification: a top-level field only when it is public
+ * (Classification::seenByAgentsByDefault()), and a field inside a group when agents see the group.
+ * Agents never see a sensitive field, nor a field inside a sensitive group.
  */
 #[Internal]
 final readonly class FieldBlueprint
@@ -27,8 +30,6 @@ final readonly class FieldBlueprint
     public const bool DEFAULT_FILTERABLE = false;
 
     public const bool DEFAULT_SORTABLE = false;
-
-    public const bool DEFAULT_AGENTS = true;
 
     /**
      * @param  ?string  $description  what the field holds; always present when agents see the field (PRD 14.5)

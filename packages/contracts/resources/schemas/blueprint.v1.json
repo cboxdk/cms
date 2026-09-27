@@ -103,7 +103,62 @@
       "minItems": 1,
       "maxItems": 200,
       "items": {
-        "allOf": [{ "$ref": "#/$defs/field" }, { "required": ["classification"] }]
+        "allOf": [
+          { "$ref": "#/$defs/field" },
+          { "required": ["classification"] },
+          { "$ref": "#/$defs/topLevelAgents" },
+          {
+            "if": { "required": ["classification"], "properties": { "classification": { "const": "sensitive" } } },
+            "then": { "$ref": "#/$defs/neverSeenByAgents" }
+          }
+        ]
+      }
+    },
+
+    "topLevelAgents": {
+      "description": "Whether MCP tools and agents see a top-level field (PRD 12.2, 14.5): as its `agents` says, or else only when it is public. An internal field reaches an external model only as the installation configures it, and a confidential or personal one not by default, so each is seen only with `agents: true`.",
+      "if": { "required": ["agents"] },
+      "then": {
+        "if": { "properties": { "agents": { "const": true } } },
+        "then": { "$ref": "#/$defs/seenByAgents" },
+        "else": { "$ref": "#/$defs/hiddenFromAgents" }
+      },
+      "else": {
+        "if": { "required": ["classification"], "properties": { "classification": { "const": "public" } } },
+        "then": { "$ref": "#/$defs/seenByAgents" },
+        "else": { "$ref": "#/$defs/hiddenFromAgents" }
+      }
+    },
+    "seenByAgents": {
+      "description": "A field that agents see needs a description (PRD 14.5). The fields of a group that agents see are seen unless they say `agents: false`.",
+      "required": ["description"],
+      "properties": {
+        "fields": {
+          "items": {
+            "if": { "required": ["agents"], "properties": { "agents": { "const": false } } },
+            "then": { "$ref": "#/$defs/hiddenFromAgents" },
+            "else": { "$ref": "#/$defs/seenByAgents" }
+          }
+        }
+      }
+    },
+    "hiddenFromAgents": {
+      "description": "The fields of a group that agents do not see are hidden unless they say `agents: true`.",
+      "properties": {
+        "fields": {
+          "items": {
+            "if": { "required": ["agents"], "properties": { "agents": { "const": true } } },
+            "then": { "$ref": "#/$defs/seenByAgents" },
+            "else": { "$ref": "#/$defs/hiddenFromAgents" }
+          }
+        }
+      }
+    },
+    "neverSeenByAgents": {
+      "description": "A sensitive field reaches an external model only under a data processing agreement or BAA, which a blueprint cannot declare (PRD 12.2), so neither it nor a field inside it may say `agents: true`.",
+      "properties": {
+        "agents": { "const": false },
+        "fields": { "items": { "$ref": "#/$defs/neverSeenByAgents" } }
       }
     },
 
@@ -134,7 +189,7 @@
         "handle": { "$ref": "#/$defs/handle" },
         "label": { "$ref": "#/$defs/label" },
         "description": {
-          "description": "What the field holds. Required for a field that agents see (PRD 14.5); it is also the help text in the panel.",
+          "description": "What the field holds. Required for a field that agents see (PRD 12.2, 14.5); it is also the help text in the panel.",
           "$ref": "#/$defs/description"
         },
         "type": {
@@ -166,16 +221,11 @@
         "filterable": { "type": "boolean", "default": false },
         "sortable": { "type": "boolean", "default": false },
         "agents": {
-          "description": "Whether MCP tools and agents see the field (PRD 14.5). A field agents see needs a description.",
-          "type": "boolean",
-          "default": true
+          "description": "Whether MCP tools and agents see the field (PRD 12.2, 14.5). Without it, a top-level field is seen only when it is public, and a field inside a group as the group is. Never true for a sensitive field. A field agents see needs a description.",
+          "type": "boolean"
         }
       },
       "allOf": [
-        {
-          "if": { "not": { "required": ["agents"], "properties": { "agents": { "const": false } } } },
-          "then": { "required": ["description"] }
-        },
         {
           "if": {
             "required": ["classification"],

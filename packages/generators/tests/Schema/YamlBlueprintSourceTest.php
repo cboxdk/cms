@@ -199,7 +199,11 @@ function invalidContractFixtures(): array
         'the reserved handle ext' => ['handle-ext.yaml', '/fields/0/handle'],
         'a handle with the reserved prefix cms_' => ['handle-cms-prefix.yaml', '/fields/0/handle'],
         'a top-level field without a classification' => ['missing-classification.yaml', '/fields/0'],
-        'a field without a description and without agents: false' => ['missing-description.yaml', '/fields/0'],
+        'a public field without a description and without agents: false' => ['missing-description.yaml', '/fields/0'],
+        'a confidential field with agents: true and without a description' => ['missing-description-agents-true.yaml', '/fields/0'],
+        'a field without a description in a public group' => ['missing-description-in-group.yaml', '/fields/0/fields/0'],
+        'agents: true on a sensitive field' => ['agents-on-sensitive.yaml', '/fields/0/agents'],
+        'agents: true on a field in a sensitive group' => ['agents-in-sensitive-group.yaml', '/fields/0/fields/0/agents'],
         'history: audit_only' => ['history-audit-only-underscore.yaml', '/capabilities/history'],
         'an unquoted date in min' => ['unquoted-date.yaml', '/fields/1/min'],
         'a datetime in min without its offset' => ['datetime-without-offset.yaml', '/fields/1/min'],
@@ -247,10 +251,10 @@ function expectedArticle(SchemaRoot $root): TypeBlueprint
             $field(0, 'title', 'Headline', 'The headline as it is shown on the page and in lists.', new TextOptions(null, 120, TextFormat::Plain), Classification::Public, required: true, sortable: true),
             $field(1, 'summary', 'Summary', 'A short plain-text summary for lists and search results.', new LongTextOptions(null, 500), Classification::Public),
             $field(2, 'reading_minutes', 'Reading time', 'The estimated reading time in whole minutes.', new IntegerOptions(1, 120, 'min'), Classification::Public, filterable: true),
-            $field(3, 'rating', 'Rating', "The editors' rating of the article, from 0 to 5.", new DecimalOptions(3, 2, new DecimalBound('0'), new DecimalBound('5.00'), null), Classification::Internal),
+            $field(3, 'rating', 'Rating', "The editors' rating of the article, from 0 to 5.", new DecimalOptions(3, 2, new DecimalBound('0'), new DecimalBound('5.00'), null), Classification::Internal, agents: false),
             $field(4, 'featured', 'Featured', 'Whether the article is shown on the front page.', new BooleanOptions, Classification::Public, filterable: true),
             $field(5, 'event_date', 'Event date', 'The date of the event the article covers.', new DateOptions(new BlueprintDate('2000-01-01'), null), Classification::Public, sortable: true),
-            $field(6, 'embargo_until', 'Embargo until', 'The time before which the article may not be published.', new DatetimeOptions(new BlueprintDatetime('2000-01-01T00:00:00Z'), null), Classification::Internal),
+            $field(6, 'embargo_until', 'Embargo until', 'The time before which the article may not be published.', new DatetimeOptions(new BlueprintDatetime('2000-01-01T00:00:00Z'), null), Classification::Internal, agents: false),
             $field(7, 'section', 'Section', 'The sections of the site the article is listed under.', new SelectOptions([
                 new SelectOption(new Handle('news'), 'News'),
                 new SelectOption(new Handle('sport'), 'Sport'),
@@ -263,9 +267,9 @@ function expectedArticle(SchemaRoot $root): TypeBlueprint
                 [RichTextLink::Url],
             ), Classification::Public),
             $field(9, 'credits', 'Credits', 'The people who made the article, in the order they are credited.', new GroupOptions([
-                $field(0, 'name', 'Name', 'The name of the person as it is printed.', new TextOptions(null, 100, TextFormat::Plain), null, required: true, location: $at->below('fields', 9, 'fields', 0)),
+                $field(0, 'name', 'Name', 'The name of the person as it is printed.', new TextOptions(null, 100, TextFormat::Plain), null, required: true, agents: false, location: $at->below('fields', 9, 'fields', 0)),
                 $field(1, 'role', 'Role', '', new TextOptions(null, 50, TextFormat::Plain), null, agents: false, location: $at->below('fields', 9, 'fields', 1)),
-            ], new GroupRepeat(1, 10)), Classification::Personal),
+            ], new GroupRepeat(1, 10)), Classification::Personal, agents: false),
         ],
         $app,
         $at,
@@ -304,7 +308,7 @@ it('reads the valid extension of T40 into the model', function (): void {
     expect(yamlBlueprints()->read([$root, extendedProductRoot()])->extensions)->toEqual([new ExtensionBlueprint(
         TypeId::fromString('0192a3b4-c5d6-7e8f-9a0b-aaaaaaaaaaaa'),
         1,
-        [new FieldBlueprint(new Handle('tax_code'), 'Tax code', "The customer's tax code for the product.", false, Classification::Internal, false, false, true, new TextOptions(null, 20, TextFormat::Plain), Owner::app(), $at->below('fields', 0))],
+        [new FieldBlueprint(new Handle('tax_code'), 'Tax code', "The customer's tax code for the product.", false, Classification::Internal, false, false, false, new TextOptions(null, 20, TextFormat::Plain), Owner::app(), $at->below('fields', 0))],
         Owner::app(),
         $at,
     )]);
@@ -498,4 +502,89 @@ it('stops with generate_invalid_config when the blueprint schema cannot be read 
 
 it('does not read the blueprint schema when there is no file to validate', function (): void {
     expect(yamlBlueprints(new BlueprintSchemaFile('/nonexistent/blueprint.v1.json'))->read([blueprintRoot()]))->toEqual(new Blueprints([], []));
+});
+
+/**
+ * A type file with the given fields, each a YAML list item indented as the fields of a type.
+ */
+function typeWithFields(string ...$fields): string
+{
+    return "blueprint: 1\nkind: type\ntype_id: 0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b\nhandle: note\nlabel: Note\nversion: 1\ncapabilities:\n  history: full\n  stages: none\n  localization: none\nfields:\n".implode('', $fields);
+}
+
+it('lets agents see a field whose blueprint does not say so only when it is public (PRD 12.2)', function (Classification $classification, bool $agents): void {
+    $root = blueprintRoot(['note.yaml' => typeWithFields("  - handle: body\n    label: Body\n    description: The body of the note.\n    type: text\n    classification: {$classification->value}\n")]);
+
+    expect(yamlBlueprints()->read([$root])->types[0]->fields[0]->agents)->toBe($agents);
+})->with([
+    'public' => [Classification::Public, true],
+    'internal' => [Classification::Internal, false],
+    'confidential' => [Classification::Confidential, false],
+    'personal' => [Classification::Personal, false],
+    'sensitive' => [Classification::Sensitive, false],
+]);
+
+it('lets agents see a confidential, personal or internal field when its blueprint says agents: true', function (Classification $classification): void {
+    $root = blueprintRoot(['note.yaml' => typeWithFields("  - handle: body\n    label: Body\n    description: The body of the note.\n    type: text\n    classification: {$classification->value}\n    agents: true\n")]);
+
+    expect(yamlBlueprints()->read([$root])->types[0]->fields[0]->agents)->toBeTrue();
+})->with([Classification::Internal, Classification::Confidential, Classification::Personal]);
+
+it('gives the fields of a group the group\'s agents unless they say otherwise', function (string $group, bool $name, bool $role): void {
+    $root = blueprintRoot(['note.yaml' => typeWithFields(
+        "  - handle: authors\n    label: Authors\n    description: The authors of the note.\n    type: group\n{$group}    fields:\n",
+        "      - handle: name\n        label: Name\n        description: The author's name.\n        type: text\n",
+        "      - handle: role\n        label: Role\n        description: The author's role.\n        type: text\n        agents: ".($role ? 'true' : 'false')."\n",
+    )]);
+
+    $nested = yamlBlueprints()->read([$root])->types[0]->fields[0]->options;
+
+    expect($nested)->toBeInstanceOf(GroupOptions::class);
+    assert($nested instanceof GroupOptions);
+    expect($nested->fields[0]->agents)->toBe($name)
+        ->and($nested->fields[1]->agents)->toBe($role);
+})->with([
+    'a public group' => ["    classification: public\n", true, false],
+    'a personal group' => ["    classification: personal\n", false, true],
+    'a public group hidden from agents' => ["    classification: public\n    agents: false\n", false, true],
+    'a personal group agents see' => ["    classification: personal\n    agents: true\n", true, false],
+]);
+
+it('refuses agents: true on a sensitive field and inside a sensitive group, also when the installed schema allows it', function (string $yaml, string $pointer, bool $lenient): void {
+    // The lenient schema stands in for an installed cboxdk/cms-contracts without the rule.
+    $schema = $lenient ? laterBlueprintSchema('/$defs/topLevelFields/items', ['$ref' => '#/$defs/field']) : null;
+    $failed = blueprintFailure([blueprintRoot(['note.yaml' => $yaml])], $schema);
+
+    expect($failed->codes())->toBe([GenerateErrorCode::SchemaInvalid])
+        ->and(problemPointers($failed->problems, 'schema/note.yaml'))->toBe([$pointer]);
+})->with([
+    'a sensitive field' => [
+        typeWithFields("  - handle: diagnosis\n    label: Diagnosis\n    description: The diagnosis.\n    type: text\n    classification: sensitive\n    agents: true\n"),
+        '/fields/0/agents',
+        false,
+    ],
+    'a field in a sensitive group' => [
+        typeWithFields("  - handle: health\n    label: Health\n    type: group\n    classification: sensitive\n    fields:\n      - handle: diagnosis\n        label: Diagnosis\n        description: The diagnosis.\n        type: text\n        agents: true\n"),
+        '/fields/0/fields/0/agents',
+        false,
+    ],
+    'a sensitive field, with a schema that lets it through' => [
+        typeWithFields("  - handle: diagnosis\n    label: Diagnosis\n    description: The diagnosis.\n    type: text\n    classification: sensitive\n    agents: true\n"),
+        '/fields/0/agents',
+        true,
+    ],
+    'a field in a sensitive group, with a schema that lets it through' => [
+        typeWithFields("  - handle: health\n    label: Health\n    type: group\n    classification: sensitive\n    fields:\n      - handle: diagnosis\n        label: Diagnosis\n        description: The diagnosis.\n        type: text\n        agents: true\n"),
+        '/fields/0/fields/0/agents',
+        true,
+    ],
+]);
+
+it('says why agents: true on a sensitive field is refused', function (): void {
+    $failed = blueprintFailure(
+        [blueprintRoot(['note.yaml' => typeWithFields("  - handle: health\n    label: Health\n    type: group\n    classification: sensitive\n    fields:\n      - handle: diagnosis\n        label: Diagnosis\n        description: The diagnosis.\n        type: text\n        agents: true\n")])],
+        laterBlueprintSchema('/$defs/topLevelFields/items', ['$ref' => '#/$defs/field']),
+    );
+
+    expect($failed->problems[0]->message)->toBe('schema/note.yaml, /fields/0/fields/0/agents: agents never see a field inside a group classified sensitive (PRD 12.2): it reaches an external model only under a data processing agreement or BAA, which a blueprint cannot declare. Remove agents: true.');
 });
