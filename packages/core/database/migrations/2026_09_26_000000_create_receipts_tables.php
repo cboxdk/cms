@@ -9,9 +9,12 @@ use Illuminate\Support\Facades\DB;
 /*
  * The receipt store's tables (PRD 4, 4.1, 8.4), created by the owner role.
  *
- * `receipts` holds one row per changeset: the outcome and the wait level. `receipt_projections`
- * holds one row per changeset and projection, so a projection worker that marks its projection
- * updates its own row and never waits for another worker's.
+ * `receipts` holds one row per changeset: the changeset and its retention class. It holds no
+ * outcome and no wait level: the store writes the row in the command transaction (PRD 6.2 phase
+ * 7), before any wait level past commit can be reached, and whether a call reached its wait level
+ * belongs to that call and to each replay (PRD 6.1, 8.4). `receipt_projections` holds one row per
+ * changeset and projection, so a projection worker that marks its projection updates its own row
+ * and never waits for another worker's.
  *
  * Both are partitioned by LIST on retention_class and then by RANGE on changeset_id, a UUIDv7
  * whose first 48 bits are the commit's milliseconds. The standard branch has one partition per
@@ -38,10 +41,7 @@ return new class extends Migration
             create table receipts (
                 changeset_id uuid not null,
                 retention_class text not null,
-                outcome text not null,
-                wait_level text not null,
-                constraint receipts_pkey primary key (changeset_id, retention_class),
-                constraint receipts_outcome_committed check (outcome in ('committed', 'committed_wait_timeout'))
+                constraint receipts_pkey primary key (changeset_id, retention_class)
             ) partition by list (retention_class)
             SQL);
         $connection->statement("create table receipts_standard partition of receipts for values in ('standard') partition by range (changeset_id)");

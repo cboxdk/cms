@@ -7,15 +7,20 @@ namespace Cbox\Cms\Contracts;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Consistency\DuplicateReceipt;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
-use Cbox\Cms\Contracts\Consistency\UnstorableReceipt;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
-use Cbox\Cms\Contracts\Receipts\Receipt;
+use Cbox\Cms\Contracts\Receipts\StoredReceipt;
 use Cbox\Cms\Contracts\Storage\PartitionMissing;
 
 /**
  * The receipt store (GUARDRAILS 2.3, PRD 4 and 8.4): one stored receipt per committed changeset,
  * with the status of each projection the changeset affected.
+ *
+ * It stores facts about the changeset, a StoredReceipt, and never the result of a call: the
+ * outcome and the wait level of a Receipt are not stored. The receipt is written in the command
+ * transaction (PRD 6.2 phase 7), before the wait for any level past commit, so the store cannot
+ * know whether a call's wait level is reached. The command kernel decides that for each call, a
+ * replay included (PRD 6.1), from the wait level the call asks for and the projections' status.
  *
  * Transactions. store() and markProjection() run on the caller's connection. When the caller has a
  * transaction open, they run inside it, so the receipt commits or rolls back with the changeset
@@ -44,19 +49,17 @@ interface ReceiptStore
     /**
      * Stores the receipt of a committed changeset.
      *
-     * @throws UnstorableReceipt when the outcome is Rejected or DryRun: nothing was committed, so
-     *                           there is no changeset to store the receipt under
      * @throws DuplicateReceipt when the store already holds a receipt for the changeset, expired
      *                          or not; the stored receipt is left as it was
      * @throws PartitionMissing when no partition covers the changeset's time; nothing is stored,
      *                          and a caller inside a transaction rolls it back
      */
-    public function store(Receipt $receipt): void;
+    public function store(StoredReceipt $receipt): void;
 
     /**
      * The stored receipt for the changeset, or null when there is none or it has expired.
      */
-    public function find(ChangesetId $changesetId): ?Receipt;
+    public function find(ChangesetId $changesetId): ?StoredReceipt;
 
     /**
      * Records the status of one projection in the changeset's receipt. The status names the

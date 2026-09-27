@@ -6,34 +6,32 @@ namespace Cbox\Cms\Core\ReceiptStore\Adapter;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Consistency\InvalidReceipt;
-use Cbox\Cms\Contracts\Consistency\Outcome;
 use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Consistency\ProjectionState;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
-use Cbox\Cms\Contracts\Consistency\WaitLevel;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Ids\InvalidUuid7;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
-use Cbox\Cms\Contracts\Receipts\Receipt;
+use Cbox\Cms\Contracts\Receipts\StoredReceipt;
 use DateTimeImmutable;
 use DateTimeZone;
 use Exception;
 
 /**
- * Maps the rows of `receipts` and `receipt_projections` to a Receipt (GUARDRAILS 2.2).
+ * Maps the rows of `receipts` and `receipt_projections` to a StoredReceipt (GUARDRAILS 2.2).
  *
  * The columns are read with the types the queries promise. A value the domain refuses, such as
- * an unknown outcome or a malformed id, means the rows were written by something other than the
+ * an unknown retention class or a malformed id, means the rows were written by something other than the
  * store, and throws UnreadableReceiptRow naming the column.
  */
 #[Internal]
 final readonly class ReceiptRows
 {
     /**
-     * @param  object  $receipt  a row of `receipts`: changeset_id, retention_class, outcome, wait_level
+     * @param  object  $receipt  a row of `receipts`: changeset_id, retention_class
      * @param  array<array-key, mixed>  $projections  rows of `receipt_projections`: projection, state, acknowledged_at
      */
-    public static function receipt(object $receipt, array $projections): Receipt
+    public static function receipt(object $receipt, array $projections): StoredReceipt
     {
         $statuses = [];
 
@@ -46,10 +44,8 @@ final readonly class ReceiptRows
         }
 
         try {
-            return new Receipt(
-                self::enum(Outcome::class, self::string($receipt, 'outcome', PostgresReceiptStore::RECEIPTS), 'outcome'),
+            return new StoredReceipt(
                 self::changesetId($receipt),
-                self::enum(WaitLevel::class, self::string($receipt, 'wait_level', PostgresReceiptStore::RECEIPTS), 'wait_level'),
                 self::enum(RetentionClass::class, self::retentionClassOf($receipt), 'retention_class'),
                 $statuses,
             );
@@ -94,12 +90,12 @@ final readonly class ReceiptRows
     }
 
     /**
-     * @template T of Outcome|WaitLevel|RetentionClass|ProjectionState
+     * @template T of RetentionClass|ProjectionState
      *
      * @param  class-string<T>  $enum
      * @return T
      */
-    private static function enum(string $enum, string $value, string $column): Outcome|WaitLevel|RetentionClass|ProjectionState
+    private static function enum(string $enum, string $value, string $column): RetentionClass|ProjectionState
     {
         return $enum::tryFrom($value) ?? throw UnreadableReceiptRow::unknownValue($column, $value);
     }

@@ -11,7 +11,7 @@ use Cbox\Cms\Contracts\Consistency\ProjectionState;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
-use Cbox\Cms\Contracts\Receipts\Receipt;
+use Cbox\Cms\Contracts\Receipts\StoredReceipt;
 use Cbox\Cms\Contracts\ReceiptStore;
 use Cbox\Cms\Contracts\Storage\PartitionMissing;
 use Cbox\Cms\Core\Partitions\Boundary\SqlError;
@@ -122,7 +122,7 @@ it('commits a receipt together with the caller\'s own write in one transaction',
     $writer = $harness->session();
     $reader = $harness->session();
     $receipt = ReceiptTables::receipt('2026-01-01T00:00:00Z');
-    $changesetId = ReceiptTables::changesetOf($receipt);
+    $changesetId = $receipt->changesetId;
 
     $writer->begin();
     $writer->connection->table(ReceiptTables::CALLER_TABLE)->insert(['id' => 1, 'note' => 'changeset']);
@@ -143,7 +143,7 @@ it('leaves neither the receipt, its projection rows nor the caller\'s write afte
     $clock = new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z'));
     $session = PostgresReceiptSessions::at($clock)->session();
     $receipt = ReceiptTables::receipt('2026-01-01T00:00:00Z');
-    $changesetId = ReceiptTables::changesetOf($receipt);
+    $changesetId = $receipt->changesetId;
 
     $session->begin();
     $session->connection->table(ReceiptTables::CALLER_TABLE)->insert(['id' => 1, 'note' => 'changeset']);
@@ -166,7 +166,7 @@ it('makes no call outside Postgres inside the transaction: no queue job, no HTTP
     $session = PostgresReceiptSessions::at($clock)->session();
     $valkeyKeys = app(ValkeyRun::class)->keys();
     $receipt = ReceiptTables::receipt('2026-01-01T00:00:00Z');
-    $changesetId = ReceiptTables::changesetOf($receipt);
+    $changesetId = $receipt->changesetId;
 
     /** @var list<string> $statements */
     $statements = [];
@@ -206,7 +206,7 @@ it('lets two workers mark different projections of one changeset at the same tim
     $clock = new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z'));
     $harness = PostgresReceiptSessions::at($clock);
     $receipt = ReceiptTables::receipt('2026-01-01T00:00:00Z');
-    $changesetId = ReceiptTables::changesetOf($receipt);
+    $changesetId = $receipt->changesetId;
     $harness->session()->receipts()->store($receipt);
 
     $a = $harness->session();
@@ -239,7 +239,7 @@ it('makes a second worker on the same projection wait for the first, and keeps t
     $clock = new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z'));
     $harness = PostgresReceiptSessions::at($clock);
     $receipt = ReceiptTables::receipt('2026-01-01T00:00:00Z');
-    $changesetId = ReceiptTables::changesetOf($receipt);
+    $changesetId = $receipt->changesetId;
     $harness->session()->receipts()->store($receipt);
 
     $first = ProjectionStatus::acknowledged(new ProjectionName('edge'), $clock->now());
@@ -263,7 +263,7 @@ it('gives one receipt and one DuplicateReceipt for two concurrent stores, withou
     $clock = new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z'));
     $harness = PostgresReceiptSessions::at($clock);
     $receipt = ReceiptTables::receipt('2026-01-01T00:00:00Z');
-    $changesetId = ReceiptTables::changesetOf($receipt);
+    $changesetId = $receipt->changesetId;
 
     $a = $harness->session();
     $a->begin();
@@ -285,7 +285,7 @@ it('reports a duplicate inside the caller\'s transaction and leaves the transact
     $clock = new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z'));
     $session = PostgresReceiptSessions::at($clock)->session();
     $receipt = ReceiptTables::receipt('2026-01-01T00:00:00Z');
-    $changesetId = ReceiptTables::changesetOf($receipt);
+    $changesetId = $receipt->changesetId;
 
     $session->begin();
     $session->receipts()->store($receipt);
@@ -315,8 +315,8 @@ it('scans at most one standard and one evidence leaf partition to find a receipt
         $queries[] = ['sql' => $query->sql, 'bindings' => array_values($query->bindings)];
     });
 
-    expect($session->receipts()->find(ReceiptTables::changesetOf($standard)))->toEqual($standard)
-        ->and($session->receipts()->find(ReceiptTables::changesetOf($evidence)))->toEqual($evidence)
+    expect($session->receipts()->find($standard->changesetId))->toEqual($standard)
+        ->and($session->receipts()->find($evidence->changesetId))->toEqual($evidence)
         ->and($queries)->toHaveCount(4);
 
     $leaves = array_map(
@@ -353,7 +353,7 @@ it('expires a standard receipt one microsecond after its expiry instant', functi
     $clock = new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z'));
     $session = PostgresReceiptSessions::at($clock)->session();
     $receipt = ReceiptTables::receipt('2026-01-01T00:00:00.250Z');
-    $changesetId = ReceiptTables::changesetOf($receipt);
+    $changesetId = $receipt->changesetId;
     $session->receipts()->store($receipt);
 
     $clock->set(new DateTimeImmutable('2026-01-08T00:00:00.250000Z'));
@@ -369,19 +369,19 @@ it('writes one row per projection and none for a receipt without projections', f
     $clock = new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z'));
     $session = PostgresReceiptSessions::at($clock)->session();
     $with = ReceiptTables::receipt('2026-01-01T00:00:00Z');
-    $without = Receipt::committed(ReceiptTables::changesetOf(ReceiptTables::receipt('2026-01-01T00:00:00Z', sequence: 1)), $with->waitLevel, RetentionClass::Standard);
+    $without = new StoredReceipt(ReceiptTables::receipt('2026-01-01T00:00:00Z', sequence: 1)->changesetId, RetentionClass::Standard);
     $session->receipts()->store($with);
     $session->receipts()->store($without);
 
     $states = ReceiptTables::owner()->table(PostgresReceiptStore::PROJECTIONS)
-        ->where('changeset_id', ReceiptTables::changesetOf($with)->toString())
+        ->where('changeset_id', $with->changesetId->toString())
         ->orderBy('projection')
         ->pluck('state', 'projection')
         ->all();
 
     expect($states)->toBe(['edge' => 'pending', 'fragments' => 'pending', 'search' => 'pending'])
-        ->and(ReceiptTables::rows(PostgresReceiptStore::PROJECTIONS, ReceiptTables::changesetOf($without)))->toBe(0)
-        ->and($session->receipts()->find(ReceiptTables::changesetOf($without)))->toEqual($without);
+        ->and(ReceiptTables::rows(PostgresReceiptStore::PROJECTIONS, $without->changesetId))->toBe(0)
+        ->and($session->receipts()->find($without->changesetId))->toEqual($without);
 });
 
 it('is the ReceiptStore the container resolves, on the default connection and the application Clock', function (): void {
@@ -396,11 +396,11 @@ it('is the ReceiptStore the container resolves, on the default connection and th
     expect($store)->toBeInstanceOf(PostgresReceiptStore::class)
         ->and(app(ReceiptStore::class))->toBe($store)
         ->and(DB::connection()->table(PostgresReceiptStore::RECEIPTS)->count())->toBe(1)
-        ->and($store->find(ReceiptTables::changesetOf($receipt)))->toEqual($receipt);
+        ->and($store->find($receipt->changesetId))->toEqual($receipt);
 
     $clock->advance(new DateInterval('P8D'));
 
-    expect($store->find(ReceiptTables::changesetOf($receipt)))->toBeNull();
+    expect($store->find($receipt->changesetId))->toBeNull();
 });
 
 it('gives the app role no DELETE, TRUNCATE or UPDATE of a receipt, not even on a partition directly', function (string $sql): void {
@@ -414,13 +414,13 @@ it('gives the app role no DELETE, TRUNCATE or UPDATE of a receipt, not even on a
     }
 })->with([
     'delete a receipt' => ['delete from receipts'],
-    'update a receipt' => ["update receipts set wait_level = 'commit'"],
+    'update a receipt' => ["update receipts set retention_class = 'standard'"],
     'truncate receipts' => ['truncate receipts'],
     'delete a projection row' => ['delete from receipt_projections'],
     'truncate projection rows' => ['truncate receipt_projections'],
     'delete from a list partition' => ['delete from receipts_standard'],
     'delete from a leaf partition' => ['delete from receipts_standard_p20260101'],
-    'update a leaf partition of receipts' => ["update receipts_evidence_p202601 set outcome = 'committed'"],
+    'update a leaf partition of receipts' => ['update receipts_evidence_p202601 set changeset_id = changeset_id'],
     'delete from a projection leaf' => ['delete from receipt_projections_evidence_p202601'],
 ]);
 
@@ -432,7 +432,7 @@ it('lets the app role read and write what the store needs, through the parents',
 
     $store->store($receipt);
 
-    expect($store->markProjection(ReceiptTables::changesetOf($receipt), ProjectionStatus::acknowledged(new ProjectionName('edge'), $clock->now())))->toBeTrue()
-        ->and($store->find(ReceiptTables::changesetOf($receipt))?->projections[0]->state)->toBe(ProjectionState::Acknowledged)
+    expect($store->markProjection($receipt->changesetId, ProjectionStatus::acknowledged(new ProjectionName('edge'), $clock->now())))->toBeTrue()
+        ->and($store->find($receipt->changesetId)?->projections[0]->state)->toBe(ProjectionState::Acknowledged)
         ->and(DB::connection()->scalar('select current_user'))->toBe('cms_app');
 });

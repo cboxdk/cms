@@ -9,12 +9,10 @@ use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\Consistency\DuplicateReceipt;
 use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
-use Cbox\Cms\Contracts\Consistency\UnstorableReceipt;
-use Cbox\Cms\Contracts\Consistency\WaitLevel;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Ids\Uuid7;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
-use Cbox\Cms\Contracts\Receipts\Receipt;
+use Cbox\Cms\Contracts\Receipts\StoredReceipt;
 use Cbox\Cms\Contracts\Storage\PartitionMissing;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
@@ -43,9 +41,10 @@ use Throwable;
  *         }
  *     }
  *
- * The cases cover storing and finding, marking projections, typed errors, logical expiry, a
- * changeset time that no partition covers (through ReceiptStoreHarness::uncover()) and the
- * transactions of the caller: a store runs inside the caller's transaction and never begins one.
+ * The cases cover storing and finding, a stored receipt that holds only the facts of its changeset
+ * and no call's wait result, marking projections, typed errors, logical expiry, a changeset time
+ * that no partition covers (through ReceiptStoreHarness::uncover()) and the transactions of the
+ * caller: a store runs inside the caller's transaction and never begins one.
  */
 #[Experimental]
 trait ReceiptStoreContract
@@ -69,10 +68,10 @@ trait ReceiptStoreContract
                 ProjectionStatus::acknowledged(new ProjectionName('fragments'), $clock->now()),
                 ProjectionStatus::pending(new ProjectionName('acme.feed')),
             ]),
-            Receipt::committedWaitTimeout(new ChangesetId($ids->next()), WaitLevel::Edge, RetentionClass::Evidence, [
+            new StoredReceipt(new ChangesetId($ids->next()), RetentionClass::Evidence, [
                 ProjectionStatus::pending(new ProjectionName('edge')),
             ]),
-            Receipt::committed(new ChangesetId($ids->next()), WaitLevel::Commit, RetentionClass::Standard),
+            new StoredReceipt(new ChangesetId($ids->next()), RetentionClass::Standard),
         ];
 
         foreach ($expected as $receipt) {
@@ -80,7 +79,7 @@ trait ReceiptStoreContract
         }
 
         foreach ($expected as $receipt) {
-            $this->assertSameReceipt($receipt, $receipts->find($this->changesetOf($receipt)));
+            $this->assertSameReceipt($receipt, $receipts->find($receipt->changesetId));
         }
     }
 
@@ -105,7 +104,7 @@ trait ReceiptStoreContract
         $ids = new FakeIdGenerator(clock: $clock);
         $receipts = $harness->session()->receipts();
         $receipt = $this->receiptWithProjections($ids->next(), RetentionClass::Standard);
-        $changesetId = $this->changesetOf($receipt);
+        $changesetId = $receipt->changesetId;
         $receipts->store($receipt);
 
         $at = $clock->advance(new DateInterval('PT2S'));
@@ -129,7 +128,7 @@ trait ReceiptStoreContract
         $ids = new FakeIdGenerator(clock: $clock);
         $receipts = $harness->session()->receipts();
         $receipt = $this->receiptWithProjections($ids->next(), RetentionClass::Standard);
-        $changesetId = $this->changesetOf($receipt);
+        $changesetId = $receipt->changesetId;
         $receipts->store($receipt);
 
         Assert::assertTrue($receipts->markProjection($changesetId, ProjectionStatus::pending(new ProjectionName('edge'))));
@@ -157,7 +156,7 @@ trait ReceiptStoreContract
         $ids = new FakeIdGenerator(clock: $clock);
         $receipts = $harness->session()->receipts();
         $receipt = $this->receiptWithProjections($ids->next(), RetentionClass::Standard);
-        $changesetId = $this->changesetOf($receipt);
+        $changesetId = $receipt->changesetId;
         $receipts->store($receipt);
 
         $first = $clock->advance(new DateInterval('PT1S'));
@@ -184,7 +183,7 @@ trait ReceiptStoreContract
         $ids = new FakeIdGenerator(clock: $clock);
         $receipts = $harness->session()->receipts();
         $receipt = $this->receiptWithProjections($ids->next(), RetentionClass::Standard);
-        $changesetId = $this->changesetOf($receipt);
+        $changesetId = $receipt->changesetId;
         $unknown = new ChangesetId($ids->next());
         $receipts->store($receipt);
 
@@ -203,10 +202,10 @@ trait ReceiptStoreContract
         $ids = new FakeIdGenerator(clock: $clock);
         $receipts = $harness->session()->receipts();
         $receipt = $this->receiptWithProjections($ids->next(), RetentionClass::Standard);
-        $changesetId = $this->changesetOf($receipt);
+        $changesetId = $receipt->changesetId;
         $receipts->store($receipt);
 
-        foreach ([$receipt, Receipt::committed($changesetId, WaitLevel::Propagated, RetentionClass::Evidence)] as $second) {
+        foreach ([$receipt, new StoredReceipt($changesetId, RetentionClass::Evidence)] as $second) {
             try {
                 $receipts->store($second);
                 Assert::fail('The store accepted a second receipt for the same changeset.');
@@ -219,19 +218,44 @@ trait ReceiptStoreContract
     }
 
     #[Test]
-    public function rejected_and_dry_run_receipts_are_refused(): void
+    public function a_receipt_stored_before_the_wait_holds_no_wait_result_and_shows_the_projections_as_marked(): void
     {
-        $harness = $this->receiptStores(new FakeClock);
-        $receipts = $harness->session()->receipts();
+        $clock = new FakeClock;
+        $harness = $this->receiptStores($clock);
+        $ids = new FakeIdGenerator(clock: $clock);
+        $writer = $harness->session();
+        $reader = $harness->session();
 
-        foreach ([Receipt::rejected(WaitLevel::Commit, RetentionClass::Standard), Receipt::dryRun(WaitLevel::Origin, RetentionClass::Evidence)] as $receipt) {
-            try {
-                $receipts->store($receipt);
-                Assert::fail(sprintf('The store accepted a %s receipt.', $receipt->outcome->value));
-            } catch (UnstorableReceipt $unstorable) {
-                Assert::assertStringContainsString($receipt->outcome->value, $unstorable->getMessage());
-            }
-        }
+        // A call that asked for the wait level origin: the kernel stores the receipt in the command
+        // transaction (PRD 6.2 phase 7), while the fragments projection is still pending, and waits
+        // only after the commit. Nothing stored may say that origin was reached.
+        $receipt = new StoredReceipt(new ChangesetId($ids->next()), RetentionClass::Standard, [
+            ProjectionStatus::pending(new ProjectionName('fragments')),
+        ]);
+        $changesetId = $receipt->changesetId;
+        $writer->begin();
+        $writer->receipts()->store($receipt);
+        $writer->commit();
+
+        $found = $reader->receipts()->find($changesetId);
+        Assert::assertInstanceOf(StoredReceipt::class, $found);
+        $fields = array_keys(get_object_vars($found));
+        sort($fields);
+        Assert::assertSame(
+            ['changesetId', 'projections', 'retentionClass'],
+            $fields,
+            'The stored receipt holds more than the facts of its changeset, such as an outcome or a wait level.',
+        );
+        $this->assertSameReceipt($receipt, $found, 'The receipt found before the projection marked is not the pending one.');
+
+        // What a replay finds after the projection marked is the projection's status now.
+        $acknowledged = ProjectionStatus::acknowledged(new ProjectionName('fragments'), $clock->advance(new DateInterval('PT1S')));
+        Assert::assertTrue($writer->receipts()->markProjection($changesetId, $acknowledged));
+        $this->assertSameReceipt(
+            new StoredReceipt($changesetId, RetentionClass::Standard, [$acknowledged]),
+            $reader->receipts()->find($changesetId),
+            'The receipt found after the projection marked does not show the acknowledgement.',
+        );
     }
 
     #[Test]
@@ -242,7 +266,7 @@ trait ReceiptStoreContract
         $ids = new FakeIdGenerator(clock: $clock);
         $receipts = $harness->session()->receipts();
         $receipt = $this->receiptWithProjections($ids->next(), RetentionClass::Standard);
-        $changesetId = $this->changesetOf($receipt);
+        $changesetId = $receipt->changesetId;
         $receipts->store($receipt);
         $expiry = $this->changesetTime($changesetId)->add(new DateInterval('P7D'));
 
@@ -267,7 +291,7 @@ trait ReceiptStoreContract
         $ids = new FakeIdGenerator(clock: $clock);
         $receipts = $harness->session()->receipts();
         $receipt = $this->receiptWithProjections($ids->next(), RetentionClass::Standard);
-        $changesetId = $this->changesetOf($receipt);
+        $changesetId = $receipt->changesetId;
         $receipts->store($receipt);
 
         $clock->set($this->changesetTime($changesetId)->add(new DateInterval('P7DT1S')));
@@ -290,7 +314,7 @@ trait ReceiptStoreContract
         $ids = new FakeIdGenerator(clock: $clock);
         $receipts = $harness->session()->receipts();
         $receipt = $this->receiptWithProjections($ids->next(), RetentionClass::Evidence);
-        $changesetId = $this->changesetOf($receipt);
+        $changesetId = $receipt->changesetId;
         $receipts->store($receipt);
         $time = $this->changesetTime($changesetId);
 
@@ -318,7 +342,7 @@ trait ReceiptStoreContract
         $clock->set($day->setTime(12, 0, 0, 250_000));
         $uncovered = [
             $this->receiptWithProjections($ids->next(), RetentionClass::Standard),
-            Receipt::committed(new ChangesetId($ids->next()), WaitLevel::Commit, RetentionClass::Evidence),
+            new StoredReceipt(new ChangesetId($ids->next()), RetentionClass::Evidence),
         ];
 
         foreach ($uncovered as $receipt) {
@@ -326,7 +350,7 @@ trait ReceiptStoreContract
                 $writer->receipts()->store($receipt);
             }, sprintf('The store took a %s receipt whose changeset time no partition covers.', $receipt->retentionClass->value));
             Assert::assertFalse($writer->inTransaction(), 'A store() that no partition covered left a transaction open.');
-            Assert::assertNull($reader->receipts()->find($this->changesetOf($receipt)), 'A store() that no partition covered left a receipt.');
+            Assert::assertNull($reader->receipts()->find($receipt->changesetId), 'A store() that no partition covered left a receipt.');
         }
 
         $writer->begin();
@@ -338,7 +362,7 @@ trait ReceiptStoreContract
         $refused = false;
 
         try {
-            $writer->receipts()->find($this->changesetOf($covered));
+            $writer->receipts()->find($covered->changesetId);
         } catch (Throwable) {
             $refused = true;
         }
@@ -347,11 +371,11 @@ trait ReceiptStoreContract
         $writer->rollBack();
 
         $clock->set($start);
-        Assert::assertNull($writer->receipts()->find($this->changesetOf($covered)), 'The rollback after PartitionMissing kept the transaction\'s earlier receipt.');
-        Assert::assertNull($reader->receipts()->find($this->changesetOf($uncovered[0])), 'The rollback after PartitionMissing kept the receipt no partition covers.');
+        Assert::assertNull($writer->receipts()->find($covered->changesetId), 'The rollback after PartitionMissing kept the transaction\'s earlier receipt.');
+        Assert::assertNull($reader->receipts()->find($uncovered[0]->changesetId), 'The rollback after PartitionMissing kept the receipt no partition covers.');
 
         $writer->receipts()->store($covered);
-        $this->assertSameReceipt($covered, $reader->receipts()->find($this->changesetOf($covered)), 'The receipt could not be stored again after the rollback.');
+        $this->assertSameReceipt($covered, $reader->receipts()->find($covered->changesetId), 'The receipt could not be stored again after the rollback.');
     }
 
     #[Test]
@@ -363,7 +387,7 @@ trait ReceiptStoreContract
         $writer = $harness->session();
         $reader = $harness->session();
         $receipt = $this->receiptWithProjections($ids->next(), RetentionClass::Standard);
-        $changesetId = $this->changesetOf($receipt);
+        $changesetId = $receipt->changesetId;
 
         $writer->begin();
         $writer->receipts()->store($receipt);
@@ -384,7 +408,7 @@ trait ReceiptStoreContract
         $writer = $harness->session();
         $reader = $harness->session();
         $receipt = $this->receiptWithProjections($ids->next(), RetentionClass::Standard);
-        $changesetId = $this->changesetOf($receipt);
+        $changesetId = $receipt->changesetId;
 
         $writer->begin();
         $writer->receipts()->store($receipt);
@@ -406,7 +430,7 @@ trait ReceiptStoreContract
         $writer = $harness->session();
         $reader = $harness->session();
         $receipt = $this->receiptWithProjections($ids->next(), RetentionClass::Standard);
-        $changesetId = $this->changesetOf($receipt);
+        $changesetId = $receipt->changesetId;
         $reader->receipts()->store($receipt);
         $acknowledged = ProjectionStatus::acknowledged(new ProjectionName('fragments'), $clock->advance(new DateInterval('PT1S')));
 
@@ -442,7 +466,7 @@ trait ReceiptStoreContract
         $writer = $harness->session();
         $reader = $harness->session();
         $receipt = $this->receiptWithProjections($ids->next(), RetentionClass::Standard);
-        $changesetId = $this->changesetOf($receipt);
+        $changesetId = $receipt->changesetId;
 
         $writer->receipts()->store($receipt);
         Assert::assertFalse($writer->inTransaction(), 'store() left a transaction open.');
@@ -463,14 +487,14 @@ trait ReceiptStoreContract
     }
 
     /**
-     * A Committed receipt with the given projections, by default fragments, edge and search, all
+     * A stored receipt with the given projections, by default fragments, edge and search, all
      * pending.
      *
      * @param  list<ProjectionStatus>|null  $projections
      */
-    private function receiptWithProjections(Uuid7 $id, RetentionClass $retention, ?array $projections = null): Receipt
+    private function receiptWithProjections(Uuid7 $id, RetentionClass $retention, ?array $projections = null): StoredReceipt
     {
-        return Receipt::committed(new ChangesetId($id), WaitLevel::Origin, $retention, $projections ?? [
+        return new StoredReceipt(new ChangesetId($id), $retention, $projections ?? [
             ProjectionStatus::pending(new ProjectionName('fragments')),
             ProjectionStatus::pending(new ProjectionName('edge')),
             ProjectionStatus::pending(new ProjectionName('search')),
@@ -496,11 +520,6 @@ trait ReceiptStoreContract
         Assert::fail($message);
     }
 
-    private function changesetOf(Receipt $receipt): ChangesetId
-    {
-        return $receipt->changesetId ?? Assert::fail('The fixture receipt has no changeset.');
-    }
-
     /**
      * The time in the changeset id, computed here and not with RetentionClass::expiresAt(), so a
      * mistake there shows up in this suite.
@@ -512,7 +531,7 @@ trait ReceiptStoreContract
         return new DateTimeImmutable(sprintf('@%d.%03d', intdiv($milliseconds, 1000), $milliseconds % 1000));
     }
 
-    private function assertSameReceipt(?Receipt $expected, ?Receipt $actual, string $message = ''): void
+    private function assertSameReceipt(?StoredReceipt $expected, ?StoredReceipt $actual, string $message = ''): void
     {
         Assert::assertNotNull($actual, $message !== '' ? $message : 'The store did not find the receipt.');
         Assert::assertSame($this->describeReceipt($expected), $this->describeReceipt($actual), $message);
@@ -524,19 +543,13 @@ trait ReceiptStoreContract
      *
      * @return list<string>
      */
-    private function describeReceipt(?Receipt $receipt): array
+    private function describeReceipt(?StoredReceipt $receipt): array
     {
-        if (! $receipt instanceof Receipt) {
+        if (! $receipt instanceof StoredReceipt) {
             return ['none'];
         }
 
-        $lines = [sprintf(
-            '%s %s %s %s',
-            $receipt->outcome->value,
-            $receipt->changesetId?->toString() ?? '-',
-            $receipt->waitLevel->value,
-            $receipt->retentionClass->value,
-        )];
+        $lines = [sprintf('%s %s', $receipt->changesetId->toString(), $receipt->retentionClass->value)];
 
         foreach ($receipt->projections as $status) {
             $lines[] = sprintf(

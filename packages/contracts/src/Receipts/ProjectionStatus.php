@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Contracts\Receipts;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Consistency\InvalidReceipt;
 use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Consistency\ProjectionState;
@@ -54,5 +55,35 @@ final readonly class ProjectionStatus
     public static function acknowledged(ProjectionName $projection, DateTimeImmutable $at): self
     {
         return new self($projection, ProjectionState::Acknowledged, $at);
+    }
+
+    /**
+     * The statuses of one receipt sorted by projection name, so two receipts with the same
+     * statuses are equal whatever order they were given in. A projection may appear once.
+     *
+     * @param  list<self>  $statuses
+     * @return list<self>
+     *
+     * @throws InvalidReceipt when a projection is listed twice
+     */
+    #[Internal]
+    public static function listOf(array $statuses): array
+    {
+        $seen = [];
+
+        foreach ($statuses as $status) {
+            if (isset($seen[$status->projection->value])) {
+                throw InvalidReceipt::duplicateProjection($status->projection);
+            }
+
+            $seen[$status->projection->value] = true;
+        }
+
+        usort(
+            $statuses,
+            static fn (self $a, self $b): int => strcmp($a->projection->value, $b->projection->value),
+        );
+
+        return $statuses;
     }
 }

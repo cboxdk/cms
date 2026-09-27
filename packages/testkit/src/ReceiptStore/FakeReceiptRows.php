@@ -7,10 +7,9 @@ namespace Cbox\Cms\Testkit\ReceiptStore;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Consistency\DuplicateReceipt;
 use Cbox\Cms\Contracts\Consistency\ProjectionState;
-use Cbox\Cms\Contracts\Consistency\UnstorableReceipt;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
-use Cbox\Cms\Contracts\Receipts\Receipt;
+use Cbox\Cms\Contracts\Receipts\StoredReceipt;
 use DateTimeImmutable;
 
 /**
@@ -22,24 +21,12 @@ use DateTimeImmutable;
 final class FakeReceiptRows
 {
     /**
-     * The changeset of a receipt the store takes, or UnstorableReceipt.
+     * @param  array<string, StoredReceipt>  $rows
+     * @return array<string, StoredReceipt>
      */
-    public static function storable(Receipt $receipt): ChangesetId
+    public static function stored(array $rows, StoredReceipt $receipt): array
     {
-        if (! $receipt->isCommitted() || ! $receipt->changesetId instanceof ChangesetId) {
-            throw UnstorableReceipt::notCommitted($receipt->outcome);
-        }
-
-        return $receipt->changesetId;
-    }
-
-    /**
-     * @param  array<string, Receipt>  $rows
-     * @return array<string, Receipt>
-     */
-    public static function stored(array $rows, Receipt $receipt): array
-    {
-        $changesetId = self::storable($receipt);
+        $changesetId = $receipt->changesetId;
 
         if (isset($rows[$changesetId->toString()])) {
             throw DuplicateReceipt::forChangeset($changesetId);
@@ -53,13 +40,13 @@ final class FakeReceiptRows
     /**
      * The receipt for the changeset, or null when there is none or it has expired at $now.
      *
-     * @param  array<string, Receipt>  $rows
+     * @param  array<string, StoredReceipt>  $rows
      */
-    public static function live(array $rows, ChangesetId $changesetId, DateTimeImmutable $now): ?Receipt
+    public static function live(array $rows, ChangesetId $changesetId, DateTimeImmutable $now): ?StoredReceipt
     {
         $receipt = $rows[$changesetId->toString()] ?? null;
 
-        if (! $receipt instanceof Receipt) {
+        if (! $receipt instanceof StoredReceipt) {
             return null;
         }
 
@@ -72,14 +59,14 @@ final class FakeReceiptRows
      * The rows with the projection's status recorded, or null when no live receipt for the
      * changeset lists the projection. An acknowledged projection keeps its status.
      *
-     * @param  array<string, Receipt>  $rows
-     * @return array<string, Receipt>|null
+     * @param  array<string, StoredReceipt>  $rows
+     * @return array<string, StoredReceipt>|null
      */
     public static function marked(array $rows, ChangesetId $changesetId, ProjectionStatus $status, DateTimeImmutable $now): ?array
     {
         $receipt = self::live($rows, $changesetId, $now);
 
-        if (! $receipt instanceof Receipt) {
+        if (! $receipt instanceof StoredReceipt) {
             return null;
         }
 
@@ -101,13 +88,7 @@ final class FakeReceiptRows
             return null;
         }
 
-        $rows[$changesetId->toString()] = new Receipt(
-            $receipt->outcome,
-            $receipt->changesetId,
-            $receipt->waitLevel,
-            $receipt->retentionClass,
-            $projections,
-        );
+        $rows[$changesetId->toString()] = new StoredReceipt($receipt->changesetId, $receipt->retentionClass, $projections);
 
         return $rows;
     }

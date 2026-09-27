@@ -87,6 +87,20 @@ it('keys a receipt by changeset and retention class, and a projection row by cha
     ]);
 });
 
+it('keeps only the facts of the changeset in the receipt tables, never a call\'s outcome or wait level', function (): void {
+    $columns = static fn (string $table): array => ReceiptTables::texts(
+        ReceiptTables::owner(),
+        'select column_name::text as value from information_schema.columns where table_schema = current_schema() and table_name = ? order by ordinal_position',
+        [$table],
+    );
+
+    // The store writes in the command transaction (PRD 6.2 phase 7), before any wait level past
+    // commit is reached, so an outcome or a wait level stored there would be a guess.
+    expect($columns(PostgresReceiptStore::RECEIPTS))->toBe(['changeset_id', 'retention_class'])
+        ->and($columns(PostgresReceiptStore::PROJECTIONS))->toBe(['changeset_id', 'retention_class', 'projection', 'state', 'acknowledged_at'])
+        ->and(ReceiptTables::owner()->scalar("select count(*) from pg_constraint where contype = 'c' and conrelid = 'receipts'::regclass"))->toBe(0);
+});
+
 it('has no foreign key between the receipt tables, which are written and dropped together', function (): void {
     $foreignKeys = ReceiptTables::owner()->scalar(
         "select count(*) from pg_constraint where contype = 'f' and conrelid in (select relid from pg_partition_tree('receipts') union all select relid from pg_partition_tree('receipt_projections'))",
@@ -149,8 +163,8 @@ it('drops the Standard receipt partitions a week after their day ends and keeps 
     expect($report->partitions(PartitionChangeKind::Dropped))->toBe(['receipts_standard_p20260101', 'receipt_projections_standard_p20260101', 'idempotency_keys_p20260101'])
         ->and(ReceiptTables::texts(ReceiptTables::owner(), "select relname::text as value from pg_class where relname in ('receipts_standard_p20260101', 'receipts_standard_p20260102', 'receipts_evidence_p202601') order by 1"))
         ->toBe(['receipts_evidence_p202601', 'receipts_standard_p20260102'])
-        ->and($store->find(ReceiptTables::changesetOf($evidence)))->toEqual($evidence);
+        ->and($store->find($evidence->changesetId))->toEqual($evidence);
 
     $clock->set(new DateTimeImmutable('2036-01-09T00:00:00Z'));
-    expect($store->find(ReceiptTables::changesetOf($evidence)))->toEqual($evidence);
+    expect($store->find($evidence->changesetId))->toEqual($evidence);
 });

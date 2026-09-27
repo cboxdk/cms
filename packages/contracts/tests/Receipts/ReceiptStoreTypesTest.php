@@ -5,18 +5,16 @@ declare(strict_types=1);
 namespace Cbox\Cms\Contracts\Tests\Receipts;
 
 use Cbox\Cms\Contracts\Consistency\DuplicateReceipt;
-use Cbox\Cms\Contracts\Consistency\Outcome;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
-use Cbox\Cms\Contracts\Consistency\UnstorableReceipt;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Ids\Uuid7;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
-use Cbox\Cms\Contracts\Receipts\Receipt;
+use Cbox\Cms\Contracts\Receipts\StoredReceipt;
 use Cbox\Cms\Contracts\ReceiptStore;
 use DateTimeImmutable;
-use InvalidArgumentException;
 use ReflectionClass;
 use ReflectionNamedType;
+use ReflectionProperty;
 use RuntimeException;
 
 /*
@@ -52,13 +50,6 @@ it('names the changeset of a duplicate receipt', function (): void {
         ->and($duplicate->getMessage())->toContain($changesetId->toString());
 });
 
-it('names the outcome of a receipt that is not stored', function (Outcome $outcome): void {
-    $unstorable = UnstorableReceipt::notCommitted($outcome);
-
-    expect($unstorable)->toBeInstanceOf(InvalidArgumentException::class)
-        ->and($unstorable->getMessage())->toContain($outcome->value.' receipt is not stored');
-})->with([Outcome::Rejected, Outcome::DryRun]);
-
 it('has store, find and markProjection with typed ids and no string ids', function (): void {
     $methods = [];
 
@@ -75,8 +66,19 @@ it('has store, find and markProjection with typed ids and no string ids', functi
     }
 
     expect($methods)->toBe([
-        'store' => [[Receipt::class], 'void'],
-        'find' => [[ChangesetId::class], '?Cbox\Cms\Contracts\Receipts\Receipt'],
+        'store' => [[StoredReceipt::class], 'void'],
+        'find' => [[ChangesetId::class], '?Cbox\Cms\Contracts\Receipts\StoredReceipt'],
         'markProjection' => [[ChangesetId::class, ProjectionStatus::class], 'bool'],
     ]);
+});
+
+it('stores only the facts of a changeset, never the outcome or the wait level of a call', function (): void {
+    $properties = array_map(
+        static fn (ReflectionProperty $property): string => $property->getName(),
+        new ReflectionClass(StoredReceipt::class)->getProperties(),
+    );
+
+    sort($properties);
+
+    expect($properties)->toBe(['changesetId', 'projections', 'retentionClass']);
 });

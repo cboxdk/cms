@@ -7,10 +7,9 @@ namespace Cbox\Cms\Testkit\Tests\ReceiptStore;
 use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\Consistency\DuplicateReceipt;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
-use Cbox\Cms\Contracts\Consistency\UnstorableReceipt;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
-use Cbox\Cms\Contracts\Receipts\Receipt;
+use Cbox\Cms\Contracts\Receipts\StoredReceipt;
 use Cbox\Cms\Contracts\ReceiptStore;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\ReceiptStore\FakeReceiptSession;
@@ -45,8 +44,8 @@ enum Breach
     /** store() opens a transaction when none is open and leaves it open. */
     case BeginsTransaction;
 
-    /** A Rejected or DryRun receipt is dropped without an error. */
-    case SwallowsUnstorable;
+    /** find() returns a receipt as it was stored, so a replay never sees a later mark. */
+    case FreezesStoredReceipt;
 
     /** A second receipt for a changeset replaces the first without an error. */
     case OverwritesDuplicate;
@@ -68,13 +67,27 @@ enum Breach
 }
 
 /**
+ * The receipts as they were stored, shared by the sessions of one broken store.
+ */
+final class StoredSnapshots
+{
+    /** @var array<string, StoredReceipt> */
+    public array $receipts = [];
+}
+
+/**
  * A session of the fake with one rule broken.
  */
 final class BrokenSession implements ReceiptStore, ReceiptStoreSession
 {
     private bool $open = false;
 
-    public function __construct(private readonly FakeReceiptSession $inner, private readonly FakeReceiptStore $database, private readonly Breach $breach) {}
+    public function __construct(
+        private readonly FakeReceiptSession $inner,
+        private readonly FakeReceiptStore $database,
+        private readonly Breach $breach,
+        private readonly StoredSnapshots $snapshots,
+    ) {}
 
     public function receipts(): ReceiptStore
     {
@@ -101,7 +114,7 @@ final class BrokenSession implements ReceiptStore, ReceiptStoreSession
         return $this->breach === Breach::IgnoresTransactions ? $this->open : $this->inner->inTransaction();
     }
 
-    public function store(Receipt $receipt): void
+    public function store(StoredReceipt $receipt): void
     {
         if ($this->breach === Breach::BeginsTransaction && ! $this->inner->inTransaction()) {
             $this->inner->begin();
@@ -109,22 +122,19 @@ final class BrokenSession implements ReceiptStore, ReceiptStoreSession
 
         try {
             $this->inner->store($receipt);
-        } catch (UnstorableReceipt $unstorable) {
-            if ($this->breach !== Breach::SwallowsUnstorable) {
-                throw $unstorable;
-            }
+            $this->snapshots->receipts[$receipt->changesetId->toString()] = $receipt;
         } catch (DuplicateReceipt $duplicate) {
             if ($this->breach !== Breach::OverwritesDuplicate) {
                 throw $duplicate;
             }
 
             $rows = $this->database->committedRows();
-            $rows[$receipt->changesetId?->toString() ?? ''] = $receipt;
+            $rows[$receipt->changesetId->toString()] = $receipt;
             $this->database->commitRows($rows);
         }
     }
 
-    public function find(ChangesetId $changesetId): ?Receipt
+    public function find(ChangesetId $changesetId): ?StoredReceipt
     {
         try {
             $receipt = $this->inner->find($changesetId);
@@ -140,6 +150,10 @@ final class BrokenSession implements ReceiptStore, ReceiptStoreSession
             return null;
         }
 
+        if ($this->breach === Breach::FreezesStoredReceipt && $receipt instanceof StoredReceipt) {
+            return $this->snapshots->receipts[$changesetId->toString()] ?? $receipt;
+        }
+
         return $receipt;
     }
 
@@ -147,7 +161,7 @@ final class BrokenSession implements ReceiptStore, ReceiptStoreSession
     {
         $receipt = $this->inner->find($changesetId);
 
-        if ($this->breach === Breach::MarksEveryProjection && $receipt instanceof Receipt) {
+        if ($this->breach === Breach::MarksEveryProjection && $receipt instanceof StoredReceipt) {
             foreach ($receipt->projections as $current) {
                 $this->inner->markProjection($changesetId, new ProjectionStatus($current->projection, $status->state, $status->acknowledgedAt));
             }
@@ -155,13 +169,13 @@ final class BrokenSession implements ReceiptStore, ReceiptStoreSession
             return true;
         }
 
-        if ($this->breach === Breach::ReacknowledgesProjection && $receipt instanceof Receipt && $status->acknowledgedAt instanceof DateTimeImmutable) {
+        if ($this->breach === Breach::ReacknowledgesProjection && $receipt instanceof StoredReceipt && $status->acknowledgedAt instanceof DateTimeImmutable) {
             $projections = array_map(
                 static fn (ProjectionStatus $current): ProjectionStatus => $current->projection->equals($status->projection) ? $status : $current,
                 $receipt->projections,
             );
             $rows = $this->database->committedRows();
-            $rows[$changesetId->toString()] = new Receipt($receipt->outcome, $receipt->changesetId, $receipt->waitLevel, $receipt->retentionClass, $projections);
+            $rows[$changesetId->toString()] = new StoredReceipt($receipt->changesetId, $receipt->retentionClass, $projections);
             $this->database->commitRows($rows);
 
             return true;
@@ -213,13 +227,13 @@ function brokenStores(Breach $breach): Closure
     return static function (Clock $clock) use ($breach): ReceiptStoreHarness {
         $database = new FakeReceiptStore($clock);
 
-        return new readonly class($database, $breach) implements ReceiptStoreHarness
+        return new readonly class($database, $breach, new StoredSnapshots) implements ReceiptStoreHarness
         {
-            public function __construct(private FakeReceiptStore $database, private Breach $breach) {}
+            public function __construct(private FakeReceiptStore $database, private Breach $breach, private StoredSnapshots $snapshots) {}
 
             public function session(): ReceiptStoreSession
             {
-                return new BrokenSession($this->database->session(), $this->database, $this->breach);
+                return new BrokenSession($this->database->session(), $this->database, $this->breach, $this->snapshots);
             }
 
             public function uncover(DateTimeImmutable $from, DateTimeImmutable $to): void
@@ -267,7 +281,7 @@ it('fails a store that breaks the contract', function (Closure $harness, string 
     'writes visible before commit' => [brokenStores(Breach::IgnoresTransactions), 'a_store_is_not_visible_to_another_session_until_commit'],
     'marks that ignore a rollback' => [brokenStores(Breach::IgnoresTransactions), 'mark_projection_commits_and_rolls_back_with_the_callers_transaction'],
     'a store that begins a transaction' => [brokenStores(Breach::BeginsTransaction), 'store_and_mark_projection_never_begin_a_transaction'],
-    'a rejected receipt dropped silently' => [brokenStores(Breach::SwallowsUnstorable), 'rejected_and_dry_run_receipts_are_refused'],
+    'a receipt frozen as it was stored' => [brokenStores(Breach::FreezesStoredReceipt), 'a_receipt_stored_before_the_wait_holds_no_wait_result_and_shows_the_projections_as_marked'],
     'a duplicate that overwrites' => [brokenStores(Breach::OverwritesDuplicate), 'a_second_receipt_for_the_same_changeset_is_refused'],
     'a duplicate accepted after expiry' => [brokenStores(Breach::OverwritesDuplicate), 'an_expired_receipt_ignores_mark_projection_and_still_holds_its_changeset'],
     'a mark that touches every projection' => [brokenStores(Breach::MarksEveryProjection), 'mark_projection_updates_only_that_projection'],

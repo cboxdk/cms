@@ -13,12 +13,13 @@ use Cbox\Cms\Contracts\Consistency\WaitLevel;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Receipts\Receipt;
+use Cbox\Cms\Contracts\Receipts\StoredReceipt;
 use DateTimeImmutable;
 use DateTimeZone;
 
 /*
- * The receipt DTO and its parts (PRD 6.1, 8.4): which outcomes carry a changeset, projection
- * statuses, and the enums with their PRD names.
+ * The receipt DTOs and their parts (PRD 6.1, 8.4): which outcomes carry a changeset, the stored
+ * receipt of a changeset, projection statuses, and the enums with their PRD names.
  */
 
 function receiptChangeset(): ChangesetId
@@ -114,6 +115,35 @@ it('fails with InvalidReceipt when a projection is listed twice', function (): v
             ProjectionStatus::acknowledged(receiptProjection('edge'), new DateTimeImmutable('2026-01-01T00:00:00Z')),
         ]),
         'The projection "edge" is listed twice',
+    );
+});
+
+it('builds a stored receipt from the changeset, its retention class and its projections', function (): void {
+    $statuses = [ProjectionStatus::pending(receiptProjection('fragments'))];
+    $stored = new StoredReceipt(receiptChangeset(), RetentionClass::Evidence, $statuses);
+
+    expect($stored->changesetId)->toEqual(receiptChangeset())
+        ->and($stored->retentionClass)->toBe(RetentionClass::Evidence)
+        ->and($stored->projections)->toBe($statuses)
+        ->and(new StoredReceipt(receiptChangeset(), RetentionClass::Standard)->projections)->toBe([]);
+});
+
+it('sorts the projection statuses of a stored receipt by name', function (): void {
+    $search = ProjectionStatus::pending(receiptProjection('search'));
+    $edge = ProjectionStatus::pending(receiptProjection('edge'));
+    $acme = ProjectionStatus::pending(receiptProjection('acme.feed'));
+
+    expect(new StoredReceipt(receiptChangeset(), RetentionClass::Standard, [$search, $edge, $acme])->projections)
+        ->toBe([$acme, $edge, $search]);
+});
+
+it('fails with InvalidReceipt when a stored receipt lists a projection twice', function (): void {
+    expectInvalidReceipt(
+        static fn (): StoredReceipt => new StoredReceipt(receiptChangeset(), RetentionClass::Standard, [
+            ProjectionStatus::pending(receiptProjection('search')),
+            ProjectionStatus::pending(receiptProjection('search')),
+        ]),
+        'The projection "search" is listed twice',
     );
 });
 

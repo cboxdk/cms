@@ -6,11 +6,10 @@ namespace Cbox\Cms\Core\Tests\Postgres;
 
 use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
-use Cbox\Cms\Contracts\Consistency\WaitLevel;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Ids\Uuid7;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
-use Cbox\Cms\Contracts\Receipts\Receipt;
+use Cbox\Cms\Contracts\Receipts\StoredReceipt;
 use DateTimeImmutable;
 use Illuminate\Database\Connection;
 use Illuminate\Support\Facades\DB;
@@ -30,20 +29,15 @@ final class ReceiptTables
         return DB::connection('pgsql_owner');
     }
 
-    public static function receipt(string $instant, RetentionClass $retention = RetentionClass::Standard, int $sequence = 0): Receipt
+    public static function receipt(string $instant, RetentionClass $retention = RetentionClass::Standard, int $sequence = 0): StoredReceipt
     {
         $id = Uuid7::lowestAt(Uuid7::unixMillisecondsOf(new DateTimeImmutable($instant)) + $sequence);
 
-        return Receipt::committed(new ChangesetId($id), WaitLevel::Origin, $retention, [
+        return new StoredReceipt(new ChangesetId($id), $retention, [
             ProjectionStatus::pending(new ProjectionName('edge')),
             ProjectionStatus::pending(new ProjectionName('fragments')),
             ProjectionStatus::pending(new ProjectionName('search')),
         ]);
-    }
-
-    public static function changesetOf(Receipt $receipt): ChangesetId
-    {
-        return $receipt->changesetId ?? throw new LogicException('The fixture receipt has no changeset.');
     }
 
     /**

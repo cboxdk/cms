@@ -8,11 +8,9 @@ use Cbox\Cms\Contracts\Consistency\DuplicateReceipt;
 use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Consistency\ProjectionState;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
-use Cbox\Cms\Contracts\Consistency\UnstorableReceipt;
-use Cbox\Cms\Contracts\Consistency\WaitLevel;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
-use Cbox\Cms\Contracts\Receipts\Receipt;
+use Cbox\Cms\Contracts\Receipts\StoredReceipt;
 use Cbox\Cms\Contracts\Storage\PartitionMissing;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
@@ -28,17 +26,12 @@ use LogicException;
  * takes exactly its range out of the partitions, and PartitionMissing fails a transaction.
  */
 
-function fakeReceipt(FakeIdGenerator $ids): Receipt
+function fakeReceipt(FakeIdGenerator $ids): StoredReceipt
 {
-    return Receipt::committed(new ChangesetId($ids->next()), WaitLevel::Commit, RetentionClass::Standard, [
+    return new StoredReceipt(new ChangesetId($ids->next()), RetentionClass::Standard, [
         ProjectionStatus::pending(new ProjectionName('fragments')),
         ProjectionStatus::pending(new ProjectionName('search')),
     ]);
-}
-
-function fakeChangeset(Receipt $receipt): ChangesetId
-{
-    return $receipt->changesetId ?? throw new LogicException('The fixture receipt has no changeset.');
 }
 
 it('works without arguments, on a FakeClock of its own', function (): void {
@@ -47,7 +40,7 @@ it('works without arguments, on a FakeClock of its own', function (): void {
 
     $store->store($receipt);
 
-    expect($store->find(fakeChangeset($receipt)))->toEqual($receipt)
+    expect($store->find($receipt->changesetId))->toEqual($receipt)
         ->and($store->clock())->toBeInstanceOf(FakeClock::class);
 });
 
@@ -76,7 +69,7 @@ it('keeps both marks when two open transactions mark different projections', fun
     $clock = new FakeClock;
     $store = new FakeReceiptStore($clock);
     $receipt = fakeReceipt(new FakeIdGenerator(clock: $clock));
-    $changesetId = fakeChangeset($receipt);
+    $changesetId = $receipt->changesetId;
     $store->store($receipt);
     $first = $store->session();
     $second = $store->session();
@@ -114,8 +107,8 @@ it('fails the second commit of the same changeset and applies none of its writes
 
     expect(fn () => $second->commit())->toThrow(DuplicateReceipt::class)
         ->and($second->inTransaction())->toBeFalse()
-        ->and($store->find(fakeChangeset($other)))->toBeNull()
-        ->and($store->find(fakeChangeset($receipt)))->toEqual($receipt);
+        ->and($store->find($other->changesetId))->toBeNull()
+        ->and($store->find($receipt->changesetId))->toEqual($receipt);
 });
 
 it('checks a write when it is made, inside a transaction too, and keeps the transaction open', function (): void {
@@ -127,12 +120,11 @@ it('checks a write when it is made, inside a transaction too, and keeps the tran
     $session->store($receipt);
 
     expect(fn () => $session->store($receipt))->toThrow(DuplicateReceipt::class)
-        ->and(fn () => $session->store(Receipt::dryRun(WaitLevel::Commit, RetentionClass::Standard)))->toThrow(UnstorableReceipt::class)
         ->and($session->inTransaction())->toBeTrue();
 
     $session->commit();
 
-    expect($store->find(fakeChangeset($receipt)))->toEqual($receipt);
+    expect($store->find($receipt->changesetId))->toEqual($receipt);
 });
 
 it('reports false for a mark in a transaction that matches nothing and records no write', function (): void {
@@ -146,11 +138,11 @@ it('reports false for a mark in a transaction that matches nothing and records n
     $session->begin();
 
     expect($session->markProjection(new ChangesetId($ids->next()), ProjectionStatus::pending(new ProjectionName('fragments'))))->toBeFalse()
-        ->and($session->markProjection(fakeChangeset($receipt), ProjectionStatus::pending(new ProjectionName('edge'))))->toBeFalse();
+        ->and($session->markProjection($receipt->changesetId, ProjectionStatus::pending(new ProjectionName('edge'))))->toBeFalse();
 
     $session->commit();
 
-    expect($store->find(fakeChangeset($receipt)))->toEqual($receipt);
+    expect($store->find($receipt->changesetId))->toEqual($receipt);
 });
 
 it('refuses an uncovered range that ends before it starts', function (): void {
@@ -178,8 +170,8 @@ it('uncovers exactly the range, both ends inclusive, and names its table', funct
     $after = fakeReceipt($ids);
     $store->store($after);
 
-    expect($store->find(fakeChangeset($before)))->toEqual($before)
-        ->and($store->find(fakeChangeset($after)))->toEqual($after);
+    expect($store->find($before->changesetId))->toEqual($before)
+        ->and($store->find($after->changesetId))->toEqual($after);
 });
 
 it('refuses every call and a commit after PartitionMissing until the transaction rolls back', function (): void {
@@ -194,8 +186,8 @@ it('refuses every call and a commit after PartitionMissing until the transaction
 
     foreach ([
         fn () => $session->store($receipt),
-        fn (): ?\Cbox\Cms\Contracts\Receipts\Receipt => $session->find(fakeChangeset($receipt)),
-        fn (): bool => $session->markProjection(fakeChangeset($receipt), ProjectionStatus::pending(new ProjectionName('search'))),
+        fn (): ?StoredReceipt => $session->find($receipt->changesetId),
+        fn (): bool => $session->markProjection($receipt->changesetId, ProjectionStatus::pending(new ProjectionName('search'))),
         $session->commit(...),
     ] as $call) {
         expect($call)->toThrow(LogicException::class, 'Roll it back.');
@@ -205,5 +197,5 @@ it('refuses every call and a commit after PartitionMissing until the transaction
     $session->rollBack();
 
     expect($session->inTransaction())->toBeFalse()
-        ->and($session->find(fakeChangeset($receipt)))->toBeNull();
+        ->and($session->find($receipt->changesetId))->toBeNull();
 });

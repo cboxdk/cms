@@ -7,7 +7,7 @@ namespace Cbox\Cms\Testkit\ReceiptStore;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
-use Cbox\Cms\Contracts\Receipts\Receipt;
+use Cbox\Cms\Contracts\Receipts\StoredReceipt;
 use Cbox\Cms\Contracts\ReceiptStore;
 use Cbox\Cms\Contracts\Storage\PartitionMissing;
 use LogicException;
@@ -82,7 +82,7 @@ final class FakeReceiptSession implements ReceiptStore, ReceiptStoreSession
         return $this->writes !== null;
     }
 
-    public function store(Receipt $receipt): void
+    public function store(StoredReceipt $receipt): void
     {
         $this->refuseWhenFailed();
 
@@ -105,7 +105,7 @@ final class FakeReceiptSession implements ReceiptStore, ReceiptStoreSession
         $this->writes[] = FakeReceiptWrite::store($receipt);
     }
 
-    public function find(ChangesetId $changesetId): ?Receipt
+    public function find(ChangesetId $changesetId): ?StoredReceipt
     {
         $this->refuseWhenFailed();
 
@@ -141,7 +141,7 @@ final class FakeReceiptSession implements ReceiptStore, ReceiptStoreSession
     /**
      * The rows this session sees: the committed rows with its own uncommitted writes replayed.
      *
-     * @return array<string, Receipt>
+     * @return array<string, StoredReceipt>
      */
     private function rows(): array
     {

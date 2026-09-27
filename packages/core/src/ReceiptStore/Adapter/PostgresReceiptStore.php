@@ -9,11 +9,10 @@ use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\Consistency\DuplicateReceipt;
 use Cbox\Cms\Contracts\Consistency\ProjectionState;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
-use Cbox\Cms\Contracts\Consistency\UnstorableReceipt;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Ids\Uuid7;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
-use Cbox\Cms\Contracts\Receipts\Receipt;
+use Cbox\Cms\Contracts\Receipts\StoredReceipt;
 use Cbox\Cms\Contracts\ReceiptStore;
 use Cbox\Cms\Contracts\Storage\PartitionMissing;
 use Cbox\Cms\Core\Partitions\Adapter\MissingPartitionMapper;
@@ -34,7 +33,8 @@ use Illuminate\Database\QueryException;
  * outside Postgres.
  *
  * The rows live in `receipts`, one per changeset, and `receipt_projections`, one per changeset and
- * projection; see the migration for the partitions. markProjection() updates the one row of its
+ * projection; see the migration for the partitions. They hold the facts of the changeset and no
+ * call's outcome or wait level: store() runs in the command transaction, before any wait. markProjection() updates the one row of its
  * projection, so workers that mark different projections of a changeset never wait for each
  * other, and the row lock orders workers that mark the same one. The update only changes a
  * pending row, so the first acknowledgement stays.
@@ -67,14 +67,9 @@ final readonly class PostgresReceiptStore implements ReceiptStore
     /**
      * @throws PartitionMissing when no partition covers the changeset's date
      */
-    public function store(Receipt $receipt): void
+    public function store(StoredReceipt $receipt): void
     {
         $changesetId = $receipt->changesetId;
-
-        if (! $receipt->isCommitted() || ! $changesetId instanceof ChangesetId) {
-            throw UnstorableReceipt::notCommitted($receipt->outcome);
-        }
-
         $db = $this->db();
         $id = $changesetId->toString();
 
@@ -89,8 +84,6 @@ final readonly class PostgresReceiptStore implements ReceiptStore
             $inserted = $db->table(self::RECEIPTS)->insertOrIgnore([
                 'changeset_id' => $id,
                 'retention_class' => $receipt->retentionClass->value,
-                'outcome' => $receipt->outcome->value,
-                'wait_level' => $receipt->waitLevel->value,
             ]);
 
             if ($inserted === 0) {
@@ -114,13 +107,13 @@ final readonly class PostgresReceiptStore implements ReceiptStore
         }
     }
 
-    public function find(ChangesetId $changesetId): ?Receipt
+    public function find(ChangesetId $changesetId): ?StoredReceipt
     {
         $db = $this->db();
         $id = $changesetId->toString();
 
         $receipt = $db->table(self::RECEIPTS)
-            ->select(['changeset_id', 'retention_class', 'outcome', 'wait_level'])
+            ->select(['changeset_id', 'retention_class'])
             ->where('changeset_id', $id)
             ->where($this->live())
             ->first();

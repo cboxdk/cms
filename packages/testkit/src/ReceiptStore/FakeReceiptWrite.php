@@ -7,7 +7,7 @@ namespace Cbox\Cms\Testkit\ReceiptStore;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
-use Cbox\Cms\Contracts\Receipts\Receipt;
+use Cbox\Cms\Contracts\Receipts\StoredReceipt;
 use DateTimeImmutable;
 
 /**
@@ -18,13 +18,13 @@ use DateTimeImmutable;
 final readonly class FakeReceiptWrite
 {
     private function __construct(
-        private ?Receipt $receipt,
+        private ?StoredReceipt $receipt,
         private ?ChangesetId $changesetId,
         private ?ProjectionStatus $status,
         private ?DateTimeImmutable $at,
     ) {}
 
-    public static function store(Receipt $receipt): self
+    public static function store(StoredReceipt $receipt): self
     {
         return new self($receipt, null, null, null);
     }
@@ -38,12 +38,12 @@ final readonly class FakeReceiptWrite
      * The rows with this write applied. A store that meets a receipt committed meanwhile throws
      * DuplicateReceipt; a mark that no longer matches changes nothing.
      *
-     * @param  array<string, Receipt>  $rows
-     * @return array<string, Receipt>
+     * @param  array<string, StoredReceipt>  $rows
+     * @return array<string, StoredReceipt>
      */
     public function applyTo(array $rows): array
     {
-        if ($this->receipt instanceof Receipt) {
+        if ($this->receipt instanceof StoredReceipt) {
             return FakeReceiptRows::stored($rows, $this->receipt);
         }
 

@@ -12,12 +12,17 @@ use Cbox\Cms\Contracts\Consistency\WaitLevel;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 
 /**
- * The result of a write (PRD 6.1, 8.4, GUARDRAILS 2.1): the outcome, the changeset, the wait level
- * the caller asked for and the status of each affected projection.
+ * The result of one call of a write (PRD 6.1, 8.4, GUARDRAILS 2.1): the outcome, the changeset,
+ * the wait level the caller asked for and the status of each affected projection.
  *
  * Committed and CommittedWaitTimeout receipts carry the ChangesetId. Rejected and DryRun receipts
- * committed nothing, so they have neither a ChangesetId nor projection statuses. Only committed
- * receipts are stored; the others are returned and not persisted.
+ * committed nothing, so they have neither a ChangesetId nor projection statuses.
+ *
+ * A Receipt is never stored. The outcome and the wait level belong to one call: the receipt store
+ * is written in the command transaction (PRD 6.2 phase 7), before any wait level past commit can
+ * be reached, and a replay (PRD 6.1) asks for its own wait level. The store keeps a StoredReceipt,
+ * the facts of the changeset, and the command kernel builds the Receipt of each call from it, the
+ * wait level the call asked for and whether that level was reached within the deadline.
  *
  * The projections are sorted by name, so two receipts with the same statuses are equal whatever
  * order they were given in. A projection appears at most once.
@@ -52,22 +57,7 @@ final readonly class Receipt
             throw InvalidReceipt::unexpectedProjections($outcome);
         }
 
-        $seen = [];
-
-        foreach ($projections as $status) {
-            if (isset($seen[$status->projection->value])) {
-                throw InvalidReceipt::duplicateProjection($status->projection);
-            }
-
-            $seen[$status->projection->value] = true;
-        }
-
-        usort(
-            $projections,
-            static fn (ProjectionStatus $a, ProjectionStatus $b): int => strcmp($a->projection->value, $b->projection->value),
-        );
-
-        $this->projections = $projections;
+        $this->projections = ProjectionStatus::listOf($projections);
     }
 
     /**
