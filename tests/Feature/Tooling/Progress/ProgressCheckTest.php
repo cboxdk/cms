@@ -9,10 +9,14 @@ use Cbox\Cms\Tests\Support\Tooling\ComposerScripts;
 use Cbox\Cms\Tests\Support\Tooling\ScratchDirectory;
 use Cbox\Cms\Tests\Support\Tooling\ScratchRepository;
 use Cbox\Cms\Tooling\Progress\Boundary\GitEmptyCommits;
+use Cbox\Cms\Tooling\Progress\Boundary\GitReviewCommits;
 use Cbox\Cms\Tooling\Progress\Boundary\ProgressCheckOptions;
+use Cbox\Cms\Tooling\Progress\Domain\CheckPaths;
 use Cbox\Cms\Tooling\Progress\Domain\EmptyCommit;
 use Cbox\Cms\Tooling\Progress\Domain\ProgressAudit;
 use Cbox\Cms\Tooling\Progress\Domain\ProgressLedger;
+use Cbox\Cms\Tooling\Progress\Domain\ReviewCommit;
+use Cbox\Cms\Tooling\Progress\Domain\ReviewCommitAudit;
 use Cbox\Cms\Tooling\Progress\Domain\TaskId;
 use InvalidArgumentException;
 use Symfony\Component\Process\Process;
@@ -25,6 +29,11 @@ use UnexpectedValueException;
  * empty commits that said their PROGRESS.md entries were handed to the integration step, which
  * never wrote them. The script's parts are tested here on scratch text and a scratch repository,
  * the script on this checkout, and the merge queue's prompts on the workflow file.
+ *
+ * A review fix committed straight on main, such as `M0-review: ...`, never passes the merge queue
+ * and so never runs the script, and d4cabbb, 53b6b14 and 1246f21 among others changed test
+ * expectations without a GUARDRAILS 7.3 entry. ReviewCommitAudit holds every such commit in this
+ * checkout's history to the same entries, read with GitReviewCommits.
  */
 
 afterEach(function (): void {
@@ -241,4 +250,129 @@ it('has the merge queue run composer progress:check before every fast-forward of
     }
 
     expect($merges)->toBeGreaterThan(0);
+});
+
+it('tells a review commit by the first line of its message, and names its label and its hash', function (): void {
+    $commit = new ReviewCommit('d4cabbb0123456789abcdef0123456789abcdef0', 'M0-review: a lock timeout aborted maintenance', [], [], []);
+
+    expect(ReviewCommit::isReviewSubject('M0-review: a fix'))->toBeTrue()
+        ->and(ReviewCommit::isReviewSubject('M12-review: fix regression in the queue'))->toBeTrue()
+        ->and(ReviewCommit::isReviewSubject('M0-T43: marker gate'))->toBeFalse()
+        ->and(ReviewCommit::isReviewSubject('M0-review a fix'))->toBeFalse()
+        ->and(ReviewCommit::isReviewSubject('Revert "M0-review: a fix"'))->toBeFalse()
+        ->and($commit->label()->value)->toBe('M0-review')
+        ->and($commit->namedBy('M0-review d4cabbb: the tests'))->toBeTrue()
+        ->and($commit->namedBy('commit d4cabbb0123 changed'))->toBeTrue()
+        ->and($commit->namedBy('d4cabb is too short'))->toBeFalse()
+        ->and($commit->namedBy('d4cabbc is another commit'))->toBeFalse()
+        ->and($commit->namedBy('ad4cabbb is not it'))->toBeFalse();
+});
+
+it('counts the tests, the testkit, the tooling, the analysis configuration and the CI files as checks', function (string $path, bool $check): void {
+    expect(CheckPaths::isCheck($path))->toBe($check);
+})->with([
+    ['packages/core/tests/Postgres/PartitionManagerTest.php', true],
+    ['packages/generators/tests/Schema/Fakes/ColourFieldType.php', true],
+    ['tests/Support/Arch/Egress.php', true],
+    ['tests/Feature/Tooling/Progress/ProgressCheckTest.php', true],
+    ['packages/testkit/src/ReceiptStore/ReceiptStoreContract.php', true],
+    ['tools/src/Progress/Domain/ProgressAudit.php', true],
+    ['js/tooling/eslint.config.js', true],
+    ['.github/workflows/ci.yml', true],
+    ['phpunit.xml', true],
+    ['phpstan.neon', true],
+    ['rector.php', true],
+    ['pint.json', true],
+    ['bin/ci', true],
+    ['compose.ci.yaml', true],
+    ['packages/core/src/Partitions/Infrastructure/Run.php', false],
+    ['packages/contracts/resources/schemas/blueprint.v1.json', false],
+    ['PROGRESS.md', false],
+    ['compose.yaml', false],
+    ['tests', false],
+    ['packages/core/src/Tests.php', false],
+]);
+
+it('finds the entries of a section that a ledger added since an earlier one, an edited entry among them', function (): void {
+    $before = ProgressLedger::fromMarkdown("## Kontroller kørt\n\n- one\n- two\n- two\n");
+    $after = ProgressLedger::fromMarkdown("## Kontroller kørt\n\n- one\n- two\n- two\n- two\n- three,\n  continued\n\n## Til review af Sylvester\n\n- new\n");
+
+    expect($after->addedSince($before, ProgressLedger::CHECKS_RUN))->toBe(['two', 'three, continued'])
+        ->and($after->addedSince($before, ProgressLedger::REVIEW))->toBe(['new'])
+        ->and($before->addedSince($after, ProgressLedger::CHECKS_RUN))->toBe([]);
+});
+
+it('holds a review commit to its gate runs, and to a GUARDRAILS 7.3 entry when it changed or removed checks, or to later entries that name its hash', function (): void {
+    $hash = 'd4cabbb0123456789abcdef0123456789abcdef0';
+    $changed = ['packages/core/tests/Actions/MaintainPartitionsTest.php'];
+    $recorded = new ReviewCommit($hash, 'M0-review: a fix', $changed, ['M0-review: Ændrede testforventninger (GUARDRAILS 7.3): `MaintainPartitionsTest`.'], ['2026-09-27, M0-review (a fix): composer check exit 0.']);
+    $newChecksOnly = new ReviewCommit($hash, 'M0-review: a fix', [], [], ['2026-09-27, M0-review (a fix): composer check exit 0.']);
+    $bare = new ReviewCommit($hash, 'M0-review: a fix', $changed, ['M0-review: a question without the rule.'], ['2026-09-27, M0-T43: composer check exit 0.']);
+    $empty = ProgressLedger::fromMarkdown('');
+    $later = ProgressLedger::fromMarkdown(<<<'MD'
+        ## Til review af Sylvester
+
+        - M0-review d4cabbb: Ændrede testforventninger (GUARDRAILS 7.3): `MaintainPartitionsTest`.
+
+        ## Kontroller kørt
+
+        - 2026-09-28, M0-review d4cabbb: not recorded when it was committed.
+        MD);
+
+    expect(ReviewCommitAudit::problems($empty, [$recorded, $newChecksOnly]))->toBe([])
+        ->and(ReviewCommitAudit::problems($later, [$bare]))->toBe([])
+        ->and(ReviewCommitAudit::problems($empty, [$bare]))->toBe([
+            'The review commit d4cabbb "M0-review: a fix" added no entry for M0-review under "## Kontroller kørt", and no entry there names d4cabbb. Add one that names d4cabbb, with the gates that ran on it and their results.',
+            'The review commit d4cabbb "M0-review: a fix" changed or removed checks (packages/core/tests/Actions/MaintainPartitionsTest.php) but added no entry for M0-review under "## Til review af Sylvester" that says GUARDRAILS 7.3, and no such entry there names d4cabbb. Add one that names d4cabbb and each changed or removed test expectation, suite, tool configuration or CI file, and why.',
+        ]);
+});
+
+it('does not take a later entry that names the hash without GUARDRAILS 7.3, or in another section, for the review entry', function (): void {
+    $bare = new ReviewCommit(str_repeat('ab', 20), 'M0-review: a fix', ['tests/Arch/MarkersTest.php'], [], []);
+    $ledger = ProgressLedger::fromMarkdown("## Til review af Sylvester\n\n- M0-review abababa: a question.\n\n## Tolkninger\n\n- M0-review abababa: GUARDRAILS 7.3 in another section.\n\n## Kontroller kørt\n\n- M0-review abababa: composer check exit 0.\n");
+
+    expect(ReviewCommitAudit::problems($ledger, [$bare]))->toHaveCount(1)
+        ->and(ReviewCommitAudit::problems($ledger, [$bare])[0])->toContain('changed or removed checks (tests/Arch/MarkersTest.php)');
+});
+
+it('reads the review commits of a history, oldest first, with the checks they changed or removed and the entries they added', function (): void {
+    $progress = static fn (string $review, string $checks): string => "# Fremdrift\n\n## Til review af Sylvester\n\n{$review}\n## Kontroller kørt\n\n{$checks}";
+    $repository = ScratchRepository::make();
+    $repository->write('tests/FooTest.php', "<?php\n// one\n")
+        ->write('tests/OldTest.php', "<?php\n")
+        ->write('src/Foo.php', "<?php\n")
+        ->commit('M0-T1: initial');
+    $first = $repository->write('tests/FooTest.php', "<?php\n// two\n")
+        ->write('src/Foo.php', "<?php\n// changed\n")
+        ->write('PROGRESS.md', $progress("- M0-review: Ændret (GUARDRAILS 7.3): `FooTest`.\n", "- 2026-09-27, M0-review (foo): exit 0.\n"))
+        ->commit('M0-review: foo expects two');
+    $repository->write('src/Bar.php', "<?php\n")->commit('M0-T2: bar');
+    $repository->git('mv', 'tests/OldTest.php', 'tests/NewTest.php');
+    $second = $repository->write('tests/AddedTest.php', "<?php\n")
+        ->write('tests/FooTest.php', "<?php\n// two\n// three\n")
+        ->commit('M0-review: rename the old test');
+
+    expect(GitReviewCommits::in($repository->root, 'HEAD'))->toEqual([
+        new ReviewCommit($first, 'M0-review: foo expects two', ['tests/FooTest.php'], ['M0-review: Ændret (GUARDRAILS 7.3): `FooTest`.'], ['2026-09-27, M0-review (foo): exit 0.']),
+        new ReviewCommit($second, 'M0-review: rename the old test', ['tests/OldTest.php'], [], []),
+    ])
+        ->and(GitReviewCommits::in($repository->root, 'HEAD~2'))->toHaveCount(1)
+        ->and(GitReviewCommits::in($repository->root, 'HEAD~3'))->toBe([]);
+});
+
+it('refuses a revision git cannot read, and one that would be an option', function (string $revision, string $message): void {
+    $repository = ScratchRepository::make();
+    $repository->write('README.md', "# Scratch\n")->commit('initial');
+
+    expect(static fn (): array => GitReviewCommits::in($repository->root, $revision))->toThrow(UnexpectedValueException::class, $message);
+})->with([
+    ['no-such-branch', 'git log cannot read no-such-branch'],
+    ['--all', 'A revision such as HEAD, not [--all].'],
+    ['', 'A revision such as HEAD, not [].'],
+]);
+
+it('records the gate runs and the changed checks of every review commit made straight on main', function (): void {
+    $ledger = ProgressLedger::fromMarkdown((string) file_get_contents(Phpstan::root().'/PROGRESS.md'));
+
+    expect(ReviewCommitAudit::problems($ledger, GitReviewCommits::in(Phpstan::root(), 'HEAD')))->toBe([]);
 });

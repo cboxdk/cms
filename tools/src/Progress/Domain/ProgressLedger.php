@@ -67,4 +67,26 @@ final readonly class ProgressLedger
     {
         return $this->sections[$section] ?? [];
     }
+
+    /**
+     * The entries of a section here that the earlier ledger does not have, in order: a new entry,
+     * or an entry whose text changed. Each entry of the earlier ledger matches one entry here.
+     *
+     * @return list<string>
+     */
+    public function addedSince(self $earlier, string $section): array
+    {
+        $remaining = array_count_values($earlier->entries($section));
+        $added = [];
+
+        foreach ($this->entries($section) as $entry) {
+            if (($remaining[$entry] ?? 0) > 0) {
+                $remaining[$entry]--;
+            } else {
+                $added[] = $entry;
+            }
+        }
+
+        return $added;
+    }
 }
