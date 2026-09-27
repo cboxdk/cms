@@ -140,7 +140,7 @@ it('writes the three files, and reading them back gives the registry that was bu
     $directory = RegistryFixtures::scratch();
     $built = RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
-    expect(RegistryFixtures::files($directory))->toBe(['actions.php', 'commands.php', 'hooks.php'])
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php'])
         ->and(RegistryFixtures::cache($directory)->read())->toEqual($built);
 
     $actions = RegistryFixtures::load($directory.'/actions.php');
@@ -185,7 +185,7 @@ it('removes the subscriber, slot and schema files an earlier version wrote', fun
 
     $built = RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
-    expect(RegistryFixtures::files($directory))->toBe(['actions.php', 'commands.php', 'hooks.php'])
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php'])
         ->and(RegistryFixtures::cache($directory)->read())->toEqual($built);
 });
 
@@ -211,7 +211,7 @@ it('keeps no temporary files next to the cache', function (): void {
     RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
     RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
-    expect(RegistryFixtures::files($directory))->toBe(['actions.php', 'commands.php', 'hooks.php']);
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php']);
 });
 
 it('refuses two classes with the same command name and version, and writes nothing', function (): void {

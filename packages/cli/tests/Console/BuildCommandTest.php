@@ -57,7 +57,7 @@ it('writes the three registries to the application\'s bootstrap/cache/cms, and r
             'hooks: 0',
             sprintf('Registry written to %s.', $directory),
         ])
-        ->and(RegistryFixtures::files($directory))->toBe(['actions.php', 'commands.php', 'hooks.php']);
+        ->and(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php']);
 });
 
 it('adds what an addon provider\'s scan root declares', function (): void {

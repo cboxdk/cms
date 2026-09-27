@@ -13,6 +13,7 @@ use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Registry\Domain\RegistryCacheMissing;
 use Cbox\Cms\Core\Registry\Domain\RegistryCacheUnwritable;
 use Cbox\Cms\Core\Registry\Domain\RegistryName;
+use InvalidArgumentException;
 use Throwable;
 
 /**
@@ -28,10 +29,20 @@ use Throwable;
  * Files that stay mixed, as a build that stopped between two renames leaves them, are
  * MalformedRegistryCache until cms:build runs again.
  *
+ * Writes run one at a time. Two builds that both finish, such as a deploy's cms:build next to the
+ * one composer's post-autoload-dump runs, would otherwise interleave their renames and leave the
+ * files of two builds for good. A write holds an exclusive flock() on LOCK_FILE in the directory
+ * from before its first rename until it has removed the other files, and waits for it at most
+ * $lockWaitMilliseconds of real time (LOCK_WAIT_MILLISECONDS unless the constructor is told
+ * otherwise), polling with a growing sleep; a write that does not get it in time writes nothing
+ * and throws RegistryCacheUnwritable. The operating system releases the lock when a process exits,
+ * also when it stops partway. Reads take no lock. The lock file stays in the directory: removing it
+ * while another write has it open would let a third write lock a new file and run next to it.
+ *
  * The cache owns its directory. After the files are in place, every other file there is removed,
- * so a registry an earlier version wrote, or a file someone put there, cannot linger. Two things
- * stay: subdirectories, which the cache never writes, and the temporary file of a registry that a
- * concurrent write has not renamed yet, because removing it would make that write fail.
+ * so a registry an earlier version wrote, or a file someone put there, cannot linger. Three things
+ * stay: the lock file, subdirectories, which the cache never writes, and the temporary file of a
+ * registry that a write has not renamed yet.
  *
  * The cache writes only a local directory: write() refuses a directory that names a stream wrapper,
  * such as ftp://, before any file function sees it (GUARDRAILS 3).
@@ -45,10 +56,31 @@ final readonly class FileRegistryCache implements RegistryCache
     /** How long read() waits before it loads files from different builds again. */
     public const int READ_PAUSE_MICROSECONDS = 5_000;
 
+    /** The file in the directory that a write holds an exclusive flock() on. */
+    public const string LOCK_FILE = '.lock';
+
+    /** How long a write waits, in real time, for another write to release the lock. */
+    public const int LOCK_WAIT_MILLISECONDS = 30_000;
+
+    /** The first and the longest sleep between two tries to take the lock. */
+    private const int FIRST_BACKOFF_MICROSECONDS = 2_000;
+
+    private const int MAX_BACKOFF_MICROSECONDS = 50_000;
+
+    /**
+     * @param  int  $lockWaitMilliseconds  how long a write waits for the lock; 0 tries once
+     *
+     * @throws InvalidArgumentException when $lockWaitMilliseconds is negative
+     */
     public function __construct(
         private string $directory,
         private RegistryCacheCodec $codec,
-    ) {}
+        private int $lockWaitMilliseconds = self::LOCK_WAIT_MILLISECONDS,
+    ) {
+        if ($lockWaitMilliseconds < 0) {
+            throw new InvalidArgumentException(sprintf('The registry cache waits 0 ms or more for its lock, not %d ms.', $lockWaitMilliseconds));
+        }
+    }
 
     public function location(): string
     {
@@ -71,8 +103,15 @@ final readonly class FileRegistryCache implements RegistryCache
             }
         }
 
-        $this->replace($sources);
-        $this->removeOthers();
+        $lock = $this->lock();
+
+        try {
+            $this->replace($sources);
+            $this->removeOthers();
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
     }
 
     public function read(): CompiledRegistry
@@ -129,8 +168,67 @@ final readonly class FileRegistryCache implements RegistryCache
     }
 
     /**
-     * Removes every file in the directory that is not the file of a registry or the temporary file
-     * of one that another write is renaming into place.
+     * Opens LOCK_FILE, creating it when it is missing, and takes an exclusive flock() on it,
+     * waiting while another write holds it, at most $lockWaitMilliseconds.
+     *
+     * @return resource the open lock file; closing it releases the lock
+     *
+     * @throws RegistryCacheUnwritable
+     */
+    private function lock()
+    {
+        $path = $this->directory.'/'.self::LOCK_FILE;
+        $handle = null;
+        $failure = $this->attempt(static function () use ($path, &$handle): bool {
+            $opened = fopen($path, 'c');
+
+            if ($opened === false) {
+                return false;
+            }
+
+            $handle = $opened;
+
+            return true;
+        }, 'the lock file could not be opened');
+
+        if ($failure !== null || ! is_resource($handle)) {
+            throw RegistryCacheUnwritable::at($path, $failure ?? 'the lock file could not be opened');
+        }
+
+        $deadline = hrtime(true) + $this->lockWaitMilliseconds * 1_000_000;
+        $backoff = self::FIRST_BACKOFF_MICROSECONDS;
+
+        while (true) {
+            $wouldBlock = 0;
+            $taken = false;
+            $failure = $this->attempt(static function () use ($handle, &$wouldBlock, &$taken): bool {
+                $taken = flock($handle, LOCK_EX | LOCK_NB, $wouldBlock);
+
+                return $taken || $wouldBlock === 1;
+            }, 'the lock could not be taken');
+
+            if ($taken) {
+                return $handle;
+            }
+
+            $remaining = intdiv($deadline - hrtime(true), 1_000);
+
+            if ($failure !== null || $remaining <= 0) {
+                fclose($handle);
+
+                throw $failure !== null
+                    ? RegistryCacheUnwritable::at($path, $failure)
+                    : RegistryCacheUnwritable::locked($path, $this->lockWaitMilliseconds);
+            }
+
+            usleep(min($backoff, $remaining));
+            $backoff = min($backoff * 2, self::MAX_BACKOFF_MICROSECONDS);
+        }
+    }
+
+    /**
+     * Removes every file in the directory that is not the lock file, the file of a registry or the
+     * temporary file of one.
      *
      * @throws RegistryCacheUnwritable
      */
@@ -155,7 +253,7 @@ final readonly class FileRegistryCache implements RegistryCache
         }
 
         $names = array_map(static fn (RegistryName $name): string => preg_quote($name->fileName(), '/'), RegistryName::cases());
-        $keep = '/\A(?:'.implode('|', $names).')(?:\.[0-9a-f]{16}\.tmp)?\z/';
+        $keep = '/\A(?:(?:'.implode('|', $names).')(?:\.[0-9a-f]{16}\.tmp)?|'.preg_quote(self::LOCK_FILE, '/').')\z/';
 
         foreach ($entries as $entry) {
             $path = $directory.'/'.$entry;

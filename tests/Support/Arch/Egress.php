@@ -170,9 +170,9 @@ final class Egress
         AttributeScanner::class => ['FilesystemIterator', 'openfile', 'RecursiveDirectoryIterator'],
         // Makes, lists, writes, renames into place and removes files in bootstrap/cache/cms below
         // the application's bootstrap path, the only directory CoreServiceProvider gives it, under
-        // the fixed names of RegistryName; its constructor refuses a directory that names a
-        // stream wrapper.
-        FileRegistryCache::class => ['file_put_contents', 'mkdir', 'rename', 'scandir', 'unlink'],
+        // the fixed names of RegistryName, and opens its lock file, FileRegistryCache::LOCK_FILE,
+        // there; write() refuses a directory that names a stream wrapper before it does any of it.
+        FileRegistryCache::class => ['fopen', 'file_put_contents', 'mkdir', 'rename', 'scandir', 'unlink'],
         // Lists a schema root, whose base SchemaRoot requires to be an absolute path, which names
         // no stream wrapper.
         BlueprintFiles::class => ['FilesystemIterator', 'RecursiveDirectoryIterator'],

@@ -69,7 +69,7 @@ Hooks are deterministic and do no network IO; work that needs IO belongs in a su
 
 ## The compiled registries
 
-`cms:build` writes one PHP file per registry to `bootstrap/cache/cms/`: `actions.php`, `commands.php` and `hooks.php`. It removes any other file in that directory, which it owns. Each file returns an array with these keys:
+`cms:build` writes one PHP file per registry to `bootstrap/cache/cms/`: `actions.php`, `commands.php` and `hooks.php`. It removes any other file in that directory, which it owns, except its lock file `.lock`: two builds that run at the same time write the cache one after the other, so it always holds the files of one build. Each file returns an array with these keys:
 
 | Key | Value |
 |---|---|

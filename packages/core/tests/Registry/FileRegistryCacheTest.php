@@ -22,7 +22,7 @@ it('creates the directory and its parents when they do not exist', function (): 
 
     $cache->write(CompiledRegistry::empty());
 
-    expect(RegistryFixtures::files($directory.'/bootstrap/cache/cms'))->toBe(['actions.php', 'commands.php', 'hooks.php'])
+    expect(RegistryFixtures::files($directory.'/bootstrap/cache/cms'))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php'])
         ->and($cache->read())->toEqual(CompiledRegistry::empty())
         ->and($cache->location())->toBe($directory.'/bootstrap/cache/cms');
 });
@@ -41,7 +41,7 @@ it('owns its directory: every file it does not write is removed, whatever its na
 
     RegistryFixtures::cache($directory)->write(CompiledRegistry::empty());
 
-    expect(RegistryFixtures::files($directory))->toBe(['actions.php', 'commands.php', 'hooks.php']);
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php']);
 });
 
 it('leaves subdirectories and the temporary file of a concurrent write in place', function (): void {
@@ -52,7 +52,7 @@ it('leaves subdirectories and the temporary file of a concurrent write in place'
 
     RegistryFixtures::cache($directory)->write(CompiledRegistry::empty());
 
-    expect(RegistryFixtures::files($directory))->toBe(['actions.php', 'commands.php', 'hooks.php', 'hooks.php.0123456789abcdef.tmp', 'nested'])
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'hooks.php.0123456789abcdef.tmp', 'nested'])
         ->and(RegistryFixtures::files($directory.'/nested'))->toBe(['subscribers.php']);
 });
 
@@ -65,7 +65,7 @@ it('replaces the files before it removes the others, so a failed write keeps wha
     expect(fn () => RegistryFixtures::cache($directory)->write(CompiledRegistry::empty()))
         ->toThrow(RegistryCacheUnwritable::class, $directory.'/hooks.php');
 
-    expect(RegistryFixtures::files($directory))->toBe(['actions.php', 'commands.php', 'hooks.php', 'subscribers.php']);
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'subscribers.php']);
 });
 
 it('refuses to read a cache that was never built, and says how to build it', function (): void {
@@ -128,6 +128,8 @@ it('reports a directory it cannot create with the reason', function (): void {
 it('reports a file it cannot write, and leaves no temporary file', function (): void {
     $directory = RegistryFixtures::scratch();
     mkdir($directory);
+    // The lock file of an earlier write, so the write gets as far as its first file.
+    touch($directory.'/.lock');
     chmod($directory, 0o555);
 
     try {
@@ -139,7 +141,7 @@ it('reports a file it cannot write, and leaves no temporary file', function (): 
         chmod($directory, 0o755);
     }
 
-    expect(RegistryFixtures::files($directory))->toBe([]);
+    expect(RegistryFixtures::files($directory))->toBe(['.lock']);
 })->skip(fn (): bool => function_exists('posix_getuid') && posix_getuid() === 0, 'root may write to a read-only directory');
 
 it('reports a rename that fails, and leaves no temporary file', function (): void {
@@ -154,7 +156,7 @@ it('reports a rename that fails, and leaves no temporary file', function (): voi
         expect($unwritable->getMessage())->toContain($directory.'/hooks.php')->toContain('rename(');
     }
 
-    expect(RegistryFixtures::files($directory))->toBe(['actions.php', 'commands.php', 'hooks.php']);
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php']);
 });
 
 it('refuses to write to a directory that names a stream wrapper before it touches it, so it never writes to ftp:// (GUARDRAILS 3)', function (string $directory): void {

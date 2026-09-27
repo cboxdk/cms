@@ -8,9 +8,10 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
 use RuntimeException;
 
 /**
- * cms:build compiled the registry but could not write a cache file, or could not remove a file
- * the cache no longer writes. Files already written are complete, because each one is written to a
- * temporary file and renamed into place.
+ * cms:build compiled the registry but could not write a cache file, could not remove a file the
+ * cache no longer writes, or waited too long for another cms:build that was writing the cache.
+ * Files already written are complete, because each one is written to a temporary file and renamed
+ * into place.
  */
 #[Experimental]
 final class RegistryCacheUnwritable extends RuntimeException
@@ -24,6 +25,16 @@ final class RegistryCacheUnwritable extends RuntimeException
             self::CODE,
             $path,
             $reason,
+        ));
+    }
+
+    public static function locked(string $lock, int $waitedMilliseconds): self
+    {
+        return new self(sprintf(
+            '[%s] Could not write the registry cache: another cms:build held the lock %s for more than %d ms and is still writing the cache. Wait until it has finished, or stop it, then run php artisan cms:build again.',
+            self::CODE,
+            $lock,
+            $waitedMilliseconds,
         ));
     }
 
