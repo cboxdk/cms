@@ -41,15 +41,18 @@ use Illuminate\Database\QueryException;
  *
  * One receipt per changeset: the primary key is (changeset_id, retention_class), because a key on
  * a partitioned table must hold the LIST partition key, so it cannot refuse a second receipt of the
- * other class. store() therefore first takes a transaction-scoped advisory lock on the changeset
- * (ReceiptLock), then looks for a receipt of either class, then inserts with ON CONFLICT DO
- * NOTHING. A concurrent store of the same changeset waits for the lock until the first transaction
- * ends, and its lookup, a new statement under READ COMMITTED, the command transaction's level, sees
- * the committed receipt. Under SERIALIZABLE the second transaction fails to serialise instead.
- * Without a transaction the lock ends with its statement, so only a caller's transaction makes the
- * lookup and the insert one step. The lock is a blocking wait, as the key wait of the insert was
- * before it: the second store of a changeset is a caller's error, not a path that is expected to
- * wait.
+ * other class. store() therefore first takes an advisory lock on the changeset (ReceiptLock), then
+ * looks for a receipt of either class, then inserts with ON CONFLICT DO NOTHING. Inside the
+ * caller's transaction the lock is transaction-scoped: a concurrent store of the same changeset
+ * waits for it until the first transaction ends, and its lookup, a new statement under READ
+ * COMMITTED, the command transaction's level, sees the committed receipt. Under SERIALIZABLE the
+ * second transaction fails to serialise instead. Without a transaction a transaction-scoped lock
+ * would end with its own statement, before the lookup and the inserts, so store() takes the
+ * session-level lock on the same key and releases it after the inserts, when each of them has
+ * committed on its own; the next store's lookup then sees the receipt. The two forms share one
+ * key, so a store inside a transaction and one outside wait for each other too. The lock is a
+ * blocking wait, as the key wait of the insert was before it: the second store of a changeset is a
+ * caller's error, not a path that is expected to wait.
  *
  * Expiry is logical, as the contract says: find() and markProjection() only match a Standard
  * receipt whose changeset id is at or after the lowest id that is still live at the Clock's time.
@@ -73,6 +76,12 @@ final readonly class PostgresReceiptStore implements ReceiptStore
     /** The transaction-scoped lock on a changeset's receipt, keyed by ReceiptLock. */
     public const string LOCK_CHANGESET = 'select pg_advisory_xact_lock(?)';
 
+    /** The session-level lock on a changeset's receipt, for a store outside a transaction. */
+    public const string LOCK_CHANGESET_SESSION = 'select pg_advisory_lock(?)';
+
+    /** Releases the session-level lock once the store outside a transaction has committed. */
+    public const string UNLOCK_CHANGESET_SESSION = 'select pg_advisory_unlock(?)';
+
     private const int MILLISECONDS_PER_DAY = 86_400_000;
 
     /**
@@ -90,15 +99,39 @@ final readonly class PostgresReceiptStore implements ReceiptStore
      */
     public function store(StoredReceipt $receipt): void
     {
-        $changesetId = $receipt->changesetId;
         $db = $this->db();
+        $lockKey = ReceiptLock::of($receipt->changesetId)->key;
+
+        // The primary key covers one retention class, so only this lock keeps one receipt per
+        // changeset across the classes: a second store of the changeset waits here until the first
+        // has committed, and its lookup, a new statement, sees that receipt. Inside the caller's
+        // transaction the lock lasts until the transaction ends. Without one each statement commits
+        // on its own, so the lock must outlast the inserts: a session-level lock, released below.
+        if ($db->transactionLevel() > 0) {
+            $this->insert($db, $receipt, self::LOCK_CHANGESET, $lockKey);
+
+            return;
+        }
+
+        try {
+            $this->insert($db, $receipt, self::LOCK_CHANGESET_SESSION, $lockKey);
+        } finally {
+            $db->select(self::UNLOCK_CHANGESET_SESSION, [$lockKey], false);
+        }
+    }
+
+    /**
+     * Takes the lock with $lock, then looks for a receipt of the changeset and inserts it.
+     *
+     * @throws PartitionMissing when no partition covers the changeset's date
+     */
+    private function insert(ConnectionInterface $db, StoredReceipt $receipt, string $lock, int $lockKey): void
+    {
+        $changesetId = $receipt->changesetId;
         $id = $changesetId->toString();
 
         try {
-            // The primary key covers one retention class, so only this lock keeps one receipt per
-            // changeset across the classes: a second store of the changeset waits here until the
-            // first transaction ends, and the lookup below, a new statement, sees its receipt.
-            $db->select(self::LOCK_CHANGESET, [ReceiptLock::of($changesetId)->key], false);
+            $db->select($lock, [$lockKey], false);
 
             // A receipt of either class for the changeset, expired or not, holds the changeset.
             if ($db->table(self::RECEIPTS)->useWritePdo()->where('changeset_id', $id)->exists()) {

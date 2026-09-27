@@ -25,6 +25,7 @@ use Cbox\Cms\Testkit\Postgres\ProcessContext;
 use Cbox\Cms\Testkit\Valkey\ValkeyRun;
 use DateInterval;
 use DateTimeImmutable;
+use Illuminate\Database\Connection;
 use Illuminate\Database\ConnectionResolver;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Database\Events\QueryExecuted;
@@ -77,11 +78,11 @@ function waitForReceiptLockWaiter(): void
 }
 
 /**
- * Waits until the child either waits for a lock or has committed, for at most five seconds. A test
- * of a race uses it where the store under test must wait: the child that did not wait has
- * committed, and the test's assertions show what it did instead of a timeout.
+ * Waits until $waiters backends of the app role wait for a lock or the child has committed, for at
+ * most five seconds. A test of a race uses it where the store under test must wait: the child that
+ * did not wait has committed, and the test's assertions show what it did instead of a timeout.
  */
-function waitForReceiptLockWaiterOrCommit(ChildProcess $child): void
+function waitForReceiptLockWaiterOrCommit(ChildProcess $child, int $waiters = 1): void
 {
     $deadline = microtime(true) + 5;
 
@@ -90,7 +91,7 @@ function waitForReceiptLockWaiterOrCommit(ChildProcess $child): void
             "select count(*) from pg_stat_activity where datname = current_database() and usename = 'cms_app' and wait_event_type = 'Lock'",
         );
 
-        if ($waiting === 1 || in_array('committed', $child->signals(), true)) {
+        if ($waiting === $waiters || in_array('committed', $child->signals(), true)) {
             return;
         }
 
@@ -101,16 +102,29 @@ function waitForReceiptLockWaiterOrCommit(ChildProcess $child): void
 }
 
 /**
+ * The advisory locks the backend of $connection holds in this checkout's database.
+ */
+function heldAdvisoryLocks(Connection $connection): int
+{
+    $held = $connection->scalar(
+        "select count(*) from pg_locks where locktype = 'advisory' and granted and pid = pg_backend_pid() and database = (select oid from pg_database where datname = current_database())",
+    );
+
+    return is_int($held) ? $held : -1;
+}
+
+/**
  * Starts a child process that runs $work against its own PostgresReceiptStore, as the app role,
- * inside a transaction it commits, with a FakeClock at $at. The child signals `begun` first.
+ * with a FakeClock at $at: inside a transaction it commits, or, when $transaction is false, without
+ * one, so every statement commits on its own. The child signals `begun` first and `committed` last.
  *
  * @param  string  $work  'mark' acknowledges the projection edge at $at; 'store' stores the fixture receipt
  *                        of 2026-01-01T00:00:00Z in the retention class $retention
  * @param  string  $retention  the value of a RetentionClass, for 'store'
  */
-function receiptChild(string $work, string $id, string $at, string $retention = 'standard'): ChildProcess
+function receiptChild(string $work, string $id, string $at, string $retention = 'standard', bool $transaction = true): ChildProcess
 {
-    $child = app(ChildProcesses::class)->start(static function (ProcessContext $context) use ($work, $id, $at, $retention): void {
+    $child = app(ChildProcesses::class)->start(static function (ProcessContext $context) use ($work, $id, $at, $retention, $transaction): void {
         $connection = $context->connection();
         $resolver = new ConnectionResolver(['child' => $connection]);
         $resolver->setDefaultConnection('child');
@@ -118,7 +132,10 @@ function receiptChild(string $work, string $id, string $at, string $retention = 
         $store = new PostgresReceiptStore($resolver, $clock);
         $changesetId = ChangesetId::fromString($id);
 
-        $connection->beginTransaction();
+        if ($transaction) {
+            $connection->beginTransaction();
+        }
+
         $context->signal('begun');
 
         if ($work === 'mark') {
@@ -135,7 +152,11 @@ function receiptChild(string $work, string $id, string $at, string $retention = 
 
         // The transaction is still usable: a duplicate or a lost race did not abort it.
         $connection->select('select 1');
-        $connection->commit();
+
+        if ($transaction) {
+            $connection->commit();
+        }
+
         $context->signal('committed');
     });
 
@@ -343,6 +364,79 @@ it('gives one receipt and one DuplicateReceipt for two concurrent stores of one 
     'standard first, evidence second' => ['standard', 'evidence'],
     'evidence first, standard second' => ['evidence', 'standard'],
 ]);
+
+it('gives one receipt and one DuplicateReceipt for two stores of one changeset in different retention classes without a transaction', function (): void {
+    app(PartitionFixtures::class)->cover(new DateTimeImmutable('2026-01-01T00:00:00Z'), new DateTimeImmutable('2026-01-31T23:59:59Z'));
+    $clock = new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z'));
+    $harness = PostgresReceiptSessions::at($clock);
+    $standard = ReceiptTables::receipt('2026-01-01T00:00:00Z');
+    $changesetId = $standard->changesetId;
+
+    // C holds the standard leaf in SHARE mode: reads pass, inserts into it wait.
+    [$holder] = app(IndependentConnections::class)->open(1, 'pgsql_owner');
+    $holder->beginTransaction();
+    $holder->statement('lock table receipts_standard_p20260101 in share mode');
+
+    // A, outside a transaction, takes the changeset's lock, finds no receipt and waits in its
+    // insert into the standard leaf.
+    $a = receiptChild('store', $changesetId->toString(), '2026-01-01T00:00:01Z', 'standard', false);
+    waitForReceiptLockWaiter();
+
+    // B, outside a transaction, stores the evidence receipt. A transaction-scoped lock would have
+    // ended with A's lock statement, so B's lookup would miss A's pending insert and B's insert,
+    // into the evidence leaf that C does not hold, would commit a second receipt. B must wait
+    // for A instead.
+    $b = receiptChild('store', $changesetId->toString(), '2026-01-01T00:00:01Z', 'evidence', false);
+    waitForReceiptLockWaiterOrCommit($b, 2);
+
+    expect($b->signals())->toBe(['begun']);
+
+    $holder->commit();
+    $a->waitForSignal('committed');
+    $b->waitForSignal('committed');
+
+    expect($a->signals())->toBe(['begun', 'stored', 'committed'])
+        ->and($b->signals())->toBe(['begun', 'duplicate', 'committed'])
+        ->and(ReceiptTables::rows(PostgresReceiptStore::RECEIPTS, $changesetId))->toBe(1)
+        ->and(ReceiptTables::rows(PostgresReceiptStore::PROJECTIONS, $changesetId))->toBe(3)
+        ->and($harness->session()->receipts()->find($changesetId))->toEqual($standard);
+});
+
+it('holds the session lock on the changeset only while a store without a transaction runs, also when it throws', function (): void {
+    $clock = new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z'));
+    $session = PostgresReceiptSessions::at($clock)->session();
+    $receipt = ReceiptTables::receipt('2026-01-01T00:00:00Z');
+
+    /** @var list<string> $statements */
+    $statements = [];
+    $session->connection->listen(static function (QueryExecuted $query) use (&$statements): void {
+        $statements[] = $query->sql;
+    });
+
+    $session->receipts()->store($receipt);
+    $functions = array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, 'pg_')));
+
+    expect($functions)->toBe([PostgresReceiptStore::LOCK_CHANGESET_SESSION, PostgresReceiptStore::UNLOCK_CHANGESET_SESSION])
+        ->and(heldAdvisoryLocks($session->connection))->toBe(0)
+        ->and(PostgresReceiptStore::LOCK_CHANGESET_SESSION)->toBe('select pg_advisory_lock(?)')
+        ->and(PostgresReceiptStore::UNLOCK_CHANGESET_SESSION)->toBe('select pg_advisory_unlock(?)');
+
+    expect(fn () => $session->receipts()->store($receipt))->toThrow(DuplicateReceipt::class)
+        ->and(heldAdvisoryLocks($session->connection))->toBe(0);
+
+    expect(fn () => $session->receipts()->store(ReceiptTables::receipt('2040-06-01T00:00:00Z')))->toThrow(PartitionMissing::class)
+        ->and(heldAdvisoryLocks($session->connection))->toBe(0);
+
+    // Inside a transaction the lock is the transaction's, held until the transaction ends.
+    $session->begin();
+    $session->receipts()->store(ReceiptTables::receipt('2026-01-01T00:00:00Z', sequence: 1));
+
+    expect(heldAdvisoryLocks($session->connection))->toBe(1);
+
+    $session->commit();
+
+    expect(heldAdvisoryLocks($session->connection))->toBe(0);
+});
 
 it('reports a duplicate inside the caller\'s transaction and leaves the transaction usable', function (): void {
     $clock = new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z'));
