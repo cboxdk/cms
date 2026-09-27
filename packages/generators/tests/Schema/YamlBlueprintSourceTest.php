@@ -202,6 +202,8 @@ function invalidContractFixtures(): array
         'a decimal without scale' => ['decimal-without-scale.yaml', '/fields/0'],
         'a classification on a field inside a group' => ['classification-in-group.yaml', '/fields/0/fields/0'],
         'the field type relation' => ['field-type-relation.yaml', '/fields/0/type'],
+        'an addon field type in the reserved namespace app' => ['field-type-app-namespace.yaml', '/fields/0/type'],
+        'an addon field type in the reserved namespace ext' => ['field-type-ext-namespace.yaml', '/fields/0/type'],
         'kind: fieldset' => ['kind-fieldset.yaml', '/kind'],
         'localization: variants' => ['localization-variants.yaml', '/capabilities/localization'],
         'an extension without fields' => ['extension-without-fields.yaml', '/'],
@@ -307,7 +309,7 @@ it('reads the valid extension of T40 into the model', function (): void {
 it('reads the addon field type of T40 through the field type that another contributor registers, as the core registers its own', function (): void {
     $root = blueprintRoot(['product.yaml' => contractFixture('valid/addon-field-type.yaml')], 'acme', 'vendor/acme/shop/schema');
 
-    $product = yamlBlueprints(null, new FakeFieldTypeContributor(new ColourFieldType))->read([$root])->types[0];
+    $product = yamlBlueprints(null, FakeFieldTypeContributor::acme(new ColourFieldType))->read([$root])->types[0];
     $colour = $product->fields[1];
 
     expect($product->owner->value)->toBe('acme')
@@ -319,7 +321,7 @@ it('reads the addon field type of T40 through the field type that another contri
 
 it('reads a model it writes back into the same model', function (): void {
     $root = blueprintRoot(['article.yaml' => contractFixture('valid/article.yaml'), 'product.yaml' => contractFixture('valid/addon-field-type.yaml'), 'extension.yaml' => contractFixture('valid/extension.yaml')]);
-    $blueprints = yamlBlueprints(null, new FakeFieldTypeContributor(new ColourFieldType));
+    $blueprints = yamlBlueprints(null, FakeFieldTypeContributor::acme(new ColourFieldType));
     $read = $blueprints->read([$root, extendedProductRoot()]);
     $again = ['app' => blueprintRoot(), 'acme' => blueprintRoot([], 'acme', 'vendor/acme/shop/schema')];
 

@@ -17,6 +17,8 @@ use Cbox\Cms\Generators\Schema\Domain\FieldType;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypeRegistry;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypes\CoreFieldTypes;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypes\TextFieldType;
+use Cbox\Cms\Generators\Schema\Domain\Handle;
+use Cbox\Cms\Generators\Schema\Domain\InvalidFieldTypeName;
 use Cbox\Cms\Generators\Schema\Domain\Owner;
 use Cbox\Cms\Generators\Tests\Schema\Fakes\ColourFieldType;
 use Cbox\Cms\Generators\Tests\Schema\Fakes\FakeFieldTypeContributor;
@@ -115,16 +117,16 @@ it('registers the core field types through CoreFieldTypes, sorted by name', func
 it('reads no core field type that the registry lacks, because the core types go through the registry too', function (): void {
     $root = registryRoot(['article.yaml' => registryType(['title' => 'text', 'count' => 'integer'])]);
 
-    $failed = registryFailure(new FieldTypeRegistry(new FakeFieldTypeContributor(new TextFieldType)), $root);
+    $failed = registryFailure(new FieldTypeRegistry(FakeFieldTypeContributor::acme(new ColourFieldType)), $root);
 
-    expect($failed->codes())->toBe([GenerateErrorCode::SchemaUnsupportedVersion])
-        ->and($failed->problems[0]->message)->toStartWith('schema/article.yaml, /fields/1/type: the value "integer" is not one this cboxdk/cms-generators knows')
+    expect($failed->codes())->toBe([GenerateErrorCode::SchemaUnsupportedVersion, GenerateErrorCode::SchemaUnsupportedVersion])
+        ->and($failed->problems[1]->message)->toStartWith('schema/article.yaml, /fields/1/type: the value "integer" is not one this cboxdk/cms-generators knows')
         ->and(registryFailure(new FieldTypeRegistry, $root)->problems)->toHaveCount(2)
         ->and(registrySource(new FieldTypeRegistry(new CoreFieldTypes))->read([$root])->types[0]->fields[0]->options)->toEqual(new TextOptions(null, TextOptions::DEFAULT_MAX_LENGTH, TextOptions::DEFAULT_FORMAT));
 });
 
 it('reads a field type that another contributor registers as it reads the core\'s, options and unknown keys included', function (): void {
-    $registry = new FieldTypeRegistry(new CoreFieldTypes, new FakeFieldTypeContributor(new ColourFieldType));
+    $registry = new FieldTypeRegistry(new CoreFieldTypes, FakeFieldTypeContributor::acme(new ColourFieldType));
     $root = registryRoot(['article.yaml' => registryType(['title' => 'text', 'colour' => 'acme:colour'])."    options:\n      palette: shop\n"]);
 
     $colour = registrySource($registry)->read([$root])->types[0]->fields[1];
@@ -148,12 +150,55 @@ it('refuses a <namespace>:<handle> that no contributor registers with generate_u
 });
 
 it('refuses two field types with the same name, whichever contributors register them', function (): void {
-    $other = new FakeFieldTypeContributor(new TextFieldType);
+    $other = FakeFieldTypeContributor::acme(new ColourFieldType);
 
-    expect(static fn (): FieldTypeRegistry => new FieldTypeRegistry(new CoreFieldTypes, $other))
-        ->toThrow(DuplicateFieldType::class, sprintf('The field type "text" is registered by both %s and %s.', CoreFieldTypes::class, FakeFieldTypeContributor::class))
-        ->and(static fn (): FieldTypeRegistry => new FieldTypeRegistry(new FakeFieldTypeContributor(new ColourFieldType, new ColourFieldType)))
+    expect(static fn (): FieldTypeRegistry => new FieldTypeRegistry(new CoreFieldTypes, FakeFieldTypeContributor::acme(new ColourFieldType), $other))
+        ->toThrow(DuplicateFieldType::class, sprintf('The field type "acme:colour" is registered by both %s and %s.', FakeFieldTypeContributor::class, FakeFieldTypeContributor::class))
+        ->and(static fn (): FieldTypeRegistry => new FieldTypeRegistry(FakeFieldTypeContributor::acme(new ColourFieldType, new ColourFieldType)))
         ->toThrow(DuplicateFieldType::class, 'The field type "acme:colour" is registered by both');
+});
+
+it('registers a contributor\'s field types only as <namespace>:<handle> in its own namespace (PRD 13.1)', function (string $name): void {
+    expect(static fn (): FieldTypeRegistry => new FieldTypeRegistry(new CoreFieldTypes, FakeFieldTypeContributor::acme(new ColourFieldType($name))))
+        ->toThrow(InvalidFieldTypeName::class, sprintf('The field type "%s" is registered by %s, whose namespace is "acme".', $name, FakeFieldTypeContributor::class));
+})->with([
+    'a bare name that a later core field type could take' => ['colour'],
+    'the name of a core field type' => ['text'],
+    'another addon\'s namespace' => ['beta:colour'],
+    'the reserved namespace ext' => ['ext:colour'],
+    'the reserved namespace app' => ['app:colour'],
+    'a namespace that starts with the own' => ['acmex:colour'],
+    'no handle after the namespace' => ['acme:'],
+    'a handle that is not snake_case' => ['acme:Colour'],
+    'a double underscore in the handle' => ['acme:dark__red'],
+    'a second colon' => ['acme:colour:dark'],
+]);
+
+it('refuses a contributor in the reserved namespace app, which is the application\'s and never an addon\'s (PRD 11.12, 13.1)', function (): void {
+    expect(static fn (): FieldTypeRegistry => new FieldTypeRegistry(new CoreFieldTypes, new FakeFieldTypeContributor(Owner::app(), new ColourFieldType('app:colour'))))
+        ->toThrow(InvalidFieldTypeName::class, sprintf('%s registers field types in the namespace "app", which is reserved for the application', FakeFieldTypeContributor::class))
+        ->and(static fn (): Owner => new Owner('ext'))->toThrow(GenerationFailed::class, 'and not "ext"');
+});
+
+it('refuses a contributor without a namespace, because only CoreFieldTypes registers bare names', function (): void {
+    expect(static fn (): FieldTypeRegistry => new FieldTypeRegistry(new FakeFieldTypeContributor(null, new ColourFieldType('colour'))))
+        ->toThrow(InvalidFieldTypeName::class, sprintf('%s registers field types without a namespace. Only the core\'s %s does;', FakeFieldTypeContributor::class, CoreFieldTypes::class))
+        ->and(static fn (): FieldTypeRegistry => new FieldTypeRegistry(new FakeFieldTypeContributor(null)))
+        ->toThrow(InvalidFieldTypeName::class, 'registers field types without a namespace');
+});
+
+it('registers the core field types without a namespace, each a bare handle', function (): void {
+    expect(new CoreFieldTypes()->owner())->toBeNull();
+
+    foreach (new CoreFieldTypes()->fieldTypes() as $type) {
+        expect($type->name())->toMatch(Handle::PATTERN);
+    }
+});
+
+it('registers field types of several namespaces beside the core\'s', function (): void {
+    $registry = new FieldTypeRegistry(new CoreFieldTypes, FakeFieldTypeContributor::acme(new ColourFieldType, new ColourFieldType('acme:dark_colour')), new FakeFieldTypeContributor(new Owner('beta2'), new ColourFieldType('beta2:colour')));
+
+    expect($registry->names())->toBe(['acme:colour', 'acme:dark_colour', 'beta2:colour', 'boolean', 'date', 'datetime', 'decimal', 'group', 'integer', 'long_text', 'rich_text', 'select', 'text']);
 });
 
 it('gives each core field type the option keys of its options in the installed blueprint schema', function (): void {

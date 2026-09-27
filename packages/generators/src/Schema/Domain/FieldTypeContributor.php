@@ -14,6 +14,14 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 interface FieldTypeContributor
 {
     /**
+     * The module or addon whose name is the namespace of the contributed field types, each named
+     * `<namespace>:<handle>` (PRD 13.1), or null for the core: only CoreFieldTypes registers field
+     * types without a namespace. `app` and `ext` are reserved and never a contributor's namespace
+     * (PRD 11.12).
+     */
+    public function owner(): ?Owner;
+
+    /**
      * @return list<FieldType>
      */
     public function fieldTypes(): array;

@@ -17,10 +17,16 @@ final readonly class ColourFieldType implements FieldType
 {
     public const string NAME = 'acme:colour';
 
+    /**
+     * @param  string  $name  the name it is registered under; a test of the registry's naming rules
+     *                        gives another name than `acme:colour`
+     */
+    public function __construct(private string $name = self::NAME) {}
+
     #[Override]
     public function name(): string
     {
-        return self::NAME;
+        return $this->name;
     }
 
     #[Override]

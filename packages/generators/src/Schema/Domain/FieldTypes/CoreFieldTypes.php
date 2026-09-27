@@ -6,17 +6,25 @@ namespace Cbox\Cms\Generators\Schema\Domain\FieldTypes;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypeContributor;
+use Cbox\Cms\Generators\Schema\Domain\Owner;
 use Override;
 
 /**
  * The core's own contribution to the FieldTypeRegistry: the ten field types of the blueprint schema
  * v1 (blueprint decision 1). The core registers them through the same interface as any other
  * contributor (GUARDRAILS 2.4), and the generator coverage test holds them to the core field types
- * that the installed blueprint.v1.json lists.
+ * that the installed blueprint.v1.json lists. It is the one contributor without a namespace, so its
+ * names are bare handles such as `text`, and no module or addon can register one (PRD 13.1).
  */
 #[Internal]
 final readonly class CoreFieldTypes implements FieldTypeContributor
 {
+    #[Override]
+    public function owner(): ?Owner
+    {
+        return null;
+    }
+
     #[Override]
     public function fieldTypes(): array
     {

@@ -1,0 +1,16 @@
+blueprint: 1
+kind: type
+type_id: 0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b
+handle: product
+label: Product
+version: 1
+capabilities:
+  history: full
+  stages: none
+  localization: none
+fields:
+  - handle: colour
+    label: Colour
+    description: The colour of the product.
+    type: ext:colour
+    classification: public

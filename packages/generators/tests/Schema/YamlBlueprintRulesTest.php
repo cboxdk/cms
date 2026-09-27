@@ -492,7 +492,7 @@ it('rejects a field type that no contributor registers with generate_unknown_fie
 });
 
 it('reads a field type that another contributor registers, and only that one', function (): void {
-    app()->instance(FieldTypeRegistry::class, new FieldTypeRegistry(new CoreFieldTypes, new FakeFieldTypeContributor(new ColourFieldType)));
+    app()->instance(FieldTypeRegistry::class, new FieldTypeRegistry(new CoreFieldTypes, FakeFieldTypeContributor::acme(new ColourFieldType)));
     $app = rulesRoot(SchemaFixtures::scratch(), [
         'product.yaml' => rulesType(RULES_PRODUCT_ID, 'product', rulesField('name', 'text'), rulesField('colour', 'acme:colour', 'options: { palette: shop }')),
     ]);

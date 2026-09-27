@@ -164,6 +164,8 @@ function blueprintInvalidCases(): array
         'a decimal without scale' => ['decimal-without-scale.yaml', '/fields/0', '(scale)'],
         'a classification on a field inside a group' => ['classification-in-group.yaml', '/fields/0/fields/0', 'must not match schema'],
         'the field type relation' => ['field-type-relation.yaml', '/fields/0/type', 'enum'],
+        'an addon field type in the reserved namespace app' => ['field-type-app-namespace.yaml', '/fields/0/type', 'must not match schema'],
+        'an addon field type in the reserved namespace ext' => ['field-type-ext-namespace.yaml', '/fields/0/type', 'must not match schema'],
         'kind: fieldset' => ['kind-fieldset.yaml', '/kind', 'enum'],
         'localization: variants' => ['localization-variants.yaml', '/capabilities/localization', 'enum'],
         'an extension without fields' => ['extension-without-fields.yaml', '/', '(fields)'],
