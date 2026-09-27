@@ -22,6 +22,14 @@ final readonly class TaskId
         }
     }
 
+    /**
+     * The block the task belongs to, such as M0 for M0-T43 and M0-review.
+     */
+    public function block(): string
+    {
+        return strstr($this->value, '-', true) ?: $this->value;
+    }
+
     public function namedIn(string $text): bool
     {
         return preg_match('/(?<![A-Za-z0-9-])'.preg_quote($this->value, '/').'(?![A-Za-z0-9])/', $text) === 1;

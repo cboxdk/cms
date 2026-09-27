@@ -7,8 +7,10 @@ namespace Cbox\Cms\Tooling\Progress\Domain;
 /**
  * A commit made straight on main for a review finding, such as `M0-review: ...`, outside the merge
  * queue and so outside `composer progress:check`: its full hash, the first line of its message,
- * the check files it changed or removed (CheckPaths) and the entries it added to PROGRESS.md under
- * "Til review af Sylvester" and "Kontroller kørt".
+ * the check files it changed or removed (CheckPaths), the records of changed checks it added and
+ * the entries it added to PROGRESS.md under "Kontroller kørt". The records are the entries it
+ * added to CHECKS-LOG.md under its block's heading; a commit whose tree has no CHECKS-LOG.md,
+ * made before the log existed, recorded them under "Til review af Sylvester" in PROGRESS.md.
  */
 final readonly class ReviewCommit
 {
@@ -17,14 +19,14 @@ final readonly class ReviewCommit
 
     /**
      * @param  list<string>  $changedChecks  the check files the commit changed or removed, by path
-     * @param  list<string>  $addedReview  the entries the commit added under "Til review af Sylvester"
+     * @param  list<string>  $addedRecords  the records of changed checks the commit added
      * @param  list<string>  $addedChecksRun  the entries the commit added under "Kontroller kørt"
      */
     public function __construct(
         public string $commit,
         public string $subject,
         public array $changedChecks,
-        public array $addedReview,
+        public array $addedRecords,
         public array $addedChecksRun,
     ) {}
 
@@ -41,7 +43,15 @@ final readonly class ReviewCommit
      */
     public function label(): TaskId
     {
-        preg_match(self::SUBJECT, $this->subject, $match);
+        return self::labelOf($this->subject);
+    }
+
+    /**
+     * The review label the first line of a review commit's message names, such as M0-review.
+     */
+    public static function labelOf(string $subject): TaskId
+    {
+        preg_match(self::SUBJECT, $subject, $match);
 
         return new TaskId(($match[1] ?? '').'-review');
     }

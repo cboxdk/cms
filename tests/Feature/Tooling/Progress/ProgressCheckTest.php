@@ -12,6 +12,7 @@ use Cbox\Cms\Tooling\Progress\Boundary\GitEmptyCommits;
 use Cbox\Cms\Tooling\Progress\Boundary\GitReviewCommits;
 use Cbox\Cms\Tooling\Progress\Boundary\ProgressCheckOptions;
 use Cbox\Cms\Tooling\Progress\Domain\CheckPaths;
+use Cbox\Cms\Tooling\Progress\Domain\ChecksLog;
 use Cbox\Cms\Tooling\Progress\Domain\EmptyCommit;
 use Cbox\Cms\Tooling\Progress\Domain\ProgressAudit;
 use Cbox\Cms\Tooling\Progress\Domain\ProgressLedger;
@@ -23,17 +24,23 @@ use Symfony\Component\Process\Process;
 use UnexpectedValueException;
 
 /*
- * `composer progress:check` (tools/bin/progress-check.php): whether PROGRESS.md records a task
- * before the merge queue of .claude/workflows/cms-milestone.js moves main. The tasks merged through
- * the queue from M0-T40 to M0-T78 changed checks that PROGRESS.md never recorded, and M0-T77 landed
- * empty commits that said their PROGRESS.md entries were handed to the integration step, which
- * never wrote them. The script's parts are tested here on scratch text and a scratch repository,
- * the script on this checkout, and the merge queue's prompts on the workflow file.
+ * `composer progress:check` (tools/bin/progress-check.php): whether PROGRESS.md and CHECKS-LOG.md
+ * record a task before the merge queue of .claude/workflows/cms-milestone.js moves main. The tasks
+ * merged through the queue from M0-T40 to M0-T78 changed checks that PROGRESS.md never recorded,
+ * and M0-T77 landed empty commits that said their PROGRESS.md entries were handed to the
+ * integration step, which never wrote them. The script's parts are tested here on scratch text and
+ * a scratch repository, the script on this checkout, and the merge queue's prompts on the workflow
+ * file.
  *
  * A review fix committed straight on main, such as `M0-review: ...`, never passes the merge queue
  * and so never runs the script, and d4cabbb, 53b6b14 and 1246f21 among others changed test
  * expectations without a GUARDRAILS 7.3 entry. ReviewCommitAudit holds every such commit in this
  * checkout's history to the same entries, read with GitReviewCommits.
+ *
+ * Since M0-D10 the records of changed checks live in CHECKS-LOG.md, under one heading per block
+ * (GUARDRAILS 7.3, version 1.9), and "Til review af Sylvester" in PROGRESS.md holds only open
+ * decisions; an entry there no longer counts as a record. A review commit made before the log
+ * existed is still held to the entries it added to PROGRESS.md.
  */
 
 afterEach(function (): void {
@@ -49,16 +56,32 @@ const PROGRESS_SAMPLE = <<<'MD'
 
     ## Til review af Sylvester
 
-    Changes of checks:
+    Open decisions:
 
-    - M1-T3: Ændrede testforventninger (GUARDRAILS 7.3): `FooTest` expects bar,
-      because the format changed.
     - M1-T4: a question about the naming.
+    - M1-T5: Ændret test (GUARDRAILS 7.3): `BarTest`, recorded in the wrong file.
 
     ## Kontroller kørt
 
     - 2026-10-01, M1-T3: `composer check`: gates 1 to 6 pass.
     - 2026-10-01, M1-T4, after commit: `composer check:selftest` exit 0.
+    - 2026-10-01, M1-T5: `composer check` exit 0.
+    MD;
+
+const CHECKS_LOG_SAMPLE = <<<'MD'
+    # Ændrede kontroller
+
+    Records under GUARDRAILS 7.3, one heading per block.
+
+    ## M0
+
+    - M1-T6: Ændret (GUARDRAILS 7.3): `BazTest`, under another block's heading.
+
+    ## M1
+
+    - M1-T3: Ændrede testforventninger (GUARDRAILS 7.3): `FooTest` expects bar,
+      because the format changed.
+    - M1-T4: a note on `QuxTest` that is no record.
     MD;
 
 /**
@@ -76,16 +99,32 @@ function runProgressCheck(string ...$arguments): array
 
 it('reads the entries of each section, with their continuation lines and without the section\'s introduction', function (): void {
     $ledger = ProgressLedger::fromMarkdown(PROGRESS_SAMPLE);
+    $log = ChecksLog::fromMarkdown(CHECKS_LOG_SAMPLE);
 
     expect($ledger->hasSection(ProgressLedger::REVIEW))->toBeTrue()
         ->and($ledger->hasSection('Blokeret'))->toBeFalse()
         ->and($ledger->entries(ProgressLedger::REVIEW))->toBe([
-            'M1-T3: Ændrede testforventninger (GUARDRAILS 7.3): `FooTest` expects bar, because the format changed.',
             'M1-T4: a question about the naming.',
+            'M1-T5: Ændret test (GUARDRAILS 7.3): `BarTest`, recorded in the wrong file.',
         ])
-        ->and($ledger->entries(ProgressLedger::CHECKS_RUN))->toHaveCount(2)
-        ->and($ledger->entries('Blokeret'))->toBe([]);
+        ->and($ledger->entries(ProgressLedger::CHECKS_RUN))->toHaveCount(3)
+        ->and($ledger->entries('Blokeret'))->toBe([])
+        ->and($log->entries('M1'))->toBe([
+            'M1-T3: Ændrede testforventninger (GUARDRAILS 7.3): `FooTest` expects bar, because the format changed.',
+            'M1-T4: a note on `QuxTest` that is no record.',
+        ])
+        ->and($log->entries('M0'))->toHaveCount(1)
+        ->and($log->entries('M2'))->toBe([]);
 });
+
+it('names the block of a task and of a review label', function (string $task, string $block): void {
+    expect(new TaskId($task)->block())->toBe($block);
+})->with([
+    ['M0-T43', 'M0'],
+    ['M0-review', 'M0'],
+    ['M12-R1-2', 'M12'],
+    ['B3-T1', 'B3'],
+]);
 
 it('names a task only where its id stands on its own', function (string $text, bool $named): void {
     expect(new TaskId('M0-T41')->namedIn($text))->toBe($named);
@@ -103,35 +142,50 @@ it('refuses a task id that is not <block>-<task>', function (string $id): void {
     expect(static fn (): TaskId => new TaskId($id))->toThrow(InvalidArgumentException::class, '<block>-<task>');
 })->with(['', 'T43', 'm0-T43', 'M0-', 'M0 T43', 'M0-T43;rm']);
 
-it('finds nothing to fault when the task has its gate runs and its GUARDRAILS 7.3 entry', function (): void {
+it('finds nothing to fault when the task has its gate runs and its GUARDRAILS 7.3 entry in CHECKS-LOG.md', function (): void {
     $ledger = ProgressLedger::fromMarkdown(PROGRESS_SAMPLE);
+    $log = ChecksLog::fromMarkdown(CHECKS_LOG_SAMPLE);
 
-    expect(ProgressAudit::problems($ledger, new TaskId('M1-T3'), true, []))->toBe([])
-        ->and(ProgressAudit::problems($ledger, new TaskId('M1-T4'), false, []))->toBe([]);
+    expect(ProgressAudit::problems($ledger, $log, new TaskId('M1-T3'), true, []))->toBe([])
+        ->and(ProgressAudit::problems($ledger, $log, new TaskId('M1-T4'), false, []))->toBe([])
+        ->and($log->records(new TaskId('M1-T3')))->toBeTrue();
 });
 
 it('requires an entry under Kontroller kørt for every task', function (): void {
-    $problems = ProgressAudit::problems(ProgressLedger::fromMarkdown(PROGRESS_SAMPLE), new TaskId('M1-T5'), false, []);
+    $problems = ProgressAudit::problems(ProgressLedger::fromMarkdown(PROGRESS_SAMPLE), ChecksLog::fromMarkdown(CHECKS_LOG_SAMPLE), new TaskId('M1-T7'), false, []);
 
     expect($problems)->toHaveCount(1)
-        ->and($problems[0])->toStartWith('PROGRESS.md has no entry for M1-T5 under "## Kontroller kørt".');
+        ->and($problems[0])->toStartWith('PROGRESS.md has no entry for M1-T7 under "## Kontroller kørt".');
 });
 
-it('requires a GUARDRAILS 7.3 entry under Til review af Sylvester when the task changed checks, and no other entry will do', function (): void {
-    $problems = ProgressAudit::problems(ProgressLedger::fromMarkdown(PROGRESS_SAMPLE), new TaskId('M1-T4'), true, []);
+it('requires a GUARDRAILS 7.3 entry in CHECKS-LOG.md when the task changed checks, and an entry there without the rule will not do', function (): void {
+    $problems = ProgressAudit::problems(ProgressLedger::fromMarkdown(PROGRESS_SAMPLE), ChecksLog::fromMarkdown(CHECKS_LOG_SAMPLE), new TaskId('M1-T4'), true, []);
 
-    expect($problems)->toHaveCount(1)
-        ->and($problems[0])->toStartWith('PROGRESS.md has no entry for M1-T4 under "## Til review af Sylvester" that says GUARDRAILS 7.3');
+    expect($problems)->toBe([
+        'CHECKS-LOG.md has no entry for M1-T4 under "## M1" that says GUARDRAILS 7.3, although the task changed or removed checks. Add one that names each changed or removed test expectation, suite, tool configuration or CI file and why; "## Til review af Sylvester" in PROGRESS.md holds only open decisions.',
+    ]);
 });
 
-it('does not take an entry of another section, or of the introduction, for the task\'s entry', function (): void {
-    $markdown = "## Til review af Sylvester\n\nM1-T6 (GUARDRAILS 7.3) in the introduction.\n\n## Tolkninger\n\n- M1-T6: GUARDRAILS 7.3 in another section.\n";
+it('does not take a GUARDRAILS 7.3 entry under Til review af Sylvester in PROGRESS.md for the record of a changed check', function (): void {
+    $ledger = ProgressLedger::fromMarkdown(PROGRESS_SAMPLE);
+    $task = new TaskId('M1-T5');
 
-    expect(ProgressAudit::problems(ProgressLedger::fromMarkdown($markdown), new TaskId('M1-T6'), true, []))->toHaveCount(2);
+    expect(array_any($ledger->entries(ProgressLedger::REVIEW), static fn (string $entry): bool => $task->namedIn($entry) && ChecksLog::isRecord($entry)))->toBeTrue()
+        ->and(ProgressAudit::problems($ledger, ChecksLog::fromMarkdown(CHECKS_LOG_SAMPLE), $task, true, []))->toHaveCount(1)
+        ->and(ProgressAudit::problems($ledger, ChecksLog::fromMarkdown(CHECKS_LOG_SAMPLE), $task, true, [])[0])->toStartWith('CHECKS-LOG.md has no entry for M1-T5 under "## M1" that says GUARDRAILS 7.3');
+});
+
+it('does not take an entry under another block\'s heading, or in the introduction, for the task\'s record', function (): void {
+    $markdown = "# Ændrede kontroller\n\nM1-T6 (GUARDRAILS 7.3) in the introduction.\n\n## M1\n\n- M1-T3: GUARDRAILS 7.3 for another task.\n";
+
+    expect(ChecksLog::fromMarkdown($markdown)->records(new TaskId('M1-T6')))->toBeFalse()
+        ->and(ChecksLog::fromMarkdown(CHECKS_LOG_SAMPLE)->records(new TaskId('M1-T6')))->toBeFalse()
+        ->and(ChecksLog::fromMarkdown(CHECKS_LOG_SAMPLE)->records(new TaskId('M0-T6')))->toBeFalse()
+        ->and(ProgressAudit::problems(ProgressLedger::fromMarkdown(PROGRESS_SAMPLE), ChecksLog::fromMarkdown($markdown), new TaskId('M1-T6'), true, []))->toHaveCount(2);
 });
 
 it('reports every commit that changes no file', function (): void {
-    $problems = ProgressAudit::problems(ProgressLedger::fromMarkdown(PROGRESS_SAMPLE), new TaskId('M1-T3'), true, [
+    $problems = ProgressAudit::problems(ProgressLedger::fromMarkdown(PROGRESS_SAMPLE), ChecksLog::fromMarkdown(CHECKS_LOG_SAMPLE), new TaskId('M1-T3'), true, [
         new EmptyCommit(str_repeat('a', 40), 'M1-T3: fix acceptance item 6: handed to the integration step'),
     ]);
 
@@ -198,17 +252,26 @@ it('runs as composer progress:check and exits 0, 1 or 2', function (): void {
     [$missing, $missingOutput] = runProgressCheck('M9-T999');
     [$usage, $usageOutput] = runProgressCheck();
 
-    expect([$recorded, $recordedOutput])->toBe([0, "PROGRESS.md records M0-T43 and its changed checks, and no commit of HEAD..HEAD is empty.\n"])
+    [$unrecorded, $unrecordedOutput] = runProgressCheck('M9-T999', '--changed-checks');
+    [$plain, $plainOutput] = runProgressCheck('M0-T77');
+
+    expect([$recorded, $recordedOutput])->toBe([0, "PROGRESS.md records M0-T43, CHECKS-LOG.md its changed checks, and no commit of HEAD..HEAD is empty.\n"])
+        ->and([$plain, $plainOutput])->toBe([0, "PROGRESS.md records M0-T77.\n"])
         ->and($missing)->toBe(1)
         ->and($missingOutput)->toContain('PROGRESS.md has no entry for M9-T999 under "## Kontroller kørt".')
+        ->and($missingOutput)->not->toContain('CHECKS-LOG.md')
+        ->and($unrecorded)->toBe(1)
+        ->and($unrecordedOutput)->toContain('PROGRESS.md has no entry for M9-T999 under "## Kontroller kørt".')
+        ->and($unrecordedOutput)->toContain('CHECKS-LOG.md has no entry for M9-T999 under "## M9" that says GUARDRAILS 7.3')
         ->and($usage)->toBe(2)
         ->and($usageOutput)->toContain(ProgressCheckOptions::USAGE);
 });
 
 it('records the gate runs and the changed checks of every task the merge queue merged in M0', function (string $task, bool $changedChecks): void {
     $ledger = ProgressLedger::fromMarkdown((string) file_get_contents(Phpstan::root().'/PROGRESS.md'));
+    $log = ChecksLog::fromMarkdown((string) file_get_contents(Phpstan::root().'/'.ChecksLog::FILE));
 
-    expect(ProgressAudit::problems($ledger, new TaskId($task), $changedChecks, []))->toBe([]);
+    expect(ProgressAudit::problems($ledger, $log, new TaskId($task), $changedChecks, []))->toBe([]);
 })->with([
     ['M0-T40', true],
     ['M0-T41a', true],
@@ -224,8 +287,9 @@ it('records the gate runs and the changed checks of every task the merge queue m
 
 it('records what M0-T77 handed to the integration step: the MILESTONES 1.4 edit for review and the reading of the cms_ system columns', function (): void {
     $ledger = ProgressLedger::fromMarkdown((string) file_get_contents(Phpstan::root().'/PROGRESS.md'));
+    $log = ChecksLog::fromMarkdown((string) file_get_contents(Phpstan::root().'/'.ChecksLog::FILE));
     $task = new TaskId('M0-T77');
-    $review = array_filter($ledger->entries(ProgressLedger::REVIEW), static fn (string $entry): bool => $task->namedIn($entry) && str_contains($entry, 'MILESTONES') && str_contains($entry, '1.4'));
+    $review = array_filter($log->entries('M0'), static fn (string $entry): bool => $task->namedIn($entry) && str_contains($entry, 'MILESTONES') && str_contains($entry, '1.4'));
     $readings = array_filter($ledger->entries('Tolkninger'), static fn (string $entry): bool => $task->namedIn($entry) && str_contains($entry, '`cms_owner_actor`'));
 
     expect($review)->not->toBe([])
@@ -244,7 +308,9 @@ it('has the merge queue run composer progress:check before every fast-forward of
 
         expect($prompt)->toContain('composer progress:check -- ${BLOCK}-')
             ->and($prompt)->toContain('--changed-checks')
-            ->and($prompt)->toContain('--range=main..HEAD');
+            ->and($prompt)->toContain('--range=main..HEAD')
+            ->and($prompt)->toContain('in CHECKS-LOG.md, under the heading "## ${BLOCK}"')
+            ->and($prompt)->not->toMatch('/under "Til review af Sylvester", one entry/');
         $offset = $merge + 1;
         $merges++;
     }
@@ -252,8 +318,30 @@ it('has the merge queue run composer progress:check before every fast-forward of
     expect($merges)->toBeGreaterThan(0);
 });
 
+it('tells every agent that records changed checks to write them in CHECKS-LOG.md, and leaves Til review af Sylvester to open decisions', function (string $file): void {
+    $text = (string) file_get_contents(Phpstan::root().'/'.$file);
+
+    expect($text)->toContain('CHECKS-LOG.md')
+        ->and($text)->not->toContain('under "Til review af Sylvester" that says GUARDRAILS 7.3')
+        ->and($text)->not->toContain('under "Til review af Sylvester", one entry')
+        ->and($text)->not->toContain('"Til review af Sylvester" with GUARDRAILS 7.3');
+})->with(['CLAUDE.md', 'AGENTS.md', '.claude/workflows/cms-milestone.js']);
+
+it('keeps CHECKS-LOG.md at the root with a heading per block, and fewer than 15 open decisions under Til review af Sylvester', function (): void {
+    $markdown = (string) file_get_contents(Phpstan::root().'/'.ChecksLog::FILE);
+    $ledger = ProgressLedger::fromMarkdown((string) file_get_contents(Phpstan::root().'/PROGRESS.md'));
+    $review = $ledger->entries(ProgressLedger::REVIEW);
+
+    expect($markdown)->toStartWith("# Ændrede kontroller\n")
+        ->and($markdown)->toContain("\n## M0\n")
+        ->and(ChecksLog::fromMarkdown($markdown)->entries('M0'))->not->toBe([])
+        ->and($review)->not->toBe([])
+        ->and(count($review))->toBeLessThan(15);
+});
+
 it('tells a review commit by the first line of its message, and names its label and its hash', function (): void {
     $commit = new ReviewCommit('d4cabbb0123456789abcdef0123456789abcdef0', 'M0-review: a lock timeout aborted maintenance', [], [], []);
+    $later = new ReviewCommit('d4cabbb0123456789abcdef0123456789abcdef0', 'M12-review: fix regression in the queue', [], [], []);
 
     expect(ReviewCommit::isReviewSubject('M0-review: a fix'))->toBeTrue()
         ->and(ReviewCommit::isReviewSubject('M12-review: fix regression in the queue'))->toBeTrue()
@@ -261,6 +349,8 @@ it('tells a review commit by the first line of its message, and names its label 
         ->and(ReviewCommit::isReviewSubject('M0-review a fix'))->toBeFalse()
         ->and(ReviewCommit::isReviewSubject('Revert "M0-review: a fix"'))->toBeFalse()
         ->and($commit->label()->value)->toBe('M0-review')
+        ->and($later->label()->value)->toBe('M12-review')
+        ->and(ReviewCommit::labelOf('M12-review: fix regression in the queue')->block())->toBe('M12')
         ->and($commit->namedBy('M0-review d4cabbb: the tests'))->toBeTrue()
         ->and($commit->namedBy('commit d4cabbb0123 changed'))->toBeTrue()
         ->and($commit->namedBy('d4cabb is too short'))->toBeFalse()
@@ -309,30 +399,25 @@ it('holds a review commit to its gate runs, and to a GUARDRAILS 7.3 entry when i
     $newChecksOnly = new ReviewCommit($hash, 'M0-review: a fix', [], [], ['2026-09-27, M0-review (a fix): composer check exit 0.']);
     $bare = new ReviewCommit($hash, 'M0-review: a fix', $changed, ['M0-review: a question without the rule.'], ['2026-09-27, M0-T43: composer check exit 0.']);
     $empty = ProgressLedger::fromMarkdown('');
-    $later = ProgressLedger::fromMarkdown(<<<'MD'
-        ## Til review af Sylvester
+    $noLog = ChecksLog::fromMarkdown('');
+    $later = ProgressLedger::fromMarkdown("## Kontroller kørt\n\n- 2026-09-28, M0-review d4cabbb: not recorded when it was committed.\n");
+    $laterLog = ChecksLog::fromMarkdown("# Ændrede kontroller\n\n## M0\n\n- M0-review d4cabbb: Ændrede testforventninger (GUARDRAILS 7.3): `MaintainPartitionsTest`.\n");
 
-        - M0-review d4cabbb: Ændrede testforventninger (GUARDRAILS 7.3): `MaintainPartitionsTest`.
-
-        ## Kontroller kørt
-
-        - 2026-09-28, M0-review d4cabbb: not recorded when it was committed.
-        MD);
-
-    expect(ReviewCommitAudit::problems($empty, [$recorded, $newChecksOnly]))->toBe([])
-        ->and(ReviewCommitAudit::problems($later, [$bare]))->toBe([])
-        ->and(ReviewCommitAudit::problems($empty, [$bare]))->toBe([
+    expect(ReviewCommitAudit::problems($empty, $noLog, [$recorded, $newChecksOnly]))->toBe([])
+        ->and(ReviewCommitAudit::problems($later, $laterLog, [$bare]))->toBe([])
+        ->and(ReviewCommitAudit::problems($empty, $noLog, [$bare]))->toBe([
             'The review commit d4cabbb "M0-review: a fix" added no entry for M0-review under "## Kontroller kørt", and no entry there names d4cabbb. Add one that names d4cabbb, with the gates that ran on it and their results.',
-            'The review commit d4cabbb "M0-review: a fix" changed or removed checks (packages/core/tests/Actions/MaintainPartitionsTest.php) but added no entry for M0-review under "## Til review af Sylvester" that says GUARDRAILS 7.3, and no such entry there names d4cabbb. Add one that names d4cabbb and each changed or removed test expectation, suite, tool configuration or CI file, and why.',
+            'The review commit d4cabbb "M0-review: a fix" changed or removed checks (packages/core/tests/Actions/MaintainPartitionsTest.php) but added no entry for M0-review to CHECKS-LOG.md under "## M0" that says GUARDRAILS 7.3, and no such entry there names d4cabbb. Add one that names d4cabbb and each changed or removed test expectation, suite, tool configuration or CI file, and why.',
         ]);
 });
 
-it('does not take a later entry that names the hash without GUARDRAILS 7.3, or in another section, for the review entry', function (): void {
+it('does not take a later entry that names the hash without GUARDRAILS 7.3, under another block, or in PROGRESS.md, for the review entry', function (): void {
     $bare = new ReviewCommit(str_repeat('ab', 20), 'M0-review: a fix', ['tests/Arch/MarkersTest.php'], [], []);
-    $ledger = ProgressLedger::fromMarkdown("## Til review af Sylvester\n\n- M0-review abababa: a question.\n\n## Tolkninger\n\n- M0-review abababa: GUARDRAILS 7.3 in another section.\n\n## Kontroller kørt\n\n- M0-review abababa: composer check exit 0.\n");
+    $ledger = ProgressLedger::fromMarkdown("## Til review af Sylvester\n\n- M0-review abababa: GUARDRAILS 7.3 in PROGRESS.md.\n\n## Tolkninger\n\n- M0-review abababa: GUARDRAILS 7.3 in another section.\n\n## Kontroller kørt\n\n- M0-review abababa: composer check exit 0.\n");
+    $log = ChecksLog::fromMarkdown("## M0\n\n- M0-review abababa: a note.\n\n## M1\n\n- M0-review abababa: GUARDRAILS 7.3 under another block.\n");
 
-    expect(ReviewCommitAudit::problems($ledger, [$bare]))->toHaveCount(1)
-        ->and(ReviewCommitAudit::problems($ledger, [$bare])[0])->toContain('changed or removed checks (tests/Arch/MarkersTest.php)');
+    expect(ReviewCommitAudit::problems($ledger, $log, [$bare]))->toHaveCount(1)
+        ->and(ReviewCommitAudit::problems($ledger, $log, [$bare])[0])->toContain('changed or removed checks (tests/Arch/MarkersTest.php)');
 });
 
 it('reads the review commits of a history, oldest first, with the checks they changed or removed and the entries they added', function (): void {
@@ -360,6 +445,35 @@ it('reads the review commits of a history, oldest first, with the checks they ch
         ->and(GitReviewCommits::in($repository->root, 'HEAD~3'))->toBe([]);
 });
 
+it('reads the records of a review commit from CHECKS-LOG.md once the log exists, and no longer from Til review af Sylvester', function (): void {
+    $progress = static fn (string $review, string $checks): string => "# Fremdrift\n\n## Til review af Sylvester\n\n{$review}\n## Kontroller kørt\n\n{$checks}";
+    $log = static fn (string $m0, string $m1 = ''): string => "# Ændrede kontroller\n\n## M0\n\n{$m0}\n## M1\n\n{$m1}";
+    $repository = ScratchRepository::make();
+    $repository->write('tests/FooTest.php', "<?php\n// one\n")
+        ->write('PROGRESS.md', $progress('', ''))
+        ->commit('M0-T1: initial');
+    $legacy = $repository->write('tests/FooTest.php', "<?php\n// two\n")
+        ->write('PROGRESS.md', $progress("- M0-review: Ændret (GUARDRAILS 7.3): `FooTest`.\n", "- M0-review (foo): exit 0.\n"))
+        ->commit('M0-review: foo expects two');
+    $repository->write(ChecksLog::FILE, $log("- M0-review: Ændret (GUARDRAILS 7.3): `FooTest`.\n"))->commit('M0-D10: the log');
+    $inProgress = $repository->write('tests/FooTest.php', "<?php\n// three\n")
+        ->write('PROGRESS.md', $progress("- M0-review: Ændret (GUARDRAILS 7.3): `FooTest` in the wrong file.\n", "- M0-review (foo): exit 0.\n- M0-review (bar): exit 0.\n"))
+        ->commit('M0-review: foo expects three');
+    $inLog = $repository->write('tests/FooTest.php', "<?php\n// four\n")
+        ->write(ChecksLog::FILE, $log("- M0-review: Ændret (GUARDRAILS 7.3): `FooTest`.\n- M0-review: Ændret (GUARDRAILS 7.3): `FooTest` expects four.\n", "- M0-review: under M1.\n"))
+        ->commit('M0-review: foo expects four');
+
+    $commits = GitReviewCommits::in($repository->root, 'HEAD');
+
+    expect($commits)->toEqual([
+        new ReviewCommit($legacy, 'M0-review: foo expects two', ['tests/FooTest.php'], ['M0-review: Ændret (GUARDRAILS 7.3): `FooTest`.'], ['M0-review (foo): exit 0.']),
+        new ReviewCommit($inProgress, 'M0-review: foo expects three', ['tests/FooTest.php'], [], ['M0-review (bar): exit 0.']),
+        new ReviewCommit($inLog, 'M0-review: foo expects four', ['tests/FooTest.php'], ['M0-review: Ændret (GUARDRAILS 7.3): `FooTest` expects four.'], []),
+    ])
+        ->and(ReviewCommitAudit::problems(ProgressLedger::fromMarkdown(''), ChecksLog::fromMarkdown(''), [$commits[1]]))->toHaveCount(1)
+        ->and(ReviewCommitAudit::problems(ProgressLedger::fromMarkdown(''), ChecksLog::fromMarkdown(''), [$commits[1]])[0])->toContain('added no entry for M0-review to CHECKS-LOG.md under "## M0"');
+});
+
 it('refuses a revision git cannot read, and one that would be an option', function (string $revision, string $message): void {
     $repository = ScratchRepository::make();
     $repository->write('README.md', "# Scratch\n")->commit('initial');
@@ -373,6 +487,7 @@ it('refuses a revision git cannot read, and one that would be an option', functi
 
 it('records the gate runs and the changed checks of every review commit made straight on main', function (): void {
     $ledger = ProgressLedger::fromMarkdown((string) file_get_contents(Phpstan::root().'/PROGRESS.md'));
+    $log = ChecksLog::fromMarkdown((string) file_get_contents(Phpstan::root().'/'.ChecksLog::FILE));
 
-    expect(ReviewCommitAudit::problems($ledger, GitReviewCommits::in(Phpstan::root(), 'HEAD')))->toBe([]);
+    expect(ReviewCommitAudit::problems($ledger, $log, GitReviewCommits::in(Phpstan::root(), 'HEAD')))->toBe([]);
 });

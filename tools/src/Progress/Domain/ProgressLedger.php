@@ -12,7 +12,10 @@ namespace Cbox\Cms\Tooling\Progress\Domain;
  */
 final readonly class ProgressLedger
 {
-    /** Where a task's changed checks are recorded for review (GUARDRAILS 7.3). */
+    /**
+     * Where the open decisions wait for Sylvester. Before CHECKS-LOG.md existed, the changed
+     * checks of a task were recorded here too (GUARDRAILS 7.3).
+     */
     public const string REVIEW = 'Til review af Sylvester';
 
     /** Where the gates a task ran are recorded with their results. */

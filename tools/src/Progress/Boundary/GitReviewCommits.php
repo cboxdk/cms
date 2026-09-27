@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Tooling\Progress\Boundary;
 
 use Cbox\Cms\Tooling\Progress\Domain\CheckPaths;
+use Cbox\Cms\Tooling\Progress\Domain\ChecksLog;
 use Cbox\Cms\Tooling\Progress\Domain\ProgressLedger;
 use Cbox\Cms\Tooling\Progress\Domain\ReviewCommit;
 use Symfony\Component\Process\Process;
@@ -14,15 +15,25 @@ use UnexpectedValueException;
  * The review commits reachable from a revision of a git checkout, oldest first: every commit, not
  * a merge, whose first line is that of a review commit (ReviewCommit::SUBJECT), with the check files
  * it changed or removed, read from `git log --numstat --no-renames` (a file with deleted lines, so
- * a rename counts as removing the old path), and the entries it added to PROGRESS.md, from the file
- * at the commit and at its first parent through `git cat-file --batch`. A revision git cannot
- * read throws with git's message.
+ * a rename counts as removing the old path), and the entries it added, from PROGRESS.md and
+ * CHECKS-LOG.md at the commit and at its first parent through `git cat-file --batch`: under
+ * "Kontroller kørt" in PROGRESS.md, and as records the entries under its block's heading in
+ * CHECKS-LOG.md, or, when the commit's tree has no CHECKS-LOG.md, under "Til review af Sylvester"
+ * in PROGRESS.md, where changed checks were recorded before the log existed. A revision git
+ * cannot read throws with git's message.
  */
 final readonly class GitReviewCommits
 {
     private const string RECORD = "\x1e";
 
     private const string FIELD = "\x1f";
+
+    /**
+     * The files read at each review commit and its first parent, in this order.
+     *
+     * @var list<string>
+     */
+    private const array FILES = ['PROGRESS.md', ChecksLog::FILE];
 
     /**
      * @param  string  $root  the root of the checkout
@@ -71,21 +82,28 @@ final readonly class GitReviewCommits
         $request = '';
 
         foreach ($found as [$commit]) {
-            $request .= "{$commit}:PROGRESS.md\n{$commit}^:PROGRESS.md\n";
+            foreach (self::FILES as $file) {
+                $request .= "{$commit}:{$file}\n{$commit}^:{$file}\n";
+            }
         }
 
-        $blobs = self::blobs(self::git($root, ['cat-file', '--batch'], $request, 'git cat-file cannot read PROGRESS.md'), count($found) * 2);
+        $blobs = self::blobs(self::git($root, ['cat-file', '--batch'], $request, 'git cat-file cannot read PROGRESS.md and '.ChecksLog::FILE), count($found) * 4);
         $commits = [];
 
         foreach ($found as $index => [$commit, $subject, $changed]) {
-            $after = ProgressLedger::fromMarkdown($blobs[$index * 2]);
-            $before = ProgressLedger::fromMarkdown($blobs[$index * 2 + 1]);
+            $after = ProgressLedger::fromMarkdown($blobs[$index * 4] ?? '');
+            $before = ProgressLedger::fromMarkdown($blobs[$index * 4 + 1] ?? '');
+            $logAfter = $blobs[$index * 4 + 2];
+            $logBefore = $blobs[$index * 4 + 3];
+            $block = ReviewCommit::labelOf($subject)->block();
 
             $commits[] = new ReviewCommit(
                 $commit,
                 $subject,
                 $changed,
-                $after->addedSince($before, ProgressLedger::REVIEW),
+                $logAfter === null
+                    ? $after->addedSince($before, ProgressLedger::REVIEW)
+                    : ChecksLog::fromMarkdown($logAfter)->addedSince(ChecksLog::fromMarkdown($logBefore ?? ''), $block),
                 $after->addedSince($before, ProgressLedger::CHECKS_RUN),
             );
         }
@@ -94,11 +112,10 @@ final readonly class GitReviewCommits
     }
 
     /**
-     * The contents of each object `git cat-file --batch` printed, in order; an empty string for
-     * one it reported missing, such as PROGRESS.md before the file existed or the parent of a root
-     * commit.
+     * The contents of each object `git cat-file --batch` printed, in order; null for one it
+     * reported missing, such as a file before it existed or the parent of a root commit.
      *
-     * @return list<string>
+     * @return list<?string>
      */
     private static function blobs(string $output, int $count): array
     {
@@ -119,7 +136,7 @@ final readonly class GitReviewCommits
                 $blobs[] = substr($output, $offset, (int) $match[1]);
                 $offset += (int) $match[1] + 1;
             } elseif (str_ends_with($header, ' missing')) {
-                $blobs[] = '';
+                $blobs[] = null;
             } else {
                 throw new UnexpectedValueException("git cat-file printed [{$header}] where it names a blob or says missing.");
             }
