@@ -61,47 +61,90 @@ final readonly class ConnectionPostgresProbe implements PostgresProbe
 
     /**
      * The role's own attributes, and the roles it is a member of, directly or through other roles
-     * and whether or not the grant has INHERIT or SET, that are superusers, have BYPASSRLS or own
-     * relations. Attributes are never inherited, but SET ROLE reaches them, and an owner's rights
-     * pass to the members that inherit them.
+     * and whether or not the grant has INHERIT or SET, that give it more than the app role may
+     * have: a superuser, BYPASSRLS or CREATEROLE, relations it owns, the database or a schema it
+     * owns or may create objects in, or one of RoleMembership::PREDEFINED_ROLES. Attributes are
+     * never inherited, but SET ROLE reaches them, and an owner's rights pass to the members that
+     * inherit them. CREATE counts only when it is granted to the role itself and not to PUBLIC,
+     * which postgres.ddl_privileges reports for the app role; the roles the role reaches are each
+     * listed, so a grant to one of them is found on that one.
      */
     #[Override]
     public function role(): PostgresRole
     {
         $row = CatalogRow::one($this->connection->rows(
-            'select r.rolname::text as name, r.rolsuper as superuser, r.rolbypassrls as bypass from pg_roles r where r.rolname = current_user',
+            'select r.rolname::text as name, r.rolsuper as superuser, r.rolbypassrls as bypass, r.rolcreaterole as create_role from pg_roles r where r.rolname = current_user',
         ));
 
         $memberships = array_map(
             static fn (CatalogRow $membership): RoleMembership => new RoleMembership(
-                $membership->string('name'),
-                $membership->bool('superuser'),
-                $membership->bool('bypass'),
-                $membership->bool('owns_relations'),
+                name: $membership->string('name'),
+                superuser: $membership->bool('superuser'),
+                bypassRowSecurity: $membership->bool('bypass'),
+                ownsRelations: $membership->bool('owns_relations'),
+                createRole: $membership->bool('create_role'),
+                createsObjects: $membership->bool('creates_objects'),
             ),
             CatalogRow::all($this->connection->rows(sprintf(<<<'SQL'
-                select name, superuser, bypass, owns_relations
+                select name, superuser, bypass, owns_relations, create_role, creates_objects
                 from (
                     select m.rolname::text as name,
                            m.rolsuper as superuser,
                            m.rolbypassrls as bypass,
+                           m.rolcreaterole as create_role,
                            exists (
                                select 1
                                from pg_class c
                                join pg_namespace n on n.oid = c.relnamespace
                                where c.relowner = m.oid
                                  and %s
-                           ) as owns_relations
+                           ) as owns_relations,
+                           exists (
+                               select 1
+                               from pg_database d
+                               where d.datname = current_database()
+                                 and (d.datdba = m.oid
+                                      or exists (
+                                          select 1
+                                          from aclexplode(coalesce(d.datacl, acldefault('d', d.datdba))) a
+                                          where a.grantee = m.oid and a.privilege_type = 'CREATE'
+                                      ))
+                           )
+                           or exists (
+                               select 1
+                               from pg_namespace s
+                               where s.nspname not like 'pg\_%%'
+                                 and s.nspname <> 'information_schema'
+                                 and (s.nspowner = m.oid
+                                      or exists (
+                                          select 1
+                                          from aclexplode(coalesce(s.nspacl, acldefault('n', s.nspowner))) a
+                                          where a.grantee = m.oid and a.privilege_type = 'CREATE'
+                                      ))
+                           ) as creates_objects,
+                           m.rolname in (%s) as predefined
                     from pg_roles m
                     where m.rolname <> current_user
                       and pg_has_role(current_user, m.oid, 'MEMBER')
                 ) memberships
-                where superuser or bypass or owns_relations
+                where superuser or bypass or owns_relations or create_role or creates_objects or predefined
                 order by name
-                SQL, self::OWNED_RELATIONS))),
+                SQL,
+                self::OWNED_RELATIONS,
+                implode(', ', array_map(
+                    static fn (string $name): string => "'".$name."'",
+                    array_keys(RoleMembership::PREDEFINED_ROLES),
+                )),
+            ))),
         );
 
-        return new PostgresRole($row->string('name'), $row->bool('superuser'), $row->bool('bypass'), $memberships);
+        return new PostgresRole(
+            $row->string('name'),
+            $row->bool('superuser'),
+            $row->bool('bypass'),
+            $row->bool('create_role'),
+            $memberships,
+        );
     }
 
     #[Override]

@@ -173,7 +173,7 @@ it('passes every runtime check against the services, in-process', function (): v
         ->and(doctorCheck($document, 'postgres.ddl_privileges')['explanation'])->toBe('The app role cms_app owns nothing and cannot create objects in the database '.CheckoutDatabase::name().' or its schemas.');
 });
 
-it('fails transaction_timeout and DDL for a role without the timeout that owns the schema, with 78', function (): void {
+it('fails transaction_timeout, DDL and the app role for a role without the timeout that owns the database and the schema, with 78', function (): void {
     doctorClock('2047-06-10T09:00:00Z');
     buildRegistry();
     config(['cms.doctor.connection' => 'pgsql_owner']);
@@ -181,6 +181,7 @@ it('fails transaction_timeout and DDL for a role without the timeout that owns t
     [$status, $document] = inProcessDoctor();
     $timeout = doctorCheck($document, 'postgres.transaction_timeout');
     $ddl = doctorCheck($document, 'postgres.ddl_privileges');
+    $appRole = doctorCheck($document, 'postgres.app_role');
 
     expect($status)->toBe(78)
         ->and($document['status'])->toBe('violation')
@@ -192,7 +193,11 @@ it('fails transaction_timeout and DDL for a role without the timeout that owns t
         ->and($ddl['cause'])->toContain('The role cms_owner: it owns ')
         ->and($ddl['cause'])->toContain('it has CREATE on the database '.CheckoutDatabase::name())
         ->and($ddl['cause'])->toContain('it has CREATE on the schemas cms, public')
-        ->and(doctorCheck($document, 'postgres.app_role')['status'])->toBe('pass');
+        // The owner role owns the database, which makes it a member of pg_database_owner, the
+        // owner of the schema public.
+        ->and($appRole['status'])->toBe('fail')
+        ->and($appRole['code'])->toBe('doctor_app_role_privileged_membership')
+        ->and($appRole['cause'])->toBe('The role cms_owner is a member of pg_database_owner, which owns or may create objects in the database or its schemas.');
 });
 
 it('fails the partition runway with 78 when only 2 days of partitions exist', function (): void {

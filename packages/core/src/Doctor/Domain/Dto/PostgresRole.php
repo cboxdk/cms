@@ -14,12 +14,13 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 final readonly class PostgresRole
 {
     /**
-     * @param  list<RoleMembership>  $memberships  the superusers, BYPASSRLS roles and relation owners the role is a member of, sorted by name
+     * @param  list<RoleMembership>  $memberships  the roles the role is a member of that give it more power than the app role may have, sorted by name
      */
     public function __construct(
         public string $name,
         public bool $superuser,
         public bool $bypassRowSecurity,
+        public bool $createRole,
         public array $memberships,
     ) {}
 }

@@ -21,9 +21,10 @@ use UnexpectedValueException;
  * postgres.app_role and postgres.ddl_privileges on the Postgres 18 service of compose.yaml for a
  * role that reaches more power through role membership than through its own attributes (PRD 4.2):
  * a scratch login role with the app role's attributes, made by the superuser of compose.yaml, is
- * granted the owner role, a BYPASSRLS role or a superuser role. Roles belong to the cluster, not
- * to the checkout's database, so each test makes roles of its own under random names and drops
- * them afterwards.
+ * granted the owner role, a BYPASSRLS, CREATEROLE or superuser role, a role that owns or may
+ * create objects in the database or a schema, or a predefined role that reaches every table or
+ * the server; or it has CREATEROLE itself. Roles belong to the cluster, not to the checkout's
+ * database, so each test makes roles of its own under random names and drops them afterwards.
  */
 
 /**
@@ -97,8 +98,10 @@ final class ScratchRoles
 
         $superuser = self::superuser();
 
+        // DROP OWNED drops the schemas a role owns and revokes its grants in this database and on
+        // the database itself, so the role can be dropped.
         foreach (array_reverse(self::$roles) as $role) {
-            $superuser->statement(sprintf('revoke all on database "%s" from "%s"', $superuser->getDatabaseName(), $role));
+            $superuser->statement(sprintf('drop owned by "%s"', $role));
             $superuser->statement(sprintf('drop role if exists "%s"', $role));
         }
 
@@ -172,7 +175,12 @@ it('fails both checks for an app role granted the owner role, with or without IN
     $postgres = app(PostgresProbe::class);
     $privileges = $postgres->ddlPrivileges();
 
-    expect($postgres->role()->memberships)->toEqual([new RoleMembership($owner, false, false, true)])
+    // The owner role owns the checkout's database, so its members also reach pg_database_owner,
+    // which owns the schema public.
+    expect($postgres->role()->memberships)->toEqual([
+        new RoleMembership($owner, superuser: false, bypassRowSecurity: false, ownsRelations: true, createRole: false, createsObjects: true),
+        new RoleMembership('pg_database_owner', superuser: false, bypassRowSecurity: false, ownsRelations: false, createRole: false, createsObjects: true),
+    ])
         ->and($privileges->ownerRoles)->toBe([$owner])
         ->and($privileges->ownedCount)->toBeGreaterThan(6)
         ->and($privileges->ownedRelations)->toHaveCount(5)
@@ -183,8 +191,9 @@ it('fails both checks for an app role granted the owner role, with or without IN
     expect($appRole->status)->toBe(CheckStatus::Fail)
         ->and($appRole->failure)->toBe(FailureKind::Violation)
         ->and($appRole->code)->toBe(AppRoleCheck::CODE_MEMBERSHIP)
-        ->and($appRole->cause)->toBe(sprintf('The role %s is a member of %s, which owns relations.', $role, $owner))
-        ->and($appRole->fix)->toContain(sprintf('REVOKE %s FROM %s', $owner, $role))
+        ->and($appRole->cause)->toBe(sprintf('The role %s is a member of %s, which owns relations and owns or may create objects in the database or its schemas; pg_database_owner, which owns or may create objects in the database or its schemas.', $role, $owner))
+        ->and($appRole->fix)->toStartWith(sprintf('Run REVOKE %s FROM %s as a superuser', $owner, $role))
+        ->and($appRole->fix)->toContain('pg_database_owner comes from owning the database')
         ->and($ddl->status)->toBe(CheckStatus::Fail)
         ->and($ddl->failure)->toBe(FailureKind::Violation)
         ->and($ddl->code)->toBe(DdlPrivilegesCheck::CODE)
@@ -215,3 +224,92 @@ it('fails postgres.app_role for an app role that is a member of a BYPASSRLS or s
     'BYPASSRLS' => ['bypassrls', 'BYPASSRLS'],
     'SUPERUSER' => ['superuser', 'SUPERUSER'],
 ]);
+
+it('passes an app role that is a member of a role with no more power than its own', function (): void {
+    $role = ScratchRoles::login();
+    $group = ScratchRoles::group('nosuperuser nobypassrls nocreaterole');
+    ScratchRoles::superuser()->statement(sprintf('grant "%s" to "%s"', $group, $role));
+
+    [$appRole, $ddl] = doctorRoleChecks();
+
+    expect(app(PostgresProbe::class)->role()->memberships)->toBe([])
+        ->and($appRole->status)->toBe(CheckStatus::Pass, (string) $appRole->cause)
+        ->and($ddl->status)->toBe(CheckStatus::Pass, (string) $ddl->cause);
+});
+
+it('fails postgres.app_role for an app role that is a member of a predefined role that reaches every table or the server', function (string $predefined, string $gives): void {
+    $role = ScratchRoles::login();
+    $middle = ScratchRoles::group('noinherit');
+    $superuser = ScratchRoles::superuser();
+    $superuser->statement(sprintf('grant "%s" to "%s"', $predefined, $middle));
+    $superuser->statement(sprintf('grant "%s" to "%s" with inherit false, set true', $middle, $role));
+
+    expect(app(PostgresProbe::class)->role()->memberships)
+        ->toEqual([new RoleMembership($predefined, superuser: false, bypassRowSecurity: false, ownsRelations: false, createRole: false, createsObjects: false)]);
+
+    [$appRole, $ddl] = doctorRoleChecks();
+
+    expect($appRole->status)->toBe(CheckStatus::Fail)
+        ->and($appRole->failure)->toBe(FailureKind::Violation)
+        ->and($appRole->code)->toBe(AppRoleCheck::CODE_MEMBERSHIP)
+        ->and($appRole->cause)->toBe(sprintf('The role %s is a member of %s, which %s.', $role, $predefined, $gives))
+        ->and($appRole->fix)->toContain(sprintf('REVOKE %s FROM %s', $predefined, $role))
+        ->and($ddl->status)->toBe(CheckStatus::Pass, (string) $ddl->cause);
+})->with([
+    'pg_write_all_data' => ['pg_write_all_data', 'writes every table, append-only ones included'],
+    'pg_read_all_data' => ['pg_read_all_data', 'reads every table'],
+    'pg_maintain' => ['pg_maintain', 'maintains, reindexes and locks every table like its owner'],
+    'pg_execute_server_program' => ['pg_execute_server_program', 'runs programs on the database server'],
+    'pg_read_server_files' => ['pg_read_server_files', 'reads files on the database server'],
+    'pg_write_server_files' => ['pg_write_server_files', 'writes files on the database server'],
+]);
+
+it('fails postgres.app_role for an app role that can SET ROLE without INHERIT to a role that owns or may create objects in the database or a schema', function (string $grant): void {
+    $role = ScratchRoles::login();
+    $group = ScratchRoles::group('');
+    $superuser = ScratchRoles::superuser();
+    $superuser->statement(sprintf($grant, $group, $superuser->getDatabaseName()));
+    $superuser->statement(sprintf('grant "%s" to "%s" with inherit false, set true', $group, $role));
+
+    expect(app(PostgresProbe::class)->role()->memberships)
+        ->toEqual([new RoleMembership($group, superuser: false, bypassRowSecurity: false, ownsRelations: false, createRole: false, createsObjects: true)]);
+
+    [$appRole, $ddl] = doctorRoleChecks();
+
+    expect($appRole->status)->toBe(CheckStatus::Fail)
+        ->and($appRole->code)->toBe(AppRoleCheck::CODE_MEMBERSHIP)
+        ->and($appRole->cause)->toBe(sprintf('The role %s is a member of %s, which owns or may create objects in the database or its schemas.', $role, $group))
+        ->and($appRole->fix)->toContain(sprintf('REVOKE %s FROM %s', $group, $role))
+        ->and($ddl->status)->toBe(CheckStatus::Pass, (string) $ddl->cause);
+})->with([
+    'CREATE on a schema' => ['grant create on schema public to "%1$s"'],
+    'CREATE on the database' => ['grant create on database "%2$s" to "%1$s"'],
+    'a schema it owns' => ['create schema "%1$s" authorization "%1$s"'],
+]);
+
+it('fails postgres.app_role for an app role with CREATEROLE', function (): void {
+    $role = ScratchRoles::login();
+    ScratchRoles::superuser()->statement(sprintf('alter role "%s" createrole', $role));
+
+    expect(app(PostgresProbe::class)->role()->createRole)->toBeTrue();
+
+    [$appRole] = doctorRoleChecks();
+
+    expect($appRole->status)->toBe(CheckStatus::Fail)
+        ->and($appRole->failure)->toBe(FailureKind::Violation)
+        ->and($appRole->code)->toBe(AppRoleCheck::CODE_CREATEROLE)
+        ->and($appRole->cause)->toBe(sprintf('The role %s has CREATEROLE.', $role))
+        ->and($appRole->fix)->toBe(sprintf('Run ALTER ROLE %s NOCREATEROLE as a superuser.', $role));
+});
+
+it('fails postgres.app_role for an app role that can SET ROLE to a CREATEROLE role', function (): void {
+    $role = ScratchRoles::login();
+    $group = ScratchRoles::group('createrole');
+    ScratchRoles::superuser()->statement(sprintf('grant "%s" to "%s" with inherit false, set true', $group, $role));
+
+    [$appRole] = doctorRoleChecks();
+
+    expect($appRole->status)->toBe(CheckStatus::Fail)
+        ->and($appRole->code)->toBe(AppRoleCheck::CODE_MEMBERSHIP)
+        ->and($appRole->cause)->toBe(sprintf('The role %s is a member of %s, which has CREATEROLE.', $role, $group));
+});

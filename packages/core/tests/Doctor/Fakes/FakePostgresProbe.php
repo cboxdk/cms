@@ -15,7 +15,7 @@ use Cbox\Cms\Core\Doctor\Domain\Probes\PostgresProbe;
 
 /**
  * A Postgres that keeps the runtime contract until the test changes a property: version 17.11,
- * the app role cms_app without superuser or BYPASSRLS and without privileged memberships,
+ * the app role cms_app without superuser, BYPASSRLS or CREATEROLE and without privileged memberships,
  * transaction_timeout 5 s from the role, no prepared transactions, no DDL, and two tables with row
  * level security that force it.
  */
@@ -33,6 +33,8 @@ final class FakePostgresProbe implements PostgresProbe
     public bool $superuser = false;
 
     public bool $bypassRowSecurity = false;
+
+    public bool $createRole = false;
 
     /** @var list<RoleMembership> */
     public array $memberships = [];
@@ -86,7 +88,7 @@ final class FakePostgresProbe implements PostgresProbe
     {
         $this->query();
 
-        return new PostgresRole('cms_app', $this->superuser, $this->bypassRowSecurity, $this->memberships);
+        return new PostgresRole('cms_app', $this->superuser, $this->bypassRowSecurity, $this->createRole, $this->memberships);
     }
 
     public function transactionTimeout(): TimeoutSetting

@@ -111,9 +111,9 @@ it('fails an app role that is a superuser or bypasses row level security', funct
 it('fails an app role that is a member of a superuser, a BYPASSRLS role or an owner of relations, naming each', function (): void {
     $postgres = new FakePostgresProbe;
     $postgres->memberships = [
-        new RoleMembership('cms_owner', false, false, true),
-        new RoleMembership('platform_admin', true, true, false),
-        new RoleMembership('reporting', false, true, true),
+        new RoleMembership('cms_owner', superuser: false, bypassRowSecurity: false, ownsRelations: true, createRole: false, createsObjects: false),
+        new RoleMembership('platform_admin', superuser: true, bypassRowSecurity: true, ownsRelations: false, createRole: false, createsObjects: false),
+        new RoleMembership('reporting', superuser: false, bypassRowSecurity: true, ownsRelations: true, createRole: false, createsObjects: false),
     ];
     $result = new AppRoleCheck($postgres)->run();
 
@@ -122,6 +122,50 @@ it('fails an app role that is a member of a superuser, a BYPASSRLS role or an ow
 
     $postgres->bypassRowSecurity = true;
     expectFailure(new AppRoleCheck($postgres)->run(), FailureKind::Violation, AppRoleCheck::CODE_BYPASSRLS, 'cms_app has BYPASSRLS');
+});
+
+it('fails an app role with CREATEROLE', function (): void {
+    $postgres = new FakePostgresProbe;
+    $postgres->createRole = true;
+    $result = new AppRoleCheck($postgres)->run();
+
+    expectFailure($result, FailureKind::Violation, AppRoleCheck::CODE_CREATEROLE, 'The role cms_app has CREATEROLE.');
+    expect($result->fix)->toBe('Run ALTER ROLE cms_app NOCREATEROLE as a superuser.');
+
+    $postgres->superuser = true;
+    expectFailure(new AppRoleCheck($postgres)->run(), FailureKind::Violation, AppRoleCheck::CODE_SUPERUSER, 'cms_app has SUPERUSER');
+});
+
+it('fails an app role that is a member of a CREATEROLE role, a role that may create objects or a predefined role that reaches every table or the server, naming what each gives', function (): void {
+    $postgres = new FakePostgresProbe;
+    $postgres->memberships = [
+        new RoleMembership('cms_owner', superuser: false, bypassRowSecurity: false, ownsRelations: true, createRole: false, createsObjects: true),
+        new RoleMembership('pg_execute_server_program', superuser: false, bypassRowSecurity: false, ownsRelations: false, createRole: false, createsObjects: false),
+        new RoleMembership('pg_write_all_data', superuser: false, bypassRowSecurity: false, ownsRelations: false, createRole: false, createsObjects: false),
+        new RoleMembership('role_admin', superuser: false, bypassRowSecurity: false, ownsRelations: false, createRole: true, createsObjects: false),
+    ];
+    $result = new AppRoleCheck($postgres)->run();
+
+    expectFailure($result, FailureKind::Violation, AppRoleCheck::CODE_MEMBERSHIP, 'The role cms_app is a member of cms_owner, which owns relations and owns or may create objects in the database or its schemas; pg_execute_server_program, which runs programs on the database server; pg_write_all_data, which writes every table, append-only ones included; role_admin, which has CREATEROLE.');
+    expect($result->fix)->toStartWith('Run REVOKE cms_owner, pg_execute_server_program, pg_write_all_data, role_admin FROM cms_app as a superuser');
+
+    $postgres->createRole = true;
+    expectFailure(new AppRoleCheck($postgres)->run(), FailureKind::Violation, AppRoleCheck::CODE_CREATEROLE, 'cms_app has CREATEROLE');
+});
+
+it('fixes a membership of pg_database_owner by the ownership of the database, not by REVOKE', function (): void {
+    $postgres = new FakePostgresProbe;
+    $postgres->memberships = [
+        new RoleMembership('pg_database_owner', superuser: false, bypassRowSecurity: false, ownsRelations: false, createRole: false, createsObjects: true),
+    ];
+    $result = new AppRoleCheck($postgres)->run();
+
+    expectFailure($result, FailureKind::Violation, AppRoleCheck::CODE_MEMBERSHIP, 'The role cms_app is a member of pg_database_owner, which owns or may create objects in the database or its schemas.');
+    expect($result->fix)->toBe('pg_database_owner comes from owning the database: give the database to the owner role with ALTER DATABASE ... OWNER TO, or revoke the membership through which cms_app reaches its owner. The app role reads and writes rows only.');
+
+    $postgres->memberships[] = new RoleMembership('pg_write_all_data', superuser: false, bypassRowSecurity: false, ownsRelations: false, createRole: false, createsObjects: false);
+
+    expect(new AppRoleCheck($postgres)->run()->fix)->toStartWith('Run REVOKE pg_write_all_data FROM cms_app as a superuser, or revoke the grant that leads to it when the membership is indirect. pg_database_owner comes from');
 });
 
 it('names the roles through which the app role owns relations, and fixes each way it owns them', function (): void {
