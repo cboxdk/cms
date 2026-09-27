@@ -1,0 +1,11 @@
+# The rules of rule 7, registered as in config/phpstan.neon: SystemClockRule, UuidCreationRule and
+# the three rules that hand first-class callables such as time(...) to both. The real file also
+# includes Larastan, which boots a Laravel application and leaves its error handlers behind in a
+# RuleTestCase. tests/Feature/Tooling/LayerTypeRulesTest.php checks the real registration.
+
+rules:
+    - Cbox\Cms\Testkit\Phpstan\SystemClockRule
+    - Cbox\Cms\Testkit\Phpstan\UuidCreationRule
+    - Cbox\Cms\Testkit\Phpstan\FunctionCallablesRule
+    - Cbox\Cms\Testkit\Phpstan\MethodCallablesRule
+    - Cbox\Cms\Testkit\Phpstan\StaticMethodCallablesRule

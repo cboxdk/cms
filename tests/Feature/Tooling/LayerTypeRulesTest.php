@@ -4,15 +4,19 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Tests\Feature\Tooling;
 
+use Cbox\Cms\Testkit\Phpstan\FunctionCallablesRule;
 use Cbox\Cms\Testkit\Phpstan\InternalClassConstantUsageExtension;
 use Cbox\Cms\Testkit\Phpstan\InternalClassNameUsageExtension;
 use Cbox\Cms\Testkit\Phpstan\InternalMethodUsageExtension;
 use Cbox\Cms\Testkit\Phpstan\LayerScope;
+use Cbox\Cms\Testkit\Phpstan\MethodCallablesRule;
 use Cbox\Cms\Testkit\Phpstan\PhpstanIgnoreCollector;
 use Cbox\Cms\Testkit\Phpstan\PhpstanIgnoreRule;
 use Cbox\Cms\Testkit\Phpstan\RawSqlRule;
 use Cbox\Cms\Testkit\Phpstan\SavepointStringsRule;
+use Cbox\Cms\Testkit\Phpstan\StaticMethodCallablesRule;
 use Cbox\Cms\Testkit\Phpstan\StringIdsRule;
+use Cbox\Cms\Testkit\Phpstan\SystemClockRule;
 use Cbox\Cms\Testkit\Phpstan\TransactionCallsRule;
 use Cbox\Cms\Testkit\Phpstan\TypedArrowFunctionsRule;
 use Cbox\Cms\Testkit\Phpstan\TypedClassConstantsRule;
@@ -21,12 +25,13 @@ use Cbox\Cms\Testkit\Phpstan\TypedClosuresRule;
 use Cbox\Cms\Testkit\Phpstan\TypedFunctionsRule;
 use Cbox\Cms\Testkit\Phpstan\TypedMethodsRule;
 use Cbox\Cms\Testkit\Phpstan\TypedPropertiesRule;
+use Cbox\Cms\Testkit\Phpstan\UuidCreationRule;
 use Cbox\Cms\Tests\Support\Arch\Layer;
 use Cbox\Cms\Tests\Support\Phpstan;
 use Cbox\Cms\Tests\Support\PhpstanAnalysis;
 
 /*
- * The testkit's PHPStan rules (GUARDRAILS 2.2, 2.3 and 4.1, PRD 4.2 and 5.3, gate 3) through the
+ * The testkit's PHPStan rules (GUARDRAILS 2.2, 2.3, 4.1 and 6, PRD 4.2 and 5.3, gate 3) through the
  * real configuration: the testkit neon registers them, the root includes it, and
  * vendor/bin/phpstan reports them. The rules themselves are tested with RuleTestCase in
  * packages/testkit/tests/Phpstan.
@@ -71,6 +76,11 @@ it('registers every rule, the collector and the extensions in the testkit neon, 
         SavepointStringsRule::class,
         StringIdsRule::class,
         RawSqlRule::class,
+        SystemClockRule::class,
+        UuidCreationRule::class,
+        FunctionCallablesRule::class,
+        MethodCallablesRule::class,
+        StaticMethodCallablesRule::class,
     ];
     $services = [
         PhpstanIgnoreCollector::class => 'phpstan.collector',
@@ -324,6 +334,77 @@ it('passes a string id a framework interface requires, also through a parent cla
     "PHP's session interface" => ['implements \SessionUpdateTimestampHandlerInterface', true],
     'no interface' => ['', false],
 ]);
+
+it('fails the analysis on reading the system clock and making a UUID in an adapter, despite ignore comments', function (): void {
+    $analysis = analyseProbe(<<<'PHP'
+        <?php
+
+        declare(strict_types=1);
+
+        namespace Cbox\Cms\Core\Entries\Adapter;
+
+        use DateTimeImmutable;
+        use Illuminate\Support\Str;
+
+        final readonly class Probe
+        {
+            public function stamp(): string
+            {
+                // @phpstan-ignore cboxCms.systemClock
+                $now = new DateTimeImmutable();
+
+                // @phpstan-ignore cboxCms.uuid
+                return $now->format('c').Str::uuid()->toString();
+            }
+        }
+        PHP);
+
+    // PHPStan adds that neither comment matched an error, because non-ignorable errors do not
+    // match an ignore comment.
+    expect($analysis->exitCode)->not->toBe(0)
+        ->and($analysis->identifiers)->toEqualCanonicalizing([
+            'cboxCms.systemClock',
+            'cboxCms.uuid',
+            'ignore.unmatchedIdentifier',
+            'ignore.unmatchedIdentifier',
+        ]);
+});
+
+it('allows the system clock in a Clock implementation and UUIDs in an IdGenerator implementation', function (): void {
+    $analysis = analyseProbe(<<<'PHP'
+        <?php
+
+        declare(strict_types=1);
+
+        namespace Acme\Blog\Adapter;
+
+        use Cbox\Cms\Contracts\Clock;
+        use Cbox\Cms\Contracts\IdGenerator;
+        use Cbox\Cms\Contracts\Ids\Uuid7;
+        use DateTimeImmutable;
+        use DateTimeZone;
+        use Illuminate\Support\Str;
+
+        final readonly class ProbeClock implements Clock
+        {
+            public function now(): DateTimeImmutable
+            {
+                return new DateTimeImmutable('now', new DateTimeZone('UTC'));
+            }
+        }
+
+        final readonly class ProbeIds implements IdGenerator
+        {
+            public function next(): Uuid7
+            {
+                return new Uuid7(Str::uuid7()->toString());
+            }
+        }
+        PHP);
+
+    expect($analysis->exitCode)->toBe(0)
+        ->and($analysis->identifiers)->toBe([]);
+});
 
 it('fails the analysis when an addon uses an internal class of the testkit, and allows it in the core', function (string $namespace, bool $allowed): void {
     $analysis = analyseProbe(<<<PHP

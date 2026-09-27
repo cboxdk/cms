@@ -40,6 +40,11 @@ parameters:
 # use what is marked #[Internal]. PHPStan's restricted usage rules report them.
 # Rule 6, RawSqlRule (GUARDRAILS 6): raw SQL only in migrations and in Infrastructure and Adapter;
 # everything else uses the query builder. Its errors are non-ignorable too.
+# Rule 7, SystemClockRule and UuidCreationRule (GUARDRAILS 2.3, PRD 5.3): only a Clock
+# implementation reads the system clock and only an IdGenerator implementation makes a UUID, so
+# time and ids are deterministic in tests. Test code is not checked; the errors are non-ignorable.
+# FunctionCallablesRule, MethodCallablesRule and StaticMethodCallablesRule apply both to
+# first-class callables such as time(...), which PHPStan gives to rules as their own nodes.
 rules:
     - Cbox\Cms\Testkit\Phpstan\TypedMethodsRule
     - Cbox\Cms\Testkit\Phpstan\TypedFunctionsRule
@@ -53,6 +58,11 @@ rules:
     - Cbox\Cms\Testkit\Phpstan\SavepointStringsRule
     - Cbox\Cms\Testkit\Phpstan\StringIdsRule
     - Cbox\Cms\Testkit\Phpstan\RawSqlRule
+    - Cbox\Cms\Testkit\Phpstan\SystemClockRule
+    - Cbox\Cms\Testkit\Phpstan\UuidCreationRule
+    - Cbox\Cms\Testkit\Phpstan\FunctionCallablesRule
+    - Cbox\Cms\Testkit\Phpstan\MethodCallablesRule
+    - Cbox\Cms\Testkit\Phpstan\StaticMethodCallablesRule
 
 services:
     -

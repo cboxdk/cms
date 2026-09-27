@@ -7,7 +7,7 @@ namespace Examples\Unit\Clock;
 use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Contracts\Ids\Uuid7;
-use DateTimeImmutable;
+use Cbox\Cms\Core\Clock\Adapter\SystemClock;
 use Examples\Contract\Clock\StagingClock;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -17,7 +17,7 @@ final class ReplaceClockTest extends StagingApplicationTestCase
     public function the_container_gives_the_configured_clock_once_per_process(): void
     {
         self::assertSame(app(Clock::class), app(Clock::class));
-        self::assertGreaterThan(new DateTimeImmutable('+23 hours'), app(Clock::class)->now());
+        self::assertGreaterThan(new SystemClock()->now()->modify('+23 hours'), app(Clock::class)->now());
         self::assertInstanceOf(StagingClock::class, app(Clock::class));
     }
 

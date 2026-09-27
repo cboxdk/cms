@@ -14,7 +14,7 @@
 
 ## Only a clock reads the system clock
 
-Code that needs the time asks for a `Clock` in its constructor and calls `now()`. It never calls `new DateTimeImmutable()`, `time()`, `microtime()`, `date()`, Laravel's `now()` helper or `Carbon::now()`. Only a class that implements `Clock` reads the system clock, so every other class follows the clock that the container, or a test, gives it.
+Code that needs the time asks for a `Clock` in its constructor and calls `now()`. It never calls `new DateTimeImmutable()`, `time()`, `microtime()`, `date()`, Laravel's `now()` helper or `Carbon::now()`. Only a class that implements `Clock` reads the system clock, so every other class follows the clock that the container, or a test, gives it. The testkit's PHPStan rule reports every other read as `cboxCms.systemClock`, which no ignore comment can hide: the calls above, `date()` and `getdate()` without a timestamp, `strtotime()` without a base, `mktime()` without all its parts, `uniqid()`, `new DateTimeImmutable()` or `date_create()` with no date or a date string such as `'now'` or `'+1 day'`, `createFromFormat()` with a format that leaves fields to the current time, Carbon's `now()`, `today()`, `parse()` and the methods that compare with the current time, symfony/clock's `now()` and system clocks, the traits `InteractsWithTime` and `ClockAwareTrait`, and `$_SERVER['REQUEST_TIME']`. Test code is not checked. `hrtime()` is not reported, because it measures a duration and never gives the time of day.
 
 ## Replacing the clock
 
@@ -96,7 +96,7 @@ abstract class StagingApplicationTestCase extends TestCase
 }
 ```
 
-The test resolves `Clock` from the container and gets the staging clock, once per process. The id generator, which keeps its default, reads the time from it:
+The test resolves `Clock` from the container and gets the staging clock, once per process. It takes the real time from the core's `SystemClock`, because only a clock reads the system clock. The id generator, which keeps its default, reads the time from it:
 
 <!-- example: examples/Unit/Clock/ReplaceClockTest.php -->
 ```php
@@ -109,7 +109,7 @@ namespace Examples\Unit\Clock;
 use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Contracts\Ids\Uuid7;
-use DateTimeImmutable;
+use Cbox\Cms\Core\Clock\Adapter\SystemClock;
 use Examples\Contract\Clock\StagingClock;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -119,7 +119,7 @@ final class ReplaceClockTest extends StagingApplicationTestCase
     public function the_container_gives_the_configured_clock_once_per_process(): void
     {
         self::assertSame(app(Clock::class), app(Clock::class));
-        self::assertGreaterThan(new DateTimeImmutable('+23 hours'), app(Clock::class)->now());
+        self::assertGreaterThan(new SystemClock()->now()->modify('+23 hours'), app(Clock::class)->now());
         self::assertInstanceOf(StagingClock::class, app(Clock::class));
     }
 
