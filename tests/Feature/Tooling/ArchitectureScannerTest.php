@@ -212,18 +212,27 @@ it('reads function calls by their exact name, and tells them from methods, decla
         '7 class Symfony\Component\Process\Process',
         '8 class Symfony\Component\HttpClient\HttpClient',
         '8 class Symfony\Component\Process',
+        '14 string x',
         '20 function fopen',
+        '20 string r',
         '21 function file',
         '22 function filesize',
         '22 function file_exists',
         '23 method exec',
         '24 method copy',
+        '24 string a',
+        '24 string b',
         '25 method openfile',
+        '25 string r',
         '26 function cbox\cms\core\schema\file_contents',
+        '26 string x',
         '27 function shell_exec',
+        '28 string curl',
         '29 class Symfony\Component\Process\ExecutableFinder',
         '30 class SplFileObject',
+        '32 string x',
         '32 function system',
+        '32 string id',
     ]);
 });
 
@@ -257,6 +266,26 @@ it('reads the classes of a group import, a trait use and a relative name, but no
         '11 class Cbox\Cms\Core\Schema\Adapter\Loads',
         '15 class Closure',
         '17 class Cbox\Cms\Core\Schema\Adapter\Local',
+        '18 string GET',
+        '18 string x',
+    ]);
+});
+
+it('reads a string that spells a name as written, unescaped and without the leading backslash, but not a key or other text', function (): void {
+    expect(referencesOf(<<<'PHP'
+        <?php
+
+        namespace Cbox\Cms\Core\Schema\Adapter;
+
+        $a = ['file_get_contents', "\\GuzzleHttp\\Client", 'Foo\Bar::openFile', "Symfony\Component\Process\\"];
+        $b = ['copy' => 1, $found['exec'], $found[0]['system'], f()['file'], $this->map['dir']];
+        $c = ['the file', 'http://x', 'a b', "$x", 'Foo::', 'Foo\\\\Bar', 'x-y'];
+        PHP))->toBe([
+        '5 string file_get_contents',
+        '5 string GuzzleHttp\Client',
+        '5 string Foo\Bar::openFile',
+        '5 string Symfony\Component\Process\\',
+        '6 function f',
     ]);
 });
 
@@ -334,6 +363,82 @@ it('reports every URL-capable function, socket, process and class outside the ga
         'Probe.php:36: method openfile',
         'Probe.php:37: class Symfony\Component\Process\Process',
         'Probe.php:38: class Illuminate\Process\PendingProcess',
+        'Probe.php:40: function file_put_contents',
+    ]);
+});
+
+it('reports string callables and class names in strings, the framework filesystems and the other URL-capable functions', function (): void {
+    $file = SourceFile::parse('Probe.php', <<<'PHP'
+        <?php
+
+        declare(strict_types=1);
+
+        namespace Cbox\Cms\Core\Schema\Adapter;
+
+        use Illuminate\Filesystem\Filesystem;
+        use Illuminate\Support\Facades\File;
+        use Symfony\Component\Filesystem\Filesystem as SymfonyFilesystem;
+
+        final class Fetcher
+        {
+            public function run(string $url, array $urls, mixed $handle): void
+            {
+                array_map('file_get_contents', $urls);
+                call_user_func('curl_exec', $handle);
+                call_user_func("\\CURL_EXEC", $handle);
+                app('GuzzleHttp\\Client');
+                app('\\Illuminate\\Support\\Facades\\Http');
+                call_user_func('Illuminate\\Support\\Facades\\File::copy', $url, '/tmp/x');
+                call_user_func([$handle, 'openFile']);
+                $reader = 'readfile';
+                File::copy($url, '/tmp/x');
+                \Illuminate\Support\Facades\File::hash($url);
+                (new \Symfony\Component\Filesystem\Filesystem())->copy($url, '/tmp/x');
+                file_put_contents('ftp://host/x', 'data');
+                opendir('ftp://host/');
+                scandir('ftp://host/');
+                dir('ftp://host/');
+                new \DirectoryIterator('ftp://host/');
+                new \FilesystemIterator('ftp://host/');
+                new \RecursiveDirectoryIterator('ftp://host/');
+                simplexml_load_string($url, options: LIBXML_NOENT);
+                new \XSLTProcessor();
+                new \SoapServer($url);
+                mail('a@example.com', 'x', 'y');
+                mb_send_mail('a@example.com', 'x', 'y');
+                error_log('x', 1, 'a@example.com');
+                $words = ['file' => 'the file', 'socket_timeout' => 'files', 'mode' => 'rb', 'fopen:' => $found['file'].$found[0]['exec']];
+            }
+        }
+        PHP);
+
+    expect(Egress::violations([$file]))->toBe([
+        'Probe.php:7: class Illuminate\Filesystem\Filesystem',
+        'Probe.php:8: class Illuminate\Support\Facades\File',
+        'Probe.php:9: class Symfony\Component\Filesystem\Filesystem',
+        'Probe.php:15: string file_get_contents',
+        'Probe.php:16: string curl_exec',
+        'Probe.php:17: string CURL_EXEC',
+        'Probe.php:18: string GuzzleHttp\Client',
+        'Probe.php:19: string Illuminate\Support\Facades\Http',
+        'Probe.php:20: string Illuminate\Support\Facades\File::copy',
+        'Probe.php:21: string openFile',
+        'Probe.php:22: string readfile',
+        'Probe.php:24: class Illuminate\Support\Facades\File',
+        'Probe.php:25: class Symfony\Component\Filesystem\Filesystem',
+        'Probe.php:26: function file_put_contents',
+        'Probe.php:27: function opendir',
+        'Probe.php:28: function scandir',
+        'Probe.php:29: function dir',
+        'Probe.php:30: class DirectoryIterator',
+        'Probe.php:31: class FilesystemIterator',
+        'Probe.php:32: class RecursiveDirectoryIterator',
+        'Probe.php:33: function simplexml_load_string',
+        'Probe.php:34: class XSLTProcessor',
+        'Probe.php:35: class SoapServer',
+        'Probe.php:36: function mail',
+        'Probe.php:37: function mb_send_mail',
+        'Probe.php:38: function error_log',
     ]);
 });
 
@@ -359,9 +464,34 @@ it('lets the gateway and the allowed local uses through, and only the names they
     expect(Egress::violations([$gateway, $localFile]))->toBe(['LocalFile.php:12: function fopen']);
 });
 
+it('lets a word through only as the string it is allowed as, and the function it spells stays forbidden', function (): void {
+    $command = SourceFile::parse('GenerateCommand.php', <<<'PHP'
+        <?php
+
+        namespace Cbox\Cms\Generators\Cli\Console;
+
+        final class GenerateCommand
+        {
+            public function handle(int $total): string
+            {
+                file('/tmp/x');
+                array_map('File', []);
+
+                return $total === 1 ? 'file' : 'files';
+            }
+        }
+        PHP);
+
+    expect(Egress::violations([$command]))->toBe([
+        'GenerateCommand.php:9: function file',
+        'GenerateCommand.php:10: string File',
+    ]);
+});
+
 it('reports an allowance that no code uses any more', function (): void {
     $processProbe = SourceFile::parse('ProcessToolProbe.php', "<?php\n\nnamespace Cbox\\Cms\\Core\\Doctor\\Adapter;\n\nfinal readonly class ProcessToolProbe {}\n");
 
     expect(Egress::unusedAllowances([$processProbe]))->toContain('Cbox\Cms\Core\Doctor\Adapter\ProcessToolProbe Symfony\Component\Process\\')
+        ->and(Egress::unusedAllowances([$processProbe]))->toContain('Cbox\Cms\Generators\Cli\Console\GenerateCommand word file')
         ->and(Egress::unusedAllowances(Codebase::code()))->toBe([]);
 });

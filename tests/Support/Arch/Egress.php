@@ -5,12 +5,20 @@ declare(strict_types=1);
 namespace Cbox\Cms\Tests\Support\Arch;
 
 use Cbox\Cms\Core\Doctor\Adapter\ProcessToolProbe;
+use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
+use Cbox\Cms\Generators\Cli\Console\GenerateCommand;
+use Cbox\Cms\Generators\Cli\Console\SchemaEditorCommand;
+use Cbox\Cms\Generators\Editor\Adapter\FilesystemSchemaFiles;
+use Cbox\Cms\Generators\Generation\Adapter\FilesystemGeneratedOutput;
+use Cbox\Cms\Generators\Schema\Boundary\BlueprintFiles;
 use Cbox\Cms\Generators\Schema\Boundary\LocalFile;
 use Cbox\Cms\Testkit\Phpstan\LaravelBootLock;
 use Cbox\Cms\Testkit\Phpstan\PhpstanIgnoreCollector;
+use Cbox\Cms\Testkit\Phpstan\RawSqlRule;
 use Cbox\Cms\Testkit\Postgres\ChildProcess;
 use Cbox\Cms\Testkit\Postgres\ChildProcesses;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 
@@ -20,8 +28,13 @@ use Illuminate\Support\Facades\Process;
  *
  * That is more than the HTTP clients. PHP's URL wrappers make every function that opens a file
  * name fetch http://, https:// and ftp:// URLs: fopen, file, readfile, copy, SplFileObject,
- * SplFileInfo::openFile, DOMDocument::load, XMLReader::open and the others below. Sockets connect
- * anywhere, and a process can run curl. The rule matches exact names, read by ReferenceScan.
+ * SplFileInfo::openFile, DOMDocument::load, XMLReader::open and the others below. ftp:// also
+ * writes (file_put_contents) and lists directories (scandir, the directory iterators), and the
+ * framework's filesystems (Illuminate\Filesystem with the File facade, Symfony's Filesystem) pass
+ * a URL on to them. An XML parser fetches external entities and XSLT's document(), and mail() and
+ * error_log() send mail. Sockets connect anywhere, and a process can run curl. The rule matches
+ * exact names, read by ReferenceScan, also where a string names one: a string callable such as
+ * array_map('file_get_contents', ...) or a class resolved from the container by its name.
  *
  * The allowances are the local uses the code has, each with the reason it stays local. Every
  * allowance must still be in use, so one cannot outlive the code it was made for. At run time
@@ -60,6 +73,16 @@ final class Egress
         'sha1_file',
         'show_source',
         'simplexml_load_file',
+        'simplexml_load_string',
+        // Writing a file name or listing a directory, which ftp:// does remotely.
+        'dir',
+        'file_put_contents',
+        'opendir',
+        'scandir',
+        // Sending mail: error_log() with message type 1 mails its message.
+        'error_log',
+        'mail',
+        'mb_send_mail',
         // Sockets and stream contexts.
         'fsockopen',
         'pfsockopen',
@@ -83,23 +106,31 @@ final class Egress
     public const array FUNCTION_PREFIXES = ['curl_', 'ftp_', 'imagecreatefrom', 'socket_'];
 
     /**
-     * Classes, and namespaces ending in a backslash, that fetch a file name or a URL, send HTTP or
-     * run a program.
+     * Classes, and namespaces ending in a backslash, that fetch, write or list a file name or a
+     * URL, send HTTP or run a program.
      */
     public const array CLASSES = [
+        'DirectoryIterator',
         'DOMDocument',
+        'FilesystemIterator',
         'finfo',
+        'RecursiveDirectoryIterator',
         'SimpleXMLElement',
         'SoapClient',
+        'SoapServer',
         'SplFileObject',
         'XMLReader',
         'XMLWriter',
+        'XSLTProcessor',
         'GuzzleHttp\\',
+        'Illuminate\Filesystem\\',
         'Illuminate\Http\Client\\',
         'Illuminate\Process\\',
+        File::class,
         Http::class,
         Process::class,
         'Psr\Http\Client\\',
+        'Symfony\Component\Filesystem\\',
         'Symfony\Component\HttpClient\\',
         'Symfony\Component\Process\\',
     ];
@@ -116,9 +147,20 @@ final class Egress
         // Reads local files: it refuses a path that names a stream wrapper (LocalFile::WRAPPER)
         // before it touches it, and the generators read every schema and generated file through it.
         LocalFile::class => ['SplFileObject'],
-        // Reads the .php files that a RecursiveDirectoryIterator finds below a scan root, whose
-        // directory ScanRoot requires to be an absolute path.
-        AttributeScanner::class => ['openfile'],
+        // Lists a scan root with a RecursiveDirectoryIterator and reads the .php files it finds
+        // there; ScanRoot requires the directory to be an absolute path.
+        AttributeScanner::class => ['FilesystemIterator', 'openfile', 'RecursiveDirectoryIterator'],
+        // Lists and writes bootstrap/cache/cms below the application's bootstrap path, the only
+        // directory CoreServiceProvider gives it, under the fixed names of RegistryName.
+        FileRegistryCache::class => ['file_put_contents', 'scandir'],
+        // Lists a schema root, whose base SchemaRoot requires to be an absolute path.
+        BlueprintFiles::class => ['FilesystemIterator', 'RecursiveDirectoryIterator'],
+        // Lists and writes the owned directories below cms.generators.root, which
+        // GenerationTarget requires to be an absolute path.
+        FilesystemGeneratedOutput::class => ['file_put_contents', 'FilesystemIterator', 'RecursiveDirectoryIterator'],
+        // Writes a temporary file next to the realpath() of a schema file it found by listing a
+        // schema root; realpath() resolves no stream wrapper.
+        FilesystemSchemaFiles::class => ['file_put_contents'],
         // Runs `node --version` and `node -e` with a fixed script for cms:doctor --dev.
         ProcessToolProbe::class => ['Symfony\Component\Process\\'],
         // The testkit: PHPStan's analysed files, a lock file in the temporary directory, and child
@@ -127,6 +169,22 @@ final class Egress
         LaravelBootLock::class => ['SplFileObject'],
         ChildProcess::class => ['Symfony\Component\Process\\'],
         ChildProcesses::class => ['Symfony\Component\Process\\'],
+    ];
+
+    /**
+     * Each class with a string that spells a name in the lists but is a word, never called or
+     * resolved, and the strings, exactly as written. The name itself stays forbidden there.
+     *
+     * @var array<class-string, list<string>>
+     */
+    public const array ALLOWED_WORDS = [
+        // "Generated 1 file: ...", the noun in the report of cms:generate.
+        GenerateCommand::class => ['file'],
+        // "Wrote the editor line to 1 file", the noun in the report of cms:schema:editor.
+        SchemaEditorCommand::class => ['file'],
+        // PDO::exec(), one of the PDO methods that take SQL, which the rule compares a method
+        // call's name with.
+        RawSqlRule::class => ['exec'],
     ];
 
     /**
@@ -144,7 +202,7 @@ final class Egress
             foreach ($file->references as $reference) {
                 $forbidden = self::forbidden($reference);
 
-                if ($forbidden === null || self::inGateway($reference->namespace) || self::allowed($file, $forbidden)) {
+                if ($forbidden === null || self::inGateway($reference->namespace) || self::allowed($file, $reference, $forbidden)) {
                     continue;
                 }
 
@@ -175,6 +233,10 @@ final class Egress
 
                 foreach ($file->types as $type) {
                     $used[$type->fqcn().' '.$forbidden] = true;
+
+                    if ($reference->kind === ReferenceKind::StringLiteral) {
+                        $used[$type->fqcn().' word '.$reference->name] = true;
+                    }
                 }
             }
         }
@@ -189,6 +251,14 @@ final class Egress
             }
         }
 
+        foreach (self::ALLOWED_WORDS as $class => $words) {
+            foreach ($words as $word) {
+                if (! isset($used[$class.' word '.$word])) {
+                    $unused[] = $class.' word '.$word;
+                }
+            }
+        }
+
         return $unused;
     }
 
@@ -199,9 +269,31 @@ final class Egress
     {
         return match ($reference->kind) {
             ReferenceKind::Function => self::forbiddenFunction($reference->name),
-            ReferenceKind::Method => in_array($reference->name, self::METHODS, true) ? $reference->name : null,
+            ReferenceKind::Method => self::forbiddenMethod($reference->name),
             ReferenceKind::ClassName => self::forbiddenClass($reference->name),
+            ReferenceKind::StringLiteral => self::forbiddenString($reference->name),
         };
+    }
+
+    /**
+     * A string names a function, a method of an array callable, a class, or Class::method.
+     */
+    private static function forbiddenString(string $value): ?string
+    {
+        if (str_contains($value, '::')) {
+            [$class, $method] = explode('::', $value, 2);
+
+            return self::forbiddenClass($class) ?? self::forbiddenMethod($method);
+        }
+
+        return self::forbiddenFunction(strtolower($value)) ?? self::forbiddenClass($value) ?? self::forbiddenMethod($value);
+    }
+
+    private static function forbiddenMethod(string $method): ?string
+    {
+        $lower = strtolower($method);
+
+        return in_array($lower, self::METHODS, true) ? $lower : null;
     }
 
     private static function forbiddenFunction(string $function): ?string
@@ -242,8 +334,9 @@ final class Egress
         return $namespace === Codebase::GATEWAY || str_starts_with($namespace, Codebase::GATEWAY.'\\');
     }
 
-    private static function allowed(SourceFile $file, string $forbidden): bool
+    private static function allowed(SourceFile $file, Reference $reference, string $forbidden): bool
     {
-        return array_any($file->types, fn (DeclaredType $type): bool => in_array($forbidden, self::ALLOWED[$type->fqcn()] ?? [], true));
+        return array_any($file->types, static fn (DeclaredType $type): bool => in_array($forbidden, self::ALLOWED[$type->fqcn()] ?? [], true)
+            || ($reference->kind === ReferenceKind::StringLiteral && in_array($reference->name, self::ALLOWED_WORDS[$type->fqcn()] ?? [], true)));
     }
 }

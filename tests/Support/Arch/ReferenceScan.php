@@ -15,8 +15,15 @@ namespace Cbox\Cms\Tests\Support\Arch;
  * A class counts where the file imports it (a trait use included), writes it fully qualified or
  * qualifies it relative to an import. An unqualified name in a namespace is that namespace's own
  * class, so it cannot be a global class unless the file imports it, which already counts. A
- * backtick string is shell_exec(). Calls through a variable or a string callable are not seen;
- * allow_url_fopen=Off in the runtime contract (php.allow_url_fopen) covers the URL wrappers there.
+ * backtick string is shell_exec().
+ *
+ * A quoted string whose value reads as a name (a function, a qualified class, or Class::method) is
+ * a StringLiteral reference, because PHP calls or resolves it: array_map('file_get_contents', ...),
+ * call_user_func('curl_exec', ...), [$info, 'openFile'] and app('GuzzleHttp\Client'). A string used
+ * as a key, an array offset such as $found['file'] or an array key before =>, is not a reference:
+ * PHP never calls a key. What the scan cannot see is a name built at run time, by concatenation or
+ * interpolation; allow_url_fopen=Off in the runtime contract (php.allow_url_fopen) still turns the
+ * URL wrappers off there.
  */
 final class ReferenceScan
 {
@@ -25,6 +32,9 @@ final class ReferenceScan
     private const array DECLARATIONS = [T_FUNCTION, T_CONST, T_CLASS, T_INTERFACE, T_TRAIT, T_ENUM];
 
     private const array NAMES = [T_STRING, T_NAME_QUALIFIED, T_NAME_FULLY_QUALIFIED, T_NAME_RELATIVE];
+
+    /** A name as a string can hold it: a function, a class qualified or not, or Class::method. */
+    private const string NAME = '/\A\\\\?[A-Za-z_\x80-\xff][A-Za-z0-9_\x80-\xff]*(?:\\\\[A-Za-z_\x80-\xff][A-Za-z0-9_\x80-\xff]*)*(?:\\\\|::[A-Za-z_\x80-\xff][A-Za-z0-9_\x80-\xff]*)?\z/';
 
     /**
      * @return list<Reference>
@@ -132,6 +142,16 @@ final class ReferenceScan
                 continue;
             }
 
+            if ($id === T_CONSTANT_ENCAPSED_STRING) {
+                $value = self::unquote($text);
+
+                if (preg_match(self::NAME, $value) === 1 && ! self::isKey($tokens, $i)) {
+                    $references[] = new Reference(ReferenceKind::StringLiteral, ltrim($value, '\\'), $namespace, $path, $line);
+                }
+
+                continue;
+            }
+
             if (! in_array($id, self::NAMES, true)) {
                 continue;
             }
@@ -200,6 +220,40 @@ final class ReferenceScan
         }
 
         return $namespace === '' ? $text : $namespace.'\\'.$text;
+    }
+
+    /**
+     * Whether the string at $index is a key: an array key before =>, or the offset in $a['x'],
+     * $a[0]['x'], f()['x'] or $a->b['x'], where the bracket follows a value.
+     *
+     * @param  list<array{int, string, int}>  $tokens
+     */
+    private static function isKey(array $tokens, int $index): bool
+    {
+        $next = $tokens[$index + 1] ?? [0, '', 0];
+
+        if ($next[0] === T_DOUBLE_ARROW) {
+            return true;
+        }
+
+        $open = $tokens[$index - 1] ?? [0, '', 0];
+        $value = $tokens[$index - 2] ?? [0, '', 0];
+
+        return $open[1] === '[' && $next[1] === ']'
+            && ($value[0] === T_VARIABLE || $value[0] === T_STRING || in_array($value[1], [']', ')', '}'], true));
+    }
+
+    /**
+     * The value of a quoted string literal. Only the escapes a name can contain matter: a
+     * backslash written as two, and in double quotes a backslash before any other character stays.
+     */
+    private static function unquote(string $literal): string
+    {
+        $body = substr($literal, 1, -1);
+
+        return str_starts_with($literal, "'")
+            ? strtr($body, ['\\\\' => '\\', "\\'" => "'"])
+            : strtr($body, ['\\\\' => '\\', '\\"' => '"', '\\$' => '$']);
     }
 
     /**
