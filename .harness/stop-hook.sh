@@ -25,6 +25,11 @@ if [ "$count" -gt "$max" ]; then
   exit 0
 fi
 
-reason="Autopilot er slået til (stop $count af $max). Stop ikke. Læs PROGRESS.md, tag den første blok med status next, in_progress eller incomplete som ikke er blokeret, opret .harness/waiting og start workflowen cms-milestone med args {\"block\": \"<id>\"}. Er alle blokke done, sæt STATUS: complete i PROGRESS.md. Afhænger alle resterende blokke af en beslutning under Blokeret, sæt STATUS: blocked. Send i begge tilfælde en push-notifikation til Sylvester før du stopper."
+reason="Autopilot er slået til (stop $count af $max). Stop ikke. Læs PROGRESS.md og tag den første blok med status next, in_progress eller incomplete som ikke afhænger af noget under Blokeret. Opret .harness/waiting og start workflowen med scriptPath $ROOT/.claude/workflows/cms-milestone.js (aldrig med navnet) og args {block: <id>, maxParallel: 4, verifyModel: sonnet, maxReviewRounds: 1}. Er alle blokke done, sæt STATUS: complete i PROGRESS.md. Afhænger alle resterende blokke af en beslutning under Blokeret, sæt STATUS: blocked. Send i begge tilfælde en push-notifikation til Sylvester før du stopper."
 
-jq -n --arg r "$reason" '{decision: "block", reason: $r}'
+# JSON without depending on jq: PHP is on every machine that runs the gates.
+if command -v jq > /dev/null 2>&1; then
+  jq -n --arg r "$reason" '{decision: "block", reason: $r}'
+else
+  REASON="$reason" php -r 'echo json_encode(["decision" => "block", "reason" => getenv("REASON")], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), PHP_EOL;'
+fi
