@@ -8,8 +8,9 @@ use InvalidArgumentException;
 
 /**
  * What mutation on changed files mutates: the sources below packages/<package>/src that changed
- * between the merge base of CMS_CI_BASE_REF and HEAD, or why that base could not be found. A
- * missing base is a failure, never an empty change, so the step cannot pass by mutating nothing.
+ * between the base of the change (the merge base of CMS_CI_BASE_REF and HEAD, or the base derived
+ * from the checkout) and HEAD, or why that base could not be found. A missing base is a failure,
+ * never an empty change, so the step cannot pass by mutating nothing.
  */
 final readonly class MutationScope
 {

@@ -29,11 +29,18 @@
 #
 # Environment:
 #   CMS_CI_BASE_REF              the base of the change for mutation on changed files: a commit
-#                                or ref, such as the pull request's base commit that ci.yml sets,
-#                                or HEAD~1 that docker/ci-entry.sh sets in compose.ci.yaml's
-#                                archive. The step mutates what changed since its merge base with
-#                                HEAD. Unset, empty or unknown, the step fails with the reason; it
-#                                never passes with 0 changed classes for want of a base
+#                                or ref, such as the pull request's base commit or the commit
+#                                before a push that ci.yml sets, or HEAD~1 that docker/ci-entry.sh
+#                                sets in compose.ci.yaml's archive. The step mutates what changed
+#                                since its merge base with HEAD. Unset, empty or 40 zeros (the
+#                                commit before a push that creates a branch), the base is derived
+#                                from the checkout (tools/src/Mutation/Boundary/GitMutationScope.php):
+#                                HEAD~1 when HEAD is the branch main, the merge base with
+#                                origin/main (main without origin/main) on any other branch, and
+#                                the empty tree when HEAD is the first commit, so every file counts
+#                                as changed. A ref that names no commit, or a base that cannot be
+#                                derived, fails the step with the reason; it never passes with 0
+#                                changed classes for want of a base
 #   CMS_CI_PROVISION_POSTGRES=1  first create the roles and databases on the Postgres at
 #                                DB_HOST:DB_PORT as CMS_CI_POSTGRES_SUPERUSER (default postgres)
 #                                with CMS_CI_POSTGRES_PASSWORD, using the CMS_* variables and
@@ -79,7 +86,12 @@ section() {
 section 'environment'
 echo "runner: ${runner}"
 echo "commit: $(git rev-parse HEAD 2>/dev/null || echo 'not a git checkout')"
-echo "base of the change: CMS_CI_BASE_REF=${CMS_CI_BASE_REF:-(not set)}"
+base_ref="${CMS_CI_BASE_REF-}"
+if [[ -z "${CMS_CI_BASE_REF+set}" || -z "${base_ref//[[:space:]]/}" || "$base_ref" =~ ^[[:space:]]*0{40}[[:space:]]*$ ]]; then
+    echo "base of the change: CMS_CI_BASE_REF=${CMS_CI_BASE_REF-(not set)} names none, so it is derived from the checkout: HEAD~1 on main, the merge base with origin/main on another branch, every file for a first commit"
+else
+    echo "base of the change: CMS_CI_BASE_REF=${base_ref}"
+fi
 php --version | head -n 1
 echo "node $(node --version), npm $(npm --version)"
 composer --version --no-interaction 2>/dev/null | head -n 1

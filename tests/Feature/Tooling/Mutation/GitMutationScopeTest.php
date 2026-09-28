@@ -19,7 +19,9 @@ use Cbox\Cms\Tooling\Mutation\Domain\MutationSteps;
 /*
  * What mutation on changed files mutates, read from git on scratch repositories: the files below
  * packages/<package>/src added or changed since the merge base of CMS_CI_BASE_REF and HEAD, with
- * the class each declares. A missing or unknown base fails the step with the ref in the reason,
+ * the class each declares. When CMS_CI_BASE_REF is unset, empty or 40 zeros, the base is derived:
+ * HEAD~1 on main, the merge base with origin/main (or main) elsewhere, and the empty tree for the
+ * first commit. An unknown base, or one that cannot be derived, fails the step with the reason,
  * never as an empty change.
  */
 
@@ -46,9 +48,137 @@ function pathsAndNames(MutationScope $scope): array
     return array_map(static fn (ChangedSource $source): array => [$source->path, $source->name], $scope->sources);
 }
 
-it('fails the step of the PR profile with the variable in the reason when CMS_CI_BASE_REF is unset or empty', function (?string $ref): void {
+/**
+ * The base's reason for each value of CMS_CI_BASE_REF that names no base.
+ *
+ * @return array<string, array{string|null, string}>
+ */
+function missingBases(): array
+{
+    return [
+        'unset' => [null, 'CMS_CI_BASE_REF is not set'],
+        'empty' => ['', 'CMS_CI_BASE_REF is empty'],
+        'blank' => ['  ', 'CMS_CI_BASE_REF is empty'],
+        '40 zeros, the before of a push that creates a branch' => [str_repeat('0', 40), 'CMS_CI_BASE_REF is 40 zeros, the commit before a push that created the branch'],
+    ];
+}
+
+/**
+ * The changed sources, in the Pest runs the steps of mutation on changed files make of them.
+ *
+ * @return list<string>
+ */
+function mutatedPaths(MutationScope $scope): array
+{
+    $paths = [];
+
+    foreach (MutationSteps::for($scope, '/usr/bin/php') as $step) {
+        foreach ($step->command as $argument) {
+            if (str_starts_with($argument, '--path=')) {
+                $paths[] = substr($argument, strlen('--path='));
+            }
+        }
+    }
+
+    return $paths;
+}
+
+it('derives HEAD~1 as the base on main when CMS_CI_BASE_REF is unset, empty or 40 zeros, and mutates the classes the last commit changed', function (?string $ref, string $reason): void {
     $repository = baseRepository();
     $repository->commit('base');
+    $repository->write('packages/demo/src/Domain/Kept.php', "<?php\n\nnamespace Acme\\Demo\\Domain;\n\nfinal class Kept { public int \$n = 1; }\n")->write('README.md', "changed\n");
+    $previous = $repository->git('rev-parse', 'HEAD');
+    $repository->commit('main moves on');
+
+    $scope = GitMutationScope::resolve($repository->root, $ref);
+
+    expect($scope->failure)->toBeNull()
+        ->and($scope->base)->toBe("{$previous}, HEAD~1 of main, as {$reason} and HEAD is main")
+        ->and(pathsAndNames($scope))->toBe([['packages/demo/src/Domain/Kept.php', 'Acme\Demo\Domain\Kept']])
+        ->and(mutatedPaths($scope))->toBe(['packages/demo/src/Domain/Kept.php']);
+})->with(missingBases());
+
+it('derives the merge base with origin/main as the base on another branch, before a local main, when CMS_CI_BASE_REF names none', function (?string $ref, string $reason): void {
+    $repository = baseRepository();
+    $fork = $repository->commit('base');
+    $repository->git('update-ref', 'refs/remotes/origin/main', $fork);
+    $repository->git('checkout', '--quiet', '-b', 'feature');
+    $repository->write('packages/demo/src/Domain/Added.php', "<?php\n\nnamespace Acme\\Demo\\Domain;\n\nfinal class Added {}\n")->commit('feature');
+    // The local main already has the feature, as after a merge that was not pushed; origin/main has not.
+    $repository->git('branch', '--force', 'main', 'feature');
+
+    $scope = GitMutationScope::resolve($repository->root, $ref);
+
+    expect($scope->failure)->toBeNull()
+        ->and($scope->base)->toBe("{$fork}, the merge base of origin/main and HEAD, as {$reason} and HEAD is not main")
+        ->and(pathsAndNames($scope))->toBe([['packages/demo/src/Domain/Added.php', 'Acme\Demo\Domain\Added']])
+        ->and(mutatedPaths($scope))->toBe(['packages/demo/src/Domain/Added.php']);
+})->with(missingBases());
+
+it('derives the merge base with main on another branch or a detached HEAD in a repository without origin/main', function (bool $detached): void {
+    $repository = baseRepository();
+    $fork = $repository->commit('base');
+    $repository->git('checkout', '--quiet', '-b', 'feature');
+    $repository->write('packages/demo/src/Domain/Kept.php', "<?php\n\nnamespace Acme\\Demo\\Domain;\n\nfinal class Kept { public int \$n = 1; }\n")->commit('feature');
+    // main moves on after the fork; its change is not the feature's.
+    $repository->git('checkout', '--quiet', 'main');
+    $repository->write('packages/demo/src/Domain/OnMain.php', "<?php\n\nnamespace Acme\\Demo\\Domain;\n\nfinal class OnMain {}\n")->commit('main moves on');
+    $repository->git('checkout', '--quiet', ...($detached ? ['--detach', 'feature'] : ['feature']));
+
+    $scope = GitMutationScope::resolve($repository->root, null);
+
+    expect($scope->failure)->toBeNull()
+        ->and($scope->base)->toBe("{$fork}, the merge base of main and HEAD, as CMS_CI_BASE_REF is not set and HEAD is not main")
+        ->and(pathsAndNames($scope))->toBe([['packages/demo/src/Domain/Kept.php', 'Acme\Demo\Domain\Kept']]);
+})->with(['a branch' => false, 'a detached HEAD' => true]);
+
+it('counts every file as changed in a repository with one commit, on main or another branch', function (string $branch, ?string $ref, string $reason): void {
+    $repository = ScratchRepository::make();
+    $repository->git('symbolic-ref', 'HEAD', 'refs/heads/'.$branch);
+    $head = $repository
+        ->write('packages/demo/src/Domain/Kept.php', "<?php\n\nnamespace Acme\\Demo\\Domain;\n\nfinal class Kept {}\n")
+        ->write('packages/demo/src/Store/Adapter/PostgresStore.php', "<?php\n\nnamespace Acme\\Demo\\Store\\Adapter;\n\nfinal class PostgresStore {}\n")
+        ->write('README.md', "only commit\n")
+        ->commit('the only commit');
+
+    $scope = GitMutationScope::resolve($repository->root, $ref);
+
+    expect($scope->failure)->toBeNull()
+        ->and($scope->base)->toBe("the empty tree, as {$reason} and HEAD {$head} is the only commit of the repository, so every file counts as changed")
+        ->and(pathsAndNames($scope))->toBe([
+            ['packages/demo/src/Domain/Kept.php', 'Acme\Demo\Domain\Kept'],
+            ['packages/demo/src/Store/Adapter/PostgresStore.php', 'Acme\Demo\Store\Adapter\PostgresStore'],
+        ])
+        ->and(mutatedPaths($scope))->toBe(['packages/demo/src/Domain/Kept.php,packages/demo/src/Store/Adapter/PostgresStore.php', 'packages/demo/src/Store/Adapter/PostgresStore.php']);
+})->with([
+    'main, unset' => ['main', null, 'CMS_CI_BASE_REF is not set'],
+    'main, 40 zeros' => ['main', str_repeat('0', 40), 'CMS_CI_BASE_REF is 40 zeros, the commit before a push that created the branch'],
+    'another branch, empty' => ['trunk', '', 'CMS_CI_BASE_REF is empty'],
+]);
+
+it('counts every file as changed when HEAD is the first commit of main in a repository with other commits', function (): void {
+    $repository = baseRepository();
+    $repository->commit('base');
+    $repository->git('branch', 'old-main');
+    $repository->git('checkout', '--quiet', '--orphan', 'main-again');
+    $repository->git('rm', '--quiet', '-r', '--cached', '.');
+    $repository->git('clean', '--quiet', '-fdx');
+    $repository->write('packages/other/src/Thing.php', "<?php\n\nnamespace Acme\\Other;\n\nfinal class Thing {}\n");
+    $head = $repository->commit('a new root');
+    $repository->git('branch', '--quiet', '--move', '--force', 'main-again', 'main');
+
+    $scope = GitMutationScope::resolve($repository->root, null);
+
+    expect($scope->failure)->toBeNull()
+        ->and($scope->base)->toBe("the empty tree, as CMS_CI_BASE_REF is not set and HEAD {$head} is the first commit of main, so every file counts as changed")
+        ->and(pathsAndNames($scope))->toBe([['packages/other/src/Thing.php', 'Acme\Other\Thing']]);
+});
+
+it('fails the step of the PR profile with the reason, and mutates nothing, when CMS_CI_BASE_REF names no base and none can be derived', function (?string $ref, string $reason): void {
+    $repository = ScratchRepository::make();
+    $repository->git('symbolic-ref', 'HEAD', 'refs/heads/trunk');
+    $repository->write('packages/demo/src/Domain/Kept.php', "<?php\n\nnamespace Acme\\Demo\\Domain;\n\nfinal class Kept {}\n")->commit('first');
+    $repository->write('README.md', "second\n")->commit('second');
     $runner = ScriptedProcessRunner::passing();
 
     $scope = GitMutationScope::resolve($repository->root, $ref);
@@ -56,14 +186,45 @@ it('fails the step of the PR profile with the variable in the reason when CMS_CI
     $report = new CheckRunner($runner, new GitScopeListener)->run([$gate5], $repository->root);
     $step = $report->gate(5)?->step(MutationSteps::NAME);
 
-    expect($scope->failure)->toBe('CMS_CI_BASE_REF is not set, so there is no base to find the changed files from. CI sets it to the base of the pull request.')
+    expect($scope->failure)->toBe("{$reason}, HEAD is not main, and neither origin/main nor main names a commit in {$repository->root} to take the merge base with. CI sets it to the base of the pull request.")
         ->and($scope->sources)->toBe([])
         ->and($step?->status)->toBe(StepStatus::Fail)
-        ->and($step?->reason)->toContain('CMS_CI_BASE_REF is not set')
+        ->and($step?->reason)->toContain($reason)
         ->and($step?->notes)->not->toContain(MutationSteps::NO_CHANGES)
         ->and($report->failedGates())->toBe([5])
         ->and(array_filter($runner->calls, static fn (RecordedCommand $call): bool => in_array('--mutate', $call->command, true)))->toBe([]);
-})->with(['unset' => null, 'empty' => '', 'blank' => '  ']);
+})->with(missingBases());
+
+it('fails with the reason when the derived mainline has no merge base with HEAD', function (): void {
+    $repository = baseRepository();
+    $repository->commit('base');
+    $repository->git('checkout', '--quiet', '--orphan', 'unrelated');
+    $repository->git('rm', '--quiet', '-r', '--cached', '.');
+    $repository->write('packages/other/src/Thing.php', "<?php\n\nnamespace Acme\\Other;\n\nfinal class Thing {}\n")->commit('unrelated history');
+
+    $scope = GitMutationScope::resolve($repository->root, str_repeat('0', 40));
+
+    expect($scope->failure)->toStartWith("CMS_CI_BASE_REF is 40 zeros, the commit before a push that created the branch, and main has no merge base with HEAD in {$repository->root}: ")
+        ->and($scope->sources)->toBe([]);
+});
+
+it('fails with the reason in a repository without a commit', function (): void {
+    $repository = ScratchRepository::make();
+
+    $scope = GitMutationScope::resolve($repository->root, null);
+
+    expect($scope->failure)->toStartWith("CMS_CI_BASE_REF is not set, and HEAD names no commit in {$repository->root} to derive the base from: ")
+        ->and($scope->sources)->toBe([]);
+});
+
+it('takes a ref of zeros that is not 40 long as a ref to resolve', function (): void {
+    $repository = baseRepository();
+    $repository->commit('base');
+
+    $scope = GitMutationScope::resolve($repository->root, str_repeat('0', 39));
+
+    expect($scope->failure)->toStartWith('CMS_CI_BASE_REF='.str_repeat('0', 39)." names no commit in {$repository->root}: ");
+});
 
 it('fails the step with the ref in the reason when CMS_CI_BASE_REF names no commit', function (): void {
     $repository = baseRepository();

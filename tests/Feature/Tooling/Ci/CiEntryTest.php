@@ -11,7 +11,8 @@ use Symfony\Component\Process\Process;
 
 /*
  * bin/ci, the single CI entry script, and docker/ci-entry.sh, which runs it on a clean git
- * archive of HEAD in compose.ci.yaml, on the merge base of CMS_CI_BASE_REF when that is set. bin/ci runs here with fake composer, npm, php, node, psql
+ * archive of HEAD in compose.ci.yaml, on the merge base of CMS_CI_BASE_REF, or on the base it
+ * derives when that is unset, empty or 40 zeros. bin/ci runs here with fake composer, npm, php, node, psql
  * and pg_isready on the PATH, which record how they were called; ci-entry.sh runs on a scratch
  * repository.
  */
@@ -51,7 +52,7 @@ function fakeTools(string $scratch): string
 }
 
 /**
- * @param  array<string, string>  $env
+ * @param  array<string, string|false>  $env  false unsets the variable
  * @return array{Process, list<string>}
  */
 function runBinCi(string $scratch, array $env = []): array
@@ -84,6 +85,27 @@ it('installs the locked dependencies and runs composer check with the PR profile
         ])
         ->and($process->getOutput())->toContain('runner: the test runner', 'Summary', 'wall time on the test runner; the GUARDRAILS 10 budget is 15 minutes')
         ->and((string) file_get_contents($scratch.'/build/check.log'))->toContain('Gate 1   pass');
+});
+
+it('runs the gates without a base of the change, and says the base is derived, when CMS_CI_BASE_REF is unset, empty or 40 zeros', function (string|false $ref, string $shown): void {
+    $scratch = ScratchDirectory::make();
+    [$process, $calls] = runBinCi($scratch, ['CMS_CI_BASE_REF' => $ref]);
+
+    expect($process->getExitCode())->toBe(0, $process->getErrorOutput())
+        ->and($process->getOutput())->toContain("base of the change: CMS_CI_BASE_REF={$shown} names none, so it is derived from the checkout: HEAD~1 on main, the merge base with origin/main on another branch, every file for a first commit")
+        ->and($calls)->toContain("composer check -- --pr --report={$scratch}/build/check.json");
+})->with([
+    'unset' => [false, '(not set)'],
+    'empty' => ['', ''],
+    '40 zeros' => [str_repeat('0', 40), str_repeat('0', 40)],
+]);
+
+it('names the base of the change it was given', function (): void {
+    [$process] = runBinCi(ScratchDirectory::make(), ['CMS_CI_BASE_REF' => 'abc123']);
+
+    expect($process->getExitCode())->toBe(0)
+        ->and($process->getOutput())->toContain("base of the change: CMS_CI_BASE_REF=abc123\n")
+        ->and($process->getOutput())->not->toContain('derived');
 });
 
 it('exits 1 when a gate fails, after writing the summary for GitHub', function (): void {
@@ -303,3 +325,144 @@ it('stops before anything runs when CMS_CI_BASE_REF names no commit or has no me
     'an unknown ref' => ['origin/no-such-branch', 'ci-entry: CMS_CI_BASE_REF=origin/no-such-branch names no commit in the mounted repository.'],
     'unrelated history' => ['unrelated', 'ci-entry: CMS_CI_BASE_REF=unrelated has no merge base with HEAD'],
 ]);
+
+/**
+ * A mounted repository whose main has two commits: the base, and one that changes a class. The
+ * branch feature forks from the second commit and changes another class; main then moves on.
+ *
+ * @return array{ScratchRepository, array<string, string>}
+ */
+function derivedBaseSource(): array
+{
+    $source = ScratchRepository::make();
+    $source->write('packages/demo/src/Kept.php', "<?php\n\nnamespace Acme\\Demo;\n\nfinal class Kept {}\n")->write('packages/demo/src/Other.php', "<?php\n\nnamespace Acme\\Demo;\n\nfinal class Other {}\n");
+    $first = $source->commit('base');
+    $source->write('packages/demo/src/Kept.php', "<?php\n\nnamespace Acme\\Demo;\n\nfinal class Kept { public int \$n = 1; }\n");
+    $second = $source->commit('main changes Kept');
+    $source->git('checkout', '--quiet', '-b', 'feature');
+    $source->write('packages/demo/src/Other.php', "<?php\n\nnamespace Acme\\Demo;\n\nfinal class Other { public int \$n = 1; }\n");
+    $feature = $source->commit('feature changes Other');
+    $source->git('checkout', '--quiet', 'main');
+    $source->write('packages/demo/src/OnMain.php', "<?php\n\nnamespace Acme\\Demo;\n\nfinal class OnMain {}\n");
+    $main = $source->commit('main moves on');
+
+    return [$source, ['first' => $first, 'second' => $second, 'feature' => $feature, 'main' => $main]];
+}
+
+/**
+ * Runs docker/ci-entry.sh on the mounted repository with a command that prints CMS_CI_BASE_REF,
+ * the commits of the new repository, and the classes mutation on changed files mutates there, as
+ * bin/ci's composer check finds them with this checkout's GitMutationScope.
+ *
+ * @return array{Process, string}
+ */
+function runEntryWithScope(ScratchRepository $source, string|false $baseRef): array
+{
+    $work = ScratchDirectory::make().'/work';
+    $script = ScratchDirectory::make().'/scope.php';
+    ScratchDirectory::write($script, <<<'PHP'
+        <?php
+
+        declare(strict_types=1);
+
+        require $argv[1].'/vendor/autoload.php';
+
+        $ref = getenv('CMS_CI_BASE_REF');
+        $scope = Cbox\Cms\Tooling\Mutation\Boundary\GitMutationScope::resolve((string) getcwd(), $ref === false ? null : $ref);
+
+        echo 'failure='.($scope->failure ?? '')."\n";
+
+        foreach ($scope->sources as $source) {
+            echo $source->name."\n";
+        }
+        PHP);
+
+    $process = new Process([
+        Phpstan::root().'/docker/ci-entry.sh',
+        'bash', '-c', 'echo "ref=${CMS_CI_BASE_REF-(not set)}"; git rev-list --count HEAD; "$0" "$1" "$2"',
+        PHP_BINARY, $script, Phpstan::root(),
+    ], null, ['CMS_CI_SOURCE' => $source->root.'/.git', 'CMS_CI_WORK' => $work, 'CMS_CI_BASE_REF' => $baseRef], null, 60);
+    $process->run();
+
+    return [$process, $work];
+}
+
+it('derives the base in the mounted repository when CMS_CI_BASE_REF is unset, empty or 40 zeros: HEAD~1 on main, and bin/ci sees the classes of the last commit', function (string|false $ref, string $reason): void {
+    [$source, $commits] = derivedBaseSource();
+
+    [$process, $work] = runEntryWithScope($source, $ref);
+
+    expect($process->getExitCode())->toBe(0, $process->getErrorOutput())
+        ->and($process->getOutput())->toBe(implode("\n", [
+            "ci-entry: HEAD {$commits['main']} archived to {$work} on its base {$commits['second']}, HEAD~1 of main, as {$reason} and HEAD is main; CMS_CI_BASE_REF=HEAD~1",
+            'ref=HEAD~1',
+            '2',
+            'failure=',
+            'Acme\Demo\OnMain',
+            '',
+        ]));
+})->with([
+    'unset' => [false, 'CMS_CI_BASE_REF is not set'],
+    'empty' => ['', 'CMS_CI_BASE_REF is empty'],
+    '40 zeros' => [str_repeat('0', 40), 'CMS_CI_BASE_REF is 40 zeros, the commit before a push that created the branch'],
+]);
+
+it('derives the merge base with origin/main, or main without it, on a branch when CMS_CI_BASE_REF is unset, and bin/ci sees the branch\'s classes', function (bool $withOrigin): void {
+    [$source, $commits] = derivedBaseSource();
+
+    if ($withOrigin) {
+        // origin/main is behind the local main: its merge base with the feature is the first commit.
+        $source->git('update-ref', 'refs/remotes/origin/main', $commits['first']);
+    }
+
+    $source->git('checkout', '--quiet', 'feature');
+    $mainline = $withOrigin ? 'origin/main' : 'main';
+    $base = $withOrigin ? $commits['first'] : $commits['second'];
+
+    [$process, $work] = runEntryWithScope($source, false);
+
+    expect($process->getExitCode())->toBe(0, $process->getErrorOutput())
+        ->and($process->getOutput())->toBe(implode("\n", [
+            "ci-entry: HEAD {$commits['feature']} archived to {$work} on its base {$base}, the merge base of {$mainline} and HEAD, as CMS_CI_BASE_REF is not set and HEAD is not main; CMS_CI_BASE_REF=HEAD~1",
+            'ref=HEAD~1',
+            '2',
+            'failure=',
+            ...($withOrigin ? ['Acme\Demo\Kept', 'Acme\Demo\Other'] : ['Acme\Demo\Other']),
+            '',
+        ]));
+})->with(['origin/main' => true, 'main, without origin/main' => false]);
+
+it('builds one commit when HEAD is the only commit of the mounted repository, and bin/ci counts every file as changed', function (): void {
+    $source = ScratchRepository::make();
+    $head = $source->write('packages/demo/src/Kept.php', "<?php\n\nnamespace Acme\\Demo;\n\nfinal class Kept {}\n")->write('packages/demo/src/Other.php', "<?php\n\nnamespace Acme\\Demo;\n\nfinal class Other {}\n")->commit('only');
+
+    [$process, $work] = runEntryWithScope($source, str_repeat('0', 40));
+
+    expect($process->getExitCode())->toBe(0, $process->getErrorOutput())
+        ->and($process->getOutput())->toBe(implode("\n", [
+            "ci-entry: HEAD {$head} archived to {$work}",
+            'ref=(not set)',
+            '1',
+            'failure=',
+            'Acme\Demo\Kept',
+            'Acme\Demo\Other',
+            '',
+        ]));
+});
+
+it('stops before anything runs when CMS_CI_BASE_REF is unset and the base cannot be derived', function (): void {
+    $source = ScratchRepository::make();
+    $work = ScratchDirectory::make().'/work';
+    $source->git('symbolic-ref', 'HEAD', 'refs/heads/trunk');
+    $source->write('packages/demo/src/Kept.php', "<?php\n")->commit('first');
+    $source->write('README.md', "second\n")->commit('second');
+
+    $process = new Process([Phpstan::root().'/docker/ci-entry.sh', 'bash', '-c', 'echo ran'],
+        null, ['CMS_CI_SOURCE' => $source->root.'/.git', 'CMS_CI_WORK' => $work, 'CMS_CI_BASE_REF' => false], null, 60);
+    $process->run();
+
+    expect($process->getExitCode())->toBe(1)
+        ->and($process->getOutput())->not->toContain('ran')
+        ->and($process->getErrorOutput())->toContain('ci-entry: CMS_CI_BASE_REF is not set, HEAD is not main, and neither origin/main nor main names a commit in the mounted repository.')
+        ->and($work)->not->toBeDirectory();
+});

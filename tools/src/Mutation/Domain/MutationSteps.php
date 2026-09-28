@@ -8,8 +8,8 @@ use Cbox\Cms\Tooling\Check\Domain\Step;
 
 /**
  * Mutation on changed files, the PR profile's part of GUARDRAILS 9 and 10: Pest's `--mutate` on
- * the sources below packages/<package>/src that changed since the merge base of CMS_CI_BASE_REF
- * and HEAD, each step failing below a score of 80 over the sources it judges.
+ * the sources below packages/<package>/src that changed since the base of the change
+ * (GitMutationScope), each step failing below a score of 80 over the sources it judges.
  *
  * The flags, as Pest 5 and pest-plugin-mutate 5.0 read them: `--everything` lets the run mutate
  * without covers() or mutates() in a test, and makes sure neither narrows what is mutated;

@@ -11,7 +11,9 @@
 # reason, in the log and the job summary.
 #
 # CMS_CI_BASE_REF is the pull request's base commit, or for a push to main the commit before the
-# push. The checkout fetches the whole history (fetch-depth: 0), so the merge base is there.
+# push. The checkout fetches the whole history (fetch-depth: 0), so the merge base is there. A push
+# that creates the branch has 40 zeros as the commit before it; bin/ci then derives the base from
+# the checkout: HEAD~1 on main, and the merge base with origin/main on another branch.
 #
 # Every action is pinned to the commit of its release tag, which the comment names; a tag can be
 # moved, a commit cannot. docker/ci-setup.sh is the setup compose.ci.yaml runs too: psql, git,

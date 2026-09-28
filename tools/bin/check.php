@@ -9,7 +9,8 @@ declare(strict_types=1);
  * output of failed steps out of the console, --pr runs the PR profile as CI runs it
  * (bin/ci): the same steps, mutation on changed files in gate 5, gates 8, 9 and 10, and the gates
  * CI does not run yet reported as not run. Mutation on changed files mutates what changed since the
- * merge base of CMS_CI_BASE_REF and HEAD; without that variable its step fails.
+ * merge base of CMS_CI_BASE_REF and HEAD; when the variable is unset, empty or 40 zeros, it derives
+ * the base from the checkout (GitMutationScope).
  */
 
 use Cbox\Cms\Tooling\Check\Adapter\ConsoleListener;
