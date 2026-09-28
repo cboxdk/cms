@@ -5,8 +5,12 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Postgres;
 
 use Cbox\Cms\Contracts\Clock;
+use Cbox\Cms\Contracts\Consistency\ProjectionName;
+use Cbox\Cms\Contracts\Consistency\ProjectionState;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
+use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Core\Database\Domain\TablePrivilege;
+use Cbox\Cms\Core\Database\Infrastructure\ColumnGrant;
 use Cbox\Cms\Core\Database\Infrastructure\TableGrant;
 use Cbox\Cms\Core\Database\Infrastructure\TablePrivileges;
 use Cbox\Cms\Core\Partitions\Actions\MaintainPartitions;
@@ -15,13 +19,15 @@ use Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\Postgres\PartitionFixtures;
 use DateTimeImmutable;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
 /*
  * The receipt tables as the migration and the partition manager leave them (PRD 4, 4.1, 4.2,
  * 8.4): LIST by retention class, then RANGE on changeset_id per day for Standard and per month for
  * Evidence, owned by the owner role, with only the DML the store needs for the app role on every
- * level.
+ * level: UPDATE on projection rows only of the two columns markProjection() writes, and never of
+ * an acknowledged row.
  */
 
 beforeEach(function (): void {
@@ -110,10 +116,12 @@ it('has no foreign key between the receipt tables, which are written and dropped
     expect($foreignKeys)->toBe(0);
 });
 
-it('grants the app role only SELECT and INSERT on receipts and SELECT, INSERT and UPDATE on projection rows, on every level', function (string $table, string $privileges): void {
+it('grants the app role only SELECT and INSERT on receipts, and SELECT, INSERT and UPDATE of state and acknowledged_at on projection rows, on every level', function (string $table, string $privileges, string $updatable): void {
     $owner = ReceiptTables::owner();
     $expected = explode(',', $privileges);
+    $expectedColumns = $updatable === '' ? [] : explode(',', $updatable);
     $relations = ReceiptTables::texts($owner, 'select relid::regclass::text as value from pg_partition_tree(?::regclass) order by level, relid::regclass::text', [$table]);
+    $columns = ReceiptTables::texts($owner, 'select attname::text as value from pg_attribute where attrelid = ?::regclass and attnum > 0 and not attisdropped order by attnum', [$table]);
 
     expect(count($relations))->toBeGreaterThanOrEqual(7);
 
@@ -122,17 +130,88 @@ it('grants the app role only SELECT and INSERT on receipts and SELECT, INSERT an
             static fn (TableGrant $grant): string => $grant->role.' '.$grant->privilege->value.($grant->grantable ? ' grantable' : ''),
             new TablePrivileges($owner)->grants($relation),
         );
+        $columnGrants = array_map(
+            static fn (ColumnGrant $grant): string => $grant->role.' '.$grant->privilege->value.' '.$grant->column.($grant->grantable ? ' grantable' : ''),
+            new TablePrivileges($owner)->columnGrants($relation),
+        );
 
-        expect($grants)->toBe(array_map(static fn (string $privilege): string => 'cms_app '.$privilege, $expected), $relation);
+        expect($grants)->toBe(array_map(static fn (string $privilege): string => 'cms_app '.$privilege, $expected), $relation)
+            ->and($columnGrants)->toBe(array_map(static fn (string $column): string => 'cms_app UPDATE '.$column, $expectedColumns), $relation);
 
         foreach (TablePrivilege::cases() as $privilege) {
             expect($owner->scalar("select has_table_privilege('cms_app', ?::regclass, ?)", [$relation, $privilege->value]))
                 ->toBe(in_array($privilege->value, $expected, true), "{$privilege->value} on {$relation}");
         }
+
+        foreach ($columns as $column) {
+            expect($owner->scalar("select has_column_privilege('cms_app', ?::regclass, ?, 'UPDATE')", [$relation, $column]))
+                ->toBe(in_array($column, $expectedColumns, true), "UPDATE of {$column} on {$relation}");
+        }
     }
 })->with([
-    'receipts' => ['receipts', 'INSERT,SELECT'],
-    'receipt_projections' => ['receipt_projections', 'INSERT,SELECT,UPDATE'],
+    'receipts' => ['receipts', 'INSERT,SELECT', ''],
+    'receipt_projections' => ['receipt_projections', 'INSERT,SELECT', 'acknowledged_at,state'],
+]);
+
+it('refuses the app role an update of any projection column but state and acknowledged_at, through the table and through a partition', function (string $assignment): void {
+    app(PartitionFixtures::class)->cover(new DateTimeImmutable('2026-01-01T00:00:00Z'), new DateTimeImmutable('2026-01-02T00:00:00Z'));
+    $store = new PostgresReceiptStore(app('db'), new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z')));
+    $evidence = ReceiptTables::receipt('2026-01-01T00:00:00Z', RetentionClass::Evidence);
+    ReceiptTables::commit(DB::connection(), $store, $evidence);
+
+    foreach (['receipt_projections', 'receipt_projections_evidence', 'receipt_projections_evidence_p202601'] as $relation) {
+        $refused = null;
+
+        try {
+            DB::connection()->update(sprintf('update %s set %s where changeset_id = ?', $relation, $assignment), [$evidence->changesetId->toString()]);
+        } catch (QueryException $exception) {
+            $refused = $exception;
+        }
+
+        expect($refused)->toBeInstanceOf(QueryException::class, "{$assignment} on {$relation}")
+            ->and($refused?->getCode())->toBe('42501', "{$assignment} on {$relation}");
+    }
+
+    // The Evidence rows are where they were, and the store still acknowledges them.
+    expect(ReceiptTables::texts(ReceiptTables::owner(), 'select retention_class || \' \' || projection || \' \' || state as value from receipt_projections where changeset_id = ? order by projection', [$evidence->changesetId->toString()]))
+        ->toBe(['evidence edge pending', 'evidence fragments pending', 'evidence search pending'])
+        ->and($store->markProjection($evidence->changesetId, ProjectionStatus::acknowledged(new ProjectionName('edge'), new DateTimeImmutable('2026-01-01T00:00:02Z'))))->toBeTrue()
+        ->and($store->find($evidence->changesetId)?->projections[0]->state)->toBe(ProjectionState::Acknowledged);
+})->with([
+    'the retention class' => ["retention_class = 'standard'"],
+    'the changeset' => ["changeset_id = '00000000-0000-7000-8000-000000000000'"],
+    'the projection' => ["projection = 'other'"],
+    'a key column next to state' => ["state = 'acknowledged', acknowledged_at = now(), projection = 'other'"],
+]);
+
+it('refuses every update of an acknowledged projection row, for the app role and the owner, so an acknowledgement is final', function (string $connection, string $assignment): void {
+    app(PartitionFixtures::class)->cover(new DateTimeImmutable('2026-01-01T00:00:00Z'), new DateTimeImmutable('2026-01-02T00:00:00Z'));
+    $store = new PostgresReceiptStore(app('db'), new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z')));
+    $receipt = ReceiptTables::receipt('2026-01-01T00:00:00Z');
+    ReceiptTables::commit(DB::connection(), $store, $receipt);
+    $store->markProjection($receipt->changesetId, ProjectionStatus::acknowledged(new ProjectionName('edge'), new DateTimeImmutable('2026-01-01T00:00:02Z')));
+
+    $refused = null;
+
+    try {
+        DB::connection($connection)->update(sprintf("update receipt_projections set %s where changeset_id = ? and projection = 'edge'", $assignment), [$receipt->changesetId->toString()]);
+    } catch (QueryException $exception) {
+        $refused = $exception;
+    }
+
+    expect($refused)->toBeInstanceOf(QueryException::class)
+        ->and($refused?->getCode())->toBe('23000')
+        ->and($refused?->getMessage())->toContain('The projection edge of changeset '.$receipt->changesetId->toString().' is acknowledged, and an acknowledgement is final.')
+        ->and(ReceiptTables::texts(ReceiptTables::owner(), "select state || ' ' || to_char(acknowledged_at at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS') as value from receipt_projections where changeset_id = ? and projection = 'edge'", [$receipt->changesetId->toString()]))
+        ->toBe(['acknowledged 2026-01-01T00:00:02'])
+        // A pending row of the same receipt still changes.
+        ->and(DB::connection($connection)->update("update receipt_projections set state = 'acknowledged', acknowledged_at = now() where changeset_id = ? and projection = 'search'", [$receipt->changesetId->toString()]))->toBe(1);
+})->with([
+    'the app role back to pending' => ['pgsql', 'state = \'pending\', acknowledged_at = null'],
+    'the app role to another time' => ['pgsql', 'acknowledged_at = acknowledged_at + interval \'1 hour\''],
+    'the app role to the same values' => ['pgsql', 'state = state'],
+    'the owner back to pending' => ['pgsql_owner', 'state = \'pending\', acknowledged_at = null'],
+    'the owner to another class' => ['pgsql_owner', "retention_class = 'evidence'"],
 ]);
 
 it('leaves every receipt table and partition to the owner role, so the app role owns no table', function (): void {

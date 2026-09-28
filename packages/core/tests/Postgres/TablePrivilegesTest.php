@@ -5,11 +5,15 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Postgres;
 
 use Cbox\Cms\Core\Database\Domain\TablePrivilege;
+use Cbox\Cms\Core\Database\Infrastructure\ColumnGrant;
 use Cbox\Cms\Core\Database\Infrastructure\TableGrant;
 use Cbox\Cms\Core\Database\Infrastructure\TablePrivileges;
 use Illuminate\Database\Connection;
+use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Env;
 use Illuminate\Support\Facades\DB;
+use LogicException;
 use UnexpectedValueException;
 
 /*
@@ -171,4 +175,145 @@ it('gives the partitions the narrowed grants of the table and nothing the table 
 
     expect(tablePrivilegesGrants(TABLE_PRIVILEGES_SCRATCH))->toBe(['cms_app INSERT', 'cms_app SELECT'])
         ->and(tablePrivilegesGrants(TABLE_PRIVILEGES_SCRATCH.'_p0'))->toBe(['cms_app INSERT', 'cms_app SELECT']);
+});
+
+/**
+ * @return list<string>
+ */
+function tablePrivilegesColumnGrants(string $table): array
+{
+    return array_map(
+        static fn (ColumnGrant $grant): string => sprintf('%s %s %s%s', $grant->role, $grant->privilege->value, $grant->column, $grant->grantable ? ' grantable' : ''),
+        new TablePrivileges(tablePrivilegesOwner())->columnGrants($table),
+    );
+}
+
+function tablePrivilegesAddColumns(): void
+{
+    tablePrivilegesOwner()->statement(sprintf('alter table %s add column state text, add column note text, add column "Mixed Case" text', TABLE_PRIVILEGES_SCRATCH));
+}
+
+it('narrows a privilege to the columns given, on the table and its partitions, and keeps the rest of the table grants', function (): void {
+    tablePrivilegesAddColumns();
+
+    new TablePrivileges(tablePrivilegesOwner())->limitColumns(TABLE_PRIVILEGES_SCRATCH, TablePrivilege::Update, ['Mixed Case', 'state', 'state']);
+
+    foreach ([TABLE_PRIVILEGES_SCRATCH, TABLE_PRIVILEGES_SCRATCH.'_p0'] as $relation) {
+        expect(tablePrivilegesGrants($relation))->toBe(['cms_app DELETE', 'cms_app INSERT', 'cms_app SELECT'], $relation)
+            ->and(tablePrivilegesColumnGrants($relation))->toBe(['cms_app UPDATE "Mixed Case"', 'cms_app UPDATE state'], $relation);
+
+        foreach (['id' => false, 'state' => true, 'note' => false, 'Mixed Case' => true] as $column => $updatable) {
+            expect(tablePrivilegesOwner()->scalar("select has_column_privilege('cms_app', ?::regclass, ?, 'UPDATE')", [$relation, $column]))
+                ->toBe($updatable, "UPDATE of {$column} on {$relation}");
+        }
+    }
+
+    // A second narrowing of a role that no longer holds the privilege on the whole table changes nothing.
+    new TablePrivileges(tablePrivilegesOwner())->limitColumns(TABLE_PRIVILEGES_SCRATCH, TablePrivilege::Update, ['note']);
+
+    expect(tablePrivilegesColumnGrants(TABLE_PRIVILEGES_SCRATCH))->toBe(['cms_app UPDATE "Mixed Case"', 'cms_app UPDATE state'])
+        ->and(tablePrivilegesColumnGrants(TABLE_PRIVILEGES_SCRATCH.'_p0'))->toBe(['cms_app UPDATE "Mixed Case"', 'cms_app UPDATE state']);
+});
+
+it('refuses the app role an update of a column it was not given, through the table and through a partition', function (): void {
+    tablePrivilegesAddColumns();
+    tablePrivilegesOwner()->insert(sprintf('insert into %s (id, state, note) values (1, ?, ?)', TABLE_PRIVILEGES_SCRATCH), ['pending', 'kept']);
+
+    new TablePrivileges(tablePrivilegesOwner())->limitColumns(TABLE_PRIVILEGES_SCRATCH, TablePrivilege::Update, ['state']);
+
+    foreach ([TABLE_PRIVILEGES_SCRATCH, TABLE_PRIVILEGES_SCRATCH.'_p0'] as $relation) {
+        expect(DB::connection()->update(sprintf('update %s set state = ? where id = 1', $relation), ['done']))->toBe(1);
+
+        foreach (['note = \'changed\'', 'id = 2', 'state = \'x\', note = \'changed\''] as $assignment) {
+            expect(fn () => DB::connection()->update(sprintf('update %s set %s where id = 1', $relation, $assignment)))
+                ->toThrow(QueryException::class, 'permission denied');
+        }
+    }
+
+    expect(tablePrivilegesOwner()->scalar(sprintf('select id || \' \' || state || \' \' || note from %s', TABLE_PRIVILEGES_SCRATCH)))->toBe('1 done kept');
+});
+
+it('keeps the grant option when it narrows to columns, and never widens a role that holds the privilege on no column or some columns, nor PUBLIC', function (): void {
+    tablePrivilegesAddColumns();
+    $delegating = tablePrivilegesRole();
+    $partial = tablePrivilegesRole();
+    $none = tablePrivilegesRole();
+    tablePrivilegesOwner()->statement(sprintf('grant update on table %s to %s with grant option', TABLE_PRIVILEGES_SCRATCH, $delegating));
+    tablePrivilegesOwner()->statement(sprintf('grant update (note) on table %s to %s', TABLE_PRIVILEGES_SCRATCH, $partial));
+    tablePrivilegesOwner()->statement(sprintf('grant select on table %s to %s', TABLE_PRIVILEGES_SCRATCH, $none));
+    tablePrivilegesOwner()->statement(sprintf('grant update on table %s to public', TABLE_PRIVILEGES_SCRATCH));
+
+    new TablePrivileges(tablePrivilegesOwner())->limitColumns(TABLE_PRIVILEGES_SCRATCH, TablePrivilege::Update, ['state']);
+
+    $expected = ['cms_app UPDATE state', $delegating.' UPDATE state grantable', $partial.' UPDATE note', 'public UPDATE state'];
+    sort($expected);
+
+    expect(tablePrivilegesColumnGrants(TABLE_PRIVILEGES_SCRATCH))->toBe($expected)
+        ->and(tablePrivilegesColumnGrants(TABLE_PRIVILEGES_SCRATCH.'_p0'))->toBe($expected)
+        ->and(tablePrivilegesGrants(TABLE_PRIVILEGES_SCRATCH))->toBe(['cms_app DELETE', 'cms_app INSERT', 'cms_app SELECT', $none.' SELECT'])
+        // PUBLIC keeps UPDATE of state for every role, and no role gains another column.
+        ->and(tablePrivilegesOwner()->scalar("select has_column_privilege(?, ?::regclass, 'note', 'UPDATE')", [$none, TABLE_PRIVILEGES_SCRATCH]))->toBeFalse()
+        ->and(tablePrivilegesOwner()->scalar("select has_column_privilege(?, ?::regclass, 'id', 'UPDATE')", [$partial, TABLE_PRIVILEGES_SCRATCH]))->toBeFalse()
+        ->and(tablePrivilegesOwner()->scalar("select has_column_privilege(?, ?::regclass, 'note', 'UPDATE')", [$delegating, TABLE_PRIVILEGES_SCRATCH]))->toBeFalse();
+});
+
+it('takes the privilege away when no column is given', function (): void {
+    tablePrivilegesAddColumns();
+
+    new TablePrivileges(tablePrivilegesOwner())->limitColumns(TABLE_PRIVILEGES_SCRATCH, TablePrivilege::Update, []);
+
+    expect(tablePrivilegesGrants(TABLE_PRIVILEGES_SCRATCH))->toBe(['cms_app DELETE', 'cms_app INSERT', 'cms_app SELECT'])
+        ->and(tablePrivilegesColumnGrants(TABLE_PRIVILEGES_SCRATCH))->toBe([])
+        ->and(tablePrivilegesGrants(TABLE_PRIVILEGES_SCRATCH.'_p0'))->toBe(['cms_app DELETE', 'cms_app INSERT', 'cms_app SELECT'])
+        ->and(tablePrivilegesColumnGrants(TABLE_PRIVILEGES_SCRATCH.'_p0'))->toBe([]);
+});
+
+it('refuses a privilege no column has and a column the table does not have, before it changes anything', function (TablePrivilege $privilege, string $column, string $message): void {
+    tablePrivilegesAddColumns();
+
+    expect(fn () => new TablePrivileges(tablePrivilegesOwner())->limitColumns(TABLE_PRIVILEGES_SCRATCH, $privilege, [$column]))
+        ->toThrow(LogicException::class, $message)
+        ->and(tablePrivilegesGrants(TABLE_PRIVILEGES_SCRATCH))->toBe(['cms_app DELETE', 'cms_app INSERT', 'cms_app SELECT', 'cms_app UPDATE'])
+        ->and(tablePrivilegesColumnGrants(TABLE_PRIVILEGES_SCRATCH))->toBe([]);
+})->with([
+    'DELETE' => [TablePrivilege::Delete, 'state', 'Postgres grants DELETE only on a whole table, not on its columns.'],
+    'TRUNCATE' => [TablePrivilege::Truncate, 'state', 'Postgres grants TRUNCATE only on a whole table, not on its columns.'],
+    'TRIGGER' => [TablePrivilege::Trigger, 'state', 'Postgres grants TRIGGER only on a whole table, not on its columns.'],
+    'MAINTAIN' => [TablePrivilege::Maintain, 'state', 'Postgres grants MAINTAIN only on a whole table, not on its columns.'],
+    'an unknown column' => [TablePrivilege::Update, 'missing', 'The table ['.TABLE_PRIVILEGES_SCRATCH.'] has no column [missing].'],
+    'a column in another case' => [TablePrivilege::Update, 'mixed case', 'The table ['.TABLE_PRIVILEGES_SCRATCH.'] has no column [mixed case].'],
+]);
+
+it('copies the column grants of the table to a partition and takes away the column grants the table does not have', function (): void {
+    tablePrivilegesAddColumns();
+    $stray = tablePrivilegesRole();
+    $delegating = tablePrivilegesRole();
+    tablePrivilegesOwner()->statement(sprintf('grant update (note) on table %s to %s with grant option', TABLE_PRIVILEGES_SCRATCH, $delegating));
+    tablePrivilegesOwner()->statement(sprintf('grant select (id) on table %s to %s', TABLE_PRIVILEGES_SCRATCH, $delegating));
+    new TablePrivileges(tablePrivilegesOwner())->limitColumns(TABLE_PRIVILEGES_SCRATCH, TablePrivilege::Update, ['state']);
+
+    // A partition the table knows nothing of has other column grants, and a wider grant option.
+    tablePrivilegesOwner()->statement(sprintf('create table %1$s_p1 (like %1$s)', TABLE_PRIVILEGES_SCRATCH));
+    tablePrivilegesOwner()->statement(sprintf('grant update (note, state) on table %s_p1 to %s', TABLE_PRIVILEGES_SCRATCH, $stray));
+    tablePrivilegesOwner()->statement(sprintf('grant update (state) on table %s_p1 to %s with grant option', TABLE_PRIVILEGES_SCRATCH, $delegating));
+    tablePrivilegesOwner()->statement(sprintf('grant select (id) on table %s_p1 to %s with grant option', TABLE_PRIVILEGES_SCRATCH, $delegating));
+
+    new TablePrivileges(tablePrivilegesOwner())->copy(TABLE_PRIVILEGES_SCRATCH, TABLE_PRIVILEGES_SCRATCH.'_p1');
+
+    $expected = ['cms_app UPDATE state', $delegating.' SELECT id', $delegating.' UPDATE note grantable'];
+    sort($expected);
+
+    expect(tablePrivilegesColumnGrants(TABLE_PRIVILEGES_SCRATCH.'_p1'))->toBe($expected)
+        ->and(tablePrivilegesGrants(TABLE_PRIVILEGES_SCRATCH.'_p1'))->toBe(['cms_app DELETE', 'cms_app INSERT', 'cms_app SELECT']);
+
+    // A copy onto a table that already has the grants writes nothing.
+    $statements = 0;
+    tablePrivilegesOwner()->listen(static function (QueryExecuted $query) use (&$statements): void {
+        if (preg_match('/^(grant|revoke) /', $query->sql) === 1) {
+            $statements++;
+        }
+    });
+    new TablePrivileges(tablePrivilegesOwner())->copy(TABLE_PRIVILEGES_SCRATCH, TABLE_PRIVILEGES_SCRATCH.'_p1');
+
+    expect($statements)->toBe(0);
 });

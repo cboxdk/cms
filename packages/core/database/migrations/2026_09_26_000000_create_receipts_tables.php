@@ -29,8 +29,17 @@ use Illuminate\Support\Facades\DB;
  * receipts: the store writes both in the caller's transaction, and the partitions of both are
  * dropped on the same schedule.
  *
- * The app role keeps only the DML the store needs: SELECT and INSERT on receipts, and SELECT,
- * INSERT and UPDATE on receipt_projections. Nothing deletes rows; whole partitions are dropped.
+ * The app role keeps only the DML the store needs: SELECT and INSERT on receipts, and SELECT and
+ * INSERT on receipt_projections with UPDATE on state and acknowledged_at alone, the two columns
+ * markProjection() writes. So code on the app role cannot move a row to the other retention class,
+ * which would move an Evidence row into a partition that is dropped after a week, nor rewrite its
+ * changeset or projection. Nothing deletes rows; whole partitions are dropped.
+ *
+ * An acknowledgement is final (the ReceiptStore contract): the trigger
+ * receipt_projections_acknowledged refuses every update of an acknowledged row, for every role,
+ * with SQLSTATE 23000 (integrity_constraint_violation). markProjection() only updates a pending
+ * row, so it never fires the trigger. A row trigger on a partitioned table is cloned to every
+ * partition, also to the ones the partition manager creates and attaches later.
  */
 return new class extends Migration
 {
@@ -63,9 +72,28 @@ return new class extends Migration
         $connection->statement("create table receipt_projections_standard partition of receipt_projections for values in ('standard') partition by range (changeset_id)");
         $connection->statement("create table receipt_projections_evidence partition of receipt_projections for values in ('evidence') partition by range (changeset_id)");
 
+        $connection->statement(<<<'SQL'
+            create or replace function receipt_projections_acknowledged() returns trigger
+            language plpgsql
+            as $$
+            begin
+                raise exception 'The projection % of changeset % is acknowledged, and an acknowledgement is final.', old.projection, old.changeset_id
+                    using errcode = 'integrity_constraint_violation';
+            end
+            $$
+            SQL);
+        $connection->statement(<<<'SQL'
+            create trigger receipt_projections_acknowledged
+            before update on receipt_projections
+            for each row
+            when (old.state = 'acknowledged')
+            execute function receipt_projections_acknowledged()
+            SQL);
+
         $privileges = new TablePrivileges($connection);
         $privileges->limitTo('receipts', [TablePrivilege::Select, TablePrivilege::Insert]);
         $privileges->limitTo('receipt_projections', [TablePrivilege::Select, TablePrivilege::Insert, TablePrivilege::Update]);
+        $privileges->limitColumns('receipt_projections', TablePrivilege::Update, ['state', 'acknowledged_at']);
     }
 
     public function down(): void
@@ -73,6 +101,7 @@ return new class extends Migration
         $connection = DB::connection($this->getConnection());
 
         $connection->statement('drop table receipt_projections');
+        $connection->statement('drop function receipt_projections_acknowledged()');
         $connection->statement('drop table receipts');
     }
 };

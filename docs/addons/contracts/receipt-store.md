@@ -56,6 +56,8 @@ A store on a database keeps receipts in tables partitioned by the changeset's ti
 
 `cboxdk/cms-core` binds the contract to `Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore` in `cbox-cms.contracts`, as a singleton. It runs on the default connection, the one the command kernel opens its transaction on, and keeps the receipts in `receipts` and `receipt_projections`. It writes a receipt and its projections in one statement, so they are stored together or not at all. Both are partitioned by retention class and then by changeset time: Standard receipts per day, dropped a week after the day ends, and Evidence receipts per month, never dropped by the partition manager.
 
+The database holds the app role to what the store does. It may read and insert receipts but not change them, and on `receipt_projections` it may update only `state` and `acknowledged_at`, so code running as the app role cannot move an Evidence receipt into the Standard partitions, which are dropped after a week, or rewrite a changeset or projection. A trigger refuses every update of an acknowledged projection, for every role, so an acknowledgement stays final whatever code runs.
+
 An application replaces the store with its own class in the `ReceiptStore::class` entry of `contracts` in its own `config/cbox-cms.php`; the entries it leaves out keep their defaults. A replacement passes the shared contract suite first, as shown below.
 
 ## Testing code that uses the store
