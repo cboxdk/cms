@@ -126,6 +126,8 @@ it('reports gates 7 and 11 as not run, each with its own reason and never the lo
             ->and($gate->steps[0]->notRunReason)->not->toBe(LocalProfile::OUTSIDE_PROFILE);
     }
 
+    expect(PrProfile::NOT_RUN[11])->toBe('not a command: review by someone other than the author needs branch protection on main that requires it, a repository setting on github.com/cboxdk/cms that Sylvester makes');
+
     expect(array_unique(PrProfile::NOT_RUN))->toHaveCount(2)
         ->and(array_map(static fn (Gate $gate): int => $gate->number, array_values(array_filter(prGates(), static fn (Gate $gate): bool => array_any($gate->steps, static fn (Step $step): bool => $step->notRunReason !== null)))))->toBe([7, 11]);
 });

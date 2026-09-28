@@ -27,7 +27,7 @@ final readonly class PrProfile
      */
     public const array NOT_RUN = [
         7 => 'not run in CI yet: there is no panel UI or Storybook before the panel skeleton (B1)',
-        11 => 'not a command: review by someone other than the author needs a remote with branch protection, and there is no remote',
+        11 => 'not a command: review by someone other than the author needs branch protection on main that requires it, a repository setting on github.com/cboxdk/cms that Sylvester makes',
     ];
 
     /**

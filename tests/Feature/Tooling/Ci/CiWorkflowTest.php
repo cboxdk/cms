@@ -11,8 +11,8 @@ use Symfony\Component\Yaml\Tag\TaggedValue;
 
 /*
  * The CI of GUARDRAILS 10: .github/workflows/ci.yml, the entry script bin/ci, and
- * compose.ci.yaml, which runs bin/ci in a container because the repository has no remote. These
- * tests hold the three to each other, to compose.yaml and to the local profile, so CI runs the
+ * compose.ci.yaml, which runs the same bin/ci in a container on a developer's machine, before a
+ * push to github.com/cboxdk/cms. These tests hold the three to each other, to compose.yaml and to the local profile, so CI runs the
  * same scripts, images and roles as a developer, and they guard the files as checks
  * (GUARDRAILS 7.3).
  */

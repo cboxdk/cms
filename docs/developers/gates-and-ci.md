@@ -20,7 +20,7 @@ Every change passes the same gates, in the same order. Each gate runs a Composer
 | 8 | The `Browser` suite | `vendor/bin/pest --testsuite=Browser` | no | yes |
 | 9 | Known vulnerabilities in the dependencies | `composer audit --locked --abandoned=report`, `npm audit` | no | yes |
 | 10 | Documentation | `composer docs:check` | no | yes |
-| 11 | Review of changed checks by someone other than the author | | no | not run until there is a remote with branch protection |
+| 11 | Review of changed checks by someone other than the author | | no | not run until branch protection on main requires review by someone other than the author, a repository setting of github.com/cboxdk/cms |
 
 ## composer check
 
