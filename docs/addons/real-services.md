@@ -9,7 +9,7 @@ description: The testkit harnesses RealPostgres and RealValkey for tests that mu
 <!-- extension-point: Cbox\Cms\Testkit\Postgres\RealPostgres -->
 <!-- extension-point: Cbox\Cms\Testkit\Valkey\RealValkey -->
 
-`cboxdk/cms-testkit` has two harnesses for tests that need the real services (GUARDRAILS 9): `Cbox\Cms\Testkit\Postgres\RealPostgres` and `Cbox\Cms\Testkit\Valkey\RealValkey`. Both are traits for a Testbench test case. They are `#[Experimental]`: public API that an addon may use, without a compatibility promise yet, so they can change in a minor release. The kernel's own Postgres tests run on them, and so do the examples on this page.
+The testkit of `cboxdk/cms` has two harnesses for tests that need the real services (GUARDRAILS 9): `Cbox\Cms\Testkit\Postgres\RealPostgres` and `Cbox\Cms\Testkit\Valkey\RealValkey`. Both are traits for a Testbench test case. They are `#[Experimental]`: public API that an addon may use, without a compatibility promise yet, so they can change in a minor release. The kernel's own Postgres tests run on them, and so do the examples on this page.
 
 A fake is the first choice for code that takes a contract, such as the receipt store or the clock. A test that must see what Postgres or Valkey really does, such as locks, row security, partitions, grants or key expiry, uses the harnesses instead.
 
@@ -43,13 +43,16 @@ use Cbox\Cms\Testkit\Postgres\RealPostgres;
 use Cbox\Cms\Testkit\Valkey\RealValkey;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Support\Env;
+use Orchestra\Testbench\Concerns\WithWorkbench;
 use Orchestra\Testbench\TestCase;
 use Override;
 
 /**
  * The base class of an addon's tests against real Postgres and Valkey. The installed packages'
- * providers are discovered, as in an application, so cboxdk/cms-core brings its migrations and
- * cboxdk/cms-cli the partition command.
+ * providers are discovered, as in an application, and WithWorkbench registers those of the
+ * repository's testbench.yaml, which in cboxdk/cms's own repository, where cboxdk/cms is the root
+ * package that discovery does not see, are cboxdk/cms's; so cboxdk/cms brings the core's
+ * migrations and the partition command.
  *
  * The default connection `pgsql` is the app role and `pgsql_owner` the owner role, both on the
  * database and schema of the DB_* variables in phpunit.xml. The harness moves both to the
@@ -60,6 +63,7 @@ abstract class AddonTestCase extends TestCase
 {
     use RealPostgres;
     use RealValkey;
+    use WithWorkbench;
 
     /** Discover the service providers of the installed packages. */
     #[Override]

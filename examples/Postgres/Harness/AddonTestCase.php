@@ -8,13 +8,16 @@ use Cbox\Cms\Testkit\Postgres\RealPostgres;
 use Cbox\Cms\Testkit\Valkey\RealValkey;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Support\Env;
+use Orchestra\Testbench\Concerns\WithWorkbench;
 use Orchestra\Testbench\TestCase;
 use Override;
 
 /**
  * The base class of an addon's tests against real Postgres and Valkey. The installed packages'
- * providers are discovered, as in an application, so cboxdk/cms-core brings its migrations and
- * cboxdk/cms-cli the partition command.
+ * providers are discovered, as in an application, and WithWorkbench registers those of the
+ * repository's testbench.yaml, which in cboxdk/cms's own repository, where cboxdk/cms is the root
+ * package that discovery does not see, are cboxdk/cms's; so cboxdk/cms brings the core's
+ * migrations and the partition command.
  *
  * The default connection `pgsql` is the app role and `pgsql_owner` the owner role, both on the
  * database and schema of the DB_* variables in phpunit.xml. The harness moves both to the
@@ -25,6 +28,7 @@ abstract class AddonTestCase extends TestCase
 {
     use RealPostgres;
     use RealValkey;
+    use WithWorkbench;
 
     /** Discover the service providers of the installed packages. */
     #[Override]

@@ -22,7 +22,7 @@ use Illuminate\Contracts\Foundation\Application;
  * run changes nothing, and the gate `composer check:generated` fails when the committed code is not
  * what the schema generates.
  *
- * Exit codes: 0 generated, 65 the schema is invalid or needs a newer cboxdk/cms-generators, 66 a
+ * Exit codes: 0 generated, 65 the schema is invalid or needs a newer cboxdk/cms, 66 a
  * schema root or a blueprint file is missing, 70 a generator produced invalid output, 73 a file
  * could not be written, 78 the configuration is invalid. Each problem is printed with its code, and
  * nothing is written unless generation succeeded.

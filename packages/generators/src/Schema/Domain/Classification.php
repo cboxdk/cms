@@ -13,7 +13,7 @@ use Cbox\Cms\Contracts\Attributes\Internal;
  * These are the classifications of the blueprint schema v1 in its first edition. It has no
  * `personal` or `sensitive`: a field of either declares its purpose, legal basis, retention,
  * recipients and subject (PRD 12.4, 12.14), which the first edition cannot express, so the schema
- * refuses them. A later schema that allows them is read as needing a newer cboxdk/cms-generators,
+ * refuses them. A later schema that allows them is read as needing a newer cboxdk/cms,
  * so this generator never maps personal data without its processing record.
  *
  * The classification decides whether MCP tools and agents see a field (PRD 2.31, 12.2, 14.5): a

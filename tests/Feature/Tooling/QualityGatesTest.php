@@ -89,9 +89,9 @@ it('uses the shared configuration from the testkit for all three tools', functio
     $pint = json_decode((string) file_get_contents(Phpstan::root().'/pint.json'), true, 512, JSON_THROW_ON_ERROR);
 
     expect($parameters->strings('bootstrapFiles'))->toContain(Phpstan::root().'/vendor/larastan/larastan/bootstrap.php')
-        ->and($pint)->toBe(['extend' => 'vendor/cboxdk/cms-testkit/config/pint.json', 'cache-file' => '.cache/pint/pint.cache'])
+        ->and($pint)->toBe(['extend' => 'packages/testkit/config/pint.json', 'cache-file' => '.cache/pint/pint.cache'])
         ->and((string) file_get_contents(Phpstan::root().'/rector.php'))
-        ->toContain("require __DIR__.'/vendor/cboxdk/cms-testkit/config/rector.php'");
+        ->toContain("require __DIR__.'/packages/testkit/config/rector.php'");
 });
 
 it('has no baseline file and no neon file that includes one', function (): void {
@@ -160,10 +160,12 @@ it('exposes gates 1 to 3 as composer scripts', function (): void {
         ]);
 });
 
-it('keeps the tools out of production by requiring the testkit for development only', function (): void {
+it('keeps the tools out of production: cboxdk/cms suggests them and requires them for development only (GUARDRAILS 2.6)', function (string $tool): void {
     $composer = rootComposer();
 
-    expect($composer['require'] ?? null)->toBeArray();
-    expect($composer['require'])->not->toHaveKey('cboxdk/cms-testkit');
-    expect($composer['require-dev'] ?? null)->toBeArray()->toHaveKey('cboxdk/cms-testkit');
-});
+    foreach (['require' => false, 'require-dev' => true, 'suggest' => true] as $section => $listed) {
+        $packages = is_array($composer[$section] ?? null) ? $composer[$section] : [];
+
+        expect(array_key_exists($tool, $packages))->toBe($listed, "{$tool} in {$section}");
+    }
+})->with(['phpstan/phpstan', 'larastan/larastan', 'rector/rector', 'driftingly/rector-laravel', 'laravel/pint', 'orchestra/testbench', 'phpunit/phpunit', 'symfony/yaml', 'opis/json-schema']);

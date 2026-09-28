@@ -8,6 +8,7 @@ use FilesystemIterator;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\ServiceProvider;
+use Orchestra\Testbench\Concerns\WithWorkbench;
 use Orchestra\Testbench\TestCase;
 use Override;
 use RecursiveDirectoryIterator;
@@ -18,13 +19,17 @@ use function Orchestra\Testbench\default_skeleton_path;
 
 /**
  * A Testbench application for testing a package's build declarations. The installed packages'
- * providers are discovered, as in an application, so cboxdk/cms-cli brings cms:build. The
+ * providers are discovered, as in an application, and WithWorkbench registers those of the
+ * repository's testbench.yaml, which in cboxdk/cms's own repository, where cboxdk/cms is the root
+ * package that discovery does not see, are cboxdk/cms's; so cboxdk/cms brings cms:build. The
  * bootstrap directory is a temporary directory of the test's own, so cms:build writes
  * bootstrap/cache/cms there and never into the Testbench skeleton, which other tests read; it is
  * removed after the test.
  */
 abstract class BuildTestCase extends TestCase
 {
+    use WithWorkbench;
+
     /** Discover the service providers of the installed packages. */
     #[Override]
     protected $enablesPackageDiscoveries = true;

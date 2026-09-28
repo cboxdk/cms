@@ -136,7 +136,7 @@ The constructor of `CheckResult` enforces what goes with each status: a pass has
 
 ## Testing a check: DoctorCheckContract and FakeDoctorCheck
 
-Every check runs the shared suite, the trait `Cbox\Cms\Testkit\Doctor\DoctorCheckContract` from `cboxdk/cms-testkit`, in a PHPUnit test class in its package's `tests/Contract` directory. The trait has two abstract methods, and both return the same check: `passingDoctorCheck()` in a state where `run()` passes, and `failingDoctorCheck()` in a state where it fails. A check that looks at the outside world, such as a database or a file, therefore gets what it looks at through its constructor, so that a test can hand in both states. The core's checks ask small interfaces of their own, and their contract tests hand in fakes of them.
+Every check runs the shared suite, the trait `Cbox\Cms\Testkit\Doctor\DoctorCheckContract` from the testkit of `cboxdk/cms`, in a PHPUnit test class in its package's `tests/Contract` directory. The trait has two abstract methods, and both return the same check: `passingDoctorCheck()` in a state where `run()` passes, and `failingDoctorCheck()` in a state where it fails. A check that looks at the outside world, such as a database or a file, therefore gets what it looks at through its constructor, so that a test can hand in both states. The core's checks ask small interfaces of their own, and their contract tests hand in fakes of them.
 
 The suite checks that:
 

@@ -74,7 +74,7 @@ it('has committed generated code that matches the schema', function (): void {
     }
 });
 
-it('starts every file with the editor line, through vendor to the installed blueprint schema', function (): void {
+it('starts every file with the editor line, through the root to the blueprint schema of cboxdk/cms', function (): void {
     $target = GeneratorConfig::read(app(Repository::class), base_path());
     $directory = $target->roots[0]->path();
     $schema = new BlueprintSchemaFile()->editorPath();
@@ -90,7 +90,7 @@ it('starts every file with the editor line, through vendor to the installed blue
 
         $path = substr($first, strlen(EditorLine::PREFIX));
 
-        expect($path)->toContain('vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json')
+        expect($path)->toBe('../../packages/contracts/resources/schemas/blueprint.v1.json')
             ->and(realpath(dirname($directory.'/'.$file).'/'.$path))->toBe(realpath(dirname(__DIR__, 3).'/packages/contracts/resources/schemas/blueprint.v1.json'))
             ->and(EditorLine::towards($schema, (string) realpath(dirname($directory.'/'.$file)))->apply($contents))->toBe($contents, $file.' is not what cms:schema:editor writes. Run `vendor/bin/testbench cms:schema:editor`.');
     }

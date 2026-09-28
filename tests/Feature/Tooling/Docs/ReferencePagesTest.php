@@ -9,15 +9,10 @@ use RuntimeException;
 
 /*
  * Two pages restate what files of the repository say, and these tests hold them to those files:
- * docs/requirements.md lists what the kernel packages' composer.json files require (the cboxdk docs
+ * docs/requirements.md lists what cboxdk/cms's composer.json requires and suggests (the cboxdk docs
  * standard generates it from composer.json and states only what the resolver enforces), and
  * docs/developers/configuration.md names every key of the configuration files.
  */
-
-/**
- * The kernel packages an application installs, not the testkit.
- */
-const REFERENCE_RUNTIME_PACKAGES = ['cli', 'contracts', 'core', 'generators', 'http'];
 
 function referenceRead(string $path): string
 {
@@ -31,32 +26,25 @@ function referenceRead(string $path): string
 }
 
 /**
- * The require section of a kernel package's composer.json, without the kernel's own packages.
+ * A section of the root composer.json, cboxdk/cms, as a map of strings.
  *
  * @return array<string, string>
  */
-function referenceRequires(string $package): array
+function referenceComposer(string $section): array
 {
-    $composer = json_decode(referenceRead("packages/{$package}/composer.json"), true, flags: JSON_THROW_ON_ERROR);
-    $requires = is_array($composer) && is_array($composer['require'] ?? null) ? $composer['require'] : [];
+    $composer = json_decode(referenceRead('composer.json'), true, flags: JSON_THROW_ON_ERROR);
+    $values = is_array($composer) && is_array($composer[$section] ?? null) ? $composer[$section] : [];
     $result = [];
 
-    foreach ($requires as $name => $constraint) {
-        if (is_string($name) && is_string($constraint) && ! str_starts_with($name, 'cboxdk/')) {
-            $result[$name] = $constraint;
+    foreach ($values as $name => $value) {
+        if (is_string($name) && is_string($value)) {
+            $result[$name] = $value;
         }
     }
 
     ksort($result);
 
     return $result;
-}
-
-function referencePackageName(string $package): string
-{
-    $composer = json_decode(referenceRead("packages/{$package}/composer.json"), true, flags: JSON_THROW_ON_ERROR);
-
-    return is_array($composer) && is_string($composer['name'] ?? null) ? $composer['name'] : throw new RuntimeException("packages/{$package}/composer.json has no name.");
 }
 
 /**
@@ -112,32 +100,21 @@ function referenceConfigKeys(array $config, string $prefix): array
     return $keys;
 }
 
-it('lists on docs/requirements.md exactly what the kernel packages require, with the packages that require it', function (): void {
-    /** @var array<string, array{constraint: string, packages: list<string>}> $expected */
-    $expected = [];
-
-    foreach (REFERENCE_RUNTIME_PACKAGES as $package) {
-        foreach (referenceRequires($package) as $name => $constraint) {
-            expect($expected[$name]['constraint'] ?? $constraint)->toBe($constraint, "{$name} has two constraints in the kernel packages");
-            $expected[$name]['constraint'] = $constraint;
-            $expected[$name]['packages'][] = referencePackageName($package);
-        }
-    }
-
-    ksort($expected);
-    $rows = [];
-
-    foreach ($expected as $name => $row) {
-        $rows[] = '| `'.$name.'` | '.referenceCell($row['constraint']).' | '.implode(', ', array_map(static fn (string $package): string => '`'.$package.'`', $row['packages'])).' |';
-    }
-
-    $testkit = array_map(
+it('lists on docs/requirements.md exactly what cboxdk/cms requires, and what it suggests with the reason', function (): void {
+    $required = array_map(
         static fn (string $name, string $constraint): string => '| `'.$name.'` | '.referenceCell($constraint).' |',
-        array_keys(referenceRequires('testkit')),
-        referenceRequires('testkit'),
+        array_keys(referenceComposer('require')),
+        referenceComposer('require'),
+    );
+    $suggested = array_map(
+        static fn (string $name, string $reason): string => '| `'.$name.'` | '.$reason.' |',
+        array_keys(referenceComposer('suggest')),
+        referenceComposer('suggest'),
     );
 
-    expect(referenceTableRows(referenceRead('docs/requirements.md'), '## Enforced by Composer'))->toBe([...$rows, ...$testkit]);
+    expect($required)->not->toBe([])
+        ->and($suggested)->not->toBe([])
+        ->and(referenceTableRows(referenceRead('docs/requirements.md'), '## Enforced by Composer'))->toBe([...$required, ...$suggested]);
 });
 
 it('names every key of the configuration files on docs/developers/configuration.md', function (): void {

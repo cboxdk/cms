@@ -38,7 +38,7 @@ use Override;
 #[Internal]
 final class GeneratorsServiceProvider extends ServiceProvider implements DeclaresScanRoots
 {
-    public const string PACKAGE = 'cboxdk/cms-generators';
+    public const string PACKAGE = 'cboxdk/cms';
 
     #[Override]
     public function register(): void

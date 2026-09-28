@@ -2,7 +2,7 @@
 
 A CMS for Laravel, built on PHP 8.5, Laravel 13, Postgres and Valkey.
 
-Cbox CMS is in development and has no release yet. This repository holds the kernel packages, the workbench application they run in, and the tools that check every change. What exists today is described in the [documentation](docs/index.md).
+Cbox CMS is in development and has no release yet. This repository is the one Composer package `cboxdk/cms`: the kernel and its modules, the workbench application they run in, and the tools that check every change. What exists today is described in the [documentation](docs/index.md).
 
 ## Documentation
 

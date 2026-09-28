@@ -21,7 +21,7 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * BlueprintSourceBehaviour against YamlBlueprintSource on files in a scratch directory, validated
- * against the blueprint schema in the installed cboxdk/cms-contracts.
+ * against the blueprint schema in the installed cboxdk/cms.
  */
 final class YamlBlueprintSourceBehaviourTest extends TestCase
 {

@@ -6,11 +6,11 @@ description: Install the development environment of the repository, start the sh
 
 # Installation
 
-The development environment is this repository, the services of `compose.yaml` in Docker, and the workbench: a Laravel application from Orchestra Testbench that loads the kernel packages from `packages/` and runs their commands.
+The development environment is this repository, the services of `compose.yaml` in Docker, and the workbench: a Laravel application from Orchestra Testbench that loads the package `cboxdk/cms`, this repository, with its modules in `packages/`, and runs their commands.
 
 ## The dependencies
 
-Run `composer install` and `npm ci` in the checkout. The Composer packages come from `composer.lock` and the npm packages from `package-lock.json`; the kernel packages are Composer path repositories below `packages/`, linked into `vendor/`. After the install, Composer's `post-autoload-dump` script discovers the packages' service providers and runs `cms:build`, so the registry cache is current after every `composer install`, `composer update` and `composer dump-autoload`.
+Run `composer install` and `npm ci` in the checkout. The Composer packages come from `composer.lock` and the npm packages from `package-lock.json`; `cboxdk/cms` is the root package, so Composer autoloads its modules from `packages/<module>/src` and installs nothing of its own into `vendor/`. The workbench registers the providers of `cboxdk/cms` from `testbench.yaml`, because Testbench discovers a root package's providers only in its command line. After the install, Composer's `post-autoload-dump` script discovers the installed packages' service providers and runs `cms:build`, so the registry cache is current after every `composer install`, `composer update` and `composer dump-autoload`.
 
 The browser tests need Chromium in the version Playwright pins. Download it once per machine, and again after the Playwright version in `package.json` changes: `npx playwright install chromium`.
 

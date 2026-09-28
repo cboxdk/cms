@@ -211,6 +211,6 @@ it('refuses a schema root that is not a directory below an absolute base', funct
     'an empty directory' => ['/srv/app', ''],
 ]);
 
-it('exits cms:generate with 65 for a blueprint that needs a newer cboxdk/cms-generators', function (): void {
+it('exits cms:generate with 65 for a blueprint that needs a newer cboxdk/cms', function (): void {
     expect(GenerateCommand::exitCode(GenerateErrorCode::SchemaUnsupportedVersion))->toBe(GenerateCommand::EXIT_INVALID_SCHEMA);
 });

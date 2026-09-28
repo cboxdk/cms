@@ -10,7 +10,7 @@ use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 it('is the path from a directory to a file', function (string $directory, string $file, string $path): void {
     expect(RelativePath::between($directory, $file))->toBe($path);
 })->with([
-    'a sibling tree' => ['/srv/app/schema', '/srv/app/vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json', '../vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json'],
+    'a sibling tree' => ['/srv/app/schema', '/srv/app/vendor/cboxdk/cms/packages/contracts/resources/schemas/blueprint.v1.json', '../vendor/cboxdk/cms/packages/contracts/resources/schemas/blueprint.v1.json'],
     'deeper' => ['/srv/app/workbench/schema/blog', '/srv/app/vendor/x/blueprint.v1.json', '../../../vendor/x/blueprint.v1.json'],
     'below the directory' => ['/srv/app', '/srv/app/vendor/x/blueprint.v1.json', 'vendor/x/blueprint.v1.json'],
     'in the directory' => ['/srv/app/schema', '/srv/app/schema/blueprint.v1.json', 'blueprint.v1.json'],

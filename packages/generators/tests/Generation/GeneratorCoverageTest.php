@@ -17,7 +17,7 @@ use stdClass;
  * The generator coverage of the blueprint schema v1 (GUARDRAILS 11, blueprint decision 2). Every
  * core field type and every kind in the installed blueprint.v1.json has a mapping in the PHP and
  * the TypeScript generator, and every mapping names a field type or a kind that the schema has.
- * Version 1 grows by additions, so a new field type or kind in cboxdk/cms-contracts fails here
+ * Version 1 grows by additions, so a new field type or kind in cboxdk/cms fails here
  * until the generators write it. The core's contributor to the field type registry registers
  * exactly the core field types of the schema, so the reader can read every one of them.
  */

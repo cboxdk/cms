@@ -92,7 +92,7 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
     /** The command the cli package registers for partition maintenance. */
     public const string PARTITIONS_COMMAND = 'cms:partitions:maintain';
 
-    public const string PACKAGE = 'cboxdk/cms-core';
+    public const string PACKAGE = 'cboxdk/cms';
 
     /** Where cms:build writes the registry, below the application's bootstrap path. */
     public const string REGISTRY_CACHE = 'cache/cms';

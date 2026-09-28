@@ -120,7 +120,7 @@ it('reads no core field type that the registry lacks, because the core types go 
     $failed = registryFailure(new FieldTypeRegistry(FakeFieldTypeContributor::acme(new ColourFieldType)), $root);
 
     expect($failed->codes())->toBe([GenerateErrorCode::SchemaUnsupportedVersion, GenerateErrorCode::SchemaUnsupportedVersion])
-        ->and($failed->problems[1]->message)->toStartWith('schema/article.yaml, /fields/1/type: the value "integer" is not one this cboxdk/cms-generators knows')
+        ->and($failed->problems[1]->message)->toStartWith('schema/article.yaml, /fields/1/type: the value "integer" is not one this cboxdk/cms knows')
         ->and(registryFailure(new FieldTypeRegistry, $root)->problems)->toHaveCount(2)
         ->and(registrySource(new FieldTypeRegistry(new CoreFieldTypes))->read([$root])->types[0]->fields[0]->options)->toEqual(new TextOptions(null, TextOptions::DEFAULT_MAX_LENGTH, TextOptions::DEFAULT_FORMAT));
 });
@@ -137,7 +137,7 @@ it('reads a field type that another contributor registers as it reads the core\'
     $failed = registryFailure($registry, $root);
 
     expect($failed->codes())->toBe([GenerateErrorCode::SchemaUnsupportedVersion])
-        ->and($failed->problems[0]->message)->toStartWith('schema/article.yaml, /fields/0/options/shade: the key "shade" is not one this cboxdk/cms-generators knows');
+        ->and($failed->problems[0]->message)->toStartWith('schema/article.yaml, /fields/0/options/shade: the key "shade" is not one this cboxdk/cms knows');
 });
 
 it('refuses a <namespace>:<handle> that no contributor registers with generate_unknown_field_type', function (): void {

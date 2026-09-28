@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../../vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json
+# yaml-language-server: $schema=../../packages/contracts/resources/schemas/blueprint.v1.json
 # The workbench's fixture type (GUARDRAILS 2.4, 2.6, PRD 11.12), a blueprint v1 file of the
 # workbench's schema root, owner app. Every handle starts with fixture_, so no ordinary word in code
 # is a handle, and tests/Arch/ContentTypesTest.php can reject each handle in the core packages in

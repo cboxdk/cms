@@ -18,7 +18,7 @@ if (! is_dir($cache.'/container') && ! mkdir($cache.'/container', 0o777, true) &
 }
 
 /** @var RectorConfigBuilder $config the builder returned by the testkit's rector.php */
-$config = require __DIR__.'/vendor/cboxdk/cms-testkit/config/rector.php';
+$config = require __DIR__.'/packages/testkit/config/rector.php';
 
 return $config
     ->withPaths([

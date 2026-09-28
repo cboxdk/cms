@@ -12,7 +12,7 @@ use Illuminate\Contracts\Console\Kernel;
 
 /*
  * cms:schema:editor in the testbench application, pointed at a scratch root through
- * cbox-cms.generators and at the blueprint schema of the installed cboxdk/cms-contracts.
+ * cbox-cms.generators and at the blueprint schema of the installed cboxdk/cms.
  */
 
 afterEach(function (): void {
@@ -97,7 +97,7 @@ it('is registered', function (): void {
         ->and(app(Kernel::class)->all()['cms:schema:editor'])->toBeInstanceOf(SchemaEditorCommand::class);
 });
 
-it('adds the line with the path through vendor to the installed schema and keeps the rest of the file', function (): void {
+it('adds the line with the path to the schema of the installed cboxdk/cms and keeps the rest of the file', function (): void {
     $root = editorRoot();
 
     [$status, $output] = editorCommand();
@@ -105,7 +105,7 @@ it('adds the line with the path through vendor to the installed schema and keeps
 
     expect($status)->toBe(0)
         ->and($output)->toBe(['changed: schema/page.yaml', 'Checked 1 blueprint file: 1 changed, 0 unchanged.'])
-        ->and($path)->toBeString()->toEndWith('/vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json')
+        ->and($path)->toBeString()->toEndWith('/packages/contracts/resources/schemas/blueprint.v1.json')
         ->and(str_starts_with((string) $path, '../'))->toBeTrue()
         ->and(realpath($root.'/schema/'.$path))->toBe(installedBlueprintSchema())
         ->and(file_get_contents($root.'/schema/page.yaml'))->toBe('# yaml-language-server: $schema='.$path."\n".EDITOR_BLUEPRINT);
@@ -275,20 +275,45 @@ it('exits with 78 and changes nothing when the configuration is invalid', functi
 
 it('exits with 78 and changes nothing when the installed contracts have no blueprint schema', function (): void {
     $root = editorRoot();
-    app()->instance(BlueprintSchemaFile::class, new BlueprintSchemaFile($root.'/vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json'));
+    app()->instance(BlueprintSchemaFile::class, new BlueprintSchemaFile($root.'/vendor/cboxdk/cms/packages/contracts/resources/schemas/blueprint.v1.json'));
 
     [$status, $output] = editorCommand();
 
     expect($status)->toBe(GenerateCommand::EXIT_INVALID_CONFIG)
         ->and($output)->toBe([
-            sprintf('[generate_invalid_config] The blueprint schema %s/vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json does not exist. Reinstall cboxdk/cms-contracts with `composer install`.', $root),
+            sprintf('[generate_invalid_config] The blueprint schema %s/vendor/cboxdk/cms/packages/contracts/resources/schemas/blueprint.v1.json does not exist. Reinstall cboxdk/cms with `composer install`.', $root),
             'No blueprint file was changed.',
         ])
         ->and(file_get_contents($root.'/schema/page.yaml'))->toBe(EDITOR_BLUEPRINT);
 });
 
-it('points editors at the path the reader validates against', function (): void {
+it('points editors at the path the reader validates against, through the root where cboxdk/cms is the root package', function (): void {
     expect(realpath(new BlueprintSchemaFile()->editorPath()))->toBe(realpath(new BlueprintSchemaFile()->path()))
-        ->and(new BlueprintSchemaFile()->editorPath())->toEndWith('/vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json')
-        ->and(realpath(new BlueprintSchemaFile()->editorPath()))->toBe(installedBlueprintSchema());
+        ->and(new BlueprintSchemaFile()->editorPath())->toBe(installedBlueprintSchema())
+        ->and(new BlueprintSchemaFile()->editorPath())->not->toContain('/vendor/');
+});
+
+it('points editors through the root after a tool registers another Composer root package first', function (): void {
+    // Rector's bundled autoloader adds rector/rector-src as a Composer root package, which
+    // InstalledVersions::getRootPackage() then returns; cboxdk/cms is still a root package.
+    require_once dirname(__DIR__, 4).'/vendor/rector/rector/vendor/autoload.php';
+
+    expect(new BlueprintSchemaFile()->editorPath())->toBe(installedBlueprintSchema());
+});
+
+it('keeps the directory of an installed cboxdk/cms as Composer installed it and resolves the directories above it', function (): void {
+    $root = SchemaFixtures::scratch();
+    mkdir($root.'/real/cboxdk/cms', 0o777, true);
+    mkdir($root.'/real/composer', 0o777, true);
+    mkdir($root.'/app', 0o777, true);
+    symlink($root.'/real', $root.'/app/vendor');
+    mkdir($root.'/store/cms', 0o777, true);
+    symlink($root.'/store/cms', $root.'/real/cboxdk/cms-link');
+    $real = (string) realpath($root);
+
+    expect(BlueprintSchemaFile::editorDirectory($root.'/app/vendor/composer/../cboxdk/cms', false))->toBe($real.'/real/cboxdk/cms')
+        ->and(BlueprintSchemaFile::editorDirectory($root.'/app/vendor/cboxdk/cms-link', false))->toBe($real.'/real/cboxdk/cms-link')
+        ->and(BlueprintSchemaFile::editorDirectory($root.'/store/cms/../../real/composer/../..', true))->toBe($real)
+        ->and(BlueprintSchemaFile::editorDirectory($root.'/missing/cboxdk/cms', false))->toBe($root.'/missing/cboxdk/cms')
+        ->and(BlueprintSchemaFile::editorDirectory($root.'/missing', true))->toBe($root.'/missing');
 });

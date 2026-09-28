@@ -28,7 +28,7 @@ interface BlueprintSource
      * @throws GenerationFailed with generate_schema_missing for a root or a file that cannot be
      *                          read, generate_schema_invalid for a file that is not a valid
      *                          blueprint, generate_schema_unsupported_version for one that
-     *                          needs a newer cboxdk/cms-generators, and the code of each rule of
+     *                          needs a newer cboxdk/cms, and the code of each rule of
      *                          BlueprintRules that the definitions break
      */
     public function read(array $roots): Blueprints;

@@ -31,9 +31,9 @@ use stdClass;
  * The schema is the only source of the rules for a file (blueprint decision 5), so this class
  * checks none of them again. It only has to notice what it cannot map: a key, an enum value or a
  * kind of value that the installed schema allows and this generator does not know. That happens
- * when cboxdk/cms-contracts ships an addition to v1 (decision 2) before cboxdk/cms-generators is
- * updated for it, and each such place is reported as generate_schema_unsupported_version at its
- * JSON pointer, so nothing in a file is ever dropped without a word.
+ * when the schema is a later addition to v1 (decision 2) than the generator of the installed
+ * cboxdk/cms was written for, and each such place is reported as generate_schema_unsupported_version
+ * at its JSON pointer, so nothing in a file is ever dropped without a word.
  *
  * The `type` of every field is resolved in the FieldTypeRegistry, the core's types included, and
  * the FieldType found there reads the field's options (GUARDRAILS 2.4). A `<namespace>:<handle>`
@@ -52,7 +52,7 @@ use stdClass;
 #[Internal]
 final readonly class BlueprintDocumentReader
 {
-    public const string PACKAGE = 'cboxdk/cms-generators';
+    public const string PACKAGE = 'cboxdk/cms';
 
     private const array TYPE_KEYS = ['blueprint', 'kind', 'type_id', 'handle', 'label', 'description', 'version', 'capabilities', 'fields'];
 

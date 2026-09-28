@@ -60,7 +60,7 @@ use RuntimeException;
 
 /*
  * The blueprint reader of PRD 11.12 on real files: YAML read with symfony/yaml, validated against
- * blueprint.v1.json in the installed cboxdk/cms-contracts with opis' CompliantValidator, and mapped
+ * blueprint.v1.json in the installed cboxdk/cms with opis' CompliantValidator, and mapped
  * into the typed model. The fixtures of T40's Codecs test in packages/contracts are the reference:
  * every valid one reads into the model, and every invalid one fails at the JSON pointer it breaks.
  */
@@ -152,7 +152,7 @@ function problemPointers(array $problems, string $file): array
 }
 
 /**
- * A copy of the installed blueprint schema changed as a later release of cboxdk/cms-contracts
+ * A copy of the installed blueprint schema changed as a later release of cboxdk/cms
  * could change it, to stand in for that release: the value at the JSON pointer is replaced, or
  * the value is appended to the list there.
  */
@@ -281,11 +281,11 @@ it('is the blueprint source in the container', function (): void {
     expect(app(BlueprintSource::class))->toBeInstanceOf(YamlBlueprintSource::class);
 });
 
-it('validates against blueprint.v1.json in the installed cboxdk/cms-contracts, in place', function (): void {
+it('validates against blueprint.v1.json in the installed cboxdk/cms, in place', function (): void {
     $path = new BlueprintSchemaFile()->path();
 
     expect(realpath($path))->toBe(realpath(MONOREPO.'/packages/contracts/resources/schemas/blueprint.v1.json'))
-        ->and(str_starts_with($path, (string) InstalledVersions::getInstallPath('cboxdk/cms-contracts')))->toBeTrue();
+        ->and(str_starts_with($path, (string) InstalledVersions::getInstallPath('cboxdk/cms')))->toBeTrue();
 });
 
 it('validates against the schema file it is given, not a copy of its own', function (): void {
@@ -350,12 +350,12 @@ it('rejects each invalid fixture of T40 with generate_schema_invalid at the JSON
         ->and(problemPointers($failed->problems, 'schema/'.$fixture))->toBe([$pointer]);
 })->with(invalidContractFixtures());
 
-it('rejects blueprint: 2 with generate_schema_unsupported_version, asking for a newer cboxdk/cms-generators', function (): void {
+it('rejects blueprint: 2 with generate_schema_unsupported_version, asking for a newer cboxdk/cms', function (): void {
     $failed = blueprintFailure([blueprintRoot(['future.yaml' => contractFixture('invalid/blueprint-2.yaml')])]);
 
     expect($failed->codes())->toBe([GenerateErrorCode::SchemaUnsupportedVersion])
         ->and($failed->problems[0]->message)->toStartWith('schema/future.yaml, /blueprint: ')
-        ->and($failed->problems[0]->message)->toContain('needs a newer cboxdk/cms-generators');
+        ->and($failed->problems[0]->message)->toContain('needs a newer cboxdk/cms');
 });
 
 it('has a case for every invalid fixture of T40', function (): void {
@@ -416,12 +416,12 @@ it('reads an integer written with a zero fraction as the integer', function (): 
     expect(yamlBlueprints()->read([$root])->types[0]->version)->toBe(1);
 });
 
-it('rejects a value the installed schema allows and this generator does not know, as needing a newer cboxdk/cms-generators', function (string $schemaPointer, mixed $value, bool $append, string $yaml, string $pointer): void {
+it('rejects a value the installed schema allows and this generator does not know, as needing a newer cboxdk/cms', function (string $schemaPointer, mixed $value, bool $append, string $yaml, string $pointer): void {
     $failed = blueprintFailure([blueprintRoot(['article.yaml' => $yaml])], laterBlueprintSchema($schemaPointer, $value, $append));
 
     expect($failed->codes())->toBe([GenerateErrorCode::SchemaUnsupportedVersion])
         ->and(problemPointers($failed->problems, 'schema/article.yaml'))->toBe([$pointer])
-        ->and($failed->problems[0]->message)->toContain('needs a newer cboxdk/cms-generators');
+        ->and($failed->problems[0]->message)->toContain('needs a newer cboxdk/cms');
 })->with([
     'a new capability value' => [
         '/$defs/capabilities/properties/localization/enum', 'variants', true,
@@ -558,7 +558,7 @@ it('gives the fields of a group the group\'s agents unless they say otherwise', 
 ]);
 
 it('refuses a personal or a sensitive field, whose processing record blueprint v1 cannot declare, also when the installed schema allows it (PRD 12.14)', function (string $classification, bool $lenient, GenerateErrorCode $code): void {
-    // The lenient schema stands in for a later cboxdk/cms-contracts that allows the classification.
+    // The lenient schema stands in for a later cboxdk/cms that allows the classification.
     $schema = $lenient ? laterBlueprintSchema('/$defs/classification/enum', $classification, true) : null;
     $yaml = typeWithFields("  - handle: contact\n    label: Contact\n    description: How to reach the person.\n    type: text\n    classification: {$classification}\n");
     $failed = blueprintFailure([blueprintRoot(['note.yaml' => $yaml])], $schema);
@@ -567,7 +567,7 @@ it('refuses a personal or a sensitive field, whose processing record blueprint v
         ->and(problemPointers($failed->problems, 'schema/note.yaml'))->toBe(['/fields/0/classification']);
 
     if ($lenient) {
-        expect($failed->problems[0]->message)->toContain('needs a newer cboxdk/cms-generators');
+        expect($failed->problems[0]->message)->toContain('needs a newer cboxdk/cms');
     }
 })->with([
     'personal' => ['personal', false, GenerateErrorCode::SchemaInvalid],

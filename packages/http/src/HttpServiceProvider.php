@@ -17,7 +17,7 @@ use Illuminate\Support\ServiceProvider;
 #[Internal]
 final class HttpServiceProvider extends ServiceProvider implements DeclaresScanRoots
 {
-    public const string PACKAGE = 'cboxdk/cms-http';
+    public const string PACKAGE = 'cboxdk/cms';
 
     public function scanRoots(): array
     {

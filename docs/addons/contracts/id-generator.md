@@ -9,7 +9,7 @@ description: "The IdGenerator contract: UUIDv7 ids ordered by time, how to repla
 <!-- extension-point: Cbox\Cms\Contracts\IdGenerator -->
 <!-- extension-point: Cbox\Cms\Testkit\Ids\IdGeneratorContract -->
 
-`Cbox\Cms\Contracts\IdGenerator`, in `cboxdk/cms-contracts`, makes the ids of aggregates (GUARDRAILS 2.3, PRD 5.3). It has one method, `next(): Uuid7`. The container binds it as a singleton to the class configured in `cbox-cms.contracts`; the default is `Cbox\Cms\Core\Ids\Adapter\SystemIdGenerator` in `cboxdk/cms-core`, which takes the time from the [Clock](clock.md) and the random bits from the system's secure random source. Postgres 17 has no `uuidv7()`, so ids are made in the application, and because they come from a contract, a test gets the same ids on every run from the testkit's `FakeIdGenerator`.
+`Cbox\Cms\Contracts\IdGenerator`, in `cboxdk/cms`, makes the ids of aggregates (GUARDRAILS 2.3, PRD 5.3). It has one method, `next(): Uuid7`. The container binds it as a singleton to the class configured in `cbox-cms.contracts`; the default is `Cbox\Cms\Core\Ids\Adapter\SystemIdGenerator` in the core, which takes the time from the [Clock](clock.md) and the random bits from the system's secure random source. Postgres 17 has no `uuidv7()`, so ids are made in the application, and because they come from a contract, a test gets the same ids on every run from the testkit's `FakeIdGenerator`.
 
 Code that creates an aggregate asks for an `IdGenerator` in its constructor and wraps the `Uuid7` from `next()` in the typed id, such as `ChangesetId`. It never makes a UUID itself, with `Str::uuid()`, `random_bytes()` or a UUID library. Only a class that implements `IdGenerator` makes one. The testkit's PHPStan rule reports every other place as `cboxCms.uuid`, which no ignore comment can hide: `Str::uuid()`, `Str::uuid7()`, `Str::orderedUuid()` and `Str::ulid()`, the Eloquent traits `HasUuids`, `HasVersion4Uuids` and `HasUlids`, the random and time-based factories of ramsey/uuid and symfony/uid, and `uuid_create()`. Test code is not checked: a namespace with a `Tests` segment, and a file in the global namespace below a `tests` directory, where Pest files live. Migrations, config files and route files are in the global namespace too, and they are checked like any other code. Name-based UUIDs (versions 3 and 5) and parsing an existing UUID make no new id and are not reported.
 
@@ -85,15 +85,21 @@ use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Core\Ids\Adapter\SystemIdGenerator;
 use Examples\Contract\Ids\CountingIdGenerator;
 use Illuminate\Contracts\Config\Repository;
+use Orchestra\Testbench\Concerns\WithWorkbench;
 use Orchestra\Testbench\TestCase;
 use Override;
 
 /**
- * Boots an application whose configuration replaces the IdGenerator and nothing else. The packages
- * load through package discovery, as in an installed application.
+ * Boots an application whose configuration replaces the IdGenerator and nothing else.
+ * The installed packages load through package discovery, as in an installed application, and
+ * WithWorkbench registers the providers of the repository's testbench.yaml: an addon's own, and in
+ * cboxdk/cms's repository, where cboxdk/cms is the root package that discovery does not see,
+ * cboxdk/cms's.
  */
 abstract class CountingApplicationTestCase extends TestCase
 {
+    use WithWorkbench;
+
     #[Override]
     protected $enablesPackageDiscoveries = true;
 
@@ -163,7 +169,7 @@ final class ReplaceIdGeneratorTest extends CountingApplicationTestCase
 
 ## Testing an implementation
 
-Every implementation of `IdGenerator` runs the shared contract suite, the trait `Cbox\Cms\Testkit\Ids\IdGeneratorContract` in `cboxdk/cms-testkit` (GUARDRAILS 2.3). The testkit's `FakeIdGenerator` and the core's `SystemIdGenerator` run it too.
+Every implementation of `IdGenerator` runs the shared contract suite, the trait `Cbox\Cms\Testkit\Ids\IdGeneratorContract` in the testkit of `cboxdk/cms` (GUARDRAILS 2.3). The testkit's `FakeIdGenerator` and the core's `SystemIdGenerator` run it too.
 
 Use the trait in a PHPUnit test class in your package's `tests/Contract` directory. `generator(Clock $clock)` returns a new instance of your generator that reads the time from `$clock`: the suite drives the time with a `FakeClock`. It checks the version and variant bits, that the first 48 bits are the clock's milliseconds, that ids are unique and sort in the order they were made while the clock stands still and while it moves, that an id made after the clock steps back sorts after the one before and keeps its millisecond, that ids follow the clock again once it passes that millisecond, and that a time before 1970 is refused. It reads the bits from the string, so a mistake in the layout shows up even when the id parses.
 

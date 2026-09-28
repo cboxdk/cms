@@ -9,7 +9,7 @@ description: "The Clock contract: what now() promises, how to replace the clock,
 <!-- extension-point: Cbox\Cms\Contracts\Clock -->
 <!-- extension-point: Cbox\Cms\Testkit\Clock\ClockContract -->
 
-`Cbox\Cms\Contracts\Clock`, in `cboxdk/cms-contracts`, is where the kernel, addons and applications get the current time (GUARDRAILS 2.3). It has one method, `now(): DateTimeImmutable`. The container binds it as a singleton to the class configured in `cbox-cms.contracts`; the default is `Cbox\Cms\Core\Clock\Adapter\SystemClock` in `cboxdk/cms-core`, which reads the system's wall clock. Because the time comes from a contract, a test sets it with the testkit's `FakeClock`, and time is deterministic in tests.
+`Cbox\Cms\Contracts\Clock`, in `cboxdk/cms`, is where the kernel, addons and applications get the current time (GUARDRAILS 2.3). It has one method, `now(): DateTimeImmutable`. The container binds it as a singleton to the class configured in `cbox-cms.contracts`; the default is `Cbox\Cms\Core\Clock\Adapter\SystemClock` in the core, which reads the system's wall clock. Because the time comes from a contract, a test sets it with the testkit's `FakeClock`, and time is deterministic in tests.
 
 ## What now() returns
 
@@ -20,7 +20,7 @@ description: "The Clock contract: what now() promises, how to replace the clock,
 
 ## PSR-20
 
-The core's `SystemClock` and the testkit's `FakeClock` also implement PSR-20's `Psr\Clock\ClockInterface`, from `psr/clock`, so a library that asks for a PSR-20 clock can be given the same clock as the kernel, and a test can give it the same `FakeClock`. Both interfaces declare the same `now(): DateTimeImmutable`, and the value keeps the promises above. The `Clock` contract itself does not extend PSR-20, because `cboxdk/cms-contracts` depends only on PHP; a clock of your own may implement both, and the kernel only asks for `Clock`. The container does not bind `ClockInterface`: an application that wants it resolved gives it the `Clock` in a service provider, for example `$this->app->bind(ClockInterface::class, fn ($app) => $app->make(Clock::class))`, when its clock implements both.
+The core's `SystemClock` and the testkit's `FakeClock` also implement PSR-20's `Psr\Clock\ClockInterface`, from `psr/clock`, so a library that asks for a PSR-20 clock can be given the same clock as the kernel, and a test can give it the same `FakeClock`. Both interfaces declare the same `now(): DateTimeImmutable`, and the value keeps the promises above. The `Clock` contract itself does not extend PSR-20, because the contracts module of `cboxdk/cms` depends only on PHP; a clock of your own may implement both, and the kernel only asks for `Clock`. The container does not bind `ClockInterface`: an application that wants it resolved gives it the `Clock` in a service provider, for example `$this->app->bind(ClockInterface::class, fn ($app) => $app->make(Clock::class))`, when its clock implements both.
 
 ## Only a clock reads the system clock
 
@@ -75,15 +75,21 @@ use Cbox\Cms\Contracts\Clock;
 use DateInterval;
 use Examples\Contract\Clock\StagingClock;
 use Illuminate\Contracts\Config\Repository;
+use Orchestra\Testbench\Concerns\WithWorkbench;
 use Orchestra\Testbench\TestCase;
 use Override;
 
 /**
- * Boots an application whose configuration replaces the Clock and nothing else. The packages load
- * through package discovery, as in an installed application.
+ * Boots an application whose configuration replaces the Clock and nothing else.
+ * The installed packages load through package discovery, as in an installed application, and
+ * WithWorkbench registers the providers of the repository's testbench.yaml: an addon's own, and in
+ * cboxdk/cms's repository, where cboxdk/cms is the root package that discovery does not see,
+ * cboxdk/cms's.
  */
 abstract class StagingApplicationTestCase extends TestCase
 {
+    use WithWorkbench;
+
     #[Override]
     protected $enablesPackageDiscoveries = true;
 
@@ -146,7 +152,7 @@ final class ReplaceClockTest extends StagingApplicationTestCase
 
 ## Testing an implementation
 
-Every implementation of `Clock` runs the shared contract suite, the trait `Cbox\Cms\Testkit\Clock\ClockContract` in `cboxdk/cms-testkit` (GUARDRAILS 2.3). The testkit's `FakeClock` and the core's `SystemClock` run it too, so a fake that behaves differently from the real clock fails the same cases.
+Every implementation of `Clock` runs the shared contract suite, the trait `Cbox\Cms\Testkit\Clock\ClockContract` in the testkit of `cboxdk/cms` (GUARDRAILS 2.3). The testkit's `FakeClock` and the core's `SystemClock` run it too, so a fake that behaves differently from the real clock fails the same cases.
 
 Use the trait in a PHPUnit test class in your package's `tests/Contract` directory and return a new instance of your clock from `clock()`. The class may extend any test case, so a clock that needs the application can extend the Laravel test case. The suite checks that `now()` is in UTC, also when the default time zone is another, that the value is immutable, and that it keeps microseconds. It has no case that compares two readings, because the contract does not promise monotonic time.
 

@@ -8,15 +8,21 @@ use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Core\Ids\Adapter\SystemIdGenerator;
 use Examples\Contract\Ids\CountingIdGenerator;
 use Illuminate\Contracts\Config\Repository;
+use Orchestra\Testbench\Concerns\WithWorkbench;
 use Orchestra\Testbench\TestCase;
 use Override;
 
 /**
- * Boots an application whose configuration replaces the IdGenerator and nothing else. The packages
- * load through package discovery, as in an installed application.
+ * Boots an application whose configuration replaces the IdGenerator and nothing else.
+ * The installed packages load through package discovery, as in an installed application, and
+ * WithWorkbench registers the providers of the repository's testbench.yaml: an addon's own, and in
+ * cboxdk/cms's repository, where cboxdk/cms is the root package that discovery does not see,
+ * cboxdk/cms's.
  */
 abstract class CountingApplicationTestCase extends TestCase
 {
+    use WithWorkbench;
+
     #[Override]
     protected $enablesPackageDiscoveries = true;
 

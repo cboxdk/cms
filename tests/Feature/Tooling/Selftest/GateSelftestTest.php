@@ -81,20 +81,21 @@ it('installs a worktree of HEAD in the temporary directory, runs composer check 
         ->and($runner->calls[2]->directory)->toBe($worktree)
         ->and($runner->calls[3]->environment)->toHaveKey('PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD')
         ->and($world->checkRanInWorktree)->toBeTrue()
-        ->and($output)->toContain("realpath vendor/cboxdk/cms-core = {$worktree}/packages/core (inside the worktree)")
+        ->and($output)->toContain("autoload Cbox\\Cms\\Core\\ = {$worktree}/packages/core/src (inside the worktree)")
+        ->and($output)->not->toContain('Psr\\Log')
         ->and(substr_count($output, '  caught '))->toBe(count(Plants::all()))
         ->and($output)->toContain("{$base} is removed.", 'Selftest passed')
         ->and(file_exists($base))->toBeFalse();
 });
 
-it('stops before planting when vendor/cboxdk resolves outside the worktree, and still removes it', function (): void {
+it('stops before planting when the autoloader maps a Cbox\\Cms namespace outside the worktree, and still removes it', function (): void {
     $world = new FakeSelftestWorld;
-    $world->vendorTarget = ScratchDirectory::make();
+    $world->coreTarget = (string) realpath(ScratchDirectory::make());
 
     ['exitCode' => $exitCode, 'output' => $output, 'runner' => $runner] = runSelftest($world);
 
     expect($exitCode)->toBe(1)
-        ->and($output)->toContain('(OUTSIDE the worktree)', 'vendor/cboxdk/cms-core resolves to', 'Selftest failed.')
+        ->and($output)->toContain('(OUTSIDE the worktree)', "The autoloader maps Cbox\\Cms\\Core\\ to {$world->coreTarget}, outside the worktree.", 'Selftest failed.')
         ->and(implode("\n", $runner->commandLines()))->not->toContain('composer check')
         ->and($world->droppedWhileExisting)->toBe([selftestBase($world).'/laravel-cms'])
         ->and(file_exists(selftestBase($world)))->toBeFalse();

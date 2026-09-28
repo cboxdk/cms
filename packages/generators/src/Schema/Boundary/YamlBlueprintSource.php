@@ -31,14 +31,15 @@ use Symfony\Component\Yaml\Yaml;
  * PARSE_OBJECT_FOR_MAP, so a mapping stays an object and an empty mapping differs from an empty
  * list, and without custom tags or PHP objects, so `!tag` and a duplicate key fail with their line. The document is then
  * validated with CompliantValidator, which follows the specification and never writes a default
- * into the data, against blueprint.v1.json in the installed cboxdk/cms-contracts.
+ * into the data, against blueprint.v1.json in the installed cboxdk/cms.
  *
  * A file whose `blueprint` marker is above 1 is not validated but reported as
  * generate_schema_unsupported_version, and so is a value that the installed schema allows and this
  * generator cannot map. Every validation error is generate_schema_invalid with the file and the
  * JSON pointer. The blueprints that were read are then held to BlueprintRules, the rules that
  * compare values within a file and across files, each with its own code. read() fails after the
- * last file with the problems of all of them.
+ * last file with the problems of all of them. Both packages are suggested by cboxdk/cms, not
+ * required, so read() first checks that they are installed (SuggestedPackages).
  */
 #[Internal]
 final readonly class YamlBlueprintSource implements BlueprintSource
@@ -55,6 +56,8 @@ final readonly class YamlBlueprintSource implements BlueprintSource
     #[Override]
     public function read(array $roots): Blueprints
     {
+        SuggestedPackages::require(SuggestedPackages::BLUEPRINT_READER, 'Reading the blueprint files');
+
         $overlapping = BlueprintFiles::overlapping($roots);
 
         if ($overlapping !== []) {

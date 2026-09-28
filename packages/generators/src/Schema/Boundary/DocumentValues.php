@@ -26,7 +26,7 @@ use stdClass;
  * The values of one decoded object of a blueprint document that the blueprint schema v1 has
  * accepted. Whatever it cannot map is recorded in the document's ReadProblems as
  * generate_schema_unsupported_version at its JSON pointer: the installed schema allowed it, so the
- * file needs a newer cboxdk/cms-generators, and nothing in a file is dropped without a word.
+ * file needs a newer cboxdk/cms, and nothing in a file is dropped without a word.
  */
 #[Internal]
 final readonly class DocumentValues implements FieldValues

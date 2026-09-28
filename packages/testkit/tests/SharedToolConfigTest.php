@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use Cbox\Cms\Tests\Support\PackageManifest;
 use Cbox\Cms\Tests\Support\Phpstan;
 use RectorLaravel\Set\LaravelLevelSetList;
 
@@ -20,14 +19,14 @@ it('ships the PHPStan, Rector and Pint configuration', function (string $file): 
     expect(testkitConfig($file))->toBeReadableFile();
 })->with(['phpstan.neon', 'rector.php', 'pint.json']);
 
-it('requires the tools itself, so an addon that requires only the testkit can run them', function (): void {
-    expect(PackageManifest::of('testkit')->requires())->toHaveKeys([
-        'phpstan/phpstan',
-        'larastan/larastan',
-        'rector/rector',
-        'driftingly/rector-laravel',
-        'laravel/pint',
-    ]);
+it('suggests the tools and keeps them out of require, so an addon puts them in its require-dev and they never reach production (GUARDRAILS 2.6)', function (): void {
+    $composer = json_decode((string) file_get_contents(Phpstan::root().'/composer.json'), true, 512, JSON_THROW_ON_ERROR);
+    $tools = ['phpstan/phpstan', 'larastan/larastan', 'rector/rector', 'driftingly/rector-laravel', 'laravel/pint'];
+
+    expect($composer)->toBeArray()
+        ->and(is_array($composer) ? $composer['suggest'] ?? null : null)->toBeArray()->toHaveKeys($tools)
+        ->and(is_array($composer) ? $composer['require-dev'] ?? null : null)->toBeArray()->toHaveKeys($tools)
+        ->and(array_intersect(array_keys(is_array($composer) && is_array($composer['require'] ?? null) ? $composer['require'] : []), $tools))->toBe([]);
 });
 
 it('runs PHPStan at level 10 with Larastan and ignores no errors', function (): void {
@@ -43,7 +42,7 @@ it('runs PHPStan at level 10 with Larastan and ignores no errors', function (): 
 });
 
 it('boots Laravel for Larastan in one PHPStan process at a time', function (string $configuration): void {
-    // The root reaches the testkit through its vendor symlink, so compare real paths.
+    // The two configurations name the files by different paths, so compare real paths.
     $bootstrapFiles = array_map(realpath(...), Phpstan::parameters($configuration)->strings('bootstrapFiles'));
     $larastan = realpath(Phpstan::root().'/vendor/larastan/larastan/bootstrap.php');
     $position = array_search($larastan, $bootstrapFiles, true);

@@ -21,7 +21,7 @@ use Illuminate\Support\ServiceProvider;
 #[Internal]
 final class CliServiceProvider extends ServiceProvider implements DeclaresScanRoots
 {
-    public const string PACKAGE = 'cboxdk/cms-cli';
+    public const string PACKAGE = 'cboxdk/cms';
 
     public function boot(): void
     {

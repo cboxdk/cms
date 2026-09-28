@@ -6,7 +6,7 @@ description: Test code that uses the kernel's contracts with the testkit's fakes
 
 # Testing with the testkit
 
-`cboxdk/cms-testkit` is what the kernel's own tests and an addon's tests are written with. For every contract it has a fake, which behaves like the real implementation and lets the test control it, and a shared suite, which every implementation of the contract runs. Each fake runs the shared suite of its contract too, so a fake that behaves differently from the real implementation fails the same cases.
+The testkit of `cboxdk/cms`, `Cbox\Cms\Testkit`, is what the kernel's own tests and an addon's tests are written with. For every contract it has a fake, which behaves like the real implementation and lets the test control it, and a shared suite, which every implementation of the contract runs. Each fake runs the shared suite of its contract too, so a fake that behaves differently from the real implementation fails the same cases.
 
 ## The fakes
 

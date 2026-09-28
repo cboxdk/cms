@@ -22,7 +22,7 @@ A failing check says what is wrong, the concrete cause, the fix and its error co
 
 ## Which checks run
 
-`cms:doctor` runs the core's own checks, which `CoreServiceProvider` in `cboxdk/cms-core` builds, and after them the checks an application or addon adds in `cbox-cms.doctor.checks` and `cbox-cms.doctor.dev_checks` (see [Adding a check](../addons/doctor-checks.md#adding-a-check)).
+`cms:doctor` runs the core's own checks, which `CoreServiceProvider` builds, and after them the checks an application or addon adds in `cbox-cms.doctor.checks` and `cbox-cms.doctor.dev_checks` (see [Adding a check](../addons/doctor-checks.md#adding-a-check)).
 
 The core's checks run in this order. The last three run only with `--dev`. A check that is not blocking only affects readiness: the kernel still starts while it fails, and when no blocking check fails the doctor exits 79, not ready.
 
@@ -177,7 +177,7 @@ it('lets a test repair or break a fake check between runs, and counts the runs',
 
 ## The document of cms:doctor --json
 
-`cms:doctor --json` prints one JSON document and nothing else, and exits with the code the document names. The JSON Schema [`doctor.v1.json`](../../packages/contracts/resources/schemas/doctor.v1.json) (draft 2020-12) describes it; an installed application finds it at `vendor/cboxdk/cms-contracts/resources/schemas/doctor.v1.json`. Every key is always present, a value that does not apply is `null`, and the keys are sorted. The schema allows no other keys. A change that is not backwards compatible gets a new schema file.
+`cms:doctor --json` prints one JSON document and nothing else, and exits with the code the document names. The JSON Schema [`doctor.v1.json`](../../packages/contracts/resources/schemas/doctor.v1.json) (draft 2020-12) describes it; an installed application finds it at `vendor/cboxdk/cms/packages/contracts/resources/schemas/doctor.v1.json`. Every key is always present, a value that does not apply is `null`, and the keys are sorted. The schema allows no other keys. A change that is not backwards compatible gets a new schema file.
 
 The document has five keys:
 
@@ -221,18 +221,20 @@ This example runs the public command through Artisan against the services of the
 declare(strict_types=1);
 
 use Cbox\Cms\Contracts\Doctor\DoctorExitCode;
+use Composer\InstalledVersions;
 use Illuminate\Support\Facades\Artisan;
 use Opis\JsonSchema\CompliantValidator;
 use Opis\JsonSchema\Errors\ErrorFormatter;
 use Opis\JsonSchema\Errors\ValidationError;
 
 // Runs cms:doctor --json against the services of the test environment and validates what it prints
-// against doctor.v1.json from the installed cboxdk/cms-contracts. Decode the document without the
-// associative flag, so that a JSON object stays an object for the validator. The test asserts no
-// particular status: that depends on the host, for example on allow_url_fopen in its php.ini.
+// against doctor.v1.json from the installed cboxdk/cms, found through Composer. Decode the document
+// without the associative flag, so that a JSON object stays an object for the validator. The test
+// asserts no particular status: that depends on the host, for example on allow_url_fopen in its
+// php.ini.
 
 it('prints a document that doctor.v1.json accepts, and exits with its exit_code', function (array $options, bool $dev): void {
-    $schema = file_get_contents(dirname(__DIR__, 3).'/vendor/cboxdk/cms-contracts/resources/schemas/doctor.v1.json')
+    $schema = file_get_contents(InstalledVersions::getInstallPath('cboxdk/cms').'/packages/contracts/resources/schemas/doctor.v1.json')
         ?: throw new RuntimeException('Cannot read doctor.v1.json.');
 
     $exitCode = Artisan::call('cms:doctor', ['--json' => true, ...$options]);

@@ -8,7 +8,7 @@ declare(strict_types=1);
  *
  * A repo's rector.php requires this file and adds only its own paths:
  *
- *     return (require __DIR__.'/vendor/cboxdk/cms-testkit/config/rector.php')
+ *     return (require __DIR__.'/vendor/cboxdk/cms/packages/testkit/config/rector.php')
  *         ->withPaths([__DIR__.'/src', __DIR__.'/tests']);
  *
  * CI runs it as `rector process --dry-run`, which must report no changes.

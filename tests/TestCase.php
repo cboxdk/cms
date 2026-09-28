@@ -12,8 +12,9 @@ use Orchestra\Testbench\TestCase as Orchestra;
 use Override;
 
 /**
- * Boots the workbench application from testbench.yaml with package discovery on,
- * so the packages load the same way they do in an installed application.
+ * Boots the workbench application from testbench.yaml, which registers the providers of
+ * cboxdk/cms, with package discovery on, so the installed packages load the same way they do in
+ * an application.
  *
  * Every suite runs against this checkout's own Postgres test database: before the first
  * connection opens, every pgsql connection that names the configured database (DB_DATABASE,
@@ -26,8 +27,9 @@ abstract class TestCase extends Orchestra
     use WithWorkbench;
 
     /**
-     * Load the providers that the packages declare under extra.laravel.providers,
-     * as an application would. Testbench ignores them by default.
+     * Load the providers that the installed packages declare under extra.laravel.providers,
+     * as an application would. Testbench ignores them by default. cboxdk/cms is the root
+     * package here, so its own providers come from testbench.yaml.
      *
      * @var bool
      */

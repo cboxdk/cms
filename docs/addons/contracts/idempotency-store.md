@@ -188,7 +188,7 @@ it('lets a retry wait for the call in flight within its wait budget, and then re
 
 ## Running the shared suite against a replacement
 
-A replacement needs only `cboxdk/cms-contracts`, and `cboxdk/cms-testkit` for its tests (GUARDRAILS 2.6). Every implementation runs the testkit's shared suite, the trait `Cbox\Cms\Testkit\Idempotency\IdempotencyStoreContract`, in a PHPUnit test class in its `tests/Contract` directory. The trait has one abstract method, `idempotencyStores(Clock $clock): IdempotencyStoreHarness`, which returns a harness for a new, empty store whose sessions read the time from `$clock`. The cases move that clock.
+A replacement needs only `cboxdk/cms`, and the tools the testkit needs in its `require-dev` for its tests (GUARDRAILS 2.6). Every implementation runs the testkit's shared suite, the trait `Cbox\Cms\Testkit\Idempotency\IdempotencyStoreContract`, in a PHPUnit test class in its `tests/Contract` directory. The trait has one abstract method, `idempotencyStores(Clock $clock): IdempotencyStoreHarness`, which returns a harness for a new, empty store whose sessions read the time from `$clock`. The cases move that clock.
 
 The suite needs more than one connection to show that a claim is held, waited for and released when a transaction ends. So it works through two interfaces:
 

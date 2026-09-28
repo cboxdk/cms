@@ -173,7 +173,7 @@ trait BlueprintSourceBehaviour
 
         Assert::assertSame([GenerateErrorCode::SchemaUnsupportedVersion], $failed->codes());
         Assert::assertSame(
-            '[generate_schema_unsupported_version] schema/future.yaml, /blueprint: the file is blueprint version 2, and this cboxdk/cms-generators reads version 1. The file needs a newer cboxdk/cms-generators.',
+            '[generate_schema_unsupported_version] schema/future.yaml, /blueprint: the file is blueprint version 2, and this cboxdk/cms reads version 1. The file needs a newer cboxdk/cms.',
             $failed->problems[0]->describe(),
         );
     }

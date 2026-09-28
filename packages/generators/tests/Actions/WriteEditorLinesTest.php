@@ -18,9 +18,9 @@ use Cbox\Cms\Generators\Tests\SchemaFixtures;
  * (GUARDRAILS 9). SchemaFilesBehaviour holds the fake to FilesystemSchemaFiles.
  */
 
-const EDITOR_TARGET_SCHEMA = '/srv/app/vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json';
+const EDITOR_TARGET_SCHEMA = '/srv/app/vendor/cboxdk/cms/packages/contracts/resources/schemas/blueprint.v1.json';
 
-const EDITOR_TARGET_LINE = '# yaml-language-server: $schema=../vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json';
+const EDITOR_TARGET_LINE = '# yaml-language-server: $schema=../vendor/cboxdk/cms/packages/contracts/resources/schemas/blueprint.v1.json';
 
 /**
  * The application's root, a module's root outside vendor/ and an addon's root below vendor/.
@@ -37,7 +37,7 @@ function editorTarget(): EditorTarget
 it('adds the line relative to each file\'s directory, writes only the files it changes and names them', function (): void {
     $files = new FakeSchemaFiles;
     $files->put('/srv/app/schema/page.yaml', "# The page.\nblueprint: 1\n");
-    $files->put('/srv/app/schema/blog/article.yaml', "# yaml-language-server: \$schema=../../vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json\nblueprint: 1\n");
+    $files->put('/srv/app/schema/blog/article.yaml', "# yaml-language-server: \$schema=../../vendor/cboxdk/cms/packages/contracts/resources/schemas/blueprint.v1.json\nblueprint: 1\n");
     $files->put('/srv/app/schema/blog/post.yaml', "blueprint: 1\n");
     $files->put('/srv/app/modules/shop/schema/product.yaml', "blueprint: 1\n");
     $files->put('/srv/app/vendor/acme/shop/schema/product.yaml', "blueprint: 1\n");
@@ -51,8 +51,8 @@ it('adds the line relative to each file\'s directory, writes only the files it c
         ['vendor/acme/shop/schema'],
     ))
         ->and($files->contents('/srv/app/schema/page.yaml'))->toBe(EDITOR_TARGET_LINE."\n# The page.\nblueprint: 1\n")
-        ->and($files->contents('/srv/app/schema/blog/post.yaml'))->toBe("# yaml-language-server: \$schema=../../vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json\nblueprint: 1\n")
-        ->and($files->contents('/srv/app/modules/shop/schema/product.yaml'))->toBe("# yaml-language-server: \$schema=../../../vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json\nblueprint: 1\n")
+        ->and($files->contents('/srv/app/schema/blog/post.yaml'))->toBe("# yaml-language-server: \$schema=../../vendor/cboxdk/cms/packages/contracts/resources/schemas/blueprint.v1.json\nblueprint: 1\n")
+        ->and($files->contents('/srv/app/modules/shop/schema/product.yaml'))->toBe("# yaml-language-server: \$schema=../../../vendor/cboxdk/cms/packages/contracts/resources/schemas/blueprint.v1.json\nblueprint: 1\n")
         ->and($files->contents('/srv/app/vendor/acme/shop/schema/product.yaml'))->toBe("blueprint: 1\n")
         ->and($files->writes)->toBe(['/srv/app/modules/shop/schema/product.yaml', '/srv/app/schema/blog/post.yaml', '/srv/app/schema/page.yaml']);
 });

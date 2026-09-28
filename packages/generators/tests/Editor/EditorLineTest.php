@@ -12,7 +12,7 @@ use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
  * of the file kept.
  */
 
-const EDITOR_SCHEMA = '../../vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json';
+const EDITOR_SCHEMA = '../../vendor/cboxdk/cms/packages/contracts/resources/schemas/blueprint.v1.json';
 
 const EDITOR_LINE = '# yaml-language-server: $schema='.EDITOR_SCHEMA;
 
@@ -96,9 +96,9 @@ it('changes nothing the second time', function (string $contents): void {
 ]);
 
 it('points from the file\'s directory to the schema', function (): void {
-    expect(EditorLine::towards('/srv/app/vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json', '/srv/app/workbench/schema')->line)->toBe(EDITOR_LINE)
-        ->and(EditorLine::towards('/srv/app/vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json', '/srv/app/schema/shop/products')->schema)
-        ->toBe('../../../vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json');
+    expect(EditorLine::towards('/srv/app/vendor/cboxdk/cms/packages/contracts/resources/schemas/blueprint.v1.json', '/srv/app/workbench/schema')->line)->toBe(EDITOR_LINE)
+        ->and(EditorLine::towards('/srv/app/vendor/cboxdk/cms/packages/contracts/resources/schemas/blueprint.v1.json', '/srv/app/schema/shop/products')->schema)
+        ->toBe('../../../vendor/cboxdk/cms/packages/contracts/resources/schemas/blueprint.v1.json');
 });
 
 it('refuses a path that cannot be one line', function (string $schema): void {

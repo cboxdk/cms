@@ -1,6 +1,14 @@
 laravel: '@testbench'
 
+# The providers of cboxdk/cms's extra.laravel.providers, then the workbench's. Testbench discovers
+# the root package's providers only in its own CLI and caches the manifest in its skeleton, where a
+# test or a Larastan boot can rebuild it without them, so the workbench registers them itself, in
+# the CLI and in every test case (tests/Arch/ModulesTest.php keeps the list equal to composer.json).
 providers:
+  - Cbox\Cms\Core\CoreServiceProvider
+  - Cbox\Cms\Http\HttpServiceProvider
+  - Cbox\Cms\Cli\CliServiceProvider
+  - Cbox\Cms\Generators\GeneratorsServiceProvider
   - Workbench\App\Providers\WorkbenchServiceProvider
 
 migrations: false

@@ -64,7 +64,7 @@ final class FakeBlueprintSourceBehaviourTest extends TestCase
     {
         $this->source()->refuse($root, $path, [new GenerationProblem(
             GenerateErrorCode::SchemaUnsupportedVersion,
-            $root->file($path).', /blueprint: the file is blueprint version 2, and this cboxdk/cms-generators reads version 1. The file needs a newer cboxdk/cms-generators.',
+            $root->file($path).', /blueprint: the file is blueprint version 2, and this cboxdk/cms reads version 1. The file needs a newer cboxdk/cms.',
         )]);
     }
 

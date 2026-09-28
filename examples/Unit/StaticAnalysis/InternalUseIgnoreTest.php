@@ -12,7 +12,7 @@ use Symfony\Component\Process\Process;
 
 /**
  * An addon's adapter calls LocalPath::namesStreamWrapper(), a method of an #[Internal] class of
- * the kernel, and PHPStan analyses it with the shared configuration of cboxdk/cms-testkit, as the
+ * the kernel, and PHPStan analyses it with the shared configuration of cboxdk/cms's testkit, as the
  * addon's CI does. Only an ignore comment that names cboxCms.internalUse lets the analysis pass.
  */
 final class InternalUseIgnoreTest extends TestCase
@@ -78,7 +78,7 @@ final class InternalUseIgnoreTest extends TestCase
                 }
                 PHP);
 
-            // The addon's phpstan.neon includes vendor/cboxdk/cms-testkit/config/phpstan.neon.
+            // The addon's phpstan.neon includes vendor/cboxdk/cms/packages/testkit/config/phpstan.neon.
             $process = new Process([PHP_BINARY, 'vendor/bin/phpstan', 'analyse', '--no-progress', '--error-format=json', $adapter], dirname(__DIR__, 3), timeout: 300);
             $process->run();
 

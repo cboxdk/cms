@@ -24,7 +24,7 @@ enum GenerateErrorCode: string
 
     /**
      * A blueprint file is of a later version than 1, or holds a value that the installed blueprint
-     * schema allows and this cboxdk/cms-generators does not know. It needs a newer cboxdk/cms-generators.
+     * schema allows and the generator of this cboxdk/cms does not know. It needs a newer cboxdk/cms.
      */
     case SchemaUnsupportedVersion = 'generate_schema_unsupported_version';
 

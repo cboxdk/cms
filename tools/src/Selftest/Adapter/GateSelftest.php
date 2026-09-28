@@ -24,8 +24,8 @@ use UnexpectedValueException;
  * that is not this one.
  *
  * It adds a git worktree of HEAD in the system's temporary directory, runs `composer install`
- * and `npm ci` there (vendor/ is installed, never symlinked, so the path repositories' symlinks
- * point into the worktree), and asserts that vendor/cboxdk/* resolves inside the worktree. It
+ * and `npm ci` there (vendor/ is installed, never symlinked), and asserts that the autoloader
+ * Composer dumped there maps every namespace of cboxdk/cms, the root package, inside the worktree. It
  * plants the violations from Plants, runs `composer check` in the worktree with a report file,
  * and asserts that each violation made the right step fail with a path inside the worktree.
  * Finally it drops the worktree's own Postgres test database, which the Postgres suite in the
@@ -115,8 +115,9 @@ final readonly class GateSelftest
     }
 
     /**
-     * vendor/ must be the worktree's own directory, and every path package must resolve inside
-     * the worktree; otherwise the gates would read this checkout's packages instead of the plants.
+     * vendor/ must be the worktree's own directory, and every Cbox\Cms namespace of the autoloader
+     * Composer dumped there must resolve inside the worktree; otherwise the gates would read this
+     * checkout's modules instead of the plants.
      */
     private function assertOwnVendor(string $worktree): void
     {
@@ -124,19 +125,30 @@ final readonly class GateSelftest
             throw new SelftestFailed('vendor/ in the worktree is not a directory of its own.');
         }
 
-        $packages = glob($worktree.'/vendor/cboxdk/cms-*') ?: [];
+        $file = $worktree.'/vendor/composer/autoload_psr4.php';
+        $map = is_file($file) ? (static fn (string $file): mixed => require $file)($file) : null;
 
-        if ($packages === []) {
-            throw new SelftestFailed('The worktree has no vendor/cboxdk/cms-* packages.');
+        if (! is_array($map)) {
+            throw new SelftestFailed('The worktree has no autoloader in vendor/composer/autoload_psr4.php.');
         }
 
-        foreach ($packages as $package) {
-            $real = realpath($package) ?: throw new SelftestFailed("{$package} does not resolve.");
-            $inside = str_starts_with($real, $worktree.'/');
-            $this->write(sprintf("realpath vendor/cboxdk/%s = %s (%s)\n", basename($package), $real, $inside ? 'inside the worktree' : 'OUTSIDE the worktree'));
+        $namespaces = array_filter(array_keys($map), static fn (int|string $prefix): bool => is_string($prefix) && str_starts_with($prefix, 'Cbox\\Cms\\'));
+        sort($namespaces, SORT_STRING);
 
-            if (! $inside) {
-                throw new SelftestFailed('vendor/cboxdk/'.basename($package)." resolves to {$real}, outside the worktree.");
+        if ($namespaces === []) {
+            throw new SelftestFailed('The autoloader of the worktree maps no Cbox\\Cms namespace.');
+        }
+
+        foreach ($namespaces as $namespace) {
+            foreach ((array) $map[$namespace] as $path) {
+                $path = is_string($path) ? $path : '';
+                $real = realpath($path) ?: throw new SelftestFailed("{$namespace} maps to {$path}, which does not resolve.");
+                $inside = str_starts_with($real, $worktree.'/');
+                $this->write(sprintf("autoload %s = %s (%s)\n", $namespace, $real, $inside ? 'inside the worktree' : 'OUTSIDE the worktree'));
+
+                if (! $inside) {
+                    throw new SelftestFailed("The autoloader maps {$namespace} to {$real}, outside the worktree.");
+                }
             }
         }
     }

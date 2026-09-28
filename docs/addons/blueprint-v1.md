@@ -8,13 +8,13 @@ description: "The reference of blueprint.v1.json: types, extensions of another o
 
 <!-- extension-point: packages/contracts/resources/schemas/blueprint.v1.json -->
 
-A blueprint file defines one content type, or adds fields to another owner's type. Blueprint files live under `schema/**/*.yaml` (PRD 11.12). Their format is the JSON Schema [`blueprint.v1.json`](../../packages/contracts/resources/schemas/blueprint.v1.json), JSON Schema draft 2020-12, which an installed application finds at `vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json`, and it is the one source of the rules for a single file. The rules that compare values with each other, in one file or across files, are listed under [Rules across values and files](#rules-across-values-and-files).
+A blueprint file defines one content type, or adds fields to another owner's type. Blueprint files live under `schema/**/*.yaml` (PRD 11.12). Their format is the JSON Schema [`blueprint.v1.json`](../../packages/contracts/resources/schemas/blueprint.v1.json), JSON Schema draft 2020-12, which an installed application finds at `vendor/cboxdk/cms/packages/contracts/resources/schemas/blueprint.v1.json`, and it is the one source of the rules for a single file. The rules that compare values with each other, in one file or across files, are listed under [Rules across values and files](#rules-across-values-and-files).
 
 This is the first edition of version 1. Version 1 grows only by additions: a new field type, a new optional choice, a new enum value or a new `kind` keeps the marker `blueprint: 1`, and a file that is valid stays valid and keeps its meaning. A change that would make a valid file invalid or change its meaning is version 2.
 
 ## Editors
 
-`php artisan cms:schema:editor` (in `cboxdk/cms-generators`) gives every blueprint file below the schema roots a first line such as `# yaml-language-server: $schema=../vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json`. The path is relative to the file and points at this schema in the installed `cboxdk/cms-contracts`, so an editor with yaml-language-server, such as Red Hat's YAML extension for VS Code, completes and checks the file against the same version of the schema that `cms:generate` validates against, offline. The command replaces a line with another path, keeps the rest of the file as it is and changes nothing when every file has the right line. Run it again after moving a file or adding one. It skips every schema root below `vendor/`, such as an addon's `vendor/acme/shop/schema`, and names it: Composer installs those files and would see an edited package as changed, so the installation leaves them as the package ships them. `cms:generate` still reads them.
+`php artisan cms:schema:editor` gives every blueprint file below the schema roots a first line such as `# yaml-language-server: $schema=../vendor/cboxdk/cms/packages/contracts/resources/schemas/blueprint.v1.json`. The path is relative to the file and points at this schema in the installed `cboxdk/cms`, so an editor with yaml-language-server, such as Red Hat's YAML extension for VS Code, completes and checks the file against the same version of the schema that `cms:generate` validates against, offline. The command replaces a line with another path, keeps the rest of the file as it is and changes nothing when every file has the right line. Run it again after moving a file or adding one. It skips every schema root below `vendor/`, such as an addon's `vendor/acme/shop/schema`, and names it: Composer installs those files and would see an edited package as changed, so the installation leaves them as the package ships them. `cms:generate` still reads them.
 
 ## Dates must be quoted
 
@@ -326,18 +326,19 @@ The test that validates them, in the `Codecs` suite:
 
 declare(strict_types=1);
 
+use Composer\InstalledVersions;
 use Opis\JsonSchema\CompliantValidator;
 use Opis\JsonSchema\Errors\ErrorFormatter;
 use Opis\JsonSchema\Errors\ValidationError;
 use Symfony\Component\Yaml\Yaml;
 
-// Validates blueprint files against blueprint.v1.json from the installed cboxdk/cms-contracts, the
-// schema cms:generate validates against. Read YAML with PARSE_OBJECT_FOR_MAP, so that a map stays
+// Validates blueprint files against blueprint.v1.json from the installed cboxdk/cms, the schema
+// cms:generate validates against, found through Composer. Read YAML with PARSE_OBJECT_FOR_MAP, so that a map stays
 // an object, and validate with CompliantValidator, which never writes defaults into the data.
 
 it('accepts the blueprint file', function (string $file): void {
     $root = dirname(__DIR__, 3);
-    $schema = file_get_contents($root.'/vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json')
+    $schema = file_get_contents(InstalledVersions::getInstallPath('cboxdk/cms').'/packages/contracts/resources/schemas/blueprint.v1.json')
         ?: throw new RuntimeException('Cannot read blueprint.v1.json.');
     $blueprint = Yaml::parseFile($root.'/'.$file, Yaml::PARSE_OBJECT_FOR_MAP);
 

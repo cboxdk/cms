@@ -10,7 +10,7 @@ description: "The ReceiptStore contract: one receipt per committed changeset, pr
 
 The receipt store keeps one receipt for each committed changeset, with the status of each projection the changeset affected (PRD 4, 8.4). The command kernel stores the receipt in the command transaction, and the projections mark their status on it when they have caught up. A replay of an idempotent call (PRD 6.1) finds the receipt again through the store.
 
-The contract is `Cbox\Cms\Contracts\ReceiptStore` in `cboxdk/cms-contracts`. It and the testkit types on this page are `#[Experimental]`: public API that an addon may use, without a compatibility promise yet, so it can change in a minor release.
+The contract is `Cbox\Cms\Contracts\ReceiptStore` in `cboxdk/cms`. It and the testkit types on this page are `#[Experimental]`: public API that an addon may use, without a compatibility promise yet, so it can change in a minor release.
 
 | Method | What it does |
 |---|---|
@@ -54,7 +54,7 @@ A store on a database keeps receipts in tables partitioned by the changeset's ti
 
 ## The default store
 
-`cboxdk/cms-core` binds the contract to `Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore` in `cbox-cms.contracts`, as a singleton. It runs on the default connection, the one the command kernel opens its transaction on, and keeps the receipts in `receipts` and `receipt_projections`. It writes a receipt and its projections in one statement, so they are stored together or not at all. Both are partitioned by retention class and then by changeset time: Standard receipts per day, dropped a week after the day ends, and Evidence receipts per month, never dropped by the partition manager.
+The core binds the contract to `Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore` in `cbox-cms.contracts`, as a singleton. It runs on the default connection, the one the command kernel opens its transaction on, and keeps the receipts in `receipts` and `receipt_projections`. It writes a receipt and its projections in one statement, so they are stored together or not at all. Both are partitioned by retention class and then by changeset time: Standard receipts per day, dropped a week after the day ends, and Evidence receipts per month, never dropped by the partition manager.
 
 The database holds the app role to what the store does. It may read and insert receipts but not change them, and on `receipt_projections` it may update only `state` and `acknowledged_at`, so code running as the app role cannot move an Evidence receipt into the Standard partitions, which are dropped after a week, or rewrite a changeset or projection. A trigger refuses every update of an acknowledged projection, for every role, so an acknowledgement stays final whatever code runs.
 
@@ -62,7 +62,7 @@ An application replaces the store with its own class in the `ReceiptStore::class
 
 ## Testing code that uses the store
 
-`Cbox\Cms\Testkit\ReceiptStore\FakeReceiptStore` in `cboxdk/cms-testkit` is the fake. It keeps receipts in memory and reads the time from the `Clock` it is given, so a test moves a `FakeClock` to expire a Standard receipt. Used directly, the fake behaves like a connection without a transaction: `find()` reads, `markProjection()` commits at once, and `store()` throws `TransactionRequired`. Its `session()` hands out connections to the same receipts, with transactions, so a test stores a receipt in a session's transaction, and its `uncover($from, $to)` takes a range of changeset times out of the partitions, so `store()` in the range throws `PartitionMissing`. A store of a changeset that another session's open transaction has stored waits for that transaction, as on Postgres. PHP runs one session at a time, so `whenWaiting($event)` schedules what happens during the wait, such as the other session committing or rolling back; a waiting store runs the events in order until the changeset is free, and throws a `LogicException` when none is left.
+`Cbox\Cms\Testkit\ReceiptStore\FakeReceiptStore` in the testkit of `cboxdk/cms` is the fake. It keeps receipts in memory and reads the time from the `Clock` it is given, so a test moves a `FakeClock` to expire a Standard receipt. Used directly, the fake behaves like a connection without a transaction: `find()` reads, `markProjection()` commits at once, and `store()` throws `TransactionRequired`. Its `session()` hands out connections to the same receipts, with transactions, so a test stores a receipt in a session's transaction, and its `uncover($from, $to)` takes a range of changeset times out of the partitions, so `store()` in the range throws `PartitionMissing`. A store of a changeset that another session's open transaction has stored waits for that transaction, as on Postgres. PHP runs one session at a time, so `whenWaiting($event)` schedules what happens during the wait, such as the other session committing or rolling back; a waiting store runs the events in order until the changeset is free, and throws a `LogicException` when none is left.
 
 The example stores a receipt in a transaction, finds it and marks its projection, then shows a duplicate, a store outside a transaction and the expiry:
 

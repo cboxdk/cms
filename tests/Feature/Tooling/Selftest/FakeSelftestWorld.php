@@ -19,7 +19,8 @@ final class FakeSelftestWorld
 {
     public ?string $worktree = null;
 
-    public string $vendorTarget = '../../packages/core';
+    /** Where the worktree's autoloader maps Cbox\\Cms\\Core\\: null for the worktree's packages/core/src. */
+    public ?string $coreTarget = null;
 
     /** @var list<string> steps whose planted files `composer check` does not report */
     public array $missedSteps = [];
@@ -54,9 +55,9 @@ final class FakeSelftestWorld
     private function addWorktree(string $path): ProcessOutcome
     {
         ScratchDirectory::write($path.'/workbench/app/Cms/Generated/TypeHandle.php', "<?php\n");
-        mkdir($path.'/packages/core', 0o777, true);
-        mkdir($path.'/vendor/cboxdk', 0o777, true);
-        symlink($this->vendorTarget, $path.'/vendor/cboxdk/cms-core');
+        mkdir($path.'/packages/core/src', 0o777, true);
+        $target = $this->coreTarget === null ? "\$baseDir . '/packages/core/src'" : var_export($this->coreTarget, true);
+        ScratchDirectory::write($path.'/vendor/composer/autoload_psr4.php', "<?php\n\n\$vendorDir = dirname(__DIR__);\n\$baseDir = dirname(\$vendorDir);\n\nreturn [\n    'Cbox\\\\Cms\\\\Core\\\\' => [{$target}],\n    'Psr\\\\Log\\\\' => [\$vendorDir . '/psr/log/src'],\n];\n");
         $this->worktree = $path;
 
         return new ProcessOutcome(0, '', 0.0);

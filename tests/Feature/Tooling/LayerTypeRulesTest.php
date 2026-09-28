@@ -143,7 +143,7 @@ it('registers every rule, the collector and the extensions in the testkit neon, 
         expect($testkit)->toMatch('/class: '.preg_quote($service, '/').'\s+tags:\s+- '.preg_quote($tag, '/').'$/m');
     }
 
-    expect($root)->toMatch('/^includes:\s+- vendor\/cboxdk\/cms-testkit\/config\/phpstan\.neon$/m');
+    expect($root)->toMatch('/^includes:\s+- packages\/testkit\/config\/phpstan\.neon$/m');
 });
 
 it('fails the analysis on an untyped array return in the domain', function (): void {

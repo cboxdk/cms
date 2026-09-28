@@ -6,7 +6,7 @@
 # and every root PHP file, which rector.php covers with withRootFiles() and Pint formats.
 
 includes:
-    - vendor/cboxdk/cms-testkit/config/phpstan.neon
+    - packages/testkit/config/phpstan.neon
 
 parameters:
     # PHPStan's result cache, its container cache and Larastan's migration cache stay in this

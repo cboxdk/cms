@@ -1,25 +1,25 @@
 ---
 title: Architecture and layers
 weight: 21
-description: The kernel packages, the modules inside them, the layers a namespace belongs to, and the rules the architecture tests and PHPStan hold.
+description: The package cboxdk/cms, its modules, the layers a namespace belongs to, and the rules the architecture tests and PHPStan hold.
 ---
 
 # Architecture and layers
 
-## The packages
+## The package and its modules
 
-The kernel is six packages in `packages/`, each with its own `composer.json`:
+Cbox CMS is one Composer package, `cboxdk/cms`, with one `composer.json` at the root of the repository. The kernel is six modules in `packages/`, each a namespace with its code in `packages/<module>/src` and its tests in `packages/<module>/tests`:
 
-| Package | Namespace | What it holds |
+| Module | Namespace | What it holds |
 |---|---|---|
-| `cboxdk/cms-contracts` | `Cbox\Cms\Contracts` | The contracts, the attributes, the ids and the types the contracts take. It depends only on PHP. |
-| `cboxdk/cms-core` | `Cbox\Cms\Core` | The default implementations, the partition manager, the registry, the doctor and the migrations. |
-| `cboxdk/cms-generators` | `Cbox\Cms\Generators` | The blueprint reader, the generators, and their commands `cms:generate` and `cms:schema:editor`. |
-| `cboxdk/cms-cli` | `Cbox\Cms\Cli` | The Artisan commands `cms:build`, `cms:doctor` and `cms:partitions:maintain`. |
-| `cboxdk/cms-http` | `Cbox\Cms\Http` | The HTTP surface. Today it holds only its service provider. |
-| `cboxdk/cms-testkit` | `Cbox\Cms\Testkit` | The fakes, the shared suites, the Postgres and Valkey harnesses and the PHPStan rules. |
+| `contracts` | `Cbox\Cms\Contracts` | The contracts, the attributes, the ids and the types the contracts take. It depends only on PHP. |
+| `core` | `Cbox\Cms\Core` | The default implementations, the partition manager, the registry, the doctor and the migrations. |
+| `generators` | `Cbox\Cms\Generators` | The blueprint reader, the generators, and their commands `cms:generate` and `cms:schema:editor`. |
+| `cli` | `Cbox\Cms\Cli` | The Artisan commands `cms:build`, `cms:doctor` and `cms:partitions:maintain`. |
+| `http` | `Cbox\Cms\Http` | The HTTP surface. Today it holds only its service provider. |
+| `testkit` | `Cbox\Cms\Testkit` | The fakes, the shared suites, the Postgres and Valkey harnesses and the PHPStan rules. |
 
-Cbox CMS becomes one Composer package, `cboxdk/cms`, with these namespaces as its modules; the packages are merged in the next milestone. The namespaces stay as they are.
+No package boundary keeps the modules apart, so the Arch suite does (`tests/Arch/ModulesTest.php`): contracts depends only on PHP, core, http and cli never use the testkit or the generators, and no production module uses a package that `composer.json` only suggests. The testkit's and the generators' heavy dependencies, the analysis tools, Testbench, `symfony/yaml` and `opis/json-schema`, are in `suggest` and `require-dev`, never in `require`, so they never reach production; see [Requirements](../requirements.md).
 
 The rest of the repository is tooling: `workbench/` is the application the commands run in, `tools/` holds the gate runner and the other scripts behind the Composer scripts, `examples/` holds the running examples of these pages, and `js/` the shared JavaScript configuration.
 

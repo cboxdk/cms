@@ -20,9 +20,10 @@ use Illuminate\Contracts\Foundation\Application;
  * `cms:schema:editor`: points editors at the blueprint schema (PRD 14.1, blueprint decision 3). It
  * gives every `*.yaml` file below the schema roots of cbox-cms.generators.roots, the files cms:generate
  * reads, the first line `# yaml-language-server: $schema=<path>`. The path is relative from the
- * file's directory to blueprint.v1.json in the installed cboxdk/cms-contracts, found through
- * Composer and always through its install directory, vendor/cboxdk/cms-contracts, so the line has
- * the same form in an installation, a checkout and a worktree.
+ * file's directory to blueprint.v1.json in the installed cboxdk/cms, found through Composer: in an
+ * application always through its install directory, vendor/cboxdk/cms, and in the package's own
+ * repository, where cboxdk/cms is the root package, through the root, so the line has the same form
+ * in every installation, and the same form in every checkout and worktree of the repository.
  *
  * A wrong line is replaced, never duplicated, and every other byte of a file is kept. Only files
  * whose bytes change are written, and each is named; a second run changes nothing. A schema root
@@ -30,8 +31,8 @@ use Illuminate\Contracts\Foundation\Application;
  * installs those files, and the installation does not edit them.
  *
  * Exit codes, as cms:generate's: 0 every file has the line, 66 a schema root or a file cannot be
- * read, 73 a file could not be written, 78 the configuration is invalid or cboxdk/cms-contracts is
- * not installed. A file that fails does not stop the others.
+ * read, 73 a file could not be written, 78 the configuration is invalid or cboxdk/cms is not
+ * installed. A file that fails does not stop the others.
  */
 #[Internal]
 #[Description('Write the yaml-language-server line that points editors at the blueprint schema into every blueprint file')]

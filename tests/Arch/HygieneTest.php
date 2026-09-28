@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 use Cbox\Cms\Tests\Support\Arch\Codebase;
 use Cbox\Cms\Tests\Support\Arch\Egress;
+use Cbox\Cms\Tests\Support\Arch\ModuleDependencies;
 use Cbox\Cms\Tests\Support\Arch\Rules;
 use Cbox\Cms\Tests\Support\Arch\SourceFile;
-use Cbox\Cms\Tests\Support\PackageManifest;
 use Illuminate\Support\Facades\Facade;
 use Illuminate\Support\Facades\Http;
 
@@ -15,24 +15,16 @@ use Illuminate\Support\Facades\Http;
  */
 
 /**
- * The PSR-4 namespaces of every package, the monorepo tests and the workbench.
+ * The namespaces of every module of cboxdk/cms, the repository's tests and the workbench.
  *
  * Pest resolves a namespace through the Composer autoloader. There is no mapping for the
- * bare Cbox\Cms prefix, so it must list each package namespace, or the packages are skipped.
+ * bare Cbox\Cms prefix, so it must list each module namespace, or the modules are skipped.
  *
  * @return list<string>
  */
 function codeNamespaces(): array
 {
-    $namespaces = ['Cbox\Cms\Tests', 'Workbench\App'];
-
-    foreach (glob(__DIR__.'/../../packages/*/composer.json') ?: [] as $manifest) {
-        foreach (array_keys(PackageManifest::of(basename(dirname($manifest)))->psr4()) as $prefix) {
-            $namespaces[] = rtrim($prefix, '\\');
-        }
-    }
-
-    return $namespaces;
+    return ['Cbox\Cms\Tests', 'Workbench\App', ...array_values(ModuleDependencies::MODULES)];
 }
 
 arch('strict_types: every class in the packages and the workbench declares strict types', function (): void {

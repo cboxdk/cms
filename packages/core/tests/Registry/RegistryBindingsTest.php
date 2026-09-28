@@ -25,17 +25,18 @@ afterEach(function (): void {
 });
 
 /**
- * The scan roots of the four package providers, which every application has.
+ * The scan roots of the four module providers of cboxdk/cms, which every application has: one
+ * package, one scan root per module's src.
  */
 function packageScanRoots(): ScanRoots
 {
     $packages = dirname(__DIR__, 3);
 
     return new ScanRoots(
-        new ScanRoot('cboxdk/cms-core', $packages.'/core/src'),
-        new ScanRoot('cboxdk/cms-http', $packages.'/http/src'),
-        new ScanRoot('cboxdk/cms-cli', $packages.'/cli/src'),
-        new ScanRoot('cboxdk/cms-generators', $packages.'/generators/src'),
+        new ScanRoot('cboxdk/cms', $packages.'/core/src'),
+        new ScanRoot('cboxdk/cms', $packages.'/http/src'),
+        new ScanRoot('cboxdk/cms', $packages.'/cli/src'),
+        new ScanRoot('cboxdk/cms', $packages.'/generators/src'),
     );
 }
 
@@ -52,9 +53,7 @@ it('collects the scan roots of every registered provider that declares them', fu
     $roots = ProviderScanRoots::of(app())->roots;
 
     expect($roots)->toHaveCount(4)
-        ->and(array_map(static fn (ScanRoot $root): string => $root->package, $roots))->toEqualCanonicalizing([
-            'cboxdk/cms-core', 'cboxdk/cms-http', 'cboxdk/cms-cli', 'cboxdk/cms-generators',
-        ]);
+        ->and($roots)->toEqualCanonicalizing(packageScanRoots()->roots);
 
     app()->register(FixtureRootProvider::class);
 

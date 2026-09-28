@@ -16,7 +16,7 @@ final readonly class EditorTarget
 {
     /**
      * @param  non-empty-list<SchemaRoot>  $roots  the schema roots of cbox-cms.generators.roots
-     * @param  string  $schema  the absolute, canonical path of blueprint.v1.json in the installed cboxdk/cms-contracts
+     * @param  string  $schema  the absolute, canonical path of blueprint.v1.json in the installed cboxdk/cms
      */
     public function __construct(
         public array $roots,
