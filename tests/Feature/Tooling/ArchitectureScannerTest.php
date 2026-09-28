@@ -11,6 +11,7 @@ use Cbox\Cms\Tests\Support\Arch\GlobalName;
 use Cbox\Cms\Tests\Support\Arch\Layer;
 use Cbox\Cms\Tests\Support\Arch\Reference;
 use Cbox\Cms\Tests\Support\Arch\SourceFile;
+use Cbox\Cms\Tests\Support\Phpstan;
 use Illuminate\Support\Facades\Http;
 
 /*
@@ -127,6 +128,52 @@ it('knows whether a file starts with declare(strict_types=1)', function (bool $e
     [false, "<?php\n\nnamespace A;\n\ndeclare(strict_types=1);\n"],
     [false, "<html><?php\n\ndeclare(strict_types=1);\n"],
 ]);
+
+it('reads for the strict_types rule every PHP file that PHPStan analyses or the root package autoloads', function (): void {
+    $root = Codebase::root();
+    $composer = json_decode((string) file_get_contents($root.'/composer.json'), true, 512, JSON_THROW_ON_ERROR);
+    $autoloaded = [];
+
+    foreach (['autoload', 'autoload-dev'] as $section) {
+        $psr4 = is_array($composer) && is_array($composer[$section] ?? null) ? ($composer[$section]['psr-4'] ?? []) : [];
+
+        foreach (is_array($psr4) ? $psr4 : [] as $directory) {
+            if (is_string($directory)) {
+                $autoloaded[] = $root.'/'.rtrim($directory, '/');
+            }
+        }
+    }
+
+    $paths = [...Phpstan::parameters('phpstan.neon')->strings('analysedPathsFromConfig'), ...$autoloaded];
+    $expected = [];
+
+    foreach ($paths as $path) {
+        if (is_file($path)) {
+            $expected[] = $path;
+
+            continue;
+        }
+
+        $iterator = new RecursiveIteratorIterator(new RecursiveCallbackFilterIterator(
+            new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS),
+            static fn (SplFileInfo $file): bool => ! in_array($file->getFilename(), ['vendor', 'node_modules', '.git'], true),
+        ));
+
+        foreach ($iterator as $file) {
+            if ($file instanceof SplFileInfo && $file->isFile() && $file->getExtension() === 'php') {
+                $expected[] = $file->getPathname();
+            }
+        }
+    }
+
+    $scanned = array_map(static fn (SourceFile $file): string => $file->path, Codebase::allPhpFiles());
+    $missed = array_values(array_unique(array_map(Codebase::relative(...), array_diff($expected, $scanned))));
+    sort($missed);
+
+    expect($paths)->toContain($root.'/examples', $root.'/tools', $root.'/workbench')
+        ->and($expected)->toContain($root.'/examples/Unit/Clock/ReplaceClockTest.php')
+        ->and($missed)->toBe([]);
+});
 
 it('records names that resolve from the global namespace, but not trait uses or closure uses', function (): void {
     $file = SourceFile::parse('Probe.php', <<<'PHP'

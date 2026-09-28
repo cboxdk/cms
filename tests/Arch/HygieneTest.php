@@ -39,7 +39,7 @@ arch('strict_types: every class in the packages and the workbench declares stric
     expect(codeNamespaces())->toHaveCount(8)->toUseStrictTypes();
 });
 
-arch('strict_types: every PHP file in the packages, tests, workbench and root starts with declare(strict_types=1)', function (): void {
+arch('strict_types: every PHP file in the packages, tests, tools, workbench, examples and root starts with declare(strict_types=1)', function (): void {
     $files = Codebase::allPhpFiles();
     $violations = array_map(
         static fn (SourceFile $file): string => Codebase::relative($file->path),
