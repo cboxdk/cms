@@ -61,7 +61,7 @@ use Symfony\Component\Clock\NativeClock;
  *
  * A date string or format that is not a constant is not reported: a Boundary parses input.
  * hrtime() is not reported: it is the monotonic clock for durations and deadlines of real waits,
- * which the Clock contract does not give (packages/contracts/docs/clock.md).
+ * which the Clock contract does not give (docs/addons/contracts/clock.md).
  */
 #[Internal]
 final readonly class ClockReads

@@ -8,8 +8,8 @@ use Stringable;
 
 /**
  * One finding of the documentation check. It prints as `<file>:<line>: <message>` when it has a
- * place in a file, and as `<extension point>: <message>` when it is about an extension point or an
- * exclusion, such as `Cbox\Cms\Contracts\Clock: undocumented`.
+ * place in a file, and as `<subject>: <message>` when it is about an extension point, an exclusion,
+ * a file as a whole or a folder, such as `Cbox\Cms\Contracts\Clock: undocumented`.
  */
 final readonly class Finding implements Stringable
 {
@@ -27,13 +27,13 @@ final readonly class Finding implements Stringable
         return new self($file, $line, $message);
     }
 
-    public static function about(string $extensionPoint, string $message): self
+    public static function about(string $subject, string $message): self
     {
-        return new self($extensionPoint, null, $message);
+        return new self($subject, null, $message);
     }
 
     /**
-     * Findings in files first, by file and line, then those about extension points, by name.
+     * Findings in files first, by file and line, then those about a subject, by subject.
      *
      * @param  list<self>  $findings
      * @return list<self>

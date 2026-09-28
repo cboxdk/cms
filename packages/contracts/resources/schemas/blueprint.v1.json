@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Cbox CMS blueprint, version 1",
-  "description": "One schema file under schema/**/*.yaml: a type, or an extension of another owner's type (PRD 11.12, 13.1). Version 1 grows only by additions: a file that is valid stays valid and keeps its meaning. The reference page is blueprint.v1.md next to this file.",
+  "description": "One schema file under schema/**/*.yaml: a type, or an extension of another owner's type (PRD 11.12, 13.1). Version 1 grows only by additions: a file that is valid stays valid and keeps its meaning. The reference page is docs/addons/blueprint-v1.md in the Cbox CMS repository.",
   "type": "object",
   "required": ["blueprint", "kind"],
   "properties": {

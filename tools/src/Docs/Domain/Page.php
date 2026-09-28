@@ -15,6 +15,9 @@ final readonly class Page
      * @param  list<Embed>  $embeds  the example and example-file markers that a fenced block follows
      * @param  list<int>  $strayFences  the opening lines of fenced blocks no embedding marker precedes
      * @param  list<int>  $unclosedFences  the opening lines of fenced blocks that run to the end of the page
+     * @param  ?Frontmatter  $frontmatter  the block of `key: value` lines at the top, or null when the page has none
+     * @param  list<Link>  $links  every link outside fenced blocks and inline code, in order
+     * @param  list<string>  $anchors  the anchor of every heading outside fenced blocks, as GitHub makes them
      */
     public function __construct(
         public string $path,
@@ -22,6 +25,9 @@ final readonly class Page
         public array $embeds,
         public array $strayFences,
         public array $unclosedFences,
+        public ?Frontmatter $frontmatter,
+        public array $links,
+        public array $anchors,
     ) {}
 
     /**

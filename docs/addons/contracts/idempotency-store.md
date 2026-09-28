@@ -1,3 +1,9 @@
+---
+title: Idempotency store
+weight: 35
+description: "The IdempotencyStore contract: claim and complete an idempotency key inside the command transaction, the Postgres store, FakeIdempotencyStore and the shared suite IdempotencyStoreContract."
+---
+
 # Idempotency store
 
 <!-- extension-point: Cbox\Cms\Contracts\IdempotencyStore -->

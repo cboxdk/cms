@@ -1,3 +1,9 @@
+---
+title: Static analysis for addons
+weight: 40
+description: Include the testkit's PHPStan configuration in an addon, and what the kernel's rules report there.
+---
+
 # Static analysis for addons
 
 `cboxdk/cms-testkit` ships the PHPStan configuration the kernel is analysed with (GUARDRAILS 1, 2.2 and 10): level 10 with Larastan, stricter checks than level 10 alone, and the kernel's own rules. An addon includes it from its `phpstan.neon` and adds only its own paths:

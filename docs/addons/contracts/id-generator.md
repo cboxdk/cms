@@ -1,3 +1,9 @@
+---
+title: Id generator
+weight: 33
+description: "The IdGenerator contract: UUIDv7 ids ordered by time, how to replace the generator, the shared suite IdGeneratorContract, and the seeded FakeIdGenerator."
+---
+
 # Id generator
 
 <!-- extension-point: Cbox\Cms\Contracts\IdGenerator -->

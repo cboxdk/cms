@@ -1,3 +1,9 @@
+---
+title: Testing against real Postgres and Valkey
+weight: 39
+description: The testkit harnesses RealPostgres and RealValkey for tests that must see what the real services do.
+---
+
 # Testing against real Postgres and Valkey
 
 <!-- extension-point: Cbox\Cms\Testkit\Postgres\RealPostgres -->

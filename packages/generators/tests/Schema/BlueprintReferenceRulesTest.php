@@ -6,11 +6,10 @@ namespace Cbox\Cms\Generators\Tests\Schema;
 
 use Cbox\Cms\Generators\Cli\Console\GenerateCommand;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
-use Cbox\Cms\Generators\Schema\Boundary\BlueprintSchemaFile;
 
 /*
- * The reference page of the blueprint schema v1, blueprint.v1.md beside the installed
- * blueprint.v1.json, lists under "Rules across values and files" every rule cms:generate checks
+ * The reference page of the blueprint schema v1, docs/addons/blueprint-v1.md at the root of the
+ * repository, lists under "Rules across values and files" every rule cms:generate checks
  * beyond JSON Schema. Its table names exactly the error codes cms:generate refuses a schema with,
  * besides the schema's own `generate_schema_invalid` and `generate_schema_unsupported_version`, so
  * a rule the code adds or drops cannot leave the page behind.
@@ -18,7 +17,7 @@ use Cbox\Cms\Generators\Schema\Boundary\BlueprintSchemaFile;
 
 function referencePage(): string
 {
-    return (string) file_get_contents(substr(new BlueprintSchemaFile()->path(), 0, -strlen('.json')).'.md');
+    return (string) file_get_contents(__DIR__.'/../../../../docs/addons/blueprint-v1.md');
 }
 
 /**

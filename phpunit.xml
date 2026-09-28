@@ -108,7 +108,7 @@
             The tests run in the workbench's console, which holds pgsql_owner and runs the
             migrations, so it is the maintenance process for cms:doctor's
             postgres.owner_credentials. The declaration is the process's environment, never the
-            configuration (packages/contracts/docs/doctor.md).
+            configuration (docs/developers/doctor.md).
         -->
         <env name="CBOX_CMS_MAINTENANCE_PROCESS" value="true"/>
         <!--

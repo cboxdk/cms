@@ -1,8 +1,14 @@
+---
+title: Blueprint schema v1
+weight: 38
+description: "The reference of blueprint.v1.json: types, extensions of another owner's type, fields, core and addon field types, and the rules cms:generate checks across files."
+---
+
 # Blueprint schema, version 1
 
 <!-- extension-point: packages/contracts/resources/schemas/blueprint.v1.json -->
 
-A blueprint file defines one content type, or adds fields to another owner's type. Blueprint files live under `schema/**/*.yaml` (PRD 11.12). Their format is the JSON Schema [`blueprint.v1.json`](blueprint.v1.json) next to this page, JSON Schema draft 2020-12, and it is the one source of the rules for a single file. The rules that compare values with each other, in one file or across files, are listed under [Rules across values and files](#rules-across-values-and-files).
+A blueprint file defines one content type, or adds fields to another owner's type. Blueprint files live under `schema/**/*.yaml` (PRD 11.12). Their format is the JSON Schema [`blueprint.v1.json`](../../packages/contracts/resources/schemas/blueprint.v1.json), JSON Schema draft 2020-12, which an installed application finds at `vendor/cboxdk/cms-contracts/resources/schemas/blueprint.v1.json`, and it is the one source of the rules for a single file. The rules that compare values with each other, in one file or across files, are listed under [Rules across values and files](#rules-across-values-and-files).
 
 This is the first edition of version 1. Version 1 grows only by additions: a new field type, a new optional choice, a new enum value or a new `kind` keeps the marker `blueprint: 1`, and a file that is valid stays valid and keeps its meaning. A change that would make a valid file invalid or change its meaning is version 2.
 

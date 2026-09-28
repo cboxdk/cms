@@ -25,6 +25,8 @@ use Cbox\Cms\Tooling\Docs\Domain\Inventory;
 use Cbox\Cms\Tooling\Docs\Domain\Marker;
 use Cbox\Cms\Tooling\Docs\Domain\MarkerKind;
 use Cbox\Cms\Tooling\Docs\Domain\PageParser;
+use Cbox\Cms\Tooling\Docs\Domain\Screenshot;
+use Cbox\Cms\Tooling\Docs\Domain\Screenshots;
 use Cbox\Cms\Tooling\Docs\Domain\TypeKind;
 use FilesystemIterator;
 use InvalidArgumentException;
@@ -88,7 +90,7 @@ const DOCS_PHPUNIT = <<<'XML'
 
     XML;
 
-const DOCS_GREETER_PAGE = 'packages/contracts/docs/greeter.md';
+const DOCS_GREETER_PAGE = 'docs/addons/greeter.md';
 
 const DOCS_GREETER_EXAMPLE = 'examples/Unit/Greeting/GreeterTest.php';
 
@@ -101,22 +103,36 @@ function docsEmbed(string $kind, string $path, string $contents, string $languag
 }
 
 /**
- * A page that documents the extension points and embeds the blocks.
+ * The frontmatter of a page, six lines with the empty line after it.
+ */
+function docsFrontmatter(string $title, int $weight): string
+{
+    return "---\ntitle: {$title}\nweight: {$weight}\ndescription: What the page is about.\n---\n\n";
+}
+
+/**
+ * A page below docs/addons that documents the extension points and embeds the blocks. The marker
+ * is on line 9, after the frontmatter.
  */
 function docsPage(string $extensionPoint, string ...$blocks): string
 {
-    return "# A page\n\n<!-- extension-point: {$extensionPoint} -->\n\nWhat it is for, and `composer docs:check` in inline code.\n\n".implode("\n", $blocks);
+    return docsFrontmatter('A page', 31)."# A page\n\n<!-- extension-point: {$extensionPoint} -->\n\nWhat it is for, and `composer docs:check` in inline code.\n\n".implode("\n", $blocks);
 }
 
 /**
  * A fixture tree with no finding: the interface Cbox\Cms\Contracts\Greeter, its page and its example
- * test in the Unit suite.
+ * test in the Unit suite, and the docs/ layout around the page: the three root pages and the
+ * section page of docs/addons.
  */
 function docsTree(): string
 {
     $root = ScratchDirectory::make('cbox-cms-docs-test-');
 
     docsWrite($root, 'phpunit.xml', DOCS_PHPUNIT);
+    docsWrite($root, 'docs/index.md', docsFrontmatter('Greeter', 1)."# Greeter\n\nSee [the addons](addons/_index.md).\n");
+    docsWrite($root, 'docs/quickstart.md', docsFrontmatter('Quickstart', 2)."# Quickstart\n");
+    docsWrite($root, 'docs/requirements.md', docsFrontmatter('Requirements', 3)."# Requirements\n");
+    docsWrite($root, 'docs/addons/_index.md', docsFrontmatter('Addons', 30)."# Addons\n\n- [Greeter](greeter.md#a-page)\n");
     docsWrite($root, 'packages/contracts/src/Greeter.php', DOCS_GREETER);
     docsWrite($root, DOCS_GREETER_EXAMPLE, DOCS_GREETER_TEST);
     docsWrite($root, DOCS_GREETER_PAGE, docsPage('Cbox\Cms\Contracts\Greeter', docsEmbed('example', DOCS_GREETER_EXAMPLE, DOCS_GREETER_TEST)));
@@ -131,11 +147,12 @@ function docsWrite(string $root, string $path, string $contents): void
 
 /**
  * @param  list<Exclusion>  $exclusions
+ * @param  list<Screenshot>  $screenshots
  * @return list<string>
  */
-function docsFindings(string $root, array $exclusions = []): array
+function docsFindings(string $root, array $exclusions = [], array $screenshots = []): array
 {
-    return array_map(static fn (Finding $finding): string => (string) $finding, DocsAudit::findings(LocalDocsTree::read($root), $exclusions));
+    return array_map(static fn (Finding $finding): string => (string) $finding, DocsAudit::findings(LocalDocsTree::read($root), $exclusions, $screenshots));
 }
 
 /**
@@ -220,27 +237,27 @@ it('reports a page that names an unknown extension point, and one that names an 
     docsWrite($root, DOCS_GREETER_PAGE, docsPage('Cbox\Cms\Contracts\Greeter', "<!-- extension-point: Cbox\\Cms\\Contracts\\Gone -->\n<!-- extension-point: Cbox\\Cms\\Core\\Greeting\\Domain\\Salute -->\n", docsEmbed('example', DOCS_GREETER_EXAMPLE, DOCS_GREETER_TEST)));
 
     expect(docsFindings($root, [new Exclusion('Cbox\Cms\Core\Greeting\Domain\Salute', 'a union that nothing implements')]))->toBe([
-        'packages/contracts/docs/greeter.md:7: names Cbox\Cms\Contracts\Gone as an extension point, but the inventory has no such interface, attribute class, trait, #[Command] or #[Hook] class or schema that is not #[Internal]',
-        'packages/contracts/docs/greeter.md:8: names Cbox\Cms\Core\Greeting\Domain\Salute as an extension point, but the inventory excludes it: a union that nothing implements',
+        'docs/addons/greeter.md:13: names Cbox\Cms\Contracts\Gone as an extension point, but the inventory has no such interface, attribute class, trait, #[Command] or #[Hook] class or schema that is not #[Internal]',
+        'docs/addons/greeter.md:14: names Cbox\Cms\Core\Greeting\Domain\Salute as an extension point, but the inventory excludes it: a union that nothing implements',
     ]);
 });
 
 it('reports an extension point on two pages', function (): void {
     $root = docsTree();
-    docsWrite($root, 'packages/contracts/docs/greeting/again.md', docsPage('Cbox\Cms\Contracts\Greeter', docsEmbed('example', DOCS_GREETER_EXAMPLE, DOCS_GREETER_TEST)));
+    docsWrite($root, 'docs/addons/greeting-again.md', docsPage('Cbox\Cms\Contracts\Greeter', docsEmbed('example', DOCS_GREETER_EXAMPLE, DOCS_GREETER_TEST)));
 
     expect(docsFindings($root))->toBe([
-        'packages/contracts/docs/greeting/again.md:3: Cbox\Cms\Contracts\Greeter is also documented on packages/contracts/docs/greeter.md:3; every extension point is on exactly one page',
+        'docs/addons/greeting-again.md:9: Cbox\Cms\Contracts\Greeter is also documented on docs/addons/greeter.md:9; every extension point is on exactly one page',
     ]);
 });
 
 it('reports a page without an example', function (): void {
     $root = docsTree();
     docsWrite($root, 'packages/core/src/Greeting/Domain/Farewell.php', docsPhp('Cbox\Cms\Core\Greeting\Domain', 'interface Farewell {}'));
-    docsWrite($root, 'packages/core/docs/farewell.md', docsPage('Cbox\Cms\Core\Greeting\Domain\Farewell'));
+    docsWrite($root, 'docs/addons/farewell.md', docsPage('Cbox\Cms\Core\Greeting\Domain\Farewell'));
 
     expect(docsFindings($root))->toBe([
-        'packages/core/docs/farewell.md:1: the page has no example; add <!-- example: <repo-relative path> --> with the fenced *Test.php below it',
+        'docs/addons/farewell.md:1: the page documents an extension point and has no example; add <!-- example: <repo-relative path> --> with the fenced *Test.php below it',
     ]);
 });
 
@@ -249,7 +266,7 @@ it('reports an example block that differs from its file', function (): void {
     docsWrite($root, DOCS_GREETER_PAGE, docsPage('Cbox\Cms\Contracts\Greeter', docsEmbed('example', DOCS_GREETER_EXAMPLE, str_replace('Ada', 'Grace', DOCS_GREETER_TEST))));
 
     expect(docsFindings($root))->toBe([
-        'packages/contracts/docs/greeter.md:7: the fenced block differs from examples/Unit/Greeting/GreeterTest.php; embed the file byte for byte',
+        'docs/addons/greeter.md:13: the fenced block differs from examples/Unit/Greeting/GreeterTest.php; embed the file byte for byte',
     ]);
 });
 
@@ -262,7 +279,7 @@ it('reports a missing example file', function (): void {
     ));
 
     expect(docsFindings($root))->toBe([
-        'packages/contracts/docs/greeter.md:18: examples/Unit/Greeting/MissingTest.php does not exist',
+        'docs/addons/greeter.md:24: examples/Unit/Greeting/MissingTest.php does not exist',
     ]);
 });
 
@@ -278,8 +295,8 @@ it('reports an example file that no gate-5 suite includes, and one that is no *T
     ));
 
     expect(docsFindings($root))->toBe([
-        'packages/contracts/docs/greeter.md:18: examples/Browser/Greeting/GreeterPageTest.php is in none of the gate-5 suites of phpunit.xml (Unit), so it never runs',
-        'packages/contracts/docs/greeter.md:29: examples/Unit/Greeting/Greeting.php is not a *Test.php; embed a support file or fixture with <!-- example-file: <path> -->',
+        'docs/addons/greeter.md:24: examples/Browser/Greeting/GreeterPageTest.php is in none of the gate-5 suites of phpunit.xml (Unit), so it never runs',
+        'docs/addons/greeter.md:35: examples/Unit/Greeting/Greeting.php is not a *Test.php; embed a support file or fixture with <!-- example-file: <path> -->',
     ]);
 });
 
@@ -290,7 +307,7 @@ it('reports an example file without an assertion', function (): void {
     docsWrite($root, DOCS_GREETER_PAGE, docsPage('Cbox\Cms\Contracts\Greeter', docsEmbed('example', DOCS_GREETER_EXAMPLE, $test)));
 
     expect(docsFindings($root))->toBe([
-        'packages/contracts/docs/greeter.md:7: examples/Unit/Greeting/GreeterTest.php has no assertion: it calls neither expect() nor an assert method and uses no trait of the inventory',
+        'docs/addons/greeter.md:13: examples/Unit/Greeting/GreeterTest.php has no assertion: it calls neither expect() nor an assert method and uses no trait of the inventory',
     ]);
 });
 
@@ -301,7 +318,7 @@ it('takes an assert method, or the use of a trait of the inventory as a shared c
     $asserting = "<?php\n\ndeclare(strict_types=1);\n\nit('greets by name', function (): void {\n    \$this->assertSame('Hello, Ada', 'Hello, Ada');\n});\n";
     docsWrite($root, 'examples/Unit/Greeting/SuiteTest.php', $suite);
     docsWrite($root, 'examples/Unit/Greeting/AssertingTest.php', $asserting);
-    docsWrite($root, 'packages/testkit/docs/greeter-contract.md', docsPage(
+    docsWrite($root, 'docs/addons/greeter-contract.md', docsPage(
         'Cbox\Cms\Testkit\Greeting\GreeterContract',
         docsEmbed('example', 'examples/Unit/Greeting/SuiteTest.php', $suite),
         docsEmbed('example', 'examples/Unit/Greeting/AssertingTest.php', $asserting),
@@ -322,7 +339,7 @@ it('reports an example-file block that differs from its file', function (): void
     ));
 
     expect(docsFindings($root))->toBe([
-        'packages/contracts/docs/greeter.md:18: the fenced block differs from examples/Unit/Greeting/greeting.yaml; embed the file byte for byte',
+        'docs/addons/greeter.md:24: the fenced block differs from examples/Unit/Greeting/greeting.yaml; embed the file byte for byte',
     ]);
 });
 
@@ -337,7 +354,7 @@ it('reports an example-file that no example on the page mentions', function (): 
     ));
 
     expect(docsFindings($root))->toBe([
-        'packages/contracts/docs/greeter.md:18: no example test on this page mentions PoliteGreeter, so nothing shows examples/Unit/Greeting/PoliteGreeter.php in use',
+        'docs/addons/greeter.md:24: no example test on this page mentions PoliteGreeter, so nothing shows examples/Unit/Greeting/PoliteGreeter.php in use',
     ]);
 });
 
@@ -351,10 +368,10 @@ it('reports a fenced block that is no checked embed, an unclosed one and a marke
     ));
 
     expect(docsFindings($root))->toBe([
-        'packages/contracts/docs/greeter.md:20: the fenced block is no checked embed; put a command in inline code, and embed a file with <!-- example: <path> --> or <!-- example-file: <path> --> on the line above',
-        'packages/contracts/docs/greeter.md:24: <!-- example-file: examples/Unit/Greeting/GreeterTest.php --> is not followed immediately by a fenced block',
-        'packages/contracts/docs/greeter.md:26: the fenced block is no checked embed; put a command in inline code, and embed a file with <!-- example: <path> --> or <!-- example-file: <path> --> on the line above',
-        'packages/contracts/docs/greeter.md:26: the fenced block is not closed',
+        'docs/addons/greeter.md:26: the fenced block is no checked embed; put a command in inline code, and embed a file with <!-- example: <path> --> or <!-- example-file: <path> --> on the line above',
+        'docs/addons/greeter.md:30: <!-- example-file: examples/Unit/Greeting/GreeterTest.php --> is not followed immediately by a fenced block',
+        'docs/addons/greeter.md:32: the fenced block is no checked embed; put a command in inline code, and embed a file with <!-- example: <path> --> or <!-- example-file: <path> --> on the line above',
+        'docs/addons/greeter.md:32: the fenced block is not closed',
     ]);
 });
 
@@ -368,8 +385,8 @@ it('reports a marker path that is not repo-relative', function (): void {
     ));
 
     expect(docsFindings($root))->toBe([
-        'packages/contracts/docs/greeter.md:18: ../Greeting/GreeterTest.php is not a repo-relative path',
-        'packages/contracts/docs/greeter.md:29: /examples/Unit/Greeting/GreeterTest.php is not a repo-relative path',
+        'docs/addons/greeter.md:24: ../Greeting/GreeterTest.php is not a repo-relative path',
+        'docs/addons/greeter.md:35: /examples/Unit/Greeting/GreeterTest.php is not a repo-relative path',
     ]);
 });
 
@@ -409,9 +426,177 @@ it('reports a stale exclusion', function (): void {
     ]);
 });
 
+it('reports a missing root page, another file at the root of docs/, and a folder without _index.md, nested or not', function (): void {
+    $root = docsTree();
+    unlink($root.'/docs/requirements.md');
+    docsWrite($root, 'docs/roadmap.md', docsFrontmatter('Roadmap', 4)."# Roadmap\n");
+    docsWrite($root, 'docs/guides/recipes/one.md', docsFrontmatter('One', 41)."# One\n");
+
+    expect(docsFindings($root))->toBe([
+        'docs/guides: the folder has no _index.md; every folder below docs/ has one, with title, weight and description frontmatter',
+        'docs/guides/recipes: the folder has no _index.md; every folder below docs/ has one, with title, weight and description frontmatter',
+        'docs/requirements.md: missing; the root of docs/ holds index.md, quickstart.md and requirements.md',
+        'docs/roadmap.md: the root of docs/ holds only index.md, quickstart.md and requirements.md; move the file into a topic folder',
+    ]);
+});
+
+it('reports a page without frontmatter, one without each key, a weight that is no whole number and a line that is not key: value', function (): void {
+    $root = docsTree();
+    docsWrite($root, 'docs/addons/bare.md', "# Bare\n");
+    docsWrite($root, 'docs/addons/empty.md', "---\ntitle: ''\n---\n\n# Empty\n");
+    docsWrite($root, 'docs/addons/odd.md', "---\ntitle: \"Odd: a page\"\nweight: 3.5\ndescription: 'It''s odd.'\n- a list item\n---\n\n# Odd\n");
+    docsWrite($root, 'docs/addons/open.md', "---\ntitle: Open\n\n# Open, never closed\n");
+
+    expect(docsFindings($root))->toBe([
+        'docs/addons/bare.md:1: the page has no frontmatter; start it with a line ---, then title, weight and description, then a line ---',
+        'docs/addons/empty.md:1: the frontmatter has no description',
+        'docs/addons/empty.md:1: the frontmatter has no title',
+        'docs/addons/empty.md:1: the frontmatter has no weight',
+        'docs/addons/odd.md:1: the frontmatter weight is not a whole number',
+        'docs/addons/odd.md:5: the frontmatter line is not key: value',
+        'docs/addons/open.md:1: the page has no frontmatter; start it with a line ---, then title, weight and description, then a line ---',
+    ]);
+});
+
+it('reads quoted frontmatter values, and a comment after a plain one', function (): void {
+    $page = PageParser::parse('docs/a.md', "---\ntitle: \"Say \\\"hi\\\": now\"\nweight: 12 # after the section\ndescription: 'It''s here.'\n---\n# A\n");
+
+    expect($page->frontmatter?->value('title'))->toBe('Say "hi": now')
+        ->and($page->frontmatter?->weight())->toBe(12)
+        ->and($page->frontmatter?->value('description'))->toBe("It's here.")
+        ->and($page->frontmatter?->lastLine)->toBe(5);
+});
+
+it('reports a page whose weight is not higher than that of the _index.md of its folder', function (): void {
+    $root = docsTree();
+    docsWrite($root, 'docs/addons/first.md', docsFrontmatter('First', 30)."# First\n");
+    docsWrite($root, 'docs/addons/zeroth.md', docsFrontmatter('Zeroth', 5)."# Zeroth\n");
+
+    expect(docsFindings($root))->toBe([
+        'docs/addons/first.md:1: the weight 30 is not higher than that of docs/addons/_index.md, 30; the section page comes first',
+        'docs/addons/zeroth.md:1: the weight 5 is not higher than that of docs/addons/_index.md, 30; the section page comes first',
+    ]);
+});
+
+it('reports a file below docs/ that is no page and no screenshot, and a Markdown file below packages/', function (): void {
+    $root = docsTree();
+    docsWrite($root, 'docs/addons/diagram.png', 'png');
+    docsWrite($root, 'packages/contracts/docs/greeter.md', "# Left behind\n");
+    docsWrite($root, 'packages/contracts/resources/schemas/greeting.md', "# Left behind\n");
+
+    expect(docsFindings($root))->toBe([
+        'docs/addons/diagram.png: below docs/ there are only Markdown pages, and the screenshots of Cbox\Cms\Tooling\Docs\Domain\Screenshots in docs/screenshots',
+        'packages/contracts/docs/greeter.md: the documentation is in docs/ at the root of the repository; move the page there',
+        'packages/contracts/resources/schemas/greeting.md: the documentation is in docs/ at the root of the repository; move the page there',
+    ]);
+});
+
+it('reports a relative link to a missing file, one that leaves the repository and one to a missing heading, on a page and in README.md', function (): void {
+    $root = docsTree();
+    docsWrite($root, 'README.md', "# Greeter\n\n[Docs](docs/index.md), [gone](docs/gone.md) and [the site](https://example.com/docs).\n");
+    docsWrite($root, 'docs/addons/links.md', docsFrontmatter('Links', 32).implode("\n", [
+        '# Links',
+        '',
+        '## Where to go',
+        '',
+        '- [a folder](../addons/) and [a file with a query](greeter.md?plain=1) resolve',
+        '- [the page](greeter.md#a-page), [this heading](#where-to-go) and [mail](mailto:dev@example.com) resolve',
+        '- [gone](gone.md), [outside](../../../outside.md), [no heading](greeter.md#nowhere) and [not here](#nowhere) do not',
+        '- `[in code](gone.md)` is no link',
+        '',
+        '[defined]: ../missing/',
+        '',
+        '```',
+        '[in a block](gone.md)',
+        '```',
+        '',
+    ]));
+
+    expect(docsFindings($root))->toBe([
+        'README.md:3: the link docs/gone.md points to docs/gone.md, which does not exist',
+        'docs/addons/links.md:13: the link #nowhere names the heading #nowhere, which the page does not have',
+        'docs/addons/links.md:13: the link ../../../outside.md leaves the repository',
+        'docs/addons/links.md:13: the link gone.md points to docs/addons/gone.md, which does not exist',
+        'docs/addons/links.md:13: the link greeter.md#nowhere names the heading #nowhere, which docs/addons/greeter.md does not have',
+        'docs/addons/links.md:16: the link ../missing/ points to docs/missing, which does not exist',
+        'docs/addons/links.md:18: the fenced block is no checked embed; put a command in inline code, and embed a file with <!-- example: <path> --> or <!-- example-file: <path> --> on the line above',
+    ]);
+});
+
+it('gives a heading the anchor GitHub gives it', function (): void {
+    $page = PageParser::parse('docs/a.md', implode("\n", [
+        '# The contract: DoctorCheck',
+        '## Exit codes: `DoctorExitCode`',
+        '## Processes: web, queue and maintenance',
+        '## Testing a [check](b.md)',
+        '### Adding a check',
+        '### Adding a check',
+        '#no-heading',
+        '',
+    ]));
+
+    expect($page->anchors)->toBe([
+        'the-contract-doctorcheck',
+        'exit-codes-doctorexitcode',
+        'processes-web-queue-and-maintenance',
+        'testing-a-check',
+        'adding-a-check',
+        'adding-a-check-1',
+    ]);
+});
+
+it('reports a screenshot without its file, a file without an entry, an entry no page embeds and a caption that is not the entry\'s', function (): void {
+    $root = docsTree();
+    $shots = [
+        new Screenshot('greeting', ['php', '-r', 'echo 1;'], 'The greeting.'),
+        new Screenshot('farewell', ['php', '-r', 'echo 2;'], 'The farewell.'),
+        new Screenshot('missing', ['php', '-r', 'echo 3;'], 'Not captured.'),
+    ];
+    docsWrite($root, 'docs/screenshots/_index.md', docsFrontmatter('Screenshots', 90)."# Screenshots\n\n![The greeting.](greeting.svg)\n![The farewell.](farewell.svg)\n![Not captured.](missing.svg)\n");
+    docsWrite($root, 'docs/screenshots/greeting.svg', '<svg/>');
+    docsWrite($root, 'docs/screenshots/farewell.svg', '<svg/>');
+    docsWrite($root, 'docs/screenshots/stray.svg', '<svg/>');
+    docsWrite($root, 'docs/index.md', docsFrontmatter('Greeter', 1)."# Greeter\n\nSee [the addons](addons/_index.md).\n\n![A greeting](screenshots/greeting.svg)\n");
+
+    expect(docsFindings($root, [], $shots))->toBe([
+        'docs/index.md:11: the alt text of docs/screenshots/greeting.svg is not the caption of its entry in Screenshots: The greeting.',
+        'docs/screenshots/_index.md:11: the link missing.svg points to docs/screenshots/missing.svg, which does not exist',
+        'docs/screenshots/farewell.svg: no page outside docs/screenshots embeds it; embed it on the page that describes it, or remove its entry from Screenshots',
+        'docs/screenshots/missing.svg: missing; capture it with composer docs:screenshots -- --only=missing',
+        'docs/screenshots/missing.svg: no page outside docs/screenshots embeds it; embed it on the page that describes it, or remove its entry from Screenshots',
+        'docs/screenshots/stray.svg: no entry of Cbox\Cms\Tooling\Docs\Domain\Screenshots names this file; add one, or remove the file',
+    ]);
+});
+
+it('reports a screenshot key that is not lowercase words joined by hyphens, one used twice, and one without a caption', function (): void {
+    $root = docsTree();
+    $shots = [
+        new Screenshot('Greeting_Page', ['php'], 'A caption.'),
+        new Screenshot('twice', ['php'], 'Twice.'),
+        new Screenshot('twice', ['php'], 'Twice again.'),
+        new Screenshot('bare', [], ' '),
+    ];
+
+    expect(array_values(array_filter(docsFindings($root, [], $shots), static fn (string $finding): bool => ! str_starts_with($finding, 'docs/screenshots/'))))->toBe([
+        'Greeting_Page: the key of a screenshot is lowercase words and digits joined by hyphens',
+        'bare: a screenshot has a caption and a command',
+        'twice: the key of a screenshot is used twice in Screenshots',
+    ]);
+});
+
+it('lists this repository\'s screenshots once each, each with a command, a caption that ends a sentence, and a findable key', function (): void {
+    $keys = array_map(static fn (Screenshot $shot): string => $shot->key, Screenshots::all());
+
+    expect($keys)->toBe(array_values(array_unique($keys)))
+        ->and(array_filter(Screenshots::all(), static fn (Screenshot $shot): bool => $shot->command === [] || ! str_ends_with($shot->caption, '.')))->toBe([])
+        ->and(Screenshots::find('doctor')?->promptLine())->toBe('vendor/bin/testbench cms:doctor')
+        ->and(Screenshots::find('doctor-violation')?->exitCode)->toBe(78)
+        ->and(Screenshots::find('nothing'))->toBeNull();
+});
+
 it('gives every exclusion of the Docs module a reason, and each names something the inventory rule finds in this repository', function (): void {
     $names = array_map(static fn (Exclusion $exclusion): string => $exclusion->name, Exclusions::all());
-    $findings = array_map(static fn (Finding $finding): string => (string) $finding, DocsAudit::findings(LocalDocsTree::read(Phpstan::root()), Exclusions::all()));
+    $findings = array_map(static fn (Finding $finding): string => (string) $finding, DocsAudit::findings(LocalDocsTree::read(Phpstan::root()), Exclusions::all(), Screenshots::all()));
 
     expect($names)->toBe([
         ClaimResult::class,
@@ -444,12 +629,12 @@ it('excludes nothing of the testkit, the API an addon tests with, and documents 
         ->and($inventory->excluded)->not->toHaveKeys([RealPostgres::class, RealValkey::class])
         ->and($inventory->has(RealPostgres::class))->toBeTrue()
         ->and($inventory->has(RealValkey::class))->toBeTrue()
-        ->and($pagesOf[RealPostgres::class] ?? [])->toBe(['packages/testkit/docs/real-services.md'])
-        ->and($pagesOf[RealValkey::class] ?? [])->toBe(['packages/testkit/docs/real-services.md']);
+        ->and($pagesOf[RealPostgres::class] ?? [])->toBe(['docs/addons/real-services.md'])
+        ->and($pagesOf[RealValkey::class] ?? [])->toBe(['docs/addons/real-services.md']);
 });
 
 it('finds in this repository nothing but undocumented extension points, and nothing for the blueprint schema and its page', function (): void {
-    $findings = array_map(static fn (Finding $finding): string => (string) $finding, DocsAudit::findings(LocalDocsTree::read(Phpstan::root()), Exclusions::all()));
+    $findings = array_map(static fn (Finding $finding): string => (string) $finding, DocsAudit::findings(LocalDocsTree::read(Phpstan::root()), Exclusions::all(), Screenshots::all()));
 
     expect(array_values(array_filter($findings, static fn (string $finding): bool => ! str_ends_with($finding, ': undocumented'))))->toBe([])
         ->and(array_values(array_filter($findings, static fn (string $finding): bool => str_contains($finding, 'blueprint.v1'))))->toBe([]);
@@ -524,7 +709,12 @@ it('exposes the check as composer docs:check', function (): void {
         ->and(ComposerScripts::description('docs:check'))->toContain('Gate 10', 'exit 1', '--root=<dir>');
 });
 
-it('fails on a copy of this repository with one new public interface in the contracts, and names it undocumented', function (): void {
+/**
+ * A scratch copy of what the documentation check reads in this repository: the sources and
+ * schemas of the packages, docs/, README.md, examples/, phpunit.xml and every file a page embeds.
+ */
+function docsRepositoryCopy(): string
+{
     $repository = Phpstan::root();
     $scratch = ScratchDirectory::make('cbox-cms-docs-check-');
     $copy = static function (string $from, string $to): void {
@@ -541,7 +731,7 @@ it('fails on a copy of this repository with one new public interface in the cont
         }
     };
 
-    foreach ([...(glob($repository.'/packages/*/src', GLOB_ONLYDIR) ?: []), ...(glob($repository.'/packages/*/docs', GLOB_ONLYDIR) ?: []), ...(glob($repository.'/packages/*/resources', GLOB_ONLYDIR) ?: []), $repository.'/examples', $repository.'/phpunit.xml'] as $path) {
+    foreach ([...(glob($repository.'/packages/*/src', GLOB_ONLYDIR) ?: []), ...(glob($repository.'/packages/*/resources', GLOB_ONLYDIR) ?: []), $repository.'/docs', $repository.'/README.md', $repository.'/examples', $repository.'/phpunit.xml'] as $path) {
         $copy($path, $scratch.substr($path, strlen($repository)));
     }
 
@@ -553,6 +743,11 @@ it('fails on a copy of this repository with one new public interface in the cont
         }
     }
 
+    return $scratch;
+}
+
+it('fails on a copy of this repository with one new public interface in the contracts, and names it undocumented', function (): void {
+    $scratch = docsRepositoryCopy();
     [$before, $beforeOutput] = runDocsCheck('--root='.$scratch);
 
     docsWrite($scratch, 'packages/contracts/src/Salutation.php', docsPhp('Cbox\Cms\Contracts', "#[Experimental]\ninterface Salutation {}", "use Cbox\\Cms\\Contracts\\Attributes\\Experimental;\n\n"));
@@ -567,6 +762,37 @@ it('fails on a copy of this repository with one new public interface in the cont
         ->and($errors)->toContain('docs:check:')
         ->and(is_dir($scratch))->toBeFalse();
 });
+
+it('fails on a copy of this repository with a planted missing _index.md, a page without frontmatter, a dangling link, a missing screenshot or an unused one, and names each', function (string $plant, string $finding): void {
+    $scratch = docsRepositoryCopy();
+    [$before] = runDocsCheck('--root='.$scratch);
+    $quickstart = (string) file_get_contents($scratch.'/docs/quickstart.md');
+
+    match ($plant) {
+        'missing _index.md' => unlink($scratch.'/docs/security/_index.md'),
+        'missing frontmatter' => docsWrite($scratch, 'docs/developers/partitions.md', (string) preg_replace('/\A---\n.*?\n---\n\n/s', '', (string) file_get_contents($scratch.'/docs/developers/partitions.md'))),
+        'dangling link' => docsWrite($scratch, 'docs/quickstart.md', $quickstart."\nSee [the roadmap](roadmap.md).\n"),
+        'missing screenshot' => unlink($scratch.'/docs/screenshots/doctor.svg'),
+        'screenshot without an entry' => docsWrite($scratch, 'docs/screenshots/extra.svg', (string) file_get_contents($scratch.'/docs/screenshots/doctor.svg')),
+        'screenshot no page embeds' => docsWrite($scratch, 'docs/developers/doctor.md', (string) preg_replace('/^!\[[^\n]*\]\(\.\.\/screenshots\/doctor-violation\.svg\)\n/m', '', (string) file_get_contents($scratch.'/docs/developers/doctor.md'))),
+        default => throw new InvalidArgumentException($plant),
+    };
+
+    [$exitCode, $output] = runDocsCheck('--root='.$scratch);
+
+    ScratchDirectory::delete($scratch);
+
+    expect($before)->toBe(0)
+        ->and($exitCode)->toBe(1)
+        ->and(explode("\n", $output))->toContain(str_replace('{line}', (string) (substr_count($quickstart, "\n") + 2), $finding));
+})->with([
+    'missing _index.md' => ['missing _index.md', 'docs/security: the folder has no _index.md; every folder below docs/ has one, with title, weight and description frontmatter'],
+    'missing frontmatter' => ['missing frontmatter', 'docs/developers/partitions.md:1: the page has no frontmatter; start it with a line ---, then title, weight and description, then a line ---'],
+    'dangling link' => ['dangling link', 'docs/quickstart.md:{line}: the link roadmap.md points to docs/roadmap.md, which does not exist'],
+    'missing screenshot' => ['missing screenshot', 'docs/screenshots/doctor.svg: missing; capture it with composer docs:screenshots -- --only=doctor'],
+    'screenshot without an entry' => ['screenshot without an entry', 'docs/screenshots/extra.svg: no entry of Cbox\Cms\Tooling\Docs\Domain\Screenshots names this file; add one, or remove the file'],
+    'screenshot no page embeds' => ['screenshot no page embeds', 'docs/screenshots/doctor-violation.svg: no page outside docs/screenshots embeds it; embed it on the page that describes it, or remove its entry from Screenshots'],
+]);
 
 it('exits 2 on a usage error and 1 on a root that is not a directory', function (): void {
     [$usage, , $usageErrors] = runDocsCheck('--fix');

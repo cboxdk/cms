@@ -1,3 +1,9 @@
+---
+title: Receipt store
+weight: 34
+description: "The ReceiptStore contract: one receipt per committed changeset, projection status, expiry, the Postgres store, FakeReceiptStore and the shared suite ReceiptStoreContract."
+---
+
 # Receipt store
 
 <!-- extension-point: Cbox\Cms\Contracts\ReceiptStore -->

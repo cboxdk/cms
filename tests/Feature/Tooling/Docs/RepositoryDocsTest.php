@@ -14,15 +14,17 @@ use Cbox\Cms\Tooling\Docs\Domain\Finding;
 use Cbox\Cms\Tooling\Docs\Domain\MarkerKind;
 use Cbox\Cms\Tooling\Docs\Domain\Page;
 use Cbox\Cms\Tooling\Docs\Domain\PageParser;
+use Cbox\Cms\Tooling\Docs\Domain\Screenshots;
 use RuntimeException;
 
 /*
  * Gate 10 of GUARDRAILS 10 on this repository, in gate 5. The PR profile runs gate 10 as
  * `composer docs:check`, and the local profile leaves the gate out (GUARDRAILS 10); this test runs
- * the same audit, with the same exclusions, in the Unit suite, so `composer check` fails on every
- * finding the merge queue fails on (GUARDRAILS 7.3): a renamed example, a page whose code drifted
- * from the tested file, or a new public extension point without a page. The fixture case changes
- * one byte of an embedded example on each page and shows that the audit then has that finding.
+ * the same audit, with the same exclusions and screenshots, in the Unit suite, so `composer check`
+ * fails on every finding the merge queue fails on (GUARDRAILS 7.3): a renamed example, a page whose
+ * code drifted from the tested file, a new public extension point without a page, a page out of
+ * the docs/ layout or a dangling link. The fixture case changes one byte of an embedded example on
+ * each page that embeds one and shows that the audit then has that finding.
  */
 
 /**
@@ -32,7 +34,7 @@ use RuntimeException;
  */
 function repositoryDocsFindings(DocsTree $tree): array
 {
-    return array_map(static fn (Finding $finding): string => (string) $finding, DocsAudit::findings($tree, Exclusions::all()));
+    return array_map(static fn (Finding $finding): string => (string) $finding, DocsAudit::findings($tree, Exclusions::all(), Screenshots::all()));
 }
 
 /**
@@ -55,7 +57,7 @@ function repositoryDocsWithOneByteChanged(DocsTree $tree, string $path): array
     $pages = array_map(static fn (Page $each): Page => $each->path === $path ? PageParser::parse($path, $changed) : $each, $tree->pages);
 
     return [
-        new DocsTree($tree->sources, $tree->schemas, $pages, $tree->examples, $tree->suites, $tree->files),
+        new DocsTree($tree->sources, $tree->schemas, $pages, $tree->examples, $tree->suites, $tree->files, $tree->readme, $tree->docsFiles, $tree->docsDirectories, $tree->strayPages),
         "{$path}:{$embed->marker->line}: the fenced block differs from {$embed->marker->target}; embed the file byte for byte",
     ];
 }
@@ -100,4 +102,14 @@ it('finds the byte changed in the first example block of the page', function (st
     [$tree, $finding] = repositoryDocsWithOneByteChanged(LocalDocsTree::read(Phpstan::root()), $path);
 
     expect(repositoryDocsFindings($tree))->toBe([$finding]);
-})->with(static fn (): array => array_map(static fn (Page $page): string => $page->path, LocalDocsTree::read(Phpstan::root())->pages));
+})->with(static fn (): array => array_map(
+    static fn (Page $page): string => $page->path,
+    array_values(array_filter(LocalDocsTree::read(Phpstan::root())->pages, static fn (Page $page): bool => $page->embeds(MarkerKind::Example) !== [])),
+));
+
+it('has a running example on every page that documents an extension point, so the case above covers each of them', function (): void {
+    $pages = array_filter(LocalDocsTree::read(Phpstan::root())->pages, static fn (Page $page): bool => $page->markers(MarkerKind::ExtensionPoint) !== []);
+
+    expect($pages)->not->toBe([])
+        ->and(array_values(array_filter($pages, static fn (Page $page): bool => $page->embeds(MarkerKind::Example) === [])))->toBe([]);
+});
