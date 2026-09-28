@@ -31,8 +31,11 @@ return [
          * partition manager refuses to run on it. Only the maintenance process, which runs the
          * migrations and cms:partitions:maintain and serves no HTTP, gets this connection and the
          * owner's credentials; the web and queue processes do not, so code in them cannot reach
-         * DDL or pass the row level security as the owner. The core schedules
-         * cms:partitions:maintain only in a process where this connection is configured.
+         * DDL or pass the row level security as the owner. The core refuses to boot a process
+         * that serves HTTP or runs queued jobs with this connection configured, so the web and
+         * queue processes must not share a configuration cache with the maintenance process. The
+         * core schedules cms:partitions:maintain only in a process where this connection is
+         * configured.
          */
         'owner_connection' => 'pgsql_owner',
 
@@ -76,9 +79,10 @@ return [
      * role: postgres.lc_messages reads the lc_messages of the role owner_role names from the
      * catalog; null means the username of owner_connection when that connection is configured in
      * this process, and owner_connection null means cbox-cms.database.owner_connection.
-     * postgres.owner_credentials fails when owner_connection is configured in a process that
-     * maintenance_process does not declare the maintenance process, or that serves HTTP; set it to
-     * true only in the process that runs the migrations and maintenance. Postgres and
+     * postgres.owner_credentials fails when owner_connection is configured in a process whose
+     * environment does not declare it the maintenance process with CBOX_CMS_MAINTENANCE_PROCESS=true,
+     * or that serves HTTP or runs queued jobs. That declaration is an environment variable of the
+     * maintenance process alone, never a setting here, which every process may share. Postgres and
      * Valkey get connect_timeout_seconds to answer. partition_runway_days is how far ahead every table in
      * database.partitions.tables must have partitions; keep it below runway_days, which maintenance
      * creates. The registry cache must not be older than vendor_manifest, Composer's
@@ -95,7 +99,6 @@ return [
         'connection' => null,
         'owner_connection' => null,
         'owner_role' => null,
-        'maintenance_process' => false,
         'redis_connection' => 'default',
         'connect_timeout_seconds' => 3,
         'partition_runway_days' => 7,

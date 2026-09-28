@@ -20,6 +20,7 @@ use Cbox\Cms\Core\Tests\Doctor\Fakes\InvalidIdCheck;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\RepeatedIdCheck;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\UnbuildableCheck;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\UndecidedBlockingCheck;
+use Cbox\Cms\Core\Tests\Process\ProcessEnvironment;
 use Cbox\Cms\Testkit\Doctor\FakeDoctorCheck;
 use Illuminate\Config\Repository;
 use stdClass;
@@ -29,7 +30,10 @@ use stdClass;
  */
 
 it('reads the defaults of the core package', function (): void {
-    $settings = DoctorConfig::read(new Repository(['database' => ['default' => 'pgsql'], 'cbox-cms' => require __DIR__.'/../../config/cbox-cms.php']), '/app');
+    $settings = ProcessEnvironment::during(
+        ['CBOX_CMS_MAINTENANCE_PROCESS' => null],
+        static fn (): DoctorSettings => DoctorConfig::read(new Repository(['database' => ['default' => 'pgsql'], 'cbox-cms' => require __DIR__.'/../../config/cbox-cms.php']), '/app'),
+    );
 
     expect($settings->connection)->toBe('pgsql')
         ->and($settings->ownerConnection)->toBe('pgsql_owner')
@@ -113,8 +117,37 @@ it('refuses invalid settings with the key and the value', function (string $key,
     ['node_minimum', '22', "cbox-cms.doctor.node_minimum must be a version such as \"22.13.0\"; it is '22'."],
     ['owner_role', '', "cbox-cms.doctor.owner_role must be a role name, or null for the username of the owner connection; it is ''."],
     ['owner_role', 5, 'cbox-cms.doctor.owner_role must be a role name, or null for the username of the owner connection; it is 5.'],
-    ['maintenance_process', 'yes', "cbox-cms.doctor.maintenance_process must be true or false; it is 'yes'."],
 ]);
+
+it('reads whether this is the maintenance process from CBOX_CMS_MAINTENANCE_PROCESS in its environment, never from the configuration', function (?string $variable, bool $declared): void {
+    // The web, queue and maintenance processes may share one configuration cache, so a key in it
+    // would declare all of them; the old key cbox-cms.doctor.maintenance_process declares nothing.
+    $config = new Repository(['database' => ['default' => 'pgsql'], 'cbox-cms' => ['database' => ['owner_connection' => 'pgsql_owner'], 'doctor' => ['maintenance_process' => true]]]);
+
+    $settings = ProcessEnvironment::during(
+        ['CBOX_CMS_MAINTENANCE_PROCESS' => $variable],
+        static fn (): DoctorSettings => DoctorConfig::read($config, '/app'),
+    );
+
+    expect($settings->maintenanceProcess)->toBe($declared);
+})->with([
+    'unset' => [null, false],
+    'empty' => ['', false],
+    'false' => ['false', false],
+    'true' => ['true', true],
+    'true in parentheses, as Laravel reads it' => ['(true)', true],
+    '1' => ['1', true],
+    '0' => ['0', false],
+]);
+
+it('refuses a CBOX_CMS_MAINTENANCE_PROCESS that is not true, false, 1 or 0', function (string $variable): void {
+    $config = new Repository(['database' => ['default' => 'pgsql'], 'cbox-cms' => ['database' => ['owner_connection' => 'pgsql_owner']]]);
+
+    expect(static fn (): DoctorSettings => ProcessEnvironment::during(
+        ['CBOX_CMS_MAINTENANCE_PROCESS' => $variable],
+        static fn (): DoctorSettings => DoctorConfig::read($config, '/app'),
+    ))->toThrow(InvalidDoctorConfig::class, sprintf("The environment variable CBOX_CMS_MAINTENANCE_PROCESS must be true, false, 1 or 0; it is '%s'.", $variable));
+})->with(['yes', 'on', 'maintenance']);
 
 it('names the owner role by cbox-cms.doctor.owner_role, or by the username of the owner connection this process has', function (): void {
     $withConnection = ['default' => 'pgsql', 'connections' => ['pgsql_owner' => ['driver' => 'pgsql', 'username' => 'cms_owner']]];
@@ -126,8 +159,7 @@ it('names the owner role by cbox-cms.doctor.owner_role, or by the username of th
     expect($read($withConnection, [])->ownerRole)->toBe('cms_owner')
         ->and($read($withConnection, ['owner_role' => 'schema_owner'])->ownerRole)->toBe('schema_owner')
         ->and($read(['default' => 'pgsql'], ['owner_role' => 'schema_owner'])->ownerRole)->toBe('schema_owner')
-        ->and($read(['default' => 'pgsql'], [])->ownerRole)->toBeNull()
-        ->and($read(['default' => 'pgsql'], ['maintenance_process' => true])->maintenanceProcess)->toBeTrue();
+        ->and($read(['default' => 'pgsql'], [])->ownerRole)->toBeNull();
 });
 
 it('wires the runtime checks in order and the dev checks after them', function (): void {

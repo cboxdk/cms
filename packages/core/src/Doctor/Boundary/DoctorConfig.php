@@ -6,18 +6,22 @@ namespace Cbox\Cms\Core\Doctor\Boundary;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Doctor\DoctorCheck;
+use Cbox\Cms\Core\Doctor\Domain\Checks\OwnerCredentialsCheck;
 use Cbox\Cms\Core\Doctor\Domain\Dto\DoctorSettings;
 use Cbox\Cms\Core\Doctor\Domain\InvalidDoctorConfig;
 use Illuminate\Contracts\Config\Repository;
+use Illuminate\Support\Env;
 
 /**
- * Reads the settings of cms:doctor from `cbox-cms.doctor`:
+ * Reads the settings of cms:doctor from `cbox-cms.doctor`, and whether this process is the
+ * maintenance process from the environment variable CBOX_CMS_MAINTENANCE_PROCESS (true or 1; false,
+ * 0 or unset for false). The declaration is the process's own: the web, queue and maintenance processes
+ * may share one configuration cache, so a setting in it would declare every one of them.
  *
  *     'doctor' => [
  *         'connection' => null,              // null: the default connection
  *         'owner_connection' => null,        // null: cbox-cms.database.owner_connection
  *         'owner_role' => null,              // null: the username of owner_connection, when it is configured
- *         'maintenance_process' => false,    // true only in the process that runs migrations and maintenance
  *         'redis_connection' => 'default',
  *         'connect_timeout_seconds' => 3,
  *         'partition_runway_days' => 7,
@@ -55,7 +59,7 @@ final readonly class DoctorConfig
             connection: self::name('connection', $connection),
             ownerConnection: $ownerConnection,
             ownerRole: self::ownerRole($config, $ownerConnection),
-            maintenanceProcess: self::flag($config, 'maintenance_process'),
+            maintenanceProcess: self::maintenanceProcess(),
             redisConnection: self::name('redis_connection', $config->get(self::CONFIG_KEY.'.redis_connection', 'default')),
             connectTimeoutSeconds: self::positive($config, 'connect_timeout_seconds', 3),
             runwayDays: self::positive($config, 'partition_runway_days', 7),
@@ -124,15 +128,19 @@ final readonly class DoctorConfig
         return $value;
     }
 
-    private static function flag(Repository $config, string $key): bool
+    /**
+     * CBOX_CMS_MAINTENANCE_PROCESS from the process's environment, as Laravel reads it: true or 1,
+     * and false, 0, empty or unset for false.
+     */
+    private static function maintenanceProcess(): bool
     {
-        $value = $config->get(self::CONFIG_KEY.'.'.$key, false);
+        $value = Env::get(OwnerCredentialsCheck::MAINTENANCE_VARIABLE);
 
-        if (! is_bool($value)) {
-            throw InvalidDoctorConfig::value($key, 'true or false', self::shown($value));
-        }
-
-        return $value;
+        return match ($value) {
+            true, '1' => true,
+            false, '0', '', null => false,
+            default => throw InvalidDoctorConfig::variable(OwnerCredentialsCheck::MAINTENANCE_VARIABLE, 'true, false, 1 or 0', self::shown($value)),
+        };
     }
 
     private static function positive(Repository $config, string $key, int $default): int

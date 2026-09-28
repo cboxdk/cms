@@ -105,6 +105,13 @@
         <env name="DB_OWNER_USERNAME" value="cms_owner"/>
         <env name="DB_OWNER_PASSWORD" value="cms_owner"/>
         <!--
+            The tests run in the workbench's console, which holds pgsql_owner and runs the
+            migrations, so it is the maintenance process for cms:doctor's
+            postgres.owner_credentials. The declaration is the process's environment, never the
+            configuration (packages/contracts/docs/doctor.md).
+        -->
+        <env name="CBOX_CMS_MAINTENANCE_PROCESS" value="true"/>
+        <!--
             The superuser of compose.yaml, compose.ci.yaml and ci.yml. Only Postgres tests that make
             scratch roles use it (packages/core/tests/Postgres/DoctorRoleMembershipTest.php); the
             application never connects as it.

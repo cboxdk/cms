@@ -10,7 +10,8 @@ use InvalidArgumentException;
 use Throwable;
 
 /**
- * A value under `cbox-cms.doctor` is invalid, or a check it names cannot be used. cms:doctor reports it
+ * A value under `cbox-cms.doctor` or an environment variable the doctor reads is invalid, or a
+ * check it names cannot be used. cms:doctor reports it
  * as the failing check `doctor.config` instead of stopping.
  */
 #[Internal]
@@ -19,6 +20,11 @@ final class InvalidDoctorConfig extends InvalidArgumentException
     public static function value(string $key, string $expected, string $given): self
     {
         return new self(sprintf('The setting cbox-cms.doctor.%s must be %s; it is %s.', $key, $expected, $given));
+    }
+
+    public static function variable(string $name, string $expected, string $given): self
+    {
+        return new self(sprintf('The environment variable %s must be %s; it is %s.', $name, $expected, $given));
     }
 
     /**

@@ -15,9 +15,13 @@ use Illuminate\Support\ServiceProvider;
  * `pgsql` connects as the app role, which the application and the tests use, and
  * `pgsql_owner` connects as the owner role, which runs migrations. Both use the
  * dedicated schema instead of Laravel's default search_path of public. The workbench is a
- * development application that runs the migrations and partition maintenance itself, so it is
- * declared the maintenance process for cms:doctor (cbox-cms.doctor.maintenance_process); a production
- * installation gives the owner connection to its maintenance process only.
+ * development application whose console runs the migrations and partition maintenance itself, so
+ * its console processes get `pgsql_owner`, and the environment of its tests (phpunit.xml) and of
+ * vendor/bin/testbench (testbench.yaml) declares them the maintenance process for cms:doctor with
+ * CBOX_CMS_MAINTENANCE_PROCESS=true. A process of the workbench that serves HTTP, such as
+ * `testbench serve`, does not get `pgsql_owner`: the core refuses to boot a process that serves
+ * HTTP or runs queued jobs with the owner connection (PRD 4.2), so a queue worker of the workbench
+ * does not boot either, and a production installation gives it to its maintenance process only.
  *
  * It also points cms:generate (PRD 11.12) at the workbench's schema root, owner app, and its
  * committed generated code (GUARDRAILS 2.6), relative to the monorepo root, and cms:doctor at the
@@ -41,7 +45,6 @@ final class WorkbenchServiceProvider extends ServiceProvider
 
         $config->set('cbox-cms.doctor.project_path', dirname(__DIR__, 3));
         $config->set('cbox-cms.doctor.vendor_manifest', dirname(__DIR__, 3).'/vendor/composer/installed.json');
-        $config->set('cbox-cms.doctor.maintenance_process', true);
 
         $app = $config->get('database.connections.pgsql');
 
@@ -52,6 +55,11 @@ final class WorkbenchServiceProvider extends ServiceProvider
         $app['search_path'] = $this->env('DB_SCHEMA', 'cms');
 
         $config->set('database.connections.pgsql', $app);
+
+        if (! $this->app->runningInConsole()) {
+            return;
+        }
+
         $config->set('database.connections.pgsql_owner', array_merge($app, [
             'username' => $this->env('DB_OWNER_USERNAME', 'cms_owner'),
             'password' => $this->env('DB_OWNER_PASSWORD', ''),

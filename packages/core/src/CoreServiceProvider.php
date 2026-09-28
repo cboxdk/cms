@@ -60,6 +60,8 @@ use Cbox\Cms\Core\Doctor\Domain\Probes\ValkeyProbe;
 use Cbox\Cms\Core\Partitions\Boundary\PartitionConfig;
 use Cbox\Cms\Core\Partitions\Domain\PartitionMaintenance;
 use Cbox\Cms\Core\Partitions\Infrastructure\PostgresPartitionManager;
+use Cbox\Cms\Core\Process\Boundary\ProcessWorkload;
+use Cbox\Cms\Core\Process\Domain\OwnerCredentialsExposed;
 use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
 use Cbox\Cms\Core\Registry\Boundary\RegistryCacheCodec;
 use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
@@ -79,7 +81,8 @@ use Override;
  *
  * Binds each contract to the implementation configured in `cbox-cms.contracts` (GUARDRAILS 2.3), loads
  * the core's migrations, binds partition maintenance to the Postgres partition manager, and
- * schedules it in a process that has the owner connection. Wires the registry that cms:build compiles to bootstrap/cache/cms/ (PRD 13.2), and
+ * schedules it in a process that has the owner connection. Refuses to boot a process that serves
+ * HTTP or runs queued jobs with the owner connection configured (PRD 4.2). Wires the registry that cms:build compiles to bootstrap/cache/cms/ (PRD 13.2), and
  * declares the core's own classes as a scan root. Wires the checks of cms:doctor (PRD 3.3, 4.2) to
  * their probes; a test swaps a probe by binding its interface.
  */
@@ -144,8 +147,13 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->registerDoctor();
     }
 
+    /**
+     * @throws OwnerCredentialsExposed when the owner connection is configured in a process that serves HTTP or runs queued jobs
+     */
     public function boot(): void
     {
+        $this->refuseOwnerCredentialsOutsideTheConsole();
+
         // The core's tables. The owner role runs them (PRD 4.2); the app role has no DDL.
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
 
@@ -168,6 +176,51 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $owner = $config->get('cbox-cms.database.owner_connection');
 
         return is_string($owner) && $owner !== '' && is_array($config->get('database.connections.'.$owner));
+    }
+
+    /**
+     * The owner role's credentials belong to the maintenance process alone (PRD 4.2). A process
+     * that serves HTTP or runs queued jobs, with the owner connection in its configuration, stops
+     * here instead of running a request or a job next to them. It is decided from the process
+     * itself (ProcessWorkload), not from a setting the processes could share through one
+     * configuration cache. Console processes boot: the migrations, the scheduler and cms:doctor,
+     * whose postgres.owner_credentials asks the maintenance process to declare itself.
+     *
+     * @throws OwnerCredentialsExposed
+     */
+    private function refuseOwnerCredentialsOutsideTheConsole(): void
+    {
+        $connections = $this->configuredOwnerConnections($this->app->make(Repository::class));
+
+        if ($connections === []) {
+            return;
+        }
+
+        $workload = ProcessWorkload::of($this->app);
+
+        if (! $workload->mayHoldOwnerCredentials()) {
+            throw OwnerCredentialsExposed::in($workload, $connections[0]);
+        }
+    }
+
+    /**
+     * The owner connections that are configured in this process: the one
+     * cbox-cms.database.owner_connection names, and the one cbox-cms.doctor.owner_connection names
+     * when it names another.
+     *
+     * @return list<string>
+     */
+    private function configuredOwnerConnections(Repository $config): array
+    {
+        $configured = [];
+
+        foreach ([$config->get('cbox-cms.database.owner_connection'), $config->get(DoctorConfig::CONFIG_KEY.'.owner_connection')] as $name) {
+            if (is_string($name) && $name !== '' && ! in_array($name, $configured, true) && is_array($config->get('database.connections.'.$name))) {
+                $configured[] = $name;
+            }
+        }
+
+        return $configured;
     }
 
     /**

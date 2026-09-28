@@ -5,6 +5,11 @@ providers:
 
 migrations: false
 
+# vendor/bin/testbench runs the workbench's console, which holds pgsql_owner and runs the
+# migrations, so cms:doctor sees the maintenance process (packages/contracts/docs/doctor.md).
+env:
+  - CBOX_CMS_MAINTENANCE_PROCESS=true
+
 workbench:
   start: '/'
   install: false

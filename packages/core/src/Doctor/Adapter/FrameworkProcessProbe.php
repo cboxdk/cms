@@ -6,12 +6,15 @@ namespace Cbox\Cms\Core\Doctor\Adapter;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Core\Doctor\Domain\Probes\ProcessProbe;
+use Cbox\Cms\Core\Process\Boundary\ProcessWorkload;
+use Cbox\Cms\Core\Process\Domain\Workload;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Foundation\Application;
 use Override;
 
 /**
- * The application's configuration and whether it runs in the console. It only looks: it never
+ * The application's configuration, and what the process runs as ProcessWorkload reads it, the
+ * same reading that CoreServiceProvider refuses the owner connection by. It only looks: it never
  * opens a connection.
  */
 #[Internal]
@@ -29,8 +32,8 @@ final readonly class FrameworkProcessProbe implements ProcessProbe
     }
 
     #[Override]
-    public function servesHttp(): bool
+    public function workload(): Workload
     {
-        return ! $this->app->runningInConsole();
+        return ProcessWorkload::of($this->app);
     }
 }

@@ -16,6 +16,7 @@ use Cbox\Cms\Core\Doctor\Domain\SettingSource;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\AddonReadyCheck;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\AddonToolCheck;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeRegistryCacheProbe;
+use Cbox\Cms\Core\Tests\Process\ProcessEnvironment;
 use Cbox\Cms\Testkit\Doctor\FakeDoctorCheck;
 use DateTimeImmutable;
 use Illuminate\Contracts\Console\Kernel;
@@ -182,9 +183,12 @@ it('exits 78 when the owner role writes its messages in German', function (): vo
 
 it('exits 79 when the owner connection is configured in a process that is not the maintenance process, which only affects readiness', function (): void {
     new DoctorFakes;
-    config(['cbox-cms.doctor.maintenance_process' => false]);
+    // Its environment does not declare it, and a configuration that every process may share
+    // through one cache declares nothing, so the old key cbox-cms.doctor.maintenance_process is
+    // not read.
+    config(['cbox-cms.doctor.maintenance_process' => true]);
 
-    [$status, $document] = doctorJson();
+    [$status, $document] = ProcessEnvironment::during(['CBOX_CMS_MAINTENANCE_PROCESS' => null], static fn (): array => doctorJson());
     $credentials = checkOf($document, 'postgres.owner_credentials');
 
     expect($status)->toBe(79)
@@ -194,6 +198,7 @@ it('exits 79 when the owner connection is configured in a process that is not th
         ->and($credentials['status'])->toBe('fail')
         ->and($credentials['blocking'])->toBeFalse()
         ->and($credentials['code'])->toBe('doctor_owner_credentials_exposed')
+        ->and($credentials['cause'])->toBe('The owner connection pgsql_owner is configured in this process, and CBOX_CMS_MAINTENANCE_PROCESS in its environment does not declare it the maintenance process, so it may be a web or queue process that shares the maintenance process\'s configuration.')
         ->and(array_filter(checkStatuses($document), static fn (string $status): bool => $status !== 'pass'))->toBe(['postgres.owner_credentials' => 'fail']);
 });
 
@@ -274,9 +279,8 @@ it('exits 78 when a blocking check is violated, whatever fails that only affects
     $fakes->valkey->failure = ProbeFailed::unavailable('Connection refused');
     $fakes->lcMessages->ownerRole = 'de_DE.UTF-8';
     $fakes->partitions->runways = [new PartitionCoverage('receipts_standard', new DateTimeImmutable('2026-03-12T00:00:00Z'))];
-    config(['cbox-cms.doctor.maintenance_process' => false]);
 
-    [$status, $document] = doctorJson();
+    [$status, $document] = ProcessEnvironment::during(['CBOX_CMS_MAINTENANCE_PROCESS' => 'false'], static fn (): array => doctorJson());
 
     expect($status)->toBe(78)
         ->and($document['status'])->toBe('violation')
