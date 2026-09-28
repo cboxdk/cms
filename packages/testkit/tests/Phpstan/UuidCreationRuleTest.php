@@ -24,7 +24,7 @@ final class UuidCreationRuleTest extends RuleTestCase
         // name-based UUIDs and parsing with ramsey/uuid (lines 79 to 83), symfony/uid with a value,
         // parsing and a name-based UUID (lines 104 to 108), uuid_is_valid() (line 114), the
         // IdGenerator implementation and a closure in it (lines 132 and 137), the tests (line 166)
-        // and the global namespace (line 173).
+        // and a Pest file, the global namespace below tests/ (line 173).
         self::assertSame([
             '34 cboxCms.uuid',              // use HasUuids;
             '39 cboxCms.uuid',              // use HasVersion4Uuids;
@@ -66,6 +66,24 @@ final class UuidCreationRuleTest extends RuleTestCase
             '146 cboxCms.uuid',             // return Str::uuid()->toString();
             '154 cboxCms.uuid',             // return new DateTimeImmutable('@'.Uuid::uuid1()->getDateTime()->getTimestamp());
         ], $this->reported('Uuids'));
+    }
+
+    public function test_it_reports_new_uuids_in_global_namespace_code_outside_a_tests_directory(): void
+    {
+        // A migration, a route file and a config file are production code in the global
+        // namespace. A Pest file is exempt below tests/ only: the same file in examples/ is not.
+        $project = GlobalNamespaceProject::create();
+
+        try {
+            self::assertSame([
+                'config/things.php:10 cboxCms.uuid',                                          // Str::orderedUuid()
+                'database/migrations/2026_01_01_000000_create_things_table.php:15 cboxCms.uuid', // Str::uuid()
+                'examples/ThingTest.php:10 cboxCms.uuid',                                     // Str::uuid()
+                'routes/web.php:11 cboxCms.uuid',                                             // Str::ulid()
+            ], $this->reportedIn($project));
+        } finally {
+            $project->remove();
+        }
     }
 
     public function test_the_message_names_the_call_and_the_contract(): void

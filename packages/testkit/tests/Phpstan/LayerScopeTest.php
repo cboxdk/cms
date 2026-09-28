@@ -40,6 +40,25 @@ it('treats a Tests segment and the global namespace as test code', function (boo
     [false, 'Workbench\App\Providers'],
 ]);
 
+it('treats a Tests segment, and the global namespace only below a tests directory, as a test file', function (bool $test, string $namespace, string $file): void {
+    expect(LayerScope::isTestFile($namespace, $file))->toBe($test);
+})->with([
+    'a Pest file in tests/' => [true, '', '/app/tests/Feature/ThingTest.php'],
+    'a Pest file in a package' => [true, '', '/repo/packages/core/tests/Unit/ThingTest.php'],
+    'a Pest file with backslashes' => [true, '', 'C:\\app\\tests\\ThingTest.php'],
+    'a Pest file by a relative path' => [true, '', 'tests/Feature/ThingTest.php'],
+    'a migration by a relative path' => [false, '', 'database/migrations/2026_01_01_000000_create_things_table.php'],
+    'a Tests namespace anywhere' => [true, 'Acme\\Shop\\Tests\\Support', '/app/src/Support/Helper.php'],
+    'a migration' => [false, '', '/app/database/migrations/2026_01_01_000000_create_things_table.php'],
+    'a route file' => [false, '', '/app/routes/web.php'],
+    'a config file' => [false, '', '/repo/packages/core/config/cbox-cms.php'],
+    'a Pest file in examples/' => [false, '', '/repo/examples/Unit/Clock/FakeClockTest.php'],
+    'a file named tests' => [false, '', '/app/bin/tests'],
+    'a directory that only starts with tests' => [false, '', '/app/tests-support/stamp.php'],
+    'a namespace without Tests below tests/' => [false, 'Acme\\Shop\\Support', '/app/tests/Support/Helper.php'],
+    'a TestsSupport namespace' => [false, 'Acme\\TestsSupport', '/app/src/Helper.php'],
+]);
+
 it('gives each kind of loose type its own identifier', function (): void {
     expect(array_map(static fn (LooseType $type): string => $type->identifier(), LooseType::cases()))
         ->toBe(['cboxCms.untypedArray', 'cboxCms.arrayShape', 'cboxCms.mixed']);

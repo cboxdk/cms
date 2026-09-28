@@ -18,7 +18,7 @@ The core's `SystemClock` and the testkit's `FakeClock` also implement PSR-20's `
 
 ## Only a clock reads the system clock
 
-Code that needs the time asks for a `Clock` in its constructor and calls `now()`. It never calls `new DateTimeImmutable()`, `time()`, `microtime()`, `date()`, Laravel's `now()` helper or `Carbon::now()`. Only a class that implements `Clock` reads the system clock, so every other class follows the clock that the container, or a test, gives it. The testkit's PHPStan rule reports every other read as `cboxCms.systemClock`, which no ignore comment can hide: the calls above, `date()` and `getdate()` without a timestamp, `strtotime()` without a base, `mktime()` without all its parts, `uniqid()`, `new DateTimeImmutable()` or `date_create()` with no date or a date string such as `'now'` or `'+1 day'`, `createFromFormat()` with a format that leaves fields to the current time, Carbon's `now()`, `today()`, `parse()` and the methods that compare with the current time, symfony/clock's `now()` and system clocks, the traits `InteractsWithTime` and `ClockAwareTrait`, and `$_SERVER['REQUEST_TIME']`. Test code is not checked. `hrtime()` is not reported, because it measures a duration and never gives the time of day.
+Code that needs the time asks for a `Clock` in its constructor and calls `now()`. It never calls `new DateTimeImmutable()`, `time()`, `microtime()`, `date()`, Laravel's `now()` helper or `Carbon::now()`. Only a class that implements `Clock` reads the system clock, so every other class follows the clock that the container, or a test, gives it. The testkit's PHPStan rule reports every other read as `cboxCms.systemClock`, which no ignore comment can hide: the calls above, `date()` and `getdate()` without a timestamp, `strtotime()` without a base, `mktime()` without all its parts, `uniqid()`, `new DateTimeImmutable()` or `date_create()` with no date or a date string such as `'now'` or `'+1 day'`, `createFromFormat()` with a format that leaves fields to the current time, Carbon's `now()`, `today()`, `parse()` and the methods that compare with the current time, symfony/clock's `now()` and system clocks, the traits `InteractsWithTime` and `ClockAwareTrait`, and `$_SERVER['REQUEST_TIME']`. Test code is not checked: a namespace with a `Tests` segment, and a file in the global namespace below a `tests` directory, where Pest files live. Migrations, config files and route files are in the global namespace too, and they are checked like any other code. `hrtime()` is not reported, because it measures a duration and never gives the time of day.
 
 ## Replacing the clock
 
@@ -191,6 +191,7 @@ Each returns the new time. Give the fake to the class under test, or bind it in 
 declare(strict_types=1);
 
 use Cbox\Cms\Contracts\Clock;
+use Cbox\Cms\Core\Clock\Adapter\SystemClock;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 
 // The FakeClock only moves when the test moves it. Bind it in the container, and every class that
@@ -223,7 +224,7 @@ it('refuses to move back with advance()', function (): void {
 
 it('stops at the system time with freeze()', function (): void {
     $clock = new FakeClock;
-    $before = new DateTimeImmutable;
+    $before = new SystemClock()->now();
 
     $frozen = $clock->freeze();
 

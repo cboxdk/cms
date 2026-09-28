@@ -38,4 +38,27 @@ trait ReportedErrors
 
         return $reported;
     }
+
+    /**
+     * The errors of the testkit rules on the files of a scratch project, as
+     * "path:line identifier" with the path relative to the project.
+     *
+     * @return list<string>
+     */
+    private function reportedIn(GlobalNamespaceProject $project): array
+    {
+        $reported = [];
+
+        foreach ($this->gatherAnalyserErrors($project->files()) as $error) {
+            $identifier = $error->getIdentifier() ?? '';
+
+            if (str_starts_with($identifier, 'cboxCms.')) {
+                $reported[] = sprintf('%s:%d %s%s', $project->relative($error->getFilePath()), $error->getLine() ?? 0, $identifier, $error->canBeIgnored() ? ' (ignorable)' : '');
+            }
+        }
+
+        sort($reported, SORT_NATURAL);
+
+        return $reported;
+    }
 }

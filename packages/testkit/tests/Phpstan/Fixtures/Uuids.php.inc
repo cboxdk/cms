@@ -169,6 +169,6 @@ namespace Fixture\Uuids\Tests {
 }
 
 namespace {
-    // The global namespace, where migrations and Pest files live.
+    // A Pest file: the global namespace below a tests directory, as this fixture is.
     $id = Illuminate\Support\Str::uuid();
 }

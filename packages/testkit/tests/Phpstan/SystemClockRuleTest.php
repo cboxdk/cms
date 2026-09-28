@@ -27,7 +27,8 @@ final class SystemClockRuleTest extends RuleTestCase
         // date and the methods that compare with another date (lines 129 to 137), another key of
         // $_SERVER (line 144), a new NativeClock, a DatePoint with a date and a MockClock (lines
         // 155 to 157), another trait (line 173), the Clock implementation and a closure in it
-        // (lines 189 and 194), the tests (line 221) and the global namespace (line 228).
+        // (lines 189 and 194), the tests (line 221) and a Pest file, the global namespace below
+        // tests/ (line 228).
         self::assertSame([
             '31 cboxCms.systemClock',       // time();
             '32 cboxCms.systemClock',       // microtime(true);
@@ -97,6 +98,24 @@ final class SystemClockRuleTest extends RuleTestCase
             '203 cboxCms.systemClock',      // return time();
             '211 cboxCms.systemClock',      // return Uuid7::lowestAt((int) (microtime(true) * 1000));
         ], $this->reported('SystemClock'));
+    }
+
+    public function test_it_reports_reads_in_global_namespace_code_outside_a_tests_directory(): void
+    {
+        // A migration, a route file and a config file are production code in the global
+        // namespace. A Pest file is exempt below tests/ only: the same file in examples/ is not.
+        $project = GlobalNamespaceProject::create();
+
+        try {
+            self::assertSame([
+                'config/things.php:9 cboxCms.systemClock',                                          // new DateTimeImmutable()
+                'database/migrations/2026_01_01_000000_create_things_table.php:16 cboxCms.systemClock', // now()
+                'examples/ThingTest.php:9 cboxCms.systemClock',                                     // now()
+                'routes/web.php:10 cboxCms.systemClock',                                            // time()
+            ], $this->reportedIn($project));
+        } finally {
+            $project->remove();
+        }
     }
 
     public function test_the_message_names_the_read_and_the_contract(): void

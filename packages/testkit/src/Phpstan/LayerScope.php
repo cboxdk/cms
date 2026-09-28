@@ -34,6 +34,9 @@ final class LayerScope
     /** The namespace segment that marks test code, as in Cbox\Cms\Core\Tests. */
     public const string TESTS = 'Tests';
 
+    /** The directory that marks a file in the global namespace as test code: Pest files live below tests/. */
+    public const string TESTS_DIRECTORY = 'tests';
+
     public static function layerOf(string $namespace): ?string
     {
         foreach (array_reverse(explode('\\', $namespace)) as $segment) {
@@ -56,11 +59,30 @@ final class LayerScope
 
     /**
      * True for test code: a namespace with a Tests segment, or the global namespace, where
-     * Pest test files live. Code in packages/src and in workbench/app always has a namespace
+     * Pest test files and migrations live. isTestFile() is the narrower reading. Code in packages/src and in workbench/app always has a namespace
      * without a Tests segment; the Arch suite checks that.
      */
     public static function isTestCode(string $namespace): bool
     {
         return $namespace === '' || in_array(self::TESTS, explode('\\', $namespace), true);
+    }
+
+    /**
+     * True for test code, read from the namespace and the file: a namespace with a Tests segment,
+     * or the global namespace in a file below a directory named tests, where Pest files live.
+     * The global namespace elsewhere is production code: migrations, config files, route files
+     * and scripts. A namespace without a Tests segment is never test code, wherever its file is,
+     * as isTestCode() reads it. cboxCms.systemClock and cboxCms.uuid use this, because they
+     * exempt only tests; the other rules still exempt the whole global namespace.
+     */
+    public static function isTestFile(string $namespace, string $file): bool
+    {
+        if ($namespace !== '') {
+            return in_array(self::TESTS, explode('\\', $namespace), true);
+        }
+
+        $directories = array_slice(explode('/', str_replace('\\', '/', $file)), 0, -1);
+
+        return in_array(self::TESTS_DIRECTORY, $directories, true);
     }
 }

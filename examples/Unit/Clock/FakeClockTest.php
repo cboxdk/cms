@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Cbox\Cms\Contracts\Clock;
+use Cbox\Cms\Core\Clock\Adapter\SystemClock;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 
 // The FakeClock only moves when the test moves it. Bind it in the container, and every class that
@@ -35,7 +36,7 @@ it('refuses to move back with advance()', function (): void {
 
 it('stops at the system time with freeze()', function (): void {
     $clock = new FakeClock;
-    $before = new DateTimeImmutable;
+    $before = new SystemClock()->now();
 
     $frozen = $clock->freeze();
 

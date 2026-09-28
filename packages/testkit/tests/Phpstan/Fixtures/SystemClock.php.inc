@@ -224,6 +224,6 @@ namespace Fixture\SystemClock\Tests {
 }
 
 namespace {
-    // The global namespace, where migrations and Pest files live.
+    // A Pest file: the global namespace below a tests directory, as this fixture is.
     $started = time();
 }

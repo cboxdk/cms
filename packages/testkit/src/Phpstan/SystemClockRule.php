@@ -19,7 +19,9 @@ use PHPStan\Rules\RuleErrorBuilder;
  * Clock it is given. ClockReads lists what counts as reading it, from time() and
  * new DateTimeImmutable() to Carbon::now(). hrtime() is not reported: it measures a duration.
  *
- * Test code is not checked. The errors are non-ignorable, in every layer.
+ * Test code is not checked: a namespace with a Tests segment, or a file in the global namespace
+ * below a tests directory (LayerScope::isTestFile()). Migrations, config files and route files
+ * in the global namespace are checked. The errors are non-ignorable, in every layer.
  *
  * @implements Rule<Node>
  */
@@ -47,7 +49,7 @@ final readonly class SystemClockRule implements Rule
     {
         $read = $this->reads->in($node, $scope);
 
-        if ($read === null || LayerScope::isTestCode($scope->getNamespace() ?? '') || $scope->getClassReflection()?->implementsInterface(Clock::class) === true) {
+        if ($read === null || LayerScope::isTestFile($scope->getNamespace() ?? '', $scope->getFile()) || $scope->getClassReflection()?->implementsInterface(Clock::class) === true) {
             return [];
         }
 

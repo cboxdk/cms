@@ -19,7 +19,9 @@ use PHPStan\Rules\RuleErrorBuilder;
  * class asks the IdGenerator it is given and wraps the Uuid7 in a typed id. UuidCreations lists
  * what counts as making one, from Str::uuid() to ramsey/uuid and symfony/uid.
  *
- * Test code is not checked. The errors are non-ignorable, in every layer.
+ * Test code is not checked: a namespace with a Tests segment, or a file in the global namespace
+ * below a tests directory (LayerScope::isTestFile()). Migrations, config files and route files
+ * in the global namespace are checked. The errors are non-ignorable, in every layer.
  *
  * @implements Rule<Node>
  */
@@ -47,7 +49,7 @@ final readonly class UuidCreationRule implements Rule
     {
         $creation = $this->creations->in($node, $scope);
 
-        if ($creation === null || LayerScope::isTestCode($scope->getNamespace() ?? '') || $scope->getClassReflection()?->implementsInterface(IdGenerator::class) === true) {
+        if ($creation === null || LayerScope::isTestFile($scope->getNamespace() ?? '', $scope->getFile()) || $scope->getClassReflection()?->implementsInterface(IdGenerator::class) === true) {
             return [];
         }
 
