@@ -89,6 +89,7 @@
             "@php tools/bin/prune-test-databases.php"
         ],
         "progress:check": "@php tools/bin/progress-check.php",
+        "progress:test": "@php vendor/bin/pest --testsuite=Unit --fail-on-skipped --fail-on-incomplete --fail-on-empty-test-suite tests/Feature/Tooling/Progress",
         "docs:check": "@php tools/bin/docs-check.php",
         "install:check": "@php tools/bin/install-check.php",
         "lint": "@php tools/bin/pint.php",
@@ -138,6 +139,7 @@
         "docs:check": "Gate 10 of GUARDRAILS 10: fail with exit 1 when a public extension point of packages/*/src or packages/*/resources/schemas has no page with a running example, or a page, marker, embedded example or file below examples/ breaks the rules of Cbox\\Cms\\Tooling\\Docs\\Domain\\DocsAudit (GUARDRAILS 2.4, PRD 14.4). Prints each finding as <file>:<line>: <message> or <extension point>: undocumented. Option after --: --root=<dir> checks another tree. Runs tools/bin/docs-check.php.",
         "install:check": "The first step of gate 5: fail with exit 1 when vendor/ is not the installation composer.lock and composer.json describe, because a package differs from composer.lock by name, version or reference, or a PSR-4, PSR-0 or files rule of the root package's autoload or autoload-dev differs from the dumped autoloader in vendor/composer (Cbox\\Cms\\Tooling\\Install\\Domain\\InstallAudit). A checkout that moved without composer install, such as the main checkout after the merge queue fast-forwards it, fails here with the fix instead of failing a suite at load with Class not found. Prints each difference. Option after --: --root=<dir> checks another checkout. Runs tools/bin/install-check.php.",
         "progress:check": "Fail unless PROGRESS.md and CHECKS-LOG.md record a task before the merge queue moves main: an entry for it under Kontroller kørt in PROGRESS.md, with --changed-checks also one in CHECKS-LOG.md under the heading of its block that says GUARDRAILS 7.3, and with --range=<range> no commit of the range that changes no file. Arguments after --: <block>-<task> [--changed-checks] [--range=main..HEAD]. Runs tools/bin/progress-check.php.",
+        "progress:test": "Run the tests that read PROGRESS.md, CHECKS-LOG.md and this checkout's history of review commits, all in tests/Feature/Tooling/Progress, on the working tree and HEAD. The merge queue runs it on the progress commit it writes after composer check, and moves main only when it passes, because composer check ran before that commit existed. Fails when a test fails, is skipped or incomplete, or none ran.",
         "lint": "Format the PHP code with Pint and the shared configuration from the testkit.",
         "lint:check": "Gate 1: fail if Pint would change any file.",
         "rector": "Apply the shared Rector sets from the testkit.",

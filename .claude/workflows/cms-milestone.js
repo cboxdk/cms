@@ -107,8 +107,8 @@ const INTEGRATION = {
     failures: { type: 'array', items: { type: 'string' } },
     checksRun: { type: 'array', items: { type: 'string' } },
     wallTimeSeconds: { type: 'integer' },
-    progressRecorded: { type: 'boolean', description: 'true only when composer progress:check passed for every task before main moved' },
-    progressCheck: { type: 'string', description: 'the last output of composer progress:check' },
+    progressRecorded: { type: 'boolean', description: 'true only when composer progress:check passed for every task and composer progress:test passed on the HEAD that main was fast-forwarded to' },
+    progressCheck: { type: 'string', description: 'the last output of composer progress:check and of composer progress:test' },
   },
   required: ['merged', 'failures', 'checksRun', 'progressRecorded'],
 }
@@ -159,6 +159,7 @@ const PROGRESS_RESULT = {
     blockStatus: { type: 'string', enum: ['done', 'incomplete', 'blocked'] },
     nextBlock: { type: 'string' },
     commit: { type: 'string' },
+    progressTest: { type: 'string', description: 'the last output of composer progress:test on the commit' },
   },
   required: ['blockStatus'],
 }
@@ -277,8 +278,9 @@ ${list}
 2. For each task in the order listed: in its worktree, rebase its branch onto the tip of ${intBranch} ("git rebase ${intBranch}"), then fast-forward ${intBranch} to it ("git -C ${intWt} merge --ff-only <task branch>"). Resolve conflicts so both sides' intent survives. If a conflict cannot be resolved faithfully, abort, and report the batch as not merged.
 3. In ${intWt}: "composer install" and "npm ci", then run every gate on the combined result: "composer check". Also run "composer check:selftest" if any task in the batch or main since the tasks started changed a gate, the tool configuration or the check itself, and the containerized CI run (docker compose -f compose.ci.yaml run --rm ci, then down) if any changed bin/ci, the CI files or the environment the gates need. Record the CI wall time.
 4. In ${intWt}, record each task, as the tasks could not, in one commit per task on ${intBranch} with message "${BLOCK}-<id>: progress" (in Danish, as the files are): in CHECKS-LOG.md, under the heading "## ${BLOCK}" (add it at the end of the file when it is missing), one entry that starts "${BLOCK}-<id>:" and says "GUARDRAILS 7.3", naming every check the task's commits add, change or remove, with what changed and why; in PROGRESS.md, under "Til review af Sylvester" only its items for human review that are open decisions for Sylvester, and its other items for human review under "Info", each starting "${BLOCK}-<id>:"; under "Tolkninger", its interpretations, each starting "${BLOCK}-<id>:"; and under "Kontroller kørt", one entry "<today>, ${BLOCK}-<id>: ..." with the gates run on the batch in step 3 and their results, and for "composer check:selftest" and the containerized CI run either the result, with the CI wall time against the 15-minute budget, or why it did not run. The tasks reported: ${JSON.stringify(reports)}.
-   Then run "composer progress:check -- ${BLOCK}-<id> --range=main..HEAD" in ${intWt} for each task, with --changed-checks after the task id when the task reported changed checks or its commits add, change or remove a check. It fails when an entry is missing or a commit of the batch changes no file: add the entry, or drop the empty commit with a rebase, and run it again. Report the last outputs in progressCheck, and progressRecorded true only when every one passed.
-5. Only if everything is green and every "composer progress:check" passed: fast-forward main ("git -C ${REPO} merge --ff-only ${intBranch}"). Each task keeps its own commits. If git refuses because the main checkout has local changes that the merge would overwrite, do not stash or discard them; report it as a failure.
+   Then run "composer progress:check -- ${BLOCK}-<id> --range=main..HEAD" in ${intWt} for each task, with --changed-checks after the task id when the task reported changed checks or its commits add, change or remove a check. It fails when an entry is missing or a commit of the batch changes no file: add the entry, or drop the empty commit with a rebase, and run it again.
+   Then run "composer progress:test" in ${intWt} on the last progress commit, the HEAD that main will move to. It runs the tests that read PROGRESS.md, CHECKS-LOG.md and the history of review commits (the Unit suite's tests/Feature/Tooling/Progress), which the "composer check" of step 3 ran before these commits existed. When it fails, correct the entries in the progress commits, not the tests, and run "composer progress:check" and "composer progress:test" again. Report the last outputs of both in progressCheck, and progressRecorded true only when every "composer progress:check" and "composer progress:test" on HEAD passed.
+5. Only if everything is green, every "composer progress:check" passed and "composer progress:test" passed on the HEAD of ${intBranch}: fast-forward main ("git -C ${REPO} merge --ff-only ${intBranch}"). Each task keeps its own commits. If git refuses because the main checkout has local changes that the merge would overwrite, do not stash or discard them; report it as a failure.
 6. After a successful merge, remove every task worktree and branch of the batch. Whatever the outcome, remove ${intWt} and delete ${intBranch}. Then run "composer test-db:prune" in ${REPO} and report what it dropped.
 Never push. Change PROGRESS.md and CHECKS-LOG.md only as step 4 says.`,
     { schema: INTEGRATION, label: `integrate batch ${ids}`, phase: 'Integrate', effort: 'medium' },
@@ -317,8 +319,9 @@ Integrate task ${task.id} "${task.title}" of block ${BLOCK} into main. You are t
    - under "Tolkninger", the task's interpretations, each starting "${BLOCK}-${task.id}:";
    - under "Kontroller kørt", one entry "<today>, ${BLOCK}-${task.id}: ..." with the gates you ran in step 2 and their results, and for "composer check:selftest" and the containerized CI run either the result, with the CI wall time against the 15-minute budget, or why it did not run.
    The task reported: changed checks ${JSON.stringify(report.changedChecks || [])}; interpretations ${JSON.stringify(report.interpretations || [])}; for human review ${JSON.stringify(report.forHumanReview || [])}; checks run ${JSON.stringify(report.checksRun || [])}.
-   Then run "composer progress:check -- ${BLOCK}-${task.id} --range=main..HEAD" in the worktree, with --changed-checks after the task id when the task reported changed checks or its commits add, change or remove a check. It fails when an entry is missing or a commit of the task changes no file: add the entry, or drop the empty commit with a rebase, and run it again. Report its last output in progressCheck, and progressRecorded true only when it passed.
-4. Only if everything is green and "composer progress:check" passed: fast-forward main ("git -C ${REPO} merge --ff-only ${branchOf(task.id)}"). If git refuses because the main checkout has local changes that the merge would overwrite, do not stash or discard them; report it as a failure.
+   Then run "composer progress:check -- ${BLOCK}-${task.id} --range=main..HEAD" in the worktree, with --changed-checks after the task id when the task reported changed checks or its commits add, change or remove a check. It fails when an entry is missing or a commit of the task changes no file: add the entry, or drop the empty commit with a rebase, and run it again.
+   Then run "composer progress:test" in the worktree on the progress commit, the HEAD that main will move to. It runs the tests that read PROGRESS.md, CHECKS-LOG.md and the history of review commits (the Unit suite's tests/Feature/Tooling/Progress), which the "composer check" of step 2 ran before this commit existed. When it fails, correct the entries in the progress commit, not the tests, and run "composer progress:check" and "composer progress:test" again. Report the last output of both in progressCheck, and progressRecorded true only when both passed on HEAD.
+4. Only if everything is green, "composer progress:check" passed and "composer progress:test" passed on the HEAD of ${branchOf(task.id)}: fast-forward main ("git -C ${REPO} merge --ff-only ${branchOf(task.id)}"). If git refuses because the main checkout has local changes that the merge would overwrite, do not stash or discard them; report it as a failure.
 5. After a successful merge, remove the worktree and delete the branch, then run "composer test-db:prune" in ${REPO}, which drops the removed worktree's test database; report what it dropped.
 Never push. Change PROGRESS.md and CHECKS-LOG.md only as step 3 says.`,
       { schema: INTEGRATION, label: `integrate ${task.id}${round ? ' #' + round : ''}`, phase: 'Integrate', effort: 'medium' },
@@ -406,7 +409,7 @@ ${WORKTREE_RULES}`,
     summary: result.summary,
     failures: merged.merged && merged.progressRecorded
       ? []
-      : [merged.merged ? 'merged without its PROGRESS.md entries; composer progress:check did not pass: ' + (merged.progressCheck || 'no output') : 'integration: ' + JSON.stringify(merged.failures)],
+      : [merged.merged ? 'merged without its PROGRESS.md entries; composer progress:check or composer progress:test did not pass: ' + (merged.progressCheck || 'no output') : 'integration: ' + JSON.stringify(merged.failures)],
     integration: { mainHead: merged.mainHead, checksRun: merged.checksRun, wallTimeSeconds: merged.wallTimeSeconds },
     interpretations: result.interpretations || [],
     forHumanReview: result.forHumanReview || [],
@@ -483,7 +486,7 @@ if (gate && !gate.pass) {
 The block-wide regression gate for ${BLOCK} failed on main after the parallel tasks were merged:
 ${JSON.stringify(gate.failures)}
 
-Find which merged tasks interact to cause it (git log, bisect if needed), fix the cause on main in ${REPO} with a regression test, never weakening a check (GUARDRAILS 7.3). Run "composer check" and whatever else failed, then commit with message "${BLOCK}-review: fix regression <what>". The commit passes no merge queue, so in the same commit add an entry "<today>, ${BLOCK}-review: ..." under "Kontroller kørt" in PROGRESS.md with the gates you ran and their results, and, when it adds, changes or removes a check, an entry that starts "${BLOCK}-review:" and says "GUARDRAILS 7.3" in CHECKS-LOG.md under the heading "## ${BLOCK}", naming each check with what changed and why (in Danish, as the files are). Never push.`,
+Find which merged tasks interact to cause it (git log, bisect if needed), fix the cause on main in ${REPO} with a regression test, never weakening a check (GUARDRAILS 7.3). Run "composer check" and whatever else failed, then commit with message "${BLOCK}-review: fix regression <what>". The commit passes no merge queue, so in the same commit add an entry "<today>, ${BLOCK}-review: ..." under "Kontroller kørt" in PROGRESS.md with the gates you ran and their results, and, when it adds, changes or removes a check, an entry that starts "${BLOCK}-review:" and says "GUARDRAILS 7.3" in CHECKS-LOG.md under the heading "## ${BLOCK}", naming each check with what changed and why (in Danish, as the files are). Then run "composer progress:test" in ${REPO} on that commit: it runs the tests that read PROGRESS.md, CHECKS-LOG.md and the history of review commits (the Unit suite's tests/Feature/Tooling/Progress), and the review-commit audit among them sees the commit only once it exists. When it fails, correct the entries, not the tests, amend the commit, and run it again until it passes; report its output in checksRun. Never push.`,
     { schema: TASK_RESULT, label: `fix regression ${BLOCK}`, phase: 'Review' },
   )
 }
@@ -586,7 +589,8 @@ Do this:
 3. The merge queue has already written each merged task's entries (its record of changed checks in CHECKS-LOG.md, and in PROGRESS.md its open decisions under "Til review af Sylvester", "Info", "Tolkninger" and "Kontroller kørt") and held them to "composer progress:check"; do not repeat them. Add new blockers under "Blokeret" with what they block, and the interpretations and items for human review of the results above that are not there yet: open decisions for Sylvester under "Til review af Sylvester", the rest under "Info", and records of changed checks only in CHECKS-LOG.md. Keep existing entries unless they are resolved; remove a decision under "Til review af Sylvester" once Sylvester has answered it.
 4. Update "Kontroller kørt" with the latest result per check, including the CI wall time against the 15-minute budget.
 5. List any worktree or wip/${BLOCK}-* branch left behind for a task that was not merged, so the next run can reuse or remove it.
-6. Leave the STATUS line as it is; the main session decides it.`,
+6. Leave the STATUS line as it is; the main session decides it.
+7. Run "composer progress:test" in ${REPO} on your edits before you commit, and commit only when it passes. It runs the tests that read PROGRESS.md, CHECKS-LOG.md and the history of review commits (the Unit suite's tests/Feature/Tooling/Progress), which the "composer check" of the exit criteria ran before your edits. Then run it again on the commit. When it fails, correct PROGRESS.md, not the tests, amend the commit, and run it again until it passes. Report its last output in progressTest.`,
   { schema: PROGRESS_RESULT, label: 'update PROGRESS.md', effort: 'medium' },
 )
 

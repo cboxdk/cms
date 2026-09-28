@@ -19,7 +19,11 @@ use Cbox\Cms\Tooling\Progress\Domain\ProgressLedger;
 use Cbox\Cms\Tooling\Progress\Domain\ReviewCommit;
 use Cbox\Cms\Tooling\Progress\Domain\ReviewCommitAudit;
 use Cbox\Cms\Tooling\Progress\Domain\TaskId;
+use FilesystemIterator;
 use InvalidArgumentException;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
+use SplFileInfo;
 use Symfony\Component\Process\Process;
 use UnexpectedValueException;
 
@@ -41,6 +45,14 @@ use UnexpectedValueException;
  * (GUARDRAILS 7.3, version 1.9), and "Til review af Sylvester" in PROGRESS.md holds only open
  * decisions; an entry there no longer counts as a record. A review commit made before the log
  * existed is still held to the entries it added to PROGRESS.md.
+ *
+ * The merge queue writes a task's progress commit after `composer check` has run, so the Unit
+ * suite's tests of this file never saw the commit that moved main: the M0-R1-2 progress commit
+ * f3cb07d turned them red, and so did the review commit 406eaae without its entry under
+ * "Kontroller kørt". `composer progress:test` runs this directory on that commit, every agent that
+ * commits entries runs it there, and the merge queue moves main only after it passed. Every test
+ * that reads PROGRESS.md, CHECKS-LOG.md or this checkout's review commits lives here, so that run
+ * covers them all.
  */
 
 afterEach(function (): void {
@@ -95,6 +107,31 @@ function runProgressCheck(string ...$arguments): array
     $process->run();
 
     return [$process->getExitCode() ?? -1, $process->getOutput().$process->getErrorOutput()];
+}
+
+/**
+ * The prompts of the workflow's agents, each from `agent(` to its options.
+ *
+ * @return list<string>
+ */
+function workflowPrompts(): array
+{
+    $workflow = (string) file_get_contents(Phpstan::root().'/.claude/workflows/cms-milestone.js');
+    $prompts = [];
+    $offset = 0;
+
+    while (($start = strpos($workflow, 'agent(', $offset)) !== false) {
+        $end = strpos($workflow, '{ schema:', $start);
+
+        if ($end === false) {
+            break;
+        }
+
+        $prompts[] = substr($workflow, $start, $end - $start);
+        $offset = $end;
+    }
+
+    return $prompts;
 }
 
 it('reads the entries of each section, with their continuation lines and without the section\'s introduction', function (): void {
@@ -316,6 +353,68 @@ it('has the merge queue run composer progress:check before every fast-forward of
     }
 
     expect($merges)->toBeGreaterThan(0);
+});
+
+it('runs the tests of this directory as composer progress:test, and fails when none ran', function (): void {
+    expect(ComposerScripts::steps('progress:test'))->toBe(['@php vendor/bin/pest --testsuite=Unit --fail-on-skipped --fail-on-incomplete --fail-on-empty-test-suite tests/Feature/Tooling/Progress'])
+        ->and(ComposerScripts::description('progress:test'))->toContain('tests/Feature/Tooling/Progress')
+        ->and(ComposerScripts::description('progress:test'))->toContain('merge queue')
+        ->and(is_file(Phpstan::root().'/tests/Feature/Tooling/Progress/ProgressCheckTest.php'))->toBeTrue();
+});
+
+it('has every agent that commits PROGRESS.md entries run composer progress:test on that commit, and the merge queue fast-forward main only after it passed', function (): void {
+    $fastForward = 'git -C ${REPO} merge --ff-only';
+    $recording = array_values(array_filter(workflowPrompts(), static fn (string $prompt): bool => str_contains($prompt, '"Kontroller kørt"')));
+    $merges = 0;
+
+    foreach ($recording as $prompt) {
+        $commit = strpos($prompt, 'with message');
+
+        expect($commit)->not->toBeFalse();
+
+        $test = stripos($prompt, 'run "composer progress:test"', (int) $commit);
+
+        expect($test)->not->toBeFalse();
+
+        $merge = strpos($prompt, $fastForward);
+
+        if ($merge === false) {
+            expect(strpos($prompt, 'amend the commit', (int) $test))->not->toBeFalse();
+
+            continue;
+        }
+
+        $stepStart = (int) strrpos(substr($prompt, 0, $merge), "\n");
+        $step = substr($prompt, $stepStart, $merge - $stepStart);
+
+        expect($test)->toBeLessThan($merge)
+            ->and($step)->toContain('"composer progress:test" passed on the HEAD of ');
+        $merges++;
+    }
+
+    $workflow = (string) file_get_contents(Phpstan::root().'/.claude/workflows/cms-milestone.js');
+
+    expect($recording)->toHaveCount(4)
+        ->and($merges)->toBe(substr_count($workflow, $fastForward));
+});
+
+it('keeps every test that reads PROGRESS.md, CHECKS-LOG.md or this checkout\'s review commits in the directory composer progress:test runs', function (): void {
+    $root = Phpstan::root();
+    $own = $root.'/tests/Feature/Tooling/Progress/';
+    $pattern = '/ChecksLog::FILE|[\'"]\/?(?:PROGRESS|CHECKS-LOG)\.md[\'"]|GitReviewCommits::in\(\s*Phpstan::root\(\)/';
+    $directories = [$root.'/tests', $root.'/examples', ...(glob($root.'/packages/*/tests', GLOB_ONLYDIR) ?: [])];
+    $readers = [];
+
+    foreach ($directories as $directory) {
+        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS)) as $file) {
+            if ($file instanceof SplFileInfo && $file->getExtension() === 'php' && preg_match($pattern, (string) file_get_contents($file->getPathname())) === 1) {
+                $readers[] = $file->getPathname();
+            }
+        }
+    }
+
+    expect($readers)->toContain($own.'ProgressCheckTest.php')
+        ->and(array_values(array_filter($readers, static fn (string $path): bool => ! str_starts_with($path, $own))))->toBe([]);
 });
 
 it('tells every agent that records changed checks to write them in CHECKS-LOG.md, and leaves Til review af Sylvester to open decisions', function (string $file): void {
