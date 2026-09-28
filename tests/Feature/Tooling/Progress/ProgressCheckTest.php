@@ -453,7 +453,7 @@ it('tells a review commit by the first line of its message, and names its label 
         ->and($commit->namedBy('ad4cabbb is not it'))->toBeFalse();
 });
 
-it('counts the tests, the testkit, the tooling, the analysis configuration and the CI files as checks', function (string $path, bool $check): void {
+it('counts the tests, the examples, the testkit, the tooling, the gate and analysis configuration, the CI files and the gate environment as checks', function (string $path, bool $check): void {
     expect(CheckPaths::isCheck($path))->toBe($check);
 })->with([
     ['packages/core/tests/Postgres/PartitionManagerTest.php', true],
@@ -470,10 +470,29 @@ it('counts the tests, the testkit, the tooling, the analysis configuration and t
     ['pint.json', true],
     ['bin/ci', true],
     ['compose.ci.yaml', true],
+    ['examples/Unit/Doctor/ExitCodeTest.php', true],
+    ['examples/Postgres/Doctor/AddCheckTest.php', true],
+    ['composer.json', true],
+    ['package.json', true],
+    ['eslint.config.js', true],
+    ['tsconfig.json', true],
+    ['.prettierrc', true],
+    ['.prettierignore', true],
+    ['compose.yaml', true],
+    ['docker/ci.Dockerfile', true],
+    ['docker/ci-entry.sh', true],
+    ['docker/ci-setup.sh', true],
+    ['docker/postgres/sql/roles.sql', true],
+    ['docker/php/conf.d/cms.ini', true],
     ['packages/core/src/Partitions/Infrastructure/Run.php', false],
     ['packages/contracts/resources/schemas/blueprint.v1.json', false],
+    ['packages/core/composer.json', false],
+    ['workbench/package.json', false],
     ['PROGRESS.md', false],
-    ['compose.yaml', false],
+    ['CHECKS-LOG.md', false],
+    ['examples', false],
+    ['docs/examples/ExitCodeTest.php', false],
+    ['packages/contracts/docs/doctor.md', false],
     ['tests', false],
     ['packages/core/src/Tests.php', false],
 ]);
@@ -538,6 +557,37 @@ it('reads the review commits of a history, oldest first, with the checks they ch
     ])
         ->and(GitReviewCommits::in($repository->root, 'HEAD~2'))->toHaveCount(1)
         ->and(GitReviewCommits::in($repository->root, 'HEAD~3'))->toBe([]);
+});
+
+it('holds a review commit that changes only running examples and gate configuration to a GUARDRAILS 7.3 record', function (): void {
+    $progress = "# Fremdrift\n\n## Til review af Sylvester\n\n## Kontroller kørt\n\n- 2026-09-28, M0-review (examples): composer check exit 0.\n";
+    $log = "# Ændrede kontroller\n\n## M0\n\n";
+    $repository = ScratchRepository::make();
+    $repository->write('examples/Unit/Doctor/ExitCodeTest.php', "<?php\n// two cases\n")
+        ->write('composer.json', "{\"scripts\": {\"check:generated\": \"a\"}}\n")
+        ->write('eslint.config.js', "export default [];\n")
+        ->write('docker/postgres/sql/roles.sql', "-- roles\n")
+        ->write('packages/core/src/Foo.php', "<?php\n")
+        ->write(ChecksLog::FILE, $log)
+        ->commit('M0-T1: initial');
+    $review = $repository->write('examples/Unit/Doctor/ExitCodeTest.php', "<?php\n// one case\n")
+        ->write('composer.json', "{\"scripts\": {\"check:generated\": \"b\"}}\n")
+        ->write('eslint.config.js', "export default [{ ignores: ['packages/'] }];\n")
+        ->write('docker/postgres/sql/roles.sql', "-- roles, narrowed\n")
+        ->write('packages/core/src/Foo.php', "<?php\n// changed\n")
+        ->write('PROGRESS.md', $progress)
+        ->commit('M0-review: narrow the examples');
+    $commits = GitReviewCommits::in($repository->root, 'HEAD');
+    $problems = ReviewCommitAudit::problems(ProgressLedger::fromMarkdown($progress), ChecksLog::fromMarkdown($log), $commits);
+
+    expect($commits)->toHaveCount(1)
+        ->and($commits[0]->commit)->toBe($review)
+        ->and($commits[0]->changedChecks)->toEqualCanonicalizing(['composer.json', 'docker/postgres/sql/roles.sql', 'eslint.config.js', 'examples/Unit/Doctor/ExitCodeTest.php'])
+        ->and($problems)->toHaveCount(1)
+        ->and($problems[0])->toContain('changed or removed checks (')
+        ->and($problems[0])->toContain('examples/Unit/Doctor/ExitCodeTest.php')
+        ->and($problems[0])->toContain('eslint.config.js')
+        ->and($problems[0])->not->toContain('packages/core/src/Foo.php');
 });
 
 it('reads the records of a review commit from CHECKS-LOG.md once the log exists, and no longer from Til review af Sylvester', function (): void {
