@@ -259,17 +259,8 @@ final readonly class ModuleDependencies
             return null;
         }
 
-        $file = null;
-
-        foreach (ClassLoader::getRegisteredLoaders() as $loader) {
-            $found = $loader->findFile($class);
-
-            if (is_string($found)) {
-                $file = realpath($found);
-
-                break;
-            }
-        }
+        $file = self::checkoutLoader()->findFile($class);
+        $file = is_string($file) ? realpath($file) : false;
 
         if (! is_string($file)) {
             return 'unresolved:'.$class;
@@ -278,11 +269,8 @@ final readonly class ModuleDependencies
         $owner = null;
         $longest = 0;
 
-        foreach (InstalledVersions::getInstalledPackages() as $package) {
-            $path = InstalledVersions::getInstallPath($package);
-            $path = $path === null ? false : realpath($path);
-
-            if (is_string($path) && str_starts_with($file, $path.'/') && strlen($path) > $longest) {
+        foreach (self::checkoutInstallPaths() as $package => $path) {
+            if (str_starts_with($file, $path.'/') && strlen($path) > $longest) {
                 $owner = $package;
                 $longest = strlen($path);
             }
@@ -293,6 +281,60 @@ final readonly class ModuleDependencies
         }
 
         return $owner ?? 'unresolved:'.$class;
+    }
+
+    /**
+     * The Composer autoloader of this checkout's vendor directory. Other autoloaders can be
+     * registered in the same process, such as the one inside phpstan.phar, which PHPStan's
+     * bootstrap registers first once a test loads a class of the phar; they are never asked.
+     */
+    private static function checkoutLoader(): ClassLoader
+    {
+        $vendor = realpath(Codebase::root().'/vendor');
+
+        foreach (ClassLoader::getRegisteredLoaders() as $vendorDir => $loader) {
+            if ($vendor !== false && realpath($vendorDir) === $vendor) {
+                return $loader;
+            }
+        }
+
+        throw new RuntimeException('The autoloader of '.Codebase::root().'/vendor is not registered.');
+    }
+
+    /**
+     * The real install path of every package installed in this checkout's vendor directory, the
+     * root package included, by name. InstalledVersions also reads the installed.php of every other
+     * registered autoloader, such as phpstan.phar's, which lists psr/log and symfony/console with
+     * paths inside the phar, and its getInstallPath() answers with the first it finds; only the
+     * data set whose root is this checkout counts.
+     *
+     * @return array<string, string>
+     */
+    private static function checkoutInstallPaths(): array
+    {
+        $root = realpath(Codebase::root());
+
+        foreach (InstalledVersions::getAllRawData() as $data) {
+            $rootPath = realpath($data['root']['install_path']);
+
+            if ($root === false || $rootPath !== $root) {
+                continue;
+            }
+
+            $paths = [$data['root']['name'] => $rootPath];
+
+            foreach ($data['versions'] as $package => $version) {
+                $path = isset($version['install_path']) ? realpath($version['install_path']) : false;
+
+                if (is_string($path)) {
+                    $paths[$package] = $path;
+                }
+            }
+
+            return $paths;
+        }
+
+        throw new RuntimeException('Composer has no installed data for '.Codebase::root().'.');
     }
 
     /**
@@ -308,8 +350,8 @@ final readonly class ModuleDependencies
         }
 
         $package = 'illuminate/'.strtolower((string) preg_replace('/(?<!^)[A-Z]/', '-$0', $segments[1]));
-        $framework = InstalledVersions::getInstallPath('laravel/framework');
-        $manifest = json_decode((string) file_get_contents($framework.'/composer.json'), true);
+        $framework = self::checkoutInstallPaths()['laravel/framework'] ?? null;
+        $manifest = $framework === null ? null : json_decode((string) file_get_contents($framework.'/composer.json'), true);
         $replaces = is_array($manifest) && is_array($manifest['replace'] ?? null) ? $manifest['replace'] : [];
 
         return array_key_exists($package, $replaces) ? $package : null;

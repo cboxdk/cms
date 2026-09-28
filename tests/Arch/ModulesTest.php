@@ -12,6 +12,7 @@ use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Tests\Support\Arch\Codebase;
 use Cbox\Cms\Tests\Support\Arch\ModuleDependencies;
 use Cbox\Cms\Tests\Support\Arch\Rules;
+use Composer\Autoload\ClassLoader;
 use Illuminate\Console\Command;
 use Larastan\Larastan\ApplicationResolver;
 use Opis\JsonSchema\CompliantValidator;
@@ -219,3 +220,37 @@ arch('modules: the rules report a package the generators use that composer.json 
     'opis/json-schema' => ['opis/json-schema', CompliantValidator::class],
     'illuminate/console' => ['illuminate/console', Command::class],
 ]);
+
+arch('modules: another registered autoloader that lists a package elsewhere does not change its owner', function (): void {
+    // phpstan.phar registers its own Composer autoloader first once a test loads a class of the
+    // phar, and its installed.php lists psr/log and symfony/console with paths inside the phar.
+    // The rules resolve a class through this checkout's autoloader and installed data only, so
+    // the classes still belong to psr/log and symfony/console, never to cboxdk/cms.
+    $vendor = sys_get_temp_dir().'/cms-modules-vendor-'.bin2hex(random_bytes(6)).'/vendor';
+    $installed = [
+        'root' => ['name' => 'acme/other', 'pretty_version' => '1.0.0', 'version' => '1.0.0.0', 'reference' => null, 'type' => 'project', 'install_path' => 'phar:///nowhere/other.phar', 'aliases' => [], 'dev' => false],
+        'versions' => [
+            'psr/log' => ['pretty_version' => '3.0.0', 'version' => '3.0.0.0', 'reference' => null, 'type' => 'library', 'install_path' => 'phar:///nowhere/other.phar/vendor/psr/log', 'aliases' => [], 'dev_requirement' => false],
+            'symfony/console' => ['pretty_version' => '7.0.0', 'version' => '7.0.0.0', 'reference' => null, 'type' => 'library', 'install_path' => 'phar:///nowhere/other.phar/vendor/symfony/console', 'aliases' => [], 'dev_requirement' => false],
+        ],
+    ];
+
+    if (! mkdir($vendor.'/composer', recursive: true) || file_put_contents($vendor.'/composer/installed.php', '<?php return '.var_export($installed, true).';') === false) {
+        throw new RuntimeException("Cannot write {$vendor}/composer/installed.php.");
+    }
+
+    $loader = new ClassLoader($vendor);
+    $loader->register(true);
+
+    try {
+        expect(modulesViolationsOf('cli', 'final class Planted { public function of(\Psr\Log\LoggerInterface $log, \Symfony\Component\Console\Output\OutputInterface $output): void {} }'))->toBe([])
+            ->and(ModuleDependencies::packagesUsedBy('cli'))->toContain('psr/log', 'symfony/console')
+            ->and(in_array(ModuleDependencies::PACKAGE, ModuleDependencies::packagesUsedBy('cli'), true))->toBeFalse();
+    } finally {
+        $loader->unregister();
+        @unlink($vendor.'/composer/installed.php');
+        @rmdir($vendor.'/composer');
+        @rmdir($vendor);
+        @rmdir(dirname($vendor));
+    }
+});
