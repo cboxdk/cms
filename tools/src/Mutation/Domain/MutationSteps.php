@@ -25,8 +25,10 @@ use Cbox\Cms\Tooling\Check\Domain\Step;
  * the tests and then the mutations run in parallel workers. It judges the sources outside Adapter
  * and Infrastructure and records every mutation's outcome in a MutationLedger. The step with
  * Postgres mutates the sources in Adapter and Infrastructure against the Postgres suite alone,
- * serially, because the RealPostgres harness shares one database, and counts a mutation as caught
- * when either run caught it: what one run of all the suites would count, without a PHP process
+ * also with `--parallel`, which keeps the PR profile within the 15 minutes of GUARDRAILS 10: each
+ * worker, and each run of a single mutation, has a TEST_TOKEN, and the RealPostgres harness gives
+ * each token a test database of its own (TestDatabaseName), so the workers never share rows. It
+ * counts a mutation as caught when either run caught it: what one run of all the suites would count, without a PHP process
  * that holds every suite's tests and their coverage at once, which ran out of memory. When the
  * fast suites caught every mutation of those sources, the Postgres suite cannot change the score,
  * and the step passes without running it (CaughtByFastSuites).
@@ -49,7 +51,7 @@ final readonly class MutationSteps
     public const array FAST_SUITES = ['Unit', 'Codecs', 'Contract', 'Actions', 'Arch'];
 
     /**
-     * The suite the step with Postgres runs, serially, for the sources in Adapter and
+     * The suite the step with Postgres runs, in parallel, for the sources in Adapter and
      * Infrastructure, whose mutations the fast suites may kill as well.
      */
     public const string POSTGRES_SUITE = 'Postgres';
@@ -98,7 +100,6 @@ final readonly class MutationSteps
             self::FAST_SUITES,
             $scope->sources,
             new MutationReportReader($scope->sources(false), self::MIN_SCORE, records: $ledger),
-            parallel: true,
         )];
 
         if ($postgres !== []) {
@@ -108,7 +109,6 @@ final readonly class MutationSteps
                 [self::POSTGRES_SUITE],
                 $postgres,
                 new MutationReportReader($postgres, self::MIN_SCORE, counts: $ledger),
-                parallel: false,
                 precheck: new CaughtByFastSuites($postgres, $ledger),
             );
         }
@@ -117,10 +117,12 @@ final readonly class MutationSteps
     }
 
     /**
+     * A Pest run with `--mutate --parallel` of $suites over $sources.
+     *
      * @param  list<string>  $suites
      * @param  list<ChangedSource>  $sources
      */
-    private static function step(string $name, string $php, array $suites, array $sources, MutationReportReader $reader, bool $parallel, ?CaughtByFastSuites $precheck = null): Step
+    private static function step(string $name, string $php, array $suites, array $sources, MutationReportReader $reader, ?CaughtByFastSuites $precheck = null): Step
     {
         $paths = array_map(static fn (ChangedSource $source): string => $source->path, $sources);
 
@@ -133,7 +135,7 @@ final readonly class MutationSteps
                 '--fail-on-skipped',
                 '--fail-on-incomplete',
                 '--mutate',
-                ...($parallel ? ['--parallel'] : []),
+                '--parallel',
                 '--everything',
                 '--path='.implode(',', $paths),
             ],

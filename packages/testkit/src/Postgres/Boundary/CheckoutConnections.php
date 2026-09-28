@@ -14,17 +14,20 @@ use Illuminate\Contracts\Config\Repository;
  * The configured database of the default connection, such as `cms_test`, is the base. Every pgsql
  * connection that names the base is changed to name TestDatabaseName::for(base, root) instead, so
  * the owner connection, the independent connections and the child processes the harness opens,
- * and the copies the doctor makes, all reach the checkout's database. Running it again changes
- * nothing. It only changes the configuration: a connection that is already open keeps its
- * database until it is purged.
+ * and the copies the doctor makes, all reach the checkout's database. In a parallel worker
+ * (TestWorker), the database is the worker's own, TestDatabaseName::for(base, root, worker), and
+ * a connection pointed at the checkout's database or another worker's is pointed at it too.
+ * Running it again changes nothing. It only changes the configuration: a connection that is
+ * already open keeps its database until it is purged.
  */
 #[Experimental]
 final readonly class CheckoutConnections
 {
     /**
-     * Returns the checkout's database, or null when the default connection is not pgsql.
+     * Returns the checkout's database, or $worker's when it is not null, or null when the default
+     * connection is not pgsql.
      */
-    public static function point(Repository $config, string $root): ?string
+    public static function point(Repository $config, string $root, ?int $worker = null): ?string
     {
         $default = $config->get('database.default');
         $connections = $config->get('database.connections');
@@ -40,10 +43,12 @@ final readonly class CheckoutConnections
         }
 
         $base = TestDatabaseName::base($database, $root);
-        $derived = TestDatabaseName::for($base, $root);
+        $derived = TestDatabaseName::for($base, $root, $worker);
 
         foreach ($connections as $name => $settings) {
-            if (is_array($settings) && self::pgsqlDatabase($settings) === $base) {
+            $named = self::pgsqlDatabase($settings);
+
+            if ($named !== null && TestDatabaseName::base($named, $root) === $base) {
                 $config->set('database.connections.'.$name.'.database', $derived);
             }
         }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Tests\Support;
 
 use Cbox\Cms\Testkit\Postgres\Boundary\CheckoutRoot;
+use Cbox\Cms\Testkit\Postgres\Boundary\TestWorker;
 use Cbox\Cms\Testkit\Postgres\TestDatabaseName;
 use Illuminate\Contracts\Config\Repository;
 
@@ -14,11 +15,12 @@ use Illuminate\Contracts\Config\Repository;
 final class CheckoutDatabase
 {
     /**
-     * This checkout's database: cms_test and the hash of the checkout's real path.
+     * This checkout's database: cms_test and the hash of the checkout's real path, and in a
+     * worker of a parallel run, the worker's number.
      */
     public static function name(): string
     {
-        return TestDatabaseName::for('cms_test', CheckoutRoot::current());
+        return TestDatabaseName::for('cms_test', CheckoutRoot::current(), TestWorker::current());
     }
 
     /**

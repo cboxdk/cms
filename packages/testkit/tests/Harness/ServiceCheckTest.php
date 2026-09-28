@@ -6,6 +6,7 @@ namespace Cbox\Cms\Testkit\Tests\Harness;
 
 use Cbox\Cms\Testkit\Postgres\Boundary\CheckoutRoot;
 use Cbox\Cms\Testkit\Postgres\Boundary\ConnectionSettings;
+use Cbox\Cms\Testkit\Postgres\Boundary\TestWorker;
 use Cbox\Cms\Testkit\Postgres\ServiceCheck;
 use Cbox\Cms\Testkit\Postgres\TestDatabaseName;
 use LogicException;
@@ -44,7 +45,7 @@ it('fails within seconds when nothing listens, and points to composer services:u
 
 it('reads a pgsql connection from the configuration, which names the checkout\'s own test database', function (): void {
     $settings = ConnectionSettings::of('pgsql', config());
-    $database = TestDatabaseName::for('cms_test', CheckoutRoot::current());
+    $database = TestDatabaseName::for('cms_test', CheckoutRoot::current(), TestWorker::current());
 
     expect($settings->username)->toBe('cms_app')
         ->and($settings->database)->toBe($database)

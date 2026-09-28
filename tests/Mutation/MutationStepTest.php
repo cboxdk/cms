@@ -25,11 +25,12 @@ use Cbox\Cms\Tooling\Mutation\Domain\MutationSteps;
  * the host does not, so it is the Mutation suite, which the PR profile runs in gate 5.
  *
  * The class is an adapter and its test is in the Postgres suite, so the step that runs here is
- * the serial one with the Postgres suite. The fast suites' step cannot run here: Pest's parallel
- * workers take the directory above the real vendor, this checkout, for the project, and the
- * scratch repository shares the vendor through a symlink. The PR profile runs it on this
- * checkout. Without the fast suites' report, the step with Postgres counts its own run only, and
- * runs rather than passing on the fast suites' word.
+ * the one with the Postgres suite, with --parallel as the PR profile runs it. Pest's parallel
+ * workers take the directory above the real path of the vendor that holds Pest for the project,
+ * so the scratch repository has a vendor of its own (scratchVendor()): Composer's autoloader,
+ * the bin proxies and Pest copied, and every other package a symlink to this checkout's. The PR
+ * profile runs the fast suites' step on this checkout. Without the fast suites' report, the step
+ * with Postgres counts its own run only, and runs rather than passing on the fast suites' word.
  */
 
 afterEach(function (): void {
@@ -76,17 +77,74 @@ function mutationRepository(): ScratchRepository
                 }
             });
             PHP)
-        ->write('.gitignore', "/vendor\n/.phpunit.cache/\n")
+        ->write('.gitignore', "/vendor/\n/tools/src\n/.phpunit.cache/\n")
         ->write(MutationSteps::PCOV_INI_DIRECTORY.'/pcov.ini', (string) file_get_contents($root.'/'.MutationSteps::PCOV_INI_DIRECTORY.'/pcov.ini'));
 
     foreach ([...MutationSteps::FAST_SUITES, MutationSteps::POSTGRES_SUITE] as $suite) {
         $repository->write("tests/{$suite}/.gitkeep", '');
     }
 
-    symlink($root.'/vendor', $repository->root.'/vendor');
+    scratchVendor($root, $repository->root);
     $repository->commit('the layout, without a package');
 
     return $repository;
+}
+
+/**
+ * A vendor for the repository at $target that loads Pest from inside $target, so that Pest's
+ * parallel workers take $target for the project: vendor/autoload.php, vendor/composer, vendor/bin
+ * and vendor/pestphp/pest are copies, so the paths they resolve stay below $target, and every
+ * other package is a symlink into this checkout's vendor. The copied autoloader maps the root
+ * package's own namespaces below $target, so tools/src, which holds the report plugin, is a
+ * symlink to this checkout's too.
+ */
+function scratchVendor(string $root, string $target): void
+{
+    $copied = ['autoload.php', 'bin', 'composer'];
+    mkdir($target.'/vendor/pestphp', 0o777, true);
+
+    foreach ((array) scandir($root.'/vendor') as $entry) {
+        if (! is_string($entry) || in_array($entry, ['.', '..', 'pestphp'], true)) {
+            continue;
+        }
+
+        in_array($entry, $copied, true)
+            ? copyTree($root.'/vendor/'.$entry, $target.'/vendor/'.$entry)
+            : symlink($root.'/vendor/'.$entry, $target.'/vendor/'.$entry);
+    }
+
+    foreach ((array) scandir($root.'/vendor/pestphp') as $entry) {
+        if (! is_string($entry) || in_array($entry, ['.', '..'], true)) {
+            continue;
+        }
+
+        $entry === 'pest'
+            ? copyTree($root.'/vendor/pestphp/pest', $target.'/vendor/pestphp/pest')
+            : symlink($root.'/vendor/pestphp/'.$entry, $target.'/vendor/pestphp/'.$entry);
+    }
+
+    symlink($root.'/tools/src', $target.'/tools/src');
+}
+
+/**
+ * Copies the file or directory $from to $to, with the permissions of each file.
+ */
+function copyTree(string $from, string $to): void
+{
+    if (! is_dir($from)) {
+        copy($from, $to);
+        chmod($to, (int) fileperms($from) & 0o777);
+
+        return;
+    }
+
+    mkdir($to, 0o777, true);
+
+    foreach ((array) scandir($from) as $entry) {
+        if (is_string($entry) && ! in_array($entry, ['.', '..'], true)) {
+            copyTree($from.'/'.$entry, $to.'/'.$entry);
+        }
+    }
 }
 
 /**

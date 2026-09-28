@@ -18,7 +18,9 @@ use PDOException;
  *
  * CREATE DATABASE cannot run inside a transaction, and two processes may provision the same
  * database at once, so provisioning holds a transaction-scoped advisory lock on a connection of
- * its own while a second connection runs the set-up. The lock lives in the configured database,
+ * its own while a second connection runs the set-up. The lock is named by the caller: the
+ * testkit names the checkout's database for it and for the databases of its parallel workers, so
+ * the set-ups of one checkout run one at a time. The lock lives in the configured database,
  * which every provisioner connects to, and ends with its transaction however the process ends.
  * The set-up creates the database only when it is missing, and a CREATE DATABASE that loses a
  * race with a creator that takes no lock (SQLSTATE 42P04, duplicate_database) counts as done.
@@ -41,8 +43,8 @@ final readonly class PostgresTestDatabases
     ) {}
 
     /**
-     * The key of the advisory lock that serialises the set-up of $database: the first 64 bits of
-     * a versioned SHA-256 of its name, as a signed bigint.
+     * The key of the advisory lock named $database, which serialises the set-ups that name it: the
+     * first 64 bits of a versioned SHA-256 of the name, as a signed bigint.
      */
     public static function lockKey(string $database): int
     {
@@ -64,16 +66,18 @@ final readonly class PostgresTestDatabases
     }
 
     /**
-     * Creates the database of $setup when it is missing, runs the set-up and records $comment.
+     * Creates the database of $setup when it is missing, runs the set-up and records $comment,
+     * holding the advisory lock named $lock, or named by the database of $setup when it is null.
      */
-    public function provision(TestDatabaseSetup $setup, TestDatabaseComment $comment): void
+    public function provision(TestDatabaseSetup $setup, TestDatabaseComment $comment, ?string $lock = null): void
     {
+        $lockName = $lock ?? $setup->database;
         $lock = $this->connect($this->server);
         $lock->beginTransaction();
 
         try {
             $lock->exec(sprintf("set local lock_timeout = '%s'", self::LOCK_TIMEOUT));
-            $lock->exec(sprintf('select pg_advisory_xact_lock(%d)', self::lockKey($setup->database)));
+            $lock->exec(sprintf('select pg_advisory_xact_lock(%d)', self::lockKey($lockName)));
 
             $server = $this->connect($this->server);
 

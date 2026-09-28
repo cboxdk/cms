@@ -27,7 +27,10 @@ use PHPUnit\Framework\AssertionFailedError;
  * bin/test-database.php (command()).
  *
  * Two processes of the same checkout share its database, as they shared the configured one
- * before; the harness truncates after each test either way.
+ * before; the harness truncates after each test either way. The workers of a parallel run do
+ * not: each has a database of its own, TestDatabaseName::for(base, root, worker), which
+ * provision() creates and sets up in the same way, under the advisory lock of the checkout's
+ * database, so the set-ups of one checkout's databases run one at a time.
  */
 #[Experimental]
 final class TestDatabase
@@ -39,16 +42,17 @@ final class TestDatabase
     private static array $provisioned = [];
 
     /**
-     * Makes sure the test database of the checkout at $root exists and is set up, and returns its
-     * name. $owner and $app are the owner role's and the app role's connections, to the configured
-     * database or already to the checkout's; the schema is the app connection's search path.
+     * Makes sure the test database of the checkout at $root, or of its parallel worker $worker
+     * when that is not null, exists and is set up, and returns its name. $owner and $app are the
+     * owner role's and the app role's connections, to the configured database or already to the
+     * checkout's or a worker's; the schema is the app connection's search path.
      *
      * @throws TestDatabaseUnavailable with the database, the role and the fix in the message
      */
-    public static function provision(ConnectionSettings $owner, ConnectionSettings $app, string $root): string
+    public static function provision(ConnectionSettings $owner, ConnectionSettings $app, string $root, ?int $worker = null): string
     {
         $base = TestDatabaseName::base($owner->database, $root);
-        $name = TestDatabaseName::for($base, $root);
+        $name = TestDatabaseName::for($base, $root, $worker);
         $server = $owner->withDatabase($base);
 
         $unreachable = ServiceCheck::probe($name, $app->withDatabase($base), $server);
@@ -74,6 +78,7 @@ final class TestDatabase
             $databases->provision(
                 new TestDatabaseSetup($name, $server->username, $app->username, self::schema($app)),
                 TestDatabaseComment::of($root),
+                TestDatabaseName::for($base, $root),
             );
         } catch (PDOException $exception) {
             throw new TestDatabaseUnavailable(sprintf(
@@ -90,15 +95,16 @@ final class TestDatabase
     }
 
     /**
-     * provision() once per process for this checkout, as the harness needs it before the first
-     * test. A failure is kept, so every later test of the process fails at once with its message.
+     * provision() once per process for this checkout, or for its parallel worker $worker, as the
+     * harness needs it before the first test. A failure is kept, so every later test of the
+     * process fails at once with its message.
      *
      * @throws AssertionFailedError with the message of the failure
      */
-    public static function ensure(ConnectionSettings $owner, ConnectionSettings $app, ?string $root = null): string
+    public static function ensure(ConnectionSettings $owner, ConnectionSettings $app, ?string $root = null, ?int $worker = null): string
     {
         $root ??= CheckoutRoot::current();
-        $name = TestDatabaseName::for(TestDatabaseName::base($owner->database, $root), $root);
+        $name = TestDatabaseName::for(TestDatabaseName::base($owner->database, $root), $root, $worker);
 
         if (isset(self::$failures[$name])) {
             throw new AssertionFailedError(self::$failures[$name]);
@@ -106,7 +112,7 @@ final class TestDatabase
 
         if (! isset(self::$provisioned[$name])) {
             try {
-                self::provision($owner, $app, $root);
+                self::provision($owner, $app, $root, $worker);
             } catch (TestDatabaseUnavailable $exception) {
                 self::$failures[$name] = $exception->getMessage();
 
@@ -120,15 +126,16 @@ final class TestDatabase
     }
 
     /**
-     * Drops the test database of the checkout at $root, as the owner role connected to the
-     * configured database, and says whether it existed. Nothing may be connected to it.
+     * Drops the test database of the checkout at $root, or of its parallel worker $worker when
+     * that is not null, as the owner role connected to the configured database, and says whether
+     * it existed. Nothing may be connected to it.
      *
      * @throws TestDatabaseUnavailable when the server does not answer or the drop fails
      */
-    public static function drop(ConnectionSettings $owner, string $root): bool
+    public static function drop(ConnectionSettings $owner, string $root, ?int $worker = null): bool
     {
         $base = TestDatabaseName::base($owner->database, $root);
-        $name = TestDatabaseName::for($base, $root);
+        $name = TestDatabaseName::for($base, $root, $worker);
 
         try {
             return new PostgresTestDatabases($owner->withDatabase($base), ServiceCheck::CONNECT_TIMEOUT_SECONDS)->drop($name);

@@ -17,6 +17,11 @@ use InvalidArgumentException;
  * gives the same name, a symlink to it gives the name of its real path, and another path gives
  * another name. Postgres keeps at most 63 bytes of a name, so a longer result is refused rather
  * than cut short.
+ *
+ * A parallel run (Pest's --parallel, and the mutation plugin's runs of single mutations) gives
+ * each worker a database of its own as well: the checkout's name, `_w` and the worker's number
+ * (TestWorker), such as `cms_test_3f9a0c21d4e7_w2`. The same checkout and worker give the same
+ * name, so a worker that starts again finds its database, and two workers never share rows.
  */
 #[Experimental]
 final readonly class TestDatabaseName
@@ -27,18 +32,26 @@ final readonly class TestDatabaseName
     /** The longest name Postgres keeps in full (NAMEDATALEN - 1). */
     public const int MAX_BYTES = 63;
 
+    /** What comes between the checkout's name and a worker's number. */
+    public const string WORKER_SEPARATOR = '_w';
+
+    /** A worker's number as it ends a name: a positive integer without leading zeros. */
+    public const string WORKER_PATTERN = '[1-9][0-9]*';
+
     /**
-     * The test database of the checkout at $root, derived from the configured database $base.
+     * The test database of the checkout at $root, derived from the configured database $base, or
+     * of the parallel worker $worker of that checkout when $worker is not null.
      *
-     * @throws InvalidArgumentException when $root is not a directory, $base is empty or the name exceeds 63 bytes
+     * @throws InvalidArgumentException when $root is not a directory, $base is empty, $worker is below 1 or the name exceeds 63 bytes
      */
-    public static function for(string $base, string $root): string
+    public static function for(string $base, string $root, ?int $worker = null): string
     {
         if ($base === '') {
             throw new InvalidArgumentException('The configured test database has no name.');
         }
 
-        $name = $base.self::suffix($root);
+        $suffix = self::suffix($root).self::workerSuffix($worker);
+        $name = $base.$suffix;
 
         if (strlen($name) > self::MAX_BYTES) {
             throw new InvalidArgumentException(sprintf(
@@ -47,7 +60,7 @@ final readonly class TestDatabaseName
                 strlen($name),
                 self::MAX_BYTES,
                 $base,
-                self::MAX_BYTES - strlen(self::suffix($root)),
+                self::MAX_BYTES - strlen($suffix),
             ));
         }
 
@@ -55,16 +68,33 @@ final readonly class TestDatabaseName
     }
 
     /**
+     * `_w` and the number of the parallel worker $worker, or nothing for a run without workers.
+     *
+     * @throws InvalidArgumentException when $worker is below 1
+     */
+    public static function workerSuffix(?int $worker): string
+    {
+        if ($worker === null) {
+            return '';
+        }
+
+        if ($worker < 1) {
+            throw new InvalidArgumentException(sprintf('A parallel worker has a number of 1 or more, not %d.', $worker));
+        }
+
+        return self::WORKER_SEPARATOR.$worker;
+    }
+
+    /**
      * The configured database that $database was derived from for the checkout at $root: $database
-     * without the checkout's suffix, or $database itself when it does not end with the suffix.
+     * without the checkout's suffix and a worker's, or $database itself when it does not end with
+     * the checkout's suffix, alone or followed by a worker's.
      */
     public static function base(string $database, string $root): string
     {
-        $suffix = self::suffix($root);
+        $pattern = '/\A(.+)'.preg_quote(self::suffix($root), '/').'(?:'.self::WORKER_SEPARATOR.self::WORKER_PATTERN.')?\z/s';
 
-        return str_ends_with($database, $suffix) && strlen($database) > strlen($suffix)
-            ? substr($database, 0, -strlen($suffix))
-            : $database;
+        return preg_match($pattern, $database, $matches) === 1 ? $matches[1] : $database;
     }
 
     /**

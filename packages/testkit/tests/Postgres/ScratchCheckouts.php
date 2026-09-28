@@ -11,6 +11,13 @@ final class ScratchCheckouts
     /** @var list<string> */
     public static array $roots = [];
 
+    /**
+     * The parallel workers whose databases a test provisioned for its scratch checkouts.
+     *
+     * @var list<int>
+     */
+    public static array $workers = [];
+
     public static function make(): string
     {
         $root = ScratchDirectory::make('cbox-cms-test-database-');

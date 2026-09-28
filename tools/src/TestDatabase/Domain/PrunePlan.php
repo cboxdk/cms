@@ -11,13 +11,15 @@ use InvalidArgumentException;
 /**
  * Which test databases of removed checkouts `composer test-db:prune` drops.
  *
- * It looks at the configured database and at every database named `<configured>_<12 hex digits>`
- * (TestDatabaseName), and drops exactly those whose testkit comment (TestDatabaseComment) names
- * this host and a checkout that is no longer a directory, or that no longer derives that name.
- * It keeps the configured database, the database of the checkout that runs it, the databases of
- * other hosts, whose paths mean nothing here, and every database without a valid testkit comment,
- * which the testkit did not provision or whose checkout it cannot tell. Other databases are not
- * listed. The decisions are in the order of the listing.
+ * It looks at the configured database, at every database named `<configured>_<12 hex digits>`
+ * (TestDatabaseName), a checkout's, and at every one named `<configured>_<12 hex digits>_w<n>`,
+ * a parallel worker's of that checkout, and drops exactly those whose testkit comment
+ * (TestDatabaseComment) names this host and a checkout that is no longer a directory, or that no
+ * longer derives the checkout's name. It keeps the configured database, the database of the
+ * checkout that runs it and those of its workers, the databases of other hosts, whose paths mean
+ * nothing here, and every database without a valid testkit comment, which the testkit did not
+ * provision or whose checkout it cannot tell. Other databases are not listed. The decisions are
+ * in the order of the listing.
  */
 final readonly class PrunePlan
 {
@@ -38,8 +40,12 @@ final readonly class PrunePlan
         foreach ($databases as $database) {
             if ($database->name === $context->base) {
                 $decisions[] = self::keep($database, 'the configured database, which the owner role connects to.');
-            } elseif (self::isTestDatabaseName($context->base, $database->name)) {
-                $decisions[] = self::decide($database, $context, $checkouts);
+            } else {
+                $checkout = self::checkoutDatabase($context->base, $database->name);
+
+                if ($checkout !== null) {
+                    $decisions[] = self::decide($database, $checkout, $context, $checkouts);
+                }
             }
         }
 
@@ -52,6 +58,18 @@ final readonly class PrunePlan
     public static function isTestDatabaseName(string $base, string $name): bool
     {
         return preg_match('/\A'.preg_quote($base, '/').'_[0-9a-f]{'.TestDatabaseName::HASH_DIGITS.'}\z/', $name) === 1;
+    }
+
+    /**
+     * The checkout's database that $name belongs to: $name itself when it has the form of a
+     * checkout's test database derived from $base, the checkout's name without `_w<n>` when it has
+     * the form of a parallel worker's, and null otherwise.
+     */
+    public static function checkoutDatabase(string $base, string $name): ?string
+    {
+        $pattern = '/\A('.preg_quote($base, '/').'_[0-9a-f]{'.TestDatabaseName::HASH_DIGITS.'})(?:'.TestDatabaseName::WORKER_SEPARATOR.TestDatabaseName::WORKER_PATTERN.')?\z/';
+
+        return preg_match($pattern, $name, $matches) === 1 ? $matches[1] : null;
     }
 
     /**
@@ -72,10 +90,14 @@ final readonly class PrunePlan
         return $names;
     }
 
-    private static function decide(ListedDatabase $database, PruneContext $context, Checkouts $checkouts): PruneDecision
+    private static function decide(ListedDatabase $database, string $checkout, PruneContext $context, Checkouts $checkouts): PruneDecision
     {
         if ($database->name === $context->current) {
             return self::keep($database, 'the test database of this checkout.');
+        }
+
+        if ($checkout === $context->current) {
+            return self::keep($database, 'the test database of a parallel worker of this checkout.');
         }
 
         if ($database->comment === null || $database->comment === '') {
@@ -98,7 +120,7 @@ final readonly class PrunePlan
             return new PruneDecision($database->name, PruneVerdict::Drop, "its checkout {$comment->checkout} on this host no longer exists.");
         }
 
-        if ($derived !== $database->name) {
+        if ($derived !== $checkout) {
             return new PruneDecision($database->name, PruneVerdict::Drop, "its checkout {$comment->checkout} on this host now has the test database {$derived}.");
         }
 

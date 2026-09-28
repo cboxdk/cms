@@ -10,7 +10,8 @@ use JsonException;
 
 /**
  * What a child process that provisions a checkout's test database reads on standard input
- * (bin/test-database.php): the owner role's and the app role's connections and the checkout root.
+ * (bin/test-database.php): the owner role's and the app role's connections, the checkout root and
+ * the parallel worker whose database it is, or null for the checkout's own.
  * The passwords travel on standard input, never on the command line, where `ps` would show them.
  */
 #[Experimental]
@@ -20,6 +21,7 @@ final readonly class TestDatabasePayload
         public ConnectionSettings $owner,
         public ConnectionSettings $app,
         public string $root,
+        public ?int $worker = null,
     ) {}
 
     public function encode(): string
@@ -28,6 +30,7 @@ final readonly class TestDatabasePayload
             'owner' => $this->owner->toPayload(),
             'app' => $this->app->toPayload(),
             'root' => $this->root,
+            'worker' => $this->worker,
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
     }
 
@@ -52,10 +55,17 @@ final readonly class TestDatabasePayload
             throw new InvalidArgumentException('The test database payload has no root.');
         }
 
+        $worker = $payload['worker'] ?? null;
+
+        if ($worker !== null && (! is_int($worker) || $worker < 1)) {
+            throw new InvalidArgumentException('The test database payload names a worker that is not a positive integer.');
+        }
+
         return new self(
             ConnectionSettings::fromPayload($payload['owner'] ?? null),
             ConnectionSettings::fromPayload($payload['app'] ?? null),
             $root,
+            $worker,
         );
     }
 }

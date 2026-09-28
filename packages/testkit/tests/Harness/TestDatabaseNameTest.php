@@ -80,6 +80,44 @@ it('finds the configured database a name was derived from', function (): void {
         ->and($suffix)->toMatch('/\A_[0-9a-f]{12}\z/');
 });
 
+it('gives each parallel worker of a checkout a name of its own, the same for the same path and worker', function (): void {
+    $root = ScratchDirectory::make('cbox-cms-name-test-');
+    $other = ScratchDirectory::make('cbox-cms-name-test-');
+    $checkout = TestDatabaseName::for('cms_test', $root);
+
+    expect(TestDatabaseName::for('cms_test', $root, 1))->toBe($checkout.'_w1')
+        ->and(TestDatabaseName::for('cms_test', $root, 12))->toBe($checkout.'_w12')
+        ->and(TestDatabaseName::for('cms_test', $root, 1))->toBe(TestDatabaseName::for('cms_test', $root.'/', 1))
+        ->and(TestDatabaseName::for('cms_test', $root, 1))->not->toBe(TestDatabaseName::for('cms_test', $root, 2))
+        ->and(TestDatabaseName::for('cms_test', $root, 1))->not->toBe($checkout)
+        ->and(TestDatabaseName::for('cms_test', $root, 1))->not->toBe(TestDatabaseName::for('cms_test', $other, 1))
+        ->and(TestDatabaseName::for('cms_test', $root, 3))->toMatch('/\Acms_test_[0-9a-f]{12}_w3\z/');
+});
+
+it('keeps a worker\'s name within the 63 bytes of a Postgres name, and refuses a worker below 1', function (): void {
+    $root = CheckoutRoot::current();
+
+    expect(strlen(TestDatabaseName::for('cms_test', $root, 999_999_999)))->toBeLessThanOrEqual(63)
+        ->and(TestDatabaseName::for(str_repeat('b', 47), $root, 9))->toHaveLength(63)
+        ->and(static fn (): string => TestDatabaseName::for(str_repeat('b', 47), $root, 10))
+        ->toThrow(InvalidArgumentException::class, 'has 64 bytes; Postgres keeps at most 63. Shorten the configured database '.str_repeat('b', 47).' to at most 46 bytes.')
+        ->and(static fn (): string => TestDatabaseName::for('cms_test', $root, 0))
+        ->toThrow(InvalidArgumentException::class, 'A parallel worker has a number of 1 or more, not 0.')
+        ->and(static fn (): string => TestDatabaseName::for('cms_test', $root, -1))
+        ->toThrow(InvalidArgumentException::class, 'not -1.');
+});
+
+it('finds the configured database a worker\'s name was derived from', function (): void {
+    $root = ScratchDirectory::make('cbox-cms-name-test-');
+    $checkout = TestDatabaseName::for('cms_test', $root);
+
+    expect(TestDatabaseName::base(TestDatabaseName::for('cms_test', $root, 4), $root))->toBe('cms_test')
+        ->and(TestDatabaseName::base(TestDatabaseName::for('cms_test', $root, 4), CheckoutRoot::current()))->toBe($checkout.'_w4')
+        ->and(TestDatabaseName::base($checkout.'_w0', $root))->toBe($checkout.'_w0')
+        ->and(TestDatabaseName::base($checkout.'_w01', $root))->toBe($checkout.'_w01')
+        ->and(TestDatabaseName::base($checkout.'_wx', $root))->toBe($checkout.'_wx');
+});
+
 it('takes the checkout root from the Composer root package of the autoloader that loads the testkit', function (): void {
     expect(CheckoutRoot::current())->toBe(realpath(dirname(__DIR__, 4)))
         ->and(CheckoutRoot::vendorDirectory())->toBe(realpath(dirname(__DIR__, 4)).'/vendor');

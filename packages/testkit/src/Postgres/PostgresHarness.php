@@ -8,6 +8,7 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Testkit\Postgres\Boundary\CheckoutConnections;
 use Cbox\Cms\Testkit\Postgres\Boundary\CheckoutRoot;
 use Cbox\Cms\Testkit\Postgres\Boundary\ConnectionSettings;
+use Cbox\Cms\Testkit\Postgres\Boundary\TestWorker;
 use Cbox\Cms\Testkit\Postgres\Infrastructure\OwnerTruncation;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Console\Kernel;
@@ -24,7 +25,8 @@ use PHPUnit\Framework\AssertionFailedError;
  * One Postgres test from set-up to tear-down (GUARDRAILS 9, real Postgres; PRD 4.2).
  *
  * Set-up checks that no transaction wraps the test, points every pgsql connection at the
- * checkout's own test database (TestDatabase), provisions that database once per process and
+ * checkout's own test database (TestDatabase), or at the parallel worker's own (TestWorker),
+ * provisions that database once per process and
  * fails fast when the services are down or the owner role lacks CREATEDB, builds the schema as
  * the owner role once per process, and installs the nested transaction guard. The test then
  * runs as the app role on the default connection, and its commits are real. Tear-down stops
@@ -88,10 +90,11 @@ final readonly class PostgresHarness
             }
         }
 
-        // Every pgsql connection reaches the checkout's own database; one opened before now is
-        // closed, so it reconnects there.
+        // Every pgsql connection reaches the checkout's own database, or this parallel worker's;
+        // one opened before now is closed, so it reconnects there.
         $root = CheckoutRoot::current();
-        CheckoutConnections::point($config, $root);
+        $worker = TestWorker::current();
+        CheckoutConnections::point($config, $root, $worker);
 
         foreach (array_keys($database->getConnections()) as $name) {
             $database->purge($name);
@@ -101,6 +104,7 @@ final readonly class PostgresHarness
             ConnectionSettings::of($ownerConnection, $config),
             ConnectionSettings::of($database->getDefaultConnection(), $config),
             $root,
+            $worker,
         );
 
         OwnerMigrations::ensure($app->make(Kernel::class), $ownerConnection);

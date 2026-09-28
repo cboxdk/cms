@@ -9,6 +9,7 @@ use Cbox\Cms\Testkit\Postgres\Boundary\CheckoutRoot;
 use Cbox\Cms\Testkit\Postgres\Boundary\ConnectionSettings;
 use Cbox\Cms\Testkit\Postgres\Boundary\TestDatabaseComment;
 use Cbox\Cms\Testkit\Postgres\Boundary\TestDatabasePayload;
+use Cbox\Cms\Testkit\Postgres\Boundary\TestWorker;
 use Cbox\Cms\Testkit\Postgres\TestDatabase;
 use Cbox\Cms\Testkit\Postgres\TestDatabaseMain;
 use Cbox\Cms\Testkit\Postgres\TestDatabaseName;
@@ -68,6 +69,38 @@ it('points every pgsql connection that names the configured database at the chec
         ->and($config->get('database.connections.pgsql.database'))->toBe($derived);
 });
 
+it('points the connections of a parallel worker at the worker\'s database, also those already pointed at the checkout\'s or another worker\'s', function (): void {
+    $root = ScratchDirectory::make('cbox-cms-checkout-test-');
+    $config = databaseConfig([
+        'pgsql' => ['driver' => 'pgsql', 'database' => 'cms_test'],
+        'pgsql_owner' => ['driver' => 'pgsql', 'database' => TestDatabaseName::for('cms_test', $root)],
+        'pgsql_worker' => ['driver' => 'pgsql', 'database' => TestDatabaseName::for('cms_test', $root, 7)],
+        'pgsql_other' => ['driver' => 'pgsql', 'database' => 'cms'],
+    ]);
+    $worker = TestDatabaseName::for('cms_test', $root, 2);
+
+    expect(CheckoutConnections::point($config, $root, 2))->toBe($worker)
+        ->and($config->get('database.connections.pgsql.database'))->toBe($worker)
+        ->and($config->get('database.connections.pgsql_owner.database'))->toBe($worker)
+        ->and($config->get('database.connections.pgsql_worker.database'))->toBe($worker)
+        ->and($config->get('database.connections.pgsql_other.database'))->toBe('cms')
+        ->and(CheckoutConnections::point($config, $root, 2))->toBe($worker)
+        ->and(CheckoutConnections::point($config, $root))->toBe(TestDatabaseName::for('cms_test', $root))
+        ->and($config->get('database.connections.pgsql_owner.database'))->toBe(TestDatabaseName::for('cms_test', $root));
+});
+
+it('reads the parallel worker from TEST_TOKEN, none outside a parallel run, and refuses a parallel run without a valid token', function (): void {
+    expect(TestWorker::of([]))->toBeNull()
+        ->and(TestWorker::of(['TEST_TOKEN' => '']))->toBeNull()
+        ->and(TestWorker::of(['PARATEST' => '1', 'TEST_TOKEN' => '3']))->toBe(3)
+        ->and(TestWorker::of(['TEST_TOKEN' => '12']))->toBe(12)
+        ->and(static fn (): ?int => TestWorker::of(['PARATEST' => '1']))->toThrow(InvalidArgumentException::class, 'without TEST_TOKEN')
+        ->and(static fn (): ?int => TestWorker::of(['PARATEST' => '1', 'TEST_TOKEN' => '']))->toThrow(InvalidArgumentException::class, 'without TEST_TOKEN')
+        ->and(static fn (): ?int => TestWorker::of(['TEST_TOKEN' => '0']))->toThrow(InvalidArgumentException::class, 'TEST_TOKEN is "0", not a positive integer.')
+        ->and(static fn (): ?int => TestWorker::of(['TEST_TOKEN' => '02']))->toThrow(InvalidArgumentException::class, 'not a positive integer')
+        ->and(static fn (): ?int => TestWorker::of(['TEST_TOKEN' => '1_abc']))->toThrow(InvalidArgumentException::class, 'not a positive integer');
+});
+
 it('points nothing when the default connection is not pgsql', function (): void {
     $config = databaseConfig(['sqlite' => ['driver' => 'sqlite', 'database' => ':memory:'], 'pgsql' => ['driver' => 'pgsql', 'database' => 'cms_test']], 'sqlite');
 
@@ -97,8 +130,13 @@ it('refuses a comment that is not one', function (string $json, string $message)
 
 it('carries both connections and the root to the provisioning child, and refuses anything else', function (): void {
     $payload = new TestDatabasePayload(ownerAt(5432), appAt(5432), '/srv/checkout');
+    $worker = new TestDatabasePayload(ownerAt(5432), appAt(5432), '/srv/checkout', 3);
 
     expect(TestDatabasePayload::decode($payload->encode()))->toEqual($payload)
+        ->and(TestDatabasePayload::decode($worker->encode()))->toEqual($worker)
+        ->and(TestDatabasePayload::decode($worker->encode())->worker)->toBe(3)
+        ->and(static fn (): TestDatabasePayload => TestDatabasePayload::decode(str_replace('"worker":3', '"worker":0', $worker->encode())))->toThrow(InvalidArgumentException::class, 'names a worker that is not a positive integer')
+        ->and(static fn (): TestDatabasePayload => TestDatabasePayload::decode(str_replace('"worker":3', '"worker":"3"', $worker->encode())))->toThrow(InvalidArgumentException::class, 'names a worker that is not a positive integer')
         ->and(static fn (): TestDatabasePayload => TestDatabasePayload::decode('{'))->toThrow(InvalidArgumentException::class, 'not valid JSON')
         ->and(static fn (): TestDatabasePayload => TestDatabasePayload::decode('1'))->toThrow(InvalidArgumentException::class, 'not an object')
         ->and(static fn (): TestDatabasePayload => TestDatabasePayload::decode('{"owner":{},"app":{}}'))->toThrow(InvalidArgumentException::class, 'has no root')

@@ -8,6 +8,7 @@ use Cbox\Cms\Testkit\Postgres\Boundary\CheckoutRoot;
 use Cbox\Cms\Testkit\Postgres\Boundary\ConnectionSettings;
 use Cbox\Cms\Testkit\Postgres\Boundary\TestDatabaseComment;
 use Cbox\Cms\Testkit\Postgres\Boundary\TestDatabasePayload;
+use Cbox\Cms\Testkit\Postgres\Boundary\TestWorker;
 use Cbox\Cms\Testkit\Postgres\IndependentConnections;
 use Cbox\Cms\Testkit\Postgres\Infrastructure\PostgresTestDatabases;
 use Cbox\Cms\Testkit\Postgres\Infrastructure\SetupStatement;
@@ -34,9 +35,14 @@ use Symfony\Component\Process\Process;
 afterEach(function (): void {
     foreach (ScratchCheckouts::$roots as $root) {
         TestDatabase::drop(baseOwner(), $root);
+
+        foreach (ScratchCheckouts::$workers as $worker) {
+            TestDatabase::drop(baseOwner(), $root, $worker);
+        }
     }
 
     ScratchCheckouts::$roots = [];
+    ScratchCheckouts::$workers = [];
     ScratchDirectory::cleanUp();
 });
 
@@ -59,12 +65,17 @@ function baseApp(): ConnectionSettings
 }
 
 /**
- * Starts bin/test-database.php for $root with the owner and app roles of the configured database.
+ * Starts bin/test-database.php for $root, or for its parallel worker $worker, with the owner and
+ * app roles of the configured database.
  */
-function provisionInChild(string $root): Process
+function provisionInChild(string $root, ?int $worker = null): Process
 {
+    if ($worker !== null) {
+        ScratchCheckouts::$workers[] = $worker;
+    }
+
     $process = new Process(TestDatabase::command());
-    $process->setInput(new TestDatabasePayload(baseOwner(), baseApp(), $root)->encode());
+    $process->setInput(new TestDatabasePayload(baseOwner(), baseApp(), $root, $worker)->encode());
     $process->setTimeout(60);
     $process->start();
 
@@ -215,6 +226,56 @@ it('lets two child processes provision the same checkout at once: both exit 0 an
         ->and(DB::connection('pgsql_owner')->scalar('select count(*) from pg_database where datname = ?', [$name]))->toBe(1);
 });
 
+it('provisions the databases of two parallel workers of one checkout at once, under the checkout\'s lock, and neither sees the other\'s rows', function (): void {
+    $root = ScratchCheckouts::make();
+    $names = [1 => TestDatabaseName::for(baseDatabase(), $root, 1), 2 => TestDatabaseName::for(baseDatabase(), $root, 2)];
+
+    // Hold the lock of the checkout's database, so both workers' provisioners wait on it together.
+    config(['database.connections.pgsql_owner_base' => array_merge((array) config('database.connections.pgsql_owner'), ['database' => baseDatabase()])]);
+    [$holder] = app(IndependentConnections::class)->open(1, 'pgsql_owner_base');
+    $holder->beginTransaction();
+    $holder->select('select pg_advisory_xact_lock(?)', [PostgresTestDatabases::lockKey(TestDatabaseName::for(baseDatabase(), $root))]);
+
+    $children = [1 => provisionInChild($root, 1), 2 => provisionInChild($root, 2)];
+    usleep(1_000_000);
+
+    expect($children[1]->isRunning())->toBeTrue($children[1]->getErrorOutput())
+        ->and($children[2]->isRunning())->toBeTrue($children[2]->getErrorOutput())
+        ->and(databaseExists($names[1]))->toBeFalse()
+        ->and(databaseExists($names[2]))->toBeFalse();
+
+    $holder->commit();
+
+    foreach ($children as $worker => $child) {
+        $child->wait();
+
+        expect($child->getExitCode())->toBe(0, $child->getErrorOutput())
+            ->and($child->getOutput())->toBe($names[$worker]."\n")
+            ->and(databaseExists($names[$worker]))->toBeTrue();
+    }
+
+    expect(databaseExists(TestDatabaseName::for(baseDatabase(), $root)))->toBeFalse();
+
+    // Each worker writes a row of its own to the same table in its own database, as two workers
+    // running the same test would.
+    foreach ($names as $worker => $name) {
+        connectionTo($name, 'pgsql_owner')->statement('create table worker_rows (worker int not null)');
+        DB::purge('pgsql_owner_scratch');
+
+        connectionTo($name, 'pgsql')->table('worker_rows')->insert(['worker' => $worker]);
+        DB::purge('pgsql_scratch');
+    }
+
+    foreach ($names as $worker => $name) {
+        $app = connectionTo($name, 'pgsql');
+
+        expect($app->scalar('select current_database()'))->toBe($name)
+            ->and($app->table('worker_rows')->pluck('worker')->all())->toBe([$worker]);
+
+        DB::purge('pgsql_scratch');
+    }
+});
+
 it('fails fast when the role that provisions lacks CREATEDB, naming the role, CREATEDB, the database and composer services:up', function (): void {
     $root = ScratchCheckouts::make();
     $name = TestDatabaseName::for(baseDatabase(), $root);
@@ -252,6 +313,6 @@ it('counts a CREATE DATABASE that finds the database already there as done, and 
 it('leaves this checkout\'s database to the harness, which provisioned it with the host and path of this checkout', function (): void {
     $comment = checkoutDatabase()['comment'] ?? null;
 
-    expect(checkoutDatabase()['datname'] ?? null)->toBe(TestDatabaseName::for('cms_test', CheckoutRoot::current()))
+    expect(checkoutDatabase()['datname'] ?? null)->toBe(TestDatabaseName::for('cms_test', CheckoutRoot::current(), TestWorker::current()))
         ->and(TestDatabaseComment::decode(is_string($comment) ? $comment : ''))->toEqual(new TestDatabaseComment(CheckoutRoot::current(), (string) gethostname()));
 });

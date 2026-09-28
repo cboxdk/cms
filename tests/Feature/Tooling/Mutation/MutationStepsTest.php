@@ -62,7 +62,7 @@ it('fails with the reason when the base of the change is missing, and runs nothi
         ->and($step?->notes)->toBe([]);
 });
 
-it('mutates every changed class against the fast suites in parallel, and a changed Adapter class also against the Postgres suite alone, serially, judged by the reader at 80', function (): void {
+it('mutates every changed class against the fast suites in parallel, and a changed Adapter class also against the Postgres suite alone, in parallel, judged by the reader at 80', function (): void {
     $adapter = new ChangedSource('packages/core/src/ReceiptStore/Adapter/PostgresReceiptStore.php', PostgresReceiptStore::class);
     $domain = new ChangedSource('packages/contracts/src/Ids/PrincipalId.php', PrincipalId::class);
     $steps = MutationSteps::for(MutationScope::changed('abc123', [$adapter, $domain]), '/usr/bin/php');
@@ -75,9 +75,8 @@ it('mutates every changed class against the fast suites in parallel, and a chang
         ])
         ->and($steps[1]->command)->toBe([
             '/usr/bin/php', 'vendor/bin/pest', '--testsuite=Postgres', '--fail-on-skipped', '--fail-on-incomplete',
-            '--mutate', '--everything', '--path=packages/core/src/ReceiptStore/Adapter/PostgresReceiptStore.php',
+            '--mutate', '--parallel', '--everything', '--path=packages/core/src/ReceiptStore/Adapter/PostgresReceiptStore.php',
         ])
-        ->and($steps[1]->command)->not->toContain('--parallel')
         ->and($steps[0]->reader)->toEqual(new MutationReportReader([$domain], 80, records: $ledger))
         ->and($steps[1]->reader)->toEqual(new MutationReportReader([$adapter], 80, counts: $ledger))
         ->and($steps[0]->precheck)->toBeNull()
@@ -113,6 +112,17 @@ it('never runs the Postgres suite in one PHP process with the other suites, whos
     expect(array_values(array_filter($suites, static fn (array $step): bool => in_array('Postgres', $step, true))))->toBe([['Postgres']]);
 });
 
+it('runs the step with Postgres with --parallel against the Postgres suite alone, so that each worker runs in a test database of its own', function (): void {
+    $steps = MutationSteps::for(MutationScope::changed('abc123', [
+        new ChangedSource('packages/core/src/Partitions/Infrastructure/PartitionCatalog.php', PartitionCatalog::class),
+    ]), '/usr/bin/php');
+    $postgres = $steps[1] ?? null;
+
+    expect($postgres?->name)->toBe(MutationSteps::POSTGRES_NAME)
+        ->and($postgres?->command)->toContain('--parallel')
+        ->and(array_values(array_filter($postgres->command ?? [], static fn (string $argument): bool => str_starts_with($argument, '--testsuite='))))->toBe(['--testsuite=Postgres']);
+});
+
 it('names every changed file of a group in one --path, sorted, and makes the step with Postgres only when there are Adapter or Infrastructure files', function (): void {
     $scope = MutationScope::changed('abc123', [
         new ChangedSource('packages/core/src/Partitions/Infrastructure/PartitionCatalog.php', PartitionCatalog::class),
@@ -142,13 +152,13 @@ function mutationStepReport(string $path, array $mutations): string
 }
 
 /**
- * The fast suites' run (--parallel) prints its report, the Postgres suite's run the other.
+ * The Postgres suite's run (--testsuite=Postgres) prints its report, the fast suites' run the other.
  */
 function scriptedMutationRuns(string $fast, string $postgres): ScriptedProcessRunner
 {
-    return new ScriptedProcessRunner(static fn (array $command): ProcessOutcome => in_array('--parallel', $command, true)
-        ? new ProcessOutcome(0, $fast, 1.0)
-        : new ProcessOutcome(0, $postgres, 1.0));
+    return new ScriptedProcessRunner(static fn (array $command): ProcessOutcome => in_array('--testsuite=Postgres', $command, true)
+        ? new ProcessOutcome(0, $postgres, 1.0)
+        : new ProcessOutcome(0, $fast, 1.0));
 }
 
 it('passes a step whose report scores the changed classes at 80 or more, and fails one below, naming the class', function (): void {
@@ -205,7 +215,7 @@ it('passes the step with Postgres without running the Postgres suite when the fa
     $gate = runMutationSteps(MutationScope::changed('abc123', [$adapter, $infrastructure]), $runner);
 
     expect($runner->calls)->toHaveCount(1)
-        ->and($runner->calls[0]->command)->toContain('--parallel')
+        ->and($runner->calls[0]->command)->toContain('--testsuite=Unit,Codecs,Contract,Actions,Arch')
         ->and($gate->step(MutationSteps::POSTGRES_NAME)?->status)->toBe(StepStatus::Pass)
         ->and($gate->step(MutationSteps::POSTGRES_NAME)?->exitCode)->toBeNull()
         ->and($gate->step(MutationSteps::POSTGRES_NAME)?->notes)->toBe(['the fast suites caught all 3 mutations of the changed sources, so the Postgres suite cannot change the score and is not run']);

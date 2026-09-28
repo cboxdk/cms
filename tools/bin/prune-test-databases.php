@@ -9,10 +9,12 @@ declare(strict_types=1);
  *   php tools/bin/prune-test-databases.php [--dry-run]
  *
  * It connects as the owner role to the configured test database of this checkout's phpunit.xml
- * and environment, as drop-test-database.php does, and looks at the configured database and every
- * database named `<configured>_<12 hex digits>`. It drops, with DROP DATABASE ... WITH (FORCE),
- * exactly those whose testkit comment names this host and a checkout path that no longer exists,
- * or no longer derives that name (Cbox\Cms\Tooling\TestDatabase\Domain\PrunePlan). It prints each
+ * and environment, as drop-test-database.php does, and looks at the configured database, every
+ * database named `<configured>_<12 hex digits>` and every parallel worker's database named
+ * `<configured>_<12 hex digits>_w<n>`. It drops, with DROP DATABASE ... WITH (FORCE), exactly
+ * those whose testkit comment names this host and a checkout path that no longer exists, or no
+ * longer derives the checkout's name (Cbox\Cms\Tooling\TestDatabase\Domain\PrunePlan). It keeps
+ * this checkout's database and its workers'. It prints each
  * name with its verdict and the reason; --dry-run prints the same and drops nothing.
  *
  * Exits 0 when every drop succeeded, 1 when the server could not be read or a drop failed, and 2
