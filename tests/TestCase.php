@@ -6,7 +6,6 @@ namespace Cbox\Cms\Tests;
 
 use Cbox\Cms\Testkit\Postgres\Boundary\CheckoutConnections;
 use Cbox\Cms\Testkit\Postgres\Boundary\CheckoutRoot;
-use Cbox\Cms\Testkit\Postgres\Boundary\TestWorker;
 use Illuminate\Contracts\Config\Repository;
 use Orchestra\Testbench\Concerns\WithWorkbench;
 use Orchestra\Testbench\TestCase as Orchestra;
@@ -38,6 +37,6 @@ abstract class TestCase extends Orchestra
     #[Override]
     protected function defineEnvironment($app): void
     {
-        CheckoutConnections::point($app->make(Repository::class), CheckoutRoot::current(), TestWorker::current());
+        CheckoutConnections::point($app->make(Repository::class), CheckoutRoot::current());
     }
 }

@@ -12,6 +12,7 @@ use Cbox\Cms\Testkit\Postgres\Boundary\TestWorker;
 use Cbox\Cms\Testkit\Postgres\IndependentConnections;
 use Cbox\Cms\Testkit\Postgres\Infrastructure\PostgresTestDatabases;
 use Cbox\Cms\Testkit\Postgres\Infrastructure\SetupStatement;
+use Cbox\Cms\Testkit\Postgres\Infrastructure\TestDatabaseSetup;
 use Cbox\Cms\Testkit\Postgres\TestDatabase;
 use Cbox\Cms\Testkit\Postgres\TestDatabaseName;
 use Cbox\Cms\Testkit\Postgres\TestDatabaseUnavailable;
@@ -274,6 +275,40 @@ it('provisions the databases of two parallel workers of one checkout at once, un
 
         DB::purge('pgsql_scratch');
     }
+});
+
+it('provisions under the advisory lock the caller names, and gives up when the lock timeout passes', function (): void {
+    $root = ScratchCheckouts::make();
+    ScratchCheckouts::$workers[] = 1;
+    $checkout = TestDatabaseName::for(baseDatabase(), $root);
+    $worker = TestDatabaseName::for(baseDatabase(), $root, 1);
+    $app = baseApp();
+    $setup = new TestDatabaseSetup($worker, baseOwner()->username, $app->username, $app->searchPath);
+    $databases = new PostgresTestDatabases(baseOwner(), 2, '200ms');
+
+    // Hold the lock of the checkout's database, which the worker's set-up names.
+    config(['database.connections.pgsql_owner_base' => array_merge((array) config('database.connections.pgsql_owner'), ['database' => baseDatabase()])]);
+    [$holder] = app(IndependentConnections::class)->open(1, 'pgsql_owner_base');
+    $holder->beginTransaction();
+    $holder->select('select pg_advisory_xact_lock(?)', [PostgresTestDatabases::lockKey($checkout)]);
+
+    try {
+        $databases->provision($setup, TestDatabaseComment::of($root), $checkout);
+        Assert::fail('provision() ran its set-up while another session held the lock it names.');
+    } catch (PDOException $exception) {
+        expect($exception->errorInfo[0] ?? null)->toBe('55P03')
+            ->and($exception->getMessage())->toContain('lock timeout')
+            ->and(databaseExists($worker))->toBeFalse();
+    }
+
+    $holder->commit();
+    $databases->provision($setup, TestDatabaseComment::of($root), $checkout);
+
+    expect(databaseExists($worker))->toBeTrue()
+        ->and($databases->exists($worker))->toBeTrue()
+        ->and(databaseExists($checkout))->toBeFalse()
+        ->and($databases->exists($checkout))->toBeFalse()
+        ->and($databases->canCreateDatabases())->toBeTrue();
 });
 
 it('fails fast when the role that provisions lacks CREATEDB, naming the role, CREATEDB, the database and composer services:up', function (): void {

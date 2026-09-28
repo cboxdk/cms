@@ -8,8 +8,10 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Testkit\Postgres\Boundary\CheckoutRoot;
 use Cbox\Cms\Testkit\Postgres\Boundary\ConnectionSettings;
 use Cbox\Cms\Testkit\Postgres\Boundary\TestDatabaseComment;
+use Cbox\Cms\Testkit\Postgres\Boundary\TestWorker;
 use Cbox\Cms\Testkit\Postgres\Infrastructure\PostgresTestDatabases;
 use Cbox\Cms\Testkit\Postgres\Infrastructure\TestDatabaseSetup;
+use InvalidArgumentException;
 use PDOException;
 use PHPUnit\Framework\AssertionFailedError;
 
@@ -45,12 +47,14 @@ final class TestDatabase
      * Makes sure the test database of the checkout at $root, or of its parallel worker $worker
      * when that is not null, exists and is set up, and returns its name. $owner and $app are the
      * owner role's and the app role's connections, to the configured database or already to the
-     * checkout's or a worker's; the schema is the app connection's search path.
+     * checkout's or a worker's; the schema is the app connection's search path, which must name
+     * exactly one schema and is checked before anything connects.
      *
      * @throws TestDatabaseUnavailable with the database, the role and the fix in the message
      */
     public static function provision(ConnectionSettings $owner, ConnectionSettings $app, string $root, ?int $worker = null): string
     {
+        $schema = self::schema($app);
         $base = TestDatabaseName::base($owner->database, $root);
         $name = TestDatabaseName::for($base, $root, $worker);
         $server = $owner->withDatabase($base);
@@ -76,7 +80,7 @@ final class TestDatabase
             }
 
             $databases->provision(
-                new TestDatabaseSetup($name, $server->username, $app->username, self::schema($app)),
+                new TestDatabaseSetup($name, $server->username, $app->username, $schema),
                 TestDatabaseComment::of($root),
                 TestDatabaseName::for($base, $root),
             );
@@ -95,15 +99,18 @@ final class TestDatabase
     }
 
     /**
-     * provision() once per process for this checkout, or for its parallel worker $worker, as the
-     * harness needs it before the first test. A failure is kept, so every later test of the
-     * process fails at once with its message.
+     * provision() once per process for the database of this process, as the harness needs it
+     * before the first test: the checkout's at $root (by default CheckoutRoot::current()), or in
+     * a worker of a parallel run the worker's (TestWorker::current()). A failure is kept, so every
+     * later test of the process fails at once with its message.
      *
      * @throws AssertionFailedError with the message of the failure
+     * @throws InvalidArgumentException when the process is a parallel worker without a valid TEST_TOKEN
      */
-    public static function ensure(ConnectionSettings $owner, ConnectionSettings $app, ?string $root = null, ?int $worker = null): string
+    public static function ensure(ConnectionSettings $owner, ConnectionSettings $app, ?string $root = null): string
     {
         $root ??= CheckoutRoot::current();
+        $worker = TestWorker::current();
         $name = TestDatabaseName::for(TestDatabaseName::base($owner->database, $root), $root, $worker);
 
         if (isset(self::$failures[$name])) {

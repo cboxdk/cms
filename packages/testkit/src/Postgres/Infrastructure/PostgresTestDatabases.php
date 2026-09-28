@@ -31,15 +31,18 @@ final readonly class PostgresTestDatabases
     /** SQLSTATE duplicate_database. */
     public const string DUPLICATE_DATABASE = '42P04';
 
-    /** How long a provisioner waits for another one that sets up the same database. */
+    /** How long a provisioner waits for another one that sets up under the same lock. */
     public const string LOCK_TIMEOUT = '60s';
 
     /**
      * @param  ConnectionSettings  $server  the owner role on the configured database, which stays
+     * @param  string  $lockTimeout  how long provision() waits for the advisory lock, as Postgres's
+     *                               lock_timeout reads it, such as `60s`
      */
     public function __construct(
         private ConnectionSettings $server,
-        private int $connectTimeoutSeconds = 2,
+        private int $connectTimeoutSeconds,
+        private string $lockTimeout = self::LOCK_TIMEOUT,
     ) {}
 
     /**
@@ -52,7 +55,11 @@ final readonly class PostgresTestDatabases
         $unpacked = unpack('J', hash('sha256', 'cbox-cms.test-database.v1:'.$database, true));
         $key = is_array($unpacked) ? ($unpacked[1] ?? null) : null;
 
-        return is_int($key) ? $key : throw new LogicException('Could not derive the advisory lock key of '.$database.'.');
+        if (! is_int($key)) {
+            throw new LogicException(sprintf('Could not derive the advisory lock key of %s.', $database));
+        }
+
+        return $key;
     }
 
     /**
@@ -60,9 +67,10 @@ final readonly class PostgresTestDatabases
      */
     public function canCreateDatabases(): bool
     {
-        $statement = $this->connect($this->server)->query('select count(*) from pg_roles where rolname = current_user and rolcreatedb');
+        $statement = $this->connect($this->server)->prepare('select count(*) from pg_roles where rolname = current_user and rolcreatedb');
+        $statement->execute();
 
-        return $statement !== false && (int) $statement->fetchColumn() === 1;
+        return $statement->fetchColumn() === 1;
     }
 
     /**
@@ -76,7 +84,7 @@ final readonly class PostgresTestDatabases
         $lock->beginTransaction();
 
         try {
-            $lock->exec(sprintf("set local lock_timeout = '%s'", self::LOCK_TIMEOUT));
+            $lock->prepare("select set_config('lock_timeout', ?, true)")->execute([$this->lockTimeout]);
             $lock->exec(sprintf('select pg_advisory_xact_lock(%d)', self::lockKey($lockName)));
 
             $server = $this->connect($this->server);
@@ -97,11 +105,9 @@ final readonly class PostgresTestDatabases
                 TestDatabaseSetup::literal($comment->encode()),
             ));
 
-            $lock->commit();
         } finally {
-            if ($lock->inTransaction()) {
-                $lock->rollBack();
-            }
+            // The transaction holds only the advisory lock, so ending it either way releases it.
+            $lock->rollBack();
         }
     }
 
@@ -110,7 +116,7 @@ final readonly class PostgresTestDatabases
         $statement = $this->connect($this->server)->prepare('select count(*) from pg_database where datname = ?');
         $statement->execute([$database]);
 
-        return (int) $statement->fetchColumn() === 1;
+        return $statement->fetchColumn() === 1;
     }
 
     /**
@@ -131,8 +137,8 @@ final readonly class PostgresTestDatabases
     }
 
     /**
-     * Runs one set-up statement as psql would: a `\gexec` statement is a query, and each value
-     * it returns is run in turn. A CREATE DATABASE that finds the database there is done.
+     * Runs one set-up statement as psql would: a `\gexec` statement is a query without parameters,
+     * and each value it returns is run in turn. A CREATE DATABASE that finds the database there is done.
      */
     public static function execute(PDO $connection, SetupStatement $statement): void
     {
@@ -142,9 +148,10 @@ final readonly class PostgresTestDatabases
             return;
         }
 
-        $result = $connection->query($statement->sql);
+        $result = $connection->prepare($statement->sql);
+        $result->execute();
 
-        foreach ($result === false ? [] : $result->fetchAll(PDO::FETCH_COLUMN) as $generated) {
+        foreach ($result->fetchAll(PDO::FETCH_COLUMN) as $generated) {
             if (! is_string($generated)) {
                 throw new LogicException(sprintf('The set-up query [%s] generated a value that is not a statement.', $statement->sql));
             }
@@ -159,10 +166,13 @@ final readonly class PostgresTestDatabases
         }
     }
 
+    /**
+     * A connection in PDO's default error mode, which throws: pdo_pgsql ignores connect_timeout
+     * in the DSN, so ATTR_TIMEOUT bounds the connect.
+     */
     private function connect(ConnectionSettings $settings): PDO
     {
         return new PDO($settings->dsn($this->connectTimeoutSeconds), $settings->username, $settings->password, [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_TIMEOUT => $this->connectTimeoutSeconds,
         ]);
     }

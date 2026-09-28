@@ -7,6 +7,7 @@ namespace Cbox\Cms\Testkit\Postgres\Boundary;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Testkit\Postgres\TestDatabaseName;
 use Illuminate\Contracts\Config\Repository;
+use InvalidArgumentException;
 
 /**
  * Points the application's Postgres connections at the checkout's own test database.
@@ -24,10 +25,23 @@ use Illuminate\Contracts\Config\Repository;
 final readonly class CheckoutConnections
 {
     /**
-     * Returns the checkout's database, or $worker's when it is not null, or null when the default
+     * Points the connections at the database of this process: the checkout's, or in a worker of a
+     * parallel run the worker's (TestWorker::current()). Returns it, or null when the default
      * connection is not pgsql.
+     *
+     * @throws InvalidArgumentException when the process is a parallel worker without a valid TEST_TOKEN
      */
-    public static function point(Repository $config, string $root, ?int $worker = null): ?string
+    public static function point(Repository $config, string $root): ?string
+    {
+        return self::pointAt($config, $root, TestWorker::current());
+    }
+
+    /**
+     * Points the connections at the checkout's database, or at the database of its parallel
+     * worker $worker when that is not null. Returns it, or null when the default connection is
+     * not pgsql.
+     */
+    public static function pointAt(Repository $config, string $root, ?int $worker): ?string
     {
         $default = $config->get('database.default');
         $connections = $config->get('database.connections');
