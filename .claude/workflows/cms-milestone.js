@@ -1,7 +1,7 @@
 export const meta = {
   name: 'cms-milestone',
   description: 'Build one Cbox CMS block from MILESTONES.md: plan, build independent tasks in parallel worktrees, integrate through a merge queue that runs every gate, adversarial review, exit criteria, PROGRESS.md',
-  whenToUse: 'Autopilot development of laravel-cms. Pass args {block: "M1"} (ids in PROGRESS.md). Optional: maxParallel (default 3; 1 builds one task at a time).',
+  whenToUse: 'Autopilot development of laravel-cms. Pass args {block: "M1"} (ids in PROGRESS.md). Optional: maxParallel (default 3), maxReviewRounds (default 2, 0 skips review), planFile with planTasks (reuse a plan), exitOnly (regression gate, exit criteria and PROGRESS.md only).',
   phases: [
     { title: 'Plan', detail: 'break the block into small tasks with a dependency graph, acceptance checks and exit criteria' },
     { title: 'Build', detail: 'independent tasks in parallel, each in its own worktree with its own test database; verify and fix there' },
@@ -16,9 +16,13 @@ if (!BLOCK) {
   throw new Error('cms-milestone needs args {block: "<id>"}, e.g. {block: "M1"}')
 }
 const MAX_PARALLEL = Math.max(1, (args && args.maxParallel) || 3)
-const MAX_FIX_ROUNDS = (args && args.maxFixRounds) || 3
-const MAX_INTEGRATION_ROUNDS = (args && args.maxIntegrationRounds) || 2
-const MAX_REVIEW_ROUNDS = (args && args.maxReviewRounds) || 2
+const num = (name, dflt) => (args && typeof args[name] === 'number') ? args[name] : dflt
+const MAX_FIX_ROUNDS = num('maxFixRounds', 3)
+const MAX_INTEGRATION_ROUNDS = num('maxIntegrationRounds', 2)
+// 0 is a valid value: no review rounds.
+const MAX_REVIEW_ROUNDS = num('maxReviewRounds', 2)
+// exitOnly skips plan, build and review: regression gate, exit criteria and PROGRESS.md only.
+const EXIT_ONLY = Boolean(args && args.exitOnly)
 
 const REPO = '/Users/sylvester/Projects/laravel-cms'
 const WT_ROOT = '/Users/sylvester/Projects/laravel-cms-worktrees'
@@ -171,10 +175,20 @@ phase('Plan')
 
 // args.planFile reuses a plan from an earlier run of the same block (a JSON file with the PLAN shape) and skips planning.
 const PLAN_FILE = args && args.planFile
-let plan = PLAN_FILE ? await agent(
-  `Read the JSON file ${PLAN_FILE} and return its content as the plan, exactly as it is: same tasks, ids, dependsOn, acceptance items and exit criteria. Do not change any files.`,
-  { schema: PLAN, label: `load plan ${BLOCK}`, effort: 'low' },
-) : await agent(
+async function loadPlan() {
+  // An agent copies the file, so the result is checked against the task count the caller passes.
+  const expected = num('planTasks', -1)
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const p = await agent(
+      `Read the JSON file ${PLAN_FILE} with a tool and return its content as the plan, exactly as it is: every task with its id, title, goal, dependsOn and acceptance, and every exit criterion. Do not summarise, drop or shorten anything${expected >= 0 ? `; the file has ${expected} tasks` : ''}. Do not change any files.`,
+      { schema: PLAN, label: `load plan ${BLOCK}${attempt > 1 ? ' #' + attempt : ''}`, effort: 'low' },
+    )
+    if (p && (expected < 0 ? p.tasks.length > 0 : p.tasks.length === expected)) return p
+    log(`plan file load returned ${p ? p.tasks.length : 'nothing'} tasks, expected ${expected}; retrying`)
+  }
+  throw new Error(`could not load ${PLAN_FILE} with ${expected} tasks`)
+}
+let plan = PLAN_FILE ? await loadPlan() : await agent(
   `${CONTEXT}
 
 Plan block ${BLOCK}. Read PROGRESS.md, the block in MILESTONES.md, the PRD sections it depends on, GUARDRAILS.md and the current repo state (git log, files). Work that is already committed and green counts as done; plan only what remains.
@@ -187,7 +201,7 @@ Put decisions reserved for Sylvester (see CLAUDE.md) in blockers, and plan aroun
   { schema: PLAN, label: `plan ${BLOCK}`, effort: 'high' },
 )
 
-const critique = PLAN_FILE ? null : await agent(
+const critique = (PLAN_FILE || EXIT_ONLY) ? null : await agent(
   `${CONTEXT}
 
 Here is a plan for block ${BLOCK}:
@@ -215,6 +229,7 @@ Return the full revised plan. Keep task ids stable where the task is unchanged. 
   if (revised) plan = revised
 }
 
+if (EXIT_ONLY) plan = Object.assign({}, plan, { tasks: [] })
 log(`${BLOCK}: ${plan.tasks.length} tasks, ${plan.exitCriteria.length} exit criteria, ${(plan.blockers || []).length} blockers, up to ${MAX_PARALLEL} in parallel`)
 
 // ---------------------------------------------------------------- Build and integrate
@@ -503,7 +518,7 @@ const seen = new Set()
 const fixed = []
 const keyOf = f => `${f.file}|${f.title}`.toLowerCase()
 
-for (let reviewRound = 1; reviewRound <= MAX_REVIEW_ROUNDS; reviewRound++) {
+for (let reviewRound = 1; reviewRound <= (EXIT_ONLY ? 0 : MAX_REVIEW_ROUNDS); reviewRound++) {
   const found = (await parallel(LENSES.map(lens => () =>
     agent(
       `${CONTEXT}
