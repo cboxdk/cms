@@ -18,4 +18,9 @@ interface RepositoryFiles
      * The PHP file read from its tokens, or null when there is no such regular file.
      */
     public function php(string $path): ?PhpFile;
+
+    /**
+     * Whether a regular file or a directory is at the path; the empty path is the root.
+     */
+    public function exists(string $path): bool;
 }

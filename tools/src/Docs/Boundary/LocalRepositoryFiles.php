@@ -9,7 +9,7 @@ use Cbox\Cms\Tooling\Docs\Domain\RepositoryFiles;
 
 /**
  * The files below a root directory, by repo-relative path. A path that leaves the root, or that is
- * not a regular file, has no contents.
+ * not a regular file, has no contents, and a path that leaves the root does not exist.
  */
 final readonly class LocalRepositoryFiles implements RepositoryFiles
 {
@@ -37,5 +37,20 @@ final readonly class LocalRepositoryFiles implements RepositoryFiles
         $contents = $this->contents($path);
 
         return $contents === null ? null : PhpTokens::read($path, $contents);
+    }
+
+    public function exists(string $path): bool
+    {
+        if ($path === '') {
+            return true;
+        }
+
+        if (str_starts_with($path, '/') || in_array('..', explode('/', $path), true)) {
+            return false;
+        }
+
+        $file = $this->root.'/'.rtrim($path, '/');
+
+        return is_file($file) || is_dir($file);
     }
 }

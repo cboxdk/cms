@@ -1,3 +1,9 @@
+---
+title: Clock
+weight: 32
+description: "The Clock contract: what now() promises, how to replace the clock, the shared suite ClockContract, and FakeClock for tests."
+---
+
 # Clock
 
 <!-- extension-point: Cbox\Cms\Contracts\Clock -->

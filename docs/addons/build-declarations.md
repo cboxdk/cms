@@ -1,3 +1,9 @@
+---
+title: Build declarations
+weight: 36
+description: "Declare commands and hooks with attributes, give cms:build your scan roots, and read the registries it compiles."
+---
+
 # Build declarations: scan roots, commands and hooks
 
 <!-- extension-point: Cbox\Cms\Contracts\Build\DeclaresScanRoots -->

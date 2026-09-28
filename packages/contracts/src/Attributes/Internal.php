@@ -13,7 +13,7 @@ use Attribute;
  * #[Experimental] class it covers that member only. The testkit's PHPStan extensions report
  * every use outside the Cbox\Cms namespace as cboxCms.internalUse. Only an ignore comment in an
  * addon that names that identifier hides a use, never an ignore comment without it or an
- * ignoreErrors entry (packages/testkit/docs/static-analysis.md).
+ * ignoreErrors entry (docs/addons/static-analysis.md).
  */
 #[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_METHOD | Attribute::TARGET_CLASS_CONSTANT)]
 #[Stable]

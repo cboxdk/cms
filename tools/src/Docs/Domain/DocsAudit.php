@@ -6,20 +6,24 @@ namespace Cbox\Cms\Tooling\Docs\Domain;
 
 /**
  * The check behind gate 10 of GUARDRAILS 10, `composer docs:check` (tools/bin/docs-check.php): a
- * public extension point without a page and a running example fails, and the code on the pages
- * runs as tests (GUARDRAILS 2.4, PRD 14.4).
+ * public extension point without a page and a running example fails, the code on the pages runs as
+ * tests (GUARDRAILS 2.4, PRD 14.4), and docs/ keeps the layout of the cboxdk docs standard with no
+ * dangling link.
  *
  * The inventory (Inventory, less Exclusions) comes from the declarations in packages/<package>/src
  * and the schemas in packages/<package>/resources/schemas, read from tokens with no autoloading.
  *
- * Pages. A page is a Markdown file below packages/<package>/docs or
- * packages/<package>/resources/schemas. There is no central list; a page declares what it documents:
+ * Pages. A page is a Markdown file below docs/ at the root of the repository. The layout rules are
+ * in DocsLayout: the three root pages, an _index.md in every folder, frontmatter with title, weight
+ * and description on every page. The link rules are in DocsLinks, and the screenshot rules in
+ * ScreenshotAudit. There is no central list of extension points; a page declares what it documents:
  *
  *   <!-- extension-point: Cbox\Cms\Contracts\Clock -->
  *   <!-- extension-point: packages/contracts/resources/schemas/blueprint.v1.json -->
  *
- * Every extension point is on exactly one page. Every page has at least one example, a marker
- * followed on the next line by a fenced block whose content is the file byte for byte:
+ * Every extension point is on exactly one page. Every page that declares one has at least one
+ * example, a marker followed on the next line by a fenced block whose content is the file byte for
+ * byte:
  *
  *   <!-- example: examples/Contract/Clock/SystemClockTest.php -->
  *
@@ -28,8 +32,8 @@ namespace Cbox\Cms\Tooling\Docs\Domain;
  * the inventory, as a shared contract suite's test class does. A support file or fixture is
  * embedded with `<!-- example-file: <path> -->` and the same byte-for-byte check, and its name
  * without the extension, a class short name or a fixture name, appears in an example test on the
- * same page. Every fenced block on a page is one of these embeds; a command goes in inline code.
- * Every path in a marker is repo-relative.
+ * same page. Every fenced block on every page is one of these embeds; a command goes in inline
+ * code. Every path in a marker is repo-relative.
  *
  * Examples tree. The examples live in examples/<Suite>/<Topic>/, and phpunit.xml adds
  * examples/Unit, examples/Codecs, examples/Contract and examples/Postgres to those suites. Composer
@@ -51,9 +55,10 @@ final readonly class DocsAudit
      * Every finding for the tree, sorted (Finding::sorted()); none when the check passes.
      *
      * @param  list<Exclusion>  $exclusions
+     * @param  list<Screenshot>  $screenshots  the manifest of screenshots, Screenshots::all() for the repository
      * @return list<Finding>
      */
-    public static function findings(DocsTree $tree, array $exclusions): array
+    public static function findings(DocsTree $tree, array $exclusions, array $screenshots): array
     {
         $inventory = Inventory::of($tree->sources, $tree->schemas, $exclusions);
         $findings = $inventory->findings;
@@ -103,6 +108,8 @@ final readonly class DocsAudit
             array_push($findings, ...self::exampleFindings($example, $embeddedExamples));
         }
 
+        array_push($findings, ...DocsLayout::findings($tree), ...DocsLinks::findings($tree), ...ScreenshotAudit::findings($tree, $screenshots));
+
         return Finding::sorted($findings);
     }
 
@@ -113,8 +120,8 @@ final readonly class DocsAudit
     {
         $findings = [];
 
-        if ($page->markers(MarkerKind::Example) === []) {
-            $findings[] = Finding::at($page->path, 1, 'the page has no example; add <!-- example: <repo-relative path> --> with the fenced *Test.php below it');
+        if ($page->markers(MarkerKind::ExtensionPoint) !== [] && $page->markers(MarkerKind::Example) === []) {
+            $findings[] = Finding::at($page->path, 1, 'the page documents an extension point and has no example; add <!-- example: <repo-relative path> --> with the fenced *Test.php below it');
         }
 
         foreach ($page->markersWithoutBlock() as $marker) {

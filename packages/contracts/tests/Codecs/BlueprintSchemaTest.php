@@ -15,20 +15,21 @@ use Symfony\Component\Yaml\Yaml;
  * against YAML fixtures read the way the reader of cms:generate reads them, with symfony/yaml and
  * PARSE_OBJECT_FOR_MAP so that an empty map stays an object, and validated with opis'
  * CompliantValidator, which never writes defaults into the data. Every invalid fixture fails at
- * exactly the JSON pointer it is written to break, and the examples on the reference page are the
- * valid fixtures, byte for byte, each named by an example-file marker with its repo-relative path,
- * the one convention of composer docs:check (gate 10).
+ * exactly the JSON pointer it is written to break, and the examples on the reference page,
+ * docs/addons/blueprint-v1.md, are the valid fixtures, byte for byte, each named by an
+ * example-file marker with its repo-relative path, the one convention of composer docs:check
+ * (gate 10).
  */
 
 const BLUEPRINT_PACKAGE = __DIR__.'/../..';
 
 const BLUEPRINT_SCHEMA = BLUEPRINT_PACKAGE.'/resources/schemas/blueprint.v1.json';
 
-const BLUEPRINT_PAGE = BLUEPRINT_PACKAGE.'/resources/schemas/blueprint.v1.md';
-
 const BLUEPRINT_FIXTURES = __DIR__.'/Fixtures/Blueprint';
 
 const BLUEPRINT_REPOSITORY = BLUEPRINT_PACKAGE.'/../..';
+
+const BLUEPRINT_PAGE = BLUEPRINT_REPOSITORY.'/docs/addons/blueprint-v1.md';
 
 function blueprintRead(string $path): string
 {

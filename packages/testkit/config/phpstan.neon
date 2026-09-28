@@ -4,7 +4,7 @@
 # A repo includes this file from vendor/cboxdk/cms-testkit/config/phpstan.neon and adds only
 # its own paths. It must not lower the level, add a baseline or add ignoreErrors
 # (GUARDRAILS 7.3). Larastan is found through PHPStan's own directory, so the include works
-# from vendor/ and from a symlinked path package. packages/testkit/docs/static-analysis.md
+# from vendor/ and from a symlinked path package. docs/addons/static-analysis.md
 # describes this configuration for addon authors.
 
 includes:
