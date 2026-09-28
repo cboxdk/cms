@@ -10,6 +10,7 @@ use Cbox\Cms\Contracts\Consistency\DuplicateReceipt;
 use Cbox\Cms\Contracts\Consistency\ProjectionState;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
 use Cbox\Cms\Contracts\Consistency\TransactionRequired;
+use Cbox\Cms\Contracts\Consistency\UnsupportedIsolation;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Ids\Uuid7;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
@@ -46,8 +47,14 @@ use Illuminate\Database\QueryException;
  * (ReceiptLock), then looks for a receipt of either class, then inserts with ON CONFLICT DO
  * NOTHING. A concurrent store of the same changeset waits for the lock until the first transaction
  * ends, and its lookup, a new statement under READ COMMITTED, the command transaction's level, sees
- * the committed receipt. The lock is a blocking wait, as the key wait of the insert was before it:
- * the second store of a changeset is a caller's error, not a path that is expected to wait.
+ * the committed receipt. Under REPEATABLE READ or SERIALIZABLE the snapshot is taken by the
+ * transaction's first statement, at the latest the lock statement itself, before it waits: the
+ * lookup would miss the receipt committed during the wait, and the insert into the other class's
+ * partition would store a second receipt. The lock statement therefore also reads the isolation
+ * level and takes the lock only at READ COMMITTED; at any other level store() throws
+ * UnsupportedIsolation, holding no lock and leaving the transaction usable. The lock is a blocking
+ * wait, as the key wait of the insert was before it: the second store of a changeset is a caller's
+ * error, not a path that is expected to wait.
  *
  * store() runs only inside the caller's transaction and throws TransactionRequired, before any
  * statement, without one. Outside a transaction a transaction-scoped lock would end with its own
@@ -82,8 +89,15 @@ final readonly class PostgresReceiptStore implements ReceiptStore
 
     public const string PROJECTIONS = 'receipt_projections';
 
-    /** The transaction-scoped lock on a changeset's receipt, keyed by ReceiptLock. */
-    public const string LOCK_CHANGESET = 'select pg_advisory_xact_lock(?)';
+    /**
+     * The transaction-scoped lock on a changeset's receipt, keyed by ReceiptLock, taken only when
+     * the transaction's isolation level is the first binding, READ COMMITTED. It returns the level;
+     * CASE evaluates the lock only in its branch, so at another level no lock is taken.
+     */
+    public const string LOCK_CHANGESET = "select current_setting('transaction_isolation') as isolation, case when current_setting('transaction_isolation') = ? then pg_advisory_xact_lock(?) end as locked";
+
+    /** The isolation level store() needs inside a transaction, as transaction_isolation names it. */
+    public const string READ_COMMITTED = 'read committed';
 
     /**
      * Inserts the receipt row and, with {@see self::PROJECTION_ROWS} in place of %s, its projection
@@ -129,6 +143,8 @@ final readonly class PostgresReceiptStore implements ReceiptStore
     /**
      * @throws TransactionRequired when the connection has no transaction open
      * @throws PartitionMissing when no partition covers the changeset's date
+     * @throws UnsupportedIsolation when the caller's transaction is not at READ COMMITTED; no lock
+     *                              is taken and nothing is stored
      */
     public function store(StoredReceipt $receipt): void
     {
@@ -146,8 +162,20 @@ final readonly class PostgresReceiptStore implements ReceiptStore
         try {
             // The primary key covers one retention class, so only this lock keeps one receipt per
             // changeset across the classes: a second store of the changeset waits here until the
-            // first transaction has ended, and its lookup, a new statement, sees that receipt.
-            $db->select(self::LOCK_CHANGESET, [ReceiptLock::of($changesetId)->key], false);
+            // first transaction has ended, and its lookup, a new statement, sees that receipt. The
+            // lookup sees a receipt committed during the wait only with a new snapshot per
+            // statement, READ COMMITTED, so the lock statement reads the level and takes the lock
+            // only at that level: a refusal holds nothing.
+            $row = $db->selectOne(
+                self::LOCK_CHANGESET,
+                [self::READ_COMMITTED, ReceiptLock::of($changesetId)->key],
+                false,
+            );
+            $isolation = is_object($row) && property_exists($row, 'isolation') ? $row->isolation : null;
+
+            if ($isolation !== self::READ_COMMITTED) {
+                throw UnsupportedIsolation::receiptStore(is_string($isolation) ? $isolation : 'unknown');
+            }
 
             // A receipt of either class for the changeset, expired or not, holds the changeset.
             if ($db->table(self::RECEIPTS)->useWritePdo()->where('changeset_id', $id)->exists()) {

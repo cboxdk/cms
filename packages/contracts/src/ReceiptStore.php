@@ -8,6 +8,7 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Consistency\DuplicateReceipt;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
 use Cbox\Cms\Contracts\Consistency\TransactionRequired;
+use Cbox\Cms\Contracts\Consistency\UnsupportedIsolation;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Receipts\StoredReceipt;
@@ -33,7 +34,11 @@ use Cbox\Cms\Contracts\Storage\PartitionMissing;
  * calls it. find() reads on the same connection, so it sees the caller's uncommitted writes and no
  * one else's. A store() of a changeset that another open transaction has stored waits until that
  * transaction ends, then throws DuplicateReceipt when it committed and stores when it rolled back.
- * The duplicate always comes from store(), never from the caller's commit.
+ * The duplicate always comes from store(), never from the caller's commit. store() needs READ
+ * COMMITTED from a store on a database, where the lookup after the wait must see the receipt the
+ * other transaction committed: under REPEATABLE READ or SERIALIZABLE the snapshot is older than
+ * the wait, so such a store throws UnsupportedIsolation and stores nothing. The command
+ * transaction runs at READ COMMITTED.
  *
  * Expiry is logical. A Standard receipt expires when the Clock is later than
  * RetentionClass::expiresAt() for its changeset: the time in the ChangesetId plus
@@ -62,6 +67,9 @@ interface ReceiptStore
      *                          or not; the stored receipt is left as it was
      * @throws PartitionMissing when no partition covers the changeset's time; nothing is stored,
      *                          and the caller rolls its transaction back
+     * @throws UnsupportedIsolation when the caller's transaction is at an isolation level that would
+     *                              hide a receipt committed while the store waited (a store on
+     *                              Postgres needs READ COMMITTED); nothing is stored
      */
     public function store(StoredReceipt $receipt): void;
 

@@ -10,6 +10,7 @@ use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Consistency\ProjectionState;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
 use Cbox\Cms\Contracts\Consistency\TransactionRequired;
+use Cbox\Cms\Contracts\Consistency\UnsupportedIsolation;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Receipts\StoredReceipt;
@@ -132,12 +133,15 @@ function advisoryLocksInDatabase(): int
  * `committed` last.
  *
  * @param  string  $work  'mark' acknowledges the projection edge at $at; 'store' stores the fixture receipt
- *                        of 2026-01-01T00:00:00Z in the retention class $retention
+ *                        of 2026-01-01T00:00:00Z in the retention class $retention and signals `stored`,
+ *                        `duplicate` or, for UnsupportedIsolation, `refused`
  * @param  string  $retention  the value of a RetentionClass, for 'store'
+ * @param  string|null  $isolation  the isolation level the transaction is set to right after it begins;
+ *                                  null keeps the connection's, READ COMMITTED
  */
-function receiptChild(string $work, string $id, string $at, string $retention = 'standard'): ChildProcess
+function receiptChild(string $work, string $id, string $at, string $retention = 'standard', ?string $isolation = null): ChildProcess
 {
-    $child = app(ChildProcesses::class)->start(static function (ProcessContext $context) use ($work, $id, $at, $retention): void {
+    $child = app(ChildProcesses::class)->start(static function (ProcessContext $context) use ($work, $id, $at, $retention, $isolation): void {
         $connection = $context->connection();
         $resolver = new ConnectionResolver(['child' => $connection]);
         $resolver->setDefaultConnection('child');
@@ -146,6 +150,11 @@ function receiptChild(string $work, string $id, string $at, string $retention = 
         $changesetId = ChangesetId::fromString($id);
 
         $connection->beginTransaction();
+
+        if ($isolation !== null) {
+            $connection->statement("set transaction isolation level {$isolation}");
+        }
+
         $context->signal('begun');
 
         if ($work === 'mark') {
@@ -157,6 +166,8 @@ function receiptChild(string $work, string $id, string $at, string $retention = 
                 $context->signal('stored');
             } catch (DuplicateReceipt) {
                 $context->signal('duplicate');
+            } catch (UnsupportedIsolation) {
+                $context->signal('refused');
             }
         }
 
@@ -242,13 +253,15 @@ it('makes no call outside Postgres inside the transaction: no queue job, no HTTP
         ->and($valkeyKeys)->toBe([])
         ->and($statements)->not->toBeEmpty();
 
-    // The one Postgres function the store calls: the transaction-scoped lock on the changeset,
-    // once per store(). Every other statement reads or writes the receipt tables only; the insert
-    // of a receipt and its projections is one statement that starts with its CTEs.
-    $locks = array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, 'pg_')));
+    // The only Postgres functions the store calls: the transaction-scoped lock on the changeset,
+    // taken at READ COMMITTED, once per store(). Every other statement reads or writes the receipt
+    // tables only; the insert of a receipt and its projections is one statement that starts with
+    // its CTEs.
+    $lock = "select current_setting('transaction_isolation') as isolation, case when current_setting('transaction_isolation') = ? then pg_advisory_xact_lock(?) end as locked";
+    $locks = array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, 'pg_') || str_contains($sql, 'current_setting')));
 
-    expect($locks)->toBe(['select pg_advisory_xact_lock(?)'])
-        ->and(PostgresReceiptStore::LOCK_CHANGESET)->toBe('select pg_advisory_xact_lock(?)');
+    expect($locks)->toBe([$lock])
+        ->and(PostgresReceiptStore::LOCK_CHANGESET)->toBe($lock);
 
     foreach (array_diff($statements, $locks) as $sql) {
         preg_match_all('/\b(?:from|into|update) "([a-z_]+)"/', $sql, $tables);
@@ -372,6 +385,62 @@ it('gives one receipt and one DuplicateReceipt for two concurrent stores of one 
     'standard first, evidence second' => ['standard', 'evidence'],
     'evidence first, standard second' => ['evidence', 'standard'],
 ]);
+
+it('refuses a store inside a transaction above READ COMMITTED, so a store waiting on the changeset cannot add a second receipt', function (string $second, string $isolation): void {
+    app(PartitionFixtures::class)->cover(new DateTimeImmutable('2026-01-01T00:00:00Z'), new DateTimeImmutable('2026-01-31T23:59:59Z'));
+    $clock = new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z'));
+    $harness = PostgresReceiptSessions::at($clock);
+    $receipt = ReceiptTables::receipt('2026-01-01T00:00:00Z');
+    $changesetId = $receipt->changesetId;
+
+    $holder = $harness->session();
+    $holder->begin();
+    $holder->receipts()->store($receipt);
+
+    // The child's snapshot is taken by its first statement, at the latest the lock statement,
+    // before it waits for the holder. A lookup on that snapshot misses the holder's receipt once it
+    // commits: in the other class the insert then stores a second receipt, in the same class it
+    // fails to serialise. The store must refuse the level before it waits instead.
+    $child = receiptChild('store', $changesetId->toString(), '2026-01-01T00:00:01Z', $second, isolation: $isolation);
+    waitForReceiptLockWaiterOrCommit($child);
+    $holder->commit();
+    $child->waitForSignal('committed');
+
+    expect($child->signals())->toBe(['begun', 'refused', 'committed'])
+        ->and(ReceiptTables::rows(PostgresReceiptStore::RECEIPTS, $changesetId))->toBe(1)
+        ->and(ReceiptTables::rows(PostgresReceiptStore::PROJECTIONS, $changesetId))->toBe(3)
+        ->and($harness->session()->receipts()->find($changesetId))->toEqual($receipt);
+})->with([
+    'the other retention class' => ['evidence'],
+    'the same retention class' => ['standard'],
+])->with([
+    'repeatable read' => ['repeatable read'],
+    'serializable' => ['serializable'],
+]);
+
+it('throws UnsupportedIsolation above READ COMMITTED before it takes the lock, and leaves the transaction usable', function (string $isolation): void {
+    $clock = new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z'));
+    $session = PostgresReceiptSessions::at($clock)->session();
+    $receipt = ReceiptTables::receipt('2026-01-01T00:00:00Z');
+
+    $session->begin();
+    $session->connection->statement("set transaction isolation level {$isolation}");
+
+    try {
+        $session->receipts()->store($receipt);
+        throw new AssertionFailedError('A store ran outside READ COMMITTED.');
+    } catch (UnsupportedIsolation $unsupported) {
+        expect($unsupported->getMessage())->toContain(strtoupper($isolation));
+    }
+
+    expect(heldAdvisoryLocks($session->connection))->toBe(0);
+
+    $session->connection->table(ReceiptTables::CALLER_TABLE)->insert(['id' => 1, 'note' => 'after the refusal']);
+    $session->commit();
+
+    expect(ReceiptTables::rows(PostgresReceiptStore::RECEIPTS, $receipt->changesetId))->toBe(0)
+        ->and(ReceiptTables::callerRows())->toBe(1);
+})->with(['repeatable read', 'serializable']);
 
 it('refuses a store outside a transaction before its first statement, so no lock is left on a backend behind a pooler in transaction mode', function (): void {
     $clock = new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z'));

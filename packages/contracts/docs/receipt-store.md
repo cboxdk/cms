@@ -28,6 +28,8 @@ A second receipt for a changeset throws `DuplicateReceipt` (in `Cbox\Cms\Contrac
 
 `markProjection()` runs inside the caller's transaction when one is open, and without one it commits on its own, as a subscriber calls it. `find()` reads on the same connection, so it sees the caller's uncommitted writes and no one else's.
 
+`store()` on a database needs READ COMMITTED, the level of the command transaction. After waiting for another transaction that stored the changeset, it looks for that transaction's receipt, and only a new snapshot per statement shows it: under REPEATABLE READ or SERIALIZABLE the snapshot is older than the wait. The default store therefore throws `Cbox\Cms\Contracts\Consistency\UnsupportedIsolation` at those levels, before it waits, and stores nothing; the caller's transaction stays usable.
+
 ## Marking projections
 
 `markProjection()` records the status of one projection; the status names the projection, and the statuses of the other projections are not touched. The call is idempotent, so a subscriber can repeat it after a crash. An acknowledgement is final: marking an acknowledged projection again, pending or acknowledged at another time, changes nothing, and the first time is kept.

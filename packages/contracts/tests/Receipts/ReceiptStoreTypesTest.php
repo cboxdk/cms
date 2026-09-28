@@ -7,6 +7,7 @@ namespace Cbox\Cms\Contracts\Tests\Receipts;
 use Cbox\Cms\Contracts\Consistency\DuplicateReceipt;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
 use Cbox\Cms\Contracts\Consistency\TransactionRequired;
+use Cbox\Cms\Contracts\Consistency\UnsupportedIsolation;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Ids\Uuid7;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
@@ -57,6 +58,14 @@ it('reports a store outside a transaction as a bug in the caller that stored not
 
     expect($refused)->toBeInstanceOf(LogicException::class)
         ->and($refused->getMessage())->toBe('ReceiptStore::store() runs inside the caller\'s command transaction, and the connection has none open. The receipt commits and rolls back with its changeset, and the transaction holds the lock that keeps one receipt per changeset. Nothing was stored.');
+});
+
+it('names the isolation level a store refuses and the one it needs', function (): void {
+    $unsupported = UnsupportedIsolation::receiptStore('repeatable read');
+
+    expect($unsupported)->toBeInstanceOf(LogicException::class)
+        ->and($unsupported->getMessage())->toContain('REPEATABLE READ')
+        ->and($unsupported->getMessage())->toContain('needs the caller\'s transaction at READ COMMITTED');
 });
 
 it('has store, find and markProjection with typed ids and no string ids', function (): void {
