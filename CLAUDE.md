@@ -1,6 +1,6 @@
 # laravel-cms
 
-Monorepo for Cbox CMS: the kernel, packages, sidecars and JS packages. Nothing is pushed anywhere; there is no remote yet.
+Monorepo for Cbox CMS: the kernel, packages, sidecars and JS packages. The remote is `origin`, github.com/cboxdk/cms.
 
 ## Sources of truth
 
@@ -13,7 +13,7 @@ These live in the planning repo and are read-only unless a rule below says other
 
 ## Hard rules
 
-- Never `git push`, never add a remote, never publish packages. Commit locally only.
+- Push to `origin` (github.com/cboxdk/cms) is allowed; never force-push, never rewrite pushed history, never publish packages or tag releases without Sylvester.
 - Never change the cboxdk ecosystem repos (laravel-id, laravel-telemetry and the others); use them as released. Lifting them is a separate track (GUARDRAILS 1.7). If a package lacks something, record it in `PROGRESS.md`.
 - One commit per task, message `<block>-<task>: <what>`, for example `M1-T3: command envelope and idempotency store`.
 - Follow GUARDRAILS 7.3: never weaken a check that verifies your own change (analysis config, test filters, snapshots, architecture tests, CI). If you believe a check is wrong, leave it, and add the case under "Til review af Sylvester" in `PROGRESS.md`.

@@ -27,7 +27,7 @@ const EXIT_ONLY = Boolean(args && args.exitOnly)
 const REPO = '/Users/sylvester/Projects/laravel-cms'
 const WT_ROOT = '/Users/sylvester/Projects/laravel-cms-worktrees'
 const PLAN_REPO = '/Users/sylvester/Projects/cbox-cms'
-const CONTEXT = `The main checkout is ${REPO} (git repo, local only, never push, never add a remote). Planning documents: ${PLAN_REPO}/PRD.md (Danish, architecture), ${PLAN_REPO}/GUARDRAILS.md (coding rules), ${PLAN_REPO}/MILESTONES.md (build order and exit criteria). Working state: ${REPO}/PROGRESS.md; read "Beslutninger fra Sylvester" there. The current block is ${BLOCK} as listed in PROGRESS.md and described in MILESTONES.md. Never change the cboxdk ecosystem repos.`
+const CONTEXT = `The main checkout is ${REPO} (git repo with the remote origin; agents never push, the main session pushes after a block). Planning documents: ${PLAN_REPO}/PRD.md (Danish, architecture), ${PLAN_REPO}/GUARDRAILS.md (coding rules), ${PLAN_REPO}/MILESTONES.md (build order and exit criteria). Working state: ${REPO}/PROGRESS.md; read "Beslutninger fra Sylvester" there. The current block is ${BLOCK} as listed in PROGRESS.md and described in MILESTONES.md. Never change the cboxdk ecosystem repos.`
 
 const wtOf = id => `${WT_ROOT}/${BLOCK}-${id}`
 const branchOf = id => `wip/${BLOCK}-${id}`
