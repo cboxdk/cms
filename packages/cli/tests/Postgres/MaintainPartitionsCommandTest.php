@@ -191,6 +191,34 @@ it('maintains every other table when a listed table has not been migrated yet, p
         ->and(PartitionScratch::partitions(PartitionScratch::UUID_TABLE))->toBe(['partition_scratch_p20260110', 'partition_scratch_p20260111']);
 });
 
+it('maintains every other table when Postgres refuses a step of one table, prints why, and then exits 78', function (): void {
+    PartitionScratch::manage([
+        PartitionScratch::UUID_TABLE => PartitionScratch::daily(),
+        PartitionScratch::TIME_TABLE => PartitionScratch::daily(['key' => 'timestamp']),
+    ], ['runway_days' => 1]);
+    PartitionScratch::clockAt('2026-01-10T10:00:00Z');
+
+    // A view holds the managed name of the uuid table's second partition in the runway. The
+    // catalog lists only tables, so the run tries to create it, and Postgres refuses with 42P07.
+    PartitionScratch::owner()->statement('create view partition_scratch_p20260111 as select * from partition_scratch_ts');
+
+    [$status, $output] = maintainCommand();
+
+    expect($status)->toBe(MaintainPartitionsCommand::EXIT_UNMANAGEABLE)
+        ->and(array_slice($output, 0, 8))->toBe([
+            'created partition_scratch.partition_scratch_p20260110',
+            'created partition_scratch_ts.partition_scratch_ts_p20260110',
+            'created partition_scratch_ts.partition_scratch_ts_p20260111',
+            'analyzed partition_scratch',
+            'analyzed partition_scratch_ts',
+            'runway partition_scratch until 2026-01-11T00:00:00Z',
+            'runway partition_scratch_ts until 2026-01-12T00:00:00Z',
+            'Partitions maintained as role cms_owner: 3 changes.',
+        ])
+        ->and(implode("\n", array_slice($output, 8)))->toStartWith('['.UnmanageableTable::CODE.'] Postgres refused the step "create" for the partition "partition_scratch_p20260111" of "partition_scratch". Postgres said: SQLSTATE[42P07]')
+        ->and(PartitionScratch::partitions(PartitionScratch::TIME_TABLE))->toBe(['partition_scratch_ts_p20260110', 'partition_scratch_ts_p20260111']);
+});
+
 it('exits 78 without a stack trace when the owner connection is inside a transaction, and changes nothing', function (): void {
     PartitionScratch::clockAt('2026-01-10T10:00:00Z');
     $owner = PartitionScratch::owner();

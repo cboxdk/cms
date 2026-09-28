@@ -78,6 +78,22 @@ it('turns an UnmanageableTable into a FailedTable of the table, its partition an
         ->toEqual(new FailedTable('audit', null, UnmanageableTable::missing('audit', 'pgsql_owner')->getMessage(), null));
 });
 
+it('names the step, the partition, the table and Postgres\'s refusal when Postgres refuses a step, and keeps the refusal as the cause', function (): void {
+    $refusal = queryError('2BP01', 'cannot drop table receipts_p20260101 because other objects depend on it');
+    $refused = UnmanageableTable::stepRefused('receipts', DdlStep::Drop, 'receipts_p20260101', $refusal);
+    $failed = FailedTable::of('receipts', $refused);
+
+    expect($refused->getMessage())->toBe(sprintf(
+        '[partition_table_unmanageable] Postgres refused the step "drop" for the partition "receipts_p20260101" of "receipts". Postgres said: %s. The run went on with the other tables. Remove what Postgres names, such as an object that depends on the partition or a relation that holds its managed name, and run partition maintenance again.',
+        $refusal->getMessage(),
+    ))
+        ->and($refused->partition)->toBe('receipts_p20260101')
+        ->and($refused->getPrevious())->toBe($refusal)
+        ->and($failed)->toEqual(new FailedTable('receipts', 'receipts_p20260101', $refused->getMessage(), $refusal->getMessage()))
+        ->and(UnmanageableTable::stepRefused('receipts', DdlStep::Create, 'receipts_p20260102', $refusal)->getMessage())
+        ->toStartWith('[partition_table_unmanageable] Postgres refused the step "create" for the partition "receipts_p20260102" of "receipts".');
+});
+
 it('turns a LockTimeout into a GaveUpStep of its values and the message of its cause, without the exceptions', function (): void {
     $timeout = LockTimeout::gaveUp(DdlStep::Create, 'receipts', 'receipts_p20260101', 3, '2s', queryError('55P03', 'canceling statement due to lock timeout'));
     $step = GaveUpStep::of($timeout);

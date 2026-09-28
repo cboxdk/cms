@@ -10,15 +10,17 @@ use Throwable;
 
 /**
  * A table in the partition policy cannot be managed as it is in the database: it is missing, not
- * partitioned by range or has a DEFAULT partition, or a detached table with the managed name of a
- * partition it needs cannot be attached again.
+ * partitioned by range or has a DEFAULT partition, a detached table with the managed name of a
+ * partition it needs cannot be attached again, or Postgres refused a step on one of its
+ * partitions for another reason than a lock wait.
  *
  * It stops that table only. The partition manager records it in the report's failed list as a
  * FailedTable and goes on with the other tables, as it does with a LockTimeout: one table an
- * operator has to fix must not use up the runway of the others. A missing, list-partitioned or
- * DEFAULT-partitioned table gets no phase of the run; a detached partition that cannot be
- * attached again ends the create phase for its table, with the changes made before it kept, and
- * the table is still retired. Only inTransaction() stops the whole run, before it changes anything.
+ * operator has to fix must not use up the runway of the others, or keep them from retirement. A
+ * missing, list-partitioned or DEFAULT-partitioned table gets no phase of the run. A detached
+ * partition that cannot be attached again, or a refused step, ends the phase it happened in for
+ * its table, with the changes made before it kept, and the table's next phase still runs. Only
+ * inTransaction() stops the whole run, before it changes anything.
  */
 #[Experimental]
 final class UnmanageableTable extends LogicException
@@ -88,6 +90,25 @@ final class UnmanageableTable extends LogicException
             $table,
             $from,
             $to,
+            $refusal->getMessage(),
+        ), $refusal);
+    }
+
+    /**
+     * Postgres refused a step on a partition of the table for another reason than a lock wait,
+     * such as a DROP TABLE that an object depending on the partition blocks, or a CREATE TABLE of
+     * a managed name that another relation holds: a view, or a partition of another parent. Every
+     * later run fails at the same step until an operator removes the cause.
+     *
+     * @param  Throwable  $refusal  Postgres's error from the step
+     */
+    public static function stepRefused(string $table, DdlStep $step, string $partition, Throwable $refusal): self
+    {
+        return new self($partition, sprintf(
+            'Postgres refused the step "%s" for the partition "%s" of "%s". Postgres said: %s. The run went on with the other tables. Remove what Postgres names, such as an object that depends on the partition or a relation that holds its managed name, and run partition maintenance again.',
+            $step->value,
+            $partition,
+            $table,
             $refusal->getMessage(),
         ), $refusal);
     }

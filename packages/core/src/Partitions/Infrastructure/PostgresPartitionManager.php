@@ -56,9 +56,12 @@ use LogicException;
  * A table the run cannot manage stops that table only, for the same reason: the UnmanageableTable
  * goes in the report as a FailedTable. A table that is missing, not partitioned by range or has a
  * DEFAULT partition gets no phase, and a detached table with a managed name that Postgres refuses
- * to attach ends the create phase of its table, which is still retired. A table listed before its
- * migration has run, or a stray table in one table's runway, must not stop the partitions of
- * every other table.
+ * to attach ends the create phase of its table, which is still retired. So does a step on a
+ * partition that Postgres refuses for another reason than a lock wait: it ends that phase of its
+ * table, as UnmanageableTable::stepRefused(). A table listed before its migration has run, a
+ * stray relation in one table's runway, or an object that depends on one expired partition, must
+ * not stop the partitions of every other table. Each step runs outside a transaction, or in one
+ * that LockedDdl rolls back when it fails, so the run can go on.
  *
  * Autovacuum analyzes the partitions but never a partitioned table (PRD 4.2: vacuum and
  * statistics), so a maintain run ends with ANALYZE on the root of each partition tree whose
@@ -109,9 +112,10 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
 
     /**
      * Runs each phase over every table, in policy order, before the next phase starts. A phase
-     * that gives up on a table's lock, or finds that a table cannot be managed, is recorded in the
-     * report, and the run goes on with the next table: a busy or broken table must not keep the
-     * others from their runway. A table that cannot be read from the catalog gets no phase.
+     * that gives up on a table's lock, or finds that a table cannot be managed or that Postgres
+     * refuses one of its steps, is recorded in the report, and the run goes on with the next
+     * table: a busy or broken table must not keep the others from their runway or retirement. A
+     * table that cannot be read from the catalog gets no phase.
      *
      * @param  DateTimeImmutable  $now  the instant the report measures each table's runway from
      * @param  bool  $analyze  whether the run ends with ANALYZE on the partition trees it changed
@@ -201,9 +205,9 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
      *
      * @param  list<Partition>  $wanted
      *
-     * @throws UnmanageableTable when Postgres refuses to attach such a table for its span; the
-     *                           partitions before it are kept, and the run records it and goes on
-     *                           with the next table
+     * @throws UnmanageableTable when Postgres refuses to create a partition, or to attach such a
+     *                           table for its span; the partitions before it are kept, and the run
+     *                           records it and goes on with the next table
      */
     private function create(Run $run, CatalogTable $table, array $wanted): void
     {
@@ -221,7 +225,7 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
             }
 
             if ($state === null) {
-                $run->ddl->run(DdlStep::Create, $table->table->name, $partition->name, function () use ($run, $table, $partition): void {
+                $this->step($run, DdlStep::Create, $table, $partition, function () use ($run, $table, $partition): void {
                     $this->createPartition($run->connection, $table, $partition);
                 });
 
@@ -314,6 +318,13 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
         $connection->commit();
     }
 
+    /**
+     * Detaches and drops each expired partition, in name order.
+     *
+     * @throws UnmanageableTable when Postgres refuses to detach or drop one, such as a DROP that a
+     *                           view on the partition blocks; the partitions before it are gone,
+     *                           and the run records it and goes on with the next table
+     */
     private function retire(Run $run, CatalogTable $table, DateTimeImmutable $now): void
     {
         foreach ($run->catalog->partitions($table) as $found) {
@@ -327,7 +338,7 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
                 $this->detach($run, $table, $partition);
             }
 
-            $run->ddl->run(DdlStep::Drop, $table->table->name, $partition->name, static function () use ($run, $table, $partition): void {
+            $this->step($run, DdlStep::Drop, $table, $partition, static function () use ($run, $table, $partition): void {
                 $run->connection->statement(sprintf('drop table %s', $table->qualifiedPartition($partition->name)));
             });
 
@@ -338,12 +349,14 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
     /**
      * Detaches the partition, or finalizes a detach that stopped halfway. The state is read again
      * on every attempt, because an attempt can stop after the detach's first phase.
+     *
+     * @throws UnmanageableTable when Postgres refuses the detach or the finalize
      */
     private function detach(Run $run, CatalogTable $table, Partition $partition): void
     {
         $done = PartitionChangeKind::Detached;
 
-        $run->ddl->run(DdlStep::Detach, $table->table->name, $partition->name, function () use ($run, $table, $partition, &$done): void {
+        $this->step($run, DdlStep::Detach, $table, $partition, function () use ($run, $table, $partition, &$done): void {
             $state = $run->catalog->state($table, $partition->name);
 
             if ($state === PartitionState::Attached) {
@@ -404,6 +417,24 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
             }
 
             $run->analyzed($table->root);
+        }
+    }
+
+    /**
+     * Runs one step on a partition of the table under LockedDdl. Postgres refusing it for another
+     * reason than a lock wait is a problem of this table for an operator, not of the run.
+     *
+     * @param  Closure(): void  $work
+     *
+     * @throws LockTimeout when the step gives up on its lock
+     * @throws UnmanageableTable when Postgres refuses the step
+     */
+    private function step(Run $run, DdlStep $step, CatalogTable $table, Partition $partition, Closure $work): void
+    {
+        try {
+            $run->ddl->run($step, $table->table->name, $partition->name, $work);
+        } catch (QueryException $refused) {
+            throw UnmanageableTable::stepRefused($table->table->name, $step, $partition->name, $refused);
         }
     }
 

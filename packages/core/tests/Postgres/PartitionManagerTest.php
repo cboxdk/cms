@@ -694,6 +694,86 @@ it('records a detached table with a managed name in the runway that its span can
         ->and(PartitionScratch::partitions(PartitionScratch::UUID_TABLE))->not->toContain('partition_scratch_p20260311');
 });
 
+it('records a partition whose DROP Postgres refuses because a view depends on it, keeps it detached, and still retires the tables after it', function (): void {
+    PartitionScratch::manage([
+        PartitionScratch::UUID_TABLE => PartitionScratch::daily(['retention_days' => 7]),
+        PartitionScratch::TIME_TABLE => PartitionScratch::daily(['key' => 'timestamp', 'retention_days' => 7]),
+    ]);
+    PartitionScratch::clockAt('2026-01-10T00:00:00Z');
+    app(MaintainPartitions::class)->cover(new PartitionRange(new DateTimeImmutable('2026-01-01T00:00:00Z'), new DateTimeImmutable('2026-01-02T00:00:00Z')));
+    $owner = PartitionScratch::owner();
+    $owner->statement('create view partition_scratch_keep_old as select * from partition_scratch_p20260101');
+
+    // At 2026-01-20 with 7 days of retention, the partitions of 2026-01-01 and 2026-01-02 of both
+    // tables have expired. The uuid table comes first in the policy.
+    PartitionScratch::clockAt('2026-01-20T00:00:00Z');
+
+    $report = app(MaintainPartitions::class)->maintain();
+
+    expect($report->isComplete())->toBeFalse()
+        ->and($report->gaveUp)->toBe([])
+        ->and($report->failed)->toHaveCount(1)
+        ->and($report->failed[0]->table)->toBe(PartitionScratch::UUID_TABLE)
+        ->and($report->failed[0]->partition)->toBe('partition_scratch_p20260101')
+        ->and($report->failed[0]->message)->toStartWith('['.UnmanageableTable::CODE.'] Postgres refused the step "drop" for the partition "partition_scratch_p20260101" of "partition_scratch"')
+        ->and($report->failed[0]->cause)->toStartWith('SQLSTATE[2BP01]')
+        ->and($report->partitions(PartitionChangeKind::Detached))->toBe(['partition_scratch_p20260101', 'partition_scratch_ts_p20260101', 'partition_scratch_ts_p20260102'])
+        ->and($report->partitions(PartitionChangeKind::Dropped))->toBe(['partition_scratch_ts_p20260101', 'partition_scratch_ts_p20260102'])
+        ->and(array_map(static fn (TableRunway $runway): array => [$runway->table, $runway->coveredUntil?->format(DATE_ATOM)], $report->runways))->toBe([
+            [PartitionScratch::UUID_TABLE, '2026-02-04T00:00:00+00:00'],
+            [PartitionScratch::TIME_TABLE, '2026-02-04T00:00:00+00:00'],
+        ])
+        ->and(PartitionScratch::exists('partition_scratch_p20260101'))->toBeTrue()
+        ->and(PartitionScratch::isPartition('partition_scratch_p20260101'))->toBeFalse()
+        ->and(PartitionScratch::isPartition('partition_scratch_p20260102'))->toBeTrue()
+        ->and(PartitionScratch::exists('partition_scratch_ts_p20260101'))->toBeFalse()
+        ->and(PartitionScratch::exists('partition_scratch_ts_p20260102'))->toBeFalse();
+
+    $owner->statement('drop view partition_scratch_keep_old');
+
+    $next = app(MaintainPartitions::class)->maintain();
+
+    expect($next->isComplete())->toBeTrue()
+        ->and($next->partitions(PartitionChangeKind::Detached))->toBe(['partition_scratch_p20260102'])
+        ->and($next->partitions(PartitionChangeKind::Dropped))->toBe(['partition_scratch_p20260101', 'partition_scratch_p20260102'])
+        ->and(PartitionScratch::exists('partition_scratch_p20260101'))->toBeFalse()
+        ->and(PartitionScratch::exists('partition_scratch_p20260102'))->toBeFalse();
+});
+
+it('records a managed name in the runway that another relation holds, which the catalog does not list, and keeps the runway of the tables after it', function (string $holder): void {
+    PartitionScratch::clockAt('2026-03-10T15:00:00Z');
+    $owner = PartitionScratch::owner();
+
+    foreach (explode(';', $holder) as $statement) {
+        $owner->statement($statement);
+    }
+
+    PartitionScratch::manage([
+        PartitionScratch::UUID_TABLE => PartitionScratch::daily(),
+        PartitionScratch::TIME_TABLE => PartitionScratch::daily(['key' => 'timestamp', 'interval' => 'month']),
+    ]);
+
+    $report = app(MaintainPartitions::class)->maintain();
+
+    expect($report->isComplete())->toBeFalse()
+        ->and($report->gaveUp)->toBe([])
+        ->and($report->failed)->toHaveCount(1)
+        ->and($report->failed[0]->table)->toBe(PartitionScratch::UUID_TABLE)
+        ->and($report->failed[0]->partition)->toBe('partition_scratch_p20260312')
+        ->and($report->failed[0]->message)->toStartWith('['.UnmanageableTable::CODE.'] Postgres refused the step "create" for the partition "partition_scratch_p20260312" of "partition_scratch"')
+        ->and($report->failed[0]->cause)->toStartWith('SQLSTATE[42P07]')
+        ->and($report->partitions(PartitionChangeKind::Created))->toBe(['partition_scratch_p20260310', 'partition_scratch_p20260311', 'partition_scratch_ts_p202603'])
+        ->and(array_map(static fn (TableRunway $runway): array => [$runway->table, $runway->coveredUntil?->format(DATE_ATOM)], $report->runways))->toBe([
+            [PartitionScratch::UUID_TABLE, '2026-03-12T00:00:00+00:00'],
+            [PartitionScratch::TIME_TABLE, '2026-04-01T00:00:00+00:00'],
+        ])
+        ->and(PartitionScratch::partitions(PartitionScratch::UUID_TABLE))->toBe(dailyNames('2026-03-10', 2))
+        ->and(PartitionScratch::exists('partition_scratch_p20260312'))->toBeTrue();
+})->with([
+    'a partition of another parent' => ['create table partition_scratch_other (id uuid not null) partition by range (id);create table partition_scratch_p20260312 partition of partition_scratch_other for values from (minvalue) to (maxvalue)'],
+    'a view' => ['create view partition_scratch_p20260312 as select * from partition_scratch_ts'],
+]);
+
 it('refuses to run on the app connection, before it changes anything', function (): void {
     PartitionScratch::clockAt('2026-03-10T15:00:00Z');
     PartitionScratch::manage([PartitionScratch::UUID_TABLE => PartitionScratch::daily()], ['owner_connection' => 'pgsql']);
