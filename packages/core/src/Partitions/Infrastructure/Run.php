@@ -16,13 +16,17 @@ use Illuminate\Database\Connection;
 
 /**
  * One run of the partition manager: its connection, catalog, DDL runner, the changes so far, the
- * steps that gave up on a busy lock and the tables it could not manage.
+ * partition trees it analyzed, the steps that gave up on a busy lock and the tables it could not
+ * manage.
  */
 #[Internal]
 final class Run
 {
     /** @var list<PartitionChange> */
     private array $changes = [];
+
+    /** @var list<string> */
+    private array $analyzed = [];
 
     /** @var list<GaveUpStep> */
     private array $gaveUp = [];
@@ -47,6 +51,30 @@ final class Run
     public function changes(): array
     {
         return $this->changes;
+    }
+
+    /**
+     * Whether the run changed a partition of the table.
+     */
+    public function changed(CatalogTable $table): bool
+    {
+        return array_any($this->changes, fn (PartitionChange $change): bool => $change->table === $table->table->name);
+    }
+
+    /**
+     * Records the root of a partition tree the run analyzed.
+     */
+    public function analyzed(string $root): void
+    {
+        $this->analyzed[] = $root;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function treesAnalyzed(): array
+    {
+        return $this->analyzed;
     }
 
     /**

@@ -59,6 +59,15 @@ use LogicException;
  * to attach ends the create phase of its table, which is still retired. A table listed before its
  * migration has run, or a stray table in one table's runway, must not stop the partitions of
  * every other table.
+ *
+ * Autovacuum analyzes the partitions but never a partitioned table (PRD 4.2: vacuum and
+ * statistics), so a maintain run ends with ANALYZE on the root of each partition tree whose
+ * partitions it changed, still under the maintenance lock and LockedDdl. ANALYZE of a partitioned
+ * table updates the statistics of every partitioned table below it and of every partition, so
+ * `receipts` covers `receipts_standard` and `receipts_evidence`, and a root that two managed tables
+ * share is analyzed once. ANALYZE ONLY, which would skip the partitions, is Postgres 18 and later.
+ * A run that changed nothing analyzes nothing, so the parents are analyzed about once per
+ * interval, when the runway moves. A cover run creates partitions only and analyzes nothing.
  */
 #[Internal]
 final readonly class PostgresPartitionManager implements PartitionMaintenance
@@ -77,6 +86,7 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
 
         return $this->run(
             $now,
+            true,
             function (Run $run, CatalogTable $table) use ($now, $until): void {
                 $this->create($run, $table, $table->table->partitionsCovering($now, $until));
             },
@@ -92,7 +102,7 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
             $table->partitionsCovering($range->from, $range->to);
         }
 
-        return $this->run($now, function (Run $run, CatalogTable $table) use ($range): void {
+        return $this->run($now, false, function (Run $run, CatalogTable $table) use ($range): void {
             $this->create($run, $table, $table->table->partitionsCovering($range->from, $range->to));
         });
     }
@@ -104,9 +114,10 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
      * others from their runway. A table that cannot be read from the catalog gets no phase.
      *
      * @param  DateTimeImmutable  $now  the instant the report measures each table's runway from
+     * @param  bool  $analyze  whether the run ends with ANALYZE on the partition trees it changed
      * @param  Closure(Run, CatalogTable): void  ...$phases
      */
-    private function run(DateTimeImmutable $now, Closure ...$phases): PartitionReport
+    private function run(DateTimeImmutable $now, bool $analyze, Closure ...$phases): PartitionReport
     {
         $connection = $this->ownerConnection();
         $catalog = new PartitionCatalog($connection);
@@ -143,6 +154,10 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
                     }
                 }
             }
+
+            if ($analyze) {
+                $this->analyze($run, $tables);
+            }
         } finally {
             $connection->select('select pg_advisory_unlock(?)', [self::ADVISORY_LOCK], false);
         }
@@ -153,6 +168,7 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
             runways: array_map(fn (CatalogTable $table): TableRunway => $this->runway($catalog, $table, $now), $tables),
             gaveUp: $run->stepsGivenUp(),
             failed: $run->tablesFailed(),
+            analyzed: $run->treesAnalyzed(),
         );
     }
 
@@ -353,6 +369,42 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
         });
 
         $run->record($table, $partition, $done);
+    }
+
+    /**
+     * Runs ANALYZE on the root of each partition tree whose partitions the run changed, once per
+     * root, in policy order. A root whose lock stays busy on every attempt gives up for that root
+     * only: the LockTimeout goes in the report and the next root is analyzed. ANALYZE takes SHARE
+     * UPDATE EXCLUSIVE on each table of the tree in turn, so it waits for DDL and for another
+     * ANALYZE or VACUUM, never for reads and writes.
+     *
+     * @param  list<CatalogTable>  $tables
+     */
+    private function analyze(Run $run, array $tables): void
+    {
+        $done = [];
+
+        foreach ($tables as $table) {
+            $root = $table->qualifiedRoot();
+
+            if (isset($done[$root]) || ! $run->changed($table)) {
+                continue;
+            }
+
+            $done[$root] = true;
+
+            try {
+                $run->ddl->run(DdlStep::Analyze, $table->root, null, static function () use ($run, $root): void {
+                    $run->connection->statement(sprintf('analyze %s', $root));
+                });
+            } catch (LockTimeout $timeout) {
+                $run->gaveUp($timeout);
+
+                continue;
+            }
+
+            $run->analyzed($table->root);
+        }
     }
 
     /**

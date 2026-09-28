@@ -43,7 +43,7 @@ final readonly class PartitionCatalog
 
     /**
      * The managed table in the connection's search path, checked: it exists, it is partitioned
-     * by range, and it has no DEFAULT partition.
+     * by range, and it has no DEFAULT partition. The root of its partition tree comes with it.
      */
     public function table(PartitionedTable $table): CatalogTable
     {
@@ -55,11 +55,15 @@ final readonly class PartitionCatalog
                        c.relrowsecurity as row_security,
                        c.relforcerowsecurity as force_row_security,
                        pt.partstrat::text as strategy,
-                       d.relname::text as default_partition
+                       d.relname::text as default_partition,
+                       rn.nspname::text as root_schema,
+                       r.relname::text as root
                 from pg_class c
                 join pg_namespace n on n.oid = c.relnamespace
                 left join pg_partitioned_table pt on pt.partrelid = c.oid
                 left join pg_class d on d.oid = pt.partdefid
+                left join pg_class r on r.oid = pg_partition_root(c.oid)
+                left join pg_namespace rn on rn.oid = r.relnamespace
                 where c.oid = to_regclass(?)
                 SQL,
             [Sql::identifier($table->name)],
@@ -88,6 +92,8 @@ final readonly class PartitionCatalog
             schema: $row->string('schema'),
             rowSecurity: $row->bool('row_security'),
             forceRowSecurity: $row->bool('force_row_security'),
+            rootSchema: $row->string('root_schema'),
+            root: $row->string('root'),
         );
     }
 

@@ -34,10 +34,12 @@ use Override;
  * session holding a lock on a table, so the next step that creates or detaches a partition of it
  * gives up. Both give up with LockTimeout after the policy's attempts and change nothing in that
  * step, as the real manager does: the run lock is thrown, a table's lock is in the report's
- * gaveUp as a GaveUpStep while the run goes on with the other tables. dropTable() is a table of
- * the policy that is not in the database, such as one whose migration has not run: the run records
- * it in the report's failed as a FailedTable, gives it no phase and no runway, and goes on with the
- * other tables. A policy on the application's connection is refused with OwnerConnectionRequired.
+ * gaveUp as a GaveUpStep while the run goes on with the other tables. A maintain run ends by
+ * analyzing each table whose partitions it changed, in policy order, and names them in the report's
+ * analyzed; each managed table is the root of its own tree here, and a locked table gives up at the
+ * analyze step as well. dropTable() is a table of the policy that is not in the database, such as
+ * one whose migration has not run: the run records it in the report's failed as a FailedTable,
+ * gives it no phase and no runway, and goes on with the other tables. A policy on the application's connection is refused with OwnerConnectionRequired.
  * PartitionMaintenanceBehaviour holds it to PostgresPartitionManager.
  *
  * It does not model a detach that an earlier run left pending, or a table that exists but that
@@ -77,6 +79,7 @@ final class FakePartitionMaintenance implements PartitionMaintenance
 
         return $this->run(
             $now,
+            true,
             function (PartitionedTable $table) use ($now, $until): void {
                 $this->create($table, $table->partitionsCovering($now, $until));
             },
@@ -93,7 +96,7 @@ final class FakePartitionMaintenance implements PartitionMaintenance
             $table->partitionsCovering($range->from, $range->to);
         }
 
-        return $this->run($now, function (PartitionedTable $table) use ($range): void {
+        return $this->run($now, false, function (PartitionedTable $table) use ($range): void {
             $this->create($table, $table->partitionsCovering($range->from, $range->to));
         });
     }
@@ -151,9 +154,10 @@ final class FakePartitionMaintenance implements PartitionMaintenance
      * Runs each phase over every table before the next phase, and records a table that gives up
      * or is missing instead of stopping the run, as the Postgres manager does.
      *
+     * @param  bool  $analyze  whether the run ends by analyzing the tables it changed
      * @param  Closure(PartitionedTable): void  ...$phases
      */
-    private function run(DateTimeImmutable $now, Closure ...$phases): PartitionReport
+    private function run(DateTimeImmutable $now, bool $analyze, Closure ...$phases): PartitionReport
     {
         if ($this->policy->ownerConnection === $this->appConnection) {
             throw OwnerConnectionRequired::appConnection($this->policy->ownerConnection);
@@ -188,13 +192,35 @@ final class FakePartitionMaintenance implements PartitionMaintenance
             }
         }
 
+        $analyzed = [];
+
+        foreach ($analyze ? $tables : [] as $table) {
+            if (! $this->changed($table)) {
+                continue;
+            }
+
+            if (isset($this->lockedTables[$table->name])) {
+                $gaveUp[] = GaveUpStep::of($this->gaveUp(DdlStep::Analyze, $table->name, null));
+
+                continue;
+            }
+
+            $analyzed[] = $table->name;
+        }
+
         return new PartitionReport(
             role: $this->role,
             changes: $this->changes,
             runways: array_map(fn (PartitionedTable $table): TableRunway => $this->runway($table, $now), $tables),
             gaveUp: $gaveUp,
             failed: $failed,
+            analyzed: $analyzed,
         );
+    }
+
+    private function changed(PartitionedTable $table): bool
+    {
+        return array_any($this->changes, fn (PartitionChange $change): bool => $change->table === $table->name);
     }
 
     /**

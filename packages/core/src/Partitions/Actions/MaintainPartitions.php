@@ -24,7 +24,8 @@ final readonly class MaintainPartitions
     ) {}
 
     /**
-     * Creates the runway ahead of the Clock and removes the partitions past retention.
+     * Creates the runway ahead of the Clock, removes the partitions past retention and analyzes
+     * the partition trees it changed.
      */
     public function maintain(): PartitionReport
     {

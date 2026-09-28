@@ -53,6 +53,7 @@ it('maintains partitions at the Clock\'s time and prints what it did', function 
             'created partition_scratch.partition_scratch_p20260103',
             'detached partition_scratch.partition_scratch_p20251201',
             'dropped partition_scratch.partition_scratch_p20251201',
+            'analyzed partition_scratch',
             'runway partition_scratch until 2026-01-04T00:00:00Z',
             'Partitions maintained as role cms_owner: 5 changes.',
         ]]);
@@ -145,21 +146,24 @@ it('maintains every other table when one table\'s lock stays busy, prints what i
     $other->rollBack();
 
     expect($status)->toBe(MaintainPartitionsCommand::EXIT_LOCK_TIMEOUT)
-        ->and(array_slice($output, 0, 7))->toBe([
+        ->and(array_slice($output, 0, 9))->toBe([
             'created partition_scratch.partition_scratch_p20260110',
             'created partition_scratch.partition_scratch_p20260111',
             'created partition_scratch_ts.partition_scratch_ts_p20260110',
             'created partition_scratch_ts.partition_scratch_ts_p20260111',
+            'analyzed partition_scratch',
+            'analyzed partition_scratch_ts',
             'runway partition_scratch until 2026-01-12T00:00:00Z',
             'runway partition_scratch_ts until 2026-01-12T00:00:00Z',
             'Partitions maintained as role cms_owner: 4 changes.',
         ])
-        ->and(implode("\n", array_slice($output, 7)))->toStartWith('['.LockTimeout::CODE.'] Gave up on step "detach" for partition "partition_scratch_p20260101" of table "partition_scratch"')
+        ->and(implode("\n", array_slice($output, 9)))->toStartWith('['.LockTimeout::CODE.'] Gave up on step "detach" for partition "partition_scratch_p20260101" of table "partition_scratch"')
         ->and(PartitionScratch::partitions(PartitionScratch::UUID_TABLE))->toContain('partition_scratch_p20260101');
 
     expect(maintainCommand())->toBe([0, [
         'detached partition_scratch.partition_scratch_p20260101',
         'dropped partition_scratch.partition_scratch_p20260101',
+        'analyzed partition_scratch',
         'runway partition_scratch until 2026-01-12T00:00:00Z',
         'runway partition_scratch_ts until 2026-01-12T00:00:00Z',
         'Partitions maintained as role cms_owner: 2 changes.',
@@ -179,6 +183,7 @@ it('maintains every other table when a listed table has not been migrated yet, p
         ->and($output)->toBe([
             'created partition_scratch.partition_scratch_p20260110',
             'created partition_scratch.partition_scratch_p20260111',
+            'analyzed partition_scratch',
             'runway partition_scratch until 2026-01-12T00:00:00Z',
             'Partitions maintained as role cms_owner: 2 changes.',
             '['.UnmanageableTable::CODE.'] The table "partition_scratch_audit" is listed in [cbox-cms.database.partitions.tables] but does not exist in the search path of the connection [pgsql_owner]. Run the migrations first.',

@@ -56,7 +56,7 @@ function runPartitionsCommand(array $options = []): array
     return [$status, $lines];
 }
 
-it('creates the runway, prints each change and each table\'s runway, and logs them', function (): void {
+it('creates the runway, prints each change, each table it analyzed and each table\'s runway, and logs them', function (): void {
     [, $logger] = partitionsCommandWith();
 
     [$status, $lines] = runPartitionsCommand();
@@ -65,6 +65,7 @@ it('creates the runway, prints each change and each table\'s runway, and logs th
         ->and($lines)->toBe([
             'created events.events_p20260501',
             'created events.events_p20260502',
+            'analyzed events',
             'runway events until 2026-05-03T00:00:00Z',
             'Partitions maintained as role cms_owner: 2 changes.',
         ])
@@ -72,6 +73,7 @@ it('creates the runway, prints each change and each table\'s runway, and logs th
             'role' => 'cms_owner',
             'changes' => ['created events_p20260501', 'created events_p20260502'],
             'runways' => ['events 2026-05-03T00:00:00Z'],
+            'analyzed' => ['events'],
         ]]]);
 });
 
@@ -89,6 +91,7 @@ it('prints and logs the partitions it detaches and drops past retention', functi
             'created events.events_p20260502',
             'detached events.events_p20260428',
             'dropped events.events_p20260428',
+            'analyzed events',
             'runway events until 2026-05-03T00:00:00Z',
             'Partitions maintained as role cms_owner: 4 changes.',
         ])
@@ -96,11 +99,12 @@ it('prints and logs the partitions it detaches and drops past retention', functi
             'role' => 'cms_owner',
             'changes' => ['created events_p20260501', 'created events_p20260502', 'detached events_p20260428', 'dropped events_p20260428'],
             'runways' => ['events 2026-05-03T00:00:00Z'],
+            'analyzed' => ['events'],
         ]]])
         ->and($partitions->partitions('events'))->toBe(['events_p20260501', 'events_p20260502']);
 });
 
-it('only covers the range of --from and --to, and prints a runway of none when no partition holds now', function (): void {
+it('only covers the range of --from and --to, analyzes nothing, and prints a runway of none when no partition holds now', function (): void {
     [$partitions, $logger] = partitionsCommandWith(retentionDays: 1);
 
     [$status, $lines] = runPartitionsCommand(['--from' => '2024-02-28T23:00:00Z', '--to' => '2024-03-01']);
@@ -117,6 +121,7 @@ it('only covers the range of --from and --to, and prints a runway of none when n
             'role' => 'cms_owner',
             'changes' => ['created events_p20240228', 'created events_p20240229', 'created events_p20240301'],
             'runways' => ['events none'],
+            'analyzed' => [],
         ]]])
         ->and($partitions->partitions('events'))->toBe(['events_p20240228', 'events_p20240229', 'events_p20240301']);
 });
@@ -167,7 +172,7 @@ it('reports the run, then logs the table and partition of a lock that stays busy
         ])
         ->and(implode("\n", array_slice($lines, 2)))->toStartWith('[partition_lock_timeout] Gave up on step "create" for partition "events_p20260501" of table "events"')
         ->and($logger->records)->toBe([
-            ['info', 'Partition maintenance ran.', ['role' => 'cms_owner', 'changes' => [], 'runways' => ['events none']]],
+            ['info', 'Partition maintenance ran.', ['role' => 'cms_owner', 'changes' => [], 'runways' => ['events none'], 'analyzed' => []]],
             ['warning', 'Partition maintenance gave up on a lock.', [
                 'code' => 'partition_lock_timeout',
                 'step' => 'create',
@@ -210,15 +215,16 @@ it('reports the run, then prints and logs each table it could not manage, and ex
     [$status, $lines] = runPartitionsCommand();
 
     expect($status)->toBe(MaintainPartitionsCommand::EXIT_UNMANAGEABLE)
-        ->and(array_slice($lines, 0, 5))->toBe([
+        ->and(array_slice($lines, 0, 6))->toBe([
             'created events.events_p20260501',
             'created events.events_p20260502',
+            'analyzed events',
             'runway events until 2026-05-03T00:00:00Z',
             'runway metrics until none',
             'Partitions maintained as role cms_owner: 2 changes.',
         ])
-        ->and(implode("\n", array_slice($lines, 5)))->toStartWith('[partition_lock_timeout] Gave up on step "create" for partition "metrics_p20260501" of table "metrics"')
-        ->and(implode("\n", array_slice($lines, 5)))->toEndWith('[partition_table_unmanageable] The table "audit" is listed in [cbox-cms.database.partitions.tables] but does not exist in the search path of the connection [pgsql_owner]. Run the migrations first.')
+        ->and(implode("\n", array_slice($lines, 6)))->toStartWith('[partition_lock_timeout] Gave up on step "create" for partition "metrics_p20260501" of table "metrics"')
+        ->and(implode("\n", array_slice($lines, 6)))->toEndWith('[partition_table_unmanageable] The table "audit" is listed in [cbox-cms.database.partitions.tables] but does not exist in the search path of the connection [pgsql_owner]. Run the migrations first.')
         ->and($partitions->partitions('events'))->toBe(['events_p20260501', 'events_p20260502'])
         ->and($logger->records[2])->toBe(['error', 'Partition maintenance could not manage a table.', [
             'code' => 'partition_table_unmanageable',

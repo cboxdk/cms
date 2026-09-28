@@ -32,4 +32,11 @@ enum DdlStep: string
 
     /** DROP TABLE of a detached partition. */
     case Drop = 'drop';
+
+    /**
+     * ANALYZE of the root of a partition tree whose partitions the run changed, which updates the
+     * statistics of every partitioned table in the tree and of its partitions. Autovacuum never
+     * analyzes a partitioned table (PRD 4.2).
+     */
+    case Analyze = 'analyze';
 }

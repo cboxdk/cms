@@ -119,6 +119,35 @@ trait PartitionMaintenanceBehaviour
     }
 
     #[Test]
+    public function maintain_analyzes_each_table_whose_partitions_it_changed_and_cover_analyzes_none(): void
+    {
+        $monthly = new PartitionedTable(self::TIME_TABLE, PartitionKey::Timestamp, PartitionInterval::Month, null);
+        $maintenance = $this->partitionMaintenance($this->policy([$monthly, $this->dailyTable(retentionDays: 1)], runwayDays: 1));
+
+        $covered = $maintenance->cover($this->range('2025-12-01T00:00:00Z', '2025-12-01T00:00:00Z'), new DateTimeImmutable('2025-12-01T00:00:00Z'));
+
+        Assert::assertSame(['created '.self::TIME_TABLE.'_p202512', 'created '.self::UUID_TABLE.'_p20251201'], $this->describe($covered));
+        Assert::assertSame([], $covered->analyzed);
+
+        // Autovacuum never analyzes a partitioned table (PRD 4.2): a maintain run that changed a
+        // table's partitions analyzes it, in policy order.
+        $report = $maintenance->maintain(new DateTimeImmutable('2026-01-20T08:00:00Z'));
+
+        Assert::assertTrue($report->isComplete());
+        Assert::assertSame([self::TIME_TABLE, self::UUID_TABLE], $report->analyzed);
+
+        $unchanged = $maintenance->maintain(new DateTimeImmutable('2026-01-20T09:00:00Z'));
+
+        Assert::assertSame([], $unchanged->changes);
+        Assert::assertSame([], $unchanged->analyzed);
+
+        // The next day moves only the daily table's runway.
+        $nextDay = $maintenance->maintain(new DateTimeImmutable('2026-01-21T08:00:00Z'));
+
+        Assert::assertSame([self::UUID_TABLE], $nextDay->analyzed);
+    }
+
+    #[Test]
     public function cover_creates_exactly_the_partitions_of_the_range_and_removes_nothing(): void
     {
         $maintenance = $this->partitionMaintenance($this->policy([$this->dailyTable(retentionDays: 1)]));

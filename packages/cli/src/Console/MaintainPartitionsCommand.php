@@ -26,9 +26,10 @@ use Psr\Log\LoggerInterface;
  * `cms:partitions:maintain`: keeps the range partitions of the tables in
  * `cbox-cms.database.partitions.tables` (PRD 4, 4.2). The core schedules it every hour.
  *
- * Without options it creates partitions from now to the runway's end and removes those past
- * retention. With --from and --to it only creates the partitions that cover that range, for rows
- * that arrive with past or future keys.
+ * Without options it creates partitions from now to the runway's end, removes those past
+ * retention and runs ANALYZE on the partitioned parents whose partitions it changed, because
+ * autovacuum never analyzes a partitioned table. With --from and --to it only creates the
+ * partitions that cover that range, for rows that arrive with past or future keys.
  *
  * A table whose lock stays busy does not stop the others, and nor does a table it cannot manage
  * (missing, not partitioned by range, with a DEFAULT partition, or a detached table in its runway
@@ -134,6 +135,10 @@ final class MaintainPartitionsCommand extends Command
             $this->line(sprintf('%s %s.%s', $change->kind->value, $change->table, $change->partition));
         }
 
+        foreach ($report->analyzed as $root) {
+            $this->line(sprintf('analyzed %s', $root));
+        }
+
         foreach ($report->runways as $runway) {
             $this->line(sprintf(
                 'runway %s until %s',
@@ -148,6 +153,7 @@ final class MaintainPartitionsCommand extends Command
             'role' => $report->role,
             'changes' => array_map(static fn (PartitionChange $change): string => $change->kind->value.' '.$change->partition, $report->changes),
             'runways' => array_map(static fn (TableRunway $runway): string => $runway->table.' '.($runway->coveredUntil?->format('Y-m-d\TH:i:s\Z') ?? 'none'), $report->runways),
+            'analyzed' => $report->analyzed,
         ]);
     }
 }

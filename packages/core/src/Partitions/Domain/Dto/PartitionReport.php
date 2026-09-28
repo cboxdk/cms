@@ -10,6 +10,10 @@ use Cbox\Cms\Core\Partitions\Domain\PartitionChangeKind;
 /**
  * What one run of partition maintenance did, and as which database role.
  *
+ * A maintain run ends with ANALYZE on the root of each partition tree whose partitions it
+ * changed, because autovacuum never analyzes a partitioned table (PRD 4.2); $analyzed names
+ * them. A cover run creates partitions only and analyzes nothing.
+ *
  * A table whose lock stayed busy does not stop the run: the step that gave up is in $gaveUp, and
  * the run went on with the other tables and the next phase. Nor does a table the run cannot
  * manage: it is in $failed, and the run went on without it. The run is complete when nothing
@@ -29,6 +33,9 @@ final readonly class PartitionReport
      *                                    were tried: at most one per table and phase
      * @param  list<FailedTable>  $failed  the tables the run could not manage, in the order it
      *                                     found them: at most one per table
+     * @param  list<string>  $analyzed  the roots of the partition trees the run analyzed, in the
+     *                                  order it analyzed them: at most once each; a root whose
+     *                                  ANALYZE gave up on a busy lock is in $gaveUp instead
      */
     public function __construct(
         public string $role,
@@ -36,6 +43,7 @@ final readonly class PartitionReport
         public array $runways,
         public array $gaveUp,
         public array $failed,
+        public array $analyzed,
     ) {}
 
     /**

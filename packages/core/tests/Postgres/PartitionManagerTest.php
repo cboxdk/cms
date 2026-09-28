@@ -108,6 +108,17 @@ function holdLock(string $mode): ChildProcess
     return $child;
 }
 
+/**
+ * How often ANALYZE has run on the table, from the cumulative statistics: 0 for a table it has
+ * never run on.
+ */
+function analyzeCount(string $table): int
+{
+    $count = PartitionScratch::owner()->scalar('select coalesce((select analyze_count from pg_stat_all_tables where relid = to_regclass(?)), 0)', [$table]);
+
+    return is_int($count) ? $count : throw new AssertionFailedError('Expected an analyze count.');
+}
+
 function idAt(string $instant): string
 {
     return Uuid7::lowestAt(Uuid7::unixMillisecondsOf(new DateTimeImmutable($instant)))->value;
@@ -196,6 +207,126 @@ it('runs its DDL as the owner role, with lock_timeout 2s set before every step',
 
         expect($setting)->toBe("set lock_timeout = '2s'");
     }
+});
+
+it('runs ANALYZE, under lock_timeout 2s, on a parent whose partitions a maintain run changed, because autovacuum never analyzes a partitioned table', function (): void {
+    PartitionScratch::manage(
+        [
+            PartitionScratch::UUID_TABLE => PartitionScratch::daily(),
+            PartitionScratch::TIME_TABLE => PartitionScratch::daily(['key' => 'timestamp', 'interval' => 'month']),
+        ],
+        ['runway_days' => 1],
+    );
+    PartitionScratch::clockAt('2026-03-10T15:00:00Z');
+
+    $covered = app(MaintainPartitions::class)->cover(new PartitionRange(new DateTimeImmutable('2026-03-01T00:00:00Z'), new DateTimeImmutable('2026-03-01T00:00:00Z')));
+
+    expect($covered->partitions(PartitionChangeKind::Created))->toBe(['partition_scratch_p20260301', 'partition_scratch_ts_p202603'])
+        ->and($covered->analyzed)->toBe([])
+        ->and(analyzeCount(PartitionScratch::UUID_TABLE))->toBe(0);
+
+    PartitionScratch::owner()->insert('insert into partition_scratch (id) values (?)', [idAt('2026-03-01T12:00:00Z')]);
+    PartitionScratch::recordStatements();
+
+    $report = app(MaintainPartitions::class)->maintain();
+
+    // The uuid table got its runway; the monthly table already covered it and changed nothing.
+    expect($report->isComplete())->toBeTrue()
+        ->and($report->changes)->toEqual([
+            new PartitionChange(PartitionScratch::UUID_TABLE, 'partition_scratch_p20260310', PartitionChangeKind::Created),
+            new PartitionChange(PartitionScratch::UUID_TABLE, 'partition_scratch_p20260311', PartitionChangeKind::Created),
+        ])
+        ->and($report->analyzed)->toBe([PartitionScratch::UUID_TABLE])
+        ->and(analyzeCount(PartitionScratch::UUID_TABLE))->toBe(1)
+        ->and(analyzeCount('partition_scratch_p20260301'))->toBe(1)
+        ->and(analyzeCount('partition_scratch_p20260310'))->toBe(1)
+        ->and(analyzeCount(PartitionScratch::TIME_TABLE))->toBe(0)
+        ->and(PartitionScratch::owner()->scalar("select count(*) from pg_stats where schemaname = 'cms' and tablename = 'partition_scratch' and inherited"))->toBeGreaterThan(0);
+
+    // Last, after every create, and with the lock timeout set before it.
+    $owner = PartitionScratch::statements('pgsql_owner');
+    $analyzeAt = array_keys(array_filter($owner, static fn (string $sql): bool => str_starts_with($sql, 'analyze ')));
+    $attachAt = array_keys(array_filter($owner, static fn (string $sql): bool => str_contains($sql, ' attach partition ')));
+
+    expect($analyzeAt)->toHaveCount(1)
+        ->and($owner[$analyzeAt[0]])->toBe('analyze "cms"."partition_scratch"')
+        ->and($attachAt)->toHaveCount(2)
+        ->and($analyzeAt[0])->toBeGreaterThan($attachAt[1])
+        ->and($owner[$analyzeAt[0] - 1])->toBe("set lock_timeout = '2s'");
+
+    $unchanged = app(MaintainPartitions::class)->maintain();
+
+    expect($unchanged->changes)->toBe([])
+        ->and($unchanged->analyzed)->toBe([])
+        ->and(analyzeCount(PartitionScratch::UUID_TABLE))->toBe(1);
+});
+
+it('analyzes the root of a partition tree once, which gives every partitioned table below it statistics, as receipts does for receipts_standard and receipts_evidence', function (): void {
+    $owner = PartitionScratch::owner();
+    $owner->statement('create table partition_scratch_root (kind text not null, id uuid not null) partition by list (kind)');
+    $owner->statement("create table partition_scratch_std partition of partition_scratch_root for values in ('standard') partition by range (id)");
+    $owner->statement("create table partition_scratch_evi partition of partition_scratch_root for values in ('evidence') partition by range (id)");
+    PartitionScratch::manage(
+        [
+            'partition_scratch_std' => PartitionScratch::daily(['retention_days' => 7]),
+            'partition_scratch_evi' => PartitionScratch::daily(['interval' => 'month']),
+        ],
+        ['runway_days' => 1],
+    );
+    PartitionScratch::clockAt('2026-03-10T15:00:00Z');
+
+    $report = app(MaintainPartitions::class)->maintain();
+    $owner->insert("insert into partition_scratch_root (kind, id) values ('standard', ?), ('evidence', ?)", [idAt('2026-03-10T16:00:00Z'), idAt('2026-03-10T16:00:00Z')]);
+
+    expect($report->isComplete())->toBeTrue()
+        ->and($report->partitions(PartitionChangeKind::Created))->toBe(['partition_scratch_std_p20260310', 'partition_scratch_std_p20260311', 'partition_scratch_evi_p202603'])
+        ->and($report->analyzed)->toBe(['partition_scratch_root'])
+        ->and(analyzeCount('partition_scratch_root'))->toBe(1)
+        ->and(analyzeCount('partition_scratch_std'))->toBe(1)
+        ->and(analyzeCount('partition_scratch_evi'))->toBe(1)
+        ->and(analyzeCount('partition_scratch_std_p20260310'))->toBe(1)
+        ->and(analyzeCount('partition_scratch_evi_p202603'))->toBe(1);
+});
+
+it('gives up on the ANALYZE of a tree with LockTimeout while another session locks one of its partitions, keeps what the run made, and analyzes the tree on the next run that changes it', function (): void {
+    PartitionScratch::manage([PartitionScratch::UUID_TABLE => PartitionScratch::daily()], ['runway_days' => 1, 'attempts' => 2, 'backoff_ms' => 10, 'lock_timeout_ms' => 200]);
+    PartitionScratch::clockAt('2026-03-10T15:00:00Z');
+    app(MaintainPartitions::class)->cover(new PartitionRange(new DateTimeImmutable('2026-03-01T00:00:00Z'), new DateTimeImmutable('2026-03-01T00:00:00Z')));
+
+    // SHARE on an old partition conflicts with the SHARE UPDATE EXCLUSIVE lock that ANALYZE takes
+    // on each table of the tree, and not with attaching the new partitions.
+    [$other] = app(IndependentConnections::class)->open(1, 'pgsql_owner');
+    $other->beginTransaction();
+    $other->statement('lock table partition_scratch_p20260301 in share mode');
+
+    try {
+        $busy = app(MaintainPartitions::class)->maintain();
+    } finally {
+        $other->rollBack();
+    }
+
+    expect($busy->isComplete())->toBeFalse()
+        ->and($busy->partitions(PartitionChangeKind::Created))->toBe(dailyNames('2026-03-10', 2))
+        ->and($busy->analyzed)->toBe([])
+        ->and($busy->gaveUp)->toHaveCount(1);
+
+    $timeout = $busy->gaveUp[0];
+
+    expect($timeout->step)->toBe(DdlStep::Analyze)
+        ->and($timeout->table)->toBe(PartitionScratch::UUID_TABLE)
+        ->and($timeout->partition)->toBeNull()
+        ->and($timeout->attempts)->toBe(2)
+        ->and($timeout->message)->toStartWith('['.LockTimeout::CODE.'] Gave up on step "analyze" for table "partition_scratch"')
+        ->and($timeout->cause)->toContain('SQLSTATE[55P03]')
+        ->and(PartitionScratch::partitions(PartitionScratch::UUID_TABLE))->toBe(['partition_scratch_p20260301', ...dailyNames('2026-03-10', 2)]);
+
+    PartitionScratch::clockAt('2026-03-11T15:00:00Z');
+    $next = app(MaintainPartitions::class)->maintain();
+
+    expect($next->isComplete())->toBeTrue()
+        ->and($next->partitions(PartitionChangeKind::Created))->toBe(['partition_scratch_p20260312'])
+        ->and($next->analyzed)->toBe([PartitionScratch::UUID_TABLE])
+        ->and(analyzeCount('partition_scratch_p20260301'))->toBe(1);
 });
 
 it('gives new partitions the parent\'s row security, so reading a partition directly finds nothing', function (): void {
