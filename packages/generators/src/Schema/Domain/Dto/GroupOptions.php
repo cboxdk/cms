@@ -37,7 +37,7 @@ final readonly class GroupOptions implements FieldOptions
     public function problems(SourceLocation $field): array
     {
         return $this->repeat instanceof GroupRepeat
-            ? OptionRules::items($this->repeat->minItems, $this->repeat->maxItems, $field->below('repeat'))
+            ? OptionRules::items($this->repeat->minItems, $this->repeat->maxItems, $field->below('repeat'), GroupRepeat::DEFAULT_MAX_ITEMS)
             : [];
     }
 

@@ -11,6 +11,7 @@ use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintSchemaFile;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Capabilities;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldBlueprint;
+use Cbox\Cms\Generators\Schema\Domain\Dto\GroupRepeat;
 use Cbox\Cms\Generators\Schema\Domain\Dto\LongTextOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SelectOptions;
@@ -142,6 +143,7 @@ it('fills in exactly the defaults of the blueprint schema', function (): void {
         '/$defs/textOptions/properties/format' => TextOptions::DEFAULT_FORMAT->value,
         '/$defs/longTextOptions/properties/max_length' => LongTextOptions::DEFAULT_MAX_LENGTH,
         '/$defs/selectOptions/properties/multiple' => SelectOptions::DEFAULT_MULTIPLE,
+        '/$defs/groupOptions/properties/repeat/properties/max_items' => GroupRepeat::DEFAULT_MAX_ITEMS,
     ]);
 });
 

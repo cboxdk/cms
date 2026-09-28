@@ -10,11 +10,14 @@ use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintSchemaFile;
 use Cbox\Cms\Generators\Schema\Domain\BlueprintSource;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Blueprints;
+use Cbox\Cms\Generators\Schema\Domain\Dto\GroupOptions;
+use Cbox\Cms\Generators\Schema\Domain\Dto\GroupRepeat;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
 use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypeRegistry;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypes\CoreFieldTypes;
 use Cbox\Cms\Generators\Schema\Domain\Owner;
+use Cbox\Cms\Generators\Schema\Domain\SourceLocation;
 use Cbox\Cms\Generators\Schema\Domain\TypeFieldLimit;
 use Cbox\Cms\Generators\Tests\Schema\Fakes\ColourFieldType;
 use Cbox\Cms\Generators\Tests\Schema\Fakes\FakeFieldTypeContributor;
@@ -511,6 +514,27 @@ it('rejects a min_items greater than the max_items with generate_min_items_above
         'schema/article.yaml, /fields/0/repeat/min_items',
     ],
 ]);
+
+it('reads a repeat without max_items as at most 500 items, the most a repeated field holds (PRD 11.6)', function (string $repeat, ?int $minItems): void {
+    $app = rulesRoot(SchemaFixtures::scratch(), ['article.yaml' => rulesType(RULES_ARTICLE_ID, 'article', rulesGroup('credits', 'name').$repeat)]);
+    $options = rulesRead([$app])->types[0]->fields[0]->options;
+
+    expect($options)->toBeInstanceOf(GroupOptions::class)
+        ->and($options instanceof GroupOptions ? $options->repeat : null)->toEqual(new GroupRepeat($minItems, 500))
+        ->and(GroupRepeat::DEFAULT_MAX_ITEMS)->toBe(500);
+})->with([
+    'an empty repeat' => ["    repeat: {}\n", null],
+    'a repeat with only min_items' => ["    repeat:\n      min_items: 500\n", 500],
+]);
+
+it('rejects a min_items of a repeat above the default max_items when the repeat has none, with generate_min_items_above_max_items', function (): void {
+    $problems = new GroupOptions([], new GroupRepeat(501, GroupRepeat::DEFAULT_MAX_ITEMS))->problems(new SourceLocation('schema/article.yaml', '/fields/0'));
+
+    expect($problems)->toEqual([new GenerationProblem(
+        GenerateErrorCode::MinItemsAboveMaxItems,
+        'schema/article.yaml, /fields/0/repeat/min_items: min_items 501 is greater than max_items 500, which is 500 when it is left out, so no list of items fits. Make min_items at most max_items.',
+    )]);
+});
 
 it('rejects a scale greater than the precision with generate_scale_above_precision', function (): void {
     $app = rulesRoot(SchemaFixtures::scratch(), ['article.yaml' => rulesType(RULES_ARTICLE_ID, 'article', rulesField('rating', 'decimal', 'precision: 3', 'scale: 4'), rulesField('price', 'decimal', 'precision: 4', 'scale: 4'))]);

@@ -46,7 +46,10 @@ final readonly class GroupFieldType implements FieldType
             }
 
             $values->knownKeys(['min_items', 'max_items']);
-            $repeat = new GroupRepeat($values->optionalInt('min_items'), $values->optionalInt('max_items'));
+            $repeat = new GroupRepeat(
+                $values->optionalInt('min_items'),
+                $values->optionalInt('max_items') ?? GroupRepeat::DEFAULT_MAX_ITEMS,
+            );
         }
 
         return $fields === null ? null : new GroupOptions($fields, $repeat);

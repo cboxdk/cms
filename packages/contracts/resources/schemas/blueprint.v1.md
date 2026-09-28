@@ -112,7 +112,7 @@ Both classifications arrive as an addition to version 1, together with the keys 
 | `datetime` | a time in UTC | `min`, `max`, quoted, in RFC 3339 with an offset such as `Z` or `+01:00` |
 | `select` | a choice from a fixed list | `options`, a list of 1 to 500 items with `value` (a handle) and `label`, is required; `multiple`; `min_items` and `max_items` only with `multiple: true` |
 | `rich_text` | Portable Text (PRD 11.10) | `styles`, `marks`, `lists`, `links`: `url` |
-| `group` | nested fields, once or repeated | `fields` is required; `repeat` with `min_items` and `max_items` (at most 500) |
+| `group` | nested fields, once or repeated | `fields` is required; `repeat` with `min_items` (at most 500) and `max_items` (default 500, at most 500), so a repeated group holds at most 500 items (PRD 11.6) |
 
 A choice that the field's type does not have is refused.
 
@@ -137,7 +137,7 @@ JSON Schema checks one file at a time and cannot compare values with each other.
 | A type has at most 200 top-level fields, its own and those every extension adds to it together, because each is a column of the type's table (PRD 11.6). A file holds at most 200 fields, and the rule caps the type once the extension files of every owner are added, however many files an owner splits its fields over. The problem names the type file's `/fields` and the extension files that add to the type. | `generate_too_many_fields` |
 | `min` is at most `max`. Decimals are compared by value, dates by day and times as instants. | `generate_min_above_max` |
 | `min_length` is at most `max_length`, or at most the default `max_length` when the field has none. | `generate_min_length_above_max_length` |
-| `min_items` is at most `max_items`, on a `select` field and in the `repeat` of a group. | `generate_min_items_above_max_items` |
+| `min_items` is at most `max_items`, on a `select` field and in the `repeat` of a group, where it is at most the default `max_items` when the repeat has none. | `generate_min_items_above_max_items` |
 | The `scale` of a `decimal` is at most its `precision`. | `generate_scale_above_precision` |
 | A field type `<namespace>:<handle>` is one that a contributor has registered (PRD 13.3). | `generate_unknown_field_type` |
 | The types of one owner give different PHP enum cases, the owner and the handle in TitleCase: `item_2` and `item2` both give `AppItem2`, so an owner cannot have both. A type whose case would read `class` in any letter case, such as the handle `lass` of an owner `c`, is refused, because PHP reserves it. | `generate_invalid_case_name` |

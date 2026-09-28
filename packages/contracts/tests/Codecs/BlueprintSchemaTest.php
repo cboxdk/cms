@@ -171,6 +171,7 @@ function blueprintInvalidCases(): array
         'a datetime in min without its offset' => ['datetime-without-offset.yaml', '/fields/1/min', 'should match pattern'],
         'a decimal without scale' => ['decimal-without-scale.yaml', '/fields/0', '(scale)'],
         'a classification on a field inside a group' => ['classification-in-group.yaml', '/fields/0/fields/0', 'must not match schema'],
+        'a repeated group with min_items above 500, the most a repeated field holds' => ['repeat-min-items-above-500.yaml', '/fields/0/repeat/min_items', 'lower than or equal to 500'],
         'the field type relation' => ['field-type-relation.yaml', '/fields/0/type', 'enum'],
         'an addon field type in the reserved namespace app' => ['field-type-app-namespace.yaml', '/fields/0/type', 'must not match schema'],
         'an addon field type in the reserved namespace ext' => ['field-type-ext-namespace.yaml', '/fields/0/type', 'must not match schema'],

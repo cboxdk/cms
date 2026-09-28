@@ -354,8 +354,8 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "min_items": { "type": "integer", "minimum": 0 },
-            "max_items": { "type": "integer", "minimum": 1, "maximum": 500 }
+            "min_items": { "type": "integer", "minimum": 0, "maximum": 500 },
+            "max_items": { "type": "integer", "minimum": 1, "maximum": 500, "default": 500 }
           }
         }
       },

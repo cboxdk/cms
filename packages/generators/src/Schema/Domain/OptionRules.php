@@ -54,21 +54,24 @@ final readonly class OptionRules
     }
 
     /**
-     * `min_items` at most `max_items`.
+     * `min_items` at most `max_items`. Where `max_items` has a default, such as in the `repeat` of a
+     * group, `$maxItems` is that default when the file leaves it out, and the message says so.
      *
      * @param  SourceLocation  $at  the object that holds both
+     * @param  ?int  $defaultMaxItems  null when a missing `max_items` means no upper bound
      * @return list<GenerationProblem>
      */
-    public static function items(?int $minItems, ?int $maxItems, SourceLocation $at): array
+    public static function items(?int $minItems, ?int $maxItems, SourceLocation $at, ?int $defaultMaxItems = null): array
     {
         if ($minItems === null || $maxItems === null || $minItems <= $maxItems) {
             return [];
         }
 
         return [self::problem(GenerateErrorCode::MinItemsAboveMaxItems, $at->below('min_items'), sprintf(
-            'min_items %d is greater than max_items %d, so no list of items fits. Make min_items at most max_items.',
+            'min_items %d is greater than max_items %d%s, so no list of items fits. Make min_items at most max_items.',
             $minItems,
             $maxItems,
+            $defaultMaxItems === null ? '' : sprintf(', which is %d when it is left out', $defaultMaxItems),
         ))];
     }
 

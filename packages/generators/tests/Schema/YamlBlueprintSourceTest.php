@@ -209,6 +209,7 @@ function invalidContractFixtures(): array
         'a datetime in min without its offset' => ['datetime-without-offset.yaml', '/fields/1/min'],
         'a decimal without scale' => ['decimal-without-scale.yaml', '/fields/0'],
         'a classification on a field inside a group' => ['classification-in-group.yaml', '/fields/0/fields/0'],
+        'a repeated group with min_items above 500, the most a repeated field holds' => ['repeat-min-items-above-500.yaml', '/fields/0/repeat/min_items'],
         'the field type relation' => ['field-type-relation.yaml', '/fields/0/type'],
         'an addon field type in the reserved namespace app' => ['field-type-app-namespace.yaml', '/fields/0/type'],
         'an addon field type in the reserved namespace ext' => ['field-type-ext-namespace.yaml', '/fields/0/type'],
