@@ -24,9 +24,9 @@ const MAX_REVIEW_ROUNDS = num('maxReviewRounds', 2)
 // exitOnly skips plan, build and review: regression gate, exit criteria and PROGRESS.md only.
 const EXIT_ONLY = Boolean(args && args.exitOnly)
 
-const REPO = '/Users/sylvester/Projects/laravel-cms'
-const WT_ROOT = '/Users/sylvester/Projects/laravel-cms-worktrees'
-const PLAN_REPO = '/Users/sylvester/Projects/cbox-cms'
+const REPO = '/Users/sylvester/Projects/Cbox/cms'
+const WT_ROOT = '/Users/sylvester/Projects/Cbox/cms-worktrees'
+const PLAN_REPO = '/Users/sylvester/Projects/Cbox/cms-planning'
 const CONTEXT = `The main checkout is ${REPO} (git repo with the remote origin; agents never push, the main session pushes after a block). Planning documents: ${PLAN_REPO}/PRD.md (Danish, architecture), ${PLAN_REPO}/GUARDRAILS.md (coding rules), ${PLAN_REPO}/MILESTONES.md (build order and exit criteria). Working state: ${REPO}/PROGRESS.md; read "Beslutninger fra Sylvester" there. The current block is ${BLOCK} as listed in PROGRESS.md and described in MILESTONES.md. Never change the cboxdk ecosystem repos.`
 
 const wtOf = id => `${WT_ROOT}/${BLOCK}-${id}`

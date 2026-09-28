@@ -6,9 +6,9 @@ Monorepo for Cbox CMS: the kernel, packages, sidecars and JS packages. The remot
 
 These live in the planning repo and are read-only unless a rule below says otherwise:
 
-- `/Users/sylvester/Projects/cbox-cms/PRD.md`: what is built (Danish).
-- `/Users/sylvester/Projects/cbox-cms/GUARDRAILS.md`: how code is written. Every rule applies here.
-- `/Users/sylvester/Projects/cbox-cms/MILESTONES.md`: the build order and exit criteria.
+- `/Users/sylvester/Projects/Cbox/cms-planning/PRD.md`: what is built (Danish).
+- `/Users/sylvester/Projects/Cbox/cms-planning/GUARDRAILS.md`: how code is written. Every rule applies here.
+- `/Users/sylvester/Projects/Cbox/cms-planning/MILESTONES.md`: the build order and exit criteria.
 - `PROGRESS.md` in this repo: the working state. Read it first in every session and every agent task that changes code.
 
 ## Hard rules

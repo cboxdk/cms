@@ -36,7 +36,7 @@
       "Bash(git worktree *)",
       "Bash(git stash *)",
       "Bash(git rev-parse *)",
-      "Bash(git -C /Users/sylvester/Projects/cbox-cms *)",
+      "Bash(git -C /Users/sylvester/Projects/Cbox/cms-planning *)",
       "Bash(touch .harness/*)",
       "Bash(rm .harness/waiting)",
       "Bash(rm -f .harness/waiting)",
