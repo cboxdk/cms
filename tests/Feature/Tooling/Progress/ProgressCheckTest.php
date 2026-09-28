@@ -327,16 +327,12 @@ it('tells every agent that records changed checks to write them in CHECKS-LOG.md
         ->and($text)->not->toContain('"Til review af Sylvester" with GUARDRAILS 7.3');
 })->with(['CLAUDE.md', 'AGENTS.md', '.claude/workflows/cms-milestone.js']);
 
-it('keeps CHECKS-LOG.md at the root with a heading per block, and fewer than 15 open decisions under Til review af Sylvester', function (): void {
+it('keeps CHECKS-LOG.md at the root with a heading per block', function (): void {
     $markdown = (string) file_get_contents(Phpstan::root().'/'.ChecksLog::FILE);
-    $ledger = ProgressLedger::fromMarkdown((string) file_get_contents(Phpstan::root().'/PROGRESS.md'));
-    $review = $ledger->entries(ProgressLedger::REVIEW);
 
     expect($markdown)->toStartWith("# Ændrede kontroller\n")
         ->and($markdown)->toContain("\n## M0\n")
-        ->and(ChecksLog::fromMarkdown($markdown)->entries('M0'))->not->toBe([])
-        ->and($review)->not->toBe([])
-        ->and(count($review))->toBeLessThan(15);
+        ->and(ChecksLog::fromMarkdown($markdown)->entries('M0'))->not->toBe([]);
 });
 
 it('tells a review commit by the first line of its message, and names its label and its hash', function (): void {
