@@ -35,6 +35,8 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
  *   11.12 point 5), and upcasters are keyed on it (PRD 11.4). Each file whose version differs from
  *   the first file of the namespace is reported and names that file.
  * - A column name has at most 63 bytes, the extension field's `ext__<namespace>__<handle>` too.
+ * - A type has at most 200 top-level fields, its own and those its extensions add together
+ *   (TypeFieldLimit, PRD 11.6).
  *
  * The rules run on the blueprints that were read. When a file could not be read, the type it
  * defines is unknown, so an unknown `extends` is reported only when every file was read; the other
@@ -52,6 +54,7 @@ final readonly class BlueprintRules
         $problems = [];
         $this->types($blueprints->types, $problems);
         $this->extensions($blueprints, $complete, $problems);
+        array_push($problems, ...TypeFieldLimit::problems($blueprints));
 
         return $problems;
     }

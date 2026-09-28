@@ -7,6 +7,7 @@ namespace Cbox\Cms\Generators\Tests\Schema;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationProblem;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
+use Cbox\Cms\Generators\Schema\Boundary\BlueprintSchemaFile;
 use Cbox\Cms\Generators\Schema\Domain\BlueprintSource;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Blueprints;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
@@ -14,6 +15,7 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypeRegistry;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypes\CoreFieldTypes;
 use Cbox\Cms\Generators\Schema\Domain\Owner;
+use Cbox\Cms\Generators\Schema\Domain\TypeFieldLimit;
 use Cbox\Cms\Generators\Tests\Schema\Fakes\ColourFieldType;
 use Cbox\Cms\Generators\Tests\Schema\Fakes\FakeFieldTypeContributor;
 use Cbox\Cms\Generators\Tests\SchemaFixtures;
@@ -407,6 +409,42 @@ it('rejects an extension field whose column ext__<namespace>__<handle> is over 6
     'a long namespace, 63 bytes' => ['acmeanalyticssuite', 38, true],
     'a long namespace, 64 bytes' => ['acmeanalyticssuite', 39, false],
 ]);
+
+/**
+ * The given number of top-level text fields, `<prefix>_1` and up.
+ *
+ * @return list<string>
+ */
+function rulesFields(int $count, string $prefix = 'field'): array
+{
+    return array_map(static fn (int $i): string => rulesField($prefix.'_'.$i, 'text'), range(1, $count));
+}
+
+it('rejects a type with 200 fields of its own and one an extension adds with generate_too_many_fields, at the type file', function (): void {
+    $base = SchemaFixtures::scratch();
+    $shop = rulesRoot($base, ['product.yaml' => rulesType(RULES_PRODUCT_ID, 'product', ...rulesFields(TypeFieldLimit::MAX_FIELDS))], 'shop', 'vendor/acme/shop/schema');
+    $app = rulesRoot($base, ['shop/tax.yaml' => rulesExtension(RULES_PRODUCT_ID, rulesField('tax_code', 'text'))]);
+
+    $problem = rulesProblem(rulesFailure([$shop, $app]), GenerateErrorCode::TooManyFields, 'vendor/acme/shop/schema/product.yaml, /fields');
+
+    expect($problem->message)->toBe('vendor/acme/shop/schema/product.yaml, /fields: the type product of shop has 201 fields, 200 of its own and 1 that extensions add in schema/shop/tax.yaml. A type has at most 200 fields, its own and those its extensions add together, because each is a column of its table: remove fields, or model a part of the type as a type of its own.');
+});
+
+it('reads a type with 200 fields, its own and those extension files of several owners add together', function (): void {
+    $base = SchemaFixtures::scratch();
+    $shop = rulesRoot($base, ['product.yaml' => rulesType(RULES_PRODUCT_ID, 'product', ...rulesFields(150))], 'shop', 'vendor/acme/shop/schema');
+    $blog = rulesRoot($base, ['product.yaml' => rulesExtension(RULES_PRODUCT_ID, ...rulesFields(30))], 'blog', 'vendor/acme/blog/schema');
+    $app = rulesRoot($base, [
+        'shop/a.yaml' => rulesExtension(RULES_PRODUCT_ID, ...rulesFields(10, 'a')),
+        'shop/b.yaml' => rulesExtension(RULES_PRODUCT_ID, ...rulesFields(10, 'b')),
+    ]);
+
+    expect(rulesRead([$shop, $blog, $app])->extensions)->toHaveCount(3);
+});
+
+it('caps a type at as many fields as the blueprint schema allows in one file', function (): void {
+    expect(data_get(new BlueprintSchemaFile()->load(), '$defs.topLevelFields.maxItems'))->toBe(TypeFieldLimit::MAX_FIELDS);
+});
 
 it('reads a type field whose handle has 63 bytes, since its column is the handle', function (): void {
     $app = rulesRoot(SchemaFixtures::scratch(), ['article.yaml' => rulesType(RULES_ARTICLE_ID, 'article', rulesField('a'.str_repeat('b', 62), 'text'))]);

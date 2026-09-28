@@ -16,6 +16,7 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\Handle;
 use Cbox\Cms\Generators\Schema\Domain\Owner;
 use Cbox\Cms\Generators\Schema\Domain\SourceLocation;
+use Cbox\Cms\Generators\Schema\Domain\TypeFieldLimit;
 use Cbox\Cms\Generators\Tests\SchemaFixtures;
 use PHPUnit\Framework\Assert;
 
@@ -245,6 +246,88 @@ it('refuses the column name of an extension field over 63 bytes with generate_co
 
     expect($failed->codes())->toBe([GenerateErrorCode::ColumnNameTooLong])
         ->and($failed->problems[0]->message)->toBe(sprintf('vendor/long/schema/product.yaml, /fields/1: the column name ext__longnamespace__%s has 64 bytes, and Postgres allows 63. Choose a shorter handle.', $tooLong));
+});
+
+/**
+ * The given number of text fields, `field_1` and up, as SchemaFixtures::type() and extension() take them.
+ *
+ * @return array<string, string>
+ */
+function manyFields(int $count, string $prefix = 'field'): array
+{
+    $fields = [];
+
+    for ($i = 1; $i <= $count; $i++) {
+        $fields[$prefix.'_'.$i] = 'text';
+    }
+
+    return $fields;
+}
+
+it('refuses a type with 200 fields of its own and one an extension adds with generate_too_many_fields', function (): void {
+    $app = SchemaFixtures::root();
+    $acme = SchemaFixtures::root('acme', 'vendor/acme/shop/schema');
+    $product = SchemaFixtures::type($acme, 'product', manyFields(TypeFieldLimit::MAX_FIELDS));
+
+    $failed = resolveFails([$product], [SchemaFixtures::extension($app, 'shop/product.yaml', $product->typeId, ['tax_code' => 'text'])]);
+
+    expect(TypeFieldLimit::MAX_FIELDS)->toBe(200)
+        ->and($failed->codes())->toBe([GenerateErrorCode::TooManyFields])
+        ->and($failed->problems[0]->message)->toBe('vendor/acme/shop/schema/product.yaml, /fields: the type product of acme has 201 fields, 200 of its own and 1 that extensions add in schema/shop/product.yaml. A type has at most 200 fields, its own and those its extensions add together, because each is a column of its table: remove fields, or model a part of the type as a type of its own.');
+});
+
+it('resolves a type with 200 fields, its own and those its extensions add together', function (): void {
+    $app = SchemaFixtures::root();
+    $blog = SchemaFixtures::root('blog', 'vendor/acme/blog/schema');
+    $acme = SchemaFixtures::root('acme', 'vendor/acme/shop/schema');
+    $product = SchemaFixtures::type($acme, 'product', manyFields(100));
+
+    $schema = SchemaResolver::resolve(new Blueprints([$product], [
+        SchemaFixtures::extension($app, 'shop/a.yaml', $product->typeId, manyFields(50, 'a')),
+        SchemaFixtures::extension($app, 'shop/b.yaml', $product->typeId, manyFields(25, 'b')),
+        SchemaFixtures::extension($blog, 'product.yaml', $product->typeId, manyFields(25)),
+    ]));
+
+    expect($schema->types[0]->fields)->toHaveCount(200);
+});
+
+it('counts the fields of every extension file of every owner towards the limit of a type', function (): void {
+    $app = SchemaFixtures::root();
+    $blog = SchemaFixtures::root('blog', 'vendor/acme/blog/schema');
+    $acme = SchemaFixtures::root('acme', 'vendor/acme/shop/schema');
+    $product = SchemaFixtures::type($acme, 'product', manyFields(100));
+    $page = SchemaFixtures::type($app, 'page', ['title' => 'text']);
+
+    $failed = resolveFails([$page, $product], [
+        SchemaFixtures::extension($app, 'shop/a.yaml', $product->typeId, manyFields(50, 'a')),
+        SchemaFixtures::extension($blog, 'product.yaml', $product->typeId, manyFields(50)),
+        SchemaFixtures::extension($app, 'shop/b.yaml', $product->typeId, manyFields(1, 'b')),
+    ]);
+
+    expect($failed->codes())->toBe([GenerateErrorCode::TooManyFields])
+        ->and($failed->problems[0]->message)->toStartWith('vendor/acme/shop/schema/product.yaml, /fields: the type product of acme has 201 fields, 100 of its own and 101 that extensions add in schema/shop/a.yaml, vendor/acme/blog/schema/product.yaml, schema/shop/b.yaml. ');
+});
+
+it('refuses a type with more than 200 fields of its own with generate_too_many_fields', function (): void {
+    $product = SchemaFixtures::type(SchemaFixtures::root(), 'product', manyFields(TypeFieldLimit::MAX_FIELDS + 1));
+
+    $failed = resolveFails([$product]);
+
+    expect($failed->codes())->toBe([GenerateErrorCode::TooManyFields])
+        ->and($failed->problems[0]->message)->toStartWith('schema/product.yaml, /fields: the type product of app has 201 fields, all of its own. ');
+});
+
+it('counts a field name used twice in a type once towards its limit', function (): void {
+    $app = SchemaFixtures::root();
+    $acme = SchemaFixtures::root('acme', 'vendor/acme/shop/schema');
+    $product = SchemaFixtures::type($acme, 'product', manyFields(199));
+
+    $failed = resolveFails([$product], [
+        SchemaFixtures::extension($app, 'shop/a.yaml', $product->typeId, ['tax_code' => 'text']),
+        SchemaFixtures::extension($app, 'shop/b.yaml', $product->typeId, ['tax_code' => 'text']),
+    ]);
+
+    expect($failed->codes())->toBe([GenerateErrorCode::DuplicateFieldHandle]);
 });
 
 it('reports every problem of the blueprints at once', function (): void {

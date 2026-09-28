@@ -33,7 +33,7 @@ A `type` has these keys:
 | `description` | no | What the type is for, 1 to 1,000 characters. |
 | `version` | yes | An integer from 1. The owner raises it when the definition changes (PRD 11.4). |
 | `capabilities` | yes | See [Capabilities](#capabilities). |
-| `fields` | yes | 1 to 200 fields, in the order the form shows them. |
+| `fields` | yes | 1 to 200 fields, in the order the form shows them. The type's own fields and those extensions add are at most 200 together. |
 
 An `extension` adds fields to a type that someone else owns (PRD 11.12). The fields belong to the extender's namespace:
 
@@ -41,7 +41,7 @@ An `extension` adds fields to a type that someone else owns (PRD 11.12). The fie
 |---|---|---|
 | `extends` | yes | The `type_id` of the type it extends. |
 | `version` | yes | An integer from 1: the extender's part of the type's composite version (PRD 11.2). Every extension file of one owner for one type has the same version. |
-| `fields` | yes | 1 to 200 fields. |
+| `fields` | yes | 1 to 200 fields. The type's own fields and those extensions add are at most 200 together. |
 
 No other keys are allowed in either kind.
 
@@ -134,6 +134,7 @@ JSON Schema checks one file at a time and cannot compare values with each other.
 | `extends` is the `type_id` of a type of another owner. A type has one owner and only others extend it, so an owner adds fields to its own type in the type file. | `generate_extension_of_own_type` |
 | The extension files of one owner for one type have the same `version`. Their fields are one namespace, and its version is the extender's part of the type's composite version, which upcasters are keyed on. | `generate_extension_version_mismatch` |
 | A column name has at most 63 bytes. A field that an extension adds has the column `ext__<namespace>__<handle>`, where the namespace is the extender's, `app` for the application, so its handle has at most 56 bytes less the length of the namespace: 53 for `app`. | `generate_column_name_too_long` |
+| A type has at most 200 top-level fields, its own and those every extension adds to it together, because each is a column of the type's table (PRD 11.6). A file holds at most 200 fields, and the rule caps the type once the extension files of every owner are added, however many files an owner splits its fields over. The problem names the type file's `/fields` and the extension files that add to the type. | `generate_too_many_fields` |
 | `min` is at most `max`. Decimals are compared by value, dates by day and times as instants. | `generate_min_above_max` |
 | `min_length` is at most `max_length`, or at most the default `max_length` when the field has none. | `generate_min_length_above_max_length` |
 | `min_items` is at most `max_items`, on a `select` field and in the `repeat` of a group. | `generate_min_items_above_max_items` |

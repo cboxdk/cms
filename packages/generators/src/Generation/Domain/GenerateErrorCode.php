@@ -65,6 +65,12 @@ enum GenerateErrorCode: string
      */
     case ColumnNameTooLong = 'generate_column_name_too_long';
 
+    /**
+     * A type has more than 200 top-level fields, its own and those its extensions add together
+     * (PRD 11.6). Each is a column of the type's table (PRD 11.12).
+     */
+    case TooManyFields = 'generate_too_many_fields';
+
     /** A field's `min` is greater than its `max`. */
     case MinAboveMax = 'generate_min_above_max';
 

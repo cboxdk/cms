@@ -12,6 +12,7 @@ use Cbox\Cms\Generators\Generation\Domain\Dto\ResolvedType;
 use Cbox\Cms\Generators\Schema\Domain\ColumnName;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Blueprints;
 use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
+use Cbox\Cms\Generators\Schema\Domain\TypeFieldLimit;
 
 /**
  * Applies the extensions of all schema roots to the types they extend (PRD 11.12). Two owners may
@@ -33,7 +34,9 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
  * - a field name is used once in its type: a handle once among the owner's fields, and an
  *   extension field once in its namespace (generate_duplicate_field_handle);
  * - the column name of an extension field, `ext__<namespace>__<handle>`, has at most 63 bytes, the
- *   Postgres limit, and is never cut short (generate_column_name_too_long).
+ *   Postgres limit, and is never cut short (generate_column_name_too_long);
+ * - a type has at most 200 top-level fields, its own and those every extension adds to it together,
+ *   because each is a column of its table (generate_too_many_fields, TypeFieldLimit, PRD 11.6).
  *
  * Every problem is collected before resolve() fails, so one run shows all of them.
  */
@@ -154,6 +157,8 @@ final readonly class SchemaResolver
                 self::add($fields[$id], $resolved, $target, $problems);
             }
         }
+
+        array_push($problems, ...TypeFieldLimit::problems($blueprints));
 
         if ($problems !== []) {
             throw GenerationFailed::with($problems);
