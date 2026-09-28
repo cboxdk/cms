@@ -90,6 +90,6 @@ final class FakeRegistryCache implements RegistryCache
 
     private function path(): string
     {
-        return $this->directory.'/'.RegistryName::Actions->fileName();
+        return $this->directory.'/'.RegistryName::Commands->fileName();
     }
 }

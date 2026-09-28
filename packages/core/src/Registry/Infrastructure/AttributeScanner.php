@@ -4,14 +4,12 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Registry\Infrastructure;
 
-use Cbox\Cms\Contracts\Attributes\Action;
 use Cbox\Cms\Contracts\Attributes\Command;
 use Cbox\Cms\Contracts\Attributes\Hook;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Build\ScanRoot;
 use Cbox\Cms\Core\Registry\Domain\BuildErrorCode;
 use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
-use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\BuildProblem;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredHook;
@@ -27,7 +25,7 @@ use SplFileInfo;
 use Throwable;
 
 /**
- * Finds #[Action], #[Command] and #[Hook] in the scan roots with reflection, at build time only
+ * Finds #[Command] and #[Hook] in the scan roots with reflection, at build time only
  * (GUARDRAILS 2.2).
  *
  * Every .php file below a root is read for the classes it declares, and each class is loaded
@@ -39,7 +37,6 @@ final readonly class AttributeScanner implements DeclarationScanner
 {
     public function scan(ScanRoots $roots): Discovery
     {
-        $actions = [];
         $commands = [];
         $hooks = [];
         $problems = [];
@@ -83,12 +80,12 @@ final readonly class AttributeScanner implements DeclarationScanner
 
                     $owners[strtolower($reflection->getName())] = $resolved;
 
-                    $this->read($reflection, $root, $actions, $commands, $hooks, $problems);
+                    $this->read($reflection, $root, $commands, $hooks, $problems);
                 }
             }
         }
 
-        return new Discovery($actions, $commands, $hooks, $problems);
+        return new Discovery($commands, $hooks, $problems);
     }
 
     /**
@@ -195,15 +192,13 @@ final readonly class AttributeScanner implements DeclarationScanner
 
     /**
      * @param  ReflectionClass<object>  $class
-     * @param  list<ActionEntry>  $actions
      * @param  list<CommandEntry>  $commands
      * @param  list<DiscoveredHook>  $hooks
      * @param  list<BuildProblem>  $problems
      */
-    private function read(ReflectionClass $class, ScanRoot $root, array &$actions, array &$commands, array &$hooks, array &$problems): void
+    private function read(ReflectionClass $class, ScanRoot $root, array &$commands, array &$hooks, array &$problems): void
     {
         $attributes = [
-            ...$class->getAttributes(Action::class),
             ...$class->getAttributes(Command::class),
             ...$class->getAttributes(Hook::class),
         ];
@@ -230,9 +225,7 @@ final readonly class AttributeScanner implements DeclarationScanner
             try {
                 $declaration = $attribute->newInstance();
 
-                if ($declaration instanceof Action) {
-                    $actions[] = new ActionEntry($class->getName(), $root->package, $declaration->surfaces);
-                } elseif ($declaration instanceof Command) {
+                if ($declaration instanceof Command) {
                     $commands[] = new CommandEntry($declaration->name(), $declaration->version, $class->getName(), $root->package);
                 } elseif ($declaration instanceof Hook) {
                     $hooks[] = new DiscoveredHook(
@@ -257,9 +250,8 @@ final readonly class AttributeScanner implements DeclarationScanner
     }
 
     /**
-     * Reports a #[Command] or #[Action] class that is not a final readonly class (GUARDRAILS 2.1):
-     * a command must not change after the pipeline has authorized and validated it, and an action
-     * must not be replaced by a subclass the registry does not list. The class's entries are still
+     * Reports a #[Command] class that is not a final readonly class (GUARDRAILS 2.1): a command must
+     * not change after the pipeline has authorized and validated it. The class's entries are still
      * read, so a hook for the command does not also fail as a hook for an unknown command.
      *
      * @param  ReflectionClass<object>  $class
@@ -267,12 +259,7 @@ final readonly class AttributeScanner implements DeclarationScanner
      */
     private function checkShape(ReflectionClass $class, ScanRoot $root, array &$problems): void
     {
-        $declarations = [
-            ...$class->getAttributes(Command::class),
-            ...$class->getAttributes(Action::class),
-        ];
-
-        if ($declarations === [] || ($class->isFinal() && $class->isReadOnly())) {
+        if ($class->getAttributes(Command::class) === [] || ($class->isFinal() && $class->isReadOnly())) {
             return;
         }
 
@@ -281,8 +268,7 @@ final readonly class AttributeScanner implements DeclarationScanner
         )));
 
         $problems[] = new BuildProblem(BuildErrorCode::NotFinalReadonly, sprintf(
-            '#[%s] on %s (%s) is %s. A command, a WriteAction and a QueryAction are each a final readonly class (GUARDRAILS 2.1). Declare it as final readonly class %s.',
-            implode('] and #[', array_map($this->shortName(...), $declarations)),
+            '#[Command] on %s (%s) is %s. A command is a final readonly class (GUARDRAILS 2.1). Declare it as final readonly class %s.',
             $class->getName(),
             $root->package,
             $missing,

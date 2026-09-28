@@ -6,10 +6,8 @@ namespace Cbox\Cms\Core\Registry\Boundary;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Attributes\Phase;
-use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\InvalidCommandName;
-use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Dto\HookEntry;
@@ -19,9 +17,9 @@ use Cbox\Cms\Core\Registry\Domain\RegistryName;
 use LogicException;
 
 /**
- * The registry cache files of format 2, in both directions (PRD 13.2).
+ * The registry cache files of format 3, in both directions (PRD 13.2).
  *
- * A file is PHP that returns ['build' => '<sha256>', 'entries' => [...], 'format' => 2,
+ * A file is PHP that returns ['build' => '<sha256>', 'entries' => [...], 'format' => 3,
  * 'registry' => '<name>']. The keys of every array are written in alphabetical order, lists keep
  * the compiled order, and nothing depends on the time or the machine, so the same registry always
  * gives the same bytes. Reading checks every key and type and builds the typed entries; anything
@@ -35,7 +33,7 @@ use LogicException;
 #[Internal]
 final readonly class RegistryCacheCodec
 {
-    public const int FORMAT = 2;
+    public const int FORMAT = 3;
 
     private const string HEADER = <<<'PHP'
         <?php
@@ -98,11 +96,6 @@ final readonly class RegistryCacheCodec
     private function entries(CompiledRegistry $registry): array
     {
         return [
-            RegistryName::Actions->value => array_map(static fn (ActionEntry $action): array => [
-                'class' => $action->class,
-                'package' => $action->package,
-                'surfaces' => array_map(static fn (Surface $surface): string => $surface->value, $action->surfaces),
-            ], $registry->actions),
             RegistryName::Commands->value => array_map(static fn (CommandEntry $command): array => [
                 'class' => $command->class,
                 'name' => $command->name->value,
@@ -182,27 +175,8 @@ final readonly class RegistryCacheCodec
             $entries[$name->value] = $this->list($data['entries'], $path, 'entries');
         }
 
-        $actions = [];
         $commands = [];
         $hooks = [];
-
-        foreach ($entries[RegistryName::Actions->value] as $index => $entry) {
-            $path = $directory.'/'.RegistryName::Actions->fileName();
-            $at = sprintf('entries[%d]', $index);
-            $data = $this->map($entry, $path, $at, ['class', 'package', 'surfaces']);
-            $surfaces = [];
-
-            foreach ($this->list($data['surfaces'], $path, $at.'.surfaces') as $position => $surface) {
-                $surfaces[] = Surface::tryFrom($this->string($surface, $path, sprintf('%s.surfaces[%d]', $at, $position)))
-                    ?? throw MalformedRegistryCache::at($path, sprintf('%s.surfaces[%d]', $at, $position), sprintf('%s is not a surface', $this->show($surface)));
-            }
-
-            $actions[] = $this->entry($path, $at, fn (): ActionEntry => new ActionEntry(
-                $this->string($data['class'], $path, $at.'.class'),
-                $this->string($data['package'], $path, $at.'.package'),
-                $surfaces,
-            ));
-        }
 
         foreach ($entries[RegistryName::Commands->value] as $index => $entry) {
             $path = $directory.'/'.RegistryName::Commands->fileName();
@@ -237,7 +211,7 @@ final readonly class RegistryCacheCodec
             ));
         }
 
-        $registry = new CompiledRegistry($actions, $commands, $hooks);
+        $registry = new CompiledRegistry($commands, $hooks);
 
         if ($this->build($this->entries($registry)) !== $first[1]) {
             throw MalformedRegistryCache::at($directory.'/'.$first[0]->fileName(), 'build', 'the build does not match the entries of the registry files, so they were changed after cms:build wrote them');

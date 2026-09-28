@@ -5,10 +5,8 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Registry;
 
 use Cbox\Cms\Contracts\Attributes\Phase;
-use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Core\Registry\Domain\BuildErrorCode;
-use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\BuildProblem;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredHook;
@@ -21,12 +19,11 @@ use PHPUnit\Framework\Assert;
 /**
  * @param  list<CommandEntry>  $commands
  * @param  list<DiscoveredHook>  $hooks
- * @param  list<ActionEntry>  $actions
  */
-function registryCompilerFailure(array $commands, array $hooks = [], array $actions = []): RegistryBuildFailed
+function registryCompilerFailure(array $commands, array $hooks = []): RegistryBuildFailed
 {
     try {
-        new RegistryCompiler()->compile(new Discovery($actions, $commands, $hooks, []));
+        new RegistryCompiler()->compile(new Discovery($commands, $hooks, []));
     } catch (RegistryBuildFailed $failed) {
         return $failed;
     }
@@ -34,7 +31,7 @@ function registryCompilerFailure(array $commands, array $hooks = [], array $acti
     Assert::fail('The compiler accepted the declarations.');
 }
 
-it('sorts actions by class, commands by name and version, and hooks by command, phase, priority, package and class', function (): void {
+it('sorts commands by name and version, and hooks by command, phase, priority, package and class', function (): void {
     $commands = [
         new CommandEntry(new CommandName('b.b'), 2, 'App\B2', 'acme/b'),
         new CommandEntry(new CommandName('b.b'), 1, 'App\B1', 'acme/b'),
@@ -50,15 +47,9 @@ it('sorts actions by class, commands by name and version, and hooks by command, 
         new DiscoveredHook('App\Hooks\SecondVersion', 'acme/a', 'App\B2', Phase::Authorize, 0, 1),
         new DiscoveredHook('App\Hooks\FirstVersion', 'acme/a', 'App\B1', Phase::Validate, 0, 1),
     ];
-    $actions = [
-        new ActionEntry('App\Zeta', 'acme/z', [Surface::Mcp]),
-        new ActionEntry('App\Alpha', 'acme/a', []),
-    ];
+    $registry = new RegistryCompiler()->compile(new Discovery($commands, $hooks, []));
 
-    $registry = new RegistryCompiler()->compile(new Discovery($actions, $commands, $hooks, []));
-
-    expect(array_map(static fn (ActionEntry $action): string => $action->class, $registry->actions))->toBe(['App\Alpha', 'App\Zeta'])
-        ->and(array_map(static fn (CommandEntry $command): string => $command->name->value.' v'.$command->version, $registry->commands))->toBe(['a.a v1', 'b.b v1', 'b.b v2'])
+    expect(array_map(static fn (CommandEntry $command): string => $command->name->value.' v'.$command->version, $registry->commands))->toBe(['a.a v1', 'b.b v1', 'b.b v2'])
         ->and(array_map(static fn (HookEntry $hook): string => $hook->class, $registry->hooks))->toBe([
             'App\Hooks\Authorize',
             'App\Hooks\Negative',
@@ -81,15 +72,14 @@ it('gives the same registry for the declarations in any order', function (): voi
         new DiscoveredHook('App\H2', 'acme/a', 'App\A2', Phase::Transform, 1, 1),
     ];
 
-    $forwards = new RegistryCompiler()->compile(new Discovery([], $commands, $hooks, []));
-    $backwards = new RegistryCompiler()->compile(new Discovery([], array_reverse($commands), array_reverse($hooks), []));
+    $forwards = new RegistryCompiler()->compile(new Discovery($commands, $hooks, []));
+    $backwards = new RegistryCompiler()->compile(new Discovery(array_reverse($commands), array_reverse($hooks), []));
 
     expect($backwards)->toEqual($forwards);
 });
 
 it('resolves a hook\'s command class without regard to case, as PHP does', function (): void {
     $registry = new RegistryCompiler()->compile(new Discovery(
-        [],
         [new CommandEntry(new CommandName('a.a'), 1, 'App\Commands\Create', 'acme/a')],
         [new DiscoveredHook('App\H', 'acme/a', 'app\commands\CREATE', Phase::Validate, 0, 1)],
         [],
@@ -121,7 +111,7 @@ it('fails with the scanner\'s problems even when the declarations compile', func
     $problem = new BuildProblem(BuildErrorCode::ClassNotLoadable, 'Could not load App\X.');
 
     try {
-        new RegistryCompiler()->compile(new Discovery([], [], [], [$problem]));
+        new RegistryCompiler()->compile(new Discovery([], [], [$problem]));
         Assert::fail('The compiler accepted a discovery with problems.');
     } catch (RegistryBuildFailed $failed) {
         expect($failed->problems)->toBe([$problem])

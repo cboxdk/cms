@@ -38,7 +38,7 @@ trait DeclarationScannerBehaviour
     #[Test]
     public function no_roots_find_nothing(): void
     {
-        Assert::assertEquals(new Discovery([], [], [], []), $this->declarationScanner()->scan(new ScanRoots));
+        Assert::assertEquals(new Discovery([], [], []), $this->declarationScanner()->scan(new ScanRoots));
     }
 
     #[Test]
@@ -52,7 +52,7 @@ trait DeclarationScannerBehaviour
     #[Test]
     public function a_directory_without_declarations_finds_nothing(): void
     {
-        Assert::assertEquals(new Discovery([], [], [], []), $this->declarationScanner()->scan(new ScanRoots(new ScanRoot('acme/quiet', $this->quietDirectory()))));
+        Assert::assertEquals(new Discovery([], [], []), $this->declarationScanner()->scan(new ScanRoots(new ScanRoot('acme/quiet', $this->quietDirectory()))));
     }
 
     #[Test]
@@ -68,7 +68,6 @@ trait DeclarationScannerBehaviour
             'The scan root '.self::MISSING_DIRECTORY.' of acme/missing is not a readable directory. Fix the path the package\'s service provider returns from scanRoots().',
             $found->problems[0]->message,
         );
-        Assert::assertEquals(RegistryFixtures::validDiscovery('acme/notes')->actions, $found->actions);
         Assert::assertEquals(RegistryFixtures::validDiscovery('acme/notes')->commands, $found->commands);
         Assert::assertEquals(RegistryFixtures::validDiscovery('acme/notes')->hooks, $found->hooks);
     }
@@ -108,6 +107,6 @@ trait DeclarationScannerBehaviour
             Assert::assertStringContainsString('(acme/zeta). Give each package its own directory', $problem->message);
         }
 
-        Assert::assertEquals([$first->actions, $first->commands, $first->hooks], [$found->actions, $found->commands, $found->hooks]);
+        Assert::assertEquals([$first->commands, $first->hooks], [$found->commands, $found->hooks]);
     }
 }

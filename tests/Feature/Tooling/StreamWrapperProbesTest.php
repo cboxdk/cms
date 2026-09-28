@@ -30,6 +30,6 @@ it('reaches the recording wrapper with allow_url_fopen on and off', function (st
 
     expect(json_decode($process->getOutput(), true, flags: JSON_THROW_ON_ERROR))->toBe(['url_stat '.$url]);
 })->with([
-    'the writers\' wrapper' => [RecordingStreamWrapper::class, RecordingStreamWrapper::url('/cache/actions.php')],
+    'the writers\' wrapper' => [RecordingStreamWrapper::class, RecordingStreamWrapper::url('/cache/commands.php')],
     'LocalFile\'s wrapper' => [RecordingUrlWrapper::class, RecordingUrlWrapper::SCHEME.'://metadata.internal/schema.yaml'],
 ])->with(['off' => '0', 'on' => '1']);

@@ -52,7 +52,7 @@ it('runs cms:build after composer has discovered the providers on every dump-aut
         ->and($line[0] ?? '')->toContain('cms:build');
 });
 
-it('builds the three files from the command line, byte for byte the same each time, and removes the files it no longer writes', function (): void {
+it('builds the two files from the command line, byte for byte the same each time, and removes the files it no longer writes', function (): void {
     $directory = Phpstan::root().'/'.REGISTRY_CACHE;
 
     if (! is_dir($directory)) {
@@ -67,13 +67,13 @@ it('builds the three files from the command line, byte for byte the same each ti
 
     expect($first->getExitCode())->toBe(0, $first->getErrorOutput().$first->getOutput())
         ->and($first->getOutput())->toContain('Registry written to')
-        ->and(array_keys($firstHashes))->toBe(['actions.php', 'commands.php', 'hooks.php'])
+        ->and(array_keys($firstHashes))->toBe(['commands.php', 'hooks.php'])
         ->and($second->getExitCode())->toBe(0)
         ->and(registryHashes())->toBe($firstHashes);
 });
 
 it('keeps the cache out of git', function (): void {
-    $process = new Process(['git', 'check-ignore', '--quiet', REGISTRY_CACHE.'/actions.php'], Phpstan::root());
+    $process = new Process(['git', 'check-ignore', '--quiet', REGISTRY_CACHE.'/commands.php'], Phpstan::root());
     $process->run();
 
     expect($process->getExitCode())->toBe(0);

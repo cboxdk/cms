@@ -1,15 +1,14 @@
-# Build declarations: scan roots, commands, actions and hooks
+# Build declarations: scan roots, commands and hooks
 
 <!-- extension-point: Cbox\Cms\Contracts\Build\DeclaresScanRoots -->
 <!-- extension-point: Cbox\Cms\Contracts\Attributes\Command -->
-<!-- extension-point: Cbox\Cms\Contracts\Attributes\Action -->
 <!-- extension-point: Cbox\Cms\Contracts\Attributes\Hook -->
 
-A package tells the CMS about its commands, actions and hooks with attributes on its classes, and tells `cms:build` where those classes are with its service provider. `cms:build` reads the attributes with reflection and compiles three registries to `bootstrap/cache/cms/` (PRD 13.2). Reflection runs only there, at build time; at run time the CMS reads the compiled files (GUARDRAILS 2.2).
+A package tells the CMS about its commands and hooks with attributes on its classes, and tells `cms:build` where those classes are with its service provider. `cms:build` reads the attributes with reflection and compiles two registries to `bootstrap/cache/cms/` (PRD 13.2). Reflection runs only there, at build time; at run time the CMS reads the compiled files (GUARDRAILS 2.2).
 
 Run `cms:build` from Composer's `post-autoload-dump` script, so it follows every `composer install`, `composer update` and `composer dump-autoload`, and in every deploy. The files are not committed. `cms:doctor` fails its check `registry.cache` when the files are missing, damaged or older than `vendor/composer/installed.json`, so a registry that misses a newly installed package does not go unnoticed.
 
-The registry holds the declarations: the classes, and the names, versions, surfaces, phases, priorities and budgets their attributes give. It does not call an action or a hook.
+The registry holds the declarations: the classes, and the names, versions, phases, priorities and budgets their attributes give. It does not call a hook.
 
 ## Scan roots
 
@@ -20,7 +19,7 @@ A package's service provider implements `Cbox\Cms\Contracts\Build\DeclaresScanRo
 | `package` | The Composer package name, such as `acme/cms-notes`. It names the package in the registry and in build errors, and it orders hooks with the same priority. |
 | `directory` | An absolute path. Use `__DIR__`, the directory of the provider, usually the package's `src`. |
 
-`cms:build` scans every `.php` file below the directory, in sorted order, and loads each class it declares through the autoloader, so every class there must be autoloadable: the namespace and path follow the package's PSR-4 mapping. A class without one of the three attributes is left out.
+`cms:build` scans every `.php` file below the directory, in sorted order, and loads each class it declares through the autoloader, so every class there must be autoloadable: the namespace and path follow the package's PSR-4 mapping. A class without one of the two attributes is left out.
 
 `cms:build` asks every registered provider that implements the interface. It registers the deferred providers first, so a deferred provider is asked too. A package whose provider declares no scan root has nothing in the registry, even when its classes carry the attributes. A directory that is not readable, or a class that is in the scan roots of two packages, stops the build.
 
@@ -32,19 +31,6 @@ A package's service provider implements `Cbox\Cms\Contracts\Build\DeclaresScanRo
 - The version is an integer from 1.
 - The class is a `final readonly class`.
 - A name and version belong to one class. A new shape of the command gets the next version, and both classes stay declared.
-
-## Actions
-
-`#[Action(surfaces: [...])]` sits on the action class and lists the transports that `cms:build` generates for it. Each surface is a case of the enum `Cbox\Cms\Contracts\Attributes\Surface`:
-
-| Surface | Value | Transport |
-|---|---|---|
-| `Surface::Rest` | `rest` | REST with JSON and problem details, and the generated OpenAPI document |
-| `Surface::Inertia` | `inertia` | The panel: Inertia pages, redirects and the command palette |
-| `Surface::Mcp` | `mcp` | An MCP tool |
-| `Surface::Cli` | `cli` | A CLI command with exit codes from the error catalogue |
-
-A surface is listed at most once. The registry lists the surfaces in the order of the table, whatever order the attribute gives them in. `#[Action(surfaces: [])]` is allowed: the action has no generated surface, and jobs, the scheduler and other code in the application call it directly. The class is a `final readonly class`.
 
 ## Hooks
 
@@ -69,20 +55,19 @@ Hooks are deterministic and do no network IO; work that needs IO belongs in a su
 
 ## The compiled registries
 
-`cms:build` writes one PHP file per registry to `bootstrap/cache/cms/`: `actions.php`, `commands.php` and `hooks.php`. It removes any other file in that directory, which it owns, except its lock file `.lock`: two builds that run at the same time write the cache one after the other, so it always holds the files of one build. Each file returns an array with these keys:
+`cms:build` writes one PHP file per registry to `bootstrap/cache/cms/`: `commands.php` and `hooks.php`. It removes any other file in that directory, which it owns, except its lock file `.lock`: two builds that run at the same time write the cache one after the other, so it always holds the files of one build. Each file returns an array with these keys:
 
 | Key | Value |
 |---|---|
-| `build` | The sha256 of the entries of all three registries. The files of one build carry the same value. |
+| `build` | The sha256 of the entries of both registries. The files of one build carry the same value. |
 | `entries` | The list of entries, sorted as below. |
-| `format` | `2`, the format of the files. |
-| `registry` | `actions`, `commands` or `hooks`. |
+| `format` | `3`, the format of the files. A cache of another format is refused until `cms:build` runs again. |
+| `registry` | `commands` or `hooks`. |
 
 The keys of every entry are in alphabetical order:
 
 | Registry | Entry keys | Sorted by |
 |---|---|---|
-| `actions` | `class`, `package`, `surfaces` (the values of the surfaces) | class |
 | `commands` | `class`, `name`, `package`, `version` | name, then version |
 | `hooks` | `budget_ms`, `class`, `command` (the command's name), `command_class`, `command_version`, `package`, `phase` (the value of the phase), `priority` | command name, command version, phase in pipeline order (authorize, transform, validate), priority with the lowest first, package, class |
 
@@ -96,16 +81,16 @@ A file holds no time and no path, so two builds of the same code give the same b
 |---|---|
 | `registry_invalid_scan_root` | A declared scan root is not a readable directory. |
 | `registry_class_not_loadable` | A class in a scan root cannot be autoloaded, or loading it failed. |
-| `registry_invalid_attribute` | An attribute's arguments are invalid, such as a command name with one segment, version 0, a surface listed twice, a hook's command class that does not exist or has no `#[Command]`, or a budget outside 1 to 20 ms. |
+| `registry_invalid_attribute` | An attribute's arguments are invalid, such as a command name with one segment, version 0, a hook's command class that does not exist or has no `#[Command]`, or a budget outside 1 to 20 ms. |
 | `registry_not_a_concrete_class` | An attribute sits on an interface, trait, enum or abstract class. |
-| `registry_not_final_readonly` | A `#[Command]` or `#[Action]` sits on a class that is not a `final readonly class`. |
+| `registry_not_final_readonly` | A `#[Command]` sits on a class that is not a `final readonly class`. |
 | `registry_class_in_two_roots` | Two packages' scan roots contain the same class. |
 | `registry_duplicate_command` | Two classes declare the same command name and version. |
 | `registry_unknown_hook_command` | A hook runs for a command class that no scan root registers: the package that holds the command declares no scan root, or its provider is not registered. |
 
 ## Example
 
-Two small packages. `acme/cms-notes` declares the command `note.publish`, an action with a REST and a CLI surface, and a transform hook on its own command:
+Two small packages. `acme/cms-notes` declares the command `note.publish` and a transform hook on its own command:
 
 <!-- example-file: examples/Unit/Build/Notes/NotesServiceProvider.php -->
 ```php
@@ -121,7 +106,7 @@ use Illuminate\Support\ServiceProvider;
 
 /**
  * The service provider of the package acme/cms-notes. Its scan root is the directory it lies in,
- * so cms:build registers the command, the action and the hook next to it.
+ * so cms:build registers the command and the hook next to it.
  */
 final class NotesServiceProvider extends ServiceProvider implements DeclaresScanRoots
 {
@@ -152,25 +137,6 @@ final readonly class PublishNote
         public string $title,
     ) {}
 }
-```
-
-<!-- example-file: examples/Unit/Build/Notes/PublishNoteAction.php -->
-```php
-<?php
-
-declare(strict_types=1);
-
-namespace Examples\Unit\Build\Notes;
-
-use Cbox\Cms\Contracts\Attributes\Action;
-use Cbox\Cms\Contracts\Attributes\Surface;
-
-/**
- * The action behind note.publish, with a REST endpoint and a CLI command. The registry lists the
- * surfaces in the order of the Surface cases, whatever order the attribute gives them in.
- */
-#[Action(surfaces: [Surface::Cli, Surface::Rest])]
-final readonly class PublishNoteAction {}
 ```
 
 <!-- example-file: examples/Unit/Build/Notes/TrimNoteTitle.php -->
@@ -328,7 +294,7 @@ abstract class BuildTestCase extends TestCase
     }
 
     /**
-     * The compiled file of a registry: actions, commands or hooks.
+     * The compiled file of a registry: commands or hooks.
      */
     protected function registryFile(string $registry): string
     {
@@ -363,7 +329,7 @@ abstract class BuildTestCase extends TestCase
 }
 ```
 
-The test reads the compiled `commands.php`, `actions.php` and `hooks.php`. With both packages the tagging hook runs first, because its priority is lower. The tagging package without the notes package is a hook on a command that no scan root registers, and the build writes nothing:
+The test reads the compiled `commands.php` and `hooks.php`. With both packages the tagging hook runs first, because its priority is lower. The tagging package without the notes package is a hook on a command that no scan root registers, and the build writes nothing:
 
 <!-- example: examples/Unit/Build/ScanRootsTest.php -->
 ```php
@@ -375,7 +341,6 @@ namespace Examples\Unit\Build;
 
 use Examples\Unit\Build\Notes\NotesServiceProvider;
 use Examples\Unit\Build\Notes\PublishNote;
-use Examples\Unit\Build\Notes\PublishNoteAction;
 use Examples\Unit\Build\Notes\TrimNoteTitle;
 use Examples\Unit\Build\Tagging\TaggingServiceProvider;
 use Examples\Unit\Build\Tagging\TagPublishedNote;
@@ -388,7 +353,7 @@ use PHPUnit\Framework\Attributes\Test;
 final class ScanRootsTest extends BuildTestCase
 {
     #[Test]
-    public function it_compiles_the_command_the_action_and_the_hook_of_a_package(): void
+    public function it_compiles_the_command_and_the_hook_of_a_package(): void
     {
         self::assertSame(0, $this->build(NotesServiceProvider::class));
         self::assertStringContainsString('Registry written to '.$this->registryDirectory().'.', $this->buildOutput());
@@ -403,16 +368,6 @@ final class ScanRootsTest extends BuildTestCase
             'package' => 'acme/cms-notes',
             'version' => 1,
         ], $commands['entries']);
-
-        $actions = require $this->registryFile('actions');
-        self::assertIsArray($actions);
-        self::assertSame('actions', $actions['registry']);
-        self::assertIsArray($actions['entries']);
-        self::assertContains([
-            'class' => PublishNoteAction::class,
-            'package' => 'acme/cms-notes',
-            'surfaces' => ['rest', 'cli'],
-        ], $actions['entries']);
 
         $hooks = require $this->registryFile('hooks');
         self::assertIsArray($hooks);

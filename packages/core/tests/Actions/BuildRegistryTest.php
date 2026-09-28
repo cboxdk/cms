@@ -5,12 +5,10 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Actions;
 
 use Cbox\Cms\Contracts\Attributes\Phase;
-use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Build\ScanRoot;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
 use Cbox\Cms\Core\Registry\Domain\BuildErrorCode;
-use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\BuildProblem;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
@@ -24,11 +22,10 @@ use Cbox\Cms\Core\Registry\Domain\RegistryName;
 use Cbox\Cms\Core\Tests\Registry\Fakes\FakeDeclarationScanner;
 use Cbox\Cms\Core\Tests\Registry\Fakes\FakeRegistryCache;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Elsewhere\Misplaced;
-use Cbox\Cms\Core\Tests\Registry\Fixtures\NeitherFinalNorReadonly\PlainCommandAction;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\NeitherFinalNorReadonly\PlainCommand;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\NotFinalReadonly\MutableCommand;
-use Cbox\Cms\Core\Tests\Registry\Fixtures\NotFinalReadonly\OpenAction;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNote;
-use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNoteAction;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\NoteTitle;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\TrimNoteTitle;
 use Cbox\Cms\Core\Tests\Registry\RegistryFixtures;
 use PHPUnit\Framework\Assert;
@@ -60,7 +57,7 @@ it('compiles what the scanner finds in the roots it is given, writes it and retu
 
 it('writes nothing when the scan found a problem, and keeps the cache that was there', function (): void {
     $problem = new BuildProblem(BuildErrorCode::ClassNotLoadable, 'Loading Acme\\Broken failed.');
-    $scanner = new FakeDeclarationScanner(['/srv/broken/src' => new Discovery([], [], [], [$problem])]);
+    $scanner = new FakeDeclarationScanner(['/srv/broken/src' => new Discovery([], [], [$problem])]);
     $cache = new FakeRegistryCache;
     $cache->write(CompiledRegistry::empty());
 
@@ -74,8 +71,8 @@ it('writes nothing when the scan found a problem, and keeps the cache that was t
 
 it('writes nothing when two roots declare the same command', function (): void {
     $scanner = new FakeDeclarationScanner([
-        '/srv/one/src' => new Discovery([], [new CommandEntry(new CommandName('x.y'), 1, CreateNote::class, 'acme/one')], [], []),
-        '/srv/two/src' => new Discovery([], [new CommandEntry(new CommandName('x.y'), 1, CreateNoteAction::class, 'acme/two')], [], []),
+        '/srv/one/src' => new Discovery([new CommandEntry(new CommandName('x.y'), 1, CreateNote::class, 'acme/one')], [], []),
+        '/srv/two/src' => new Discovery([new CommandEntry(new CommandName('x.y'), 1, NoteTitle::class, 'acme/two')], [], []),
     ]);
     $cache = new FakeRegistryCache;
     $build = new BuildRegistry($scanner, new RegistryCompiler, $cache);
@@ -91,7 +88,7 @@ it('passes on a cache that cannot be written', function (): void {
     $build = new BuildRegistry(new FakeDeclarationScanner, new RegistryCompiler, $cache);
 
     expect(static fn (): CompiledRegistry => $build->build(new ScanRoots))
-        ->toThrow(RegistryCacheUnwritable::class, '/srv/app/bootstrap/cache/cms/actions.php: Permission denied')
+        ->toThrow(RegistryCacheUnwritable::class, '/srv/app/bootstrap/cache/cms/commands.php: Permission denied')
         ->and($build->location())->toBe('/srv/app/bootstrap/cache/cms');
 });
 
@@ -109,17 +106,13 @@ function failedRegistryBuild(string $directory, ScanRoots $roots): RegistryBuild
     Assert::fail('The build did not fail.');
 }
 
-it('registers exactly the fixture action, command and hook from the fixture scan root', function (): void {
+it('registers exactly the fixture command and hook from the fixture scan root', function (): void {
     $directory = RegistryFixtures::scratch();
     $registry = RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
-    expect($registry->actions)->toEqual([
-        new ActionEntry(CreateNoteAction::class, RegistryFixtures::PACKAGE, [Surface::Rest, Surface::Cli]),
+    expect($registry->commands)->toEqual([
+        new CommandEntry(new CommandName('fixture.note.create'), 1, CreateNote::class, RegistryFixtures::PACKAGE),
     ])
-        ->and($registry->actions[0]->surfaces)->toBe([Surface::Rest, Surface::Cli])
-        ->and($registry->commands)->toEqual([
-            new CommandEntry(new CommandName('fixture.note.create'), 1, CreateNote::class, RegistryFixtures::PACKAGE),
-        ])
         ->and($registry->hooks)->toEqual([
             new HookEntry(TrimNoteTitle::class, RegistryFixtures::PACKAGE, new CommandName('fixture.note.create'), 1, CreateNote::class, Phase::Transform, 10, 5),
         ]);
@@ -136,42 +129,53 @@ it('keeps the command name as the CommandName value that the hooks and the idemp
         ->and($read->commands[0]->name->equals($read->hooks[0]->command))->toBeTrue();
 });
 
-it('writes the three files, and reading them back gives the registry that was built', function (): void {
+it('writes the two files, and reading them back gives the registry that was built', function (): void {
     $directory = RegistryFixtures::scratch();
     $built = RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
-    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php'])
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'commands.php', 'hooks.php'])
         ->and(RegistryFixtures::cache($directory)->read())->toEqual($built);
 
-    $actions = RegistryFixtures::load($directory.'/actions.php');
     $commands = RegistryFixtures::load($directory.'/commands.php');
-    Assert::assertIsArray($actions);
+    $hooks = RegistryFixtures::load($directory.'/hooks.php');
     Assert::assertIsArray($commands);
+    Assert::assertIsArray($hooks);
 
-    expect($actions)->toBe([
-        'build' => $commands['build'],
+    expect($commands)->toBe([
+        'build' => $hooks['build'],
         'entries' => [
-            ['class' => CreateNoteAction::class, 'package' => RegistryFixtures::PACKAGE, 'surfaces' => ['rest', 'cli']],
+            ['class' => CreateNote::class, 'name' => 'fixture.note.create', 'package' => RegistryFixtures::PACKAGE, 'version' => 1],
         ],
-        'format' => 2,
-        'registry' => 'actions',
+        'format' => 3,
+        'registry' => 'commands',
     ])
-        ->and($actions['build'])->toMatch('/\A[0-9a-f]{64}\z/');
+        ->and($commands['build'])->toMatch('/\A[0-9a-f]{64}\z/');
 });
 
-it('writes three empty registries when there are no scan roots', function (): void {
+it('registers no actions and removes the actions.php of format 2, which listed actions without the command or query they handle', function (): void {
+    $directory = RegistryFixtures::scratch();
+    mkdir($directory);
+    file_put_contents($directory.'/actions.php', "<?php return ['build' => '', 'entries' => [], 'format' => 2, 'registry' => 'actions'];\n");
+
+    $built = RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
+
+    expect(array_map(static fn (RegistryName $name): string => $name->fileName(), RegistryName::cases()))->toBe(['commands.php', 'hooks.php'])
+        ->and(RegistryFixtures::files($directory))->toBe(['.lock', 'commands.php', 'hooks.php'])
+        ->and(RegistryFixtures::cache($directory)->read())->toEqual($built);
+});
+
+it('writes two empty registries when there are no scan roots', function (): void {
     $directory = RegistryFixtures::scratch();
     $registry = RegistryFixtures::builder($directory)->build(new ScanRoots);
 
-    expect($registry->actions)->toBe([])
-        ->and($registry->commands)->toBe([])
+    expect($registry->commands)->toBe([])
         ->and($registry->hooks)->toBe([]);
 
-    $build = hash('sha256', "actions => [];\ncommands => [];\nhooks => [];\n");
+    $build = hash('sha256', "commands => [];\nhooks => [];\n");
 
     foreach (RegistryName::cases() as $name) {
         expect(RegistryFixtures::load($directory.'/'.$name->fileName()))
-            ->toBe(['build' => $build, 'entries' => [], 'format' => 2, 'registry' => $name->value]);
+            ->toBe(['build' => $build, 'entries' => [], 'format' => 3, 'registry' => $name->value]);
     }
 });
 
@@ -185,7 +189,7 @@ it('removes the subscriber, slot and schema files an earlier version wrote', fun
 
     $built = RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
-    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php'])
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'commands.php', 'hooks.php'])
         ->and(RegistryFixtures::cache($directory)->read())->toEqual($built);
 });
 
@@ -201,7 +205,7 @@ it('gives byte-identical files when it builds twice, into the same or another di
     RegistryFixtures::builder($other)->build(new ScanRoots(...array_reverse([...$roots->roots, RegistryFixtures::root('Valid')])));
     $elsewhere = RegistryFixtures::hashes($other);
 
-    expect($first)->toHaveCount(3)
+    expect($first)->toHaveCount(2)
         ->and($second)->toBe($first)
         ->and($elsewhere)->toBe($first);
 });
@@ -211,7 +215,7 @@ it('keeps no temporary files next to the cache', function (): void {
     RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
     RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
-    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php']);
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'commands.php', 'hooks.php']);
 });
 
 it('refuses two classes with the same command name and version, and writes nothing', function (): void {
@@ -263,36 +267,35 @@ it('reports attributes whose arguments are invalid, each with its class', functi
         ->and($failed->getMessage())
         ->toContain('#[Hook] on Cbox\Cms\Core\Tests\Registry\Fixtures\InvalidAttribute\HookOnMissingClass')
         ->toContain('is not a class')
-        ->toContain('#[Action] on Cbox\Cms\Core\Tests\Registry\Fixtures\InvalidAttribute\RepeatedSurface')
-        ->toContain('declared more than once');
+        ->toContain('#[Command] on Cbox\Cms\Core\Tests\Registry\Fixtures\InvalidAttribute\OneSegmentCommand')
+        ->toContain('must be dot-separated snake_case segments');
 });
 
 it('refuses an attribute on an abstract class', function (): void {
     $directory = RegistryFixtures::scratch();
-    $failed = failedRegistryBuild($directory, new ScanRoots(RegistryFixtures::root('AbstractAction')));
+    $failed = failedRegistryBuild($directory, new ScanRoots(RegistryFixtures::root('AbstractCommand')));
 
     expect($failed->codes())->toBe([BuildErrorCode::NotAConcreteClass])
-        ->and($failed->getMessage())->toContain('BaseAction')->toContain('an abstract class');
+        ->and($failed->getMessage())->toContain('BaseCommand')->toContain('an abstract class');
 });
 
-it('refuses a command or an action that is not a final readonly class', function (): void {
+it('refuses a command that is not a final readonly class', function (): void {
     $directory = RegistryFixtures::scratch();
     $failed = failedRegistryBuild($directory, new ScanRoots(RegistryFixtures::root('NotFinalReadonly')));
 
-    expect($failed->codes())->toBe([BuildErrorCode::NotFinalReadonly, BuildErrorCode::NotFinalReadonly])
+    expect($failed->codes())->toBe([BuildErrorCode::NotFinalReadonly])
         ->and($failed->getMessage())->toContain('[registry_not_final_readonly]')
         ->toContain('#[Command] on '.MutableCommand::class.' ('.RegistryFixtures::PACKAGE.') is not readonly')
-        ->toContain('#[Action] on '.OpenAction::class.' ('.RegistryFixtures::PACKAGE.') is not final')
         ->toContain('final readonly class')
         ->and(is_dir($directory))->toBeFalse();
 });
 
-it('refuses a command or an action that is neither final nor readonly, once per class', function (): void {
+it('refuses a command that is neither final nor readonly in one problem', function (): void {
     $directory = RegistryFixtures::scratch();
     $failed = failedRegistryBuild($directory, new ScanRoots(RegistryFixtures::root('NeitherFinalNorReadonly')));
 
     expect($failed->codes())->toBe([BuildErrorCode::NotFinalReadonly])
-        ->and($failed->getMessage())->toContain(PlainCommandAction::class.' ('.RegistryFixtures::PACKAGE.') is not final and not readonly');
+        ->and($failed->getMessage())->toContain(PlainCommand::class.' ('.RegistryFixtures::PACKAGE.') is not final and not readonly');
 });
 
 it('refuses a class the autoloader cannot find', function (): void {
@@ -308,7 +311,7 @@ it('refuses a directory that two packages declare', function (): void {
     $failed = failedRegistryBuild($directory, new ScanRoots(RegistryFixtures::root('Valid'), RegistryFixtures::root('Valid', 'acme/copy')));
 
     expect(array_unique(array_map(static fn (BuildErrorCode $code): string => $code->value, $failed->codes())))->toBe(['registry_class_in_two_roots'])
-        ->and($failed->problems)->toHaveCount(4);
+        ->and($failed->problems)->toHaveCount(3);
 });
 
 it('refuses a scan root that is not a directory', function (): void {
@@ -324,7 +327,7 @@ it('lists every problem of one build, sorted by code', function (): void {
     $failed = failedRegistryBuild($directory, new ScanRoots(
         RegistryFixtures::root('UnknownHookCommand'),
         RegistryFixtures::root('DuplicateCommand'),
-        RegistryFixtures::root('AbstractAction'),
+        RegistryFixtures::root('AbstractCommand'),
     ));
 
     expect(array_map(static fn (BuildErrorCode $code): string => $code->value, $failed->codes()))->toBe([

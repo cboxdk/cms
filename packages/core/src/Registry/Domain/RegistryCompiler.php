@@ -6,7 +6,6 @@ namespace Cbox\Cms\Core\Registry\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Attributes\Phase;
-use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\BuildProblem;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
@@ -75,15 +74,13 @@ final readonly class RegistryCompiler
             throw RegistryBuildFailed::with($problems);
         }
 
-        $actions = $discovery->actions;
         $commands = $discovery->commands;
 
-        usort($actions, static fn (ActionEntry $a, ActionEntry $b): int => strcmp($a->class, $b->class));
         usort($commands, static fn (CommandEntry $a, CommandEntry $b): int => [$a->name->value, $a->version] <=> [$b->name->value, $b->version]);
         usort($hooks, static fn (HookEntry $a, HookEntry $b): int => [$a->command->value, $a->commandVersion, self::rank($a->phase), $a->priority, $a->package, $a->class]
             <=> [$b->command->value, $b->commandVersion, self::rank($b->phase), $b->priority, $b->package, $b->class]);
 
-        return new CompiledRegistry($actions, $commands, $hooks);
+        return new CompiledRegistry($commands, $hooks);
     }
 
     /**

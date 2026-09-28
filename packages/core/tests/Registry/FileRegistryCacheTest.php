@@ -22,7 +22,7 @@ it('creates the directory and its parents when they do not exist', function (): 
 
     $cache->write(CompiledRegistry::empty());
 
-    expect(RegistryFixtures::files($directory.'/bootstrap/cache/cms'))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php'])
+    expect(RegistryFixtures::files($directory.'/bootstrap/cache/cms'))->toBe(['.lock', 'commands.php', 'hooks.php'])
         ->and($cache->read())->toEqual(CompiledRegistry::empty())
         ->and($cache->location())->toBe($directory.'/bootstrap/cache/cms');
 });
@@ -34,14 +34,14 @@ it('owns its directory: every file it does not write is removed, whatever its na
     file_put_contents($directory.'/notes.txt', 'left by hand');
     file_put_contents($directory.'/.hidden', 'left by hand');
     file_put_contents($directory.'/subscribers.php.0123456789abcdef.tmp', 'from an old build');
-    file_put_contents($directory.'/actions.php.0123456789abcdef.tmp.bak', 'not a temporary file of a write');
+    file_put_contents($directory.'/commands.php.0123456789abcdef.tmp.bak', 'not a temporary file of a write');
     file_put_contents($directory."/hooks.php\n", 'a registry name with a line break after it');
     symlink($directory.'/notes.txt', $directory.'/link.php');
     symlink($directory.'/missing', $directory.'/dangling.php');
 
     RegistryFixtures::cache($directory)->write(CompiledRegistry::empty());
 
-    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php']);
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'commands.php', 'hooks.php']);
 });
 
 it('leaves subdirectories and the temporary file of a concurrent write in place', function (): void {
@@ -52,7 +52,7 @@ it('leaves subdirectories and the temporary file of a concurrent write in place'
 
     RegistryFixtures::cache($directory)->write(CompiledRegistry::empty());
 
-    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'hooks.php.0123456789abcdef.tmp', 'nested'])
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'commands.php', 'hooks.php', 'hooks.php.0123456789abcdef.tmp', 'nested'])
         ->and(RegistryFixtures::files($directory.'/nested'))->toBe(['subscribers.php']);
 });
 
@@ -65,7 +65,7 @@ it('replaces the files before it removes the others, so a failed write keeps wha
     expect(fn () => RegistryFixtures::cache($directory)->write(CompiledRegistry::empty()))
         ->toThrow(RegistryCacheUnwritable::class, $directory.'/hooks.php');
 
-    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'subscribers.php']);
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'commands.php', 'hooks.php', 'subscribers.php']);
 });
 
 it('refuses to read a cache that was never built, and says how to build it', function (): void {
@@ -76,7 +76,7 @@ it('refuses to read a cache that was never built, and says how to build it', fun
         Assert::fail('A missing cache was read.');
     } catch (RegistryCacheMissing $missing) {
         expect($missing->getMessage())->toBe(sprintf(
-            '[registry_cache_missing] The registry cache file %s/actions.php does not exist. Run php artisan cms:build, which composer dump-autoload also runs, and make the deploy run it.',
+            '[registry_cache_missing] The registry cache file %s/commands.php does not exist. Run php artisan cms:build, which composer dump-autoload also runs, and make the deploy run it.',
             $directory,
         ));
     }
@@ -103,7 +103,7 @@ it('refuses a cache file that is not valid PHP', function (): void {
 it('refuses a cache file that returns something else', function (): void {
     $directory = RegistryFixtures::scratch();
     RegistryFixtures::cache($directory)->write(CompiledRegistry::empty());
-    file_put_contents($directory.'/actions.php', "<?php return 'actions';\n");
+    file_put_contents($directory.'/commands.php', "<?php return 'commands';\n");
 
     expect(fn (): CompiledRegistry => RegistryFixtures::cache($directory)->read())
         ->toThrow(MalformedRegistryCache::class, 'expected an array with the keys build, entries, format, registry, got string');
@@ -136,7 +136,7 @@ it('reports a file it cannot write, and leaves no temporary file', function (): 
         RegistryFixtures::cache($directory)->write(CompiledRegistry::empty());
         Assert::fail('The cache was written to a read-only directory.');
     } catch (RegistryCacheUnwritable $unwritable) {
-        expect($unwritable->getMessage())->toContain($directory.'/actions.php')->toContain('Permission denied');
+        expect($unwritable->getMessage())->toContain($directory.'/commands.php')->toContain('Permission denied');
     } finally {
         chmod($directory, 0o755);
     }
@@ -156,7 +156,7 @@ it('reports a rename that fails, and leaves no temporary file', function (): voi
         expect($unwritable->getMessage())->toContain($directory.'/hooks.php')->toContain('rename(');
     }
 
-    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php']);
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'commands.php', 'hooks.php']);
 });
 
 it('refuses to write to a directory that names a stream wrapper before it touches it, so it never writes to ftp:// (GUARDRAILS 3)', function (string $directory): void {

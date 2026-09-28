@@ -22,7 +22,7 @@ final class FakeDeclarationScannerBehaviourTest extends TestCase
     {
         return new FakeDeclarationScanner([
             $this->declaringDirectory() => RegistryFixtures::validDiscovery('acme/declared-for-the-fake'),
-            $this->quietDirectory() => new Discovery([], [], [], []),
+            $this->quietDirectory() => new Discovery([], [], []),
         ]);
     }
 

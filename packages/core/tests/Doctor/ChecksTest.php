@@ -370,8 +370,8 @@ it('fails a registry cache that is missing, damaged, stale or has no vendor mani
     $probe->state = FakeRegistryCacheProbe::build(builtAt: new DateTimeImmutable('2026-01-01T10:00:00Z'));
     expect($check->run()->passed())->toBeTrue('A cache written in the same second is not older.');
 
-    $probe->state = FakeRegistryCacheProbe::build(builtAt: null, missing: ['actions.php', 'hooks.php']);
-    expectFailure($check->run(), FailureKind::Violation, RegistryCacheCheck::CODE_MISSING, '/app/bootstrap/cache/cms lacks actions.php, hooks.php');
+    $probe->state = FakeRegistryCacheProbe::build(builtAt: null, missing: ['commands.php', 'hooks.php']);
+    expectFailure($check->run(), FailureKind::Violation, RegistryCacheCheck::CODE_MISSING, '/app/bootstrap/cache/cms lacks commands.php, hooks.php');
 
     $probe->state = FakeRegistryCacheProbe::build(builtAt: new DateTimeImmutable('2026-01-01T10:00:05Z'), damage: 'The registry file hooks.php is malformed.');
     expectFailure($check->run(), FailureKind::Violation, RegistryCacheCheck::CODE_DAMAGED, 'hooks.php is malformed');

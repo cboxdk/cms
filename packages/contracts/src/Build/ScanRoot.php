@@ -8,8 +8,8 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
 use InvalidArgumentException;
 
 /**
- * A directory that cms:build scans for classes declared with #[Action], #[Command] and #[Hook]
- * (PRD 13.2), and the Composer package the classes belong to.
+ * A directory that cms:build scans for classes declared with #[Command] and #[Hook] (PRD 13.2),
+ * and the Composer package the classes belong to.
  *
  * The directory is absolute, and every class in it must be autoloadable. The package name orders
  * hooks with the same priority and names the package in the registry and in build errors.

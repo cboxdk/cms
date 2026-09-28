@@ -7,7 +7,6 @@ namespace Cbox\Cms\Core\Tests\Registry\Fakes;
 use Cbox\Cms\Contracts\Build\ScanRoot;
 use Cbox\Cms\Core\Registry\Domain\BuildErrorCode;
 use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
-use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\BuildProblem;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredHook;
@@ -41,7 +40,6 @@ final class FakeDeclarationScanner implements DeclarationScanner
     {
         $this->scanned[] = $roots;
 
-        $actions = [];
         $commands = [];
         $hooks = [];
         $problems = [];
@@ -89,12 +87,6 @@ final class FakeDeclarationScanner implements DeclarationScanner
                 $owners[strtolower($class)] ??= $root;
             }
 
-            foreach ($found->actions as $action) {
-                if ($owners[strtolower($action->class)] === $root) {
-                    $actions[] = new ActionEntry($action->class, $package, $action->surfaces);
-                }
-            }
-
             foreach ($found->commands as $command) {
                 if ($owners[strtolower($command->class)] === $root) {
                     $commands[] = new CommandEntry($command->name, $command->version, $command->class, $package);
@@ -110,7 +102,7 @@ final class FakeDeclarationScanner implements DeclarationScanner
             array_push($problems, ...$found->problems);
         }
 
-        return new Discovery($actions, $commands, $hooks, $problems);
+        return new Discovery($commands, $hooks, $problems);
     }
 
     /**
@@ -121,7 +113,6 @@ final class FakeDeclarationScanner implements DeclarationScanner
     private function classes(Discovery $found): array
     {
         $classes = [
-            ...array_map(static fn (ActionEntry $action): string => $action->class, $found->actions),
             ...array_map(static fn (CommandEntry $command): string => $command->class, $found->commands),
             ...array_map(static fn (DiscoveredHook $hook): string => $hook->class, $found->hooks),
         ];

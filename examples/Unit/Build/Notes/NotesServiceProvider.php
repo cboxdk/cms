@@ -10,7 +10,7 @@ use Illuminate\Support\ServiceProvider;
 
 /**
  * The service provider of the package acme/cms-notes. Its scan root is the directory it lies in,
- * so cms:build registers the command, the action and the hook next to it.
+ * so cms:build registers the command and the hook next to it.
  */
 final class NotesServiceProvider extends ServiceProvider implements DeclaresScanRoots
 {

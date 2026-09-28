@@ -13,7 +13,7 @@ use Illuminate\Contracts\Console\Kernel;
 
 /*
  * cms:build in the testbench application: it compiles the scan roots the providers declare and
- * writes the three files, or prints each problem with its code and exits with 65.
+ * writes the two files, or prints each problem with its code and exits with 65.
  */
 
 afterEach(function (): void {
@@ -39,7 +39,7 @@ it('is registered', function (): void {
         ->and(app(Kernel::class)->all()['cms:build'])->toBeInstanceOf(BuildCommand::class);
 });
 
-it('writes the three registries to the application\'s bootstrap/cache/cms, and removes the files it no longer writes', function (): void {
+it('writes the two registries to the application\'s bootstrap/cache/cms, and removes the files it no longer writes', function (): void {
     $directory = app()->bootstrapPath('cache/cms');
 
     if (! is_dir($directory)) {
@@ -52,12 +52,11 @@ it('writes the three registries to the application\'s bootstrap/cache/cms, and r
 
     expect($status)->toBe(0)
         ->and($output)->toBe([
-            'actions: 0',
             'commands: 0',
             'hooks: 0',
             sprintf('Registry written to %s.', $directory),
         ])
-        ->and(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php']);
+        ->and(RegistryFixtures::files($directory))->toBe(['.lock', 'commands.php', 'hooks.php']);
 });
 
 it('adds what an addon provider\'s scan root declares', function (): void {
@@ -68,7 +67,7 @@ it('adds what an addon provider\'s scan root declares', function (): void {
     [$status, $output] = buildCommand();
 
     expect($status)->toBe(0)
-        ->and(array_slice($output, 0, 3))->toBe(['actions: 1', 'commands: 1', 'hooks: 1'])
+        ->and(array_slice($output, 0, 2))->toBe(['commands: 1', 'hooks: 1'])
         ->and(RegistryFixtures::load($directory.'/commands.php'))->toMatchArray(['entries' => [[
             'class' => CreateNote::class,
             'name' => 'fixture.note.create',

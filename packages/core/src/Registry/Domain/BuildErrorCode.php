@@ -24,7 +24,7 @@ enum BuildErrorCode: string
     /** An attribute sits on an interface, trait, enum or abstract class. */
     case NotAConcreteClass = 'registry_not_a_concrete_class';
 
-    /** A #[Command] or #[Action] sits on a class that is not a final readonly class (GUARDRAILS 2.1). */
+    /** A #[Command] sits on a class that is not a final readonly class (GUARDRAILS 2.1). */
     case NotFinalReadonly = 'registry_not_final_readonly';
 
     /** Two different scan roots contain the same class. */

@@ -44,6 +44,6 @@ final class FileRegistryCacheBehaviourTest extends TestCase
     #[Override]
     protected function damage(RegistryCache $cache): void
     {
-        file_put_contents($cache->location().'/'.RegistryName::Actions->fileName(), "<?php return 'actions';\n");
+        file_put_contents($cache->location().'/'.RegistryName::Commands->fileName(), "<?php return 'commands';\n");
     }
 }

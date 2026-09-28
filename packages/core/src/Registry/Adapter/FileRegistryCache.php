@@ -22,7 +22,7 @@ use Throwable;
  *
  * A write puts every file in a temporary file in the same directory first and then renames them
  * over the old ones, one after the other, so a reader sees either the old or the new version of
- * each file, but can meet the new actions.php next to the old hooks.php. The files carry the build
+ * each file, but can meet the new commands.php next to the old hooks.php. The files carry the build
  * they come from (RegistryCacheCodec), and read() does not mix builds: when the files it loaded come
  * from different builds, it tells OPcache to forget them and loads them again, up to READ_ATTEMPTS
  * times with READ_PAUSE_MICROSECONDS between, so it gives the whole old or the whole new registry.

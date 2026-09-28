@@ -14,9 +14,9 @@ it('reads the classes, interfaces, traits and enums a file declares, with their 
 
         namespace Acme\Blog\Actions;
 
-        use Cbox\Cms\Contracts\Attributes\Action;
+        use Cbox\Cms\Contracts\Attributes\Command;
 
-        #[Action(surfaces: [])]
+        #[Command('post.publish', version: 1)]
         final readonly class PublishPost {}
 
         interface Publishes {}

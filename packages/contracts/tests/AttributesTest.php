@@ -2,17 +2,14 @@
 
 declare(strict_types=1);
 
-use Cbox\Cms\Contracts\Attributes\Action;
 use Cbox\Cms\Contracts\Attributes\Command;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Attributes\Hook;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Attributes\Phase;
 use Cbox\Cms\Contracts\Attributes\Stable;
-use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Tests\Fixtures\ReleaseVariant;
-use Cbox\Cms\Contracts\Tests\Fixtures\ReleaseVariantAction;
 use Cbox\Cms\Contracts\Tests\Fixtures\SlugHook;
 use PHPUnit\Framework\Assert;
 
@@ -49,7 +46,7 @@ function expectInvalid(Closure $build, string $message): void
 }
 
 it('declares every attribute but Internal for classes only', function (): void {
-    foreach ([Stable::class, Experimental::class, Command::class, Action::class, Hook::class] as $attribute) {
+    foreach ([Stable::class, Experimental::class, Command::class, Hook::class] as $attribute) {
         $declarations = new ReflectionClass($attribute)->getAttributes(Attribute::class);
 
         expect($declarations)->toHaveCount(1)
@@ -88,22 +85,6 @@ it('rejects a command version below 1', function (int $version): void {
     expectInvalid(static fn (): Command => new Command('entry.release', $version), 'Versions start at 1');
 })->with([0, -1]);
 
-it('reads the surfaces from an action', function (): void {
-    $action = attributeOf(ReleaseVariantAction::class, Action::class);
-
-    expect($action->surfaces)->toBe([Surface::Rest, Surface::Mcp])
-        ->and($action->exposes(Surface::Rest))->toBeTrue()
-        ->and($action->exposes(Surface::Cli))->toBeFalse();
-});
-
-it('allows an action without generated surfaces', function (): void {
-    expect((new Action(surfaces: []))->surfaces)->toBe([]);
-});
-
-it('rejects a surface declared twice', function (): void {
-    expectInvalid(static fn (): Action => new Action(surfaces: [Surface::Rest, Surface::Cli, Surface::Rest]), 'Surface "Rest"');
-});
-
 it('reads command, phase, priority and budget from a hook', function (): void {
     $hook = attributeOf(SlugHook::class, Hook::class);
 
@@ -123,10 +104,9 @@ it('rejects a hook budget outside 1 to 20 ms', function (int $budget): void {
 
 it('rejects a hook for something that is not a command class', function (): void {
     expectInvalid(static fn (): Hook => new Hook('Cbox\Cms\Missing', Phase::Transform, 0, 10), 'is not a class');
-    expectInvalid(static fn (): Hook => new Hook(ReleaseVariantAction::class, Phase::Transform, 0, 10), 'not declared with #[Command]');
+    expectInvalid(static fn (): Hook => new Hook(SlugHook::class, Phase::Transform, 0, 10), 'not declared with #[Command]');
 });
 
-it('has one surface per transport profile and one phase per hook interface', function (): void {
-    expect(array_map(static fn (Surface $surface): string => $surface->value, Surface::cases()))->toBe(['rest', 'inertia', 'mcp', 'cli'])
-        ->and(array_map(static fn (Phase $phase): string => $phase->value, Phase::cases()))->toBe(['authorize', 'transform', 'validate']);
+it('has one phase per pipeline phase that runs hooks', function (): void {
+    expect(array_map(static fn (Phase $phase): string => $phase->value, Phase::cases()))->toBe(['authorize', 'transform', 'validate']);
 });

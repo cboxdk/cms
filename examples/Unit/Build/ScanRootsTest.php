@@ -6,7 +6,6 @@ namespace Examples\Unit\Build;
 
 use Examples\Unit\Build\Notes\NotesServiceProvider;
 use Examples\Unit\Build\Notes\PublishNote;
-use Examples\Unit\Build\Notes\PublishNoteAction;
 use Examples\Unit\Build\Notes\TrimNoteTitle;
 use Examples\Unit\Build\Tagging\TaggingServiceProvider;
 use Examples\Unit\Build\Tagging\TagPublishedNote;
@@ -19,7 +18,7 @@ use PHPUnit\Framework\Attributes\Test;
 final class ScanRootsTest extends BuildTestCase
 {
     #[Test]
-    public function it_compiles_the_command_the_action_and_the_hook_of_a_package(): void
+    public function it_compiles_the_command_and_the_hook_of_a_package(): void
     {
         self::assertSame(0, $this->build(NotesServiceProvider::class));
         self::assertStringContainsString('Registry written to '.$this->registryDirectory().'.', $this->buildOutput());
@@ -34,16 +33,6 @@ final class ScanRootsTest extends BuildTestCase
             'package' => 'acme/cms-notes',
             'version' => 1,
         ], $commands['entries']);
-
-        $actions = require $this->registryFile('actions');
-        self::assertIsArray($actions);
-        self::assertSame('actions', $actions['registry']);
-        self::assertIsArray($actions['entries']);
-        self::assertContains([
-            'class' => PublishNoteAction::class,
-            'package' => 'acme/cms-notes',
-            'surfaces' => ['rest', 'cli'],
-        ], $actions['entries']);
 
         $hooks = require $this->registryFile('hooks');
         self::assertIsArray($hooks);
