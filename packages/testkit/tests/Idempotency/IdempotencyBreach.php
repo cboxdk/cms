@@ -49,4 +49,7 @@ enum IdempotencyBreach
 
     /** The lookup ends with the Clock's UTC day, so a record created on a later day is not found. */
     case LooksUpToTheEndOfTheClocksDay;
+
+    /** A contested claim does not wait: it is InFlight at once and still reports the whole budget. */
+    case GivesUpAtOnce;
 }

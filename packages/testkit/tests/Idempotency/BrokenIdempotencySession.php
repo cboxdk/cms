@@ -73,6 +73,12 @@ final readonly class BrokenIdempotencySession implements IdempotencyStore, Idemp
             return new InFlight($scope, $key, $waitBudget);
         }
 
+        if ($this->breach === IdempotencyBreach::GivesUpAtOnce) {
+            $result = $this->inner->claim($scope, $key, $hash, WaitBudget::none());
+
+            return $result instanceof InFlight ? new InFlight($scope, $key, $waitBudget) : $result;
+        }
+
         try {
             $result = $this->inner->claim($scope, $key, $hash, $waitBudget);
         } catch (LogicException $failed) {

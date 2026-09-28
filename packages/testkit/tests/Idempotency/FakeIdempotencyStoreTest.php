@@ -20,6 +20,7 @@ use Cbox\Cms\Contracts\Storage\PartitionMissing;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\Idempotency\FakeIdempotencySession;
 use Cbox\Cms\Testkit\Idempotency\FakeIdempotencyStore;
+use Cbox\Cms\Testkit\Idempotency\HolderEnd;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
 use DateTimeImmutable;
 use InvalidArgumentException;
@@ -27,7 +28,9 @@ use LogicException;
 
 /*
  * The fake's own behaviour beyond the shared suite: its sessions refuse nesting and stray
- * commits, and whenWaiting() models what happens while a contested claim waits within its budget.
+ * commits, and whenWaiting() models what happens while a contested claim waits within its budget,
+ * in real time. What a waiting claim gets when its holder commits or rolls back is in the shared
+ * suite, through holdWhileWaiting().
  * uncover() takes exactly its range out of the partitions, and PartitionMissing fails a
  * transaction.
  */
@@ -86,44 +89,6 @@ it('refuses a claim outside a transaction and says why', function (): void {
     expect(fn (): ClaimResult => fakeClaim($session))->toThrow(InvalidClaim::class, 'IdempotencyStore::claim() runs inside the caller\'s command transaction');
 });
 
-it('replays when the holder completes and commits within the wait budget', function (): void {
-    $clock = new FakeClock;
-    $store = new FakeIdempotencyStore($clock);
-    $holder = $store->session();
-    $waiter = $store->session();
-    $changesetId = new ChangesetId(new FakeIdGenerator(clock: $clock)->next());
-    $holder->begin();
-    $token = fakeFreshClaim($holder)->token;
-
-    $store->whenWaiting(40, static function () use ($holder, $token, $changesetId): void {
-        $holder->complete($token, $changesetId);
-        $holder->commit();
-    });
-
-    $waiter->begin();
-    $result = fakeClaim($waiter, 50);
-
-    expect($result)->toBeInstanceOf(Replay::class)
-        ->and($result instanceof Replay ? $result->changesetId->toString() : null)->toBe($changesetId->toString())
-        ->and($store->scheduledWaitEvents())->toBe(0);
-});
-
-it('is fresh when the holder rolls back within the wait budget', function (): void {
-    $store = new FakeIdempotencyStore;
-    $holder = $store->session();
-    $waiter = $store->session();
-    $holder->begin();
-    fakeFreshClaim($holder);
-
-    $store->whenWaiting(10, static function () use ($holder): void {
-        $holder->rollBack();
-    });
-
-    $waiter->begin();
-
-    expect(fakeClaim($waiter, 10))->toBeInstanceOf(Fresh::class);
-});
-
 it('is in flight when the holder ends after the budget, and keeps that event for a later wait', function (): void {
     $store = new FakeIdempotencyStore;
     $holder = $store->session();
@@ -170,6 +135,75 @@ it('runs due events in time order and stops once the claim is free', function ()
     expect(fakeClaim($waiter, 50))->toBeInstanceOf(Fresh::class)
         ->and($ran)->toBe([10, 30])
         ->and($store->scheduledWaitEvents())->toBe(1);
+});
+
+it('waits in real time: until each event, and the whole budget before it is in flight', function (): void {
+    $store = new FakeIdempotencyStore;
+    $holder = $store->session();
+    $waiter = $store->session();
+    $holder->begin();
+    fakeFreshClaim($holder);
+    $at = [];
+    $started = hrtime(true);
+
+    $store->whenWaiting(60, static function () use ($started, &$at): void {
+        $at[] = (hrtime(true) - $started) / 1_000_000;
+    });
+
+    $waiter->begin();
+    $result = fakeClaim($waiter, 150);
+    $waited = (hrtime(true) - $started) / 1_000_000;
+
+    expect($result)->toBeInstanceOf(InFlight::class)
+        ->and($at)->toHaveCount(1)
+        ->and($at[0] ?? 0.0)->toBeGreaterThanOrEqual(60.0)
+        ->and($at[0] ?? PHP_FLOAT_MAX)->toBeLessThan(150.0)
+        ->and($waited)->toBeGreaterThanOrEqual(150.0);
+});
+
+it('does not sleep for a claim nobody else holds, or for a contested claim without a budget', function (): void {
+    $store = new FakeIdempotencyStore;
+    $holder = $store->session();
+    $waiter = $store->session();
+    $started = hrtime(true);
+
+    $holder->begin();
+    expect(fakeClaim($holder, 5000))->toBeInstanceOf(Fresh::class);
+    $waiter->begin();
+    expect(fakeClaim($waiter))->toBeInstanceOf(InFlight::class)
+        ->and((hrtime(true) - $started) / 1_000_000)->toBeLessThan(1000.0);
+});
+
+it('starts a holder that completes its claim and ends it as the wait event says', function (): void {
+    $clock = new FakeClock;
+    $store = new FakeIdempotencyStore($clock);
+    $scope = IdempotencyScope::forActor(new PrincipalId('user:7'), new CommandName('entry.release'));
+    $changesetId = new ChangesetId(new FakeIdGenerator(clock: $clock)->next());
+    $store->holdWhileWaiting($scope, new IdempotencyKey('retry-me'), ContentHash::of('{"value":"A"}'), $changesetId, HolderEnd::Commit, 20);
+    $waiter = $store->session();
+    $waiter->begin();
+
+    expect(fakeClaim($waiter))->toBeInstanceOf(InFlight::class)
+        ->and($store->scheduledWaitEvents())->toBe(1)
+        ->and(fakeClaim($waiter, 20))->toEqual(new Replay($changesetId))
+        ->and($store->scheduledWaitEvents())->toBe(0);
+});
+
+it('refuses a holder on a key that is not fresh, and holds nothing', function (): void {
+    $store = new FakeIdempotencyStore;
+    $scope = IdempotencyScope::forActor(new PrincipalId('user:7'), new CommandName('entry.release'));
+    $session = $store->session();
+    $session->begin();
+    fakeFreshClaim($session);
+
+    expect(fn () => $store->holdWhileWaiting($scope, new IdempotencyKey('retry-me'), ContentHash::of('{"value":"A"}'), null, HolderEnd::RollBack, 0))
+        ->toThrow(LogicException::class, 'The holder needs a fresh key, and the claim on [actor user:7 entry.release retry-me] is '.InFlight::class.'.');
+
+    $session->rollBack();
+    $session->begin();
+
+    expect(fakeClaim($session))->toBeInstanceOf(Fresh::class)
+        ->and($store->scheduledWaitEvents())->toBe(0);
 });
 
 it('runs no event for a claim nobody else holds', function (): void {

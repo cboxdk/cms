@@ -5,9 +5,14 @@ declare(strict_types=1);
 namespace Cbox\Cms\Testkit\Tests\Idempotency;
 
 use Cbox\Cms\Contracts\Clock;
+use Cbox\Cms\Contracts\Idempotency\ContentHash;
+use Cbox\Cms\Contracts\Idempotency\IdempotencyKey;
+use Cbox\Cms\Contracts\Idempotency\IdempotencyScope;
 use Cbox\Cms\Contracts\IdempotencyStore;
+use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\Idempotency\FakeIdempotencyStore;
+use Cbox\Cms\Testkit\Idempotency\HolderEnd;
 use Cbox\Cms\Testkit\Idempotency\IdempotencyStoreContract;
 use Cbox\Cms\Testkit\Idempotency\IdempotencyStoreHarness;
 use Cbox\Cms\Testkit\Idempotency\IdempotencyStoreSession;
@@ -60,6 +65,11 @@ function brokenIdempotencyStores(IdempotencyBreach $breach): Closure
                 $this->database->uncover($from, $to);
             }
         }
+
+        public function holdWhileWaiting(IdempotencyScope $scope, IdempotencyKey $key, ContentHash $hash, ?ChangesetId $changesetId, HolderEnd $end, int $afterMilliseconds): void
+        {
+            $this->database->holdWhileWaiting($scope, $key, $hash, $changesetId, $end, $afterMilliseconds);
+        }
     };
 }
 
@@ -86,7 +96,7 @@ it('passes the fake on every shared case', function (): void {
         $case->{$name}();
     }
 
-    expect($cases)->toHaveCount(16);
+    expect($cases)->toHaveCount(20);
 });
 
 it('fails a store that breaks the contract', function (Closure $harness, string $name): void {
@@ -108,5 +118,12 @@ it('fails a store that breaks the contract', function (Closure $harness, string 
     'a store that writes where no partition covers' => [brokenIdempotencyStores(IdempotencyBreach::CoversEveryDate), 'a_complete_where_no_partition_covers_the_record_throws_partition_missing_and_leaves_the_key_fresh'],
     'a failed transaction that takes further claims' => [brokenIdempotencyStores(IdempotencyBreach::KeepsFailedTransactions), 'a_complete_where_no_partition_covers_the_record_throws_partition_missing_and_leaves_the_key_fresh'],
     'a lookup that ends with the Clock\'s UTC day' => [brokenIdempotencyStores(IdempotencyBreach::LooksUpToTheEndOfTheClocksDay), 'a_record_created_on_a_utc_day_after_the_claim_is_replayed'],
+    'an in flight claim that did not wait' => [brokenIdempotencyStores(IdempotencyBreach::GivesUpAtOnce), 'a_claim_held_by_an_open_transaction_is_in_flight_for_another_session'],
+    'an in flight claim that did not wait for a holder that outlasts the budget' => [brokenIdempotencyStores(IdempotencyBreach::GivesUpAtOnce), 'a_claim_whose_holder_outlasts_the_budget_is_in_flight_only_after_the_whole_budget'],
+    'a claim that does not wait for a holder that commits' => [brokenIdempotencyStores(IdempotencyBreach::GivesUpAtOnce), 'a_claim_that_waits_while_the_holder_completes_and_commits_replays_its_changeset'],
+    'a claim that does not wait for a holder that commits another hash' => [brokenIdempotencyStores(IdempotencyBreach::GivesUpAtOnce), 'a_claim_with_another_content_hash_that_waits_while_the_holder_commits_is_a_conflict'],
+    'a claim that does not wait for a holder that rolls back' => [brokenIdempotencyStores(IdempotencyBreach::GivesUpAtOnce), 'a_claim_that_waits_while_the_holder_rolls_back_is_fresh_and_holds_the_key'],
+    'a replay after a wait that holds nothing' => [brokenIdempotencyStores(IdempotencyBreach::ReleasesReplays), 'a_claim_that_waits_while_the_holder_completes_and_commits_replays_its_changeset'],
+    'a conflict after a wait that holds nothing' => [brokenIdempotencyStores(IdempotencyBreach::ReleasesReplays), 'a_claim_with_another_content_hash_that_waits_while_the_holder_commits_is_a_conflict'],
     'a store that never expires' => [static fn (Clock $clock): IdempotencyStoreHarness => new FakeIdempotencyStore(new FakeClock), 'a_completed_key_is_fresh_again_seven_days_after_its_changeset'],
 ]);

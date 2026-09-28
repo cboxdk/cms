@@ -52,11 +52,20 @@ use Throwable;
  * than the claimer's Clock (a Clock that stepped back, or a changeset ahead of it), a record date
  * that no partition covers (through IdempotencyStoreHarness::uncover()) and the claim model: a
  * claim lasts until the caller's transaction ends, complete() writes in that transaction, and a
- * rollback or a commit without complete() leaves the key fresh.
+ * rollback or a commit without complete() leaves the key fresh. Through
+ * IdempotencyStoreHarness::holdWhileWaiting() they cover a claim that waits while the holder's
+ * transaction ends: a commit gives Replay, a commit of another content hash Conflict, a rollback
+ * Fresh, and a holder that outlasts the budget InFlight, only after the whole budget has passed.
  */
 #[Experimental]
 trait IdempotencyStoreContract
 {
+    /** The budget of a claim that waits for a holder to end: long enough for a slow database. */
+    private const int WAIT_MILLISECONDS = 3000;
+
+    /** When a holder ends its transaction, well within WAIT_MILLISECONDS. */
+    private const int HOLDER_ENDS_AFTER_MILLISECONDS = 200;
+
     /**
      * A harness for a new, empty store under test whose sessions read the time from $clock.
      */
@@ -293,6 +302,7 @@ trait IdempotencyStoreContract
         Assert::assertInstanceOf(InFlight::class, $result, 'A claim held by another open transaction is not in flight.');
         Assert::assertTrue($result->scope->equals($this->scope()) && $result->key->equals($this->key()), 'The in flight result names another key.');
         Assert::assertSame($budget->milliseconds, $result->waited->milliseconds);
+        Assert::assertGreaterThanOrEqual($budget->milliseconds, $waited, sprintf('The claim was in flight after %.1f ms, before its budget of %d ms had passed.', $waited, $budget->milliseconds));
         Assert::assertLessThan($budget->milliseconds + 1000, $waited, 'The claim waited far longer than its budget.');
         Assert::assertTrue($waiter->inTransaction(), 'An in flight claim ended the caller\'s transaction.');
 
@@ -304,6 +314,84 @@ trait IdempotencyStoreContract
 
         $holder->rollBack();
         $this->assertFresh($this->claimOn($waiter), message: 'The claim is still held after its transaction ended.');
+    }
+
+    #[Test]
+    public function a_claim_that_waits_while_the_holder_completes_and_commits_replays_its_changeset(): void
+    {
+        $clock = new FakeClock;
+        $harness = $this->idempotencyStores($clock);
+        $changesetId = new ChangesetId(new FakeIdGenerator(clock: $clock)->next());
+        $harness->holdWhileWaiting($this->scope(), $this->key(), $this->hash(), $changesetId, HolderEnd::Commit, self::HOLDER_ENDS_AFTER_MILLISECONDS);
+
+        $waiter = $harness->session();
+        $waiter->begin();
+        $this->assertReplay($changesetId, $this->waitingClaimOn($waiter, $this->hash()), 'A claim that waited while the holder completed and committed did not replay the holder\'s changeset.');
+        Assert::assertTrue($waiter->inTransaction(), 'A replay after a wait ended the caller\'s transaction.');
+        $this->assertHeld($harness, 'The replay after a wait does not hold the claim.');
+    }
+
+    #[Test]
+    public function a_claim_with_another_content_hash_that_waits_while_the_holder_commits_is_a_conflict(): void
+    {
+        $clock = new FakeClock;
+        $harness = $this->idempotencyStores($clock);
+        $changesetId = new ChangesetId(new FakeIdGenerator(clock: $clock)->next());
+        $harness->holdWhileWaiting($this->scope(), $this->key(), ContentHash::of('{"value":"B"}'), $changesetId, HolderEnd::Commit, self::HOLDER_ENDS_AFTER_MILLISECONDS);
+
+        $waiter = $harness->session();
+        $waiter->begin();
+        $result = $this->waitingClaimOn($waiter, $this->hash());
+
+        Assert::assertInstanceOf(Conflict::class, $result, 'A claim with another content hash that waited while the holder committed is not a conflict.');
+        Assert::assertTrue($result->scope->equals($this->scope()) && $result->key->equals($this->key()), 'The conflict names another key.');
+        Assert::assertTrue($waiter->inTransaction(), 'A conflict after a wait ended the caller\'s transaction.');
+        $this->assertHeld($harness, 'The conflict after a wait does not hold the claim.');
+    }
+
+    #[Test]
+    public function a_claim_that_waits_while_the_holder_rolls_back_is_fresh_and_holds_the_key(): void
+    {
+        $clock = new FakeClock;
+        $harness = $this->idempotencyStores($clock);
+        $ids = new FakeIdGenerator(clock: $clock);
+        $harness->holdWhileWaiting($this->scope(), $this->key(), $this->hash(), new ChangesetId($ids->next()), HolderEnd::RollBack, self::HOLDER_ENDS_AFTER_MILLISECONDS);
+
+        $waiter = $harness->session();
+        $waiter->begin();
+        $token = $this->assertFresh($this->waitingClaimOn($waiter, $this->hash()), message: 'A claim that waited while the holder rolled back is not fresh.');
+        $this->assertHeld($harness, 'The fresh claim after a wait does not hold the key.');
+
+        $changesetId = new ChangesetId($ids->next());
+        $waiter->idempotency()->complete($token, $changesetId);
+        $waiter->commit();
+
+        $reader = $harness->session();
+        $reader->begin();
+        $this->assertReplay($changesetId, $this->claimOn($reader), 'The fresh claim after a wait did not record its own changeset.');
+    }
+
+    #[Test]
+    public function a_claim_whose_holder_outlasts_the_budget_is_in_flight_only_after_the_whole_budget(): void
+    {
+        $clock = new FakeClock;
+        $harness = $this->idempotencyStores($clock);
+        $changesetId = new ChangesetId(new FakeIdGenerator(clock: $clock)->next());
+        $budget = WaitBudget::milliseconds(100);
+        $harness->holdWhileWaiting($this->scope(), $this->key(), $this->hash(), $changesetId, HolderEnd::Commit, 800);
+
+        $waiter = $harness->session();
+        $waiter->begin();
+        $started = hrtime(true);
+        $result = $waiter->idempotency()->claim($this->scope(), $this->key(), $this->hash(), $budget);
+        $waited = (hrtime(true) - $started) / 1_000_000;
+
+        Assert::assertInstanceOf(InFlight::class, $result, 'A claim whose holder outlasts the budget is not in flight.');
+        Assert::assertSame($budget->milliseconds, $result->waited->milliseconds, 'The in flight result reports another wait than its budget.');
+        Assert::assertGreaterThanOrEqual($budget->milliseconds, $waited, sprintf('The claim was in flight after %.1f ms, before its budget of %d ms had passed.', $waited, $budget->milliseconds));
+        Assert::assertTrue($waiter->inTransaction(), 'An in flight claim ended the caller\'s transaction.');
+
+        $this->assertReplay($changesetId, $this->waitingClaimOn($waiter, $this->hash()), 'A claim in the same transaction that waited for the holder to commit did not replay its changeset.');
     }
 
     #[Test]
@@ -473,6 +561,25 @@ trait IdempotencyStoreContract
     private function claimOn(IdempotencyStoreSession $session): ClaimResult
     {
         return $session->idempotency()->claim($this->scope(), $this->key(), $this->hash(), WaitBudget::none());
+    }
+
+    /**
+     * The session's claim on the default scope and key with $hash, waiting up to WAIT_MILLISECONDS.
+     */
+    private function waitingClaimOn(IdempotencyStoreSession $session, ContentHash $hash): ClaimResult
+    {
+        return $session->idempotency()->claim($this->scope(), $this->key(), $hash, WaitBudget::milliseconds(self::WAIT_MILLISECONDS));
+    }
+
+    /**
+     * Fails unless another session's claim on the default key, without waiting, is InFlight.
+     */
+    private function assertHeld(IdempotencyStoreHarness $harness, string $message): void
+    {
+        $other = $harness->session();
+        $other->begin();
+        Assert::assertInstanceOf(InFlight::class, $this->claimOn($other), $message);
+        $other->rollBack();
     }
 
     /**

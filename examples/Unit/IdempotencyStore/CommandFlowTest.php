@@ -112,8 +112,8 @@ it('lets a retry wait for the call in flight within its wait budget, and then re
     $retry->begin();
     expect($retry->claim($scope, $key, $hash, WaitBudget::none()))->toBeInstanceOf(InFlight::class);
 
-    // No real time passes in the fake. whenWaiting() says what happens while a claim waits: after
-    // 40 ms the first call commits, so a retry with a budget of 2000 ms gets its changeset.
+    // The fake runs one session at a time. whenWaiting() says what happens while a claim waits:
+    // after 40 ms the first call commits, so a retry with a budget of 2000 ms gets its changeset.
     $store->whenWaiting(40, static function () use ($first, $firstReceipts): void {
         $firstReceipts->commit();
         $first->commit();

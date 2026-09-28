@@ -177,6 +177,10 @@ it('runs every shared IdempotencyStore case once for the FakeIdempotencyStore an
         'a_claim_completed_in_a_rolled_back_transaction_leaves_the_key_fresh',
         'a_fresh_claim_committed_without_complete_leaves_the_key_fresh',
         'a_claim_held_by_an_open_transaction_is_in_flight_for_another_session',
+        'a_claim_that_waits_while_the_holder_completes_and_commits_replays_its_changeset',
+        'a_claim_with_another_content_hash_that_waits_while_the_holder_commits_is_a_conflict',
+        'a_claim_that_waits_while_the_holder_rolls_back_is_fresh_and_holds_the_key',
+        'a_claim_whose_holder_outlasts_the_budget_is_in_flight_only_after_the_whole_budget',
         'five_claims_with_the_same_key_and_hash_after_one_completed_commit_all_replay',
     )->and($listed)->toBe($expected);
 });
@@ -190,7 +194,7 @@ it('runs every shared IdempotencyStore case once for the PostgresIdempotencyStor
     sort($expected);
     sort($listed);
 
-    expect($cases)->toHaveCount(16)
+    expect($cases)->toHaveCount(20)
         ->and($listed)->toBe($expected);
 });
 

@@ -7,6 +7,8 @@ namespace Cbox\Cms\Testkit\Idempotency;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Clock;
+use Cbox\Cms\Contracts\Idempotency\ContentHash;
+use Cbox\Cms\Contracts\Idempotency\Fresh;
 use Cbox\Cms\Contracts\Idempotency\IdempotencyKey;
 use Cbox\Cms\Contracts\Idempotency\IdempotencyScope;
 use Cbox\Cms\Contracts\Idempotency\WaitBudget;
@@ -17,6 +19,7 @@ use Cbox\Cms\Testkit\Storage\UncoveredRange;
 use Closure;
 use DateTimeImmutable;
 use InvalidArgumentException;
+use LogicException;
 
 /**
  * An in-memory idempotency store for tests (GUARDRAILS 2.3): the committed records and the claims
@@ -28,11 +31,14 @@ use InvalidArgumentException;
  * when that session's transaction ends.
  *
  * PHP runs one session at a time, so a claim that another session holds cannot end while a claim
- * waits for it. whenWaiting() models the wait budget instead: it schedules events, such as the
- * holder completing and committing, that happen after a contested claim has waited some
- * milliseconds. A contested claim runs the events due within its budget, in order, until the claim
- * is free; when none is left, it is InFlight. Events after the budget stay scheduled. No real time
- * passes, and the Clock is not moved.
+ * waits for it. whenWaiting() models what happens during the wait instead: it schedules events,
+ * such as the holder completing and committing, that happen after a contested claim has waited
+ * some milliseconds. A contested claim runs the events due within its budget, in order, until the
+ * claim is free; when none is left, it is InFlight. Events after the budget stay scheduled. The
+ * wait takes real time, as the contract says: the claim sleeps until each event's time, and an
+ * InFlight claim has slept its whole budget. An uncontested claim never sleeps, and the Clock is
+ * not moved. holdWhileWaiting() starts a holder in a session of its own and schedules its end
+ * with whenWaiting().
  *
  * Expiry reads the clock, so a test moves a FakeClock past the record's expiry to make a key
  * fresh again.
@@ -93,6 +99,42 @@ final class FakeIdempotencyStore implements IdempotencyStoreHarness
     }
 
     /**
+     * Starts a holder in a session of its own: it begins a transaction, claims the key without
+     * waiting and completes the claim with $changesetId when one is given. Its commit or rollback
+     * is a wait event at $afterMilliseconds, so it happens once a contested claim has waited that
+     * long.
+     */
+    public function holdWhileWaiting(
+        IdempotencyScope $scope,
+        IdempotencyKey $key,
+        ContentHash $hash,
+        ?ChangesetId $changesetId,
+        HolderEnd $end,
+        int $afterMilliseconds,
+    ): void {
+        $holder = $this->session();
+        $holder->begin();
+        $claim = $holder->claim($scope, $key, $hash, WaitBudget::none());
+
+        if (! $claim instanceof Fresh) {
+            $holder->rollBack();
+
+            throw new LogicException(sprintf('The holder needs a fresh key, and the claim on [%s] is %s.', self::claimName($scope, $key), $claim::class));
+        }
+
+        if ($changesetId instanceof ChangesetId) {
+            $holder->complete($claim->token, $changesetId);
+        }
+
+        $this->whenWaiting($afterMilliseconds, static function () use ($holder, $end): void {
+            match ($end) {
+                HolderEnd::Commit => $holder->commit(),
+                HolderEnd::RollBack => $holder->rollBack(),
+            };
+        });
+    }
+
+    /**
      * How many wait events are still scheduled.
      */
     public function scheduledWaitEvents(): int
@@ -116,13 +158,19 @@ final class FakeIdempotencyStore implements IdempotencyStoreHarness
     #[Internal]
     public function acquire(string $name, FakeIdempotencySession $session, WaitBudget $budget): bool
     {
+        $waited = 0;
+
         while (! $this->isFreeFor($name, $session)) {
             $event = $this->nextEventWithin($budget);
 
             if (! $event instanceof FakeWaitEvent) {
+                $this->sleep($budget->milliseconds - $waited);
+
                 return false;
             }
 
+            $this->sleep($event->afterMilliseconds - $waited);
+            $waited = max($waited, $event->afterMilliseconds);
             ($event->event)();
         }
 
@@ -190,6 +238,17 @@ final class FakeIdempotencyStore implements IdempotencyStoreHarness
     public function clock(): Clock
     {
         return $this->clock;
+    }
+
+    /**
+     * Sleeps the milliseconds of real time the wait has not taken yet, none when it is not
+     * positive.
+     */
+    private function sleep(int $milliseconds): void
+    {
+        if ($milliseconds > 0) {
+            usleep($milliseconds * 1000);
+        }
     }
 
     private function isFreeFor(string $name, FakeIdempotencySession $session): bool

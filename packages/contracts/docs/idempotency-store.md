@@ -48,7 +48,7 @@ An application replaces the store by overriding that one entry of `cbox-cms.cont
 
 `Cbox\Cms\Testkit\Idempotency\FakeIdempotencyStore` keeps the records in memory and reads the time from the `Clock` it is given, a `FakeClock` by default, so a test moves the clock past a record's expiry. The contract runs only inside a transaction, so the fake of the contract is the session: `session()` gives a `FakeIdempotencySession` with `begin()`, `commit()` and `rollBack()`, and each session is one connection to the same records. `uncover($from, $to)` takes record dates out of the partitions, so a test can meet `PartitionMissing`.
 
-PHP runs one session at a time, so a claim that another session holds cannot end while a claim waits. `whenWaiting($afterMilliseconds, $event)` models the wait: it schedules what happens once a contested claim has waited that long, such as the holder committing. A contested claim runs the events due within its budget, in order, until the claim is free, and is `InFlight` when none is left. No real time passes, and the clock does not move.
+PHP runs one session at a time, so a claim that another session holds cannot end while a claim waits. `whenWaiting($afterMilliseconds, $event)` models the wait: it schedules what happens once a contested claim has waited that long, such as the holder committing. A contested claim runs the events due within its budget, in order, until the claim is free, and is `InFlight` when none is left. The wait takes real time, as the contract says: the claim sleeps until each event's time, and an `InFlight` claim has slept its whole budget. An uncontested claim never sleeps, and the clock does not move.
 
 The receipt store has a fake of the same shape, `FakeReceiptStore`. This example runs the life of a key through a command on both fakes: `Fresh`, the receipt stored and the claim completed in one transaction; a `Replay` with the changeset id that `find()` resolves; a `Conflict` for other content; a `Fresh` key again after a rollback; and a retry that waits for a call in flight. It is in the `Unit` suite:
 
@@ -168,8 +168,8 @@ it('lets a retry wait for the call in flight within its wait budget, and then re
     $retry->begin();
     expect($retry->claim($scope, $key, $hash, WaitBudget::none()))->toBeInstanceOf(InFlight::class);
 
-    // No real time passes in the fake. whenWaiting() says what happens while a claim waits: after
-    // 40 ms the first call commits, so a retry with a budget of 2000 ms gets its changeset.
+    // The fake runs one session at a time. whenWaiting() says what happens while a claim waits:
+    // after 40 ms the first call commits, so a retry with a budget of 2000 ms gets its changeset.
     $store->whenWaiting(40, static function () use ($first, $firstReceipts): void {
         $firstReceipts->commit();
         $first->commit();
@@ -186,7 +186,7 @@ A replacement needs only `cboxdk/cms-contracts`, and `cboxdk/cms-testkit` for it
 
 The suite needs more than one connection to show that a claim is held, waited for and released when a transaction ends. So it works through two interfaces:
 
-- `IdempotencyStoreHarness` is one store that several sessions reach. `session()` hands out a new session on its own connection, with no transaction open. `uncover($from, $to)` makes sure no partition covers the record dates in the range, so the suite can check that `complete()` throws `PartitionMissing` there. A harness for a decorator passes both calls on to the harness of the store it wraps.
+- `IdempotencyStoreHarness` is one store that several sessions reach. `session()` hands out a new session on its own connection, with no transaction open. `uncover($from, $to)` makes sure no partition covers the record dates in the range, so the suite can check that `complete()` throws `PartitionMissing` there. `holdWhileWaiting($scope, $key, $hash, $changesetId, $end, $afterMilliseconds)` starts a holder on another connection that claims a fresh key, completes it with the changeset when one is given, and ends its transaction (`HolderEnd::Commit` or `HolderEnd::RollBack`) that many milliseconds of real time later. The suite claims the key right after, so it can check what a waiting claim gets when the holder commits, commits another content hash or rolls back during the wait, and that a claim whose holder outlasts the budget is `InFlight` only after it has waited the whole budget. A store on a database runs the holder beside the test, in a child process, because the waiting claim blocks the test's process; the core's `PostgresIdempotencySessions` does that with the testkit's `ChildProcesses`. The fake ends the holder with `whenWaiting()`. A harness for a decorator passes the calls on to the harness of the store it wraps.
 - `IdempotencyStoreSession` is one of those connections. It extends `TransactionalSession`, with `begin()`, `commit()`, `rollBack()` and `inTransaction()`, and adds `idempotency()`, the store bound to that connection. For a store on a database each session is an independent connection to the same database, as the core's `PostgresIdempotencySessions` does; one session can then serve the receipt store as well.
 
 The example decorates a store and counts the claims by result. The decorator passes every call through:
@@ -306,13 +306,18 @@ declare(strict_types=1);
 
 namespace Examples\Contract\IdempotencyStore;
 
+use Cbox\Cms\Contracts\Idempotency\ContentHash;
+use Cbox\Cms\Contracts\Idempotency\IdempotencyKey;
+use Cbox\Cms\Contracts\Idempotency\IdempotencyScope;
+use Cbox\Cms\Contracts\Ids\ChangesetId;
+use Cbox\Cms\Testkit\Idempotency\HolderEnd;
 use Cbox\Cms\Testkit\Idempotency\IdempotencyStoreHarness;
 use DateTimeImmutable;
 
 /**
  * The harness the shared suite runs CountingIdempotencyStore through. It wraps the harness of the
  * decorated store: each session is a CountingIdempotencySession over one of that harness's
- * sessions, and uncover() takes the dates out of the decorated store's partitions.
+ * sessions, and uncover() and holdWhileWaiting() go to the decorated store's harness.
  */
 final readonly class CountingIdempotencyStores implements IdempotencyStoreHarness
 {
@@ -326,6 +331,17 @@ final readonly class CountingIdempotencyStores implements IdempotencyStoreHarnes
     public function uncover(DateTimeImmutable $from, DateTimeImmutable $to): void
     {
         $this->stores->uncover($from, $to);
+    }
+
+    public function holdWhileWaiting(
+        IdempotencyScope $scope,
+        IdempotencyKey $key,
+        ContentHash $hash,
+        ?ChangesetId $changesetId,
+        HolderEnd $end,
+        int $afterMilliseconds,
+    ): void {
+        $this->stores->holdWhileWaiting($scope, $key, $hash, $changesetId, $end, $afterMilliseconds);
     }
 }
 ```
