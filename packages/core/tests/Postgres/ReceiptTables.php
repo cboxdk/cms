@@ -10,6 +10,7 @@ use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Ids\Uuid7;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Receipts\StoredReceipt;
+use Cbox\Cms\Contracts\ReceiptStore;
 use DateTimeImmutable;
 use Illuminate\Database\Connection;
 use Illuminate\Support\Facades\DB;
@@ -38,6 +39,19 @@ final class ReceiptTables
             ProjectionStatus::pending(new ProjectionName('fragments')),
             ProjectionStatus::pending(new ProjectionName('search')),
         ]);
+    }
+
+    /**
+     * Stores the receipts with $store in one transaction on $connection and commits it, as the
+     * command kernel stores a receipt in the command transaction. $store runs on $connection.
+     */
+    public static function commit(Connection $connection, ReceiptStore $store, StoredReceipt ...$receipts): void
+    {
+        $connection->transaction(static function () use ($store, $receipts): void {
+            foreach ($receipts as $receipt) {
+                $store->store($receipt);
+            }
+        });
     }
 
     /**

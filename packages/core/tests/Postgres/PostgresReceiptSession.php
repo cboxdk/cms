@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Postgres;
 
+use Cbox\Cms\Contracts\Receipts\StoredReceipt;
 use Cbox\Cms\Contracts\ReceiptStore;
 use Cbox\Cms\Testkit\ReceiptStore\ReceiptStoreSession;
 use Illuminate\Database\Connection;
@@ -23,6 +24,14 @@ final readonly class PostgresReceiptSession implements ReceiptStoreSession
     public function receipts(): ReceiptStore
     {
         return $this->store;
+    }
+
+    /**
+     * Stores the receipts in one transaction on this connection and commits it.
+     */
+    public function storeCommitted(StoredReceipt ...$receipts): void
+    {
+        ReceiptTables::commit($this->connection, $this->store, ...$receipts);
     }
 
     public function begin(): void

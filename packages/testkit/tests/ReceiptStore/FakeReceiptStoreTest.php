@@ -8,6 +8,7 @@ use Cbox\Cms\Contracts\Consistency\DuplicateReceipt;
 use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Consistency\ProjectionState;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
+use Cbox\Cms\Contracts\Consistency\TransactionRequired;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Receipts\StoredReceipt;
@@ -21,8 +22,9 @@ use InvalidArgumentException;
 use LogicException;
 
 /*
- * The fake's own behaviour beyond the shared suite: its sessions refuse nesting and stray
- * commits and replay their writes in commit order. A store of a changeset another open transaction
+ * The fake's own behaviour beyond the shared suite: a store without a transaction is refused
+ * before it waits, its sessions refuse nesting and stray commits and replay their writes in commit
+ * order. A store of a changeset another open transaction
  * stored waits for it through whenWaiting(), as on Postgres, and refuses the duplicate at store().
  * uncover() takes exactly its range out of the partitions, and PartitionMissing fails a transaction.
  */
@@ -35,14 +37,61 @@ function fakeReceipt(FakeIdGenerator $ids): StoredReceipt
     ]);
 }
 
+/**
+ * Stores the receipt in a committed transaction of a new session, as the command kernel does.
+ */
+function commitFakeReceipt(FakeReceiptStore $store, StoredReceipt $receipt): void
+{
+    $session = $store->session();
+    $session->begin();
+    $session->store($receipt);
+    $session->commit();
+}
+
 it('works without arguments, on a FakeClock of its own', function (): void {
     $store = new FakeReceiptStore;
     $receipt = fakeReceipt(new FakeIdGenerator);
 
-    $store->store($receipt);
+    commitFakeReceipt($store, $receipt);
 
     expect($store->find($receipt->changesetId))->toEqual($receipt)
         ->and($store->clock())->toBeInstanceOf(FakeClock::class);
+});
+
+it('refuses a store without a transaction, on the store and on a session, before it waits, locks or stores anything', function (): void {
+    $clock = new FakeClock;
+    $store = new FakeReceiptStore($clock);
+    $ids = new FakeIdGenerator(clock: $clock);
+    $held = fakeReceipt($ids);
+    $free = fakeReceipt($ids);
+    $holder = $store->session();
+    $autocommit = $store->session();
+    $store->whenWaiting(static function (): void {});
+
+    // The holder's open transaction has the lock on $held: a store that waited for it would run
+    // the scheduled event.
+    $holder->begin();
+    $holder->store($held);
+
+    foreach ([$held, $free] as $receipt) {
+        expect(fn () => $store->store($receipt))->toThrow(TransactionRequired::class, 'Nothing was stored.')
+            ->and(fn () => $autocommit->store($receipt))->toThrow(TransactionRequired::class, 'Nothing was stored.')
+            ->and($autocommit->inTransaction())->toBeFalse()
+            ->and($store->scheduledWaitEvents())->toBe(1);
+    }
+
+    $holder->commit();
+
+    // The refused stores took no lock and stored nothing, so a transaction stores $free at once.
+    expect($store->find($free->changesetId))->toBeNull();
+
+    $autocommit->begin();
+    $autocommit->store($free);
+    $autocommit->commit();
+
+    expect($store->find($free->changesetId))->toEqual($free)
+        ->and($store->find($held->changesetId))->toEqual($held)
+        ->and($store->scheduledWaitEvents())->toBe(1);
 });
 
 it('refuses a nested transaction and names the rule', function (): void {
@@ -71,7 +120,7 @@ it('keeps both marks when two open transactions mark different projections', fun
     $store = new FakeReceiptStore($clock);
     $receipt = fakeReceipt(new FakeIdGenerator(clock: $clock));
     $changesetId = $receipt->changesetId;
-    $store->store($receipt);
+    commitFakeReceipt($store, $receipt);
     $first = $store->session();
     $second = $store->session();
 
@@ -149,44 +198,23 @@ it('refuses with a LogicException a store that would wait with no wait event sch
     $receipt = fakeReceipt(new FakeIdGenerator(clock: $clock));
     $holder = $store->session();
     $inTransaction = $store->session();
-    $autocommit = $store->session();
+    $other = $store->session();
 
     $holder->begin();
     $holder->store($receipt);
     $inTransaction->begin();
 
-    foreach ([
-        fn () => $inTransaction->store($receipt),
-        fn () => $autocommit->store($receipt),
-        fn () => $store->store($receipt),
-    ] as $wait) {
-        expect($wait)->toThrow(LogicException::class, sprintf('Another open transaction stored a receipt for changeset %s, so this store waits until that transaction ends, and no wait event is scheduled', $receipt->changesetId->toString()));
-    }
+    expect(fn () => $inTransaction->store($receipt))->toThrow(LogicException::class, sprintf('Another open transaction stored a receipt for changeset %s, so this store waits until that transaction ends, and no wait event is scheduled', $receipt->changesetId->toString()));
 
-    // The refused store took no lock: once the holder rolls back, a store without a transaction
-    // goes ahead without waiting for the session that was refused.
+    // The refused store took no lock: once the holder rolls back, another transaction's store goes
+    // ahead without waiting for the session that was refused.
     $holder->rollBack();
-    $store->store($receipt);
+    $other->begin();
+    $other->store($receipt);
+    $other->commit();
     $inTransaction->commit();
 
     expect($store->find($receipt->changesetId))->toEqual($receipt);
-});
-
-it('makes a store without a transaction wait for an open transaction that stored the changeset too', function (): void {
-    $clock = new FakeClock;
-    $store = new FakeReceiptStore($clock);
-    $receipt = fakeReceipt(new FakeIdGenerator(clock: $clock));
-    $holder = $store->session();
-    $autocommit = $store->session();
-
-    $holder->begin();
-    $holder->store($receipt);
-    $store->whenWaiting($holder->commit(...));
-    $store->whenWaiting(static function (): void {});
-
-    expect(fn () => $autocommit->store($receipt))->toThrow(DuplicateReceipt::class)
-        ->and($store->scheduledWaitEvents())->toBe(1)
-        ->and($autocommit->inTransaction())->toBeFalse();
 });
 
 it('runs the wait events in the order they were scheduled until the changeset is free, and keeps the rest', function (): void {
@@ -221,11 +249,12 @@ it('keeps the changeset locked until the transaction ends, also after its store 
     $clock = new FakeClock;
     $store = new FakeReceiptStore($clock);
     $receipt = fakeReceipt(new FakeIdGenerator(clock: $clock));
-    $store->store($receipt);
+    commitFakeReceipt($store, $receipt);
     $refused = $store->session();
     $third = $store->session();
 
     $refused->begin();
+    $third->begin();
 
     expect(fn () => $refused->store($receipt))->toThrow(DuplicateReceipt::class)
         ->and($refused->inTransaction())->toBeTrue()
@@ -281,7 +310,7 @@ it('reports false for a mark in a transaction that matches nothing and records n
     $store = new FakeReceiptStore($clock);
     $ids = new FakeIdGenerator(clock: $clock);
     $receipt = fakeReceipt($ids);
-    $store->store($receipt);
+    commitFakeReceipt($store, $receipt);
     $session = $store->session();
 
     $session->begin();
@@ -308,16 +337,19 @@ it('uncovers exactly the range, both ends inclusive, and names its table', funct
     $ids = new FakeIdGenerator(clock: $clock);
 
     $before = fakeReceipt($ids);
-    $store->store($before);
+    commitFakeReceipt($store, $before);
+    $session = $store->session();
 
     foreach ([1, 2] as $millisecond) {
         $clock->set(new DateTimeImmutable(sprintf('2031-05-01T10:00:00.00%dZ', $millisecond)));
-        expect(fn () => $store->store(fakeReceipt($ids)))->toThrow(PartitionMissing::class, 'No partition of table "receipts" covers the row');
+        $session->begin();
+        expect(fn () => $session->store(fakeReceipt($ids)))->toThrow(PartitionMissing::class, 'No partition of table "receipts" covers the row');
+        $session->rollBack();
     }
 
     $clock->set($clock->now()->modify('+1 millisecond'));
     $after = fakeReceipt($ids);
-    $store->store($after);
+    commitFakeReceipt($store, $after);
 
     expect($store->find($before->changesetId))->toEqual($before)
         ->and($store->find($after->changesetId))->toEqual($after);

@@ -7,6 +7,7 @@ namespace Cbox\Cms\Testkit\ReceiptStore;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Clock;
+use Cbox\Cms\Contracts\Consistency\TransactionRequired;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Receipts\StoredReceipt;
@@ -21,14 +22,16 @@ use LogicException;
 /**
  * An in-memory receipt store for tests (GUARDRAILS 2.3).
  *
- * Used directly, it behaves like a connection without a transaction: every call commits at once.
- * session() hands out further connections to the same rows, each with begin(), commit() and
- * rollBack(), so a test can run the transactional cases a database store has. A session's writes
- * inside a transaction are visible to that session only, and to everyone after commit.
+ * Used directly, it behaves like a connection without a transaction: find() reads the committed
+ * rows, markProjection() commits at once, and store() throws TransactionRequired, because the
+ * contract stores a receipt only in the caller's transaction. session() hands out connections to the
+ * same rows, each with begin(), commit() and rollBack(), so a test stores receipts in a session's
+ * transaction and runs the transactional cases a database store has. A session's writes inside a
+ * transaction are visible to that session only, and to everyone after commit.
  *
  * One receipt per changeset is kept as the Postgres store keeps it: store() first takes a lock on
- * the changeset, then looks for a receipt of either class. Inside a transaction the lock lasts until
- * the transaction ends, also when store() throws. A store of a changeset that another open
+ * the changeset, then looks for a receipt of either class. The lock lasts until the transaction
+ * ends, also when store() throws. A store of a changeset that another open
  * transaction has stored therefore waits for that transaction, and then throws DuplicateReceipt when
  * it committed, or stores when it rolled back. The duplicate comes from store(), never from
  * commit(), as the contract says.
@@ -99,12 +102,13 @@ final class FakeReceiptStore implements ReceiptStore, ReceiptStoreHarness
         return count($this->events);
     }
 
+    /**
+     * @throws TransactionRequired always: the store itself has no transaction; store a receipt in
+     *                             the transaction of one of its sessions
+     */
     public function store(StoredReceipt $receipt): void
     {
-        $this->lock($receipt->changesetId, null);
-        $rows = FakeReceiptRows::stored($this->rows, $receipt);
-        $this->assertCovered($receipt);
-        $this->rows = $rows;
+        throw TransactionRequired::forStore();
     }
 
     public function find(ChangesetId $changesetId): ?StoredReceipt
@@ -148,14 +152,13 @@ final class FakeReceiptStore implements ReceiptStore, ReceiptStoreHarness
     }
 
     /**
-     * Takes the changeset's lock for the session's open transaction, or, with null, waits for the
-     * lock without keeping it, as a store without a transaction does. While another open
-     * transaction holds the lock, it runs the scheduled wait events in order.
+     * Takes the changeset's lock for the session's open transaction. While another open transaction
+     * holds the lock, it runs the scheduled wait events in order.
      *
      * @throws LogicException when the store would wait and no wait event is left
      */
     #[Internal]
-    public function lock(ChangesetId $changesetId, ?FakeReceiptSession $session): void
+    public function lock(ChangesetId $changesetId, FakeReceiptSession $session): void
     {
         $name = $changesetId->toString();
 
@@ -168,9 +171,7 @@ final class FakeReceiptStore implements ReceiptStore, ReceiptStoreHarness
             $event();
         }
 
-        if ($session instanceof FakeReceiptSession) {
-            $this->locks[$name] = $session;
-        }
+        $this->locks[$name] = $session;
     }
 
     /**

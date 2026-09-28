@@ -8,7 +8,7 @@ The contract is `Cbox\Cms\Contracts\ReceiptStore` in `cboxdk/cms-contracts`. It 
 
 | Method | What it does |
 |---|---|
-| `store(StoredReceipt $receipt): void` | Stores the receipt of a committed changeset. |
+| `store(StoredReceipt $receipt): void` | Stores the receipt of a committed changeset, inside the caller's transaction. |
 | `find(ChangesetId $changesetId): ?StoredReceipt` | The stored receipt, or null when there is none or it has expired. |
 | `markProjection(ChangesetId $changesetId, ProjectionStatus $status): bool` | Records the status of one projection. Returns whether a live receipt lists the projection. |
 
@@ -22,7 +22,11 @@ A second receipt for a changeset throws `DuplicateReceipt` (in `Cbox\Cms\Contrac
 
 ## Transactions
 
-`store()` and `markProjection()` run on the caller's connection. When the caller has a transaction open, they run inside it, so the receipt commits and rolls back with the changeset (PRD 6.2 phase 7, PRD 4.2). A store never begins, commits or rolls back a transaction, and never uses a savepoint. Without an open transaction each call commits on its own. `find()` reads on the same connection, so it sees the caller's uncommitted writes and no one else's.
+`store()` and `markProjection()` run on the caller's connection. A store never begins, commits or rolls back a transaction, and never uses a savepoint (PRD 4.2).
+
+`store()` runs only inside the caller's open transaction, the command transaction, so the receipt commits and rolls back with the changeset (PRD 6.2 phase 7). Without one it throws `Cbox\Cms\Contracts\Consistency\TransactionRequired`, a `LogicException`, and stores nothing. The transaction also holds what keeps one receipt per changeset, such as the Postgres store's lock on the changeset, and Postgres releases it when the transaction ends. A pooler in transaction mode (PRD 5.10) keeps one server connection for a transaction, but may run each statement outside one on another, so a lock held across such statements could be left behind on a server connection.
+
+`markProjection()` runs inside the caller's transaction when one is open, and without one it commits on its own, as a subscriber calls it. `find()` reads on the same connection, so it sees the caller's uncommitted writes and no one else's.
 
 ## Marking projections
 
@@ -42,15 +46,15 @@ A store on a database keeps receipts in tables partitioned by the changeset's ti
 
 ## The default store
 
-`cboxdk/cms-core` binds the contract to `Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore` in `cbox-cms.contracts`, as a singleton. It runs on the default connection, the one the command kernel opens its transaction on, and keeps the receipts in `receipts` and `receipt_projections`. It writes a receipt and its projections in one statement, so they are stored together or not at all, also when `store()` runs without a transaction. Both are partitioned by retention class and then by changeset time: Standard receipts per day, dropped a week after the day ends, and Evidence receipts per month, never dropped by the partition manager.
+`cboxdk/cms-core` binds the contract to `Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore` in `cbox-cms.contracts`, as a singleton. It runs on the default connection, the one the command kernel opens its transaction on, and keeps the receipts in `receipts` and `receipt_projections`. It writes a receipt and its projections in one statement, so they are stored together or not at all. Both are partitioned by retention class and then by changeset time: Standard receipts per day, dropped a week after the day ends, and Evidence receipts per month, never dropped by the partition manager.
 
 An application replaces the store with its own class in the `ReceiptStore::class` entry of `contracts` in its own `config/cbox-cms.php`; the entries it leaves out keep their defaults. A replacement passes the shared contract suite first, as shown below.
 
 ## Testing code that uses the store
 
-`Cbox\Cms\Testkit\ReceiptStore\FakeReceiptStore` in `cboxdk/cms-testkit` is the fake. It keeps receipts in memory and reads the time from the `Clock` it is given, so a test moves a `FakeClock` to expire a Standard receipt. Used directly, the fake behaves like a connection without a transaction: every call commits at once. Its `session()` hands out further connections to the same receipts, with transactions, and its `uncover($from, $to)` takes a range of changeset times out of the partitions, so `store()` in the range throws `PartitionMissing`. A store of a changeset that another session's open transaction has stored waits for that transaction, as on Postgres. PHP runs one session at a time, so `whenWaiting($event)` schedules what happens during the wait, such as the other session committing or rolling back; a waiting store runs the events in order until the changeset is free, and throws a `LogicException` when none is left.
+`Cbox\Cms\Testkit\ReceiptStore\FakeReceiptStore` in `cboxdk/cms-testkit` is the fake. It keeps receipts in memory and reads the time from the `Clock` it is given, so a test moves a `FakeClock` to expire a Standard receipt. Used directly, the fake behaves like a connection without a transaction: `find()` reads, `markProjection()` commits at once, and `store()` throws `TransactionRequired`. Its `session()` hands out connections to the same receipts, with transactions, so a test stores a receipt in a session's transaction, and its `uncover($from, $to)` takes a range of changeset times out of the partitions, so `store()` in the range throws `PartitionMissing`. A store of a changeset that another session's open transaction has stored waits for that transaction, as on Postgres. PHP runs one session at a time, so `whenWaiting($event)` schedules what happens during the wait, such as the other session committing or rolling back; a waiting store runs the events in order until the changeset is free, and throws a `LogicException` when none is left.
 
-The example stores a receipt, finds it and marks its projection, then shows a duplicate and the expiry:
+The example stores a receipt in a transaction, finds it and marks its projection, then shows a duplicate, a store outside a transaction and the expiry:
 
 <!-- example: examples/Unit/ReceiptStore/FakeReceiptStoreTest.php -->
 ```php
@@ -61,6 +65,7 @@ declare(strict_types=1);
 use Cbox\Cms\Contracts\Consistency\DuplicateReceipt;
 use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
+use Cbox\Cms\Contracts\Consistency\TransactionRequired;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Receipts\StoredReceipt;
@@ -68,9 +73,11 @@ use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
 use Cbox\Cms\Testkit\ReceiptStore\FakeReceiptStore;
 
-// Code that takes a ReceiptStore gets the testkit's FakeReceiptStore in its tests. Used directly,
-// the fake behaves like a connection without a transaction: every call commits at once. It reads
-// the time from the clock it is given, so moving the clock expires a Standard receipt.
+// Code that takes a ReceiptStore gets the testkit's FakeReceiptStore in its tests. A receipt is
+// stored only in the caller's transaction, so a test stores it in a transaction of a session; the
+// store itself behaves like a connection without one, where find() reads and markProjection()
+// commits at once. It reads the time from the clock it is given, so moving the clock expires a
+// Standard receipt.
 
 it('stores the receipt of a committed changeset, finds it and marks its projection', function (): void {
     $clock = new FakeClock(new DateTimeImmutable('2026-09-01T12:00:00Z'));
@@ -79,7 +86,11 @@ it('stores the receipt of a committed changeset, finds it and marks its projecti
     $changesetId = new ChangesetId($ids->next());
     $search = new ProjectionName('search');
 
-    $receipts->store(new StoredReceipt($changesetId, RetentionClass::Standard, [ProjectionStatus::pending($search)]));
+    // The command kernel stores the receipt in the command transaction.
+    $command = $receipts->session();
+    $command->begin();
+    $command->store(new StoredReceipt($changesetId, RetentionClass::Standard, [ProjectionStatus::pending($search)]));
+    $command->commit();
 
     expect($receipts->find($changesetId))
         ->toEqual(new StoredReceipt($changesetId, RetentionClass::Standard, [ProjectionStatus::pending($search)]));
@@ -94,16 +105,25 @@ it('stores the receipt of a committed changeset, finds it and marks its projecti
     expect($receipts->markProjection($changesetId, ProjectionStatus::acknowledged(new ProjectionName('acme.feed'), $indexedAt)))->toBeFalse();
 });
 
-it('refuses a second receipt for a changeset and forgets a Standard receipt after seven days', function (): void {
+it('refuses a second receipt for a changeset and a store outside a transaction, and forgets a Standard receipt after seven days', function (): void {
     $clock = new FakeClock(new DateTimeImmutable('2026-09-01T12:00:00Z'));
     $ids = new FakeIdGenerator(clock: $clock);
     $receipts = new FakeReceiptStore($clock);
     $changesetId = new ChangesetId($ids->next());
     $edge = new ProjectionName('edge');
-    $receipts->store(new StoredReceipt($changesetId, RetentionClass::Standard, [ProjectionStatus::pending($edge)]));
+    $command = $receipts->session();
+    $command->begin();
+    $command->store(new StoredReceipt($changesetId, RetentionClass::Standard, [ProjectionStatus::pending($edge)]));
+    $command->commit();
 
-    expect(fn () => $receipts->store(new StoredReceipt($changesetId, RetentionClass::Evidence)))
+    // A second receipt for the changeset is refused, and so is a store outside a transaction.
+    $command->begin();
+    expect(fn () => $command->store(new StoredReceipt($changesetId, RetentionClass::Evidence)))
         ->toThrow(DuplicateReceipt::class);
+    $command->rollBack();
+
+    expect(fn () => $receipts->store(new StoredReceipt(new ChangesetId($ids->next()), RetentionClass::Standard)))
+        ->toThrow(TransactionRequired::class);
 
     // Expiry is logical: the receipt is live up to RetentionClass::expiresAt() and gone once the
     // clock is later. A projection that acknowledges after that gets false, which is not an error.
@@ -404,6 +424,7 @@ namespace Examples\Contract\ReceiptStore;
 use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\Consistency\DuplicateReceipt;
 use Cbox\Cms\Contracts\Consistency\ProjectionState;
+use Cbox\Cms\Contracts\Consistency\TransactionRequired;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Receipts\StoredReceipt;
@@ -412,7 +433,8 @@ use DateTimeImmutable;
 
 /**
  * A replacement receipt store, kept in PHP arrays so that the example needs no services. It runs
- * on the caller's connection, an ArrayReceiptSession, and never begins or ends a transaction.
+ * on the caller's connection, an ArrayReceiptSession, and never begins or ends a transaction. A
+ * receipt is stored only inside the caller's transaction.
  */
 final readonly class ArrayReceiptStore implements ReceiptStore
 {
@@ -423,6 +445,10 @@ final readonly class ArrayReceiptStore implements ReceiptStore
 
     public function store(StoredReceipt $receipt): void
     {
+        if (! $this->connection->inTransaction()) {
+            throw TransactionRequired::forStore();
+        }
+
         // An expired receipt still holds its changeset until its partition is dropped.
         $this->connection->write(
             $receipt->changesetId,

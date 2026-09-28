@@ -109,7 +109,7 @@ abstract class AddonTestCase extends TestCase
 - **Its own keys.** Every Redis connection uses database index 15 and a key prefix of the run, `cms_test_<run id>_`, so the Redis facade and the cache write under it and two runs never see each other's keys. `app(ValkeyRun::class)` is the run: `prefix`, `keys()` and `client()`.
 - **No keys left.** After the test, and when the process ends, the harness removes the keys under the prefix with SCAN and UNLINK, never FLUSHDB, so the keys of other runs stay.
 
-The example stores a receipt as the app role and sees it from another connection, shows that the app role has no DDL, and writes a key under the run prefix:
+The example commits a receipt as the app role and sees it from another connection, shows that the app role has no DDL, and writes a key under the run prefix:
 
 <!-- example: examples/Postgres/Harness/RealServicesTest.php -->
 ```php
@@ -156,7 +156,10 @@ final class RealServicesTest extends AddonTestCase
         self::assertSame(0, DB::transactionLevel());
         self::assertSame(0, DB::table('receipts')->count());
 
-        app(ReceiptStore::class)->store(new StoredReceipt($changesetId, RetentionClass::Standard));
+        // The receipt store writes only in the caller's transaction, as the command kernel's is.
+        DB::transaction(static function () use ($changesetId): void {
+            app(ReceiptStore::class)->store(new StoredReceipt($changesetId, RetentionClass::Standard));
+        });
 
         [$other] = app(IndependentConnections::class)->open(1);
         self::assertSame(1, $other->table('receipts')->where('changeset_id', $changesetId->toString())->count());

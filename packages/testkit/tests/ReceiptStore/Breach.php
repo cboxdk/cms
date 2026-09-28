@@ -15,6 +15,9 @@ enum Breach
     /** store() opens a transaction when none is open and leaves it open. */
     case BeginsTransaction;
 
+    /** store() without a transaction stores the receipt and commits it at once. */
+    case StoresWithoutTransaction;
+
     /** find() returns a receipt as it was stored, so a replay never sees a later mark. */
     case FreezesStoredReceipt;
 

@@ -6,12 +6,14 @@ namespace Cbox\Cms\Contracts\Tests\Receipts;
 
 use Cbox\Cms\Contracts\Consistency\DuplicateReceipt;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
+use Cbox\Cms\Contracts\Consistency\TransactionRequired;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Ids\Uuid7;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Receipts\StoredReceipt;
 use Cbox\Cms\Contracts\ReceiptStore;
 use DateTimeImmutable;
+use LogicException;
 use ReflectionClass;
 use ReflectionNamedType;
 use ReflectionProperty;
@@ -48,6 +50,13 @@ it('names the changeset of a duplicate receipt', function (): void {
 
     expect($duplicate)->toBeInstanceOf(RuntimeException::class)
         ->and($duplicate->getMessage())->toContain($changesetId->toString());
+});
+
+it('reports a store outside a transaction as a bug in the caller that stored nothing', function (): void {
+    $refused = TransactionRequired::forStore();
+
+    expect($refused)->toBeInstanceOf(LogicException::class)
+        ->and($refused->getMessage())->toBe('ReceiptStore::store() runs inside the caller\'s command transaction, and the connection has none open. The receipt commits and rolls back with its changeset, and the transaction holds the lock that keeps one receipt per changeset. Nothing was stored.');
 });
 
 it('has store, find and markProjection with typed ids and no string ids', function (): void {

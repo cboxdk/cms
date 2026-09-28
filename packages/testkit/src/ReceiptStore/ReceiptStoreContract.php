@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\Consistency\DuplicateReceipt;
 use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
+use Cbox\Cms\Contracts\Consistency\TransactionRequired;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Ids\Uuid7;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
@@ -45,7 +46,8 @@ use Throwable;
  * transactions, a stored receipt that holds only the facts of its changeset and no call's wait
  * result, marking projections, typed errors, logical expiry, a changeset time that no partition
  * covers (through ReceiptStoreHarness::uncover()) and the transactions of the caller: a store runs
- * inside the caller's transaction and never begins one.
+ * only inside the caller's transaction, throws TransactionRequired without one and never begins
+ * one, and a mark runs inside the caller's transaction or commits on its own.
  */
 #[Experimental]
 trait ReceiptStoreContract
@@ -61,7 +63,8 @@ trait ReceiptStoreContract
         $clock = new FakeClock;
         $harness = $this->receiptStores($clock);
         $ids = new FakeIdGenerator(clock: $clock);
-        $receipts = $harness->session()->receipts();
+        $session = $harness->session();
+        $receipts = $session->receipts();
 
         $expected = [
             $this->receiptWithProjections($ids->next(), RetentionClass::Standard, [
@@ -76,7 +79,7 @@ trait ReceiptStoreContract
         ];
 
         foreach ($expected as $receipt) {
-            $receipts->store($receipt);
+            $this->storeCommitted($session, $receipt);
         }
 
         foreach ($expected as $receipt) {
@@ -90,9 +93,10 @@ trait ReceiptStoreContract
         $clock = new FakeClock;
         $harness = $this->receiptStores($clock);
         $ids = new FakeIdGenerator(clock: $clock);
-        $receipts = $harness->session()->receipts();
+        $session = $harness->session();
+        $receipts = $session->receipts();
 
-        $receipts->store($this->receiptWithProjections($ids->next(), RetentionClass::Standard));
+        $this->storeCommitted($session, $this->receiptWithProjections($ids->next(), RetentionClass::Standard));
 
         Assert::assertNull($receipts->find(new ChangesetId($ids->next())));
     }
@@ -103,10 +107,11 @@ trait ReceiptStoreContract
         $clock = new FakeClock;
         $harness = $this->receiptStores($clock);
         $ids = new FakeIdGenerator(clock: $clock);
-        $receipts = $harness->session()->receipts();
+        $session = $harness->session();
+        $receipts = $session->receipts();
         $receipt = $this->receiptWithProjections($ids->next(), RetentionClass::Standard);
         $changesetId = $receipt->changesetId;
-        $receipts->store($receipt);
+        $this->storeCommitted($session, $receipt);
 
         $at = $clock->advance(new DateInterval('PT2S'));
 
@@ -127,10 +132,11 @@ trait ReceiptStoreContract
         $clock = new FakeClock;
         $harness = $this->receiptStores($clock);
         $ids = new FakeIdGenerator(clock: $clock);
-        $receipts = $harness->session()->receipts();
+        $session = $harness->session();
+        $receipts = $session->receipts();
         $receipt = $this->receiptWithProjections($ids->next(), RetentionClass::Standard);
         $changesetId = $receipt->changesetId;
-        $receipts->store($receipt);
+        $this->storeCommitted($session, $receipt);
 
         Assert::assertTrue($receipts->markProjection($changesetId, ProjectionStatus::pending(new ProjectionName('edge'))));
         $this->assertSameReceipt($receipt, $receipts->find($changesetId), 'Marking a pending projection pending changed the receipt.');
@@ -155,10 +161,11 @@ trait ReceiptStoreContract
         $clock = new FakeClock;
         $harness = $this->receiptStores($clock);
         $ids = new FakeIdGenerator(clock: $clock);
-        $receipts = $harness->session()->receipts();
+        $session = $harness->session();
+        $receipts = $session->receipts();
         $receipt = $this->receiptWithProjections($ids->next(), RetentionClass::Standard);
         $changesetId = $receipt->changesetId;
-        $receipts->store($receipt);
+        $this->storeCommitted($session, $receipt);
 
         $first = $clock->advance(new DateInterval('PT1S'));
         $receipts->markProjection($changesetId, ProjectionStatus::acknowledged(new ProjectionName('search'), $first));
@@ -182,11 +189,12 @@ trait ReceiptStoreContract
         $clock = new FakeClock;
         $harness = $this->receiptStores($clock);
         $ids = new FakeIdGenerator(clock: $clock);
-        $receipts = $harness->session()->receipts();
+        $session = $harness->session();
+        $receipts = $session->receipts();
         $receipt = $this->receiptWithProjections($ids->next(), RetentionClass::Standard);
         $changesetId = $receipt->changesetId;
         $unknown = new ChangesetId($ids->next());
-        $receipts->store($receipt);
+        $this->storeCommitted($session, $receipt);
 
         Assert::assertFalse($receipts->markProjection($unknown, ProjectionStatus::acknowledged(new ProjectionName('fragments'), $clock->now())));
         Assert::assertNull($receipts->find($unknown), 'Marking a projection created a receipt.');
@@ -201,18 +209,24 @@ trait ReceiptStoreContract
         $clock = new FakeClock;
         $harness = $this->receiptStores($clock);
         $ids = new FakeIdGenerator(clock: $clock);
-        $receipts = $harness->session()->receipts();
+        $session = $harness->session();
+        $receipts = $session->receipts();
         $receipt = $this->receiptWithProjections($ids->next(), RetentionClass::Standard);
         $changesetId = $receipt->changesetId;
-        $receipts->store($receipt);
+        $this->storeCommitted($session, $receipt);
 
         foreach ([$receipt, new StoredReceipt($changesetId, RetentionClass::Evidence)] as $second) {
+            $session->begin();
+
             try {
                 $receipts->store($second);
                 Assert::fail('The store accepted a second receipt for the same changeset.');
             } catch (DuplicateReceipt $duplicate) {
                 Assert::assertStringContainsString($changesetId->toString(), $duplicate->getMessage());
             }
+
+            Assert::assertTrue($session->inTransaction(), 'store() ended the caller\'s transaction on DuplicateReceipt.');
+            $session->rollBack();
 
             $this->assertSameReceipt($receipt, $receipts->find($changesetId), 'The refused receipt changed the stored one.');
         }
@@ -317,10 +331,11 @@ trait ReceiptStoreContract
         $clock = new FakeClock;
         $harness = $this->receiptStores($clock);
         $ids = new FakeIdGenerator(clock: $clock);
-        $receipts = $harness->session()->receipts();
+        $session = $harness->session();
+        $receipts = $session->receipts();
         $receipt = $this->receiptWithProjections($ids->next(), RetentionClass::Standard);
         $changesetId = $receipt->changesetId;
-        $receipts->store($receipt);
+        $this->storeCommitted($session, $receipt);
         $expiry = $this->changesetTime($changesetId)->add(new DateInterval('P7D'));
 
         $clock->set($expiry->modify('-1 day'));
@@ -342,21 +357,26 @@ trait ReceiptStoreContract
         $clock = new FakeClock;
         $harness = $this->receiptStores($clock);
         $ids = new FakeIdGenerator(clock: $clock);
-        $receipts = $harness->session()->receipts();
+        $session = $harness->session();
+        $receipts = $session->receipts();
         $receipt = $this->receiptWithProjections($ids->next(), RetentionClass::Standard);
         $changesetId = $receipt->changesetId;
-        $receipts->store($receipt);
+        $this->storeCommitted($session, $receipt);
 
         $clock->set($this->changesetTime($changesetId)->add(new DateInterval('P7DT1S')));
 
         Assert::assertFalse($receipts->markProjection($changesetId, ProjectionStatus::acknowledged(new ProjectionName('edge'), $clock->now())));
 
+        $session->begin();
+
         try {
             $receipts->store($receipt);
             Assert::fail('The store accepted a second receipt for a changeset whose receipt expired but was not removed.');
         } catch (DuplicateReceipt) {
-            Assert::assertNull($receipts->find($changesetId));
+            $session->rollBack();
         }
+
+        Assert::assertNull($receipts->find($changesetId));
     }
 
     #[Test]
@@ -365,10 +385,11 @@ trait ReceiptStoreContract
         $clock = new FakeClock;
         $harness = $this->receiptStores($clock);
         $ids = new FakeIdGenerator(clock: $clock);
-        $receipts = $harness->session()->receipts();
+        $session = $harness->session();
+        $receipts = $session->receipts();
         $receipt = $this->receiptWithProjections($ids->next(), RetentionClass::Evidence);
         $changesetId = $receipt->changesetId;
-        $receipts->store($receipt);
+        $this->storeCommitted($session, $receipt);
         $time = $this->changesetTime($changesetId);
 
         foreach (['P7DT1S', 'P30D', 'P10Y'] as $later) {
@@ -399,10 +420,12 @@ trait ReceiptStoreContract
         ];
 
         foreach ($uncovered as $receipt) {
+            $writer->begin();
             $this->assertPartitionMissing(static function () use ($writer, $receipt): void {
                 $writer->receipts()->store($receipt);
             }, sprintf('The store took a %s receipt whose changeset time no partition covers.', $receipt->retentionClass->value));
-            Assert::assertFalse($writer->inTransaction(), 'A store() that no partition covered left a transaction open.');
+            Assert::assertTrue($writer->inTransaction(), 'store() ended the caller\'s transaction on PartitionMissing.');
+            $writer->rollBack();
             Assert::assertNull($reader->receipts()->find($receipt->changesetId), 'A store() that no partition covered left a receipt.');
         }
 
@@ -427,7 +450,7 @@ trait ReceiptStoreContract
         Assert::assertNull($writer->receipts()->find($covered->changesetId), 'The rollback after PartitionMissing kept the transaction\'s earlier receipt.');
         Assert::assertNull($reader->receipts()->find($uncovered[0]->changesetId), 'The rollback after PartitionMissing kept the receipt no partition covers.');
 
-        $writer->receipts()->store($covered);
+        $this->storeCommitted($writer, $covered);
         $this->assertSameReceipt($covered, $reader->receipts()->find($covered->changesetId), 'The receipt could not be stored again after the rollback.');
     }
 
@@ -484,7 +507,7 @@ trait ReceiptStoreContract
         $reader = $harness->session();
         $receipt = $this->receiptWithProjections($ids->next(), RetentionClass::Standard);
         $changesetId = $receipt->changesetId;
-        $reader->receipts()->store($receipt);
+        $this->storeCommitted($reader, $receipt);
         $acknowledged = ProjectionStatus::acknowledged(new ProjectionName('fragments'), $clock->advance(new DateInterval('PT1S')));
 
         $writer->begin();
@@ -511,7 +534,7 @@ trait ReceiptStoreContract
     }
 
     #[Test]
-    public function store_and_mark_projection_never_begin_a_transaction(): void
+    public function a_store_outside_a_transaction_is_refused_and_stores_nothing(): void
     {
         $clock = new FakeClock;
         $harness = $this->receiptStores($clock);
@@ -520,10 +543,37 @@ trait ReceiptStoreContract
         $reader = $harness->session();
         $receipt = $this->receiptWithProjections($ids->next(), RetentionClass::Standard);
         $changesetId = $receipt->changesetId;
+        $refused = false;
 
-        $writer->receipts()->store($receipt);
-        Assert::assertFalse($writer->inTransaction(), 'store() left a transaction open.');
-        $this->assertSameReceipt($receipt, $reader->receipts()->find($changesetId), 'A store without a transaction is not visible to another session at once.');
+        // The receipt commits with its changeset, in the caller's command transaction. A store that
+        // commits on its own, or opens a transaction of its own, would need a lock that outlives
+        // its statements to keep one receipt per changeset.
+        try {
+            $writer->receipts()->store($receipt);
+        } catch (TransactionRequired) {
+            $refused = true;
+        }
+
+        Assert::assertTrue($refused, 'The store took a receipt without the caller\'s transaction; store() runs only inside it.');
+        Assert::assertFalse($writer->inTransaction(), 'store() began a transaction.');
+        Assert::assertNull($reader->receipts()->find($changesetId), 'A store() without a transaction left a receipt.');
+
+        // Nothing of the refused store holds the changeset, on this session or another.
+        $this->storeCommitted($reader, $receipt);
+        $this->assertSameReceipt($receipt, $writer->receipts()->find($changesetId), 'The receipt could not be stored in a transaction after a store() without one.');
+    }
+
+    #[Test]
+    public function mark_projection_never_begins_a_transaction(): void
+    {
+        $clock = new FakeClock;
+        $harness = $this->receiptStores($clock);
+        $ids = new FakeIdGenerator(clock: $clock);
+        $writer = $harness->session();
+        $reader = $harness->session();
+        $receipt = $this->receiptWithProjections($ids->next(), RetentionClass::Standard);
+        $changesetId = $receipt->changesetId;
+        $this->storeCommitted($writer, $receipt);
 
         $acknowledged = ProjectionStatus::acknowledged(new ProjectionName('edge'), $clock->now());
         $writer->receipts()->markProjection($changesetId, $acknowledged);
@@ -537,6 +587,25 @@ trait ReceiptStoreContract
             $reader->receipts()->find($changesetId),
             'A mark without a transaction is not visible to another session at once.',
         );
+    }
+
+    /**
+     * Stores the receipt in a transaction of its own on the session and commits it, as the command
+     * kernel does in the command transaction.
+     */
+    private function storeCommitted(ReceiptStoreSession $session, StoredReceipt $receipt): void
+    {
+        $session->begin();
+
+        try {
+            $session->receipts()->store($receipt);
+        } catch (Throwable $failed) {
+            $session->rollBack();
+
+            throw $failed;
+        }
+
+        $session->commit();
     }
 
     /**

@@ -41,7 +41,10 @@ final class RealServicesTest extends AddonTestCase
         self::assertSame(0, DB::transactionLevel());
         self::assertSame(0, DB::table('receipts')->count());
 
-        app(ReceiptStore::class)->store(new StoredReceipt($changesetId, RetentionClass::Standard));
+        // The receipt store writes only in the caller's transaction, as the command kernel's is.
+        DB::transaction(static function () use ($changesetId): void {
+            app(ReceiptStore::class)->store(new StoredReceipt($changesetId, RetentionClass::Standard));
+        });
 
         [$other] = app(IndependentConnections::class)->open(1);
         self::assertSame(1, $other->table('receipts')->where('changeset_id', $changesetId->toString())->count());

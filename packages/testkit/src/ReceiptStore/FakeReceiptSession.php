@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Testkit\ReceiptStore;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\Consistency\TransactionRequired;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Receipts\StoredReceipt;
@@ -13,8 +14,9 @@ use Cbox\Cms\Contracts\Storage\PartitionMissing;
 use LogicException;
 
 /**
- * One connection to a FakeReceiptStore. Without a transaction its calls go straight to the shared
- * rows. Inside a transaction its writes are kept as a list and replayed over the committed rows:
+ * One connection to a FakeReceiptStore. Without a transaction find() and markProjection() go
+ * straight to the shared rows, and store() throws TransactionRequired, as the contract says. Inside
+ * a transaction its writes are kept as a list and replayed over the committed rows:
  * on every read by this session, and once more at commit, when the result replaces the committed
  * rows. A rollback drops the list.
  *
@@ -94,9 +96,7 @@ final class FakeReceiptSession implements ReceiptStore, ReceiptStoreSession
         $this->refuseWhenFailed();
 
         if ($this->writes === null) {
-            $this->database->store($receipt);
-
-            return;
+            throw TransactionRequired::forStore();
         }
 
         $this->database->lock($receipt->changesetId, $this);

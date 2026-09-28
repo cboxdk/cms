@@ -15,6 +15,7 @@ use Cbox\Cms\Testkit\ReceiptStore\FakeReceiptStore;
 use Cbox\Cms\Testkit\ReceiptStore\ReceiptStoreSession;
 use DateTimeImmutable;
 use LogicException;
+use Throwable;
 
 /**
  * A session of the fake with one rule broken.
@@ -74,24 +75,24 @@ final class BrokenSession implements ReceiptStore, ReceiptStoreSession
             $this->inner->begin();
         }
 
-        try {
-            $this->inner->store($receipt);
-            $this->snapshots->receipts[$receipt->changesetId->toString()] = $receipt;
-        } catch (DuplicateReceipt $duplicate) {
-            if ($this->breach === Breach::RefusesDuplicateAtCommit && $this->inner->inTransaction()) {
-                $this->heldBack = $duplicate;
+        // Without a transaction of the inner session, these breaches store and commit at once.
+        if (in_array($this->breach, [Breach::IgnoresTransactions, Breach::StoresWithoutTransaction], true) && ! $this->inner->inTransaction()) {
+            $this->inner->begin();
 
-                return;
+            try {
+                $this->storeInner($receipt);
+            } catch (Throwable $failed) {
+                $this->inner->rollBack();
+
+                throw $failed;
             }
 
-            if ($this->breach !== Breach::OverwritesDuplicate) {
-                throw $duplicate;
-            }
+            $this->inner->commit();
 
-            $rows = $this->database->committedRows();
-            $rows[$receipt->changesetId->toString()] = $receipt;
-            $this->database->commitRows($rows);
+            return;
         }
+
+        $this->storeInner($receipt);
     }
 
     public function find(ChangesetId $changesetId): ?StoredReceipt
@@ -142,5 +143,27 @@ final class BrokenSession implements ReceiptStore, ReceiptStoreSession
         }
 
         return $this->inner->markProjection($changesetId, $status);
+    }
+
+    private function storeInner(StoredReceipt $receipt): void
+    {
+        try {
+            $this->inner->store($receipt);
+            $this->snapshots->receipts[$receipt->changesetId->toString()] = $receipt;
+        } catch (DuplicateReceipt $duplicate) {
+            if ($this->breach === Breach::RefusesDuplicateAtCommit && $this->inner->inTransaction()) {
+                $this->heldBack = $duplicate;
+
+                return;
+            }
+
+            if ($this->breach !== Breach::OverwritesDuplicate) {
+                throw $duplicate;
+            }
+
+            $rows = $this->database->committedRows();
+            $rows[$receipt->changesetId->toString()] = $receipt;
+            $this->database->commitRows($rows);
+        }
     }
 }

@@ -90,7 +90,7 @@ it('passes the fake on every shared case', function (): void {
         $case->{$name}();
     }
 
-    expect($cases)->toHaveCount(17);
+    expect($cases)->toHaveCount(18);
 });
 
 it('fails a store that breaks the contract', function (Closure $harness, string $name): void {
@@ -101,7 +101,8 @@ it('fails a store that breaks the contract', function (Closure $harness, string 
     'writes that ignore a rollback' => [brokenStores(Breach::IgnoresTransactions), 'a_store_in_a_rolled_back_transaction_is_not_visible'],
     'writes visible before commit' => [brokenStores(Breach::IgnoresTransactions), 'a_store_is_not_visible_to_another_session_until_commit'],
     'marks that ignore a rollback' => [brokenStores(Breach::IgnoresTransactions), 'mark_projection_commits_and_rolls_back_with_the_callers_transaction'],
-    'a store that begins a transaction' => [brokenStores(Breach::BeginsTransaction), 'store_and_mark_projection_never_begin_a_transaction'],
+    'a store that begins a transaction' => [brokenStores(Breach::BeginsTransaction), 'a_store_outside_a_transaction_is_refused_and_stores_nothing'],
+    'a store that commits without a transaction' => [brokenStores(Breach::StoresWithoutTransaction), 'a_store_outside_a_transaction_is_refused_and_stores_nothing'],
     'a receipt frozen as it was stored' => [brokenStores(Breach::FreezesStoredReceipt), 'a_receipt_stored_before_the_wait_holds_no_wait_result_and_shows_the_projections_as_marked'],
     'a duplicate that overwrites' => [brokenStores(Breach::OverwritesDuplicate), 'a_second_receipt_for_the_same_changeset_is_refused'],
     'a duplicate of the other class from another transaction that overwrites' => [brokenStores(Breach::OverwritesDuplicate), 'a_receipt_of_either_class_for_a_changeset_another_transaction_stored_is_refused'],

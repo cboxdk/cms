@@ -7,6 +7,7 @@ namespace Cbox\Cms\Contracts;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Consistency\DuplicateReceipt;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
+use Cbox\Cms\Contracts\Consistency\TransactionRequired;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Receipts\StoredReceipt;
@@ -22,14 +23,17 @@ use Cbox\Cms\Contracts\Storage\PartitionMissing;
  * know whether a call's wait level is reached. The command kernel decides that for each call, a
  * replay included (PRD 6.1), from the wait level the call asks for and the projections' status.
  *
- * Transactions. store() and markProjection() run on the caller's connection. When the caller has a
- * transaction open, they run inside it, so the receipt commits or rolls back with the changeset
- * (PRD 6.2 phase 7, GUARDRAILS 4.1). They never begin, commit or roll back a transaction and never
- * use a savepoint. Without an open transaction each call commits on its own. find() reads on the
- * same connection, so it sees the caller's uncommitted writes and no one else's. A store() of a
- * changeset that another open transaction has stored waits until that transaction ends, then
- * throws DuplicateReceipt when it committed and stores when it rolled back. The duplicate always
- * comes from store(), never from the caller's commit.
+ * Transactions. store() and markProjection() run on the caller's connection and never begin,
+ * commit or roll back a transaction and never use a savepoint (GUARDRAILS 4.1). store() runs only
+ * inside the caller's open transaction, the command transaction, so the receipt commits or rolls
+ * back with the changeset (PRD 6.2 phase 7); without one it throws TransactionRequired and stores
+ * nothing. A store therefore needs no lock or other state that outlives the transaction, which a
+ * pooler in transaction mode (PRD 5.10) would hand to another client. markProjection() runs inside
+ * the caller's transaction when one is open; without one it commits on its own, as a subscriber
+ * calls it. find() reads on the same connection, so it sees the caller's uncommitted writes and no
+ * one else's. A store() of a changeset that another open transaction has stored waits until that
+ * transaction ends, then throws DuplicateReceipt when it committed and stores when it rolled back.
+ * The duplicate always comes from store(), never from the caller's commit.
  *
  * Expiry is logical. A Standard receipt expires when the Clock is later than
  * RetentionClass::expiresAt() for its changeset: the time in the ChangesetId plus
@@ -40,9 +44,9 @@ use Cbox\Cms\Contracts\Storage\PartitionMissing;
  *
  * Partitions. A store on a database keeps receipts in tables partitioned by the changeset's time
  * (PRD 4, 4.2), with no DEFAULT partition. When no partition covers the changeset's time, store()
- * throws PartitionMissing and stores nothing. Inside a transaction the caller then rolls back: a
- * database has failed the transaction and takes no further statements in it, so nothing the
- * transaction wrote before is kept.
+ * throws PartitionMissing and stores nothing. The caller then rolls back: a database has failed the
+ * transaction and takes no further statements in it, so nothing the transaction wrote before is
+ * kept.
  *
  * The shared contract suite is the testkit's ReceiptStoreContract. Every implementation runs it.
  */
@@ -52,10 +56,12 @@ interface ReceiptStore
     /**
      * Stores the receipt of a committed changeset.
      *
+     * @throws TransactionRequired when the caller's connection has no transaction open; nothing
+     *                             is stored
      * @throws DuplicateReceipt when the store already holds a receipt for the changeset, expired
      *                          or not; the stored receipt is left as it was
      * @throws PartitionMissing when no partition covers the changeset's time; nothing is stored,
-     *                          and a caller inside a transaction rolls it back
+     *                          and the caller rolls its transaction back
      */
     public function store(StoredReceipt $receipt): void;
 

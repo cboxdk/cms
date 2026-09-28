@@ -153,8 +153,7 @@ it('drops the Standard receipt partitions a week after their day ends and keeps 
     $clock = new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z'));
     $store = new PostgresReceiptStore(app('db'), $clock);
     $evidence = ReceiptTables::receipt('2026-01-01T00:00:00Z', RetentionClass::Evidence);
-    $store->store(ReceiptTables::receipt('2026-01-01T00:00:00Z', sequence: 1));
-    $store->store($evidence);
+    ReceiptTables::commit(DB::connection(), $store, ReceiptTables::receipt('2026-01-01T00:00:00Z', sequence: 1), $evidence);
 
     // 2026-01-01 ended at 2026-01-02; seven days later its Standard partitions go.
     app()->instance(Clock::class, $clock);
