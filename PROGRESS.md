@@ -11,7 +11,7 @@ Rækkefølgen er `MILESTONES.md`. Id'erne bruges af workflowen `cms-milestone`.
 | Id | Blok | Status |
 |---|---|---|
 | M0 | Milepæl 0: værktøjskæde | done |
-| M1 | Milepæl 1: gående skelet | next |
+| M1 | Milepæl 1: gående skelet | in_progress |
 | B1 | Panel-skelet | todo |
 | B2 | Model | todo |
 | B3 | Tid og schema-evolution | todo |
@@ -35,13 +35,14 @@ Status er `todo`, `next`, `in_progress`, `done`, `incomplete` eller `blocked`.
 
 M0 er done 28. september, afgjort i hovedsessionen efter exit-kørslen på 5a759c1. E1, E2 og E4 til E9 består. E3 og E10 fejler kun på ordlyd, ikke på kode: E3 venter `actions.php` fra `cms:build`, som M0-R1-5 bevidst fjernede til M1, og E10 tjekker bogføring i PROGRESS.md. `composer check`, selftest og CI i container (5 min 27 s med `CMS_CI_BASE_REF=HEAD~1`) er grønne.
 
-Overført til M1 som de første opgaver:
-- Første kørsel på GitHub (run 36413223252, 28. september, 10 min 02 s på ubuntu-latest med 4 vCPU): alle images blev hentet, og alle porte undtagen 5 bestod. Port 5 fejlede to steder. (1) Mutation på ændrede filer: et push der opretter en gren, har `before` = 40 nuller, som `bin/ci` bruger som `CMS_CI_BASE_REF`; `bin/ci` skal behandle det som "ingen base" og finde basen selv (samme opgave som den lokale containerkørsel). (2) `tests/Feature/Tooling/Check/ProcessGroupTest.php` "ends the step when the command exits although a process it started..." målte 7,3 s mod en grænse på 5 s; testen afhænger af maskinens hastighed og skal gøres robust uden at svække det den tjekker.
+Overført til M1 som de første opgaver (M1 startet 28. september på den nye maskine, stier i `~/Projects/Cbox`):
 - Pakkerne lægges sammen til én Composer-pakke, `cboxdk/cms` (GUARDRAILS 1.10, PRD 2.32): ét `composer.json` for kerne, contracts, http, cli, testkit og generators med de nuværende namespaces; testkittets og generatorernes tunge afhængigheder i `suggest` og rodens `require-dev`; arkitekturtests der holder modulernes grænser, som pakkegrænserne gjorde. MCP og panel kommer som moduler i samme pakke.
-- M0-R1-12 (grenen `wip/M0-R1-12`) med de to rettelser af mutationsporten under "Beslutninger fra Sylvester".
-- `bin/ci` finder selv basen til mutation på ændrede filer, når `CMS_CI_BASE_REF` ikke er sat; i dag fejler en lokal containerkørsel uden den.
+- M0-R1-12 (grenen `origin/wip/M0-R1-12`, 1dc2c9a; det gamle worktree findes ikke på den nye maskine) med de to rettelser af mutationsporten under "Beslutninger fra Sylvester".
 - CLAUDE.md og AGENTS.md nævner stadig `actions.php` i registret; det skal passe til koden, indtil M1 bringer actions tilbage.
+- Port 11's begrundelse i `tools/src/Check/Domain/PrProfile.php` ("there is no remote") er forældet: remoten github.com/cboxdk/cms findes, og CI kører på pull requests. Begrundelsen skal passe til det der faktisk mangler (branch protection og review af en anden end forfatteren).
 - "Tolkninger" mangler emnet opskrifter til agenter (`docs/recipes`), og om de venter på `cms:make`.
+- Docs-hygiejnen fra `.harness/plans/M0-hygiene.json`, opgaverne H3 til H6 med deres mål og acceptkriterier: H3 (al dokumentation i én `docs/` i cboxdk-layoutet) er færdigbygget på grenen `origin/wip/M0-H3` (49ef59e) og mangler kun at blive rebaset og flettet; H4 (README, LICENSE, SECURITY, CONTRIBUTING), H5 (screenshot-pipeline) og H6 (`requirements.md` genereret fra `composer.json`) bygges efter den. Sektionerne users, sdk og ui oprettes først, når der er indhold.
+- Færdige fra listen: `bin/ci` finder selv basen til mutation (M0-H1, 8058d4b), og `ProcessGroupTest` afhænger ikke af maskinens hastighed (M0-H2, 947d696).
 
 ## Blokeret
 
