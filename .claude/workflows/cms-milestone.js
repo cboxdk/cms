@@ -383,7 +383,7 @@ Acceptance: ${JSON.stringify(task.acceptance)}
 ${VERIFY_RULES}
 
 ${WORKTREE_RULES}`,
-    { schema: VERIFY, label, phase: PH, effort: 'medium' },
+    Object.assign({ schema: VERIFY, label, phase: PH, effort: 'medium' }, args && args.verifyModel ? { model: args.verifyModel } : {}),
   )
 
   let verdict = await verify(`verify ${task.id}`)
