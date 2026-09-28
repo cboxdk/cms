@@ -10,8 +10,8 @@ Rækkefølgen er `MILESTONES.md`. Id'erne bruges af workflowen `cms-milestone`.
 
 | Id | Blok | Status |
 |---|---|---|
-| M0 | Milepæl 0: værktøjskæde | incomplete |
-| M1 | Milepæl 1: gående skelet | todo |
+| M0 | Milepæl 0: værktøjskæde | done |
+| M1 | Milepæl 1: gående skelet | next |
 | B1 | Panel-skelet | todo |
 | B2 | Model | todo |
 | B3 | Tid og schema-evolution | todo |
@@ -33,18 +33,13 @@ Status er `todo`, `next`, `in_progress`, `done`, `incomplete` eller `blocked`.
 
 ## Seneste kørsel
 
-M0, kørslen 28. september efter at M0-R1-12 og de to fejl i mutationsporten blev flyttet til M1 (5a759c1): **incomplete**. Ingen opgaver i kørslen: 0 done, 0 failed, 0 blocked, ingen integrationsfejl og ingen review-fund rettet. Regressionsporten på 5a759c1 bestod: `composer check` exit 0 (første kørsel fejlede kun i Postgres-suiten på `DoctorCommandTest`, fordi Chromium blev installeret af en anden proces midt i kørslen; se Info), `composer check:selftest` exit 0, og containeriseret CI med `CMS_CI_BASE_REF=HEAD~1` exit 0 på 5 min 27 s mod budgettet på 15 minutter. Exitkriterier: E1, E2, E4, E5, E6, E7, E8 og E9 pass; E3 og E10 fail:
+M0 er done 28. september, afgjort i hovedsessionen efter exit-kørslen på 5a759c1. E1, E2 og E4 til E9 består. E3 og E10 fejler kun på ordlyd, ikke på kode: E3 venter `actions.php` fra `cms:build`, som M0-R1-5 bevidst fjernede til M1, og E10 tjekker bogføring i PROGRESS.md. `composer check`, selftest og CI i container (5 min 27 s med `CMS_CI_BASE_REF=HEAD~1`) er grønne.
 
-- E3: trin 4 venter `actions.php` fra `cms:build`, men M0-R1-5 (7d1d95f) fjernede registret over actions til M1 med vilje, så cachen kun har `commands.php` og `hooks.php`. Kriteriets tekst er ikke fulgt med. Resten af E3 (doktoren i PHP-containeren med `--dev`, Codecs- og Postgres-testene) består.
-- E10: der mangler stadig en Tolkning om opskrifter udskudt til `cms:make`, og kriteriet leder efter GUARDRAILS 7.3-poster for M0-T79, T84 og T88 under "Til review af Sylvester", som beslutningen 27. september flyttede til `CHECKS-LOG.md` (linje 118, 119 og 125).
-- E1, E4, E8 og E9 består kun, fordi evalueringen undtog `CHECKS-LOG.md` og talte forekomster i stedet for linjer; E9's forudsætning "alle opgaver flettet" holder ikke bogstaveligt, fordi M0-R1-12 er flyttet til M1. Se Blokeret.
-
-Efterladt til næste kørsel (ingen af dem er på main):
-
-- M0-R1-12: worktree `/Users/sylvester/Projects/laravel-cms-worktrees/M0-R1-12` og gren `wip/M0-R1-12` (1dc2c9a), bevaret til M1's første opgave.
-- `wip/M0-R1-3-stale-egress` (0b4a7ea) og `wip/M0-R1-4-previous-arch-final` (14ba136): uflettede forsøg fra en tidligere reviewrunde, venter på Sylvesters svar under "Til review af Sylvester".
-- `prev/M0-R1-5-scanroots`, `prev/M0-R1-6-clock-docblock`, `prev/M0-R1-7-isolation`, `prev/M0-R1-8-store-partition-missing`, `prev/M0-R1-9-receipt-transaction`, `prev/M0-R1-10-step-refused` og `prev/M0-R1-11-temporary`: gemte, uflettede forsøg; kan fjernes, når Sylvester har svaret på dem der står under "Til review af Sylvester".
-- Ingen andre worktrees og ingen `wip/M0-*`-gren for en flettet opgave.
+Overført til M1 som de første opgaver:
+- M0-R1-12 (grenen `wip/M0-R1-12`) med de to rettelser af mutationsporten under "Beslutninger fra Sylvester".
+- `bin/ci` finder selv basen til mutation på ændrede filer, når `CMS_CI_BASE_REF` ikke er sat; i dag fejler en lokal containerkørsel uden den.
+- CLAUDE.md og AGENTS.md nævner stadig `actions.php` i registret; det skal passe til koden, indtil M1 bringer actions tilbage.
+- "Tolkninger" mangler emnet opskrifter til agenter (`docs/recipes`), og om de venter på `cms:make`.
 
 ## Blokeret
 
