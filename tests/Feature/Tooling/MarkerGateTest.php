@@ -233,7 +233,7 @@ function withHintWord(string $contents): string
     return str_replace(['{w}', '{W}'], [marker('place|holder'), strtoupper(marker('place|holder'))], $contents);
 }
 
-it('passes the input hint attribute in .tsx and .html files, and the prop key in .tsx', function (): void {
+it('passes the input hint attribute in .tsx and .html files', function (): void {
     $repository = markerRepository();
     $repository
         ->write('resources/js/Search.tsx', withHintWord(<<<'TSX'
@@ -241,17 +241,12 @@ it('passes the input hint attribute in .tsx and .html files, and the prop key in
 
             interface SearchProps {
               label: string;
-              {w}?: string;
+              hint?: string;
             }
 
-            const inputProps = { type: "search", {w}: "Search entries" };
-            const fieldProps = {
-              name: "q",
-              {w}:
-                "A long hint that Prettier puts on its own line",
-            };
+            const inputProps = { type: "search", name: "q" };
 
-            export function Search({ label }: SearchProps): ReactElement {
+            export function Search({ label, hint }: SearchProps): ReactElement {
               return (
                 <label>
                   {label}
@@ -261,7 +256,10 @@ it('passes the input hint attribute in .tsx and .html files, and the prop key in
                     aria-label={label}
                   />
                   <input {w}={label} {...inputProps} />
-                  <input {w}='Author' {...fieldProps} />
+                  <input {w}='Author' />
+                  <input
+                    {w}={hint ?? "A long hint that Prettier puts on its own line"}
+                  />
                 </label>
               );
             }
@@ -331,7 +329,43 @@ it('fails the word anywhere else in a .tsx file', function (string $line, string
     'the attribute with spaces around =' => ['const a = <input {w} = "Name" />;', '{w}'],
     'the prop key with a space before the colon' => ['const props = { {w} : "Name" };', '{w}'],
     'the prop key in the plural' => ['const props = { {w}s: "Name" };', '{w}s'],
+    'a key first in an object literal' => ['const state = { {w}: true };', '{w}'],
+    'a key after a comma in an object literal' => ['const inputProps = { type: "search", {w}: "Search entries" };', '{w}'],
+    'a key in an object literal spread onto an input' => ['const a = <input {...{ {w}: "Name" }} />;', '{w}'],
+    'an optional member of a type literal' => ['type Row = { {w}?: Draft };', '{w}'],
+    'a member after a semicolon in a type literal' => ['type Props = { label: string; {w}: string };', '{w}'],
+    'an optional member of an interface' => ['interface SearchProps { label: string; {w}?: string }', '{w}'],
 ]);
+
+it('fails a key named after the word in an object literal, a props type or an interface in a .tsx file', function (): void {
+    $contents = withHintWord(<<<'TSX'
+        interface SearchProps {
+          label: string;
+          {w}?: string;
+        }
+
+        type Row = {
+          {w}?: Draft;
+        };
+
+        const state = {
+          {w}: true,
+        };
+
+        const fieldProps = {
+          name: "q",
+          {w}:
+            "A long hint that Prettier puts on its own line",
+        };
+
+        TSX);
+
+    expect(InputHintAttributes::offsets('resources/js/Search.tsx', $contents))->toBe([])
+        ->and(MarkerScan::hitsIn('resources/js/Search.tsx', $contents))->toBe(array_map(
+            static fn (int $line): string => 'resources/js/Search.tsx:'.$line.': '.marker('place|holder'),
+            [3, 7, 11, 16],
+        ));
+});
 
 it('passes the attribute after a template literal around an expression in a .tsx file', function (): void {
     $contents = withHintWord('const a = `${b} ${`c`}`;'."\n".'const i = <input {w}="Name" />;'."\n");

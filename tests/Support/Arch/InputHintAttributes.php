@@ -10,11 +10,12 @@ namespace Cbox\Cms\Tests\Support\Arch;
  *
  * In a `.html` file it is the attribute written `<word>="` or `<word>='`, preceded by whitespace
  * and inside a start or end tag, outside its quoted values. In a `.tsx` file it is the JSX
- * attribute written `<word>="`, `<word>='` or `<word>={`, preceded by whitespace, or a prop key
- * written `<word>:` or `<word>?:` and followed by whitespace, preceded by `{`, `,` or `;` (an
- * object literal or a props type), both outside comments, strings and template literals. The
- * word must be in lower case and singular, and each exception is one word at one offset: a
- * value, a variable, a comment, text and every other file type still fail the gate.
+ * attribute written `<word>="`, `<word>='` or `<word>={`, preceded by whitespace, outside
+ * comments, strings and template literals. The decision covers the attribute only, so a key
+ * named after the word in an object literal, a props type or an interface still fails, even
+ * when the object is spread onto an input. The word must be in lower case and singular, and
+ * each exception is one word at one offset: a value, a variable, a key, a comment, text and
+ * every other file type still fail the gate.
  *
  * The scan is lexical, not a parser. Where it cannot tell code from a comment or a string, such
  * as an apostrophe in JSX text, it treats the rest as a string, so the word there still fails.
@@ -36,7 +37,7 @@ final readonly class InputHintAttributes
     private const array RAW_TEXT_ELEMENTS = ['script', 'style', 'textarea', 'title'];
 
     /**
-     * The byte offsets in the contents where the word is the attribute or the prop key.
+     * The byte offsets in the contents where the word is the attribute.
      *
      * @return list<int>
      */
@@ -44,24 +45,9 @@ final readonly class InputHintAttributes
     {
         return match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
             'html' => self::matches('/(?<=\s)'.MarkerScan::PLURAL.'(?==["\'])/', self::htmlTags($contents)),
-            'tsx' => self::tsxOffsets(self::tsxCode($contents)),
+            'tsx' => self::matches('/(?<=\s)'.MarkerScan::PLURAL.'(?==["\'{])/', self::tsxCode($contents)),
             default => [],
         };
-    }
-
-    /**
-     * @return list<int>
-     */
-    private static function tsxOffsets(string $code): array
-    {
-        $keys = array_values(array_filter(
-            self::matches('/(?<![A-Za-z0-9_$])'.MarkerScan::PLURAL.'(?=\??:(?:\s|$))/', $code),
-            static fn (int $offset): bool => in_array(self::previousCharacter($code, $offset), ['{', ',', ';'], true),
-        ));
-        $offsets = [...self::matches('/(?<=\s)'.MarkerScan::PLURAL.'(?==["\'{])/', $code), ...$keys];
-        sort($offsets);
-
-        return $offsets;
     }
 
     /**
@@ -72,16 +58,6 @@ final readonly class InputHintAttributes
         preg_match_all($pattern, $subject, $matches, PREG_OFFSET_CAPTURE);
 
         return array_map(static fn (array $match): int => $match[1], $matches[0]);
-    }
-
-    /**
-     * The last character before the offset that is not whitespace, or an empty string.
-     */
-    private static function previousCharacter(string $code, int $offset): string
-    {
-        $before = rtrim(substr($code, 0, $offset));
-
-        return $before === '' ? '' : $before[strlen($before) - 1];
     }
 
     /**

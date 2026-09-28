@@ -19,8 +19,8 @@ use Symfony\Component\Process\Process;
  * uses to tell text from binary. Symlinks and submodules are not files and are left out.
  *
  * The fourth word is also the name of the HTML attribute for the input hint of a form control.
- * In `.html` and `.tsx` files that attribute, and in `.tsx` the prop key of the same name, is
- * not a marker (InputHintAttributes); the word anywhere else in those files still is.
+ * In `.html` and `.tsx` files that attribute is not a marker (InputHintAttributes); the word
+ * anywhere else in those files, a key of the same name included, still is.
  *
  * The words are written in parts here and in the tests, so the gate checks its own files too.
  */
