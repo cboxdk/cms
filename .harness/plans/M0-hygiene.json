@@ -1,0 +1,112 @@
+{
+ "block": "M0",
+ "summary": "M0 hygiene: clean CI and docs in the cboxdk layout with screenshots.",
+ "tasks": [
+  {
+   "id": "H1",
+   "title": "bin/ci finds the mutation base itself",
+   "goal": "When CMS_CI_BASE_REF is unset, empty or 40 zeros (the \"before\" of a push that creates a branch on GitHub), bin/ci derives the base: the merge base with origin/main when HEAD is not on main, HEAD~1 when HEAD is main, and for a repository with one commit every file counts as changed. Mutation on changed files must still see the changed classes. .github/workflows/ci.yml keeps passing the pull request base and the push before, and the zero case no longer fails. The containerized run needs no environment override.",
+   "acceptance": [
+    "tests cover unset, empty, 40 zeros, a branch, main and a single-commit repository",
+    "docker compose -f compose.ci.yaml run --rm ci exits 0 on a clean committed tree without CMS_CI_BASE_REF, and its wall time is recorded in CHECKS-LOG.md or PROGRESS.md per the rules",
+    "composer check is green",
+    "composer check:selftest passes"
+   ],
+   "dependsOn": [],
+   "prdRefs": []
+  },
+  {
+   "id": "H2",
+   "title": "ProcessGroupTest does not depend on machine speed",
+   "goal": "tests/Feature/Tooling/Check/ProcessGroupTest.php \"ends the step when the command exits although a process it started...\" measured 7.3 s against a 5 s bound on a GitHub runner. Make it robust without weakening what it proves: the step must end when the command exits, not wait for the orphaned child. For example let the child sleep far longer (60 s) and assert the step ends well before the child would (under 30 s), or assert on process state rather than elapsed time. Record the change per GUARDRAILS 7.3 in CHECKS-LOG.md.",
+   "acceptance": [
+    "the test passes under load (run it 5 times while composer check runs in parallel)",
+    "it still fails if the step waits for the child (show by a temporary local change, not committed)",
+    "composer check is green"
+   ],
+   "dependsOn": [],
+   "prdRefs": []
+  },
+  {
+   "id": "H3",
+   "title": "Docs in the cboxdk topic layout",
+   "goal": "Move all documentation into one docs/ tree at the repo root, since Cbox CMS becomes one Composer package (GUARDRAILS 1.10): packages/contracts/docs/*.md, packages/testkit/docs/*.md and packages/contracts/resources/schemas/blueprint.v1.md (keep the JSON Schema file where it is). Layout: docs/index.md (overview, mental model, section TOC), docs/quickstart.md (contributor quickstart: services:up, dev:prepare, composer check, cms:doctor --dev), docs/requirements.md; sections as folders with _index.md: getting-started/ (installation of the development environment, testing with the testkit fakes), developers/ (architecture and layers, the gates and CI, cms:doctor, partitions, services and per-worktree isolation, configuration reference for config/cbox-cms.php), addons/ (extension points: the contracts and their fakes and shared suites, scan roots and build declarations, doctor checks, blueprint v1 reference including extensions and addon field types), security/ (the operating contract for Postgres roles and RLS, egress rule, honest scope). Only create sections that have real content now; users/, sdk/ and ui/ come with the blocks that build them. Write that planned structure (users, developers, sdk, addons, ui, security) as a rule in AGENTS.md and CLAUDE.md, not in the published docs. Update gate 10 (composer docs:check and tools/src/Docs), the Docs suite embeds and every link, and make docs:check also enforce the _index.md and frontmatter rules and that no relative link dangles. Also fix CLAUDE.md and AGENTS.md where they still name actions.php in the registry. Follow the cboxdk docs standard (the cbox:cboxdk-package skill, section 9): docs/ root holds only index.md, quickstart.md and requirements.md; everything else in topic folders; every folder (also nested) has an _index.md; every .md has title, weight and description frontmatter; no competitor names (describe our design in our own terms; integrations, RFCs and dependencies may be named); never claim a capability the code does not have; README H1 is '# Cbox CMS' and the descriptor says 'CMS for Laravel', never 'Laravel CMS'. Write in English, plain and short, no em-dashes or en-dashes, no marketing words.",
+   "acceptance": [
+    "find docs -type d has an _index.md in every folder but the root",
+    "every docs .md file has title, weight and description frontmatter, enforced by docs:check with a test",
+    "no packages/*/docs folder remains",
+    "composer docs:check passes and fails on a planted missing _index.md, missing frontmatter and a dangling link",
+    "composer check is green"
+   ],
+   "dependsOn": [],
+   "prdRefs": []
+  },
+  {
+   "id": "H4",
+   "title": "README, LICENSE, SECURITY and CONTRIBUTING",
+   "goal": "Write README.md: H1 \"# Cbox CMS\", one-line descriptor, an honest status section (pre-release; milestone 0, the toolchain and the kernel contracts, is done; what exists today and what does not yet), what it will be in two or three sentences from the PRD without competitor names, requirements, the contributor quickstart, links into docs/, and license. Add LICENSE (MIT, \"Copyright (c) 2026 Cbox\"), SECURITY.md (GitHub private vulnerability reporting only; no invented mailbox, PGP key, SLA or CVE process) and CONTRIBUTING.md (gates, commit format, where changed checks are recorded, one package with modules). Show screenshots from docs/screenshots where they exist (H5). Follow the cboxdk docs standard (the cbox:cboxdk-package skill, section 9): docs/ root holds only index.md, quickstart.md and requirements.md; everything else in topic folders; every folder (also nested) has an _index.md; every .md has title, weight and description frontmatter; no competitor names (describe our design in our own terms; integrations, RFCs and dependencies may be named); never claim a capability the code does not have; README H1 is '# Cbox CMS' and the descriptor says 'CMS for Laravel', never 'Laravel CMS'. Write in English, plain and short, no em-dashes or en-dashes, no marketing words.",
+   "acceptance": [
+    "README.md, LICENSE, SECURITY.md and CONTRIBUTING.md exist and every relative link in them resolves",
+    "the RepositoryDocs test or docs:check covers README and SECURITY links",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "H3",
+    "H5"
+   ],
+   "prdRefs": []
+  },
+  {
+   "id": "H5",
+   "title": "Screenshot pipeline for the docs",
+   "goal": "Build a screenshot pipeline like cboxdk/laravel-telemetry-ui (see ~/Projects/laravel-telemetry-ui: src/Testing/ScreenshotManifest.php, tests/Browser/CaptureDocsScreenshotsTest.php, tests/Feature/DocsScreenshotsTest.php, docs/screenshots). There is no panel UI yet, so the first screenshots are of real command output rendered as a terminal in the browser: cms:doctor --dev on the dev services, the composer check summary, and cms:schema:editor. Render the ANSI output as styled HTML served by the workbench and capture PNGs with the Pest browser plugin into docs/screenshots, from deterministic fixtures (fixed clock, fixed paths), so a re-capture gives the same picture. A manifest lists every screenshot with its source; a test fails when a screenshot referenced in docs or README is missing from the manifest or the file, or when a manifest entry is unused. Capture is a composer script (docs:screenshots), not part of every check run. Use them in docs (developers/doctor, the quickstart). B1 and later add panel screens to the same manifest. Follow the cboxdk docs standard (the cbox:cboxdk-package skill, section 9): docs/ root holds only index.md, quickstart.md and requirements.md; everything else in topic folders; every folder (also nested) has an _index.md; every .md has title, weight and description frontmatter; no competitor names (describe our design in our own terms; integrations, RFCs and dependencies may be named); never claim a capability the code does not have; README H1 is '# Cbox CMS' and the descriptor says 'CMS for Laravel', never 'Laravel CMS'. Write in English, plain and short, no em-dashes or en-dashes, no marketing words.",
+   "acceptance": [
+    "composer docs:screenshots writes the PNGs and a second run gives identical files",
+    "the docs screenshot test passes and fails for a missing or unused screenshot",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "H3"
+   ],
+   "prdRefs": []
+  },
+  {
+   "id": "H6",
+   "title": "requirements.md generated from composer.json",
+   "goal": "Generate docs/requirements.md from composer.json and package.json (PHP, Laravel, required extensions, direct dependencies, Node for development) with a composer script, and add a test that fails when it is out of date. State only what the resolver enforces, plus the dev services (Postgres 18 image with 17 as the minimum, Valkey 8). Follow the cboxdk docs standard (the cbox:cboxdk-package skill, section 9): docs/ root holds only index.md, quickstart.md and requirements.md; everything else in topic folders; every folder (also nested) has an _index.md; every .md has title, weight and description frontmatter; no competitor names (describe our design in our own terms; integrations, RFCs and dependencies may be named); never claim a capability the code does not have; README H1 is '# Cbox CMS' and the descriptor says 'CMS for Laravel', never 'Laravel CMS'. Write in English, plain and short, no em-dashes or en-dashes, no marketing words.",
+   "acceptance": [
+    "composer docs:requirements regenerates the file with no diff on a clean tree",
+    "a test fails when composer.json changes without regenerating",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "H3"
+   ],
+   "prdRefs": []
+  }
+ ],
+ "exitCriteria": [
+  {
+   "id": "X1",
+   "description": "CI is clean: docker compose -f compose.ci.yaml run --rm ci exits 0 on a clean committed tree with no environment override, within the 15-minute budget.",
+   "command": "docker compose -f compose.ci.yaml run --rm ci; docker compose -f compose.ci.yaml down"
+  },
+  {
+   "id": "X2",
+   "description": "composer check, composer check:selftest and composer docs:check pass."
+  },
+  {
+   "id": "X3",
+   "description": "docs/ follows the cboxdk layout: root has only index.md, quickstart.md and requirements.md; every folder has _index.md; every .md has title, weight and description; no dangling relative links in docs, README, SECURITY and CONTRIBUTING."
+  },
+  {
+   "id": "X4",
+   "description": "README.md, LICENSE, SECURITY.md and CONTRIBUTING.md exist; README shows at least one screenshot from docs/screenshots, and the screenshot test passes."
+  },
+  {
+   "id": "X5",
+   "description": "No competitor names in README, SECURITY, CONTRIBUTING or docs/ (grep for Statamic, Craft, Contentful, Sanity, Storyblok, Payload, Directus, Supabase, WordPress, Strapi prints nothing)."
+  }
+ ],
+ "blockers": []
+}
