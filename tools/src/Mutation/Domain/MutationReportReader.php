@@ -132,7 +132,10 @@ final readonly class MutationReportReader implements OutputReader
 
     /**
      * Each file's mutations in the last report line, by path, or null when there is no report
-     * line in the format.
+     * line in the format. Pest can make two mutations with the same id in one file, when two
+     * mutations give the same source, such as removing either element of `[$a, $a]`; they are the
+     * same mutation, so one listed twice with the same outcome counts once. The same id with two
+     * outcomes is no report in the format, because then the report cannot say whether it was caught.
      *
      * @return array<string, list<MutationOutcome>>|null
      */
@@ -166,8 +169,16 @@ final readonly class MutationReportReader implements OutputReader
                 $id = is_array($mutation) ? ($mutation['id'] ?? null) : null;
                 $caught = is_array($mutation) ? ($mutation['caught'] ?? null) : null;
 
-                if (! is_string($id) || $id === '' || str_contains($id, "\n") || isset($outcomes[$id]) || ! is_bool($caught)) {
+                if (! is_string($id) || $id === '' || str_contains($id, "\n") || ! is_bool($caught)) {
                     return null;
+                }
+
+                if (isset($outcomes[$id])) {
+                    if ($outcomes[$id]->caught !== $caught) {
+                        return null;
+                    }
+
+                    continue;
                 }
 
                 $outcomes[$id] = new MutationOutcome($id, $caught);

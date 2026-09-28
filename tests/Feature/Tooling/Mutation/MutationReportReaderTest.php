@@ -6,7 +6,9 @@ namespace Cbox\Cms\Tests\Feature\Tooling\Mutation;
 
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\PrincipalId;
+use Cbox\Cms\Core\Database\Infrastructure\TablePrivileges;
 use Cbox\Cms\Tooling\Check\Domain\ProcessOutcome;
+use Cbox\Cms\Tooling\Mutation\Domain\CaughtByFastSuites;
 use Cbox\Cms\Tooling\Mutation\Domain\ChangedSource;
 use Cbox\Cms\Tooling\Mutation\Domain\MutationCount;
 use Cbox\Cms\Tooling\Mutation\Domain\MutationLedger;
@@ -129,9 +131,49 @@ it('fails when Pest printed no report it can read, because then no mutation was 
     'counts instead of mutations' => [MutationReportReader::MARKER.'{"files": [{"caught": 3, "mutations": 3, "path": "a.php"}], "format": 2}', 0, 'the plugin in composer.json\'s extra.pest.plugins did not run'],
     'a caught state that is not a boolean' => [MutationReportReader::MARKER.'{"files": [{"mutations": [{"caught": 1, "id": "a"}], "path": "a.php"}], "format": 2}', 0, 'the plugin in composer.json\'s extra.pest.plugins did not run'],
     'a mutation without an id' => [MutationReportReader::MARKER.'{"files": [{"mutations": [{"caught": true, "id": ""}], "path": "a.php"}], "format": 2}', 0, 'the plugin in composer.json\'s extra.pest.plugins did not run'],
-    'a mutation listed twice' => [MutationReportReader::MARKER.'{"files": [{"mutations": [{"caught": true, "id": "a"}, {"caught": false, "id": "a"}], "path": "a.php"}], "format": 2}', 0, 'the plugin in composer.json\'s extra.pest.plugins did not run'],
+    'a mutation listed twice with different outcomes' => [MutationReportReader::MARKER.'{"files": [{"mutations": [{"caught": true, "id": "a"}, {"caught": false, "id": "a"}], "path": "a.php"}], "format": 2}', 0, 'the plugin in composer.json\'s extra.pest.plugins did not run'],
     'a file listed twice' => [MutationReportReader::MARKER.'{"files": [{"mutations": [], "path": "a.php"}, {"mutations": [], "path": "a.php"}], "format": 2}', 0, 'the plugin in composer.json\'s extra.pest.plugins did not run'],
 ]);
+
+/**
+ * A report of one file whose mutations are listed in the given order, so an id can be listed twice.
+ *
+ * @param  list<array{string, bool}>  $mutations  id, caught
+ */
+function mutationReportListing(string $path, array $mutations): string
+{
+    return MutationReportReader::MARKER.json_encode([
+        'files' => [['mutations' => array_map(static fn (array $mutation): array => ['caught' => $mutation[1], 'id' => $mutation[0]], $mutations), 'path' => $path]],
+        'format' => 2,
+    ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+}
+
+it('counts a mutation listed twice with the same id and outcome once, as Pest lists two mutations that give the same source', function (bool $caught): void {
+    $privileges = new ChangedSource('packages/core/src/Database/Infrastructure/TablePrivileges.php', TablePrivileges::class);
+    $ledger = new MutationLedger;
+    $output = mutationReportListing($privileges->path, [['a', true], ['b', $caught], ['b', $caught], ['c', true]]);
+
+    $reading = new MutationReportReader([$privileges], 80, records: $ledger)->read(new ProcessOutcome(0, $output, 1.0));
+    $postgres = new MutationReportReader([$privileges], 80, counts: $ledger)->read(new ProcessOutcome(0, mutationReportListing($privileges->path, [['b', false], ['b', false]]), 1.0));
+
+    expect($reading->failure)->toBe($caught ? null : 'mutation score 66.67% is below 80%; below it: Cbox\Cms\Core\Database\Infrastructure\TablePrivileges 66.67%')
+        ->and($reading->notes[0])->toBe(sprintf('Cbox\Cms\Core\Database\Infrastructure\TablePrivileges: %s, %d of 3 mutations caught', $caught ? '100.00%' : '66.67%', $caught ? 3 : 2))
+        ->and($ledger->outcomes($privileges->path))->toBe(['a' => true, 'b' => $caught, 'c' => true])
+        ->and($postgres->notes[0])->toBe(sprintf('Cbox\Cms\Core\Database\Infrastructure\TablePrivileges: %s, %d of 3 mutations caught', $caught ? '100.00%' : '66.67%', $caught ? 3 : 2))
+        ->and(new CaughtByFastSuites([$privileges], $ledger)->passedWithout())->toBe(
+            $caught ? 'the fast suites caught all 3 mutations of the changed sources, so the Postgres suite cannot change the score and is not run' : null,
+        );
+})->with(['caught' => true, 'not caught' => false]);
+
+it('refuses a report that lists one mutation id with two outcomes, because it cannot say whether it was caught', function (): void {
+    $ledger = new MutationLedger;
+    $output = mutationReportListing('packages/contracts/src/Ids/CommandName.php', [['a', true], ['b', true], ['b', false]]);
+
+    $reading = new MutationReportReader([new ChangedSource('packages/contracts/src/Ids/CommandName.php', CommandName::class)], 80, records: $ledger)->read(new ProcessOutcome(0, $output, 1.0));
+
+    expect($reading->failure)->toBe('Pest printed no mutation report, so no mutation was checked: the plugin in composer.json\'s extra.pest.plugins did not run')
+        ->and($ledger->recorded())->toBeFalse();
+});
 
 it('records every file of the report in the ledger, those it does not judge as well, and only a report it could read', function (): void {
     $ledger = new MutationLedger;
