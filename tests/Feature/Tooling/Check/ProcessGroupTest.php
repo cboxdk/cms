@@ -52,15 +52,74 @@ it('refuses to run without a command, and a program that is not in PATH', functi
 });
 
 it('ends the step when the command exits although a process it started holds the output open, and stops that process', function (): void {
+    // The child would sleep far past the bound and the runner's timeout, so a step that waited for
+    // it fails on both, however slow the machine is; the bound only has to cover starting the
+    // command and stopping the group under load.
     $started = hrtime(true);
-    $outcome = new SymfonyProcessRunner(30.0)->run(['sh', '-c', 'sleep 60 & echo $!; exit 3'], Phpstan::root(), ownProcessGroup: true);
+    $outcome = new SymfonyProcessRunner(90.0)->run(['sh', '-c', 'sleep 180 & echo $!; exit 3'], Phpstan::root(), ownProcessGroup: true);
+    $seconds = (hrtime(true) - $started) / 1e9;
     $sleep = printedPid($outcome->output);
 
-    expect($outcome->exitCode)->toBe(3)
-        ->and((hrtime(true) - $started) / 1e9)->toBeLessThan(SymfonyProcessRunner::TERM_GRACE_SECONDS)
-        ->and($sleep)->toBeGreaterThan(0)
-        ->and(Processes::running([$sleep]))->toBe([])
-        ->and($outcome->output)->toContain('they were stopped with SIGTERM');
+    try {
+        expect($outcome->exitCode)->toBe(3)
+            ->and($outcome->timedOut)->toBeFalse()
+            ->and($seconds)->toBeLessThan(30.0)
+            ->and($sleep)->toBeGreaterThan(0)
+            ->and(Processes::running([$sleep]))->toBe([])
+            ->and($outcome->output)->toContain('they were stopped with SIGTERM');
+    } finally {
+        if ($sleep > 0) {
+            posix_kill($sleep, SIGKILL);
+        }
+    }
+});
+
+it('counts a group that holds only zombies as empty, where PID 1 or a parent does not reap them', function (): void {
+    // The helper joins the step's group and exits, and this process, its parent, does not reap it
+    // until the step has ended, as PID 1 in a GitHub job container never does. The command ends
+    // once the marker is there, which this process writes when the helper has become a zombie.
+    $marker = ScratchDirectory::make().'/joined';
+    $helper = null;
+    $group = 0;
+    $pid = 0;
+    $join = static function (string $buffer) use (&$helper, &$group, &$pid, $marker): void {
+        if ($helper instanceof Process || printedPid($buffer) === 0) {
+            return;
+        }
+
+        $group = printedPid($buffer);
+        $helper = new Process([PHP_BINARY, '-r', 'exit(posix_setpgid(0, (int) $argv[1]) ? 0 : 1);', (string) $group]);
+        $helper->start();
+        $pid = (int) $helper->getPid();
+        $deadline = hrtime(true) + 45 * 1_000_000_000;
+
+        while (Processes::running([$pid]) !== [] && hrtime(true) < $deadline) {
+            usleep(20_000);
+        }
+
+        touch($marker);
+    };
+
+    $outcome = new SymfonyProcessRunner(90.0)->run(
+        ['sh', '-c', 'echo $$; while [ ! -e "$1" ]; do sleep 0.02; done', 'sh', $marker],
+        Phpstan::root(),
+        echo: $join,
+        ownProcessGroup: true,
+    );
+
+    $ps = new Process(['ps', '-o', 'stat=,pgid=', '-p', (string) $pid]);
+    $ps->run();
+
+    expect($helper)->toBeInstanceOf(Process::class);
+    assert($helper instanceof Process);
+    $helper->wait();
+
+    expect($pid)->toBeGreaterThan(0)
+        ->and(preg_split('/\s+/', trim($ps->getOutput())))->toMatchArray([1 => (string) $group])
+        ->and(trim($ps->getOutput()))->toStartWith('Z')
+        ->and($helper->getExitCode())->toBe(0, $helper->getErrorOutput())
+        ->and($outcome->exitCode)->toBe(0)
+        ->and($outcome->output)->not->toContain('process group');
 });
 
 it('kills a process that ignores SIGTERM after the grace time', function (): void {

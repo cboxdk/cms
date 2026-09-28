@@ -23,6 +23,10 @@ use Symfony\Component\Process\Process;
  * there after TERM_GRACE_SECONDS, so no process it started outlives the step and holds its output
  * open. A SIGINT, SIGTERM or SIGHUP to the runner while the command runs is passed on to the
  * group before the runner ends by it, because the group is no longer the terminal's.
+ *
+ * A zombie does not keep the group alive: it has ended and holds nothing open, and where PID 1
+ * does not reap orphans, as in a GitHub job container, it stays in the process table until the
+ * container ends.
  */
 final readonly class SymfonyProcessRunner implements ProcessRunner
 {
@@ -87,8 +91,8 @@ final readonly class SymfonyProcessRunner implements ProcessRunner
 
     /**
      * Sends SIGTERM to the processes left in the group, then SIGKILL to those still there after
-     * the grace time, and says so in the output. A zombie whose parent died is gone as soon as
-     * PID 1 reaps it; the runner stops waiting for the group after the second grace time.
+     * the grace time, and says so in the output. The runner stops waiting for the group after the
+     * second grace time.
      */
     private function stopGroup(int $group): string
     {
@@ -126,9 +130,30 @@ final readonly class SymfonyProcessRunner implements ProcessRunner
         return true;
     }
 
+    /**
+     * Whether a process in the group still runs. The signal 0 answers for the zombies too, so a
+     * group it finds is asked of ps, which shows each process's group and state; when ps cannot
+     * answer, the group counts as running.
+     */
     private function groupExists(int $group): bool
     {
-        return posix_kill(-$group, 0);
+        if (! posix_kill(-$group, 0)) {
+            return false;
+        }
+
+        $ps = new Process(['ps', '-A', '-o', 'pgid=,stat=']);
+        $ps->run();
+
+        if (! $ps->isSuccessful()) {
+            return true;
+        }
+
+        return array_any(
+            explode("\n", $ps->getOutput()),
+            static fn (string $line): bool => preg_match('/^\s*(\d+)\s+(\S+)/', $line, $match) === 1
+                && (int) $match[1] === $group
+                && ! str_starts_with($match[2], 'Z'),
+        );
     }
 
     /**
