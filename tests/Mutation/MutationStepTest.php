@@ -161,6 +161,21 @@ function runMutation(ScratchRepository $repository, string $baseRef): ?StepResul
     return $report->gate(5)?->step(MutationSteps::POSTGRES_NAME);
 }
 
+/**
+ * Runs the fast suites' step of mutation on changed files since the given base in the
+ * repository, whose changes are all outside Adapter and Infrastructure.
+ */
+function runFastMutation(ScratchRepository $repository, string $baseRef): ?StepResult
+{
+    $steps = MutationSteps::for(GitMutationScope::resolve($repository->root, $baseRef), PHP_BINARY);
+
+    expect(array_map(static fn (Step $step): string => $step->name, $steps))->toBe([MutationSteps::FAST_NAME]);
+
+    $report = new CheckRunner(new SymfonyProcessRunner(600.0), new SilentMutationListener)->run([new Gate(5, 'Pest', $steps)], $repository->root);
+
+    return $report->gate(5)?->step(MutationSteps::FAST_NAME);
+}
+
 it('fails the step below 80 and names the class when a test leaves a branch unasserted, and passes once it is asserted', function (): void {
     expect(extension_loaded('pcov'))->toBeTrue('The Mutation suite needs PCOV, as in the php container and the CI image: docker compose exec php vendor/bin/pest --testsuite=Mutation');
 
@@ -228,4 +243,48 @@ it('fails the step below 80 and names the class when a test leaves a branch unas
     expect($asserted?->status)->toBe(StepStatus::Pass, $asserted->output ?? '')
         ->and($asserted?->reason)->toBeNull()
         ->and($asserted?->notes[0] ?? '')->toMatch('/^Acme\\\\Parity\\\\Adapter\\\\Parity: (8\d|9\d|100)\.\d\d%, \d+ of \d+ mutations caught$/');
+});
+
+it('tests a class that more tests cover than one argument can name, as a service provider every test boots is', function (): void {
+    expect(extension_loaded('pcov'))->toBeTrue('The Mutation suite needs PCOV, as in the php container and the CI image: docker compose exec php vendor/bin/pest --testsuite=Mutation');
+
+    // pest-plugin-mutate names every test that covers a mutation in one --filter argument. 800
+    // tests with long names make it longer than Linux lets one argument be (MAX_ARG_STRLEN, 128
+    // KiB), and the process for the mutation could not start: "Argument list too long".
+    $repository = mutationRepository();
+    $repository
+        ->write('packages/parity/src/Greeting.php', <<<'PHP'
+            <?php
+
+            declare(strict_types=1);
+
+            namespace Acme\Parity;
+
+            final readonly class Greeting
+            {
+                public static function to(string $name): string
+                {
+                    return 'Hello, '.$name;
+                }
+            }
+            PHP)
+        ->write('tests/Unit/GreetingTest.php', <<<'PHP'
+            <?php
+
+            declare(strict_types=1);
+
+            use Acme\Parity\Greeting;
+
+            for ($number = 0; $number < 800; $number++) {
+                it(sprintf('greets the name it is given, number %04d, %s', $number, str_repeat('with a description long enough to fill the filter ', 3)), function (): void {
+                    expect(Greeting::to('Ada'))->toBe('Hello, Ada');
+                });
+            }
+            PHP)
+        ->commit('Greeting, covered by 800 tests');
+
+    $step = runFastMutation($repository, 'HEAD~1');
+
+    expect($step?->status)->toBe(StepStatus::Pass, $step->output ?? '')
+        ->and($step?->notes[0] ?? '')->toMatch('/^Acme\\\\Parity\\\\Greeting: 100\.00%, (\d+) of \1 mutations caught$/');
 });

@@ -14,8 +14,10 @@ use Pest\Plugins\Parallel;
  * files (Cbox\Cms\Tooling\Mutation\Domain\MutationSteps) read the score of each changed file.
  * Pest prints only the score of the whole run, and with --parallel not even which file a mutation
  * belongs to. With CMS_MUTATION_REPORT=1 in the environment, the Pest process that runs the
- * mutations prints MutationReportPrinter's report line when they are done. It does nothing in
- * the processes that test one mutation or run a worker's tests, and nothing without the variable.
+ * mutations prints MutationReportPrinter's report line when they are done. In every --mutate run,
+ * with the variable or without, it lets CoverageFilterWidener keep each mutation's --filter
+ * argument within what one argument may be. It does nothing in the processes that test one
+ * mutation or run a worker's tests.
  */
 final class PestMutationReport implements Bootable
 {
@@ -23,10 +25,14 @@ final class PestMutationReport implements Bootable
 
     public function boot(): void
     {
-        if (getenv(self::VARIABLE) !== '1' || getenv(Mutate::ENV_MUTATION_TESTING) !== false || Parallel::isWorker()) {
+        if (getenv(Mutate::ENV_MUTATION_TESTING) !== false || Parallel::isWorker()) {
             return;
         }
 
-        Facade::instance()->registerSubscriber(new MutationReportPrinter(STDOUT));
+        Facade::instance()->registerSubscriber(CoverageFilterWidener::forPest());
+
+        if (getenv(self::VARIABLE) === '1') {
+            Facade::instance()->registerSubscriber(new MutationReportPrinter(STDOUT));
+        }
     }
 }
