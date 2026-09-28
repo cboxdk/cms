@@ -289,6 +289,102 @@ it('reads a string that spells a name as written, unescaped and without the lead
     ]);
 });
 
+it('reads a dotted container id in a string, but not as a key', function (): void {
+    expect(referencesOf(<<<'PHP'
+        <?php
+
+        namespace Cbox\Cms\Core\Schema\Adapter;
+
+        $a = [app('filesystem.disk'), app('mail.manager'), "auth.password.broker", 'x_1.y2'];
+        $b = ['filesystem.cloud' => 1, $found['mail.manager'], 'a.', '.a', 'a..b', 'a.b-c', '1.0', 'a b.c'];
+        PHP))->toBe([
+        '5 function app',
+        '5 string filesystem.disk',
+        '5 function app',
+        '5 string mail.manager',
+        '5 string auth.password.broker',
+        '5 string x_1.y2',
+    ]);
+});
+
+it('reports the storage, mail, notification and image managers and the other HTTP clients by class, contract, facade or container id', function (): void {
+    $file = SourceFile::parse('Probe.php', <<<'PHP'
+        <?php
+
+        declare(strict_types=1);
+
+        namespace Cbox\Cms\Core\Webhooks\Adapter;
+
+        use Aws\S3\S3Client;
+        use Http\Client\HttpClient;
+        use Http\Discovery\Psr18ClientDiscovery;
+        use Illuminate\Contracts\Filesystem\Factory as Filesystems;
+        use Illuminate\Contracts\Mail\Mailer;
+        use Illuminate\Contracts\Notifications\Dispatcher;
+        use Illuminate\Image\ImageManager;
+        use Illuminate\Mail\Mailable;
+        use Illuminate\Notifications\Messages\SlackMessage;
+        use Illuminate\Support\Facades\Image;
+        use Illuminate\Support\Facades\Mail;
+        use Illuminate\Support\Facades\Notification;
+        use Illuminate\Support\Facades\Storage;
+        use League\Flysystem\Filesystem;
+        use Symfony\Component\Mailer\Transport;
+        use Symfony\Contracts\HttpClient\HttpClientInterface;
+
+        final class Deliverer
+        {
+            public function __construct(private HttpClientInterface $client) {}
+
+            public function run(string $url, array $config): void
+            {
+                $this->client->request('POST', $url);
+                Storage::disk('s3')->put('x', 'y');
+                app('filesystem')->disk('s3')->put('x', 'y');
+                app('filesystem.disk')->put('x', 'y');
+                app()->make('filesystem.cloud')->put('x', 'y');
+                app('files')->get($url);
+                app('mailer')->raw('x', static fn () => null);
+                app('mail.manager')->mailer('mailgun');
+                app('http')->post($url);
+                app('image')->fromUrl($url);
+                app(\Illuminate\Contracts\Filesystem\Cloud::class);
+                $mailer = $config['mailer'] ?? $config['http'];
+                $settings = ['filesystem' => 's3', 'mail.manager' => 'x', 'files' => 1];
+                $words = ['Mailer', 'HTTP', 'cms.contracts', 'http.client', 'mailers'];
+            }
+        }
+        PHP);
+
+    expect(Egress::violations([$file]))->toBe([
+        'Probe.php:7: class Aws\S3\S3Client',
+        'Probe.php:8: class Http\Client\HttpClient',
+        'Probe.php:9: class Http\Discovery\Psr18ClientDiscovery',
+        'Probe.php:10: class Illuminate\Contracts\Filesystem\Factory',
+        'Probe.php:11: class Illuminate\Contracts\Mail\Mailer',
+        'Probe.php:12: class Illuminate\Contracts\Notifications\Dispatcher',
+        'Probe.php:13: class Illuminate\Image\ImageManager',
+        'Probe.php:14: class Illuminate\Mail\Mailable',
+        'Probe.php:15: class Illuminate\Notifications\Messages\SlackMessage',
+        'Probe.php:16: class Illuminate\Support\Facades\Image',
+        'Probe.php:17: class Illuminate\Support\Facades\Mail',
+        'Probe.php:18: class Illuminate\Support\Facades\Notification',
+        'Probe.php:19: class Illuminate\Support\Facades\Storage',
+        'Probe.php:20: class League\Flysystem\Filesystem',
+        'Probe.php:21: class Symfony\Component\Mailer\Transport',
+        'Probe.php:22: class Symfony\Contracts\HttpClient\HttpClientInterface',
+        'Probe.php:32: string filesystem',
+        'Probe.php:33: string filesystem.disk',
+        'Probe.php:34: string filesystem.cloud',
+        'Probe.php:35: string files',
+        'Probe.php:36: string mailer',
+        'Probe.php:37: string mail.manager',
+        'Probe.php:38: string http',
+        'Probe.php:39: string image',
+        'Probe.php:40: class Illuminate\Contracts\Filesystem\Cloud',
+    ]);
+});
+
 it('reports every URL-capable function, socket, process and class outside the gateway', function (): void {
     $file = SourceFile::parse('Probe.php', <<<'PHP'
         <?php
@@ -439,6 +535,7 @@ it('reports string callables and class names in strings, the framework filesyste
         'Probe.php:36: function mail',
         'Probe.php:37: function mb_send_mail',
         'Probe.php:38: function error_log',
+        'Probe.php:39: string files',
     ]);
 });
 

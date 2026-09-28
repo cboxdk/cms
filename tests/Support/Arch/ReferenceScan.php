@@ -19,7 +19,8 @@ namespace Cbox\Cms\Tests\Support\Arch;
  *
  * A quoted string whose value reads as a name (a function, a qualified class, or Class::method) is
  * a StringLiteral reference, because PHP calls or resolves it: array_map('file_get_contents', ...),
- * call_user_func('curl_exec', ...), [$info, 'openFile'] and app('GuzzleHttp\Client'). A string used
+ * call_user_func('curl_exec', ...), [$info, 'openFile'] and app('GuzzleHttp\Client'). So is a
+ * dotted container id such as 'filesystem.disk' or 'mail.manager', which app() resolves. A string used
  * as a key, an array offset such as $found['file'] or an array key before =>, is not a reference:
  * PHP never calls a key. What the scan cannot see is a name built at run time, by concatenation or
  * interpolation; allow_url_fopen=Off in the runtime contract (php.allow_url_fopen) still turns the
@@ -35,6 +36,9 @@ final class ReferenceScan
 
     /** A name as a string can hold it: a function, a class qualified or not, or Class::method. */
     private const string NAME = '/\A\\\\?[A-Za-z_\x80-\xff][A-Za-z0-9_\x80-\xff]*(?:\\\\[A-Za-z_\x80-\xff][A-Za-z0-9_\x80-\xff]*)*(?:\\\\|::[A-Za-z_\x80-\xff][A-Za-z0-9_\x80-\xff]*)?\z/';
+
+    /** A dotted container id: 'filesystem.disk', 'mail.manager', 'auth.password.broker'. */
+    private const string SERVICE_ID = '/\A[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+\z/';
 
     /**
      * @return list<Reference>
@@ -145,7 +149,7 @@ final class ReferenceScan
             if ($id === T_CONSTANT_ENCAPSED_STRING) {
                 $value = self::unquote($text);
 
-                if (preg_match(self::NAME, $value) === 1 && ! self::isKey($tokens, $i)) {
+                if ((preg_match(self::NAME, $value) === 1 || preg_match(self::SERVICE_ID, $value) === 1) && ! self::isKey($tokens, $i)) {
                     $references[] = new Reference(ReferenceKind::StringLiteral, ltrim($value, '\\'), $namespace, $path, $line);
                 }
 

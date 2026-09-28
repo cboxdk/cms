@@ -12,6 +12,6 @@ enum ReferenceKind: string
     case Function = 'function';
     case Method = 'method';
     case ClassName = 'class';
-    /** A string literal that reads as a function, method or class name, which PHP can call or resolve. */
+    /** A string literal that reads as a function, method or class name or a dotted container id, which PHP can call or resolve. */
     case StringLiteral = 'string';
 }

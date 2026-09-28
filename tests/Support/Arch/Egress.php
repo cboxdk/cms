@@ -20,7 +20,11 @@ use Cbox\Cms\Testkit\Postgres\ChildProcess;
 use Cbox\Cms\Testkit\Postgres\ChildProcesses;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Image;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * What only the egress gateway may call (GUARDRAILS 3): everything outbound goes through the SSRF
@@ -35,9 +39,20 @@ use Illuminate\Support\Facades\Process;
  * filesystems (Illuminate\Filesystem with the File facade, Symfony's Filesystem) pass a URL on to
  * them. The stat functions (is_file, file_exists, filesize and the like) are not listed: they only
  * look, and the local code calls them everywhere. An XML parser fetches external entities and XSLT's document(), and mail() and
- * error_log() send mail. Sockets connect anywhere, and a process can run curl. The rule matches
- * exact names, read by ReferenceScan, also where a string names one: a string callable such as
- * array_map('file_get_contents', ...) or a class resolved from the container by its name.
+ * error_log() send mail. Sockets connect anywhere, and a process can run curl.
+ *
+ * The framework and the packages it brings send HTTP of their own, which allow_url_fopen does not
+ * stop: a storage disk on s3, ftp or sftp (the Storage facade, the filesystem contracts,
+ * Flysystem, the AWS SDK), the mail transports for Mailgun, Postmark, SES and Resend (Laravel's
+ * and Symfony's mailers), notifications such as Slack webhooks, and the image manager's
+ * fromUrl(). A class gets one without naming the client when it type-hints a contract, so the
+ * contracts are listed with the clients: Symfony's HttpClientInterface, HTTPlug and its
+ * discovery, and Laravel's filesystem, mail and notification contracts. The container also hands
+ * them out by id, app('filesystem')->disk('s3') or app('mailer'), so SERVICE_IDS lists those.
+ *
+ * The rule matches exact names, read by ReferenceScan, also where a string names one: a string
+ * callable such as array_map('file_get_contents', ...), a class resolved from the container by
+ * its name, or a container id.
  *
  * The allowances are the local uses the code has, each with the reason it stays local: the local
  * readers and writers refuse a path that names a stream wrapper (LocalPath::namesStreamWrapper())
@@ -138,17 +153,49 @@ final class Egress
         'XMLReader',
         'XMLWriter',
         'XSLTProcessor',
+        'Aws\\',
         'GuzzleHttp\\',
+        'Http\Client\\',
+        'Http\Discovery\\',
+        'Illuminate\Contracts\Filesystem\\',
+        'Illuminate\Contracts\Mail\\',
+        'Illuminate\Contracts\Notifications\\',
         'Illuminate\Filesystem\\',
         'Illuminate\Http\Client\\',
+        'Illuminate\Image\\',
+        'Illuminate\Mail\\',
+        'Illuminate\Notifications\\',
         'Illuminate\Process\\',
         File::class,
         Http::class,
+        Image::class,
+        Mail::class,
+        Notification::class,
         Process::class,
+        Storage::class,
+        'League\Flysystem\\',
         'Psr\Http\Client\\',
         'Symfony\Component\Filesystem\\',
         'Symfony\Component\HttpClient\\',
+        'Symfony\Component\Mailer\\',
         'Symfony\Component\Process\\',
+        'Symfony\Contracts\HttpClient\\',
+    ];
+
+    /**
+     * The container ids that resolve to a class in CLASSES: the filesystems ('files' is the File
+     * facade's Filesystem), the mail manager and mailer, the image manager, and 'http', which a
+     * package may bind to an HTTP client. Matched exactly, as the container matches them.
+     */
+    public const array SERVICE_IDS = [
+        'files',
+        'filesystem',
+        'filesystem.cloud',
+        'filesystem.disk',
+        'http',
+        'image',
+        'mail.manager',
+        'mailer',
     ];
 
     /** Methods that open a file name: SplFileInfo::openFile(). */
@@ -202,10 +249,12 @@ final class Egress
      * @var array<class-string, list<string>>
      */
     public const array ALLOWED_WORDS = [
-        // "Generated 1 file: ...", the noun in the report of cms:generate.
-        GenerateCommand::class => ['file'],
-        // "Wrote the editor line to 1 file", the noun in the report of cms:schema:editor.
-        SchemaEditorCommand::class => ['file'],
+        // "Generated 1 file: ..." and "Generated 2 files: ...", the noun in the report of
+        // cms:generate.
+        GenerateCommand::class => ['file', 'files'],
+        // "Wrote the editor line to 1 file" and "... to 2 files", the noun in the report of
+        // cms:schema:editor.
+        SchemaEditorCommand::class => ['file', 'files'],
         // PDO::exec(), one of the PDO methods that take SQL, which the rule compares a method
         // call's name with.
         RawSqlRule::class => ['exec'],
@@ -300,10 +349,15 @@ final class Egress
     }
 
     /**
-     * A string names a function, a method of an array callable, a class, or Class::method.
+     * A string names a container id, a function, a method of an array callable, a class, or
+     * Class::method.
      */
     private static function forbiddenString(string $value): ?string
     {
+        if (in_array($value, self::SERVICE_IDS, true)) {
+            return $value;
+        }
+
         if (str_contains($value, '::')) {
             [$class, $method] = explode('::', $value, 2);
 
