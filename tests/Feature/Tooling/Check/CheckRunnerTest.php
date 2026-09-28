@@ -11,6 +11,7 @@ use Cbox\Cms\Tooling\Check\Domain\Gate;
 use Cbox\Cms\Tooling\Check\Domain\GateResult;
 use Cbox\Cms\Tooling\Check\Domain\ProcessOutcome;
 use Cbox\Cms\Tooling\Check\Domain\Step;
+use Cbox\Cms\Tooling\Check\Domain\StepPrecheck;
 use Cbox\Cms\Tooling\Check\Domain\StepResult;
 use Cbox\Cms\Tooling\Check\Domain\StepStatus;
 use InvalidArgumentException;
@@ -128,6 +129,34 @@ it('reports a step decided without a command, a pass with its note and a fail wi
         ->and(Step::failed('a', 'why')->runs())->toBeFalse()
         ->and(Step::notRun('a', 'why')->runs())->toBeFalse()
         ->and(Step::run('a', ['a'])->runs())->toBeTrue();
+});
+
+it('asks a step\'s precheck when the steps before it have run, and passes the step with its note without running it, or runs it on null', function (): void {
+    $runner = new ScriptedProcessRunner(static fn (array $command): ProcessOutcome => new ProcessOutcome(0, implode(' ', $command), 0.1));
+    $precheck = static fn (string $unless): StepPrecheck => new readonly class($runner, $unless) implements StepPrecheck
+    {
+        public function __construct(private ScriptedProcessRunner $runner, private string $unless) {}
+
+        public function passedWithout(): ?string
+        {
+            return in_array($this->unless, $this->runner->commandLines(), true) ? 'decided by '.$this->unless : null;
+        }
+    };
+    $gates = [new Gate(5, 'Pest', [
+        Step::run('Fast', ['pest', 'fast']),
+        Step::run('Postgres', ['pest', 'postgres'], precheck: $precheck('pest fast')),
+        Step::run('Other', ['pest', 'other'], precheck: $precheck('pest nothing')),
+    ])];
+
+    $report = new CheckRunner($runner, new RecordingListener)->run($gates, '/srv/checkout');
+    $skipped = $report->gate(5)?->step('Postgres');
+
+    expect($runner->commandLines())->toBe(['pest fast', 'pest other'])
+        ->and($skipped?->status)->toBe(StepStatus::Pass)
+        ->and($skipped?->notes)->toBe(['decided by pest fast'])
+        ->and($skipped?->exitCode)->toBeNull()
+        ->and($report->gate(5)?->step('Other')?->exitCode)->toBe(0)
+        ->and(Step::run('a', ['a'], precheck: $precheck('pest fast'))->runs())->toBeTrue();
 });
 
 it('fails a step that timed out, was killed or did not start, whatever its output', function (?int $exitCode, bool $timedOut): void {

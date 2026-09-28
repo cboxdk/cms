@@ -7,14 +7,17 @@ namespace Cbox\Cms\Tooling\Mutation\Adapter;
 use Cbox\Cms\Tooling\Mutation\Domain\MutationReportReader;
 use Pest\Mutate\Event\Events\TestSuite\FinishMutationSuite;
 use Pest\Mutate\Event\Events\TestSuite\FinishMutationSuiteSubscriber;
+use Pest\Mutate\MutationTest;
 use Pest\Mutate\MutationTestCollection;
+use Pest\Mutate\Support\MutationTestResult;
 use RuntimeException;
 
 /**
  * Prints the mutation report that MutationReportReader reads, when Pest's mutations are done: one
  * line, the marker and a JSON object with, for each file that has mutations, its path relative
- * to the directory Pest runs in, the number of mutations, and how many a test caught. Caught
- * counts as Pest's score does: the mutations that failed a test or timed out. The line starts on
+ * to the directory Pest runs in and each mutation's id and whether a test caught it. Caught
+ * counts as Pest's score does: the mutations that failed a test or timed out. The ids let the
+ * step with Postgres count what the fast suites' run caught (MutationLedger). The line starts on
  * a line of its own, after the dots of a parallel run.
  */
 final readonly class MutationReportPrinter implements FinishMutationSuiteSubscriber
@@ -46,15 +49,20 @@ final readonly class MutationReportPrinter implements FinishMutationSuiteSubscri
     }
 
     /**
-     * @return array{caught: int, mutations: int, path: string}
+     * @return array{mutations: list<array{caught: bool, id: string}>, path: string}
      */
     private function file(MutationTestCollection $collection, string $prefix): array
     {
         $path = (string) $collection->file->getRealPath();
+        $mutations = array_map(static fn (MutationTest $test): array => [
+            'caught' => in_array($test->result(), [MutationTestResult::Tested, MutationTestResult::Timeout], true),
+            'id' => $test->getId(),
+        ], array_values($collection->tests()));
+
+        usort($mutations, static fn (array $a, array $b): int => $a['id'] <=> $b['id']);
 
         return [
-            'caught' => $collection->tested() + $collection->timedOut(),
-            'mutations' => $collection->count(),
+            'mutations' => $mutations,
             'path' => $prefix !== '' && str_starts_with($path, $prefix) ? substr($path, strlen($prefix)) : $path,
         ];
     }

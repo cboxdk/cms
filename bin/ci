@@ -13,10 +13,11 @@
 #   gate 6  composer check:generated
 # and what the PR profile adds that CI runs:
 #   gate 5  vendor/bin/pest --testsuite=Mutation, the tests that need PCOV, and mutation on
-#           changed files: vendor/bin/pest --mutate --everything --path=<files> --min=80 on the
-#           files below packages/*/src changed since the merge base of CMS_CI_BASE_REF and HEAD,
-#           with PCOV from tools/mutation/pcov.ini. Adapter and Infrastructure run serially with
-#           the Postgres suite, the others with --parallel against the fast suites
+#           changed files: vendor/bin/pest --mutate --everything --path=<files>, minimum score 80,
+#           on the files below packages/*/src changed since the merge base of CMS_CI_BASE_REF and
+#           HEAD, with PCOV from tools/mutation/pcov.ini. Every file runs with --parallel against
+#           the fast suites; Adapter and Infrastructure also serially against the Postgres suite,
+#           unless the fast suites caught all their mutations
 #   gate 8  vendor/bin/pest --testsuite=Browser, in a process group of its own that the runner
 #           kills when the step ends, so a Playwright server left by a dead Pest cannot hold the
 #           output open; docker/ci-setup.sh gives the image the pinned Playwright's Chromium

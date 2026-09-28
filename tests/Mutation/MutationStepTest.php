@@ -24,10 +24,12 @@ use Cbox\Cms\Tooling\Mutation\Domain\MutationSteps;
  * the assertion makes it pass. It needs PCOV, which the php container and the CI image have and
  * the host does not, so it is the Mutation suite, which the PR profile runs in gate 5.
  *
- * The class is an adapter, so the step is the serial one with the Postgres suite. The parallel
- * step cannot run here: Pest's parallel workers take the directory above the real vendor, this
- * checkout, for the project, and the scratch repository shares the vendor through a symlink. The
- * PR profile runs the parallel step on this checkout.
+ * The class is an adapter and its test is in the Postgres suite, so the step that runs here is
+ * the serial one with the Postgres suite. The fast suites' step cannot run here: Pest's parallel
+ * workers take the directory above the real vendor, this checkout, for the project, and the
+ * scratch repository shares the vendor through a symlink. The PR profile runs it on this
+ * checkout. Without the fast suites' report, the step with Postgres counts its own run only, and
+ * runs rather than passing on the fast suites' word.
  */
 
 afterEach(function (): void {
@@ -43,7 +45,7 @@ function mutationRepository(): ScratchRepository
     $root = Phpstan::root();
     $suites = implode("\n", array_map(
         static fn (string $suite): string => "        <testsuite name=\"{$suite}\"><directory suffix=\"Test.php\">tests/{$suite}</directory></testsuite>",
-        MutationSteps::POSTGRES_SUITES,
+        [...MutationSteps::FAST_SUITES, MutationSteps::POSTGRES_SUITE],
     ));
     $repository = ScratchRepository::make('cbox-cms-mutation-test-')
         ->write('phpunit.xml', <<<XML
@@ -77,7 +79,7 @@ function mutationRepository(): ScratchRepository
         ->write('.gitignore', "/vendor\n/.phpunit.cache/\n")
         ->write(MutationSteps::PCOV_INI_DIRECTORY.'/pcov.ini', (string) file_get_contents($root.'/'.MutationSteps::PCOV_INI_DIRECTORY.'/pcov.ini'));
 
-    foreach (MutationSteps::POSTGRES_SUITES as $suite) {
+    foreach ([...MutationSteps::FAST_SUITES, MutationSteps::POSTGRES_SUITE] as $suite) {
         $repository->write("tests/{$suite}/.gitkeep", '');
     }
 
@@ -88,15 +90,15 @@ function mutationRepository(): ScratchRepository
 }
 
 /**
- * Runs the steps of mutation on changed files since the given base in the repository.
+ * Runs the step with Postgres of mutation on changed files since the given base in the repository.
  */
 function runMutation(ScratchRepository $repository, string $baseRef): ?StepResult
 {
     $steps = MutationSteps::for(GitMutationScope::resolve($repository->root, $baseRef), PHP_BINARY);
 
-    expect(array_map(static fn (Step $step): string => $step->name, $steps))->toBe([MutationSteps::POSTGRES_NAME]);
+    expect(array_map(static fn (Step $step): string => $step->name, $steps))->toBe([MutationSteps::FAST_NAME, MutationSteps::POSTGRES_NAME]);
 
-    $report = new CheckRunner(new SymfonyProcessRunner(600.0), new SilentMutationListener)->run([new Gate(5, 'Pest', $steps)], $repository->root);
+    $report = new CheckRunner(new SymfonyProcessRunner(600.0), new SilentMutationListener)->run([new Gate(5, 'Pest', [$steps[1]])], $repository->root);
 
     return $report->gate(5)?->step(MutationSteps::POSTGRES_NAME);
 }
@@ -125,7 +127,7 @@ it('fails the step below 80 and names the class when a test leaves a branch unas
                 }
             }
             PHP)
-        ->write('tests/Unit/ParityTest.php', <<<'PHP'
+        ->write('tests/Postgres/ParityTest.php', <<<'PHP'
             <?php
 
             declare(strict_types=1);
@@ -145,10 +147,11 @@ it('fails the step below 80 and names the class when a test leaves a branch unas
 
     expect($unasserted?->status)->toBe(StepStatus::Fail, $unasserted->output ?? '')
         ->and($unasserted?->reason)->toMatch('/^mutation score \d+\.\d\d% is below 80%; below it: Acme\\\\Parity\\\\Adapter\\\\Parity \d+\.\d\d%$/')
-        ->and($unasserted?->notes[0] ?? '')->toStartWith('Acme\Parity\Adapter\Parity: ');
+        ->and($unasserted?->notes[0] ?? '')->toStartWith('Acme\Parity\Adapter\Parity: ')
+        ->and($unasserted?->notes)->toContain('the fast suites\' run recorded no report, so only this run counts');
 
     $repository
-        ->write('tests/Unit/ParityTest.php', <<<'PHP'
+        ->write('tests/Postgres/ParityTest.php', <<<'PHP'
             <?php
 
             declare(strict_types=1);

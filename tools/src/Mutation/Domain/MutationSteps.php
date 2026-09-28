@@ -9,21 +9,27 @@ use Cbox\Cms\Tooling\Check\Domain\Step;
 /**
  * Mutation on changed files, the PR profile's part of GUARDRAILS 9 and 10: Pest's `--mutate` on
  * the sources below packages/<package>/src that changed since the merge base of CMS_CI_BASE_REF
- * and HEAD, with `--min=80`.
+ * and HEAD, each step failing below a score of 80 over the sources it judges.
  *
  * The flags, as Pest 5 and pest-plugin-mutate 5.0 read them: `--everything` lets the run mutate
  * without covers() or mutates() in a test, and makes sure neither narrows what is mutated;
  * `--path` names the changed files, so only they are mutated, and every class, enum and trait in
  * them (with `--everything`, `--class` is ignored, and without it `--class` finds only `class` and
- * `trait` declarations); `--min=80` fails the run below a score of 80, and
- * `--ignore-min-score-on-zero-mutations` passes a run whose files have nothing to mutate, such as
- * an interface, instead of scoring it 0. Coverage comes from PCOV, which tools/mutation/pcov.ini
- * enables through PHP_INI_SCAN_DIR for the run and every process it starts; the image loads PCOV
- * but leaves it off.
+ * `trait` declarations). The minimum score is MutationReportReader's, not Pest's `--min`, because
+ * a step judges some of the files its run mutates, and the step with Postgres counts the fast
+ * suites' run as well. Coverage comes from PCOV, which tools/mutation/pcov.ini enables through
+ * PHP_INI_SCAN_DIR for the run and every process it starts; the image loads PCOV but leaves it
+ * off.
  *
- * The sources in Adapter and Infrastructure run against the Postgres suite and the fast suites,
- * serially, because the RealPostgres harness shares one database. The others run against the
- * fast suites with `--parallel`: the tests and then the mutations run in parallel workers.
+ * The fast suites' step mutates every changed source against the fast suites with `--parallel`:
+ * the tests and then the mutations run in parallel workers. It judges the sources outside Adapter
+ * and Infrastructure and records every mutation's outcome in a MutationLedger. The step with
+ * Postgres mutates the sources in Adapter and Infrastructure against the Postgres suite alone,
+ * serially, because the RealPostgres harness shares one database, and counts a mutation as caught
+ * when either run caught it: what one run of all the suites would count, without a PHP process
+ * that holds every suite's tests and their coverage at once, which ran out of memory. When the
+ * fast suites caught every mutation of those sources, the Postgres suite cannot change the score,
+ * and the step passes without running it (CaughtByFastSuites).
  */
 final readonly class MutationSteps
 {
@@ -36,18 +42,17 @@ final readonly class MutationSteps
     public const int MIN_SCORE = 80;
 
     /**
-     * The suites whose tests may kill a mutation of a class outside Adapter and Infrastructure.
+     * The suites the fast suites' step runs, in parallel, for every changed source.
      *
      * @var list<string>
      */
     public const array FAST_SUITES = ['Unit', 'Codecs', 'Contract', 'Actions', 'Arch'];
 
     /**
-     * The suites whose tests may kill a mutation of a class in Adapter or Infrastructure.
-     *
-     * @var list<string>
+     * The suite the step with Postgres runs, serially, for the sources in Adapter and
+     * Infrastructure, whose mutations the fast suites may kill as well.
      */
-    public const array POSTGRES_SUITES = ['Unit', 'Codecs', 'Contract', 'Postgres', 'Actions', 'Arch'];
+    public const string POSTGRES_SUITE = 'Postgres';
 
     /**
      * The directory with pcov.ini, relative to the checkout. A leading colon in PHP_INI_SCAN_DIR
@@ -69,8 +74,8 @@ final readonly class MutationSteps
 
     /**
      * The steps of mutation on changed files: a failing step when the base is missing, a passing
-     * step when no source changed, and otherwise a Pest run for the fast suites and one with
-     * Postgres, each only when it has sources.
+     * step when no source changed, and otherwise the fast suites' Pest run over every source, and
+     * the Postgres suite's over the sources in Adapter and Infrastructure when there are any.
      *
      * @param  string  $php  the PHP binary
      * @return list<Step>
@@ -85,16 +90,27 @@ final readonly class MutationSteps
             return [Step::passed(self::NAME, self::NO_CHANGES.' since '.$scope->base)];
         }
 
-        $steps = [];
-        $fast = $scope->sources(false);
+        $ledger = new MutationLedger;
         $postgres = $scope->sources(true);
-
-        if ($fast !== []) {
-            $steps[] = self::step(self::FAST_NAME, $php, self::FAST_SUITES, $fast, parallel: true);
-        }
+        $steps = [self::step(
+            self::FAST_NAME,
+            $php,
+            self::FAST_SUITES,
+            $scope->sources,
+            new MutationReportReader($scope->sources(false), self::MIN_SCORE, records: $ledger),
+            parallel: true,
+        )];
 
         if ($postgres !== []) {
-            $steps[] = self::step(self::POSTGRES_NAME, $php, self::POSTGRES_SUITES, $postgres, parallel: false);
+            $steps[] = self::step(
+                self::POSTGRES_NAME,
+                $php,
+                [self::POSTGRES_SUITE],
+                $postgres,
+                new MutationReportReader($postgres, self::MIN_SCORE, counts: $ledger),
+                parallel: false,
+                precheck: new CaughtByFastSuites($postgres, $ledger),
+            );
         }
 
         return $steps;
@@ -102,9 +118,9 @@ final readonly class MutationSteps
 
     /**
      * @param  list<string>  $suites
-     * @param  non-empty-list<ChangedSource>  $sources
+     * @param  list<ChangedSource>  $sources
      */
-    private static function step(string $name, string $php, array $suites, array $sources, bool $parallel): Step
+    private static function step(string $name, string $php, array $suites, array $sources, MutationReportReader $reader, bool $parallel, ?CaughtByFastSuites $precheck = null): Step
     {
         $paths = array_map(static fn (ChangedSource $source): string => $source->path, $sources);
 
@@ -120,11 +136,10 @@ final readonly class MutationSteps
                 ...($parallel ? ['--parallel'] : []),
                 '--everything',
                 '--path='.implode(',', $paths),
-                '--min='.self::MIN_SCORE,
-                '--ignore-min-score-on-zero-mutations',
             ],
-            reader: new MutationReportReader($sources, self::MIN_SCORE),
+            reader: $reader,
             environment: self::ENVIRONMENT,
+            precheck: $precheck,
         );
     }
 }

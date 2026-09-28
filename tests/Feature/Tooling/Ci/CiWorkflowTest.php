@@ -146,9 +146,9 @@ it('gives mutation on changed files its base: the pull request\'s base commit in
     }
 });
 
-it('names mutation on changed files as a step CI runs in gate 5, with --min=80, and never as not run', function (): void {
-    expect(CiFiles::text(CiFiles::ENTRY))->toContain('vendor/bin/pest --mutate --everything --path=<files> --min=80', 'gate 5  vendor/bin/pest --testsuite=Mutation')
-        ->and(CiFiles::text(CiFiles::WORKFLOW))->toContain('mutation on changed files: Pest\'s --mutate with PCOV and --min=80')
+it('names mutation on changed files as a step CI runs in gate 5, with a minimum score of 80, and never as not run', function (): void {
+    expect(CiFiles::text(CiFiles::ENTRY))->toContain('vendor/bin/pest --mutate --everything --path=<files>, minimum score 80', 'gate 5  vendor/bin/pest --testsuite=Mutation')
+        ->and(CiFiles::text(CiFiles::WORKFLOW))->toContain('mutation on changed files: Pest\'s --mutate with PCOV and a minimum score of 80')
         ->and(CiFiles::text(CiFiles::ENTRY))->not->toContain('and mutation on changed')
         ->and(CiFiles::text(CiFiles::WORKFLOW))->not->toContain('11 and mutation');
 });

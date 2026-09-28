@@ -11,28 +11,36 @@ use InvalidArgumentException;
 
 /**
  * Reads the mutation report that the Pest plugin PestMutationReport prints on one line after the
- * mutations ran: for each file with mutations, how many there were and how many a test caught.
- * Each changed source of the step is listed as a note with its score, as Pest computes it: the
- * caught mutations, those that failed a test or timed out, out of all. A source without a mutation
- * is listed as such. The step fails when the score of all its mutations is below the minimum,
- * naming the sources below it, and when the report is missing, because then nothing says the
- * mutations ran.
+ * mutations ran: for each file with mutations, Pest's id of each mutation, a hash, and whether a
+ * test caught it, as Pest's score counts it: the mutations that failed a test or timed out. Each
+ * changed source the step judges is listed as a note with its score; a source without a mutation
+ * is listed as such. The step fails when the score of all its mutations is below the minimum, naming the
+ * sources below it, and when the report is missing, because then nothing says the mutations ran.
+ *
+ * The fast suites' step records its whole report in a MutationLedger, the sources in Adapter and
+ * Infrastructure included, which it does not judge. The step with Postgres counts a mutation as
+ * caught when its own run or the recorded one caught it, as one run of both suites would.
  */
 final readonly class MutationReportReader implements OutputReader
 {
     public const string MARKER = 'CMS-MUTATION-REPORT ';
 
-    public const int FORMAT = 1;
+    public const int FORMAT = 2;
 
     /**
-     * @param  list<ChangedSource>  $sources
+     * @param  list<ChangedSource>  $sources  the sources the step judges; none only for a reader
+     *                                        that records the report for another step
+     * @param  MutationLedger|null  $records  where to record every file of the report
+     * @param  MutationLedger|null  $counts  the recorded outcomes to count as caught as well
      */
     public function __construct(
         public array $sources,
         public int $minScore,
+        public ?MutationLedger $records = null,
+        public ?MutationLedger $counts = null,
     ) {
-        if ($sources === []) {
-            throw new InvalidArgumentException('A mutation report is read for at least one changed source.');
+        if ($sources === [] && ! $records instanceof MutationLedger) {
+            throw new InvalidArgumentException('A mutation report is read for at least one changed source, or recorded for another step.');
         }
 
         if ($minScore < 0 || $minScore > 100) {
@@ -51,15 +59,24 @@ final readonly class MutationReportReader implements OutputReader
             ));
         }
 
+        $this->records?->record($files);
+
+        if ($this->sources === []) {
+            return new OutputReading(['recorded for the step with Postgres: every changed source is in Adapter or Infrastructure']);
+        }
+
         $notes = [];
         $below = [];
         $mutations = 0;
         $caught = 0;
+        $caughtBefore = 0;
 
         foreach ($this->sources as $source) {
-            $count = $files[$source->path] ?? new MutationCount(0, 0);
+            $outcomes = $this->outcomes($source->path, $files[$source->path] ?? []);
+            $count = new MutationCount(count($outcomes), count(array_filter($outcomes)));
             $mutations += $count->mutations;
             $caught += $count->caught;
+            $caughtBefore += count(array_filter($this->counts?->outcomes($source->path) ?? []));
 
             if ($count->mutations === 0) {
                 $notes[] = "{$source->name}: no mutations";
@@ -78,6 +95,12 @@ final readonly class MutationReportReader implements OutputReader
             return new OutputReading([...$notes, 'no mutations in the changed sources']);
         }
 
+        if ($this->counts instanceof MutationLedger) {
+            $notes[] = $this->counts->recorded()
+                ? sprintf('counted with the fast suites\' run, which caught %d of them', $caughtBefore)
+                : 'the fast suites\' run recorded no report, so only this run counts';
+        }
+
         $score = new MutationCount($mutations, $caught)->score();
         $notes[] = sprintf('score %s of %d mutations, minimum %d%%', $this->percent($score), $mutations, $this->minScore);
 
@@ -90,10 +113,28 @@ final readonly class MutationReportReader implements OutputReader
     }
 
     /**
-     * The mutations and caught mutations of each file in the last report line, by path, or null
-     * when there is no report line in the format.
+     * Whether each mutation of a file was caught, by hash: in this run, or in the recorded run this
+     * reader counts as well. A mutation only one of the runs made counts with that run's outcome.
      *
-     * @return array<string, MutationCount>|null
+     * @param  list<MutationOutcome>  $outcomes  this run's outcomes of the file
+     * @return array<string, bool>
+     */
+    private function outcomes(string $path, array $outcomes): array
+    {
+        $caught = $this->counts?->outcomes($path) ?? [];
+
+        foreach ($outcomes as $outcome) {
+            $caught[$outcome->hash] = $outcome->caught || ($caught[$outcome->hash] ?? false);
+        }
+
+        return $caught;
+    }
+
+    /**
+     * Each file's mutations in the last report line, by path, or null when there is no report
+     * line in the format.
+     *
+     * @return array<string, list<MutationOutcome>>|null
      */
     private function files(string $output): ?array
     {
@@ -114,13 +155,25 @@ final readonly class MutationReportReader implements OutputReader
         foreach ($report['files'] as $file) {
             $path = is_array($file) ? ($file['path'] ?? null) : null;
             $mutations = is_array($file) ? ($file['mutations'] ?? null) : null;
-            $caught = is_array($file) ? ($file['caught'] ?? null) : null;
 
-            if (! is_string($path) || ! is_int($mutations) || ! is_int($caught) || $caught < 0 || $caught > $mutations) {
+            if (! is_string($path) || $path === '' || isset($files[$path]) || ! is_array($mutations) || ! array_is_list($mutations)) {
                 return null;
             }
 
-            $files[$path] = new MutationCount($mutations, $caught);
+            $outcomes = [];
+
+            foreach ($mutations as $mutation) {
+                $id = is_array($mutation) ? ($mutation['id'] ?? null) : null;
+                $caught = is_array($mutation) ? ($mutation['caught'] ?? null) : null;
+
+                if (! is_string($id) || $id === '' || str_contains($id, "\n") || isset($outcomes[$id]) || ! is_bool($caught)) {
+                    return null;
+                }
+
+                $outcomes[$id] = new MutationOutcome($id, $caught);
+            }
+
+            $files[$path] = array_values($outcomes);
         }
 
         return $files;

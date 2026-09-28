@@ -11,7 +11,8 @@ use InvalidArgumentException;
  * outcome the profile decided without a command, with the reason or note that says why. A step
  * can run its command in a process group of its own, which the runner kills when the step ends,
  * with variables of its own on top of the runner's, and can have a reader for the report its
- * command prints.
+ * command prints and a precheck that passes it without the command when the steps before it
+ * already decided its outcome.
  */
 final readonly class Step
 {
@@ -28,6 +29,7 @@ final readonly class Step
         public array $environment = [],
         public ?StepStatus $decided = null,
         public ?string $decision = null,
+        public ?StepPrecheck $precheck = null,
     ) {
         if ($name === '') {
             throw new InvalidArgumentException('A step needs a name.');
@@ -42,8 +44,10 @@ final readonly class Step
      * @param  OutputReader|null  $reader  reads the command's output after it ran
      * @param  array<string, string>  $environment  variables set for this command on top of the
      *                                              runner's and the inherited environment
+     * @param  StepPrecheck|null  $precheck  asked just before the command would run; a note passes
+     *                                       the step without it
      */
-    public static function run(string $name, array $command, bool $ownProcessGroup = false, ?OutputReader $reader = null, array $environment = []): self
+    public static function run(string $name, array $command, bool $ownProcessGroup = false, ?OutputReader $reader = null, array $environment = [], ?StepPrecheck $precheck = null): self
     {
         if ($command === []) {
             throw new InvalidArgumentException("Step {$name} needs a command.");
@@ -55,7 +59,7 @@ final readonly class Step
             }
         }
 
-        return new self($name, $command, null, $ownProcessGroup, $reader, $environment);
+        return new self($name, $command, null, $ownProcessGroup, $reader, $environment, precheck: $precheck);
     }
 
     public static function notRun(string $name, string $reason): self

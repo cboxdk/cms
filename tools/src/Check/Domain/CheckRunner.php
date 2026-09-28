@@ -9,7 +9,8 @@ namespace Cbox\Cms\Tooling\Check\Domain;
  * every gate's state. A step that is not run is reported with its reason (GUARDRAILS 10), and a
  * step decided without a command with its note or reason. A step that asks for its own process
  * group gets one, its variables are set on top of the runner's, and its output reader reads what
- * it printed.
+ * it printed. A step with a precheck asks it first, when the steps before it have run, and passes
+ * with the precheck's note instead of running when the note says the outcome is already decided.
  */
 final readonly class CheckRunner
 {
@@ -55,6 +56,12 @@ final readonly class CheckRunner
 
     private function runStep(Step $step, string $directory): StepResult
     {
+        $note = $step->precheck?->passedWithout();
+
+        if ($note !== null) {
+            return StepResult::decided($step->name, StepStatus::Pass, $note);
+        }
+
         $outcome = $this->processes->run($step->command, $directory, [...self::ENVIRONMENT, ...$step->environment], ownProcessGroup: $step->ownProcessGroup);
 
         return $step->reader instanceof OutputReader
