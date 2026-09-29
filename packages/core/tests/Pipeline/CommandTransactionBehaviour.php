@@ -17,6 +17,11 @@ use Cbox\Cms\Contracts\Idempotency\IdempotencyScope;
 use Cbox\Cms\Contracts\Idempotency\Replay;
 use Cbox\Cms\Contracts\Idempotency\WaitBudget;
 use Cbox\Cms\Contracts\IdempotencyStore;
+use Cbox\Cms\Contracts\Identity\AccessContext;
+use Cbox\Cms\Contracts\Identity\ActorPrincipal;
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Contracts\Identity\IssuerKind;
+use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\PrincipalId;
@@ -45,6 +50,9 @@ use RuntimeException;
  */
 trait CommandTransactionBehaviour
 {
+    /** The actor of the access context every call in these tests runs with. */
+    public const string ACTOR = '01936f5e-8a2b-7c3d-9e4f-0000000000c1';
+
     /**
      * The implementation under test, on the connection the store of keys() runs on.
      */
@@ -99,7 +107,7 @@ trait CommandTransactionBehaviour
     {
         $result = $this->rejected();
 
-        Assert::assertSame($result, $this->commandTransaction()->run(static fn (): WriteResult => $result));
+        Assert::assertSame($result, $this->commandTransaction()->run(self::access(), static fn (): WriteResult => $result));
     }
 
     #[Test]
@@ -125,7 +133,7 @@ trait CommandTransactionBehaviour
         $this->openOutside();
 
         try {
-            $this->commandTransaction()->run(function () use (&$ran): WriteResult {
+            $this->commandTransaction()->run(self::access(), function () use (&$ran): WriteResult {
                 $ran = true;
 
                 return $this->rejected();
@@ -150,7 +158,7 @@ trait CommandTransactionBehaviour
     {
         $changeset = new ChangesetId(new FakeIdGenerator(clock: $this->clock())->next());
 
-        $this->commandTransaction()->run(function () use ($changeset, $result): WriteResult {
+        $this->commandTransaction()->run(self::access(), function () use ($changeset, $result): WriteResult {
             $claim = $this->claim();
             Assert::assertInstanceOf(Fresh::class, $claim);
             $this->keys()->complete($claim->token, $changeset);
@@ -168,7 +176,7 @@ trait CommandTransactionBehaviour
     {
         $claim = null;
 
-        $this->commandTransaction()->run(function () use (&$claim): WriteResult {
+        $this->commandTransaction()->run(self::access(), function () use (&$claim): WriteResult {
             $claim = $this->claim();
 
             return $this->rejected();
@@ -177,6 +185,18 @@ trait CommandTransactionBehaviour
         Assert::assertInstanceOf(ClaimResult::class, $claim);
 
         return $claim;
+    }
+
+    /**
+     * The access context of every call in these tests: an editor with internal access.
+     */
+    private static function access(): AccessContext
+    {
+        return new AccessContext(
+            new ActorPrincipal(ActorId::fromString(self::ACTOR), [], IssuerKind::Service, ClassificationAccess::Sensitive),
+            [],
+            ClassificationAccess::Internal,
+        );
     }
 
     private function claim(): ClaimResult

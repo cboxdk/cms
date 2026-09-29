@@ -30,6 +30,7 @@ use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Contracts\Results\WriteResult;
 use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
+use Cbox\Cms\Contracts\Storage\PartitionMissing;
 use Cbox\Cms\Contracts\Validation\ValidationStage;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
 use Cbox\Cms\Core\Pipeline\Domain\ChangesetCommitter;
@@ -52,7 +53,8 @@ use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
 /**
  * The command pipeline (GUARDRAILS 2.1, PRD 6.1, 6.2): the one way a write changes state. It owns
  * every phase, and the action only resolves and plans. The whole call runs in one
- * CommandTransaction, which commits only a call that committed a changeset:
+ * CommandTransaction, which sets the call's access context and commits only a call that
+ * committed a changeset:
  *
  * 0. Idempotency (PRD 6.1). A call that is not a dry run claims its envelope's idempotency key in
  *    the IdempotencyStore, in the scope of its actor and command name, with the content hash of
@@ -89,7 +91,9 @@ use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
  * 7. Commit, through the ChangesetCommitter, with every aggregate read and its version: the
  *    actors' and the action's. A stale read is version_conflict. A committed changeset completes
  *    the claim in the same transaction, so the key and the changeset commit together; a rejected
- *    call leaves the key fresh, and a retry runs again.
+ *    call leaves the key fresh, and a retry runs again. A write that no partition covers, in the
+ *    commit or in the completion of the key, is partition_missing: Postgres has failed the
+ *    transaction, and the CommandTransaction rolls back everything the call wrote.
  *
  * resolve() and plan() get the command and the aggregates and nothing else: no connection, no
  * envelope and no access context, so an action cannot write or commit. The hooks get a view of
@@ -125,7 +129,7 @@ final readonly class CommandPipeline
     {
         $binding = $this->actions->for($call->command);
 
-        return $this->transaction->run(fn (): WriteResult => $this->claimed($call, $binding));
+        return $this->transaction->run($call->access, fn (): WriteResult => $this->claimed($call, $binding));
     }
 
     /**
@@ -272,13 +276,17 @@ final readonly class CommandPipeline
             return WriteResult::dryRun(Receipt::dryRun($envelope->waitLevel, RetentionClass::Standard), DryRunReport::of($plan, $reads));
         }
 
-        $outcome = $this->committer->commit(new PendingChangeset($binding->command, $binding->version, $call->command, $envelope, $call->access, $plan, $reads));
+        try {
+            $outcome = $this->committer->commit(new PendingChangeset($binding->command, $binding->version, $call->command, $envelope, $call->access, $plan, $reads));
 
-        if ($outcome instanceof Committed) {
-            if ($claim instanceof Fresh) {
+            if ($outcome instanceof Committed && $claim instanceof Fresh) {
                 $this->keys->complete($claim->token, $outcome->changesetId);
             }
+        } catch (PartitionMissing $missing) {
+            return $this->rejected($call, new CatalogError(ErrorCode::PartitionMissing, null, $missing->getMessage()));
+        }
 
+        if ($outcome instanceof Committed) {
             return WriteResult::committed($outcome->receipt);
         }
 

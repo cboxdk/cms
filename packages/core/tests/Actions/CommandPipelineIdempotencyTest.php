@@ -28,7 +28,6 @@ use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Receipts\StoredReceipt;
 use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Contracts\Results\WriteResult;
-use Cbox\Cms\Contracts\Storage\PartitionMissing;
 use Cbox\Cms\Core\Pipeline\Domain\CommandTransactionOpen;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCall;
 use Cbox\Cms\Core\Pipeline\Domain\MissingReplayReceipt;
@@ -347,16 +346,19 @@ it('claims the key an internal issuer derived from its unit of work', function (
         ->and(idempotencyClaim($world, $derived))->toBeInstanceOf(Replay::class);
 });
 
-it('rolls the whole call back when the key cannot be completed', function (): void {
+it('rejects the call as partition_missing and rolls it all back when the key cannot be completed', function (): void {
     $world = new PipelineWorld;
     $world->committing();
     $now = $world->clock->now();
     $world->keys->uncover($now->sub(new DateInterval('P1D')), $now->add(new DateInterval('P1D')));
     $call = $world->keyed($world->command(), 'uncovered-key');
 
-    expect(fn (): WriteResult => $world->pipeline()->run($call))->toThrow(PartitionMissing::class);
+    $result = $world->pipeline()->run($call);
 
-    expect($world->committer->pending)->toHaveCount(1)
+    expect($result->outcome())->toBe(Outcome::Rejected)
+        ->and(idempotencyErrors($result))->toBe([ErrorCode::PartitionMissing->value])
+        ->and($result->receipt->changesetId)->toBeNull()
+        ->and($world->committer->pending)->toHaveCount(1)
         ->and($world->receipts->committedRows())->toBe([])
         ->and($world->transaction->rollBacks)->toBe(1)
         ->and($world->transaction->commits)->toBe(0)

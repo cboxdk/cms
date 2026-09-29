@@ -253,3 +253,20 @@ it('gets the audit\'s runway from cms:partitions:maintain, after which the docto
     expect($runway)->toHaveCount(1)
         ->and($runway[0]['status'] ?? null)->toBe('pass', (string) json_encode($runway));
 });
+
+it('takes the key of a variant among the audit\'s aggregates, and nothing but a variant key after it', function (): void {
+    AccessWorld::seed();
+    $audit = static fn (string $aggregates): Closure => superuserInsert('audit', auditRow(['aggregates' => $aggregates]));
+    $variant = 'variant:'.AccessWorld::ENTRY_NEWS;
+
+    expect(StorageTables::violation($audit('{'.$variant.':Shared}')))->toBe('23514 audit_aggregates')
+        ->and(StorageTables::violation($audit('{"'.$variant.':the headline"}')))->toBe('23514 audit_aggregates')
+        ->and(StorageTables::violation($audit('{'.$variant.':da:x}')))->toBe('23514 audit_aggregates');
+
+    $superuser = StorageTables::superuser();
+    $superuser->table('changeset_register')->insert(['changeset_id' => '019cd79e-4600-7000-8000-0000000000f4', 'retention_class' => 'standard']);
+    $keys = '{entry:'.AccessWorld::ENTRY_NEWS.','.$variant.':shared,'.$variant.':en-GB}';
+    $superuser->table('audit')->insert(auditRow(['changeset_id' => '019cd79e-4600-7000-8000-0000000000f4', 'aggregates' => $keys]));
+
+    expect($superuser->table('audit')->where('changeset_id', '019cd79e-4600-7000-8000-0000000000f4')->value('aggregates'))->toBe($keys);
+});

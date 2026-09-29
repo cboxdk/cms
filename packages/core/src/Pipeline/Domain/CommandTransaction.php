@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Pipeline\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Identity\AccessContext;
 use Cbox\Cms\Contracts\Results\WriteResult;
 use Closure;
 
@@ -16,20 +17,26 @@ use Closure;
  * never begins or ends it itself; this port does.
  *
  * run() begins the transaction at READ COMMITTED, which the stores need to see a commit made while
- * a claim waited, and calls the work once. It commits when the work's result committed a
- * changeset, and rolls back every other result, a rejection or a dry run, so nothing they wrote,
- * the claim included, outlives the call. When the work throws, it rolls back and throws the same
+ * a claim waited, with a time limit of TIMEOUT_MILLISECONDS from its start (PRD 7.4), sets the
+ * call's access context for it, which row level security reads (PRD 5.10), and calls the work
+ * once. It commits when the work's result committed a changeset, and rolls back every other
+ * result, a rejection or a dry run, so nothing they wrote, the claim included, outlives the call. When the work throws, it rolls back and throws the same
  * exception. It never nests: a caller that already has a transaction open gets
  * CommandTransactionOpen, because savepoints are forbidden (PRD 4.2) and a claim must end with the
- * command's own transaction.
+ * command's own transaction, and work that begins a transaction or a savepoint inside it gets
+ * SavepointRefused, and the transaction rolls back.
  */
 #[Internal]
 interface CommandTransaction
 {
+    /** The most time a command transaction may take (PRD 7.4, GUARDRAILS 4.1). */
+    public const int TIMEOUT_MILLISECONDS = 5000;
+
     /**
      * @param  Closure(): WriteResult  $work
      *
      * @throws CommandTransactionOpen when a transaction is already open on the connection
+     * @throws SavepointRefused when the work begins a transaction or a savepoint
      */
-    public function run(Closure $work): WriteResult;
+    public function run(AccessContext $access, Closure $work): WriteResult;
 }

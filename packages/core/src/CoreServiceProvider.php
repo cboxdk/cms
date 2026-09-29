@@ -66,6 +66,7 @@ use Cbox\Cms\Core\Doctor\Domain\Probes\ToolProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\ValkeyProbe;
 use Cbox\Cms\Core\IdempotencyStore\Boundary\IdempotencyConfig;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
+use Cbox\Cms\Core\Identity\Adapter\PostgresActorVersionLock;
 use Cbox\Cms\Core\Operations\Adapter\PackageOperationRunner;
 use Cbox\Cms\Core\Operations\Domain\OperationRunner;
 use Cbox\Cms\Core\Partitions\Boundary\PartitionConfig;
@@ -74,16 +75,23 @@ use Cbox\Cms\Core\Partitions\Infrastructure\PostgresPartitionManager;
 use Cbox\Cms\Core\Pipeline\Adapter\ConnectionCommandTransaction;
 use Cbox\Cms\Core\Pipeline\Adapter\HrtimeStopwatch;
 use Cbox\Cms\Core\Pipeline\Adapter\LoggedHookOverruns;
+use Cbox\Cms\Core\Pipeline\Adapter\PostgresChangesetCommitter;
 use Cbox\Cms\Core\Pipeline\Adapter\RegistryCommandHooks;
 use Cbox\Cms\Core\Pipeline\Adapter\RegistryWriteActions;
+use Cbox\Cms\Core\Pipeline\Adapter\SavepointRefusal;
 use Cbox\Cms\Core\Pipeline\Boundary\TypeRulesFieldValidation;
 use Cbox\Cms\Core\Pipeline\Domain\AffectedProjections;
+use Cbox\Cms\Core\Pipeline\Domain\ChangesetCommitter;
 use Cbox\Cms\Core\Pipeline\Domain\CommandHooks;
 use Cbox\Cms\Core\Pipeline\Domain\CommandTransaction;
 use Cbox\Cms\Core\Pipeline\Domain\FieldValidation;
 use Cbox\Cms\Core\Pipeline\Domain\HookOverruns;
+use Cbox\Cms\Core\Pipeline\Domain\MutationWriter;
+use Cbox\Cms\Core\Pipeline\Domain\MutationWriters;
 use Cbox\Cms\Core\Pipeline\Domain\RegistryAffectedProjections;
 use Cbox\Cms\Core\Pipeline\Domain\Stopwatch;
+use Cbox\Cms\Core\Pipeline\Domain\VersionLock;
+use Cbox\Cms\Core\Pipeline\Domain\VersionLocks;
 use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
 use Cbox\Cms\Core\Process\Boundary\ProcessWorkload;
 use Cbox\Cms\Core\Process\Domain\OwnerCredentialsExposed;
@@ -110,6 +118,7 @@ use Illuminate\Database\DatabaseManager;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\LazyLoadingViolationException;
 use Illuminate\Support\ServiceProvider;
+use LogicException;
 use Override;
 use Psr\Log\LoggerInterface;
 
@@ -232,11 +241,30 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         // its receipt lists (PRD 6.2 phases 1, 5 and 7, 8.4).
         $this->app->bind(WriteActions::class, RegistryWriteActions::class);
         $this->app->bind(FieldValidation::class, TypeRulesFieldValidation::class);
+        $this->app->singleton(SavepointRefusal::class);
         $this->app->bind(
             CommandTransaction::class,
-            static fn (Application $app): CommandTransaction => new ConnectionCommandTransaction($app->make(ConnectionResolverInterface::class)),
+            static fn (Application $app): CommandTransaction => new ConnectionCommandTransaction(
+                $app->make(ConnectionResolverInterface::class),
+                $app->make(SavepointRefusal::class),
+            ),
         );
         $this->app->bind(AffectedProjections::class, RegistryAffectedProjections::class);
+
+        // The commit (PRD 6.2 phase 7) on the default connection, the command transaction's, with
+        // the version lock of each kind of aggregate and the writer of each mutation class that
+        // the container has under their tags. The core registers the actor's lock; each command
+        // adds the locks and writers of its own aggregates and mutations.
+        $this->app->tag([PostgresActorVersionLock::class], VersionLocks::TAG);
+        $this->app->bind(
+            VersionLocks::class,
+            static fn (Application $app): VersionLocks => new VersionLocks(...self::tagged($app, VersionLocks::TAG, VersionLock::class)),
+        );
+        $this->app->bind(
+            MutationWriters::class,
+            static fn (Application $app): MutationWriters => new MutationWriters(...self::tagged($app, MutationWriters::TAG, MutationWriter::class)),
+        );
+        $this->app->bind(ChangesetCommitter::class, PostgresChangesetCommitter::class);
         $this->app->bind(CommandHooks::class, RegistryCommandHooks::class);
         $this->app->singleton(Stopwatch::class, HrtimeStopwatch::class);
         $this->app->bind(HookOverruns::class, LoggedHookOverruns::class);
@@ -316,6 +344,29 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
                 'relation' => $relation,
             ]);
         });
+    }
+
+    /**
+     * The services the container has under the tag, each checked to be an instance of the class.
+     *
+     * @template T of object
+     *
+     * @param  class-string<T>  $class
+     * @return list<T>
+     */
+    private static function tagged(Application $app, string $tag, string $class): array
+    {
+        $services = [];
+
+        foreach ($app->tagged($tag) as $service) {
+            if (! $service instanceof $class) {
+                throw new LogicException(sprintf('The service %s under the tag %s is not a %s.', get_debug_type($service), $tag, $class));
+            }
+
+            $services[] = $service;
+        }
+
+        return $services;
     }
 
     /**

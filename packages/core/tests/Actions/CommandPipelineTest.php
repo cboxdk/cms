@@ -37,6 +37,7 @@ use Cbox\Cms\Contracts\Plans\Plan;
 use Cbox\Cms\Contracts\Receipts\Receipt;
 use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Contracts\Results\WriteResult;
+use Cbox\Cms\Contracts\Storage\PartitionMissing;
 use Cbox\Cms\Core\Pipeline\Actions\CommandPipeline;
 use Cbox\Cms\Core\Pipeline\Domain\CommitOutcome;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCall;
@@ -45,6 +46,7 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\StaleRead;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\VersionConflict;
 use Cbox\Cms\Core\Pipeline\Domain\InvalidCommandCall;
 use Cbox\Cms\Core\Pipeline\Domain\UnknownCommand;
+use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeChangesetCommitter;
 use Cbox\Cms\Core\Tests\Pipeline\PipelineWorld;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\ProbeAggregates;
 use ReflectionClass;
@@ -403,4 +405,27 @@ it('refuses an answer of the commit that is none of the two outcomes', function 
 
     expect(fn (): WriteResult => $world->run($world->command()))
         ->toThrow(InvalidCommandCall::class, 'which is not one of the two commit outcomes.');
+});
+
+it('runs the call in a command transaction with the call\'s access context', function (): void {
+    $world = new PipelineWorld;
+    $call = $world->call($world->command());
+
+    $world->pipeline()->run($call);
+
+    expect($world->transaction->access)->toBe([$call->access]);
+});
+
+it('rejects the call as partition_missing when the commit meets a write that no partition covers', function (): void {
+    $world = new PipelineWorld;
+    $world->committer = new FakeChangesetCommitter(throws: PartitionMissing::forTable('changesets'));
+
+    $result = $world->run($world->command());
+
+    expect($result->outcome())->toBe(Outcome::Rejected)
+        ->and(pipelineErrors($result))->toBe(['partition_missing -'])
+        ->and($result->errors[0]->message)->toBe(PartitionMissing::forTable('changesets')->getMessage())
+        ->and($result->receipt->changesetId)->toBeNull()
+        ->and($world->transaction->commits)->toBe(0)
+        ->and($world->transaction->rollBacks)->toBe(1);
 });

@@ -17,11 +17,12 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\Committed;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\PendingChangeset;
 use Cbox\Cms\Testkit\ReceiptStore\ReceiptStoreSession;
 use Override;
+use Throwable;
 
 /**
- * Records every pending changeset it is handed, and answers with the outcome a test gives it, or
- * by default commits it at the wait level the envelope asks for: as the changeset CHANGESET, or
- * with the next id of the IdGenerator it is given. Given a ReceiptStoreSession, a default commit
+ * Records every pending changeset it is handed, and throws what a test gives it, answers with the
+ * outcome a test gives it, or by default commits it at the wait level the envelope asks for: as
+ * the changeset CHANGESET, or with the next id of the IdGenerator it is given. Given a ReceiptStoreSession, a default commit
  * stores the changeset's StoredReceipt there, at the session's commit position and with the
  * projections a test lists, as the real commit stores it in the command transaction; without
  * one, the receipt carries the position POSITION.
@@ -44,12 +45,17 @@ final class FakeChangesetCommitter implements ChangesetCommitter
         private readonly ?ReceiptStoreSession $receipts = null,
         private readonly ?IdGenerator $ids = null,
         private readonly array $projections = [],
+        private readonly ?Throwable $throws = null,
     ) {}
 
     #[Override]
     public function commit(PendingChangeset $changeset): CommitOutcome
     {
         $this->pending[] = $changeset;
+
+        if ($this->throws instanceof Throwable) {
+            throw $this->throws;
+        }
 
         if ($this->outcome instanceof CommitOutcome) {
             return $this->outcome;
