@@ -9,10 +9,10 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
 /**
  * The id of a changeset: everything one command commits (PRD 6.1, 6.2 phase 7). It is a UUIDv7,
  * so its first 48 bits are the commit's unix milliseconds, and receipts are partitioned and
- * expired on it (PRD 4, 8.4).
+ * expired on it (PRD 4, 8.4). As an Identifier it can be carried by an event (PRD 7.2).
  */
 #[Experimental]
-final readonly class ChangesetId
+final readonly class ChangesetId implements Identifier
 {
     public function __construct(public Uuid7 $value) {}
 

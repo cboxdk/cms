@@ -44,7 +44,7 @@ Some tables are partitioned on a `bigint` that a sequence feeds: `revision_paylo
 | `retention_days` | a whole number, or `null` | How many days after its newest row a partition the sequence has passed is removed. `null` keeps every partition. |
 | `retention_column` | a column name, or `null` | The `timestamptz` column the age of a row is read from. Required with `retention_days`, and `null` without it. |
 
-Partitions are named `<table>_p<lower bound>`, with the lower bound zero-padded to 19 digits, the length of the largest `bigint`: with a width of 1000000, `events_p0000000000001000000` holds the ids from 1000000 to 1999999.
+Partitions are named `<table>_p<lower bound>`, with the lower bound zero-padded to 19 digits, the length of the largest `bigint`: with a width of 1000000, `events_interactive_p0000000000001000000` holds the ids from 1000000 to 1999999.
 
 The runway is counted in empty partitions ahead of the sequence's current value, not in days, because a sequence moves with the writes. A run creates the partition that holds the current value and `runway_partitions` empty partitions after it, 2 by default. The current value is the last id the sequence handed out, read from its `last_value` and `is_called`.
 
@@ -52,7 +52,7 @@ Size `width` so one partition holds at least a day of the table's peak inserts. 
 
 A partition is removed when the sequence has passed it, so it can get no new id, and the newest `retention_column` value in it is `retention_days` old. A passed partition without rows is removed as well. The manager reads the partitions in id order and stops at the first one it keeps, because ids follow time. It reads with `row_security` off, so row security that applies to the owner role makes Postgres refuse the read, and the table is reported, instead of a partition with hidden rows passing for empty. An index on the retention column keeps the read cheap.
 
-A table with a LIST level above the range, such as `revision_payloads` by kind, is listed once per leaf parent, for example `revision_payloads_published` and `revision_payloads_draft`, each with the sequence they share. A run analyzes their root once. There is no DEFAULT partition, so a write outside the partitions fails. An adapter that writes to a partitioned table turns that failure into `Cbox\Cms\Contracts\Storage\PartitionMissing`, with the error code `partition_missing`.
+A table with a LIST level above the range, such as `revision_payloads` by kind, is listed once per leaf parent, for example `revision_payloads_published` and `revision_payloads_draft`, each with the sequence they share. The core's `events` is partitioned by stream first (PRD 7.5), so it is listed as `events_interactive` and `events_bulk`, each with `key` `bigint`, `width` 1000000, `sequence` `events_event_id_seq`, `retention_days` 30 and `retention_column` `occurred_at` (PRD 7.10), and `events_occurred_at` is the index on the retention column. The [events](../addons/events.md) page describes the log. A run analyzes their root once. There is no DEFAULT partition, so a write outside the partitions fails. An adapter that writes to a partitioned table turns that failure into `Cbox\Cms\Contracts\Storage\PartitionMissing`, with the error code `partition_missing`.
 
 ## cms:partitions:maintain
 

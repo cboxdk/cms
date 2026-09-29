@@ -16,6 +16,7 @@ An extension point is `#[Stable]` or `#[Experimental]`. Every extension point do
 - [Blueprint schema v1](blueprint-v1.md): the format of blueprint files, extensions of another owner's type, and addon field types.
 - [Testing against real Postgres and Valkey](real-services.md): the testkit's harnesses for tests that need the real services.
 - [Static analysis for addons](static-analysis.md): the testkit's PHPStan configuration for an addon.
+- [Events](events.md): an event class with its versioned payload, what an event may carry, and the event log that the kernel writes and reads.
 - [Error codes](errors.md): the error catalog, where every error gets its stable code, HTTP status, exit code and MCP response.
 - [Commands and write actions](commands.md): `Command`, the `Envelope` a surface builds, `WriteAction` with its aggregates and versions, `#[Action]` and its surfaces, and the `WriteResult` a write ends with.
 - [Plans and mutations](plans.md): the `Plan` a write action returns, the typed mutations and the kernel-generic field values of a revision.

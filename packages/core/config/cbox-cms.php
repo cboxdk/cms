@@ -74,7 +74,10 @@ return [
          * managed as its own table: Standard receipts per day, dropped a week after the day ends,
          * and Evidence receipts per month, never dropped here. Idempotency records are partitioned
          * per day on created_at and dropped a week after the day ends, when every record in it has
-         * expired (PRD 4, 6.1).
+         * expired (PRD 4, 6.1). Events are partitioned by stream (PRD 7.5), and each stream is
+         * managed as its own table on event_id, which the one sequence events_event_id_seq feeds: a
+         * million ids per partition, and a partition the sequence has passed is dropped when its
+         * newest event is 30 days old (PRD 7.10).
          */
         'partitions' => [
             'runway_days' => 14,
@@ -88,6 +91,8 @@ return [
                 'receipt_projections_standard' => ['key' => 'uuid7', 'interval' => 'day', 'retention_days' => 7],
                 'receipt_projections_evidence' => ['key' => 'uuid7', 'interval' => 'month', 'retention_days' => null],
                 'idempotency_keys' => ['key' => 'timestamp', 'interval' => 'day', 'retention_days' => 7],
+                'events_interactive' => ['key' => 'bigint', 'width' => 1_000_000, 'sequence' => 'events_event_id_seq', 'retention_days' => 30, 'retention_column' => 'occurred_at'],
+                'events_bulk' => ['key' => 'bigint', 'width' => 1_000_000, 'sequence' => 'events_event_id_seq', 'retention_days' => 30, 'retention_column' => 'occurred_at'],
             ],
         ],
     ],

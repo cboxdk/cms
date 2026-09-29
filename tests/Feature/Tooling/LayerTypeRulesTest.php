@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Tests\Feature\Tooling;
 
+use Cbox\Cms\Testkit\Phpstan\EventPayloadTextRule;
 use Cbox\Cms\Testkit\Phpstan\FunctionCallablesRule;
 use Cbox\Cms\Testkit\Phpstan\InternalClassConstantUsageExtension;
 use Cbox\Cms\Testkit\Phpstan\InternalClassNameUsageExtension;
@@ -125,6 +126,7 @@ it('registers every rule, the collector and the extensions in the testkit neon, 
         MethodCallablesRule::class,
         StaticMethodCallablesRule::class,
         InternalUseRule::class,
+        EventPayloadTextRule::class,
     ];
     $services = [
         PhpstanIgnoreCollector::class => 'phpstan.collector',
@@ -344,6 +346,41 @@ it('fails the analysis on a public string id in the domain', function (): void {
 
     expect($analysis->exitCode)->not->toBe(0)
         ->and($analysis->identifiers)->toBe(['cboxCms.stringId']);
+});
+
+it('fails the analysis on a string property of an event payload, despite an ignore comment, and passes its value objects', function (): void {
+    $analysis = analyseProbe(<<<'PHP'
+        <?php
+
+        declare(strict_types=1);
+
+        namespace Acme\Stock\Domain;
+
+        use Cbox\Cms\Contracts\Events\EventData;
+        use Cbox\Cms\Contracts\Events\EventDatum;
+        use Cbox\Cms\Contracts\Events\EventPayload;
+        use Cbox\Cms\Contracts\Events\TextHash;
+        use Cbox\Cms\Contracts\Ids\ChangesetId;
+
+        final readonly class Probe implements EventPayload
+        {
+            public function __construct(
+                public ChangesetId $changeset,
+                public TextHash $titleHash,
+                public string $title, // @phpstan-ignore cboxCms.eventPayloadText
+            ) {}
+
+            public function data(): EventData
+            {
+                return EventData::empty()
+                    ->with('changeset', EventDatum::identifier($this->changeset))
+                    ->with('title_hash', EventDatum::hash($this->titleHash));
+            }
+        }
+        PHP);
+
+    expect($analysis->exitCode)->not->toBe(0)
+        ->and($analysis->identifiers)->toContain('cboxCms.eventPayloadText');
 });
 
 it('passes a string id a framework interface requires, also through a parent class, and fails the same name without it', function (string $implements, bool $allowed): void {

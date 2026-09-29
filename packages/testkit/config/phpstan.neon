@@ -50,6 +50,9 @@ parameters:
 # time and ids are deterministic in tests. Test code is not checked: a Tests namespace, or the global
 # namespace below a tests directory. Migrations, config and route files are checked. The errors
 # are non-ignorable.
+# Rule 8, EventPayloadTextRule (PRD 6.5 invariant 10, 7.2): a property of an event payload holds an
+# id value object, a TextHash or a value that is not text, never a string. Every payload is
+# checked, test code included, and the errors are non-ignorable.
 # FunctionCallablesRule, MethodCallablesRule and StaticMethodCallablesRule apply both to
 # first-class callables such as time(...), which PHPStan gives to rules as their own nodes.
 rules:
@@ -71,6 +74,7 @@ rules:
     - Cbox\Cms\Testkit\Phpstan\MethodCallablesRule
     - Cbox\Cms\Testkit\Phpstan\StaticMethodCallablesRule
     - Cbox\Cms\Testkit\Phpstan\InternalUseRule
+    - Cbox\Cms\Testkit\Phpstan\EventPayloadTextRule
 
 services:
     -

@@ -111,12 +111,18 @@ it('reads a table with a bigint key into the tables on a sequence, with its widt
         ]);
 });
 
-it('defaults to two empty partitions ahead of a sequence and lists no table on a sequence', function (): void {
+it('defaults to two empty partitions ahead of a sequence and lists the event streams as the tables on a sequence', function (): void {
     $policy = PartitionConfig::read(config());
 
     expect($policy->runwayPartitions)->toBe(PartitionPolicy::DEFAULT_RUNWAY_PARTITIONS)
         ->and($policy->runwayPartitions)->toBe(2)
-        ->and($policy->sequenceTables)->toBe([]);
+        ->and(array_map(
+            static fn (SequencePartitionedTable $table): string => sprintf('%s %d %s %s %s', $table->name, $table->width, $table->sequence, $table->retention->days ?? 'keep', $table->retention->column ?? '-'),
+            $policy->sequenceTables,
+        ))->toBe([
+            'events_interactive 1000000 events_event_id_seq 30 occurred_at',
+            'events_bulk 1000000 events_event_id_seq 30 occurred_at',
+        ]);
 });
 
 it('names the setting of a table with a bigint key that is wrong', function (array $settings, string $message): void {

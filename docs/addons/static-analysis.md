@@ -13,6 +13,10 @@ The testkit of `cboxdk/cms` ships the PHPStan configuration the kernel is analys
 
 The addon does not lower the level, add a baseline or add `ignoreErrors`. The rules report errors under identifiers that start with `cboxCms.`, and most of them are non-ignorable: no comment and no `ignoreErrors` entry hides them.
 
+## Event payloads
+
+An event carries ids, versions, values that are not text and hashes of text, never content (PRD 6.5 invariant 10). The shared configuration reports a property of an addon's event payload, a class that implements `Cbox\Cms\Contracts\Events\EventPayload`, as `cboxCms.eventPayloadText` when its type can hold a string, unless it is an id value object that implements `Cbox\Cms\Contracts\Ids\Identifier` or a `TextHash`, and when its type is anything else an event cannot carry. The error is non-ignorable. The [events](events.md) page lists the types a payload may use.
+
 ## Internal API
 
 The kernel marks each public class, interface, trait and enum `#[Stable]`, `#[Experimental]` or `#[Internal]` (GUARDRAILS 2.3). An addon builds on the stable and experimental API. `#[Internal]` API can change or disappear in any release, so the shared configuration reports every use of it outside the `Cbox\Cms` namespace as `cboxCms.internalUse`. That covers a class marked `#[Internal]` in `new`, static calls, constants, `::class`, `instanceof`, `catch`, `extends`, `implements`, trait use, attributes, native and PHPDoc types, and calls of its methods, as well as a method or class constant marked `#[Internal]` on a stable class.
