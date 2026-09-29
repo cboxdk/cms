@@ -14,7 +14,7 @@ A test that changes a setting sets the single key, such as `cbox-cms.contracts.<
 
 | Key | Default | What it does |
 |---|---|---|
-| `cbox-cms.contracts` | the six entries below | Maps each contract to the class the container builds for it, as a singleton, the first time something resolves the contract. The class must implement the contract. |
+| `cbox-cms.contracts` | the seven entries below | Maps each contract to the class the container builds for it, as a singleton, the first time something resolves the contract. The class must implement the contract. |
 
 | Contract | Default class |
 |---|---|
@@ -24,8 +24,11 @@ A test that changes a setting sets the single key, such as `cbox-cms.contracts.<
 | `Cbox\Cms\Contracts\IdempotencyStore` | `Cbox\Cms\Core\IdempotencyStore\Adapter\PostgresIdempotencyStore` |
 | `Cbox\Cms\Contracts\Identity\ActorDirectory` | `Cbox\Cms\Core\Identity\Adapter\PostgresActorDirectory` |
 | `Cbox\Cms\Contracts\Identity\CredentialVerifier` | `Cbox\Cms\Core\Identity\Adapter\PostgresCredentialVerifier` |
+| `Cbox\Cms\Contracts\Cache\FragmentStore` | `Cbox\Cms\Core\Cache\Adapter\ValkeyFragmentStore` |
 
-For example, `'contracts' => [Clock::class => StagingClock::class]` replaces the clock and keeps the other five. See [Contracts](../addons/contracts/_index.md).
+`Cbox\Cms\Contracts\Cdn\CdnDriver` has no default: the real drivers come with full-scale invalidation, and until an application sets `cbox-cms.contracts.Cbox\Cms\Contracts\Cdn\CdnDriver`, resolving it throws `InvalidContractBinding` with the key to set. Tests use the testkit's `FakeCdnDriver`; see [CDN driver](../addons/contracts/cdn-driver.md).
+
+For example, `'contracts' => [Clock::class => StagingClock::class]` replaces the clock and keeps the other six. See [Contracts](../addons/contracts/_index.md).
 
 ## Database
 

@@ -6,18 +6,24 @@ namespace Cbox\Cms\Tests\Feature\Tooling;
 
 use Cbox\Cms\Core\Tests\Contract\SystemClockContractTest;
 use Cbox\Cms\Core\Tests\Contract\SystemIdGeneratorContractTest;
+use Cbox\Cms\Core\Tests\Contract\ValkeyFragmentStoreContractTest;
 use Cbox\Cms\Core\Tests\Postgres\PostgresIdempotencyStoreContractTest;
 use Cbox\Cms\Core\Tests\Postgres\PostgresReceiptStoreContractTest;
+use Cbox\Cms\Testkit\Cache\FragmentStoreContract;
+use Cbox\Cms\Testkit\Cdn\CdnDriverContract;
 use Cbox\Cms\Testkit\Clock\ClockContract;
 use Cbox\Cms\Testkit\Doctor\DoctorCheckContract;
 use Cbox\Cms\Testkit\Idempotency\IdempotencyStoreContract;
 use Cbox\Cms\Testkit\Ids\IdGeneratorContract;
 use Cbox\Cms\Testkit\ReceiptStore\ReceiptStoreContract;
+use Cbox\Cms\Testkit\Tests\Contract\FakeCdnDriverContractTest;
 use Cbox\Cms\Testkit\Tests\Contract\FakeClockContractTest;
 use Cbox\Cms\Testkit\Tests\Contract\FakeDoctorCheckContractTest;
+use Cbox\Cms\Testkit\Tests\Contract\FakeFragmentStoreContractTest;
 use Cbox\Cms\Testkit\Tests\Contract\FakeIdempotencyStoreContractTest;
 use Cbox\Cms\Testkit\Tests\Contract\FakeIdGeneratorContractTest;
 use Cbox\Cms\Testkit\Tests\Contract\FakeReceiptStoreContractTest;
+use Cbox\Cms\Testkit\Tests\Contract\HardOnlyFakeCdnDriverContractTest;
 use Cbox\Cms\Tests\Support\Phpstan;
 use Examples\Contract\Clock\StagingClockContractTest;
 use Examples\Contract\Doctor\UploadsDirectoryDoctorCheckContractTest;
@@ -232,4 +238,51 @@ it('runs every shared DoctorCheck case once for the fake, once for each check of
             'a_failing_check_returns_a_fail_with_its_kind_code_cause_and_fix',
             'running_a_check_again_gives_the_same_result',
         )->and($listed)->toBe($expected);
+});
+
+it('runs every shared FragmentStore case once for the FakeFragmentStore and once for the ValkeyFragmentStore, both in the Contract suite', function (): void {
+    $cases = sharedCases(FragmentStoreContract::class);
+
+    $expected = [];
+
+    foreach ([FakeFragmentStoreContractTest::class, ValkeyFragmentStoreContractTest::class] as $class) {
+        foreach ($cases as $case) {
+            $expected[] = $class.'::'.$case;
+        }
+    }
+
+    $listed = contractTests('FragmentStore');
+    sort($expected);
+    sort($listed);
+
+    expect($cases)->toContain(
+        'a_written_fragment_is_read_back_equal',
+        'a_purge_removes_every_fragment_of_the_key_from_the_store_and_from_the_index_of_their_other_keys',
+        'the_fence_refuses_a_fragment_built_at_or_below_the_purge_position_and_stores_one_built_above_it',
+        'the_fence_compares_positions_by_their_numeric_value_up_to_the_largest_xid8',
+        'a_fence_never_moves_down_and_keeps_the_later_end',
+        'a_fence_ends_at_its_fence_until_on_the_time_source',
+    )->and($listed)->toBe($expected);
+});
+
+it('runs every shared CdnDriver case once for the soft FakeCdnDriver and once for the hard-only one', function (): void {
+    $cases = sharedCases(CdnDriverContract::class);
+
+    $expected = [];
+
+    foreach ([FakeCdnDriverContractTest::class, HardOnlyFakeCdnDriverContractTest::class] as $class) {
+        foreach ($cases as $case) {
+            $expected[] = $class.'::'.$case;
+        }
+    }
+
+    $listed = contractTests('CdnDriver');
+    sort($expected);
+    sort($listed);
+
+    expect($cases)->toContain(
+        'a_purge_with_more_keys_than_one_request_takes_is_split_in_order',
+        'a_soft_purge_is_applied_soft_only_by_a_driver_that_supports_it',
+        'an_edge_that_refuses_makes_the_purge_throw_and_the_purge_succeeds_once_it_is_back',
+    )->and($listed)->toBe($expected);
 });

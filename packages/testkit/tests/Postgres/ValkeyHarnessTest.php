@@ -8,9 +8,11 @@ use Cbox\Cms\Testkit\Postgres\ChildProcesses;
 use Cbox\Cms\Testkit\Postgres\ProcessContext;
 use Cbox\Cms\Testkit\Valkey\RealValkey;
 use Cbox\Cms\Testkit\Valkey\ValkeyConnector;
+use Cbox\Cms\Testkit\Valkey\ValkeyHarness;
 use Cbox\Cms\Testkit\Valkey\ValkeyRun;
 use Cbox\Cms\Tests\TestCase;
 use Illuminate\Redis\Connections\PhpRedisConnection;
+use Illuminate\Redis\RedisManager;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Redis;
 use Redis as Client;
@@ -268,4 +270,13 @@ it('lets a test case name the Redis connection the harness checks and cleans wit
     };
 
     expect($case->connection())->toBe('default');
+});
+
+it('finishes a test that built the Redis manager but never opened a connection', function (): void {
+    $harness = ValkeyHarness::start(app());
+    app(RedisManager::class);
+
+    $harness->finish();
+
+    expect(app()->resolved('redis'))->toBeTrue();
 });

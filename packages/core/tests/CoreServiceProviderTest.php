@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests;
 
+use Cbox\Cms\Contracts\Cache\FragmentStore;
+use Cbox\Cms\Contracts\Cdn\CdnDriver;
 use Cbox\Cms\Core\Bindings\Boundary\ContractBindings;
+use Cbox\Cms\Core\Bindings\Boundary\InvalidContractBinding;
+use Cbox\Cms\Core\Cache\Adapter\ValkeyFragmentStore;
 use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Core\Doctor\Boundary\DoctorConfig;
 use Cbox\Cms\Core\IdempotencyStore\Boundary\IdempotencyConfig;
@@ -31,6 +35,7 @@ use Cbox\Cms\Core\Subscriptions\Domain\Dto\RunnerSettings;
 use Cbox\Cms\Core\Subscriptions\Domain\LaneSubscribers;
 use Cbox\Cms\Core\Subscriptions\Domain\Pacing;
 use Cbox\Cms\Core\Subscriptions\Domain\SubscriptionLog;
+use Cbox\Cms\Testkit\Cdn\FakeCdnDriver;
 use Cbox\Operations\Contracts\Operations;
 use Cbox\Operations\OperationManager;
 use Cbox\Operations\OperationsServiceProvider;
@@ -102,4 +107,15 @@ it('binds the hooks\' ports: the registry\'s hooks, the hrtime stopwatch once pe
         ->and(app(Stopwatch::class))->toBe(app(Stopwatch::class))
         ->and(app(HookOverruns::class))->toBeInstanceOf(LoggedHookOverruns::class)
         ->and(app(HookRunner::class))->toBeInstanceOf(HookRunner::class);
+});
+
+it('binds the FragmentStore to the Valkey store once per process, and the CdnDriver only to the class an application configures', function (): void {
+    expect(app(FragmentStore::class))->toBeInstanceOf(ValkeyFragmentStore::class)
+        ->and(app(FragmentStore::class))->toBe(app(FragmentStore::class))
+        ->and(fn (): CdnDriver => app(CdnDriver::class))->toThrow(InvalidContractBinding::class, 'No implementation of ['.CdnDriver::class.'] is configured');
+
+    config()->set('cbox-cms.contracts.'.CdnDriver::class, FakeCdnDriver::class);
+    app()->forgetInstance(CdnDriver::class);
+
+    expect(app(CdnDriver::class))->toBeInstanceOf(FakeCdnDriver::class);
 });

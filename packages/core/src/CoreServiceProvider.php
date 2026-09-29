@@ -7,6 +7,8 @@ namespace Cbox\Cms\Core;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Build\DeclaresScanRoots;
 use Cbox\Cms\Contracts\Build\ScanRoot;
+use Cbox\Cms\Contracts\Cache\FragmentStore;
+use Cbox\Cms\Contracts\Cdn\CdnDriver;
 use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\Doctor\InvalidDoctorCheck;
 use Cbox\Cms\Contracts\IdempotencyStore;
@@ -166,6 +168,19 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->singleton(
             CredentialVerifier::class,
             static fn (Application $app): CredentialVerifier => $app->make(ContractBindings::class)->resolve($app, CredentialVerifier::class),
+        );
+
+        $this->app->singleton(
+            FragmentStore::class,
+            static fn (Application $app): FragmentStore => $app->make(ContractBindings::class)->resolve($app, FragmentStore::class),
+        );
+
+        // No CDN driver is configured by default; the real drivers come with full-scale
+        // invalidation. Resolving CdnDriver without an entry in cbox-cms.contracts throws
+        // InvalidContractBinding, which names the key to set.
+        $this->app->singleton(
+            CdnDriver::class,
+            static fn (Application $app): CdnDriver => $app->make(ContractBindings::class)->resolve($app, CdnDriver::class),
         );
 
         // Built on each resolution, so the default wait budget follows the configuration.

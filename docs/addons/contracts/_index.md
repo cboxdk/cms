@@ -18,6 +18,8 @@ Every contract has two things in the testkit, `Cbox\Cms\Testkit`: a fake for tes
 | [`IdempotencyStore`](idempotency-store.md) | `PostgresIdempotencyStore` | `FakeIdempotencyStore` | `IdempotencyStoreContract` |
 | [`ActorDirectory`](actor-directory.md) | `PostgresActorDirectory` | `FakeIdentity` | `ActorDirectoryContract` |
 | [`CredentialVerifier`](credential-verifier.md) | `PostgresCredentialVerifier` | `FakeIdentity` | `CredentialVerifierContract` |
+| [`FragmentStore`](fragment-store.md) | `ValkeyFragmentStore` | `FakeFragmentStore` | `FragmentStoreContract` |
+| [`CdnDriver`](cdn-driver.md) | none until full-scale invalidation | `FakeCdnDriver` | `CdnDriverContract` |
 | [`TypeCatalog`](type-catalog.md) | the generated `GeneratedTypeCatalog` | `FakeTypeCatalog` | `TypeCatalogContract` |
 
 `TypeCatalog` has no entry in `cbox-cms.contracts`: the kernel cannot name the application's generated class, so the service provider that `cms:generate` writes binds it (GUARDRAILS 2.4).

@@ -72,8 +72,10 @@ final readonly class ValkeyHarness
         if ($this->app->resolved('redis')) {
             $manager = $this->app->make(RedisManager::class);
 
-            foreach (array_keys($manager->connections()) as $name) {
-                $manager->purge(is_string($name) ? $name : null);
+            // By the configured names: the manager's own list of connections is null until it has
+            // opened one, whatever its PHPDoc says.
+            foreach (self::connectionNames($this->app->make(Repository::class)) as $name) {
+                $manager->purge($name);
             }
         }
 
@@ -85,16 +87,32 @@ final readonly class ValkeyHarness
      */
     private static function configure(Repository $config, string $key, int|string $value): void
     {
+        foreach (self::connectionNames($config) as $name) {
+            $config->set(sprintf('database.redis.%s.%s', $name, $key), $value);
+        }
+    }
+
+    /**
+     * The names of the configured Redis connections.
+     *
+     * @return list<string>
+     */
+    private static function connectionNames(Repository $config): array
+    {
         $redis = $config->get('database.redis');
 
         if (! is_array($redis)) {
             throw new LogicException('There is no Redis configuration in database.redis.');
         }
 
+        $names = [];
+
         foreach ($redis as $name => $settings) {
             if (is_string($name) && is_array($settings) && ! in_array($name, self::NOT_CONNECTIONS, true)) {
-                $config->set(sprintf('database.redis.%s.%s', $name, $key), $value);
+                $names[] = $name;
             }
         }
+
+        return $names;
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Clock;
 
+use Cbox\Cms\Contracts\Cache\FragmentStore;
 use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\IdempotencyStore;
 use Cbox\Cms\Contracts\Identity\ActorDirectory;
@@ -11,6 +12,7 @@ use Cbox\Cms\Contracts\Identity\CredentialVerifier;
 use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Contracts\ReceiptStore;
 use Cbox\Cms\Core\Bindings\Boundary\InvalidContractBinding;
+use Cbox\Cms\Core\Cache\Adapter\ValkeyFragmentStore;
 use Cbox\Cms\Core\Clock\Adapter\SystemClock;
 use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Core\IdempotencyStore\Adapter\PostgresIdempotencyStore;
@@ -97,6 +99,7 @@ it('keeps the default clock and id generator when the application configures onl
         IdempotencyStore::class => PostgresIdempotencyStore::class,
         ActorDirectory::class => PostgresActorDirectory::class,
         CredentialVerifier::class => PostgresCredentialVerifier::class,
+        FragmentStore::class => ValkeyFragmentStore::class,
         'Acme\\Contracts\\Other' => 'Acme\\Other',
     ])->and(app(Clock::class))->toBeInstanceOf(SystemClock::class)
         ->and(app(IdGenerator::class))->toBeInstanceOf(SystemIdGenerator::class);
