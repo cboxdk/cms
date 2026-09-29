@@ -16,6 +16,14 @@ use LogicException;
  * the owner role: the app role has no TRUNCATE privilege (PRD 4.2). Partitions are truncated
  * through their parent. Identity sequences restart.
  *
+ * Each table is truncated in a statement of its own, which commits on its own, so the owner's
+ * session holds the locks of one partition tree at a time. One TRUNCATE of every table would lock
+ * every partition, index and TOAST table of the schema in one transaction; the partitions that
+ * the tests of a process cover pile up (hundreds per daily table), and such a statement then
+ * needs more locks than the server's shared lock table has left, which Postgres sizes from
+ * max_locks_per_transaction (64) and max_connections for all databases of the server together,
+ * and fails with SQLSTATE 53200 "out of shared memory" while other checkouts run their suites.
+ *
  * A lock timeout keeps a leftover transaction from hanging the run: if a test left a lock
  * behind, the truncate fails with SQLSTATE 55P03 instead of waiting.
  */
@@ -50,10 +58,9 @@ final readonly class OwnerTruncation
         $this->owner->statement('select set_config(\'lock_timeout\', ?, false)', [$this->lockTimeout]);
 
         try {
-            $this->owner->statement(sprintf(
-                'truncate table %s restart identity cascade',
-                implode(', ', array_map($this->quote(...), $tables)),
-            ));
+            foreach ($tables as $table) {
+                $this->owner->statement(sprintf('truncate table %s restart identity cascade', $this->quote($table)));
+            }
         } finally {
             $this->owner->statement('reset lock_timeout');
         }

@@ -157,16 +157,57 @@ describe('OwnerTruncation', function (): void {
             ->and(DB::table('harness_partitioned')->count())->toBe(0);
     });
 
+    it('truncates one table per statement, so the owner never holds the locks of every partition at once', function (): void {
+        // Regression: one TRUNCATE of every table locked every partition, index and TOAST table
+        // of the schema in one transaction and failed with SQLSTATE 53200 "out of shared memory"
+        // once the partitions of a suite run had piled up and other checkouts used the server.
+        $owner = Probe::owner();
+        $owner->statement('create table if not exists harness_partitioned (id bigint not null, at int not null) partition by range (at)');
+        $owner->statement('create table if not exists harness_partitioned_1 partition of harness_partitioned for values from (0) to (100)');
+        $owner->flushQueryLog();
+        $owner->enableQueryLog();
+
+        try {
+            $truncated = new OwnerTruncation($owner)->truncate();
+            $log = $owner->getQueryLog();
+        } finally {
+            $owner->disableQueryLog();
+            $owner->flushQueryLog();
+        }
+
+        $statements = array_values(array_filter(
+            array_map(static fn (array $entry): string => $entry['query'], $log),
+            static fn (string $query): bool => str_starts_with($query, 'truncate table '),
+        ));
+
+        expect($truncated)->toContain('cms.harness_partitioned')
+            ->and($truncated)->toContain('cms.'.Probe::TABLE)
+            ->and($statements)->toBe(array_map(
+                static fn (string $table): string => sprintf(
+                    'truncate table %s restart identity cascade',
+                    implode('.', array_map(static fn (string $part): string => '"'.$part.'"', explode('.', $table, 2))),
+                ),
+                $truncated,
+            ));
+    });
+
     it('fails with a lock timeout instead of hanging when a transaction holds a lock', function (): void {
-        $table = Probe::table();
+        // The first table the truncation reaches, so the time measured is the wait for its lock
+        // alone: each table has a statement of its own, and a lock on a later table would add
+        // the truncation of every table before it.
+        $truncation = new OwnerTruncation(Probe::owner(), lockTimeout: '200ms');
+        $first = $truncation->tables()[0];
         [$holder] = app(IndependentConnections::class)->open(1);
         $holder->beginTransaction();
-        $holder->table($table)->insert(['note' => 'holds a lock']);
+        $holder->statement(sprintf(
+            'lock table %s in access share mode',
+            implode('.', array_map(static fn (string $part): string => '"'.$part.'"', explode('.', $first, 2))),
+        ));
 
         $started = hrtime(true);
 
         try {
-            new OwnerTruncation(Probe::owner(), lockTimeout: '200ms')->truncate();
+            $truncation->truncate();
         } catch (QueryException $exception) {
             expect($exception->getCode())->toBe('55P03')
                 ->and((hrtime(true) - $started) / 1e9)->toBeLessThan(2.0);
@@ -181,11 +222,17 @@ describe('OwnerTruncation', function (): void {
 
     it('cannot be run by the app role, which has no TRUNCATE privilege', function (): void {
         $table = Probe::table();
+        DB::table($table)->insert(['note' => 'stays']);
+        $truncation = new OwnerTruncation(Probe::app());
+        $first = $truncation->tables()[0];
+
         try {
-            new OwnerTruncation(Probe::app())->truncate();
+            $truncation->truncate();
         } catch (QueryException $exception) {
+            // Each table has a statement of its own, so the refusal names the first one.
             expect($exception->getCode())->toBe('42501')
-                ->and($exception->getMessage())->toContain($table);
+                ->and($exception->getMessage())->toContain(sprintf('permission denied for table %s', substr($first, (int) strpos($first, '.') + 1)))
+                ->and(DB::table($table)->count())->toBe(1);
 
             return;
         }
