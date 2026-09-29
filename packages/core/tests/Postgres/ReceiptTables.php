@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Postgres;
 
+use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
@@ -11,8 +12,10 @@ use Cbox\Cms\Contracts\Ids\Uuid7;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Receipts\StoredReceipt;
 use Cbox\Cms\Contracts\ReceiptStore;
+use Cbox\Cms\Core\Consistency\Infrastructure\TransactionPosition;
 use DateTimeImmutable;
 use Illuminate\Database\Connection;
+use Illuminate\Database\DatabaseManager;
 use Illuminate\Support\Facades\DB;
 use LogicException;
 
@@ -30,11 +33,15 @@ final class ReceiptTables
         return DB::connection('pgsql_owner');
     }
 
+    /**
+     * A fixture receipt not stored yet, at position 0, which no transaction has; at() gives it the
+     * position of the transaction that stores it.
+     */
     public static function receipt(string $instant, RetentionClass $retention = RetentionClass::Standard, int $sequence = 0): StoredReceipt
     {
         $id = Uuid7::lowestAt(Uuid7::unixMillisecondsOf(new DateTimeImmutable($instant)) + $sequence);
 
-        return new StoredReceipt(new ChangesetId($id), $retention, [
+        return new StoredReceipt(new ChangesetId($id), $retention, new CommitPosition('0'), [
             ProjectionStatus::pending(new ProjectionName('edge')),
             ProjectionStatus::pending(new ProjectionName('fragments')),
             ProjectionStatus::pending(new ProjectionName('search')),
@@ -42,15 +49,40 @@ final class ReceiptTables
     }
 
     /**
-     * Stores the receipts with $store in one transaction on $connection and commits it, as the
-     * command kernel stores a receipt in the command transaction. $store runs on $connection.
+     * The commit position of the transaction open on $connection, read with TransactionPosition.
      */
-    public static function commit(Connection $connection, ReceiptStore $store, StoredReceipt ...$receipts): void
+    public static function position(Connection $connection): CommitPosition
     {
-        $connection->transaction(static function () use ($store, $receipts): void {
-            foreach ($receipts as $receipt) {
-                $store->store($receipt);
+        return new TransactionPosition(app(DatabaseManager::class), $connection->getName())->current();
+    }
+
+    /**
+     * The receipt at the commit position of the transaction open on $connection, the one it must
+     * carry when it is stored there.
+     */
+    public static function at(Connection $connection, StoredReceipt $receipt): StoredReceipt
+    {
+        return new StoredReceipt($receipt->changesetId, $receipt->retentionClass, self::position($connection), $receipt->projections);
+    }
+
+    /**
+     * Stores the receipts with $store in one transaction on $connection and commits it, as the
+     * command kernel stores a receipt in the command transaction, each at that transaction's
+     * position. $store runs on $connection. Returns the receipts as stored.
+     *
+     * @return list<StoredReceipt>
+     */
+    public static function commit(Connection $connection, ReceiptStore $store, StoredReceipt ...$receipts): array
+    {
+        return $connection->transaction(static function () use ($connection, $store, $receipts): array {
+            $stored = [];
+
+            foreach (array_values($receipts) as $receipt) {
+                $stored[] = $positioned = self::at($connection, $receipt);
+                $store->store($positioned);
             }
+
+            return $stored;
         });
     }
 

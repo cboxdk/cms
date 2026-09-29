@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Examples\Contract\ReceiptStore;
 
+use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\StoredReceipt;
 use Cbox\Cms\Contracts\ReceiptStore;
@@ -22,7 +23,7 @@ use Throwable;
  * committed row on every read, and once more at commit, so other connections see them only then.
  * A commit whose replay throws ends the transaction and applies nothing. A write that throws
  * inside a transaction fails it, as a failed statement does on Postgres: until rollBack() the
- * connection takes nothing else.
+ * connection takes nothing else. A transaction gets its commit position the first time it asks.
  */
 final class ArrayReceiptSession implements ReceiptStoreSession
 {
@@ -30,6 +31,8 @@ final class ArrayReceiptSession implements ReceiptStoreSession
     private ?array $writes = null;
 
     private bool $failed = false;
+
+    private ?CommitPosition $position = null;
 
     public function __construct(private readonly ArrayReceiptHarness $database) {}
 
@@ -45,6 +48,7 @@ final class ArrayReceiptSession implements ReceiptStoreSession
         }
 
         $this->writes = [];
+        $this->position = null;
     }
 
     public function commit(): void
@@ -52,6 +56,7 @@ final class ArrayReceiptSession implements ReceiptStoreSession
         $writes = $this->writes ?? throw new LogicException('No transaction is open.');
         $this->refuseWhenFailed();
         $this->writes = null;
+        $this->position = null;
         $rows = [];
 
         foreach ($writes as $key => $rowWrites) {
@@ -73,11 +78,21 @@ final class ArrayReceiptSession implements ReceiptStoreSession
 
         $this->writes = null;
         $this->failed = false;
+        $this->position = null;
     }
 
     public function inTransaction(): bool
     {
         return $this->writes !== null;
+    }
+
+    public function position(): CommitPosition
+    {
+        if ($this->writes === null) {
+            throw new LogicException('No transaction is open, so there is no commit position.');
+        }
+
+        return $this->position ??= $this->database->nextPosition();
     }
 
     /**

@@ -98,5 +98,5 @@ it('stores only the facts of a changeset, never the outcome or the wait level of
 
     sort($properties);
 
-    expect($properties)->toBe(['changesetId', 'projections', 'retentionClass']);
+    expect($properties)->toBe(['changesetId', 'position', 'projections', 'retentionClass']);
 });

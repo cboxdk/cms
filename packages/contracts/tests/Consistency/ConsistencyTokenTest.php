@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Contracts\Tests\Consistency;
 
+use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Consistency\ConsistencyToken;
 use Cbox\Cms\Contracts\Consistency\InvalidReceipt;
 use Cbox\Cms\Contracts\Consistency\LogSequenceNumber;
@@ -14,11 +15,12 @@ use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\Receipt;
 
 /*
- * The position a receipt carries (PRD 8.4, 8.5): the failover generation, a Postgres timeline id,
- * and the WAL position of the commit as Postgres writes a pg_lsn. Only a committed receipt has one.
+ * The consistency token a receipt carries (PRD 8.5): the failover generation, a Postgres timeline
+ * id, and the WAL position of the commit as Postgres writes a pg_lsn. Only a committed receipt has
+ * one.
  */
 
-function position(): ConsistencyToken
+function token(): ConsistencyToken
 {
     return new ConsistencyToken(2, new LogSequenceNumber('16/B374D848'));
 }
@@ -47,21 +49,23 @@ it('refuses a generation that is not a timeline id', function (int $generation):
 })->with([0, -1, ConsistencyToken::MAX_GENERATION + 1]);
 
 it('compares tokens and positions by value', function (): void {
-    expect(position()->equals(new ConsistencyToken(2, new LogSequenceNumber('16/B374D848'))))->toBeTrue()
-        ->and(position()->equals(new ConsistencyToken(3, new LogSequenceNumber('16/B374D848'))))->toBeFalse()
-        ->and(position()->equals(new ConsistencyToken(2, new LogSequenceNumber('16/B374D849'))))->toBeFalse()
+    expect(token()->equals(new ConsistencyToken(2, new LogSequenceNumber('16/B374D848'))))->toBeTrue()
+        ->and(token()->equals(new ConsistencyToken(3, new LogSequenceNumber('16/B374D848'))))->toBeFalse()
+        ->and(token()->equals(new ConsistencyToken(2, new LogSequenceNumber('16/B374D849'))))->toBeFalse()
         ->and(new LogSequenceNumber('0/1')->equals(new LogSequenceNumber('0/1')))->toBeTrue()
         ->and(new LogSequenceNumber('0/1')->equals(new LogSequenceNumber('0/2')))->toBeFalse();
 });
 
-it('gives a committed receipt its position, and none by default', function (): void {
-    expect(Receipt::committed(changeset(), WaitLevel::Commit, RetentionClass::Standard, [], position())->position)->toEqual(position())
-        ->and(Receipt::committedWaitTimeout(changeset(), WaitLevel::Edge, RetentionClass::Standard, [], position())->position)->toEqual(position())
-        ->and(Receipt::committed(changeset(), WaitLevel::Commit, RetentionClass::Standard)->position)->toBeNull()
-        ->and(Receipt::rejected(WaitLevel::Commit, RetentionClass::Standard)->position)->toBeNull();
+it('gives a committed receipt its consistency token, and none by default', function (): void {
+    $position = new CommitPosition('4827');
+
+    expect(Receipt::committed(changeset(), WaitLevel::Commit, RetentionClass::Standard, $position, [], token())->consistencyToken)->toEqual(token())
+        ->and(Receipt::committedWaitTimeout(changeset(), WaitLevel::Edge, RetentionClass::Standard, $position, [], token())->consistencyToken)->toEqual(token())
+        ->and(Receipt::committed(changeset(), WaitLevel::Commit, RetentionClass::Standard, $position)->consistencyToken)->toBeNull()
+        ->and(Receipt::rejected(WaitLevel::Commit, RetentionClass::Standard)->consistencyToken)->toBeNull();
 });
 
-it('refuses a position on a receipt that committed nothing', function (string $outcome): void {
-    expect(static fn (): Receipt => new Receipt(Outcome::from($outcome), null, WaitLevel::Commit, RetentionClass::Standard, [], position()))
-        ->toThrow(InvalidReceipt::class, sprintf('A %s receipt has no position: the command committed nothing.', $outcome));
+it('refuses a consistency token on a receipt that committed nothing', function (string $outcome): void {
+    expect(static fn (): Receipt => new Receipt(Outcome::from($outcome), null, WaitLevel::Commit, RetentionClass::Standard, [], consistencyToken: token()))
+        ->toThrow(InvalidReceipt::class, sprintf('A %s receipt has no consistency token: the command committed nothing.', $outcome));
 })->with(['rejected', 'dry_run']);

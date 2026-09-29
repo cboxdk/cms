@@ -6,6 +6,7 @@ namespace Cbox\Cms\Generators\Protocol\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Consistency\ConsistencyToken;
 use Cbox\Cms\Contracts\Consistency\LogSequenceNumber;
 use Cbox\Cms\Contracts\Consistency\Outcome;
@@ -116,6 +117,7 @@ final readonly class ProtocolSchemas
                 values: [
                     '#/properties/changeset_id' => ValueBinding::id(ChangesetId::class),
                     '#/properties/outcome' => ValueBinding::enum(Outcome::class),
+                    '#/properties/position' => ValueBinding::value(CommitPosition::class),
                     '#/properties/retention_class' => ValueBinding::enum(RetentionClass::class),
                     '#/properties/wait_level' => ValueBinding::enum(WaitLevel::class),
                     '#/$defs/consistency_token/properties/lsn' => ValueBinding::value(LogSequenceNumber::class),

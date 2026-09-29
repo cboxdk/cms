@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Consistency\DuplicateReceipt;
+use Cbox\Cms\Contracts\Consistency\ForeignPosition;
 use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
 use Cbox\Cms\Contracts\Consistency\TransactionRequired;
@@ -16,7 +18,8 @@ use Cbox\Cms\Testkit\ReceiptStore\FakeReceiptStore;
 // Code that takes a ReceiptStore gets the testkit's FakeReceiptStore in its tests. A receipt is
 // stored only in the caller's transaction, so a test stores it in a transaction of a session; the
 // store itself behaves like a connection without one, where find() reads and markProjection()
-// commits at once. It reads the time from the clock it is given, so moving the clock expires a
+// commits at once. A receipt carries the commit position of the transaction that stores it, which
+// the session gives. It reads the time from the clock it is given, so moving the clock expires a
 // Standard receipt.
 
 it('stores the receipt of a committed changeset, finds it and marks its projection', function (): void {
@@ -29,11 +32,12 @@ it('stores the receipt of a committed changeset, finds it and marks its projecti
     // The command kernel stores the receipt in the command transaction.
     $command = $receipts->session();
     $command->begin();
-    $command->store(new StoredReceipt($changesetId, RetentionClass::Standard, [ProjectionStatus::pending($search)]));
+    $position = $command->position();
+    $command->store(new StoredReceipt($changesetId, RetentionClass::Standard, $position, [ProjectionStatus::pending($search)]));
     $command->commit();
 
     expect($receipts->find($changesetId))
-        ->toEqual(new StoredReceipt($changesetId, RetentionClass::Standard, [ProjectionStatus::pending($search)]));
+        ->toEqual(new StoredReceipt($changesetId, RetentionClass::Standard, $position, [ProjectionStatus::pending($search)]));
 
     $indexedAt = $clock->advance(new DateInterval('PT2S'));
 
@@ -53,16 +57,19 @@ it('refuses a second receipt for a changeset and a store outside a transaction, 
     $edge = new ProjectionName('edge');
     $command = $receipts->session();
     $command->begin();
-    $command->store(new StoredReceipt($changesetId, RetentionClass::Standard, [ProjectionStatus::pending($edge)]));
+    $command->store(new StoredReceipt($changesetId, RetentionClass::Standard, $command->position(), [ProjectionStatus::pending($edge)]));
     $command->commit();
 
-    // A second receipt for the changeset is refused, and so is a store outside a transaction.
+    // A second receipt for the changeset is refused, and so are a receipt at another transaction's
+    // position and a store outside a transaction.
     $command->begin();
-    expect(fn () => $command->store(new StoredReceipt($changesetId, RetentionClass::Evidence)))
-        ->toThrow(DuplicateReceipt::class);
+    expect(fn () => $command->store(new StoredReceipt($changesetId, RetentionClass::Evidence, $command->position())))
+        ->toThrow(DuplicateReceipt::class)
+        ->and(fn () => $command->store(new StoredReceipt(new ChangesetId($ids->next()), RetentionClass::Standard, new CommitPosition('1'))))
+        ->toThrow(ForeignPosition::class);
     $command->rollBack();
 
-    expect(fn () => $receipts->store(new StoredReceipt(new ChangesetId($ids->next()), RetentionClass::Standard)))
+    expect(fn () => $receipts->store(new StoredReceipt(new ChangesetId($ids->next()), RetentionClass::Standard, new CommitPosition('1'))))
         ->toThrow(TransactionRequired::class);
 
     // Expiry is logical: the receipt is live up to RetentionClass::expiresAt() and gone once the

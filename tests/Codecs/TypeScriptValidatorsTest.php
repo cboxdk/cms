@@ -216,7 +216,7 @@ function fullArticleJson(): string
     ]);
 }
 
-const COMMITTED_RECEIPT_JSON = '{"changeset_id":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a02","outcome":"committed","position":{"generation":2,"lsn":"16/B374D848"},"projections":[{"acknowledged_at":"2026-03-10T12:00:00.250000Z","projection":"fragments","state":"acknowledged"},{"acknowledged_at":null,"projection":"acme.search","state":"pending"}],"retention_class":"standard","wait_level":"origin"}';
+const COMMITTED_RECEIPT_JSON = '{"changeset_id":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a02","consistency_token":{"generation":2,"lsn":"16/B374D848"},"outcome":"committed","position":"4827","projections":[{"acknowledged_at":"2026-03-10T12:00:00.250000Z","projection":"fragments","state":"acknowledged"},{"acknowledged_at":null,"projection":"acme.search","state":"pending"}],"retention_class":"standard","wait_level":"origin"}';
 
 const AGENT_ENVELOPE_JSON = '{"correlation_id":"trace-7f3a","dry_run":true,"idempotency_key":"order-1042","on_behalf_of":["0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a10","0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a11"],"provenance":{"model":{"name":"writer","version":"2026-03"},"parameters":[{"name":"max_tokens","value":"800"},{"name":"temperature","value":"0.2"}],"prompt":"prompts/summary/v3","sources":["https://example.test/feed/42","feed:item:9"]},"wait_level":"edge"}';
 
@@ -330,15 +330,19 @@ it('accepts every receipt v1 the PHP codec writes, and refuses what it refuses a
 
     crossCheck(new ReceiptCodecV1, 'protocol/ReceiptV1', 'validateReceiptV1', [
         'a committed receipt' => [COMMITTED_RECEIPT_JSON, null],
-        'a rejected receipt' => ['{"changeset_id":null,"outcome":"rejected","position":null,"projections":[],"retention_class":"standard","wait_level":"commit"}', null],
-        'a wait timeout without a position' => ['{"changeset_id":"0199A3C1-2B4D-7E5F-8A6B-1C2D3E4F5A02","outcome":"committed_wait_timeout","position":null,"projections":[],"retention_class":"evidence","wait_level":"verified"}', null],
-        'the largest position' => [$receipt('"generation":2,"lsn":"16/B374D848"', '"generation":4294967295,"lsn":"FFFFFFFF/FFFFFFFF"'), null],
+        'a rejected receipt' => ['{"changeset_id":null,"consistency_token":null,"outcome":"rejected","position":null,"projections":[],"retention_class":"standard","wait_level":"commit"}', null],
+        'a wait timeout without a consistency token' => ['{"changeset_id":"0199A3C1-2B4D-7E5F-8A6B-1C2D3E4F5A02","consistency_token":null,"outcome":"committed_wait_timeout","position":"3","projections":[],"retention_class":"evidence","wait_level":"verified"}', null],
+        'the largest consistency token' => [$receipt('"generation":2,"lsn":"16/B374D848"', '"generation":4294967295,"lsn":"FFFFFFFF/FFFFFFFF"'), null],
+        'the largest position' => [$receipt('"4827"', '"18446744073709551615"'), null],
         'an unknown key' => [$receipt('"outcome"', '"extra":1,"outcome"'), ''],
         'an outcome that is not one' => [$receipt('"outcome":"committed"', '"outcome":"done"'), 'outcome'],
-        'the position missing' => [$receipt('"position":{"generation":2,"lsn":"16/B374D848"},', ''), 'position'],
-        'a generation of zero' => [$receipt('"generation":2', '"generation":0'), 'position.generation'],
-        'a generation above 32 bits' => [$receipt('"generation":2', '"generation":4294967296'), 'position.generation'],
-        'a position in lower case' => [$receipt('16/B374D848', '16/b374d848'), 'position.lsn'],
+        'the consistency token missing' => [$receipt('"consistency_token":{"generation":2,"lsn":"16/B374D848"},', ''), 'consistency_token'],
+        'a generation of zero' => [$receipt('"generation":2', '"generation":0'), 'consistency_token.generation'],
+        'a generation above 32 bits' => [$receipt('"generation":2', '"generation":4294967296'), 'consistency_token.generation'],
+        'a WAL position in lower case' => [$receipt('16/B374D848', '16/b374d848'), 'consistency_token.lsn'],
+        'the position missing' => [$receipt('"position":"4827",', ''), 'position'],
+        'a position with a leading zero' => [$receipt('"4827"', '"04827"'), 'position'],
+        'a position as a number' => [$receipt('"4827"', '4827'), 'position'],
         'a projection name with an upper case letter' => [$receipt('"fragments"', '"Fragments"'), 'projections[0].projection'],
         'a state that is not one' => [$receipt('"state":"pending"', '"state":"late"'), 'projections[1].state'],
         'an acknowledgement time that is no time' => [$receipt('2026-03-10T12:00:00.250000Z', 'yesterday'), 'projections[0].acknowledged_at'],
@@ -397,7 +401,7 @@ it('refuses a value of the PHP codec\'s output planted wrong', function (JsonCod
     'a date-time of a measurement\'s series without its offset' => [new AppFixtureMeasurementCodecV1, 'records/AppFixtureMeasurementV1', 'validateAppFixtureMeasurementV1', fullMeasurementJson(), ['fixture_series', 0, 'fixture_series_taken_at'], '2026-03-10T11:00:00', 'fixture_series[0].fixture_series_taken_at'],
     'a date of an article in another form' => [new AppFixtureArticleCodecV1, 'records/AppFixtureArticleV1', 'validateAppFixtureArticleV1', fullArticleJson(), ['fixture_published_on'], '09.03.2026', 'fixture_published_on'],
     'an article\'s rich text span without its key' => [new AppFixtureArticleCodecV1, 'records/AppFixtureArticleV1', 'validateAppFixtureArticleV1', fullArticleJson(), ['fixture_body', 0, 'children', 0, '_key'], '', 'fixture_body[0].children[0]._key'],
-    'a receipt\'s position in lower case' => [new ReceiptCodecV1, 'protocol/ReceiptV1', 'validateReceiptV1', COMMITTED_RECEIPT_JSON, ['position', 'lsn'], '16/b374d848', 'position.lsn'],
+    'a receipt\'s WAL position in lower case' => [new ReceiptCodecV1, 'protocol/ReceiptV1', 'validateReceiptV1', COMMITTED_RECEIPT_JSON, ['consistency_token', 'lsn'], '16/b374d848', 'consistency_token.lsn'],
     'a problem\'s status as a string' => [new ProblemCodecV1, 'protocol/ProblemV1', 'validateProblemV1', problemJson(), ['status'], '422', 'status'],
     'an envelope\'s dry run as a string' => [new EnvelopeCodecV1, 'protocol/EnvelopeV1', 'validateEnvelopeV1', AGENT_ENVELOPE_JSON, ['dry_run'], 'yes', 'dry_run'],
 ]);

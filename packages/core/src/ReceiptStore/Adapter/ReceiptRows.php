@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\ReceiptStore\Adapter;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Consistency\InvalidReceipt;
 use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Consistency\ProjectionState;
@@ -28,7 +29,7 @@ use Exception;
 final readonly class ReceiptRows
 {
     /**
-     * @param  object  $receipt  a row of `receipts`: changeset_id, retention_class
+     * @param  object  $receipt  a row of `receipts`: changeset_id, retention_class, position (xid8 as text)
      * @param  array<array-key, mixed>  $projections  rows of `receipt_projections`: projection, state, acknowledged_at
      */
     public static function receipt(object $receipt, array $projections): StoredReceipt
@@ -47,6 +48,7 @@ final readonly class ReceiptRows
             return new StoredReceipt(
                 self::changesetId($receipt),
                 self::enum(RetentionClass::class, self::retentionClassOf($receipt), 'retention_class'),
+                new CommitPosition(self::string($receipt, 'position', PostgresReceiptStore::RECEIPTS)),
                 $statuses,
             );
         } catch (InvalidReceipt $invalid) {

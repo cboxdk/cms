@@ -20,11 +20,12 @@ export type RetentionClass = 'evidence' | 'standard';
 export type WaitLevel = 'commit' | 'origin' | 'edge' | 'verified' | 'propagated';
 
 /**
- * The receipt a write returns (PRD 6.1, 8.4): the outcome, the changeset and its position, the wait
- * level the caller asked for, the retention class and the status of each projection the changeset
- * affected. Every key is always present, and a value that does not apply is null. A committed or
- * committed_wait_timeout receipt has a changeset_id; a rejected or dry_run receipt committed
- * nothing, so its changeset_id and position are null and it has no projections. The PHP form is
+ * The receipt a write returns (PRD 6.1, 8.4): the outcome, the changeset, its commit position and
+ * consistency token, the wait level the caller asked for, the retention class and the status of
+ * each projection the changeset affected. Every key is always present, and a value that does not
+ * apply is null. A committed or committed_wait_timeout receipt has a changeset_id and a position; a
+ * rejected or dry_run receipt committed nothing, so its changeset_id, position and
+ * consistency_token are null and it has no projections. The PHP form is
  * Cbox\Cms\Contracts\Receipts\Receipt, and the generated codec ReceiptCodecV1 writes its canonical
  * JSON: keys sorted, no whitespace.
  */
@@ -35,16 +36,23 @@ export interface ReceiptV1 {
    */
   changeset_id: string | null;
   /**
+   * The consistency token of the commit (PRD 8.5), which a client sends with a later read to a
+   * replica, or null when the command committed nothing or the call did not read it.
+   */
+  consistency_token: ConsistencyTokenV1 | null;
+  /**
    * How the command ended: rejected (nothing committed), committed, committed_wait_timeout
    * (committed, but the wait level was not reached within the deadline) or dry_run (the plan was
    * computed and nothing committed).
    */
   outcome: Outcome;
   /**
-   * The consistency token of the commit (PRD 8.5), which a client sends with a later read, or null
-   * when the command committed nothing or the call did not read it.
+   * The commit position of the changeset (PRD 8.4, 8.12): the xid8 of the transaction that
+   * committed it, in decimal, the value its changeset row and its events carry. A read whose
+   * snapshot xmin is above it saw the changeset. A string, because an xid8 is an unsigned 64-bit
+   * integer. Null when the command committed nothing.
    */
-  position: ConsistencyTokenV1 | null;
+  position: string | null;
   /**
    * The status of each projection the changeset affected, sorted by projection name, each
    * projection at most once. Empty when the command committed nothing.
@@ -156,6 +164,11 @@ const receiptV1Rule: ObjectRule = {
     },
     {
       key: 'position',
+      presence: 'present',
+      value: { kind: 'string', pattern: '^(0|[1-9][0-9]{0,19})$' },
+    },
+    {
+      key: 'consistency_token',
       presence: 'present',
       value: { kind: 'object', object: consistencyTokenV1Rule },
     },

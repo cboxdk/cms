@@ -1,7 +1,7 @@
 ---
 title: Receipt store
 weight: 34
-description: "The ReceiptStore contract: one receipt per committed changeset, projection status, expiry, the Postgres store, FakeReceiptStore and the shared suite ReceiptStoreContract."
+description: "The ReceiptStore contract: one receipt per committed changeset, its commit position, projection status, expiry, the Postgres store, FakeReceiptStore and the shared suite ReceiptStoreContract."
 ---
 
 # Receipt store
@@ -20,7 +20,21 @@ The contract is `Cbox\Cms\Contracts\ReceiptStore` in `cboxdk/cms`. It and the te
 
 ## What is stored
 
-A `StoredReceipt` (in `Cbox\Cms\Contracts\Receipts`) holds only facts about a committed changeset: its `ChangesetId`, its `RetentionClass` and the `ProjectionStatus` of each projection, sorted by projection name. A projection is `pending`, or `acknowledged` with the time it acknowledged, in UTC with microseconds. A projection listed twice throws `InvalidReceipt`.
+A `StoredReceipt` (in `Cbox\Cms\Contracts\Receipts`) holds only facts about a committed changeset: its `ChangesetId`, its `RetentionClass`, its commit position and the `ProjectionStatus` of each projection, sorted by projection name. A projection is `pending`, or `acknowledged` with the time it acknowledged, in UTC with microseconds. A projection listed twice throws `InvalidReceipt`.
+
+The command kernel stores the receipt with exactly the projections the changeset's events affect: the projection of each subscriber that receives one of the events and acknowledges on the receipt (`#[Subscription(projection: ...)]`, see [Subscribers](../subscribers.md)), each pending. A subscriber without a projection adds none, so a caller that waits past commit waits only for projections that will acknowledge.
+
+## The commit position
+
+The position (PRD 8.4, 8.12) is a `Cbox\Cms\Contracts\Consistency\CommitPosition`: the xid8 of the transaction that committed the changeset, `pg_current_xact_id()`, in decimal. The changeset row (its `xid` column), each of its events and its receipt carry the same value. A read has a position too: the xmin of its snapshot, `pg_snapshot_xmin(pg_current_snapshot())`. No transaction below the xmin is still running, so the rule is:
+
+**A read at position R saw every changeset whose position is below R.**
+
+It may have seen changesets at or above R as well; below R is what is certain. `$changeset->seenBy($read)` tells it, and `isBelow()` compares two positions by their numeric value. This is the same horizon the event log reads below (PRD 7.4): a subscriber that has read the events below xmin R has seen every changeset below R. The purge fence of PRD 8.12 compares a fragment's read position with a purge's position the same way.
+
+The value is kept as a decimal string without leading zeros, because an xid8 is an unsigned 64-bit integer, larger than a PHP int holds and above what JSON readers keep exactly. It is not the consistency token of PRD 8.5, the WAL position of the commit, which a client sends with a later read to a replica; a `Receipt` carries both.
+
+A receipt carries the position of the transaction that stores it. `store()` refuses any other position with `Cbox\Cms\Contracts\Consistency\ForeignPosition`, a `LogicException`, and stores nothing; the caller's transaction stays usable. On Postgres, `Cbox\Cms\Core\Consistency\Infrastructure\TransactionPosition` reads the position of the caller's open transaction, and throws `TransactionRequired` without one.
 
 Only committed changesets are stored. A `StoredReceipt` cannot be made without a `ChangesetId`, and only a committed changeset has one, so a rejected call or a dry run has nothing to store. The `Receipt` a call returns, with its outcome and wait level, is never stored. The receipt is written in the command transaction, before any wait level past commit can be reached, so the kernel builds each call's `Receipt`, a replay's included, from the stored receipt, the wait level the call asks for and whether that level was reached.
 
@@ -54,15 +68,15 @@ A store on a database keeps receipts in tables partitioned by the changeset's ti
 
 ## The default store
 
-The core binds the contract to `Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore` in `cbox-cms.contracts`, as a singleton. It runs on the default connection, the one the command kernel opens its transaction on, and keeps the receipts in `receipts` and `receipt_projections`. It writes a receipt and its projections in one statement, so they are stored together or not at all. Both are partitioned by retention class and then by changeset time: Standard receipts per day, dropped a week after the day ends, and Evidence receipts per month, never dropped by the partition manager.
+The core binds the contract to `Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore` in `cbox-cms.contracts`, as a singleton. It runs on the default connection, the one the command kernel opens its transaction on, and keeps the receipts in `receipts`, with the position as an `xid8` column, and `receipt_projections`. Its first statement takes the lock on the changeset and reads `pg_current_xact_id()`, and a receipt at another position is refused before anything is looked up or written. It writes a receipt and its projections in one statement, so they are stored together or not at all. Both are partitioned by retention class and then by changeset time: Standard receipts per day, dropped a week after the day ends, and Evidence receipts per month, never dropped by the partition manager.
 
-The database holds the app role to what the store does. It may read and insert receipts but not change them, and on `receipt_projections` it may update only `state` and `acknowledged_at`, so code running as the app role cannot move an Evidence receipt into the Standard partitions, which are dropped after a week, or rewrite a changeset or projection. A trigger refuses every update of an acknowledged projection, for every role, so an acknowledgement stays final whatever code runs.
+The database holds the app role to what the store does. It may read and insert receipts but not change them, their position included, and on `receipt_projections` it may update only `state` and `acknowledged_at`, so code running as the app role cannot move an Evidence receipt into the Standard partitions, which are dropped after a week, or rewrite a changeset or projection. A trigger refuses every update of an acknowledged projection, for every role, so an acknowledgement stays final whatever code runs.
 
 An application replaces the store with its own class in the `ReceiptStore::class` entry of `contracts` in its own `config/cbox-cms.php`; the entries it leaves out keep their defaults. A replacement passes the shared contract suite first, as shown below.
 
 ## Testing code that uses the store
 
-`Cbox\Cms\Testkit\ReceiptStore\FakeReceiptStore` in the testkit of `cboxdk/cms` is the fake. It keeps receipts in memory and reads the time from the `Clock` it is given, so a test moves a `FakeClock` to expire a Standard receipt. Used directly, the fake behaves like a connection without a transaction: `find()` reads, `markProjection()` commits at once, and `store()` throws `TransactionRequired`. Its `session()` hands out connections to the same receipts, with transactions, so a test stores a receipt in a session's transaction, and its `uncover($from, $to)` takes a range of changeset times out of the partitions, so `store()` in the range throws `PartitionMissing`. A store of a changeset that another session's open transaction has stored waits for that transaction, as on Postgres. PHP runs one session at a time, so `whenWaiting($event)` schedules what happens during the wait, such as the other session committing or rolling back; a waiting store runs the events in order until the changeset is free, and throws a `LogicException` when none is left.
+`Cbox\Cms\Testkit\ReceiptStore\FakeReceiptStore` in the testkit of `cboxdk/cms` is the fake. It keeps receipts in memory and reads the time from the `Clock` it is given, so a test moves a `FakeClock` to expire a Standard receipt. Used directly, the fake behaves like a connection without a transaction: `find()` reads, `markProjection()` commits at once, and `store()` throws `TransactionRequired`. Its `session()` hands out connections to the same receipts, with transactions, so a test stores a receipt in a session's transaction at the session's `position()`, which each transaction gets when it first asks, higher than every earlier one, and its `uncover($from, $to)` takes a range of changeset times out of the partitions, so `store()` in the range throws `PartitionMissing`. A store of a changeset that another session's open transaction has stored waits for that transaction, as on Postgres. PHP runs one session at a time, so `whenWaiting($event)` schedules what happens during the wait, such as the other session committing or rolling back; a waiting store runs the events in order until the changeset is free, and throws a `LogicException` when none is left.
 
 The example stores a receipt in a transaction, finds it and marks its projection, then shows a duplicate, a store outside a transaction and the expiry:
 
@@ -72,7 +86,9 @@ The example stores a receipt in a transaction, finds it and marks its projection
 
 declare(strict_types=1);
 
+use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Consistency\DuplicateReceipt;
+use Cbox\Cms\Contracts\Consistency\ForeignPosition;
 use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
 use Cbox\Cms\Contracts\Consistency\TransactionRequired;
@@ -86,7 +102,8 @@ use Cbox\Cms\Testkit\ReceiptStore\FakeReceiptStore;
 // Code that takes a ReceiptStore gets the testkit's FakeReceiptStore in its tests. A receipt is
 // stored only in the caller's transaction, so a test stores it in a transaction of a session; the
 // store itself behaves like a connection without one, where find() reads and markProjection()
-// commits at once. It reads the time from the clock it is given, so moving the clock expires a
+// commits at once. A receipt carries the commit position of the transaction that stores it, which
+// the session gives. It reads the time from the clock it is given, so moving the clock expires a
 // Standard receipt.
 
 it('stores the receipt of a committed changeset, finds it and marks its projection', function (): void {
@@ -99,11 +116,12 @@ it('stores the receipt of a committed changeset, finds it and marks its projecti
     // The command kernel stores the receipt in the command transaction.
     $command = $receipts->session();
     $command->begin();
-    $command->store(new StoredReceipt($changesetId, RetentionClass::Standard, [ProjectionStatus::pending($search)]));
+    $position = $command->position();
+    $command->store(new StoredReceipt($changesetId, RetentionClass::Standard, $position, [ProjectionStatus::pending($search)]));
     $command->commit();
 
     expect($receipts->find($changesetId))
-        ->toEqual(new StoredReceipt($changesetId, RetentionClass::Standard, [ProjectionStatus::pending($search)]));
+        ->toEqual(new StoredReceipt($changesetId, RetentionClass::Standard, $position, [ProjectionStatus::pending($search)]));
 
     $indexedAt = $clock->advance(new DateInterval('PT2S'));
 
@@ -123,16 +141,19 @@ it('refuses a second receipt for a changeset and a store outside a transaction, 
     $edge = new ProjectionName('edge');
     $command = $receipts->session();
     $command->begin();
-    $command->store(new StoredReceipt($changesetId, RetentionClass::Standard, [ProjectionStatus::pending($edge)]));
+    $command->store(new StoredReceipt($changesetId, RetentionClass::Standard, $command->position(), [ProjectionStatus::pending($edge)]));
     $command->commit();
 
-    // A second receipt for the changeset is refused, and so is a store outside a transaction.
+    // A second receipt for the changeset is refused, and so are a receipt at another transaction's
+    // position and a store outside a transaction.
     $command->begin();
-    expect(fn () => $command->store(new StoredReceipt($changesetId, RetentionClass::Evidence)))
-        ->toThrow(DuplicateReceipt::class);
+    expect(fn () => $command->store(new StoredReceipt($changesetId, RetentionClass::Evidence, $command->position())))
+        ->toThrow(DuplicateReceipt::class)
+        ->and(fn () => $command->store(new StoredReceipt(new ChangesetId($ids->next()), RetentionClass::Standard, new CommitPosition('1'))))
+        ->toThrow(ForeignPosition::class);
     $command->rollBack();
 
-    expect(fn () => $receipts->store(new StoredReceipt(new ChangesetId($ids->next()), RetentionClass::Standard)))
+    expect(fn () => $receipts->store(new StoredReceipt(new ChangesetId($ids->next()), RetentionClass::Standard, new CommitPosition('1'))))
         ->toThrow(TransactionRequired::class);
 
     // Expiry is logical: the receipt is live up to RetentionClass::expiresAt() and gone once the
@@ -209,6 +230,7 @@ declare(strict_types=1);
 namespace Examples\Contract\ReceiptStore;
 
 use Cbox\Cms\Contracts\Clock;
+use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\StoredReceipt;
 use Cbox\Cms\Contracts\Storage\PartitionMissing;
@@ -217,8 +239,9 @@ use Closure;
 use DateTimeImmutable;
 
 /**
- * The database behind ArrayReceiptStore: the committed receipts, one row per changeset, and the
- * changeset times that no partition covers. Every session is a new connection to it.
+ * The database behind ArrayReceiptStore: the committed receipts, one row per changeset, the
+ * changeset times that no partition covers, and the next transaction's commit position. Every
+ * session is a new connection to it.
  */
 final class ArrayReceiptHarness implements ReceiptStoreHarness
 {
@@ -230,6 +253,9 @@ final class ArrayReceiptHarness implements ReceiptStoreHarness
     /** @var list<Closure(DateTimeImmutable): bool> the ranges of changeset times no partition covers */
     private array $uncovered = [];
 
+    /** The commit position the next transaction that asks for one gets. */
+    private int $nextPosition = 1;
+
     public function __construct(public readonly Clock $clock) {}
 
     public function session(): ArrayReceiptSession
@@ -240,6 +266,15 @@ final class ArrayReceiptHarness implements ReceiptStoreHarness
     public function uncover(DateTimeImmutable $from, DateTimeImmutable $to): void
     {
         $this->uncovered[] = static fn (DateTimeImmutable $at): bool => $at >= $from && $at <= $to;
+    }
+
+    /**
+     * A new commit position, higher than every one given before, as a database gives a transaction
+     * its id when it first needs one.
+     */
+    public function nextPosition(): CommitPosition
+    {
+        return new CommitPosition((string) $this->nextPosition++);
     }
 
     /**
@@ -286,6 +321,7 @@ declare(strict_types=1);
 
 namespace Examples\Contract\ReceiptStore;
 
+use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\StoredReceipt;
 use Cbox\Cms\Contracts\ReceiptStore;
@@ -304,7 +340,7 @@ use Throwable;
  * committed row on every read, and once more at commit, so other connections see them only then.
  * A commit whose replay throws ends the transaction and applies nothing. A write that throws
  * inside a transaction fails it, as a failed statement does on Postgres: until rollBack() the
- * connection takes nothing else.
+ * connection takes nothing else. A transaction gets its commit position the first time it asks.
  */
 final class ArrayReceiptSession implements ReceiptStoreSession
 {
@@ -312,6 +348,8 @@ final class ArrayReceiptSession implements ReceiptStoreSession
     private ?array $writes = null;
 
     private bool $failed = false;
+
+    private ?CommitPosition $position = null;
 
     public function __construct(private readonly ArrayReceiptHarness $database) {}
 
@@ -327,6 +365,7 @@ final class ArrayReceiptSession implements ReceiptStoreSession
         }
 
         $this->writes = [];
+        $this->position = null;
     }
 
     public function commit(): void
@@ -334,6 +373,7 @@ final class ArrayReceiptSession implements ReceiptStoreSession
         $writes = $this->writes ?? throw new LogicException('No transaction is open.');
         $this->refuseWhenFailed();
         $this->writes = null;
+        $this->position = null;
         $rows = [];
 
         foreach ($writes as $key => $rowWrites) {
@@ -355,11 +395,21 @@ final class ArrayReceiptSession implements ReceiptStoreSession
 
         $this->writes = null;
         $this->failed = false;
+        $this->position = null;
     }
 
     public function inTransaction(): bool
     {
         return $this->writes !== null;
+    }
+
+    public function position(): CommitPosition
+    {
+        if ($this->writes === null) {
+            throw new LogicException('No transaction is open, so there is no commit position.');
+        }
+
+        return $this->position ??= $this->database->nextPosition();
     }
 
     /**
@@ -433,6 +483,7 @@ namespace Examples\Contract\ReceiptStore;
 
 use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\Consistency\DuplicateReceipt;
+use Cbox\Cms\Contracts\Consistency\ForeignPosition;
 use Cbox\Cms\Contracts\Consistency\ProjectionState;
 use Cbox\Cms\Contracts\Consistency\TransactionRequired;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
@@ -444,7 +495,7 @@ use DateTimeImmutable;
 /**
  * A replacement receipt store, kept in PHP arrays so that the example needs no services. It runs
  * on the caller's connection, an ArrayReceiptSession, and never begins or ends a transaction. A
- * receipt is stored only inside the caller's transaction.
+ * receipt is stored only inside the caller's transaction, at that transaction's commit position.
  */
 final readonly class ArrayReceiptStore implements ReceiptStore
 {
@@ -457,6 +508,12 @@ final readonly class ArrayReceiptStore implements ReceiptStore
     {
         if (! $this->connection->inTransaction()) {
             throw TransactionRequired::forStore();
+        }
+
+        $position = $this->connection->position();
+
+        if (! $receipt->position->equals($position)) {
+            throw ForeignPosition::forReceipt($receipt->changesetId, $receipt->position, $position);
         }
 
         // An expired receipt still holds its changeset until its partition is dropped.
@@ -528,7 +585,7 @@ final readonly class ArrayReceiptStore implements ReceiptStore
             $projections[] = $current;
         }
 
-        return $listed ? new StoredReceipt($receipt->changesetId, $receipt->retentionClass, $projections) : null;
+        return $listed ? new StoredReceipt($receipt->changesetId, $receipt->retentionClass, $receipt->position, $projections) : null;
     }
 }
 ```

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\ReceiptStore;
 
+use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
@@ -28,6 +29,7 @@ function receiptRow(array $overrides = []): object
     return (object) [...[
         'changeset_id' => RECEIPT_ID,
         'retention_class' => 'standard',
+        'position' => '4827',
     ], ...$overrides];
 }
 
@@ -52,6 +54,7 @@ it('maps a receipt row and its projection rows, with the acknowledgement in UTC 
     expect($receipt)->toEqual(new StoredReceipt(
         ChangesetId::fromString(RECEIPT_ID),
         RetentionClass::Evidence,
+        new CommitPosition('4827'),
         [
             ProjectionStatus::pending(new ProjectionName('edge')),
             ProjectionStatus::acknowledged(new ProjectionName('search'), new DateTimeImmutable('2026-01-01T00:00:02.123456Z')),
@@ -74,6 +77,9 @@ it('refuses a row the store never writes, naming the column', function (object $
     'number instead of text' => [receiptRow(['retention_class' => 1]), [], 'receipts.retention_class is int'],
     'null retention class' => [receiptRow(['retention_class' => null]), [], 'receipts.retention_class is null'],
     'null changeset id' => [receiptRow(['changeset_id' => null]), [], 'receipts.changeset_id is null'],
+    'missing position' => [(object) ['changeset_id' => RECEIPT_ID, 'retention_class' => 'standard'], [], 'has no column position'],
+    'null position' => [receiptRow(['position' => null]), [], 'receipts.position is null'],
+    'position that is not an xid8' => [receiptRow(['position' => '-1']), [], 'does not make a valid receipt'],
     'projection row not an object' => [receiptRow(), [['projection' => 'edge']], 'got array'],
     'unknown state' => [receiptRow(), [projectionRow(['state' => 'done'])], 'state holds "done"'],
     'acknowledged without a time' => [receiptRow(), [projectionRow(['state' => 'acknowledged'])], 'does not make a valid receipt'],

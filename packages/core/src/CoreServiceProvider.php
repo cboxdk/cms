@@ -70,8 +70,10 @@ use Cbox\Cms\Core\Partitions\Infrastructure\PostgresPartitionManager;
 use Cbox\Cms\Core\Pipeline\Adapter\ConnectionCommandTransaction;
 use Cbox\Cms\Core\Pipeline\Adapter\RegistryWriteActions;
 use Cbox\Cms\Core\Pipeline\Boundary\TypeRulesFieldValidation;
+use Cbox\Cms\Core\Pipeline\Domain\AffectedProjections;
 use Cbox\Cms\Core\Pipeline\Domain\CommandTransaction;
 use Cbox\Cms\Core\Pipeline\Domain\FieldValidation;
+use Cbox\Cms\Core\Pipeline\Domain\RegistryAffectedProjections;
 use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
 use Cbox\Cms\Core\Process\Boundary\ProcessWorkload;
 use Cbox\Cms\Core\Process\Domain\OwnerCredentialsExposed;
@@ -187,14 +189,16 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
 
         // The command pipeline's ports that the core implements: the write action of a command
         // from the compiled registry, the fields of a plan's revisions through the generated
-        // validators, and the command transaction on the default connection, which the receipt
-        // and idempotency stores write on too (PRD 6.2 phases 1, 5 and 7).
+        // validators, the command transaction on the default connection, which the receipt and
+        // idempotency stores write on too, and the projections a changeset's events affect, which
+        // its receipt lists (PRD 6.2 phases 1, 5 and 7, 8.4).
         $this->app->bind(WriteActions::class, RegistryWriteActions::class);
         $this->app->bind(FieldValidation::class, TypeRulesFieldValidation::class);
         $this->app->bind(
             CommandTransaction::class,
             static fn (Application $app): CommandTransaction => new ConnectionCommandTransaction($app->make(ConnectionResolverInterface::class)),
         );
+        $this->app->bind(AffectedProjections::class, RegistryAffectedProjections::class);
 
         $this->registerDoctor();
     }

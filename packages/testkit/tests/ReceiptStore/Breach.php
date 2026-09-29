@@ -41,4 +41,13 @@ enum Breach
 
     /** A transaction that met PartitionMissing takes further calls. */
     case KeepsFailedTransactions;
+
+    /** store() takes a receipt at any position and stores it at its transaction's. */
+    case IgnoresPosition;
+
+    /** find() returns the receipt at position 0, not the one it was stored at. */
+    case LosesPosition;
+
+    /** Every transaction has the same commit position. */
+    case ReusesPosition;
 }

@@ -82,7 +82,7 @@ function idempotencyReceipt(PipelineWorld $world, ChangesetId $changeset): void
 {
     $session = $world->receipts->session();
     $session->begin();
-    $session->store(new StoredReceipt($changeset, RetentionClass::Standard));
+    $session->store(new StoredReceipt($changeset, RetentionClass::Standard, $session->position()));
     $session->commit();
 }
 
@@ -170,7 +170,8 @@ it('builds the replayed receipt for the wait level the replay asks for', functio
         ->and($acknowledged->receipt->waitLevel)->toBe(WaitLevel::Origin)
         ->and($acknowledged->receipt->projections)->toEqual([ProjectionStatus::acknowledged($origin, $world->clock->now())])
         ->and($acknowledged->receipt->retentionClass)->toBe(RetentionClass::Standard)
-        ->and($acknowledged->receipt->position)->toBeNull()
+        ->and($acknowledged->receipt->position)->toEqual($first->receipt->position)
+        ->and($acknowledged->receipt->consistencyToken)->toBeNull()
         ->and($world->committer->pending)->toHaveCount(1);
 });
 

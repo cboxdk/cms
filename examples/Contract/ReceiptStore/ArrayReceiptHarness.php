@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Examples\Contract\ReceiptStore;
 
 use Cbox\Cms\Contracts\Clock;
+use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\StoredReceipt;
 use Cbox\Cms\Contracts\Storage\PartitionMissing;
@@ -13,8 +14,9 @@ use Closure;
 use DateTimeImmutable;
 
 /**
- * The database behind ArrayReceiptStore: the committed receipts, one row per changeset, and the
- * changeset times that no partition covers. Every session is a new connection to it.
+ * The database behind ArrayReceiptStore: the committed receipts, one row per changeset, the
+ * changeset times that no partition covers, and the next transaction's commit position. Every
+ * session is a new connection to it.
  */
 final class ArrayReceiptHarness implements ReceiptStoreHarness
 {
@@ -26,6 +28,9 @@ final class ArrayReceiptHarness implements ReceiptStoreHarness
     /** @var list<Closure(DateTimeImmutable): bool> the ranges of changeset times no partition covers */
     private array $uncovered = [];
 
+    /** The commit position the next transaction that asks for one gets. */
+    private int $nextPosition = 1;
+
     public function __construct(public readonly Clock $clock) {}
 
     public function session(): ArrayReceiptSession
@@ -36,6 +41,15 @@ final class ArrayReceiptHarness implements ReceiptStoreHarness
     public function uncover(DateTimeImmutable $from, DateTimeImmutable $to): void
     {
         $this->uncovered[] = static fn (DateTimeImmutable $at): bool => $at >= $from && $at <= $to;
+    }
+
+    /**
+     * A new commit position, higher than every one given before, as a database gives a transaction
+     * its id when it first needs one.
+     */
+    public function nextPosition(): CommitPosition
+    {
+        return new CommitPosition((string) $this->nextPosition++);
     }
 
     /**

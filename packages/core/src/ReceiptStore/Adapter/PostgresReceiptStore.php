@@ -6,7 +6,10 @@ namespace Cbox\Cms\Core\ReceiptStore\Adapter;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Clock;
+use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Consistency\DuplicateReceipt;
+use Cbox\Cms\Contracts\Consistency\ForeignPosition;
+use Cbox\Cms\Contracts\Consistency\InvalidReceipt;
 use Cbox\Cms\Contracts\Consistency\ProjectionState;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
 use Cbox\Cms\Contracts\Consistency\TransactionRequired;
@@ -34,8 +37,8 @@ use Illuminate\Database\QueryException;
  * the command transaction, so the receipt commits and rolls back with the changeset. It makes no
  * call outside Postgres.
  *
- * The rows live in `receipts`, one per changeset, and `receipt_projections`, one per changeset and
- * projection; see the migration for the partitions. They hold the facts of the changeset and no
+ * The rows live in `receipts`, one per changeset with its commit position, and
+ * `receipt_projections`, one per changeset and projection; see the migrations for the partitions. They hold the facts of the changeset and no
  * call's outcome or wait level: store() runs in the command transaction, before any wait.
  * markProjection() updates the one row of its projection, so workers that mark different
  * projections of a changeset never wait for each other, and the row lock orders workers that mark
@@ -80,6 +83,12 @@ use Illuminate\Database\QueryException;
  * live receipt lists the projection. Stickiness does not cover it, because a zero-row update marks
  * no record as modified. Inside a transaction Laravel reads the primary anyway.
  *
+ * The position. A receipt's position is the xid8 of the command transaction (CommitPosition), the
+ * value the changeset row and its events carry. The lock statement also reads
+ * pg_current_xact_id(), which gives the transaction its xid when it has none yet, and store()
+ * refuses a receipt with another position with ForeignPosition, before it looks or inserts, so
+ * nothing is stored. The position is stored as xid8 and read back as its decimal text.
+ *
  * A write at a date with no partition throws PartitionMissing.
  */
 #[Experimental]
@@ -91,10 +100,11 @@ final readonly class PostgresReceiptStore implements ReceiptStore
 
     /**
      * The transaction-scoped lock on a changeset's receipt, keyed by ReceiptLock, taken only when
-     * the transaction's isolation level is the first binding, READ COMMITTED. It returns the level;
-     * CASE evaluates the lock only in its branch, so at another level no lock is taken.
+     * the transaction's isolation level is the first binding, READ COMMITTED. It returns the level
+     * and the transaction's commit position, its xid8 as text; CASE evaluates the lock only in its
+     * branch, so at another level no lock is taken.
      */
-    public const string LOCK_CHANGESET = "select current_setting('transaction_isolation') as isolation, case when current_setting('transaction_isolation') = ? then pg_advisory_xact_lock(?) end as locked";
+    public const string LOCK_CHANGESET = "select current_setting('transaction_isolation') as isolation, pg_current_xact_id()::text as position, case when current_setting('transaction_isolation') = ? then pg_advisory_xact_lock(?) end as locked";
 
     /** The isolation level store() needs inside a transaction, as transaction_isolation names it. */
     public const string READ_COMMITTED = 'read committed';
@@ -106,8 +116,8 @@ final readonly class PostgresReceiptStore implements ReceiptStore
      */
     public const string INSERT_RECEIPT = <<<'SQL'
         with receipt as (
-            insert into "receipts" (changeset_id, retention_class)
-            values (?, ?)
+            insert into "receipts" (changeset_id, retention_class, position)
+            values (?, ?, ?::xid8)
             on conflict do nothing
             returning changeset_id, retention_class
         )%s
@@ -145,6 +155,8 @@ final readonly class PostgresReceiptStore implements ReceiptStore
      * @throws PartitionMissing when no partition covers the changeset's date
      * @throws UnsupportedIsolation when the caller's transaction is not at READ COMMITTED; no lock
      *                              is taken and nothing is stored
+     * @throws ForeignPosition when the receipt's position is not the transaction's; nothing is
+     *                         stored
      */
     public function store(StoredReceipt $receipt): void
     {
@@ -177,6 +189,12 @@ final readonly class PostgresReceiptStore implements ReceiptStore
                 throw UnsupportedIsolation::receiptStore(is_string($isolation) ? $isolation : 'unknown');
             }
 
+            $position = $this->transactionPosition($row);
+
+            if (! $receipt->position->equals($position)) {
+                throw ForeignPosition::forReceipt($changesetId, $receipt->position, $position);
+            }
+
             // A receipt of either class for the changeset, expired or not, holds the changeset.
             if ($db->table(self::RECEIPTS)->useWritePdo()->where('changeset_id', $id)->exists()) {
                 throw DuplicateReceipt::forChangeset($changesetId);
@@ -184,7 +202,7 @@ final readonly class PostgresReceiptStore implements ReceiptStore
 
             // One statement for the receipt and its projections, so they commit or fail together.
             // ON CONFLICT DO NOTHING: a duplicate is reported without aborting the caller's transaction.
-            $bindings = [$id, $receipt->retentionClass->value];
+            $bindings = [$id, $receipt->retentionClass->value, $receipt->position->value];
             $rows = [];
 
             foreach ($receipt->projections as $status) {
@@ -213,6 +231,7 @@ final readonly class PostgresReceiptStore implements ReceiptStore
         $receipt = $db->table(self::RECEIPTS)
             ->useWritePdo()
             ->select(['changeset_id', 'retention_class'])
+            ->selectRaw('position::text as position')
             ->where('changeset_id', $id)
             ->where($this->live())
             ->first();
@@ -268,6 +287,20 @@ final readonly class PostgresReceiptStore implements ReceiptStore
         $milliseconds = intdiv($microseconds, 1000) + ($microseconds % 1000 > 0 ? 1 : 0);
 
         return Uuid7::lowestAt(max(0, $milliseconds - RetentionClass::STANDARD_DAYS * self::MILLISECONDS_PER_DAY));
+    }
+
+    /**
+     * The commit position the lock statement read, pg_current_xact_id() of the transaction.
+     */
+    private function transactionPosition(mixed $row): CommitPosition
+    {
+        $position = is_object($row) && property_exists($row, 'position') ? $row->position : null;
+
+        try {
+            return new CommitPosition(is_string($position) ? $position : '');
+        } catch (InvalidReceipt $invalid) {
+            throw UnreadableReceiptRow::refused(self::RECEIPTS, $invalid);
+        }
     }
 
     /**

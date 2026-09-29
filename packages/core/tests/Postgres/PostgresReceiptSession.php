@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Postgres;
 
+use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Receipts\StoredReceipt;
 use Cbox\Cms\Contracts\ReceiptStore;
 use Cbox\Cms\Testkit\ReceiptStore\ReceiptStoreSession;
@@ -26,12 +27,32 @@ final readonly class PostgresReceiptSession implements ReceiptStoreSession
         return $this->store;
     }
 
-    /**
-     * Stores the receipts in one transaction on this connection and commits it.
-     */
-    public function storeCommitted(StoredReceipt ...$receipts): void
+    public function position(): CommitPosition
     {
-        ReceiptTables::commit($this->connection, $this->store, ...$receipts);
+        return ReceiptTables::position($this->connection);
+    }
+
+    /**
+     * Stores the receipt in the open transaction at its commit position, and returns the receipt
+     * as stored.
+     */
+    public function store(StoredReceipt $receipt): StoredReceipt
+    {
+        $positioned = ReceiptTables::at($this->connection, $receipt);
+        $this->store->store($positioned);
+
+        return $positioned;
+    }
+
+    /**
+     * Stores the receipts in one transaction on this connection and commits it, and returns them
+     * as stored.
+     *
+     * @return list<StoredReceipt>
+     */
+    public function storeCommitted(StoredReceipt ...$receipts): array
+    {
+        return ReceiptTables::commit($this->connection, $this->store, ...$receipts);
     }
 
     public function begin(): void

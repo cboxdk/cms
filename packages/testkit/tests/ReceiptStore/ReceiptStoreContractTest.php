@@ -90,7 +90,7 @@ it('passes the fake on every shared case', function (): void {
         $case->{$name}();
     }
 
-    expect($cases)->toHaveCount(18);
+    expect($cases)->toHaveCount(20);
 });
 
 it('fails a store that breaks the contract', function (Closure $harness, string $name): void {
@@ -116,4 +116,7 @@ it('fails a store that breaks the contract', function (Closure $harness, string 
     'a store that writes where no partition covers' => [brokenStores(Breach::CoversEveryDate), 'a_store_where_no_partition_covers_the_changeset_throws_partition_missing_and_keeps_nothing'],
     'a failed transaction that keeps its writes' => [brokenStores(Breach::IgnoresTransactions), 'a_store_where_no_partition_covers_the_changeset_throws_partition_missing_and_keeps_nothing'],
     'a failed transaction that takes further calls' => [brokenStores(Breach::KeepsFailedTransactions), 'a_store_where_no_partition_covers_the_changeset_throws_partition_missing_and_keeps_nothing'],
+    'a store that takes a receipt at another position' => [brokenStores(Breach::IgnoresPosition), 'a_receipt_with_another_position_than_its_transactions_is_refused_and_stores_nothing'],
+    'a store that loses the position' => [brokenStores(Breach::LosesPosition), 'a_receipt_keeps_the_commit_position_of_its_transaction'],
+    'transactions that share one position' => [brokenStores(Breach::ReusesPosition), 'a_receipt_keeps_the_commit_position_of_its_transaction'],
 ]);

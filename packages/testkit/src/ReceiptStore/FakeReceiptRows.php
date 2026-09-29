@@ -88,7 +88,7 @@ final class FakeReceiptRows
             return null;
         }
 
-        $rows[$changesetId->toString()] = new StoredReceipt($receipt->changesetId, $receipt->retentionClass, $projections);
+        $rows[$changesetId->toString()] = new StoredReceipt($receipt->changesetId, $receipt->retentionClass, $receipt->position, $projections);
 
         return $rows;
     }

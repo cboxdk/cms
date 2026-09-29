@@ -19,8 +19,9 @@ use Cbox\Cms\Contracts\Receipts\StoredReceipt;
  * A replay does not wait again. Commit was reached when the changeset committed, so a replay at
  * Commit is committed. A level past commit counts as reached only when every projection the
  * receipt lists has acknowledged; otherwise the replay is committed_wait_timeout, as a first call
- * would be whose wait ran out, and the client may replay again later. The position, read after the
- * first call's commit (PRD 8.5), is not stored, so a replay carries none.
+ * would be whose wait ran out, and the client may replay again later. The commit position is the
+ * stored one (PRD 8.4). The consistency token, read after the first call's commit (PRD 8.5), is not
+ * stored, so a replay carries none.
  */
 #[Internal]
 final readonly class ReplayReceipt
@@ -33,7 +34,7 @@ final readonly class ReplayReceipt
         );
 
         return $reached
-            ? Receipt::committed($stored->changesetId, $waitLevel, $stored->retentionClass, $stored->projections)
-            : Receipt::committedWaitTimeout($stored->changesetId, $waitLevel, $stored->retentionClass, $stored->projections);
+            ? Receipt::committed($stored->changesetId, $waitLevel, $stored->retentionClass, $stored->position, $stored->projections)
+            : Receipt::committedWaitTimeout($stored->changesetId, $waitLevel, $stored->retentionClass, $stored->position, $stored->projections);
     }
 }

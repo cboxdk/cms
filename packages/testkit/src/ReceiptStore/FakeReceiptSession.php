@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Cbox\Cms\Testkit\ReceiptStore;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\Consistency\CommitPosition;
+use Cbox\Cms\Contracts\Consistency\ForeignPosition;
 use Cbox\Cms\Contracts\Consistency\TransactionRequired;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
@@ -19,6 +21,9 @@ use LogicException;
  * a transaction its writes are kept as a list and replayed over the committed rows:
  * on every read by this session, and once more at commit, when the result replaces the committed
  * rows. A rollback drops the list.
+ *
+ * A transaction's commit position comes from the store the first time position() or store() asks
+ * for it, and store() refuses a receipt with another position with ForeignPosition.
  *
  * A write is checked when it is made, as a database checks a statement. A store first takes the
  * changeset's lock for the transaction, waiting for another open transaction that holds it (see
@@ -40,6 +45,9 @@ final class FakeReceiptSession implements ReceiptStore, ReceiptStoreSession
     /** Whether the open transaction met PartitionMissing and takes nothing but a rollback. */
     private bool $failed = false;
 
+    /** The commit position of the open transaction, once it has asked for one. */
+    private ?CommitPosition $position = null;
+
     public function __construct(private readonly FakeReceiptStore $database) {}
 
     public function receipts(): ReceiptStore
@@ -54,6 +62,7 @@ final class FakeReceiptSession implements ReceiptStore, ReceiptStoreSession
         }
 
         $this->writes = [];
+        $this->position = null;
     }
 
     public function commit(): void
@@ -61,6 +70,7 @@ final class FakeReceiptSession implements ReceiptStore, ReceiptStoreSession
         $writes = $this->writes ?? throw new LogicException('The session has no transaction to commit.');
         $this->refuseWhenFailed();
         $this->writes = null;
+        $this->position = null;
 
         try {
             $rows = $this->database->committedRows();
@@ -83,6 +93,7 @@ final class FakeReceiptSession implements ReceiptStore, ReceiptStoreSession
 
         $this->writes = null;
         $this->failed = false;
+        $this->position = null;
         $this->database->unlock($this);
     }
 
@@ -91,12 +102,30 @@ final class FakeReceiptSession implements ReceiptStore, ReceiptStoreSession
         return $this->writes !== null;
     }
 
+    /**
+     * @throws LogicException when no transaction is open
+     */
+    public function position(): CommitPosition
+    {
+        if ($this->writes === null) {
+            throw new LogicException('The session has no transaction open, so it has no commit position.');
+        }
+
+        return $this->position ??= $this->database->nextPosition();
+    }
+
     public function store(StoredReceipt $receipt): void
     {
         $this->refuseWhenFailed();
 
         if ($this->writes === null) {
             throw TransactionRequired::forStore();
+        }
+
+        $position = $this->position();
+
+        if (! $receipt->position->equals($position)) {
+            throw ForeignPosition::forReceipt($receipt->changesetId, $receipt->position, $position);
         }
 
         $this->database->lock($receipt->changesetId, $this);

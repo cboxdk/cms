@@ -103,7 +103,10 @@ it('keeps only the facts of the changeset in the receipt tables, never a call\'s
 
     // The store writes in the command transaction (PRD 6.2 phase 7), before any wait level past
     // commit is reached, so an outcome or a wait level stored there would be a guess.
-    expect($columns(PostgresReceiptStore::RECEIPTS))->toBe(['changeset_id', 'retention_class'])
+    // The commit position is a fact of the changeset: the xid8 of the command transaction, which
+    // no update changes (PRD 8.4).
+    expect($columns(PostgresReceiptStore::RECEIPTS))->toBe(['changeset_id', 'retention_class', 'position'])
+        ->and(ReceiptTables::texts(ReceiptTables::owner(), "select data_type || ' ' || is_nullable || ' ' || coalesce(column_default, 'none') as value from information_schema.columns where table_schema = current_schema() and table_name = 'receipts' and column_name = 'position'"))->toBe(['xid8 NO none'])
         ->and($columns(PostgresReceiptStore::PROJECTIONS))->toBe(['changeset_id', 'retention_class', 'projection', 'state', 'acknowledged_at'])
         ->and(ReceiptTables::owner()->scalar("select count(*) from pg_constraint where contype = 'c' and conrelid = 'receipts'::regclass"))->toBe(0);
 });
@@ -156,8 +159,7 @@ it('grants the app role only SELECT and INSERT on receipts, and SELECT, INSERT a
 it('refuses the app role an update of any projection column but state and acknowledged_at, through the table and through a partition', function (string $assignment): void {
     app(PartitionFixtures::class)->cover(new DateTimeImmutable('2026-01-01T00:00:00Z'), new DateTimeImmutable('2026-01-02T00:00:00Z'));
     $store = new PostgresReceiptStore(app('db'), new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z')));
-    $evidence = ReceiptTables::receipt('2026-01-01T00:00:00Z', RetentionClass::Evidence);
-    ReceiptTables::commit(DB::connection(), $store, $evidence);
+    [$evidence] = ReceiptTables::commit(DB::connection(), $store, ReceiptTables::receipt('2026-01-01T00:00:00Z', RetentionClass::Evidence));
 
     foreach (['receipt_projections', 'receipt_projections_evidence', 'receipt_projections_evidence_p202601'] as $relation) {
         $refused = null;
@@ -187,8 +189,7 @@ it('refuses the app role an update of any projection column but state and acknow
 it('refuses every update of an acknowledged projection row, for the app role and the owner, so an acknowledgement is final', function (string $connection, string $assignment): void {
     app(PartitionFixtures::class)->cover(new DateTimeImmutable('2026-01-01T00:00:00Z'), new DateTimeImmutable('2026-01-02T00:00:00Z'));
     $store = new PostgresReceiptStore(app('db'), new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z')));
-    $receipt = ReceiptTables::receipt('2026-01-01T00:00:00Z');
-    ReceiptTables::commit(DB::connection(), $store, $receipt);
+    [$receipt] = ReceiptTables::commit(DB::connection(), $store, ReceiptTables::receipt('2026-01-01T00:00:00Z'));
     $store->markProjection($receipt->changesetId, ProjectionStatus::acknowledged(new ProjectionName('edge'), new DateTimeImmutable('2026-01-01T00:00:02Z')));
 
     $refused = null;
@@ -231,8 +232,7 @@ it('drops the Standard receipt partitions a week after their day ends and keeps 
     app(PartitionFixtures::class)->cover(new DateTimeImmutable('2026-01-01T00:00:00Z'), new DateTimeImmutable('2026-01-02T00:00:00Z'));
     $clock = new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z'));
     $store = new PostgresReceiptStore(app('db'), $clock);
-    $evidence = ReceiptTables::receipt('2026-01-01T00:00:00Z', RetentionClass::Evidence);
-    ReceiptTables::commit(DB::connection(), $store, ReceiptTables::receipt('2026-01-01T00:00:00Z', sequence: 1), $evidence);
+    [, $evidence] = ReceiptTables::commit(DB::connection(), $store, ReceiptTables::receipt('2026-01-01T00:00:00Z', sequence: 1), ReceiptTables::receipt('2026-01-01T00:00:00Z', RetentionClass::Evidence));
 
     // 2026-01-01 ended at 2026-01-02; seven days later its Standard partitions go.
     app()->instance(Clock::class, $clock);

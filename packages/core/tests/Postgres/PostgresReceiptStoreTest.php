@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Postgres;
 
 use Cbox\Cms\Contracts\Clock;
+use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Consistency\DuplicateReceipt;
 use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Consistency\ProjectionState;
@@ -16,6 +17,7 @@ use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Receipts\StoredReceipt;
 use Cbox\Cms\Contracts\ReceiptStore;
 use Cbox\Cms\Contracts\Storage\PartitionMissing;
+use Cbox\Cms\Core\Consistency\Infrastructure\TransactionPosition;
 use Cbox\Cms\Core\Partitions\Boundary\SqlError;
 use Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore;
 use Cbox\Cms\Testkit\Clock\FakeClock;
@@ -162,7 +164,8 @@ function receiptChild(string $work, string $id, string $at, string $retention = 
             $context->signal($marked ? 'marked' : 'not-marked');
         } else {
             try {
-                $store->store(ReceiptTables::receipt('2026-01-01T00:00:00Z', RetentionClass::from($retention)));
+                $receipt = ReceiptTables::receipt('2026-01-01T00:00:00Z', RetentionClass::from($retention));
+                $store->store(new StoredReceipt($receipt->changesetId, $receipt->retentionClass, new TransactionPosition($resolver)->current(), $receipt->projections));
                 $context->signal('stored');
             } catch (DuplicateReceipt) {
                 $context->signal('duplicate');
@@ -193,7 +196,7 @@ it('commits a receipt together with the caller\'s own write in one transaction',
 
     $writer->begin();
     $writer->connection->table(ReceiptTables::CALLER_TABLE)->insert(['id' => 1, 'note' => 'changeset']);
-    $writer->receipts()->store($receipt);
+    $receipt = $writer->store($receipt);
 
     expect($reader->receipts()->find($changesetId))->toBeNull()
         ->and(ReceiptTables::callerRows())->toBe(0);
@@ -214,7 +217,7 @@ it('leaves neither the receipt, its projection rows nor the caller\'s write afte
 
     $session->begin();
     $session->connection->table(ReceiptTables::CALLER_TABLE)->insert(['id' => 1, 'note' => 'changeset']);
-    $session->receipts()->store($receipt);
+    $session->store($receipt);
     $session->receipts()->markProjection($changesetId, ProjectionStatus::acknowledged(new ProjectionName('edge'), $clock->now()));
     $session->rollBack();
 
@@ -235,13 +238,15 @@ it('makes no call outside Postgres inside the transaction: no queue job, no HTTP
     $receipt = ReceiptTables::receipt('2026-01-01T00:00:00Z');
     $changesetId = $receipt->changesetId;
 
+    $session->begin();
+    $receipt = ReceiptTables::at($session->connection, $receipt);
+
     /** @var list<string> $statements */
     $statements = [];
     $session->connection->listen(static function (QueryExecuted $query) use (&$statements): void {
         $statements[] = $query->sql;
     });
 
-    $session->begin();
     $session->receipts()->store($receipt);
     $session->receipts()->markProjection($changesetId, ProjectionStatus::acknowledged(new ProjectionName('search'), $clock->now()));
     $session->receipts()->find($changesetId);
@@ -253,11 +258,11 @@ it('makes no call outside Postgres inside the transaction: no queue job, no HTTP
         ->and($valkeyKeys)->toBe([])
         ->and($statements)->not->toBeEmpty();
 
-    // The only Postgres functions the store calls: the transaction-scoped lock on the changeset,
-    // taken at READ COMMITTED, once per store(). Every other statement reads or writes the receipt
-    // tables only; the insert of a receipt and its projections is one statement that starts with
-    // its CTEs.
-    $lock = "select current_setting('transaction_isolation') as isolation, case when current_setting('transaction_isolation') = ? then pg_advisory_xact_lock(?) end as locked";
+    // The only Postgres functions the store calls: the transaction's commit position and the
+    // transaction-scoped lock on the changeset, taken at READ COMMITTED, once per store(). Every
+    // other statement reads or writes the receipt tables only; the insert of a receipt and its
+    // projections is one statement that starts with its CTEs.
+    $lock = "select current_setting('transaction_isolation') as isolation, pg_current_xact_id()::text as position, case when current_setting('transaction_isolation') = ? then pg_advisory_xact_lock(?) end as locked";
     $locks = array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, 'pg_') || str_contains($sql, 'current_setting')));
 
     expect($locks)->toBe([$lock])
@@ -284,7 +289,7 @@ it('lets two workers mark different projections of one changeset at the same tim
     $harness = PostgresReceiptSessions::at($clock);
     $receipt = ReceiptTables::receipt('2026-01-01T00:00:00Z');
     $changesetId = $receipt->changesetId;
-    $harness->session()->storeCommitted($receipt);
+    [$receipt] = $harness->session()->storeCommitted($receipt);
 
     $a = $harness->session();
     $b = $harness->session();
@@ -317,7 +322,7 @@ it('makes a second worker on the same projection wait for the first, and keeps t
     $harness = PostgresReceiptSessions::at($clock);
     $receipt = ReceiptTables::receipt('2026-01-01T00:00:00Z');
     $changesetId = $receipt->changesetId;
-    $harness->session()->storeCommitted($receipt);
+    [$receipt] = $harness->session()->storeCommitted($receipt);
 
     $first = ProjectionStatus::acknowledged(new ProjectionName('edge'), $clock->now());
     $a = $harness->session();
@@ -344,7 +349,7 @@ it('gives one receipt and one DuplicateReceipt for two concurrent stores, withou
 
     $a = $harness->session();
     $a->begin();
-    $a->receipts()->store($receipt);
+    $receipt = $a->store($receipt);
 
     // The child waits for A's lock on the changeset, and its lookup, a new statement, sees A's row
     // once A commits.
@@ -367,7 +372,7 @@ it('gives one receipt and one DuplicateReceipt for two concurrent stores of one 
 
     $a = $harness->session();
     $a->begin();
-    $a->receipts()->store($receipt);
+    $receipt = $a->store($receipt);
 
     // The primary key holds the retention class, so no key conflict makes the child wait: only
     // the store's lock on the changeset does. Without it, the child's lookup misses A's
@@ -395,7 +400,7 @@ it('refuses a store inside a transaction above READ COMMITTED, so a store waitin
 
     $holder = $harness->session();
     $holder->begin();
-    $holder->receipts()->store($receipt);
+    $receipt = $holder->store($receipt);
 
     // The child's snapshot is taken by its first statement, at the latest the lock statement,
     // before it waits for the holder. A lookup on that snapshot misses the holder's receipt once it
@@ -427,7 +432,7 @@ it('throws UnsupportedIsolation above READ COMMITTED before it takes the lock, a
     $session->connection->statement("set transaction isolation level {$isolation}");
 
     try {
-        $session->receipts()->store($receipt);
+        $session->store($receipt);
         throw new AssertionFailedError('A store ran outside READ COMMITTED.');
     } catch (UnsupportedIsolation $unsupported) {
         expect($unsupported->getMessage())->toContain(strtoupper($isolation));
@@ -473,7 +478,7 @@ it('refuses a store outside a transaction before its first statement, so no lock
     // Nothing holds the changeset: a store in another connection's transaction does not wait.
     $writer = $harness->session();
     $writer->connection->statement("set lock_timeout = '1s'");
-    $writer->storeCommitted($receipt);
+    [$receipt] = $writer->storeCommitted($receipt);
 
     expect($writer->receipts()->find($changesetId))->toEqual($receipt)
         ->and(advisoryLocksInDatabase())->toBe(0);
@@ -484,6 +489,9 @@ it('holds the lock on the changeset only in the caller\'s transaction, also when
     $session = PostgresReceiptSessions::at($clock)->session();
     $receipt = ReceiptTables::receipt('2026-01-01T00:00:00Z');
 
+    $session->begin();
+    $receipt = ReceiptTables::at($session->connection, $receipt);
+
     /** @var list<string> $statements */
     $statements = [];
     $session->connection->listen(static function (QueryExecuted $query) use (&$statements): void {
@@ -492,7 +500,6 @@ it('holds the lock on the changeset only in the caller\'s transaction, also when
 
     // The lock, the lookup of a receipt of either class, and one insert of the receipt and its
     // projections.
-    $session->begin();
     $session->receipts()->store($receipt);
 
     expect($statements)->toHaveCount(3)
@@ -510,7 +517,7 @@ it('holds the lock on the changeset only in the caller\'s transaction, also when
 
     $session->begin();
 
-    expect(fn () => $session->receipts()->store(ReceiptTables::receipt('2040-06-01T00:00:00Z')))->toThrow(PartitionMissing::class);
+    expect(fn (): StoredReceipt => $session->store(ReceiptTables::receipt('2040-06-01T00:00:00Z')))->toThrow(PartitionMissing::class);
 
     $session->rollBack();
 
@@ -525,7 +532,7 @@ it('reports a duplicate inside the caller\'s transaction and leaves the transact
     $changesetId = $receipt->changesetId;
 
     $session->begin();
-    $session->receipts()->store($receipt);
+    $receipt = $session->store($receipt);
 
     expect(static fn () => $session->receipts()->store($receipt))->toThrow(DuplicateReceipt::class);
 
@@ -543,7 +550,7 @@ it('scans at most one standard and one evidence leaf partition to find a receipt
 
     $standard = ReceiptTables::receipt('2026-03-05T08:00:00Z');
     $evidence = ReceiptTables::receipt('2026-02-27T08:00:00Z', RetentionClass::Evidence);
-    $session->storeCommitted($standard, $evidence);
+    [$standard, $evidence] = $session->storeCommitted($standard, $evidence);
 
     /** @var list<array{sql: string, bindings: list<mixed>}> $queries */
     $queries = [];
@@ -579,7 +586,7 @@ it('throws PartitionMissing for a changeset at a date without a partition', func
     $session->begin();
 
     try {
-        $session->receipts()->store($receipt);
+        $session->store($receipt);
         throw new AssertionFailedError('The store wrote a receipt with no partition for its date.');
     } catch (PartitionMissing $missing) {
         expect($missing->getMessage())->toContain('receipts_standard')
@@ -594,7 +601,7 @@ it('expires a standard receipt one microsecond after its expiry instant', functi
     $session = PostgresReceiptSessions::at($clock)->session();
     $receipt = ReceiptTables::receipt('2026-01-01T00:00:00.250Z');
     $changesetId = $receipt->changesetId;
-    $session->storeCommitted($receipt);
+    [$receipt] = $session->storeCommitted($receipt);
 
     $clock->set(new DateTimeImmutable('2026-01-08T00:00:00.250000Z'));
     expect($session->receipts()->find($changesetId))->toEqual($receipt)
@@ -609,8 +616,9 @@ it('writes one row per projection and none for a receipt without projections', f
     $clock = new FakeClock(new DateTimeImmutable('2026-01-01T00:00:01Z'));
     $session = PostgresReceiptSessions::at($clock)->session();
     $with = ReceiptTables::receipt('2026-01-01T00:00:00Z');
-    $without = new StoredReceipt(ReceiptTables::receipt('2026-01-01T00:00:00Z', sequence: 1)->changesetId, RetentionClass::Standard);
-    $session->storeCommitted($with, $without);
+    $template = ReceiptTables::receipt('2026-01-01T00:00:00Z', sequence: 1);
+    $without = new StoredReceipt($template->changesetId, RetentionClass::Standard, $template->position);
+    [$with, $without] = $session->storeCommitted($with, $without);
 
     $states = ReceiptTables::owner()->table(PostgresReceiptStore::PROJECTIONS)
         ->where('changeset_id', $with->changesetId->toString())
@@ -630,7 +638,7 @@ it('is the ReceiptStore the container resolves, on the default connection and th
     $receipt = ReceiptTables::receipt('2026-01-01T00:00:00Z');
 
     $store = app(ReceiptStore::class);
-    ReceiptTables::commit(DB::connection(), $store, $receipt);
+    [$receipt] = ReceiptTables::commit(DB::connection(), $store, $receipt);
 
     expect($store)->toBeInstanceOf(PostgresReceiptStore::class)
         ->and(app(ReceiptStore::class))->toBe($store)
@@ -654,6 +662,7 @@ it('gives the app role no DELETE, TRUNCATE or UPDATE of a receipt, not even on a
 })->with([
     'delete a receipt' => ['delete from receipts'],
     'update a receipt' => ["update receipts set retention_class = 'standard'"],
+    'update a receipt\'s position' => ['update receipts set position = position'],
     'truncate receipts' => ['truncate receipts'],
     'delete a projection row' => ['delete from receipt_projections'],
     'truncate projection rows' => ['truncate receipt_projections'],
@@ -669,7 +678,7 @@ it('lets the app role read and write what the store needs, through the parents',
     $store = new PostgresReceiptStore(app('db'), $clock);
     $receipt = ReceiptTables::receipt('2026-01-01T00:00:00Z', RetentionClass::Evidence);
 
-    ReceiptTables::commit(DB::connection(), $store, $receipt);
+    [$receipt] = ReceiptTables::commit(DB::connection(), $store, $receipt);
 
     expect($store->markProjection($receipt->changesetId, ProjectionStatus::acknowledged(new ProjectionName('edge'), $clock->now())))->toBeTrue()
         ->and($store->find($receipt->changesetId)?->projections[0]->state)->toBe(ProjectionState::Acknowledged)
@@ -702,7 +711,7 @@ it('reads the primary and not a lagging read replica in find() and markProjectio
     [$store, $replica] = receiptStoreBehindLaggingReplica($clock);
     $receipt = ReceiptTables::receipt('2026-01-01T00:00:00Z');
     $changesetId = $receipt->changesetId;
-    $harness->session()->storeCommitted($receipt);
+    [$receipt] = $harness->session()->storeCommitted($receipt);
     $edge = ProjectionStatus::acknowledged(new ProjectionName('edge'), $clock->now());
 
     // The replica has not replayed the receipt; the primary has it.
@@ -723,12 +732,12 @@ it('reads the primary and not a lagging read replica when store() looks for a re
     $harness = PostgresReceiptSessions::at($clock);
     [$store, $replica, $primary] = receiptStoreBehindLaggingReplica($clock);
     $standard = ReceiptTables::receipt('2026-01-01T00:00:00Z');
-    $harness->session()->storeCommitted($standard);
+    [$standard] = $harness->session()->storeCommitted($standard);
 
     $primary->beginTransaction();
 
     expect($replica->table(PostgresReceiptStore::RECEIPTS)->where('changeset_id', $standard->changesetId->toString())->exists())->toBeFalse()
-        ->and(fn () => $store->store(ReceiptTables::receipt('2026-01-01T00:00:00Z', RetentionClass::Evidence)))->toThrow(DuplicateReceipt::class);
+        ->and(fn () => $store->store(ReceiptTables::at($primary, ReceiptTables::receipt('2026-01-01T00:00:00Z', RetentionClass::Evidence))))->toThrow(DuplicateReceipt::class);
 
     $primary->rollBack();
 
@@ -745,11 +754,11 @@ it('stores nothing of a receipt whose projections have no partition, and stores 
     $owner->statement('reset lock_timeout');
 
     $changesetId = ReceiptTables::receipt('2031-07-01T00:00:00Z')->changesetId;
-    $receipt = new StoredReceipt($changesetId, RetentionClass::Standard, [ProjectionStatus::pending(new ProjectionName('edge'))]);
+    $receipt = new StoredReceipt($changesetId, RetentionClass::Standard, new CommitPosition('0'), [ProjectionStatus::pending(new ProjectionName('edge'))]);
 
     $session->begin();
 
-    expect(fn () => $session->receipts()->store($receipt))->toThrow(PartitionMissing::class, 'receipt_projections_standard');
+    expect(fn (): StoredReceipt => $session->store($receipt))->toThrow(PartitionMissing::class, 'receipt_projections_standard');
 
     $session->rollBack();
 
@@ -760,7 +769,7 @@ it('stores nothing of a receipt whose projections have no partition, and stores 
 
     // Once the partition exists, the retry stores the whole receipt: nothing of the failed store holds the changeset.
     app(PartitionFixtures::class)->cover($clock->now(), $clock->now());
-    $session->storeCommitted($receipt);
+    [$receipt] = $session->storeCommitted($receipt);
 
     expect($session->receipts()->find($changesetId))->toEqual($receipt)
         ->and(ReceiptTables::rows(PostgresReceiptStore::PROJECTIONS, $changesetId))->toBe(1);

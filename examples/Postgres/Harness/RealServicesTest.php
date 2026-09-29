@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Consistency\RetentionClass;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\StoredReceipt;
 use Cbox\Cms\Contracts\ReceiptStore;
+use Cbox\Cms\Core\Consistency\Infrastructure\TransactionPosition;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
 use Cbox\Cms\Testkit\Postgres\IndependentConnections;
@@ -41,9 +42,11 @@ final class RealServicesTest extends AddonTestCase
         self::assertSame(0, DB::transactionLevel());
         self::assertSame(0, DB::table('receipts')->count());
 
-        // The receipt store writes only in the caller's transaction, as the command kernel's is.
+        // The receipt store writes only in the caller's transaction, as the command kernel's is,
+        // with that transaction's commit position.
         DB::transaction(static function () use ($changesetId): void {
-            app(ReceiptStore::class)->store(new StoredReceipt($changesetId, RetentionClass::Standard));
+            $position = app(TransactionPosition::class)->current();
+            app(ReceiptStore::class)->store(new StoredReceipt($changesetId, RetentionClass::Standard, $position));
         });
 
         [$other] = app(IndependentConnections::class)->open(1);

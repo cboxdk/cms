@@ -9,8 +9,8 @@ use DateTimeInterface;
 use InvalidArgumentException;
 
 /**
- * A receipt, a projection status, a projection name or a consistency token that breaks its
- * invariants.
+ * A receipt, a projection status, a projection name, a commit position or a consistency token
+ * that breaks its invariants.
  */
 #[Experimental]
 final class InvalidReceipt extends InvalidArgumentException
@@ -80,6 +80,31 @@ final class InvalidReceipt extends InvalidArgumentException
         return new self(sprintf(
             'A %s receipt has no position: the command committed nothing.',
             $outcome->value,
+        ));
+    }
+
+    public static function missingPosition(Outcome $outcome): self
+    {
+        return new self(sprintf(
+            'A %s receipt needs the commit position of its changeset.',
+            $outcome->value,
+        ));
+    }
+
+    public static function unexpectedConsistencyToken(Outcome $outcome): self
+    {
+        return new self(sprintf(
+            'A %s receipt has no consistency token: the command committed nothing.',
+            $outcome->value,
+        ));
+    }
+
+    public static function commitPosition(string $value): self
+    {
+        return new self(sprintf(
+            'A commit position is a Postgres xid8 in decimal without leading zeros, 0 to %s, for example "4827", got "%s".',
+            CommitPosition::MAX,
+            self::shown($value),
         ));
     }
 

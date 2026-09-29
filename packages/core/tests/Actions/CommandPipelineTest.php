@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Actions;
 
+use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Consistency\Outcome;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
 use Cbox\Cms\Contracts\Consistency\WaitLevel;
@@ -130,7 +131,7 @@ it('revises a stored entry at the versions it read', function (): void {
 
 it('gives the committer\'s receipt at the wait level the envelope asks for', function (): void {
     $world = new PipelineWorld;
-    $receipt = Receipt::committedWaitTimeout(ChangesetId::fromString('01936f5e-8a2b-7c3d-9e4f-0000000000c6'), WaitLevel::Edge, RetentionClass::Evidence);
+    $receipt = Receipt::committedWaitTimeout(ChangesetId::fromString('01936f5e-8a2b-7c3d-9e4f-0000000000c6'), WaitLevel::Edge, RetentionClass::Evidence, new CommitPosition('4827'));
     $world->commitWith(new Committed($receipt));
 
     expect($world->run($world->command())->receipt)->toBe($receipt);

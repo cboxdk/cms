@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Postgres;
 
+use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
 use Cbox\Cms\Contracts\Consistency\WaitLevel;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
@@ -85,7 +86,7 @@ final class ConnectionCommandTransactionTest extends TestCase
         $connection = app(DatabaseManager::class)->connection();
         $changeset = new ChangesetId(new FakeIdGenerator(clock: $this->fakeClock())->next());
 
-        app(CommandTransaction::class)->run(static fn (): WriteResult => WriteResult::committed(Receipt::committed($changeset, WaitLevel::Commit, RetentionClass::Standard)));
+        app(CommandTransaction::class)->run(static fn (): WriteResult => WriteResult::committed(Receipt::committed($changeset, WaitLevel::Commit, RetentionClass::Standard, new CommitPosition('4827'))));
 
         $this->assertSame(0, $connection->transactionLevel());
     }
@@ -104,7 +105,7 @@ final class ConnectionCommandTransactionTest extends TestCase
                 $this->assertInstanceOf(Fresh::class, $claim);
                 $this->store()->complete($claim->token, $changeset);
 
-                return WriteResult::committed(Receipt::committed($changeset, WaitLevel::Commit, RetentionClass::Standard));
+                return WriteResult::committed(Receipt::committed($changeset, WaitLevel::Commit, RetentionClass::Standard, new CommitPosition('4827')));
             });
         } catch (RuntimeException $exception) {
             $thrown = $exception;

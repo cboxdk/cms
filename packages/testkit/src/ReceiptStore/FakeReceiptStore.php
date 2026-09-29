@@ -7,6 +7,7 @@ namespace Cbox\Cms\Testkit\ReceiptStore;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Clock;
+use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Consistency\TransactionRequired;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
@@ -41,6 +42,11 @@ use LogicException;
  * or rolling back, that a waiting store runs, in order, until the changeset is free. A store that
  * would wait with no event left throws a LogicException: on Postgres it would wait for ever.
  *
+ * Each transaction of a session gets a commit position when it first needs one, from position() or
+ * store(), as Postgres gives a transaction its xid when it first asks for one: positions count up
+ * from FIRST_POSITION, so a transaction that starts after another has committed gets a higher one.
+ * store() refuses a receipt whose position is not its transaction's with ForeignPosition.
+ *
  * Expiry reads the clock, so a test moves a FakeClock past RetentionClass::expiresAt() to expire a
  * Standard receipt.
  *
@@ -54,6 +60,12 @@ final class FakeReceiptStore implements ReceiptStore, ReceiptStoreHarness
 {
     /** The table PartitionMissing names. */
     public const string TABLE = 'receipts';
+
+    /** The first commit position a transaction gets, Postgres' first normal transaction id. */
+    public const int FIRST_POSITION = 3;
+
+    /** The commit position the next transaction that asks for one gets. */
+    private int $nextPosition = self::FIRST_POSITION;
 
     /** @var array<string, StoredReceipt> committed receipts by changeset id */
     private array $rows = [];
@@ -192,6 +204,16 @@ final class FakeReceiptStore implements ReceiptStore, ReceiptStoreHarness
     public function assertCovered(StoredReceipt $receipt): void
     {
         UncoveredRange::check($this->uncovered, self::TABLE, UncoveredRange::timeOf($receipt->changesetId->unixMilliseconds()));
+    }
+
+    /**
+     * A new commit position, higher than every one given before, for a transaction that asks for
+     * its first.
+     */
+    #[Internal]
+    public function nextPosition(): CommitPosition
+    {
+        return new CommitPosition((string) $this->nextPosition++);
     }
 
     #[Internal]

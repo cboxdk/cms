@@ -16,6 +16,10 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\PendingChangeset;
  * aggregate the pending changeset read is still at the version it was read at, or still absent
  * (invariant 11); otherwise it writes nothing and answers with the stale reads. Only the kernel
  * commits.
+ *
+ * The receipt it stores carries the transaction's commit position, pg_current_xact_id(), the xid8
+ * the changeset row and the events carry (CommitPosition, PRD 8.4), and exactly the pending
+ * projections AffectedProjections gives for the changeset's events.
  */
 #[Internal]
 interface ChangesetCommitter

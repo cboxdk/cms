@@ -6,6 +6,7 @@ namespace Examples\Contract\ReceiptStore;
 
 use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\Consistency\DuplicateReceipt;
+use Cbox\Cms\Contracts\Consistency\ForeignPosition;
 use Cbox\Cms\Contracts\Consistency\ProjectionState;
 use Cbox\Cms\Contracts\Consistency\TransactionRequired;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
@@ -17,7 +18,7 @@ use DateTimeImmutable;
 /**
  * A replacement receipt store, kept in PHP arrays so that the example needs no services. It runs
  * on the caller's connection, an ArrayReceiptSession, and never begins or ends a transaction. A
- * receipt is stored only inside the caller's transaction.
+ * receipt is stored only inside the caller's transaction, at that transaction's commit position.
  */
 final readonly class ArrayReceiptStore implements ReceiptStore
 {
@@ -30,6 +31,12 @@ final readonly class ArrayReceiptStore implements ReceiptStore
     {
         if (! $this->connection->inTransaction()) {
             throw TransactionRequired::forStore();
+        }
+
+        $position = $this->connection->position();
+
+        if (! $receipt->position->equals($position)) {
+            throw ForeignPosition::forReceipt($receipt->changesetId, $receipt->position, $position);
         }
 
         // An expired receipt still holds its changeset until its partition is dropped.
@@ -101,6 +108,6 @@ final readonly class ArrayReceiptStore implements ReceiptStore
             $projections[] = $current;
         }
 
-        return $listed ? new StoredReceipt($receipt->changesetId, $receipt->retentionClass, $projections) : null;
+        return $listed ? new StoredReceipt($receipt->changesetId, $receipt->retentionClass, $receipt->position, $projections) : null;
     }
 }

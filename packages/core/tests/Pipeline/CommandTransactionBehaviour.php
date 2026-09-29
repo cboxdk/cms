@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Pipeline;
 
 use Cbox\Cms\Contracts\Clock;
+use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
 use Cbox\Cms\Contracts\Consistency\WaitLevel;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
@@ -190,7 +191,7 @@ trait CommandTransactionBehaviour
 
     private function committed(ChangesetId $changeset): WriteResult
     {
-        return WriteResult::committed(Receipt::committed($changeset, WaitLevel::Commit, RetentionClass::Standard));
+        return WriteResult::committed(Receipt::committed($changeset, WaitLevel::Commit, RetentionClass::Standard, new CommitPosition('4827')));
     }
 
     private function rejected(): WriteResult

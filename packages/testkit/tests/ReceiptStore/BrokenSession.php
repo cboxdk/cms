@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Testkit\Tests\ReceiptStore;
 
+use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Consistency\DuplicateReceipt;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
@@ -27,6 +28,9 @@ final class BrokenSession implements ReceiptStore, ReceiptStoreSession
     /** The DuplicateReceipt that store() held back for commit(), for Breach::RefusesDuplicateAtCommit. */
     private ?DuplicateReceipt $heldBack = null;
 
+    /** The position of a transaction the inner session does not have, for Breach::IgnoresTransactions. */
+    private ?CommitPosition $position = null;
+
     public function __construct(
         private readonly FakeReceiptSession $inner,
         private readonly FakeReceiptStore $database,
@@ -41,6 +45,7 @@ final class BrokenSession implements ReceiptStore, ReceiptStoreSession
 
     public function begin(): void
     {
+        $this->position = null;
         $this->breach === Breach::IgnoresTransactions ? $this->open = true : $this->inner->begin();
     }
 
@@ -69,10 +74,24 @@ final class BrokenSession implements ReceiptStore, ReceiptStoreSession
         return $this->breach === Breach::IgnoresTransactions ? $this->open : $this->inner->inTransaction();
     }
 
+    public function position(): CommitPosition
+    {
+        if ($this->breach === Breach::ReusesPosition) {
+            return new CommitPosition((string) FakeReceiptStore::FIRST_POSITION);
+        }
+
+        return $this->inner->inTransaction() ? $this->inner->position() : $this->position ??= $this->database->nextPosition();
+    }
+
     public function store(StoredReceipt $receipt): void
     {
+        if (in_array($this->breach, [Breach::IgnoresPosition, Breach::ReusesPosition], true) && $this->inner->inTransaction()) {
+            $receipt = $this->atInnerPosition($receipt);
+        }
+
         if ($this->breach === Breach::BeginsTransaction && ! $this->inner->inTransaction()) {
             $this->inner->begin();
+            $receipt = $this->atInnerPosition($receipt);
         }
 
         // Without a transaction of the inner session, these breaches store and commit at once.
@@ -80,7 +99,7 @@ final class BrokenSession implements ReceiptStore, ReceiptStoreSession
             $this->inner->begin();
 
             try {
-                $this->storeInner($receipt);
+                $this->storeInner($this->atInnerPosition($receipt));
             } catch (Throwable $failed) {
                 $this->inner->rollBack();
 
@@ -111,6 +130,10 @@ final class BrokenSession implements ReceiptStore, ReceiptStoreSession
             return null;
         }
 
+        if ($this->breach === Breach::LosesPosition && $receipt instanceof StoredReceipt) {
+            return new StoredReceipt($receipt->changesetId, $receipt->retentionClass, new CommitPosition('0'), $receipt->projections);
+        }
+
         if ($this->breach === Breach::FreezesStoredReceipt && $receipt instanceof StoredReceipt) {
             return $this->snapshots->receipts[$changesetId->toString()] ?? $receipt;
         }
@@ -136,13 +159,18 @@ final class BrokenSession implements ReceiptStore, ReceiptStoreSession
                 $receipt->projections,
             );
             $rows = $this->database->committedRows();
-            $rows[$changesetId->toString()] = new StoredReceipt($receipt->changesetId, $receipt->retentionClass, $projections);
+            $rows[$changesetId->toString()] = new StoredReceipt($receipt->changesetId, $receipt->retentionClass, $receipt->position, $projections);
             $this->database->commitRows($rows);
 
             return true;
         }
 
         return $this->inner->markProjection($changesetId, $status);
+    }
+
+    private function atInnerPosition(StoredReceipt $receipt): StoredReceipt
+    {
+        return new StoredReceipt($receipt->changesetId, $receipt->retentionClass, $this->inner->position(), $receipt->projections);
     }
 
     private function storeInner(StoredReceipt $receipt): void

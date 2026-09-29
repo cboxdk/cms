@@ -102,7 +102,8 @@ it('runs a command for a fresh key, replays it for the same content and refuses 
     $claim = $idempotency->claim($scope, $key, $hash, WaitBudget::milliseconds(2000));
     expect($claim)->toBeInstanceOf(Fresh::class);
     $changesetId = new ChangesetId($ids->next());
-    $receipts->store(new StoredReceipt($changesetId, RetentionClass::Standard));
+    $stored = new StoredReceipt($changesetId, RetentionClass::Standard, $receipts->position());
+    $receipts->store($stored);
     $idempotency->complete($claim instanceof Fresh ? $claim->token : throw new LogicException('The first call is not fresh.'), $changesetId);
     $receipts->commit();
     $idempotency->commit();
@@ -113,7 +114,7 @@ it('runs a command for a fresh key, replays it for the same content and refuses 
     $replay = $idempotency->claim($scope, $key, $hash, WaitBudget::milliseconds(2000));
     expect($replay)->toEqual(new Replay($changesetId))
         ->and($receipts->find($replay instanceof Replay ? $replay->changesetId : throw new LogicException('The retry is not a replay.')))
-        ->toEqual(new StoredReceipt($changesetId, RetentionClass::Standard));
+        ->toEqual($stored);
     $idempotency->rollBack();
 
     // The same key with other content: Conflict, which the command reports as idempotency_conflict.
@@ -139,7 +140,7 @@ it('leaves the key fresh when the command transaction rolls back', function (): 
     $receipts->begin();
     $claim = $idempotency->claim($scope, $key, $hash, WaitBudget::milliseconds(2000));
     $changesetId = new ChangesetId($ids->next());
-    $receipts->store(new StoredReceipt($changesetId, RetentionClass::Standard));
+    $receipts->store(new StoredReceipt($changesetId, RetentionClass::Standard, $receipts->position()));
     $idempotency->complete($claim instanceof Fresh ? $claim->token : throw new LogicException('The first call is not fresh.'), $changesetId);
     $receipts->rollBack();
     $idempotency->rollBack();
@@ -166,7 +167,8 @@ it('lets a retry wait for the call in flight within its wait budget, and then re
     $firstReceipts->begin();
     $claim = $first->claim($scope, $key, $hash, WaitBudget::milliseconds(2000));
     $changesetId = new ChangesetId($ids->next());
-    $firstReceipts->store(new StoredReceipt($changesetId, RetentionClass::Standard));
+    $stored = new StoredReceipt($changesetId, RetentionClass::Standard, $firstReceipts->position());
+    $firstReceipts->store($stored);
     $first->complete($claim instanceof Fresh ? $claim->token : throw new LogicException('The first call is not fresh.'), $changesetId);
 
     // A retry that may not wait is InFlight; it holds nothing, and its transaction stays usable.
@@ -182,7 +184,7 @@ it('lets a retry wait for the call in flight within its wait budget, and then re
     });
 
     expect($retry->claim($scope, $key, $hash, WaitBudget::milliseconds(2000)))->toEqual(new Replay($changesetId))
-        ->and($receipts->find($changesetId))->toEqual(new StoredReceipt($changesetId, RetentionClass::Standard));
+        ->and($receipts->find($changesetId))->toEqual($stored);
 });
 ```
 

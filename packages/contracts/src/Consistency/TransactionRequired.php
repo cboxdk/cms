@@ -9,8 +9,9 @@ use LogicException;
 
 /**
  * ReceiptStore::store() or the event log's writer was called without an open transaction on the
- * caller's connection. The receipt and the events are written in the command transaction (PRD 6.2
- * phase 7, 7.3), so this is a bug in the caller, not a result. Nothing was stored.
+ * caller's connection, or the commit position of a transaction was asked for without one. The
+ * receipt and the events are written in the command transaction (PRD 6.2 phase 7, 7.3), so this
+ * is a bug in the caller, not a result. Nothing was stored.
  */
 #[Experimental]
 final class TransactionRequired extends LogicException
@@ -19,6 +20,13 @@ final class TransactionRequired extends LogicException
     {
         return new self(
             'ReceiptStore::store() runs inside the caller\'s command transaction, and the connection has none open. The receipt commits and rolls back with its changeset, and the transaction holds the lock that keeps one receipt per changeset. Nothing was stored.',
+        );
+    }
+
+    public static function forPosition(): self
+    {
+        return new self(
+            'The commit position is the xid8 of the caller\'s command transaction, and the connection has none open. Outside a transaction the statement would get an xid that no changeset carries.',
         );
     }
 

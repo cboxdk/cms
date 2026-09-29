@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Contracts\Receipts;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Consistency\ConsistencyToken;
 use Cbox\Cms\Contracts\Consistency\InvalidReceipt;
 use Cbox\Cms\Contracts\Consistency\Outcome;
@@ -16,8 +17,9 @@ use Cbox\Cms\Contracts\Ids\ChangesetId;
  * The result of one call of a write (PRD 6.1, 8.4, GUARDRAILS 2.1): the outcome, the changeset,
  * its position, the wait level the caller asked for and the status of each affected projection.
  *
- * Committed and CommittedWaitTimeout receipts carry the ChangesetId. Rejected and DryRun receipts
- * committed nothing, so they have neither a ChangesetId nor projection statuses.
+ * Committed and CommittedWaitTimeout receipts carry the ChangesetId and its commit position.
+ * Rejected and DryRun receipts committed nothing, so they have no ChangesetId, position,
+ * consistency token or projection statuses.
  *
  * A Receipt is never stored. The outcome and the wait level belong to one call: the receipt store
  * is written in the command transaction (PRD 6.2 phase 7), before any wait level past commit can
@@ -28,10 +30,12 @@ use Cbox\Cms\Contracts\Ids\ChangesetId;
  * The projections are sorted by name, so two receipts with the same statuses are equal whatever
  * order they were given in. A projection appears at most once.
  *
- * The position is the changeset's consistency token (PRD 8.4, 8.5), which the write path reads
- * after the commit. A receipt that committed nothing has none, and a committed one may lack it
- * when the call did not read it. Its JSON form is receipt.v1.json, written and read only by the
- * generated codec, Cbox\Cms\Core\Codecs\Boundary\Generated\ReceiptCodecV1 (GUARDRAILS 2.2).
+ * The position is the changeset's commit position (PRD 8.4, 8.12), the xid8 of its transaction
+ * (see CommitPosition): a read whose snapshot xmin is above it saw the changeset. The consistency
+ * token (PRD 8.5) is the WAL position of the commit, which the write path reads after the commit
+ * and a client sends with a later read to a replica; a committed receipt may lack it when the call
+ * did not read it. Its JSON form is receipt.v1.json, written and read only by the generated codec,
+ * Cbox\Cms\Core\Codecs\Boundary\Generated\ReceiptCodecV1 (GUARDRAILS 2.2).
  */
 #[Experimental]
 final readonly class Receipt
@@ -48,7 +52,8 @@ final readonly class Receipt
         public WaitLevel $waitLevel,
         public RetentionClass $retentionClass,
         array $projections = [],
-        public ?ConsistencyToken $position = null,
+        public ?CommitPosition $position = null,
+        public ?ConsistencyToken $consistencyToken = null,
     ) {
         if ($outcome->isCommitted() && ! $changesetId instanceof ChangesetId) {
             throw InvalidReceipt::missingChangeset($outcome);
@@ -62,8 +67,16 @@ final readonly class Receipt
             throw InvalidReceipt::unexpectedProjections($outcome);
         }
 
-        if (! $outcome->isCommitted() && $position instanceof ConsistencyToken) {
+        if ($outcome->isCommitted() && ! $position instanceof CommitPosition) {
+            throw InvalidReceipt::missingPosition($outcome);
+        }
+
+        if (! $outcome->isCommitted() && $position instanceof CommitPosition) {
             throw InvalidReceipt::unexpectedPosition($outcome);
+        }
+
+        if (! $outcome->isCommitted() && $consistencyToken instanceof ConsistencyToken) {
+            throw InvalidReceipt::unexpectedConsistencyToken($outcome);
         }
 
         $this->projections = ProjectionStatus::listOf($projections);
@@ -76,10 +89,11 @@ final readonly class Receipt
         ChangesetId $changesetId,
         WaitLevel $waitLevel,
         RetentionClass $retentionClass,
+        CommitPosition $position,
         array $projections = [],
-        ?ConsistencyToken $position = null,
+        ?ConsistencyToken $consistencyToken = null,
     ): self {
-        return new self(Outcome::Committed, $changesetId, $waitLevel, $retentionClass, $projections, $position);
+        return new self(Outcome::Committed, $changesetId, $waitLevel, $retentionClass, $projections, $position, $consistencyToken);
     }
 
     /**
@@ -89,10 +103,11 @@ final readonly class Receipt
         ChangesetId $changesetId,
         WaitLevel $waitLevel,
         RetentionClass $retentionClass,
+        CommitPosition $position,
         array $projections = [],
-        ?ConsistencyToken $position = null,
+        ?ConsistencyToken $consistencyToken = null,
     ): self {
-        return new self(Outcome::CommittedWaitTimeout, $changesetId, $waitLevel, $retentionClass, $projections, $position);
+        return new self(Outcome::CommittedWaitTimeout, $changesetId, $waitLevel, $retentionClass, $projections, $position, $consistencyToken);
     }
 
     public static function rejected(WaitLevel $waitLevel, RetentionClass $retentionClass): self

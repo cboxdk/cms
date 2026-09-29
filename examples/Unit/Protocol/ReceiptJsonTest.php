@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Consistency\ConsistencyToken;
 use Cbox\Cms\Contracts\Consistency\LogSequenceNumber;
 use Cbox\Cms\Contracts\Consistency\Outcome;
@@ -16,13 +17,15 @@ use Cbox\Cms\Core\Codecs\Boundary\Generated\ReceiptCodecV1;
 use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
 
 // A surface answers a write with its receipt, written by the generated codec of receipt.v1.json:
-// the edge has not acknowledged yet, so the call waited for origin and got its position.
+// the edge has not acknowledged yet, so the call waited for origin and got the changeset's commit
+// position and the consistency token of its commit.
 
 it('answers a write with the receipt as canonical JSON', function (): void {
     $receipt = Receipt::committed(
         ChangesetId::fromString('0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a02'),
         WaitLevel::Origin,
         RetentionClass::Standard,
+        new CommitPosition('4827'),
         [
             ProjectionStatus::acknowledged(new ProjectionName('fragments'), new DateTimeImmutable('2026-03-10T12:00:00.125Z')),
             ProjectionStatus::pending(new ProjectionName('edge')),
@@ -31,8 +34,8 @@ it('answers a write with the receipt as canonical JSON', function (): void {
     );
 
     expect(new ReceiptCodecV1()->encode($receipt, ClassificationAccess::Public))->toBe(
-        '{"changeset_id":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a02","outcome":"committed",'
-        .'"position":{"generation":1,"lsn":"0/16B3748"},'
+        '{"changeset_id":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a02",'
+        .'"consistency_token":{"generation":1,"lsn":"0/16B3748"},"outcome":"committed","position":"4827",'
         .'"projections":[{"acknowledged_at":null,"projection":"edge","state":"pending"},'
         .'{"acknowledged_at":"2026-03-10T12:00:00.125000Z","projection":"fragments","state":"acknowledged"}],'
         .'"retention_class":"standard","wait_level":"origin"}',
@@ -42,14 +45,14 @@ it('answers a write with the receipt as canonical JSON', function (): void {
 it('reads a receipt a client kept, and refuses one that breaks the contract', function (): void {
     $codec = new ReceiptCodecV1;
     $receipt = $codec->decode(
-        '{"changeset_id":null,"outcome":"rejected","position":null,"projections":[],"retention_class":"standard","wait_level":"commit"}',
+        '{"changeset_id":null,"consistency_token":null,"outcome":"rejected","position":null,"projections":[],"retention_class":"standard","wait_level":"commit"}',
         ClassificationAccess::Public,
     );
 
     expect($receipt->outcome)->toBe(Outcome::Rejected)
         ->and($receipt->isCommitted())->toBeFalse()
         ->and(static fn (): Receipt => $codec->decode(
-            '{"changeset_id":null,"outcome":"committed","position":null,"projections":[],"retention_class":"standard","wait_level":"commit"}',
+            '{"changeset_id":null,"consistency_token":null,"outcome":"committed","position":"4827","projections":[],"retention_class":"standard","wait_level":"commit"}',
             ClassificationAccess::Public,
         ))->toThrow(DecodingFailed::class, '[json_invalid] breaks a rule of the contract: A committed receipt needs a ChangesetId: the command committed a changeset.');
 });

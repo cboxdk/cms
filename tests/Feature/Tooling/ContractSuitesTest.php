@@ -148,7 +148,7 @@ it('runs every shared ReceiptStore case once for the PostgresReceiptStore, in th
     sort($expected);
     sort($listed);
 
-    expect($cases)->toHaveCount(18)
+    expect($cases)->toHaveCount(20)
         ->and($listed)->toBe($expected);
 });
 

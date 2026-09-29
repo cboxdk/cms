@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\Codecs\Boundary\Generated;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Codecs\JsonCodec;
+use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Consistency\ConsistencyToken;
 use Cbox\Cms\Contracts\Consistency\LogSequenceNumber;
 use Cbox\Cms\Contracts\Consistency\Outcome;
@@ -71,8 +72,9 @@ final readonly class ReceiptCodecV1 implements JsonCodec
     {
         $json = new stdClass;
         $json->changeset_id = $object->changesetId instanceof ChangesetId ? $object->changesetId->toString() : null;
+        $json->consistency_token = $object->consistencyToken instanceof ConsistencyToken ? $this->encodeConsistencyToken($object->consistencyToken) : null;
         $json->outcome = $object->outcome->value;
-        $json->position = $object->position instanceof ConsistencyToken ? $this->encodeConsistencyToken($object->position) : null;
+        $json->position = $object->position instanceof CommitPosition ? $object->position->value : null;
         $json->projections = array_map($this->encodeProjectionStatus(...), $object->projections);
         $json->retention_class = $object->retentionClass->value;
         $json->wait_level = $object->waitLevel->value;
@@ -82,7 +84,7 @@ final readonly class ReceiptCodecV1 implements JsonCodec
 
     private function decodeReceipt(stdClass $value): Receipt
     {
-        $object = JsonValues::object($value, null, ['changeset_id', 'outcome', 'position', 'projections', 'retention_class', 'wait_level']);
+        $object = JsonValues::object($value, null, ['changeset_id', 'consistency_token', 'outcome', 'position', 'projections', 'retention_class', 'wait_level']);
 
         return JsonValues::build(null, fn (): Receipt => new Receipt(
             outcome: JsonValues::required($object, 'outcome', null, static fn (mixed $value, FieldPath $at): Outcome => JsonValues::enum($value, $at, Outcome::class)),
@@ -90,7 +92,8 @@ final readonly class ReceiptCodecV1 implements JsonCodec
             waitLevel: JsonValues::required($object, 'wait_level', null, static fn (mixed $value, FieldPath $at): WaitLevel => JsonValues::enum($value, $at, WaitLevel::class)),
             retentionClass: JsonValues::required($object, 'retention_class', null, static fn (mixed $value, FieldPath $at): RetentionClass => JsonValues::enum($value, $at, RetentionClass::class)),
             projections: JsonValues::required($object, 'projections', null, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeProjectionStatus(...))),
-            position: JsonValues::present($object, 'position', null, $this->decodeConsistencyToken(...)),
+            position: JsonValues::present($object, 'position', null, static fn (mixed $value, FieldPath $at): CommitPosition => JsonValues::value($value, $at, static fn (string $text): CommitPosition => new CommitPosition($text))),
+            consistencyToken: JsonValues::present($object, 'consistency_token', null, $this->decodeConsistencyToken(...)),
         ));
     }
 

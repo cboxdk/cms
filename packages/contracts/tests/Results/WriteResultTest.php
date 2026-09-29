@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Contracts\Tests\Results;
 
+use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Consistency\Outcome;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
 use Cbox\Cms\Contracts\Consistency\WaitLevel;
@@ -49,8 +50,8 @@ it('rejects with catalog errors and their field paths', function (): void {
 
 it('commits with the receipt and nothing else', function (): void {
     foreach ([
-        Receipt::committed(resultChangeset(), WaitLevel::Origin, RetentionClass::Standard),
-        Receipt::committedWaitTimeout(resultChangeset(), WaitLevel::Edge, RetentionClass::Evidence),
+        Receipt::committed(resultChangeset(), WaitLevel::Origin, RetentionClass::Standard, new CommitPosition('4827')),
+        Receipt::committedWaitTimeout(resultChangeset(), WaitLevel::Edge, RetentionClass::Evidence, new CommitPosition('4827')),
     ] as $receipt) {
         $result = WriteResult::committed($receipt);
 
@@ -71,7 +72,7 @@ it('returns the plan of a dry run with its blast radius and diff', function (): 
 });
 
 it('refuses parts that do not belong to the outcome', function (): void {
-    $committed = Receipt::committed(resultChangeset(), WaitLevel::Commit, RetentionClass::Standard);
+    $committed = Receipt::committed(resultChangeset(), WaitLevel::Commit, RetentionClass::Standard, new CommitPosition('4827'));
     $rejected = Receipt::rejected(WaitLevel::Commit, RetentionClass::Standard);
     $dryRun = Receipt::dryRun(WaitLevel::Commit, RetentionClass::Standard);
     $report = DryRunReport::of(Plan::empty(), new ReadVersions);
