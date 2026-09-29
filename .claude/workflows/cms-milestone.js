@@ -99,8 +99,9 @@ const VERIFY = {
     failures: { type: 'array', items: { type: 'string' } },
     checksRun: { type: 'array', items: { type: 'string' } },
     head: { type: 'string', description: 'full sha of the commit the checks ran on (git rev-parse HEAD)' },
+    finished: { type: 'boolean', description: 'false when composer check or an acceptance item had not finished when you had to report' },
   },
-  required: ['pass', 'failures', 'checksRun'],
+  required: ['pass', 'failures', 'checksRun', 'finished'],
 }
 const INTEGRATION = {
   type: 'object',
@@ -168,7 +169,8 @@ const PROGRESS_RESULT = {
   required: ['blockStatus'],
 }
 
-const VERIFY_RULES = `Run the real checks in the worktree, do not assume: "composer check" and the task's acceptance items. Report pass only if every gate is green and every acceptance item is met, and report the full sha of HEAD you checked in head (the working tree must be clean). Do not change any files.`
+const VERIFY_RULES = `Run the real checks in the worktree, do not assume: "composer check" and the task's acceptance items. Report pass only if every gate is green and every acceptance item is met, and report the full sha of HEAD you checked in head (the working tree must be clean). Do not change any files.
+"composer check" can take 30 minutes or more while other worktrees run their suites. Start it first, in the background, with its output in a file in your scratchpad (composer check -- --report=<scratchpad>/check.json > <scratchpad>/check.log 2>&1), check the acceptance items while it runs, and then wait for it with a polling loop until the report exists; never end your turn while it runs, and never report its result before it has finished. Report finished false only if you truly could not wait for it to end; a verdict that is not finished is retried and never counts as a failure of the task.`
 
 // ---------------------------------------------------------------- Plan
 phase('Plan')
@@ -295,7 +297,7 @@ ${list}
 4. In ${intWt}, record each task, as the tasks could not, in one commit per task on ${intBranch} with message "${BLOCK}-<id>: progress" (in Danish, as the files are): in CHECKS-LOG.md, under the heading "## ${BLOCK}" (add it at the end of the file when it is missing), one entry that starts "${BLOCK}-<id>:" and says "GUARDRAILS 7.3", naming every check the task's commits add, change or remove, with what changed and why; in PROGRESS.md, under "Til review af Sylvester" only its items for human review that are open decisions for Sylvester, and its other items for human review under "Info", each starting "${BLOCK}-<id>:"; under "Tolkninger", its interpretations, each starting "${BLOCK}-<id>:"; and under "Kontroller kørt", one entry "<today>, ${BLOCK}-<id>: ..." with the gates run on the batch in step 3 and their results, and for "composer check:selftest" and the containerized CI run either the result, with the CI wall time against the 15-minute budget, or why it did not run. The tasks reported: ${JSON.stringify(reports)}.
    Then run "composer progress:check -- ${BLOCK}-<id> --range=main..HEAD" in ${intWt} for each task, with --changed-checks after the task id when the task reported changed checks or its commits add, change or remove a check. It fails when an entry is missing or a commit of the batch changes no file: add the entry, or drop the empty commit with a rebase, and run it again.
    Then run "composer progress:test" in ${intWt} on the last progress commit, the HEAD that main will move to. It runs the tests that read PROGRESS.md, CHECKS-LOG.md and the history of review commits (the Unit suite's tests/Feature/Tooling/Progress), which the "composer check" of step 3 ran before these commits existed. When it fails, correct the entries in the progress commits, not the tests, and run "composer progress:check" and "composer progress:test" again. Report the last outputs of both in progressCheck, and progressRecorded true only when every "composer progress:check" and "composer progress:test" on HEAD passed.
-5. Only if everything is green, every "composer progress:check" passed and "composer progress:test" passed on the HEAD of ${intBranch}: fast-forward main ("git -C ${REPO} merge --ff-only ${intBranch}"). Each task keeps its own commits. If git refuses because the main checkout has local changes that the merge would overwrite, do not stash or discard them; report it as a failure.
+5. Green means one run of "composer check" in which every gate passed. A failure you believe the environment caused (another worktree's load, a timeout) is still a failure: run "composer check" again until one run is green, and never judge a failed gate green from separate runs of its parts. Only if everything is green, every "composer progress:check" passed and "composer progress:test" passed on the HEAD of ${intBranch}: fast-forward main ("git -C ${REPO} merge --ff-only ${intBranch}"). Each task keeps its own commits. If git refuses because the main checkout has local changes that the merge would overwrite, do not stash or discard them; report it as a failure.
 6. After a successful merge, remove every task worktree and branch of the batch. Whatever the outcome, remove ${intWt} and delete ${intBranch}. Then run "composer test-db:prune" in ${REPO} and report what it dropped.
 Never push. Change PROGRESS.md and CHECKS-LOG.md only as step 4 says.`,
     { schema: INTEGRATION, label: `integrate batch ${ids}`, phase: 'Integrate', effort: 'medium' },
@@ -336,7 +338,7 @@ Integrate task ${task.id} "${task.title}" of block ${BLOCK} into main. You are t
    The task reported: changed checks ${JSON.stringify(report.changedChecks || [])}; interpretations ${JSON.stringify(report.interpretations || [])}; for human review ${JSON.stringify(report.forHumanReview || [])}; checks run ${JSON.stringify(report.checksRun || [])}.
    Then run "composer progress:check -- ${BLOCK}-${task.id} --range=main..HEAD" in the worktree, with --changed-checks after the task id when the task reported changed checks or its commits add, change or remove a check. It fails when an entry is missing or a commit of the task changes no file: add the entry, or drop the empty commit with a rebase, and run it again.
    Then run "composer progress:test" in the worktree on the progress commit, the HEAD that main will move to. It runs the tests that read PROGRESS.md, CHECKS-LOG.md and the history of review commits (the Unit suite's tests/Feature/Tooling/Progress), which the "composer check" of step 2 ran before this commit existed. When it fails, correct the entries in the progress commit, not the tests, and run "composer progress:check" and "composer progress:test" again. Report the last output of both in progressCheck, and progressRecorded true only when both passed on HEAD.
-4. Only if everything is green, "composer progress:check" passed and "composer progress:test" passed on the HEAD of ${branchOf(task.id)}: fast-forward main ("git -C ${REPO} merge --ff-only ${branchOf(task.id)}"). If git refuses because the main checkout has local changes that the merge would overwrite, do not stash or discard them; report it as a failure.
+4. Green means one run of "composer check" in which every gate passed. A failure you believe the environment caused (another worktree's load, a timeout) is still a failure: run "composer check" again until one run is green, and never judge a failed gate green from separate runs of its parts. Only if everything is green, "composer progress:check" passed and "composer progress:test" passed on the HEAD of ${branchOf(task.id)}: fast-forward main ("git -C ${REPO} merge --ff-only ${branchOf(task.id)}"). If git refuses because the main checkout has local changes that the merge would overwrite, do not stash or discard them; report it as a failure.
 5. After a successful merge, remove the worktree and delete the branch, then run "composer test-db:prune" in ${REPO}, which drops the removed worktree's test database; report what it dropped.
 Never push. Change PROGRESS.md and CHECKS-LOG.md only as step 3 says.`,
       { schema: INTEGRATION, label: `integrate ${task.id}${round ? ' #' + round : ''}`, phase: 'Integrate', effort: 'medium' },
@@ -386,7 +388,18 @@ ${WORKTREE_RULES}`,
     Object.assign({ schema: VERIFY, label, phase: PH, effort: 'medium' }, args && args.verifyModel ? { model: args.verifyModel } : {}),
   )
 
-  let verdict = await verify(`verify ${task.id}`)
+  // A verdict that did not finish (composer check still running) says nothing about the task:
+  // verify again, a bounded number of times, without spending a fix round.
+  const MAX_UNFINISHED = 3
+  const verifyFinished = async label => {
+    let v = await verify(label)
+    for (let again = 1; v && v.finished === false && again <= MAX_UNFINISHED; again++) {
+      log(`${task.id}: verification did not finish; verifying again (${again}/${MAX_UNFINISHED})`)
+      v = await verify(`${label} again ${again}`)
+    }
+    return v
+  }
+  let verdict = await verifyFinished(`verify ${task.id}`)
   let round = 0
   while (verdict && !verdict.pass && round < MAX_FIX_ROUNDS) {
     round++
@@ -407,7 +420,7 @@ ${WORKTREE_RULES}`,
       result.forHumanReview = (result.forHumanReview || []).concat(fix.forHumanReview || [])
       result.changedChecks = (result.changedChecks || []).concat(fix.changedChecks || [])
     }
-    verdict = await verify(`verify ${task.id} #${round}`)
+    verdict = await verifyFinished(`verify ${task.id} #${round}`)
   }
   if (!verdict || !verdict.pass) {
     return {

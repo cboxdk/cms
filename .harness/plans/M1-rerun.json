@@ -1,0 +1,830 @@
+{
+ "block": "M1",
+ "summary": "M1 rerun: the tasks not merged in the first run (wf_64512dcb-2ab, stopped before review after T61 failed verification on time). M1, walking skeleton, revised after the critic. Nothing of M1 is built on main (59f0d88). Wave 0 lands the carried-over work serially: the docs tree from wip/M0-H3 (T1, with H5's screenshots), gate 11's reason (T2), the two mutation-gate fixes (T3, T4), M0-R1-12 (T5), then one Composer package cboxdk/cms (T6). T6 keeps the packages/<module>/src directories and moves no PHP file. That is an interpretation with three reasons: no rename cost in mutation on changed files, history kept, and the M1 exit criterion \"uden en ændring i packages/\" still reads literally. The guides and docs rewrite for one package is split out as T51. README/LICENSE/SECURITY/CONTRIBUTING (T7) and requirements.md (T8) follow. LICENSE is MIT because PRD 2 and the repo table in PRD fix it; only the copyright holder's wording goes to review. Foundations: error catalog (T10, a serial hot spot that every later task adds codes to), contracts for Command/Envelope/Plan/mutations with internal issuers and the changeset metadata (T9), identity with issuer kind, anonymous principal and classification access (T11), Eloquent strictness (T56), laravel-operations adoption (T57), and bigint partitions in the partition manager (T52), which T60 and T14 need. Storage DDL is split: sites, nodes, routes, entries and heads with ltree (T12), placements and mounts (T13), revisions, payloads, snapshots, release log and changesets with metadata and commit position (T60), and roles, grants, access regions with classification ceilings, audit, actor context and every RLS policy including the anonymous context (T61). Event storage (T14) and a defined commit position with affected projections on the receipt (T53). The position is the changeset's xid8, and a read's position is the xmin of its snapshot. Generators read one compiled descriptor (T15; fixture_measurement has history none and stages none) and produce migrations (T16), records and the TypeCatalog contract (T17), query builders (T18), type DTOs and codecs (T19), kernel schema codecs for receipt, problem details and envelope (T62), validators (T20), and TypeScript with the Codecs suite (T21). The kernel: actions registry (T22), the pure write pipeline (T23), idempotency in the pipeline (T63), the Postgres commit (T24), hooks (T25), the query pipeline (T26), and static rules (T27). The eight commands (T28 to T32) each have query budgets at 20 and 200 rows. Event log: the subscriber contract and registry (T33), then the runner (T54). The fragment store and cache index as a contract with the Lua fence and the CDN driver contract (T34), then the invalidation subscriber (T55). Delivery: resolve with explanation (T35), GET /v1/resolve with invariant 10 and tagged 404/410/301 (T36), wait levels (T37). Surfaces are compiled from the registry by cms:build, with OpenAPI: REST (T38), CLI (T39), Inertia (T40), MCP (T41), generated surface contract tests (T42), and cms:actions, cms:hooks and cms:explain (T43). Addons: manifest and capability filtering with an invariant 21 test (T44), addon field types in every generator (T64), and the fixture addon (T45). Then rebuild (T46), seed-scale (T47), telemetry (T48), event-log and Postgres health checks, idle_in_transaction included (T49), the third fixture type as a schema file only (T50), recipes for agents (T59), and an invariant coverage map (T58). Registry format changes run serially through the dependency chain T22, T33, T44. Hot shared files under maxParallel 4 are the error catalog, config/cbox-cms.php, core migrations, CLAUDE.md and AGENTS.md (kept equal by a test), GeneratorRunner and GeneratorCoverageTest. The merge queue must rebase on these files rather than expect them to be free of conflicts. Exit tests live in tests/Postgres/WalkingSkeleton, so every criterion has one command.",
+ "tasks": [
+  {
+   "id": "T61",
+   "title": "Access: roles with classification ceilings, grants, access regions, audit, actor context and RLS policies",
+   "goal": "PRD 5.10, 12.2, 12.12 and 4.1. Core migrations and Infrastructure. Roles hold their permissions (command names) and a classification ceiling. Grants are (actor, role, node, locale set). Access regions per actor are compiled from grants as disjoint ltree paths with exceptions, together with the actor's classification access: the highest ceiling among the roles that apply, capped by the credential's ceiling. Record the rule as an interpretation where PRD 12.2 leaves it open. audit is partitioned per day, one row per changeset, with no text content. One Infrastructure class sets the AccessContext (T11) with SET LOCAL inside a transaction; T24 and T26 use it. RLS policies on entries, variant_heads, revisions, revision_payloads, head_snapshots, placements, placement_locales, nodes and changeset reason texts use EXISTS against nodes on the home node, and fail closed without context. The anonymous context sees only released-stage rows with a visible placement; record that. A reusable policy function covers cms_home_node and cms_owner_actor for the generated type tables (T16). In M1, grants and roles are created only by testkit fixtures; the grant commands come in B1. Record this as an interpretation. Add tests/Postgres/WalkingSkeleton/RlsWithoutActorContextTest.php. It lists every table with relrowsecurity from pg_class, so later type tables are covered without editing the test. It asserts that the app role reads zero rows from each without actor context, after the owner has inserted rows. The work is already built and committed on branch wip/M1-T61 in worktree /Users/sylvester/Projects/Cbox/cms-worktrees/M1-T61 (HEAD dab4609); an earlier run could not finish verifying it because composer check did not complete in time. Rebase it on main, keep what is right, finish what is missing and verify it.",
+   "acceptance": [
+    "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/RlsWithoutActorContextTest.php passes and covers every RLS table found in pg_class",
+    "a Postgres test compiles grants with allow, deny and a more specific grant into access regions and classification access, and shows the RLS result of reads as two actors and as the anonymous context",
+    "ForeignKeyIndexTest and the doctor's postgres.row_security pass, and cms:partitions:maintain covers audit",
+    "composer check is green"
+   ],
+   "dependsOn": [],
+   "prdRefs": [
+    "4.1",
+    "5.10",
+    "6.5 (14, 15)",
+    "12.2",
+    "12.12"
+   ],
+   "touches": [
+    "core migrations",
+    "core module: Cbox\\Cms\\Core\\Access",
+    "config/cbox-cms.php (partitions)",
+    "testkit module: grant and structure fixtures",
+    "tests/Postgres/WalkingSkeleton"
+   ]
+  },
+  {
+   "id": "T16",
+   "title": "Generator: type-table migrations",
+   "goal": "MILESTONES M1 point 2, PRD 4.1, 4.2, 11.6 and 11.12. cms:generate writes migrations for type tables to the app's database/migrations/cms (workbench/database/migrations/cms in the workbench), from the descriptor. A new type gets a new table named from its owner and handle with a stable, injective encoding. It has the system columns cms_entry_id, cms_locale (the shared variant for non-localized types, T12) and cms_stage, keyed (cms_entry_id, cms_locale, cms_stage), plus cms_home_node and cms_owner_actor where the capability needs them, with FK indexes. A type with stages none has only the released stage. There is one column per scalar field with real types, NOT NULL and CHECK (select values), JSONB for rich_text and group, and an index for filterable and sortable fields that ends with the entry id. Fillfactor 80. ENABLE and FORCE RLS with T61's policy function, and grants narrowed with TablePrivileges. In M1, changes are additive only: a new type creates a table, and a new optional field adds a nullable column. Both are computed from a committed per-type schema lock that the generator writes next to its output. Any other change is refused with its own generate_* code until B3; record this as an interpretation. The output is deterministic. Extend composer check:generated and gate 6 to the migrations directory, and report it as a changed check. Commit the expected DDL for the comprehensive example as a golden file, and commit the workbench migrations. The Postgres suite and dev:prepare run them.",
+   "acceptance": [
+    "the comprehensive example's generated DDL equals the committed golden SQL, and a Postgres test applies it and reads the columns, indexes, fillfactor and RLS flags back from the catalog",
+    "adding an optional field to a copy of a fixture blueprint in a test generates one ADD COLUMN migration, and removing a field is refused with its generate_* code",
+    "composer check:generated covers workbench/database/migrations/cms and passes, and RlsWithoutActorContextTest covers the workbench type tables",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "T61"
+   ],
+   "prdRefs": [
+    "4.1",
+    "4.2",
+    "11.6",
+    "11.12"
+   ],
+   "touches": [
+    "generators module: Generation (migration generator)",
+    "workbench/database/migrations/cms",
+    "composer.json (check:generated)",
+    "tests/Feature/Tooling/GeneratedCodeGateTest.php",
+    "generators tests golden files"
+   ]
+  },
+  {
+   "id": "T18",
+   "title": "Generator: typed query builder per type",
+   "goal": "MILESTONES M1 point 2 and PRD 11.12, 5.10 and 8.8. From the descriptor, cms:generate writes a typed query builder per type to app/Cms/Generated/Queries. Field names are an enum, so a wrong field is a type error. The builder filters only on filterable fields and sorts only on sortable fields, with keyset pagination and the entry id as the last key. It always adds the explicit access predicate as bound parameters: cms_owner_actor = $1 for owned types, cms_home_node = ANY($2) for small region sets, and otherwise a join to nodes with path <@ $3. It hydrates through the record factory and returns the owner's interface. It runs on the query builder only (no raw SQL outside Infrastructure or Adapter, GUARDRAILS 6), through a kernel port. Commit the golden output for the comprehensive example and the workbench output.",
+   "acceptance": [
+    "the comprehensive example's generated query builder equals the committed golden file and passes PHPStan level 10",
+    "a Postgres test of the workbench builders filters, sorts and paginates with a keyset over 200 rows in two regions, and returns only the rows the actor's regions allow",
+    "a Postgres test shows a page of 20 costs the same query count with 20 and with 200 matching rows (GUARDRAILS 4.1)",
+    "a PHPStan-level test shows that using a non-filterable field in a filter is a type error",
+    "composer check:generated and composer check are green"
+   ],
+   "dependsOn": [
+    "T16",
+    "T61"
+   ],
+   "prdRefs": [
+    "5.10",
+    "8.8",
+    "11.12",
+    "GUARDRAILS 4.1",
+    "GUARDRAILS 6"
+   ],
+   "touches": [
+    "generators module: Generation (query builder generator)",
+    "core module: query port for generated builders",
+    "workbench/app/Cms/Generated",
+    "generators tests golden files"
+   ]
+  },
+  {
+   "id": "T24",
+   "title": "The commit on Postgres: one changeset, mutations, audit, events and receipt in one transaction",
+   "goal": "MILESTONES M1 point 3, PRD 6.2 phase 7, 7.3, 8.4 and GUARDRAILS 4.1. The commit port on Postgres opens the command transaction at READ COMMITTED (M0-T14) on the app role, with transaction_timeout 5 s, and sets the AccessContext through T61's SET LOCAL class. It claims and completes idempotency inside the transaction (T63's flow). In the same transaction it checks the versions of every read aggregate with row locks, the actor's version included. It then writes the changeset row with its metadata and position, and dispatches each mutation to its registered MutationWriter, a port that later command tasks add writers to. It writes one audit row per changeset, writes the events through T14's writer, and stores the receipt with the projections from AffectedProjections (T53). It never uses savepoints. A failure rolls back everything and maps to catalog errors (partition_missing, version_conflict and the rest).",
+   "acceptance": [
+    "a Postgres test with a test-only mutation writer shows commit and rollback are all-or-nothing across changeset, audit, events, idempotency record and receipt",
+    "tests/Postgres/WalkingSkeleton/IdempotentRepeatsTest.php (kernel part, with a test-only command): five repeats with one key give one changeset row, and the same key with other content is rejected with idempotency_conflict",
+    "a Postgres test shows the transaction runs at READ COMMITTED with transaction_timeout set, and that a nested transaction or savepoint is refused",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "T61"
+   ],
+   "prdRefs": [
+    "4.2",
+    "6.1",
+    "6.2",
+    "7.3",
+    "8.4",
+    "GUARDRAILS 4.1"
+   ],
+   "touches": [
+    "core module: Cbox\\Cms\\Core\\Pipeline (Infrastructure, Adapter)",
+    "core module: Cbox\\Cms\\Core\\Changesets",
+    "tests/Postgres/WalkingSkeleton"
+   ]
+  },
+  {
+   "id": "T26",
+   "title": "The query pipeline",
+   "goal": "PRD 6.2 ('Læsninger') and GUARDRAILS 2.1. QueryActions run through fixed phases. Resolve the principal from the transport credential through T11, or the anonymous principal, and reject an actor that is not active. SET LOCAL of the AccessContext with RLS, inside a read transaction on the app role (T61). Authorize. Check the cost budget. Run on the primary; replica routing by consistency token is B4 or B5, so record it as an interpretation. Strip fields above the principal's classification access, using the TypeCatalog. Write read audit where the classification requires it. Attach content keys (e-{entry}, n-{node}) and the read position (T53) to the result. The actor never comes from input fields, and no context survives between requests in a shared worker.",
+   "acceptance": [
+    "vendor/bin/pest --testsuite=Actions --filter=QueryPipeline covers success, rejection of a deactivated actor, authorization failure, over budget and field stripping, with fakes",
+    "a Postgres test runs two queries as two actors on one worker connection, and shows the second never sees the first's context",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "T61"
+   ],
+   "prdRefs": [
+    "5.10",
+    "5.16",
+    "6.2",
+    "8.1",
+    "GUARDRAILS 2.1"
+   ],
+   "touches": [
+    "core module: Cbox\\Cms\\Core\\Queries (pipeline)",
+    "contracts module: query result and content keys"
+   ]
+  },
+  {
+   "id": "T28",
+   "title": "Commands entry.create and entry.revise",
+   "goal": "MILESTONES M1 point 3, PRD 5.4, 5.5, 6.4 and 11.6. Kernel actions for the commands entry.create and entry.revise, with #[Action] and the surfaces rest, inertia, mcp and cli, and the mutation writers they need. entries. variant_heads, with the version and the shared variant. revisions, with the payload in revision_payloads for history full, or head_snapshots for history audit-only or none, as the TypeCatalog's capabilities say. The type table's row, written through the TypeCatalog in the same transaction: the draft row for stages draft-release, and the released row for stages none. They emit entry.created and variant.revised as event classes. Validation runs against the type's schema version. An expected version that differs is a conflict. It works for any type from its schema; the core names none. Add tests/Postgres/WalkingSkeleton/ConcurrentSavesTest.php: two concurrent entry.revise on separate connections (IndependentConnections or ChildProcesses) give one commit and one version_conflict. Extend IdempotentRepeatsTest.php with entry.create. Each action has Actions-suite tests for success, rejection and conflict.",
+   "acceptance": [
+    "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/ConcurrentSavesTest.php passes: exactly one committed changeset and one version_conflict",
+    "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/IdempotentRepeatsTest.php passes for entry.create: five repeats give one changeset, and the same key with other content is rejected",
+    "Postgres tests show fixture_article writes revisions and a draft row, and fixture_measurement writes a head snapshot and a released row",
+    "a Postgres test shows entry.revise costs the same query count with 20 and with 200 fields' worth of rows around it (20 and 200 existing entries under the node)",
+    "vendor/bin/pest --testsuite=Actions --filter='CreateEntry|ReviseEntry' covers success, rejection and conflict, and composer check is green"
+   ],
+   "dependsOn": [
+    "T16",
+    "T24"
+   ],
+   "prdRefs": [
+    "4.1",
+    "5.4",
+    "5.5",
+    "6.4",
+    "6.5 (2, 3, 4, 11, 22)",
+    "11.6",
+    "GUARDRAILS 4.1"
+   ],
+   "touches": [
+    "core module: Cbox\\Cms\\Core\\Entries (Domain, Actions, Infrastructure)",
+    "core events for entries",
+    "tests/Postgres/WalkingSkeleton"
+   ]
+  },
+  {
+   "id": "T29",
+   "title": "Command variant.release",
+   "goal": "PRD 5.6, 6.4 and invariants 5 and 18. The kernel action for variant.release. The revision must validate against its own schema version. It moves the published pointer on the head, writes release_log, writes the type table's released-stage row (and removes the draft row when the draft no longer differs), and emits variant.released. It rejects a stale expected version, an unknown revision, a type with stages none (its own catalog code), and a principal whose issuer kind is agent or whose credential is a token (invariant 18).",
+   "acceptance": [
+    "vendor/bin/pest --testsuite=Actions --filter=ReleaseVariant covers success, rejection (agent issuer, invalid revision, stages none) and conflict",
+    "a Postgres test releases a revision and reads the released and draft rows of the type table and the release_log row, and shows the same query count with 20 and 200 revisions on the entry",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "T28"
+   ],
+   "prdRefs": [
+    "4.1",
+    "5.6",
+    "6.4",
+    "6.5 (5, 18)",
+    "GUARDRAILS 4.1"
+   ],
+   "touches": [
+    "core module: Cbox\\Cms\\Core\\Entries (release)",
+    "core events"
+   ]
+  },
+  {
+   "id": "T30",
+   "title": "Commands placement.create and placement.set_window",
+   "goal": "PRD 5.7, 5.9, 5.10, 6.4, 6.6 and invariants 14 and 15. Kernel actions for placement.create (an entry under a node on a site, a slug per locale) and placement.set_window (live_from and live_until, visibility state, next_transition_at). Authorization is on the placement's node, not the home node (PRD 5.10). Slug uniqueness among non-withdrawn placements holds, and so does the canonical rule: at most one canonical placement, exactly one when one is visible, set by the kernel. They emit placement.created and placement.visibility_changed. Sites, nodes and routes come from the testkit's structure fixtures; node commands are not in M1. Time model: M1 computes visibility from the window at the Clock's time on read (T35) and maintains next_transition_at. Planned transitions and the scheduler are B3; record this as an interpretation. Going live (a window that opens now) as an agent issuer is rejected (invariant 18).",
+   "acceptance": [
+    "vendor/bin/pest --testsuite=Actions --filter='CreatePlacement|SetPlacementWindow' covers success, rejection (duplicate slug, no grant on the node, agent issuer going live) and conflict",
+    "a Postgres test places one entry on two sites and shows exactly one canonical placement when both are visible, and the same query count with 20 and 200 placements under the node",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "T28"
+   ],
+   "prdRefs": [
+    "5.7",
+    "5.9",
+    "5.10",
+    "6.4",
+    "6.5 (14, 15, 18)",
+    "GUARDRAILS 4.1"
+   ],
+   "touches": [
+    "core module: Cbox\\Cms\\Core\\Placements",
+    "core events",
+    "testkit structure fixtures"
+   ]
+  },
+  {
+   "id": "T31",
+   "title": "Commands entry.publish and entry.unpublish",
+   "goal": "PRD 6.4 ('Udgiv og afpublicér') and 6.2 (composition). entry.publish is composite. It composes the planners of variant.release and of the home placement going live, now or at a window, into one plan and one changeset, and its dry-run shows every placement that becomes visible. For a type with stages none it composes only the placement. entry.unpublish reverses it: it releases to unreleased and closes all placements in the same changeset, and it can be reversed. No action calls another write action; composition goes through planners only.",
+   "acceptance": [
+    "vendor/bin/pest --testsuite=Actions --filter='PublishEntry|UnpublishEntry' covers success, rejection and conflict, and dry-run lists the placements that become visible",
+    "a Postgres test publishes and unpublishes and counts exactly one changeset each, with the events of both sub-plans, and the same query count with 20 and 200 placements",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "T29",
+    "T30"
+   ],
+   "prdRefs": [
+    "6.2",
+    "6.4",
+    "6.5 (6)",
+    "GUARDRAILS 4.1"
+   ],
+   "touches": [
+    "core module: Cbox\\Cms\\Core\\Entries (publish), Placements (planners)"
+   ]
+  },
+  {
+   "id": "T32",
+   "title": "Command actor.deactivate and invariant 37",
+   "goal": "PRD 5.16 ('Deaktivering') and invariant 37, as far as M1 reaches. The kernel action for actor.deactivate: state deactivated, version and credential_generation raised, the source noted, compiled access regions deleted and direct grants ended, and actor.deactivated emitted, all in one changeset. Sessions, tokens beyond service credentials, emergency accounts, exports, held transitions and the deletion ledger belong to B1 and B6; record that as an interpretation. Add tests/Postgres/WalkingSkeleton/DeactivatedActorTest.php with four cases: a command as a deactivated actor is rejected; a command on behalf of one is rejected; a deactivation that commits while a command from the actor is in flight makes that command fail with version_conflict (with ChildProcesses and a scheduled wait); and a read as the actor through the query pipeline is rejected.",
+   "acceptance": [
+    "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/DeactivatedActorTest.php passes all four cases",
+    "vendor/bin/pest --testsuite=Actions --filter=DeactivateActor covers success, rejection (no grant) and conflict",
+    "a Postgres test shows the same query count deactivating an actor with 20 and with 200 grants",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "T24",
+    "T26"
+   ],
+   "prdRefs": [
+    "5.16",
+    "6.4",
+    "6.5 (37)",
+    "GUARDRAILS 4.1"
+   ],
+   "touches": [
+    "core module: Cbox\\Cms\\Core\\Identity (actions)",
+    "core events",
+    "tests/Postgres/WalkingSkeleton"
+   ]
+  },
+  {
+   "id": "T55",
+   "title": "The invalidation subscriber and restart after commit",
+   "goal": "MILESTONES M1 point 4 and PRD 7.6, 8.4 and 9.4. The invalidation subscriber on the critical lane declares the origin projection (T33). It reacts to the M1 content events, purges the fragments of the affected keys through the fragment store's fence (at the event's position), purges through the CDN driver, and acknowledges the origin projection on the receipt (markProjection). Add tests/Postgres/WalkingSkeleton/RestartAfterCommitTest.php: commit a revise, stop the runner before it handles the event, start a new runner process, and the fragment is invalidated.",
+   "acceptance": [
+    "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/RestartAfterCommitTest.php passes",
+    "a Postgres and Valkey test shows a revise's receipt lists origin pending, and acknowledged after the runner handled the event",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "T28"
+   ],
+   "prdRefs": [
+    "7.6",
+    "8.2",
+    "8.4",
+    "8.12",
+    "9.4"
+   ],
+   "touches": [
+    "core module: Cbox\\Cms\\Core\\Fragments (subscriber)",
+    "tests/Postgres/WalkingSkeleton"
+   ]
+  },
+  {
+   "id": "T35",
+   "title": "Route resolution with a typed explanation",
+   "goal": "PRD 5.8, 5.9, 6.6 and GUARDRAILS 5 ('Forklaringer fra dag ét'). A QueryAction resolves (site, locale, path). It maps the host to a site, finds the longest prefix in node_routes to reach a node, and looks up the rest as a slug in (node, locale, slug) on placement_locales. For a mount, it looks up the slug under the source node, where the mount is identical to the source, which stays canonical. It then applies the visibility precedence M1 can reach (entry state, released revision, window) at the Clock's time. It returns the result and a typed explanation of each step: site, route prefix, node, mount, placement, visibility decision and canonical URL. It measures the query budget with 20 and 200 placements under a node (GUARDRAILS 4.1).",
+   "acceptance": [
+    "vendor/bin/pest --testsuite=Actions --filter=ResolvePath covers a direct placement, a mount on a second site, an unknown path, a closed window and a non-canonical placement, each with its explanation",
+    "a Postgres test resolves a placement and a mount on two sites and asserts the query count is the same with 20 and 200 placements",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "T26",
+    "T31"
+   ],
+   "prdRefs": [
+    "5.8",
+    "5.9",
+    "6.6",
+    "6.7",
+    "GUARDRAILS 4.1",
+    "GUARDRAILS 5"
+   ],
+   "touches": [
+    "core module: Cbox\\Cms\\Core\\Routing"
+   ]
+  },
+  {
+   "id": "T36",
+   "title": "Delivery: GET /v1/resolve with DTO, content keys and fragments",
+   "goal": "MILESTONES M1 point 5 and PRD 8.9, 8.10 and 8.12. The http module serves GET /v1/resolve?site&locale&path. It is a controller with no logic that calls the resolve QueryAction through the query pipeline with the anonymous principal. It answers with the generated record DTO through the generated codec, at classification access public, so no field above public is ever in the body (invariant 10). It sends content keys in Surrogate-Key, the explanation behind a debug flag for authorized actors only (never cached), and cache headers per PRD 8.10: public with s-maxage capped by valid_until, no stale directives before a removal, 421 for unconfigured hosts, and no Vary: Cookie. 404, 410 and 301 are tagged with e- and n- keys and capped by the same valid_until (PRD 8.10 points 9 and 10). The response is served from a fragment when one exists. Otherwise it is built at the read's position and stored with its dependency keys through T34's fence. A build under a purge position is sent with no-store.",
+   "acceptance": [
+    "an HTTP test (Testbench) resolves a published fixture_article on two sites and gets the DTO, the Surrogate-Key header with e- and n- keys, and the cache headers",
+    "an HTTP test with a confidential and an internal field in the type shows neither is in the body, and that a 404 and a closed-window response carry e- or n- keys and the valid_until cap",
+    "an HTTP test shows the second request is served from the fragment without the query pipeline running, and an unknown host gets 421",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "T18",
+    "T35"
+   ],
+   "prdRefs": [
+    "6.5 (10)",
+    "8.8",
+    "8.9",
+    "8.10",
+    "8.12",
+    "9.4"
+   ],
+   "touches": [
+    "http module: Cbox\\Cms\\Http\\Delivery",
+    "workbench routes/config for sites"
+   ]
+  },
+  {
+   "id": "T37",
+   "title": "Wait levels commit and origin, and the publish-resolve-revise walking skeleton",
+   "goal": "MILESTONES M1 point 5 and PRD 8.4. After commit, the pipeline waits up to the envelope's wait level within its time budget. commit returns at once. origin returns when the invalidation subscriber has acknowledged the origin projection (T55), or else with committed_wait_timeout, which is committed but not waited out. Add tests/Postgres/WalkingSkeleton/PublishResolveReviseTest.php. It publishes a fixture_article, resolves the path over HTTP, is served from the fragment, and revises with wait level origin. It asserts that the fragment is invalidated and that the receipt shows the origin projection acknowledged. A run without the runner gives committed_wait_timeout.",
+   "acceptance": [
+    "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/PublishResolveReviseTest.php passes",
+    "a test shows wait level origin with no runner returns committed_wait_timeout within the budget, with the changeset committed",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "T36",
+    "T55"
+   ],
+   "prdRefs": [
+    "6.1",
+    "8.3",
+    "8.4"
+   ],
+   "touches": [
+    "core module: Cbox\\Cms\\Core\\Pipeline (wait)",
+    "tests/Postgres/WalkingSkeleton"
+   ]
+  },
+  {
+   "id": "T38",
+   "title": "REST surface compiled from the actions registry, with OpenAPI",
+   "goal": "MILESTONES M1 point 6 and GUARDRAILS 2.1: routes and OpenAPI are generated by cms:build from the registry. cms:build writes the REST route table and an OpenAPI 3.1 document to bootstrap/cache/cms, from actions.php and the generated JSON forms of T62 and T19. The http module registers the write and query endpoints under /v1 from that table. Controllers contain no logic. They parse the body through the generated decoder in a Boundary, and build the Envelope with the principal from the credential (T11), the Idempotency-Key header and the wait level. Then they call the pipeline and translate the result. Committed and dry-run return the receipt JSON, and committed_wait_timeout keeps its own status. Rejected returns problem details (RFC 9457) with the catalog code, field errors and HTTP status. Commands from the REST surface require an idempotency key. The consistency token is B4 or B5. The command palette is B1. Record both as interpretations.",
+   "acceptance": [
+    "an HTTP test runs a test-only action through a compiled route and covers a field error, version conflict, dry-run and success with problem details and receipt bodies",
+    "a test validates the OpenAPI document written by cms:build against the OpenAPI 3.1 schema, and shows it lists the test-only action's route",
+    "an Arch test forbids logic in the REST controllers: they use only actions, DTOs and Boundary",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "T24",
+    "T26"
+   ],
+   "prdRefs": [
+    "6.1",
+    "8.8",
+    "GUARDRAILS 2.1"
+   ],
+   "touches": [
+    "http module: Cbox\\Cms\\Http\\Rest",
+    "core module: Registry (surface compilation)",
+    "tests/Arch (surface rules)"
+   ]
+  },
+  {
+   "id": "T39",
+   "title": "CLI surface compiled from the actions registry",
+   "goal": "MILESTONES M1 point 6 and GUARDRAILS 2.1: CLI signatures are generated by cms:build. Every action with the cli surface can be run from the command line, through one generic command or one per action; choose and record it as an interpretation. The signatures come from the compiled registry. The input is parsed through the generated decoder in a Cli\\Boundary. The principal comes from the process's configured service credential through T11, never from an input option; record the configuration key. Idempotency key, dry-run and wait level are options. The exit codes come from the catalog, and --json prints the receipt or problem JSON.",
+   "acceptance": [
+    "a CLI test runs a test-only action and covers exit 0 with a receipt, and a validation error, a version conflict and a dry-run with the catalog's exit codes",
+    "a test shows a run without a configured credential is refused with the catalog's code",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "T24",
+    "T26"
+   ],
+   "prdRefs": [
+    "6.1",
+    "GUARDRAILS 2.1",
+    "GUARDRAILS 7.1"
+   ],
+   "touches": [
+    "cli module: Cbox\\Cms\\Cli\\Console, Boundary"
+   ]
+  },
+  {
+   "id": "T40",
+   "title": "Inertia profile",
+   "goal": "MILESTONES M1 point 6 and GUARDRAILS 2.1 ('Inertia med redirects og fejl i page props'). Add inertiajs/inertia-laravel (pinned) and an Inertia transport profile in the http module. Input is parsed through the generated decoder in a Boundary. The profile translates an action's typed result into a redirect with a flash receipt on success, and into field errors and catalog codes in page props on rejection, committed_wait_timeout and dry-run included. There is no panel UI until B1, so the profile is proven with a workbench test page and route. Sylvester decided 29 September that the panel (Inertia) and REST stay in parity: every action the Inertia profile exposes is also on REST.",
+   "acceptance": [
+    "an HTTP test posts to a workbench Inertia route for a test-only action and covers success redirect, field errors in props, version conflict and dry-run",
+    "composer audit and npm audit report no advisory for the new dependency",
+    "composer check is green",
+    "A test fails when an action is exposed through the Inertia profile but not through REST (run it with a planted action to show it fails)."
+   ],
+   "dependsOn": [
+    "T24"
+   ],
+   "prdRefs": [
+    "GUARDRAILS 2.1",
+    "GUARDRAILS 1"
+   ],
+   "touches": [
+    "http module: Cbox\\Cms\\Http\\Inertia",
+    "composer.json",
+    "workbench routes and pages"
+   ]
+  },
+  {
+   "id": "T41",
+   "title": "MCP adapter",
+   "goal": "MILESTONES M1 point 6, GUARDRAILS 1 (laravel/mcp behind an internal adapter, pinned to an exact minor) and PRD 2.31, 12.2 and 14.5. A new module, Cbox\\Cms\\Mcp, in packages/mcp/src, is a surface. Add it to the Arch surface rules and the module-boundary tests, and record that. cms:build compiles one MCP tool per action with the mcp surface from the registry, with input schemas from the generated JSON forms. Tool errors carry catalog codes. The principal comes from the MCP credential through T11, with issuer kind agent. Fields reach agents only as the classification and agents flags allow: public and internal by default, confidential only with agents: true, never personal or sensitive. The credential's ceiling is at most confidential.",
+   "acceptance": [
+    "a test lists the compiled tools for the workbench and calls one test-only action through the MCP adapter, covering success, a field error and a version conflict",
+    "a test shows a confidential field without agents: true, and a personal field, are absent from the tool output",
+    "the Arch suite covers Mcp as a surface and as a module, and composer check is green"
+   ],
+   "dependsOn": [
+    "T24",
+    "T26"
+   ],
+   "prdRefs": [
+    "2.31",
+    "12.2",
+    "14.5",
+    "GUARDRAILS 1",
+    "GUARDRAILS 2.1"
+   ],
+   "touches": [
+    "mcp module: Cbox\\Cms\\Mcp",
+    "composer.json",
+    "tests/Arch",
+    "CLAUDE.md",
+    "AGENTS.md"
+   ]
+  },
+  {
+   "id": "T42",
+   "title": "Surface contract tests generated from the actions registry",
+   "goal": "MILESTONES M1 point 6 and GUARDRAILS 2.1 and 9 ('én per action og overflade'). A Pest dataset built from the compiled actions registry yields one contract test per action and surface (REST, Inertia, MCP, CLI) for all eight M1 commands. Each test checks a field error, a version conflict, dry-run, and a receipt that is committed but has not reached its wait level. A new action gets its surface tests without writing them by hand, and a surface without a profile fails the suite.",
+   "acceptance": [
+    "vendor/bin/pest --filter=SurfaceContract runs the 8 commands times the surfaces each declares, and all pass",
+    "a test shows an action registered with a surface that has no profile fails the suite",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "T31",
+    "T32",
+    "T37",
+    "T38",
+    "T39",
+    "T40",
+    "T41"
+   ],
+   "prdRefs": [
+    "GUARDRAILS 2.1",
+    "GUARDRAILS 9"
+   ],
+   "touches": [
+    "tests/ (surface contract suite)",
+    "testkit module (surface contract support)"
+   ]
+  },
+  {
+   "id": "T43",
+   "title": "cms:actions, cms:hooks and cms:explain",
+   "goal": "MILESTONES M1 point 6, GUARDRAILS 7.1 and 5, and PRD 13.2. cms:actions lists all actions with their command or query, surfaces, grants and hooks. cms:hooks <command> prints the hook map for one command in run order (phase, lowest priority first, package, class) with budgets. cms:explain <url> prints why a page looks as it does. It uses the same typed explanation the resolve action returns, never parallel explain code. Each is an artisan command in Cli\\Console that calls an action, with --json.",
+   "acceptance": [
+    "CLI tests cover the three commands against the workbench, including cms:explain on a mount URL on a second site",
+    "a test shows cms:explain and GET /v1/resolve?explain use the same explanation object",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "T35"
+   ],
+   "prdRefs": [
+    "13.2",
+    "GUARDRAILS 5",
+    "GUARDRAILS 7.1"
+   ],
+   "touches": [
+    "cli module: Cbox\\Cms\\Cli\\Console",
+    "core module: Registry (queries)"
+   ]
+  },
+  {
+   "id": "T64",
+   "title": "Addon field types in every generator",
+   "goal": "PRD 11.12 and 13.3 and \"Fjernet fra M0\" (addon field types). The generators take a FieldTypeContributor per addon from schema.php (T44), only in the addon's own namespace. It brings its JSON Schema for options and what each generator writes: descriptor, DDL, PHP record, query builder, DTO and codec, validator and TypeScript. This replaces the M0 refusal of <namespace>:<handle> with generate_unknown_field_type for registered addons; an unregistered namespace is still refused. GeneratorCoverageTest covers contributed types. Document the contributor with a running example.",
+   "acceptance": [
+    "a generator test registers an addon field type and generates code in every generator for a field of it, and <other>:<handle> from an unregistered namespace is still refused with generate_unknown_field_type",
+    "composer docs:check passes with the contributor page, and composer check is green"
+   ],
+   "dependsOn": [
+    "T16",
+    "T18"
+   ],
+   "prdRefs": [
+    "11.12",
+    "13.3"
+   ],
+   "touches": [
+    "generators module: Schema (FieldTypeRegistry), Generation",
+    "docs/addons",
+    "examples/"
+   ]
+  },
+  {
+   "id": "T45",
+   "title": "The fixture addon: transform hook, validate hook and a blueprint extension",
+   "goal": "MILESTONES M1 point 7 and its exit criterion. A fixture addon under workbench/ is a Composer path package with a manifest, its own tests using the testkit, and a namespace such as fixtureaddon. It requires cboxdk/cms, the root package. Solve the root version so that composer install works on a branch, on a detached HEAD and in the CI container's git archive (for example a branch alias in the root composer.json), and record it. It has one transform hook, for example one that derives a value on entry.create or entry.revise, and one validate hook that requires the addon field at variant.release only (invariant 36), both statically registered. It has a blueprint extension that gives fixture_article a field in the addon's namespace. Generation puts it in the type table as ext__<ns>__<handle>, in the record under ext->ns, in the DTO and in TypeScript under ext.<ns>. Then commit a new version of fixture_article that adds an owner field with the same handle as the addon's field. It generates without collision, both fields live side by side, and every gate passes. Add tests/Postgres/WalkingSkeleton/AddonExtensionTest.php for the hooks and the extension field through the pipeline.",
+   "acceptance": [
+    "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/AddonExtensionTest.php passes: the transform hook changes the plan, the validate hook rejects a release without the field, and the column, record property, DTO key and TS key exist under the namespace",
+    "composer check:generated passes with fixture_article at the new version, which has an owner field of the same handle",
+    "the fixture addon's own tests pass with the testkit, and the containerized CI's composer install passes with the addon",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "T16",
+    "T18",
+    "T28",
+    "T29",
+    "T64"
+   ],
+   "prdRefs": [
+    "6.3",
+    "6.5 (36)",
+    "11.12",
+    "13.1",
+    "13.3",
+    "13.7"
+   ],
+   "touches": [
+    "workbench/ (fixture addon package, schema, generated code, migrations)",
+    "composer.json (workbench path repository, branch alias)",
+    "tests/Postgres/WalkingSkeleton"
+   ]
+  },
+  {
+   "id": "T46",
+   "title": "Rebuild read models from revisions and from head snapshots",
+   "goal": "Invariant 22, PRD 4.1 and 11.6. A rebuild action behind a cms:* command runs in chunks under 2 s per transaction, never in an HTTP request, and as an operation when T57 adopted laravel-operations. It recomputes a type's table rows: from the head's revisions for history full, and from the head snapshot for history audit-only or none. It writes them through the same writer the commands use. Upcasters are B3. In M1, the rebuild reads payloads at the type's current schema version only, and a payload at another version fails the rebuild with its own catalog code. Record this as an interpretation, not as a stand-in upcaster. Add tests/Postgres/WalkingSkeleton/RebuildReadModelsTest.php for fixture_article and fixture_measurement. It snapshots the type-table rows after a series of creates, revises and releases, truncates the tables as the owner, rebuilds, and asserts identical values in every stage.",
+   "acceptance": [
+    "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/RebuildReadModelsTest.php passes for both fixture types",
+    "a test shows a rebuild of 200 entries runs as several transactions, each under the chunk budget, and that a payload at another schema version fails with its code",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "T18",
+    "T29"
+   ],
+   "prdRefs": [
+    "4.1",
+    "6.5 (22)",
+    "11.6",
+    "GUARDRAILS 4.2"
+   ],
+   "touches": [
+    "core module: Cbox\\Cms\\Core\\Rebuild",
+    "cli module: Console",
+    "tests/Postgres/WalkingSkeleton"
+   ]
+  },
+  {
+   "id": "T47",
+   "title": "cms:seed-scale and a listing under 20 ms at one million entries",
+   "goal": "GUARDRAILS 4.3 and the M1 exit criterion. cms:seed-scale builds a scale data set from a versioned profile with skewed distributions and a fixed seed, through the kernel: a seed issuer on the bulk stream, with derived idempotency keys per chunk. Each chunk is one composed plan and one changeset, with no savepoints and chunks under 2 s, run as an operation when T57 adopted laravel-operations. Changesets, events and audit happen at the Clock's time, so the partitions' runway covers them. The skew is in entries per node, field values (including date fields) and type mix, not in commit times; record this as an interpretation. It works for any type from the catalog, with no type named in the kernel. The same generator builds small fixtures. A composer script, scale:check -- --entries=N, seeds a dedicated scale database (never the shared dev database or a test database), runs ANALYZE, and then runs the workbench listing several times with EXPLAIN (ANALYZE): the generated query builder's newest-first keyset page of 20 on fixture_article. It prints the median execution time and exits 1 over 20 ms. The task result records the seed's wall time and the machine (CPU, memory, Docker resources) for PROGRESS.md.",
+   "acceptance": [
+    "a Postgres test seeds 2,000 entries with the small profile deterministically: two runs with the same seed give equal row counts and ids",
+    "composer scale:check -- --entries=1000000 exits 0 and prints a median execution time under 20 ms, and the result records the wall time and the machine",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "T18",
+    "T28"
+   ],
+   "prdRefs": [
+    "4",
+    "23",
+    "GUARDRAILS 4.2",
+    "GUARDRAILS 4.3"
+   ],
+   "touches": [
+    "core module: Cbox\\Cms\\Core\\Seeding",
+    "cli module: Console",
+    "tools/ (scale:check)",
+    "composer.json (scripts)"
+   ]
+  },
+  {
+   "id": "T48",
+   "title": "Telemetry in both pipelines through a contract",
+   "goal": "GUARDRAILS 5 and 2.3 (telemetry export is a contract). A telemetry contract in contracts has spans, counters and histograms, with a testkit fake, a shared suite, a real adapter that exports structured records through Laravel's logging, and a docs page with a running example. The laravel-telemetry adapter belongs to the app template (GUARDRAILS 3's table); record that as an interpretation. The write and query pipelines give each action a span and metrics for duration and errors, and structured logs with the changeset and correlation id, without manual instrumentation in actions. Field values above public never reach attributes (invariant 10).",
+   "acceptance": [
+    "vendor/bin/pest --testsuite=Contract --filter=Telemetry passes against the fake and the log adapter",
+    "an Actions-suite test shows one span with the action name, outcome and changeset id per command, and one per query, and no field value above public in any attribute",
+    "composer docs:check passes with the telemetry page, and composer check is green"
+   ],
+   "dependsOn": [
+    "T24",
+    "T26"
+   ],
+   "prdRefs": [
+    "6.5 (10)",
+    "7.12",
+    "GUARDRAILS 2.3",
+    "GUARDRAILS 5"
+   ],
+   "touches": [
+    "contracts module: Cbox\\Cms\\Contracts\\Telemetry",
+    "core module: Pipeline, Queries",
+    "testkit module: Cbox\\Cms\\Testkit\\Telemetry",
+    "docs/addons",
+    "examples/"
+   ]
+  },
+  {
+   "id": "T49",
+   "title": "Health checks for the event log and the horizon in cms:doctor",
+   "goal": "GUARDRAILS 5 ('Hver afhængighed har et health check ... event-lag per bane, horisontens alder') and PRD 7.4 and 7.12. New doctor checks with probes in Doctor\\Domain\\Probes and adapters. events.lag per lane: the age of the oldest unhandled event against the lane's target (critical p95 500 ms); readiness, not blocking. postgres.oldest_xact: the age of the oldest transaction with an assigned xid, and of the oldest snapshot; readiness. events.parked: the count of parked aggregates; readiness. postgres.idle_in_transaction_timeout: idle_in_transaction_session_timeout is set above zero for the app role (PRD 7.4); blocking, as transaction_timeout is. Each check has a fake probe and runs DoctorCheckContract. doctor.v1.json covers them, and the exit code follows the 79 rule.",
+   "acceptance": [
+    "vendor/bin/pest --testsuite=Contract --filter=DoctorCheck includes the four new checks with fake probes",
+    "a Postgres test makes lag by holding a transaction open, and the doctor exits 79 with events.lag failing",
+    "a Postgres test with a scratch role without idle_in_transaction_session_timeout gets the blocking failure",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "T55"
+   ],
+   "prdRefs": [
+    "3.3",
+    "7.4",
+    "7.8",
+    "7.12",
+    "GUARDRAILS 5"
+   ],
+   "touches": [
+    "core module: Cbox\\Cms\\Core\\Doctor (checks, probes, adapters)",
+    "contracts module resources/schemas/doctor.v1.json (if changed)",
+    "docker/postgres/sql/roles.sql"
+   ]
+  },
+  {
+   "id": "T50",
+   "title": "A third fixture type, added only as a schema file, end to end",
+   "goal": "The M1 exit criterion that proves GUARDRAILS 2.4. Add a third fixture type to workbench/schema, with handles prefixed fixture_. Its fields and capabilities differ from both others: history audit-only, stages draft-release, routable, and field types the other two do not use. Run cms:generate and commit the generated code and migration. Change nothing in the source modules: this task's commit touches only workbench/ and tests/. Add tests/Postgres/WalkingSkeleton/ThirdTypeTest.php. It creates, revises, releases and publishes an entry of the type, places it, resolves it over GET /v1/resolve, checks its fragment invalidation, and runs the generated surface contract tests for its commands. It also shows that a rebuild from head snapshots gives identical rows.",
+   "acceptance": [
+    "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/ThirdTypeTest.php passes",
+    "git show --stat of this task's commit lists no file under packages/, only workbench/ and tests/",
+    "composer check:generated and composer check are green"
+   ],
+   "dependsOn": [
+    "T42",
+    "T43",
+    "T45",
+    "T46"
+   ],
+   "prdRefs": [
+    "11.12",
+    "GUARDRAILS 2.4"
+   ],
+   "touches": [
+    "workbench/schema",
+    "workbench generated code and migrations",
+    "tests/Postgres/WalkingSkeleton"
+   ]
+  },
+  {
+   "id": "T59",
+   "title": "Recipes for agents for the common M1 tasks",
+   "goal": "GUARDRAILS 7.3 and 11, and T7's interpretation. Write docs/recipes with an _index.md and three recipes in the same shape the generators use, so that an agent and a generator do the same thing. Add a content type as a schema file (blueprint, cms:schema:editor, cms:generate, migrations, check:generated), following T50's commit. Write a hook in an addon (manifest, hook class, budgets, tests with the testkit), following T45. Add a kernel action with #[Action] and surfaces (command, planner, mutation writer, Actions-suite and surface tests), following T28. Each recipe embeds its running examples by the gate 10 markers.",
+   "acceptance": [
+    "composer docs:check passes with docs/recipes and each recipe embedding at least one example test",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "T45",
+    "T50"
+   ],
+   "prdRefs": [
+    "14.5",
+    "GUARDRAILS 7.3",
+    "GUARDRAILS 11"
+   ],
+   "touches": [
+    "docs/recipes",
+    "examples/"
+   ]
+  },
+  {
+   "id": "T58",
+   "title": "Invariant coverage map for M1",
+   "goal": "GUARDRAILS 9 and 11. PRD 6.5's invariants need tests that try to break them through every issuer, and they are (review) until the property-based generator exists. Add a map in tests/Support, as a typed PHP list, of every invariant M1 touches (1, 2, 3, 4, 5, 6, 10, 11, 12, 13, 14, 15, 18, 21, 22, 25, 36, 37) to the test ids that cover it and the issuers they cover. A test fails when a mapped test does not exist or is skipped, and when an invariant in the list has no test. Invariants not touched in M1, and the missing property-based generator, are listed as (review) in the task result for \"Info\" in PROGRESS.md.",
+   "acceptance": [
+    "vendor/bin/pest --filter=InvariantCoverage passes, and fails on a planted map entry that names a missing test",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "T48",
+    "T49",
+    "T50"
+   ],
+   "prdRefs": [
+    "6.5",
+    "GUARDRAILS 9",
+    "GUARDRAILS 11"
+   ],
+   "touches": [
+    "tests/Support (invariant map)",
+    "tests/Feature (coverage test)"
+   ]
+  }
+ ],
+ "exitCriteria": [
+  {
+   "id": "E1",
+   "description": "udgiv, opløs sti, server fra fragment, revidér, og fragmentet er invalideret, med en kvittering der viser origin",
+   "command": "composer services:up && vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/PublishResolveReviseTest.php"
+  },
+  {
+   "id": "E2",
+   "description": "to samtidige gem på separate forbindelser giver én commit og én konflikt",
+   "command": "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/ConcurrentSavesTest.php"
+  },
+  {
+   "id": "E3",
+   "description": "fem gentagelser med samme idempotensnøgle giver ét changeset, og samme nøgle med andet indhold afvises",
+   "command": "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/IdempotentRepeatsTest.php"
+  },
+  {
+   "id": "E4",
+   "description": "en genstart efter commit fører stadig til invalidering",
+   "command": "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/RestartAfterCommitTest.php"
+  },
+  {
+   "id": "E5",
+   "description": "begge typers læsemodeller kan genopbygges med identiske værdier, fra revisioner og fra hovedsnapshot",
+   "command": "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/RebuildReadModelsTest.php"
+  },
+  {
+   "id": "E6",
+   "description": "en læsning som app-rollen uden aktørkontekst giver nul rækker",
+   "command": "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/RlsWithoutActorContextTest.php"
+  },
+  {
+   "id": "E7",
+   "description": "`cms:seed-scale` med 1 million entries giver en listning under 20 ms i databasen",
+   "command": "composer services:up && composer scale:check -- --entries=1000000 (exit 0 and a printed median EXPLAIN ANALYZE execution time under 20 ms; the machine and wall time recorded in PROGRESS.md)"
+  },
+  {
+   "id": "E8",
+   "description": "en tredje type, tilføjet kun som schema-fil i `workbench/` med andre felter, andre kapabiliteter og routebar, virker gennem generator, kommandoer, levering og alle overflader uden en ændring i `packages/`",
+   "command": "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/ThirdTypeTest.php && composer check:generated; then procedure: git show --stat <M1-T50 commit> lists only files under workbench/ and tests/, none under packages/"
+  },
+  {
+   "id": "E9",
+   "description": "fixture-addonets udvidelsesfelt findes i typetabellen, recorden, DTO'en og TypeScript under addonets navnerum, og en ny version af fixture-typen med et felt med samme handle genererer og består portene uden kollision",
+   "command": "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/AddonExtensionTest.php && composer check:generated && composer check"
+  },
+  {
+   "id": "E10",
+   "description": "en kommando som en deaktiveret aktør, eller på vegne af en, afvises; en deaktivering der committer mens en kommando fra aktøren er i gang, får kommandoen til at fejle med en konflikt; og en læsning som aktøren afvises",
+   "command": "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/DeactivatedActorTest.php"
+  },
+  {
+   "id": "E11",
+   "description": "alt går gennem portene 1 til 6 med mutation på ændrede filer",
+   "command": "composer check (gates 1 to 6 pass) && CMS_CI_BASE_REF=59f0d88 docker compose -f compose.ci.yaml run --rm ci (exits 0: PR profile with mutation on changed files at 80 or more per class); docker compose -f compose.ci.yaml down. The run spans the whole block, not one PR, so its wall time is recorded in PROGRESS.md and compared with the 15-minute PR budget as information; a wall time over budget is recorded for review and does not fail E11"
+  },
+  {
+   "id": "E12",
+   "description": "Carry-over: Cbox CMS is one Composer package cboxdk/cms (GUARDRAILS 1.10), with the module boundaries held by Arch tests",
+   "command": "! ls packages/*/composer.json 2>/dev/null && composer validate --strict && test \"$(composer show --self --name-only)\" = cboxdk/cms && vendor/bin/pest --testsuite=Arch"
+  },
+  {
+   "id": "E13",
+   "description": "Carry-over: docs hygiene (H3 to H6): one docs/ tree in the cboxdk layout, README, LICENSE, SECURITY and CONTRIBUTING, a screenshot, a generated requirements.md, no competitor names",
+   "command": "composer docs:check && composer docs:requirements && git diff --exit-code docs/requirements.md && test -f README.md -a -f LICENSE -a -f SECURITY.md -a -f CONTRIBUTING.md && ! grep -rniwE 'statamic|contentful|storyblok|directus|supabase|wordpress|strapi|craft cms|payload cms|sanity\\.io|sanity studio' README.md SECURITY.md CONTRIBUTING.md docs"
+  },
+  {
+   "id": "E14",
+   "description": "Carry-over: M0-R1-12 is on main (column grants on receipt_projections and final acknowledgements), gate 11's reason no longer claims there is no remote, and the mutation gate accepts duplicate identical mutations and runs Postgres mutation in parallel",
+   "command": "vendor/bin/pest --testsuite=Postgres --filter='ReceiptSchema|TablePrivileges' && vendor/bin/pest --filter='MutationReportReader|MutationSteps' && ! git grep -n -i 'there is no remote' -- . ':!PROGRESS.md' ':!CHECKS-LOG.md' ':!.harness'"
+  },
+  {
+   "id": "E15",
+   "description": "Carry-over: actions.php is back in the registry and named in CLAUDE.md and AGENTS.md, the recipes interpretation is recorded, and recipes exist for the common M1 tasks",
+   "command": "vendor/bin/testbench cms:build && test -f bootstrap/cache/cms/actions.php && grep -q 'actions.php' CLAUDE.md && grep -q 'actions.php' AGENTS.md && test -f docs/recipes/_index.md && composer docs:check; then procedure: PROGRESS.md has an entry about recipes (docs/recipes) under \"Tolkninger\""
+  },
+  {
+   "id": "E16",
+   "description": "Every invariant M1 touches has named covering tests, and the rest are recorded as (review)",
+   "command": "vendor/bin/pest --filter=InvariantCoverage"
+  }
+ ],
+ "blockers": [
+  "M0-T47 (open under 'Til review af Sylvester'): whether the testkit's shared contract suites are left out of mutation on changed files. They live in src and get mutated, although no test can catch a mutated assertion. M1 adds several new shared suites (identity, type catalog, fragment store, CDN driver, telemetry), so E11 may fail only on them. The plan keeps them in scope as today. If E11 fails only on shared-suite assertions, the main session records it for Sylvester and does not weaken the gate.",
+  "Outward-facing names that M1 introduces beyond what the PRD fixes. These are error codes beyond the PRD's (T10), REST paths other than /v1/resolve (T38), CLI command names and the configuration key for the CLI's service credential (T39), MCP tool names (T41), the addon manifest's file name and keys (T44), the fixture addon's namespace (T45), and the exact holder line in LICENSE (T7; MIT itself is fixed by the PRD). The tasks name them after the PRD's wording and list them under 'Til review af Sylvester'. This does not block M1.",
+  "Gate 11 (review by someone other than the author) needs branch protection with required reviews on main in github.com/cboxdk/cms. That is a repository setting for Sylvester. T2 only corrects the reason; the gate stays reported as not run.",
+  "Possible: cboxdk/laravel-operations may not install on PHP 8.5 and Laravel 13. T57 checks it without changing the package. If it fails, the need goes under 'Til review af Sylvester' (GUARDRAILS 3), and T46 and T47 run their chunk actions from a console command under a recorded interpretation, so E5 and E7 do not depend on it.",
+  "Not blocking, for awareness: in M1, service credentials, actors, grants, roles, sites, nodes and routes are created only by testkit fixtures, because token issuance, login, grant commands and node commands are B1 and B2 by the build order. Real CDN drivers are B4, replica routing by consistency token is B4 and B5, planned transitions are B3, and upcasters are B3. The tasks record these as interpretations, not as decisions for Sylvester."
+ ]
+}
