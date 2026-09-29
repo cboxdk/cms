@@ -70,7 +70,14 @@ it('gives Postgres its data mount, the conf.d drop-in, the init script and 130 s
 });
 
 it('sets the server settings of the operating contract in docker/postgres/conf.d/cms.conf, not on the command line', function (): void {
-    expect(CiFiles::codeLines('docker/postgres/conf.d/cms.conf'))->toBe(['max_prepared_transactions = 0', "lc_messages = 'C'"])
+    expect(CiFiles::codeLines('docker/postgres/conf.d/cms.conf'))->toBe([
+        'max_prepared_transactions = 0',
+        "lc_messages = 'C'",
+        'max_locks_per_transaction = 256',
+        'fsync = off',
+        'synchronous_commit = off',
+        'full_page_writes = off',
+    ])
         ->and(CiFiles::text(CiFiles::COMPOSE))->not->toContain('max_prepared_transactions=');
 });
 
