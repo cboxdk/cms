@@ -47,7 +47,9 @@ it('has the keys, uniques, foreign keys and indexes of the storage form', functi
         'CREATE UNIQUE INDEX sites_handle_key ON sites USING btree (handle)',
         'CREATE UNIQUE INDEX sites_pkey ON sites USING btree (id)',
         'CREATE UNIQUE INDEX sites_root_node_id_key ON sites USING btree (root_node_id)',
+        'CREATE INDEX variant_heads_draft_revision_id ON variant_heads USING btree (draft_revision_id)',
         'CREATE UNIQUE INDEX variant_heads_pkey ON variant_heads USING btree (entry_id, variant)',
+        'CREATE INDEX variant_heads_published_revision_id ON variant_heads USING btree (published_revision_id)',
     ])->and(StorageTables::texts($owner, "select conrelid::regclass::text || ' ' || pg_get_constraintdef(oid) as value from pg_constraint where conrelid = any (?::regclass[]) and contype = 'f' order by 1", [$tables]))->toBe([
         'entries FOREIGN KEY (home_node_id) REFERENCES nodes(id)',
         'entries FOREIGN KEY (owner_actor_id) REFERENCES actors(id)',
@@ -57,7 +59,9 @@ it('has the keys, uniques, foreign keys and indexes of the storage form', functi
         'nodes FOREIGN KEY (parent_id) REFERENCES nodes(id)',
         'site_locales FOREIGN KEY (site_id) REFERENCES sites(id)',
         'sites FOREIGN KEY (root_node_id) REFERENCES nodes(id)',
+        'variant_heads FOREIGN KEY (draft_revision_id) REFERENCES revisions(revision_id)',
         'variant_heads FOREIGN KEY (entry_id) REFERENCES entries(id)',
+        'variant_heads FOREIGN KEY (published_revision_id) REFERENCES revisions(revision_id)',
     ])->and(StorageTables::texts($owner, "select c.relname::text || ' ' || coalesce(array_to_string(c.reloptions, ','), '') || ' ' || c.relkind::text as value from pg_class c where c.oid = any (?::regclass[]) order by 1", [$tables]))->toBe([
         'entries  r',
         'node_routes  r',

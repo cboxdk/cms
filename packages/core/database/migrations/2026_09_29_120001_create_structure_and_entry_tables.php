@@ -31,9 +31,10 @@ use Illuminate\Support\Facades\DB;
  * holds the draft and the published revision, the schema version the current state is written in,
  * the release state (PRD 6.4), the workflow state a workflow configures on top of it, the time of
  * the next scheduled transition (PRD 6.7) and a version. The revision ids are the bigint of the
- * revision register, whose foreign keys come with that register. It has fillfactor 80 and a low
- * vacuum threshold, because every save updates it in place (PRD 4.2), and no index on a column a
- * save changes.
+ * revision register, whose foreign keys come with that register, each with the index on the
+ * referencing side that PRD 4.1 requires, the draft revision's too. It has fillfactor 80 and a low
+ * vacuum threshold, because every save updates it in place (PRD 4.2), and no other index on a
+ * column a save changes.
  *
  * Every table has row level security, forced so it holds for the owner too (PRD 4.2), and no policy
  * yet, so it is closed to every role but a superuser until the policies over the actor context come

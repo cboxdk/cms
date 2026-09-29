@@ -36,6 +36,8 @@ final class StorageTables
 
     public const string TYPE = '0192a0c0-0000-7000-8000-000000000030';
 
+    public const string CHANGESET = '019cd79e-4600-7000-8000-000000000070';
+
     public const string CREATED_AT = '2026-03-10 12:00:00+00';
 
     public static function superuser(): Connection
@@ -96,14 +98,40 @@ final class StorageTables
     }
 
     /**
-     * The seeded structure, an entry homed on the section and its shared variant's head.
+     * The seeded structure, an entry homed on the section, the revisions 1 (a draft), 2 and 3
+     * (published) of its shared variant in a registered changeset, and the variant's head.
      */
     public static function seedEntry(): void
     {
         self::seedStructure();
         $superuser = self::superuser();
         $superuser->table('entries')->insert(self::entry());
+        $superuser->table('changeset_register')->insert(['changeset_id' => self::CHANGESET, 'retention_class' => 'standard']);
+
+        foreach ([1 => 'draft', 2 => 'published', 3 => 'published'] as $revision => $kind) {
+            $superuser->table('revisions')->insert(self::revision($revision, $kind));
+        }
+
         $superuser->table('variant_heads')->insert(self::head());
+    }
+
+    /**
+     * A row of the revision register for the seeded entry's shared variant, numbered as its id.
+     *
+     * @return array<string, int|string>
+     */
+    public static function revision(int $id, string $kind = 'draft', string $variant = 'shared'): array
+    {
+        return [
+            'revision_id' => $id,
+            'entry_id' => self::ENTRY,
+            'variant' => $variant,
+            'rev_no' => $id,
+            'kind' => $kind,
+            'schema_version' => 1,
+            'changeset_id' => self::CHANGESET,
+            'created_at' => self::CREATED_AT,
+        ];
     }
 
     /**

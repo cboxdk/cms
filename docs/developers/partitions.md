@@ -27,8 +27,10 @@ The core lists its own tables, and an application adds its tables next to them:
 | `receipt_projections_standard` | `uuid7` | day | 7 days |
 | `receipt_projections_evidence` | `uuid7` | month | kept |
 | `idempotency_keys` | `timestamp` | day | 7 days |
+| `changesets` | `uuid7` | day | kept |
+| `changeset_principals` | `uuid7` | day | kept |
 
-The receipt tables are partitioned by retention class first, and each class is managed as a table of its own.
+The receipt tables are partitioned by retention class first, and each class is managed as a table of its own. Changesets and their on-behalf-of chains are kept like revisions (PRD 4), so their partitions are never dropped.
 
 Partitions are named `<table>_p<YYYYMMDD>` for a day and `<table>_p<YYYYMM>` for a month, and the manager touches only partitions with those names.
 
@@ -52,7 +54,7 @@ Size `width` so one partition holds at least a day of the table's peak inserts. 
 
 A partition is removed when the sequence has passed it, so it can get no new id, and the newest `retention_column` value in it is `retention_days` old. A passed partition without rows is removed as well. The manager reads the partitions in id order and stops at the first one it keeps, because ids follow time. It reads with `row_security` off, so row security that applies to the owner role makes Postgres refuse the read, and the table is reported, instead of a partition with hidden rows passing for empty. An index on the retention column keeps the read cheap.
 
-A table with a LIST level above the range, such as `revision_payloads` by kind, is listed once per leaf parent, for example `revision_payloads_published` and `revision_payloads_draft`, each with the sequence they share. The core's `events` is partitioned by stream first (PRD 7.5), so it is listed as `events_interactive` and `events_bulk`, each with `key` `bigint`, `width` 1000000, `sequence` `events_event_id_seq`, `retention_days` 30 and `retention_column` `occurred_at` (PRD 7.10), and `events_occurred_at` is the index on the retention column. The [events](../addons/events.md) page describes the log. A run analyzes their root once. There is no DEFAULT partition, so a write outside the partitions fails. An adapter that writes to a partitioned table turns that failure into `Cbox\Cms\Contracts\Storage\PartitionMissing`, with the error code `partition_missing`.
+A table with a LIST level above the range, such as `revision_payloads` by kind, is listed once per leaf parent, for example `revision_payloads_published` and `revision_payloads_draft`, each with the sequence they share. The core's `events` is partitioned by stream first (PRD 7.5), so it is listed as `events_interactive` and `events_bulk`, each with `key` `bigint`, `width` 1000000, `sequence` `events_event_id_seq`, `retention_days` 30 and `retention_column` `occurred_at` (PRD 7.10), and `events_occurred_at` is the index on the retention column. The [events](../addons/events.md) page describes the log. A run analyzes their root once. The core's `revision_payloads` is listed as `revision_payloads_draft` and `revision_payloads_published`, each with `key` `bigint`, `width` 10000000 and `sequence` `revisions_revision_id_seq`, without retention: drafts are thinned by rewriting a partition, never by dropping one (PRD 4.1). There is no DEFAULT partition, so a write outside the partitions fails. An adapter that writes to a partitioned table turns that failure into `Cbox\Cms\Contracts\Storage\PartitionMissing`, with the error code `partition_missing`.
 
 ## cms:partitions:maintain
 

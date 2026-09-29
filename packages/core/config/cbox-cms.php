@@ -77,7 +77,11 @@ return [
          * expired (PRD 4, 6.1). Events are partitioned by stream (PRD 7.5), and each stream is
          * managed as its own table on event_id, which the one sequence events_event_id_seq feeds: a
          * million ids per partition, and a partition the sequence has passed is dropped when its
-         * newest event is 30 days old (PRD 7.10).
+         * newest event is 30 days old (PRD 7.10). Changesets and their on-behalf-of chains are
+         * partitioned per day on changeset_id and never dropped here (PRD 4). Revision payloads are
+         * partitioned by kind first (PRD 4.1), and each kind is managed as its own table on
+         * revision_id, which the sequence revisions_revision_id_seq feeds: ten million ids per
+         * partition, never dropped, because drafts are thinned by rewriting a partition.
          */
         'partitions' => [
             'runway_days' => 14,
@@ -93,6 +97,10 @@ return [
                 'idempotency_keys' => ['key' => 'timestamp', 'interval' => 'day', 'retention_days' => 7],
                 'events_interactive' => ['key' => 'bigint', 'width' => 1_000_000, 'sequence' => 'events_event_id_seq', 'retention_days' => 30, 'retention_column' => 'occurred_at'],
                 'events_bulk' => ['key' => 'bigint', 'width' => 1_000_000, 'sequence' => 'events_event_id_seq', 'retention_days' => 30, 'retention_column' => 'occurred_at'],
+                'changesets' => ['key' => 'uuid7', 'interval' => 'day', 'retention_days' => null],
+                'changeset_principals' => ['key' => 'uuid7', 'interval' => 'day', 'retention_days' => null],
+                'revision_payloads_draft' => ['key' => 'bigint', 'width' => 10_000_000, 'sequence' => 'revisions_revision_id_seq'],
+                'revision_payloads_published' => ['key' => 'bigint', 'width' => 10_000_000, 'sequence' => 'revisions_revision_id_seq'],
             ],
         ],
     ],

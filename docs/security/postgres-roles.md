@@ -28,6 +28,8 @@ Every table with row level security also forces it (`FORCE ROW LEVEL SECURITY`),
 
 The identity tables have a policy that lets every role read and only the owner role write. The structure and entry tables (`nodes`, `sites`, `site_locales`, `node_routes`, `entries` and `variant_heads`) have row level security without any policy yet, so they are closed to the app role and to the owner role alike: the app role reads no rows and writes none, and only a superuser passes. Their policies, which test the actor's access regions against the node paths, come with authorisation in the command kernel.
 
+The changeset, revision, head snapshot and release log tables (`changeset_register`, `changesets`, `changeset_principals`, `changeset_reason_texts`, `revisions`, `revision_payloads`, `head_snapshots` and `release_log`) are closed the same way, their partitions included. The app role keeps only what the kernel needs to write them: SELECT and INSERT, and UPDATE on `head_snapshots` alone, because a changeset, a revision, a payload and a release are never changed once written. The free text of a reason can name people, so it lives in `changeset_reason_texts` as classified content, apart from the changeset's metadata, and never in the audit chain or an event.
+
 ## Extensions
 
 The node tree keeps its paths in ltree, an extension that ships with Postgres. The core's migrations create it as the owner role. ltree is a trusted extension, so the owner role needs no superuser to create it, only `CREATE` on the database, which it has as the database's owner. `postgres.extensions` fails with `doctor_extension_missing` while the database lacks it.

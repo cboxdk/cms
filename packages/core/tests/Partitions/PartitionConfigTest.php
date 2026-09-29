@@ -16,7 +16,7 @@ use Cbox\Cms\Core\Partitions\Domain\SequenceRetention;
 use Cbox\Cms\Core\Partitions\Infrastructure\PostgresPartitionManager;
 use Illuminate\Config\Repository;
 
-it('reads the package defaults: the pgsql_owner connection, a 14-day runway, the receipt tables and the idempotency table', function (): void {
+it('reads the package defaults: the pgsql_owner connection, a 14-day runway, the receipt tables, the idempotency table and the changeset tables', function (): void {
     $policy = PartitionConfig::read(config());
 
     expect($policy->ownerConnection)->toBe('pgsql_owner')
@@ -33,6 +33,8 @@ it('reads the package defaults: the pgsql_owner connection, a 14-day runway, the
             'receipt_projections_standard uuid7 day 7',
             'receipt_projections_evidence uuid7 month keep',
             'idempotency_keys timestamp day 7',
+            'changesets uuid7 day keep',
+            'changeset_principals uuid7 day keep',
         ]);
 });
 
@@ -111,7 +113,7 @@ it('reads a table with a bigint key into the tables on a sequence, with its widt
         ]);
 });
 
-it('defaults to two empty partitions ahead of a sequence and lists the event streams as the tables on a sequence', function (): void {
+it('defaults to two empty partitions ahead of a sequence and lists the event streams and the revision payloads as the tables on a sequence', function (): void {
     $policy = PartitionConfig::read(config());
 
     expect($policy->runwayPartitions)->toBe(PartitionPolicy::DEFAULT_RUNWAY_PARTITIONS)
@@ -122,6 +124,8 @@ it('defaults to two empty partitions ahead of a sequence and lists the event str
         ))->toBe([
             'events_interactive 1000000 events_event_id_seq 30 occurred_at',
             'events_bulk 1000000 events_event_id_seq 30 occurred_at',
+            'revision_payloads_draft 10000000 revisions_revision_id_seq keep -',
+            'revision_payloads_published 10000000 revisions_revision_id_seq keep -',
         ]);
 });
 
