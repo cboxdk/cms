@@ -13,10 +13,18 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
  * at most 19 lowercase letters and digits, never "ext". The handle is lowercase snake_case of at
  * most 63 characters without a double underscore, never "ext" and never starting with "cms_".
  * The stable identity of a type is its TypeId; the name changes when the owner renames it.
+ *
+ * The type's table (PRD 11.6) is named from the owner and the handle, `<owner>__<handle>`, such as
+ * "app__blog_post": an owner has no underscore and a handle no double underscore, so the first
+ * double underscore ends the owner and two names never give one table. No kernel table has a double
+ * underscore in its name.
  */
 #[Experimental]
 final readonly class TypeName
 {
+    /** What separates the owner from the handle in the name of the type's table. */
+    public const string TABLE_SEPARATOR = '__';
+
     private const string PATTERN = '/\A(?<owner>[a-z][a-z0-9]{0,19}):(?<handle>[a-z][a-z0-9]*(?:_[a-z0-9]+)*)\z/';
 
     public string $owner;
@@ -35,6 +43,14 @@ final readonly class TypeName
 
         $this->owner = $parts['owner'];
         $this->handle = $parts['handle'];
+    }
+
+    /**
+     * The name of the type's table, `<owner>__<handle>` (PRD 11.6, 11.12).
+     */
+    public function table(): string
+    {
+        return $this->owner.self::TABLE_SEPARATOR.$this->handle;
     }
 
     public function equals(self $other): bool

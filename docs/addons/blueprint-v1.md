@@ -148,6 +148,13 @@ JSON Schema checks one file at a time and cannot compare values with each other.
 | A field type `<namespace>:<handle>` is one that a contributor has registered (PRD 13.3). | `generate_unknown_field_type` |
 | The types of one owner give different PHP enum cases, the owner and the handle in TitleCase: `item_2` and `item2` both give `AppItem2`, so an owner cannot have both. A type whose case would read `class` in any letter case, such as the handle `lass` of an owner `c`, is refused, because PHP reserves it. | `generate_invalid_case_name` |
 | The fields, options and extender namespaces of one type give different names in the type's generated PHP records, compared without case as PHP compares class names: a field's property is its handle in camelCase, so `size_1` and `size1` both give `$size1`; the enum of a select field, the class of a group and of an item of a repeated group take the handle in TitleCase with `Choice`, `Group` or `Item`, below the group's name for a nested field and the namespace's for an extension field; and an option's case is its value in TitleCase. A field `this` and an option `class` are refused, because PHP reserves them. The records' DTOs also give different classes: the group `b_v1` of the type `a` and the type `a_v1_b` both give the class `AppAV1BV1`. See [Records and JSON codecs](codecs.md). | `generate_name_collision` |
+| A type's table name, `<owner>__<handle>`, has at most 54 bytes, so the names of its row level security policies, `<table>_actor` and `<table>_released`, fit in Postgres' 63: an owner of `app` leaves 49 bytes for the handle. | `generate_table_name_too_long` |
+| A schema lock in the migrations directory, `<table>.lock`, is exactly what `cms:generate` wrote, and its file is named after its table. | `generate_lock_invalid` |
+| Until schema evolution comes (B3), a type table only grows. A type whose table has a schema lock stays in the schema. | `generate_type_removed` |
+| A type keeps the `type_id`, `stages` and `localization` of its schema lock, because they decide its table's key and system columns. | `generate_table_changed` |
+| A field whose column is in its type's schema lock stays in the schema. | `generate_field_removed` |
+| A field keeps the column type, NOT NULL, CHECK constraints and index of its type's schema lock: its type, options, `required`, classification, `filterable` and `sortable` stay as they were. | `generate_field_changed` |
+| A field added to a type that has a table is optional, so its column is nullable on the rows that exist. An extension field is always nullable. | `generate_required_field_added` |
 
 An unknown `extends` is reported only when every file was read, because a file that cannot be read may be the one that defines the type.
 
@@ -175,6 +182,10 @@ A few rules decide more than the field type does:
 - A `rich_text` field that leaves out `styles`, `marks`, `lists` or `links` allows every one of that list.
 
 From the descriptors, `cms:generate` writes the type enum and the TypeScript types, and for each type a record DTO, its JSON codec and a TypeScript module with its validator, described on [Records and JSON codecs](codecs.md).
+
+It also writes the migrations of the type tables (PRD 4.1, 11.6) to `database/migrations/cms` (`cbox-cms.generators.migrations_directory`), which the generated service provider registers with the migrator; they run with `php artisan migrate` as the owner role, never on their own. A type's table is `<owner>__<handle>`, such as `app__blog_post`. It has the system columns `cms_entry_id`, `cms_locale` (`shared` for a type that is not localized), `cms_stage` (`released`, and `draft` and `staged` for a type with stages), `cms_home_node` and `cms_owner_actor`, the key (`cms_entry_id`, `cms_locale`, `cms_stage`), a column per top-level field as the table above describes, an index on each foreign key, an index on (`cms_stage`, `cms_locale`, the column, `cms_entry_id`) for each `filterable` or `sortable` field, and fillfactor 80. Row level security is enabled and forced with the policies every type table has, and the app role may only select, insert, update and delete.
+
+Next to the migrations, `cms:generate` writes a schema lock for each table, `<table>.lock`: the columns the migrations build, step by step. Commit it with the migrations. A new type gets a lock and a `<table>_0001_create` migration, and new optional fields get the next step and one `<table>_<step>_add_columns` migration that adds their nullable columns and builds their indexes concurrently. Until schema evolution comes (B3), every other change to a type that has a table is refused by the rules above.
 
 The rules of each field's runtime validator become a validator per type, which checks input from outside the repository against the same schema; see [Runtime validators](validation.md).
 

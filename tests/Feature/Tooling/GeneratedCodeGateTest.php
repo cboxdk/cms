@@ -35,7 +35,7 @@ use Symfony\Component\Process\Process;
  * pointing at the copy, and generate:protocol in-process with the copy as its root.
  */
 
-const GENERATED_PATHS = ['workbench/app/Cms/Generated', 'workbench/resources/js/cms/generated'];
+const GENERATED_PATHS = ['workbench/app/Cms/Generated', 'workbench/resources/js/cms/generated', 'workbench/database/migrations/cms'];
 
 const PROTOCOL_PATH = ProtocolSchemas::PHP_DIRECTORY;
 
@@ -170,7 +170,7 @@ it('regenerates, then fails on a diff or an untracked file under the generated p
 });
 
 it('points the gate at the directories cms:generate writes in the workbench', function (): void {
-    expect([config('cbox-cms.generators.php_directory'), config('cbox-cms.generators.typescript_directory')])->toBe(GENERATED_PATHS);
+    expect([config('cbox-cms.generators.php_directory'), config('cbox-cms.generators.typescript_directory'), config('cbox-cms.generators.migrations_directory')])->toBe(GENERATED_PATHS);
 });
 
 it('passes on a clean tree and leaves it clean', function (): void {
@@ -218,6 +218,47 @@ it('passes once the regenerated code is staged with the blueprint change', funct
     [$status, $output] = runGate($root);
 
     expect($status)->toBe(0, $output);
+});
+
+it('fails after a manual edit to a type table migration or schema lock, and passes again after git checkout of it', function (string $file): void {
+    $root = gateRepository();
+    appendTo($root.'/workbench/database/migrations/cms/'.$file, "\n");
+
+    [$edited, $output] = runGate($root);
+    git($root, 'checkout', '--', 'workbench/database/migrations/cms/'.$file);
+    [$restored, $restoredOutput] = runGate($root);
+
+    expect($edited)->not->toBe(0)
+        ->and($output)->toContain('The generated code above is not the committed code.')
+        ->and($output)->toContain('workbench/database/migrations/cms/'.$file)
+        ->and($restored)->toBe(0, $restoredOutput);
+})->with(['a migration' => ['app__fixture_article_0001_create.php'], 'a schema lock' => ['app__fixture_article.lock']]);
+
+it('writes the next step of the lock and an add_columns migration for a new optional field, which the gate wants committed', function (): void {
+    $root = gateRepository();
+    appendTo($root.'/workbench/schema/fixture_article.yaml', SUMMARY_FIELD);
+
+    [$status, $output] = runGate($root);
+
+    expect($status)->not->toBe(0)
+        ->and($output)->toContain('+++ b/workbench/database/migrations/cms/app__fixture_article.lock')
+        ->and($output)->toContain('+            "name": "fixture_summary",')
+        ->and($output)->toContain('+            "step": 2,')
+        ->and((string) file_get_contents($root.'/workbench/database/migrations/cms/app__fixture_article_0002_add_columns.php'))->toContain('add column if not exists "fixture_summary" text');
+});
+
+it('fails when a field of a type that has a table is removed, and writes nothing', function (): void {
+    $root = gateRepository();
+    $blueprint = $root.'/workbench/schema/fixture_article.yaml';
+    $contents = (string) file_get_contents($blueprint);
+    SchemaFixtures::write($blueprint, substr($contents, 0, (int) strpos($contents, '  - handle: fixture_reading_minutes')).substr($contents, (int) strpos($contents, '  - handle: fixture_featured')));
+    git($root, 'add', '--all');
+
+    [$status, $output] = runGate($root);
+
+    expect($status)->not->toBe(0)
+        ->and($output)->toContain('[generate_field_removed]')
+        ->and(git($root, 'status', '--porcelain'))->toBe("M  workbench/schema/fixture_article.yaml\n");
 });
 
 it('fails after a manual edit to a kernel codec, and passes again after git checkout of it', function (): void {

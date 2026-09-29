@@ -11,9 +11,27 @@ use Illuminate\Support\Facades\DB;
  * It lists every relation with row level security in the migrated schema from pg_class, so a table
  * a later migration adds, a generated type table or a partition the partition manager creates is
  * covered without a change here. The owner's side writes a row to every kernel table first
- * (AccessWorld, as the superuser and the owner role), so a read of zero rows is the policies'
- * doing, not an empty table.
+ * (AccessWorld, as the superuser and the owner role), and a row of the released, publicly placed
+ * entry to each of the workbench's generated type tables (PRD 11.6), which the anonymous context
+ * reads, so a read of zero rows is the policies' doing, not an empty table.
  */
+
+/**
+ * A row of each workbench type table for the released entry that has a live placement, with a
+ * value for every NOT NULL field.
+ *
+ * @var array<string, array<string, bool|string>>
+ */
+const TYPE_TABLE_ROWS = [
+    'app__fixture_article' => [
+        'fixture_featured' => true,
+    ],
+    'app__fixture_measurement' => [
+        'fixture_measured_at' => '2026-03-10 12:00:00+00',
+        'fixture_reading' => '12.500',
+        'fixture_scale' => 'fixture_celsius',
+    ],
+];
 
 afterEach(function (): void {
     DB::purge(StorageTables::SUPERUSER);
@@ -33,6 +51,7 @@ it('reads no row as the app role without an actor context, from every table with
         order by 1
         SQL);
     $tables = [];
+    $typeTables = [];
     $partitions = [];
 
     foreach ($relations as $relation) {
@@ -42,14 +61,27 @@ it('reads no row as the app role without an actor context, from every table with
             $partitions[] = $name;
         } elseif ($typeTable === 'false') {
             $tables[] = $name;
+        } else {
+            $typeTables[] = $name;
         }
     }
 
-    // Every kernel table has rows, and a table without rows here is a generated type table.
+    foreach (TYPE_TABLE_ROWS as $table => $values) {
+        $superuser->table($table)->insert([
+            'cms_entry_id' => AccessWorld::ENTRY_PUBLIC,
+            'cms_locale' => 'shared',
+            'cms_stage' => 'released',
+            'cms_home_node' => AccessWorld::ROOT,
+            ...$values,
+        ]);
+    }
+
+    // Every kernel table and every type table of the workbench has rows.
     expect($tables)->toBe(AccessWorld::TABLES)
+        ->and($typeTables)->toBe(array_keys(TYPE_TABLE_ROWS))
         ->and($partitions)->toContain('audit_p20260310', 'changesets_p20260310', 'revision_payloads_draft', 'revision_payloads_published_p0000000000000000000');
 
-    foreach ($tables as $table) {
+    foreach ([...$tables, ...$typeTables] as $table) {
         expect($superuser->table($table)->count())->toBeGreaterThan(0, $table);
     }
 

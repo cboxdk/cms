@@ -1,0 +1,192 @@
+{
+    "about": "The schema lock of the type table shop__product: the columns its migrations shop__product_<step> build, in 1 step. cms:generate writes the lock and the migrations from it; do not edit either.",
+    "columns": [
+        {
+            "checks": [
+                "jsonb_typeof(\"body\") = 'array'"
+            ],
+            "indexed": false,
+            "name": "body",
+            "not_null": false,
+            "step": 1,
+            "type": "jsonb"
+        },
+        {
+            "checks": [
+                "jsonb_typeof(\"care\") = 'array'"
+            ],
+            "indexed": false,
+            "name": "care",
+            "not_null": false,
+            "step": 1,
+            "type": "jsonb"
+        },
+        {
+            "checks": [
+                "\"checked_at\" >= '2000-01-01T00:00:00Z'::timestamptz"
+            ],
+            "indexed": false,
+            "name": "checked_at",
+            "not_null": false,
+            "step": 1,
+            "type": "timestamptz"
+        },
+        {
+            "checks": [
+                "\"colour\" IN ('red', 'green', 'blue')"
+            ],
+            "indexed": true,
+            "name": "colour",
+            "not_null": true,
+            "step": 1,
+            "type": "text"
+        },
+        {
+            "checks": [
+                "CASE WHEN jsonb_typeof(\"dimensions\") = 'array' THEN jsonb_array_length(\"dimensions\") BETWEEN 1 AND 5 ELSE \"dimensions\" IS NULL END"
+            ],
+            "indexed": false,
+            "name": "dimensions",
+            "not_null": false,
+            "step": 1,
+            "type": "jsonb"
+        },
+        {
+            "checks": [],
+            "indexed": true,
+            "name": "discontinued",
+            "not_null": false,
+            "step": 1,
+            "type": "boolean"
+        },
+        {
+            "checks": [
+                "char_length(\"ext__app__name\") <= 255"
+            ],
+            "indexed": false,
+            "name": "ext__app__name",
+            "not_null": false,
+            "step": 1,
+            "type": "text"
+        },
+        {
+            "checks": [
+                "char_length(\"ext__app__tax_code\") <= 20"
+            ],
+            "indexed": true,
+            "name": "ext__app__tax_code",
+            "not_null": false,
+            "step": 1,
+            "type": "text"
+        },
+        {
+            "checks": [
+                "\"launch_date\" >= '2000-01-01'::date",
+                "\"launch_date\" <= '2099-12-31'::date"
+            ],
+            "indexed": true,
+            "name": "launch_date",
+            "not_null": false,
+            "step": 1,
+            "type": "date"
+        },
+        {
+            "checks": [
+                "char_length(\"name\") >= 1",
+                "char_length(\"name\") <= 120"
+            ],
+            "indexed": true,
+            "name": "name",
+            "not_null": true,
+            "step": 1,
+            "type": "text"
+        },
+        {
+            "checks": [
+                "\"price\" >= 0.00",
+                "\"price\" <= 99999999.99"
+            ],
+            "indexed": true,
+            "name": "price",
+            "not_null": true,
+            "step": 1,
+            "type": "numeric(10, 2)"
+        },
+        {
+            "checks": [],
+            "indexed": false,
+            "name": "purchase_price",
+            "not_null": false,
+            "step": 1,
+            "type": "bytea"
+        },
+        {
+            "checks": [
+                "\"stock\" >= 0",
+                "\"stock\" <= 1000000"
+            ],
+            "indexed": true,
+            "name": "stock",
+            "not_null": false,
+            "step": 1,
+            "type": "bigint"
+        },
+        {
+            "checks": [
+                "char_length(\"summary\") <= 2000"
+            ],
+            "indexed": false,
+            "name": "summary",
+            "not_null": false,
+            "step": 1,
+            "type": "text"
+        },
+        {
+            "checks": [],
+            "indexed": false,
+            "name": "supplier",
+            "not_null": false,
+            "step": 1,
+            "type": "bytea"
+        },
+        {
+            "checks": [
+                "char_length(\"support_email\") <= 255"
+            ],
+            "indexed": false,
+            "name": "support_email",
+            "not_null": false,
+            "step": 1,
+            "type": "text"
+        },
+        {
+            "checks": [
+                "\"tags\" <@ ARRAY['new', 'sale', 'eco']::text[]",
+                "cardinality(\"tags\") >= 1",
+                "cardinality(\"tags\") <= 3"
+            ],
+            "indexed": false,
+            "name": "tags",
+            "not_null": false,
+            "step": 1,
+            "type": "text[]"
+        },
+        {
+            "checks": [
+                "\"weight\" >= 1"
+            ],
+            "indexed": false,
+            "name": "weight",
+            "not_null": false,
+            "step": 1,
+            "type": "bigint"
+        }
+    ],
+    "localization": "none",
+    "lock": 1,
+    "stages": "draft-release",
+    "steps": 1,
+    "table": "shop__product",
+    "type": "shop:product",
+    "type_id": "0198d2a4-5c3e-7a41-9b2f-3c8e1f6a7d20"
+}

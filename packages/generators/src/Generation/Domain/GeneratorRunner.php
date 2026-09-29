@@ -15,8 +15,8 @@ use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationTarget;
  * files sorted by path and the owned directories sorted, whatever order the generators run in.
  *
  * It checks what the generators produced before anything is written: each owned directory ends
- * in "Generated" or "generated", each file lies below its generator's directory, and no two files
- * share a path.
+ * in "Generated" or "generated" or is the target's migrations directory, which ends in
+ * "migrations/cms", each file lies below its generator's directory, and no two files share a path.
  */
 #[Internal]
 final readonly class GeneratorRunner
@@ -39,9 +39,9 @@ final readonly class GeneratorRunner
             $directory = $generator->directory($target);
             $directories[$directory] = $directory;
 
-            if (! in_array(basename($directory), ['Generated', 'generated'], true)) {
+            if (! in_array(basename($directory), ['Generated', 'generated'], true) && $directory !== $target->migrationsDirectory) {
                 $problems[] = new GenerationProblem(GenerateErrorCode::InvalidOutput, sprintf(
-                    '%s owns "%s", but an owned directory must be named "Generated" or "generated", because cms:generate removes the files in it that it did not generate.',
+                    '%s owns "%s", but an owned directory must be named "Generated" or "generated", or be the migrations directory, because cms:generate removes the files in it that it did not generate.',
                     $generator::class,
                     $directory,
                 ));

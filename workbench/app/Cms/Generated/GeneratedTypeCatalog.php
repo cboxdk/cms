@@ -139,7 +139,7 @@ final readonly class GeneratedTypeCatalog implements TypeCatalog
                         required: false,
                         filterable: false,
                         sortable: false,
-                        column: new ColumnDefinition('fixture_sources', 'jsonb', false, ['CASE WHEN jsonb_typeof("fixture_sources") = \'array\' THEN jsonb_array_length("fixture_sources") BETWEEN 0 AND 10 ELSE false END']),
+                        column: new ColumnDefinition('fixture_sources', 'jsonb', false, ['CASE WHEN jsonb_typeof("fixture_sources") = \'array\' THEN jsonb_array_length("fixture_sources") BETWEEN 0 AND 10 ELSE "fixture_sources" IS NULL END']),
                         fields: [
                             new FieldDefinition(
                                 namespace: null,
@@ -368,7 +368,7 @@ final readonly class GeneratedTypeCatalog implements TypeCatalog
                         required: false,
                         filterable: false,
                         sortable: false,
-                        column: new ColumnDefinition('fixture_series', 'jsonb', false, ['CASE WHEN jsonb_typeof("fixture_series") = \'array\' THEN jsonb_array_length("fixture_series") BETWEEN 1 AND 3 ELSE false END']),
+                        column: new ColumnDefinition('fixture_series', 'jsonb', false, ['CASE WHEN jsonb_typeof("fixture_series") = \'array\' THEN jsonb_array_length("fixture_series") BETWEEN 1 AND 3 ELSE "fixture_series" IS NULL END']),
                         fields: [
                             new FieldDefinition(
                                 namespace: null,

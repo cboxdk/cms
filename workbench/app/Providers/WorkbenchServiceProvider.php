@@ -25,7 +25,8 @@ use Workbench\App\Cms\Generated\GeneratedTypesServiceProvider;
  * does not boot either, and a production installation gives it to its maintenance process only.
  *
  * It also points cms:generate (PRD 11.12) at the workbench's schema root, owner app, and its
- * committed generated code (GUARDRAILS 2.6), relative to the monorepo root, and cms:doctor at the
+ * committed generated code and type table migrations (GUARDRAILS 2.6), relative to the monorepo
+ * root, and cms:doctor at the
  * monorepo's vendor/composer/installed.json and at the root, where package.json and node_modules
  * are for --dev. Testbench's application links vendor/ into its base path only while a command runs, so
  * the default below the base path is not there in the tests.
@@ -48,6 +49,7 @@ final class WorkbenchServiceProvider extends ServiceProvider
             'php_directory' => 'workbench/app/Cms/Generated',
             'php_namespace' => 'Workbench\\App\\Cms\\Generated',
             'typescript_directory' => 'workbench/resources/js/cms/generated',
+            'migrations_directory' => 'workbench/database/migrations/cms',
         ]);
 
         $config->set('cbox-cms.doctor.project_path', dirname(__DIR__, 3));

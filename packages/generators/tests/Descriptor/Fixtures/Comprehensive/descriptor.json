@@ -279,7 +279,7 @@
             "classification": "public",
             "column": {
                 "checks": [
-                    "CASE WHEN jsonb_typeof(\"dimensions\") = 'array' THEN jsonb_array_length(\"dimensions\") BETWEEN 1 AND 5 ELSE false END"
+                    "CASE WHEN jsonb_typeof(\"dimensions\") = 'array' THEN jsonb_array_length(\"dimensions\") BETWEEN 1 AND 5 ELSE \"dimensions\" IS NULL END"
                 ],
                 "name": "dimensions",
                 "not_null": false,

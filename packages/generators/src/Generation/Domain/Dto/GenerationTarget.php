@@ -11,7 +11,9 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
 
 /**
  * Where cms:generate reads the schema and writes the generated code (PRD 11.12): the schema roots,
- * each a directory of blueprint files and its owner, and the directories of the generated code.
+ * each a directory of blueprint files and its owner, the directories of the generated code, and
+ * the directory of the type tables' migrations and their schema locks, which ends in
+ * `migrations/cms`, so a wrong setting can never point it at the application's own migrations.
  * Every path but the root is relative to the root, uses forward slashes and has no "." or ".."
  * segment, so the generated code never names a machine-specific path.
  */
@@ -19,6 +21,9 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
 final readonly class GenerationTarget
 {
     private const string RELATIVE_PATH = '/\A[A-Za-z0-9_-][A-Za-z0-9_.-]*(?:\/[A-Za-z0-9_-][A-Za-z0-9_.-]*)*\z/';
+
+    /** The last two segments of the migrations directory. */
+    public const string MIGRATIONS_SUFFIX = 'migrations/cms';
 
     private const string NAMESPACE = '/\A[A-Z][A-Za-z0-9]*(?:\\\\[A-Z][A-Za-z0-9]*)*\z/';
 
@@ -30,6 +35,8 @@ final readonly class GenerationTarget
      * @param  list<SchemaRoot>  $roots  the schema roots, each below $root and with its own owner
      * @param  string  $phpDirectory  where the PHP code goes, in the namespace $phpNamespace
      * @param  string  $typeScriptDirectory  where the TypeScript goes
+     * @param  string  $migrationsDirectory  where the type tables' migrations and schema locks go,
+     *                                       ending in migrations/cms
      *
      * @throws GenerationFailed with GenerateErrorCode::InvalidConfig
      */
@@ -39,6 +46,7 @@ final readonly class GenerationTarget
         public string $phpDirectory,
         public string $phpNamespace,
         public string $typeScriptDirectory,
+        public string $migrationsDirectory = 'database/'.self::MIGRATIONS_SUFFIX,
     ) {
         $problems = [];
 
@@ -48,7 +56,7 @@ final readonly class GenerationTarget
 
         $problems = [...$problems, ...$this->rootProblems($root, $roots)];
 
-        foreach (['php_directory' => $phpDirectory, 'typescript_directory' => $typeScriptDirectory] as $key => $path) {
+        foreach (['php_directory' => $phpDirectory, 'typescript_directory' => $typeScriptDirectory, 'migrations_directory' => $migrationsDirectory] as $key => $path) {
             if (preg_match(self::RELATIVE_PATH, $path) !== 1) {
                 $problems[] = new GenerationProblem(GenerateErrorCode::InvalidConfig, sprintf(
                     'cbox-cms.generators.%s "%s" is not a relative path below the root, such as "app/Cms/Generated". Use forward slashes and no "." or ".." segments.',
@@ -56,6 +64,14 @@ final readonly class GenerationTarget
                     $path,
                 ));
             }
+        }
+
+        if ($migrationsDirectory !== self::MIGRATIONS_SUFFIX && ! str_ends_with($migrationsDirectory, '/'.self::MIGRATIONS_SUFFIX)) {
+            $problems[] = new GenerationProblem(GenerateErrorCode::InvalidConfig, sprintf(
+                'cbox-cms.generators.migrations_directory "%s" does not end in "%s", such as "database/migrations/cms". cms:generate removes the files there that it did not write.',
+                $migrationsDirectory,
+                self::MIGRATIONS_SUFFIX,
+            ));
         }
 
         if (preg_match(self::NAMESPACE, $phpNamespace) !== 1) {

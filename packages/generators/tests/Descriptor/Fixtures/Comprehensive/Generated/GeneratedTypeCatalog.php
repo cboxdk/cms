@@ -106,7 +106,7 @@ final readonly class GeneratedTypeCatalog implements TypeCatalog
                         required: false,
                         filterable: false,
                         sortable: false,
-                        column: new ColumnDefinition('dimensions', 'jsonb', false, ['CASE WHEN jsonb_typeof("dimensions") = \'array\' THEN jsonb_array_length("dimensions") BETWEEN 1 AND 5 ELSE false END']),
+                        column: new ColumnDefinition('dimensions', 'jsonb', false, ['CASE WHEN jsonb_typeof("dimensions") = \'array\' THEN jsonb_array_length("dimensions") BETWEEN 1 AND 5 ELSE "dimensions" IS NULL END']),
                         fields: [
                             new FieldDefinition(
                                 namespace: null,

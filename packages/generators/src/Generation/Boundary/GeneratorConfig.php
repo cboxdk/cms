@@ -40,7 +40,7 @@ final readonly class GeneratorConfig
         $strings = [];
         $problems = [];
 
-        foreach (['php_directory', 'php_namespace', 'typescript_directory'] as $key) {
+        foreach (['php_directory', 'php_namespace', 'typescript_directory', 'migrations_directory'] as $key) {
             $value = $values[$key] ?? null;
 
             if (! is_string($value)) {
@@ -69,6 +69,7 @@ final readonly class GeneratorConfig
             $strings['php_directory'] ?? '',
             $strings['php_namespace'] ?? '',
             $strings['typescript_directory'] ?? '',
+            $strings['migrations_directory'] ?? '',
         );
     }
 

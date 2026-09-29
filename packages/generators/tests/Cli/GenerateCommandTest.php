@@ -55,6 +55,7 @@ function generateRoot(?string $blueprint = VALID_BLUEPRINT): string
         'php_directory' => 'app/Cms/Generated',
         'php_namespace' => 'App\Cms\Generated',
         'typescript_directory' => 'resources/js/cms/generated',
+        'migrations_directory' => 'database/migrations/cms',
     ]);
 
     return $root;
@@ -83,10 +84,11 @@ it('points at the workbench\'s schema root in the workbench', function (): void 
         'php_directory' => 'workbench/app/Cms/Generated',
         'php_namespace' => 'Workbench\App\Cms\Generated',
         'typescript_directory' => 'workbench/resources/js/cms/generated',
+        'migrations_directory' => 'workbench/database/migrations/cms',
     ]);
 });
 
-it('writes the PHP enum, the record DTO and codec, the validator and the TypeScript union, and a second run changes nothing', function (): void {
+it('writes the PHP enum, the record DTO and codec, the validator, the TypeScript union and the type table\'s migration and schema lock, and a second run changes nothing', function (): void {
     $root = generateRoot();
 
     [$first, $firstOutput] = generateCommand();
@@ -106,16 +108,18 @@ it('writes the PHP enum, the record DTO and codec, the validator and the TypeScr
             'written: app/Cms/Generated/Records/AppPage/AppPageRecordFactory.php',
             'written: app/Cms/Generated/TypeHandle.php',
             'written: app/Cms/Generated/Validators/AppPageValidator.php',
+            'written: database/migrations/cms/app__page.lock',
+            'written: database/migrations/cms/app__page_0001_create.php',
             'written: resources/js/cms/generated/index.ts',
             'written: resources/js/cms/generated/protocol/EnvelopeV1.ts',
             'written: resources/js/cms/generated/protocol/ProblemV1.ts',
             'written: resources/js/cms/generated/protocol/ReceiptV1.ts',
             'written: resources/js/cms/generated/records/AppPageV1.ts',
             'written: resources/js/cms/generated/validation.ts',
-            'Generated 17 files: 17 written, 0 unchanged, 0 stale removed.',
+            'Generated 19 files: 19 written, 0 unchanged, 0 stale removed.',
         ])
         ->and($second)->toBe(0)
-        ->and($secondOutput)->toBe(['Generated 17 files: 0 written, 17 unchanged, 0 stale removed.'])
+        ->and($secondOutput)->toBe(['Generated 19 files: 0 written, 19 unchanged, 0 stale removed.'])
         ->and(array_map(static fn (string $file): string => (string) hash_file('sha256', $root.'/'.$file), SchemaFixtures::files($root)))->toBe($hashes)
         ->and(SchemaFixtures::files($root))->toBe([
             'app/Cms/Generated/Boundary/AppPageCodecV1.php',
@@ -129,6 +133,8 @@ it('writes the PHP enum, the record DTO and codec, the validator and the TypeScr
             'app/Cms/Generated/Records/AppPage/AppPageRecordFactory.php',
             'app/Cms/Generated/TypeHandle.php',
             'app/Cms/Generated/Validators/AppPageValidator.php',
+            'database/migrations/cms/app__page.lock',
+            'database/migrations/cms/app__page_0001_create.php',
             'resources/js/cms/generated/index.ts',
             'resources/js/cms/generated/protocol/EnvelopeV1.ts',
             'resources/js/cms/generated/protocol/ProblemV1.ts',
@@ -191,9 +197,11 @@ it('generates when a module release adds a type with the handle of an app type, 
             'written: app/Cms/Generated/Records/AcmePage/AcmePageRecordFactory.php',
             'written: app/Cms/Generated/TypeHandle.php',
             'written: app/Cms/Generated/Validators/AcmePageValidator.php',
+            'written: database/migrations/cms/acme__page.lock',
+            'written: database/migrations/cms/acme__page_0001_create.php',
             'written: resources/js/cms/generated/index.ts',
             'written: resources/js/cms/generated/records/AcmePageV1.ts',
-            'Generated 25 files: 13 written, 12 unchanged, 0 stale removed.',
+            'Generated 29 files: 15 written, 14 unchanged, 0 stale removed.',
         ])
         ->and(is_file($root.'/app/Cms/Generated/Validators/AppPageValidator.php'))->toBeTrue()
         ->and((string) file_get_contents($root.'/app/Cms/Generated/TypeHandle.php'))->toContain("    case AcmePage = 'acme:page';\n    case AppPage = 'app:page';\n")
@@ -235,6 +243,32 @@ it('exits with 78 when the configuration is invalid', function (): void {
     expect($status)->toBe(GenerateCommand::EXIT_INVALID_CONFIG)
         ->and($output[0])->toContain('[generate_invalid_config] cbox-cms.generators.php_directory "../outside/Generated" is not a relative path')
         ->and($output[1])->toContain('[generate_invalid_config] cbox-cms.generators.php_namespace "app\cms" is not a PHP namespace');
+});
+
+it('exits with 78 when the migrations directory does not end in migrations/cms or is missing', function (mixed $directory, string $problem): void {
+    generateRoot();
+    config()->set('cbox-cms.generators.migrations_directory', $directory);
+
+    [$status, $output] = generateCommand();
+
+    expect($status)->toBe(GenerateCommand::EXIT_INVALID_CONFIG)
+        ->and($output[0])->toContain('[generate_invalid_config] '.$problem);
+})->with([
+    'the application\'s migrations' => ['database/migrations', 'cbox-cms.generators.migrations_directory "database/migrations" does not end in "migrations/cms"'],
+    'another name' => ['database/migrations/types', 'cbox-cms.generators.migrations_directory "database/migrations/types" does not end in "migrations/cms"'],
+    'a path outside the root' => ['../migrations/cms', 'cbox-cms.generators.migrations_directory "../migrations/cms" is not a relative path'],
+    'not a string' => [null, 'cbox-cms.generators.migrations_directory must be a string.'],
+]);
+
+it('takes a migrations directory that is migrations/cms itself', function (): void {
+    $root = generateRoot();
+    config()->set('cbox-cms.generators.migrations_directory', 'migrations/cms');
+
+    [$status] = generateCommand();
+
+    expect($status)->toBe(0)
+        ->and(is_file($root.'/migrations/cms/app__page_0001_create.php'))->toBeTrue()
+        ->and((string) file_get_contents($root.'/app/Cms/Generated/GeneratedTypesServiceProvider.php'))->toContain("\$this->loadMigrationsFrom(__DIR__.'/../../../migrations/cms');");
 });
 
 it('exits with 78 when the schema roots are not a map from owner to directory', function (mixed $roots, string $problem): void {

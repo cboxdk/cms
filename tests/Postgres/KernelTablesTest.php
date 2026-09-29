@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Tests\Postgres;
 
+use Cbox\Cms\Contracts\Schema\TypeCatalog;
+use Cbox\Cms\Contracts\Schema\TypeDefinition;
+use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Testkit\Phpstan\KernelTables;
 use Cbox\Cms\Testkit\Postgres\PartitionFixtures;
 use DateTimeImmutable;
@@ -15,7 +18,9 @@ use LogicException;
  * kernel table outside the kernel, and it knows the tables from KernelTables::NAMES. This holds
  * the list equal to the tables and LIST partitions the migrations built, so a new core table is
  * never left out of the rule. The partition manager's partitions, `<table>_p<digits>`, are covered
- * by the rule through their table.
+ * by the rule through their table. The workbench's generated type tables, `<owner>__<handle>`
+ * (PRD 11.6), are the application's, not the kernel's: they are exactly the tables of the types
+ * in the generated TypeCatalog, and no kernel table has a double underscore in its name.
  */
 
 /**
@@ -41,8 +46,14 @@ it('lists every table and LIST partition the migrations built, and nothing else'
         $tables[] = is_string($name) ? $name : throw new LogicException('Expected a table name.');
     }
 
-    expect(array_values(array_diff($tables, NOT_KERNEL_TABLES)))->toBe(KernelTables::NAMES)
-        ->and(array_values(array_intersect(NOT_KERNEL_TABLES, $tables)))->toBe(NOT_KERNEL_TABLES);
+    $typeTables = array_map(static fn (TypeDefinition $type): string => $type->name->table(), app(TypeCatalog::class)->all());
+    sort($typeTables);
+
+    expect(array_values(array_diff($tables, NOT_KERNEL_TABLES, $typeTables)))->toBe(KernelTables::NAMES)
+        ->and(array_values(array_intersect(NOT_KERNEL_TABLES, $tables)))->toBe(NOT_KERNEL_TABLES)
+        ->and(array_values(array_intersect($tables, $typeTables)))->toBe($typeTables)
+        ->and($typeTables)->not->toBe([])
+        ->and(array_filter(KernelTables::NAMES, static fn (string $table): bool => str_contains($table, TypeName::TABLE_SEPARATOR)))->toBe([]);
 });
 
 it('names each managed partition by its table', function (): void {

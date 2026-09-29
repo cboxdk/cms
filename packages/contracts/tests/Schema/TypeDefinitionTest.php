@@ -77,6 +77,15 @@ it('reads the owner and the handle from a type name', function (): void {
         ->and($name->equals(new TypeName('app:blog_post2')))->toBeFalse();
 });
 
+it('names the type\'s table <owner>__<handle>, so two names never give one table', function (): void {
+    $names = ['shop:blog_post2', 'shop:blog', 'shopblog:post2', 'shop2:blog_post', 'app:shop_blog_post2'];
+    $tables = array_map(static fn (string $name): string => new TypeName($name)->table(), $names);
+
+    expect($tables)->toBe(['shop__blog_post2', 'shop__blog', 'shopblog__post2', 'shop2__blog_post', 'app__shop_blog_post2'])
+        ->and(array_unique($tables))->toBe($tables)
+        ->and(TypeName::TABLE_SEPARATOR)->toBe('__');
+});
+
 it('refuses a type name that is not <owner>:<handle>', function (string $value): void {
     expect(fn (): TypeName => new TypeName($value))->toThrow(InvalidTypeDefinition::class, 'A type name is <owner>:<handle>');
 })->with([

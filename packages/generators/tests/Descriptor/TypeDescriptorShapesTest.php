@@ -100,7 +100,7 @@ it('describes each field type\'s column and value for options the example does n
     'a group that occurs once' => [new GroupOptions([], null), ['jsonb', ['jsonb_typeof("c") = \'object\'']], ['array{}', '{  }', ['object']]],
     'a repeated group without a minimum' => [
         new GroupOptions([], new GroupRepeat(null, 7)),
-        ['jsonb', ['CASE WHEN jsonb_typeof("c") = \'array\' THEN jsonb_array_length("c") BETWEEN 0 AND 7 ELSE false END']],
+        ['jsonb', ['CASE WHEN jsonb_typeof("c") = \'array\' THEN jsonb_array_length("c") BETWEEN 0 AND 7 ELSE "c" IS NULL END']],
         ['list<array{}>', 'Array<{  }>', ['list', 'max_items:7']],
     ],
 ]);

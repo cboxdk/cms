@@ -11,6 +11,7 @@ use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeHandleEnum;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeValidators;
 use Cbox\Cms\Generators\Generation\Domain\Generators\TypeScriptContracts;
 use Cbox\Cms\Generators\Generation\Domain\Generators\TypeScriptTypeHandles;
+use Cbox\Cms\Generators\Generation\Domain\Generators\TypeTableMigrations;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintSchemaFile;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypeRegistry;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypes\CoreFieldTypes;
@@ -46,6 +47,7 @@ function generatorMappings(): array
         PhpTypeValidators::class => ['fieldTypes' => PhpTypeValidators::FIELD_TYPES, 'kinds' => PhpTypeValidators::KINDS],
         TypeScriptTypeHandles::class => ['fieldTypes' => TypeScriptTypeHandles::FIELD_TYPES, 'kinds' => TypeScriptTypeHandles::KINDS],
         TypeScriptContracts::class => ['fieldTypes' => TypeScriptContracts::FIELD_TYPES, 'kinds' => TypeScriptContracts::KINDS],
+        TypeTableMigrations::class => ['fieldTypes' => TypeTableMigrations::FIELD_TYPES, 'kinds' => TypeTableMigrations::KINDS],
     ];
 }
 
@@ -178,6 +180,7 @@ it('fails when the schema gains a field type or a kind that a generator does not
         PhpTypeValidators::class.' has no mapping for the field type "relation".',
         TypeScriptTypeHandles::class.' has no mapping for the field type "relation".',
         TypeScriptContracts::class.' has no mapping for the field type "relation".',
+        TypeTableMigrations::class.' has no mapping for the field type "relation".',
         PhpRecordDtos::class.' has no mapping for the kind "fieldset".',
         PhpTypeHandleEnum::class.' has no mapping for the kind "fieldset".',
         PhpRecords::class.' has no mapping for the kind "fieldset".',
@@ -185,6 +188,7 @@ it('fails when the schema gains a field type or a kind that a generator does not
         PhpTypeValidators::class.' has no mapping for the kind "fieldset".',
         TypeScriptTypeHandles::class.' has no mapping for the kind "fieldset".',
         TypeScriptContracts::class.' has no mapping for the kind "fieldset".',
+        TypeTableMigrations::class.' has no mapping for the kind "fieldset".',
     ]);
 });
 

@@ -25,6 +25,7 @@ use Cbox\Cms\Generators\Descriptor\Domain\Dto\ColumnDescriptor;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\CompiledSchema;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\FieldDescriptor;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\TypeDescriptor;
+use Cbox\Cms\Generators\Editor\Domain\RelativePath;
 use Cbox\Cms\Generators\Generation\Domain\Dto\ExtensionVersion as ExtenderVersion;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GeneratedFile;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationTarget;
@@ -46,7 +47,9 @@ use Override;
  * - `GeneratedTypesServiceProvider`, a Laravel service provider that binds TypeCatalog to the
  *   catalog, TypeValidators to the validators and each type's record factory interface to the
  *   composite record's factory (PhpRecords), so the owner's code gets the composite record
- *   without knowing the extenders. The application registers it once.
+ *   without knowing the extenders, and registers the migrations directory, where
+ *   TypeTableMigrations writes the migrations of the type tables, with the migrator, by its path
+ *   relative to the provider. The application registers it once.
  *
  * The output is formatted the way Pint, Rector and PHPStan level 10 accept it unchanged, and it uses
  * only the public API of cboxdk/cms.
@@ -239,7 +242,7 @@ final readonly class PhpTypeCatalog implements Generator
 
         return PhpSource::file($target->phpDirectory.'/'.self::PROVIDER.'.php', $target->phpNamespace, $imports, [
             ...PhpSource::docblock([
-                'Binds what the generated code gives the kernel and the owners\' code (PRD 11.12): the TypeCatalog contract to the generated catalog, the TypeValidators contract to the generated validators, and each type\'s record factory interface to the factory of its composite record, with every extender\'s fields. Register it once in the application.',
+                'Binds what the generated code gives the kernel and the owners\' code (PRD 11.12): the TypeCatalog contract to the generated catalog, the TypeValidators contract to the generated validators, and each type\'s record factory interface to the factory of its composite record, with every extender\'s fields. Registers the generated migrations of the type tables with the migrator; they run with migrate, never on their own. Register it once in the application.',
             ]),
             'final class '.self::PROVIDER.' extends '.PhpSource::shortName($this->serviceProvider),
             '{',
@@ -249,6 +252,11 @@ final readonly class PhpTypeCatalog implements Generator
             '        $this->app->singleton(TypeCatalog::class, '.self::CATALOG.'::class);',
             '        $this->app->singleton(TypeValidators::class, '.self::VALIDATORS.'::class);',
             ...$bindings,
+            '    }',
+            '',
+            '    public function boot(): void',
+            '    {',
+            sprintf('        $this->loadMigrationsFrom(__DIR__.%s);', PhpSource::literal('/'.RelativePath::between('/'.$target->phpDirectory, '/'.$target->migrationsDirectory))),
             '    }',
             '}',
         ]);

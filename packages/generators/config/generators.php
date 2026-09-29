@@ -9,8 +9,9 @@ declare(strict_types=1);
  * type handles and a TypeScript union of them, each with the fields of every type. The paths follow
  * the application layout in PRD 11.12 and are relative to `root`.
  *
- * cms:generate owns php_directory and typescript_directory: it removes every file there that it
- * did not generate. Both must therefore end in a directory named Generated or generated.
+ * cms:generate owns php_directory, typescript_directory and migrations_directory: it removes every
+ * file there that it did not generate. The first two must therefore end in a directory named
+ * Generated or generated, and migrations_directory in migrations/cms.
  */
 
 return [
@@ -30,4 +31,9 @@ return [
 
     // Where the TypeScript goes.
     'typescript_directory' => 'resources/js/cms/generated',
+
+    // Where the migrations of the type tables go, next to the schema lock of each type table they
+    // are computed from (PRD 11.6). The generated service provider registers the directory with
+    // the migrator, and the migrations run with `php artisan migrate` like any other.
+    'migrations_directory' => 'database/migrations/cms',
 ];

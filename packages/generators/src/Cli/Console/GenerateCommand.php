@@ -19,10 +19,10 @@ use Illuminate\Contracts\Foundation\Application;
 
 /**
  * `cms:generate`: the type chain from the schema (PRD 11.12, GUARDRAILS 7.1). It reads the
- * blueprint v1 files below the configured schema roots and writes a PHP enum and a TypeScript union
- * of the type handles, each with the fields of every type. The output is deterministic, so a second
- * run changes nothing, and the gate `composer check:generated` fails when the committed code is not
- * what the schema generates.
+ * blueprint v1 files below the configured schema roots and writes the generated PHP and TypeScript
+ * of every type, and the migrations of the type tables with their schema locks (PRD 11.6). The
+ * output is deterministic, so a second run changes nothing, and the gate `composer check:generated`
+ * fails when the committed code is not what the schema generates.
  *
  * Exit codes, from the error catalog's entry of the first problem's code: 0 generated, 65 the
  * schema is invalid or needs a newer cboxdk/cms, 66 a schema root or a blueprint file is missing,

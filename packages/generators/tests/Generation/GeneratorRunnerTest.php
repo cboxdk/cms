@@ -41,11 +41,25 @@ it('sorts the files by path and the directories, whatever order the generators r
         ->and($result->directories)->toBe(['a/generated', 'b/Generated']);
 });
 
-it('refuses a directory that is not named Generated or generated, because stale files in it are removed', function (): void {
-    $failed = runGenerators([new FixedGenerator('app/Models', ['app/Models/Page.php'])]);
+it('refuses a directory that is not named Generated or generated, because stale files in it are removed', function (string $directory): void {
+    $failed = runGenerators([new FixedGenerator($directory, [$directory.'/Page.php'])]);
 
     expect($failed->codes())->toBe([GenerateErrorCode::InvalidOutput])
-        ->and($failed->getMessage())->toContain('owns "app/Models", but an owned directory must be named "Generated" or "generated"');
+        ->and($failed->getMessage())->toContain('owns "'.$directory.'", but an owned directory must be named "Generated" or "generated", or be the migrations directory');
+})->with([
+    'a directory of the application' => ['app/Models'],
+    'the application\'s migrations' => ['database/migrations'],
+    'another migrations/cms than the target\'s' => ['other/migrations/cms'],
+]);
+
+it('lets a generator own the target\'s migrations directory', function (): void {
+    $result = new GeneratorRunner([
+        new FixedGenerator('database/migrations/cms', ['database/migrations/cms/a.php']),
+    ])->run(SchemaFixtures::schema(['page' => ['title' => 'text']]), SchemaFixtures::target());
+
+    expect(SchemaFixtures::target()->migrationsDirectory)->toBe('database/migrations/cms')
+        ->and($result->paths())->toBe(['database/migrations/cms/a.php'])
+        ->and($result->directories)->toBe(['database/migrations/cms']);
 });
 
 it('refuses a file outside the generator\'s directory', function (): void {

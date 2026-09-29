@@ -12,6 +12,7 @@ use Cbox\Cms\Generators\Cli\Console\GenerateCommand;
 use Cbox\Cms\Generators\Cli\Console\SchemaEditorCommand;
 use Cbox\Cms\Generators\Editor\Adapter\FilesystemSchemaFiles;
 use Cbox\Cms\Generators\Generation\Adapter\FilesystemGeneratedOutput;
+use Cbox\Cms\Generators\Migrations\Boundary\LockFiles;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintFiles;
 use Cbox\Cms\Generators\Schema\Boundary\LocalFile;
 use Cbox\Cms\Testkit\Phpstan\EgressNames;
@@ -93,6 +94,10 @@ final class Egress
         // Lists a schema root, whose base SchemaRoot requires to be an absolute path, which names
         // no stream wrapper.
         BlueprintFiles::class => ['FilesystemIterator', 'RecursiveDirectoryIterator'],
+        // Lists the schema locks in the migrations directory below cbox-cms.generators.root, which
+        // GenerationTarget requires to be an absolute path; read() refuses a path that names a
+        // stream wrapper before it lists it.
+        LockFiles::class => ['FilesystemIterator'],
         // Makes, lists, writes, renames into place and removes files in the owned directories
         // below cbox-cms.generators.root, which GenerationTarget requires to be an absolute path; write()
         // refuses a root that names a stream wrapper.

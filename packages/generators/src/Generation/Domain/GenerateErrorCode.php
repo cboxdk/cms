@@ -104,6 +104,50 @@ enum GenerateErrorCode: string
      */
     case NameCollision = 'generate_name_collision';
 
+    /**
+     * A type's table name, `<owner>__<handle>`, is longer than 54 bytes, so the names of its row
+     * level security policies, `<table>_released` and `<table>_actor`, would pass Postgres' limit
+     * of 63 bytes (PRD 11.6).
+     */
+    case TableNameTooLong = 'generate_table_name_too_long';
+
+    /**
+     * A schema lock in the migrations directory is not a lock cms:generate wrote: it is not valid
+     * JSON, lacks a value, has an unknown format, or its file name does not match its table.
+     */
+    case LockInvalid = 'generate_lock_invalid';
+
+    /**
+     * A type whose table has a schema lock is no longer in the schema. Until schema evolution
+     * (B3), a type table only grows: a type is never removed or renamed.
+     */
+    case TypeRemoved = 'generate_type_removed';
+
+    /**
+     * A type's id, stages or localization differ from its schema lock, which would change the
+     * table's key or system columns. Until schema evolution (B3), only new types and new optional
+     * fields change a type table.
+     */
+    case TableChanged = 'generate_table_changed';
+
+    /**
+     * A field whose column is in its type's schema lock is no longer in the schema. Until schema
+     * evolution (B3), a field is never removed or renamed.
+     */
+    case FieldRemoved = 'generate_field_removed';
+
+    /**
+     * A field's column type, NOT NULL, CHECK constraints or index differ from its type's schema
+     * lock. Until schema evolution (B3), an existing column never changes.
+     */
+    case FieldChanged = 'generate_field_changed';
+
+    /**
+     * A field added to a type that has a table is required, so its column would be NOT NULL on
+     * existing rows. Until schema evolution (B3), a new field of an existing type is optional.
+     */
+    case RequiredFieldAdded = 'generate_required_field_added';
+
     /** A generator produced a file outside its directory, or two files with the same path. */
     case InvalidOutput = 'generate_invalid_output';
 

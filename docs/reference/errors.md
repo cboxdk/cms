@@ -61,20 +61,27 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`generate_duplicate_type_id`](#generate_duplicate_type_id) | 500 | 65 | internal_error | no |
 | [`generate_extension_of_own_type`](#generate_extension_of_own_type) | 500 | 65 | internal_error | no |
 | [`generate_extension_version_mismatch`](#generate_extension_version_mismatch) | 500 | 65 | internal_error | no |
+| [`generate_field_changed`](#generate_field_changed) | 500 | 65 | internal_error | no |
+| [`generate_field_removed`](#generate_field_removed) | 500 | 65 | internal_error | no |
 | [`generate_invalid_case_name`](#generate_invalid_case_name) | 500 | 65 | internal_error | no |
 | [`generate_invalid_config`](#generate_invalid_config) | 500 | 78 | internal_error | no |
 | [`generate_invalid_output`](#generate_invalid_output) | 500 | 70 | internal_error | no |
+| [`generate_lock_invalid`](#generate_lock_invalid) | 500 | 65 | internal_error | no |
 | [`generate_min_above_max`](#generate_min_above_max) | 500 | 65 | internal_error | no |
 | [`generate_min_items_above_max_items`](#generate_min_items_above_max_items) | 500 | 65 | internal_error | no |
 | [`generate_min_length_above_max_length`](#generate_min_length_above_max_length) | 500 | 65 | internal_error | no |
 | [`generate_name_collision`](#generate_name_collision) | 500 | 65 | internal_error | no |
 | [`generate_output_unwritable`](#generate_output_unwritable) | 500 | 73 | internal_error | no |
+| [`generate_required_field_added`](#generate_required_field_added) | 500 | 65 | internal_error | no |
 | [`generate_scale_above_precision`](#generate_scale_above_precision) | 500 | 65 | internal_error | no |
 | [`generate_schema_invalid`](#generate_schema_invalid) | 500 | 65 | internal_error | no |
 | [`generate_schema_missing`](#generate_schema_missing) | 500 | 66 | internal_error | no |
 | [`generate_schema_unsupported_version`](#generate_schema_unsupported_version) | 500 | 65 | internal_error | no |
 | [`generate_schema_unwritable`](#generate_schema_unwritable) | 500 | 73 | internal_error | no |
+| [`generate_table_changed`](#generate_table_changed) | 500 | 65 | internal_error | no |
+| [`generate_table_name_too_long`](#generate_table_name_too_long) | 500 | 65 | internal_error | no |
 | [`generate_too_many_fields`](#generate_too_many_fields) | 500 | 65 | internal_error | no |
+| [`generate_type_removed`](#generate_type_removed) | 500 | 65 | internal_error | no |
 | [`generate_unknown_extends_target`](#generate_unknown_extends_target) | 500 | 65 | internal_error | no |
 | [`generate_unknown_field_type`](#generate_unknown_field_type) | 500 | 65 | internal_error | no |
 | [`hook_budget_exceeded`](#hook_budget_exceeded) | 503 | 75 | internal_error | yes |
@@ -562,6 +569,24 @@ Two extension files of one owner for one type declare different versions. The fi
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
+### generate_field_changed
+
+A field's column type, NOT NULL, CHECK constraints or index differ from its type's schema lock, the table the committed migrations build. Until schema evolution comes (B3), an existing column never changes: undo the change, or add a new optional field instead.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### generate_field_removed
+
+A field whose column is in its type's schema lock is no longer in the schema. Until schema evolution comes (B3), a type table only grows: put the field back, and stop using it instead.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
 ### generate_invalid_case_name
 
 A type's owner and handle give no valid PHP enum case, or two types of one owner give the same case. Rename one of the types.
@@ -586,6 +611,15 @@ A generator produced a file outside its directory, or two files with the same pa
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 70 (EX_SOFTWARE)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### generate_lock_invalid
+
+A schema lock (<table>.lock) in the migrations directory is not one cms:generate wrote: it is not valid JSON, lacks a value, has an unknown format, or its file name does not match its table. Restore the committed file with git, then run cms:generate again.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
@@ -634,6 +668,15 @@ A generated file could not be written, or a stale one could not be removed. Chec
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
+### generate_required_field_added
+
+A field added to a type that already has a table is required, so its column would be NOT NULL on the rows that exist. Until schema evolution comes (B3), add the field as optional.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
 ### generate_scale_above_precision
 
 A decimal field's scale is greater than its precision. Correct one of them.
@@ -679,9 +722,36 @@ cms:schema:editor could not write the editor line into a blueprint file. Check t
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
+### generate_table_changed
+
+A type's type_id, stages or localization differ from its schema lock, which would change its table's key or system columns. Until schema evolution comes (B3), undo the change, or define a new type.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### generate_table_name_too_long
+
+A type's table name, <owner>__<handle>, is longer than 54 bytes, so the names of its row level security policies would pass Postgres' limit of 63 bytes. Give the type a shorter handle.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
 ### generate_too_many_fields
 
 A type has more than 200 top-level fields, its own and those its extensions add together, and each is a column of the type's table (PRD 11.6). Move fields into groups, or split the type.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### generate_type_removed
+
+A type whose table has a schema lock in the migrations directory is no longer in the schema. Until schema evolution comes (B3), a type is never removed or renamed: put its blueprint back.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)

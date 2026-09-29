@@ -28,7 +28,8 @@ interface Generator
 {
     /**
      * The directory the generator owns, relative to the root. Its last segment is "Generated" or
-     * "generated", because cms:generate deletes stale files in it.
+     * "generated", or it is the target's migrations directory, because cms:generate deletes stale
+     * files in it.
      */
     public function directory(GenerationTarget $target): string;
 

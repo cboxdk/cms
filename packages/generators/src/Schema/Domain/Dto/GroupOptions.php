@@ -55,7 +55,10 @@ final readonly class GroupOptions implements FieldOptions
     }
 
     /**
-     * A JSONB object, or a JSONB array of at most `max_items` objects for a repeated group.
+     * A JSONB object, or a JSONB array of at most `max_items` objects for a repeated group. The
+     * repeated group's check is a CASE, so a value that is not an array fails it instead of making
+     * jsonb_array_length() raise an error, and its ELSE is true for null, so a group that is not
+     * required may be left out.
      */
     #[Override]
     public function describeColumn(string $column): ColumnShape
@@ -65,11 +68,12 @@ final readonly class GroupOptions implements FieldOptions
         }
 
         return new ColumnShape('jsonb', [sprintf(
-            "CASE WHEN jsonb_typeof(%s) = 'array' THEN jsonb_array_length(%s) BETWEEN %d AND %d ELSE false END",
+            "CASE WHEN jsonb_typeof(%s) = 'array' THEN jsonb_array_length(%s) BETWEEN %d AND %d ELSE %s IS NULL END",
             $column,
             $column,
             $this->repeat->minItems ?? 0,
             $this->repeat->maxItems,
+            $column,
         )]);
     }
 

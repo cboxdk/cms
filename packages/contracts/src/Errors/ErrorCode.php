@@ -73,20 +73,27 @@ enum ErrorCode: string
     case GenerateDuplicateTypeId = 'generate_duplicate_type_id';
     case GenerateExtensionOfOwnType = 'generate_extension_of_own_type';
     case GenerateExtensionVersionMismatch = 'generate_extension_version_mismatch';
+    case GenerateFieldChanged = 'generate_field_changed';
+    case GenerateFieldRemoved = 'generate_field_removed';
     case GenerateInvalidCaseName = 'generate_invalid_case_name';
     case GenerateInvalidConfig = 'generate_invalid_config';
     case GenerateInvalidOutput = 'generate_invalid_output';
+    case GenerateLockInvalid = 'generate_lock_invalid';
     case GenerateMinAboveMax = 'generate_min_above_max';
     case GenerateMinItemsAboveMaxItems = 'generate_min_items_above_max_items';
     case GenerateMinLengthAboveMaxLength = 'generate_min_length_above_max_length';
     case GenerateNameCollision = 'generate_name_collision';
     case GenerateOutputUnwritable = 'generate_output_unwritable';
+    case GenerateRequiredFieldAdded = 'generate_required_field_added';
     case GenerateScaleAbovePrecision = 'generate_scale_above_precision';
     case GenerateSchemaInvalid = 'generate_schema_invalid';
     case GenerateSchemaMissing = 'generate_schema_missing';
     case GenerateSchemaUnsupportedVersion = 'generate_schema_unsupported_version';
     case GenerateSchemaUnwritable = 'generate_schema_unwritable';
+    case GenerateTableChanged = 'generate_table_changed';
+    case GenerateTableNameTooLong = 'generate_table_name_too_long';
     case GenerateTooManyFields = 'generate_too_many_fields';
+    case GenerateTypeRemoved = 'generate_type_removed';
     case GenerateUnknownExtendsTarget = 'generate_unknown_extends_target';
     case GenerateUnknownFieldType = 'generate_unknown_field_type';
     case HookBudgetExceeded = 'hook_budget_exceeded';
@@ -303,6 +310,12 @@ enum ErrorCode: string
             self::GenerateExtensionVersionMismatch => $this->refusedInput(
                 'Two extension files of one owner for one type declare different versions. The fields one owner adds to a type share one version: give both files the same one.',
             ),
+            self::GenerateFieldChanged => $this->refusedInput(
+                'A field\'s column type, NOT NULL, CHECK constraints or index differ from its type\'s schema lock, the table the committed migrations build. Until schema evolution comes (B3), an existing column never changes: undo the change, or add a new optional field instead.',
+            ),
+            self::GenerateFieldRemoved => $this->refusedInput(
+                'A field whose column is in its type\'s schema lock is no longer in the schema. Until schema evolution comes (B3), a type table only grows: put the field back, and stop using it instead.',
+            ),
             self::GenerateInvalidCaseName => $this->refusedInput(
                 'A type\'s owner and handle give no valid PHP enum case, or two types of one owner give the same case. Rename one of the types.',
             ),
@@ -313,6 +326,9 @@ enum ErrorCode: string
             self::GenerateInvalidOutput => $this->tooling(
                 ExitCode::Software,
                 'A generator produced a file outside its directory, or two files with the same path, so nothing was written. This is a bug in the generator. Report it with the cause.',
+            ),
+            self::GenerateLockInvalid => $this->refusedInput(
+                'A schema lock (<table>.lock) in the migrations directory is not one cms:generate wrote: it is not valid JSON, lacks a value, has an unknown format, or its file name does not match its table. Restore the committed file with git, then run cms:generate again.',
             ),
             self::GenerateMinAboveMax => $this->refusedInput(
                 'A field\'s min is greater than its max. Correct one of them.',
@@ -329,6 +345,9 @@ enum ErrorCode: string
             self::GenerateOutputUnwritable => $this->tooling(
                 ExitCode::CantCreat,
                 'A generated file could not be written, or a stale one could not be removed. Check the permissions of the generated directories, then run cms:generate again.',
+            ),
+            self::GenerateRequiredFieldAdded => $this->refusedInput(
+                'A field added to a type that already has a table is required, so its column would be NOT NULL on the rows that exist. Until schema evolution comes (B3), add the field as optional.',
             ),
             self::GenerateScaleAbovePrecision => $this->refusedInput(
                 'A decimal field\'s scale is greater than its precision. Correct one of them.',
@@ -347,8 +366,17 @@ enum ErrorCode: string
                 ExitCode::CantCreat,
                 'cms:schema:editor could not write the editor line into a blueprint file. Check the permissions of the file, then run the command again.',
             ),
+            self::GenerateTableChanged => $this->refusedInput(
+                'A type\'s type_id, stages or localization differ from its schema lock, which would change its table\'s key or system columns. Until schema evolution comes (B3), undo the change, or define a new type.',
+            ),
+            self::GenerateTableNameTooLong => $this->refusedInput(
+                'A type\'s table name, <owner>__<handle>, is longer than 54 bytes, so the names of its row level security policies would pass Postgres\' limit of 63 bytes. Give the type a shorter handle.',
+            ),
             self::GenerateTooManyFields => $this->refusedInput(
                 'A type has more than 200 top-level fields, its own and those its extensions add together, and each is a column of the type\'s table (PRD 11.6). Move fields into groups, or split the type.',
+            ),
+            self::GenerateTypeRemoved => $this->refusedInput(
+                'A type whose table has a schema lock in the migrations directory is no longer in the schema. Until schema evolution comes (B3), a type is never removed or renamed: put its blueprint back.',
             ),
             self::GenerateUnknownExtendsTarget => $this->refusedInput(
                 'An extension\'s extends names a type_id that no blueprint file below the schema roots defines. Correct the type_id, or add the schema root of the type\'s owner.',

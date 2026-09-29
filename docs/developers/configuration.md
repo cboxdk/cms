@@ -98,7 +98,8 @@ An invalid doctor setting makes `cms:doctor` run the single check `doctor.config
 | `cbox-cms.generators.php_directory` | `app/Cms/Generated` | Where `cms:generate` writes the PHP code. |
 | `cbox-cms.generators.php_namespace` | `App\Cms\Generated` | The namespace of the PHP code. |
 | `cbox-cms.generators.typescript_directory` | `resources/js/cms/generated` | Where `cms:generate` writes the TypeScript. |
+| `cbox-cms.generators.migrations_directory` | `database/migrations/cms` | Where `cms:generate` writes the migrations of the type tables and the schema lock of each table they are computed from. The generated service provider registers the directory with the migrator. |
 
-`cms:generate` owns `php_directory` and `typescript_directory`: it removes every file there that it did not generate. Both must therefore end in a directory named `Generated` or `generated`. An invalid setting makes `cms:generate` exit 78.
+`cms:generate` owns `php_directory`, `typescript_directory` and `migrations_directory`: it removes every file there that it did not generate. The first two must therefore end in a directory named `Generated` or `generated`, and `migrations_directory` in `migrations/cms`. An invalid setting makes `cms:generate` exit 78.
 
 A test holds this page to the configuration files: every key of both files is in a table here.

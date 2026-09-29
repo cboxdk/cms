@@ -1,0 +1,90 @@
+{
+    "about": "The schema lock of the type table app__fixture_article: the columns its migrations app__fixture_article_<step> build, in 1 step. cms:generate writes the lock and the migrations from it; do not edit either.",
+    "columns": [
+        {
+            "checks": [
+                "jsonb_typeof(\"fixture_body\") = 'array'"
+            ],
+            "indexed": false,
+            "name": "fixture_body",
+            "not_null": false,
+            "step": 1,
+            "type": "jsonb"
+        },
+        {
+            "checks": [],
+            "indexed": false,
+            "name": "fixture_embargo",
+            "not_null": false,
+            "step": 1,
+            "type": "bytea"
+        },
+        {
+            "checks": [],
+            "indexed": true,
+            "name": "fixture_featured",
+            "not_null": true,
+            "step": 1,
+            "type": "boolean"
+        },
+        {
+            "checks": [
+                "\"fixture_published_on\" >= '2000-01-01'::date"
+            ],
+            "indexed": true,
+            "name": "fixture_published_on",
+            "not_null": false,
+            "step": 1,
+            "type": "date"
+        },
+        {
+            "checks": [
+                "\"fixture_reading_minutes\" >= 1",
+                "\"fixture_reading_minutes\" <= 600"
+            ],
+            "indexed": false,
+            "name": "fixture_reading_minutes",
+            "not_null": false,
+            "step": 1,
+            "type": "bigint"
+        },
+        {
+            "checks": [
+                "CASE WHEN jsonb_typeof(\"fixture_sources\") = 'array' THEN jsonb_array_length(\"fixture_sources\") BETWEEN 0 AND 10 ELSE \"fixture_sources\" IS NULL END"
+            ],
+            "indexed": false,
+            "name": "fixture_sources",
+            "not_null": false,
+            "step": 1,
+            "type": "jsonb"
+        },
+        {
+            "checks": [
+                "char_length(\"fixture_title\") <= 255"
+            ],
+            "indexed": false,
+            "name": "fixture_title",
+            "not_null": false,
+            "step": 1,
+            "type": "text"
+        },
+        {
+            "checks": [
+                "\"fixture_topics\" <@ ARRAY['fixture_politics', 'fixture_science', 'fixture_culture']::text[]",
+                "cardinality(\"fixture_topics\") <= 2"
+            ],
+            "indexed": false,
+            "name": "fixture_topics",
+            "not_null": false,
+            "step": 1,
+            "type": "text[]"
+        }
+    ],
+    "localization": "none",
+    "lock": 1,
+    "stages": "draft-release",
+    "steps": 1,
+    "table": "app__fixture_article",
+    "type": "app:fixture_article",
+    "type_id": "01a0df3e-8cef-7e9f-8daf-9faa60f1faa6"
+}

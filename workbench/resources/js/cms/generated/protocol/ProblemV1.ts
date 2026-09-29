@@ -56,20 +56,27 @@ export type ErrorCode =
   | 'generate_duplicate_type_id'
   | 'generate_extension_of_own_type'
   | 'generate_extension_version_mismatch'
+  | 'generate_field_changed'
+  | 'generate_field_removed'
   | 'generate_invalid_case_name'
   | 'generate_invalid_config'
   | 'generate_invalid_output'
+  | 'generate_lock_invalid'
   | 'generate_min_above_max'
   | 'generate_min_items_above_max_items'
   | 'generate_min_length_above_max_length'
   | 'generate_name_collision'
   | 'generate_output_unwritable'
+  | 'generate_required_field_added'
   | 'generate_scale_above_precision'
   | 'generate_schema_invalid'
   | 'generate_schema_missing'
   | 'generate_schema_unsupported_version'
   | 'generate_schema_unwritable'
+  | 'generate_table_changed'
+  | 'generate_table_name_too_long'
   | 'generate_too_many_fields'
+  | 'generate_type_removed'
   | 'generate_unknown_extends_target'
   | 'generate_unknown_field_type'
   | 'hook_budget_exceeded'
@@ -242,20 +249,27 @@ const catalogErrorV1Rule: ObjectRule = {
           'generate_duplicate_type_id',
           'generate_extension_of_own_type',
           'generate_extension_version_mismatch',
+          'generate_field_changed',
+          'generate_field_removed',
           'generate_invalid_case_name',
           'generate_invalid_config',
           'generate_invalid_output',
+          'generate_lock_invalid',
           'generate_min_above_max',
           'generate_min_items_above_max_items',
           'generate_min_length_above_max_length',
           'generate_name_collision',
           'generate_output_unwritable',
+          'generate_required_field_added',
           'generate_scale_above_precision',
           'generate_schema_invalid',
           'generate_schema_missing',
           'generate_schema_unsupported_version',
           'generate_schema_unwritable',
+          'generate_table_changed',
+          'generate_table_name_too_long',
           'generate_too_many_fields',
+          'generate_type_removed',
           'generate_unknown_extends_target',
           'generate_unknown_field_type',
           'hook_budget_exceeded',
@@ -392,20 +406,27 @@ const problemV1Rule: ObjectRule = {
           'generate_duplicate_type_id',
           'generate_extension_of_own_type',
           'generate_extension_version_mismatch',
+          'generate_field_changed',
+          'generate_field_removed',
           'generate_invalid_case_name',
           'generate_invalid_config',
           'generate_invalid_output',
+          'generate_lock_invalid',
           'generate_min_above_max',
           'generate_min_items_above_max_items',
           'generate_min_length_above_max_length',
           'generate_name_collision',
           'generate_output_unwritable',
+          'generate_required_field_added',
           'generate_scale_above_precision',
           'generate_schema_invalid',
           'generate_schema_missing',
           'generate_schema_unsupported_version',
           'generate_schema_unwritable',
+          'generate_table_changed',
+          'generate_table_name_too_long',
           'generate_too_many_fields',
+          'generate_type_removed',
           'generate_unknown_extends_target',
           'generate_unknown_field_type',
           'hook_budget_exceeded',
