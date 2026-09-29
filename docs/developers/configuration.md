@@ -36,6 +36,12 @@ For example, `'contracts' => [Clock::class => StagingClock::class]` replaces the
 | `cbox-cms.database.partitions.backoff_ms` | `250` | The wait before the second attempt, in milliseconds; each later wait is twice as long. |
 | `cbox-cms.database.partitions.tables` | the core's five tables | The partitioned tables in the owner connection's search path, each with `key` (`uuid7` or `timestamp`), `interval` (`day` or `month`) and `retention_days` (a whole number, or `null` to keep every partition). See [Partitions](partitions.md). |
 
+## Idempotency
+
+| Key | Default | What it does |
+|---|---|---|
+| `cbox-cms.idempotency.wait_budget_ms` | `2000` | How long a command waits, in milliseconds, for another call with the same idempotency key to end. When the budget runs out, the command is rejected with [`idempotency_in_flight`](../reference/errors.md#idempotency_in_flight), which the client may retry. It is `0` to `5000`, part of the 5 seconds a command transaction may take, and `0` means do not wait. A value outside that range fails when the kernel reads it. |
+
 ## Doctor
 
 | Key | Default | What it does |

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Contracts\Doctor;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\Errors\ExitCode;
 
 /**
  * The fixed exit codes of `cms:doctor` (PRD 3.3), the only place they are defined. The JSON
@@ -22,15 +23,18 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
  *
  * When a blocking check fails, the blocking failures alone decide the code. A probe or a deploy
  * guard can rely on the code: the kernel may start at 0 and 79, and is ready only at 0. The
- * document lists every failure, blocking or not. M1 folds these codes into the error catalog.
+ * document lists every failure, blocking or not.
+ *
+ * The values come from the error catalog's ExitCode (PRD 6.1), which every cms:* command exits
+ * with, and each doctor code's entry in ErrorCode names the one its failure gives.
  */
 #[Experimental]
 enum DoctorExitCode: int
 {
-    case Ok = 0;
-    case Unavailable = 75;
-    case Violation = 78;
-    case NotReady = 79;
+    case Ok = ExitCode::Ok->value;
+    case Unavailable = ExitCode::TempFail->value;
+    case Violation = ExitCode::Config->value;
+    case NotReady = ExitCode::NotReady->value;
 
     /**
      * The exit code for the results of one run.

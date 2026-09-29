@@ -16,3 +16,4 @@ An extension point is `#[Stable]` or `#[Experimental]`. Every extension point do
 - [Blueprint schema v1](blueprint-v1.md): the format of blueprint files, extensions of another owner's type, and addon field types.
 - [Testing against real Postgres and Valkey](real-services.md): the testkit's harnesses for tests that need the real services.
 - [Static analysis for addons](static-analysis.md): the testkit's PHPStan configuration for an addon.
+- [Error codes](errors.md): the error catalog, where every error gets its stable code, HTTP status, exit code and MCP response.

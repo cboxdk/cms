@@ -7,6 +7,7 @@ namespace Cbox\Cms\Core\Tests;
 use Cbox\Cms\Core\Bindings\Boundary\ContractBindings;
 use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Core\Doctor\Boundary\DoctorConfig;
+use Cbox\Cms\Core\IdempotencyStore\Boundary\IdempotencyConfig;
 use Cbox\Cms\Core\Operations\Adapter\PackageOperationRunner;
 use Cbox\Cms\Core\Operations\Domain\OperationRunner;
 use Cbox\Cms\Core\Partitions\Boundary\PartitionConfig;
@@ -45,10 +46,11 @@ it('merges config/cbox-cms.php under cbox-cms, the only root of the configuratio
     $defaults = new Repository(['cbox-cms' => require __DIR__.'/../config/cbox-cms.php']);
 
     expect(array_map(basename(...), glob(__DIR__.'/../config/*.php') ?: []))->toBe(['cbox-cms.php'])
-        ->and(array_keys($defaults->array('cbox-cms')))->toBe(['contracts', 'database', 'doctor'])
+        ->and(array_keys($defaults->array('cbox-cms')))->toBe(['contracts', 'database', 'idempotency', 'doctor'])
         ->and(config('cbox-cms.contracts'))->toBe($defaults->get('cbox-cms.contracts'))
         ->and(config('cbox-cms.database.partitions.runway_days'))->toBe($defaults->get('cbox-cms.database.partitions.runway_days'))
+        ->and(config('cbox-cms.idempotency.wait_budget_ms'))->toBe($defaults->get('cbox-cms.idempotency.wait_budget_ms'))
         ->and(config()->has('cms'))->toBeFalse()
-        ->and([ContractBindings::CONFIG_KEY, DoctorConfig::CONFIG_KEY, PartitionConfig::CONFIG_KEY])
-        ->toBe(['cbox-cms.contracts', 'cbox-cms.doctor', 'cbox-cms.database']);
+        ->and([ContractBindings::CONFIG_KEY, DoctorConfig::CONFIG_KEY, PartitionConfig::CONFIG_KEY, IdempotencyConfig::CONFIG_KEY])
+        ->toBe(['cbox-cms.contracts', 'cbox-cms.doctor', 'cbox-cms.database', 'cbox-cms.idempotency']);
 });

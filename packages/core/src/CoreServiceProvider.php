@@ -57,6 +57,8 @@ use Cbox\Cms\Core\Doctor\Domain\Probes\RegistryCacheProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\RuntimeProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\ToolProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\ValkeyProbe;
+use Cbox\Cms\Core\IdempotencyStore\Boundary\IdempotencyConfig;
+use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
 use Cbox\Cms\Core\Operations\Adapter\PackageOperationRunner;
 use Cbox\Cms\Core\Operations\Domain\OperationRunner;
 use Cbox\Cms\Core\Partitions\Boundary\PartitionConfig;
@@ -89,7 +91,8 @@ use Psr\Log\LoggerInterface;
  * the core's migrations, registers laravel-operations and binds the OperationRunner to it, binds partition maintenance to the Postgres partition manager, and
  * schedules it in a process that has the owner connection. Refuses to boot a process that serves
  * HTTP or runs queued jobs with the owner connection configured (PRD 4.2). Wires the registry that cms:build compiles to bootstrap/cache/cms/ (PRD 13.2), and
- * declares the core's own classes as a scan root. Wires the checks of cms:doctor (PRD 3.3, 4.2) to
+ * declares the core's own classes as a scan root. Binds the kernel's settings for idempotency keys, the
+ * default wait budget, from `cbox-cms.idempotency`. Wires the checks of cms:doctor (PRD 3.3, 4.2) to
  * their probes; a test swaps a probe by binding its interface. Makes Eloquent strict for every model
  * of the process (GUARDRAILS 4.1).
  */
@@ -127,6 +130,12 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->singleton(
             IdempotencyStore::class,
             static fn (Application $app): IdempotencyStore => $app->make(ContractBindings::class)->resolve($app, IdempotencyStore::class),
+        );
+
+        // Built on each resolution, so the default wait budget follows the configuration.
+        $this->app->bind(
+            IdempotencySettings::class,
+            static fn (Application $app): IdempotencySettings => IdempotencyConfig::read($app->make(Repository::class)),
         );
 
         // Built on each resolution, so the policy follows the configuration.

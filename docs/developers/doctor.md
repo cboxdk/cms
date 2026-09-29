@@ -91,7 +91,7 @@ The exit codes of `cms:doctor` are defined in one place, the enum `Cbox\Cms\Cont
 | `Violation` | 78, `EX_CONFIG` of sysexits.h | `violation` | at least one blocking check failed as `Violation` |
 | `NotReady` | 79 | `not_ready` | no blocking check failed, and at least one check that does not block failed, as either kind |
 
-When a blocking check fails, the blocking failures alone decide the code, and a violation wins over an unavailable dependency, because waiting does not fix it. The failures of checks that do not block count only when no blocking check fails: then the doctor exits 79. The document lists every failure, blocking or not. `DoctorExitCode::for($results)` adds up a list of `CheckResult`s this way. M1 folds these codes into the error catalog.
+When a blocking check fails, the blocking failures alone decide the code, and a violation wins over an unavailable dependency, because waiting does not fix it. The failures of checks that do not block count only when no blocking check fails: then the doctor exits 79. The document lists every failure, blocking or not. `DoctorExitCode::for($results)` adds up a list of `CheckResult`s this way. The values come from the error catalog's `ExitCode`, and each code a check fails with has its entry in the [error reference](../reference/errors.md).
 
 A readiness probe or a deploy guard can rely on the exit code alone: the kernel may start at 0 and 79, which `allowsStart()` says, and it is ready only at 0. 79 lies just above the range of sysexits.h, 64 to 78, so it has no other meaning there, and it cannot be mistaken for 1, a general error, or 2, wrong usage.
 

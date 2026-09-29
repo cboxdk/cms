@@ -11,7 +11,7 @@ description: "The IdempotencyStore contract: claim and complete an idempotency k
 <!-- extension-point: Cbox\Cms\Testkit\Idempotency\IdempotencyStoreSession -->
 <!-- extension-point: Cbox\Cms\Testkit\Idempotency\IdempotencyStoreContract -->
 
-A command can carry an idempotency key (PRD 6.1). The key belongs to a scope, the actor or source plus the command type, and is kept for 7 days together with a hash of the command's content. A repeated call with the same key and the same content returns the original result instead of running again. The same key with other content is refused with `idempotency_conflict`. A call that arrives while the first one is still running waits for it.
+A command can carry an idempotency key (PRD 6.1). The key belongs to a scope, the actor or source plus the command type, and is kept for 7 days together with a hash of the command's content. A repeated call with the same key and the same content returns the original result instead of running again. The same key with other content is refused with `idempotency_conflict`. A call that arrives while the first one is still running waits for it, at most the kernel's wait budget, `cbox-cms.idempotency.wait_budget_ms`. The codes are in the [error reference](../../reference/errors.md).
 
 `Cbox\Cms\Contracts\IdempotencyStore` is the contract behind this. The command kernel calls it inside the command transaction; an application or addon replaces it, decorates it or runs the testkit's fake in its own tests. This page covers the contract, the default store on Postgres, the fake, and how a replacement proves that it keeps the contract.
 
@@ -30,7 +30,7 @@ Both methods run on the caller's connection, inside the caller's open transactio
 | `Fresh` | no live record for the key | runs the command and calls `complete()` with `$result->token` when it commits a changeset |
 | `Replay` | a record with the same content hash | returns the receipt of `$result->changesetId` instead of running the command |
 | `Conflict` | a record with another content hash | rejects the command with `Conflict::CODE`, `idempotency_conflict` |
-| `InFlight` | another transaction held the claim for the whole budget | tells the caller to retry; nothing is held, and the transaction stays usable |
+| `InFlight` | another transaction held the claim for the whole budget | rejects the command with `InFlight::CODE`, `idempotency_in_flight`, which the client may retry; nothing is held, and the transaction stays usable |
 
 Every result but `InFlight` holds the claim until the caller's transaction ends, by commit or rollback. Two transactions never hold the claim on one key at once.
 

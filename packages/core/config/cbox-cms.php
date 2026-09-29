@@ -74,6 +74,16 @@ return [
     ],
 
     /*
+     * Idempotency keys (PRD 6.1). A command whose key another call still holds waits at most
+     * wait_budget_ms for that call to end, then it is rejected with idempotency_in_flight, which
+     * the client may retry. It is 0 to 5000 ms, part of the 5 seconds a command transaction may
+     * take (GUARDRAILS 4.1), and 0 means do not wait.
+     */
+    'idempotency' => [
+        'wait_budget_ms' => 2000,
+    ],
+
+    /*
      * cms:doctor (PRD 3.3, 4.2, 13.2). The Postgres checks connect with the connection's settings
      * as the app role; null means the default connection. The doctor never logs in as the owner
      * role: postgres.lc_messages reads the lc_messages of the role owner_role names from the
