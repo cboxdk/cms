@@ -6,12 +6,14 @@ namespace Cbox\Cms\Tests\Feature\Tooling;
 
 use Cbox\Cms\Testkit\Phpstan\EventPayloadTextRule;
 use Cbox\Cms\Testkit\Phpstan\FunctionCallablesRule;
+use Cbox\Cms\Testkit\Phpstan\HookIoRule;
 use Cbox\Cms\Testkit\Phpstan\InternalClassConstantUsageExtension;
 use Cbox\Cms\Testkit\Phpstan\InternalClassNameUsageExtension;
 use Cbox\Cms\Testkit\Phpstan\InternalMethodUsageExtension;
 use Cbox\Cms\Testkit\Phpstan\InternalUseCollector;
 use Cbox\Cms\Testkit\Phpstan\InternalUseIgnoreErrorExtension;
 use Cbox\Cms\Testkit\Phpstan\InternalUseRule;
+use Cbox\Cms\Testkit\Phpstan\KernelTableWriteRule;
 use Cbox\Cms\Testkit\Phpstan\LayerScope;
 use Cbox\Cms\Testkit\Phpstan\MethodCallablesRule;
 use Cbox\Cms\Testkit\Phpstan\PhpstanIgnoreCollector;
@@ -127,6 +129,8 @@ it('registers every rule, the collector and the extensions in the testkit neon, 
         StaticMethodCallablesRule::class,
         InternalUseRule::class,
         EventPayloadTextRule::class,
+        HookIoRule::class,
+        KernelTableWriteRule::class,
     ];
     $services = [
         PhpstanIgnoreCollector::class => 'phpstan.collector',
@@ -382,6 +386,79 @@ it('fails the analysis on a string property of an event payload, despite an igno
     expect($analysis->exitCode)->not->toBe(0)
         ->and($analysis->identifiers)->toContain('cboxCms.eventPayloadText');
 });
+
+it('fails the analysis on IO in a hook and in a trait it uses, despite ignore comments, and passes the same IO in a class that is no hook', function (): void {
+    $analysis = analyseProbe(<<<'PHP'
+        <?php
+
+        declare(strict_types=1);
+
+        namespace Acme\Hooks\Domain;
+
+        use Cbox\Cms\Contracts\Hooks\AuthorizeHook;
+        use Cbox\Cms\Contracts\Hooks\HookDecision;
+        use Cbox\Cms\Contracts\Hooks\PlanView;
+        use Illuminate\Support\Facades\DB;
+
+        trait ReadsFiles
+        {
+            public function read(): string|false
+            {
+                return file_get_contents('/tmp/value'); // @phpstan-ignore cboxCms.hookIo
+            }
+        }
+
+        final readonly class Probe implements AuthorizeHook
+        {
+            use ReadsFiles;
+
+            public function authorize(PlanView $plan): HookDecision
+            {
+                // @phpstan-ignore-next-line
+                return DB::table('shop_rules')->exists() ? HookDecision::deny('ruled') : HookDecision::noObjection();
+            }
+        }
+
+        final readonly class NotAHook
+        {
+            use ReadsFiles;
+        }
+        PHP);
+
+    expect($analysis->exitCode)->not->toBe(0)
+        ->and(array_values(array_filter($analysis->identifiers, static fn (string $identifier): bool => $identifier === HookIoRule::IDENTIFIER)))->toBe([HookIoRule::IDENTIFIER, HookIoRule::IDENTIFIER, HookIoRule::IDENTIFIER]);
+});
+
+it('fails the analysis on a write to a kernel table in an addon, despite an ignore comment, and allows it in the fixture writers', function (string $namespace, bool $allowed): void {
+    $analysis = analyseProbe(<<<PHP
+        <?php
+
+        declare(strict_types=1);
+
+        namespace {$namespace};
+
+        use Illuminate\Database\ConnectionInterface;
+
+        final readonly class Probe
+        {
+            public const string TABLE = 'nodes';
+
+            public function __construct(private ConnectionInterface \$connection) {}
+
+            public function write(): void
+            {
+                \$this->connection->table(self::TABLE)->where('id', 'a')->update(['version' => 2]); // @phpstan-ignore cboxCms.kernelTableWrite
+            }
+        }
+        PHP);
+
+    expect(in_array(KernelTableWriteRule::IDENTIFIER, $analysis->identifiers, true))->toBe(! $allowed);
+})->with([
+    'an addon adapter' => ['Acme\Shop\Adapter', false],
+    'the testkit outside the fixture writers' => ['Cbox\Cms\Testkit\Seeding\Adapter', false],
+    'the fixture writers' => ['Cbox\Cms\Testkit\FixtureWriters\Seeding\Adapter', true],
+    'the core' => ['Cbox\Cms\Core\Structure\Adapter', true],
+]);
 
 it('passes a string id a framework interface requires, also through a parent class, and fails the same name without it', function (string $implements, bool $allowed): void {
     $analysis = analyseProbe(<<<PHP

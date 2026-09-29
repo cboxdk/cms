@@ -48,6 +48,23 @@ it('plants what the task names: mixed, both kinds of phpstan-ignore, a transacti
         ->and($contents)->toContain('// @phpstan-ignore-next-line', '// @phpstan-ignore cboxCms.phpstanIgnore', '->beginTransaction()', '): any {', 'use Illuminate\Http\Request;');
 });
 
+it('plants IO in a hook and a write to a kernel table outside the kernel, each for its PHPStan rule (PRD 6.3, 6.5 invariants 1 and 13)', function (): void {
+    $plants = [];
+
+    foreach (Plants::all() as $plant) {
+        foreach ($plant->markers as $marker) {
+            $plants[$marker] = $plant;
+        }
+    }
+
+    expect($plants)->toHaveKeys(['cboxCms.hookIo', 'cboxCms.kernelTableWrite'])
+        ->and($plants['cboxCms.hookIo']->gate)->toBe(3)
+        ->and($plants['cboxCms.hookIo']->contents)->toContain('implements AuthorizeHook', '$this->cache->has(')
+        ->and($plants['cboxCms.kernelTableWrite']->gate)->toBe(3)
+        ->and($plants['cboxCms.kernelTableWrite']->path)->toStartWith(Plants::WORKBENCH.'/')
+        ->and($plants['cboxCms.kernelTableWrite']->contents)->toContain("->table('nodes')", '->update(');
+});
+
 it('plants a marker word of GUARDRAILS 11 that the marker gate reports at the file and line the plant expects', function (): void {
     $plants = array_values(array_filter(Plants::all(), static fn (Plant $plant): bool => $plant->path === Plants::MODULE.'/Domain/MarkerComment.php'));
     $repository = ScratchRepository::make();
@@ -98,22 +115,27 @@ it('plants new files where nothing exists in the repository, and appends only to
     $paths = array_map(static fn (Plant $plant): string => $plant->path, Plants::all());
 
     expect(array_unique($paths))->toHaveCount(count($paths))
-        ->and(is_dir($root.'/'.Plants::MODULE))->toBeFalse();
+        ->and(is_dir($root.'/'.Plants::MODULE))->toBeFalse()
+        ->and(is_dir($root.'/'.Plants::WORKBENCH))->toBeFalse();
 
     foreach (Plants::all() as $plant) {
         expect(is_file($root.'/'.$plant->path))->toBe($plant->append, $plant->path);
     }
 });
 
-it('plants PHP that declares strict types and a namespace in the core package, and is valid PHP', function (): void {
+it('plants PHP that declares strict types and the namespace of its directory, the core module\'s or the workbench\'s Selftest, and is valid PHP', function (): void {
+    $namespaces = [Plants::MODULE => 'Cbox\\Cms\\Core\\Selftest\\', Plants::WORKBENCH => 'Workbench\\App\\Selftest\\'];
+
     foreach (Plants::all() as $plant) {
         if ($plant->append || ! str_ends_with($plant->path, '.php')) {
             continue;
         }
 
+        $directory = str_starts_with($plant->path, Plants::MODULE.'/') ? Plants::MODULE : Plants::WORKBENCH;
         $tokens = PhpToken::tokenize($plant->contents, TOKEN_PARSE);
 
-        expect($plant->contents)->toStartWith("<?php\n\ndeclare(strict_types=1);\n\nnamespace Cbox\\Cms\\Core\\Selftest\\")
+        expect($plant->path)->toStartWith($directory.'/')
+            ->and($plant->contents)->toStartWith("<?php\n\ndeclare(strict_types=1);\n\nnamespace ".$namespaces[$directory])
             ->and($tokens)->not->toBeEmpty();
     }
 });

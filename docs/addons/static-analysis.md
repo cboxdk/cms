@@ -17,6 +17,14 @@ The addon does not lower the level, add a baseline or add `ignoreErrors`. The ru
 
 An event carries ids, versions, values that are not text and hashes of text, never content (PRD 6.5 invariant 10). The shared configuration reports a property of an addon's event payload, a class that implements `Cbox\Cms\Contracts\Events\EventPayload`, as `cboxCms.eventPayloadText` when its type can hold a string, unless it is an id value object that implements `Cbox\Cms\Contracts\Ids\Identifier` or a `TextHash`, and when its type is anything else an event cannot carry. The error is non-ignorable. The [events](events.md) page lists the types a payload may use.
 
+## Hooks do no IO
+
+A hook is deterministic and does no IO (PRD 6.3). The shared configuration reports `cboxCms.hookIo` in a class that implements `AuthorizeHook`, `TransformHook` or `ValidateHook`, and in the traits it uses, when it reaches the network, the filesystem, another program, the database, the cache or Redis: the functions and classes the egress gateway alone may use, the DB facade, a connection, an Eloquent model, the cache, Redis and PDO, as a call, a type in its constructor or methods, or a container id such as `app('db')`. The error is non-ignorable, test code included. A hook reads what it needs from the `PlanView` it is given; the [hooks](hooks.md) page describes it.
+
+## The kernel's tables
+
+Only the kernel writes its tables, through its commands (PRD 6.5 invariants 1 and 13). The shared configuration reports `cboxCms.kernelTableWrite` when an addon writes one of them by name: a write of the query builder on `table('nodes')` or `DB::table('nodes')`, or SQL such as `insert into actors` given to a connection, the DB facade or PDO. The error is non-ignorable, test code included. A test that needs actors or credentials in the kernel's tables creates them through the testkit's fixture writers in `Cbox\Cms\Testkit\FixtureWriters`, which production code never loads.
+
 ## Internal API
 
 The kernel marks each public class, interface, trait and enum `#[Stable]`, `#[Experimental]` or `#[Internal]` (GUARDRAILS 2.3). An addon builds on the stable and experimental API. `#[Internal]` API can change or disappear in any release, so the shared configuration reports every use of it outside the `Cbox\Cms` namespace as `cboxCms.internalUse`. That covers a class marked `#[Internal]` in `new`, static calls, constants, `::class`, `instanceof`, `catch`, `extends`, `implements`, trait use, attributes, native and PHPDoc types, and calls of its methods, as well as a method or class constant marked `#[Internal]` on a stable class.

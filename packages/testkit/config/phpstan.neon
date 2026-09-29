@@ -53,6 +53,12 @@ parameters:
 # Rule 8, EventPayloadTextRule (PRD 6.5 invariant 10, 7.2): a property of an event payload holds an
 # id value object, a TextHash or a value that is not text, never a string. Every payload is
 # checked, test code included, and the errors are non-ignorable.
+# Rule 9, HookIoRule (PRD 6.3, 11.12): a class that implements a hook interface uses no network,
+# filesystem, process, database, cache or Redis: the names of EgressNames and the rule's own lists.
+# Rule 10, KernelTableWriteRule (PRD 6.5 invariants 1 and 13, 11.12): no code outside the core
+# module and the testkit's fixture writers (Cbox\Cms\Testkit\FixtureWriters) writes a kernel table,
+# KernelTables::NAMES, by name through the query builder, DB or raw SQL. Both check test code too,
+# and their errors are non-ignorable.
 # FunctionCallablesRule, MethodCallablesRule and StaticMethodCallablesRule apply both to
 # first-class callables such as time(...), which PHPStan gives to rules as their own nodes.
 rules:
@@ -75,6 +81,8 @@ rules:
     - Cbox\Cms\Testkit\Phpstan\StaticMethodCallablesRule
     - Cbox\Cms\Testkit\Phpstan\InternalUseRule
     - Cbox\Cms\Testkit\Phpstan\EventPayloadTextRule
+    - Cbox\Cms\Testkit\Phpstan\HookIoRule
+    - Cbox\Cms\Testkit\Phpstan\KernelTableWriteRule
 
 services:
     -

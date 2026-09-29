@@ -42,7 +42,7 @@ Login, sessions, personal tokens and the commands that create actors and issue c
 - `revokeCredentials(ActorId $id)` counts the generation and the version up, as `actor.credentials_revoke` will.
 - `issue(ServiceCredentialSpec $spec)` issues a service credential; it is on the [credential verifier](credential-verifier.md) page.
 
-`Cbox\Cms\Testkit\Identity\FakeIdentity` is the fake of both identity contracts and its own seeder. It keeps actors and credentials in memory, makes ids with the `IdGenerator` it is given and reads the time from its `Clock`, a `FakeClock` by default. `directory()` and `verifier()` return the fake itself. `Cbox\Cms\Testkit\Identity\Adapter\PostgresIdentitySeeder` is the seeder for the core's tables: it writes as the owner role, through the same rules as the fake, so a test runs the core's adapters against real Postgres. This example reads actors from the fake. It is in the `Unit` suite:
+`Cbox\Cms\Testkit\Identity\FakeIdentity` is the fake of both identity contracts and its own seeder. It keeps actors and credentials in memory, makes ids with the `IdGenerator` it is given and reads the time from its `Clock`, a `FakeClock` by default. `directory()` and `verifier()` return the fake itself. `Cbox\Cms\Testkit\FixtureWriters\Identity\Adapter\PostgresIdentitySeeder` is the seeder for the core's tables: it writes as the owner role, through the same rules as the fake, so a test runs the core's adapters against real Postgres. This example reads actors from the fake. It is in the `Unit` suite:
 
 <!-- example: examples/Unit/Identity/ActorDirectoryTest.php -->
 ```php

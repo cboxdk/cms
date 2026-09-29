@@ -1,0 +1,9 @@
+# The rule of rule 9, registered as in config/phpstan.neon: HookIoRule and the three rules that
+# hand it first-class callables such as file_get_contents(...). The real file also includes
+# Larastan; tests/Feature/Tooling/LayerTypeRulesTest.php checks the real registration.
+
+rules:
+    - Cbox\Cms\Testkit\Phpstan\HookIoRule
+    - Cbox\Cms\Testkit\Phpstan\FunctionCallablesRule
+    - Cbox\Cms\Testkit\Phpstan\MethodCallablesRule
+    - Cbox\Cms\Testkit\Phpstan\StaticMethodCallablesRule

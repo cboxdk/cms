@@ -12,7 +12,7 @@ use Cbox\Cms\Contracts\Identity\TransportCredential;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Core\Identity\Adapter\PostgresActorDirectory;
 use Cbox\Cms\Core\Identity\Adapter\PostgresCredentialVerifier;
-use Cbox\Cms\Testkit\Identity\Adapter\PostgresIdentitySeeder;
+use Cbox\Cms\Testkit\FixtureWriters\Identity\Adapter\PostgresIdentitySeeder;
 use Cbox\Cms\Testkit\Identity\IdentityHarness;
 use Cbox\Cms\Testkit\Identity\ServiceCredentialSpec;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;

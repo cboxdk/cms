@@ -14,18 +14,12 @@ use Cbox\Cms\Generators\Editor\Adapter\FilesystemSchemaFiles;
 use Cbox\Cms\Generators\Generation\Adapter\FilesystemGeneratedOutput;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintFiles;
 use Cbox\Cms\Generators\Schema\Boundary\LocalFile;
+use Cbox\Cms\Testkit\Phpstan\EgressNames;
 use Cbox\Cms\Testkit\Phpstan\LaravelBootLock;
 use Cbox\Cms\Testkit\Phpstan\PhpstanIgnoreCollector;
 use Cbox\Cms\Testkit\Phpstan\RawSqlRule;
 use Cbox\Cms\Testkit\Postgres\ChildProcess;
 use Cbox\Cms\Testkit\Postgres\ChildProcesses;
-use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Image;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Notification;
-use Illuminate\Support\Facades\Process;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * What only the egress gateway may call (GUARDRAILS 3): everything outbound goes through the SSRF
@@ -64,143 +58,18 @@ use Illuminate\Support\Facades\Storage;
 final class Egress
 {
     /**
-     * Functions that take a file name, which the URL wrappers also fetch, open a socket or a
-     * stream context for one, or run a program.
+     * The lists live in the testkit's EgressNames, because the testkit's HookIoRule reports the
+     * same names in a hook (PRD 6.3); each entry's reason is there.
      */
-    public const array FUNCTIONS = [
-        // Reading or fetching a file name.
-        'bzopen',
-        'copy',
-        'exif_imagetype',
-        'exif_read_data',
-        'exif_thumbnail',
-        'file',
-        'file_get_contents',
-        'finfo_file',
-        'fopen',
-        'get_headers',
-        'get_meta_tags',
-        'getimagesize',
-        'gzfile',
-        'gzopen',
-        'hash_file',
-        'hash_hmac_file',
-        'highlight_file',
-        'md5_file',
-        'mime_content_type',
-        'parse_ini_file',
-        'php_strip_whitespace',
-        'readfile',
-        'readgzfile',
-        'sha1_file',
-        'show_source',
-        'simplexml_load_file',
-        'simplexml_load_string',
-        // Writing, moving or removing a file name, or making, removing or listing a directory,
-        // which ftp:// does remotely.
-        'dir',
-        'file_put_contents',
-        'mkdir',
-        'opendir',
-        'rename',
-        'rmdir',
-        'scandir',
-        'unlink',
-        // Changing a file name's metadata, which a registered wrapper's stream_metadata() serves.
-        'chgrp',
-        'chmod',
-        'chown',
-        'touch',
-        // Sending mail: error_log() with message type 1 mails its message.
-        'error_log',
-        'mail',
-        'mb_send_mail',
-        // Sockets and stream contexts.
-        'fsockopen',
-        'pfsockopen',
-        'stream_context_create',
-        'stream_context_set_default',
-        'stream_socket_client',
-        // Programs, which can run curl or wget.
-        'exec',
-        'passthru',
-        'pcntl_exec',
-        'popen',
-        'proc_open',
-        'shell_exec',
-        'system',
-    ];
+    public const array FUNCTIONS = EgressNames::FUNCTIONS;
 
-    /**
-     * Families of functions: cURL, FTP, the sockets extension and GD's loaders, which take a file
-     * name.
-     */
-    public const array FUNCTION_PREFIXES = ['curl_', 'ftp_', 'imagecreatefrom', 'socket_'];
+    public const array FUNCTION_PREFIXES = EgressNames::FUNCTION_PREFIXES;
 
-    /**
-     * Classes, and namespaces ending in a backslash, that fetch, write or list a file name or a
-     * URL, send HTTP or run a program.
-     */
-    public const array CLASSES = [
-        'DirectoryIterator',
-        'DOMDocument',
-        'FilesystemIterator',
-        'finfo',
-        'RecursiveDirectoryIterator',
-        'SimpleXMLElement',
-        'SoapClient',
-        'SoapServer',
-        'SplFileObject',
-        'XMLReader',
-        'XMLWriter',
-        'XSLTProcessor',
-        'Aws\\',
-        'GuzzleHttp\\',
-        'Http\Client\\',
-        'Http\Discovery\\',
-        'Illuminate\Contracts\Filesystem\\',
-        'Illuminate\Contracts\Mail\\',
-        'Illuminate\Contracts\Notifications\\',
-        'Illuminate\Filesystem\\',
-        'Illuminate\Http\Client\\',
-        'Illuminate\Image\\',
-        'Illuminate\Mail\\',
-        'Illuminate\Notifications\\',
-        'Illuminate\Process\\',
-        File::class,
-        Http::class,
-        Image::class,
-        Mail::class,
-        Notification::class,
-        Process::class,
-        Storage::class,
-        'League\Flysystem\\',
-        'Psr\Http\Client\\',
-        'Symfony\Component\Filesystem\\',
-        'Symfony\Component\HttpClient\\',
-        'Symfony\Component\Mailer\\',
-        'Symfony\Component\Process\\',
-        'Symfony\Contracts\HttpClient\\',
-    ];
+    public const array CLASSES = EgressNames::CLASSES;
 
-    /**
-     * The container ids that resolve to a class in CLASSES: the filesystems ('files' is the File
-     * facade's Filesystem), the mail manager and mailer, the image manager, and 'http', which a
-     * package may bind to an HTTP client. Matched exactly, as the container matches them.
-     */
-    public const array SERVICE_IDS = [
-        'files',
-        'filesystem',
-        'filesystem.cloud',
-        'filesystem.disk',
-        'http',
-        'image',
-        'mail.manager',
-        'mailer',
-    ];
+    public const array SERVICE_IDS = EgressNames::SERVICE_IDS;
 
-    /** Methods that open a file name: SplFileInfo::openFile(). */
-    public const array METHODS = ['openfile'];
+    public const array METHODS = EgressNames::METHODS;
 
     /**
      * Each class that may use a name from the lists above, and the names it may use.
@@ -262,6 +131,9 @@ final class Egress
         // IssuerKind::System, the issuer kind "system" that PRD 5.5 names, a value of the
         // envelope and the changeset.
         IssuerKind::class => ['system'],
+        // The lists themselves, which the Arch suite here and the testkit's HookIoRule read, and the
+        // short names of the facades File and Mail, which FACADES joins to their namespace.
+        EgressNames::class => [...EgressNames::WORDS, 'File', 'Mail'],
     ];
 
     /**

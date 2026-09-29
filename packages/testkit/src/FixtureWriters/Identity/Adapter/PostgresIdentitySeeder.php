@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cbox\Cms\Testkit\Identity\Adapter;
+namespace Cbox\Cms\Testkit\FixtureWriters\Identity\Adapter;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Clock;

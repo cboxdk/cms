@@ -7,12 +7,16 @@ namespace Cbox\Cms\Tooling\Selftest\Domain;
 /**
  * The violations `composer check:selftest` plants: at least one per gate of the local profile,
  * and one per tool where a gate has two. Each file is otherwise clean for its own gate, so the
- * gate fails because of the plant. The PHP plants live in the module Selftest of the core
- * package, which does not exist in the repository.
+ * gate fails because of the plant. The PHP plants live in the feature Selftest of the core
+ * module, which does not exist in the repository, and the one that must lie outside the kernel,
+ * a write to a kernel table, in workbench/app/Selftest, which does not exist either.
  */
 final readonly class Plants
 {
     public const string MODULE = 'packages/core/src/Selftest';
+
+    /** Outside the kernel, where an application's code lives: the workbench's application. */
+    public const string WORKBENCH = 'workbench/app/Selftest';
 
     /**
      * @return list<Plant>
@@ -145,6 +149,51 @@ final readonly class Plants
                 }
 
                 PHP, false, ['cboxCms.transaction']),
+            new Plant(3, 'PHPStan', 'a hook that reads the cache', self::MODULE.'/Adapter/CachedHook.php', <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace Cbox\Cms\Core\Selftest\Adapter;
+
+                use Cbox\Cms\Contracts\Attributes\Internal;
+                use Cbox\Cms\Contracts\Hooks\AuthorizeHook;
+                use Cbox\Cms\Contracts\Hooks\HookDecision;
+                use Cbox\Cms\Contracts\Hooks\PlanView;
+                use Illuminate\Contracts\Cache\Repository;
+
+                #[Internal]
+                final readonly class CachedHook implements AuthorizeHook
+                {
+                    public function __construct(private Repository $cache) {}
+
+                    public function authorize(PlanView $plan): HookDecision
+                    {
+                        return $this->cache->has('denied') ? HookDecision::deny('denied') : HookDecision::noObjection();
+                    }
+                }
+
+                PHP, false, ['cboxCms.hookIo']),
+            new Plant(3, 'PHPStan', 'a write to a kernel table outside the kernel', self::WORKBENCH.'/Adapter/KernelWrite.php', <<<'PHP'
+                <?php
+
+                declare(strict_types=1);
+
+                namespace Workbench\App\Selftest\Adapter;
+
+                use Illuminate\Database\ConnectionInterface;
+
+                final readonly class KernelWrite
+                {
+                    public function __construct(private ConnectionInterface $connection) {}
+
+                    public function touch(string $node): void
+                    {
+                        $this->connection->table('nodes')->where('id', $node)->update(['version' => 2]);
+                    }
+                }
+
+                PHP, false, ['cboxCms.kernelTableWrite']),
             new Plant(4, 'tsc', 'a type error in TypeScript', 'workbench/resources/js/selftest/type-error.ts', <<<'TS'
                 export const count: number = 'one';
 
