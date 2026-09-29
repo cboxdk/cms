@@ -31,6 +31,9 @@ use Workbench\App\Cms\Generated\GeneratedTypesServiceProvider;
  * are for --dev. Testbench's application links vendor/ into its base path only while a command runs, so
  * the default below the base path is not there in the tests.
  *
+ * It turns off server-side rendering and the check for page components on disk for the
+ * workbench's Inertia test page (boot()).
+ *
  * It registers the service provider that cms:generate writes from the workbench's schema, which
  * binds the TypeCatalog contract to the generated catalog and each fixture type's record factory,
  * as an application registers its own.
@@ -73,6 +76,20 @@ final class WorkbenchServiceProvider extends ServiceProvider
             'username' => $this->env('DB_OWNER_USERNAME', 'cms_owner'),
             'password' => $this->env('DB_OWNER_PASSWORD', ''),
         ]));
+    }
+
+    /**
+     * The workbench's Inertia pages (GUARDRAILS 2.1) are rendered by the root view `app` in
+     * workbench/resources/views, with no server-side rendering and no page components: the panel's
+     * JavaScript comes with B1, so Inertia's test assertions do not look for a component on disk.
+     * Set after every provider has registered, so Inertia's own defaults are merged first.
+     */
+    public function boot(): void
+    {
+        $config = $this->app->make(Repository::class);
+
+        $config->set('inertia.ssr.enabled', false);
+        $config->set('inertia.testing.ensure_pages_exist', false);
     }
 
     private function env(string $key, string $default): string

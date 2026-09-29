@@ -17,7 +17,9 @@ use Cbox\Cms\Contracts\Identity\CredentialVerifier;
 use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Contracts\ReceiptStore;
 use Cbox\Cms\Core\Access\Adapter\PostgresAccessResolver;
+use Cbox\Cms\Core\Access\Adapter\TransactionalAccessContexts;
 use Cbox\Cms\Core\Access\Domain\AccessCompiler;
+use Cbox\Cms\Core\Access\Domain\AccessContexts;
 use Cbox\Cms\Core\Access\Domain\AccessResolver;
 use Cbox\Cms\Core\Addons\Boundary\AddonConfig;
 use Cbox\Cms\Core\Addons\Domain\Dto\ServiceActors;
@@ -85,8 +87,10 @@ use Cbox\Cms\Core\Pipeline\Adapter\SavepointRefusal;
 use Cbox\Cms\Core\Pipeline\Boundary\TypeRulesFieldValidation;
 use Cbox\Cms\Core\Pipeline\Domain\AffectedProjections;
 use Cbox\Cms\Core\Pipeline\Domain\ChangesetCommitter;
+use Cbox\Cms\Core\Pipeline\Domain\CommandCodecs;
 use Cbox\Cms\Core\Pipeline\Domain\CommandHooks;
 use Cbox\Cms\Core\Pipeline\Domain\CommandTransaction;
+use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCodec;
 use Cbox\Cms\Core\Pipeline\Domain\FieldValidation;
 use Cbox\Cms\Core\Pipeline\Domain\HookOverruns;
 use Cbox\Cms\Core\Pipeline\Domain\MutationWriter;
@@ -261,6 +265,16 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
             ),
         );
         $this->app->bind(AffectedProjections::class, RegistryAffectedProjections::class);
+
+        // What an exposed surface needs before it hands a call to the pipeline (GUARDRAILS 2.1): the
+        // access context of the verified principal, read in a transaction of its own on the default
+        // connection, and the codec of each command it reads, which each command registers under
+        // the tag CommandCodecs::TAG.
+        $this->app->bind(AccessContexts::class, TransactionalAccessContexts::class);
+        $this->app->bind(
+            CommandCodecs::class,
+            static fn (Application $app): CommandCodecs => new CommandCodecs(...self::tagged($app, CommandCodecs::TAG, CommandCodec::class)),
+        );
 
         // The commit (PRD 6.2 phase 7) on the default connection, the command transaction's, with
         // the version lock of each kind of aggregate and the writer of each mutation class that

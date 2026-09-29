@@ -32,11 +32,15 @@ It requires these packages directly:
 | `illuminate/console` | `^13.0` |
 | `illuminate/contracts` | `^13.0` |
 | `illuminate/database` | `^13.0` |
+| `illuminate/http` | `^13.0` |
 | `illuminate/redis` | `^13.0` |
+| `illuminate/routing` | `^13.0` |
 | `illuminate/support` | `^13.0` |
+| `inertiajs/inertia-laravel` | `3.4.0` |
 | `psr/clock` | `^1.0` |
 | `psr/log` | `^3.0` |
 | `symfony/console` | `^7.4 \|\| ^8.0` |
+| `symfony/http-kernel` | `^7.4 \|\| ^8.0` |
 | `symfony/process` | `^7.4.5 \|\| ^8.0.5` |
 
 ### Suggested for development
