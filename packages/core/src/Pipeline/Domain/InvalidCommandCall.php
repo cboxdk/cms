@@ -30,7 +30,7 @@ final class InvalidCommandCall extends LogicException
 
     public static function unknownOutcome(string $class): self
     {
-        return new self(sprintf('The commit answered with %s, which is not one of the four commit outcomes.', $class));
+        return new self(sprintf('The commit answered with %s, which is not one of the two commit outcomes.', $class));
     }
 
     public static function unexpectedExpectation(string $command, AggregateRef $aggregate): self

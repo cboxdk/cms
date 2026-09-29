@@ -7,6 +7,10 @@ namespace Cbox\Cms\Core\Pipeline\Actions;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
+use Cbox\Cms\Contracts\Idempotency\Conflict;
+use Cbox\Cms\Contracts\Idempotency\Fresh;
+use Cbox\Cms\Contracts\Idempotency\Replay;
+use Cbox\Cms\Contracts\IdempotencyStore;
 use Cbox\Cms\Contracts\Identity\Actor;
 use Cbox\Cms\Contracts\Identity\ActorDirectory;
 use Cbox\Cms\Contracts\Ids\ActorId;
@@ -17,6 +21,8 @@ use Cbox\Cms\Contracts\Pipeline\ReadVersions;
 use Cbox\Cms\Contracts\Plans\Mutations\RevisionCreated;
 use Cbox\Cms\Contracts\Plans\Plan;
 use Cbox\Cms\Contracts\Receipts\Receipt;
+use Cbox\Cms\Contracts\Receipts\StoredReceipt;
+use Cbox\Cms\Contracts\ReceiptStore;
 use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Contracts\Results\DryRunReport;
 use Cbox\Cms\Contracts\Results\FieldPath;
@@ -24,23 +30,39 @@ use Cbox\Cms\Contracts\Results\WriteResult;
 use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Contracts\Validation\ValidationStage;
+use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
 use Cbox\Cms\Core\Pipeline\Domain\ChangesetCommitter;
 use Cbox\Cms\Core\Pipeline\Domain\CommandAuthorizer;
+use Cbox\Cms\Core\Pipeline\Domain\CommandContentHasher;
+use Cbox\Cms\Core\Pipeline\Domain\CommandTransaction;
+use Cbox\Cms\Core\Pipeline\Domain\Dto\ActionBinding;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCall;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\Committed;
-use Cbox\Cms\Core\Pipeline\Domain\Dto\IdempotencyConflict;
-use Cbox\Cms\Core\Pipeline\Domain\Dto\IdempotencyInFlight;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\PendingChangeset;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\StaleRead;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\VersionConflict;
 use Cbox\Cms\Core\Pipeline\Domain\FieldValidation;
 use Cbox\Cms\Core\Pipeline\Domain\InvalidCommandCall;
+use Cbox\Cms\Core\Pipeline\Domain\MissingReplayReceipt;
+use Cbox\Cms\Core\Pipeline\Domain\ReplayReceipt;
 use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
 
 /**
  * The command pipeline (GUARDRAILS 2.1, PRD 6.1, 6.2): the one way a write changes state. It owns
- * every phase, and the action only resolves and plans:
+ * every phase, and the action only resolves and plans. The whole call runs in one
+ * CommandTransaction, which commits only a call that committed a changeset:
  *
+ * 0. Idempotency (PRD 6.1). A call that is not a dry run claims its envelope's idempotency key in
+ *    the IdempotencyStore, in the scope of its actor and command name, with the content hash of
+ *    the command, waiting at most the kernel's wait budget (cbox-cms.idempotency.wait_budget_ms)
+ *    for another call that holds the key. An internal issuer's key is the one its envelope derived
+ *    from its unit of work. A fresh key runs the phases below, and the claim lasts until the
+ *    transaction ends. A key completed with the same content is a replay: the call returns the
+ *    first call's receipt from the ReceiptStore, built for the wait level this call asks for
+ *    (ReplayReceipt), and runs nothing, so a retry after the first call committed never meets a
+ *    version it changed. A key completed with other content is idempotency_conflict, and a key
+ *    another call still holds after the wait budget is idempotency_in_flight, which a client
+ *    retries. A dry run commits nothing and claims nothing.
  * 1. Resolve. The kernel reads the actor and each actor of its on-behalf-of chain through the
  *    ActorDirectory, as aggregates, and rejects the call with actor_not_active when one is missing
  *    or not active (invariant 37). Then the action's resolve() reads what the command touches. A
@@ -57,13 +79,14 @@ use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
  * 6. Dry run: a call whose envelope asks for one ends here with the plan, its blast radius and its
  *    diff, and commits nothing.
  * 7. Commit, through the ChangesetCommitter, with every aggregate read and its version: the
- *    actors' and the action's. A stale read is version_conflict, and the idempotency outcomes are
- *    idempotency_conflict and idempotency_in_flight.
+ *    actors' and the action's. A stale read is version_conflict. A committed changeset completes
+ *    the claim in the same transaction, so the key and the changeset commit together; a rejected
+ *    call leaves the key fresh, and a retry runs again.
  *
  * resolve() and plan() get the command and the aggregates and nothing else: no connection, no
  * envelope and no access context, so an action cannot write or commit. Phase 4, the transform
  * hooks, comes with the hook extension point. The pipeline never begins or ends a transaction; the
- * commit does.
+ * CommandTransaction does.
  *
  * A rejected call and a dry run commit nothing, so their receipts carry no changeset; they are
  * never stored, and their retention class is Standard.
@@ -81,12 +104,74 @@ final readonly class CommandPipeline
         private TypeCatalog $types,
         private FieldValidation $fields,
         private ChangesetCommitter $committer,
+        private IdempotencyStore $keys,
+        private ReceiptStore $receipts,
+        private CommandContentHasher $hasher,
+        private IdempotencySettings $idempotency,
+        private CommandTransaction $transaction,
     ) {}
 
     public function run(CommandCall $call): WriteResult
     {
-        $envelope = $call->envelope;
         $binding = $this->actions->for($call->command);
+
+        return $this->transaction->run(fn (): WriteResult => $this->claimed($call, $binding));
+    }
+
+    /**
+     * Phase 0: the idempotency claim, and what it decides.
+     */
+    private function claimed(CommandCall $call, ActionBinding $binding): WriteResult
+    {
+        $envelope = $call->envelope;
+
+        if ($envelope->dryRun) {
+            return $this->phases($call, $binding, null);
+        }
+
+        $claim = $this->keys->claim(
+            $envelope->idempotencyScope($binding->command),
+            $envelope->idempotencyKey,
+            $this->hasher->hash($binding->command, $binding->version, $call->command),
+            $this->idempotency->waitBudget,
+        );
+
+        return match (true) {
+            $claim instanceof Fresh => $this->phases($call, $binding, $claim),
+            $claim instanceof Replay => $this->replay($call, $binding, $claim),
+            $claim instanceof Conflict => $this->rejected($call, new CatalogError(
+                ErrorCode::IdempotencyConflict,
+                null,
+                sprintf('The idempotency key "%s" was used before for this command with other content.', $envelope->idempotencyKey->value),
+            )),
+            default => $this->rejected($call, new CatalogError(
+                ErrorCode::IdempotencyInFlight,
+                null,
+                sprintf('Another call with the idempotency key "%s" is still running after %d ms.', $envelope->idempotencyKey->value, $claim->waited->milliseconds),
+            )),
+        };
+    }
+
+    /**
+     * The first call's receipt, for the wait level this call asks for.
+     */
+    private function replay(CommandCall $call, ActionBinding $binding, Replay $replay): WriteResult
+    {
+        $stored = $this->receipts->find($replay->changesetId);
+
+        if (! $stored instanceof StoredReceipt) {
+            throw MissingReplayReceipt::of($binding->command, $replay->changesetId);
+        }
+
+        return WriteResult::committed(ReplayReceipt::of($stored, $call->envelope->waitLevel));
+    }
+
+    /**
+     * Phases 1 to 7, with the fresh claim a commit completes; a dry run has none.
+     */
+    private function phases(CommandCall $call, ActionBinding $binding, ?Fresh $claim): WriteResult
+    {
+        $envelope = $call->envelope;
         $action = $binding->action;
 
         $principals = [];
@@ -158,24 +243,22 @@ final readonly class CommandPipeline
 
         $outcome = $this->committer->commit(new PendingChangeset($binding->command, $binding->version, $call->command, $envelope, $call->access, $plan, $reads));
 
-        return match (true) {
-            $outcome instanceof Committed => WriteResult::committed($outcome->receipt),
-            $outcome instanceof VersionConflict => $this->rejected($call, ...array_map(
+        if ($outcome instanceof Committed) {
+            if ($claim instanceof Fresh) {
+                $this->keys->complete($claim->token, $outcome->changesetId);
+            }
+
+            return WriteResult::committed($outcome->receipt);
+        }
+
+        if ($outcome instanceof VersionConflict) {
+            return $this->rejected($call, ...array_map(
                 fn (StaleRead $stale): CatalogError => $this->conflict($stale, 'changed after it was read'),
                 $outcome->stale,
-            )),
-            $outcome instanceof IdempotencyConflict => $this->rejected($call, new CatalogError(
-                ErrorCode::IdempotencyConflict,
-                null,
-                sprintf('The idempotency key "%s" was used before for this command with other content.', $envelope->idempotencyKey->value),
-            )),
-            $outcome instanceof IdempotencyInFlight => $this->rejected($call, new CatalogError(
-                ErrorCode::IdempotencyInFlight,
-                null,
-                sprintf('Another call with the idempotency key "%s" is still running.', $envelope->idempotencyKey->value),
-            )),
-            default => throw InvalidCommandCall::unknownOutcome($outcome::class),
-        };
+            ));
+        }
+
+        throw InvalidCommandCall::unknownOutcome($outcome::class);
     }
 
     /**

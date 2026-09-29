@@ -443,13 +443,15 @@ A `FieldPath` is a list of names and indexes, written `blocks[2].text` or `field
 
 ## The command pipeline
 
-The kernel runs every write through one pipeline, in the core, and the action only resolves and plans (PRD 6.2, GUARDRAILS 2.1):
+The kernel runs every write through one pipeline, in the core, and the action only resolves and plans (PRD 6.2, GUARDRAILS 2.1). The whole call runs in one transaction, which commits only when the call committed a changeset.
+
+Before the phases comes idempotency. The kernel claims the envelope's idempotency key, in the scope of the actor and the command's name, with a hash of the command's name, version and input (PRD 6.1). It waits for another call that holds the same key at most the wait budget, `cbox-cms.idempotency.wait_budget_ms`. A fresh key runs the phases below. A key committed before with the same content returns that first call's receipt and runs nothing, so a retry after a timeout never commits twice; the receipt is built for the wait level the retry asks for, and a level past `commit` counts as reached only when every projection the receipt lists has acknowledged, otherwise the retry is `committed_wait_timeout`. The same key with other content is `idempotency_conflict`, and a key another call still holds after the wait budget is `idempotency_in_flight`, which a client retries later with the same key and content. An internal issuer's key is the one its envelope derived from its unit of work. A dry run claims no key.
 
 1. **Resolve.** The kernel reads the actor and every actor of its on-behalf-of chain as aggregates and rejects the call with `actor_not_active` when one is missing or not active (invariant 37). Then it calls `resolve()`, and checks the versions of a command that `ExpectsVersions`.
 2. **Authorize.** The call's access context, the principal with its regions and classification access, is checked against the command and what was read; a refusal is `unauthorized`.
 3. **Plan.** It calls `plan()`.
 4. **Validate.** Every aggregate a mutation changes was read, every revision names a type of the installation, and the fields of every revision pass the type's generated validator (see [runtime validators](validation.md)). Any error rejects the call with `validation_failed`, followed by each field error with its path below `fields`.
 5. **Dry run.** A call whose envelope asks for a dry run ends here with its `DryRunReport` and commits nothing.
-6. **Commit.** The plan is written as one changeset in one transaction, with a version check of every aggregate read, the actors included, so a deactivation that commits while a command of the actor is under way fails that command with `version_conflict`. The idempotency key is claimed there, and a key used with other content is `idempotency_conflict`.
+6. **Commit.** The plan is written as one changeset in the call's transaction, with a version check of every aggregate read, the actors included, so a deactivation that commits while a command of the actor is under way fails that command with `version_conflict`. The changeset completes the idempotency key in the same transaction, so the key and the changeset commit together. A rejected call leaves the key fresh, and a retry runs again.
 
 `resolve()` and `plan()` get the command and the aggregates and nothing else: no connection, envelope or access context. An action lives in an `Actions` namespace, where the architecture tests and PHPStan forbid the framework, the DB facade, connections and transactions, so it cannot write.

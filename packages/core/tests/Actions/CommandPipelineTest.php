@@ -40,8 +40,6 @@ use Cbox\Cms\Core\Pipeline\Actions\CommandPipeline;
 use Cbox\Cms\Core\Pipeline\Domain\CommitOutcome;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCall;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\Committed;
-use Cbox\Cms\Core\Pipeline\Domain\Dto\IdempotencyConflict;
-use Cbox\Cms\Core\Pipeline\Domain\Dto\IdempotencyInFlight;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\StaleRead;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\VersionConflict;
 use Cbox\Cms\Core\Pipeline\Domain\InvalidCommandCall;
@@ -56,7 +54,8 @@ use ReflectionParameter;
  * The command pipeline (GUARDRAILS 2.1, PRD 6.1, 6.2) called directly with the test-only command
  * probe.rename and the fakes of its ports and of the contracts it reads (GUARDRAILS 9): the
  * identity, the type catalog and the validators. It covers success, the rejections by the resolve,
- * authorize and validate phases, the conflict at commit and the dry run.
+ * authorize and validate phases, the conflict at commit and the dry run. Each call has an
+ * idempotency key of its own; CommandPipelineIdempotencyTest covers the keys.
  */
 
 /**
@@ -303,18 +302,6 @@ it('rejects a call whose action read an aggregate the kernel read at another ver
         ->and(pipelineReads($world->committer->pending[0]->reads))->toHaveCount(3);
 });
 
-it('answers the idempotency outcomes of the commit with their codes', function (): void {
-    $world = new PipelineWorld;
-
-    $conflict = $world->commitWith(new IdempotencyConflict)->run($world->command());
-    $inFlight = $world->commitWith(new IdempotencyInFlight)->run($world->command());
-
-    expect(pipelineErrors($conflict))->toBe(['idempotency_conflict -'])
-        ->and($conflict->errors[0]->message)->toBe('The idempotency key "probe-rename-1" was used before for this command with other content.')
-        ->and(pipelineErrors($inFlight))->toBe(['idempotency_in_flight -'])
-        ->and($inFlight->errors[0]->message)->toBe('Another call with the idempotency key "probe-rename-1" is still running.');
-});
-
 it('ends a dry run with the plan, its blast radius and its diff, and commits nothing', function (): void {
     $world = new PipelineWorld;
     $world->shelf->put($world->entry(), new AggregateVersion(3), new AggregateVersion(5), new RevisionNumber(4));
@@ -409,10 +396,10 @@ it('builds on ports and contracts alone, with no connection to hand an action', 
         ->and(array_filter($types, static fn (string $type): bool => str_contains($type, 'Illuminate')))->toBe([]);
 });
 
-it('refuses an answer of the commit that is none of the four outcomes', function (): void {
+it('refuses an answer of the commit that is none of the two outcomes', function (): void {
     $world = new PipelineWorld;
     $world->commitWith(new readonly class implements CommitOutcome {});
 
     expect(fn (): WriteResult => $world->run($world->command()))
-        ->toThrow(InvalidCommandCall::class, 'which is not one of the four commit outcomes.');
+        ->toThrow(InvalidCommandCall::class, 'which is not one of the two commit outcomes.');
 });
