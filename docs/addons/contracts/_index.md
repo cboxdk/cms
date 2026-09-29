@@ -18,5 +18,8 @@ Every contract has two things in the testkit, `Cbox\Cms\Testkit`: a fake for tes
 | [`IdempotencyStore`](idempotency-store.md) | `PostgresIdempotencyStore` | `FakeIdempotencyStore` | `IdempotencyStoreContract` |
 | [`ActorDirectory`](actor-directory.md) | `PostgresActorDirectory` | `FakeIdentity` | `ActorDirectoryContract` |
 | [`CredentialVerifier`](credential-verifier.md) | `PostgresCredentialVerifier` | `FakeIdentity` | `CredentialVerifierContract` |
+| [`TypeCatalog`](type-catalog.md) | the generated `GeneratedTypeCatalog` | `FakeTypeCatalog` | `TypeCatalogContract` |
+
+`TypeCatalog` has no entry in `cbox-cms.contracts`: the kernel cannot name the application's generated class, so the service provider that `cms:generate` writes binds it (GUARDRAILS 2.4).
 
 The contract of a doctor check, `DoctorCheck`, is not bound in the container; an application lists its checks by class. It is on [Doctor checks](../doctor-checks.md).

@@ -73,7 +73,12 @@ function gateRepository(): string
     $root = SchemaFixtures::scratch();
     $blueprints = array_map(static fn (string $file): string => 'workbench/schema/'.$file, SchemaFixtures::files(Phpstan::root().'/workbench/schema'));
 
-    foreach ([...$blueprints, 'workbench/app/Cms/Generated/TypeHandle.php', 'workbench/resources/js/cms/generated/index.ts'] as $file) {
+    $generated = [
+        ...array_map(static fn (string $file): string => 'workbench/app/Cms/Generated/'.$file, SchemaFixtures::files(Phpstan::root().'/workbench/app/Cms/Generated')),
+        ...array_map(static fn (string $file): string => 'workbench/resources/js/cms/generated/'.$file, SchemaFixtures::files(Phpstan::root().'/workbench/resources/js/cms/generated')),
+    ];
+
+    foreach ([...$blueprints, ...$generated] as $file) {
         SchemaFixtures::write($root.'/'.$file, (string) file_get_contents(Phpstan::root().'/'.$file));
     }
 

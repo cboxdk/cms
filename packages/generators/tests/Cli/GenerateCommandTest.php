@@ -95,14 +95,30 @@ it('writes the PHP enum and the TypeScript union, and a second run changes nothi
 
     expect($first)->toBe(0)
         ->and($firstOutput)->toBe([
+            'written: app/Cms/Generated/GeneratedTypeCatalog.php',
+            'written: app/Cms/Generated/GeneratedTypesServiceProvider.php',
+            'written: app/Cms/Generated/Records/AppPage/AppPage.php',
+            'written: app/Cms/Generated/Records/AppPage/AppPageFactory.php',
+            'written: app/Cms/Generated/Records/AppPage/AppPageRecord.php',
+            'written: app/Cms/Generated/Records/AppPage/AppPageRecordFactory.php',
             'written: app/Cms/Generated/TypeHandle.php',
             'written: resources/js/cms/generated/index.ts',
-            'Generated 2 files: 2 written, 0 unchanged, 0 stale removed.',
+            'Generated 8 files: 8 written, 0 unchanged, 0 stale removed.',
         ])
         ->and($second)->toBe(0)
-        ->and($secondOutput)->toBe(['Generated 2 files: 0 written, 2 unchanged, 0 stale removed.'])
+        ->and($secondOutput)->toBe(['Generated 8 files: 0 written, 8 unchanged, 0 stale removed.'])
         ->and(array_map(static fn (string $file): string => (string) hash_file('sha256', $root.'/'.$file), SchemaFixtures::files($root)))->toBe($hashes)
-        ->and(SchemaFixtures::files($root))->toBe(['app/Cms/Generated/TypeHandle.php', 'resources/js/cms/generated/index.ts', 'schema/page.yaml']);
+        ->and(SchemaFixtures::files($root))->toBe([
+            'app/Cms/Generated/GeneratedTypeCatalog.php',
+            'app/Cms/Generated/GeneratedTypesServiceProvider.php',
+            'app/Cms/Generated/Records/AppPage/AppPage.php',
+            'app/Cms/Generated/Records/AppPage/AppPageFactory.php',
+            'app/Cms/Generated/Records/AppPage/AppPageRecord.php',
+            'app/Cms/Generated/Records/AppPage/AppPageRecordFactory.php',
+            'app/Cms/Generated/TypeHandle.php',
+            'resources/js/cms/generated/index.ts',
+            'schema/page.yaml',
+        ]);
 });
 
 it('removes a stale file from a generated directory and says so', function (): void {
@@ -146,9 +162,15 @@ it('generates when a module release adds a type with the handle of an app type, 
         ->and($php)->toContain("    case AppPage = 'app:page';\n")
         ->and($after)->toBe(0)
         ->and($output)->toBe([
+            'written: app/Cms/Generated/GeneratedTypeCatalog.php',
+            'written: app/Cms/Generated/GeneratedTypesServiceProvider.php',
+            'written: app/Cms/Generated/Records/AcmePage/AcmePage.php',
+            'written: app/Cms/Generated/Records/AcmePage/AcmePageFactory.php',
+            'written: app/Cms/Generated/Records/AcmePage/AcmePageRecord.php',
+            'written: app/Cms/Generated/Records/AcmePage/AcmePageRecordFactory.php',
             'written: app/Cms/Generated/TypeHandle.php',
             'written: resources/js/cms/generated/index.ts',
-            'Generated 2 files: 2 written, 0 unchanged, 0 stale removed.',
+            'Generated 12 files: 8 written, 4 unchanged, 0 stale removed.',
         ])
         ->and((string) file_get_contents($root.'/app/Cms/Generated/TypeHandle.php'))->toContain("    case AcmePage = 'acme:page';\n    case AppPage = 'app:page';\n")
         ->and($typeScript)->toContain("export type TypeHandle = 'app:page';\n")

@@ -77,7 +77,7 @@ final readonly class PhpTypeHandleEnum implements Generator
     #[Override]
     public function generate(CompiledSchema $schema, GenerationTarget $target): array
     {
-        $this->assertCaseNames($schema);
+        self::assertCaseNames($schema);
 
         $cases = array_map(
             static fn (TypeDescriptor $type): string => sprintf("    case %s = '%s';", self::caseName($type), $type->name()),
@@ -155,7 +155,7 @@ final readonly class PhpTypeHandleEnum implements Generator
      *
      * @throws GenerationFailed with GenerateErrorCode::InvalidCaseName
      */
-    private function assertCaseNames(CompiledSchema $schema): void
+    public static function assertCaseNames(CompiledSchema $schema): void
     {
         $types = [];
         $problems = [];

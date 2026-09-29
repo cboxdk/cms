@@ -75,6 +75,37 @@ final class InvalidFieldValue extends InvalidArgumentException
         return new self(sprintf('The extension namespace "%s" appears twice in one set of field values.', $namespace->value));
     }
 
+    /**
+     * A required field that is absent or holds NullValue, at its path, such as "supplier.company".
+     */
+    public static function missing(string $path): self
+    {
+        return new self(sprintf('The field "%s" is required and holds no value.', self::shown($path)));
+    }
+
+    /**
+     * A field whose value is of another kind than its field type holds.
+     */
+    public static function kind(string $path, string $expected, FieldValue $actual): self
+    {
+        $class = strrchr($actual::class, '\\');
+
+        return new self(sprintf(
+            'The field "%s" holds %s, expected %s.',
+            self::shown($path),
+            $class === false ? $actual::class : substr($class, 1),
+            $expected,
+        ));
+    }
+
+    /**
+     * A select field whose text is none of its options.
+     */
+    public static function choice(string $path, string $value): self
+    {
+        return new self(sprintf('The field "%s" holds "%s", which is not one of its options.', self::shown($path), self::shown($value)));
+    }
+
     private static function shown(string $value): string
     {
         $cut = strlen($value) > 64 ? substr($value, 0, 64).'...' : $value;

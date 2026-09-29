@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Generators\Tests\Generation;
 
+use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecords;
+use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeCatalog;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeHandleEnum;
 use Cbox\Cms\Generators\Generation\Domain\Generators\TypeScriptTypeHandles;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintSchemaFile;
@@ -15,8 +17,8 @@ use stdClass;
 
 /*
  * The generator coverage of the blueprint schema v1 (GUARDRAILS 11, blueprint decision 2). Every
- * core field type and every kind in the installed blueprint.v1.json has a mapping in the PHP and
- * the TypeScript generator, and every mapping names a field type or a kind that the schema has.
+ * core field type and every kind in the installed blueprint.v1.json has a mapping in every
+ * generator, and every mapping names a field type or a kind that the schema has.
  * Version 1 grows by additions, so a new field type or kind in cboxdk/cms fails here
  * until the generators write it. The core's contributor to the field type registry registers
  * exactly the core field types of the schema, so the reader can read every one of them.
@@ -27,7 +29,7 @@ afterEach(function (): void {
 });
 
 /**
- * The mappings of each M0 generator, by what they map.
+ * The mappings of each generator, by what they map.
  *
  * @return array<string, array{fieldTypes: array<string, string>, kinds: array<string, string>}>
  */
@@ -35,6 +37,8 @@ function generatorMappings(): array
 {
     return [
         PhpTypeHandleEnum::class => ['fieldTypes' => PhpTypeHandleEnum::FIELD_TYPES, 'kinds' => PhpTypeHandleEnum::KINDS],
+        PhpRecords::class => ['fieldTypes' => PhpRecords::FIELD_TYPES, 'kinds' => PhpRecords::KINDS],
+        PhpTypeCatalog::class => ['fieldTypes' => PhpTypeCatalog::FIELD_TYPES, 'kinds' => PhpTypeCatalog::KINDS],
         TypeScriptTypeHandles::class => ['fieldTypes' => TypeScriptTypeHandles::FIELD_TYPES, 'kinds' => TypeScriptTypeHandles::KINDS],
     ];
 }
@@ -162,8 +166,12 @@ it('fails when the schema gains a field type or a kind that a generator does not
 
     expect(coverageProblems($schema, generatorMappings()))->toBe([
         PhpTypeHandleEnum::class.' has no mapping for the field type "relation".',
+        PhpRecords::class.' has no mapping for the field type "relation".',
+        PhpTypeCatalog::class.' has no mapping for the field type "relation".',
         TypeScriptTypeHandles::class.' has no mapping for the field type "relation".',
         PhpTypeHandleEnum::class.' has no mapping for the kind "fieldset".',
+        PhpRecords::class.' has no mapping for the kind "fieldset".',
+        PhpTypeCatalog::class.' has no mapping for the kind "fieldset".',
         TypeScriptTypeHandles::class.' has no mapping for the kind "fieldset".',
     ]);
 });

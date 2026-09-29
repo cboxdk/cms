@@ -78,6 +78,7 @@ enum ErrorCode: string
     case GenerateMinAboveMax = 'generate_min_above_max';
     case GenerateMinItemsAboveMaxItems = 'generate_min_items_above_max_items';
     case GenerateMinLengthAboveMaxLength = 'generate_min_length_above_max_length';
+    case GenerateNameCollision = 'generate_name_collision';
     case GenerateOutputUnwritable = 'generate_output_unwritable';
     case GenerateScaleAbovePrecision = 'generate_scale_above_precision';
     case GenerateSchemaInvalid = 'generate_schema_invalid';
@@ -279,6 +280,9 @@ enum ErrorCode: string
             ),
             self::GenerateMinLengthAboveMaxLength => $this->refusedInput(
                 'A field\'s min_length is greater than its max_length, or than the default max_length of its type. Correct one of them.',
+            ),
+            self::GenerateNameCollision => $this->refusedInput(
+                'Two fields, options or extender namespaces of one type would get the same name in the type\'s generated PHP records, such as the handles size_1 and size1, or a name PHP reserves. Rename one of them.',
             ),
             self::GenerateOutputUnwritable => $this->tooling(
                 ExitCode::CantCreat,

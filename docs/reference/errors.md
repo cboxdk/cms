@@ -66,6 +66,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`generate_min_above_max`](#generate_min_above_max) | 500 | 65 | internal_error | no |
 | [`generate_min_items_above_max_items`](#generate_min_items_above_max_items) | 500 | 65 | internal_error | no |
 | [`generate_min_length_above_max_length`](#generate_min_length_above_max_length) | 500 | 65 | internal_error | no |
+| [`generate_name_collision`](#generate_name_collision) | 500 | 65 | internal_error | no |
 | [`generate_output_unwritable`](#generate_output_unwritable) | 500 | 73 | internal_error | no |
 | [`generate_scale_above_precision`](#generate_scale_above_precision) | 500 | 65 | internal_error | no |
 | [`generate_schema_invalid`](#generate_schema_invalid) | 500 | 65 | internal_error | no |
@@ -561,6 +562,15 @@ A field's min_items is greater than its max_items. Correct one of them.
 ### generate_min_length_above_max_length
 
 A field's min_length is greater than its max_length, or than the default max_length of its type. Correct one of them.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### generate_name_collision
+
+Two fields, options or extender namespaces of one type would get the same name in the type's generated PHP records, such as the handles size_1 and size1, or a name PHP reserves. Rename one of them.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)

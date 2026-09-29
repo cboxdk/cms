@@ -92,7 +92,21 @@ it('has committed generated code that matches the schema', function (): void {
     $schema = DescriptorCompiler::compile(SchemaResolver::resolve(app(BlueprintSource::class)->read($target->roots)));
     $result = app(GeneratorRunner::class)->run($schema, $target);
 
-    expect($result->paths())->toBe(['workbench/app/Cms/Generated/TypeHandle.php', 'workbench/resources/js/cms/generated/index.ts']);
+    expect($result->paths())->toBe([
+        'workbench/app/Cms/Generated/GeneratedTypeCatalog.php',
+        'workbench/app/Cms/Generated/GeneratedTypesServiceProvider.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticle.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleFactory.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleRecord.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleRecordFactory.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/AppFixtureMeasurement.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/AppFixtureMeasurementFactory.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/AppFixtureMeasurementRecord.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/AppFixtureMeasurementRecordFactory.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/FixtureScaleChoice.php',
+        'workbench/app/Cms/Generated/TypeHandle.php',
+        'workbench/resources/js/cms/generated/index.ts',
+    ]);
 
     foreach ($result->files as $file) {
         expect(file_get_contents($target->root.'/'.$file->path))->toBe($file->contents, $file->path.' differs from what the schema generates. Run `vendor/bin/testbench cms:generate`.');

@@ -7,6 +7,7 @@ namespace Workbench\App\Providers;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Support\Env;
 use Illuminate\Support\ServiceProvider;
+use Workbench\App\Cms\Generated\GeneratedTypesServiceProvider;
 
 /**
  * Boots the workbench application that the packages are tested and developed against.
@@ -28,11 +29,17 @@ use Illuminate\Support\ServiceProvider;
  * monorepo's vendor/composer/installed.json and at the root, where package.json and node_modules
  * are for --dev. Testbench's application links vendor/ into its base path only while a command runs, so
  * the default below the base path is not there in the tests.
+ *
+ * It registers the service provider that cms:generate writes from the workbench's schema, which
+ * binds the TypeCatalog contract to the generated catalog and each fixture type's record factory,
+ * as an application registers its own.
  */
 final class WorkbenchServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->register(GeneratedTypesServiceProvider::class);
+
         $config = $this->app->make(Repository::class);
 
         $config->set('cbox-cms.generators', [

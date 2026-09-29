@@ -15,6 +15,8 @@ use Cbox\Cms\Generators\Generation\Adapter\FilesystemGeneratedOutput;
 use Cbox\Cms\Generators\Generation\Boundary\GeneratorConfig;
 use Cbox\Cms\Generators\Generation\Domain\GeneratedOutput;
 use Cbox\Cms\Generators\Generation\Domain\GeneratorRunner;
+use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecords;
+use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeCatalog;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeHandleEnum;
 use Cbox\Cms\Generators\Generation\Domain\Generators\TypeScriptTypeHandles;
 use Cbox\Cms\Generators\Schema\Boundary\YamlBlueprintSource;
@@ -50,11 +52,13 @@ final class GeneratorsServiceProvider extends ServiceProvider implements Declare
         $this->app->bind(GeneratedOutput::class, FilesystemGeneratedOutput::class);
         $this->app->bind(SchemaFiles::class, FilesystemSchemaFiles::class);
 
-        // The M0 links of the type chain. Their order does not matter: the runner sorts the output.
+        // The links of the type chain. Their order does not matter: the runner sorts the output.
         $this->app->bind(
             GeneratorRunner::class,
             static fn (): GeneratorRunner => new GeneratorRunner([
                 new PhpTypeHandleEnum,
+                new PhpRecords,
+                new PhpTypeCatalog(ServiceProvider::class),
                 new TypeScriptTypeHandles,
             ]),
         );

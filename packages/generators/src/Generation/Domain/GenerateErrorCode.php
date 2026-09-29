@@ -95,6 +95,13 @@ enum GenerateErrorCode: string
      */
     case InvalidCaseName = 'generate_invalid_case_name';
 
+    /**
+     * Two fields, options or extender namespaces of one type would get the same name in the
+     * type's generated PHP records, such as the handles `size_1` and `size1`, or a name PHP
+     * reserves.
+     */
+    case NameCollision = 'generate_name_collision';
+
     /** A generator produced a file outside its directory, or two files with the same path. */
     case InvalidOutput = 'generate_invalid_output';
 
