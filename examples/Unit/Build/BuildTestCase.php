@@ -90,7 +90,7 @@ abstract class BuildTestCase extends TestCase
     }
 
     /**
-     * The compiled file of a registry: commands or hooks.
+     * The compiled file of a registry: actions, commands or hooks.
      */
     protected function registryFile(string $registry): string
     {

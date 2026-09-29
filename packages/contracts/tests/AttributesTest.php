@@ -2,13 +2,16 @@
 
 declare(strict_types=1);
 
+use Cbox\Cms\Contracts\Attributes\Action;
 use Cbox\Cms\Contracts\Attributes\Command;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Attributes\Hook;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Attributes\Phase;
+use Cbox\Cms\Contracts\Attributes\Query;
 use Cbox\Cms\Contracts\Attributes\Stable;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Tests\Fixtures\FindVariant;
 use Cbox\Cms\Contracts\Tests\Fixtures\ReleaseVariant;
 use Cbox\Cms\Contracts\Tests\Fixtures\SlugHook;
 use PHPUnit\Framework\Assert;
@@ -46,7 +49,7 @@ function expectInvalid(Closure $build, string $message): void
 }
 
 it('declares every attribute but Internal for classes only', function (): void {
-    foreach ([Stable::class, Experimental::class, Command::class, Hook::class] as $attribute) {
+    foreach ([Stable::class, Experimental::class, Command::class, Query::class, Action::class, Hook::class] as $attribute) {
         $declarations = new ReflectionClass($attribute)->getAttributes(Attribute::class);
 
         expect($declarations)->toHaveCount(1)
@@ -83,6 +86,22 @@ it('rejects a command name that is not dot-separated snake_case', function (stri
 
 it('rejects a command version below 1', function (int $version): void {
     expectInvalid(static fn (): Command => new Command('entry.release', $version), 'Versions start at 1');
+})->with([0, -1]);
+
+it('reads a query name and version from the query DTO, as a CommandName', function (): void {
+    $query = attributeOf(FindVariant::class, Query::class);
+
+    expect($query->name)->toBe('entry.find_variant')
+        ->and($query->version)->toBe(3)
+        ->and($query->name())->toEqual(new CommandName('entry.find_variant'));
+});
+
+it('rejects a query name that is not dot-separated snake_case', function (string $name): void {
+    expectInvalid(static fn (): Query => new Query($name, 1), 'Query name "'.$name.'" must be dot-separated snake_case segments, for example "entry.find".');
+})->with(['', 'entry', 'Entry.find', 'entry..find', "entry.find\n"]);
+
+it('rejects a query version below 1', function (int $version): void {
+    expectInvalid(static fn (): Query => new Query('entry.find', $version), 'Query "entry.find" has version '.$version.'. Versions start at 1.');
 })->with([0, -1]);
 
 it('reads command, phase, priority and budget from a hook', function (): void {

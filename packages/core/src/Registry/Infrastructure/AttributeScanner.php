@@ -4,17 +4,27 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Registry\Infrastructure;
 
+use Cbox\Cms\Contracts\Attributes\Action;
 use Cbox\Cms\Contracts\Attributes\Command;
 use Cbox\Cms\Contracts\Attributes\Hook;
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Attributes\Query;
+use Cbox\Cms\Contracts\Attributes\Surface;
+use Cbox\Cms\Contracts\Attributes\UnknownSurface;
 use Cbox\Cms\Contracts\Build\ScanRoot;
+use Cbox\Cms\Contracts\Pipeline\QueryAction;
+use Cbox\Cms\Contracts\Pipeline\WriteAction;
+use Cbox\Cms\Core\Registry\Domain\ActionKind;
 use Cbox\Cms\Core\Registry\Domain\BuildErrorCode;
 use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
 use Cbox\Cms\Core\Registry\Domain\Dto\BuildProblem;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
+use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredAction;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredHook;
 use Cbox\Cms\Core\Registry\Domain\Dto\Discovery;
+use Cbox\Cms\Core\Registry\Domain\Dto\QueryEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\ScanRoots;
+use Error;
 use FilesystemIterator;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -25,8 +35,8 @@ use SplFileInfo;
 use Throwable;
 
 /**
- * Finds #[Command] and #[Hook] in the scan roots with reflection, at build time only
- * (GUARDRAILS 2.2).
+ * Finds #[Action], #[Command], #[Query] and #[Hook] in the scan roots with reflection, at build
+ * time only (GUARDRAILS 2.2).
  *
  * Every .php file below a root is read for the classes it declares, and each class is loaded
  * through the autoloader, as the application loads it at run time. Roots and files are visited in
@@ -37,8 +47,7 @@ final readonly class AttributeScanner implements DeclarationScanner
 {
     public function scan(ScanRoots $roots): Discovery
     {
-        $commands = [];
-        $hooks = [];
+        $found = new ScanFindings;
         $problems = [];
 
         /** @var array<string, ResolvedRoot> $owners the root each class was first found in, by lower-case class name */
@@ -80,12 +89,12 @@ final readonly class AttributeScanner implements DeclarationScanner
 
                     $owners[strtolower($reflection->getName())] = $resolved;
 
-                    $this->read($reflection, $root, $commands, $hooks, $problems);
+                    $this->read($reflection, $root, $found, $problems);
                 }
             }
         }
 
-        return new Discovery($commands, $hooks, $problems);
+        return new Discovery($found->commands, $found->hooks, $problems, $found->queries, $found->actions);
     }
 
     /**
@@ -192,14 +201,14 @@ final readonly class AttributeScanner implements DeclarationScanner
 
     /**
      * @param  ReflectionClass<object>  $class
-     * @param  list<CommandEntry>  $commands
-     * @param  list<DiscoveredHook>  $hooks
      * @param  list<BuildProblem>  $problems
      */
-    private function read(ReflectionClass $class, ScanRoot $root, array &$commands, array &$hooks, array &$problems): void
+    private function read(ReflectionClass $class, ScanRoot $root, ScanFindings $found, array &$problems): void
     {
         $attributes = [
+            ...$class->getAttributes(Action::class),
             ...$class->getAttributes(Command::class),
+            ...$class->getAttributes(Query::class),
             ...$class->getAttributes(Hook::class),
         ];
 
@@ -226,9 +235,13 @@ final readonly class AttributeScanner implements DeclarationScanner
                 $declaration = $attribute->newInstance();
 
                 if ($declaration instanceof Command) {
-                    $commands[] = new CommandEntry($declaration->name(), $declaration->version, $class->getName(), $root->package);
+                    $found->commands[] = new CommandEntry($declaration->name(), $declaration->version, $class->getName(), $root->package);
+                } elseif ($declaration instanceof Query) {
+                    $found->queries[] = new QueryEntry($declaration->name(), $declaration->version, $class->getName(), $root->package);
+                } elseif ($declaration instanceof Action) {
+                    $this->readAction($class, $root, $declaration, $found, $problems);
                 } elseif ($declaration instanceof Hook) {
-                    $hooks[] = new DiscoveredHook(
+                    $found->hooks[] = new DiscoveredHook(
                         $class->getName(),
                         $root->package,
                         new ReflectionClass($declaration->command)->getName(),
@@ -237,29 +250,109 @@ final readonly class AttributeScanner implements DeclarationScanner
                         $declaration->budgetMs,
                     );
                 }
+            } catch (UnknownSurface $unknown) {
+                $problems[] = $this->unknownSurface($class, $root, $unknown->getMessage());
+            } catch (Error $error) {
+                // An argument such as Surface::Graphql names an enum case that does not exist.
+                $problems[] = str_starts_with($error->getMessage(), 'Undefined constant '.Surface::class.'::')
+                    ? $this->unknownSurface($class, $root, $error->getMessage())
+                    : $this->invalidAttribute($attribute, $class, $root, $error);
             } catch (Throwable $invalid) {
-                $problems[] = new BuildProblem(BuildErrorCode::InvalidAttribute, sprintf(
-                    '#[%s] on %s (%s) is invalid: %s',
-                    $this->shortName($attribute),
-                    $class->getName(),
-                    $root->package,
-                    $invalid->getMessage(),
-                ));
+                $problems[] = $this->invalidAttribute($attribute, $class, $root, $invalid);
             }
         }
     }
 
     /**
-     * Reports a #[Command] class that is not a final readonly class (GUARDRAILS 2.1): a command must
-     * not change after the pipeline has authorized and validated it. The class's entries are still
-     * read, so a hook for the command does not also fail as a hook for an unknown command.
+     * Reads an #[Action]: the class implements WriteAction or QueryAction, which gives its kind, and
+     * the attribute gives the class it handles, which the compiler resolves.
+     *
+     * @param  ReflectionClass<object>  $class
+     * @param  list<BuildProblem>  $problems
+     */
+    private function readAction(ReflectionClass $class, ScanRoot $root, Action $declaration, ScanFindings $found, array &$problems): void
+    {
+        $write = $class->implementsInterface(WriteAction::class);
+        $query = $class->implementsInterface(QueryAction::class);
+
+        if ($write === $query) {
+            $problems[] = new BuildProblem(BuildErrorCode::NotAnAction, sprintf(
+                '#[Action] on %s (%s) sits on a class that implements %s. An action implements exactly one of %s and %s (GUARDRAILS 2.1).',
+                $class->getName(),
+                $root->package,
+                $write ? 'both WriteAction and QueryAction' : 'neither WriteAction nor QueryAction',
+                WriteAction::class,
+                QueryAction::class,
+            ));
+
+            return;
+        }
+
+        $handles = ltrim($declaration->handles, '\\');
+
+        // The loaded class's own spelling, so the compiler matches it as PHP does; a class that does
+        // not load stays as written and is reported by the compiler as unknown.
+        if (class_exists($handles)) {
+            $handles = new ReflectionClass($handles)->getName();
+        }
+
+        $found->actions[] = new DiscoveredAction(
+            $class->getName(),
+            $root->package,
+            $write ? ActionKind::Write : ActionKind::Query,
+            $handles,
+            $declaration->surfaces,
+        );
+    }
+
+    /**
+     * @param  ReflectionClass<object>  $class
+     */
+    private function unknownSurface(ReflectionClass $class, ScanRoot $root, string $reason): BuildProblem
+    {
+        return new BuildProblem(BuildErrorCode::UnknownSurface, sprintf(
+            '#[Action] on %s (%s) lists a surface that does not exist: %s. The surfaces are the cases of %s: %s.',
+            $class->getName(),
+            $root->package,
+            rtrim($reason, '.'),
+            Surface::class,
+            implode(', ', array_map(static fn (Surface $case): string => 'Surface::'.$case->name, Surface::cases())),
+        ));
+    }
+
+    /**
+     * @param  ReflectionAttribute<object>  $attribute
+     * @param  ReflectionClass<object>  $class
+     */
+    private function invalidAttribute(ReflectionAttribute $attribute, ReflectionClass $class, ScanRoot $root, Throwable $invalid): BuildProblem
+    {
+        return new BuildProblem(BuildErrorCode::InvalidAttribute, sprintf(
+            '#[%s] on %s (%s) is invalid: %s',
+            $this->shortName($attribute),
+            $class->getName(),
+            $root->package,
+            $invalid->getMessage(),
+        ));
+    }
+
+    /**
+     * Reports a #[Command], #[Query] or #[Action] class that is not a final readonly class
+     * (GUARDRAILS 2.1): a command or query must not change after the pipeline has authorized and
+     * validated it, and an action holds no state between calls. The class's entries are still read,
+     * so a hook or an action for the command does not also fail as one for an unknown command.
      *
      * @param  ReflectionClass<object>  $class
      * @param  list<BuildProblem>  $problems
      */
     private function checkShape(ReflectionClass $class, ScanRoot $root, array &$problems): void
     {
-        if ($class->getAttributes(Command::class) === [] || ($class->isFinal() && $class->isReadOnly())) {
+        $shaped = [
+            ...$class->getAttributes(Command::class),
+            ...$class->getAttributes(Query::class),
+            ...$class->getAttributes(Action::class),
+        ];
+
+        if ($shaped === [] || ($class->isFinal() && $class->isReadOnly())) {
             return;
         }
 
@@ -268,7 +361,8 @@ final readonly class AttributeScanner implements DeclarationScanner
         )));
 
         $problems[] = new BuildProblem(BuildErrorCode::NotFinalReadonly, sprintf(
-            '#[Command] on %s (%s) is %s. A command is a final readonly class (GUARDRAILS 2.1). Declare it as final readonly class %s.',
+            '#[%s] on %s (%s) is %s. A command, query or action is a final readonly class (GUARDRAILS 2.1). Declare it as final readonly class %s.',
+            $this->shortName($shaped[0]),
             $class->getName(),
             $root->package,
             $missing,

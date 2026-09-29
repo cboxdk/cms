@@ -102,12 +102,16 @@ enum ErrorCode: string
     case RegistryCacheUnwritable = 'registry_cache_unwritable';
     case RegistryClassInTwoRoots = 'registry_class_in_two_roots';
     case RegistryClassNotLoadable = 'registry_class_not_loadable';
+    case RegistryDuplicateAction = 'registry_duplicate_action';
     case RegistryDuplicateCommand = 'registry_duplicate_command';
     case RegistryInvalidAttribute = 'registry_invalid_attribute';
     case RegistryInvalidScanRoot = 'registry_invalid_scan_root';
     case RegistryNotAConcreteClass = 'registry_not_a_concrete_class';
+    case RegistryNotAnAction = 'registry_not_an_action';
     case RegistryNotFinalReadonly = 'registry_not_final_readonly';
+    case RegistryUnknownActionCommand = 'registry_unknown_action_command';
     case RegistryUnknownHookCommand = 'registry_unknown_hook_command';
+    case RegistryUnknownSurface = 'registry_unknown_surface';
     case Unauthorized = 'unauthorized';
     case ValidationAboveMaximum = 'validation_above_maximum';
     case ValidationBelowMinimum = 'validation_below_minimum';
@@ -383,10 +387,10 @@ enum ErrorCode: string
                 'A table in cbox-cms.database.partitions.tables cannot be managed as it is: it is missing, not partitioned by range, has a DEFAULT partition, or Postgres refused a step on one of its partitions. The other tables were still maintained. Run the migrations, or correct the table or its entry as the cause says.',
             ),
             self::RegistryCacheMalformed => $this->violation(
-                'The registry cache in bootstrap/cache/cms is damaged, or its files come from different builds, so the kernel cannot read its commands and hooks. Run cms:build.',
+                'The registry cache in bootstrap/cache/cms is damaged, or its files come from different builds, so the kernel cannot read its actions, commands and hooks. Run cms:build.',
             ),
             self::RegistryCacheMissing => $this->violation(
-                'The registry cache in bootstrap/cache/cms does not exist, so the kernel does not know its commands and hooks. Run cms:build; Composer runs it after every install.',
+                'The registry cache in bootstrap/cache/cms does not exist, so the kernel does not know its actions, commands and hooks. Run cms:build; Composer runs it after every install.',
             ),
             self::RegistryCacheUnwritable => $this->tooling(
                 ExitCode::CantCreat,
@@ -398,23 +402,35 @@ enum ErrorCode: string
             self::RegistryClassNotLoadable => $this->refusedInput(
                 'A class in a scan root cannot be autoloaded, or loading it failed. Check its namespace against the autoloading rules of its package, and the error in the cause.',
             ),
+            self::RegistryDuplicateAction => $this->refusedInput(
+                'Two actions handle the same command or query. A command or query has one action: remove the #[Action] of all but one, or give the new shape its own version.',
+            ),
             self::RegistryDuplicateCommand => $this->refusedInput(
-                'Two classes declare the same command name and version with #[Command]. Rename one of the commands, or give it another version.',
+                'Two classes declare the same command or query name and version with #[Command] or #[Query]. Rename one of them, or give it another version.',
             ),
             self::RegistryInvalidAttribute => $this->refusedInput(
-                'The arguments of a #[Command] or #[Hook] attribute are invalid, so it cannot be built. Correct the attribute as the cause says.',
+                'The arguments of an #[Action], #[Command], #[Query] or #[Hook] attribute are invalid, so it cannot be built. Correct the attribute as the cause says.',
             ),
             self::RegistryInvalidScanRoot => $this->refusedInput(
                 'A scan root that a service provider declares is not a readable directory. Correct the directory the provider returns from scanRoots().',
             ),
             self::RegistryNotAConcreteClass => $this->refusedInput(
-                'A #[Command] or #[Hook] attribute sits on an interface, a trait, an enum or an abstract class. Put it on a concrete class.',
+                'An #[Action], #[Command], #[Query] or #[Hook] attribute sits on an interface, a trait, an enum or an abstract class. Put it on a concrete class.',
+            ),
+            self::RegistryNotAnAction => $this->refusedInput(
+                'An #[Action] sits on a class that implements neither WriteAction nor QueryAction, or both (GUARDRAILS 2.1). Implement exactly one of them.',
             ),
             self::RegistryNotFinalReadonly => $this->refusedInput(
-                'A #[Command] sits on a class that is not a final readonly class (GUARDRAILS 2.1). Make the command class final readonly.',
+                'A #[Command], #[Query] or #[Action] sits on a class that is not a final readonly class (GUARDRAILS 2.1). Make the class final readonly.',
+            ),
+            self::RegistryUnknownActionCommand => $this->refusedInput(
+                'An action handles a class that is not a registered command (for a WriteAction) or query (for a QueryAction). Point #[Action(handles: ...)] at a class declared with #[Command] or #[Query], or declare the scan root of the package that has it.',
             ),
             self::RegistryUnknownHookCommand => $this->refusedInput(
                 'A hook runs for a command class that no scan root registers. Correct the command the #[Hook] names, or declare the scan root of the package that has it.',
+            ),
+            self::RegistryUnknownSurface => $this->refusedInput(
+                'An #[Action] lists a surface that is not a case of the Surface enum. List only Surface::Rest, Surface::Inertia, Surface::Mcp and Surface::Cli.',
             ),
             self::Unauthorized => $this->caller(
                 HttpStatus::Forbidden,
@@ -560,8 +576,8 @@ enum ErrorCode: string
     }
 
     /**
-     * cms:generate refused a blueprint, or cms:build the declarations of commands and hooks; the
-     * schema or the code has to change.
+     * cms:generate refused a blueprint, or cms:build the declarations of actions, commands, queries
+     * and hooks; the schema or the code has to change.
      */
     private function refusedInput(string $explanation): ErrorEntry
     {

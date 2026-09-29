@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Examples\Unit\Build;
 
+use Examples\Unit\Build\Notes\FindNote;
+use Examples\Unit\Build\Notes\FindNoteAction;
+use Examples\Unit\Build\Notes\FoundNote;
 use Examples\Unit\Build\Notes\NotesServiceProvider;
 use Examples\Unit\Build\Notes\PublishNote;
 use Examples\Unit\Build\Notes\TrimNoteTitle;
@@ -48,6 +51,29 @@ final class ScanRootsTest extends BuildTestCase
             'phase' => 'transform',
             'priority' => 20,
         ], $hooks['entries']);
+    }
+
+    #[Test]
+    public function it_registers_the_query_action_under_the_querys_name_and_version(): void
+    {
+        self::assertSame(0, $this->build(NotesServiceProvider::class));
+        self::assertStringContainsString('actions: 1', $this->buildOutput());
+
+        $actions = require $this->registryFile('actions');
+        self::assertIsArray($actions);
+        self::assertSame('actions', $actions['registry']);
+        self::assertSame([[
+            'class' => FindNoteAction::class,
+            'command' => 'note.find',
+            'command_class' => FindNote::class,
+            'command_version' => 1,
+            'kind' => 'query',
+            'package' => 'acme/cms-notes',
+            'surfaces' => ['rest', 'cli'],
+        ]], $actions['entries']);
+
+        // The registry names the action; the query pipeline calls it.
+        self::assertEquals(new FoundNote(true), new FindNoteAction(['Groceries'])->handle(new FindNote('Groceries')));
     }
 
     #[Test]

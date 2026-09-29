@@ -16,7 +16,7 @@ use Override;
  *
  * @implements QueryAction<FindNoteTitle, NoteTitle>
  */
-#[Action(surfaces: [Surface::Inertia, Surface::Rest])]
+#[Action(handles: FindNoteTitle::class, surfaces: [Surface::Inertia, Surface::Rest])]
 final readonly class FindNoteTitleAction implements QueryAction
 {
     public function __construct(

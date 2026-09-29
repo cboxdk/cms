@@ -46,7 +46,7 @@ Every step is idempotent, and the script stops at the first step that fails. The
 
 | Command | What it does |
 |---|---|
-| `cms:build` | Compiles the registries of commands and hooks to `bootstrap/cache/cms`. See [Build declarations](../addons/build-declarations.md). |
+| `cms:build` | Compiles the registries of actions, commands and hooks to `bootstrap/cache/cms`. See [Build declarations](../addons/build-declarations.md). |
 | `cms:doctor` | Checks the installation and the runtime contract. See [cms:doctor](../developers/doctor.md). |
 | `cms:generate` | Generates the typed PHP and TypeScript code from the blueprint files. See [Blueprint schema v1](../addons/blueprint-v1.md). |
 | `cms:partitions:maintain` | Creates partitions ahead of the clock and removes partitions past retention, as the owner role. See [Partitions](../developers/partitions.md). |

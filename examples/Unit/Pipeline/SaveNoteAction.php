@@ -24,14 +24,15 @@ use Cbox\Cms\Contracts\Plans\Plan;
 use Override;
 
 /**
- * The write action of note.save, exposed on REST and MCP. resolve() reads the note through the
- * shelf; plan() turns the command and what was read into mutations, and for a new note composes
- * the placement planner's plan. Neither writes: the kernel commits the plan. The kernel calls
- * the action only with the command and aggregates of its WriteAction type arguments.
+ * The write action of note.save, exposed on REST and MCP; cms:build registers it for the command
+ * SaveNote declares. resolve() reads the note through the shelf; plan() turns the command and what
+ * was read into mutations, and for a new note composes the placement planner's plan. Neither
+ * writes: the kernel commits the plan. The kernel calls the action only with the command and
+ * aggregates of its WriteAction type arguments.
  *
  * @implements WriteAction<SaveNote, NoteAggregates>
  */
-#[Action(surfaces: [Surface::Rest, Surface::Mcp])]
+#[Action(handles: SaveNote::class, surfaces: [Surface::Rest, Surface::Mcp])]
 final readonly class SaveNoteAction implements WriteAction
 {
     public function __construct(

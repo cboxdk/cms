@@ -76,4 +76,4 @@ A contract is an interface in `Cbox\Cms\Contracts`. `CoreServiceProvider` binds 
 
 ## Registries
 
-A module or an addon declares its commands and hooks with attributes and names the directories to scan in its service provider. `cms:build` reads the declarations with reflection, once, and compiles them to PHP files in `bootstrap/cache/cms/`; at run time the kernel reads those files. See [Build declarations](../addons/build-declarations.md).
+A module or an addon declares its commands, queries, actions and hooks with attributes and names the directories to scan in its service provider. `cms:build` reads the declarations with reflection, once, and compiles them to PHP files in `bootstrap/cache/cms/`; at run time the kernel reads those files. See [Build declarations](../addons/build-declarations.md).

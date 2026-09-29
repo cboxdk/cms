@@ -9,8 +9,10 @@ use Cbox\Cms\Core\Registry\Domain\BuildErrorCode;
 use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
 use Cbox\Cms\Core\Registry\Domain\Dto\BuildProblem;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
+use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredAction;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredHook;
 use Cbox\Cms\Core\Registry\Domain\Dto\Discovery;
+use Cbox\Cms\Core\Registry\Domain\Dto\QueryEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\ScanRoots;
 use Override;
 
@@ -42,6 +44,8 @@ final class FakeDeclarationScanner implements DeclarationScanner
 
         $commands = [];
         $hooks = [];
+        $queries = [];
+        $actions = [];
         $problems = [];
 
         /** @var array<string, ScanRoot> $unique */
@@ -99,10 +103,22 @@ final class FakeDeclarationScanner implements DeclarationScanner
                 }
             }
 
+            foreach ($found->queries as $query) {
+                if ($owners[strtolower($query->class)] === $root) {
+                    $queries[] = new QueryEntry($query->name, $query->version, $query->class, $package);
+                }
+            }
+
+            foreach ($found->actions as $action) {
+                if ($owners[strtolower($action->class)] === $root) {
+                    $actions[] = new DiscoveredAction($action->class, $package, $action->kind, $action->handles, $action->surfaces);
+                }
+            }
+
             array_push($problems, ...$found->problems);
         }
 
-        return new Discovery($commands, $hooks, $problems);
+        return new Discovery($commands, $hooks, $problems, $queries, $actions);
     }
 
     /**
@@ -115,6 +131,8 @@ final class FakeDeclarationScanner implements DeclarationScanner
         $classes = [
             ...array_map(static fn (CommandEntry $command): string => $command->class, $found->commands),
             ...array_map(static fn (DiscoveredHook $hook): string => $hook->class, $found->hooks),
+            ...array_map(static fn (QueryEntry $query): string => $query->class, $found->queries),
+            ...array_map(static fn (DiscoveredAction $action): string => $action->class, $found->actions),
         ];
 
         return array_values(array_unique($classes));

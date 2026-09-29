@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Registry;
 
 use Cbox\Cms\Contracts\Attributes\Phase;
+use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Core\Registry\Boundary\RegistryCacheCodec;
+use Cbox\Cms\Core\Registry\Domain\ActionKind;
+use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Dto\HookEntry;
@@ -19,6 +22,7 @@ function codecRegistry(): CompiledRegistry
     return new CompiledRegistry(
         [new CommandEntry(new CommandName('note.create'), 1, 'App\Commands\CreateNote', 'acme/notes')],
         [new HookEntry('App\Hooks\Trim', 'acme/notes', new CommandName('note.create'), 1, 'App\Commands\CreateNote', Phase::Transform, -5, 3)],
+        [new ActionEntry('App\Actions\CreateNoteAction', 'acme/notes', ActionKind::Write, new CommandName('note.create'), 1, 'App\Commands\CreateNote', [Surface::Rest, Surface::Mcp])],
     );
 }
 
@@ -82,14 +86,36 @@ function codecFailure(mixed $damaged): MalformedRegistryCache
     Assert::fail('The codec read a malformed cache.');
 }
 
-it('writes the exact bytes of format 3', function (): void {
+it('writes the exact bytes of format 4', function (): void {
     $files = new RegistryCacheCodec()->encode(codecRegistry());
     $header = "<?php\n\ndeclare(strict_types=1);\n\n// Written by php artisan cms:build from the attributes in the declared scan roots (PRD 13.2).\n// Do not edit and do not commit; run cms:build again instead.\n\n";
 
-    expect(array_keys($files))->toBe(['commands', 'hooks'])
+    expect(array_keys($files))->toBe(['actions', 'commands', 'hooks'])
+        ->and($files['actions'])->toBe($header.<<<'PHP'
+            return [
+                'build' => '21489d411d8717ab5c997e4ee915c337656d97f05aecd4a58651aa51ec49085b',
+                'entries' => [
+                    [
+                        'class' => 'App\\Actions\\CreateNoteAction',
+                        'command' => 'note.create',
+                        'command_class' => 'App\\Commands\\CreateNote',
+                        'command_version' => 1,
+                        'kind' => 'write',
+                        'package' => 'acme/notes',
+                        'surfaces' => [
+                            'rest',
+                            'mcp',
+                        ],
+                    ],
+                ],
+                'format' => 4,
+                'registry' => 'actions',
+            ];
+
+            PHP)
         ->and($files['commands'])->toBe($header.<<<'PHP'
             return [
-                'build' => '6ba9e4a7ecbb557ac012b0afb9fcad118125a4229919841a077eac9f5d4f9f50',
+                'build' => '21489d411d8717ab5c997e4ee915c337656d97f05aecd4a58651aa51ec49085b',
                 'entries' => [
                     [
                         'class' => 'App\\Commands\\CreateNote',
@@ -98,14 +124,14 @@ it('writes the exact bytes of format 3', function (): void {
                         'version' => 1,
                     ],
                 ],
-                'format' => 3,
+                'format' => 4,
                 'registry' => 'commands',
             ];
 
             PHP)
         ->and($files['hooks'])->toBe($header.<<<'PHP'
             return [
-                'build' => '6ba9e4a7ecbb557ac012b0afb9fcad118125a4229919841a077eac9f5d4f9f50',
+                'build' => '21489d411d8717ab5c997e4ee915c337656d97f05aecd4a58651aa51ec49085b',
                 'entries' => [
                     [
                         'budget_ms' => 3,
@@ -118,12 +144,12 @@ it('writes the exact bytes of format 3', function (): void {
                         'priority' => -5,
                     ],
                 ],
-                'format' => 3,
+                'format' => 4,
                 'registry' => 'hooks',
             ];
 
             PHP)
-        ->and(new RegistryCacheCodec()->encode(CompiledRegistry::empty())['commands'])->toBe($header."return [\n    'build' => '".hash('sha256', "commands => [];\nhooks => [];\n")."',\n    'entries' => [],\n    'format' => 3,\n    'registry' => 'commands',\n];\n");
+        ->and(new RegistryCacheCodec()->encode(CompiledRegistry::empty())['commands'])->toBe($header."return [\n    'build' => '".hash('sha256', "actions => [];\ncommands => [];\nhooks => [];\n")."',\n    'entries' => [],\n    'format' => 4,\n    'registry' => 'commands',\n];\n");
 });
 
 it('reads back what it writes', function (): void {
@@ -161,12 +187,17 @@ it('refuses a malformed cache with the file and the place in it', function (call
         $files['commands'] = ['entries' => [], 'format' => 1, 'registry' => 'commands'];
 
         return $files;
-    }, 'commands.php', 'at format: format 1 is not format 3, which this version of the core reads'],
-    'a file of format 2, whose cache had an actions.php' => [static function (array $files): array {
-        $files['commands'] = [...codecFile($files, 'commands'), 'format' => 2];
+    }, 'commands.php', 'at format: format 1 is not format 4, which this version of the core reads'],
+    'a file of format 2, whose actions had no command' => [static function (array $files): array {
+        $files['actions'] = [...codecFile($files, 'actions'), 'format' => 2];
 
         return $files;
-    }, 'commands.php', 'at format: format 2 is not format 3, which this version of the core reads'],
+    }, 'actions.php', 'at format: format 2 is not format 4, which this version of the core reads'],
+    'a file of format 3, whose cache had no actions.php' => [static function (array $files): array {
+        $files['commands'] = [...codecFile($files, 'commands'), 'format' => 3];
+
+        return $files;
+    }, 'commands.php', 'at format: format 3 is not format 4, which this version of the core reads'],
     'the wrong registry' => [static function (array $files): array {
         $files['commands'] = [...codecFile($files, 'commands'), 'registry' => 'hooks'];
 
@@ -234,12 +265,12 @@ it('refuses a malformed cache with the file and the place in it', function (call
         $files['hooks'] = codecFiles(CompiledRegistry::empty())['hooks'];
 
         return $files;
-    }, 'hooks.php', 'at build: it comes from another cms:build than commands.php: the files were read while a build replaced them, or a build stopped before it had replaced them all'],
+    }, 'hooks.php', 'at build: it comes from another cms:build than actions.php: the files were read while a build replaced them, or a build stopped before it had replaced them all'],
     'the first file of another build' => [static function (array $files): array {
-        $files['commands'] = codecFiles(CompiledRegistry::empty())['commands'];
+        $files['actions'] = codecFiles(CompiledRegistry::empty())['actions'];
 
         return $files;
-    }, 'hooks.php', 'at build: it comes from another cms:build than commands.php'],
+    }, 'commands.php', 'at build: it comes from another cms:build than actions.php'],
     'entries changed after the build' => [static function (array $files): array {
         $hooks = codecFile($files, 'hooks');
         $entries = $hooks['entries'];
@@ -249,8 +280,71 @@ it('refuses a malformed cache with the file and the place in it', function (call
         $files['hooks'] = [...$hooks, 'entries' => [[...$entry, 'priority' => 7]]];
 
         return $files;
-    }, 'commands.php', 'at build: the build does not match the entries of the registry files, so they were changed after cms:build wrote them'],
+    }, 'actions.php', 'at build: the build does not match the entries of the registry files, so they were changed after cms:build wrote them'],
+    'an action entry missing a key' => [static function (array $files): array {
+        $files['actions'] = [...codecFile($files, 'actions'), 'entries' => [codecAction(['surfaces' => null])]];
+
+        return $files;
+    }, 'actions.php', 'at entries[0]: expected the keys class, command, command_class, command_version, kind, package, surfaces, got class, command, command_class, command_version, kind, package'],
+    'an unknown action kind' => [static function (array $files): array {
+        $files['actions'] = [...codecFile($files, 'actions'), 'entries' => [codecAction(['kind' => 'mutation'])]];
+
+        return $files;
+    }, 'actions.php', 'at entries[0].kind: "mutation" is not an action kind'],
+    'an unknown surface' => [static function (array $files): array {
+        $files['actions'] = [...codecFile($files, 'actions'), 'entries' => [codecAction(['surfaces' => ['rest', 'graphql']])]];
+
+        return $files;
+    }, 'actions.php', 'at entries[0].surfaces[1]: "graphql" is not a surface'],
+    'a surface that is not a string' => [static function (array $files): array {
+        $files['actions'] = [...codecFile($files, 'actions'), 'entries' => [codecAction(['surfaces' => [1]])]];
+
+        return $files;
+    }, 'actions.php', 'at entries[0].surfaces[0]: expected a string, got int'],
+    'surfaces that are not a list' => [static function (array $files): array {
+        $files['actions'] = [...codecFile($files, 'actions'), 'entries' => [codecAction(['surfaces' => 'rest'])]];
+
+        return $files;
+    }, 'actions.php', 'at entries[0].surfaces: expected a list, got string'],
+    'surfaces out of the order of the enum' => [static function (array $files): array {
+        $files['actions'] = [...codecFile($files, 'actions'), 'entries' => [codecAction(['surfaces' => ['mcp', 'rest']])]];
+
+        return $files;
+    }, 'actions.php', 'at entries[0]: Action "App\A" lists the surfaces mcp, rest. Each surface is listed once, in the order rest, inertia, mcp, cli.'],
+    'a surface listed twice' => [static function (array $files): array {
+        $files['actions'] = [...codecFile($files, 'actions'), 'entries' => [codecAction(['surfaces' => ['cli', 'cli']])]];
+
+        return $files;
+    }, 'actions.php', 'at entries[0]: Action "App\A" lists the surfaces cli, cli.'],
+    'an action for a command name that is not one' => [static function (array $files): array {
+        $files['actions'] = [...codecFile($files, 'actions'), 'entries' => [codecAction(['command' => 'note'])]];
+
+        return $files;
+    }, 'actions.php', 'at entries[0].command: A command name is dot-separated snake_case segments, for example "entry.release", got "note". Do not edit'],
+    'an action for version 0' => [static function (array $files): array {
+        $files['actions'] = [...codecFile($files, 'actions'), 'entries' => [codecAction(['command_version' => 0])]];
+
+        return $files;
+    }, 'actions.php', 'at entries[0]: Action "App\A" handles version 0 of "a.b". Versions start at 1.'],
+    'an action whose command class is not one' => [static function (array $files): array {
+        $files['actions'] = [...codecFile($files, 'actions'), 'entries' => [codecAction(['command_class' => 'App\\'])]];
+
+        return $files;
+    }, 'actions.php', 'at entries[0]: The action command class "App\" is not a fully qualified class name.'],
 ]);
+
+/**
+ * An entry of actions.php with the given keys changed; a key set to null is left out.
+ *
+ * @param  array<string, mixed>  $changes
+ * @return array<string, mixed>
+ */
+function codecAction(array $changes): array
+{
+    $entry = ['class' => 'App\A', 'command' => 'a.b', 'command_class' => 'App\C', 'command_version' => 1, 'kind' => 'write', 'package' => 'acme/a', 'surfaces' => ['rest']];
+
+    return array_filter([...$entry, ...$changes], static fn (mixed $value): bool => $value !== null);
+}
 
 it('gives every file of a build the same build, and another registry another build', function (): void {
     $files = codecFiles(codecRegistry());
@@ -273,5 +367,22 @@ it('tells files of different builds from files of one build', function (): void 
 it('knows how many entries each registry holds', function (): void {
     $registry = codecRegistry();
 
-    expect(array_map($registry->count(...), RegistryName::cases()))->toBe([1, 1]);
+    expect(array_map($registry->count(...), RegistryName::cases()))->toBe([1, 1, 1]);
+});
+
+it('gives the kernel the action of a command by its name and version, and by its class', function (): void {
+    $write = codecRegistry()->actions[0];
+    $query = new ActionEntry('App\Actions\FindNoteAction', 'acme/notes', ActionKind::Query, new CommandName('note.find'), 2, 'App\Queries\FindNote', []);
+    $registry = new CompiledRegistry([], [], [$write, $query]);
+
+    expect($registry->action(new CommandName('note.create'), 1))->toBe($write)
+        ->and($registry->action(new CommandName('note.find'), 2))->toBe($query)
+        ->and($registry->action(new CommandName('note.find'), 1))->toBeNull()
+        ->and($registry->action(new CommandName('note.delete'), 1))->toBeNull()
+        ->and($registry->actionFor('App\Commands\CreateNote'))->toBe($write)
+        ->and($registry->actionFor('\app\queries\findnote'))->toBe($query)
+        ->and($registry->actionFor('App\Commands\DeleteNote'))->toBeNull()
+        ->and(CompiledRegistry::empty()->action(new CommandName('note.create'), 1))->toBeNull()
+        ->and($query->exposes(Surface::Rest))->toBeFalse()
+        ->and($write->exposes(Surface::Mcp))->toBeTrue();
 });

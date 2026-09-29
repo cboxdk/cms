@@ -5,18 +5,25 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Registry;
 
 use Cbox\Cms\Contracts\Attributes\Phase;
+use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Build\ScanRoot;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
 use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
 use Cbox\Cms\Core\Registry\Boundary\RegistryCacheCodec;
+use Cbox\Cms\Core\Registry\Domain\ActionKind;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
+use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredAction;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredHook;
 use Cbox\Cms\Core\Registry\Domain\Dto\Discovery;
+use Cbox\Cms\Core\Registry\Domain\Dto\QueryEntry;
 use Cbox\Cms\Core\Registry\Domain\RegistryCompiler;
 use Cbox\Cms\Core\Registry\Domain\RegistryName;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNote;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNoteAction;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\FindNote;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\FindNoteAction;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\TrimNoteTitle;
 use FilesystemIterator;
 use RecursiveDirectoryIterator;
@@ -40,7 +47,8 @@ final class RegistryFixtures
 
     /**
      * What the scan of the Valid fixture finds through a root of the given package: the command
-     * CreateNote and the hook TrimNoteTitle.
+     * CreateNote, the hook TrimNoteTitle, the query FindNote and the actions CreateNoteAction and
+     * FindNoteAction.
      */
     public static function validDiscovery(string $package = self::PACKAGE): Discovery
     {
@@ -48,6 +56,11 @@ final class RegistryFixtures
             [new CommandEntry(new CommandName('fixture.note.create'), 1, CreateNote::class, $package)],
             [new DiscoveredHook(TrimNoteTitle::class, $package, CreateNote::class, Phase::Transform, 10, 5)],
             [],
+            [new QueryEntry(new CommandName('fixture.note.find'), 1, FindNote::class, $package)],
+            [
+                new DiscoveredAction(CreateNoteAction::class, $package, ActionKind::Write, CreateNote::class, [Surface::Rest, Surface::Mcp]),
+                new DiscoveredAction(FindNoteAction::class, $package, ActionKind::Query, FindNote::class, []),
+            ],
         );
     }
 

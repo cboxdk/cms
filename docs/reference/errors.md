@@ -90,12 +90,16 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`registry_cache_unwritable`](#registry_cache_unwritable) | 500 | 73 | internal_error | no |
 | [`registry_class_in_two_roots`](#registry_class_in_two_roots) | 500 | 65 | internal_error | no |
 | [`registry_class_not_loadable`](#registry_class_not_loadable) | 500 | 65 | internal_error | no |
+| [`registry_duplicate_action`](#registry_duplicate_action) | 500 | 65 | internal_error | no |
 | [`registry_duplicate_command`](#registry_duplicate_command) | 500 | 65 | internal_error | no |
 | [`registry_invalid_attribute`](#registry_invalid_attribute) | 500 | 65 | internal_error | no |
 | [`registry_invalid_scan_root`](#registry_invalid_scan_root) | 500 | 65 | internal_error | no |
 | [`registry_not_a_concrete_class`](#registry_not_a_concrete_class) | 500 | 65 | internal_error | no |
+| [`registry_not_an_action`](#registry_not_an_action) | 500 | 65 | internal_error | no |
 | [`registry_not_final_readonly`](#registry_not_final_readonly) | 500 | 65 | internal_error | no |
+| [`registry_unknown_action_command`](#registry_unknown_action_command) | 500 | 65 | internal_error | no |
 | [`registry_unknown_hook_command`](#registry_unknown_hook_command) | 500 | 65 | internal_error | no |
+| [`registry_unknown_surface`](#registry_unknown_surface) | 500 | 65 | internal_error | no |
 | [`unauthorized`](#unauthorized) | 403 | 77 | tool_error | no |
 | [`validation_above_maximum`](#validation_above_maximum) | 422 | 65 | tool_error | no |
 | [`validation_below_minimum`](#validation_below_minimum) | 422 | 65 | tool_error | no |
@@ -758,7 +762,7 @@ A table in cbox-cms.database.partitions.tables cannot be managed as it is: it is
 
 ### registry_cache_malformed
 
-The registry cache in bootstrap/cache/cms is damaged, or its files come from different builds, so the kernel cannot read its commands and hooks. Run cms:build.
+The registry cache in bootstrap/cache/cms is damaged, or its files come from different builds, so the kernel cannot read its actions, commands and hooks. Run cms:build.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 78 (EX_CONFIG)
@@ -767,7 +771,7 @@ The registry cache in bootstrap/cache/cms is damaged, or its files come from dif
 
 ### registry_cache_missing
 
-The registry cache in bootstrap/cache/cms does not exist, so the kernel does not know its commands and hooks. Run cms:build; Composer runs it after every install.
+The registry cache in bootstrap/cache/cms does not exist, so the kernel does not know its actions, commands and hooks. Run cms:build; Composer runs it after every install.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 78 (EX_CONFIG)
@@ -801,9 +805,18 @@ A class in a scan root cannot be autoloaded, or loading it failed. Check its nam
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
+### registry_duplicate_action
+
+Two actions handle the same command or query. A command or query has one action: remove the #[Action] of all but one, or give the new shape its own version.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
 ### registry_duplicate_command
 
-Two classes declare the same command name and version with #[Command]. Rename one of the commands, or give it another version.
+Two classes declare the same command or query name and version with #[Command] or #[Query]. Rename one of them, or give it another version.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)
@@ -812,7 +825,7 @@ Two classes declare the same command name and version with #[Command]. Rename on
 
 ### registry_invalid_attribute
 
-The arguments of a #[Command] or #[Hook] attribute are invalid, so it cannot be built. Correct the attribute as the cause says.
+The arguments of an #[Action], #[Command], #[Query] or #[Hook] attribute are invalid, so it cannot be built. Correct the attribute as the cause says.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)
@@ -830,7 +843,16 @@ A scan root that a service provider declares is not a readable directory. Correc
 
 ### registry_not_a_concrete_class
 
-A #[Command] or #[Hook] attribute sits on an interface, a trait, an enum or an abstract class. Put it on a concrete class.
+An #[Action], #[Command], #[Query] or #[Hook] attribute sits on an interface, a trait, an enum or an abstract class. Put it on a concrete class.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_not_an_action
+
+An #[Action] sits on a class that implements neither WriteAction nor QueryAction, or both (GUARDRAILS 2.1). Implement exactly one of them.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)
@@ -839,7 +861,16 @@ A #[Command] or #[Hook] attribute sits on an interface, a trait, an enum or an a
 
 ### registry_not_final_readonly
 
-A #[Command] sits on a class that is not a final readonly class (GUARDRAILS 2.1). Make the command class final readonly.
+A #[Command], #[Query] or #[Action] sits on a class that is not a final readonly class (GUARDRAILS 2.1). Make the class final readonly.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_unknown_action_command
+
+An action handles a class that is not a registered command (for a WriteAction) or query (for a QueryAction). Point #[Action(handles: ...)] at a class declared with #[Command] or #[Query], or declare the scan root of the package that has it.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)
@@ -849,6 +880,15 @@ A #[Command] sits on a class that is not a final readonly class (GUARDRAILS 2.1)
 ### registry_unknown_hook_command
 
 A hook runs for a command class that no scan root registers. Correct the command the #[Hook] names, or declare the scan root of the package that has it.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_unknown_surface
+
+An #[Action] lists a surface that is not a case of the Surface enum. List only Surface::Rest, Surface::Inertia, Surface::Mcp and Surface::Cli.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)

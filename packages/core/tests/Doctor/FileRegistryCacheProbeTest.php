@@ -32,7 +32,7 @@ function registryProbeFixture(int $builtAt, int $manifestAt): array
     $directory = $root.'/bootstrap/cache/cms';
     RegistryFixtures::cache($directory)->write(CompiledRegistry::empty());
 
-    foreach (['commands.php', 'hooks.php'] as $file) {
+    foreach (['actions.php', 'commands.php', 'hooks.php'] as $file) {
         touch($directory.'/'.$file, $builtAt);
     }
 
@@ -67,12 +67,12 @@ it('ignores an old file of a registry the cache no longer writes', function (): 
         ->and($result->status)->toBe(CheckStatus::Pass);
 });
 
-it('does not ask for the files of actions, subscribers, slots or schema', function (): void {
+it('does not ask for the files of subscribers, slots or schema', function (): void {
     [$directory, $manifest] = registryProbeFixture(2_000_000_000, 1_900_000_000);
 
     $result = new RegistryCacheCheck(new FileRegistryCacheProbe(RegistryFixtures::cache($directory), $manifest))->run();
 
-    expect(glob($directory.'/*') ?: [])->toHaveCount(2)
+    expect(glob($directory.'/*') ?: [])->toHaveCount(3)
         ->and($result->status)->toBe(CheckStatus::Pass);
 });
 

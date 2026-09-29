@@ -6,6 +6,7 @@ namespace Cbox\Cms\Contracts\Tests\Pipeline;
 
 use Cbox\Cms\Contracts\Attributes\Action;
 use Cbox\Cms\Contracts\Attributes\Surface;
+use Cbox\Cms\Contracts\Attributes\UnknownSurface;
 use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Content\VariantRef;
 use Cbox\Cms\Contracts\Ids\ActorId;
@@ -97,14 +98,26 @@ it('holds each read once, sorted by aggregate key', function (): void {
 });
 
 it('lists #[Action]\'s surfaces once each, in the order of the enum', function (): void {
-    $action = new Action([Surface::Cli, Surface::Rest, Surface::Mcp]);
+    $action = new Action('App\\Notes\\SaveNote', [Surface::Cli, Surface::Rest, Surface::Mcp]);
 
-    expect($action->surfaces)->toBe([Surface::Rest, Surface::Mcp, Surface::Cli])
+    expect($action->handles)->toBe('App\\Notes\\SaveNote')
+        ->and($action->surfaces)->toBe([Surface::Rest, Surface::Mcp, Surface::Cli])
         ->and($action->exposes(Surface::Mcp))->toBeTrue()
         ->and($action->exposes(Surface::Inertia))->toBeFalse()
-        ->and(new Action([])->surfaces)->toBe([])
-        ->and(new Action(Surface::cases())->surfaces)->toBe(Surface::cases())
+        ->and(new Action('App\\Notes\\SaveNote')->surfaces)->toBe([])
+        ->and(new Action('App\\Notes\\SaveNote', Surface::cases())->surfaces)->toBe(Surface::cases())
         ->and(array_map(static fn (Surface $surface): string => $surface->value, Surface::cases()))->toBe(['rest', 'inertia', 'mcp', 'cli'])
-        ->and(static fn (): Action => new Action([Surface::Rest, Surface::Mcp, Surface::Rest]))
+        ->and(static fn (): Action => new Action('App\\Notes\\SaveNote', [Surface::Rest, Surface::Mcp, Surface::Rest]))
         ->toThrow(InvalidArgumentException::class, 'The surface "rest" is listed 2 times in #[Action].');
+});
+
+it('refuses an #[Action] that names no class it handles', function (string $handles): void {
+    expect(static fn (): Action => new Action($handles))
+        ->toThrow(InvalidArgumentException::class, '#[Action] names no class it handles. Give the command or query class, for example handles: SaveNote::class.');
+})->with(['empty' => [''], 'blank' => ['  ']]);
+
+it('refuses a surface that is not a case of the enum as UnknownSurface', function (): void {
+    expect(static fn (): Action => new Action('App\\Notes\\SaveNote', [Surface::Rest, 'rest']))
+        ->toThrow(UnknownSurface::class, '#[Action] lists "rest", which is not a surface. List cases of Cbox\\Cms\\Contracts\\Attributes\\Surface: Surface::Rest, Surface::Inertia, Surface::Mcp, Surface::Cli.')
+        ->and(new UnknownSurface('x'))->toBeInstanceOf(InvalidArgumentException::class);
 });

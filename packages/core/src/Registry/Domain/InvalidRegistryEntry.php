@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Registry\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Build\ScanRoot;
 use InvalidArgumentException;
 
@@ -34,6 +35,29 @@ final class InvalidRegistryEntry extends InvalidArgumentException
         }
 
         return $package;
+    }
+
+    /**
+     * The surfaces of an action, each once and in the order of Surface's cases, as #[Action] gives
+     * them, so an entry has one form and the same entries give the same bytes.
+     *
+     * @param  list<Surface>  $surfaces
+     * @return list<Surface>
+     */
+    public static function checkSurfaces(string $action, array $surfaces): array
+    {
+        $canonical = array_values(array_filter(Surface::cases(), static fn (Surface $case): bool => in_array($case, $surfaces, true)));
+
+        if ($canonical !== $surfaces) {
+            throw new self(sprintf(
+                'Action "%s" lists the surfaces %s. Each surface is listed once, in the order %s.',
+                $action,
+                $surfaces === [] ? 'none' : implode(', ', array_map(static fn (Surface $surface): string => $surface->value, $surfaces)),
+                implode(', ', array_map(static fn (Surface $case): string => $case->value, Surface::cases())),
+            ));
+        }
+
+        return $surfaces;
     }
 
     public static function because(string $message): self

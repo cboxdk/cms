@@ -9,8 +9,9 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
 
 /**
  * The name of a command type, as #[Command] declares it on the command DTO and without its
- * version, for example "entry.release" (PRD 6.1). It has the form of Command::NAME_PATTERN:
- * lowercase, at least two segments separated by dots, each segment in snake_case.
+ * version, for example "entry.release" (PRD 6.1), or of a query type, as #[Query] declares it. It
+ * has the form of Command::NAME_PATTERN: lowercase, at least two segments separated by dots, each
+ * segment in snake_case.
  */
 #[Experimental]
 final readonly class CommandName

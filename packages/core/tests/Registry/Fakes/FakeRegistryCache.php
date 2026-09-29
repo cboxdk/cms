@@ -88,8 +88,11 @@ final class FakeRegistryCache implements RegistryCache
         return $this->stored;
     }
 
+    /**
+     * The file FileRegistryCache writes and reads first, which its failures name.
+     */
     private function path(): string
     {
-        return $this->directory.'/'.RegistryName::Commands->fileName();
+        return $this->directory.'/'.RegistryName::cases()[0]->fileName();
     }
 }

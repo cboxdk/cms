@@ -95,7 +95,7 @@ A write action implements `Cbox\Cms\Contracts\Pipeline\WriteAction`, a generic i
 - `resolve(Command): Aggregates` reads the aggregates the command touches through the read ports the action gets in its constructor (phase 1).
 - `plan(Command, Aggregates): Plan` computes the [plan](plans.md), the typed mutations, from the command and what was read (phase 3). It may compose the plans of other commands' planners.
 
-Neither step writes, commits or calls another write action. The kernel owns the rest: authorization, hooks, validation, the dry-run exit, and the commit of every mutation, the audit, the events and the receipt in one transaction (PRD 6.2). An action is a `final readonly class`, and it states its type arguments with `@implements WriteAction<SaveNote, NoteAggregates>`, so PHPStan types `$command` and `$aggregates` in both methods.
+Neither step writes, commits or calls another write action. The kernel owns the rest: authorization, hooks, validation, the dry-run exit, and the commit of every mutation, the audit, the events and the receipt in one transaction (PRD 6.2). An action is a `final readonly class`, and it states its type arguments with `@implements WriteAction<SaveNote, NoteAggregates>`, so PHPStan types `$command` and `$aggregates` in both methods. It names the command it handles with `#[Action(handles: SaveNote::class)]`, which `cms:build` reads (see [surfaces](#surfaces)).
 
 What `resolve()` returns implements `Cbox\Cms\Contracts\Pipeline\Aggregates`: the action's own final readonly class with what it read, and `versions()`, the `ReadVersions` it read them at. Each `ReadVersion` names an aggregate by an `AggregateRef` and holds its `AggregateVersion`, or null when the aggregate did not exist, as for the note a create makes. At commit the kernel checks that every aggregate is still at the version it was read at, or still absent, and rejects the command with `version_conflict` otherwise, so a plan made from stale reads never commits. An aggregate is read at most once, and the reads are sorted by key.
 
@@ -229,14 +229,15 @@ use Cbox\Cms\Contracts\Plans\Plan;
 use Override;
 
 /**
- * The write action of note.save, exposed on REST and MCP. resolve() reads the note through the
- * shelf; plan() turns the command and what was read into mutations, and for a new note composes
- * the placement planner's plan. Neither writes: the kernel commits the plan. The kernel calls
- * the action only with the command and aggregates of its WriteAction type arguments.
+ * The write action of note.save, exposed on REST and MCP; cms:build registers it for the command
+ * SaveNote declares. resolve() reads the note through the shelf; plan() turns the command and what
+ * was read into mutations, and for a new note composes the placement planner's plan. Neither
+ * writes: the kernel commits the plan. The kernel calls the action only with the command and
+ * aggregates of its WriteAction type arguments.
  *
  * @implements WriteAction<SaveNote, NoteAggregates>
  */
-#[Action(surfaces: [Surface::Rest, Surface::Mcp])]
+#[Action(handles: SaveNote::class, surfaces: [Surface::Rest, Surface::Mcp])]
 final readonly class SaveNoteAction implements WriteAction
 {
     public function __construct(
@@ -368,7 +369,7 @@ it('writes the next revision of an existing note and reads its variant at its ve
 
 ## Surfaces
 
-`#[Action(surfaces: [...])]` on a write or query action lists the surfaces it is exposed on, cases of the enum `Cbox\Cms\Contracts\Attributes\Surface`:
+`#[Action(handles: ..., surfaces: [...])]` sits on every write and query action. `handles` is the class the action handles: for a write action a command declared with `#[Command]`, for a query action a query declared with `#[Query]` (see [queries](queries.md)). `cms:build` registers the action in `actions.php` under that command's or query's name and version, so the kernel finds the action for a command, and one command or query has one action (see [build declarations](build-declarations.md)). `surfaces` lists the surfaces the action is exposed on, cases of the enum `Cbox\Cms\Contracts\Attributes\Surface`:
 
 | Surface | Value | The transport |
 |---|---|---|
@@ -377,7 +378,7 @@ it('writes the next revision of an existing note and reads its variant at its ve
 | `Surface::Mcp` | `mcp` | MCP tools for agents |
 | `Surface::Cli` | `cli` | `cms:*` commands, with exit codes from the [error catalog](errors.md) |
 
-A surface is listed at most once, and `surfaces` is sorted in the order of the enum. An action with no surface, `#[Action(surfaces: [])]`, is called only by the internal issuers. A surface contains no logic: it builds the envelope and the command, calls the action through the kernel and translates the result.
+A surface is listed at most once, and `surfaces` is sorted in the order of the enum. Anything that is not a case of the enum, such as the string `'rest'`, throws `Cbox\Cms\Contracts\Attributes\UnknownSurface`, which `cms:build` reports as `registry_unknown_surface`. An action with no surface, `#[Action(handles: SaveNote::class)]`, is called only by the internal issuers. A surface contains no logic: it builds the envelope and the command, calls the action through the kernel and translates the result.
 
 <!-- example: examples/Unit/Pipeline/ActionAttributeTest.php -->
 ```php
@@ -387,24 +388,32 @@ declare(strict_types=1);
 
 use Cbox\Cms\Contracts\Attributes\Action;
 use Cbox\Cms\Contracts\Attributes\Command;
+use Cbox\Cms\Contracts\Attributes\Query;
 use Cbox\Cms\Contracts\Attributes\Surface;
+use Examples\Unit\Pipeline\FindNoteTitle;
 use Examples\Unit\Pipeline\FindNoteTitleAction;
 use Examples\Unit\Pipeline\SaveNote;
 use Examples\Unit\Pipeline\SaveNoteAction;
 
-// What the build reads from the declarations: the command's name and version from #[Command],
-// and each action's surfaces from #[Action], sorted in the order of the Surface enum.
+// What the build reads from the declarations: the name and version of the command from #[Command]
+// and of the query from #[Query], and each action's class it handles and its surfaces from
+// #[Action], sorted in the order of the Surface enum.
 
-it('declares the command and the surfaces of each action', function (): void {
+it('declares what each action handles and the surfaces it is exposed on', function (): void {
     $command = new ReflectionClass(SaveNote::class)->getAttributes(Command::class)[0]->newInstance();
+    $query = new ReflectionClass(FindNoteTitle::class)->getAttributes(Query::class)[0]->newInstance();
     $write = new ReflectionClass(SaveNoteAction::class)->getAttributes(Action::class)[0]->newInstance();
-    $query = new ReflectionClass(FindNoteTitleAction::class)->getAttributes(Action::class)[0]->newInstance();
+    $read = new ReflectionClass(FindNoteTitleAction::class)->getAttributes(Action::class)[0]->newInstance();
 
     expect($command->name()->value)->toBe('note.save')
         ->and($command->version)->toBe(1)
+        ->and($query->name()->value)->toBe('note.find_title')
+        ->and($query->version)->toBe(1)
+        ->and($write->handles)->toBe(SaveNote::class)
         ->and($write->surfaces)->toBe([Surface::Rest, Surface::Mcp])
         ->and($write->exposes(Surface::Cli))->toBeFalse()
-        ->and($query->surfaces)->toBe([Surface::Rest, Surface::Inertia]);
+        ->and($read->handles)->toBe(FindNoteTitle::class)
+        ->and($read->surfaces)->toBe([Surface::Rest, Surface::Inertia]);
 });
 ```
 

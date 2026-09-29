@@ -70,6 +70,8 @@ trait DeclarationScannerBehaviour
         );
         Assert::assertEquals(RegistryFixtures::validDiscovery('acme/notes')->commands, $found->commands);
         Assert::assertEquals(RegistryFixtures::validDiscovery('acme/notes')->hooks, $found->hooks);
+        Assert::assertEquals(RegistryFixtures::validDiscovery('acme/notes')->queries, $found->queries);
+        Assert::assertEquals(RegistryFixtures::validDiscovery('acme/notes')->actions, $found->actions);
     }
 
     #[Test]
@@ -107,6 +109,6 @@ trait DeclarationScannerBehaviour
             Assert::assertStringContainsString('(acme/zeta). Give each package its own directory', $problem->message);
         }
 
-        Assert::assertEquals([$first->commands, $first->hooks], [$found->commands, $found->hooks]);
+        Assert::assertEquals([$first->commands, $first->hooks, $first->queries, $first->actions], [$found->commands, $found->hooks, $found->queries, $found->actions]);
     }
 }

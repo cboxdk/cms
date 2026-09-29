@@ -5,13 +5,18 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Registry;
 
 use Cbox\Cms\Contracts\Attributes\Phase;
+use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Core\Registry\Domain\ActionKind;
 use Cbox\Cms\Core\Registry\Domain\BuildErrorCode;
+use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\BuildProblem;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
+use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredAction;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredHook;
 use Cbox\Cms\Core\Registry\Domain\Dto\Discovery;
 use Cbox\Cms\Core\Registry\Domain\Dto\HookEntry;
+use Cbox\Cms\Core\Registry\Domain\Dto\QueryEntry;
 use Cbox\Cms\Core\Registry\Domain\RegistryBuildFailed;
 use Cbox\Cms\Core\Registry\Domain\RegistryCompiler;
 use PHPUnit\Framework\Assert;
@@ -116,5 +121,49 @@ it('fails with the scanner\'s problems even when the declarations compile', func
     } catch (RegistryBuildFailed $failed) {
         expect($failed->problems)->toBe([$problem])
             ->and($failed->getMessage())->toBe("The registry was not built, and the cache was left as it was. 1 problem:\n[registry_class_not_loadable] Could not load App\\X.");
+    }
+});
+
+it('resolves each action to the name and version of what it handles, sorted by them, in any order', function (): void {
+    $commands = [new CommandEntry(new CommandName('b.save'), 2, 'App\SaveV2', 'acme/b'), new CommandEntry(new CommandName('b.save'), 1, 'App\SaveV1', 'acme/b')];
+    $queries = [new QueryEntry(new CommandName('a.find'), 1, 'App\Find', 'acme/a')];
+    $actions = [
+        new DiscoveredAction('App\SaveV2Action', 'acme/b', ActionKind::Write, 'App\SaveV2', [Surface::Rest]),
+        new DiscoveredAction('App\FindAction', 'acme/a', ActionKind::Query, 'app\find', []),
+        new DiscoveredAction('App\SaveV1Action', 'acme/b', ActionKind::Write, 'App\SaveV1', [Surface::Inertia, Surface::Cli]),
+    ];
+
+    $forwards = new RegistryCompiler()->compile(new Discovery($commands, [], [], $queries, $actions));
+    $backwards = new RegistryCompiler()->compile(new Discovery(array_reverse($commands), [], [], $queries, array_reverse($actions)));
+
+    expect($forwards->actions)->toEqual([
+        new ActionEntry('App\FindAction', 'acme/a', ActionKind::Query, new CommandName('a.find'), 1, 'App\Find', []),
+        new ActionEntry('App\SaveV1Action', 'acme/b', ActionKind::Write, new CommandName('b.save'), 1, 'App\SaveV1', [Surface::Inertia, Surface::Cli]),
+        new ActionEntry('App\SaveV2Action', 'acme/b', ActionKind::Write, new CommandName('b.save'), 2, 'App\SaveV2', [Surface::Rest]),
+    ])
+        ->and($backwards)->toEqual($forwards);
+});
+
+it('refuses a write action for a query, a query action for a command, a class no root registers and two actions for one command, all at once', function (): void {
+    $commands = [new CommandEntry(new CommandName('a.save'), 1, 'App\Save', 'acme/a')];
+    $queries = [new QueryEntry(new CommandName('a.find'), 1, 'App\Find', 'acme/a')];
+    $actions = [
+        new DiscoveredAction('App\WritesFind', 'acme/a', ActionKind::Write, 'App\Find', []),
+        new DiscoveredAction('App\ReadsSave', 'acme/a', ActionKind::Query, 'App\Save', []),
+        new DiscoveredAction('App\ReadsNothing', 'acme/a', ActionKind::Query, 'App\Nothing', []),
+        new DiscoveredAction('App\SaveOne', 'acme/a', ActionKind::Write, 'App\Save', []),
+        new DiscoveredAction('App\SaveTwo', 'acme/b', ActionKind::Write, 'App\Save', []),
+    ];
+
+    try {
+        new RegistryCompiler()->compile(new Discovery($commands, [], [], $queries, $actions));
+        Assert::fail('The compiler accepted the actions.');
+    } catch (RegistryBuildFailed $failed) {
+        expect(array_map(static fn (BuildProblem $problem): string => $problem->describe(), $failed->problems))->toBe([
+            '[registry_duplicate_action] "a.save" version 1 is handled by App\SaveOne (acme/a) and App\SaveTwo (acme/b). A command or query has one action: remove the #[Action] of all but one, or give the new shape its own version.',
+            '[registry_unknown_action_command] Action App\ReadsNothing (acme/a) is a QueryAction and handles App\Nothing, which is not a query any scan root registers. A QueryAction handles a query class declared with #[Query] in a registered scan root: point #[Action(handles: ...)] at it, or declare the scan root of the package that holds it.',
+            '[registry_unknown_action_command] Action App\ReadsSave (acme/a) is a QueryAction and handles App\Save, which is a registered command, not a query. A QueryAction handles a query class declared with #[Query] in a registered scan root: point #[Action(handles: ...)] at it, or declare the scan root of the package that holds it.',
+            '[registry_unknown_action_command] Action App\WritesFind (acme/a) is a WriteAction and handles App\Find, which is a registered query, not a command. A WriteAction handles a command class declared with #[Command] in a registered scan root: point #[Action(handles: ...)] at it, or declare the scan root of the package that holds it.',
+        ]);
     }
 });

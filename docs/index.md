@@ -14,7 +14,7 @@ Cbox CMS is a CMS for Laravel, built on PHP 8.5, Laravel 13, Postgres and Valkey
 - **Every write is a command.** A command runs through one pipeline in one database transaction and commits one changeset. Its result is a receipt that says what was committed and which projections have caught up, and an idempotency key makes a repeated call return the first result instead of running again. The receipt store and the idempotency store exist today; the pipeline that uses them comes with the next milestone.
 - **The kernel depends on contracts, not classes.** The clock, the id generator and the stores are interfaces in the contracts module of `cboxdk/cms`. The container binds each one to a default that an application can replace, and the testkit has a fake and a shared test suite for each, so a replacement proves it keeps the same promises.
 - **Postgres runs under an operating contract.** The application connects as a role that owns nothing and cannot change the schema. A separate owner role runs the migrations and the partition maintenance, in a process of its own. Tables that grow with time are partitioned by range and kept by a partition manager.
-- **Extensions are declared, then compiled.** A package marks its commands and hooks with attributes. `cms:build` reads them once and compiles registries, so nothing is discovered with reflection while a request runs.
+- **Extensions are declared, then compiled.** A package marks its commands, queries, actions and hooks with attributes. `cms:build` reads them once and compiles registries, so nothing is discovered with reflection while a request runs.
 - **The installation checks itself.** `cms:doctor` checks PHP, Laravel, Postgres, Valkey, the partitions and the registry, and says for every problem what is wrong and how to fix it.
 
 ## What exists today
@@ -24,7 +24,7 @@ The first milestone built the toolchain and the foundations the kernel stands on
 - the contracts `Clock`, `IdGenerator`, `ReceiptStore` and `IdempotencyStore`, with their default implementations, fakes and shared suites;
 - the receipt and idempotency stores on Postgres, and the partition manager with `cms:partitions:maintain`;
 - the blueprint schema v1, its reader, `cms:generate` and `cms:schema:editor`;
-- the registry of commands and hooks, compiled by `cms:build`;
+- the registry of actions, commands and hooks, compiled by `cms:build`;
 - `cms:doctor` with its checks, exit codes and JSON document;
 - the gates every change passes, `composer check` locally and `bin/ci` in CI.
 
