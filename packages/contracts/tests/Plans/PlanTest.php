@@ -45,7 +45,7 @@ function planEntry(): EntryId
 
 function planRevision(int $n): RevisionCreated
 {
-    return new RevisionCreated(planEntry(), VariantKey::shared(), new RevisionNumber($n), new FieldValues);
+    return new RevisionCreated(planEntry(), TypeId::fromString(planUuid(6)), VariantKey::shared(), new RevisionNumber($n), new FieldValues);
 }
 
 /**
@@ -102,7 +102,7 @@ it('names the aggregate each mutation changes', function (): void {
 
     $mutations = [
         [new EntryCreated($entry, TypeId::fromString(planUuid(6)), $node), 'entry:'.planUuid(1)],
-        [new RevisionCreated($entry, $variant, RevisionNumber::first(), new FieldValues), $variantKey],
+        [new RevisionCreated($entry, TypeId::fromString(planUuid(6)), $variant, RevisionNumber::first(), new FieldValues), $variantKey],
         [new HeadMoved($entry, $variant, null, RevisionNumber::first()), $variantKey],
         [new VariantReleased($entry, $variant, RevisionNumber::first()), $variantKey],
         [new VariantUnreleased($entry, $variant, RevisionNumber::first()), $variantKey],

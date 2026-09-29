@@ -47,7 +47,7 @@ final readonly class SaveNoteAction implements WriteAction
     #[Override]
     public function resolve(Command $command): NoteAggregates
     {
-        return new NoteAggregates($command->note, $this->shelf->find($command->note));
+        return new NoteAggregates($command->note, $this->shelf->find($command->note), $this->newPlacement);
     }
 
     /**
@@ -63,7 +63,7 @@ final readonly class SaveNoteAction implements WriteAction
         if (! $aggregates->stored instanceof StoredNote) {
             return new Plan(
                 new EntryCreated($command->note, $command->type, $command->home),
-                new RevisionCreated($command->note, $shared, RevisionNumber::first(), $fields),
+                new RevisionCreated($command->note, $command->type, $shared, RevisionNumber::first(), $fields),
                 new HeadMoved($command->note, $shared, null, RevisionNumber::first()),
             )->then($this->placements->place($this->newPlacement, $command->note, $command->home, $command->site));
         }
@@ -71,7 +71,7 @@ final readonly class SaveNoteAction implements WriteAction
         $next = $aggregates->stored->head->next();
 
         return new Plan(
-            new RevisionCreated($command->note, $shared, $next, $fields),
+            new RevisionCreated($command->note, $command->type, $shared, $next, $fields),
             new HeadMoved($command->note, $shared, $aggregates->stored->head, $next),
         );
     }

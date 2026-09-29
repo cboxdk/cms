@@ -132,6 +132,7 @@ it('has committed generated code that matches the schema', function (): void {
         'workbench/app/Cms/Generated/Domain/Dto/AppFixtureMeasurementV1FixtureSensor.php',
         'workbench/app/Cms/Generated/Domain/Dto/AppFixtureMeasurementV1FixtureSeries.php',
         'workbench/app/Cms/Generated/GeneratedTypeCatalog.php',
+        'workbench/app/Cms/Generated/GeneratedTypeValidators.php',
         'workbench/app/Cms/Generated/GeneratedTypesServiceProvider.php',
         'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticle.php',
         'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleFactory.php',

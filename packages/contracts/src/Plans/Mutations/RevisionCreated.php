@@ -10,6 +10,7 @@ use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Content\VariantRef;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Pipeline\AggregateRef;
 use Cbox\Cms\Contracts\Plans\Mutation;
 use Override;
@@ -17,12 +18,16 @@ use Override;
 /**
  * A revision of one variant of an entry is created: an immutable snapshot of the variant's
  * fields (PRD 5.4). It does not move the variant's head; HeadMoved does.
+ *
+ * It names the entry's type, so the kernel validates the fields against that type's rules in the
+ * schema version the code was generated from before it commits (PRD 6.2 phase 5, invariant 4).
  */
 #[Experimental]
 final readonly class RevisionCreated implements Mutation
 {
     public function __construct(
         public EntryId $entry,
+        public TypeId $type,
         public VariantKey $variant,
         public RevisionNumber $revision,
         public FieldValues $fields,

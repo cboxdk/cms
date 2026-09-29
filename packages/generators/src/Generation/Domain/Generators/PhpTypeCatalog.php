@@ -19,6 +19,8 @@ use Cbox\Cms\Contracts\Schema\TypeCapabilities;
 use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Contracts\Schema\TypeName;
+use Cbox\Cms\Contracts\Validation\TypeValidator;
+use Cbox\Cms\Contracts\Validation\TypeValidators;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\ColumnDescriptor;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\CompiledSchema;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\FieldDescriptor;
@@ -39,10 +41,12 @@ use Override;
  *   TypeDefinition per type, sorted by name: its id, name, the owner's version and each extender's,
  *   its capabilities and its top-level fields with their columns, classification and agents flag,
  *   all from the type's descriptor. The kernel knows the types only through it, at run time.
+ * - `GeneratedTypeValidators`, the implementation of Cbox\Cms\Contracts\Validation\TypeValidators
+ *   with the generated validator of every type (PhpTypeValidators), sorted by type id.
  * - `GeneratedTypesServiceProvider`, a Laravel service provider that binds TypeCatalog to the
- *   catalog and each type's record factory interface to the composite record's factory (PhpRecords),
- *   so the owner's code gets the composite record without knowing the extenders. The application
- *   registers it once.
+ *   catalog, TypeValidators to the validators and each type's record factory interface to the
+ *   composite record's factory (PhpRecords), so the owner's code gets the composite record
+ *   without knowing the extenders. The application registers it once.
  *
  * The output is formatted the way Pint, Rector and PHPStan level 10 accept it unchanged, and it uses
  * only the public API of cboxdk/cms.
@@ -53,6 +57,8 @@ final readonly class PhpTypeCatalog implements Generator
     public const string CATALOG = 'GeneratedTypeCatalog';
 
     public const string PROVIDER = 'GeneratedTypesServiceProvider';
+
+    public const string VALIDATORS = 'GeneratedTypeValidators';
 
     /**
      * What the catalog holds for each core field type of the blueprint schema v1: its name as the
@@ -165,8 +171,55 @@ final readonly class PhpTypeCatalog implements Generator
                 '    }',
                 '}',
             ]),
+            $this->validators($schema, $target),
             $this->provider($schema, $target),
         ];
+    }
+
+    /**
+     * The TypeValidators of the schema: the generated validator of every type, sorted by type id.
+     *
+     * @throws GenerationFailed with GenerateErrorCode::InvalidOutput
+     */
+    private function validators(CompiledSchema $schema, GenerationTarget $target): GeneratedFile
+    {
+        $types = $schema->types;
+        usort($types, static fn (TypeDescriptor $one, TypeDescriptor $other): int => strcmp($one->typeId->toString(), $other->typeId->toString()));
+        $imports = [Override::class, TypeId::class, TypeValidator::class, TypeValidators::class];
+        $validators = [];
+
+        foreach ($types as $type) {
+            $imports[] = $target->phpNamespace.'\\'.PhpTypeValidators::DIRECTORY.'\\'.PhpTypeValidators::className($type);
+            $validators[] = '            new '.PhpTypeValidators::className($type).',';
+        }
+
+        return PhpSource::file($target->phpDirectory.'/'.self::VALIDATORS.'.php', $target->phpNamespace, $imports, [
+            ...PhpSource::docblock([
+                'The runtime validators of the schema roots\' types, by type (PRD 11.8, 11.12): the generated validator of every type of the TypeCatalog, which the kernel asks for the rules of a type through the TypeValidators contract.',
+            ]),
+            'final readonly class '.self::VALIDATORS.' implements TypeValidators',
+            '{',
+            '    /** @var list<TypeValidator> */',
+            '    private array $validators;',
+            '',
+            '    public function __construct()',
+            '    {',
+            ...($validators === [] ? ['        $this->validators = [];'] : ['        $this->validators = [', ...$validators, '        ];']),
+            '    }',
+            '',
+            '    #[Override]',
+            '    public function all(): array',
+            '    {',
+            '        return $this->validators;',
+            '    }',
+            '',
+            '    #[Override]',
+            '    public function find(TypeId $id): ?TypeValidator',
+            '    {',
+            '        return array_find($this->validators, static fn (TypeValidator $validator): bool => $validator->type()->equals($id));',
+            '    }',
+            '}',
+        ]);
     }
 
     /**
@@ -174,7 +227,7 @@ final readonly class PhpTypeCatalog implements Generator
      */
     private function provider(CompiledSchema $schema, GenerationTarget $target): GeneratedFile
     {
-        $imports = [$this->serviceProvider, TypeCatalog::class, Override::class];
+        $imports = [$this->serviceProvider, TypeCatalog::class, TypeValidators::class, Override::class];
         $bindings = [];
 
         foreach ($schema->types as $type) {
@@ -186,7 +239,7 @@ final readonly class PhpTypeCatalog implements Generator
 
         return PhpSource::file($target->phpDirectory.'/'.self::PROVIDER.'.php', $target->phpNamespace, $imports, [
             ...PhpSource::docblock([
-                'Binds what the generated code gives the kernel and the owners\' code (PRD 11.12): the TypeCatalog contract to the generated catalog, and each type\'s record factory interface to the factory of its composite record, with every extender\'s fields. Register it once in the application.',
+                'Binds what the generated code gives the kernel and the owners\' code (PRD 11.12): the TypeCatalog contract to the generated catalog, the TypeValidators contract to the generated validators, and each type\'s record factory interface to the factory of its composite record, with every extender\'s fields. Register it once in the application.',
             ]),
             'final class '.self::PROVIDER.' extends '.PhpSource::shortName($this->serviceProvider),
             '{',
@@ -194,6 +247,7 @@ final readonly class PhpTypeCatalog implements Generator
             '    public function register(): void',
             '    {',
             '        $this->app->singleton(TypeCatalog::class, '.self::CATALOG.'::class);',
+            '        $this->app->singleton(TypeValidators::class, '.self::VALIDATORS.'::class);',
             ...$bindings,
             '    }',
             '}',

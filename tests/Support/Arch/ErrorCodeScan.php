@@ -41,8 +41,6 @@ final readonly class ErrorCodeScan
      */
     public const array RESERVED = [
         'dry_run' => 'the surfaces answer a receipt with the outcome dry_run (M1 points 3 and 6, GUARDRAILS 2.1)',
-        'unauthorized' => 'the command kernel rejects a command the actor may not run (M1 point 3, PRD 6.2)',
-        'version_conflict' => 'the command kernel rejects a command whose expected version is not the current one (M1 point 3, PRD 6.1, 6.8)',
     ];
 
     /**

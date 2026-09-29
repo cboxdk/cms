@@ -11,6 +11,11 @@ use Cbox\Cms\Core\IdempotencyStore\Boundary\IdempotencyConfig;
 use Cbox\Cms\Core\Operations\Adapter\PackageOperationRunner;
 use Cbox\Cms\Core\Operations\Domain\OperationRunner;
 use Cbox\Cms\Core\Partitions\Boundary\PartitionConfig;
+use Cbox\Cms\Core\Pipeline\Adapter\RegistryWriteActions;
+use Cbox\Cms\Core\Pipeline\Boundary\TypeRulesFieldValidation;
+use Cbox\Cms\Core\Pipeline\Domain\FieldValidation;
+use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
+use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Operations\Contracts\Operations;
 use Cbox\Operations\OperationManager;
 use Cbox\Operations\OperationsServiceProvider;
@@ -53,4 +58,11 @@ it('merges config/cbox-cms.php under cbox-cms, the only root of the configuratio
         ->and(config()->has('cms'))->toBeFalse()
         ->and([ContractBindings::CONFIG_KEY, DoctorConfig::CONFIG_KEY, PartitionConfig::CONFIG_KEY, IdempotencyConfig::CONFIG_KEY])
         ->toBe(['cbox-cms.contracts', 'cbox-cms.doctor', 'cbox-cms.database', 'cbox-cms.idempotency']);
+});
+
+it('binds the command pipeline\'s ports it implements: the registry\'s write actions and the generated validators', function (): void {
+    app()->instance(CompiledRegistry::class, CompiledRegistry::empty());
+
+    expect(app(WriteActions::class))->toBeInstanceOf(RegistryWriteActions::class)
+        ->and(app(FieldValidation::class))->toBeInstanceOf(TypeRulesFieldValidation::class);
 });

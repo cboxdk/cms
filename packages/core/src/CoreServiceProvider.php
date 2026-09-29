@@ -67,6 +67,10 @@ use Cbox\Cms\Core\Operations\Domain\OperationRunner;
 use Cbox\Cms\Core\Partitions\Boundary\PartitionConfig;
 use Cbox\Cms\Core\Partitions\Domain\PartitionMaintenance;
 use Cbox\Cms\Core\Partitions\Infrastructure\PostgresPartitionManager;
+use Cbox\Cms\Core\Pipeline\Adapter\RegistryWriteActions;
+use Cbox\Cms\Core\Pipeline\Boundary\TypeRulesFieldValidation;
+use Cbox\Cms\Core\Pipeline\Domain\FieldValidation;
+use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
 use Cbox\Cms\Core\Process\Boundary\ProcessWorkload;
 use Cbox\Cms\Core\Process\Domain\OwnerCredentialsExposed;
 use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
@@ -178,6 +182,12 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
             CompiledRegistry::class,
             static fn (Application $app): CompiledRegistry => $app->make(RegistryCache::class)->read(),
         );
+
+        // The command pipeline's ports that the core implements: the write action of a command
+        // from the compiled registry, and the fields of a plan's revisions through the generated
+        // validators (PRD 6.2 phases 1 and 5).
+        $this->app->bind(WriteActions::class, RegistryWriteActions::class);
+        $this->app->bind(FieldValidation::class, TypeRulesFieldValidation::class);
 
         $this->registerDoctor();
     }

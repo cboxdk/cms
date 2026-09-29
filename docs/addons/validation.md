@@ -7,6 +7,8 @@ description: "The runtime validators cms:generate writes per type for input from
 # Runtime validators
 
 <!-- extension-point: Cbox\Cms\Contracts\Validation\TypeValidator -->
+<!-- extension-point: Cbox\Cms\Contracts\Validation\TypeValidators -->
+<!-- extension-point: Cbox\Cms\Testkit\Validation\TypeValidatorsContract -->
 
 Inside the repository PHPStan and the TypeScript compiler catch every wrong field. At the boundaries they cannot: a command's fields from the REST API, MCP, the CLI or a sidecar arrive as JSON that no compiler has seen (PRD 11.12). There the kernel checks the input at run time, against rules generated from the same schema as the type table, the records and the TypeScript types.
 
@@ -145,3 +147,52 @@ it('requires the extension field only when the entry is released', function (): 
         ->and($validator->validateWith(new NoteValidator, [...$input, 'ext' => ['app' => ['review_by' => '2026-10-01']]], ValidationStage::Release)->passed())->toBeTrue();
 });
 ```
+
+## Finding a type's validator
+
+`cms:generate` also writes `GeneratedTypeValidators` next to the type catalog, an implementation of `Cbox\Cms\Contracts\Validation\TypeValidators` with the validator of every type, and the generated service provider binds the contract to it. `all()` lists the validators sorted by type id, and `find(TypeId)` gives the validator of a type, or null when the installation has no such type. There is one validator for every type of the [TypeCatalog](contracts/type-catalog.md) and none for another, and like the catalog it never changes while the process runs.
+
+The kernel's command pipeline finds a type in the catalog and then its validator here: before a plan commits, the fields of every revision it creates are put in the input form and checked with `InputValidator` against the rules of the schema version the code was generated from (PRD 6.2 phase 5, invariant 4). A surface can use the same validator for the input it takes. In a test, `Cbox\Cms\Testkit\Validation\FakeTypeValidators` holds the validators the test gives it, next to the types it gives a `FakeTypeCatalog`, and refuses two validators for one type.
+
+The generated validators and the fake run the same shared suite, the trait `Cbox\Cms\Testkit\Validation\TypeValidatorsContract`. Use it in a PHPUnit test class in your `tests/Contract` directory, return the validators from `validators()` and the catalog of the same types from `catalog()`. The cases cover the lookups, the order, that nothing changes, and that the validators and the catalog name the same types. This example runs it against the workbench's generated classes in the `Contract` suite:
+
+<!-- example: examples/Contract/Validation/GeneratedTypeValidatorsContractTest.php -->
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace Examples\Contract\Validation;
+
+use Cbox\Cms\Contracts\Schema\TypeCatalog;
+use Cbox\Cms\Contracts\Validation\TypeValidators;
+use Cbox\Cms\Testkit\Validation\TypeValidatorsContract;
+use Override;
+use PHPUnit\Framework\TestCase;
+use Workbench\App\Cms\Generated\GeneratedTypeCatalog;
+use Workbench\App\Cms\Generated\GeneratedTypeValidators;
+
+/**
+ * The shared TypeValidators suite against the validators cms:generate writes, next to the catalog
+ * of the same schema. In an application the classes are in App\Cms\Generated; here they are the
+ * workbench's. Both have a constructor without arguments, so the suite needs no application.
+ */
+final class GeneratedTypeValidatorsContractTest extends TestCase
+{
+    use TypeValidatorsContract;
+
+    #[Override]
+    protected function validators(): TypeValidators
+    {
+        return new GeneratedTypeValidators;
+    }
+
+    #[Override]
+    protected function catalog(): TypeCatalog
+    {
+        return new GeneratedTypeCatalog;
+    }
+}
+```
+
+`cboxdk/cms` runs the suite against the fake in `packages/testkit/tests/Contract/FakeTypeValidatorsContractTest.php` and against the workbench's validators from the container in `packages/generators/tests/Contract/WorkbenchTypeValidatorsContractTest.php`.

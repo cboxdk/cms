@@ -6,7 +6,6 @@ namespace Cbox\Cms\Contracts\Results;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Consistency\Outcome;
-use Cbox\Cms\Contracts\Plans\Plan;
 use Cbox\Cms\Contracts\Receipts\Receipt;
 
 /**
@@ -16,7 +15,8 @@ use Cbox\Cms\Contracts\Receipts\Receipt;
  * - rejected: at least one catalog error, each with its field path where it has one. Nothing was
  *   committed.
  * - committed and committed_wait_timeout: no errors; the receipt carries the changeset.
- * - dry_run: no errors, and the plan the command would have committed (PRD 6.2 phase 6).
+ * - dry_run: no errors, and the DryRunReport: the plan the command would have committed, its blast
+ *   radius and its diff (PRD 6.2 phase 6).
  *
  * Each surface translates it for its transport: REST, Inertia, MCP and the CLI (GUARDRAILS 2.1).
  */
@@ -32,7 +32,7 @@ final readonly class WriteResult
     public function __construct(
         public Receipt $receipt,
         array $errors = [],
-        public ?Plan $plan = null,
+        public ?DryRunReport $dryRun = null,
     ) {
         $outcome = $receipt->outcome;
 
@@ -44,11 +44,11 @@ final readonly class WriteResult
             throw InvalidWriteResult::unexpectedErrors($outcome);
         }
 
-        if ($outcome === Outcome::DryRun && ! $plan instanceof Plan) {
+        if ($outcome === Outcome::DryRun && ! $dryRun instanceof DryRunReport) {
             throw InvalidWriteResult::dryRunWithoutPlan();
         }
 
-        if ($outcome !== Outcome::DryRun && $plan instanceof Plan) {
+        if ($outcome !== Outcome::DryRun && $dryRun instanceof DryRunReport) {
             throw InvalidWriteResult::unexpectedPlan($outcome);
         }
 
@@ -65,9 +65,9 @@ final readonly class WriteResult
         return new self($receipt);
     }
 
-    public static function dryRun(Receipt $receipt, Plan $plan): self
+    public static function dryRun(Receipt $receipt, DryRunReport $report): self
     {
-        return new self($receipt, plan: $plan);
+        return new self($receipt, dryRun: $report);
     }
 
     public function outcome(): Outcome

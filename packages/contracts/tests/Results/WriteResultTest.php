@@ -9,16 +9,18 @@ use Cbox\Cms\Contracts\Consistency\RetentionClass;
 use Cbox\Cms\Contracts\Consistency\WaitLevel;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
+use Cbox\Cms\Contracts\Pipeline\ReadVersions;
 use Cbox\Cms\Contracts\Plans\Plan;
 use Cbox\Cms\Contracts\Receipts\Receipt;
 use Cbox\Cms\Contracts\Results\CatalogError;
+use Cbox\Cms\Contracts\Results\DryRunReport;
 use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Contracts\Results\InvalidWriteResult;
 use Cbox\Cms\Contracts\Results\WriteResult;
 
 /*
  * The result of a write (GUARDRAILS 2.1, PRD 6.1): the receipt's outcome decides whether it carries
- * catalog errors with field paths, or the plan of a dry run.
+ * catalog errors with field paths, or the report of a dry run: its plan, blast radius and diff.
  */
 
 function resultChangeset(): ChangesetId
@@ -40,7 +42,7 @@ it('rejects with catalog errors and their field paths', function (): void {
         ->and($result->errors[0]->path?->toString())->toBe('fields.title')
         ->and($result->errors[1]->path)->toBeNull()
         ->and($result->errors[1]->code)->toBe(ErrorCode::VersionConflict)
-        ->and($result->plan)->toBeNull()
+        ->and($result->dryRun)->toBeNull()
         ->and(WriteResult::rejected(Receipt::rejected(WaitLevel::Commit, RetentionClass::Standard), resultError())->errors)->toHaveCount(1)
         ->and(array_keys(WriteResult::rejected(Receipt::rejected(WaitLevel::Commit, RetentionClass::Standard), resultError(), ...['more' => $second])->errors))->toBe([0, 1]);
 });
@@ -55,16 +57,16 @@ it('commits with the receipt and nothing else', function (): void {
         expect($result->receipt)->toBe($receipt)
             ->and($result->outcome())->toBe($receipt->outcome)
             ->and($result->errors)->toBe([])
-            ->and($result->plan)->toBeNull();
+            ->and($result->dryRun)->toBeNull();
     }
 });
 
-it('returns the plan of a dry run', function (): void {
-    $plan = Plan::empty();
-    $result = WriteResult::dryRun(Receipt::dryRun(WaitLevel::Commit, RetentionClass::Standard), $plan);
+it('returns the plan of a dry run with its blast radius and diff', function (): void {
+    $report = DryRunReport::of(Plan::empty(), new ReadVersions);
+    $result = WriteResult::dryRun(Receipt::dryRun(WaitLevel::Commit, RetentionClass::Standard), $report);
 
     expect($result->outcome())->toBe(Outcome::DryRun)
-        ->and($result->plan)->toBe($plan)
+        ->and($result->dryRun)->toBe($report)
         ->and($result->errors)->toBe([]);
 });
 
@@ -72,13 +74,14 @@ it('refuses parts that do not belong to the outcome', function (): void {
     $committed = Receipt::committed(resultChangeset(), WaitLevel::Commit, RetentionClass::Standard);
     $rejected = Receipt::rejected(WaitLevel::Commit, RetentionClass::Standard);
     $dryRun = Receipt::dryRun(WaitLevel::Commit, RetentionClass::Standard);
+    $report = DryRunReport::of(Plan::empty(), new ReadVersions);
 
     expect(static fn (): WriteResult => new WriteResult($rejected))->toThrow(InvalidWriteResult::class, 'A rejected write names at least one catalog error.')
         ->and(static fn (): WriteResult => new WriteResult($committed, [resultError()]))->toThrow(InvalidWriteResult::class, 'A committed write has no errors; only a rejected one does.')
-        ->and(static fn (): WriteResult => new WriteResult($dryRun, [resultError()], Plan::empty()))->toThrow(InvalidWriteResult::class, 'A dry_run write has no errors')
-        ->and(static fn (): WriteResult => new WriteResult($dryRun))->toThrow(InvalidWriteResult::class, 'A dry run returns the plan it computed.')
-        ->and(static fn (): WriteResult => new WriteResult($committed, plan: Plan::empty()))->toThrow(InvalidWriteResult::class, 'A committed write returns no plan; only a dry run does.')
-        ->and(static fn (): WriteResult => new WriteResult($rejected, [resultError()], Plan::empty()))->toThrow(InvalidWriteResult::class, 'A rejected write returns no plan');
+        ->and(static fn (): WriteResult => new WriteResult($dryRun, [resultError()], $report))->toThrow(InvalidWriteResult::class, 'A dry_run write has no errors')
+        ->and(static fn (): WriteResult => new WriteResult($dryRun))->toThrow(InvalidWriteResult::class, 'A dry run returns the plan it computed, with its blast radius and diff.')
+        ->and(static fn (): WriteResult => new WriteResult($committed, dryRun: $report))->toThrow(InvalidWriteResult::class, 'A committed write returns no plan; only a dry run does.')
+        ->and(static fn (): WriteResult => new WriteResult($rejected, [resultError()], $report))->toThrow(InvalidWriteResult::class, 'A rejected write returns no plan');
 });
 
 it('needs the cause of a catalog error', function (): void {

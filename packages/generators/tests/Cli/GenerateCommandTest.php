@@ -98,6 +98,7 @@ it('writes the PHP enum, the record DTO and codec, the validator and the TypeScr
             'written: app/Cms/Generated/Boundary/AppPageCodecV1.php',
             'written: app/Cms/Generated/Domain/Dto/AppPageV1.php',
             'written: app/Cms/Generated/GeneratedTypeCatalog.php',
+            'written: app/Cms/Generated/GeneratedTypeValidators.php',
             'written: app/Cms/Generated/GeneratedTypesServiceProvider.php',
             'written: app/Cms/Generated/Records/AppPage/AppPage.php',
             'written: app/Cms/Generated/Records/AppPage/AppPageFactory.php',
@@ -106,15 +107,16 @@ it('writes the PHP enum, the record DTO and codec, the validator and the TypeScr
             'written: app/Cms/Generated/TypeHandle.php',
             'written: app/Cms/Generated/Validators/AppPageValidator.php',
             'written: resources/js/cms/generated/index.ts',
-            'Generated 11 files: 11 written, 0 unchanged, 0 stale removed.',
+            'Generated 12 files: 12 written, 0 unchanged, 0 stale removed.',
         ])
         ->and($second)->toBe(0)
-        ->and($secondOutput)->toBe(['Generated 11 files: 0 written, 11 unchanged, 0 stale removed.'])
+        ->and($secondOutput)->toBe(['Generated 12 files: 0 written, 12 unchanged, 0 stale removed.'])
         ->and(array_map(static fn (string $file): string => (string) hash_file('sha256', $root.'/'.$file), SchemaFixtures::files($root)))->toBe($hashes)
         ->and(SchemaFixtures::files($root))->toBe([
             'app/Cms/Generated/Boundary/AppPageCodecV1.php',
             'app/Cms/Generated/Domain/Dto/AppPageV1.php',
             'app/Cms/Generated/GeneratedTypeCatalog.php',
+            'app/Cms/Generated/GeneratedTypeValidators.php',
             'app/Cms/Generated/GeneratedTypesServiceProvider.php',
             'app/Cms/Generated/Records/AppPage/AppPage.php',
             'app/Cms/Generated/Records/AppPage/AppPageFactory.php',
@@ -171,6 +173,7 @@ it('generates when a module release adds a type with the handle of an app type, 
             'written: app/Cms/Generated/Boundary/AcmePageCodecV1.php',
             'written: app/Cms/Generated/Domain/Dto/AcmePageV1.php',
             'written: app/Cms/Generated/GeneratedTypeCatalog.php',
+            'written: app/Cms/Generated/GeneratedTypeValidators.php',
             'written: app/Cms/Generated/GeneratedTypesServiceProvider.php',
             'written: app/Cms/Generated/Records/AcmePage/AcmePage.php',
             'written: app/Cms/Generated/Records/AcmePage/AcmePageFactory.php',
@@ -179,7 +182,7 @@ it('generates when a module release adds a type with the handle of an app type, 
             'written: app/Cms/Generated/TypeHandle.php',
             'written: app/Cms/Generated/Validators/AcmePageValidator.php',
             'written: resources/js/cms/generated/index.ts',
-            'Generated 18 files: 11 written, 7 unchanged, 0 stale removed.',
+            'Generated 19 files: 12 written, 7 unchanged, 0 stale removed.',
         ])
         ->and(is_file($root.'/app/Cms/Generated/Validators/AppPageValidator.php'))->toBeTrue()
         ->and((string) file_get_contents($root.'/app/Cms/Generated/TypeHandle.php'))->toContain("    case AcmePage = 'acme:page';\n    case AppPage = 'app:page';\n")

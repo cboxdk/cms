@@ -58,8 +58,9 @@ it('creates, places and heads a new note, and reads it as absent', function (): 
     $plan = $action->plan($command, $aggregates);
 
     expect($aggregates)->toBeInstanceOf(NoteAggregates::class)
-        ->and($aggregates->versions()->reads)->toHaveCount(1)
+        ->and($aggregates->versions()->reads)->toHaveCount(3)
         ->and($aggregates->versions()->of($command->note))->toEqual(ReadVersion::absent($command->note))
+        ->and(array_map(static fn (Mutation $mutation): bool => $aggregates->versions()->of($mutation->aggregate()) instanceof ReadVersion, $plan->mutations()))->toBe([true, true, true, true])
         ->and(mutationNames(...$plan->mutations()))->toBe(['EntryCreated', 'RevisionCreated', 'HeadMoved', 'PlacementCreated']);
 });
 

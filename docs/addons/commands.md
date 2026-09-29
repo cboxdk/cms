@@ -10,6 +10,7 @@ description: "Write a command, its WriteAction and its surfaces: the Envelope a 
 <!-- extension-point: Cbox\Cms\Contracts\Pipeline\WriteAction -->
 <!-- extension-point: Cbox\Cms\Contracts\Pipeline\Aggregates -->
 <!-- extension-point: Cbox\Cms\Contracts\Pipeline\AggregateRef -->
+<!-- extension-point: Cbox\Cms\Contracts\Pipeline\ExpectsVersions -->
 <!-- extension-point: Cbox\Cms\Contracts\Attributes\Action -->
 
 There is one way to change state: a command, run through the kernel's command pipeline (PRD 6.1, 6.2). The panel, REST, MCP, agents, the CLI, jobs, the scheduler, subscribers, sidecars and seeds all call the same write action. All the types on this page are `#[Experimental]` and live in the contracts module.
@@ -97,11 +98,13 @@ A write action implements `Cbox\Cms\Contracts\Pipeline\WriteAction`, a generic i
 
 Neither step writes, commits or calls another write action. The kernel owns the rest: authorization, hooks, validation, the dry-run exit, and the commit of every mutation, the audit, the events and the receipt in one transaction (PRD 6.2). An action is a `final readonly class`, and it states its type arguments with `@implements WriteAction<SaveNote, NoteAggregates>`, so PHPStan types `$command` and `$aggregates` in both methods. It names the command it handles with `#[Action(handles: SaveNote::class)]`, which `cms:build` reads (see [surfaces](#surfaces)).
 
-What `resolve()` returns implements `Cbox\Cms\Contracts\Pipeline\Aggregates`: the action's own final readonly class with what it read, and `versions()`, the `ReadVersions` it read them at. Each `ReadVersion` names an aggregate by an `AggregateRef` and holds its `AggregateVersion`, or null when the aggregate did not exist, as for the note a create makes. At commit the kernel checks that every aggregate is still at the version it was read at, or still absent, and rejects the command with `version_conflict` otherwise, so a plan made from stale reads never commits. An aggregate is read at most once, and the reads are sorted by key.
+What `resolve()` returns implements `Cbox\Cms\Contracts\Pipeline\Aggregates`: the action's own final readonly class with what it read, and `versions()`, the `ReadVersions` it read them at. Each `ReadVersion` names an aggregate by an `AggregateRef` and holds its `AggregateVersion`, or null when the aggregate did not exist, as for the note a create makes. At commit the kernel checks that every aggregate is still at the version it was read at, or still absent, and rejects the command with `version_conflict` otherwise, so a plan made from stale reads never commits. An aggregate is read at most once, and the reads are sorted by key. Every aggregate a mutation of the plan changes must be among the reads, a created one as absent; the kernel refuses a plan that changes an aggregate its `resolve()` did not read.
+
+A command that carries the versions its caller saw implements `Cbox\Cms\Contracts\Pipeline\ExpectsVersions`, which extends `Command`: `expectedVersions()` gives a `ReadVersions` of the aggregates the caller read, each at its version or absent. The kernel compares them with what `resolve()` read and rejects the command with `version_conflict` when one differs, before it authorizes anything (invariant 11). Each aggregate a command expects a version of must be one its action reads.
 
 `Cbox\Cms\Contracts\Pipeline\AggregateRef` is what names an aggregate: `aggregateKey()` gives its kind and id, such as `entry:<uuid>`, unique across every kind. The typed ids `EntryId`, `NodeId`, `PlacementId`, `SiteId` and `ActorId` implement it, and so does `VariantRef`, one variant of an entry (`variant:<uuid>:<variant>`).
 
-This action saves a note's title. For a new note it reads the note as absent and plans the entry, its first revision, its head and, from another planner, its placement; for an existing note it reads the variant at its version and plans the next revision:
+This action saves a note's title. For a new note it reads the note, its shared variant and its placement as absent and plans the entry, its first revision, its head and, from another planner, its placement; for an existing note it reads the variant at its version and plans the next revision:
 
 <!-- example-file: examples/Unit/Pipeline/SaveNote.php -->
 ```php
@@ -146,29 +149,34 @@ namespace Examples\Unit\Pipeline;
 use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Content\VariantRef;
 use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Pipeline\Aggregates;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersions;
 use Override;
 
 /**
- * What SaveNoteAction::resolve() read: the note, or null when it does not exist yet. versions()
- * tells the kernel what to check at commit: the note's shared variant at the version it was read
- * at, or that the note is still absent.
+ * What SaveNoteAction::resolve() read: the note, or null when it does not exist yet, and the
+ * placement a new note gets. versions() tells the kernel what to check at commit, and names every
+ * aggregate the plan changes, as the kernel requires: the note's shared variant at the version it
+ * was read at, or that the note, its shared variant and its placement are still absent.
  */
 final readonly class NoteAggregates implements Aggregates
 {
     public function __construct(
         public EntryId $note,
         public ?StoredNote $stored,
+        public PlacementId $placement,
     ) {}
 
     #[Override]
     public function versions(): ReadVersions
     {
+        $shared = new VariantRef($this->note, VariantKey::shared());
+
         return $this->stored instanceof StoredNote
-            ? new ReadVersions(ReadVersion::at(new VariantRef($this->note, VariantKey::shared()), $this->stored->version))
-            : new ReadVersions(ReadVersion::absent($this->note));
+            ? new ReadVersions(ReadVersion::at($shared, $this->stored->version))
+            : new ReadVersions(ReadVersion::absent($this->note), ReadVersion::absent($shared), ReadVersion::absent($this->placement));
     }
 }
 ```
@@ -252,7 +260,7 @@ final readonly class SaveNoteAction implements WriteAction
     #[Override]
     public function resolve(Command $command): NoteAggregates
     {
-        return new NoteAggregates($command->note, $this->shelf->find($command->note));
+        return new NoteAggregates($command->note, $this->shelf->find($command->note), $this->newPlacement);
     }
 
     /**
@@ -268,7 +276,7 @@ final readonly class SaveNoteAction implements WriteAction
         if (! $aggregates->stored instanceof StoredNote) {
             return new Plan(
                 new EntryCreated($command->note, $command->type, $command->home),
-                new RevisionCreated($command->note, $shared, RevisionNumber::first(), $fields),
+                new RevisionCreated($command->note, $command->type, $shared, RevisionNumber::first(), $fields),
                 new HeadMoved($command->note, $shared, null, RevisionNumber::first()),
             )->then($this->placements->place($this->newPlacement, $command->note, $command->home, $command->site));
         }
@@ -276,7 +284,7 @@ final readonly class SaveNoteAction implements WriteAction
         $next = $aggregates->stored->head->next();
 
         return new Plan(
-            new RevisionCreated($command->note, $shared, $next, $fields),
+            new RevisionCreated($command->note, $command->type, $shared, $next, $fields),
             new HeadMoved($command->note, $shared, $aggregates->stored->head, $next),
         );
     }
@@ -347,8 +355,9 @@ it('creates, places and heads a new note, and reads it as absent', function (): 
     $plan = $action->plan($command, $aggregates);
 
     expect($aggregates)->toBeInstanceOf(NoteAggregates::class)
-        ->and($aggregates->versions()->reads)->toHaveCount(1)
+        ->and($aggregates->versions()->reads)->toHaveCount(3)
         ->and($aggregates->versions()->of($command->note))->toEqual(ReadVersion::absent($command->note))
+        ->and(array_map(static fn (Mutation $mutation): bool => $aggregates->versions()->of($mutation->aggregate()) instanceof ReadVersion, $plan->mutations()))->toBe([true, true, true, true])
         ->and(mutationNames(...$plan->mutations()))->toBe(['EntryCreated', 'RevisionCreated', 'HeadMoved', 'PlacementCreated']);
 });
 
@@ -426,6 +435,21 @@ A write ends in a `Cbox\Cms\Contracts\Results\WriteResult`, which carries the ca
 | `rejected` | at least one `CatalogError`: a code from the error catalog, the `FieldPath` of the input it is about or null, and the cause in plain language. Nothing was committed. |
 | `committed` | the receipt with the changeset |
 | `committed_wait_timeout` | the receipt with the changeset; the wait level was not reached in time |
-| `dry_run` | the plan the command would have committed |
+| `dry_run` | a `DryRunReport`: the plan the command would have committed, its `BlastRadius` and its diff |
+
+A dry run's `BlastRadius` counts the mutations of the plan and the distinct aggregates they change, by kind: `of('entry')`, `of('variant')` and `total()`. Its diff is one `AggregateChange` per aggregate the plan changes, sorted by aggregate key, with the version it was read at (`before`, null when the write creates it), the version the commit would give it (`after`) and the number of mutations that change it.
 
 A `FieldPath` is a list of names and indexes, written `blocks[2].text` or `fields.ext.app.tax_code`. Each surface translates the result for its transport. No code serialises a result to JSON by hand: the receipt's JSON form is on [Receipt JSON](receipt-json.md), and a rejection's catalog errors become the field errors of [problem details](problem-details.md), each written by its generated codec.
+
+## The command pipeline
+
+The kernel runs every write through one pipeline, in the core, and the action only resolves and plans (PRD 6.2, GUARDRAILS 2.1):
+
+1. **Resolve.** The kernel reads the actor and every actor of its on-behalf-of chain as aggregates and rejects the call with `actor_not_active` when one is missing or not active (invariant 37). Then it calls `resolve()`, and checks the versions of a command that `ExpectsVersions`.
+2. **Authorize.** The call's access context, the principal with its regions and classification access, is checked against the command and what was read; a refusal is `unauthorized`.
+3. **Plan.** It calls `plan()`.
+4. **Validate.** Every aggregate a mutation changes was read, every revision names a type of the installation, and the fields of every revision pass the type's generated validator (see [runtime validators](validation.md)). Any error rejects the call with `validation_failed`, followed by each field error with its path below `fields`.
+5. **Dry run.** A call whose envelope asks for a dry run ends here with its `DryRunReport` and commits nothing.
+6. **Commit.** The plan is written as one changeset in one transaction, with a version check of every aggregate read, the actors included, so a deactivation that commits while a command of the actor is under way fails that command with `version_conflict`. The idempotency key is claimed there, and a key used with other content is `idempotency_conflict`.
+
+`resolve()` and `plan()` get the command and the aggregates and nothing else: no connection, envelope or access context. An action lives in an `Actions` namespace, where the architecture tests and PHPStan forbid the framework, the DB facade, connections and transactions, so it cannot write.

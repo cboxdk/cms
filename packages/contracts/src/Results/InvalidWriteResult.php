@@ -27,12 +27,32 @@ final class InvalidWriteResult extends InvalidArgumentException
 
     public static function dryRunWithoutPlan(): self
     {
-        return new self('A dry run returns the plan it computed.');
+        return new self('A dry run returns the plan it computed, with its blast radius and diff.');
     }
 
     public static function unexpectedPlan(Outcome $outcome): self
     {
         return new self(sprintf('A %s write returns no plan; only a dry run does.', $outcome->value));
+    }
+
+    public static function unreadAggregate(string $aggregateKey): self
+    {
+        return new self(sprintf('A mutation changes the aggregate "%s", which the write did not read.', $aggregateKey));
+    }
+
+    public static function changeWithoutMutations(string $aggregateKey): self
+    {
+        return new self(sprintf('A change of the aggregate "%s" counts at least one mutation.', $aggregateKey));
+    }
+
+    public static function count(string $kind, int $count): self
+    {
+        return new self(sprintf('A count of a blast radius names a kind and is at least 1 for an aggregate kind, 0 for mutations, got %d for "%s".', $count, self::shown($kind)));
+    }
+
+    public static function repeatedKind(string $kind): self
+    {
+        return new self(sprintf('A blast radius counts the aggregate kind "%s" once.', self::shown($kind)));
     }
 
     public static function emptyMessage(ErrorCode $code): self
