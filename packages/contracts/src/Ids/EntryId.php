@@ -9,12 +9,11 @@ use Cbox\Cms\Contracts\Pipeline\AggregateRef;
 use Override;
 
 /**
- * The id of an actor: whoever runs a command or a read, a person, an agent, an integration or a
- * service identity (PRD 5.3, 5.16, 6.1). It is a UUIDv7 from the IdGenerator, fixed when the actor
- * is created and never reused.
+ * The id of an entry: the identity of a piece of content, with its type, its home node and its
+ * lifecycle, and nothing else (PRD 5.3, 5.4). It is a UUIDv7, made by the IdGenerator contract.
  */
 #[Experimental]
-final readonly class ActorId implements AggregateRef
+final readonly class EntryId implements AggregateRef
 {
     public function __construct(public Uuid7 $value) {}
 
@@ -37,11 +36,11 @@ final readonly class ActorId implements AggregateRef
     }
 
     /**
-     * "actor:" and the UUID, unique across the kinds of aggregate.
+     * "entry:" and the UUID, unique across the kinds of aggregate.
      */
     #[Override]
     public function aggregateKey(): string
     {
-        return 'actor:'.$this->value->value;
+        return 'entry:'.$this->value->value;
     }
 }

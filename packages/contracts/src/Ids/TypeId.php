@@ -5,16 +5,14 @@ declare(strict_types=1);
 namespace Cbox\Cms\Contracts\Ids;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
-use Cbox\Cms\Contracts\Pipeline\AggregateRef;
-use Override;
 
 /**
- * The id of an actor: whoever runs a command or a read, a person, an agent, an integration or a
- * service identity (PRD 5.3, 5.16, 6.1). It is a UUIDv7 from the IdGenerator, fixed when the actor
- * is created and never reused.
+ * The stable id of a content type, the type_id of its blueprint, unchanged when the type is
+ * renamed (PRD 11.2, 11.12). The kernel knows no type by name (GUARDRAILS 2.4); it carries the id
+ * of whatever type a schema defines. It is a UUIDv7, made by the IdGenerator contract.
  */
 #[Experimental]
-final readonly class ActorId implements AggregateRef
+final readonly class TypeId
 {
     public function __construct(public Uuid7 $value) {}
 
@@ -34,14 +32,5 @@ final readonly class ActorId implements AggregateRef
     public function equals(self $other): bool
     {
         return $this->value->equals($other->value);
-    }
-
-    /**
-     * "actor:" and the UUID, unique across the kinds of aggregate.
-     */
-    #[Override]
-    public function aggregateKey(): string
-    {
-        return 'actor:'.$this->value->value;
     }
 }

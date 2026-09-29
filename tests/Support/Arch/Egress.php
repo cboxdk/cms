@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Tests\Support\Arch;
 
+use Cbox\Cms\Contracts\Envelope\IssuerKind;
 use Cbox\Cms\Core\Doctor\Adapter\ProcessToolProbe;
 use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
@@ -258,6 +259,9 @@ final class Egress
         // PDO::exec(), one of the PDO methods that take SQL, which the rule compares a method
         // call's name with.
         RawSqlRule::class => ['exec'],
+        // IssuerKind::System, the issuer kind "system" that PRD 5.5 names, a value of the
+        // envelope and the changeset.
+        IssuerKind::class => ['system'],
     ];
 
     /**
