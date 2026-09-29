@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Pipeline;
 
+use Cbox\Cms\Contracts\Addons\AddonNamespace;
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Core\Pipeline\Adapter\RegistryCommandHooks;
 use Cbox\Cms\Core\Pipeline\Domain\CommandHooks;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
@@ -31,7 +33,8 @@ final class RegistryCommandHooksBehaviourTest extends TestCase
         foreach ($hooks as $index => [$command, $version, $hook]) {
             $alias = 'Acme\\Hooks\\Hook'.$index;
             $container->instance($alias, $hook->hook);
-            $entries[] = new HookEntry($alias, $hook->package, $command, $version, RenameProbe::class, $hook->phase, $hook->priority, $hook->budgetMs);
+            $addon = $hook->reads instanceof ClassificationAccess ? new AddonNamespace('addon'.$index) : null;
+            $entries[] = new HookEntry($alias, $hook->package, $command, $version, RenameProbe::class, $hook->phase, $hook->priority, $hook->budgetMs, $addon, $hook->reads);
         }
 
         return new RegistryCommandHooks(new CompiledRegistry([], $entries), $container);

@@ -34,6 +34,7 @@ final class SubscribersTest extends BuildTestCase
         self::assertSame('subscribers', $subscribers['registry']);
         self::assertSame([
             [
+                'addon' => null,
                 'class' => IndexPages::class,
                 'events' => [
                     ['class' => PagePublished::class, 'name' => 'page.published', 'version' => 1],
@@ -45,6 +46,7 @@ final class SubscribersTest extends BuildTestCase
                 'projection' => 'acme.search',
             ],
             [
+                'addon' => null,
                 'class' => NotifyPartners::class,
                 'events' => [
                     ['class' => PagePublished::class, 'name' => 'page.published', 'version' => 1],

@@ -109,6 +109,17 @@ return [
     ],
 
     /*
+     * Addons (PRD 13.1, invariant 21). service_actors maps each installed addon's namespace, from
+     * its manifest, to the id of its service actor: the actor created when the installation
+     * approved the addon's capabilities. The addon's subscribers run as that actor, with its own
+     * grants, and never as the system; a subscriber of an addon without an active service actor
+     * does not run.
+     */
+    'addons' => [
+        'service_actors' => [],
+    ],
+
+    /*
      * Idempotency keys (PRD 6.1). A command whose key another call still holds waits at most
      * wait_budget_ms for that call to end, then it is rejected with idempotency_in_flight, which
      * the client may retry. It is 0 to 5000 ms, part of the 5 seconds a command transaction may

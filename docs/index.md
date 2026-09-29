@@ -24,7 +24,7 @@ The first milestone built the toolchain and the foundations the kernel stands on
 - the contracts `Clock`, `IdGenerator`, `ReceiptStore` and `IdempotencyStore`, with their default implementations, fakes and shared suites;
 - the receipt and idempotency stores on Postgres, and the partition manager with `cms:partitions:maintain`;
 - the blueprint schema v1, its reader, `cms:generate` and `cms:schema:editor`;
-- the registry of actions, commands, hooks and subscribers, compiled by `cms:build`;
+- the registry of actions, commands, hooks, schema contributions and subscribers, compiled by `cms:build` from attributes and addon manifests;
 - `cms:doctor` with its checks, exit codes and JSON document;
 - the gates every change passes, `composer check` locally and `bin/ci` in CI.
 

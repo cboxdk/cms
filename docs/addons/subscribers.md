@@ -68,6 +68,7 @@ Class names are compared without case, as PHP compares them.
 
 | Key | Value |
 |---|---|
+| `addon` | the namespace of the subscriber's addon, or null for a package without a [manifest](manifest.md) |
 | `class` | the subscriber class |
 | `events` | a list of `class`, `name` and `version`: each event class with the name and payload version of its type, sorted by class |
 | `lane` | the value of the lane |
@@ -367,6 +368,7 @@ final class SubscribersTest extends BuildTestCase
         self::assertSame('subscribers', $subscribers['registry']);
         self::assertSame([
             [
+                'addon' => null,
                 'class' => IndexPages::class,
                 'events' => [
                     ['class' => PagePublished::class, 'name' => 'page.published', 'version' => 1],
@@ -378,6 +380,7 @@ final class SubscribersTest extends BuildTestCase
                 'projection' => 'acme.search',
             ],
             [
+                'addon' => null,
                 'class' => NotifyPartners::class,
                 'events' => [
                     ['class' => PagePublished::class, 'name' => 'page.published', 'version' => 1],

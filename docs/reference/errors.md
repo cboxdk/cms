@@ -15,6 +15,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | Code | HTTP | Exit | MCP | Retry |
 |---|---|---|---|---|
 | [`actor_not_active`](#actor_not_active) | 403 | 77 | tool_error | no |
+| [`addon_service_actor_unavailable`](#addon_service_actor_unavailable) | 500 | 78 | internal_error | no |
 | [`credential_expired`](#credential_expired) | 401 | 77 | tool_error | no |
 | [`credential_malformed`](#credential_malformed) | 401 | 77 | tool_error | no |
 | [`credential_revoked`](#credential_revoked) | 401 | 77 | tool_error | no |
@@ -94,14 +95,20 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`registry_class_not_loadable`](#registry_class_not_loadable) | 500 | 65 | internal_error | no |
 | [`registry_duplicate_action`](#registry_duplicate_action) | 500 | 65 | internal_error | no |
 | [`registry_duplicate_command`](#registry_duplicate_command) | 500 | 65 | internal_error | no |
+| [`registry_duplicate_namespace`](#registry_duplicate_namespace) | 500 | 65 | internal_error | no |
 | [`registry_duplicate_subscription`](#registry_duplicate_subscription) | 500 | 65 | internal_error | no |
+| [`registry_incompatible_core_api`](#registry_incompatible_core_api) | 500 | 65 | internal_error | no |
 | [`registry_invalid_attribute`](#registry_invalid_attribute) | 500 | 65 | internal_error | no |
+| [`registry_invalid_manifest`](#registry_invalid_manifest) | 500 | 65 | internal_error | no |
 | [`registry_invalid_scan_root`](#registry_invalid_scan_root) | 500 | 65 | internal_error | no |
 | [`registry_not_a_concrete_class`](#registry_not_a_concrete_class) | 500 | 65 | internal_error | no |
 | [`registry_not_a_hook`](#registry_not_a_hook) | 500 | 65 | internal_error | no |
 | [`registry_not_a_subscriber`](#registry_not_a_subscriber) | 500 | 65 | internal_error | no |
 | [`registry_not_an_action`](#registry_not_an_action) | 500 | 65 | internal_error | no |
 | [`registry_not_final_readonly`](#registry_not_final_readonly) | 500 | 65 | internal_error | no |
+| [`registry_reserved_namespace`](#registry_reserved_namespace) | 500 | 65 | internal_error | no |
+| [`registry_undeclared_hook`](#registry_undeclared_hook) | 500 | 65 | internal_error | no |
+| [`registry_undeclared_subscriber`](#registry_undeclared_subscriber) | 500 | 65 | internal_error | no |
 | [`registry_unknown_action_command`](#registry_unknown_action_command) | 500 | 65 | internal_error | no |
 | [`registry_unknown_event`](#registry_unknown_event) | 500 | 65 | internal_error | no |
 | [`registry_unknown_hook_command`](#registry_unknown_hook_command) | 500 | 65 | internal_error | no |
@@ -139,6 +146,15 @@ The actor, or an actor it acts on behalf of, is not active (PRD 5.16, invariant 
 - HTTP status: 403 Forbidden
 - CLI exit code: 77 (EX_NOPERM)
 - MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### addon_service_actor_unavailable
+
+An addon's subscriber did not run, because the addon has no active service actor to run as (PRD 13.1, invariant 21): none is configured in cbox-cms.addons.service_actors, no actor has the configured id, or the actor is not an active service actor. It never runs as the system instead. Configure the service actor created when the addon's capabilities were approved, or reactivate it.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 78 (EX_CONFIG)
+- MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
 ### credential_expired
@@ -791,7 +807,7 @@ A table in cbox-cms.database.partitions.tables cannot be managed as it is: it is
 
 ### registry_cache_malformed
 
-The registry cache in bootstrap/cache/cms is damaged, or its files come from different builds, so the kernel cannot read its actions, commands, hooks and subscribers. Run cms:build.
+The registry cache in bootstrap/cache/cms is damaged, or its files come from different builds, so the kernel cannot read its actions, commands, hooks, schema contributions and subscribers. Run cms:build.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 78 (EX_CONFIG)
@@ -800,7 +816,7 @@ The registry cache in bootstrap/cache/cms is damaged, or its files come from dif
 
 ### registry_cache_missing
 
-The registry cache in bootstrap/cache/cms does not exist, so the kernel does not know its actions, commands, hooks and subscribers. Run cms:build; Composer runs it after every install.
+The registry cache in bootstrap/cache/cms does not exist, so the kernel does not know its actions, commands, hooks, schema contributions and subscribers. Run cms:build; Composer runs it after every install.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 78 (EX_CONFIG)
@@ -852,6 +868,15 @@ Two classes declare the same command or query name and version with #[Command] o
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
+### registry_duplicate_namespace
+
+Two addon manifests name the same namespace. A namespace belongs to one addon in the installation, because it holds the addon's extension fields, field types and types (PRD 13.1, 13.3). Remove one of the addons.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
 ### registry_duplicate_subscription
 
 Two subscribers declare the same subscription name with #[Subscription]. The event log keeps a subscription's cursor under its name, so rename one of them.
@@ -861,9 +886,27 @@ Two subscribers declare the same subscription name with #[Subscription]. The eve
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
+### registry_incompatible_core_api
+
+An addon manifest needs a version of the kernel's API that this kernel does not satisfy: another major version, or a later minor version (PRD 13.1, 13.5). Install a version of the addon made for this kernel's API, or a kernel with the API it needs.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
 ### registry_invalid_attribute
 
 The arguments of an #[Action], #[Command], #[Query], #[Hook] or #[Subscription] attribute are invalid, so it cannot be built. Correct the attribute as the cause says.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_invalid_manifest
+
+An addon manifest cannot be built, its documentation or schema directory is not a readable directory, or two manifests name one package (PRD 13.1). Correct the manifest the service provider returns from addonManifest(), as the cause says.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)
@@ -918,6 +961,33 @@ An #[Action] sits on a class that implements neither WriteAction nor QueryAction
 ### registry_not_final_readonly
 
 A #[Command], #[Query], #[Action] or #[Subscription] sits on a class that is not a final readonly class (GUARDRAILS 2.1). Make the class final readonly.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_reserved_namespace
+
+An addon manifest names the namespace app or ext. The application's own fields live under app, and ext holds every extender's namespace (PRD 11.12), so neither can be an addon's. Give the addon a name of its own.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_undeclared_hook
+
+A #[Hook] of an addon's package runs for a command and phase that the addon's manifest does not allow (PRD 13.1, 6.3). Allow it in the manifest's hooks with an AllowedHook, or remove the hook.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_undeclared_subscriber
+
+A #[Subscription] of an addon's package receives an event on a lane that the addon's manifest does not allow (PRD 13.1). Allow it in the manifest's subscriptions with an AllowedSubscription, or stop receiving the event.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)

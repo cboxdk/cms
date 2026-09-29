@@ -14,11 +14,16 @@ use Cbox\Cms\Contracts\Hooks\HookErrors;
 use Cbox\Cms\Contracts\Hooks\PlanView;
 use Cbox\Cms\Contracts\Hooks\TransformHook;
 use Cbox\Cms\Contracts\Hooks\ValidateHook;
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Core\Pipeline\Domain\InvalidHook;
 
 /**
  * A hook as the command pipeline runs it: the hook, its package, and the phase, priority and
  * budget its #[Hook] declares. The hook implements the interface of its phase.
+ *
+ * A hook of an addon also has the highest classification its addon's manifest lets the kernel
+ * hand it (PRD 13.1, invariant 21), and sees fields up to the lower of that and the actor's
+ * classification access; any other hook has none and sees what the actor may read.
  */
 #[Internal]
 final readonly class BoundHook
@@ -35,6 +40,7 @@ final readonly class BoundHook
         public Phase $phase,
         public int $priority,
         public int $budgetMs,
+        public ?ClassificationAccess $reads = null,
     ) {
         $this->class = $hook::class;
 
@@ -54,6 +60,15 @@ final readonly class BoundHook
     public static function order(self $one, self $other): int
     {
         return [$one->priority, $one->package, $one->class] <=> [$other->priority, $other->package, $other->class];
+    }
+
+    /**
+     * The classification access the hook gets in a call with the given access: the lower of it
+     * and what the hook's addon may read, or the call's access for a hook of no addon.
+     */
+    public function access(ClassificationAccess $call): ClassificationAccess
+    {
+        return $this->reads instanceof ClassificationAccess ? $call->atMost($this->reads) : $call;
     }
 
     /**

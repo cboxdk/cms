@@ -8,6 +8,7 @@ use Cbox\Cms\Contracts\Attributes\Phase;
 use Cbox\Cms\Contracts\Hooks\FieldChanges;
 use Cbox\Cms\Contracts\Hooks\HookDecision;
 use Cbox\Cms\Contracts\Hooks\HookErrors;
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Core\Pipeline\Domain\CommandHooks;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\BoundHook;
@@ -26,7 +27,8 @@ trait CommandHooksBehaviour
 {
     /**
      * The implementation under test, knowing exactly the given hooks: each for the name and
-     * version of a command, of a package, with its phase, priority and budget.
+     * version of a command, of a package, with its phase, priority and budget, and for a hook of an
+     * addon what the addon may read.
      *
      * @param  list<array{CommandName, int, BoundHook}>  $hooks
      */
@@ -71,5 +73,21 @@ trait CommandHooksBehaviour
 
         Assert::assertSame([], $hooks->for(new CommandName('note.publish'), 3));
         Assert::assertSame([], $hooks->for(new CommandName('note.archive'), 1));
+    }
+
+    #[Test]
+    public function it_gives_a_hook_of_an_addon_what_its_manifest_lets_it_read_and_any_other_hook_nothing_less_than_the_call(): void
+    {
+        $addon = new BoundHook(new CallbackValidate(static fn (): HookErrors => HookErrors::none()), 'acme/cms-reviews', Phase::Validate, 0, 1, ClassificationAccess::Internal);
+        $application = new BoundHook(new CallbackValidate(static fn (): HookErrors => HookErrors::none()), 'acme/app', Phase::Validate, 1, 1);
+        $publish = new CommandName('note.publish');
+
+        $found = $this->commandHooks([[$publish, 1, $addon], [$publish, 1, $application]])->for($publish, 1);
+        usort($found, BoundHook::order(...));
+
+        Assert::assertSame([ClassificationAccess::Internal, null], array_map(static fn (BoundHook $hook): ?ClassificationAccess => $hook->reads, $found));
+        Assert::assertSame(ClassificationAccess::Internal, $found[0]->access(ClassificationAccess::Sensitive));
+        Assert::assertSame(ClassificationAccess::Public, $found[0]->access(ClassificationAccess::Public));
+        Assert::assertSame(ClassificationAccess::Sensitive, $found[1]->access(ClassificationAccess::Sensitive));
     }
 }

@@ -36,7 +36,7 @@ Within a phase, hooks run by priority with the lowest first, then by Composer pa
 
 A hook never gets the plan itself. It gets a `PlanView`: the command's name and version, the principal the command runs for, the call's classification access and the plan's mutations in the order the kernel applies them, with sub-plans flattened. `revisions()` gives the `RevisionCreated` mutations, and `revision($variant)` the one for a variant.
 
-The view is filtered to the classification access of the call (PRD 12.2). Every revision's fields hold only the fields whose classification, as the type catalog gives it, the access allows; a field above it is absent, as if the revision did not set it. A hook of an actor whose access is internal never sees a confidential field, and cannot change it. The view is read-only: every class in it is `final readonly`.
+The view is filtered to the classification access of the call (PRD 12.2). Every revision's fields hold only the fields whose classification, as the type catalog gives it, the access allows; a field above it is absent, as if the revision did not set it. A hook of an actor whose access is internal never sees a confidential field, and cannot change it. A hook of an addon gets less when its [manifest](manifest.md) lets it read less: the view holds the fields up to the lower of the call's access and the manifest's `reads`, and the view's classification access is that lower one (invariant 21). The view is read-only: every class in it is `final readonly`.
 
 ## What a transform may change
 
@@ -46,7 +46,7 @@ That is all a hook can ask for, so it cannot change the actor, the grants, a cla
 
 - a variant the plan writes no revision of, or writes more than one of;
 - a field the revision's type does not declare, in the owner's fields or in the namespace given;
-- a field classified above the classification access of the call.
+- a field classified above the classification access of the call, or, for a hook of an addon, above what its manifest lets it read.
 
 The error names the hook, its package and the field, because the refusal is a bug in the hook, not in the caller's input.
 

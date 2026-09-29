@@ -20,7 +20,7 @@ use Override;
 /**
  * The hooks of the compiled registry (PRD 13.2): each hook cms:build registered for the name and
  * version of the command, built by the container, with its package, phase, priority and budget
- * from its entry.
+ * from its entry, and for a hook of an addon the classification its manifest lets it read.
  */
 #[Internal]
 final readonly class RegistryCommandHooks implements CommandHooks
@@ -52,6 +52,6 @@ final readonly class RegistryCommandHooks implements CommandHooks
             throw InvalidHook::phase($entry->class, $entry->phase);
         }
 
-        return new BoundHook($hook, $entry->package, $entry->phase, $entry->priority, $entry->budgetMs);
+        return new BoundHook($hook, $entry->package, $entry->phase, $entry->priority, $entry->budgetMs, $entry->reads);
     }
 }

@@ -37,21 +37,30 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\RefusedChange;
  * access. A change sets one top-level field of one revision; the rest of the plan, its order and
  * its sub-plans stay as they were, so a hook cannot touch the actor, grants, classification or
  * another aggregate.
+ *
+ * A hook of an addon may read less than the actor, as its manifest says (PRD 13.1, invariant 21).
+ * Given that lower classification, view() leaves out and apply() refuses every field above it, so
+ * the kernel never hands an addon a field it may not read and the addon never changes one.
  */
 #[Internal]
 final readonly class HookPlans
 {
     public function __construct(private TypeCatalog $types) {}
 
-    public function view(CommandName $command, int $version, AccessContext $access, Plan $plan): PlanView
+    /**
+     * @param  ClassificationAccess|null  $readable  the classification the hook may read, when it is lower than the access; null for the access
+     */
+    public function view(CommandName $command, int $version, AccessContext $access, Plan $plan, ?ClassificationAccess $readable = null): PlanView
     {
+        $classification = $readable ?? $access->classificationAccess;
+
         return new PlanView(
             $command,
             $version,
             $access->principal,
-            $access->classificationAccess,
+            $classification,
             ...array_map(
-                fn (Mutation $mutation): Mutation => $mutation instanceof RevisionCreated ? $this->visible($mutation, $access->classificationAccess) : $mutation,
+                fn (Mutation $mutation): Mutation => $mutation instanceof RevisionCreated ? $this->visible($mutation, $classification) : $mutation,
                 $plan->mutations(),
             ),
         );
@@ -59,11 +68,13 @@ final readonly class HookPlans
 
     /**
      * The plan with every change applied in order, or the first change the kernel refuses.
+     *
+     * @param  ClassificationAccess|null  $readable  the classification the hook may read, when it is lower than the access; null for the access
      */
-    public function apply(Plan $plan, FieldChanges $changes, AccessContext $access): Plan|RefusedChange
+    public function apply(Plan $plan, FieldChanges $changes, AccessContext $access, ?ClassificationAccess $readable = null): Plan|RefusedChange
     {
         foreach ($changes->changes as $change) {
-            $changed = $this->applyOne($plan, $change, $access->classificationAccess);
+            $changed = $this->applyOne($plan, $change, $readable ?? $access->classificationAccess);
 
             if ($changed instanceof RefusedChange) {
                 return $changed;

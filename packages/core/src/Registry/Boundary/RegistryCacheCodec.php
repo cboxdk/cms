@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Registry\Boundary;
 
+use Cbox\Cms\Contracts\Addons\AddonNamespace;
+use Cbox\Cms\Contracts\Addons\ContributedFieldType;
+use Cbox\Cms\Contracts\Addons\InvalidAddonManifest;
+use Cbox\Cms\Contracts\Addons\ReservedAddonNamespace;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Attributes\Phase;
 use Cbox\Cms\Contracts\Attributes\Surface;
@@ -11,8 +15,11 @@ use Cbox\Cms\Contracts\Consistency\InvalidReceipt;
 use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Events\EventType;
 use Cbox\Cms\Contracts\Events\InvalidEvent;
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\InvalidCommandName;
+use Cbox\Cms\Contracts\Schema\InvalidTypeDefinition;
+use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Contracts\Subscribers\InvalidSubscriptionName;
 use Cbox\Cms\Contracts\Subscribers\Lane;
 use Cbox\Cms\Contracts\Subscribers\SubscriptionName;
@@ -21,6 +28,7 @@ use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Dto\HookEntry;
+use Cbox\Cms\Core\Registry\Domain\Dto\SchemaEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscribedEvent;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
 use Cbox\Cms\Core\Registry\Domain\InvalidRegistryEntry;
@@ -29,9 +37,9 @@ use Cbox\Cms\Core\Registry\Domain\RegistryName;
 use LogicException;
 
 /**
- * The registry cache files of format 5, in both directions (PRD 13.2).
+ * The registry cache files of format 6, in both directions (PRD 13.2).
  *
- * A file is PHP that returns ['build' => '<sha256>', 'entries' => [...], 'format' => 5,
+ * A file is PHP that returns ['build' => '<sha256>', 'entries' => [...], 'format' => 6,
  * 'registry' => '<name>']. The keys of every array are written in alphabetical order, lists keep
  * the compiled order, and nothing depends on the time or the machine, so the same registry always
  * gives the same bytes. Reading checks every key and type and builds the typed entries; anything
@@ -45,14 +53,14 @@ use LogicException;
 #[Internal]
 final readonly class RegistryCacheCodec
 {
-    public const int FORMAT = 5;
+    public const int FORMAT = 6;
 
     private const string HEADER = <<<'PHP'
         <?php
 
         declare(strict_types=1);
 
-        // Written by php artisan cms:build from the attributes in the declared scan roots (PRD 13.2).
+        // Written by php artisan cms:build from the declared scan roots and addon manifests (PRD 13.2).
         // Do not edit and do not commit; run cms:build again instead.
 
         PHP;
@@ -124,6 +132,7 @@ final readonly class RegistryCacheCodec
                 'version' => $command->version,
             ], $registry->commands),
             RegistryName::Hooks->value => array_map(static fn (HookEntry $hook): array => [
+                'addon' => $hook->addon?->value,
                 'budget_ms' => $hook->budgetMs,
                 'class' => $hook->class,
                 'command' => $hook->command->value,
@@ -132,8 +141,17 @@ final readonly class RegistryCacheCodec
                 'package' => $hook->package,
                 'phase' => $hook->phase->value,
                 'priority' => $hook->priority,
+                'reads' => $hook->reads?->value,
             ], $registry->hooks),
+            RegistryName::Schema->value => array_map(static fn (SchemaEntry $entry): array => [
+                'extends' => array_map(static fn (TypeName $type): string => $type->value, $entry->extends),
+                'field_types' => array_map(static fn (ContributedFieldType $type): string => $type->value, $entry->fieldTypes),
+                'namespace' => $entry->namespace->value,
+                'package' => $entry->package,
+                'types' => array_map(static fn (TypeName $type): string => $type->value, $entry->types),
+            ], $registry->schema),
             RegistryName::Subscribers->value => array_map(static fn (SubscriberEntry $subscriber): array => [
+                'addon' => $subscriber->addon?->value,
                 'class' => $subscriber->class,
                 'events' => array_map(static fn (SubscribedEvent $event): array => [
                     'class' => $event->class,
@@ -253,9 +271,11 @@ final readonly class RegistryCacheCodec
         foreach ($entries[RegistryName::Hooks->value] as $index => $entry) {
             $path = $directory.'/'.RegistryName::Hooks->fileName();
             $at = sprintf('entries[%d]', $index);
-            $data = $this->map($entry, $path, $at, ['budget_ms', 'class', 'command', 'command_class', 'command_version', 'package', 'phase', 'priority']);
+            $data = $this->map($entry, $path, $at, ['addon', 'budget_ms', 'class', 'command', 'command_class', 'command_version', 'package', 'phase', 'priority', 'reads']);
             $phase = $this->string($data['phase'], $path, $at.'.phase');
             $command = $this->commandName($data['command'], $path, $at.'.command');
+            $addon = $data['addon'] === null ? null : $this->addonNamespace($data['addon'], $path, $at.'.addon');
+            $reads = $data['reads'] === null ? null : $this->string($data['reads'], $path, $at.'.reads');
 
             $hooks[] = $this->entry($path, $at, fn (): HookEntry => new HookEntry(
                 $this->string($data['class'], $path, $at.'.class'),
@@ -266,6 +286,33 @@ final readonly class RegistryCacheCodec
                 Phase::tryFrom($phase) ?? throw MalformedRegistryCache::at($path, $at.'.phase', sprintf('"%s" is not a hook phase', $phase)),
                 $this->int($data['priority'], $path, $at.'.priority'),
                 $this->int($data['budget_ms'], $path, $at.'.budget_ms'),
+                $addon,
+                $reads === null ? null : ClassificationAccess::tryFrom($reads) ?? throw MalformedRegistryCache::at($path, $at.'.reads', sprintf('"%s" is not a classification', $reads)),
+            ));
+        }
+
+        $schema = [];
+
+        foreach ($entries[RegistryName::Schema->value] as $index => $entry) {
+            $path = $directory.'/'.RegistryName::Schema->fileName();
+            $at = sprintf('entries[%d]', $index);
+            $data = $this->map($entry, $path, $at, ['extends', 'field_types', 'namespace', 'package', 'types']);
+            $namespace = $this->addonNamespace($data['namespace'], $path, $at.'.namespace');
+            $fieldTypes = [];
+
+            foreach ($this->list($data['field_types'], $path, $at.'.field_types') as $position => $fieldType) {
+                $fieldTypes[] = $this->fieldType($fieldType, $path, sprintf('%s.field_types[%d]', $at, $position));
+            }
+
+            $types = $this->typeNames($data['types'], $path, $at.'.types');
+            $extends = $this->typeNames($data['extends'], $path, $at.'.extends');
+
+            $schema[] = $this->entry($path, $at, fn (): SchemaEntry => new SchemaEntry(
+                $namespace,
+                $this->string($data['package'], $path, $at.'.package'),
+                $fieldTypes,
+                $types,
+                $extends,
             ));
         }
 
@@ -274,7 +321,8 @@ final readonly class RegistryCacheCodec
         foreach ($entries[RegistryName::Subscribers->value] as $index => $entry) {
             $path = $directory.'/'.RegistryName::Subscribers->fileName();
             $at = sprintf('entries[%d]', $index);
-            $data = $this->map($entry, $path, $at, ['class', 'events', 'lane', 'name', 'package', 'projection']);
+            $data = $this->map($entry, $path, $at, ['addon', 'class', 'events', 'lane', 'name', 'package', 'projection']);
+            $addon = $data['addon'] === null ? null : $this->addonNamespace($data['addon'], $path, $at.'.addon');
             $lane = $this->string($data['lane'], $path, $at.'.lane');
             $name = $this->subscriptionName($data['name'], $path, $at.'.name');
             $projection = $data['projection'] === null ? null : $this->projectionName($data['projection'], $path, $at.'.projection');
@@ -294,10 +342,11 @@ final readonly class RegistryCacheCodec
                 Lane::tryFrom($lane) ?? throw MalformedRegistryCache::at($path, $at.'.lane', sprintf('"%s" is not a lane', $lane)),
                 $projection,
                 $events,
+                $addon,
             ));
         }
 
-        $registry = new CompiledRegistry($commands, $hooks, $actions, $subscribers);
+        $registry = new CompiledRegistry($commands, $hooks, $actions, $subscribers, $schema);
 
         if ($this->build($this->entries($registry)) !== $first[1]) {
             throw MalformedRegistryCache::at($directory.'/'.$first[0]->fileName(), 'build', 'the build does not match the entries of the registry files, so they were changed after cms:build wrote them');
@@ -435,6 +484,48 @@ final readonly class RegistryCacheCodec
         } catch (InvalidReceipt $invalid) {
             throw MalformedRegistryCache::at($path, $at, rtrim($invalid->getMessage(), '.'), $invalid);
         }
+    }
+
+    private function addonNamespace(mixed $value, string $path, string $at): AddonNamespace
+    {
+        $namespace = $this->string($value, $path, $at);
+
+        try {
+            return new AddonNamespace($namespace);
+        } catch (InvalidAddonManifest|ReservedAddonNamespace $invalid) {
+            throw MalformedRegistryCache::at($path, $at, rtrim($invalid->getMessage(), '.'), $invalid);
+        }
+    }
+
+    private function fieldType(mixed $value, string $path, string $at): ContributedFieldType
+    {
+        $name = $this->string($value, $path, $at);
+
+        try {
+            return new ContributedFieldType($name);
+        } catch (InvalidAddonManifest $invalid) {
+            throw MalformedRegistryCache::at($path, $at, rtrim($invalid->getMessage(), '.'), $invalid);
+        }
+    }
+
+    /**
+     * @return list<TypeName>
+     */
+    private function typeNames(mixed $value, string $path, string $at): array
+    {
+        $types = [];
+
+        foreach ($this->list($value, $path, $at) as $position => $type) {
+            $name = $this->string($type, $path, sprintf('%s[%d]', $at, $position));
+
+            try {
+                $types[] = new TypeName($name);
+            } catch (InvalidTypeDefinition $invalid) {
+                throw MalformedRegistryCache::at($path, sprintf('%s[%d]', $at, $position), rtrim($invalid->getMessage(), '.'), $invalid);
+            }
+        }
+
+        return $types;
     }
 
     private function eventType(string $name, int $version, string $path, string $at): EventType

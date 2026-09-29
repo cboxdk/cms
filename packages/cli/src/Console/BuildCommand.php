@@ -6,6 +6,7 @@ namespace Cbox\Cms\Cli\Console;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
+use Cbox\Cms\Core\Registry\Boundary\ProviderAddonManifests;
 use Cbox\Cms\Core\Registry\Boundary\ProviderScanRoots;
 use Cbox\Cms\Core\Registry\Domain\RegistryBuildFailed;
 use Cbox\Cms\Core\Registry\Domain\RegistryCacheUnwritable;
@@ -16,15 +17,16 @@ use Illuminate\Console\Command;
 use Illuminate\Contracts\Foundation\Application;
 
 /**
- * `cms:build`: compiles the registries of actions, commands, hooks and subscribers to bootstrap/cache/cms/
- * (PRD 13.2, GUARDRAILS 7.1), from the scan roots the service providers declare, and removes any
- * other file in that directory. Composer runs it after every dump-autoload.
+ * `cms:build`: compiles the registries of actions, commands, hooks, schema contributions and
+ * subscribers to bootstrap/cache/cms/ (PRD 13.2, GUARDRAILS 7.1), from the scan roots and the addon
+ * manifests the service providers declare, and removes any other file in that directory. Composer
+ * runs it after every dump-autoload.
  *
  * Exit codes: 0 written, 65 the declarations are invalid and nothing was written (each problem is
  * printed with its code), 73 a cache file could not be written.
  */
 #[Internal]
-#[Description('Compile the registries of actions, commands, hooks and subscribers to bootstrap/cache/cms')]
+#[Description('Compile the registries of actions, commands, hooks, schema contributions and subscribers to bootstrap/cache/cms')]
 #[Signature('cms:build')]
 final class BuildCommand extends Command
 {
@@ -37,7 +39,7 @@ final class BuildCommand extends Command
     public function handle(BuildRegistry $build, Application $app): int
     {
         try {
-            $registry = $build->build(ProviderScanRoots::of($app));
+            $registry = $build->build(ProviderScanRoots::of($app), ProviderAddonManifests::of($app));
         } catch (RegistryBuildFailed $failed) {
             foreach ($failed->problems as $problem) {
                 $this->error($problem->describe());

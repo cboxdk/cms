@@ -15,7 +15,8 @@ use Cbox\Cms\Core\Registry\Domain\RegistryName;
  * Actions are sorted by the name, then the version, of the command or query they handle. Commands
  * are sorted by name, then version. Hooks are sorted by command name and version, then phase in
  * pipeline order (authorize, transform, validate), then priority with the lowest first, then
- * package, then class. Subscribers are sorted by subscription name.
+ * package, then class. Subscribers are sorted by subscription name. Schema contributions are sorted
+ * by the addon's namespace.
  *
  * The registry answers which subscribers receive an event class and which projections they
  * acknowledge, so the kernel can list on a changeset's receipt each projection its events affect
@@ -38,12 +39,14 @@ final readonly class CompiledRegistry
      * @param  list<HookEntry>  $hooks
      * @param  list<ActionEntry>  $actions
      * @param  list<SubscriberEntry>  $subscribers
+     * @param  list<SchemaEntry>  $schema
      */
     public function __construct(
         public array $commands,
         public array $hooks,
         public array $actions = [],
         public array $subscribers = [],
+        public array $schema = [],
     ) {
         $byCommand = [];
         $byClass = [];
@@ -78,6 +81,7 @@ final readonly class CompiledRegistry
             RegistryName::Actions => count($this->actions),
             RegistryName::Commands => count($this->commands),
             RegistryName::Hooks => count($this->hooks),
+            RegistryName::Schema => count($this->schema),
             RegistryName::Subscribers => count($this->subscribers),
         };
     }

@@ -4,12 +4,22 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Registry;
 
+use Cbox\Cms\Contracts\Addons\AddonCapabilities;
+use Cbox\Cms\Contracts\Addons\AddonManifest;
+use Cbox\Cms\Contracts\Addons\AddonNamespace;
+use Cbox\Cms\Contracts\Addons\AllowedHook;
+use Cbox\Cms\Contracts\Addons\AllowedSubscription;
+use Cbox\Cms\Contracts\Addons\ContributedFieldType;
+use Cbox\Cms\Contracts\Addons\CoreApiVersion;
+use Cbox\Cms\Contracts\Addons\SchemaContributions;
 use Cbox\Cms\Contracts\Attributes\Phase;
 use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Build\ScanRoot;
 use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Events\EventType;
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Contracts\Subscribers\Lane;
 use Cbox\Cms\Contracts\Subscribers\SubscriptionName;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
@@ -48,6 +58,9 @@ use SplFileInfo;
 final class RegistryFixtures
 {
     public const string PACKAGE = 'cboxdk/cms-registry-fixtures';
+
+    /** The package of the fixture addon in Fixtures/Addon. */
+    public const string ADDON_PACKAGE = 'acme/cms-reviews';
 
     /** @var list<string> */
     private static array $scratch = [];
@@ -98,6 +111,40 @@ final class RegistryFixtures
                 new SubscribedEvent(NoteRenamed::class, new EventType('fixture.note_renamed', 1)),
             ]),
         ];
+    }
+
+    /**
+     * The manifest of the fixture addon in Fixtures/Addon: the namespace reviews, which reads up
+     * to internal, allows the validate hook on CreateNote and NoteCreated on the standard lane,
+     * contributes the field type reviews:stars, owns reviews:review and extends app:note.
+     *
+     * @param  list<AllowedHook>|null  $hooks  null for the fixture's own
+     * @param  list<AllowedSubscription>|null  $subscriptions  null for the fixture's own
+     */
+    public static function addonManifest(
+        string $namespace = 'reviews',
+        string $package = self::ADDON_PACKAGE,
+        ?array $hooks = null,
+        ?array $subscriptions = null,
+        CoreApiVersion $coreApi = new CoreApiVersion(CoreApiVersion::CURRENT_MAJOR, CoreApiVersion::CURRENT_MINOR),
+    ): AddonManifest {
+        $addon = new AddonNamespace($namespace);
+
+        return new AddonManifest(
+            $package,
+            $addon,
+            $coreApi,
+            __DIR__.'/AddonFiles/docs',
+            new AddonCapabilities(ClassificationAccess::Internal),
+            $hooks ?? [new AllowedHook(CreateNote::class, Phase::Validate)],
+            $subscriptions ?? [new AllowedSubscription(NoteCreated::class, Lane::Standard)],
+            new SchemaContributions(
+                [new ContributedFieldType($namespace.':stars')],
+                [new TypeName($namespace.':review')],
+                [new TypeName('app:note')],
+                __DIR__.'/AddonFiles/schema',
+            ),
+        );
     }
 
     public static function builder(string $directory): BuildRegistry

@@ -65,4 +65,22 @@ enum BuildErrorCode: string
 
     /** Two subscribers declare the same subscription name. */
     case DuplicateSubscription = 'registry_duplicate_subscription';
+
+    /** An addon manifest cannot be built, or its documentation or schema directory is not a readable directory, or two manifests name one package. */
+    case InvalidManifest = 'registry_invalid_manifest';
+
+    /** An addon manifest names the reserved namespace app or ext (PRD 11.12). */
+    case ReservedNamespace = 'registry_reserved_namespace';
+
+    /** Two addon manifests name the same namespace (PRD 13.1, 13.3). */
+    case DuplicateNamespace = 'registry_duplicate_namespace';
+
+    /** An addon manifest needs a version of the kernel's API that this kernel does not satisfy. */
+    case IncompatibleCoreApi = 'registry_incompatible_core_api';
+
+    /** A #[Hook] of an addon's package runs for a command and phase its manifest does not allow. */
+    case UndeclaredHook = 'registry_undeclared_hook';
+
+    /** A #[Subscription] of an addon's package receives an event on a lane its manifest does not allow. */
+    case UndeclaredSubscriber = 'registry_undeclared_subscriber';
 }

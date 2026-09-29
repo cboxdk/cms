@@ -42,6 +42,12 @@ For example, `'contracts' => [Clock::class => StagingClock::class]` replaces the
 | `cbox-cms.database.partitions.backoff_ms` | `250` | The wait before the second attempt, in milliseconds; each later wait is twice as long. |
 | `cbox-cms.database.partitions.tables` | the core's five tables | The partitioned tables in the owner connection's search path, each with `key` (`uuid7` or `timestamp`), `interval` (`day` or `month`) and `retention_days` (a whole number, or `null` to keep every partition), or with `key` `bigint`, `width`, `sequence`, `retention_days` and `retention_column`. See [Partitions](partitions.md). |
 
+## Addons
+
+| Key | Default | What it does |
+|---|---|---|
+| `cbox-cms.addons.service_actors` | `[]` | The service actor of each installed addon, by the namespace its manifest names: `['reviews' => '<actor id>']`. The actor is created when the installation approves the addon's capabilities, and the addon's subscribers run as it, with its own grants, never as the system. A subscriber of an addon without an active service actor does not run: [`addon_service_actor_unavailable`](../reference/errors.md#addon_service_actor_unavailable). A key that is not an addon namespace, or a value that is not a UUIDv7 actor id, fails when the kernel reads it. See [Addon manifest](../addons/manifest.md). |
+
 ## Idempotency
 
 | Key | Default | What it does |

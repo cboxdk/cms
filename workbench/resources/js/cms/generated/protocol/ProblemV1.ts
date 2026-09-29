@@ -10,6 +10,7 @@ import { validate, type ObjectRule, type Validation } from '../validation';
 /** The values of ErrorCode. */
 export type ErrorCode =
   | 'actor_not_active'
+  | 'addon_service_actor_unavailable'
   | 'credential_expired'
   | 'credential_malformed'
   | 'credential_revoked'
@@ -89,14 +90,20 @@ export type ErrorCode =
   | 'registry_class_not_loadable'
   | 'registry_duplicate_action'
   | 'registry_duplicate_command'
+  | 'registry_duplicate_namespace'
   | 'registry_duplicate_subscription'
+  | 'registry_incompatible_core_api'
   | 'registry_invalid_attribute'
+  | 'registry_invalid_manifest'
   | 'registry_invalid_scan_root'
   | 'registry_not_a_concrete_class'
   | 'registry_not_a_hook'
   | 'registry_not_a_subscriber'
   | 'registry_not_an_action'
   | 'registry_not_final_readonly'
+  | 'registry_reserved_namespace'
+  | 'registry_undeclared_hook'
+  | 'registry_undeclared_subscriber'
   | 'registry_unknown_action_command'
   | 'registry_unknown_event'
   | 'registry_unknown_hook_command'
@@ -189,6 +196,7 @@ const catalogErrorV1Rule: ObjectRule = {
         kind: 'enum',
         values: [
           'actor_not_active',
+          'addon_service_actor_unavailable',
           'credential_expired',
           'credential_malformed',
           'credential_revoked',
@@ -268,14 +276,20 @@ const catalogErrorV1Rule: ObjectRule = {
           'registry_class_not_loadable',
           'registry_duplicate_action',
           'registry_duplicate_command',
+          'registry_duplicate_namespace',
           'registry_duplicate_subscription',
+          'registry_incompatible_core_api',
           'registry_invalid_attribute',
+          'registry_invalid_manifest',
           'registry_invalid_scan_root',
           'registry_not_a_concrete_class',
           'registry_not_a_hook',
           'registry_not_a_subscriber',
           'registry_not_an_action',
           'registry_not_final_readonly',
+          'registry_reserved_namespace',
+          'registry_undeclared_hook',
+          'registry_undeclared_subscriber',
           'registry_unknown_action_command',
           'registry_unknown_event',
           'registry_unknown_hook_command',
@@ -332,6 +346,7 @@ const problemV1Rule: ObjectRule = {
         kind: 'enum',
         values: [
           'actor_not_active',
+          'addon_service_actor_unavailable',
           'credential_expired',
           'credential_malformed',
           'credential_revoked',
@@ -411,14 +426,20 @@ const problemV1Rule: ObjectRule = {
           'registry_class_not_loadable',
           'registry_duplicate_action',
           'registry_duplicate_command',
+          'registry_duplicate_namespace',
           'registry_duplicate_subscription',
+          'registry_incompatible_core_api',
           'registry_invalid_attribute',
+          'registry_invalid_manifest',
           'registry_invalid_scan_root',
           'registry_not_a_concrete_class',
           'registry_not_a_hook',
           'registry_not_a_subscriber',
           'registry_not_an_action',
           'registry_not_final_readonly',
+          'registry_reserved_namespace',
+          'registry_undeclared_hook',
+          'registry_undeclared_subscriber',
           'registry_unknown_action_command',
           'registry_unknown_event',
           'registry_unknown_hook_command',

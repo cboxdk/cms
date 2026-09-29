@@ -4,12 +4,20 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Actions;
 
+use Cbox\Cms\Contracts\Addons\AddonManifest;
+use Cbox\Cms\Contracts\Addons\AddonNamespace;
+use Cbox\Cms\Contracts\Addons\AllowedHook;
+use Cbox\Cms\Contracts\Addons\AllowedSubscription;
+use Cbox\Cms\Contracts\Addons\ContributedFieldType;
+use Cbox\Cms\Contracts\Addons\CoreApiVersion;
 use Cbox\Cms\Contracts\Attributes\Phase;
 use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Build\ScanRoot;
 use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Events\EventType;
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Contracts\Subscribers\Lane;
 use Cbox\Cms\Contracts\Subscribers\SubscriptionName;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
@@ -19,11 +27,13 @@ use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\BuildProblem;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
+use Cbox\Cms\Core\Registry\Domain\Dto\DeclaredAddons;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredAction;
 use Cbox\Cms\Core\Registry\Domain\Dto\Discovery;
 use Cbox\Cms\Core\Registry\Domain\Dto\HookEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\QueryEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\ScanRoots;
+use Cbox\Cms\Core\Registry\Domain\Dto\SchemaEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscribedEvent;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
 use Cbox\Cms\Core\Registry\Domain\RegistryBuildFailed;
@@ -32,6 +42,8 @@ use Cbox\Cms\Core\Registry\Domain\RegistryCompiler;
 use Cbox\Cms\Core\Registry\Domain\RegistryName;
 use Cbox\Cms\Core\Tests\Registry\Fakes\FakeDeclarationScanner;
 use Cbox\Cms\Core\Tests\Registry\Fakes\FakeRegistryCache;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Addon\IndexReviewedNote;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Addon\RequireNoteStars;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\DuplicateAction\FirstPinner;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\DuplicateAction\SecondPinner;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\DuplicateSubscription\FirstIndexer;
@@ -228,11 +240,11 @@ it('keeps the command name as the CommandName value that the hooks and the idemp
         ->and($read->commands[0]->name->equals($read->hooks[0]->command))->toBeTrue();
 });
 
-it('writes the four files, and reading them back gives the registry that was built', function (): void {
+it('writes the five files, and reading them back gives the registry that was built', function (): void {
     $directory = RegistryFixtures::scratch();
     $built = RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
-    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'subscribers.php'])
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'schema.php', 'subscribers.php'])
         ->and(RegistryFixtures::cache($directory)->read())->toEqual($built);
 
     $actions = RegistryFixtures::load($directory.'/actions.php');
@@ -249,7 +261,7 @@ it('writes the four files, and reading them back gives the registry that was bui
         'entries' => [
             ['class' => CreateNote::class, 'name' => 'fixture.note.create', 'package' => RegistryFixtures::PACKAGE, 'version' => 1],
         ],
-        'format' => 5,
+        'format' => 6,
         'registry' => 'commands',
     ])
         ->and($actions)->toBe([
@@ -274,13 +286,14 @@ it('writes the four files, and reading them back gives the registry that was bui
                     'surfaces' => [],
                 ],
             ],
-            'format' => 5,
+            'format' => 6,
             'registry' => 'actions',
         ])
         ->and($subscribers)->toBe([
             'build' => $hooks['build'],
             'entries' => [
                 [
+                    'addon' => null,
                     'class' => InvalidateNoteFragments::class,
                     'events' => [
                         ['class' => NoteArchived::class, 'name' => 'fixture.note_archived', 'version' => 2],
@@ -292,6 +305,7 @@ it('writes the four files, and reading them back gives the registry that was bui
                     'projection' => 'fixture_fragments',
                 ],
                 [
+                    'addon' => null,
                     'class' => IndexNote::class,
                     'events' => [
                         ['class' => NoteCreated::class, 'name' => 'fixture.note_created', 'version' => 1],
@@ -302,6 +316,7 @@ it('writes the four files, and reading them back gives the registry that was bui
                     'projection' => 'fixture_search',
                 ],
                 [
+                    'addon' => null,
                     'class' => NotifyNoteWebhooks::class,
                     'events' => [
                         ['class' => NoteCreated::class, 'name' => 'fixture.note_created', 'version' => 1],
@@ -313,7 +328,7 @@ it('writes the four files, and reading them back gives the registry that was bui
                     'projection' => null,
                 ],
             ],
-            'format' => 5,
+            'format' => 6,
             'registry' => 'subscribers',
         ])
         ->and($commands['build'])->toMatch('/\A[0-9a-f]{64}\z/');
@@ -326,30 +341,31 @@ it('replaces the actions.php of format 2, which listed actions without the comma
 
     $built = RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
-    expect(array_map(static fn (RegistryName $name): string => $name->fileName(), RegistryName::cases()))->toBe(['actions.php', 'commands.php', 'hooks.php', 'subscribers.php'])
-        ->and(RegistryFixtures::load($directory.'/actions.php'))->toMatchArray(['format' => 5, 'registry' => 'actions'])
-        ->and(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'subscribers.php'])
+    expect(array_map(static fn (RegistryName $name): string => $name->fileName(), RegistryName::cases()))->toBe(['actions.php', 'commands.php', 'hooks.php', 'schema.php', 'subscribers.php'])
+        ->and(RegistryFixtures::load($directory.'/actions.php'))->toMatchArray(['format' => 6, 'registry' => 'actions'])
+        ->and(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'schema.php', 'subscribers.php'])
         ->and(RegistryFixtures::cache($directory)->read())->toEqual($built);
 });
 
-it('writes four empty registries when there are no scan roots', function (): void {
+it('writes five empty registries when there are no scan roots', function (): void {
     $directory = RegistryFixtures::scratch();
     $registry = RegistryFixtures::builder($directory)->build(new ScanRoots);
 
     expect($registry->commands)->toBe([])
         ->and($registry->hooks)->toBe([])
         ->and($registry->actions)->toBe([])
-        ->and($registry->subscribers)->toBe([]);
+        ->and($registry->subscribers)->toBe([])
+        ->and($registry->schema)->toBe([]);
 
-    $build = hash('sha256', "actions => [];\ncommands => [];\nhooks => [];\nsubscribers => [];\n");
+    $build = hash('sha256', "actions => [];\ncommands => [];\nhooks => [];\nschema => [];\nsubscribers => [];\n");
 
     foreach (RegistryName::cases() as $name) {
         expect(RegistryFixtures::load($directory.'/'.$name->fileName()))
-            ->toBe(['build' => $build, 'entries' => [], 'format' => 5, 'registry' => $name->value]);
+            ->toBe(['build' => $build, 'entries' => [], 'format' => 6, 'registry' => $name->value]);
     }
 });
 
-it('removes the slot and schema files an earlier version wrote, and replaces its subscribers.php of format 1', function (): void {
+it('removes the slot file an earlier version wrote, and replaces its schema.php and subscribers.php of format 1', function (): void {
     $directory = RegistryFixtures::scratch();
     mkdir($directory);
 
@@ -359,8 +375,9 @@ it('removes the slot and schema files an earlier version wrote, and replaces its
 
     $built = RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
-    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'subscribers.php'])
-        ->and(RegistryFixtures::load($directory.'/subscribers.php'))->toMatchArray(['format' => 5, 'registry' => 'subscribers'])
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'schema.php', 'subscribers.php'])
+        ->and(RegistryFixtures::load($directory.'/subscribers.php'))->toMatchArray(['format' => 6, 'registry' => 'subscribers'])
+        ->and(RegistryFixtures::load($directory.'/schema.php'))->toMatchArray(['entries' => [], 'format' => 6, 'registry' => 'schema'])
         ->and(RegistryFixtures::cache($directory)->read())->toEqual($built);
 });
 
@@ -376,7 +393,7 @@ it('gives byte-identical files when it builds twice, into the same or another di
     RegistryFixtures::builder($other)->build(new ScanRoots(...array_reverse([...$roots->roots, RegistryFixtures::root('Valid')])));
     $elsewhere = RegistryFixtures::hashes($other);
 
-    expect($first)->toHaveCount(4)
+    expect($first)->toHaveCount(5)
         ->and($second)->toBe($first)
         ->and($elsewhere)->toBe($first);
 });
@@ -386,7 +403,7 @@ it('keeps no temporary files next to the cache', function (): void {
     RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
     RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
-    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'subscribers.php']);
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'schema.php', 'subscribers.php']);
 });
 
 it('refuses two classes with the same command name and version, and writes nothing', function (): void {
@@ -679,4 +696,166 @@ it('refuses the same subscription name in two packages through the fake scanner 
 
     expect(static fn (): CompiledRegistry => $build->build(new ScanRoots(new ScanRoot('acme/one', '/srv/one/src'), new ScanRoot('acme/two', '/srv/two/src'))))
         ->toThrow(RegistryBuildFailed::class, '[registry_duplicate_subscription] Subscription "search.index" is declared by Acme\One\Index (acme/one) and Acme\Two\Index (acme/two).');
+});
+
+/*
+ * Addon manifests (PRD 13.1 to 13.3). The fixture addon acme/cms-reviews has its scan root in
+ * Fixtures/Addon, next to the Valid fixture whose command and event it hooks into and subscribes to.
+ */
+
+/**
+ * The scan roots of the Valid fixture and the fixture addon.
+ */
+function addonRoots(): ScanRoots
+{
+    return new ScanRoots(RegistryFixtures::root('Valid'), RegistryFixtures::root('Addon', RegistryFixtures::ADDON_PACKAGE));
+}
+
+/**
+ * Builds with the manifests and expects the build to fail, returning the failure.
+ */
+function failedAddonBuild(string $directory, AddonManifest ...$manifests): RegistryBuildFailed
+{
+    try {
+        RegistryFixtures::builder($directory)->build(addonRoots(), new DeclaredAddons(array_values($manifests)));
+    } catch (RegistryBuildFailed $failed) {
+        return $failed;
+    }
+
+    Assert::fail('The build did not fail.');
+}
+
+it('compiles a valid manifest: its hook and subscriber name the addon, the hook what it reads, and schema.php its contributions', function (): void {
+    $directory = RegistryFixtures::scratch();
+    $registry = RegistryFixtures::builder($directory)->build(addonRoots(), new DeclaredAddons([RegistryFixtures::addonManifest()]));
+    $reviews = new AddonNamespace('reviews');
+
+    expect($registry->hooks)->toEqual([
+        new HookEntry(TrimNoteTitle::class, RegistryFixtures::PACKAGE, new CommandName('fixture.note.create'), 1, CreateNote::class, Phase::Transform, 10, 5),
+        new HookEntry(RequireNoteStars::class, RegistryFixtures::ADDON_PACKAGE, new CommandName('fixture.note.create'), 1, CreateNote::class, Phase::Validate, 5, 3, $reviews, ClassificationAccess::Internal),
+    ])
+        ->and($registry->subscribers[1])->toEqual(new SubscriberEntry(IndexReviewedNote::class, RegistryFixtures::ADDON_PACKAGE, new SubscriptionName('fixture.reviews'), Lane::Standard, null, [
+            new SubscribedEvent(NoteCreated::class, new EventType('fixture.note_created', 1)),
+        ], $reviews))
+        ->and(array_map(static fn (SubscriberEntry $subscriber): ?AddonNamespace => $subscriber->addon, [$registry->subscribers[0], ...array_slice($registry->subscribers, 2)]))->toBe([null, null, null])
+        ->and($registry->schema)->toEqual([
+            new SchemaEntry($reviews, RegistryFixtures::ADDON_PACKAGE, [new ContributedFieldType('reviews:stars')], [new TypeName('reviews:review')], [new TypeName('app:note')]),
+        ])
+        ->and($registry->count(RegistryName::Schema))->toBe(1)
+        ->and(RegistryFixtures::cache($directory)->read())->toEqual($registry);
+});
+
+it('writes schema.php with each addon\'s contributions, byte for byte the same whatever order the manifests and roots come in', function (): void {
+    $directory = RegistryFixtures::scratch();
+    $other = RegistryFixtures::scratch();
+    $manifests = [
+        RegistryFixtures::addonManifest(),
+        RegistryFixtures::addonManifest('glossary', 'acme/cms-glossary', [], []),
+    ];
+    $reversed = [$manifests[1], $manifests[0]];
+
+    RegistryFixtures::builder($directory)->build(addonRoots(), new DeclaredAddons($manifests));
+    $first = RegistryFixtures::hashes($directory);
+    RegistryFixtures::builder($directory)->build(addonRoots(), new DeclaredAddons($manifests));
+    RegistryFixtures::builder($other)->build(new ScanRoots(...array_reverse(addonRoots()->roots)), new DeclaredAddons($reversed));
+
+    $schema = RegistryFixtures::load($directory.'/schema.php');
+    Assert::assertIsArray($schema);
+
+    expect(RegistryFixtures::hashes($directory))->toBe($first)
+        ->and(RegistryFixtures::hashes($other))->toBe($first)
+        ->and(file_get_contents($directory.'/schema.php'))->toBe(file_get_contents($other.'/schema.php'))
+        ->and($schema)->toBe([
+            'build' => $schema['build'],
+            'entries' => [
+                [
+                    'extends' => ['app:note'],
+                    'field_types' => ['glossary:stars'],
+                    'namespace' => 'glossary',
+                    'package' => 'acme/cms-glossary',
+                    'types' => ['glossary:review'],
+                ],
+                [
+                    'extends' => ['app:note'],
+                    'field_types' => ['reviews:stars'],
+                    'namespace' => 'reviews',
+                    'package' => RegistryFixtures::ADDON_PACKAGE,
+                    'types' => ['reviews:review'],
+                ],
+            ],
+            'format' => 6,
+            'registry' => 'schema',
+        ]);
+});
+
+it('leaves the hooks and subscribers of a package without a manifest to the application', function (): void {
+    $registry = RegistryFixtures::builder(RegistryFixtures::scratch())->build(addonRoots());
+
+    expect(array_map(static fn (HookEntry $hook): ?ClassificationAccess => $hook->reads, $registry->hooks))->toBe([null, null])
+        ->and(array_map(static fn (HookEntry $hook): ?AddonNamespace => $hook->addon, $registry->hooks))->toBe([null, null])
+        ->and(array_filter($registry->subscribers, static fn (SubscriberEntry $subscriber): bool => $subscriber->addon instanceof AddonNamespace))->toBe([])
+        ->and($registry->schema)->toBe([]);
+});
+
+it('refuses two addons with one namespace, and writes nothing', function (): void {
+    $directory = RegistryFixtures::scratch();
+    $failed = failedAddonBuild($directory, RegistryFixtures::addonManifest(), RegistryFixtures::addonManifest('reviews', 'acme/cms-other-reviews', [], []));
+
+    expect($failed->codes())->toBe([BuildErrorCode::DuplicateNamespace])
+        ->and($failed->getMessage())->toContain('[registry_duplicate_namespace] The addon namespace "reviews" is declared by acme/cms-other-reviews and acme/cms-reviews.')
+        ->and(is_dir($directory))->toBeFalse();
+});
+
+it('refuses two manifests of one package', function (): void {
+    $failed = failedAddonBuild(RegistryFixtures::scratch(), RegistryFixtures::addonManifest(), RegistryFixtures::addonManifest('glossary'));
+
+    expect($failed->codes())->toBe([BuildErrorCode::InvalidManifest])
+        ->and($failed->getMessage())->toContain('The package acme/cms-reviews declares 2 addon manifests (reviews, glossary).');
+});
+
+it('refuses a hook of the addon that its manifest does not allow, and writes nothing', function (): void {
+    $directory = RegistryFixtures::scratch();
+    $failed = failedAddonBuild($directory, RegistryFixtures::addonManifest(hooks: [new AllowedHook(CreateNote::class, Phase::Transform)]));
+
+    expect($failed->codes())->toBe([BuildErrorCode::UndeclaredHook])
+        ->and($failed->getMessage())->toContain(sprintf(
+            '[registry_undeclared_hook] Hook %s (acme/cms-reviews) runs for %s (fixture.note.create) in the validate phase, which the manifest of addon "reviews" does not allow. Add new AllowedHook(%s::class, Phase::Validate)',
+            RequireNoteStars::class,
+            CreateNote::class,
+            CreateNote::class,
+        ))
+        ->and(is_dir($directory))->toBeFalse();
+});
+
+it('refuses a subscriber of the addon that receives an event on a lane its manifest does not allow', function (): void {
+    $failed = failedAddonBuild(RegistryFixtures::scratch(), RegistryFixtures::addonManifest(subscriptions: [new AllowedSubscription(NoteCreated::class, Lane::Critical)]));
+
+    expect($failed->codes())->toBe([BuildErrorCode::UndeclaredSubscriber])
+        ->and($failed->getMessage())->toContain(sprintf(
+            '[registry_undeclared_subscriber] Subscriber %s (acme/cms-reviews) receives %s on the standard lane, which the manifest of addon "reviews" does not allow.',
+            IndexReviewedNote::class,
+            NoteCreated::class,
+        ));
+});
+
+it('refuses an addon whose core API version this kernel does not satisfy', function (CoreApiVersion $needed): void {
+    $failed = failedAddonBuild(RegistryFixtures::scratch(), RegistryFixtures::addonManifest(coreApi: $needed));
+
+    expect($failed->codes())->toBe([BuildErrorCode::IncompatibleCoreApi])
+        ->and($failed->getMessage())->toContain(sprintf('Addon "reviews" (acme/cms-reviews) needs the core API %s, and this kernel has %s.', $needed->constraint(), CoreApiVersion::current()->toString()));
+})->with([
+    'the next major version' => [new CoreApiVersion(CoreApiVersion::CURRENT_MAJOR + 1, 0)],
+    'the previous major version' => [new CoreApiVersion(CoreApiVersion::CURRENT_MAJOR - 1, 0)],
+    'a later minor version' => [new CoreApiVersion(CoreApiVersion::CURRENT_MAJOR, CoreApiVersion::CURRENT_MINOR + 1)],
+]);
+
+it('passes on the problems of manifests that could not be read, with its own', function (): void {
+    $unreadable = new BuildProblem(BuildErrorCode::ReservedNamespace, 'The service provider Acme\\Provider declares an addon manifest with a reserved namespace.');
+
+    try {
+        RegistryFixtures::builder(RegistryFixtures::scratch())->build(addonRoots(), new DeclaredAddons([RegistryFixtures::addonManifest(hooks: [])], [$unreadable]));
+        Assert::fail('The build did not fail.');
+    } catch (RegistryBuildFailed $failed) {
+        expect($failed->codes())->toBe([BuildErrorCode::ReservedNamespace, BuildErrorCode::UndeclaredHook]);
+    }
 });

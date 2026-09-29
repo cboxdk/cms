@@ -16,6 +16,8 @@ use Cbox\Cms\Contracts\Identity\ActorDirectory;
 use Cbox\Cms\Contracts\Identity\CredentialVerifier;
 use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Contracts\ReceiptStore;
+use Cbox\Cms\Core\Addons\Boundary\AddonConfig;
+use Cbox\Cms\Core\Addons\Domain\Dto\ServiceActors;
 use Cbox\Cms\Core\Bindings\Boundary\ContractBindings;
 use Cbox\Cms\Core\Doctor\Adapter\CatalogPartitionRunwayProbe;
 use Cbox\Cms\Core\Doctor\Adapter\ConnectionLcMessagesProbe;
@@ -181,6 +183,12 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->singleton(
             CdnDriver::class,
             static fn (Application $app): CdnDriver => $app->make(ContractBindings::class)->resolve($app, CdnDriver::class),
+        );
+
+        // Built on each resolution, so the addons' service actors follow the configuration.
+        $this->app->bind(
+            ServiceActors::class,
+            static fn (Application $app): ServiceActors => AddonConfig::read($app->make(Repository::class)),
         );
 
         // Built on each resolution, so the default wait budget follows the configuration.

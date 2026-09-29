@@ -42,6 +42,7 @@ final class ScanRootsTest extends BuildTestCase
         self::assertSame('hooks', $hooks['registry']);
         self::assertIsArray($hooks['entries']);
         self::assertContains([
+            'addon' => null,
             'budget_ms' => 5,
             'class' => TrimNoteTitle::class,
             'command' => 'note.publish',
@@ -50,6 +51,7 @@ final class ScanRootsTest extends BuildTestCase
             'package' => 'acme/cms-notes',
             'phase' => 'transform',
             'priority' => 20,
+            'reads' => null,
         ], $hooks['entries']);
     }
 

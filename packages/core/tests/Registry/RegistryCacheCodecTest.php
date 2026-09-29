@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Registry;
 
+use Cbox\Cms\Contracts\Addons\AddonNamespace;
+use Cbox\Cms\Contracts\Addons\ContributedFieldType;
 use Cbox\Cms\Contracts\Attributes\Phase;
 use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Events\EventType;
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Contracts\Subscribers\Lane;
 use Cbox\Cms\Contracts\Subscribers\SubscriptionName;
 use Cbox\Cms\Core\Registry\Boundary\RegistryCacheCodec;
@@ -17,6 +21,7 @@ use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Dto\HookEntry;
+use Cbox\Cms\Core\Registry\Domain\Dto\SchemaEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscribedEvent;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
 use Cbox\Cms\Core\Registry\Domain\MalformedRegistryCache;
@@ -27,16 +32,22 @@ function codecRegistry(): CompiledRegistry
 {
     return new CompiledRegistry(
         [new CommandEntry(new CommandName('note.create'), 1, 'App\Commands\CreateNote', 'acme/notes')],
-        [new HookEntry('App\Hooks\Trim', 'acme/notes', new CommandName('note.create'), 1, 'App\Commands\CreateNote', Phase::Transform, -5, 3)],
+        [
+            new HookEntry('App\Hooks\Trim', 'acme/notes', new CommandName('note.create'), 1, 'App\Commands\CreateNote', Phase::Transform, -5, 3),
+            new HookEntry('Acme\Reviews\Hooks\RequireStars', 'acme/cms-reviews', new CommandName('note.create'), 1, 'App\Commands\CreateNote', Phase::Validate, 0, 2, new AddonNamespace('reviews'), ClassificationAccess::Internal),
+        ],
         [new ActionEntry('App\Actions\CreateNoteAction', 'acme/notes', ActionKind::Write, new CommandName('note.create'), 1, 'App\Commands\CreateNote', [Surface::Rest, Surface::Mcp])],
         [
             new SubscriberEntry('App\Subscribers\InvalidateNotes', 'acme/notes', new SubscriptionName('notes.fragments'), Lane::Critical, new ProjectionName('fragments'), [
                 new SubscribedEvent('App\Events\NoteArchived', new EventType('note.archived', 2)),
                 new SubscribedEvent('App\Events\NoteCreated', new EventType('note.created', 1)),
             ]),
-            new SubscriberEntry('App\Subscribers\NotifyNotes', 'acme/notes', new SubscriptionName('notes.webhooks'), Lane::External, null, [
+            new SubscriberEntry('Acme\Reviews\Subscribers\NotifyReviewers', 'acme/cms-reviews', new SubscriptionName('reviews.notify'), Lane::External, null, [
                 new SubscribedEvent('App\Events\NoteCreated', new EventType('note.created', 1)),
-            ]),
+            ], new AddonNamespace('reviews')),
+        ],
+        [
+            new SchemaEntry(new AddonNamespace('reviews'), 'acme/cms-reviews', [new ContributedFieldType('reviews:stars')], [new TypeName('reviews:review')], [new TypeName('app:note'), new TypeName('shop:product')]),
         ],
     );
 }
@@ -101,14 +112,14 @@ function codecFailure(mixed $damaged): MalformedRegistryCache
     Assert::fail('The codec read a malformed cache.');
 }
 
-it('writes the exact bytes of format 5', function (): void {
+it('writes the exact bytes of format 6', function (): void {
     $files = new RegistryCacheCodec()->encode(codecRegistry());
-    $header = "<?php\n\ndeclare(strict_types=1);\n\n// Written by php artisan cms:build from the attributes in the declared scan roots (PRD 13.2).\n// Do not edit and do not commit; run cms:build again instead.\n\n";
+    $header = "<?php\n\ndeclare(strict_types=1);\n\n// Written by php artisan cms:build from the declared scan roots and addon manifests (PRD 13.2).\n// Do not edit and do not commit; run cms:build again instead.\n\n";
 
-    expect(array_keys($files))->toBe(['actions', 'commands', 'hooks', 'subscribers'])
+    expect(array_keys($files))->toBe(['actions', 'commands', 'hooks', 'schema', 'subscribers'])
         ->and($files['actions'])->toBe($header.<<<'PHP'
             return [
-                'build' => 'f60dde97f2bfe39834d3368d5f5c625931387141b976e65e5b4da9fb8c0c3ebf',
+                'build' => '6210c03206ce71d71ef654c3ef31d9fac94a53840df4db40f094808f52de2641',
                 'entries' => [
                     [
                         'class' => 'App\\Actions\\CreateNoteAction',
@@ -123,14 +134,14 @@ it('writes the exact bytes of format 5', function (): void {
                         ],
                     ],
                 ],
-                'format' => 5,
+                'format' => 6,
                 'registry' => 'actions',
             ];
 
             PHP)
         ->and($files['commands'])->toBe($header.<<<'PHP'
             return [
-                'build' => 'f60dde97f2bfe39834d3368d5f5c625931387141b976e65e5b4da9fb8c0c3ebf',
+                'build' => '6210c03206ce71d71ef654c3ef31d9fac94a53840df4db40f094808f52de2641',
                 'entries' => [
                     [
                         'class' => 'App\\Commands\\CreateNote',
@@ -139,16 +150,17 @@ it('writes the exact bytes of format 5', function (): void {
                         'version' => 1,
                     ],
                 ],
-                'format' => 5,
+                'format' => 6,
                 'registry' => 'commands',
             ];
 
             PHP)
         ->and($files['hooks'])->toBe($header.<<<'PHP'
             return [
-                'build' => 'f60dde97f2bfe39834d3368d5f5c625931387141b976e65e5b4da9fb8c0c3ebf',
+                'build' => '6210c03206ce71d71ef654c3ef31d9fac94a53840df4db40f094808f52de2641',
                 'entries' => [
                     [
+                        'addon' => null,
                         'budget_ms' => 3,
                         'class' => 'App\\Hooks\\Trim',
                         'command' => 'note.create',
@@ -157,18 +169,56 @@ it('writes the exact bytes of format 5', function (): void {
                         'package' => 'acme/notes',
                         'phase' => 'transform',
                         'priority' => -5,
+                        'reads' => null,
+                    ],
+                    [
+                        'addon' => 'reviews',
+                        'budget_ms' => 2,
+                        'class' => 'Acme\\Reviews\\Hooks\\RequireStars',
+                        'command' => 'note.create',
+                        'command_class' => 'App\\Commands\\CreateNote',
+                        'command_version' => 1,
+                        'package' => 'acme/cms-reviews',
+                        'phase' => 'validate',
+                        'priority' => 0,
+                        'reads' => 'internal',
                     ],
                 ],
-                'format' => 5,
+                'format' => 6,
                 'registry' => 'hooks',
+            ];
+
+            PHP)
+        ->and($files['schema'])->toBe($header.<<<'PHP'
+            return [
+                'build' => '6210c03206ce71d71ef654c3ef31d9fac94a53840df4db40f094808f52de2641',
+                'entries' => [
+                    [
+                        'extends' => [
+                            'app:note',
+                            'shop:product',
+                        ],
+                        'field_types' => [
+                            'reviews:stars',
+                        ],
+                        'namespace' => 'reviews',
+                        'package' => 'acme/cms-reviews',
+                        'types' => [
+                            'reviews:review',
+                        ],
+                    ],
+                ],
+                'format' => 6,
+                'registry' => 'schema',
             ];
 
             PHP)
         ->and($files['subscribers'])->toBe($header.<<<'PHP'
             return [
-                'build' => 'f60dde97f2bfe39834d3368d5f5c625931387141b976e65e5b4da9fb8c0c3ebf',
+                'build' => '6210c03206ce71d71ef654c3ef31d9fac94a53840df4db40f094808f52de2641',
                 'entries' => [
                     [
+                        'addon' => null,
                         'class' => 'App\\Subscribers\\InvalidateNotes',
                         'events' => [
                             [
@@ -188,7 +238,8 @@ it('writes the exact bytes of format 5', function (): void {
                         'projection' => 'fragments',
                     ],
                     [
-                        'class' => 'App\\Subscribers\\NotifyNotes',
+                        'addon' => 'reviews',
+                        'class' => 'Acme\\Reviews\\Subscribers\\NotifyReviewers',
                         'events' => [
                             [
                                 'class' => 'App\\Events\\NoteCreated',
@@ -197,17 +248,17 @@ it('writes the exact bytes of format 5', function (): void {
                             ],
                         ],
                         'lane' => 'external',
-                        'name' => 'notes.webhooks',
-                        'package' => 'acme/notes',
+                        'name' => 'reviews.notify',
+                        'package' => 'acme/cms-reviews',
                         'projection' => null,
                     ],
                 ],
-                'format' => 5,
+                'format' => 6,
                 'registry' => 'subscribers',
             ];
 
             PHP)
-        ->and(new RegistryCacheCodec()->encode(CompiledRegistry::empty())['commands'])->toBe($header."return [\n    'build' => '".hash('sha256', "actions => [];\ncommands => [];\nhooks => [];\nsubscribers => [];\n")."',\n    'entries' => [],\n    'format' => 5,\n    'registry' => 'commands',\n];\n");
+        ->and(new RegistryCacheCodec()->encode(CompiledRegistry::empty())['commands'])->toBe($header."return [\n    'build' => '".hash('sha256', "actions => [];\ncommands => [];\nhooks => [];\nschema => [];\nsubscribers => [];\n")."',\n    'entries' => [],\n    'format' => 6,\n    'registry' => 'commands',\n];\n");
 });
 
 it('reads back what it writes', function (): void {
@@ -245,22 +296,32 @@ it('refuses a malformed cache with the file and the place in it', function (call
         $files['commands'] = ['entries' => [], 'format' => 1, 'registry' => 'commands'];
 
         return $files;
-    }, 'commands.php', 'at format: format 1 is not format 5, which this version of the core reads'],
+    }, 'commands.php', 'at format: format 1 is not format 6, which this version of the core reads'],
     'a file of format 2, whose actions had no command' => [static function (array $files): array {
         $files['actions'] = [...codecFile($files, 'actions'), 'format' => 2];
 
         return $files;
-    }, 'actions.php', 'at format: format 2 is not format 5, which this version of the core reads'],
+    }, 'actions.php', 'at format: format 2 is not format 6, which this version of the core reads'],
     'a file of format 3, whose cache had no actions.php' => [static function (array $files): array {
         $files['commands'] = [...codecFile($files, 'commands'), 'format' => 3];
 
         return $files;
-    }, 'commands.php', 'at format: format 3 is not format 5, which this version of the core reads'],
+    }, 'commands.php', 'at format: format 3 is not format 6, which this version of the core reads'],
     'a file of format 4, whose cache had no subscribers.php' => [static function (array $files): array {
         $files['hooks'] = [...codecFile($files, 'hooks'), 'format' => 4];
 
         return $files;
-    }, 'hooks.php', 'at format: format 4 is not format 5, which this version of the core reads'],
+    }, 'hooks.php', 'at format: format 4 is not format 6, which this version of the core reads'],
+    'a file of format 5, whose cache had no schema.php' => [static function (array $files): array {
+        $files['subscribers'] = [...codecFile($files, 'subscribers'), 'format' => 5];
+
+        return $files;
+    }, 'subscribers.php', 'at format: format 5 is not format 6, which this version of the core reads'],
+    'a missing schema.php' => [static function (array $files): array {
+        unset($files['schema']);
+
+        return $files;
+    }, 'schema.php', 'expected an array with the keys build, entries, format, registry, got null'],
     'a missing subscribers.php' => [static function (array $files): array {
         unset($files['subscribers']);
 
@@ -292,13 +353,13 @@ it('refuses a malformed cache with the file and the place in it', function (call
         return $files;
     }, 'commands.php', 'at entries[0].version: expected an integer, got string'],
     'an unknown phase' => [static function (array $files): array {
-        $entry = ['budget_ms' => 1, 'class' => 'App\H', 'command' => 'a.b', 'command_class' => 'App\C', 'command_version' => 1, 'package' => 'acme/a', 'phase' => 'commit', 'priority' => 0];
+        $entry = codecHook(['phase' => 'commit']);
         $files['hooks'] = [...codecFile($files, 'hooks'), 'entries' => [$entry]];
 
         return $files;
     }, 'hooks.php', 'at entries[0].phase: "commit" is not a hook phase'],
     'a budget over the limit' => [static function (array $files): array {
-        $entry = ['budget_ms' => 21, 'class' => 'App\H', 'command' => 'a.b', 'command_class' => 'App\C', 'command_version' => 1, 'package' => 'acme/a', 'phase' => 'validate', 'priority' => 0];
+        $entry = codecHook(['budget_ms' => 21]);
         $files['hooks'] = [...codecFile($files, 'hooks'), 'entries' => [$entry]];
 
         return $files;
@@ -309,7 +370,7 @@ it('refuses a malformed cache with the file and the place in it', function (call
         return $files;
     }, 'commands.php', 'at entries[0].name: A command name is dot-separated snake_case segments, for example "entry.release", got "Note.Create". Do not edit'],
     'a hook for a command name that is not one' => [static function (array $files): array {
-        $entry = ['budget_ms' => 1, 'class' => 'App\H', 'command' => 'note', 'command_class' => 'App\C', 'command_version' => 1, 'package' => 'acme/a', 'phase' => 'validate', 'priority' => 0];
+        $entry = codecHook(['command' => 'note']);
         $files['hooks'] = [...codecFile($files, 'hooks'), 'entries' => [$entry]];
 
         return $files;
@@ -403,7 +464,92 @@ it('refuses a malformed cache with the file and the place in it', function (call
         $files['subscribers'] = [...codecFile($files, 'subscribers'), 'entries' => [codecSubscriber(['projection' => null])]];
 
         return $files;
-    }, 'subscribers.php', 'at entries[0]: expected the keys class, events, lane, name, package, projection, got class, events, lane, name, package'],
+    }, 'subscribers.php', 'at entries[0]: expected the keys addon, class, events, lane, name, package, projection, got addon, class, events, lane, name, package'],
+    'a subscriber of an addon whose namespace is reserved' => [static function (array $files): array {
+        $files['subscribers'] = [...codecFile($files, 'subscribers'), 'entries' => [codecSubscriber(['addon' => 'app'])]];
+
+        return $files;
+    }, 'subscribers.php', 'at entries[0].addon: The addon namespace "app" is reserved'],
+    'a subscriber of an addon that is not a string' => [static function (array $files): array {
+        $files['subscribers'] = [...codecFile($files, 'subscribers'), 'entries' => [codecSubscriber(['addon' => 7])]];
+
+        return $files;
+    }, 'subscribers.php', 'at entries[0].addon: expected a string, got int'],
+    'a hook entry missing what it reads' => [static function (array $files): array {
+        $files['hooks'] = [...codecFile($files, 'hooks'), 'entries' => [codecHook(['reads' => null])]];
+
+        return $files;
+    }, 'hooks.php', 'at entries[0]: expected the keys addon, budget_ms, class, command, command_class, command_version, package, phase, priority, reads, got addon, budget_ms, class, command, command_class, command_version, package, phase, priority'],
+    'a hook of an addon whose namespace is not one' => [static function (array $files): array {
+        $files['hooks'] = [...codecFile($files, 'hooks'), 'entries' => [codecHook(['addon' => 'Reviews', 'reads' => 'public'])]];
+
+        return $files;
+    }, 'hooks.php', 'at entries[0].addon: The addon namespace "Reviews" is not a lowercase letter followed by at most 19 lowercase letters and digits'],
+    'a hook that reads a class that is not a classification' => [static function (array $files): array {
+        $files['hooks'] = [...codecFile($files, 'hooks'), 'entries' => [codecHook(['addon' => 'reviews', 'reads' => 'secret'])]];
+
+        return $files;
+    }, 'hooks.php', 'at entries[0].reads: "secret" is not a classification'],
+    'a hook of an addon that says nothing of what it reads' => [static function (array $files): array {
+        $files['hooks'] = [...codecFile($files, 'hooks'), 'entries' => [codecHook(['addon' => 'reviews'])]];
+
+        return $files;
+    }, 'hooks.php', 'at entries[0]: Hook "App\H" names an addon but not what it reads.'],
+    'a hook that reads but names no addon' => [static function (array $files): array {
+        $files['hooks'] = [...codecFile($files, 'hooks'), 'entries' => [codecHook(['reads' => 'internal'])]];
+
+        return $files;
+    }, 'hooks.php', 'at entries[0]: Hook "App\H" names what it reads but no addon.'],
+    'a schema entry missing a key' => [static function (array $files): array {
+        $files['schema'] = [...codecFile($files, 'schema'), 'entries' => [codecSchema(['extends' => null])]];
+
+        return $files;
+    }, 'schema.php', 'at entries[0]: expected the keys extends, field_types, namespace, package, types, got field_types, namespace, package, types'],
+    'a schema entry of a reserved namespace' => [static function (array $files): array {
+        $files['schema'] = [...codecFile($files, 'schema'), 'entries' => [codecSchema(['namespace' => 'ext'])]];
+
+        return $files;
+    }, 'schema.php', 'at entries[0].namespace: The addon namespace "ext" is reserved'],
+    'a field type that is not <namespace>:<handle>' => [static function (array $files): array {
+        $files['schema'] = [...codecFile($files, 'schema'), 'entries' => [codecSchema(['field_types' => ['stars']])]];
+
+        return $files;
+    }, 'schema.php', 'at entries[0].field_types[0]: The field type "stars" is not <namespace>:<handle>'],
+    'a field type of another addon' => [static function (array $files): array {
+        $files['schema'] = [...codecFile($files, 'schema'), 'entries' => [codecSchema(['field_types' => ['shop:stars']])]];
+
+        return $files;
+    }, 'schema.php', 'at entries[0]: Addon "reviews" lists "shop:stars" among its field types.'],
+    'an own type of another owner' => [static function (array $files): array {
+        $files['schema'] = [...codecFile($files, 'schema'), 'entries' => [codecSchema(['types' => ['app:review']])]];
+
+        return $files;
+    }, 'schema.php', 'at entries[0]: Addon "reviews" lists "app:review" among its types.'],
+    'an extension of its own type' => [static function (array $files): array {
+        $files['schema'] = [...codecFile($files, 'schema'), 'entries' => [codecSchema(['extends' => ['reviews:review']])]];
+
+        return $files;
+    }, 'schema.php', 'at entries[0]: Addon "reviews" lists "reviews:review" among its extended types.'],
+    'types out of order' => [static function (array $files): array {
+        $files['schema'] = [...codecFile($files, 'schema'), 'entries' => [codecSchema(['extends' => ['shop:product', 'app:note']])]];
+
+        return $files;
+    }, 'schema.php', 'at entries[0]: The extended types of addon "reviews" are shop:product, app:note. Each is listed once, sorted by name.'],
+    'a type name that is not one' => [static function (array $files): array {
+        $files['schema'] = [...codecFile($files, 'schema'), 'entries' => [codecSchema(['types' => ['review']])]];
+
+        return $files;
+    }, 'schema.php', 'at entries[0].types[0]: '],
+    'types that are not a list' => [static function (array $files): array {
+        $files['schema'] = [...codecFile($files, 'schema'), 'entries' => [codecSchema(['types' => 'reviews:review'])]];
+
+        return $files;
+    }, 'schema.php', 'at entries[0].types: expected a list, got string'],
+    'a schema entry of a package that is not one' => [static function (array $files): array {
+        $files['schema'] = [...codecFile($files, 'schema'), 'entries' => [codecSchema(['package' => 'reviews'])]];
+
+        return $files;
+    }, 'schema.php', 'at entries[0]: The package "reviews" is not a Composer package name.'],
     'an unknown lane' => [static function (array $files): array {
         $files['subscribers'] = [...codecFile($files, 'subscribers'), 'entries' => [codecSubscriber(['lane' => 'urgent'])]];
 
@@ -483,6 +629,26 @@ it('refuses a malformed cache with the file and the place in it', function (call
 ]);
 
 /**
+ * An entry with the given keys changed; a key the changes set to null is left out.
+ *
+ * @param  array<string, mixed>  $entry
+ * @param  array<string, mixed>  $changes
+ * @return array<string, mixed>
+ */
+function codecChanged(array $entry, array $changes): array
+{
+    foreach ($changes as $key => $value) {
+        if ($value === null) {
+            unset($entry[$key]);
+        } else {
+            $entry[$key] = $value;
+        }
+    }
+
+    return $entry;
+}
+
+/**
  * An entry of subscribers.php with the given keys changed; a key set to null is left out.
  *
  * @param  array<string, mixed>  $changes
@@ -490,9 +656,29 @@ it('refuses a malformed cache with the file and the place in it', function (call
  */
 function codecSubscriber(array $changes): array
 {
-    $entry = ['class' => 'App\S', 'events' => [['class' => 'App\E', 'name' => 'a.b', 'version' => 1]], 'lane' => 'critical', 'name' => 'a.s', 'package' => 'acme/a', 'projection' => 'fragments'];
+    return codecChanged(['addon' => null, 'class' => 'App\S', 'events' => [['class' => 'App\E', 'name' => 'a.b', 'version' => 1]], 'lane' => 'critical', 'name' => 'a.s', 'package' => 'acme/a', 'projection' => 'fragments'], $changes);
+}
 
-    return array_filter([...$entry, ...$changes], static fn (mixed $value): bool => $value !== null);
+/**
+ * An entry of hooks.php, of no addon, with the given keys changed; a key set to null is left out.
+ *
+ * @param  array<string, mixed>  $changes
+ * @return array<string, mixed>
+ */
+function codecHook(array $changes): array
+{
+    return codecChanged(['addon' => null, 'budget_ms' => 1, 'class' => 'App\H', 'command' => 'a.b', 'command_class' => 'App\C', 'command_version' => 1, 'package' => 'acme/a', 'phase' => 'validate', 'priority' => 0, 'reads' => null], $changes);
+}
+
+/**
+ * An entry of schema.php with the given keys changed; a key set to null is left out.
+ *
+ * @param  array<string, mixed>  $changes
+ * @return array<string, mixed>
+ */
+function codecSchema(array $changes): array
+{
+    return codecChanged(['extends' => ['app:note'], 'field_types' => ['reviews:stars'], 'namespace' => 'reviews', 'package' => 'acme/cms-reviews', 'types' => ['reviews:review']], $changes);
 }
 
 /**
@@ -529,7 +715,7 @@ it('tells files of different builds from files of one build', function (): void 
 it('knows how many entries each registry holds', function (): void {
     $registry = codecRegistry();
 
-    expect(array_map($registry->count(...), RegistryName::cases()))->toBe([1, 1, 1, 2]);
+    expect(array_map($registry->count(...), RegistryName::cases()))->toBe([1, 1, 2, 1, 2]);
 });
 
 it('gives the kernel the action of a command by its name and version, and by its class', function (): void {
@@ -553,6 +739,13 @@ it('reads back a subscriber without a projection as null, and one with a project
     $read = new RegistryCacheCodec()->decode(codecFiles(codecRegistry()), '/cache');
 
     expect($read->subscribers[0]->projection)->toEqual(new ProjectionName('fragments'))
+        ->and($read->subscribers[0]->addon)->toBeNull()
+        ->and($read->subscribers[1]->addon)->toEqual(new AddonNamespace('reviews'))
+        ->and($read->hooks[0]->addon)->toBeNull()
+        ->and($read->hooks[0]->reads)->toBeNull()
+        ->and($read->hooks[1]->addon)->toEqual(new AddonNamespace('reviews'))
+        ->and($read->hooks[1]->reads)->toBe(ClassificationAccess::Internal)
+        ->and($read->schema)->toEqual(codecRegistry()->schema)
         ->and($read->subscribers[1]->projection)->toBeNull()
         ->and($read->subscribers[0]->lane)->toBe(Lane::Critical)
         ->and($read->subscribers[0]->events[1]->type)->toEqual(new EventType('note.created', 1));
@@ -566,4 +759,19 @@ it('gives another build when only a subscriber changes', function (): void {
     ]);
 
     expect(codecFile(codecFiles($moved), 'commands')['build'])->not->toBe(codecFile(codecFiles($registry), 'commands')['build']);
+});
+
+it('gives another build when only a schema contribution or what the hook of an addon reads changes', function (): void {
+    $registry = codecRegistry();
+    $contributions = new CompiledRegistry($registry->commands, $registry->hooks, $registry->actions, $registry->subscribers, [
+        new SchemaEntry(new AddonNamespace('reviews'), 'acme/cms-reviews', [new ContributedFieldType('reviews:stars')], [new TypeName('reviews:review')], [new TypeName('app:note')]),
+    ]);
+    $reads = new CompiledRegistry($registry->commands, [
+        $registry->hooks[0],
+        new HookEntry('Acme\Reviews\Hooks\RequireStars', 'acme/cms-reviews', new CommandName('note.create'), 1, 'App\Commands\CreateNote', Phase::Validate, 0, 2, new AddonNamespace('reviews'), ClassificationAccess::Confidential),
+    ], $registry->actions, $registry->subscribers, $registry->schema);
+    $build = codecFile(codecFiles($registry), 'commands')['build'];
+
+    expect(codecFile(codecFiles($contributions), 'commands')['build'])->not->toBe($build)
+        ->and(codecFile(codecFiles($reads), 'commands')['build'])->not->toBe($build);
 });

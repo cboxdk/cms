@@ -386,6 +386,67 @@ it('hides a confidential field from the hooks of an actor whose classification a
         ->and(revisionFields($world->committer->pending[0]->plan)->own->get(new FieldHandle('memo')))->toEqual(new TextValue('the confidential memo'));
 });
 
+it('gives an addon\'s hook without the capability for an aggregate\'s fields a view without them, and one with it a view with them (invariant 21)', function (): void {
+    $world = new PipelineWorld;
+    $world->committing();
+    $world->access = ClassificationAccess::Confidential;
+    $publicOnly = new HookLog;
+    $internal = new HookLog;
+    $confidential = new HookLog;
+    $application = new HookLog;
+    $logging = static fn (HookLog $log): CallbackAuthorize => new CallbackAuthorize(static function (PlanView $plan) use ($log): HookDecision {
+        $log->saw($plan);
+
+        return HookDecision::noObjection();
+    });
+    $world->hook($logging($publicOnly), Phase::Authorize, 1, package: 'acme/cms-public', reads: ClassificationAccess::Public)
+        ->hook($logging($internal), Phase::Authorize, 2, package: 'acme/cms-internal', reads: ClassificationAccess::Internal)
+        ->hook($logging($confidential), Phase::Authorize, 3, package: 'acme/cms-confidential', reads: ClassificationAccess::Sensitive)
+        ->hook($logging($application), Phase::Authorize, 4);
+
+    $fields = probeFields('Note', ['memo' => new TextValue('the confidential memo')], ['code' => new TextValue('X-1'), 'tag' => new TextValue('public')]);
+    $world->run($world->command($fields));
+
+    expect($publicOnly->view(0)->classificationAccess)->toBe(ClassificationAccess::Public)
+        ->and($publicOnly->view(0)->revision(hookVariant($world))?->fields->equals(probeFields('Note', [], ['tag' => new TextValue('public')])))->toBeTrue()
+        ->and($internal->view(0)->classificationAccess)->toBe(ClassificationAccess::Internal)
+        ->and($internal->view(0)->revision(hookVariant($world))?->fields->equals(probeFields('Note', [], ['tag' => new TextValue('public')])))->toBeTrue()
+        ->and($confidential->view(0)->classificationAccess)->toBe(ClassificationAccess::Confidential)
+        ->and($confidential->view(0)->revision(hookVariant($world))?->fields->equals($fields))->toBeTrue()
+        ->and($application->view(0)->classificationAccess)->toBe(ClassificationAccess::Confidential)
+        ->and($application->view(0)->revision(hookVariant($world))?->fields->equals($fields))->toBeTrue()
+        ->and(committedFields($world)->equals($fields))->toBeTrue();
+});
+
+it('never gives an addon\'s hook more than the actor may read, whatever its manifest allows', function (): void {
+    $world = new PipelineWorld;
+    $views = new HookLog;
+    $world->hook(new CallbackValidate(static function (PlanView $plan) use ($views): HookErrors {
+        $views->saw($plan);
+
+        return HookErrors::none();
+    }), Phase::Validate, package: 'acme/cms-sensitive', reads: ClassificationAccess::Sensitive);
+
+    $world->run($world->command(probeFields('Note', ['memo' => new TextValue('the confidential memo')])));
+
+    expect($views->view(0)->classificationAccess)->toBe(ClassificationAccess::Internal)
+        ->and($views->view(0)->revision(hookVariant($world))?->fields->equals(probeFields('Note')))->toBeTrue();
+});
+
+it('refuses a transform of an addon\'s hook on a field above what its manifest lets it read, though the actor may read it', function (): void {
+    $world = new PipelineWorld;
+    $world->access = ClassificationAccess::Confidential;
+    $world->hook(new CallbackTransform(static fn (): FieldChanges => new FieldChanges(
+        FieldChange::own(hookVariant($world), new FieldHandle('memo'), new TextValue('changed')),
+    )), Phase::Transform, package: 'acme/cms-internal', reads: ClassificationAccess::Internal);
+
+    $result = $world->run($world->command());
+
+    expect(hookErrors($result))->toBe(['hook_change_refused fields.memo'])
+        ->and($result->errors[0]->message)->toBe('The transform hook '.CallbackTransform::class.' of acme/cms-internal asked for a change a hook may not make: The field "memo" is classified confidential, above the internal classification the actor may read.')
+        ->and($world->committer->pending)->toBe([]);
+});
+
 it('gives a hook the command, its version, the principal and every mutation of the plan in order', function (): void {
     $world = new PipelineWorld;
     $views = new HookLog;

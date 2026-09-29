@@ -33,7 +33,9 @@ use Cbox\Cms\Core\Pipeline\Domain\Stopwatch;
  *
  * The hooks come from the compiled hooks registry through CommandHooks. Within a phase they run by
  * priority with the lowest first, then package name, then class. Each gets the pending plan as a
- * PlanView filtered to the call's classification access (HookPlans), never the plan itself.
+ * PlanView filtered to the call's classification access (HookPlans), never the plan itself; a hook
+ * of an addon gets it filtered to the lower of that and what its manifest lets it read (PRD 13.1,
+ * invariant 21), and cannot change a field above that.
  *
  * - An authorize hook's denial stops the command as unauthorized with the hook's reason.
  * - A transform hook's changes enter the plan in order, and the next hook sees the changed plan; a
@@ -76,11 +78,15 @@ final readonly class HookRunner
 
         $view = null;
         $viewed = null;
+        $viewedAs = null;
 
         foreach ($ordered as $hook) {
-            if (! $view instanceof PlanView || $viewed !== $run->plan) {
-                $view = $this->plans->view($binding->command, $binding->version, $call->access, $run->plan);
+            $readable = $hook->access($call->access->classificationAccess);
+
+            if (! $view instanceof PlanView || $viewed !== $run->plan || $viewedAs !== $readable) {
+                $view = $this->plans->view($binding->command, $binding->version, $call->access, $run->plan, $readable);
                 $viewed = $run->plan;
+                $viewedAs = $readable;
             }
 
             $started = $this->stopwatch->nanoseconds();
@@ -116,7 +122,7 @@ final readonly class HookRunner
         }
 
         if ($answer instanceof FieldChanges) {
-            $changed = $this->plans->apply($run->plan, $answer, $call->access);
+            $changed = $this->plans->apply($run->plan, $answer, $call->access, $hook->access($call->access->classificationAccess));
 
             return $changed instanceof Plan
                 ? $run->withPlan($changed)

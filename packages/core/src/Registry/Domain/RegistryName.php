@@ -8,10 +8,11 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
 
 /**
  * The registries cms:build writes to bootstrap/cache/cms/ (PRD 13.2), one file each, compiled from
- * the #[Action], #[Command], #[Query], #[Hook] and #[Subscription] attributes.
+ * the #[Action], #[Command], #[Query], #[Hook] and #[Subscription] attributes and the addon
+ * manifests: schema.php holds each addon's schema contributions (PRD 13.3).
  *
- * A registry is a case here only when it has an entry type and a source. Schema contributions
- * (PRD 13.3) and UI slots (PRD 13.4) become cases with the blocks that bring them.
+ * A registry is a case here only when it has an entry type and a source. UI slots (PRD 13.4)
+ * become a case with the block that brings them.
  */
 #[Experimental]
 enum RegistryName: string
@@ -19,6 +20,7 @@ enum RegistryName: string
     case Actions = 'actions';
     case Commands = 'commands';
     case Hooks = 'hooks';
+    case Schema = 'schema';
     case Subscribers = 'subscribers';
 
     public function fileName(): string

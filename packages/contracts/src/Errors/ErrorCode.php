@@ -27,6 +27,7 @@ enum ErrorCode: string
     public const string PATTERN = '/\A[a-z][a-z0-9]*(?:_[a-z0-9]+)*\z/';
 
     case ActorNotActive = 'actor_not_active';
+    case AddonServiceActorUnavailable = 'addon_service_actor_unavailable';
     case CredentialExpired = 'credential_expired';
     case CredentialMalformed = 'credential_malformed';
     case CredentialRevoked = 'credential_revoked';
@@ -106,14 +107,20 @@ enum ErrorCode: string
     case RegistryClassNotLoadable = 'registry_class_not_loadable';
     case RegistryDuplicateAction = 'registry_duplicate_action';
     case RegistryDuplicateCommand = 'registry_duplicate_command';
+    case RegistryDuplicateNamespace = 'registry_duplicate_namespace';
     case RegistryDuplicateSubscription = 'registry_duplicate_subscription';
+    case RegistryIncompatibleCoreApi = 'registry_incompatible_core_api';
     case RegistryInvalidAttribute = 'registry_invalid_attribute';
+    case RegistryInvalidManifest = 'registry_invalid_manifest';
     case RegistryInvalidScanRoot = 'registry_invalid_scan_root';
     case RegistryNotAConcreteClass = 'registry_not_a_concrete_class';
     case RegistryNotAHook = 'registry_not_a_hook';
     case RegistryNotASubscriber = 'registry_not_a_subscriber';
     case RegistryNotAnAction = 'registry_not_an_action';
     case RegistryNotFinalReadonly = 'registry_not_final_readonly';
+    case RegistryReservedNamespace = 'registry_reserved_namespace';
+    case RegistryUndeclaredHook = 'registry_undeclared_hook';
+    case RegistryUndeclaredSubscriber = 'registry_undeclared_subscriber';
     case RegistryUnknownActionCommand = 'registry_unknown_action_command';
     case RegistryUnknownEvent = 'registry_unknown_event';
     case RegistryUnknownHookCommand = 'registry_unknown_hook_command';
@@ -152,6 +159,9 @@ enum ErrorCode: string
                 HttpStatus::Forbidden,
                 ExitCode::NoPerm,
                 'The actor, or an actor it acts on behalf of, is not active (PRD 5.16, invariant 37): its credentials are refused, it runs no command and reads nothing, the subscribers of a service actor do not run, and nothing was committed. Reactivate the actor, or call as an actor that is active.',
+            ),
+            self::AddonServiceActorUnavailable => $this->violation(
+                'An addon\'s subscriber did not run, because the addon has no active service actor to run as (PRD 13.1, invariant 21): none is configured in cbox-cms.addons.service_actors, no actor has the configured id, or the actor is not an active service actor. It never runs as the system instead. Configure the service actor created when the addon\'s capabilities were approved, or reactivate it.',
             ),
             self::CredentialExpired => $this->credential(
                 'The credential\'s expiry has passed, so it was refused and nothing was read or committed (PRD 5.16). Every credential has an expiry. Call again with a credential that is still valid.',
@@ -414,10 +424,10 @@ enum ErrorCode: string
                 'A table in cbox-cms.database.partitions.tables cannot be managed as it is: it is missing, not partitioned by range, has a DEFAULT partition, or Postgres refused a step on one of its partitions. The other tables were still maintained. Run the migrations, or correct the table or its entry as the cause says.',
             ),
             self::RegistryCacheMalformed => $this->violation(
-                'The registry cache in bootstrap/cache/cms is damaged, or its files come from different builds, so the kernel cannot read its actions, commands, hooks and subscribers. Run cms:build.',
+                'The registry cache in bootstrap/cache/cms is damaged, or its files come from different builds, so the kernel cannot read its actions, commands, hooks, schema contributions and subscribers. Run cms:build.',
             ),
             self::RegistryCacheMissing => $this->violation(
-                'The registry cache in bootstrap/cache/cms does not exist, so the kernel does not know its actions, commands, hooks and subscribers. Run cms:build; Composer runs it after every install.',
+                'The registry cache in bootstrap/cache/cms does not exist, so the kernel does not know its actions, commands, hooks, schema contributions and subscribers. Run cms:build; Composer runs it after every install.',
             ),
             self::RegistryCacheUnwritable => $this->tooling(
                 ExitCode::CantCreat,
@@ -435,11 +445,20 @@ enum ErrorCode: string
             self::RegistryDuplicateCommand => $this->refusedInput(
                 'Two classes declare the same command or query name and version with #[Command] or #[Query]. Rename one of them, or give it another version.',
             ),
+            self::RegistryDuplicateNamespace => $this->refusedInput(
+                'Two addon manifests name the same namespace. A namespace belongs to one addon in the installation, because it holds the addon\'s extension fields, field types and types (PRD 13.1, 13.3). Remove one of the addons.',
+            ),
             self::RegistryDuplicateSubscription => $this->refusedInput(
                 'Two subscribers declare the same subscription name with #[Subscription]. The event log keeps a subscription\'s cursor under its name, so rename one of them.',
             ),
+            self::RegistryIncompatibleCoreApi => $this->refusedInput(
+                'An addon manifest needs a version of the kernel\'s API that this kernel does not satisfy: another major version, or a later minor version (PRD 13.1, 13.5). Install a version of the addon made for this kernel\'s API, or a kernel with the API it needs.',
+            ),
             self::RegistryInvalidAttribute => $this->refusedInput(
                 'The arguments of an #[Action], #[Command], #[Query], #[Hook] or #[Subscription] attribute are invalid, so it cannot be built. Correct the attribute as the cause says.',
+            ),
+            self::RegistryInvalidManifest => $this->refusedInput(
+                'An addon manifest cannot be built, its documentation or schema directory is not a readable directory, or two manifests name one package (PRD 13.1). Correct the manifest the service provider returns from addonManifest(), as the cause says.',
             ),
             self::RegistryInvalidScanRoot => $this->refusedInput(
                 'A scan root that a service provider declares is not a readable directory. Correct the directory the provider returns from scanRoots().',
@@ -458,6 +477,15 @@ enum ErrorCode: string
             ),
             self::RegistryNotFinalReadonly => $this->refusedInput(
                 'A #[Command], #[Query], #[Action] or #[Subscription] sits on a class that is not a final readonly class (GUARDRAILS 2.1). Make the class final readonly.',
+            ),
+            self::RegistryReservedNamespace => $this->refusedInput(
+                'An addon manifest names the namespace app or ext. The application\'s own fields live under app, and ext holds every extender\'s namespace (PRD 11.12), so neither can be an addon\'s. Give the addon a name of its own.',
+            ),
+            self::RegistryUndeclaredHook => $this->refusedInput(
+                'A #[Hook] of an addon\'s package runs for a command and phase that the addon\'s manifest does not allow (PRD 13.1, 6.3). Allow it in the manifest\'s hooks with an AllowedHook, or remove the hook.',
+            ),
+            self::RegistryUndeclaredSubscriber => $this->refusedInput(
+                'A #[Subscription] of an addon\'s package receives an event on a lane that the addon\'s manifest does not allow (PRD 13.1). Allow it in the manifest\'s subscriptions with an AllowedSubscription, or stop receiving the event.',
             ),
             self::RegistryUnknownActionCommand => $this->refusedInput(
                 'An action handles a class that is not a registered command (for a WriteAction) or query (for a QueryAction). Point #[Action(handles: ...)] at a class declared with #[Command] or #[Query], or declare the scan root of the package that has it.',

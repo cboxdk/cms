@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Registry\Domain\Dto;
 
+use Cbox\Cms\Contracts\Addons\AddonNamespace;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Subscribers\Lane;
@@ -15,6 +16,9 @@ use Cbox\Cms\Core\Registry\Domain\InvalidRegistryEntry;
  * its subscription, its lane, the projection it acknowledges on the receipt or null, and the events
  * it receives, at least one, each class once, sorted by class without case. A subscription name
  * belongs to one subscriber.
+ *
+ * A subscriber of an addon's package also names the addon, whose own service identity it runs as
+ * (PRD 13.1, invariant 21); a subscriber of a package without a manifest names none.
  */
 #[Experimental]
 final readonly class SubscriberEntry
@@ -36,6 +40,7 @@ final readonly class SubscriberEntry
         public Lane $lane,
         public ?ProjectionName $projection,
         array $events,
+        public ?AddonNamespace $addon = null,
     ) {
         $this->class = InvalidRegistryEntry::checkClass('subscriber class', $class);
         $this->package = InvalidRegistryEntry::checkPackage($package);

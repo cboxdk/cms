@@ -11,7 +11,7 @@ description: "Declare commands, queries, actions, hooks and subscribers with att
 <!-- extension-point: Cbox\Cms\Contracts\Attributes\Query -->
 <!-- extension-point: Cbox\Cms\Contracts\Attributes\Hook -->
 
-A package tells the CMS about its commands, queries, actions, hooks and subscribers with attributes on its classes, and tells `cms:build` where those classes are with its service provider. `cms:build` reads the attributes with reflection and compiles four registries to `bootstrap/cache/cms/` (PRD 13.2). Reflection runs only there, at build time; at run time the CMS reads the compiled files (GUARDRAILS 2.2).
+A package tells the CMS about its commands, queries, actions, hooks and subscribers with attributes on its classes, and tells `cms:build` where those classes are with its service provider. `cms:build` reads the attributes with reflection and compiles them, with the [addon manifests](manifest.md), into five registries in `bootstrap/cache/cms/` (PRD 13.2). Reflection runs only there, at build time; at run time the CMS reads the compiled files (GUARDRAILS 2.2).
 
 Run `cms:build` from Composer's `post-autoload-dump` script, so it follows every `composer install`, `composer update` and `composer dump-autoload`, and in every deploy. The files are not committed. `cms:doctor` fails its check `registry.cache` when the files are missing, damaged or older than `vendor/composer/installed.json`, so a registry that misses a newly installed package does not go unnoticed.
 
@@ -82,14 +82,14 @@ Hooks are deterministic and do no network IO; work that needs IO belongs in a su
 
 ## The compiled registries
 
-`cms:build` writes one PHP file per registry to `bootstrap/cache/cms/`: `actions.php`, `commands.php`, `hooks.php` and `subscribers.php`. It removes any other file in that directory, which it owns, except its lock file `.lock`: two builds that run at the same time write the cache one after the other, so it always holds the files of one build. Each file returns an array with these keys:
+`cms:build` writes one PHP file per registry to `bootstrap/cache/cms/`: `actions.php`, `commands.php`, `hooks.php`, `schema.php` and `subscribers.php`. It removes any other file in that directory, which it owns, except its lock file `.lock`: two builds that run at the same time write the cache one after the other, so it always holds the files of one build. Each file returns an array with these keys:
 
 | Key | Value |
 |---|---|
 | `build` | The sha256 of the entries of every registry. The files of one build carry the same value. |
 | `entries` | The list of entries, sorted as below. |
-| `format` | `5`, the format of the files. A cache of another format is refused until `cms:build` runs again. |
-| `registry` | `actions`, `commands`, `hooks` or `subscribers`. |
+| `format` | `6`, the format of the files. A cache of another format is refused until `cms:build` runs again. |
+| `registry` | `actions`, `commands`, `hooks`, `schema` or `subscribers`. |
 
 The keys of every entry are in alphabetical order:
 
@@ -97,8 +97,9 @@ The keys of every entry are in alphabetical order:
 |---|---|---|
 | `actions` | `class`, `command` (the name of the command or query it handles), `command_class`, `command_version`, `kind` (`write` or `query`), `package`, `surfaces` (the values of the surfaces, in the order of the enum) | command name, then command version |
 | `commands` | `class`, `name`, `package`, `version` | name, then version |
-| `hooks` | `budget_ms`, `class`, `command` (the command's name), `command_class`, `command_version`, `package`, `phase` (the value of the phase), `priority` | command name, command version, phase in pipeline order (authorize, transform, validate), priority with the lowest first, package, class |
-| `subscribers` | `class`, `events` (a list of `class`, `name` and `version`: each event class with its type, sorted by class), `lane` (the value of the lane), `name` (the subscription name), `package`, `projection` (the projection name, or null) | subscription name |
+| `hooks` | `addon` (the namespace of the hook's addon, or null), `budget_ms`, `class`, `command` (the command's name), `command_class`, `command_version`, `package`, `phase` (the value of the phase), `priority`, `reads` (the classification the addon may read, or null) | command name, command version, phase in pipeline order (authorize, transform, validate), priority with the lowest first, package, class |
+| `schema` | `extends`, `field_types`, `namespace`, `package`, `types`: an addon's schema contributions, see [addon manifest](manifest.md) | namespace |
+| `subscribers` | `addon` (the namespace of the subscriber's addon, or null), `class`, `events` (a list of `class`, `name` and `version`: each event class with its type, sorted by class), `lane` (the value of the lane), `name` (the subscription name), `package`, `projection` (the projection name, or null) | subscription name |
 
 A file holds no time and no path, so two builds of the same code give the same bytes. Read the files, never edit them: run `cms:build` again instead.
 
@@ -125,6 +126,8 @@ A file holds no time and no path, so two builds of the same code give the same b
 | `registry_unknown_event` | A `#[Subscription]` lists an event class that does not exist or does not implement `Event`, or whose `type()` fails. |
 | `registry_unknown_lane` | A `#[Subscription]` names a lane that is not a case of `Lane`, such as `'critical'` or `Lane::Urgent`. |
 | `registry_duplicate_subscription` | Two subscribers declare the same subscription name. |
+
+An addon's manifest adds its own codes, such as `registry_undeclared_hook` for a hook it does not allow; [addon manifest](manifest.md) lists them.
 
 ## Example
 
@@ -524,6 +527,7 @@ final class ScanRootsTest extends BuildTestCase
         self::assertSame('hooks', $hooks['registry']);
         self::assertIsArray($hooks['entries']);
         self::assertContains([
+            'addon' => null,
             'budget_ms' => 5,
             'class' => TrimNoteTitle::class,
             'command' => 'note.publish',
@@ -532,6 +536,7 @@ final class ScanRootsTest extends BuildTestCase
             'package' => 'acme/cms-notes',
             'phase' => 'transform',
             'priority' => 20,
+            'reads' => null,
         ], $hooks['entries']);
     }
 

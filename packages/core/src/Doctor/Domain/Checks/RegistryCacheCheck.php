@@ -16,9 +16,9 @@ use Override;
 /**
  * The registry cache exists, can be read, and is not older than vendor/ (PRD 13.2).
  *
- * cms:build compiles the registries of actions, commands, hooks and subscribers from the installed code. A
- * cache older than Composer's last change to vendor/composer/installed.json may miss a hook or run
- * one that is gone, so it blocks the kernel.
+ * cms:build compiles the registries of actions, commands, hooks, schema contributions and subscribers
+ * from the installed code. A cache older than Composer's last change to
+ * vendor/composer/installed.json may miss a hook or run one that is gone, so it blocks the kernel.
  */
 #[Internal]
 final readonly class RegistryCacheCheck implements DoctorCheck
@@ -65,7 +65,7 @@ final readonly class RegistryCacheCheck implements DoctorCheck
         if ($state->missingFiles !== [] || ! $state->builtAt instanceof DateTimeImmutable) {
             return $this->fail(
                 self::CODE_MISSING,
-                'The registry cache has not been built, so the kernel does not know its actions, commands, hooks and subscribers.',
+                'The registry cache has not been built, so the kernel does not know its actions, commands, hooks, schema contributions and subscribers.',
                 sprintf('%s lacks %s.', $state->location, implode(', ', $state->missingFiles)),
                 self::BUILD,
             );

@@ -177,9 +177,12 @@ final class PipelineWorld
     /**
      * Registers a hook for probe.rename version 1, of the package acme/probe unless one is given.
      */
-    public function hook(AuthorizeHook|TransformHook|ValidateHook $hook, Phase $phase, int $priority = 0, int $budgetMs = 20, string $package = 'acme/probe'): self
+    /**
+     * @param  ClassificationAccess|null  $reads  what the hook's addon may read, or null for a hook of no addon
+     */
+    public function hook(AuthorizeHook|TransformHook|ValidateHook $hook, Phase $phase, int $priority = 0, int $budgetMs = 20, string $package = 'acme/probe', ?ClassificationAccess $reads = null): self
     {
-        $this->hooks->add(new CommandName('probe.rename'), 1, new BoundHook($hook, $package, $phase, $priority, $budgetMs));
+        $this->hooks->add(new CommandName('probe.rename'), 1, new BoundHook($hook, $package, $phase, $priority, $budgetMs, $reads));
 
         return $this;
     }
