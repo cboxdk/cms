@@ -13,12 +13,14 @@ use Cbox\Cms\Contracts\Doctor\FailureKind;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PartitionCoverage;
 use Cbox\Cms\Core\Doctor\Domain\ProbeFailed;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PartitionRunwayProbe;
+use Cbox\Cms\Core\Partitions\Domain\Dto\SequenceRunway;
 use DateTimeImmutable;
 use Override;
 
 /**
  * Every managed table has partitions at least runway days ahead of the Clock, without a gap
- * (PRD 4, 4.2).
+ * (PRD 4, 4.2), and every table partitioned on a sequence at least runway partitions ahead of its
+ * sequence's current value, without a gap.
  *
  * The tables have no DEFAULT partition, so a write past the last partition fails with
  * PartitionMissing. The scheduler extends the runway every hour, so a short runway means the
@@ -33,15 +35,20 @@ final readonly class PartitionRunwayCheck implements DoctorCheck
 
     public const string CODE_UNMANAGEABLE = 'doctor_partition_table_unmanageable';
 
+    /** How many empty partitions ahead of its sequence a table partitioned on a sequence needs by default. */
+    public const int DEFAULT_RUNWAY_PARTITIONS = 1;
+
     private const string TIME = 'Y-m-d\TH:i:s\Z';
 
     /**
-     * @param  int  $runwayDays  how many days ahead of now every table must have partitions
+     * @param  int  $runwayDays  how many days ahead of now every table partitioned on time must have partitions
+     * @param  int  $runwayPartitions  how many empty partitions ahead of its sequence's current value every table partitioned on a sequence must have
      */
     public function __construct(
         private PartitionRunwayProbe $partitions,
         private Clock $clock,
         private int $runwayDays,
+        private int $runwayPartitions = self::DEFAULT_RUNWAY_PARTITIONS,
     ) {}
 
     #[Override]
@@ -94,13 +101,17 @@ final readonly class PartitionRunwayCheck implements DoctorCheck
         $needed = $now->modify(sprintf('+%d days', $this->runwayDays));
         $short = array_values(array_filter(
             $runways,
-            static fn (PartitionCoverage $runway): bool => ! $runway->coveredUntil instanceof DateTimeImmutable || $runway->coveredUntil < $needed,
+            fn (PartitionCoverage $runway): bool => $runway->sequence instanceof SequenceRunway
+                ? $runway->sequence->partitionsAhead < $this->runwayPartitions
+                : ! $runway->coveredUntil instanceof DateTimeImmutable || $runway->coveredUntil < $needed,
         ));
+        $sequenced = array_any($runways, static fn (PartitionCoverage $runway): bool => $runway->sequence instanceof SequenceRunway);
 
         if ($short === []) {
             return CheckResult::pass($this->id(), false, sprintf(
-                'Every managed table has partitions at least %d days ahead: %s.',
+                'Every managed table has partitions at least %d days ahead%s: %s.',
                 $this->runwayDays,
+                $sequenced ? sprintf(', or %d %s ahead of its sequence', $this->runwayPartitions, $this->runwayPartitions === 1 ? 'partition' : 'partitions') : '',
                 $this->describe($runways, $now),
             ));
         }
@@ -111,8 +122,9 @@ final readonly class PartitionRunwayCheck implements DoctorCheck
             FailureKind::Violation,
             self::CODE_SHORT,
             sprintf(
-                'Some partitioned tables have partitions for less than %d days ahead. A write past the last partition fails with partition_missing, because the tables have no DEFAULT partition.',
+                'Some partitioned tables have partitions for less than %d days ahead%s. A write past the last partition fails with partition_missing, because the tables have no DEFAULT partition.',
                 $this->runwayDays,
+                $sequenced ? sprintf(', or fewer than %d empty %s ahead of their sequence', $this->runwayPartitions, $this->runwayPartitions === 1 ? 'partition' : 'partitions') : '',
             ),
             sprintf('At %s: %s.', $now->format(self::TIME), $this->describe($short, $now)),
             'Run php artisan cms:partitions:maintain, which runs as the owner role, and check that the scheduler runs it every hour (php artisan schedule:list).',
@@ -159,14 +171,24 @@ final readonly class PartitionRunwayCheck implements DoctorCheck
     private function describe(array $runways, DateTimeImmutable $now): string
     {
         return implode(', ', array_map(
-            static fn (PartitionCoverage $runway): string => $runway->coveredUntil instanceof DateTimeImmutable
-                ? sprintf(
+            static fn (PartitionCoverage $runway): string => match (true) {
+                $runway->sequence instanceof SequenceRunway && $runway->sequence->coveredUntil !== null => sprintf(
+                    '%s until id %d (%d %s ahead of id %d)',
+                    $runway->table,
+                    $runway->sequence->coveredUntil,
+                    $runway->sequence->partitionsAhead,
+                    $runway->sequence->partitionsAhead === 1 ? 'partition' : 'partitions',
+                    $runway->sequence->current,
+                ),
+                $runway->sequence instanceof SequenceRunway => sprintf('%s has no partition for its sequence\'s current value %d', $runway->table, $runway->sequence->current),
+                $runway->coveredUntil instanceof DateTimeImmutable => sprintf(
                     '%s until %s (%.1f days)',
                     $runway->table,
                     $runway->coveredUntil->format(self::TIME),
                     ($runway->coveredUntil->getTimestamp() - $now->getTimestamp()) / 86_400,
-                )
-                : sprintf('%s has no partition for now', $runway->table),
+                ),
+                default => sprintf('%s has no partition for now', $runway->table),
+            },
             $runways,
         ));
     }

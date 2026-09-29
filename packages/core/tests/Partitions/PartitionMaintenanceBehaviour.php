@@ -20,6 +20,8 @@ use Cbox\Cms\Core\Partitions\Domain\PartitionInterval;
 use Cbox\Cms\Core\Partitions\Domain\PartitionKey;
 use Cbox\Cms\Core\Partitions\Domain\PartitionMaintenance;
 use Cbox\Cms\Core\Partitions\Domain\PartitionPolicy;
+use Cbox\Cms\Core\Partitions\Domain\SequencePartitionedTable;
+use Cbox\Cms\Core\Partitions\Domain\SequenceRetention;
 use Cbox\Cms\Core\Partitions\Domain\UnmanageableTable;
 use Closure;
 use DateTimeImmutable;
@@ -32,15 +34,33 @@ use Throwable;
  * Postgres and against FakePartitionMaintenance, so the fake the action tests use cannot drift
  * from the manager (GUARDRAILS 9).
  *
- * The cases manage two tables: UUID_TABLE, range-partitioned on a UUIDv7 key, and TIME_TABLE, on
- * a timestamptz; both exist without partitions when a case starts. The policies use a short lock
- * timeout, so a busy lock gives up in a fraction of a second.
+ * The cases manage two tables partitioned on time: UUID_TABLE, range-partitioned on a UUIDv7 key,
+ * and TIME_TABLE, on a timestamptz. They manage tables partitioned on a bigint that a sequence
+ * feeds (PRD 4.1, 7.2): SEQUENCE_TABLE, fed by SEQUENCE, and the leaf parents LIST_A and LIST_B
+ * below the LIST level of LIST_ROOT, both fed by LIST_SEQUENCE. Every table exists without
+ * partitions when a case starts, and every sequence has handed out nothing. The policies use a
+ * short lock timeout, so a busy lock gives up in a fraction of a second.
  */
 trait PartitionMaintenanceBehaviour
 {
     protected const string UUID_TABLE = 'partition_scratch';
 
     protected const string TIME_TABLE = 'partition_scratch_ts';
+
+    protected const string SEQUENCE_TABLE = 'partition_scratch_seq';
+
+    protected const string SEQUENCE = 'partition_scratch_ids';
+
+    protected const string LIST_ROOT = 'partition_scratch_kind';
+
+    protected const string LIST_A = 'partition_scratch_kind_a';
+
+    protected const string LIST_B = 'partition_scratch_kind_b';
+
+    protected const string LIST_SEQUENCE = 'partition_scratch_kind_ids';
+
+    /** The ids each partition of the sequence cases holds. */
+    protected const int WIDTH = 100;
 
     /**
      * The implementation under test, keeping the tables of the policy.
@@ -75,6 +95,157 @@ trait PartitionMaintenanceBehaviour
      * @return list<string>
      */
     abstract protected function partitionsOf(string $table): array;
+
+    /** The sequence has handed out every id up to $current, as setval() leaves it. */
+    abstract protected function advanceSequence(string $sequence, int $current): void;
+
+    /** A row of a table partitioned on a sequence, with the id and the time in its retention column. */
+    abstract protected function insertRow(string $table, int $id, DateTimeImmutable $at): void;
+
+    #[Test]
+    public function maintain_keeps_empty_partitions_ahead_of_the_sequence_and_follows_it(): void
+    {
+        $maintenance = $this->partitionMaintenance($this->policy([], sequenceTables: [$this->sequenceTable()]));
+        $now = new DateTimeImmutable('2026-03-10T12:00:00Z');
+
+        // A sequence that has handed out nothing reads 0: the partition of the first id holds it,
+        // and two empty ones follow.
+        $report = $maintenance->maintain($now);
+
+        Assert::assertSame($this->changes('created', $this->sequenced(self::SEQUENCE_TABLE, 0, 3)), $this->describe($report));
+        Assert::assertSame([self::SEQUENCE_TABLE], $report->analyzed);
+        Assert::assertSame([self::SEQUENCE_TABLE.' current 0 until 300 ahead 2'], $this->sequenceRunways($report));
+
+        $this->advanceSequence(self::SEQUENCE, 250);
+        $next = $maintenance->maintain($now);
+
+        Assert::assertSame($this->changes('created', $this->sequenced(self::SEQUENCE_TABLE, 300, 2)), $this->describe($next));
+        Assert::assertSame([self::SEQUENCE_TABLE.' current 250 until 500 ahead 2'], $this->sequenceRunways($next));
+        Assert::assertNull($next->runways[0]->coveredUntil);
+        Assert::assertSame($this->sequenced(self::SEQUENCE_TABLE, 0, 5), $this->partitionsOf(self::SEQUENCE_TABLE));
+
+        $again = $maintenance->maintain($now);
+
+        Assert::assertSame([], $again->changes);
+        Assert::assertSame([], $again->analyzed);
+    }
+
+    #[Test]
+    public function cover_creates_the_runway_ahead_of_the_sequence_whatever_the_range_and_retires_nothing(): void
+    {
+        $maintenance = $this->partitionMaintenance($this->policy([$this->dailyTable()], sequenceTables: [$this->sequenceTable(retentionDays: 1)], runwayPartitions: 1));
+        $now = new DateTimeImmutable('2026-03-10T12:00:00Z');
+
+        $report = $maintenance->cover($this->range('2026-03-10T00:00:00Z', '2026-03-10T00:00:00Z'), $now);
+
+        Assert::assertSame([
+            'created '.self::UUID_TABLE.'_p20260310',
+            ...$this->changes('created', $this->sequenced(self::SEQUENCE_TABLE, 0, 2)),
+        ], $this->describe($report));
+        Assert::assertSame([], $report->analyzed);
+
+        // The sequence moved past the runway: the next cover creates from the partition that
+        // holds its current value, and removes nothing it has passed.
+        $this->advanceSequence(self::SEQUENCE, 450);
+        $later = $maintenance->cover($this->range('2026-03-10T00:00:00Z', '2026-03-10T00:00:00Z'), $now);
+
+        Assert::assertSame($this->changes('created', $this->sequenced(self::SEQUENCE_TABLE, 400, 2)), $this->describe($later));
+        Assert::assertSame([self::SEQUENCE_TABLE.' current 450 until 600 ahead 1'], $this->sequenceRunways($later));
+        Assert::assertSame([...$this->sequenced(self::SEQUENCE_TABLE, 0, 2), ...$this->sequenced(self::SEQUENCE_TABLE, 400, 2)], $this->partitionsOf(self::SEQUENCE_TABLE));
+    }
+
+    #[Test]
+    public function maintain_retires_the_partitions_the_sequence_passed_whose_newest_row_is_past_retention_in_id_order(): void
+    {
+        $maintenance = $this->partitionMaintenance($this->policy([], sequenceTables: [$this->sequenceTable(retentionDays: 7)]));
+        $maintenance->maintain(new DateTimeImmutable('2026-01-01T00:00:00Z'));
+        $this->insertRow(self::SEQUENCE_TABLE, 5, new DateTimeImmutable('2026-01-01T06:00:00Z'));
+        $this->insertRow(self::SEQUENCE_TABLE, 7, new DateTimeImmutable('2025-12-01T00:00:00Z'));
+        $this->insertRow(self::SEQUENCE_TABLE, 150, new DateTimeImmutable('2026-01-05T00:00:00Z'));
+        $this->advanceSequence(self::SEQUENCE, 350);
+
+        // The newest row of the first partition is 7 days old on 2026-01-08T06:00; the second's
+        // on 2026-01-12, so it is kept, and so is the empty third after it.
+        $first = $maintenance->maintain(new DateTimeImmutable('2026-01-11T00:00:00Z'));
+
+        Assert::assertSame([
+            ...$this->changes('created', $this->sequenced(self::SEQUENCE_TABLE, 300, 3)),
+            'detached '.$this->sequenced(self::SEQUENCE_TABLE, 0, 1)[0],
+            'dropped '.$this->sequenced(self::SEQUENCE_TABLE, 0, 1)[0],
+        ], $this->describe($first));
+        Assert::assertSame($this->sequenced(self::SEQUENCE_TABLE, 100, 5), $this->partitionsOf(self::SEQUENCE_TABLE));
+
+        // The empty partition the sequence has passed goes with the one before it; the partition
+        // that holds the current value stays, whatever the date.
+        $second = $maintenance->maintain(new DateTimeImmutable('2026-01-12T00:00:00Z'));
+        $retired = [];
+
+        foreach ($this->sequenced(self::SEQUENCE_TABLE, 100, 2) as $partition) {
+            $retired[] = 'detached '.$partition;
+            $retired[] = 'dropped '.$partition;
+        }
+
+        Assert::assertSame($retired, $this->describe($second));
+        Assert::assertSame($this->sequenced(self::SEQUENCE_TABLE, 300, 3), $this->partitionsOf(self::SEQUENCE_TABLE));
+        Assert::assertSame([self::SEQUENCE_TABLE.' current 350 until 600 ahead 2'], $this->sequenceRunways($second));
+        Assert::assertSame([], $maintenance->maintain(new DateTimeImmutable('2027-01-01T00:00:00Z'))->changes);
+    }
+
+    #[Test]
+    public function a_table_with_a_list_level_is_kept_per_leaf_parent_from_the_shared_sequence_and_its_root_analyzed_once(): void
+    {
+        $maintenance = $this->partitionMaintenance($this->policy([], sequenceTables: [
+            new SequencePartitionedTable(self::LIST_A, self::WIDTH, self::LIST_SEQUENCE),
+            new SequencePartitionedTable(self::LIST_B, self::WIDTH, self::LIST_SEQUENCE),
+        ]));
+        $now = new DateTimeImmutable('2026-03-10T12:00:00Z');
+
+        $report = $maintenance->maintain($now);
+
+        Assert::assertSame([
+            ...$this->changes('created', $this->sequenced(self::LIST_A, 0, 3)),
+            ...$this->changes('created', $this->sequenced(self::LIST_B, 0, 3)),
+        ], $this->describe($report));
+        Assert::assertSame([self::LIST_ROOT], $report->analyzed);
+
+        $this->advanceSequence(self::LIST_SEQUENCE, 120);
+        $next = $maintenance->maintain($now);
+
+        Assert::assertSame([
+            ...$this->changes('created', $this->sequenced(self::LIST_A, 300, 1)),
+            ...$this->changes('created', $this->sequenced(self::LIST_B, 300, 1)),
+        ], $this->describe($next));
+        Assert::assertSame([self::LIST_ROOT], $next->analyzed);
+        Assert::assertSame([
+            self::LIST_A.' current 120 until 400 ahead 2',
+            self::LIST_B.' current 120 until 400 ahead 2',
+        ], $this->sequenceRunways($next));
+        Assert::assertSame($this->sequenced(self::LIST_B, 0, 4), $this->partitionsOf(self::LIST_B));
+    }
+
+    #[Test]
+    public function a_busy_table_on_a_sequence_gives_up_at_its_first_create_and_the_others_get_their_runway(): void
+    {
+        $maintenance = $this->partitionMaintenance($this->policy([$this->dailyTable()], runwayDays: 1, attempts: 2, sequenceTables: [$this->sequenceTable()]));
+        $now = new DateTimeImmutable('2026-01-10T12:00:00Z');
+        $this->lockTable(self::SEQUENCE_TABLE);
+
+        try {
+            $report = $maintenance->maintain($now);
+        } finally {
+            $this->unlockTable(self::SEQUENCE_TABLE);
+        }
+
+        Assert::assertSame(
+            ['create '.self::SEQUENCE_TABLE.' '.$this->sequenced(self::SEQUENCE_TABLE, 0, 1)[0]],
+            array_map(static fn (GaveUpStep $step): string => $step->step->value.' '.$step->table.' '.$step->partition, $report->gaveUp),
+        );
+        Assert::assertSame($this->changes('created', $this->daily('2026-01-10', 2)), $this->describe($report));
+        Assert::assertSame([self::SEQUENCE_TABLE.' current 0 until none ahead 0'], $this->sequenceRunways($report));
+        Assert::assertSame([], $this->partitionsOf(self::SEQUENCE_TABLE));
+
+        Assert::assertSame($this->changes('created', $this->sequenced(self::SEQUENCE_TABLE, 0, 3)), $this->describe($maintenance->maintain($now)));
+    }
 
     #[Test]
     public function maintain_creates_the_runway_ahead_of_now_and_a_second_run_changes_nothing(): void
@@ -436,12 +607,79 @@ trait PartitionMaintenanceBehaviour
         return new PartitionedTable(self::UUID_TABLE, PartitionKey::Uuid7, PartitionInterval::Day, $retentionDays);
     }
 
+    private function sequenceTable(?int $retentionDays = null): SequencePartitionedTable
+    {
+        return new SequencePartitionedTable(
+            self::SEQUENCE_TABLE,
+            self::WIDTH,
+            self::SEQUENCE,
+            $retentionDays === null ? null : new SequenceRetention(self::SEQUENCE_TABLE, $retentionDays, 'at'),
+        );
+    }
+
     /**
      * @param  list<PartitionedTable>  $tables
+     * @param  list<SequencePartitionedTable>  $sequenceTables
      */
-    private function policy(array $tables, int $runwayDays = PartitionPolicy::DEFAULT_RUNWAY_DAYS, int $attempts = 1): PartitionPolicy
+    private function policy(
+        array $tables,
+        int $runwayDays = PartitionPolicy::DEFAULT_RUNWAY_DAYS,
+        int $attempts = 1,
+        array $sequenceTables = [],
+        int $runwayPartitions = PartitionPolicy::DEFAULT_RUNWAY_PARTITIONS,
+    ): PartitionPolicy {
+        return new PartitionPolicy(
+            $this->ownerConnection(),
+            $tables,
+            $runwayDays,
+            lockTimeoutMs: 100,
+            attempts: $attempts,
+            backoffMs: 10,
+            sequenceTables: $sequenceTables,
+            runwayPartitions: $runwayPartitions,
+        );
+    }
+
+    /**
+     * The names of $count partitions of a table partitioned on a sequence, WIDTH ids each, from
+     * the one whose lower bound is $lower.
+     *
+     * @return list<string>
+     */
+    private function sequenced(string $table, int $lower, int $count): array
     {
-        return new PartitionPolicy($this->ownerConnection(), $tables, $runwayDays, lockTimeoutMs: 100, attempts: $attempts, backoffMs: 10);
+        $names = [];
+
+        for ($i = 0; $i < $count; $i++) {
+            $names[] = sprintf('%s_p%019d', $table, $lower + $i * self::WIDTH);
+        }
+
+        return $names;
+    }
+
+    /**
+     * The runway of each table partitioned on a sequence in the report, as
+     * "<table> current <value> until <id or none> ahead <partitions>".
+     *
+     * @return list<string>
+     */
+    private function sequenceRunways(PartitionReport $report): array
+    {
+        $runways = [];
+
+        foreach ($report->runways as $runway) {
+            if ($runway->sequence !== null) {
+                $runways[] = sprintf(
+                    '%s current %d until %s ahead %d',
+                    $runway->table,
+                    $runway->sequence->current,
+                    $runway->sequence->coveredUntil ?? 'none',
+                    $runway->sequence->partitionsAhead,
+                );
+            }
+        }
+
+        return $runways;
     }
 
     private function range(string $from, string $to): PartitionRange

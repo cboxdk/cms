@@ -7,6 +7,7 @@ namespace Cbox\Cms\Core\Tests\Partitions;
 use Cbox\Cms\Core\Partitions\Domain\PartitionMaintenance;
 use Cbox\Cms\Core\Partitions\Domain\PartitionPolicy;
 use Cbox\Cms\Core\Tests\Partitions\Fakes\FakePartitionMaintenance;
+use DateTimeImmutable;
 use LogicException;
 use Override;
 use PHPUnit\Framework\TestCase;
@@ -24,7 +25,10 @@ final class FakePartitionMaintenanceBehaviourTest extends TestCase
     #[Override]
     protected function partitionMaintenance(PartitionPolicy $policy): PartitionMaintenance
     {
-        return $this->fake = new FakePartitionMaintenance($policy, $this->appConnection(), $this->ownerRole());
+        return $this->fake = new FakePartitionMaintenance($policy, $this->appConnection(), $this->ownerRole(), [
+            self::LIST_A => self::LIST_ROOT,
+            self::LIST_B => self::LIST_ROOT,
+        ]);
     }
 
     #[Override]
@@ -79,6 +83,18 @@ final class FakePartitionMaintenanceBehaviourTest extends TestCase
     protected function partitionsOf(string $table): array
     {
         return $this->fake()->partitions($table);
+    }
+
+    #[Override]
+    protected function advanceSequence(string $sequence, int $current): void
+    {
+        $this->fake()->advanceSequence($sequence, $current);
+    }
+
+    #[Override]
+    protected function insertRow(string $table, int $id, DateTimeImmutable $at): void
+    {
+        $this->fake()->insertRow($table, $id, $at);
     }
 
     private function fake(): FakePartitionMaintenance

@@ -33,6 +33,35 @@ final class InvalidPartitionPolicy extends InvalidArgumentException
         ));
     }
 
+    public static function width(string $table, int $width): self
+    {
+        return new self(sprintf(
+            'The partition width of table "%s" is %d ids. Use at least 1; size it so one partition holds at least a day of the peak inserts.',
+            $table,
+            $width,
+        ));
+    }
+
+    public static function sequenceName(string $table, string $sequence): self
+    {
+        return new self(sprintf(
+            'The sequence "%s" of table "%s" is not a valid name. Use lower-case letters, digits and underscores, starting with a letter or underscore, at most %d characters, without a schema.',
+            $sequence,
+            $table,
+            PartitionedTable::MAX_IDENTIFIER_LENGTH,
+        ));
+    }
+
+    public static function retentionColumn(string $table, string $column): self
+    {
+        return new self(sprintf(
+            'The retention column "%s" of table "%s" is not a valid column name. Use lower-case letters, digits and underscores, starting with a letter or underscore, at most %d characters.',
+            $column,
+            $table,
+            PartitionedTable::MAX_IDENTIFIER_LENGTH,
+        ));
+    }
+
     public static function value(string $key, string $expected, string $given): self
     {
         return new self(sprintf(

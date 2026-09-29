@@ -29,6 +29,7 @@ use Cbox\Cms\Core\Doctor\Domain\Dto\PartitionCoverage;
 use Cbox\Cms\Core\Doctor\Domain\Dto\RoleMembership;
 use Cbox\Cms\Core\Doctor\Domain\ProbeFailed;
 use Cbox\Cms\Core\Doctor\Domain\SettingSource;
+use Cbox\Cms\Core\Partitions\Domain\Dto\SequenceRunway;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePartitionRunwayProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePhpSettingsProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePostgresProbe;
@@ -359,6 +360,40 @@ it('names each table the partition manager cannot manage, and the runway of the 
 
     expect($both->explanation)->toStartWith('The partition manager cannot manage the tables "audit", "events" listed in cbox-cms.database.partitions.tables, so they get no new partitions;')
         ->and($both->cause)->toBe('audit: missing. events: not partitioned by range.');
+});
+
+it('needs every table on a sequence to have the runway in empty partitions ahead of its sequence', function (): void {
+    $clock = new FakeClock(new DateTimeImmutable('2026-03-10T12:00:00Z'));
+    $probe = new FakePartitionRunwayProbe([
+        new PartitionCoverage('receipts_standard', new DateTimeImmutable('2026-03-24T00:00:00Z')),
+        PartitionCoverage::sequence('events', new SequenceRunway(1_500_000, 4_000_000, 2)),
+    ]);
+    $check = new PartitionRunwayCheck($probe, $clock, 7, 2);
+    $passed = $check->run();
+
+    expect($passed->passed())->toBeTrue()
+        ->and($passed->explanation)->toBe('Every managed table has partitions at least 7 days ahead, or 2 partitions ahead of its sequence: receipts_standard until 2026-03-24T00:00:00Z (13.5 days), events until id 4000000 (2 partitions ahead of id 1500000).');
+
+    $probe->runways = [
+        new PartitionCoverage('receipts_standard', new DateTimeImmutable('2026-03-24T00:00:00Z')),
+        PartitionCoverage::sequence('events', new SequenceRunway(2_500_000, 4_000_000, 1)),
+        PartitionCoverage::sequence('revision_payloads_draft', new SequenceRunway(-1, null, 0)),
+    ];
+    $short = $check->run();
+
+    expectFailure($short, FailureKind::Violation, PartitionRunwayCheck::CODE_SHORT, 'At 2026-03-10T12:00:00Z: events until id 4000000 (1 partition ahead of id 2500000), revision_payloads_draft has no partition for its sequence\'s current value -1.');
+    expect($short->explanation)->toBe('Some partitioned tables have partitions for less than 7 days ahead, or fewer than 2 empty partitions ahead of their sequence. A write past the last partition fails with partition_missing, because the tables have no DEFAULT partition.')
+        ->and($short->cause)->not->toContain('receipts_standard')
+        ->and($short->blocking)->toBeFalse();
+
+    $one = new PartitionRunwayCheck(new FakePartitionRunwayProbe([PartitionCoverage::sequence('events', new SequenceRunway(2_500_000, 4_000_000, 1))]), $clock, 7, 1)->run();
+
+    expect($one->passed())->toBeTrue()
+        ->and($one->explanation)->toBe('Every managed table has partitions at least 7 days ahead, or 1 partition ahead of its sequence: events until id 4000000 (1 partition ahead of id 2500000).');
+
+    $none = new PartitionRunwayCheck(new FakePartitionRunwayProbe([PartitionCoverage::sequence('events', new SequenceRunway(4_000_000, 4_000_000, 0))]), $clock, 7)->run();
+
+    expect($none->explanation)->toBe('Some partitioned tables have partitions for less than 7 days ahead, or fewer than 1 empty partition ahead of their sequence. A write past the last partition fails with partition_missing, because the tables have no DEFAULT partition.');
 });
 
 it('fails a registry cache that is missing, damaged, stale or has no vendor manifest to compare with', function (): void {

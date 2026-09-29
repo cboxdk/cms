@@ -31,10 +31,11 @@ For example, `'contracts' => [Clock::class => StagingClock::class]` replaces the
 |---|---|---|
 | `cbox-cms.database.owner_connection` | `pgsql_owner` | The connection of the owner role, which owns the schema and runs the migrations and partition maintenance. Only the maintenance process has it. A process that serves HTTP or runs queued jobs with this connection configured stops while it boots, and the core schedules `cms:partitions:maintain` only in a process that has it. See [Postgres roles](../security/postgres-roles.md). |
 | `cbox-cms.database.partitions.runway_days` | `14` | How many days ahead of now `cms:partitions:maintain` creates partitions. |
+| `cbox-cms.database.partitions.runway_partitions` | `2` | How many empty partitions ahead of its sequence's current value `cms:partitions:maintain` keeps for a table with the key `bigint`, from 1 to 100. |
 | `cbox-cms.database.partitions.lock_timeout_ms` | `2000` | The `lock_timeout` of every DDL statement of the partition manager, in milliseconds. |
 | `cbox-cms.database.partitions.attempts` | `3` | How often a DDL statement is tried when its lock is busy. |
 | `cbox-cms.database.partitions.backoff_ms` | `250` | The wait before the second attempt, in milliseconds; each later wait is twice as long. |
-| `cbox-cms.database.partitions.tables` | the core's five tables | The partitioned tables in the owner connection's search path, each with `key` (`uuid7` or `timestamp`), `interval` (`day` or `month`) and `retention_days` (a whole number, or `null` to keep every partition). See [Partitions](partitions.md). |
+| `cbox-cms.database.partitions.tables` | the core's five tables | The partitioned tables in the owner connection's search path, each with `key` (`uuid7` or `timestamp`), `interval` (`day` or `month`) and `retention_days` (a whole number, or `null` to keep every partition), or with `key` `bigint`, `width`, `sequence`, `retention_days` and `retention_column`. See [Partitions](partitions.md). |
 
 ## Idempotency
 
@@ -52,6 +53,7 @@ For example, `'contracts' => [Clock::class => StagingClock::class]` replaces the
 | `cbox-cms.doctor.redis_connection` | `default` | The Redis connection `valkey.reachable` pings. |
 | `cbox-cms.doctor.connect_timeout_seconds` | `3` | How long Postgres and Valkey get to answer. |
 | `cbox-cms.doctor.partition_runway_days` | `7` | How far ahead every partitioned table must have partitions for `partitions.runway` to pass. Keep it below `cbox-cms.database.partitions.runway_days`. |
+| `cbox-cms.doctor.partition_runway_partitions` | `1` | How many empty partitions ahead of its sequence every table with the key `bigint` must have for `partitions.runway` to pass. Keep it below `cbox-cms.database.partitions.runway_partitions`. |
 | `cbox-cms.doctor.vendor_manifest` | `null` | The file the registry cache must not be older than. `null` is `vendor/composer/installed.json` below the base path. |
 | `cbox-cms.doctor.project_path` | `null` | Where `--dev` looks for `node_modules`. `null` is the base path. |
 | `cbox-cms.doctor.node_minimum` | `22.13.0` | The oldest Node `dev.node` accepts. |

@@ -24,7 +24,8 @@ final readonly class PartitionedTable
     /** The most partitions one call creates for one table, so a typo in a range cannot create thousands. */
     public const int MAX_PARTITIONS_PER_CALL = 1000;
 
-    private const string NAME_PATTERN = '/\A[a-z_][a-z0-9_]*\z/';
+    /** An unquoted identifier: lower-case letters, digits and underscores, starting with a letter or underscore. */
+    public const string NAME_PATTERN = '/\A[a-z_][a-z0-9_]*\z/';
 
     /**
      * @param  string  $name  the table's name, unquoted and without schema; it is resolved in the owner connection's search path

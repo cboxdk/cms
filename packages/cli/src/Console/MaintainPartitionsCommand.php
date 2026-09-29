@@ -12,6 +12,7 @@ use Cbox\Cms\Core\Partitions\Domain\Dto\GaveUpStep;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionChange;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionRange;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionReport;
+use Cbox\Cms\Core\Partitions\Domain\Dto\SequenceRunway;
 use Cbox\Cms\Core\Partitions\Domain\Dto\TableRunway;
 use Cbox\Cms\Core\Partitions\Domain\LockTimeout;
 use Cbox\Cms\Core\Partitions\Domain\OwnerConnectionRequired;
@@ -29,7 +30,8 @@ use Psr\Log\LoggerInterface;
  * Without options it creates partitions from now to the runway's end, removes those past
  * retention and runs ANALYZE on the partitioned parents whose partitions it changed, because
  * autovacuum never analyzes a partitioned table. With --from and --to it only creates the
- * partitions that cover that range, for rows that arrive with past or future keys.
+ * partitions that cover that range, for rows that arrive with past or future keys, and the runway
+ * ahead of the sequence of each table partitioned on a sequence.
  *
  * A table whose lock stays busy does not stop the others, and nor does a table it cannot manage
  * (missing, not partitioned by range, with a DEFAULT partition, or a detached table in its runway
@@ -140,11 +142,7 @@ final class MaintainPartitionsCommand extends Command
         }
 
         foreach ($report->runways as $runway) {
-            $this->line(sprintf(
-                'runway %s until %s',
-                $runway->table,
-                $runway->coveredUntil?->format('Y-m-d\TH:i:s\Z') ?? 'none',
-            ));
+            $this->line(sprintf('runway %s until %s', $runway->table, self::runway($runway)));
         }
 
         $this->info(sprintf('Partitions maintained as role %s: %d changes.', $report->role, count($report->changes)));
@@ -152,8 +150,26 @@ final class MaintainPartitionsCommand extends Command
         $log->info('Partition maintenance ran.', [
             'role' => $report->role,
             'changes' => array_map(static fn (PartitionChange $change): string => $change->kind->value.' '.$change->partition, $report->changes),
-            'runways' => array_map(static fn (TableRunway $runway): string => $runway->table.' '.($runway->coveredUntil?->format('Y-m-d\TH:i:s\Z') ?? 'none'), $report->runways),
+            'runways' => array_map(static fn (TableRunway $runway): string => $runway->table.' '.self::runway($runway), $report->runways),
             'analyzed' => $report->analyzed,
         ]);
+    }
+
+    /**
+     * Where a table's runway ends: a time for a table partitioned on time, and for one partitioned
+     * on a sequence the id with the empty partitions ahead of the sequence's current value; none
+     * when no partition holds now or the current value.
+     */
+    private static function runway(TableRunway $runway): string
+    {
+        $sequence = $runway->sequence;
+
+        if (! $sequence instanceof SequenceRunway) {
+            return $runway->coveredUntil?->format('Y-m-d\TH:i:s\Z') ?? 'none';
+        }
+
+        return $sequence->coveredUntil === null
+            ? sprintf('none (current id %d)', $sequence->current)
+            : sprintf('id %d (%d %s ahead of id %d)', $sequence->coveredUntil, $sequence->partitionsAhead, $sequence->partitionsAhead === 1 ? 'partition' : 'partitions', $sequence->current);
     }
 }

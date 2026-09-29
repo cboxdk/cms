@@ -922,3 +922,100 @@ it('names the connection that read the catalog when a managed table is missing',
         ->and($asOwner)->toBeInstanceOf(UnmanageableTable::class)
         ->and($asOwner->getMessage())->toContain('the search path of the connection [pgsql_owner].');
 });
+
+it('keeps empty partitions ahead of a sequence on real Postgres, bounded by ids, and reads a sequence set with is_called false as one before its next id', function (): void {
+    PartitionScratch::clockAt('2026-01-01T00:00:00Z');
+    PartitionScratch::manage([PartitionScratch::SEQUENCE_TABLE => PartitionScratch::sequenced(100)]);
+
+    $report = app(MaintainPartitions::class)->maintain();
+
+    expect($report->partitions(PartitionChangeKind::Created))->toBe(['partition_scratch_seq_p0000000000000000000', 'partition_scratch_seq_p0000000000000000100', 'partition_scratch_seq_p0000000000000000200'])
+        ->and(PartitionScratch::bounds('partition_scratch_seq_p0000000000000000100'))->toBe("FOR VALUES FROM ('100') TO ('200')");
+
+    // The next id is 500: the partition that holds it is the first ahead.
+    PartitionScratch::owner()->select("select setval('partition_scratch_ids', 500, false)");
+    $runway = app(MaintainPartitions::class)->maintain()->runways[0]->sequence;
+
+    expect([$runway?->current, $runway?->coveredUntil, $runway?->partitionsAhead])->toBe([499, 700, 2])
+        ->and(PartitionScratch::partitions(PartitionScratch::SEQUENCE_TABLE))->toBe([
+            'partition_scratch_seq_p0000000000000000000',
+            'partition_scratch_seq_p0000000000000000100',
+            'partition_scratch_seq_p0000000000000000200',
+            'partition_scratch_seq_p0000000000000000400',
+            'partition_scratch_seq_p0000000000000000500',
+            'partition_scratch_seq_p0000000000000000600',
+        ]);
+
+    PartitionScratch::app()->insert('insert into partition_scratch_seq (at) values (?)', ['2026-01-01 00:00:00+00']);
+
+    expect(PartitionScratch::owner()->scalar('select tableoid::regclass::text from partition_scratch_seq'))->toBe('partition_scratch_seq_p0000000000000000500');
+});
+
+it('records a table on a sequence whose sequence is missing, counts down or cannot be read, or whose retention column is no timestamptz, and keeps the runway of the tables after it', function (string $sequence, ?string $column, string $message): void {
+    PartitionScratch::clockAt('2026-01-01T00:00:00Z');
+    PartitionScratch::owner()->statement('create sequence partition_scratch_down increment by -1');
+    PartitionScratch::owner()->statement('create sequence partition_scratch_hidden');
+    PartitionScratch::owner()->statement('revoke all on sequence partition_scratch_hidden from cms_owner');
+    PartitionScratch::manage([
+        PartitionScratch::SEQUENCE_TABLE => ['key' => 'bigint', 'width' => 100, 'sequence' => $sequence, 'retention_days' => $column === null ? null : 7, 'retention_column' => $column],
+        PartitionScratch::UUID_TABLE => PartitionScratch::daily(),
+    ], ['runway_days' => 1]);
+
+    $report = app(MaintainPartitions::class)->maintain();
+
+    expect($report->failed)->toHaveCount(1)
+        ->and($report->failed[0]->table)->toBe(PartitionScratch::SEQUENCE_TABLE)
+        ->and($report->failed[0]->partition)->toBeNull()
+        ->and($report->failed[0]->message)->toStartWith('['.UnmanageableTable::CODE.']')->toContain($message)
+        ->and(array_map(static fn (TableRunway $runway): string => $runway->table, $report->runways))->toBe([PartitionScratch::UUID_TABLE])
+        ->and(PartitionScratch::partitions(PartitionScratch::UUID_TABLE))->toBe(dailyNames('2026-01-01', 2))
+        ->and(PartitionScratch::partitions(PartitionScratch::SEQUENCE_TABLE))->toBe([]);
+})->with([
+    'missing sequence' => ['partition_scratch_nowhere_ids', null, 'The sequence "partition_scratch_nowhere_ids" that feeds the key of table "partition_scratch_seq" does not exist in the search path of the connection [pgsql_owner].'],
+    'counting down' => ['partition_scratch_down', null, 'The sequence "partition_scratch_down" of table "partition_scratch_seq" has the increment -1 and the minimum -9223372036854775808.'],
+    'not readable' => ['partition_scratch_hidden', null, 'The role "cms_owner" may not read the sequence "partition_scratch_hidden" of table "partition_scratch_seq"'],
+    'retention on a bigint' => [PartitionScratch::SEQUENCE, 'id', 'The table "partition_scratch_seq" has no column "id" of type timestamptz'],
+    'retention on no column' => [PartitionScratch::SEQUENCE, 'occurred_at', 'The table "partition_scratch_seq" has no column "occurred_at" of type timestamptz'],
+]);
+
+it('retires a partition of a table on a sequence with DETACH CONCURRENTLY and DROP once the sequence passed it and its newest row is past retention', function (): void {
+    PartitionScratch::clockAt('2026-01-01T00:00:00Z');
+    PartitionScratch::manage([PartitionScratch::SEQUENCE_TABLE => PartitionScratch::sequenced(100, retentionDays: 7)]);
+    app(MaintainPartitions::class)->maintain();
+    PartitionScratch::insertRow(PartitionScratch::SEQUENCE_TABLE, 10, new DateTimeImmutable('2026-01-01T00:00:00Z'));
+    PartitionScratch::advanceSequence(PartitionScratch::SEQUENCE, 150);
+    PartitionScratch::recordStatements();
+    PartitionScratch::clockAt('2026-01-08T00:00:00Z');
+
+    $report = app(MaintainPartitions::class)->maintain();
+    $owner = PartitionScratch::statements('pgsql_owner');
+
+    expect($report->partitions(PartitionChangeKind::Dropped))->toBe(['partition_scratch_seq_p0000000000000000000'])
+        ->and($report->partitions(PartitionChangeKind::Created))->toBe(['partition_scratch_seq_p0000000000000000300'])
+        ->and(PartitionScratch::exists('partition_scratch_seq_p0000000000000000000'))->toBeFalse()
+        ->and($owner)->toContain('set row_security = off')
+        ->and($owner)->toContain('alter table "cms"."partition_scratch_seq" detach partition "cms"."partition_scratch_seq_p0000000000000000000" concurrently')
+        ->and(array_filter($owner, static fn (string $sql): bool => str_starts_with(strtolower($sql), 'delete')))->toBe([]);
+});
+
+it('records a table on a sequence whose row security hides rows from the owner, instead of dropping a partition that looks empty', function (): void {
+    PartitionScratch::owner()->statement('alter table partition_scratch_seq enable row level security');
+    PartitionScratch::owner()->statement('alter table partition_scratch_seq force row level security');
+    PartitionScratch::owner()->statement('create policy scratch_all on partition_scratch_seq using (true) with check (true)');
+    PartitionScratch::clockAt('2026-01-01T00:00:00Z');
+    PartitionScratch::manage([PartitionScratch::SEQUENCE_TABLE => PartitionScratch::sequenced(100, retentionDays: 7)]);
+    app(MaintainPartitions::class)->maintain();
+    PartitionScratch::insertRow(PartitionScratch::SEQUENCE_TABLE, 10, new DateTimeImmutable('2026-01-01T00:00:00Z'));
+    PartitionScratch::advanceSequence(PartitionScratch::SEQUENCE, 150);
+    PartitionScratch::clockAt('2027-01-01T00:00:00Z');
+
+    $report = app(MaintainPartitions::class)->maintain();
+
+    expect($report->failed)->toHaveCount(1)
+        ->and($report->failed[0]->partition)->toBe('partition_scratch_seq_p0000000000000000000')
+        ->and($report->failed[0]->message)->toContain('Postgres refused the step "detach" for the partition "partition_scratch_seq_p0000000000000000000"')
+        ->and($report->failed[0]->cause)->toContain('row-level security')
+        ->and($report->partitions(PartitionChangeKind::Dropped))->toBe([])
+        ->and(PartitionScratch::partitions(PartitionScratch::SEQUENCE_TABLE))->toContain('partition_scratch_seq_p0000000000000000000')
+        ->and(PartitionScratch::owner()->scalar('select count(*) from partition_scratch_seq'))->toBe(1);
+});

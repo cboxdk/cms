@@ -21,7 +21,8 @@ final readonly class DoctorSettings
      * @param  bool  $maintenanceProcess  whether CBOX_CMS_MAINTENANCE_PROCESS in this process's environment declares it the one that runs migrations and partition maintenance
      * @param  string  $redisConnection  the Redis connection that the Valkey check pings
      * @param  int  $connectTimeoutSeconds  how long a connection attempt to Postgres or Valkey may take
-     * @param  int  $runwayDays  how many days ahead every managed table must have partitions
+     * @param  int  $runwayDays  how many days ahead every managed table partitioned on time must have partitions
+     * @param  int  $runwayPartitions  how many empty partitions ahead of its sequence every managed table partitioned on a sequence must have
      * @param  string  $vendorManifest  Composer's vendor/composer/installed.json, which the registry cache must not be older than
      * @param  string  $projectPath  the directory with package.json and node_modules, for --dev
      * @param  string  $nodeMinimum  the lowest Node version --dev accepts
@@ -36,6 +37,7 @@ final readonly class DoctorSettings
         public string $redisConnection,
         public int $connectTimeoutSeconds,
         public int $runwayDays,
+        public int $runwayPartitions,
         public string $vendorManifest,
         public string $projectPath,
         public string $nodeMinimum,

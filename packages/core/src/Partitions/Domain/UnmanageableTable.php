@@ -10,14 +10,16 @@ use Throwable;
 
 /**
  * A table in the partition policy cannot be managed as it is in the database: it is missing, not
- * partitioned by range or has a DEFAULT partition, a detached table with the managed name of a
+ * partitioned by range or has a DEFAULT partition, the sequence or the retention column of a table
+ * partitioned on a sequence is missing or unusable, a detached table with the managed name of a
  * partition it needs cannot be attached again, or Postgres refused a step on one of its
  * partitions for another reason than a lock wait.
  *
  * It stops that table only. The partition manager records it in the report's failed list as a
  * FailedTable and goes on with the other tables, as it does with a LockTimeout: one table an
  * operator has to fix must not use up the runway of the others, or keep them from retirement. A
- * missing, list-partitioned or DEFAULT-partitioned table gets no phase of the run. A detached
+ * missing, list-partitioned or DEFAULT-partitioned table, or one whose sequence or retention
+ * column is missing or unusable, gets no phase of the run. A detached
  * partition that cannot be attached again, or a refused step, ends the phase it happened in for
  * its table, with the changes made before it kept, and the table's next phase still runs. Only
  * inTransaction() stops the whole run, before it changes anything.
@@ -47,6 +49,51 @@ final class UnmanageableTable extends LogicException
             'The table "%s" is listed in [cbox-cms.database.partitions.tables] but does not exist in the search path of the connection [%s]. Run the migrations first.',
             $table,
             $connection,
+        ));
+    }
+
+    /**
+     * @param  string  $connection  the connection that read the catalog
+     */
+    public static function sequenceMissing(string $table, string $sequence, string $connection): self
+    {
+        return new self(null, sprintf(
+            'The sequence "%s" that feeds the key of table "%s" does not exist in the search path of the connection [%s]. Run the migrations first, or name the sequence of the key in [cbox-cms.database.partitions.tables.%s.sequence].',
+            $sequence,
+            $table,
+            $connection,
+            $table,
+        ));
+    }
+
+    public static function sequenceNotAscending(string $table, string $sequence, int $increment, int $minimum): self
+    {
+        return new self(null, sprintf(
+            'The sequence "%s" of table "%s" has the increment %d and the minimum %d. The partition manager keeps partitions ahead of a sequence that counts up from 0 or more; use an increment of at least 1 and a minimum of at least 0.',
+            $sequence,
+            $table,
+            $increment,
+            $minimum,
+        ));
+    }
+
+    public static function sequenceUnreadable(string $table, string $sequence, string $role): self
+    {
+        return new self(null, sprintf(
+            'The role "%s" may not read the sequence "%s" of table "%s", so the runway ahead of it cannot be measured. Grant it SELECT on the sequence.',
+            $role,
+            $sequence,
+            $table,
+        ));
+    }
+
+    public static function retentionColumn(string $table, string $column): self
+    {
+        return new self(null, sprintf(
+            'The table "%s" has no column "%s" of type timestamptz, which [cbox-cms.database.partitions.tables.%s.retention_column] names. Retention reads the age of a partition\'s newest row from it; name a timestamptz column of the table.',
+            $table,
+            $column,
+            $table,
         ));
     }
 

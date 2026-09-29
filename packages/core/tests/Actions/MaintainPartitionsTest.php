@@ -15,6 +15,8 @@ use Cbox\Cms\Core\Partitions\Domain\PartitionedTable;
 use Cbox\Cms\Core\Partitions\Domain\PartitionInterval;
 use Cbox\Cms\Core\Partitions\Domain\PartitionKey;
 use Cbox\Cms\Core\Partitions\Domain\PartitionPolicy;
+use Cbox\Cms\Core\Partitions\Domain\SequencePartitionedTable;
+use Cbox\Cms\Core\Partitions\Domain\SequenceRetention;
 use Cbox\Cms\Core\Tests\Partitions\Fakes\FakePartitionMaintenance;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use DateTimeImmutable;
@@ -166,4 +168,52 @@ it('takes a range only from its start to its end', function (): void {
         ->toThrow(InvalidPartitionPolicy::class, 'The range ends at 2026-01-01T00:00:00+00:00, before it starts at 2026-01-02T00:00:00+00:00.')
         ->and(new PartitionRange(new DateTimeImmutable('2026-01-01T00:00:00Z'), new DateTimeImmutable('2026-01-01T00:00:00Z'))->to->format(DATE_ATOM))
         ->toBe('2026-01-01T00:00:00+00:00');
+});
+
+/**
+ * The fake manager with the events table partitioned on a bigint of 1000 ids per partition, fed
+ * by events_event_id_seq, with 30 days of retention on occurred_at.
+ */
+function fakeSequencePartitions(): FakePartitionMaintenance
+{
+    return new FakePartitionMaintenance(new PartitionPolicy('pgsql_owner', [], sequenceTables: [
+        new SequencePartitionedTable('events', 1000, 'events_event_id_seq', new SequenceRetention('events', 30, 'occurred_at')),
+    ]));
+}
+
+it('keeps the runway ahead of the sequence at every run, whatever the Clock shows', function (): void {
+    $partitions = fakeSequencePartitions();
+    $clock = new FakeClock(new DateTimeImmutable('2026-05-01T10:00:00Z'));
+    $action = new MaintainPartitions($partitions, $clock);
+
+    expect($action->maintain()->partitions(PartitionChangeKind::Created))->toBe(['events_p0000000000000000000', 'events_p0000000000000001000', 'events_p0000000000000002000']);
+
+    $partitions->advanceSequence('events_event_id_seq', 2400);
+    $report = $action->cover(new PartitionRange(new DateTimeImmutable('2020-01-01T00:00:00Z'), new DateTimeImmutable('2020-01-01T00:00:00Z')));
+    $runway = $report->runways[0]->sequence;
+
+    expect($report->partitions(PartitionChangeKind::Created))->toBe(['events_p0000000000000003000', 'events_p0000000000000004000'])
+        ->and($report->runways[0]->coveredUntil)->toBeNull()
+        ->and([$runway?->current, $runway?->coveredUntil, $runway?->partitionsAhead])->toBe([2400, 5000, 2]);
+});
+
+it('retires a partition the sequence passed once its newest row is past retention, at the Clock\'s time', function (): void {
+    $partitions = fakeSequencePartitions();
+    $clock = new FakeClock(new DateTimeImmutable('2026-05-01T10:00:00Z'));
+    $action = new MaintainPartitions($partitions, $clock);
+    $action->maintain();
+    $partitions->insertRow('events', 10, new DateTimeImmutable('2026-05-01T10:00:00Z'));
+    $partitions->insertRow('events', 1010, new DateTimeImmutable('2026-05-02T10:00:00Z'));
+    $partitions->advanceSequence('events_event_id_seq', 1500);
+
+    $clock->set(new DateTimeImmutable('2026-05-31T09:59:59Z'));
+
+    expect($action->maintain()->partitions(PartitionChangeKind::Dropped))->toBe([]);
+
+    $clock->set(new DateTimeImmutable('2026-06-30T00:00:00Z'));
+    $report = $action->maintain();
+
+    // The second partition holds the current value, so it stays however old its rows are.
+    expect($report->partitions(PartitionChangeKind::Dropped))->toBe(['events_p0000000000000000000'])
+        ->and($partitions->partitions('events'))->toBe(['events_p0000000000000001000', 'events_p0000000000000002000', 'events_p0000000000000003000']);
 });

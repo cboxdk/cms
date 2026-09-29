@@ -11,6 +11,7 @@ use Cbox\Cms\Core\Tests\Partitions\PartitionMaintenanceBehaviour;
 use Cbox\Cms\Testkit\Postgres\IndependentConnections;
 use Cbox\Cms\Testkit\Postgres\RealPostgres;
 use Cbox\Cms\Tests\TestCase;
+use DateTimeImmutable;
 use Illuminate\Database\ConnectionResolverInterface;
 use Illuminate\Database\PostgresConnection;
 use LogicException;
@@ -106,6 +107,18 @@ final class PostgresPartitionMaintenanceBehaviourTest extends TestCase
     protected function partitionsOf(string $table): array
     {
         return PartitionScratch::partitions($table);
+    }
+
+    #[Override]
+    protected function advanceSequence(string $sequence, int $current): void
+    {
+        PartitionScratch::advanceSequence($sequence, $current);
+    }
+
+    #[Override]
+    protected function insertRow(string $table, int $id, DateTimeImmutable $at): void
+    {
+        PartitionScratch::insertRow($table, $id, $at);
     }
 
     private function locker(): PostgresConnection

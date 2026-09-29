@@ -26,11 +26,16 @@ use DateTimeImmutable;
 interface PartitionMaintenance
 {
     /**
-     * Creates the partitions from the span that holds $now to the runway's end for every table,
+     * Creates the partitions from the span that holds $now to the runway's end for every table
+     * partitioned on time, and from the partition that holds the sequence's current value to
+     * runway_partitions empty partitions ahead of it for every table partitioned on a sequence,
      * then removes the partitions past retention with DETACH PARTITION CONCURRENTLY and DROP
      * TABLE, then runs ANALYZE on the root of each partition tree whose partitions it changed,
-     * because autovacuum never analyzes a partitioned table (PRD 4.2). The report measures each
-     * table's runway from $now with PartitionRunway and names the trees it analyzed.
+     * because autovacuum never analyzes a partitioned table (PRD 4.2). A partition of a table
+     * partitioned on a sequence is past retention when the sequence has passed it and its newest
+     * row is retention_days old; the tables are retired in id order up to the first partition
+     * kept. The report measures each table's runway with PartitionRunway, from $now or from the
+     * sequence's current value, and names the trees it analyzed.
      *
      * @throws LockTimeout when another run holds the maintenance lock
      */
@@ -38,7 +43,9 @@ interface PartitionMaintenance
 
     /**
      * Creates the partitions whose spans overlap the range, and removes and analyzes nothing.
-     * For rows that arrive with past or future keys, and for tests at any date. The report
+     * For rows that arrive with past or future keys, and for tests at any date. A table
+     * partitioned on a sequence gets the runway ahead of its sequence, as maintain() creates it,
+     * because a range of dates says nothing about ids. The report
      * measures each table's runway from $now with PartitionRunway, so a range after a gap does not
      * extend it.
      *

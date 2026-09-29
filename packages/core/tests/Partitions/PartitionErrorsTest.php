@@ -106,3 +106,21 @@ it('turns a LockTimeout into a GaveUpStep of its values and the message of its c
         ->and($step->cause)->toStartWith('SQLSTATE[55P03]: canceling statement due to lock timeout')
         ->and(GaveUpStep::of(LockTimeout::gaveUp(DdlStep::Lock, null, null, 1, '2s'))->cause)->toBeNull();
 });
+
+it('names the sequence, the table and what to do when a table on a sequence cannot be managed, with no code of its own', function (): void {
+    $errors = [
+        UnmanageableTable::sequenceMissing('events', 'events_event_id_seq', 'pgsql_owner'),
+        UnmanageableTable::sequenceNotAscending('events', 'events_event_id_seq', -1, -5),
+        UnmanageableTable::sequenceUnreadable('events', 'events_event_id_seq', 'cms_app'),
+        UnmanageableTable::retentionColumn('events', 'occurred_at'),
+    ];
+
+    expect(array_map(static fn (UnmanageableTable $error): string => $error->getMessage(), $errors))->toBe([
+        '[partition_table_unmanageable] The sequence "events_event_id_seq" that feeds the key of table "events" does not exist in the search path of the connection [pgsql_owner]. Run the migrations first, or name the sequence of the key in [cbox-cms.database.partitions.tables.events.sequence].',
+        '[partition_table_unmanageable] The sequence "events_event_id_seq" of table "events" has the increment -1 and the minimum -5. The partition manager keeps partitions ahead of a sequence that counts up from 0 or more; use an increment of at least 1 and a minimum of at least 0.',
+        '[partition_table_unmanageable] The role "cms_app" may not read the sequence "events_event_id_seq" of table "events", so the runway ahead of it cannot be measured. Grant it SELECT on the sequence.',
+        '[partition_table_unmanageable] The table "events" has no column "occurred_at" of type timestamptz, which [cbox-cms.database.partitions.tables.events.retention_column] names. Retention reads the age of a partition\'s newest row from it; name a timestamptz column of the table.',
+    ])
+        ->and(array_map(static fn (UnmanageableTable $error): array => [$error->getCode(), $error->partition, $error->getPrevious()], $errors))
+        ->toBe(array_fill(0, 4, [0, null, null]));
+});

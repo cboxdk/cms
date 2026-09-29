@@ -11,6 +11,7 @@ use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionChange;
 use Cbox\Cms\Core\Partitions\Domain\LockTimeout;
 use Cbox\Cms\Core\Partitions\Domain\Partition;
 use Cbox\Cms\Core\Partitions\Domain\PartitionChangeKind;
+use Cbox\Cms\Core\Partitions\Domain\SequencePartition;
 use Cbox\Cms\Core\Partitions\Domain\UnmanageableTable;
 use Illuminate\Database\Connection;
 
@@ -40,7 +41,7 @@ final class Run
         public readonly LockedDdl $ddl,
     ) {}
 
-    public function record(CatalogTable $table, Partition $partition, PartitionChangeKind $kind): void
+    public function record(CatalogTable $table, Partition|SequencePartition $partition, PartitionChangeKind $kind): void
     {
         $this->changes[] = new PartitionChange($table->table->name, $partition->name, $kind);
     }

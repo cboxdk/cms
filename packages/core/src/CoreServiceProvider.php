@@ -363,6 +363,7 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
                         $app->make(PartitionRunwayProbe::class),
                         $app->make(Clock::class),
                         $settings->runwayDays,
+                        $settings->runwayPartitions,
                     ),
                     new RegistryCacheCheck($app->make(RegistryCacheProbe::class)),
                     new OwnerCredentialsCheck($app->make(ProcessProbe::class), $settings->ownerConnection, $settings->maintenanceProcess),

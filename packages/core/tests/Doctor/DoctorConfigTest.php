@@ -90,6 +90,15 @@ it('takes the connection and paths the application sets', function (): void {
         ->toBe(['pgsql_app', 'pgsql_migrations', 'cache', 1, 3, '/srv/vendor/composer/installed.json', '/srv', '24.0.0']);
 });
 
+it('needs one empty partition ahead of a sequence by default and takes the number the application sets', function (): void {
+    $config = ['database' => ['default' => 'pgsql'], 'cbox-cms' => ['database' => ['owner_connection' => 'pgsql_owner']]];
+
+    expect(DoctorConfig::read(new Repository($config), '/app')->runwayPartitions)->toBe(1)
+        ->and(DoctorConfig::read(new Repository(array_replace_recursive($config, ['cbox-cms' => ['doctor' => ['partition_runway_partitions' => 3]]])), '/app')->runwayPartitions)->toBe(3)
+        ->and(fn (): DoctorSettings => DoctorConfig::read(new Repository(array_replace_recursive($config, ['cbox-cms' => ['doctor' => ['partition_runway_partitions' => 0]]])), '/app'))
+        ->toThrow(InvalidDoctorConfig::class, 'The setting cbox-cms.doctor.partition_runway_partitions must be a whole number of at least 1; it is 0.');
+});
+
 it('takes the owner connection from cbox-cms.database.owner_connection when cbox-cms.doctor has none', function (): void {
     $settings = DoctorConfig::read(new Repository(['database' => ['default' => 'pgsql'], 'cbox-cms' => ['database' => ['owner_connection' => 'pgsql_ddl']]]), '/app');
 

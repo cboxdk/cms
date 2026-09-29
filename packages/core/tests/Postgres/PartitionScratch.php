@@ -17,13 +17,30 @@ use LogicException;
  * Scratch partitioned tables for the partition manager's Postgres tests, made by the owner role.
  *
  * `partition_scratch` is partitioned on a UUIDv7 id, `partition_scratch_ts` on a timestamptz.
- * Tests create them in set-up and drop them, with every partition and leftover, in tear-down.
+ * `partition_scratch_seq` is partitioned on a bigint id that the sequence `partition_scratch_ids`
+ * feeds, with the timestamptz `at` for retention. `partition_scratch_kind` is partitioned by list
+ * on `kind` into `partition_scratch_kind_a` and `partition_scratch_kind_b`, each partitioned on a
+ * bigint id that the one sequence `partition_scratch_kind_ids` feeds, as `revision_payloads` is
+ * by kind (PRD 4.1). Tests create them in set-up and drop them, with every partition, leftover and
+ * sequence, in tear-down.
  */
 final class PartitionScratch
 {
     public const string UUID_TABLE = 'partition_scratch';
 
     public const string TIME_TABLE = 'partition_scratch_ts';
+
+    public const string SEQUENCE_TABLE = 'partition_scratch_seq';
+
+    public const string SEQUENCE = 'partition_scratch_ids';
+
+    public const string LIST_ROOT = 'partition_scratch_kind';
+
+    public const string LIST_A = 'partition_scratch_kind_a';
+
+    public const string LIST_B = 'partition_scratch_kind_b';
+
+    public const string LIST_SEQUENCE = 'partition_scratch_kind_ids';
 
     /** @var list<array{connection: string, sql: string}> */
     private static array $statements = [];
@@ -50,11 +67,27 @@ final class PartitionScratch
             'create table %s (at timestamptz not null, value integer not null default 0) partition by range (at)',
             self::TIME_TABLE,
         ));
+        self::owner()->statement(sprintf('create sequence %s', self::SEQUENCE));
+        self::owner()->statement(sprintf(
+            "create table %s (id bigint not null default nextval('%s'), at timestamptz not null) partition by range (id)",
+            self::SEQUENCE_TABLE,
+            self::SEQUENCE,
+        ));
+        self::owner()->statement(sprintf('create sequence %s', self::LIST_SEQUENCE));
+        self::owner()->statement(sprintf(
+            "create table %s (kind text not null, id bigint not null default nextval('%s'), at timestamptz not null) partition by list (kind)",
+            self::LIST_ROOT,
+            self::LIST_SEQUENCE,
+        ));
+
+        foreach ([self::LIST_A => 'a', self::LIST_B => 'b'] as $table => $kind) {
+            self::owner()->statement(sprintf("create table %s partition of %s for values in ('%s') partition by range (id)", $table, self::LIST_ROOT, $kind));
+        }
     }
 
     /**
      * Drops every table in the schema whose name starts with `partition_scratch`: the parents
-     * with their partitions, and detached leftovers.
+     * with their partitions, and detached leftovers; then every such sequence.
      */
     public static function drop(): void
     {
@@ -65,13 +98,17 @@ final class PartitionScratch
             $owner->statement(sprintf('drop table if exists "%s" cascade', $table));
         }
 
+        foreach (self::names("select relname::text as name from pg_class where relnamespace = 'cms'::regnamespace and relkind = 'S' and starts_with(relname::text, 'partition_scratch') order by relname") as $sequence) {
+            $owner->statement(sprintf('drop sequence if exists "%s"', $sequence));
+        }
+
         $owner->statement('reset lock_timeout');
     }
 
     /**
      * Manages the scratch tables with the given settings, and the policy values given.
      *
-     * @param  array<string, array{key: string, interval: string, retention_days: int|null}>  $tables
+     * @param  array<string, array{key: string, interval: string, retention_days: int|null}|array{key: string, width: int, sequence: string, retention_days: int|null, retention_column: string|null}>  $tables
      * @param  array<string, int|string>  $policy  keys of cbox-cms.database.partitions, and owner_connection
      */
     public static function manage(array $tables, array $policy = []): void
@@ -94,6 +131,39 @@ final class PartitionScratch
             'interval' => $settings['interval'] ?? 'day',
             'retention_days' => $settings['retention_days'] ?? null,
         ];
+    }
+
+    /**
+     * A table partitioned on a sequence, with retention on its `at` column when $retentionDays is
+     * given.
+     *
+     * @return array{key: string, width: int, sequence: string, retention_days: int|null, retention_column: string|null}
+     */
+    public static function sequenced(int $width, string $sequence = self::SEQUENCE, ?int $retentionDays = null): array
+    {
+        return [
+            'key' => 'bigint',
+            'width' => $width,
+            'sequence' => $sequence,
+            'retention_days' => $retentionDays,
+            'retention_column' => $retentionDays === null ? null : 'at',
+        ];
+    }
+
+    /**
+     * Sets the sequence's current value, as the last id it handed out.
+     */
+    public static function advanceSequence(string $sequence, int $current): void
+    {
+        self::owner()->select('select setval(?::regclass, ?, true)', [$sequence, $current]);
+    }
+
+    /**
+     * Writes a row with the id and the time to a table partitioned on a sequence.
+     */
+    public static function insertRow(string $table, int $id, DateTimeImmutable $at): void
+    {
+        self::owner()->insert(sprintf('insert into %s (id, at) values (?, ?)', $table), [$id, $at->format('Y-m-d H:i:s.uP')]);
     }
 
     public static function clockAt(string $instant): FakeClock

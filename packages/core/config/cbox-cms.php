@@ -51,6 +51,18 @@ return [
          * key is 'uuid7' (an id column of UUIDv7s) or 'timestamp' (a timestamptz column), interval is
          * 'day' or 'month', and retention_days is a whole number or null to keep every partition.
          *
+         * A table whose key is a bigint that a sequence feeds (PRD 4.1, 7.2) has no interval:
+         *     'events' => ['key' => 'bigint', 'width' => 1_000_000, 'sequence' => 'events_event_id_seq',
+         *         'retention_days' => 30, 'retention_column' => 'occurred_at'],
+         * Each partition holds width ids, and partitions exist from the one that holds the
+         * sequence's current value to runway_partitions empty partitions ahead of it. Size width so
+         * one partition holds at least a day of the table's peak inserts, so the hourly run keeps
+         * the runway ahead and a stopped scheduler leaves days, not minutes, before a write fails.
+         * A partition the sequence has passed is removed when the newest retention_column value in
+         * it is retention_days old; retention_days null keeps every partition and needs no
+         * retention_column. A table with a LIST level above the range, such as revision_payloads by
+         * kind, is listed once per leaf parent, each with the shared sequence.
+         *
          * The core's own tables are listed here; an application adds its tables next to them. The
          * receipt tables are partitioned by retention class first (PRD 4, 8.4), and each class is
          * managed as its own table: Standard receipts per day, dropped a week after the day ends,
@@ -60,6 +72,7 @@ return [
          */
         'partitions' => [
             'runway_days' => 14,
+            'runway_partitions' => 2,
             'lock_timeout_ms' => 2000,
             'attempts' => 3,
             'backoff_ms' => 250,
@@ -95,8 +108,10 @@ return [
      * maintenance process alone, never a setting here, which every process may share. Postgres and
      * Valkey get connect_timeout_seconds to answer. partition_runway_days is how far ahead every table in
      * database.partitions.tables must have partitions; keep it below runway_days, which maintenance
-     * creates. The registry cache must not be older than vendor_manifest, Composer's
-     * vendor/composer/installed.json below the base path when null. --dev looks for node_modules in
+     * creates. partition_runway_partitions is how many empty partitions ahead of its sequence a
+     * table with a bigint key must have; keep it below runway_partitions. The registry cache must
+     * not be older than vendor_manifest, Composer's vendor/composer/installed.json below the base
+     * path when null. --dev looks for node_modules in
      * project_path, the base path when null, and wants Node node_minimum or newer.
      *
      * An application or addon adds its own checks by class name: those in checks run after the
@@ -112,6 +127,7 @@ return [
         'redis_connection' => 'default',
         'connect_timeout_seconds' => 3,
         'partition_runway_days' => 7,
+        'partition_runway_partitions' => 1,
         'vendor_manifest' => null,
         'project_path' => null,
         'node_minimum' => '22.13.0',

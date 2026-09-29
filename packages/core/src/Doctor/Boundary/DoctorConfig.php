@@ -7,6 +7,7 @@ namespace Cbox\Cms\Core\Doctor\Boundary;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Doctor\DoctorCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\OwnerCredentialsCheck;
+use Cbox\Cms\Core\Doctor\Domain\Checks\PartitionRunwayCheck;
 use Cbox\Cms\Core\Doctor\Domain\Dto\DoctorSettings;
 use Cbox\Cms\Core\Doctor\Domain\InvalidDoctorConfig;
 use Illuminate\Contracts\Config\Repository;
@@ -25,6 +26,7 @@ use Illuminate\Support\Env;
  *         'redis_connection' => 'default',
  *         'connect_timeout_seconds' => 3,
  *         'partition_runway_days' => 7,
+ *         'partition_runway_partitions' => 1,
  *         'vendor_manifest' => null,         // null: <base path>/vendor/composer/installed.json
  *         'project_path' => null,            // null: the base path
  *         'node_minimum' => '22.13.0',
@@ -63,6 +65,7 @@ final readonly class DoctorConfig
             redisConnection: self::name('redis_connection', $config->get(self::CONFIG_KEY.'.redis_connection', 'default')),
             connectTimeoutSeconds: self::positive($config, 'connect_timeout_seconds', 3),
             runwayDays: self::positive($config, 'partition_runway_days', 7),
+            runwayPartitions: self::positive($config, 'partition_runway_partitions', PartitionRunwayCheck::DEFAULT_RUNWAY_PARTITIONS),
             vendorManifest: self::path($config, 'vendor_manifest', $basePath.'/vendor/composer/installed.json'),
             projectPath: self::path($config, 'project_path', $basePath),
             nodeMinimum: self::version($config->get(self::CONFIG_KEY.'.node_minimum', '22.13.0')),

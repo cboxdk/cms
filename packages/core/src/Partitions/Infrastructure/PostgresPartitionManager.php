@@ -14,9 +14,13 @@ use Cbox\Cms\Core\Partitions\Domain\LockTimeout;
 use Cbox\Cms\Core\Partitions\Domain\OwnerConnectionRequired;
 use Cbox\Cms\Core\Partitions\Domain\Partition;
 use Cbox\Cms\Core\Partitions\Domain\PartitionChangeKind;
+use Cbox\Cms\Core\Partitions\Domain\PartitionedTable;
 use Cbox\Cms\Core\Partitions\Domain\PartitionMaintenance;
 use Cbox\Cms\Core\Partitions\Domain\PartitionPolicy;
 use Cbox\Cms\Core\Partitions\Domain\PartitionRunway;
+use Cbox\Cms\Core\Partitions\Domain\SequencePartition;
+use Cbox\Cms\Core\Partitions\Domain\SequencePartitionedTable;
+use Cbox\Cms\Core\Partitions\Domain\SequenceRetention;
 use Cbox\Cms\Core\Partitions\Domain\UnmanageableTable;
 use Closure;
 use DateTimeImmutable;
@@ -63,6 +67,17 @@ use LogicException;
  * not stop the partitions of every other table. Each step runs outside a transaction, or in one
  * that LockedDdl rolls back when it fails, so the run can go on.
  *
+ * A table partitioned on a sequence (PRD 4.1, 7.2) gets its runway ahead of the sequence's
+ * current value, read at the start of each phase: the partition that holds it and
+ * runway_partitions empty partitions after it. A cover run creates that runway too, because a
+ * range of dates says nothing about ids. Retirement reads the sequence and the newest value of
+ * the retention column in each partition the sequence has passed, in id order, and stops at the
+ * first partition it keeps: ids follow time, so the partitions after it are not older. The read
+ * runs with row_security off, so row security that applies to the owner role makes Postgres
+ * refuse it, and the table is reported, rather than hide rows and pass a full partition off as
+ * empty. A table with a LIST level above the range, such as `revision_payloads` by kind, is
+ * listed once per leaf parent, each with the shared sequence, and its root is analyzed once.
+ *
  * Autovacuum analyzes the partitions but never a partitioned table (PRD 4.2: vacuum and
  * statistics), so a maintain run ends with ANALYZE on the root of each partition tree whose
  * partitions it changed, still under the maintenance lock and LockedDdl. ANALYZE of a partitioned
@@ -91,10 +106,16 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
             $now,
             true,
             function (Run $run, CatalogTable $table) use ($now, $until): void {
-                $this->create($run, $table, $table->table->partitionsCovering($now, $until));
+                $this->create($run, $table, $table->table instanceof PartitionedTable
+                    ? $table->table->partitionsCovering($now, $until)
+                    : $this->sequenceRunway($run, $table, $table->table));
             },
             function (Run $run, CatalogTable $table) use ($now): void {
-                $this->retire($run, $table, $now);
+                if ($table->table instanceof PartitionedTable) {
+                    $this->retire($run, $table, $now);
+                } elseif ($table->table->retention instanceof SequenceRetention) {
+                    $this->retireSequence($run, $table, $table->table->retention, $now);
+                }
             },
         );
     }
@@ -106,7 +127,9 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
         }
 
         return $this->run($now, false, function (Run $run, CatalogTable $table) use ($range): void {
-            $this->create($run, $table, $table->table->partitionsCovering($range->from, $range->to));
+            $this->create($run, $table, $table->table instanceof PartitionedTable
+                ? $table->table->partitionsCovering($range->from, $range->to)
+                : $this->sequenceRunway($run, $table, $table->table));
         });
     }
 
@@ -134,7 +157,7 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
         $run = new Run($connection, $catalog, new LockedDdl($connection, $this->policy));
         $tables = [];
 
-        foreach ($this->policy->tables as $table) {
+        foreach ([...$this->policy->tables, ...$this->policy->sequenceTables] as $table) {
             try {
                 $tables[] = $catalog->table($table);
             } catch (UnmanageableTable $unmanageable) {
@@ -203,7 +226,7 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
      * dropped, is attached again rather than skipped, and one left pending detach is finalized
      * first: a write in its span fails until it is attached.
      *
-     * @param  list<Partition>  $wanted
+     * @param  list<Partition>|list<SequencePartition>  $wanted
      *
      * @throws UnmanageableTable when Postgres refuses to create a partition, or to attach such a
      *                           table for its span; the partitions before it are kept, and the run
@@ -242,7 +265,7 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
         }
     }
 
-    private function createPartition(Connection $connection, CatalogTable $table, Partition $partition): void
+    private function createPartition(Connection $connection, CatalogTable $table, Partition|SequencePartition $partition): void
     {
         $name = $table->qualifiedPartition($partition->name);
 
@@ -283,7 +306,7 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
      *
      * @throws UnmanageableTable when Postgres refuses the attach
      */
-    private function reattach(Run $run, CatalogTable $table, Partition $partition): void
+    private function reattach(Run $run, CatalogTable $table, Partition|SequencePartition $partition): void
     {
         try {
             $run->ddl->run(DdlStep::Attach, $table->table->name, $partition->name, function () use ($run, $table, $partition): void {
@@ -296,7 +319,7 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
         $run->record($table, $partition, PartitionChangeKind::Reattached);
     }
 
-    private function attachPartition(Connection $connection, CatalogTable $table, Partition $partition): void
+    private function attachPartition(Connection $connection, CatalogTable $table, Partition|SequencePartition $partition): void
     {
         $name = $table->qualifiedPartition($partition->name);
 
@@ -330,8 +353,60 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
         foreach ($run->catalog->partitions($table) as $found) {
             $partition = $found->partition;
 
-            if (! $partition->isExpiredAt($now)) {
+            if (! $partition instanceof Partition || ! $partition->isExpiredAt($now)) {
                 continue;
+            }
+
+            if ($found->state !== PartitionState::Detached) {
+                $this->detach($run, $table, $partition);
+            }
+
+            $this->step($run, DdlStep::Drop, $table, $partition, static function () use ($run, $table, $partition): void {
+                $run->connection->statement(sprintf('drop table %s', $table->qualifiedPartition($partition->name)));
+            });
+
+            $run->record($table, $partition, PartitionChangeKind::Dropped);
+        }
+    }
+
+    /**
+     * The partitions a table partitioned on a sequence needs: the one that holds the sequence's
+     * current value and runway_partitions empty ones after it.
+     *
+     * @return list<SequencePartition>
+     */
+    private function sequenceRunway(Run $run, CatalogTable $table, SequencePartitionedTable $sequenced): array
+    {
+        return $sequenced->runway($run->catalog->sequenceValue($table), $this->policy->runwayPartitions);
+    }
+
+    /**
+     * Detaches and drops, in id order, each partition the sequence has passed whose newest row is
+     * past retention, and stops at the first partition it keeps. The newest row is read under the
+     * detach step, so a busy partition gives up as a detach does, and a read Postgres refuses,
+     * such as one that row security would filter, is refused as the detach.
+     *
+     * @throws UnmanageableTable when Postgres refuses the read, the detach or the drop
+     */
+    private function retireSequence(Run $run, CatalogTable $table, SequenceRetention $retention, DateTimeImmutable $now): void
+    {
+        $current = $run->catalog->sequenceValue($table);
+
+        foreach ($run->catalog->partitions($table) as $found) {
+            $partition = $found->partition;
+
+            if (! $partition instanceof SequencePartition || ! $partition->isPassed($current)) {
+                return;
+            }
+
+            $newest = null;
+
+            $this->step($run, DdlStep::Detach, $table, $partition, static function () use ($run, $table, $partition, $retention, &$newest): void {
+                $newest = $run->catalog->newestRow($table, $partition->name, $retention);
+            });
+
+            if (! $partition->isExpiredAt($current, $newest, $now)) {
+                return;
             }
 
             if ($found->state !== PartitionState::Detached) {
@@ -352,7 +427,7 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
      *
      * @throws UnmanageableTable when Postgres refuses the detach or the finalize
      */
-    private function detach(Run $run, CatalogTable $table, Partition $partition): void
+    private function detach(Run $run, CatalogTable $table, Partition|SequencePartition $partition): void
     {
         $done = PartitionChangeKind::Detached;
 
@@ -429,7 +504,7 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
      * @throws LockTimeout when the step gives up on its lock
      * @throws UnmanageableTable when Postgres refuses the step
      */
-    private function step(Run $run, DdlStep $step, CatalogTable $table, Partition $partition, Closure $work): void
+    private function step(Run $run, DdlStep $step, CatalogTable $table, Partition|SequencePartition $partition, Closure $work): void
     {
         try {
             $run->ddl->run($step, $table->table->name, $partition->name, $work);
@@ -439,9 +514,10 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
     }
 
     /**
-     * The table's runway from $now after the run, measured with PartitionRunway as the doctor's
-     * partitions.runway check measures it: a gap ends it, however far the partitions after the gap
-     * reach.
+     * The table's runway after the run, measured with PartitionRunway as the doctor's
+     * partitions.runway check measures it: from $now for a table partitioned on time, and from
+     * the sequence's current value for one partitioned on a sequence. A gap ends it, however far
+     * the partitions after the gap reach.
      */
     private function runway(PartitionCatalog $catalog, CatalogTable $table, DateTimeImmutable $now): TableRunway
     {
@@ -451,6 +527,10 @@ final readonly class PostgresPartitionManager implements PartitionMaintenance
             if ($found->state === PartitionState::Attached) {
                 $attached[] = $found->partition;
             }
+        }
+
+        if ($table->table instanceof SequencePartitionedTable) {
+            return new TableRunway($table->table->name, null, PartitionRunway::ahead($table->table, $attached, $catalog->sequenceValue($table)));
         }
 
         return new TableRunway($table->table->name, PartitionRunway::end($table->table, $attached, $now));

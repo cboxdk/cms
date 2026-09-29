@@ -8,7 +8,9 @@ use Cbox\Cms\Core\Doctor\Domain\Dto\PartitionCoverage;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PartitionRunwayProbe;
 use Cbox\Cms\Core\Partitions\Actions\MaintainPartitions;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionRange;
+use Cbox\Cms\Core\Partitions\Domain\Dto\SequenceRunway;
 use Cbox\Cms\Core\Partitions\Domain\Dto\TableRunway;
+use Cbox\Cms\Core\Partitions\Domain\PartitionChangeKind;
 use Cbox\Cms\Core\Partitions\Domain\PartitionedTable;
 use Cbox\Cms\Core\Partitions\Domain\PartitionInterval;
 use Cbox\Cms\Core\Partitions\Domain\PartitionKey;
@@ -76,4 +78,31 @@ it('names the doctor\'s own connection when the doctor cannot find a managed tab
         ['partition_scratch_nowhere', null, '[partition_table_unmanageable] The table "partition_scratch_nowhere" is listed in [cbox-cms.database.partitions.tables] but does not exist in the search path of the connection [cms_doctor]. Run the migrations first.'],
         [PartitionScratch::UUID_TABLE, '2026-01-04T00:00:00+00:00', null],
     ]);
+});
+
+it('gives the report and the doctor the same runway ahead of a sequence, which ends at a detached partition', function (): void {
+    $now = PartitionScratch::clockAt('2026-01-01T10:00:00Z')->now();
+    PartitionScratch::manage([PartitionScratch::SEQUENCE_TABLE => PartitionScratch::sequenced(100)], ['runway_partitions' => 3]);
+    PartitionScratch::advanceSequence(PartitionScratch::SEQUENCE, 150);
+    app(MaintainPartitions::class)->maintain();
+    PartitionScratch::owner()->statement('alter table partition_scratch_seq detach partition partition_scratch_seq_p0000000000000000300');
+
+    $report = app(MaintainPartitions::class)->cover(scratchRange('2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'));
+    $coverage = app(PartitionRunwayProbe::class)->coverage($now);
+    $describe = static fn (?SequenceRunway $runway): ?string => $runway instanceof SequenceRunway ? sprintf('%d until %s, %d ahead', $runway->current, $runway->coveredUntil ?? 'none', $runway->partitionsAhead) : null;
+
+    // The cover run attaches the detached partition again, because the runway needs it; the
+    // doctor reads after it.
+    expect($report->partitions(PartitionChangeKind::Reattached))->toBe(['partition_scratch_seq_p0000000000000000300'])
+        ->and($describe($report->runways[0]->sequence))->toBe('150 until 500, 3 ahead')
+        ->and($describe($coverage[0]->sequence))->toBe('150 until 500, 3 ahead')
+        ->and($coverage[0]->coveredUntil)->toBeNull();
+
+    PartitionScratch::owner()->statement('alter table partition_scratch_seq detach partition partition_scratch_seq_p0000000000000000300');
+
+    expect($describe(app(PartitionRunwayProbe::class)->coverage($now)[0]->sequence))->toBe('150 until 300, 1 ahead');
+
+    PartitionScratch::advanceSequence(PartitionScratch::SEQUENCE, 350);
+
+    expect($describe(app(PartitionRunwayProbe::class)->coverage($now)[0]->sequence))->toBe('350 until none, 0 ahead');
 });

@@ -11,6 +11,7 @@ use Cbox\Cms\Core\Partitions\Domain\PartitionedTable;
 use Cbox\Cms\Core\Partitions\Domain\PartitionInterval;
 use Cbox\Cms\Core\Partitions\Domain\PartitionKey;
 use Cbox\Cms\Core\Partitions\Domain\PartitionPolicy;
+use Cbox\Cms\Core\Partitions\Domain\SequencePartitionedTable;
 use Cbox\Cms\Core\Tests\Partitions\Fakes\FakePartitionMaintenance;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use DateTimeImmutable;
@@ -237,4 +238,36 @@ it('reports the run, then prints and logs each table it could not manage, and ex
     $partitions->unlockTable('metrics');
 
     expect(runPartitionsCommand()[0])->toBe(MaintainPartitionsCommand::EXIT_UNMANAGEABLE);
+});
+
+it('prints and logs the runway of a table on a sequence in ids and in empty partitions ahead of its current value', function (): void {
+    $partitions = new FakePartitionMaintenance(new PartitionPolicy('pgsql_owner', [], sequenceTables: [
+        new SequencePartitionedTable('events', 1000, 'events_event_id_seq'),
+    ], runwayPartitions: 1));
+    $logger = new RecordingLogger;
+    app()->instance(MaintainPartitions::class, new MaintainPartitions($partitions, new FakeClock(new DateTimeImmutable('2026-05-01T10:00:00Z'))));
+    app()->instance(LoggerInterface::class, $logger);
+    $partitions->advanceSequence('events_event_id_seq', 1500);
+
+    expect(runPartitionsCommand())->toBe([0, [
+        'created events.events_p0000000000000001000',
+        'created events.events_p0000000000000002000',
+        'analyzed events',
+        'runway events until id 3000 (1 partition ahead of id 1500)',
+        'Partitions maintained as role cms_owner: 2 changes.',
+    ]])
+        ->and($logger->records[0][2]['runways'] ?? null)->toBe(['events id 3000 (1 partition ahead of id 1500)']);
+
+    $partitions->lockTable('events');
+    $partitions->advanceSequence('events_event_id_seq', 5500);
+
+    expect(runPartitionsCommand()[1])->toContain('runway events until none (current id 5500)');
+
+    $partitions->unlockTable('events');
+
+    expect(runPartitionsCommand()[1])->toContain('runway events until id 7000 (1 partition ahead of id 5500)')
+        ->and(runPartitionsCommand(['--from' => '2026-05-01', '--to' => '2026-05-01'])[1])->toBe([
+            'runway events until id 7000 (1 partition ahead of id 5500)',
+            'Partitions maintained as role cms_owner: 0 changes.',
+        ]);
 });
