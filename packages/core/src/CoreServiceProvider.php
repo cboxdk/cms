@@ -57,6 +57,8 @@ use Cbox\Cms\Core\Doctor\Domain\Probes\RegistryCacheProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\RuntimeProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\ToolProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\ValkeyProbe;
+use Cbox\Cms\Core\Operations\Adapter\PackageOperationRunner;
+use Cbox\Cms\Core\Operations\Domain\OperationRunner;
 use Cbox\Cms\Core\Partitions\Boundary\PartitionConfig;
 use Cbox\Cms\Core\Partitions\Domain\PartitionMaintenance;
 use Cbox\Cms\Core\Partitions\Infrastructure\PostgresPartitionManager;
@@ -68,6 +70,7 @@ use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
+use Cbox\Operations\OperationsServiceProvider;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Foundation\Application;
@@ -83,7 +86,7 @@ use Psr\Log\LoggerInterface;
  * Registers the core package in a Laravel application. Loaded through package discovery.
  *
  * Binds each contract to the implementation configured in `cbox-cms.contracts` (GUARDRAILS 2.3), loads
- * the core's migrations, binds partition maintenance to the Postgres partition manager, and
+ * the core's migrations, registers laravel-operations and binds the OperationRunner to it, binds partition maintenance to the Postgres partition manager, and
  * schedules it in a process that has the owner connection. Refuses to boot a process that serves
  * HTTP or runs queued jobs with the owner connection configured (PRD 4.2). Wires the registry that cms:build compiles to bootstrap/cache/cms/ (PRD 13.2), and
  * declares the core's own classes as a scan root. Wires the checks of cms:doctor (PRD 3.3, 4.2) to
@@ -134,6 +137,12 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
                 PartitionConfig::read($app->make(Repository::class)),
             ),
         );
+
+        // Long flows are operations in laravel-operations, which the kernel uses directly (GUARDRAILS 3,
+        // 4.2). The core registers its provider itself instead of relying on package discovery, so its
+        // contract and its migration of the operations table are there wherever the core is.
+        $this->app->register(OperationsServiceProvider::class);
+        $this->app->bind(OperationRunner::class, PackageOperationRunner::class);
 
         $this->app->bind(DeclarationScanner::class, AttributeScanner::class);
 

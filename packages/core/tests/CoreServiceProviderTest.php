@@ -7,8 +7,14 @@ namespace Cbox\Cms\Core\Tests;
 use Cbox\Cms\Core\Bindings\Boundary\ContractBindings;
 use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Core\Doctor\Boundary\DoctorConfig;
+use Cbox\Cms\Core\Operations\Adapter\PackageOperationRunner;
+use Cbox\Cms\Core\Operations\Domain\OperationRunner;
 use Cbox\Cms\Core\Partitions\Boundary\PartitionConfig;
+use Cbox\Operations\Contracts\Operations;
+use Cbox\Operations\OperationManager;
+use Cbox\Operations\OperationsServiceProvider;
 use Illuminate\Config\Repository;
+use ReflectionClass;
 
 it('is loaded through package discovery', function (): void {
     expect(app()->getLoadedProviders())->toHaveKey(CoreServiceProvider::class)
@@ -22,6 +28,17 @@ it('loads the core migrations, which create the receipt tables', function (): vo
     expect($core)->toBeString()
         ->and($paths)->toContain($core)
         ->and(glob($core.'/*_create_receipts_tables.php'))->toHaveCount(1);
+});
+
+it('registers laravel-operations itself, with its migration, and binds the OperationRunner to it (GUARDRAILS 3, 4.2)', function (): void {
+    $paths = array_map(realpath(...), app('migrator')->paths());
+    $package = realpath(dirname((string) new ReflectionClass(OperationsServiceProvider::class)->getFileName(), 2).'/database/migrations');
+
+    expect(app()->getLoadedProviders())->toHaveKey(OperationsServiceProvider::class)
+        ->and(app(Operations::class))->toBeInstanceOf(OperationManager::class)
+        ->and(app(OperationRunner::class))->toBeInstanceOf(PackageOperationRunner::class)
+        ->and($package)->toBeString()
+        ->and($paths)->toContain($package);
 });
 
 it('merges config/cbox-cms.php under cbox-cms, the only root of the configuration, and the readers use it', function (): void {

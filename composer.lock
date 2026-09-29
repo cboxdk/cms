@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "2b5696c847f6e2046bf50ab377f43fa4",
+    "content-hash": "a6c54adc911d0e8c17eedd4b466e6bd9",
     "packages": [
         {
             "name": "brick/math",
@@ -139,6 +139,74 @@
                 }
             ],
             "time": "2026-09-06T14:11:38+00:00"
+        },
+        {
+            "name": "cboxdk/laravel-operations",
+            "version": "v0.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/cboxdk/laravel-operations.git",
+                "reference": "278e5eee7ec9afdd97fdca3714c7f1bf203d54e2"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/cboxdk/laravel-operations/zipball/278e5eee7ec9afdd97fdca3714c7f1bf203d54e2",
+                "reference": "278e5eee7ec9afdd97fdca3714c7f1bf203d54e2",
+                "shasum": ""
+            },
+            "require": {
+                "illuminate/console": "^12.0 || ^13.0",
+                "illuminate/contracts": "^12.0 || ^13.0",
+                "illuminate/database": "^12.0 || ^13.0",
+                "illuminate/events": "^12.0 || ^13.0",
+                "illuminate/support": "^12.0 || ^13.0",
+                "nesbot/carbon": "^3.0",
+                "php": "^8.4"
+            },
+            "require-dev": {
+                "larastan/larastan": "^3.0",
+                "laravel/pint": "^1.0",
+                "orchestra/testbench": "^10.0 || ^11.0",
+                "pestphp/pest": "^3.5 || ^4.0",
+                "phpunit/phpunit": "^11.5 || ^12.0"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Cbox\\Operations\\OperationsServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Cbox\\Operations\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Cbox"
+                }
+            ],
+            "description": "Durable, multi-step operations for Laravel — a strict state machine with per-step progress, idempotent retries, and a stall sweep.",
+            "keywords": [
+                "cbox",
+                "laravel",
+                "operations",
+                "process-manager",
+                "saga",
+                "state-machine",
+                "workflow"
+            ],
+            "support": {
+                "issues": "https://github.com/cboxdk/laravel-operations/issues",
+                "source": "https://github.com/cboxdk/laravel-operations/tree/v0.1.0"
+            },
+            "time": "2026-07-15T14:21:21+00:00"
         },
         {
             "name": "dflydev/dot-access-data",
