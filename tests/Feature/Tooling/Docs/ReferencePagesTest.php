@@ -8,10 +8,9 @@ use Cbox\Cms\Tests\Support\Phpstan;
 use RuntimeException;
 
 /*
- * Two pages restate what files of the repository say, and these tests hold them to those files:
- * docs/requirements.md lists what cboxdk/cms's composer.json requires and suggests (the cboxdk docs
- * standard generates it from composer.json and states only what the resolver enforces), and
- * docs/developers/configuration.md names every key of the configuration files.
+ * docs/developers/configuration.md restates what the configuration files say, and this test holds
+ * it to them: it names every key. docs/requirements.md is written from composer.json, package.json
+ * and compose.yaml by `composer docs:requirements`; RequirementsPageTest holds it to them.
  */
 
 function referenceRead(string $path): string
@@ -23,56 +22,6 @@ function referenceRead(string $path): string
     }
 
     return $contents;
-}
-
-/**
- * A section of the root composer.json, cboxdk/cms, as a map of strings.
- *
- * @return array<string, string>
- */
-function referenceComposer(string $section): array
-{
-    $composer = json_decode(referenceRead('composer.json'), true, flags: JSON_THROW_ON_ERROR);
-    $values = is_array($composer) && is_array($composer[$section] ?? null) ? $composer[$section] : [];
-    $result = [];
-
-    foreach ($values as $name => $value) {
-        if (is_string($name) && is_string($value)) {
-            $result[$name] = $value;
-        }
-    }
-
-    ksort($result);
-
-    return $result;
-}
-
-/**
- * A constraint as a table cell writes it: a pipe escaped, inside inline code.
- */
-function referenceCell(string $value): string
-{
-    return '`'.str_replace('|', '\|', $value).'`';
-}
-
-/**
- * The table rows of the page between the heading and the next heading.
- *
- * @return list<string>
- */
-function referenceTableRows(string $page, string $heading): array
-{
-    $start = strpos($page, "\n{$heading}\n");
-
-    if ($start === false) {
-        throw new RuntimeException("The page has no heading {$heading}.");
-    }
-
-    $section = substr($page, $start + strlen($heading) + 2);
-    $end = strpos($section, "\n## ");
-    $section = $end === false ? $section : substr($section, 0, $end);
-
-    return array_values(array_filter(explode("\n", $section), static fn (string $line): bool => str_starts_with($line, '| `')));
 }
 
 /**
@@ -99,23 +48,6 @@ function referenceConfigKeys(array $config, string $prefix): array
 
     return $keys;
 }
-
-it('lists on docs/requirements.md exactly what cboxdk/cms requires, and what it suggests with the reason', function (): void {
-    $required = array_map(
-        static fn (string $name, string $constraint): string => '| `'.$name.'` | '.referenceCell($constraint).' |',
-        array_keys(referenceComposer('require')),
-        referenceComposer('require'),
-    );
-    $suggested = array_map(
-        static fn (string $name, string $reason): string => '| `'.$name.'` | '.$reason.' |',
-        array_keys(referenceComposer('suggest')),
-        referenceComposer('suggest'),
-    );
-
-    expect($required)->not->toBe([])
-        ->and($suggested)->not->toBe([])
-        ->and(referenceTableRows(referenceRead('docs/requirements.md'), '## Enforced by Composer'))->toBe([...$required, ...$suggested]);
-});
 
 it('names every key of the configuration files on docs/developers/configuration.md', function (): void {
     $core = require Phpstan::root().'/packages/core/config/cbox-cms.php';

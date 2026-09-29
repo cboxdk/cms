@@ -46,6 +46,8 @@ Gate 10 is not in the local profile, but the `Unit` suite runs the same document
 
 `composer docs:screenshots` captures the screenshots again; see [Screenshots](../screenshots/_index.md).
 
+`composer docs:requirements` writes [Requirements](../requirements.md) again from `composer.json`, `package.json` and `compose.yaml`. It is not part of gate 10: a test in the Unit suite of gate 5 fails when the committed page differs from what it writes.
+
 ## CI
 
 CI is one entry script, `bin/ci`. `.github/workflows/ci.yml` runs it on every pull request and every push to `main`, on the PHP image and the Postgres and Valkey images of `compose.yaml`. It installs the locked dependencies and runs `composer check -- --pr`, the PR profile: the same steps as the local profile for gates 1 to 6, gate 5 with the `Mutation` suite and mutation testing on the classes changed since the base of the change, and gates 8, 9 and 10. Gates 7 and 11 are reported as not run, each with its reason.
