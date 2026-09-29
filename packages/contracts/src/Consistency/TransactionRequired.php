@@ -8,10 +8,11 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
 use LogicException;
 
 /**
- * ReceiptStore::store() or the event log's writer was called without an open transaction on the
- * caller's connection, or the commit position of a transaction was asked for without one. The
- * receipt and the events are written in the command transaction (PRD 6.2 phase 7, 7.3), so this
- * is a bug in the caller, not a result. Nothing was stored.
+ * ReceiptStore::store(), the event log's writer or the actor context was called without an open
+ * transaction on the caller's connection, or the commit position of a transaction was asked for
+ * without one. The receipt and the events are written in the command transaction (PRD 6.2 phase 7,
+ * 7.3), and the actor context lives only as long as it, so this is a bug in the caller, not a
+ * result. Nothing was stored or set.
  */
 #[Experimental]
 final class TransactionRequired extends LogicException
@@ -27,6 +28,13 @@ final class TransactionRequired extends LogicException
     {
         return new self(
             'The commit position is the xid8 of the caller\'s command transaction, and the connection has none open. Outside a transaction the statement would get an xid that no changeset carries.',
+        );
+    }
+
+    public static function forAccessContext(): self
+    {
+        return new self(
+            'The actor context is set with SET LOCAL inside the transaction of the command or read it is for, and the connection has none open. Outside a transaction it would end with the statement, or a pooler in transaction mode could hand it to another client (PRD 5.10). Nothing was set.',
         );
     }
 

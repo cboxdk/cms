@@ -24,8 +24,11 @@ use Illuminate\Database\ConnectionResolverInterface;
  * A token is parsed first: one that is not in the form of ServiceCredentialToken, or whose checksum
  * does not match, is refused before any statement runs. Then it reads the credential by the
  * SHA-256 of the token together with its actor, and the actors of its on-behalf-of chain in order,
- * both through the query builder on the write PDO, so a read host that lags never hides a
- * deactivation or a revocation. IssuedCredential::principal() decides the rest at the Clock's
+ * both through the lookup functions `cms_identity_credential`, `cms_identity_delegations` and
+ * `cms_identity_actor` on the write PDO, so a read host that lags never hides a deactivation or a
+ * revocation. The identity tables give the app role no row without an actor context, and the
+ * verifier runs before one exists (PRD 6.2), so the lookups run as the owner role and return only
+ * the rows of the one token asked for; see the access migration. IssuedCredential::principal() decides the rest at the Clock's
  * time. It never writes and never begins a transaction.
  */
 #[Experimental]
@@ -34,6 +37,12 @@ final readonly class PostgresCredentialVerifier implements CredentialVerifier
     public const string CREDENTIALS = 'service_credentials';
 
     public const string DELEGATIONS = 'service_credential_delegations';
+
+    /** The lookup of one credential by the hash of its token, as the owner role. */
+    public const string CREDENTIAL_LOOKUP = 'cms_identity_credential';
+
+    /** The lookup of one credential's on-behalf-of chain, as the owner role. */
+    public const string DELEGATION_LOOKUP = 'cms_identity_delegations';
 
     /**
      * @param  string|null  $connection  the connection name; null for the default connection
@@ -53,10 +62,9 @@ final readonly class PostgresCredentialVerifier implements CredentialVerifier
         $token = ServiceCredentialToken::parse($credential);
         $db = $this->db();
 
-        $row = $db->table(self::CREDENTIALS.' as c')
+        $row = $db->table(self::CREDENTIALS)
+            ->fromRaw(sprintf('%s(?) as c cross join lateral %s(c.actor_id) as a', self::CREDENTIAL_LOOKUP, PostgresActorDirectory::LOOKUP), [$token->hash()])
             ->useWritePdo()
-            ->join(PostgresActorDirectory::TABLE.' as a', 'a.id', '=', 'c.actor_id')
-            ->where('c.secret_hash', $token->hash())
             ->first([
                 'c.id',
                 'c.credential_generation',
@@ -72,10 +80,9 @@ final readonly class PostgresCredentialVerifier implements CredentialVerifier
 
         $chain = [];
 
-        foreach ($db->table(self::DELEGATIONS.' as d')
+        foreach ($db->table(self::DELEGATIONS)
+            ->fromRaw(sprintf('%s(?) as d cross join lateral %s(d.actor_id) as a', self::DELEGATION_LOOKUP, PostgresActorDirectory::LOOKUP), [IdentityRows::string($row, 'id', self::CREDENTIALS)])
             ->useWritePdo()
-            ->join(PostgresActorDirectory::TABLE.' as a', 'a.id', '=', 'd.actor_id')
-            ->where('d.credential_id', IdentityRows::string($row, 'id', self::CREDENTIALS))
             ->orderBy('d.position')
             ->get(IdentityRows::actorColumns('a')) as $link) {
             $chain[] = IdentityRows::actor($link, self::DELEGATIONS);

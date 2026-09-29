@@ -38,7 +38,7 @@ final class InvalidAccess extends InvalidArgumentException
 
     public static function overlappingRegions(NodePath $outer, NodePath $inner): self
     {
-        return new self(sprintf('The access regions of a context are disjoint, but %s is at or below %s.', $inner->value, $outer->value));
+        return new self(sprintf('The access regions of a context are disjoint, but %s is at or below %s and in none of its exceptions.', $inner->value, $outer->value));
     }
 
     public static function aboveCeiling(ClassificationAccess $access, ClassificationAccess $ceiling): self

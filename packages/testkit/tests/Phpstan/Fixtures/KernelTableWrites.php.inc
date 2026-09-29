@@ -29,7 +29,7 @@ namespace Acme\Shop\Adapter {
             $this->connection->statement('insert into receipts (changeset_id) values (?)', ['a']);
             DB::statement('UPDATE "public"."placements" SET version = 2');
             $this->connection->delete('delete from only revisions where id = ?', [1]);
-            DB::unprepared('truncate table grants, changesets, head_snapshots');
+            DB::unprepared('truncate table shop_orders, changesets, head_snapshots');
             $this->connection->select('with moved as (update node_routes set route = ? returning 1) select 1', ['/']);
             $this->pdo->exec('merge into mount_overrides using x on true when matched then delete');
         }

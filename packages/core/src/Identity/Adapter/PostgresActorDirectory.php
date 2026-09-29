@@ -14,16 +14,20 @@ use Illuminate\Database\ConnectionResolverInterface;
 /**
  * The actor directory on Postgres (PRD 5.16, 6.2), as the app role.
  *
- * It reads `actors` through the query builder on the default connection, or the one named, and
- * always on the write PDO, so a read host that lags never hides a deactivation. It never writes
- * and never begins a transaction: inside the command transaction the read is part of it. The
- * table's row level security lets every role read, and the app role holds only SELECT; see the
- * migration.
+ * It reads one row of `actors` by its id through the lookup function `cms_identity_actor`, on the
+ * default connection, or the one named, and always on the write PDO, so a read host that lags never
+ * hides a deactivation. It never writes and never begins a transaction: inside the command
+ * transaction the read is part of it. The table's row level security gives the app role no row
+ * without an actor context, and the directory runs before one exists (PRD 6.2), so the lookup runs
+ * as the owner role and returns the one actor asked for, never a list; see the access migration.
  */
 #[Experimental]
 final readonly class PostgresActorDirectory implements ActorDirectory
 {
     public const string TABLE = 'actors';
+
+    /** The lookup of one actor by its id, as the owner role (see the access migration). */
+    public const string LOOKUP = 'cms_identity_actor';
 
     /**
      * @param  string|null  $connection  the connection name; null for the default connection
@@ -36,9 +40,9 @@ final readonly class PostgresActorDirectory implements ActorDirectory
     public function find(ActorId $id): ?Actor
     {
         $row = $this->db()
-            ->table(self::TABLE.' as a')
+            ->table(self::TABLE)
+            ->fromRaw(self::LOOKUP.'(?) as a', [$id->toString()])
             ->useWritePdo()
-            ->where('a.id', $id->toString())
             ->first(IdentityRows::actorColumns('a'));
 
         return $row === null ? null : IdentityRows::actor($row, self::TABLE);

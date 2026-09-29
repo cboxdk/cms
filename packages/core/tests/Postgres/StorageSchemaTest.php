@@ -14,9 +14,10 @@ use Illuminate\Support\Facades\DB;
  * The structure, entry, placement and mount override tables as the core's migrations leave them
  * (PRD 4.1, 4.2, 5.2 to 5.9), read from the catalog: the ltree extension created by the owner role,
  * the keys, uniques and foreign keys, the GiST index on the node paths, fillfactor 80 on the variant
- * heads and the placement tables, forced row level security without a policy, and the app role's
- * narrowed grants. Rows are written as the superuser, the one role their row level security lets
- * in while they have no policy. The partial unique indexes of invariants 14 and 15 are also shown
+ * heads and the placement tables, forced row level security with the access migration's policies
+ * over the actor context, and the app role's narrowed grants. Rows are written as the superuser,
+ * which row level security does not hold; the app role reads and writes none of them without an
+ * actor context (AccessPoliciesTest shows the policies with one). The partial unique indexes of invariants 14 and 15 are also shown
  * to refuse as the owner role, in a transaction that lifts the forced row level security of
  * `placement_locales` for the owner and is rolled back.
  */
@@ -76,14 +77,15 @@ it('has the keys, uniques, foreign keys and indexes of the storage form', functi
     ]);
 });
 
-it('forces row level security on every table and gives none of them a policy yet', function (): void {
+it('forces row level security on every table, with the access migration\'s policies over the actor context', function (): void {
     $owner = DB::connection('pgsql_owner');
     $tables = '{'.implode(',', StorageTables::TABLES).'}';
     $result = new RowSecurityCheck(app(PostgresProbe::class))->run();
 
     expect(StorageTables::texts($owner, "select relname::text || ' ' || relrowsecurity::text || ' ' || relforcerowsecurity::text as value from pg_class where oid = any (?::regclass[]) order by 1", [$tables]))
         ->toBe(array_map(static fn (string $table): string => $table.' true true', StorageTables::TABLES))
-        ->and($owner->scalar('select count(*) from pg_policies where tablename = any (?::text[])', [$tables]))->toBe(0)
+        ->and(StorageTables::texts($owner, 'select policyname::text as value from pg_policies where tablename = any (?::text[]) order by 1', [$tables]))
+        ->toBe(['entries_actor', 'entries_released', 'nodes_actor', 'nodes_granted', 'variant_heads_actor', 'variant_heads_released'])
         ->and($result->status)->toBe(CheckStatus::Pass, (string) $result->cause);
 });
 
@@ -97,7 +99,7 @@ it('narrows the app role to SELECT, INSERT and UPDATE', function (): void {
     }
 });
 
-it('lets the app role read no rows and write none, and run no DDL on the tables', function (): void {
+it('lets the app role read no rows and write none without an actor context, and run no DDL on the tables', function (): void {
     StorageTables::seedEntry();
     $superuser = StorageTables::superuser();
     $app = DB::connection();
@@ -307,7 +309,7 @@ it('has the keys, uniques, foreign keys, partial unique indexes and storage opti
     ]);
 });
 
-it('forces row level security on the placement tables without a policy, and narrows the app role\'s grants', function (): void {
+it('forces row level security on the placement tables, with the access migration\'s policies, and narrows the app role\'s grants', function (): void {
     $owner = DB::connection('pgsql_owner');
     $app = DB::connection();
     $tables = '{'.implode(',', StorageTables::PLACEMENT_TABLES).'}';
@@ -315,7 +317,8 @@ it('forces row level security on the placement tables without a policy, and narr
 
     expect(StorageTables::texts($owner, "select relname::text || ' ' || relrowsecurity::text || ' ' || relforcerowsecurity::text as value from pg_class where oid = any (?::regclass[]) order by 1", [$tables]))
         ->toBe(array_map(static fn (string $table): string => $table.' true true', StorageTables::PLACEMENT_TABLES))
-        ->and($owner->scalar('select count(*) from pg_policies where tablename = any (?::text[])', [$tables]))->toBe(0)
+        ->and(StorageTables::texts($owner, 'select policyname::text as value from pg_policies where tablename = any (?::text[]) order by 1', [$tables]))
+        ->toBe(['placement_generations_actor', 'placement_generations_released', 'placement_locales_actor', 'placement_locales_released', 'placements_actor', 'placements_released', 'placements_write'])
         ->and($result->status)->toBe(CheckStatus::Pass, (string) $result->cause);
 
     foreach (StorageTables::PLACEMENT_TABLES as $table) {
@@ -325,7 +328,7 @@ it('forces row level security on the placement tables without a policy, and narr
     }
 });
 
-it('lets the app role read and write no placement rows while they have no policy', function (): void {
+it('lets the app role read and write no placement rows without an actor context', function (): void {
     StorageTables::seedPlacement();
     $superuser = StorageTables::superuser();
     $app = DB::connection();

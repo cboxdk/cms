@@ -19,9 +19,10 @@ use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\AssertionFailedError;
 
 /*
- * The identity tables as the migration leaves them (PRD 5.16, 4.2, 2.31): row level security,
- * forced so it holds for the owner, a read policy for every role and a write policy for the owner
- * alone, SELECT only for the app role, and an agent's ceiling kept at confidential by a check.
+ * The identity tables as the migrations leave them (PRD 5.16, 4.2, 2.31): row level security,
+ * forced so it holds for the owner, a policy for the owner alone, so the app role reads no row
+ * without an actor context and reads one row by its key through the owner's lookup functions,
+ * SELECT only for the app role, and an agent's ceiling kept at confidential by a check.
  */
 
 const IDENTITY_TABLES = ['actors', 'service_credential_delegations', 'service_credentials'];
@@ -58,7 +59,7 @@ it('forces row level security on every identity table, and postgres.row_security
         ->and($result->status)->toBe(CheckStatus::Pass, (string) $result->cause);
 });
 
-it('lets every role read and only the owner write', function (): void {
+it('lets only the owner read and write the tables, and the app role look up one row by its key', function (): void {
     $owner = DB::connection('pgsql_owner');
     $ownerRole = ReceiptTables::texts($owner, 'select current_user::text as value')[0];
     $policies = ReceiptTables::texts(
@@ -71,10 +72,19 @@ it('lets every role read and only the owner write', function (): void {
 
     foreach (IDENTITY_TABLES as $table) {
         $expected[] = "{$table} {$table}_owner_write ALL {$ownerRole} true";
-        $expected[] = "{$table} {$table}_read SELECT public true";
     }
 
-    expect($policies)->toBe($expected);
+    $actor = PostgresIdentity::at(new FakeClock)->addActor(ActorClass::Staff);
+    $app = DB::connection();
+
+    expect($policies)->toBe($expected)
+        ->and($app->table('actors')->count())->toBe(0)
+        ->and($app->scalar('select count(*) from cms_identity_actor(?)', [$actor->id->toString()]))->toBe(1)
+        ->and($app->scalar('select count(*) from cms_identity_actor(?)', ['0192a0c0-0000-7000-8000-0000000000ff']))->toBe(0)
+        ->and(ReceiptTables::texts($owner, "select p.proname::text || ' ' || p.prosecdef::text || ' ' || pg_get_userbyid(p.proowner)::text || ' ' || array_to_string(p.proconfig, ',') as value from pg_proc p where p.proname like 'cms\\_identity\\_%' and p.pronamespace = current_schema()::regnamespace order by 1"))->toBe(array_map(
+            static fn (string $name): string => "{$name} true {$ownerRole} search_path=".ReceiptTables::texts($owner, 'select current_schema()::text as value')[0].', pg_temp',
+            ['cms_identity_actor', 'cms_identity_credential', 'cms_identity_delegations'],
+        ));
 });
 
 it('gives the app role SELECT alone on the identity tables', function (): void {
@@ -89,7 +99,7 @@ it('gives the app role SELECT alone on the identity tables', function (): void {
     $actor = PostgresIdentity::at(new FakeClock)->addActor(ActorClass::Staff);
 
     expect(identitySqlState(fn () => $app->table('actors')->where('id', $actor->id->toString())->update(['state' => 'deactivated'])))->toBe('42501')
-        ->and($app->table('actors')->where('id', $actor->id->toString())->value('state'))->toBe('active');
+        ->and($app->scalar('select state from cms_identity_actor(?)', [$actor->id->toString()]))->toBe('active');
 });
 
 it('refuses an agent credential above confidential in the table itself', function (): void {

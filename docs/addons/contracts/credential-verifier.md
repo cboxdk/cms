@@ -47,11 +47,11 @@ What a store keeps is an `IssuedCredential`: the actor, the chain, the issuer ki
 
 ### The access context
 
-`AccessContext` is what the pipelines consume: the principal, the access regions of its compiled grants and its classification access. An `AccessRegion` is a `NodePath`, an ltree path of the node tree, with the subtrees below it that it does not reach (PRD 5.10). The regions of a context are disjoint, and its classification access never exceeds the principal's ceiling. The kernel computes it once per call from the verified principal; `AccessContext::anonymous()` is the context of a call without a credential, with no regions and public access.
+`AccessContext` is what the pipelines consume: the principal, the access regions of its compiled grants and its classification access. An `AccessRegion` is a `NodePath`, an ltree path of the node tree, with the subtrees below it that it does not reach (PRD 5.10). The regions of a context are disjoint: a region lies inside another only within one of its exceptions, where a more specific allow sits below a deny. Its classification access never exceeds the principal's ceiling. The kernel computes it once per call from the verified principal; `AccessContext::anonymous()` is the context of a call without a credential, with no regions and public access.
 
 ## The default: PostgresCredentialVerifier
 
-`cbox-cms.contracts` binds `CredentialVerifier` to `Cbox\Cms\Core\Identity\Adapter\PostgresCredentialVerifier`. It parses the token, then reads the credential by its hash together with its actor, and the actors of its chain in order, through the query builder on the default connection as the app role, on the write PDO. The Clock gives the time. The core runs the shared suite against it in `packages/core/tests/Contract/PostgresCredentialVerifierContractTest.php`.
+`cbox-cms.contracts` binds `CredentialVerifier` to `Cbox\Cms\Core\Identity\Adapter\PostgresCredentialVerifier`. It parses the token, then reads the credential by its hash together with its actor, and the actors of its chain in order, through the lookup functions `cms_identity_credential`, `cms_identity_delegations` and `cms_identity_actor` on the default connection as the app role, on the write PDO. The lookups run as the owner role and return only the rows of the one token asked for, because the identity tables give the app role no row without an actor context. The Clock gives the time. The core runs the shared suite against it in `packages/core/tests/Contract/PostgresCredentialVerifierContractTest.php`.
 
 ## The fake and the seeder
 

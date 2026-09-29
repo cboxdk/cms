@@ -9,6 +9,7 @@ use Cbox\Cms\Testkit\Postgres\Boundary\CheckoutConnections;
 use Cbox\Cms\Testkit\Postgres\Boundary\CheckoutRoot;
 use Cbox\Cms\Testkit\Postgres\Boundary\ConnectionSettings;
 use Cbox\Cms\Testkit\Postgres\Infrastructure\OwnerTruncation;
+use Cbox\Cms\Testkit\Postgres\Infrastructure\PartitionSweep;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Contracts\Events\Dispatcher;
@@ -28,8 +29,9 @@ use PHPUnit\Framework\AssertionFailedError;
  * fails fast when the services are down or the owner role lacks CREATEDB, builds the schema as
  * the owner role once per process, and installs the nested transaction guard. The test then
  * runs as the app role on the default connection, and its commits are real. Tear-down stops
- * child processes, closes independent connections, rolls back what the test left open,
- * truncates every table as the owner role, disconnects every connection of the application,
+ * child processes, closes independent connections, rolls back what the test left open, drops
+ * every leaf partition (PartitionSweep) and truncates every table as the owner role, disconnects
+ * every connection of the application,
  * and fails the test if the guard saw a nested transaction.
  *
  * The disconnect is what frees the test's backends. The application's object graph has cycles,
@@ -103,7 +105,7 @@ final readonly class PostgresHarness
             $root,
         );
 
-        OwnerMigrations::ensure($app->make(Kernel::class), $ownerConnection);
+        OwnerMigrations::ensure($app->make(Kernel::class), $database->connection($ownerConnection), $ownerConnection);
 
         $guard = new NestedTransactionGuard;
         $guard->install($app->make(Dispatcher::class));
@@ -132,6 +134,7 @@ final readonly class PostgresHarness
 
             $owner = $this->database->connection($this->ownerConnection);
             $owner->rollBack(0);
+            new PartitionSweep($owner)->drop();
             new OwnerTruncation($owner)->truncate();
         } finally {
             try {

@@ -14,8 +14,7 @@ use UnexpectedValueException;
 
 /**
  * Helpers for the tests of the structure, entry, placement and mount override tables: the superuser's connection to the
- * checkout's database, the one role that passes their row level security while they have no policy,
- * rows to write through it, and the SQLSTATE of a statement that fails.
+ * checkout's database, the one role their row level security does not hold, rows to write through it, and the SQLSTATE of a statement that fails.
  */
 final class StorageTables
 {

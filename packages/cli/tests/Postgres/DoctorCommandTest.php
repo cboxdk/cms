@@ -196,7 +196,7 @@ it('fails the partition runway with 79 when only 2 days of partitions exist, bec
         ->and($runway['blocking'])->toBeFalse()
         ->and($runway['failure'])->toBe('violation')
         ->and($runway['code'])->toBe('doctor_partition_runway_short')
-        ->and($runway['cause'])->toBe('At 2047-03-10T12:00:00Z: receipts_standard until 2047-03-13T00:00:00Z (2.5 days), receipt_projections_standard until 2047-03-13T00:00:00Z (2.5 days), idempotency_keys until 2047-03-13T00:00:00Z (2.5 days), changesets until 2047-03-13T00:00:00Z (2.5 days), changeset_principals until 2047-03-13T00:00:00Z (2.5 days).');
+        ->and($runway['cause'])->toBe('At 2047-03-10T12:00:00Z: receipts_standard until 2047-03-13T00:00:00Z (2.5 days), receipt_projections_standard until 2047-03-13T00:00:00Z (2.5 days), idempotency_keys until 2047-03-13T00:00:00Z (2.5 days), changesets until 2047-03-13T00:00:00Z (2.5 days), changeset_principals until 2047-03-13T00:00:00Z (2.5 days), audit until 2047-03-13T00:00:00Z (2.5 days).');
 
     doctorClock('2047-03-10T12:00:00Z');
 

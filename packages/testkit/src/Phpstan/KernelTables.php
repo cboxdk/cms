@@ -21,6 +21,7 @@ final class KernelTables
      */
     public const array NAMES = [
         'actors',
+        'audit',
         'changeset_principals',
         'changeset_reason_texts',
         'changeset_register',
@@ -31,6 +32,7 @@ final class KernelTables
         'events',
         'events_bulk',
         'events_interactive',
+        'grants',
         'head_snapshots',
         'idempotency_keys',
         'mount_overrides',
@@ -50,6 +52,8 @@ final class KernelTables
         'revision_payloads_draft',
         'revision_payloads_published',
         'revisions',
+        'role_permissions',
+        'roles',
         'service_credential_delegations',
         'service_credentials',
         'site_locales',

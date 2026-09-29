@@ -13,8 +13,10 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
  * query builder's predicates, and the read pipeline removes every field classified above the
  * classification access.
  *
- * The regions are disjoint: none is at or below another. The classification access never exceeds
- * the principal's ceiling. An actor that is not active has no regions (PRD 5.16).
+ * The regions are disjoint: no node is reached by two of them. A region lies at or below another
+ * only inside one of the other's exceptions, where a more specific allow sits below a deny (PRD
+ * 5.10). The classification access never exceeds the principal's ceiling. An actor that is not
+ * active has no regions (PRD 5.16).
  */
 #[Experimental]
 final readonly class AccessContext
@@ -37,7 +39,7 @@ final readonly class AccessContext
 
         foreach ($regions as $index => $region) {
             foreach ($regions as $otherIndex => $other) {
-                if ($index !== $otherIndex && $other->path->contains($region->path)) {
+                if ($index !== $otherIndex && $other->path->contains($region->path) && ! $other->excludes($region->path)) {
                     throw InvalidAccess::overlappingRegions($other->path, $region->path);
                 }
             }

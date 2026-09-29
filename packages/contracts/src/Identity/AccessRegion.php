@@ -37,6 +37,14 @@ final readonly class AccessRegion
     }
 
     /**
+     * Whether the node lies at or below one of the exceptions.
+     */
+    public function excludes(NodePath $node): bool
+    {
+        return array_any($this->exceptions, fn (NodePath $exception): bool => $exception->contains($node));
+    }
+
+    /**
      * Whether the region reaches the node: it is at or below the path and in no exception.
      */
     public function reaches(NodePath $node): bool
@@ -45,6 +53,6 @@ final readonly class AccessRegion
             return false;
         }
 
-        return array_all($this->exceptions, fn (NodePath $exception): bool => ! $exception->contains($node));
+        return ! $this->excludes($node);
     }
 }

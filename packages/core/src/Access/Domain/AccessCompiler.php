@@ -1,0 +1,266 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Cbox\Cms\Core\Access\Domain;
+
+use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Identity\AccessContext;
+use Cbox\Cms\Contracts\Identity\AccessRegion;
+use Cbox\Cms\Contracts\Identity\ActorPrincipal;
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Contracts\Identity\GrantEffect;
+use Cbox\Cms\Contracts\Identity\NodePath;
+use Cbox\Cms\Core\Access\Domain\Dto\Grant;
+
+/**
+ * Compiles an actor's grants into its AccessContext (PRD 5.10, 12.2): the access regions that row
+ * level security tests a node's path against, and the classification access.
+ *
+ * A node is reached when one of the actor's roles reaches it in one locale. A role reaches a node
+ * in a locale when the grant of that role nearest above the node, or on it, among the grants that
+ * hold in that locale, allows: a deny beats the allow it inherits, and the most specific grant
+ * wins, so an allow below a deny reaches its subtree again. Where a role has an allow and a deny
+ * on the same node in a locale, the deny wins. A grant with a locale set holds only in its locales,
+ * so a deny for one locale keeps a node reached through the other locales; the kernel checks the
+ * locale of a command against the grants themselves.
+ *
+ * The regions are the fewest that say the same: a region for each node reached whose nearest
+ * decided node above is not reached, with the nodes below it that are not reached, and whose
+ * nearest decided node above is reached, as its exceptions. A region can then lie inside another's
+ * exception, and no node is in two regions.
+ *
+ * The classification access is the highest ceiling among the roles that apply, those that reach at
+ * least one node, capped by the credential's ceiling; with no role that applies it is public.
+ */
+#[Internal]
+final readonly class AccessCompiler
+{
+    /**
+     * @param  list<Grant>  $grants
+     */
+    public function compile(ActorPrincipal $principal, array $grants): AccessContext
+    {
+        $decisions = $this->decisions($grants);
+        $paths = $this->paths($grants);
+        $marks = [];
+
+        foreach ($paths as $key => $path) {
+            $reached = $this->reached($decisions, $path);
+
+            if ($reached !== $this->implied($marks, $paths, $path)) {
+                $marks[$key] = $reached;
+            }
+        }
+
+        return new AccessContext(
+            $principal,
+            $this->regions($marks, $paths),
+            $this->classification($grants, $decisions)->atMost($principal->classificationCeiling()),
+        );
+    }
+
+    /**
+     * The decisions of each role in each locale, by path: the grants' effects, a deny winning over
+     * an allow on the same path. The locale key '' stands for every locale no grant names.
+     *
+     * @param  list<Grant>  $grants
+     * @return array<string, array<string, array<string, GrantEffect>>> role, locale, path
+     */
+    private function decisions(array $grants): array
+    {
+        $locales = ['' => null];
+
+        foreach ($grants as $grant) {
+            foreach ($grant->locales ?? [] as $locale) {
+                $locales[$locale->value] = $locale;
+            }
+        }
+
+        $decisions = [];
+
+        foreach ($grants as $grant) {
+            $role = $grant->role->toString();
+
+            foreach ($locales as $key => $locale) {
+                if (! $grant->holdsIn($locale)) {
+                    continue;
+                }
+
+                $held = $decisions[$role][$key][$grant->node->value] ?? null;
+                $decisions[$role][$key][$grant->node->value] = $held === GrantEffect::Deny ? GrantEffect::Deny : $grant->effect;
+            }
+        }
+
+        return $decisions;
+    }
+
+    /**
+     * Every path a grant names, from the shallowest to the deepest.
+     *
+     * @param  list<Grant>  $grants
+     * @return array<string, NodePath>
+     */
+    private function paths(array $grants): array
+    {
+        $paths = [];
+
+        foreach ($grants as $grant) {
+            $paths[$grant->node->value] = $grant->node;
+        }
+
+        uksort($paths, static fn (string $a, string $b): int => [substr_count($a, '.'), $a] <=> [substr_count($b, '.'), $b]);
+
+        return $paths;
+    }
+
+    /**
+     * Whether a role reaches the node in a locale.
+     *
+     * @param  array<string, array<string, array<string, GrantEffect>>>  $decisions
+     */
+    private function reached(array $decisions, NodePath $node): bool
+    {
+        foreach ($decisions as $byLocale) {
+            foreach ($byLocale as $byPath) {
+                if ($this->nearest($byPath, $node) === GrantEffect::Allow) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * The effect of the decision nearest above the node, or on it, or null without one.
+     *
+     * @param  array<string, GrantEffect>  $byPath
+     */
+    private function nearest(array $byPath, NodePath $node): ?GrantEffect
+    {
+        $nearest = null;
+        $depth = -1;
+
+        foreach ($byPath as $path => $effect) {
+            $above = new NodePath($path);
+
+            if ($above->contains($node) && substr_count($path, '.') > $depth) {
+                $nearest = $effect;
+                $depth = substr_count($path, '.');
+            }
+        }
+
+        return $nearest;
+    }
+
+    /**
+     * Whether the marks above the node, not on it, say it is reached: the nearest mark's value, or
+     * false without one.
+     *
+     * @param  array<string, bool>  $marks
+     * @param  array<string, NodePath>  $paths
+     */
+    private function implied(array $marks, array $paths, NodePath $node): bool
+    {
+        $implied = false;
+        $depth = -1;
+
+        foreach ($marks as $key => $reached) {
+            if ($paths[$key]->isAbove($node) && substr_count($key, '.') > $depth) {
+                $implied = $reached;
+                $depth = substr_count($key, '.');
+            }
+        }
+
+        return $implied;
+    }
+
+    /**
+     * A region for each reached mark, with the unreached marks whose nearest mark above is it as
+     * its exceptions, sorted by path.
+     *
+     * @param  array<string, bool>  $marks
+     * @param  array<string, NodePath>  $paths
+     * @return list<AccessRegion>
+     */
+    private function regions(array $marks, array $paths): array
+    {
+        ksort($marks, SORT_STRING);
+        $regions = [];
+
+        foreach ($marks as $key => $reached) {
+            if (! $reached) {
+                continue;
+            }
+
+            $exceptions = [];
+
+            foreach ($marks as $below => $reachedBelow) {
+                if (! $reachedBelow && $this->nearestMarkAbove($marks, $paths, $paths[$below]) === $key) {
+                    $exceptions[] = $paths[$below];
+                }
+            }
+
+            $regions[] = new AccessRegion($paths[$key], $exceptions);
+        }
+
+        return $regions;
+    }
+
+    /**
+     * The key of the mark nearest above the node, not on it, or null without one.
+     *
+     * @param  array<string, bool>  $marks
+     * @param  array<string, NodePath>  $paths
+     */
+    private function nearestMarkAbove(array $marks, array $paths, NodePath $node): ?string
+    {
+        $nearest = null;
+
+        foreach (array_keys($marks) as $key) {
+            if ($paths[$key]->isAbove($node) && ($nearest === null || substr_count($key, '.') > substr_count($nearest, '.'))) {
+                $nearest = $key;
+            }
+        }
+
+        return $nearest;
+    }
+
+    /**
+     * The highest ceiling among the roles that reach a node in some locale: those with an allow
+     * that no deny on the same path and locale beats.
+     *
+     * @param  list<Grant>  $grants
+     * @param  array<string, array<string, array<string, GrantEffect>>>  $decisions
+     */
+    private function classification(array $grants, array $decisions): ClassificationAccess
+    {
+        $highest = ClassificationAccess::Public;
+
+        foreach ($grants as $grant) {
+            if ($grant->roleCeiling->rank() > $highest->rank() && $this->applies($decisions[$grant->role->toString()] ?? [])) {
+                $highest = $grant->roleCeiling;
+            }
+        }
+
+        return $highest;
+    }
+
+    /**
+     * Whether a role reaches a node in a locale: it has an allow that no deny on the same path
+     * and locale beats.
+     *
+     * @param  array<string, array<string, GrantEffect>>  $byLocale
+     */
+    private function applies(array $byLocale): bool
+    {
+        $effects = [];
+
+        foreach ($byLocale as $byPath) {
+            array_push($effects, ...array_values($byPath));
+        }
+
+        return in_array(GrantEffect::Allow, $effects, true);
+    }
+}

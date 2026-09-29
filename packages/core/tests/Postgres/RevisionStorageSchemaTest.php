@@ -20,9 +20,9 @@ use Illuminate\Support\Facades\DB;
  * The changeset, revision, head snapshot and release log tables as the core's migrations leave
  * them (PRD 4.1, 4.2, 5.4 to 5.6, 6.1), read from the catalog: the narrow registers and their keys,
  * the two-level partitioning of the revision payloads, the changesets partitioned per day, forced
- * row level security without a policy, the app role's narrowed grants and the constraints. Rows
- * are written as the superuser, the one role their row level security lets in while they have no
- * policy. The partitions of changesets are covered for 2026-03-10, the day of the changeset ids.
+ * row level security with the access migration's policies over the actor context, the app role's
+ * narrowed grants and the constraints. Rows are written as the superuser, which row level security
+ * does not hold; the app role reads and writes none of them without an actor context. The partitions of changesets are covered for 2026-03-10, the day of the changeset ids.
  */
 
 /** @var list<string> the tables of this storage form that are not partitions, sorted */
@@ -175,7 +175,7 @@ it('has the keys, uniques, foreign keys and indexes of the storage form', functi
     ]);
 });
 
-it('forces row level security on every table, its partitions included, and gives none of them a policy yet', function (): void {
+it('forces row level security on every table, its partitions included, with the access migration\'s policies on the tables and none on the partitions', function (): void {
     $owner = DB::connection('pgsql_owner');
     $all = StorageTables::texts($owner, <<<'SQL'
         select c.relname::text as value
@@ -190,7 +190,11 @@ it('forces row level security on every table, its partitions included, and gives
     expect($all)->toContain('changesets_p20260310', 'changeset_principals_p20260310', 'revision_payloads_draft', 'revision_payloads_published', 'revision_payloads_draft_p0000000000000000000', 'revision_payloads_published_p0000000000010000000')
         ->and(StorageTables::texts($owner, "select relname::text || ' ' || relrowsecurity::text || ' ' || relforcerowsecurity::text as value from pg_class where relname = any (?::text[]) order by 1", [tableArray($all)]))
         ->toBe(array_map(static fn (string $table): string => $table.' true true', $all))
-        ->and($owner->scalar('select count(*) from pg_policies where tablename = any (?::text[])', [tableArray($all)]))->toBe(0)
+        ->and(StorageTables::texts($owner, 'select policyname::text as value from pg_policies where tablename = any (?::text[]) order by 1', [tableArray($all)]))->toBe([
+            'changeset_principals_actor', 'changeset_principals_write', 'changeset_reason_texts_actor', 'changeset_reason_texts_write',
+            'changeset_register_write', 'changesets_actor', 'changesets_write', 'head_snapshots_actor', 'head_snapshots_released',
+            'release_log_actor', 'revision_payloads_actor', 'revision_payloads_released', 'revisions_actor', 'revisions_released',
+        ])
         ->and($result->status)->toBe(CheckStatus::Pass, (string) $result->cause);
 });
 
@@ -209,7 +213,7 @@ it('narrows the app role to SELECT and INSERT, and UPDATE on the head snapshots 
     }
 });
 
-it('lets the app role read no rows, insert none and change none, and run no DDL on the tables', function (): void {
+it('lets the app role read no rows, insert none and change none without an actor context, and run no DDL on the tables', function (): void {
     seedChangeset();
     $superuser = StorageTables::superuser();
     $superuser->table('changeset_principals')->insert(['changeset_id' => StorageTables::CHANGESET, 'position' => 1, 'actor_id' => REVISION_STORAGE_ACTOR]);
@@ -226,7 +230,7 @@ it('lets the app role read no rows, insert none and change none, and run no DDL 
 
     $other = REVISION_STORAGE_OTHER_CHANGESET;
 
-    // The app role holds INSERT, and row level security without a policy refuses every new row.
+    // The app role holds INSERT, and row level security without an actor context refuses every new row.
     foreach ([
         'changeset_register' => ['changeset_id' => $other, 'retention_class' => 'standard'],
         'changesets' => changesetRow(['changeset_id' => StorageTables::CHANGESET]),

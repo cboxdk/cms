@@ -67,6 +67,24 @@ it('refuses regions that overlap', function (): void {
         ], ClassificationAccess::Public))->toThrow(InvalidAccess::class, 'disjoint');
 });
 
+it('takes a region inside another region\'s exception, where a more specific allow sits below a deny, and reaches it', function (): void {
+    $context = new AccessContext(accessPrincipal(), [
+        new AccessRegion(new NodePath('root.news'), [new NodePath('root.news.sport')]),
+        new AccessRegion(new NodePath('root.news.sport.football'), [new NodePath('root.news.sport.football.youth')]),
+    ], ClassificationAccess::Public);
+
+    expect($context->reaches(new NodePath('root.news.sport.football.league')))->toBeTrue()
+        ->and($context->reaches(new NodePath('root.news.sport.football')))->toBeTrue()
+        ->and($context->reaches(new NodePath('root.news.sport.football.youth')))->toBeFalse()
+        ->and($context->reaches(new NodePath('root.news.sport.golf')))->toBeFalse()
+        ->and($context->regions[0]->excludes(new NodePath('root.news.sport.golf')))->toBeTrue()
+        ->and($context->regions[0]->excludes(new NodePath('root.news.local')))->toBeFalse()
+        ->and(fn (): AccessContext => new AccessContext(accessPrincipal(), [
+            new AccessRegion(new NodePath('root.news'), [new NodePath('root.news.sport')]),
+            new AccessRegion(new NodePath('root.news.local')),
+        ], ClassificationAccess::Public))->toThrow(InvalidAccess::class, 'root.news.local is at or below root.news and in none of its exceptions');
+});
+
 it('refuses an exception that is not strictly below the region, or that overlaps another', function (): void {
     expect(fn (): AccessRegion => new AccessRegion(new NodePath('root.news'), [new NodePath('root.news')]))
         ->toThrow(InvalidAccess::class, 'lies below its path root.news, but root.news does not')

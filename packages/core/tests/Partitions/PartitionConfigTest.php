@@ -16,7 +16,7 @@ use Cbox\Cms\Core\Partitions\Domain\SequenceRetention;
 use Cbox\Cms\Core\Partitions\Infrastructure\PostgresPartitionManager;
 use Illuminate\Config\Repository;
 
-it('reads the package defaults: the pgsql_owner connection, a 14-day runway, the receipt tables, the idempotency table and the changeset tables', function (): void {
+it('reads the package defaults: the pgsql_owner connection, a 14-day runway, the receipt tables, the idempotency table, the changeset tables and the audit', function (): void {
     $policy = PartitionConfig::read(config());
 
     expect($policy->ownerConnection)->toBe('pgsql_owner')
@@ -35,6 +35,7 @@ it('reads the package defaults: the pgsql_owner connection, a 14-day runway, the
             'idempotency_keys timestamp day 7',
             'changesets uuid7 day keep',
             'changeset_principals uuid7 day keep',
+            'audit uuid7 day keep',
         ]);
 });
 
