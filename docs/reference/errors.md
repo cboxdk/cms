@@ -78,6 +78,8 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`generate_unknown_field_type`](#generate_unknown_field_type) | 500 | 65 | internal_error | no |
 | [`idempotency_conflict`](#idempotency_conflict) | 409 | 65 | tool_error | no |
 | [`idempotency_in_flight`](#idempotency_in_flight) | 409 | 75 | tool_error | yes |
+| [`json_invalid`](#json_invalid) | 422 | 65 | tool_error | no |
+| [`json_malformed`](#json_malformed) | 400 | 65 | tool_error | no |
 | [`owner_credentials_exposed`](#owner_credentials_exposed) | 500 | 78 | internal_error | no |
 | [`partition_lock_timeout`](#partition_lock_timeout) | 503 | 75 | internal_error | yes |
 | [`partition_missing`](#partition_missing) | 503 | 75 | internal_error | yes |
@@ -570,7 +572,7 @@ A field's min_length is greater than its max_length, or than the default max_len
 
 ### generate_name_collision
 
-Two fields, options or extender namespaces of one type would get the same name in the type's generated PHP records, such as the handles size_1 and size1, or a name PHP reserves. Rename one of them.
+Two fields, options or extender namespaces of one type would get the same name in the type's generated PHP records or DTOs, such as the handles size_1 and size1, or a name PHP reserves; or two classes of the generated DTOs would get the same name. Rename one of them so they differ in more than underscores.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)
@@ -675,6 +677,24 @@ Another call with the same idempotency key is still running, and it did not fini
 - CLI exit code: 75 (EX_TEMPFAIL)
 - MCP: a tool result with isError set
 - Retry: yes, the same call may succeed later
+
+### json_invalid
+
+The JSON document is well-formed, but it does not hold what its contract version says (GUARDRAILS 2.2): a field is missing, unknown, of the wrong type, classified above the caller's classification access, or breaks a rule of its blueprint. The error names the field. Correct that value and send the document again.
+
+- HTTP status: 422 Unprocessable Content
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### json_malformed
+
+The document is not a well-formed JSON object, or an object in it has the same key twice, so none of it was read (GUARDRAILS 2.2). Send one JSON object, encoded as UTF-8, with every key once in each object.
+
+- HTTP status: 400 Bad Request
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
 
 ### owner_credentials_exposed
 

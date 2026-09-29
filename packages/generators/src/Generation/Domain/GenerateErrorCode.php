@@ -98,7 +98,9 @@ enum GenerateErrorCode: string
     /**
      * Two fields, options or extender namespaces of one type would get the same name in the
      * type's generated PHP records, such as the handles `size_1` and `size1`, or a name PHP
-     * reserves.
+     * reserves; or two fields of one object, or two classes of the generated DTOs, get the same
+     * PHP name: the group `b_v1` of the type `a` and the type `a_v1_b` both give the class
+     * `AppAV1BV1`.
      */
     case NameCollision = 'generate_name_collision';
 

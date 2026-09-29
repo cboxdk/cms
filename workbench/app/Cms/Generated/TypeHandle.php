@@ -28,7 +28,13 @@ enum TypeHandle: string
         return match ($this) {
             self::AppFixtureArticle => [
                 'fixture_body' => 'rich_text',
+                'fixture_embargo' => 'group',
+                'fixture_featured' => 'boolean',
+                'fixture_published_on' => 'date',
+                'fixture_reading_minutes' => 'integer',
+                'fixture_sources' => 'group',
                 'fixture_title' => 'text',
+                'fixture_topics' => 'select',
             ],
             self::AppFixtureMeasurement => [
                 'fixture_measured_at' => 'datetime',

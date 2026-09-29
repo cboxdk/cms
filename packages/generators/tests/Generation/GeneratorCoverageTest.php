@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Generators\Tests\Generation;
 
+use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecordDtos;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecords;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeCatalog;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeHandleEnum;
@@ -36,6 +37,7 @@ afterEach(function (): void {
 function generatorMappings(): array
 {
     return [
+        PhpRecordDtos::class => ['fieldTypes' => PhpRecordDtos::FIELD_TYPES, 'kinds' => PhpRecordDtos::KINDS],
         PhpTypeHandleEnum::class => ['fieldTypes' => PhpTypeHandleEnum::FIELD_TYPES, 'kinds' => PhpTypeHandleEnum::KINDS],
         PhpRecords::class => ['fieldTypes' => PhpRecords::FIELD_TYPES, 'kinds' => PhpRecords::KINDS],
         PhpTypeCatalog::class => ['fieldTypes' => PhpTypeCatalog::FIELD_TYPES, 'kinds' => PhpTypeCatalog::KINDS],
@@ -165,10 +167,12 @@ it('fails when the schema gains a field type or a kind that a generator does not
     });
 
     expect(coverageProblems($schema, generatorMappings()))->toBe([
+        PhpRecordDtos::class.' has no mapping for the field type "relation".',
         PhpTypeHandleEnum::class.' has no mapping for the field type "relation".',
         PhpRecords::class.' has no mapping for the field type "relation".',
         PhpTypeCatalog::class.' has no mapping for the field type "relation".',
         TypeScriptTypeHandles::class.' has no mapping for the field type "relation".',
+        PhpRecordDtos::class.' has no mapping for the kind "fieldset".',
         PhpTypeHandleEnum::class.' has no mapping for the kind "fieldset".',
         PhpRecords::class.' has no mapping for the kind "fieldset".',
         PhpTypeCatalog::class.' has no mapping for the kind "fieldset".',

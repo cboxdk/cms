@@ -11,7 +11,7 @@ kind: type
 type_id: 01a0df3e-8cef-7e9f-8daf-9faa60f1faa6
 handle: fixture_article
 label: Fixture article
-description: A news article with a title and a body.
+description: A news article with a title, a body, its topics and sources, and an embargo.
 version: 1
 capabilities:
   history: full
@@ -29,3 +29,68 @@ fields:
     description: The body of the article.
     type: rich_text
     classification: public
+  - handle: fixture_published_on
+    label: Published on
+    description: The day the article was first published.
+    type: date
+    classification: public
+    sortable: true
+    min: '2000-01-01'
+  - handle: fixture_reading_minutes
+    label: Reading minutes
+    description: How many minutes the article takes to read.
+    type: integer
+    classification: public
+    min: 1
+    max: 600
+  - handle: fixture_featured
+    label: Featured
+    description: Whether the article is featured on the front page.
+    type: boolean
+    required: true
+    classification: public
+    filterable: true
+  - handle: fixture_topics
+    label: Topics
+    description: The topics the article is listed under.
+    type: select
+    classification: public
+    multiple: true
+    max_items: 2
+    options:
+      - value: fixture_politics
+        label: Politics
+      - value: fixture_science
+        label: Science
+      - value: fixture_culture
+        label: Culture
+  - handle: fixture_sources
+    label: Sources
+    description: The sources the article cites.
+    type: group
+    classification: internal
+    repeat:
+      max_items: 10
+    fields:
+      - handle: fixture_source_title
+        label: Source title
+        description: The title of the source.
+        type: text
+        required: true
+      - handle: fixture_source_url
+        label: Source URL
+        description: Where the source can be read.
+        type: text
+        format: url
+  - handle: fixture_embargo
+    label: Embargo
+    type: group
+    classification: confidential
+    fields:
+      - handle: fixture_embargo_until
+        label: Embargo until
+        type: datetime
+        required: true
+      - handle: fixture_embargo_reason
+        label: Embargo reason
+        type: long_text

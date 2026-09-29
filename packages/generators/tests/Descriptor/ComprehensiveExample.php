@@ -8,6 +8,7 @@ use Cbox\Cms\Generators\Descriptor\Domain\DescriptorCompiler;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\CompiledSchema;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationTarget;
 use Cbox\Cms\Generators\Generation\Domain\GeneratorRunner;
+use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecordDtos;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecords;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeCatalog;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeHandleEnum;
@@ -38,7 +39,7 @@ final class ComprehensiveExample
 
     public const string GOLDEN = self::DIRECTORY.'/descriptor.json';
 
-    /** The committed golden PHP of the example, below DIRECTORY: what the PHP generators write. */
+    /** The committed golden PHP of the example, below DIRECTORY: what the PHP generators write, the record DTOs and codecs of PhpRecordDtos included. */
     public const string PHP_DIRECTORY = 'Generated';
 
     /** The namespace of the golden PHP, which Composer's autoload-dev loads from PHP_DIRECTORY. */
@@ -83,7 +84,7 @@ final class ComprehensiveExample
     {
         $files = [];
 
-        foreach (new GeneratorRunner([new PhpTypeHandleEnum, new PhpRecords, new PhpTypeCatalog(ServiceProvider::class)])->run(self::compile(), self::target())->files as $file) {
+        foreach (new GeneratorRunner([new PhpRecordDtos, new PhpTypeHandleEnum, new PhpRecords, new PhpTypeCatalog(ServiceProvider::class)])->run(self::compile(), self::target())->files as $file) {
             $files[$file->path] = $file->contents;
         }
 

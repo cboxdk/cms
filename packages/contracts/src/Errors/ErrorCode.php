@@ -90,6 +90,8 @@ enum ErrorCode: string
     case GenerateUnknownFieldType = 'generate_unknown_field_type';
     case IdempotencyConflict = 'idempotency_conflict';
     case IdempotencyInFlight = 'idempotency_in_flight';
+    case JsonInvalid = 'json_invalid';
+    case JsonMalformed = 'json_malformed';
     case OwnerCredentialsExposed = 'owner_credentials_exposed';
     case PartitionLockTimeout = 'partition_lock_timeout';
     case PartitionMissing = 'partition_missing';
@@ -282,7 +284,7 @@ enum ErrorCode: string
                 'A field\'s min_length is greater than its max_length, or than the default max_length of its type. Correct one of them.',
             ),
             self::GenerateNameCollision => $this->refusedInput(
-                'Two fields, options or extender namespaces of one type would get the same name in the type\'s generated PHP records, such as the handles size_1 and size1, or a name PHP reserves. Rename one of them.',
+                'Two fields, options or extender namespaces of one type would get the same name in the type\'s generated PHP records or DTOs, such as the handles size_1 and size1, or a name PHP reserves; or two classes of the generated DTOs would get the same name. Rename one of them so they differ in more than underscores.',
             ),
             self::GenerateOutputUnwritable => $this->tooling(
                 ExitCode::CantCreat,
@@ -326,6 +328,19 @@ enum ErrorCode: string
                 McpResponse::ToolError,
                 true,
                 'Another call with the same idempotency key is still running, and it did not finish within the wait budget, cbox-cms.idempotency.wait_budget_ms (PRD 6.1). Nothing was committed by this call. Try again in a moment with the same key and content: you then get the first call\'s result.',
+            ),
+            self::JsonInvalid => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'The JSON document is well-formed, but it does not hold what its contract version says (GUARDRAILS 2.2): a field is missing, unknown, of the wrong type, classified above the caller\'s classification access, or breaks a rule of its blueprint. The error names the field. Correct that value and send the document again.',
+            ),
+            self::JsonMalformed => new ErrorEntry(
+                $this,
+                HttpStatus::BadRequest,
+                ExitCode::DataErr,
+                McpResponse::ToolError,
+                false,
+                'The document is not a well-formed JSON object, or an object in it has the same key twice, so none of it was read (GUARDRAILS 2.2). Send one JSON object, encoded as UTF-8, with every key once in each object.',
             ),
             self::OwnerCredentialsExposed => $this->violation(
                 'The core refused to boot a process that serves HTTP or runs queued jobs, because the owner connection is configured in it (PRD 4.2). Give the owner connection to the maintenance process alone, which runs the migrations and cms:partitions:maintain.',

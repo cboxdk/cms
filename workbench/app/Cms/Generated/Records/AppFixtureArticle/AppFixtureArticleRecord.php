@@ -6,6 +6,7 @@ namespace Workbench\App\Cms\Generated\Records\AppFixtureArticle;
 
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\ListValue;
+use DateTimeImmutable;
 
 /**
  * The fields of app:fixture_article that its owner, app, declares (PRD 11.12). The owner's code
@@ -22,9 +23,43 @@ interface AppFixtureArticleRecord
     public ?ListValue $fixtureBody { get; }
 
     /**
+     * Embargo.
+     */
+    public ?FixtureEmbargoGroup $fixtureEmbargo { get; }
+
+    /**
+     * Featured: Whether the article is featured on the front page.
+     */
+    public bool $fixtureFeatured { get; }
+
+    /**
+     * Published on: The day the article was first published.
+     */
+    public ?DateTimeImmutable $fixturePublishedOn { get; }
+
+    /**
+     * Reading minutes: How many minutes the article takes to read.
+     */
+    public ?int $fixtureReadingMinutes { get; }
+
+    /**
+     * Sources: The sources the article cites.
+     *
+     * @var list<FixtureSourcesItem>|null
+     */
+    public ?array $fixtureSources { get; }
+
+    /**
      * Title: The title of the article, as it is shown on the page and in lists.
      */
     public ?string $fixtureTitle { get; }
+
+    /**
+     * Topics: The topics the article is listed under.
+     *
+     * @var list<FixtureTopicsChoice>|null
+     */
+    public ?array $fixtureTopics { get; }
 
     /**
      * The fields as the kernel's generic field values, the extension fields included.

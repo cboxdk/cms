@@ -66,19 +66,20 @@ const PAGE_TYPE = <<<'YAML'
     YAML;
 
 /**
- * A git repository with the workbench's blueprints and generated code, committed.
+ * A git repository with the workbench's blueprints and every file of its generated code, committed.
  */
 function gateRepository(): string
 {
     $root = SchemaFixtures::scratch();
-    $blueprints = array_map(static fn (string $file): string => 'workbench/schema/'.$file, SchemaFixtures::files(Phpstan::root().'/workbench/schema'));
+    $files = [];
 
-    $generated = [
-        ...array_map(static fn (string $file): string => 'workbench/app/Cms/Generated/'.$file, SchemaFixtures::files(Phpstan::root().'/workbench/app/Cms/Generated')),
-        ...array_map(static fn (string $file): string => 'workbench/resources/js/cms/generated/'.$file, SchemaFixtures::files(Phpstan::root().'/workbench/resources/js/cms/generated')),
-    ];
+    foreach (['workbench/schema', ...GENERATED_PATHS] as $directory) {
+        foreach (SchemaFixtures::files(Phpstan::root().'/'.$directory) as $file) {
+            $files[] = $directory.'/'.$file;
+        }
+    }
 
-    foreach ([...$blueprints, ...$generated] as $file) {
+    foreach ($files as $file) {
         SchemaFixtures::write($root.'/'.$file, (string) file_get_contents(Phpstan::root().'/'.$file));
     }
 

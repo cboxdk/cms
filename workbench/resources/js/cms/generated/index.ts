@@ -13,7 +13,13 @@ export type TypeHandle = 'app:fixture_article' | 'app:fixture_measurement';
 export interface TypeFields {
   'app:fixture_article': {
     fixture_body: 'rich_text';
+    fixture_embargo: 'group';
+    fixture_featured: 'boolean';
+    fixture_published_on: 'date';
+    fixture_reading_minutes: 'integer';
+    fixture_sources: 'group';
     fixture_title: 'text';
+    fixture_topics: 'select';
   };
   'app:fixture_measurement': {
     fixture_measured_at: 'datetime';

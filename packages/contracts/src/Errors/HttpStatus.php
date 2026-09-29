@@ -16,6 +16,9 @@ enum HttpStatus: int
     /** The call succeeded, as a dry run does: it computed the plan and committed nothing. */
     case Ok = 200;
 
+    /** The request cannot be read at all, such as a body that is not well-formed JSON. */
+    case BadRequest = 400;
+
     /** The call carried no credential that verifies, so the caller is not known. */
     case Unauthorized = 401;
 
@@ -41,6 +44,7 @@ enum HttpStatus: int
     {
         return match ($this) {
             self::Ok => 'OK',
+            self::BadRequest => 'Bad Request',
             self::Unauthorized => 'Unauthorized',
             self::Forbidden => 'Forbidden',
             self::Conflict => 'Conflict',

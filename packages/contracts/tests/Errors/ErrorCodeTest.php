@@ -61,6 +61,9 @@ it('has the codes M1 adds, with what each surface answers', function (ErrorCode 
     'idempotency conflict' => [ErrorCode::IdempotencyConflict, HttpStatus::Conflict, ExitCode::DataErr, McpResponse::ToolError, false],
     'version conflict' => [ErrorCode::VersionConflict, HttpStatus::Conflict, ExitCode::DataErr, McpResponse::ToolError, false],
     'validation failed' => [ErrorCode::ValidationFailed, HttpStatus::UnprocessableContent, ExitCode::DataErr, McpResponse::ToolError, false],
+    'a JSON document that breaks its contract' => [ErrorCode::JsonInvalid, HttpStatus::UnprocessableContent, ExitCode::DataErr, McpResponse::ToolError, false],
+    'a JSON document that cannot be read' => [ErrorCode::JsonMalformed, HttpStatus::BadRequest, ExitCode::DataErr, McpResponse::ToolError, false],
+    'a generated name twice' => [ErrorCode::GenerateNameCollision, HttpStatus::InternalServerError, ExitCode::DataErr, McpResponse::InternalError, false],
     'unauthorized' => [ErrorCode::Unauthorized, HttpStatus::Forbidden, ExitCode::NoPerm, McpResponse::ToolError, false],
     'actor not active' => [ErrorCode::ActorNotActive, HttpStatus::Forbidden, ExitCode::NoPerm, McpResponse::ToolError, false],
     'credential malformed' => [ErrorCode::CredentialMalformed, HttpStatus::Unauthorized, ExitCode::NoPerm, McpResponse::ToolError, false],
@@ -119,6 +122,7 @@ it('gives every HTTP status its reason phrase', function (HttpStatus $status, in
         ->and($status->reason())->toBe($reason);
 })->with([
     [HttpStatus::Ok, 200, 'OK'],
+    [HttpStatus::BadRequest, 400, 'Bad Request'],
     [HttpStatus::Unauthorized, 401, 'Unauthorized'],
     [HttpStatus::Forbidden, 403, 'Forbidden'],
     [HttpStatus::Conflict, 409, 'Conflict'],

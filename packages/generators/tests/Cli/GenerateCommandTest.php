@@ -86,7 +86,7 @@ it('points at the workbench\'s schema root in the workbench', function (): void 
     ]);
 });
 
-it('writes the PHP enum and the TypeScript union, and a second run changes nothing', function (): void {
+it('writes the PHP enum, the record DTO and codec, and the TypeScript union, and a second run changes nothing', function (): void {
     $root = generateRoot();
 
     [$first, $firstOutput] = generateCommand();
@@ -95,6 +95,8 @@ it('writes the PHP enum and the TypeScript union, and a second run changes nothi
 
     expect($first)->toBe(0)
         ->and($firstOutput)->toBe([
+            'written: app/Cms/Generated/Boundary/AppPageCodecV1.php',
+            'written: app/Cms/Generated/Domain/Dto/AppPageV1.php',
             'written: app/Cms/Generated/GeneratedTypeCatalog.php',
             'written: app/Cms/Generated/GeneratedTypesServiceProvider.php',
             'written: app/Cms/Generated/Records/AppPage/AppPage.php',
@@ -103,12 +105,14 @@ it('writes the PHP enum and the TypeScript union, and a second run changes nothi
             'written: app/Cms/Generated/Records/AppPage/AppPageRecordFactory.php',
             'written: app/Cms/Generated/TypeHandle.php',
             'written: resources/js/cms/generated/index.ts',
-            'Generated 8 files: 8 written, 0 unchanged, 0 stale removed.',
+            'Generated 10 files: 10 written, 0 unchanged, 0 stale removed.',
         ])
         ->and($second)->toBe(0)
-        ->and($secondOutput)->toBe(['Generated 8 files: 0 written, 8 unchanged, 0 stale removed.'])
+        ->and($secondOutput)->toBe(['Generated 10 files: 0 written, 10 unchanged, 0 stale removed.'])
         ->and(array_map(static fn (string $file): string => (string) hash_file('sha256', $root.'/'.$file), SchemaFixtures::files($root)))->toBe($hashes)
         ->and(SchemaFixtures::files($root))->toBe([
+            'app/Cms/Generated/Boundary/AppPageCodecV1.php',
+            'app/Cms/Generated/Domain/Dto/AppPageV1.php',
             'app/Cms/Generated/GeneratedTypeCatalog.php',
             'app/Cms/Generated/GeneratedTypesServiceProvider.php',
             'app/Cms/Generated/Records/AppPage/AppPage.php',
@@ -162,6 +166,8 @@ it('generates when a module release adds a type with the handle of an app type, 
         ->and($php)->toContain("    case AppPage = 'app:page';\n")
         ->and($after)->toBe(0)
         ->and($output)->toBe([
+            'written: app/Cms/Generated/Boundary/AcmePageCodecV1.php',
+            'written: app/Cms/Generated/Domain/Dto/AcmePageV1.php',
             'written: app/Cms/Generated/GeneratedTypeCatalog.php',
             'written: app/Cms/Generated/GeneratedTypesServiceProvider.php',
             'written: app/Cms/Generated/Records/AcmePage/AcmePage.php',
@@ -170,7 +176,7 @@ it('generates when a module release adds a type with the handle of an app type, 
             'written: app/Cms/Generated/Records/AcmePage/AcmePageRecordFactory.php',
             'written: app/Cms/Generated/TypeHandle.php',
             'written: resources/js/cms/generated/index.ts',
-            'Generated 12 files: 8 written, 4 unchanged, 0 stale removed.',
+            'Generated 16 files: 10 written, 6 unchanged, 0 stale removed.',
         ])
         ->and((string) file_get_contents($root.'/app/Cms/Generated/TypeHandle.php'))->toContain("    case AcmePage = 'acme:page';\n    case AppPage = 'app:page';\n")
         ->and($typeScript)->toContain("export type TypeHandle = 'app:page';\n")

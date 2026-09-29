@@ -147,7 +147,7 @@ JSON Schema checks one file at a time and cannot compare values with each other.
 | The `scale` of a `decimal` is at most its `precision`. | `generate_scale_above_precision` |
 | A field type `<namespace>:<handle>` is one that a contributor has registered (PRD 13.3). | `generate_unknown_field_type` |
 | The types of one owner give different PHP enum cases, the owner and the handle in TitleCase: `item_2` and `item2` both give `AppItem2`, so an owner cannot have both. A type whose case would read `class` in any letter case, such as the handle `lass` of an owner `c`, is refused, because PHP reserves it. | `generate_invalid_case_name` |
-| The fields, options and extender namespaces of one type give different names in the type's generated PHP records, compared without case as PHP compares class names: a field's property is its handle in camelCase, so `size_1` and `size1` both give `$size1`; the enum of a select field, the class of a group and of an item of a repeated group take the handle in TitleCase with `Choice`, `Group` or `Item`, below the group's name for a nested field and the namespace's for an extension field; and an option's case is its value in TitleCase. A field `this` and an option `class` are refused, because PHP reserves them. | `generate_name_collision` |
+| The fields, options and extender namespaces of one type give different names in the type's generated PHP records, compared without case as PHP compares class names: a field's property is its handle in camelCase, so `size_1` and `size1` both give `$size1`; the enum of a select field, the class of a group and of an item of a repeated group take the handle in TitleCase with `Choice`, `Group` or `Item`, below the group's name for a nested field and the namespace's for an extension field; and an option's case is its value in TitleCase. A field `this` and an option `class` are refused, because PHP reserves them. The records' DTOs also give different classes: the group `b_v1` of the type `a` and the type `a_v1_b` both give the class `AppAV1BV1`. See [Records and JSON codecs](codecs.md). | `generate_name_collision` |
 
 An unknown `extends` is reported only when every file was read, because a file that cannot be read may be the one that defines the type.
 
@@ -173,6 +173,8 @@ A few rules decide more than the field type does:
 - A `confidential` field is encrypted (PRD 12.2): its column is `bytea` holding ciphertext, without checks, whatever its type. The fields inside a confidential group are encrypted with it.
 - A required field of the type's owner is NOT NULL, and its PHP and TypeScript types are not nullable. An extension field never is, even with `required: true`, because the owner's code creates and revises entries without knowing it; its `required` is enforced when an entry is published (PRD 11.12). Every other field is nullable.
 - A `rich_text` field that leaves out `styles`, `marks`, `lists` or `links` allows every one of that list.
+
+From the descriptors, `cms:generate` writes the type enum and the TypeScript types, and for each type a record DTO and its JSON codec, described on [Records and JSON codecs](codecs.md).
 
 ## Examples
 

@@ -13,14 +13,20 @@ use Cbox\Cms\Generators\Schema\Boundary\BlueprintSchemaFile;
 use Cbox\Cms\Generators\Schema\Boundary\YamlBlueprintSource;
 use Cbox\Cms\Generators\Schema\Domain\BlueprintSource;
 use Cbox\Cms\Generators\Schema\Domain\Classification;
+use Cbox\Cms\Generators\Schema\Domain\Dto\BooleanOptions;
+use Cbox\Cms\Generators\Schema\Domain\Dto\DateOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\DatetimeOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\DecimalOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldBlueprint;
+use Cbox\Cms\Generators\Schema\Domain\Dto\GroupOptions;
+use Cbox\Cms\Generators\Schema\Domain\Dto\IntegerOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\LongTextOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\RichTextOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SelectOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\TextOptions;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypeRegistry;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypes\CoreFieldTypes;
 use Cbox\Cms\Generators\Schema\Domain\History;
 use Cbox\Cms\Generators\Schema\Domain\Localization;
 use Cbox\Cms\Generators\Schema\Domain\Stages;
@@ -29,7 +35,8 @@ use Illuminate\Contracts\Config\Repository;
 /*
  * The workbench's schema root and its committed generated code (GUARDRAILS 2.6): fixture_article
  * with history full and stages draft-release, and fixture_measurement with history none, stages
- * none, no route and other fields, the two fixture types of milestone 1. Every file in
+ * none, no route and other fields, the two fixture types of milestone 1, which together use every
+ * core field type, so the workbench's record codecs are tested with each. Every file in
  * workbench/schema is a blueprint v1 file that YamlBlueprintSource reads without problems, and the
  * committed files are exactly what the generators produce from them: the same check as
  * `composer check:generated`, without writing. Every file starts with the editor line that
@@ -66,6 +73,12 @@ it('holds only blueprint v1 files, which the YAML source reads without problems'
         ->toBe([
             ['fixture_title', TextOptions::class, Classification::Public, true],
             ['fixture_body', RichTextOptions::class, Classification::Public, true],
+            ['fixture_published_on', DateOptions::class, Classification::Public, true],
+            ['fixture_reading_minutes', IntegerOptions::class, Classification::Public, true],
+            ['fixture_featured', BooleanOptions::class, Classification::Public, true],
+            ['fixture_topics', SelectOptions::class, Classification::Public, true],
+            ['fixture_sources', GroupOptions::class, Classification::Internal, true],
+            ['fixture_embargo', GroupOptions::class, Classification::Confidential, false],
         ]);
 
     expect($measurement->handle->value)->toBe('fixture_measurement')
@@ -85,6 +98,16 @@ it('holds only blueprint v1 files, which the YAML source reads without problems'
             array_map(static fn (FieldBlueprint $field): string => $field->handle->value, $measurement->fields),
             array_map(static fn (FieldBlueprint $field): string => $field->handle->value, $article->fields),
         ))->toBe([]);
+
+    $fieldTypes = array_values(array_unique(array_map(
+        static fn (FieldBlueprint $field): string => $field->options->typeName(),
+        [...$article->fields, ...$measurement->fields],
+    )));
+    $coreFieldTypes = new FieldTypeRegistry(new CoreFieldTypes)->names();
+    sort($fieldTypes, SORT_STRING);
+    sort($coreFieldTypes, SORT_STRING);
+
+    expect($fieldTypes)->toBe($coreFieldTypes, 'The fixture types use every core field type, so the workbench\'s codecs are tested with each.');
 });
 
 it('has committed generated code that matches the schema', function (): void {
@@ -93,12 +116,21 @@ it('has committed generated code that matches the schema', function (): void {
     $result = app(GeneratorRunner::class)->run($schema, $target);
 
     expect($result->paths())->toBe([
+        'workbench/app/Cms/Generated/Boundary/AppFixtureArticleCodecV1.php',
+        'workbench/app/Cms/Generated/Boundary/AppFixtureMeasurementCodecV1.php',
+        'workbench/app/Cms/Generated/Domain/Dto/AppFixtureArticleV1.php',
+        'workbench/app/Cms/Generated/Domain/Dto/AppFixtureArticleV1FixtureEmbargo.php',
+        'workbench/app/Cms/Generated/Domain/Dto/AppFixtureArticleV1FixtureSources.php',
+        'workbench/app/Cms/Generated/Domain/Dto/AppFixtureMeasurementV1.php',
         'workbench/app/Cms/Generated/GeneratedTypeCatalog.php',
         'workbench/app/Cms/Generated/GeneratedTypesServiceProvider.php',
         'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticle.php',
         'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleFactory.php',
         'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleRecord.php',
         'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleRecordFactory.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureArticle/FixtureEmbargoGroup.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureArticle/FixtureSourcesItem.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureArticle/FixtureTopicsChoice.php',
         'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/AppFixtureMeasurement.php',
         'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/AppFixtureMeasurementFactory.php',
         'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/AppFixtureMeasurementRecord.php',

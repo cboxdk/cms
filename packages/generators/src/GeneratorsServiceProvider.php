@@ -15,6 +15,7 @@ use Cbox\Cms\Generators\Generation\Adapter\FilesystemGeneratedOutput;
 use Cbox\Cms\Generators\Generation\Boundary\GeneratorConfig;
 use Cbox\Cms\Generators\Generation\Domain\GeneratedOutput;
 use Cbox\Cms\Generators\Generation\Domain\GeneratorRunner;
+use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecordDtos;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecords;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeCatalog;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeHandleEnum;
@@ -32,7 +33,7 @@ use Override;
  * Merges the defaults for `cbox-cms.generators`, wires cms:generate (PRD 11.12) to the blueprint reader
  * that validates against the installed blueprint schema v1, to the registry of field types that
  * the reader resolves every field's type in, with the core's own field types registered through
- * CoreFieldTypes like any contributor's (GUARDRAILS 2.4), to the M0 generators and to the
+ * CoreFieldTypes like any contributor's (GUARDRAILS 2.4), to the generators and to the
  * filesystem, wires cms:schema:editor (blueprint decision 3) to the blueprint files on the
  * filesystem, registers both commands, and declares the package's classes as a scan root for
  * cms:build (PRD 13.2).
@@ -56,6 +57,7 @@ final class GeneratorsServiceProvider extends ServiceProvider implements Declare
         $this->app->bind(
             GeneratorRunner::class,
             static fn (): GeneratorRunner => new GeneratorRunner([
+                new PhpRecordDtos,
                 new PhpTypeHandleEnum,
                 new PhpRecords,
                 new PhpTypeCatalog(ServiceProvider::class),

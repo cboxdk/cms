@@ -11,6 +11,7 @@ use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\FieldWriter;
 use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Fields\NamedValue;
+use DateTimeImmutable;
 use Override;
 
 /**
@@ -23,9 +24,19 @@ use Override;
  */
 final readonly class AppFixtureArticle implements AppFixtureArticleRecord
 {
+    /**
+     * @param  list<FixtureSourcesItem>|null  $fixtureSources
+     * @param  list<FixtureTopicsChoice>|null  $fixtureTopics
+     */
     public function __construct(
         public ?ListValue $fixtureBody,
+        public ?FixtureEmbargoGroup $fixtureEmbargo,
+        public bool $fixtureFeatured,
+        public ?DateTimeImmutable $fixturePublishedOn,
+        public ?int $fixtureReadingMinutes,
+        public ?array $fixtureSources,
         public ?string $fixtureTitle,
+        public ?array $fixtureTopics,
     ) {}
 
     public static function fromFieldValues(FieldValues $values): self
@@ -34,7 +45,13 @@ final readonly class AppFixtureArticle implements AppFixtureArticleRecord
 
         return new self(
             fixtureBody: $fields->listOrNull('fixture_body'),
+            fixtureEmbargo: FixtureEmbargoGroup::fromFieldsOrNull($fields->groupOrNull('fixture_embargo')),
+            fixtureFeatured: $fields->boolean('fixture_featured'),
+            fixturePublishedOn: $fields->dateOrNull('fixture_published_on'),
+            fixtureReadingMinutes: $fields->integerOrNull('fixture_reading_minutes'),
+            fixtureSources: FixtureSourcesItem::fromListOrNull($fields->groupsOrNull('fixture_sources')),
             fixtureTitle: $fields->textOrNull('fixture_title'),
+            fixtureTopics: $fields->choicesOrNull('fixture_topics', FixtureTopicsChoice::class),
         );
     }
 
@@ -44,7 +61,13 @@ final readonly class AppFixtureArticle implements AppFixtureArticleRecord
         return new FieldValues(
             new FieldMap(
                 new NamedValue(new FieldHandle('fixture_body'), FieldWriter::list($this->fixtureBody)),
+                new NamedValue(new FieldHandle('fixture_embargo'), FieldWriter::group($this->fixtureEmbargo?->toFieldMap())),
+                new NamedValue(new FieldHandle('fixture_featured'), FieldWriter::boolean($this->fixtureFeatured)),
+                new NamedValue(new FieldHandle('fixture_published_on'), FieldWriter::date($this->fixturePublishedOn)),
+                new NamedValue(new FieldHandle('fixture_reading_minutes'), FieldWriter::integer($this->fixtureReadingMinutes)),
+                new NamedValue(new FieldHandle('fixture_sources'), FieldWriter::groups($this->fixtureSources === null ? null : FixtureSourcesItem::toFieldMaps($this->fixtureSources))),
                 new NamedValue(new FieldHandle('fixture_title'), FieldWriter::text($this->fixtureTitle)),
+                new NamedValue(new FieldHandle('fixture_topics'), FieldWriter::choices($this->fixtureTopics)),
             ),
         );
     }
