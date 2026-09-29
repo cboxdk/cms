@@ -52,6 +52,8 @@ For example, `'contracts' => [Clock::class => StagingClock::class]` replaces the
 
 | Key | Default | What it does |
 |---|---|---|
+| `cbox-cms.queries.budgets.anonymous` | `200` | The cost budget of a read without a credential. Every query action states what a query costs, from the rows it may return, how deep it reads and the relations it expands, and the query pipeline rejects a read above its principal's budget with [`query_over_budget`](../reference/errors.md#query_over_budget) before it reads anything. A whole number from `0`; any other value fails when the kernel reads it. |
+| `cbox-cms.queries.budgets.actor` | `1000` | The cost budget of a read as an actor, with the same rules. |
 | `cbox-cms.idempotency.wait_budget_ms` | `2000` | How long a command waits, in milliseconds, for another call with the same idempotency key to end. When the budget runs out, the command is rejected with [`idempotency_in_flight`](../reference/errors.md#idempotency_in_flight), which the client may retry. It is `0` to `5000`, part of the 5 seconds a command transaction may take, and `0` means do not wait. A value outside that range fails when the kernel reads it. |
 
 ## Event runner

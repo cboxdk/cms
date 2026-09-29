@@ -8,12 +8,14 @@ use Examples\Unit\Pipeline\FindNoteTitleAction;
 use Examples\Unit\Pipeline\NoteTitle;
 use Examples\Unit\Pipeline\NoteTitles;
 
-// A query action is tested by calling handle() with the query and checking the typed result.
+// A query action is tested by calling cost() and handle() with the query and checking the cost and
+// the typed result.
 
-it('returns the note\'s title as a typed result', function (): void {
+it('returns the note\'s title as a typed result, at a cost of one', function (): void {
     $note = EntryId::fromString('01936f5e-8a2b-7c3d-9e4f-000000000001');
     $action = new FindNoteTitleAction(new NoteTitles([$note->toString() => 'Groceries']));
 
-    expect($action->handle(new FindNoteTitle($note)))->toEqual(new NoteTitle('Groceries'))
+    expect($action->cost(new FindNoteTitle($note))->units)->toBe(1)
+        ->and($action->handle(new FindNoteTitle($note)))->toEqual(new NoteTitle('Groceries'))
         ->and($action->handle(new FindNoteTitle(EntryId::fromString('01936f5e-8a2b-7c3d-9e4f-000000000009')))->title)->toBeNull();
 });

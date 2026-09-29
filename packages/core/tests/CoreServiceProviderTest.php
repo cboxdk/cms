@@ -26,6 +26,7 @@ use Cbox\Cms\Core\Pipeline\Domain\FieldValidation;
 use Cbox\Cms\Core\Pipeline\Domain\HookOverruns;
 use Cbox\Cms\Core\Pipeline\Domain\Stopwatch;
 use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
+use Cbox\Cms\Core\Reads\Boundary\QueryConfig;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Subscriptions\Adapter\PostgresSubscriptionLog;
 use Cbox\Cms\Core\Subscriptions\Adapter\RegistryLaneSubscribers;
@@ -71,15 +72,16 @@ it('merges config/cbox-cms.php under cbox-cms, the only root of the configuratio
     $defaults = new Repository(['cbox-cms' => require __DIR__.'/../config/cbox-cms.php']);
 
     expect(array_map(basename(...), glob(__DIR__.'/../config/*.php') ?: []))->toBe(['cbox-cms.php'])
-        ->and(array_keys($defaults->array('cbox-cms')))->toBe(['contracts', 'database', 'addons', 'idempotency', 'events', 'doctor'])
+        ->and(array_keys($defaults->array('cbox-cms')))->toBe(['contracts', 'database', 'addons', 'queries', 'idempotency', 'events', 'doctor'])
         ->and(config('cbox-cms.contracts'))->toBe($defaults->get('cbox-cms.contracts'))
         ->and(config('cbox-cms.database.partitions.runway_days'))->toBe($defaults->get('cbox-cms.database.partitions.runway_days'))
+        ->and(config('cbox-cms.queries.budgets'))->toBe($defaults->get('cbox-cms.queries.budgets'))
         ->and(config('cbox-cms.idempotency.wait_budget_ms'))->toBe($defaults->get('cbox-cms.idempotency.wait_budget_ms'))
         ->and(config('cbox-cms.events.runner'))->toBe($defaults->get('cbox-cms.events.runner'))
         ->and(config('cbox-cms.addons.service_actors'))->toBe($defaults->get('cbox-cms.addons.service_actors'))
         ->and(config()->has('cms'))->toBeFalse()
-        ->and([ContractBindings::CONFIG_KEY, DoctorConfig::CONFIG_KEY, PartitionConfig::CONFIG_KEY, IdempotencyConfig::CONFIG_KEY, RunnerConfig::CONFIG_KEY])
-        ->toBe(['cbox-cms.contracts', 'cbox-cms.doctor', 'cbox-cms.database', 'cbox-cms.idempotency', 'cbox-cms.events.runner']);
+        ->and([ContractBindings::CONFIG_KEY, DoctorConfig::CONFIG_KEY, PartitionConfig::CONFIG_KEY, IdempotencyConfig::CONFIG_KEY, RunnerConfig::CONFIG_KEY, QueryConfig::CONFIG_KEY])
+        ->toBe(['cbox-cms.contracts', 'cbox-cms.doctor', 'cbox-cms.database', 'cbox-cms.idempotency', 'cbox-cms.events.runner', 'cbox-cms.queries']);
 });
 
 it('binds the event runner\'s ports and its settings from the configuration', function (): void {

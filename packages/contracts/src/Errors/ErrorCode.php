@@ -107,6 +107,7 @@ enum ErrorCode: string
     case PartitionMissing = 'partition_missing';
     case PartitionOwnerRequired = 'partition_owner_required';
     case PartitionTableUnmanageable = 'partition_table_unmanageable';
+    case QueryOverBudget = 'query_over_budget';
     case RegistryCacheMalformed = 'registry_cache_malformed';
     case RegistryCacheMissing = 'registry_cache_missing';
     case RegistryCacheUnwritable = 'registry_cache_unwritable';
@@ -451,6 +452,11 @@ enum ErrorCode: string
             self::PartitionTableUnmanageable => $this->violation(
                 'A table in cbox-cms.database.partitions.tables cannot be managed as it is: it is missing, not partitioned by range, has a DEFAULT partition, or Postgres refused a step on one of its partitions. The other tables were still maintained. Run the migrations, or correct the table or its entry as the cause says.',
             ),
+            self::QueryOverBudget => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'The read costs more than the budget of its principal, cbox-cms.queries.budgets (PRD 6.2, 8.8), so it was rejected before anything was read. The cost comes from the rows the read may return, how deep it reads and the relations it expands. Ask for fewer rows or a smaller selection, or call with a credential whose budget allows the read.',
+            ),
             self::RegistryCacheMalformed => $this->violation(
                 'The registry cache in bootstrap/cache/cms is damaged, or its files come from different builds, so the kernel cannot read its actions, commands, hooks, schema contributions and subscribers. Run cms:build.',
             ),
@@ -546,7 +552,7 @@ enum ErrorCode: string
             self::Unauthorized => $this->caller(
                 HttpStatus::Forbidden,
                 ExitCode::NoPerm,
-                'The actor may not run this command on this target, so the command was rejected and nothing was committed. Ask for the right the command needs, or run it as an actor that has it.',
+                'The actor may not run this command on this target, or this read, so the call was rejected: nothing was committed and nothing was read. Ask for the right the command or read needs, or call as an actor that has it.',
             ),
             self::ValidationAboveMaximum => $this->caller(
                 HttpStatus::UnprocessableContent,

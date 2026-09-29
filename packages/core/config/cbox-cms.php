@@ -82,7 +82,8 @@ return [
          * million ids per partition, and a partition the sequence has passed is dropped when its
          * newest event is 30 days old (PRD 7.10). Changesets and their on-behalf-of chains are
          * partitioned per day on changeset_id and never dropped here (PRD 4), and so is the audit,
-         * one row per changeset, whose retention comes with legal hold (PRD 12.10). Revision payloads are
+         * one row per changeset, whose retention comes with legal hold (PRD 12.10), and the read
+         * audit, per day on read_id. Revision payloads are
          * partitioned by kind first (PRD 4.1), and each kind is managed as its own table on
          * revision_id, which the sequence revisions_revision_id_seq feeds: ten million ids per
          * partition, never dropped, because drafts are thinned by rewriting a partition.
@@ -104,6 +105,7 @@ return [
                 'changesets' => ['key' => 'uuid7', 'interval' => 'day', 'retention_days' => null],
                 'changeset_principals' => ['key' => 'uuid7', 'interval' => 'day', 'retention_days' => null],
                 'audit' => ['key' => 'uuid7', 'interval' => 'day', 'retention_days' => null],
+                'read_audit' => ['key' => 'uuid7', 'interval' => 'day', 'retention_days' => null],
                 'revision_payloads_draft' => ['key' => 'bigint', 'width' => 10_000_000, 'sequence' => 'revisions_revision_id_seq'],
                 'revision_payloads_published' => ['key' => 'bigint', 'width' => 10_000_000, 'sequence' => 'revisions_revision_id_seq'],
             ],
@@ -119,6 +121,20 @@ return [
      */
     'addons' => [
         'service_actors' => [],
+    ],
+
+    /*
+     * The query pipeline (PRD 6.2, 8.8). Every read states its cost from its query, from the rows
+     * it may return, how deep it reads and the relations it expands, and a read that costs more
+     * than the budget of its principal is rejected with query_over_budget before it reads
+     * anything: budgets.anonymous for a read without a credential, budgets.actor for a read as an
+     * actor. Each is a whole number from 0.
+     */
+    'queries' => [
+        'budgets' => [
+            'anonymous' => 200,
+            'actor' => 1000,
+        ],
     ],
 
     /*

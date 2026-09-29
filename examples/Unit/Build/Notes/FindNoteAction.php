@@ -8,6 +8,7 @@ use Cbox\Cms\Contracts\Attributes\Action;
 use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Pipeline\Query;
 use Cbox\Cms\Contracts\Pipeline\QueryAction;
+use Cbox\Cms\Contracts\Pipeline\QueryCost;
 use Override;
 
 /**
@@ -25,6 +26,15 @@ final readonly class FindNoteAction implements QueryAction
     public function __construct(
         private array $titles,
     ) {}
+
+    /**
+     * One lookup by title.
+     */
+    #[Override]
+    public function cost(Query $query): QueryCost
+    {
+        return new QueryCost(1);
+    }
 
     /**
      * @param  FindNote  $query

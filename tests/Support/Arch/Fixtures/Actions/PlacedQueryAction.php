@@ -6,6 +6,7 @@ namespace Cbox\Cms\Tests\Support\Arch\Fixtures\Actions;
 
 use Cbox\Cms\Contracts\Pipeline\Query;
 use Cbox\Cms\Contracts\Pipeline\QueryAction;
+use Cbox\Cms\Contracts\Pipeline\QueryCost;
 use Cbox\Cms\Contracts\Pipeline\Result;
 use Override;
 
@@ -16,6 +17,12 @@ use Override;
  */
 final readonly class PlacedQueryAction implements QueryAction
 {
+    #[Override]
+    public function cost(Query $query): QueryCost
+    {
+        return new QueryCost(0);
+    }
+
     #[Override]
     public function handle(Query $query): Result
     {

@@ -16,6 +16,9 @@ use Cbox\Cms\Contracts\Identity\ActorDirectory;
 use Cbox\Cms\Contracts\Identity\CredentialVerifier;
 use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Contracts\ReceiptStore;
+use Cbox\Cms\Core\Access\Adapter\PostgresAccessResolver;
+use Cbox\Cms\Core\Access\Domain\AccessCompiler;
+use Cbox\Cms\Core\Access\Domain\AccessResolver;
 use Cbox\Cms\Core\Addons\Boundary\AddonConfig;
 use Cbox\Cms\Core\Addons\Domain\Dto\ServiceActors;
 use Cbox\Cms\Core\Bindings\Boundary\ContractBindings;
@@ -95,6 +98,14 @@ use Cbox\Cms\Core\Pipeline\Domain\VersionLocks;
 use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
 use Cbox\Cms\Core\Process\Boundary\ProcessWorkload;
 use Cbox\Cms\Core\Process\Domain\OwnerCredentialsExposed;
+use Cbox\Cms\Core\Reads\Adapter\ConnectionQueryTransaction;
+use Cbox\Cms\Core\Reads\Adapter\PostgresReadAudit;
+use Cbox\Cms\Core\Reads\Adapter\RegistryQueryActions;
+use Cbox\Cms\Core\Reads\Boundary\QueryConfig;
+use Cbox\Cms\Core\Reads\Domain\Dto\QuerySettings;
+use Cbox\Cms\Core\Reads\Domain\QueryActions;
+use Cbox\Cms\Core\Reads\Domain\QueryTransaction;
+use Cbox\Cms\Core\Reads\Domain\ReadAudit;
 use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
 use Cbox\Cms\Core\Registry\Boundary\RegistryCacheCodec;
 use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
@@ -268,6 +279,29 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->bind(CommandHooks::class, RegistryCommandHooks::class);
         $this->app->singleton(Stopwatch::class, HrtimeStopwatch::class);
         $this->app->bind(HookOverruns::class, LoggedHookOverruns::class);
+
+        // The query pipeline's ports that the core implements (PRD 6.2): the query action of a
+        // query from the compiled registry, the read transaction on the default connection, which
+        // the access resolver, the read audit and the actions' read ports use too, and the settings,
+        // built on each resolution so the budgets follow the configuration. The QueryAuthorizer is not
+        // bound yet; its docblock says why.
+        $this->app->bind(QueryActions::class, RegistryQueryActions::class);
+        $this->app->bind(
+            QueryTransaction::class,
+            static fn (Application $app): QueryTransaction => new ConnectionQueryTransaction($app->make(ConnectionResolverInterface::class)),
+        );
+        $this->app->bind(
+            AccessResolver::class,
+            static fn (Application $app): AccessResolver => new PostgresAccessResolver($app->make(ConnectionResolverInterface::class), new AccessCompiler),
+        );
+        $this->app->bind(
+            ReadAudit::class,
+            static fn (Application $app): ReadAudit => new PostgresReadAudit($app->make(ConnectionResolverInterface::class), $app->make(Clock::class), $app->make(IdGenerator::class)),
+        );
+        $this->app->bind(
+            QuerySettings::class,
+            static fn (Application $app): QuerySettings => QueryConfig::read($app->make(Repository::class)),
+        );
 
         // The event runner's ports (PRD 7.4 to 7.8): the cursors and parked aggregates on the default
         // connection, which the subscribers write on, the subscribers of the compiled registry, real

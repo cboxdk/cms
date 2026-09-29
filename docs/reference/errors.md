@@ -95,6 +95,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`partition_missing`](#partition_missing) | 503 | 75 | internal_error | yes |
 | [`partition_owner_required`](#partition_owner_required) | 500 | 78 | internal_error | no |
 | [`partition_table_unmanageable`](#partition_table_unmanageable) | 500 | 78 | internal_error | no |
+| [`query_over_budget`](#query_over_budget) | 422 | 65 | tool_error | no |
 | [`registry_cache_malformed`](#registry_cache_malformed) | 500 | 78 | internal_error | no |
 | [`registry_cache_missing`](#registry_cache_missing) | 500 | 78 | internal_error | no |
 | [`registry_cache_unwritable`](#registry_cache_unwritable) | 500 | 73 | internal_error | no |
@@ -875,6 +876,15 @@ A table in cbox-cms.database.partitions.tables cannot be managed as it is: it is
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
+### query_over_budget
+
+The read costs more than the budget of its principal, cbox-cms.queries.budgets (PRD 6.2, 8.8), so it was rejected before anything was read. The cost comes from the rows the read may return, how deep it reads and the relations it expands. Ask for fewer rows or a smaller selection, or call with a credential whose budget allows the read.
+
+- HTTP status: 422 Unprocessable Content
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
 ### registry_cache_malformed
 
 The registry cache in bootstrap/cache/cms is damaged, or its files come from different builds, so the kernel cannot read its actions, commands, hooks, schema contributions and subscribers. Run cms:build.
@@ -1138,7 +1148,7 @@ No registered subscriber has the subscription named, so nothing was released (PR
 
 ### unauthorized
 
-The actor may not run this command on this target, so the command was rejected and nothing was committed. Ask for the right the command needs, or run it as an actor that has it.
+The actor may not run this command on this target, or this read, so the call was rejected: nothing was committed and nothing was read. Ask for the right the command or read needs, or call as an actor that has it.
 
 - HTTP status: 403 Forbidden
 - CLI exit code: 77 (EX_NOPERM)

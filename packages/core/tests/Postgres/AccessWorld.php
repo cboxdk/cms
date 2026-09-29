@@ -79,6 +79,9 @@ final class AccessWorld
 
     public const string CHANGESET_BOB = '019cd79e-4600-7000-8000-0000000000f3';
 
+    /** The read of ALICE's that the read audit holds. */
+    public const string READ_ALICE = '019cd79e-4600-7000-8000-0000000000f4';
+
     public const string TYPE = '0192a0c0-0000-7000-8000-000000000030';
 
     public const string CREATED_AT = '2026-03-10 12:00:00+00';
@@ -106,7 +109,7 @@ final class AccessWorld
     public const array TABLES = [
         'actors', 'audit', 'changeset_principals', 'changeset_reason_texts', 'changeset_register', 'changesets', 'entries',
         'grants', 'head_snapshots', 'mount_overrides', 'node_routes', 'nodes', 'placement_generations', 'placement_locales',
-        'placements', 'release_log', 'revision_payloads', 'revisions', 'role_permissions', 'roles',
+        'placements', 'read_audit', 'release_log', 'revision_payloads', 'revisions', 'role_permissions', 'roles',
         'service_credential_delegations', 'service_credentials', 'site_locales', 'sites', 'variant_heads',
     ];
 
@@ -223,6 +226,18 @@ final class AccessWorld
                 'created_at' => self::CREATED_AT,
             ]);
         }
+
+        $superuser->table('read_audit')->insert([
+            'read_id' => self::READ_ALICE,
+            'entry_id' => self::ENTRY_CULTURE,
+            'actor_id' => self::ALICE,
+            'query' => 'entry.find',
+            'query_version' => 1,
+            'classification' => 'personal',
+            'fields' => '{contact}',
+            'read_position' => '4827',
+            'created_at' => self::CREATED_AT,
+        ]);
 
         $superuser->table('changeset_principals')->insert(['changeset_id' => self::CHANGESET_BOB, 'position' => 1, 'actor_id' => self::ALICE]);
         $superuser->table('changeset_reason_texts')->insert(['changeset_id' => self::CHANGESET_ALICE, 'classification' => 'confidential', 'text' => 'Source asked for a correction.', 'created_at' => self::CREATED_AT]);

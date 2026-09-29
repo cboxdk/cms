@@ -15,10 +15,12 @@ use Cbox\Cms\Contracts\Identity\NodePath;
 use Cbox\Cms\Contracts\Identity\Principal;
 use Cbox\Cms\Contracts\Ids\RoleId;
 use Cbox\Cms\Core\Access\Domain\AccessCompiler;
+use Cbox\Cms\Core\Access\Domain\AccessResolver;
 use Cbox\Cms\Core\Access\Domain\Dto\Grant;
 use Cbox\Cms\Core\Access\Infrastructure\ActorContext;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\ConnectionResolverInterface;
+use Override;
 use UnexpectedValueException;
 
 /**
@@ -34,7 +36,7 @@ use UnexpectedValueException;
  * one, before any statement.
  */
 #[Internal]
-final readonly class PostgresAccessResolver
+final readonly class PostgresAccessResolver implements AccessResolver
 {
     /**
      * @param  string|null  $connection  the connection name; null for the default connection
@@ -48,6 +50,7 @@ final readonly class PostgresAccessResolver
     /**
      * @throws TransactionRequired
      */
+    #[Override]
     public function resolve(Principal $principal): AccessContext
     {
         $context = new ActorContext($this->connections, $this->connection);

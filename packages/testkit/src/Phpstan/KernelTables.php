@@ -41,6 +41,7 @@ final class KernelTables
         'placement_generations',
         'placement_locales',
         'placements',
+        'read_audit',
         'receipt_projections',
         'receipt_projections_evidence',
         'receipt_projections_standard',

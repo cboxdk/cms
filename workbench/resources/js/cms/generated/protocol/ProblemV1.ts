@@ -90,6 +90,7 @@ export type ErrorCode =
   | 'partition_missing'
   | 'partition_owner_required'
   | 'partition_table_unmanageable'
+  | 'query_over_budget'
   | 'registry_cache_malformed'
   | 'registry_cache_missing'
   | 'registry_cache_unwritable'
@@ -283,6 +284,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'partition_missing',
           'partition_owner_required',
           'partition_table_unmanageable',
+          'query_over_budget',
           'registry_cache_malformed',
           'registry_cache_missing',
           'registry_cache_unwritable',
@@ -440,6 +442,7 @@ const problemV1Rule: ObjectRule = {
           'partition_missing',
           'partition_owner_required',
           'partition_table_unmanageable',
+          'query_over_budget',
           'registry_cache_malformed',
           'registry_cache_missing',
           'registry_cache_unwritable',
