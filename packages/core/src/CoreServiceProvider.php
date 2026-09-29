@@ -89,6 +89,14 @@ use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
+use Cbox\Cms\Core\Subscriptions\Adapter\PostgresSubscriptionLog;
+use Cbox\Cms\Core\Subscriptions\Adapter\RegistryLaneSubscribers;
+use Cbox\Cms\Core\Subscriptions\Adapter\SystemPacing;
+use Cbox\Cms\Core\Subscriptions\Boundary\RunnerConfig;
+use Cbox\Cms\Core\Subscriptions\Domain\Dto\RunnerSettings;
+use Cbox\Cms\Core\Subscriptions\Domain\LaneSubscribers;
+use Cbox\Cms\Core\Subscriptions\Domain\Pacing;
+use Cbox\Cms\Core\Subscriptions\Domain\SubscriptionLog;
 use Cbox\Operations\OperationsServiceProvider;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Config\Repository;
@@ -109,7 +117,8 @@ use Psr\Log\LoggerInterface;
  * schedules it in a process that has the owner connection. Refuses to boot a process that serves
  * HTTP or runs queued jobs with the owner connection configured (PRD 4.2). Wires the registry that cms:build compiles to bootstrap/cache/cms/ (PRD 13.2), and
  * declares the core's own classes as a scan root. Binds the kernel's settings for idempotency keys, the
- * default wait budget, from `cbox-cms.idempotency`. Wires the checks of cms:doctor (PRD 3.3, 4.2) to
+ * default wait budget, from `cbox-cms.idempotency`. Binds the event runner's ports and settings, from
+ * `cbox-cms.events.runner`. Wires the checks of cms:doctor (PRD 3.3, 4.2) to
  * their probes; a test swaps a probe by binding its interface. Makes Eloquent strict for every model
  * of the process (GUARDRAILS 4.1).
  */
@@ -208,6 +217,21 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->bind(CommandHooks::class, RegistryCommandHooks::class);
         $this->app->singleton(Stopwatch::class, HrtimeStopwatch::class);
         $this->app->bind(HookOverruns::class, LoggedHookOverruns::class);
+
+        // The event runner's ports (PRD 7.4 to 7.8): the cursors and parked aggregates on the default
+        // connection, which the subscribers write on, the subscribers of the compiled registry, real
+        // time for batches and backoff, and the settings, built on each resolution so they follow
+        // the configuration.
+        $this->app->bind(
+            SubscriptionLog::class,
+            static fn (Application $app): SubscriptionLog => new PostgresSubscriptionLog($app->make(ConnectionResolverInterface::class), $app->make(Clock::class)),
+        );
+        $this->app->bind(LaneSubscribers::class, RegistryLaneSubscribers::class);
+        $this->app->bind(Pacing::class, SystemPacing::class);
+        $this->app->bind(
+            RunnerSettings::class,
+            static fn (Application $app): RunnerSettings => RunnerConfig::read($app->make(Repository::class)),
+        );
 
         $this->registerDoctor();
     }

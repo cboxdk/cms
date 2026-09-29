@@ -6,7 +6,10 @@ namespace Cbox\Cms\Cli;
 
 use Cbox\Cms\Cli\Console\BuildCommand;
 use Cbox\Cms\Cli\Console\DoctorCommand;
+use Cbox\Cms\Cli\Console\ListParkedCommand;
 use Cbox\Cms\Cli\Console\MaintainPartitionsCommand;
+use Cbox\Cms\Cli\Console\ReleaseParkedCommand;
+use Cbox\Cms\Cli\Console\RunEventsCommand;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Build\DeclaresScanRoots;
 use Cbox\Cms\Contracts\Build\ScanRoot;
@@ -29,7 +32,10 @@ final class CliServiceProvider extends ServiceProvider implements DeclaresScanRo
             $this->commands([
                 BuildCommand::class,
                 DoctorCommand::class,
+                ListParkedCommand::class,
                 MaintainPartitionsCommand::class,
+                ReleaseParkedCommand::class,
+                RunEventsCommand::class,
             ]);
         }
     }

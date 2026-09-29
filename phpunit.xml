@@ -80,7 +80,9 @@
         <!--
             The Unit suite runs PHPStan's rule tests in-process and needs more than the 256M of
             the PHP images' default, and the Arch suite keeps every class it has parsed, the
-            vendor's included, for the whole run, which passed 512M as the packages grew; this
+            vendor's included, for the whole run, which passed 512M as the packages grew; its
+            expectations over every namespace of the package, the tests included, grow with the
+            code base, and at 512M Pest's test run history then failed the run (M1-T54); this
             makes the suites run the same on the host, in the php container and in CI.
         -->
         <ini name="memory_limit" value="1G"/>

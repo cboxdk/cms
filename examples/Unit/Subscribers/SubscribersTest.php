@@ -8,7 +8,9 @@ use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Events\EventPosition;
 use Cbox\Cms\Contracts\Events\EventStream;
 use Cbox\Cms\Contracts\Events\StoredEvent;
+use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
+use Cbox\Cms\Contracts\Subscribers\Delivery;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use DateTimeImmutable;
 use Examples\Unit\Build\BuildTestCase;
@@ -73,8 +75,10 @@ final class SubscribersTest extends BuildTestCase
         $index = new SearchIndex;
         $subscriber = new IndexPages($index);
 
-        $subscriber->handle($this->stored(new PagePublished(new PageId('page-7'), 2), 1));
-        $subscriber->handle($this->stored(new PagePublished(new PageId('page-7'), 1), 2));
+        $delivery = new Delivery(ActorId::fromString('01960000-0000-7000-8000-00000000000a'));
+
+        $subscriber->handle($this->stored(new PagePublished(new PageId('page-7'), 2), 1), $delivery);
+        $subscriber->handle($this->stored(new PagePublished(new PageId('page-7'), 1), 2), $delivery);
 
         self::assertSame(['page-7' => 2], $index->pages);
     }

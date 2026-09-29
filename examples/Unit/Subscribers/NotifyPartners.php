@@ -6,6 +6,7 @@ namespace Examples\Unit\Subscribers;
 
 use Cbox\Cms\Contracts\Attributes\Subscription;
 use Cbox\Cms\Contracts\Events\StoredEvent;
+use Cbox\Cms\Contracts\Subscribers\Delivery;
 use Cbox\Cms\Contracts\Subscribers\Lane;
 use Cbox\Cms\Contracts\Subscribers\Subscriber;
 
@@ -16,5 +17,5 @@ use Cbox\Cms\Contracts\Subscribers\Subscriber;
 #[Subscription('acme.search.partners', events: [PagePublished::class], lane: Lane::External)]
 final readonly class NotifyPartners implements Subscriber
 {
-    public function handle(StoredEvent $event): void {}
+    public function handle(StoredEvent $event, Delivery $delivery): void {}
 }

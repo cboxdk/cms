@@ -102,6 +102,9 @@ export type ErrorCode =
   | 'registry_unknown_hook_command'
   | 'registry_unknown_lane'
   | 'registry_unknown_surface'
+  | 'subscription_identity_invalid'
+  | 'subscription_not_parked'
+  | 'subscription_unknown'
   | 'unauthorized'
   | 'validation_above_maximum'
   | 'validation_below_minimum'
@@ -278,6 +281,9 @@ const catalogErrorV1Rule: ObjectRule = {
           'registry_unknown_hook_command',
           'registry_unknown_lane',
           'registry_unknown_surface',
+          'subscription_identity_invalid',
+          'subscription_not_parked',
+          'subscription_unknown',
           'unauthorized',
           'validation_above_maximum',
           'validation_below_minimum',
@@ -418,6 +424,9 @@ const problemV1Rule: ObjectRule = {
           'registry_unknown_hook_command',
           'registry_unknown_lane',
           'registry_unknown_surface',
+          'subscription_identity_invalid',
+          'subscription_not_parked',
+          'subscription_unknown',
           'unauthorized',
           'validation_above_maximum',
           'validation_below_minimum',

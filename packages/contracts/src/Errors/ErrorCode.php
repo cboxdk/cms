@@ -119,6 +119,9 @@ enum ErrorCode: string
     case RegistryUnknownHookCommand = 'registry_unknown_hook_command';
     case RegistryUnknownLane = 'registry_unknown_lane';
     case RegistryUnknownSurface = 'registry_unknown_surface';
+    case SubscriptionIdentityInvalid = 'subscription_identity_invalid';
+    case SubscriptionNotParked = 'subscription_not_parked';
+    case SubscriptionUnknown = 'subscription_unknown';
     case Unauthorized = 'unauthorized';
     case ValidationAboveMaximum = 'validation_above_maximum';
     case ValidationBelowMinimum = 'validation_below_minimum';
@@ -148,7 +151,7 @@ enum ErrorCode: string
             self::ActorNotActive => $this->caller(
                 HttpStatus::Forbidden,
                 ExitCode::NoPerm,
-                'The actor, or an actor it acts on behalf of, is not active (PRD 5.16, invariant 37): its credentials are refused, it runs no command and reads nothing, and nothing was committed. Reactivate the actor, or call as an actor that is active.',
+                'The actor, or an actor it acts on behalf of, is not active (PRD 5.16, invariant 37): its credentials are refused, it runs no command and reads nothing, the subscribers of a service actor do not run, and nothing was committed. Reactivate the actor, or call as an actor that is active.',
             ),
             self::CredentialExpired => $this->credential(
                 'The credential\'s expiry has passed, so it was refused and nothing was read or committed (PRD 5.16). Every credential has an expiry. Call again with a credential that is still valid.',
@@ -470,6 +473,19 @@ enum ErrorCode: string
             ),
             self::RegistryUnknownSurface => $this->refusedInput(
                 'An #[Action] lists a surface that is not a case of the Surface enum. List only Surface::Rest, Surface::Inertia, Surface::Mcp and Surface::Cli.',
+            ),
+            self::SubscriptionIdentityInvalid => $this->violation(
+                'The event runner runs its subscribers as a service actor, never as the system (PRD 6.5 invariant 21), and cbox-cms.events.runner.service_actor names none, an actor that does not exist or one that is not of class service. No event was handled. Create a service actor and name its id there.',
+            ),
+            self::SubscriptionNotParked => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'The aggregate is not parked for the subscription, so there is nothing to release (PRD 7.8). Nothing changed. List the parked aggregates with cms:events:parked and name one of them as <type>:<id>.',
+            ),
+            self::SubscriptionUnknown => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'No registered subscriber has the subscription named, so nothing was released (PRD 7.6). Check the name against the #[Subscription] of the subscriber, and run cms:build when the subscriber is new.',
             ),
             self::Unauthorized => $this->caller(
                 HttpStatus::Forbidden,

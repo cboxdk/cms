@@ -107,6 +107,9 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`registry_unknown_hook_command`](#registry_unknown_hook_command) | 500 | 65 | internal_error | no |
 | [`registry_unknown_lane`](#registry_unknown_lane) | 500 | 65 | internal_error | no |
 | [`registry_unknown_surface`](#registry_unknown_surface) | 500 | 65 | internal_error | no |
+| [`subscription_identity_invalid`](#subscription_identity_invalid) | 500 | 78 | internal_error | no |
+| [`subscription_not_parked`](#subscription_not_parked) | 422 | 65 | tool_error | no |
+| [`subscription_unknown`](#subscription_unknown) | 422 | 65 | tool_error | no |
 | [`unauthorized`](#unauthorized) | 403 | 77 | tool_error | no |
 | [`validation_above_maximum`](#validation_above_maximum) | 422 | 65 | tool_error | no |
 | [`validation_below_minimum`](#validation_below_minimum) | 422 | 65 | tool_error | no |
@@ -131,7 +134,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 
 ### actor_not_active
 
-The actor, or an actor it acts on behalf of, is not active (PRD 5.16, invariant 37): its credentials are refused, it runs no command and reads nothing, and nothing was committed. Reactivate the actor, or call as an actor that is active.
+The actor, or an actor it acts on behalf of, is not active (PRD 5.16, invariant 37): its credentials are refused, it runs no command and reads nothing, the subscribers of a service actor do not run, and nothing was committed. Reactivate the actor, or call as an actor that is active.
 
 - HTTP status: 403 Forbidden
 - CLI exit code: 77 (EX_NOPERM)
@@ -964,6 +967,33 @@ An #[Action] lists a surface that is not a case of the Surface enum. List only S
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)
 - MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### subscription_identity_invalid
+
+The event runner runs its subscribers as a service actor, never as the system (PRD 6.5 invariant 21), and cbox-cms.events.runner.service_actor names none, an actor that does not exist or one that is not of class service. No event was handled. Create a service actor and name its id there.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 78 (EX_CONFIG)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### subscription_not_parked
+
+The aggregate is not parked for the subscription, so there is nothing to release (PRD 7.8). Nothing changed. List the parked aggregates with cms:events:parked and name one of them as <type>:<id>.
+
+- HTTP status: 422 Unprocessable Content
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### subscription_unknown
+
+No registered subscriber has the subscription named, so nothing was released (PRD 7.6). Check the name against the #[Subscription] of the subscriber, and run cms:build when the subscriber is new.
+
+- HTTP status: 422 Unprocessable Content
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
 - Retry: no, the same call gives the same answer until something changes
 
 ### unauthorized

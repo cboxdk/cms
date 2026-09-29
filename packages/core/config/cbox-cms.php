@@ -116,6 +116,28 @@ return [
     ],
 
     /*
+     * The event runner (PRD 7.4 to 7.8), `cms:events:run`, one process per lane. It runs the
+     * subscribers as the service actor service_actor names, the UUIDv7 of an active actor of class
+     * service; without one it refuses to run. A batch reads at most batch_size events after the
+     * subscription's cursor and hands them to the subscriber for at most batch_budget_ms, 1 to 1900,
+     * so its transaction stays under 2 seconds. An event that fails is tried again after
+     * backoff_base_ms, doubled per failed try up to backoff_max_ms, and after max_attempts failed
+     * tries its aggregate is parked for the subscription until it is released
+     * (`cms:events:release`). idle_sleep_ms is the wait when the lane had nothing to do.
+     */
+    'events' => [
+        'runner' => [
+            'service_actor' => null,
+            'batch_size' => 100,
+            'batch_budget_ms' => 1000,
+            'max_attempts' => 5,
+            'backoff_base_ms' => 100,
+            'backoff_max_ms' => 5000,
+            'idle_sleep_ms' => 200,
+        ],
+    ],
+
+    /*
      * cms:doctor (PRD 3.3, 4.2, 13.2). The Postgres checks connect with the connection's settings
      * as the app role; null means the default connection. The doctor never logs in as the owner
      * role: postgres.lc_messages reads the lc_messages of the role owner_role names from the

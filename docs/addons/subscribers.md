@@ -13,11 +13,24 @@ Everything that happens because of a change, after the change has committed, is 
 
 ## A subscriber is a class
 
-A subscriber implements `Cbox\Cms\Contracts\Subscribers\Subscriber`, whose one method is `handle(StoredEvent $event): void`, and carries `#[Subscription]`. It is a `final readonly class` and keeps no state between events (GUARDRAILS 2.1). It works under the rules of the event log (PRD 7.4, 7.7):
+A subscriber implements `Cbox\Cms\Contracts\Subscribers\Subscriber`, whose one method is `handle(StoredEvent $event, Delivery $delivery): void`, and carries `#[Subscription]`. It is a `final readonly class` and keeps no state between events (GUARDRAILS 2.1). It works under the rules of the event log (PRD 7.4, 7.7):
 
 - **State-based.** An event means "aggregate X is now at version V, read the state". The payload carries ids and versions, never content, so the subscriber reads what it needs from the state.
 - **At least once, not in commit order.** An event can come twice, and an older version can come after a newer one. The subscriber is idempotent per (aggregate, version) and ignores a version older than the last it handled.
-- **Never writes content.** To change something it issues a command, as any other issuer does (PRD 8.6).
+- **Never writes content.** To change something it issues a command, as any other issuer does (PRD 8.6). The runner calls `handle()` inside its own batch transaction, and the command pipeline never begins inside an open transaction, so a subscriber cannot yet issue a command from `handle()`.
+
+## The runner
+
+`cms:events:run` hands the events to the subscribers of one lane (PRD 7.4 to 7.8). Run one process per lane; a second process of the same lane is safe, because each batch of a subscription holds the subscription's lock in Postgres, and the second process passes a subscription the first is handling. It runs until `SIGTERM` or `SIGINT` and ends after the batch in progress; `--until-idle` stops once nothing waits. The runner builds the critical lane only, so `--lane` takes `critical`, the default.
+
+- **As a service identity.** The subscribers run as the service actor that `cbox-cms.events.runner.service_actor` names, never as the system (PRD 6.5 invariant 21). Before each round the runner reads that actor, and it refuses to run with [`subscription_identity_invalid`](../reference/errors.md#subscription_identity_invalid) (exit 78) when none is named, the actor does not exist or is not of class service, and with [`actor_not_active`](../reference/errors.md#actor_not_active) (exit 77) once it is not active. The `Delivery` that `handle()` gets names the actor in `$actor`, with the try in `$attempt`, from 1.
+- **Every event, once below the horizon.** A batch reads the events after the subscription's cursor in each stream, only those of transactions that have certainly ended, in (xid, event_id) order, on the primary. So an event whose transaction commits after one with a higher event_id is never skipped; it is read once its transaction has ended. The subscriber gets the types it declared; the runner passes the others and moves the cursor past them.
+- **The cursor commits with the subscriber's writes.** A batch is one transaction on the default connection, at READ COMMITTED. What the subscriber writes on that connection commits together with the moved cursor, or neither does. `handle()` never begins, commits or rolls back a transaction. A batch reads at most `batch_size` events and stops handing them after `batch_budget_ms`, so the transaction stays under 2 seconds.
+- **Retries with backoff.** When `handle()` throws, the batch rolls back. The runner hands the events before the failed one again at once and tries the failed one again after `backoff_base_ms`, doubled after each failed try up to `backoff_max_ms` (PRD 7.7). The other subscriptions of the lane go on in the meantime.
+- **Parking.** After `max_attempts` failed tries the runner parks the aggregate for the subscription and passes the event; the aggregate's later events are parked with it, and every other aggregate keeps flowing (PRD 7.8). `cms:events:parked [subscription]` lists what is parked.
+- **Release.** Once the fault is fixed, `cms:events:release <subscription> <type>:<id>` releases the aggregate. The runner then hands the subscriber, once, the newest event of the aggregate that the subscription has passed, the aggregate's current version, with `$delivery->release` set, and removes the parking in the same transaction. A release that fails `max_attempts` tries parks the aggregate again. It refuses a subscription no subscriber has with [`subscription_unknown`](../reference/errors.md#subscription_unknown) and an aggregate that is not parked with [`subscription_not_parked`](../reference/errors.md#subscription_not_parked), both exit 65.
+
+The settings are in [configuration](../developers/configuration.md#event-runner).
 
 ## #[Subscription]
 
@@ -260,6 +273,7 @@ namespace Examples\Unit\Subscribers;
 
 use Cbox\Cms\Contracts\Attributes\Subscription;
 use Cbox\Cms\Contracts\Events\StoredEvent;
+use Cbox\Cms\Contracts\Subscribers\Delivery;
 use Cbox\Cms\Contracts\Subscribers\Lane;
 use Cbox\Cms\Contracts\Subscribers\Subscriber;
 
@@ -273,7 +287,7 @@ final readonly class IndexPages implements Subscriber
 {
     public function __construct(private SearchIndex $index) {}
 
-    public function handle(StoredEvent $event): void
+    public function handle(StoredEvent $event, Delivery $delivery): void
     {
         $page = $event->aggregate->id->toString();
 
@@ -298,6 +312,7 @@ namespace Examples\Unit\Subscribers;
 
 use Cbox\Cms\Contracts\Attributes\Subscription;
 use Cbox\Cms\Contracts\Events\StoredEvent;
+use Cbox\Cms\Contracts\Subscribers\Delivery;
 use Cbox\Cms\Contracts\Subscribers\Lane;
 use Cbox\Cms\Contracts\Subscribers\Subscriber;
 
@@ -308,7 +323,7 @@ use Cbox\Cms\Contracts\Subscribers\Subscriber;
 #[Subscription('acme.search.partners', events: [PagePublished::class], lane: Lane::External)]
 final readonly class NotifyPartners implements Subscriber
 {
-    public function handle(StoredEvent $event): void {}
+    public function handle(StoredEvent $event, Delivery $delivery): void {}
 }
 ```
 
@@ -326,7 +341,9 @@ use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Events\EventPosition;
 use Cbox\Cms\Contracts\Events\EventStream;
 use Cbox\Cms\Contracts\Events\StoredEvent;
+use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
+use Cbox\Cms\Contracts\Subscribers\Delivery;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use DateTimeImmutable;
 use Examples\Unit\Build\BuildTestCase;
@@ -391,8 +408,10 @@ final class SubscribersTest extends BuildTestCase
         $index = new SearchIndex;
         $subscriber = new IndexPages($index);
 
-        $subscriber->handle($this->stored(new PagePublished(new PageId('page-7'), 2), 1));
-        $subscriber->handle($this->stored(new PagePublished(new PageId('page-7'), 1), 2));
+        $delivery = new Delivery(ActorId::fromString('01960000-0000-7000-8000-00000000000a'));
+
+        $subscriber->handle($this->stored(new PagePublished(new PageId('page-7'), 2), 1), $delivery);
+        $subscriber->handle($this->stored(new PagePublished(new PageId('page-7'), 1), 2), $delivery);
 
         self::assertSame(['page-7' => 2], $index->pages);
     }

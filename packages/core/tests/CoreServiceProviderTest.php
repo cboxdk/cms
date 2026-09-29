@@ -23,6 +23,14 @@ use Cbox\Cms\Core\Pipeline\Domain\HookOverruns;
 use Cbox\Cms\Core\Pipeline\Domain\Stopwatch;
 use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
+use Cbox\Cms\Core\Subscriptions\Adapter\PostgresSubscriptionLog;
+use Cbox\Cms\Core\Subscriptions\Adapter\RegistryLaneSubscribers;
+use Cbox\Cms\Core\Subscriptions\Adapter\SystemPacing;
+use Cbox\Cms\Core\Subscriptions\Boundary\RunnerConfig;
+use Cbox\Cms\Core\Subscriptions\Domain\Dto\RunnerSettings;
+use Cbox\Cms\Core\Subscriptions\Domain\LaneSubscribers;
+use Cbox\Cms\Core\Subscriptions\Domain\Pacing;
+use Cbox\Cms\Core\Subscriptions\Domain\SubscriptionLog;
 use Cbox\Operations\Contracts\Operations;
 use Cbox\Operations\OperationManager;
 use Cbox\Operations\OperationsServiceProvider;
@@ -58,13 +66,25 @@ it('merges config/cbox-cms.php under cbox-cms, the only root of the configuratio
     $defaults = new Repository(['cbox-cms' => require __DIR__.'/../config/cbox-cms.php']);
 
     expect(array_map(basename(...), glob(__DIR__.'/../config/*.php') ?: []))->toBe(['cbox-cms.php'])
-        ->and(array_keys($defaults->array('cbox-cms')))->toBe(['contracts', 'database', 'idempotency', 'doctor'])
+        ->and(array_keys($defaults->array('cbox-cms')))->toBe(['contracts', 'database', 'idempotency', 'events', 'doctor'])
         ->and(config('cbox-cms.contracts'))->toBe($defaults->get('cbox-cms.contracts'))
         ->and(config('cbox-cms.database.partitions.runway_days'))->toBe($defaults->get('cbox-cms.database.partitions.runway_days'))
         ->and(config('cbox-cms.idempotency.wait_budget_ms'))->toBe($defaults->get('cbox-cms.idempotency.wait_budget_ms'))
+        ->and(config('cbox-cms.events.runner'))->toBe($defaults->get('cbox-cms.events.runner'))
         ->and(config()->has('cms'))->toBeFalse()
-        ->and([ContractBindings::CONFIG_KEY, DoctorConfig::CONFIG_KEY, PartitionConfig::CONFIG_KEY, IdempotencyConfig::CONFIG_KEY])
-        ->toBe(['cbox-cms.contracts', 'cbox-cms.doctor', 'cbox-cms.database', 'cbox-cms.idempotency']);
+        ->and([ContractBindings::CONFIG_KEY, DoctorConfig::CONFIG_KEY, PartitionConfig::CONFIG_KEY, IdempotencyConfig::CONFIG_KEY, RunnerConfig::CONFIG_KEY])
+        ->toBe(['cbox-cms.contracts', 'cbox-cms.doctor', 'cbox-cms.database', 'cbox-cms.idempotency', 'cbox-cms.events.runner']);
+});
+
+it('binds the event runner\'s ports and its settings from the configuration', function (): void {
+    app()->instance(CompiledRegistry::class, CompiledRegistry::empty());
+    config()->set('cbox-cms.events.runner.batch_size', 7);
+
+    expect(app(SubscriptionLog::class))->toBeInstanceOf(PostgresSubscriptionLog::class)
+        ->and(app(LaneSubscribers::class))->toBeInstanceOf(RegistryLaneSubscribers::class)
+        ->and(app(Pacing::class))->toBeInstanceOf(SystemPacing::class)
+        ->and(app(RunnerSettings::class)->batchSize)->toBe(7)
+        ->and(app(RunnerSettings::class)->serviceActor)->toBeNull();
 });
 
 it('binds the command pipeline\'s ports it implements: the registry\'s write actions and the generated validators', function (): void {

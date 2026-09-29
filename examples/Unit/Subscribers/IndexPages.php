@@ -6,6 +6,7 @@ namespace Examples\Unit\Subscribers;
 
 use Cbox\Cms\Contracts\Attributes\Subscription;
 use Cbox\Cms\Contracts\Events\StoredEvent;
+use Cbox\Cms\Contracts\Subscribers\Delivery;
 use Cbox\Cms\Contracts\Subscribers\Lane;
 use Cbox\Cms\Contracts\Subscribers\Subscriber;
 
@@ -19,7 +20,7 @@ final readonly class IndexPages implements Subscriber
 {
     public function __construct(private SearchIndex $index) {}
 
-    public function handle(StoredEvent $event): void
+    public function handle(StoredEvent $event, Delivery $delivery): void
     {
         $page = $event->aggregate->id->toString();
 

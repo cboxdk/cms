@@ -45,6 +45,20 @@ For example, `'contracts' => [Clock::class => StagingClock::class]` replaces the
 |---|---|---|
 | `cbox-cms.idempotency.wait_budget_ms` | `2000` | How long a command waits, in milliseconds, for another call with the same idempotency key to end. When the budget runs out, the command is rejected with [`idempotency_in_flight`](../reference/errors.md#idempotency_in_flight), which the client may retry. It is `0` to `5000`, part of the 5 seconds a command transaction may take, and `0` means do not wait. A value outside that range fails when the kernel reads it. |
 
+## Event runner
+
+`cms:events:run` reads `cbox-cms.events.runner` (PRD 7.4 to 7.8); see [subscribers](../addons/subscribers.md#the-runner). A value outside its range fails when the runner starts, with exit 64.
+
+| Key | Default | What it does |
+|---|---|---|
+| `cbox-cms.events.runner.service_actor` | `null` | The UUIDv7 of the service actor the subscribers run as. It must exist, be of class service and be active, or the runner refuses to run. |
+| `cbox-cms.events.runner.batch_size` | `100` | The most events one batch reads, `1` to `10000`. |
+| `cbox-cms.events.runner.batch_budget_ms` | `1000` | How long a batch hands events to its subscriber before it commits, `1` to `1900`, so its transaction stays under 2 seconds. |
+| `cbox-cms.events.runner.max_attempts` | `5` | The tries of an event, `1` to `100`, before its aggregate is parked for the subscription. |
+| `cbox-cms.events.runner.backoff_base_ms` | `100` | The wait after the first failed try, doubled after each further one. |
+| `cbox-cms.events.runner.backoff_max_ms` | `5000` | The longest wait between tries, at least `backoff_base_ms` and at most `60000`. |
+| `cbox-cms.events.runner.idle_sleep_ms` | `200` | The wait when no subscription of the lane had anything to do. |
+
 ## Doctor
 
 | Key | Default | What it does |
