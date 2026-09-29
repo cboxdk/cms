@@ -39,6 +39,7 @@ The core's checks run in this order. The last three run only with `--dev`. A che
 | `postgres.lc_messages` | yes | `postgres.reachable` | the messages of Postgres and libpq are English |
 | `postgres.ddl_privileges` | yes | `postgres.reachable` | the app role owns nothing and cannot create objects |
 | `postgres.row_security` | yes | `postgres.reachable` | every table with row level security also forces it |
+| `postgres.extensions` | yes | `postgres.reachable` | the extensions the core's tables need, ltree, are installed; the core's migrations create them as the owner role |
 | `valkey.reachable` | yes | | Valkey answers PING |
 | `partitions.runway` | no | `postgres.reachable` | every partitioned table has partitions far enough ahead of the clock, or of its sequence for a table with the key `bigint` |
 | `registry.cache` | yes | | the registry cache of `cms:build` exists and is not older than `vendor/` |

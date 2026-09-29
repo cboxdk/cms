@@ -27,6 +27,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`doctor_check_crashed`](#doctor_check_crashed) | 500 | 78 | internal_error | no |
 | [`doctor_chromium_missing`](#doctor_chromium_missing) | 503 | 79 | internal_error | no |
 | [`doctor_config_invalid`](#doctor_config_invalid) | 500 | 78 | internal_error | no |
+| [`doctor_extension_missing`](#doctor_extension_missing) | 500 | 78 | internal_error | no |
 | [`doctor_laravel_version`](#doctor_laravel_version) | 500 | 78 | internal_error | no |
 | [`doctor_lc_messages_not_english`](#doctor_lc_messages_not_english) | 500 | 78 | internal_error | no |
 | [`doctor_node_missing`](#doctor_node_missing) | 503 | 79 | internal_error | no |
@@ -209,6 +210,15 @@ The browser tests need the Chromium build that the installed Playwright was made
 ### doctor_config_invalid
 
 A setting under cbox-cms.doctor, or the environment variable CBOX_CMS_MAINTENANCE_PROCESS, is invalid, or a check it names cannot be used, so cms:doctor cannot run its checks. Correct the setting the cause names, then run cms:doctor again.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 78 (EX_CONFIG)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### doctor_extension_missing
+
+A Postgres extension the core's tables need, such as ltree, is not installed in the database, so the migrations have not run against it (PRD 4.2). Run the migrations as the owner role in the maintenance process, then run cms:doctor again.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 78 (EX_CONFIG)

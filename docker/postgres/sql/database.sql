@@ -6,6 +6,10 @@
 -- the testkit cannot read this file when it is installed on its own.
 -- tests/Feature/Tooling/TestDatabaseSetupTest.php keeps the two equal, statement for statement.
 --
+-- The owner role owns the database, so it has CREATE on it, which is all CREATE EXTENSION of a
+-- trusted extension needs: the core's migrations create ltree as the owner role, without a
+-- superuser. The schema is the owner's too, so the extension's objects land in it.
+--
 -- The app role gets CONNECT only: no CREATE (no schemas) and no TEMPORARY on the database,
 -- and USAGE without CREATE on the schema, so it cannot run DDL. It gets DML on tables through
 -- the owner's default privileges, so a table a migration creates is usable at once. A migration

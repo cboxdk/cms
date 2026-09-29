@@ -39,6 +39,7 @@ enum ErrorCode: string
     case DoctorCheckCrashed = 'doctor_check_crashed';
     case DoctorChromiumMissing = 'doctor_chromium_missing';
     case DoctorConfigInvalid = 'doctor_config_invalid';
+    case DoctorExtensionMissing = 'doctor_extension_missing';
     case DoctorLaravelVersion = 'doctor_laravel_version';
     case DoctorLcMessagesNotEnglish = 'doctor_lc_messages_not_english';
     case DoctorNodeMissing = 'doctor_node_missing';
@@ -154,6 +155,9 @@ enum ErrorCode: string
             ),
             self::DoctorConfigInvalid => $this->violation(
                 'A setting under cbox-cms.doctor, or the environment variable CBOX_CMS_MAINTENANCE_PROCESS, is invalid, or a check it names cannot be used, so cms:doctor cannot run its checks. Correct the setting the cause names, then run cms:doctor again.',
+            ),
+            self::DoctorExtensionMissing => $this->violation(
+                'A Postgres extension the core\'s tables need, such as ltree, is not installed in the database, so the migrations have not run against it (PRD 4.2). Run the migrations as the owner role in the maintenance process, then run cms:doctor again.',
             ),
             self::DoctorLaravelVersion => $this->violation(
                 'The installed Laravel is not the major version this cboxdk/cms is built for. Install the Laravel version that composer.json of cboxdk/cms requires, then run cms:doctor again.',

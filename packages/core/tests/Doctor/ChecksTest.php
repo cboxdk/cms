@@ -11,6 +11,7 @@ use Cbox\Cms\Core\Doctor\Domain\Checks\AllowUrlFopenCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\AppRoleCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\ChromiumCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\DdlPrivilegesCheck;
+use Cbox\Cms\Core\Doctor\Domain\Checks\ExtensionsCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\InvalidConfigurationCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\LaravelVersionCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\NodeCheck;
@@ -289,11 +290,37 @@ it('fails a table with row level security that does not force it, and blocks', f
         ->and($result->fix)->toContain('ALTER TABLE cms.entries FORCE ROW LEVEL SECURITY');
 });
 
+it('fails a database without an extension the core needs, and blocks', function (): void {
+    $postgres = new FakePostgresProbe;
+    $check = new ExtensionsCheck($postgres);
+
+    expect($check->blocking())->toBeTrue()
+        ->and($check->id()->value)->toBe('postgres.extensions')
+        ->and($check->requires())->toHaveCount(1)
+        ->and($check->requires()[0]->value)->toBe(PostgresReachableCheck::ID)
+        ->and(ExtensionsCheck::REQUIRED)->toBe(['ltree'])
+        ->and($check->run()->passed())->toBeTrue()
+        ->and($check->run()->explanation)->toBe('The database cms has the extensions the core needs: ltree.');
+
+    $postgres->extensions = ['plpgsql'];
+    $result = $check->run();
+
+    expectFailure($result, FailureKind::Violation, ExtensionsCheck::CODE, 'The database cms lacks the extensions ltree.');
+    expect($result->blocking)->toBeTrue()
+        ->and($result->cause)->toBe('The database cms lacks the extensions ltree.')
+        ->and($result->fix)->toContain('php artisan migrate --database=')
+        ->and($result->fix)->toContain('pg_available_extensions lists ltree');
+
+    $postgres->extensions = [];
+
+    expectFailure($check->run(), FailureKind::Violation, ExtensionsCheck::CODE, 'lacks the extensions ltree');
+});
+
 it('fails a Postgres check whose query fails with the probe\'s kind', function (FailureKind $kind): void {
     $postgres = new FakePostgresProbe;
     $postgres->queryFailure = $kind === FailureKind::Unavailable ? ProbeFailed::unavailable('server closed the connection') : ProbeFailed::violation('permission denied');
 
-    foreach ([new PostgresVersionCheck($postgres), new AppRoleCheck($postgres), new TransactionTimeoutCheck($postgres), new PreparedTransactionsCheck($postgres), new DdlPrivilegesCheck($postgres), new RowSecurityCheck($postgres)] as $check) {
+    foreach ([new PostgresVersionCheck($postgres), new AppRoleCheck($postgres), new TransactionTimeoutCheck($postgres), new PreparedTransactionsCheck($postgres), new DdlPrivilegesCheck($postgres), new RowSecurityCheck($postgres), new ExtensionsCheck($postgres)] as $check) {
         $result = $check->run();
 
         expect($result->failure)->toBe($kind)

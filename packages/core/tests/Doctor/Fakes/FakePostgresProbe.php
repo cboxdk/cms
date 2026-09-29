@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Doctor\Fakes;
 
 use Cbox\Cms\Core\Doctor\Domain\Dto\DdlPrivileges;
+use Cbox\Cms\Core\Doctor\Domain\Dto\InstalledExtensions;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PostgresRole;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PostgresVersion;
 use Cbox\Cms\Core\Doctor\Domain\Dto\RoleMembership;
@@ -18,7 +19,7 @@ use Cbox\Cms\Core\Doctor\Domain\SettingSource;
  * A Postgres that keeps the runtime contract until the test changes a property: version 17.11,
  * the app role cms_app without superuser, BYPASSRLS or CREATEROLE and without privileged memberships,
  * transaction_timeout 5 s from the role, no prepared transactions, no DDL, and two tables with row
- * level security that force it.
+ * level security that force it, and the extensions ltree and plpgsql installed.
  */
 final class FakePostgresProbe implements PostgresProbe
 {
@@ -61,6 +62,9 @@ final class FakePostgresProbe implements PostgresProbe
 
     /** @var list<string> Tables with row level security that do not force it. */
     public array $unforcedTables = [];
+
+    /** @var list<string> The installed extensions, sorted. */
+    public array $extensions = ['ltree', 'plpgsql'];
 
     public int $connects = 0;
 
@@ -126,6 +130,13 @@ final class FakePostgresProbe implements PostgresProbe
         $this->query();
 
         return new RowSecurity('cms', $this->rowSecurityTables, $this->unforcedTables, count($this->unforcedTables));
+    }
+
+    public function extensions(): InstalledExtensions
+    {
+        $this->query();
+
+        return new InstalledExtensions('cms', $this->extensions);
     }
 
     private function query(): void

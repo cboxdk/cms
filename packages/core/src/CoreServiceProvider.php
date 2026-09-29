@@ -31,6 +31,7 @@ use Cbox\Cms\Core\Doctor\Domain\Checks\AllowUrlFopenCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\AppRoleCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\ChromiumCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\DdlPrivilegesCheck;
+use Cbox\Cms\Core\Doctor\Domain\Checks\ExtensionsCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\InvalidConfigurationCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\LaravelVersionCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\LcMessagesCheck;
@@ -370,6 +371,7 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
                     new LcMessagesCheck($app->make(LcMessagesProbe::class)),
                     new DdlPrivilegesCheck($postgres),
                     new RowSecurityCheck($postgres),
+                    new ExtensionsCheck($postgres),
                     new ValkeyReachableCheck($app->make(ValkeyProbe::class)),
                     new PartitionRunwayCheck(
                         $app->make(PartitionRunwayProbe::class),

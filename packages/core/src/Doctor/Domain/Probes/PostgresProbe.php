@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\Doctor\Domain\Probes;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Core\Doctor\Domain\Dto\DdlPrivileges;
+use Cbox\Cms\Core\Doctor\Domain\Dto\InstalledExtensions;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PostgresRole;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PostgresVersion;
 use Cbox\Cms\Core\Doctor\Domain\Dto\RowSecurity;
@@ -53,4 +54,11 @@ interface PostgresProbe
      * @throws ProbeFailed
      */
     public function rowSecurity(): RowSecurity;
+
+    /**
+     * The extensions installed in the current database.
+     *
+     * @throws ProbeFailed
+     */
+    public function extensions(): InstalledExtensions;
 }

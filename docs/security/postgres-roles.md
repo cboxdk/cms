@@ -26,7 +26,11 @@ The server runs with `max_prepared_transactions = 0`, so no transaction can be l
 
 Every table with row level security also forces it (`FORCE ROW LEVEL SECURITY`), so its policies hold for the table's owner too: a migration or a maintenance job that runs as the owner role reads and writes only the rows the policies allow. `postgres.row_security` checks it. When the partition manager creates a partition, the partition gets its parent's row security flags and grants.
 
-No table of the kernel has row level security yet. The policies come with the command kernel and authorisation in the next milestone; the check and the partition manager already hold the rule for the first table that has them.
+The identity tables have a policy that lets every role read and only the owner role write. The structure and entry tables (`nodes`, `sites`, `site_locales`, `node_routes`, `entries` and `variant_heads`) have row level security without any policy yet, so they are closed to the app role and to the owner role alike: the app role reads no rows and writes none, and only a superuser passes. Their policies, which test the actor's access regions against the node paths, come with authorisation in the command kernel.
+
+## Extensions
+
+The node tree keeps its paths in ltree, an extension that ships with Postgres. The core's migrations create it as the owner role. ltree is a trusted extension, so the owner role needs no superuser to create it, only `CREATE` on the database, which it has as the database's owner. `postgres.extensions` fails with `doctor_extension_missing` while the database lacks it.
 
 ## The owner role and the maintenance process
 
@@ -40,4 +44,4 @@ The three types of process and their connections are described on [cms:doctor](.
 
 ## Grants
 
-A migration whose table needs less than the owner's default privileges for the app role, which are `SELECT`, `INSERT`, `UPDATE` and `DELETE`, narrows them. The app role may only read and add receipts and idempotency records, and may only read, add and update projection statuses; it cannot delete any of them.
+A migration whose table needs less than the owner's default privileges for the app role, which are `SELECT`, `INSERT`, `UPDATE` and `DELETE`, narrows them. The app role may only read and add receipts and idempotency records, and may only read, add and update projection statuses; it cannot delete any of them. The structure and entry tables give it `SELECT`, `INSERT` and `UPDATE`, and the identity tables `SELECT` alone.

@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\Doctor\Adapter;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Core\Doctor\Domain\Dto\DdlPrivileges;
+use Cbox\Cms\Core\Doctor\Domain\Dto\InstalledExtensions;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PostgresRole;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PostgresVersion;
 use Cbox\Cms\Core\Doctor\Domain\Dto\RoleMembership;
@@ -266,6 +267,20 @@ final readonly class ConnectionPostgresProbe implements PostgresProbe
             enabledCount: $summary->int('enabled_count'),
             unforcedTables: $names,
             unforcedCount: $summary->int('unforced_count'),
+        );
+    }
+
+    #[Override]
+    public function extensions(): InstalledExtensions
+    {
+        $database = CatalogRow::one($this->connection->rows('select current_database()::text as database'))->string('database');
+
+        return new InstalledExtensions(
+            database: $database,
+            names: array_map(
+                static fn (CatalogRow $row): string => $row->string('name'),
+                CatalogRow::all($this->connection->rows('select extname::text as name from pg_extension order by 1')),
+            ),
         );
     }
 }

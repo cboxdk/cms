@@ -13,6 +13,9 @@ use InvalidArgumentException;
  * privileges for PUBLIC and CONNECT for the app role; then, in the new database, the schema owned
  * by the owner role with USAGE for the app role, no CREATE on public for PUBLIC, and the owner's
  * default privileges, which give the app role DML on every table and sequence a migration creates.
+ * Owning the database gives the owner role CREATE on it, which is all CREATE EXTENSION of a trusted
+ * extension such as ltree needs, so the core's migrations create it without a superuser, in each
+ * checkout's and each parallel worker's database alike.
  *
  * The testkit cannot read docker/ when it is installed on its own, so it keeps a copy;
  * tests/Feature/Tooling/TestDatabaseSetupTest.php holds the copy equal to the file, statement for
