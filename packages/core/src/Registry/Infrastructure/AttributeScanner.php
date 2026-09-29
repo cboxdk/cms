@@ -253,14 +253,7 @@ final readonly class AttributeScanner implements DeclarationScanner
                 } elseif ($declaration instanceof Subscription) {
                     $this->readSubscription($class, $root, $declaration, $found, $problems);
                 } elseif ($declaration instanceof Hook) {
-                    $found->hooks[] = new DiscoveredHook(
-                        $class->getName(),
-                        $root->package,
-                        new ReflectionClass($declaration->command)->getName(),
-                        $declaration->phase,
-                        $declaration->priority,
-                        $declaration->budgetMs,
-                    );
+                    $this->readHook($class, $root, $declaration, $found, $problems);
                 }
             } catch (UnknownSurface $unknown) {
                 $problems[] = $this->unknownSurface($class, $root, $unknown->getMessage());
@@ -279,6 +272,36 @@ final readonly class AttributeScanner implements DeclarationScanner
                 $problems[] = $this->invalidAttribute($attribute, $class, $root, $invalid);
             }
         }
+    }
+
+    /**
+     * Reads a #[Hook]: the class implements the interface of its phase (GUARDRAILS 2.4).
+     *
+     * @param  ReflectionClass<object>  $class
+     * @param  list<BuildProblem>  $problems
+     */
+    private function readHook(ReflectionClass $class, ScanRoot $root, Hook $declaration, ScanFindings $found, array &$problems): void
+    {
+        if (! $class->implementsInterface($declaration->phase->hookInterface())) {
+            $problems[] = new BuildProblem(BuildErrorCode::NotAHook, sprintf(
+                '#[Hook] on %s (%s) runs in the %s phase and does not implement %s, the interface of that phase (GUARDRAILS 2.4).',
+                $class->getName(),
+                $root->package,
+                $declaration->phase->value,
+                $declaration->phase->hookInterface(),
+            ));
+
+            return;
+        }
+
+        $found->hooks[] = new DiscoveredHook(
+            $class->getName(),
+            $root->package,
+            new ReflectionClass($declaration->command)->getName(),
+            $declaration->phase,
+            $declaration->priority,
+            $declaration->budgetMs,
+        );
     }
 
     /**

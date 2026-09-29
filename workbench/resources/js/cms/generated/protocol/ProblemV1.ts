@@ -71,6 +71,8 @@ export type ErrorCode =
   | 'generate_too_many_fields'
   | 'generate_unknown_extends_target'
   | 'generate_unknown_field_type'
+  | 'hook_budget_exceeded'
+  | 'hook_change_refused'
   | 'idempotency_conflict'
   | 'idempotency_in_flight'
   | 'json_invalid'
@@ -91,6 +93,7 @@ export type ErrorCode =
   | 'registry_invalid_attribute'
   | 'registry_invalid_scan_root'
   | 'registry_not_a_concrete_class'
+  | 'registry_not_a_hook'
   | 'registry_not_a_subscriber'
   | 'registry_not_an_action'
   | 'registry_not_final_readonly'
@@ -104,6 +107,7 @@ export type ErrorCode =
   | 'validation_below_minimum'
   | 'validation_duplicate_item'
   | 'validation_failed'
+  | 'validation_hook_failed'
   | 'validation_invalid_format'
   | 'validation_invalid_rich_text'
   | 'validation_not_an_option'
@@ -243,6 +247,8 @@ const catalogErrorV1Rule: ObjectRule = {
           'generate_too_many_fields',
           'generate_unknown_extends_target',
           'generate_unknown_field_type',
+          'hook_budget_exceeded',
+          'hook_change_refused',
           'idempotency_conflict',
           'idempotency_in_flight',
           'json_invalid',
@@ -263,6 +269,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'registry_invalid_attribute',
           'registry_invalid_scan_root',
           'registry_not_a_concrete_class',
+          'registry_not_a_hook',
           'registry_not_a_subscriber',
           'registry_not_an_action',
           'registry_not_final_readonly',
@@ -276,6 +283,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'validation_below_minimum',
           'validation_duplicate_item',
           'validation_failed',
+          'validation_hook_failed',
           'validation_invalid_format',
           'validation_invalid_rich_text',
           'validation_not_an_option',
@@ -379,6 +387,8 @@ const problemV1Rule: ObjectRule = {
           'generate_too_many_fields',
           'generate_unknown_extends_target',
           'generate_unknown_field_type',
+          'hook_budget_exceeded',
+          'hook_change_refused',
           'idempotency_conflict',
           'idempotency_in_flight',
           'json_invalid',
@@ -399,6 +409,7 @@ const problemV1Rule: ObjectRule = {
           'registry_invalid_attribute',
           'registry_invalid_scan_root',
           'registry_not_a_concrete_class',
+          'registry_not_a_hook',
           'registry_not_a_subscriber',
           'registry_not_an_action',
           'registry_not_final_readonly',
@@ -412,6 +423,7 @@ const problemV1Rule: ObjectRule = {
           'validation_below_minimum',
           'validation_duplicate_item',
           'validation_failed',
+          'validation_hook_failed',
           'validation_invalid_format',
           'validation_invalid_rich_text',
           'validation_not_an_option',

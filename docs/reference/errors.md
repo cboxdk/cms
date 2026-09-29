@@ -76,6 +76,8 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`generate_too_many_fields`](#generate_too_many_fields) | 500 | 65 | internal_error | no |
 | [`generate_unknown_extends_target`](#generate_unknown_extends_target) | 500 | 65 | internal_error | no |
 | [`generate_unknown_field_type`](#generate_unknown_field_type) | 500 | 65 | internal_error | no |
+| [`hook_budget_exceeded`](#hook_budget_exceeded) | 503 | 75 | internal_error | yes |
+| [`hook_change_refused`](#hook_change_refused) | 500 | 70 | internal_error | no |
 | [`idempotency_conflict`](#idempotency_conflict) | 409 | 65 | tool_error | no |
 | [`idempotency_in_flight`](#idempotency_in_flight) | 409 | 75 | tool_error | yes |
 | [`json_invalid`](#json_invalid) | 422 | 65 | tool_error | no |
@@ -96,6 +98,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`registry_invalid_attribute`](#registry_invalid_attribute) | 500 | 65 | internal_error | no |
 | [`registry_invalid_scan_root`](#registry_invalid_scan_root) | 500 | 65 | internal_error | no |
 | [`registry_not_a_concrete_class`](#registry_not_a_concrete_class) | 500 | 65 | internal_error | no |
+| [`registry_not_a_hook`](#registry_not_a_hook) | 500 | 65 | internal_error | no |
 | [`registry_not_a_subscriber`](#registry_not_a_subscriber) | 500 | 65 | internal_error | no |
 | [`registry_not_an_action`](#registry_not_an_action) | 500 | 65 | internal_error | no |
 | [`registry_not_final_readonly`](#registry_not_final_readonly) | 500 | 65 | internal_error | no |
@@ -109,6 +112,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`validation_below_minimum`](#validation_below_minimum) | 422 | 65 | tool_error | no |
 | [`validation_duplicate_item`](#validation_duplicate_item) | 422 | 65 | tool_error | no |
 | [`validation_failed`](#validation_failed) | 422 | 65 | tool_error | no |
+| [`validation_hook_failed`](#validation_hook_failed) | 422 | 65 | tool_error | no |
 | [`validation_invalid_format`](#validation_invalid_format) | 422 | 65 | tool_error | no |
 | [`validation_invalid_rich_text`](#validation_invalid_rich_text) | 422 | 65 | tool_error | no |
 | [`validation_not_an_option`](#validation_not_an_option) | 422 | 65 | tool_error | no |
@@ -683,6 +687,24 @@ A field's type is a <namespace>:<handle> that no installed module or addon regis
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
+### hook_budget_exceeded
+
+A hook of an installed module or addon took longer than its time budget, or the hooks of the command together took longer than 100 ms (PRD 6.3, 13.6), so the command was rejected and nothing was committed. The overrun is recorded with the hook, its package and the time it took. Try again; when it keeps failing, the package that owns the hook has to make it faster or move its work to a subscriber.
+
+- HTTP status: 503 Service Unavailable
+- CLI exit code: 75 (EX_TEMPFAIL)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: yes, the same call may succeed later
+
+### hook_change_refused
+
+A transform hook of an installed module or addon asked to change something a hook may not change: a field its type does not declare, a field above the classification the actor may read, or a variant the plan writes no revision for (PRD 6.2 phase 4, invariant 12). Nothing was committed. This is a bug in the hook; report it to the package the error names.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 70 (EX_SOFTWARE)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
 ### idempotency_conflict
 
 The idempotency key was used before with other content (PRD 6.1), so the command was rejected and the first result was left as it was. Use a new key for a new command; send the same key only with the same content.
@@ -863,6 +885,15 @@ An #[Action], #[Command], #[Query], #[Hook] or #[Subscription] attribute sits on
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
+### registry_not_a_hook
+
+A #[Hook] sits on a class that does not implement the interface of its phase: AuthorizeHook for authorize, TransformHook for transform and ValidateHook for validate (GUARDRAILS 2.4). Implement the interface, or declare the phase the class implements.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
 ### registry_not_a_subscriber
 
 A #[Subscription] sits on a class that does not implement Subscriber. Implement Cbox\Cms\Contracts\Subscribers\Subscriber, or remove the attribute.
@@ -974,6 +1005,15 @@ A list that holds each value at most once, such as the choices of a select field
 ### validation_failed
 
 The command's content is invalid: a field is missing, has the wrong type or breaks a rule of its blueprint, so nothing was committed. Correct the fields the error lists, then send the command again.
+
+- HTTP status: 422 Unprocessable Content
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### validation_hook_failed
+
+A validation hook of an installed module or addon found the value invalid by a rule of its own, beside the rules of the blueprint (PRD 6.2 phase 5). Nothing was committed. Correct the field the error names as its message says, then send the command again.
 
 - HTTP status: 422 Unprocessable Content
 - CLI exit code: 65 (EX_DATAERR)

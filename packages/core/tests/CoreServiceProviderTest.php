@@ -11,9 +11,16 @@ use Cbox\Cms\Core\IdempotencyStore\Boundary\IdempotencyConfig;
 use Cbox\Cms\Core\Operations\Adapter\PackageOperationRunner;
 use Cbox\Cms\Core\Operations\Domain\OperationRunner;
 use Cbox\Cms\Core\Partitions\Boundary\PartitionConfig;
+use Cbox\Cms\Core\Pipeline\Actions\HookRunner;
+use Cbox\Cms\Core\Pipeline\Adapter\HrtimeStopwatch;
+use Cbox\Cms\Core\Pipeline\Adapter\LoggedHookOverruns;
+use Cbox\Cms\Core\Pipeline\Adapter\RegistryCommandHooks;
 use Cbox\Cms\Core\Pipeline\Adapter\RegistryWriteActions;
 use Cbox\Cms\Core\Pipeline\Boundary\TypeRulesFieldValidation;
+use Cbox\Cms\Core\Pipeline\Domain\CommandHooks;
 use Cbox\Cms\Core\Pipeline\Domain\FieldValidation;
+use Cbox\Cms\Core\Pipeline\Domain\HookOverruns;
+use Cbox\Cms\Core\Pipeline\Domain\Stopwatch;
 use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Operations\Contracts\Operations;
@@ -65,4 +72,14 @@ it('binds the command pipeline\'s ports it implements: the registry\'s write act
 
     expect(app(WriteActions::class))->toBeInstanceOf(RegistryWriteActions::class)
         ->and(app(FieldValidation::class))->toBeInstanceOf(TypeRulesFieldValidation::class);
+});
+
+it('binds the hooks\' ports: the registry\'s hooks, the hrtime stopwatch once per process and the log for overruns', function (): void {
+    app()->instance(CompiledRegistry::class, CompiledRegistry::empty());
+
+    expect(app(CommandHooks::class))->toBeInstanceOf(RegistryCommandHooks::class)
+        ->and(app(Stopwatch::class))->toBeInstanceOf(HrtimeStopwatch::class)
+        ->and(app(Stopwatch::class))->toBe(app(Stopwatch::class))
+        ->and(app(HookOverruns::class))->toBeInstanceOf(LoggedHookOverruns::class)
+        ->and(app(HookRunner::class))->toBeInstanceOf(HookRunner::class);
 });

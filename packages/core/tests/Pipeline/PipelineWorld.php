@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Pipeline;
 
+use Cbox\Cms\Contracts\Attributes\Phase;
 use Cbox\Cms\Contracts\Consistency\WaitLevel;
 use Cbox\Cms\Contracts\Envelope\CorrelationId;
 use Cbox\Cms\Contracts\Envelope\Envelope;
@@ -16,6 +17,9 @@ use Cbox\Cms\Contracts\Fields\FieldMap;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Fields\TextValue;
+use Cbox\Cms\Contracts\Hooks\AuthorizeHook;
+use Cbox\Cms\Contracts\Hooks\TransformHook;
+use Cbox\Cms\Contracts\Hooks\ValidateHook;
 use Cbox\Cms\Contracts\Idempotency\IdempotencyKey;
 use Cbox\Cms\Contracts\Idempotency\WaitBudget;
 use Cbox\Cms\Contracts\Identity\AccessContext;
@@ -24,6 +28,7 @@ use Cbox\Cms\Contracts\Identity\ActorPrincipal;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\IssuerKind;
 use Cbox\Cms\Contracts\Ids\ActorId;
+use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\TypeId;
@@ -34,13 +39,20 @@ use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Results\WriteResult;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
 use Cbox\Cms\Core\Pipeline\Actions\CommandPipeline;
+use Cbox\Cms\Core\Pipeline\Actions\HookRunner;
 use Cbox\Cms\Core\Pipeline\Domain\CommitOutcome;
+use Cbox\Cms\Core\Pipeline\Domain\Dto\BoundHook;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCall;
+use Cbox\Cms\Core\Pipeline\Domain\HookPlans;
+use Cbox\Cms\Core\Pipeline\Domain\Stopwatch;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeChangesetCommitter;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandAuthorizer;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandContentHasher;
+use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandHooks;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandTransaction;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeFieldValidation;
+use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeHookOverruns;
+use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeStopwatch;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeWriteActions;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\ProbeBinding;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\ProbeCalls;
@@ -61,11 +73,13 @@ use Cbox\Cms\Testkit\Validation\FakeTypeValidators;
 /**
  * The fakes a test of the command pipeline runs it with (GUARDRAILS 9): the identity with an
  * active editor, the probe type in the catalog and its validator, the probe action on its shelf,
- * the authorizer and committer a test chooses, and the fake idempotency and receipt stores, whose
+ * the authorizer and committer a test chooses, the fake idempotency and receipt stores, whose
  * sessions the fake command transaction begins and ends around each call, with the wait budget
- * BUDGET_MILLISECONDS. The committer stores each changeset's receipt in the receipt session: by
- * default as the changeset FakeChangesetCommitter::CHANGESET, and after committing() with a new id
- * from a FakeIdGenerator on the world's clock for every commit. Nothing touches a database.
+ * BUDGET_MILLISECONDS, and the hooks a test registers for probe.rename, timed on a stopwatch that
+ * stands still unless a hook advances it. The committer stores each changeset's receipt in the
+ * receipt session: by default as the changeset FakeChangesetCommitter::CHANGESET, and after
+ * committing() with a new id from a FakeIdGenerator on the world's clock for every commit. The
+ * call's classification access is internal unless a test sets another. Nothing touches a database.
  */
 final class PipelineWorld
 {
@@ -106,6 +120,17 @@ final class PipelineWorld
 
     public readonly FakeCommandContentHasher $hasher;
 
+    public readonly FakeCommandHooks $hooks;
+
+    public readonly FakeStopwatch $stopwatch;
+
+    public readonly FakeHookOverruns $overruns;
+
+    /** The stopwatch the hooks are timed with; the fake unless a test swaps in the real one. */
+    public Stopwatch $timer;
+
+    public ClassificationAccess $access = ClassificationAccess::Internal;
+
     /** @var list<ReadVersion> */
     public array $extraReads = [];
 
@@ -130,6 +155,10 @@ final class PipelineWorld
         $this->transaction = new FakeCommandTransaction($this->keySession, $this->receiptSession);
         $this->hasher = new FakeCommandContentHasher;
         $this->committer = new FakeChangesetCommitter(receipts: $this->receiptSession);
+        $this->hooks = new FakeCommandHooks;
+        $this->stopwatch = new FakeStopwatch;
+        $this->timer = $this->stopwatch;
+        $this->overruns = new FakeHookOverruns;
     }
 
     /**
@@ -143,6 +172,16 @@ final class PipelineWorld
             ids: new FakeIdGenerator(clock: $this->clock),
             projections: array_values($projections),
         );
+    }
+
+    /**
+     * Registers a hook for probe.rename version 1, of the package acme/probe unless one is given.
+     */
+    public function hook(AuthorizeHook|TransformHook|ValidateHook $hook, Phase $phase, int $priority = 0, int $budgetMs = 20, string $package = 'acme/probe'): self
+    {
+        $this->hooks->add(new CommandName('probe.rename'), 1, new BoundHook($hook, $package, $phase, $priority, $budgetMs));
+
+        return $this;
     }
 
     public function refuse(string $reason): self
@@ -163,11 +202,13 @@ final class PipelineWorld
     {
         $action = new RenameProbeAction($this->shelf, $this->calls, $this->extraReads, $this->unreadPlan);
 
+        $types = new FakeTypeCatalog(ProbeType::definition());
+
         return new CommandPipeline(
             new FakeWriteActions([RenameProbe::class => ProbeBinding::of($action)]),
             $this->identity,
             $this->authorizer,
-            new FakeTypeCatalog(ProbeType::definition()),
+            $types,
             $this->validation,
             $this->committer,
             $this->keySession,
@@ -175,6 +216,7 @@ final class PipelineWorld
             $this->hasher,
             new IdempotencySettings(WaitBudget::milliseconds(self::BUDGET_MILLISECONDS)),
             $this->transaction,
+            new HookRunner($this->hooks, new HookPlans($types), $this->timer, $this->overruns),
         );
     }
 
@@ -246,9 +288,9 @@ final class PipelineWorld
     private function withEnvelope(RenameProbe $command, Envelope $envelope): CommandCall
     {
         return new CommandCall($command, $envelope, new AccessContext(
-            new ActorPrincipal($envelope->actor, $envelope->onBehalfOf->chain, IssuerKind::Service, ClassificationAccess::Internal),
+            new ActorPrincipal($envelope->actor, $envelope->onBehalfOf->chain, IssuerKind::Service, ClassificationAccess::Sensitive),
             [],
-            ClassificationAccess::Internal,
+            $this->access,
         ));
     }
 

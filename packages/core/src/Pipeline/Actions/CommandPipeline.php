@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Pipeline\Actions;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Attributes\Phase;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Contracts\Idempotency\Conflict;
@@ -38,6 +39,7 @@ use Cbox\Cms\Core\Pipeline\Domain\CommandTransaction;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\ActionBinding;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCall;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\Committed;
+use Cbox\Cms\Core\Pipeline\Domain\Dto\HookRun;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\PendingChangeset;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\StaleRead;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\VersionConflict;
@@ -71,11 +73,17 @@ use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
  *    differ.
  * 2. Authorize, through the CommandAuthorizer with the call's AccessContext; a refusal is
  *    unauthorized.
- * 3. Plan: the action's plan() from the command and the aggregates.
- * 5. Validate. The kernel's rules: every aggregate a mutation changes was read, and every
- *    revision's type is a type of the TypeCatalog; then the fields of every revision through the
- *    type's generated validator. Any error rejects the call with validation_failed, followed by
- *    each field error.
+ * 3. Plan: the action's plan() from the command and the aggregates. The kernel checks its shape
+ *    at once: every aggregate a mutation changes was read, and every revision's type is a type of
+ *    the TypeCatalog, so the hooks only ever see a plan the kernel can read. Then the authorize
+ *    hooks run on the pending plan; a denial is unauthorized. They run after plan() because they
+ *    see the plan, and they can only add refusals to the CommandAuthorizer's decision.
+ * 4. Transform: the transform hooks change fields of the plan's revisions (HookRunner).
+ * 5. Validate. The kernel validates the plan as the transforms left it (invariant 12): the fields
+ *    of every revision through the type's generated validator, so a transform can never produce
+ *    fields that break a rule. A transform changes only fields, so the plan's shape stands. The
+ *    validate hooks add their errors after the kernel's. Any error rejects the call with
+ *    validation_failed, followed by each error.
  * 6. Dry run: a call whose envelope asks for one ends here with the plan, its blast radius and its
  *    diff, and commits nothing.
  * 7. Commit, through the ChangesetCommitter, with every aggregate read and its version: the
@@ -84,8 +92,9 @@ use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
  *    call leaves the key fresh, and a retry runs again.
  *
  * resolve() and plan() get the command and the aggregates and nothing else: no connection, no
- * envelope and no access context, so an action cannot write or commit. Phase 4, the transform
- * hooks, comes with the hook extension point. The pipeline never begins or ends a transaction; the
+ * envelope and no access context, so an action cannot write or commit. The hooks get a view of
+ * the plan filtered to the call's classification access, and a hook over its time budget rejects
+ * the call with hook_budget_exceeded. The pipeline never begins or ends a transaction; the
  * CommandTransaction does.
  *
  * A rejected call and a dry run commit nothing, so their receipts carry no changeset; they are
@@ -109,6 +118,7 @@ final readonly class CommandPipeline
         private CommandContentHasher $hasher,
         private IdempotencySettings $idempotency,
         private CommandTransaction $transaction,
+        private HookRunner $hooks,
     ) {}
 
     public function run(CommandCall $call): WriteResult
@@ -227,14 +237,35 @@ final readonly class CommandPipeline
         }
 
         $plan = $action->plan($call->command, $aggregates);
-        $errors = $this->validate($action::class, $plan, $reads);
+        $errors = $this->shape($action::class, $plan, $reads);
 
         if ($errors !== []) {
-            return $this->rejected($call, new CatalogError(ErrorCode::ValidationFailed, null, sprintf(
-                'The plan breaks %d rule%s of its types; the errors below say which fields to correct.',
-                count($errors),
-                count($errors) === 1 ? '' : 's',
-            )), ...$errors);
+            return $this->invalid($call, $errors);
+        }
+
+        $hooks = $this->hooks->hooksOf($binding);
+        $run = new HookRun($plan);
+
+        foreach ([Phase::Authorize, Phase::Transform] as $phase) {
+            $run = $this->hooks->run($phase, $hooks, $call, $binding, $run);
+
+            if ($run->rejection instanceof CatalogError) {
+                return $this->rejected($call, $run->rejection);
+            }
+        }
+
+        $plan = $run->plan;
+        $errors = $this->fieldErrors($plan);
+        $run = $this->hooks->run(Phase::Validate, $hooks, $call, $binding, $run);
+
+        if ($run->rejection instanceof CatalogError) {
+            return $this->rejected($call, $run->rejection);
+        }
+
+        $errors = [...$errors, ...$run->errors];
+
+        if ($errors !== []) {
+            return $this->invalid($call, $errors);
         }
 
         if ($envelope->dryRun) {
@@ -262,12 +293,13 @@ final readonly class CommandPipeline
     }
 
     /**
-     * The kernel's rules and the generated validators over the plan (phase 5).
+     * The kernel's rules for the shape of a plan: every aggregate a mutation changes was read, and
+     * every revision's type is a type of the installation.
      *
      * @param  class-string  $action
      * @return list<CatalogError>
      */
-    private function validate(string $action, Plan $plan, ReadVersions $reads): array
+    private function shape(string $action, Plan $plan, ReadVersions $reads): array
     {
         $errors = [];
 
@@ -276,22 +308,44 @@ final readonly class CommandPipeline
                 throw InvalidCommandCall::unreadAggregate($action, $mutation->aggregate());
             }
 
-            if (! $mutation instanceof RevisionCreated) {
-                continue;
-            }
-
-            $type = $this->types->find($mutation->type);
-
-            if (! $type instanceof TypeDefinition) {
+            if ($mutation instanceof RevisionCreated && ! $this->types->find($mutation->type) instanceof TypeDefinition) {
                 $errors[] = new CatalogError(ErrorCode::ValidationFailed, null, sprintf('No type of this installation has the id %s.', $mutation->type->toString()));
-
-                continue;
             }
-
-            array_push($errors, ...$this->fields->validate($type, $mutation->fields, ValidationStage::Write, new FieldPath(self::FIELDS))->errors);
         }
 
         return $errors;
+    }
+
+    /**
+     * The fields of every revision through its type's generated validator (phase 5).
+     *
+     * @return list<CatalogError>
+     */
+    private function fieldErrors(Plan $plan): array
+    {
+        $errors = [];
+
+        foreach ($plan->mutations() as $mutation) {
+            $type = $mutation instanceof RevisionCreated ? $this->types->find($mutation->type) : null;
+
+            if ($mutation instanceof RevisionCreated && $type instanceof TypeDefinition) {
+                array_push($errors, ...$this->fields->validate($type, $mutation->fields, ValidationStage::Write, new FieldPath(self::FIELDS))->errors);
+            }
+        }
+
+        return $errors;
+    }
+
+    /**
+     * @param  non-empty-list<CatalogError>  $errors
+     */
+    private function invalid(CommandCall $call, array $errors): WriteResult
+    {
+        return $this->rejected($call, new CatalogError(ErrorCode::ValidationFailed, null, sprintf(
+            'The plan breaks %d rule%s of its types; the errors below say which fields to correct.',
+            count($errors),
+            count($errors) === 1 ? '' : 's',
+        )), ...$errors);
     }
 
     private function rejected(CommandCall $call, CatalogError $error, CatalogError ...$more): WriteResult

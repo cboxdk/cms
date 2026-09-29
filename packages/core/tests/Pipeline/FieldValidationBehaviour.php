@@ -71,7 +71,7 @@ trait FieldValidationBehaviour
     public function a_type_without_a_validator_is_refused(): void
     {
         $definition = ProbeType::definition();
-        $other = new TypeDefinition($definition->id, new TypeName('test:other'), 1, $definition->capabilities, [], $definition->fields);
+        $other = new TypeDefinition($definition->id, new TypeName('test:other'), 1, $definition->capabilities, $definition->extensions, $definition->fields);
 
         try {
             $this->fieldValidation(new FakeTypeValidators)->validate($other, new FieldValues, ValidationStage::Write, new FieldPath('fields'));

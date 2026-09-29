@@ -10,6 +10,9 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Attributes\Phase;
 use Cbox\Cms\Contracts\Attributes\Query;
 use Cbox\Cms\Contracts\Attributes\Stable;
+use Cbox\Cms\Contracts\Hooks\AuthorizeHook;
+use Cbox\Cms\Contracts\Hooks\TransformHook;
+use Cbox\Cms\Contracts\Hooks\ValidateHook;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Tests\Fixtures\FindVariant;
 use Cbox\Cms\Contracts\Tests\Fixtures\ReleaseVariant;
@@ -128,4 +131,15 @@ it('rejects a hook for something that is not a command class', function (): void
 
 it('has one phase per pipeline phase that runs hooks', function (): void {
     expect(array_map(static fn (Phase $phase): string => $phase->value, Phase::cases()))->toBe(['authorize', 'transform', 'validate']);
+});
+
+it('names the interface a hook of each phase implements', function (): void {
+    expect(Phase::Authorize->hookInterface())->toBe(AuthorizeHook::class)
+        ->and(Phase::Transform->hookInterface())->toBe(TransformHook::class)
+        ->and(Phase::Validate->hookInterface())->toBe(ValidateHook::class);
+});
+
+it('gives all hooks of a command 100 ms together, five times the most one hook may have', function (): void {
+    expect(Hook::COMMAND_BUDGET_MS)->toBe(100)
+        ->and(Hook::MAX_BUDGET_MS)->toBe(20);
 });

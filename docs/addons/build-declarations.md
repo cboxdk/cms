@@ -57,22 +57,22 @@ A package's service provider implements `Cbox\Cms\Contracts\Build\DeclaresScanRo
 
 ## Hooks
 
-`#[Hook(command: ..., phase: ..., priority: ..., budgetMs: ...)]` sits on a hook class and says which command it runs for, in which phase, in which order and within which time budget (GUARDRAILS 2.4, PRD 6.3):
+`#[Hook(command: ..., phase: ..., priority: ..., budgetMs: ...)]` sits on a hook class and says which command it runs for, in which phase, in which order and within which time budget (GUARDRAILS 2.4, PRD 6.3). The class implements the interface of its phase, and [hooks](hooks.md) says what each phase's hook gets and returns. `#[Hook]` and `Phase` are `#[Stable]`:
 
 | Argument | Value |
 |---|---|
 | `command` | The command class, for example `PublishNote::class`. The class must exist and carry `#[Command]`, and a scan root must register it, in the same package or another. |
 | `phase` | A case of the enum `Cbox\Cms\Contracts\Attributes\Phase`, see below. |
 | `priority` | An integer. The lowest priority runs first. |
-| `budgetMs` | The hook's time budget in milliseconds, from 1 to 20 (`Hook::MAX_BUDGET_MS`). |
+| `budgetMs` | The hook's time budget in milliseconds, from 1 to 20 (`Hook::MAX_BUDGET_MS`). All hooks of one command have 100 ms together (`Hook::COMMAND_BUDGET_MS`). |
 
 The phases are those of the command pipeline in which hooks run (PRD 6.2):
 
-| Phase | Value | Pipeline phase | The hook may |
-|---|---|---|---|
-| `Phase::Authorize` | `authorize` | 2, authorize | reject the command with a reason; it never grants access |
-| `Phase::Transform` | `transform` | 4, transform | change declared fields in the plan, without IO |
-| `Phase::Validate` | `validate` | 5, validate | add errors; it never removes the core's errors |
+| Phase | Value | Pipeline phase | Interface | The hook may |
+|---|---|---|---|---|
+| `Phase::Authorize` | `authorize` | 2, authorize | `AuthorizeHook` | reject the command with a reason; it never grants access |
+| `Phase::Transform` | `transform` | 4, transform | `TransformHook` | change declared fields in the plan, without IO |
+| `Phase::Validate` | `validate` | 5, validate | `ValidateHook` | add errors; it never removes the core's errors |
 
 Hooks are deterministic and do no network IO; work that needs IO belongs in a subscriber (PRD 6.3). Hooks of one command and phase run by priority, then by package name, then by class name, so the order never depends on the order in which packages are installed.
 
@@ -112,6 +112,7 @@ A file holds no time and no path, so two builds of the same code give the same b
 | `registry_class_not_loadable` | A class in a scan root cannot be autoloaded, or loading it failed. |
 | `registry_invalid_attribute` | An attribute's arguments are invalid, such as a command name with one segment, version 0, a hook's command class that does not exist or has no `#[Command]`, a budget outside 1 to 20 ms, or a surface listed twice. |
 | `registry_not_a_concrete_class` | An attribute sits on an interface, trait, enum or abstract class. |
+| `registry_not_a_hook` | A `#[Hook]` sits on a class that does not implement the interface of its phase: `AuthorizeHook`, `TransformHook` or `ValidateHook`. |
 | `registry_not_final_readonly` | A `#[Command]`, `#[Query]`, `#[Action]` or `#[Subscription]` sits on a class that is not a `final readonly class`. |
 | `registry_class_in_two_roots` | Two packages' scan roots contain the same class. |
 | `registry_duplicate_command` | Two classes declare the same command or query name and version. |
@@ -186,12 +187,22 @@ namespace Examples\Unit\Build\Notes;
 
 use Cbox\Cms\Contracts\Attributes\Hook;
 use Cbox\Cms\Contracts\Attributes\Phase;
+use Cbox\Cms\Contracts\Hooks\FieldChanges;
+use Cbox\Cms\Contracts\Hooks\PlanView;
+use Cbox\Cms\Contracts\Hooks\TransformHook;
 
 /**
  * A transform hook of the notes package on its own command, with priority 20 and a budget of 5 ms.
+ * It implements TransformHook, the interface of its phase; see the hooks page for what it can do.
  */
 #[Hook(command: PublishNote::class, phase: Phase::Transform, priority: 20, budgetMs: 5)]
-final readonly class TrimNoteTitle {}
+final readonly class TrimNoteTitle implements TransformHook
+{
+    public function transform(PlanView $plan): FieldChanges
+    {
+        return FieldChanges::none();
+    }
+}
 ```
 
 <!-- example-file: examples/Unit/Build/Notes/FindNote.php -->
@@ -315,6 +326,9 @@ namespace Examples\Unit\Build\Tagging;
 
 use Cbox\Cms\Contracts\Attributes\Hook;
 use Cbox\Cms\Contracts\Attributes\Phase;
+use Cbox\Cms\Contracts\Hooks\FieldChanges;
+use Cbox\Cms\Contracts\Hooks\PlanView;
+use Cbox\Cms\Contracts\Hooks\TransformHook;
 use Examples\Unit\Build\Notes\PublishNote;
 
 /**
@@ -322,7 +336,13 @@ use Examples\Unit\Build\Notes\PublishNote;
  * lower than that of the notes package's own hook, so it runs first.
  */
 #[Hook(command: PublishNote::class, phase: Phase::Transform, priority: 10, budgetMs: 2)]
-final readonly class TagPublishedNote {}
+final readonly class TagPublishedNote implements TransformHook
+{
+    public function transform(PlanView $plan): FieldChanges
+    {
+        return FieldChanges::none();
+    }
+}
 ```
 
 The test case is a Testbench application with the installed packages discovered, as in an application, and with the providers of the repository's `testbench.yaml` registered through `WithWorkbench`. It gives the application a bootstrap directory of its own, so `cms:build` never writes the skeleton's `bootstrap/cache/cms`, and it registers the packages' providers and runs `cms:build` by its Artisan name:

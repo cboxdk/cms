@@ -24,6 +24,9 @@ enum BuildErrorCode: string
     /** An attribute sits on an interface, trait, enum or abstract class. */
     case NotAConcreteClass = 'registry_not_a_concrete_class';
 
+    /** A #[Hook] sits on a class that does not implement the interface of its phase. */
+    case NotAHook = 'registry_not_a_hook';
+
     /** A #[Command], #[Query], #[Action] or #[Subscription] sits on a class that is not a final readonly class (GUARDRAILS 2.1). */
     case NotFinalReadonly = 'registry_not_final_readonly';
 

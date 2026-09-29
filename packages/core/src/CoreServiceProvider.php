@@ -68,12 +68,18 @@ use Cbox\Cms\Core\Partitions\Boundary\PartitionConfig;
 use Cbox\Cms\Core\Partitions\Domain\PartitionMaintenance;
 use Cbox\Cms\Core\Partitions\Infrastructure\PostgresPartitionManager;
 use Cbox\Cms\Core\Pipeline\Adapter\ConnectionCommandTransaction;
+use Cbox\Cms\Core\Pipeline\Adapter\HrtimeStopwatch;
+use Cbox\Cms\Core\Pipeline\Adapter\LoggedHookOverruns;
+use Cbox\Cms\Core\Pipeline\Adapter\RegistryCommandHooks;
 use Cbox\Cms\Core\Pipeline\Adapter\RegistryWriteActions;
 use Cbox\Cms\Core\Pipeline\Boundary\TypeRulesFieldValidation;
 use Cbox\Cms\Core\Pipeline\Domain\AffectedProjections;
+use Cbox\Cms\Core\Pipeline\Domain\CommandHooks;
 use Cbox\Cms\Core\Pipeline\Domain\CommandTransaction;
 use Cbox\Cms\Core\Pipeline\Domain\FieldValidation;
+use Cbox\Cms\Core\Pipeline\Domain\HookOverruns;
 use Cbox\Cms\Core\Pipeline\Domain\RegistryAffectedProjections;
+use Cbox\Cms\Core\Pipeline\Domain\Stopwatch;
 use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
 use Cbox\Cms\Core\Process\Boundary\ProcessWorkload;
 use Cbox\Cms\Core\Process\Domain\OwnerCredentialsExposed;
@@ -199,6 +205,9 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
             static fn (Application $app): CommandTransaction => new ConnectionCommandTransaction($app->make(ConnectionResolverInterface::class)),
         );
         $this->app->bind(AffectedProjections::class, RegistryAffectedProjections::class);
+        $this->app->bind(CommandHooks::class, RegistryCommandHooks::class);
+        $this->app->singleton(Stopwatch::class, HrtimeStopwatch::class);
+        $this->app->bind(HookOverruns::class, LoggedHookOverruns::class);
 
         $this->registerDoctor();
     }

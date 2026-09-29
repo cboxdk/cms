@@ -88,6 +88,8 @@ enum ErrorCode: string
     case GenerateTooManyFields = 'generate_too_many_fields';
     case GenerateUnknownExtendsTarget = 'generate_unknown_extends_target';
     case GenerateUnknownFieldType = 'generate_unknown_field_type';
+    case HookBudgetExceeded = 'hook_budget_exceeded';
+    case HookChangeRefused = 'hook_change_refused';
     case IdempotencyConflict = 'idempotency_conflict';
     case IdempotencyInFlight = 'idempotency_in_flight';
     case JsonInvalid = 'json_invalid';
@@ -108,6 +110,7 @@ enum ErrorCode: string
     case RegistryInvalidAttribute = 'registry_invalid_attribute';
     case RegistryInvalidScanRoot = 'registry_invalid_scan_root';
     case RegistryNotAConcreteClass = 'registry_not_a_concrete_class';
+    case RegistryNotAHook = 'registry_not_a_hook';
     case RegistryNotASubscriber = 'registry_not_a_subscriber';
     case RegistryNotAnAction = 'registry_not_an_action';
     case RegistryNotFinalReadonly = 'registry_not_final_readonly';
@@ -121,6 +124,7 @@ enum ErrorCode: string
     case ValidationBelowMinimum = 'validation_below_minimum';
     case ValidationDuplicateItem = 'validation_duplicate_item';
     case ValidationFailed = 'validation_failed';
+    case ValidationHookFailed = 'validation_hook_failed';
     case ValidationInvalidFormat = 'validation_invalid_format';
     case ValidationInvalidRichText = 'validation_invalid_rich_text';
     case ValidationNotAnOption = 'validation_not_an_option';
@@ -339,6 +343,22 @@ enum ErrorCode: string
             self::GenerateUnknownFieldType => $this->refusedInput(
                 'A field\'s type is a <namespace>:<handle> that no installed module or addon registers. Correct the type, or install the addon that provides it.',
             ),
+            self::HookBudgetExceeded => new ErrorEntry(
+                $this,
+                HttpStatus::ServiceUnavailable,
+                ExitCode::TempFail,
+                McpResponse::InternalError,
+                true,
+                'A hook of an installed module or addon took longer than its time budget, or the hooks of the command together took longer than 100 ms (PRD 6.3, 13.6), so the command was rejected and nothing was committed. The overrun is recorded with the hook, its package and the time it took. Try again; when it keeps failing, the package that owns the hook has to make it faster or move its work to a subscriber.',
+            ),
+            self::HookChangeRefused => new ErrorEntry(
+                $this,
+                HttpStatus::InternalServerError,
+                ExitCode::Software,
+                McpResponse::InternalError,
+                false,
+                'A transform hook of an installed module or addon asked to change something a hook may not change: a field its type does not declare, a field above the classification the actor may read, or a variant the plan writes no revision for (PRD 6.2 phase 4, invariant 12). Nothing was committed. This is a bug in the hook; report it to the package the error names.',
+            ),
             self::IdempotencyConflict => $this->caller(
                 HttpStatus::Conflict,
                 ExitCode::DataErr,
@@ -427,6 +447,9 @@ enum ErrorCode: string
             self::RegistryNotASubscriber => $this->refusedInput(
                 'A #[Subscription] sits on a class that does not implement Subscriber. Implement Cbox\\Cms\\Contracts\\Subscribers\\Subscriber, or remove the attribute.',
             ),
+            self::RegistryNotAHook => $this->refusedInput(
+                'A #[Hook] sits on a class that does not implement the interface of its phase: AuthorizeHook for authorize, TransformHook for transform and ValidateHook for validate (GUARDRAILS 2.4). Implement the interface, or declare the phase the class implements.',
+            ),
             self::RegistryNotAnAction => $this->refusedInput(
                 'An #[Action] sits on a class that implements neither WriteAction nor QueryAction, or both (GUARDRAILS 2.1). Implement exactly one of them.',
             ),
@@ -472,6 +495,11 @@ enum ErrorCode: string
                 HttpStatus::UnprocessableContent,
                 ExitCode::DataErr,
                 'The command\'s content is invalid: a field is missing, has the wrong type or breaks a rule of its blueprint, so nothing was committed. Correct the fields the error lists, then send the command again.',
+            ),
+            self::ValidationHookFailed => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'A validation hook of an installed module or addon found the value invalid by a rule of its own, beside the rules of the blueprint (PRD 6.2 phase 5). Nothing was committed. Correct the field the error names as its message says, then send the command again.',
             ),
             self::ValidationInvalidFormat => $this->caller(
                 HttpStatus::UnprocessableContent,

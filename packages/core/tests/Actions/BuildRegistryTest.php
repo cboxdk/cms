@@ -38,6 +38,8 @@ use Cbox\Cms\Core\Tests\Registry\Fixtures\DuplicateSubscription\FirstIndexer;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\DuplicateSubscription\SecondIndexer;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Elsewhere\Misplaced;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\NeitherFinalNorReadonly\PlainCommand;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\NotAHook\MisphasedStamper;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\NotAHook\PlainStamper;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\NotAnAction\PlainArchiver;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\NotAnAction\TwoFacedArchiver;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\NotASubscriber\PlainListener;
@@ -516,6 +518,17 @@ it('refuses an #[Action] on a class that implements neither WriteAction nor Quer
         ->and($failed->getMessage())
         ->toContain('[registry_not_an_action] #[Action] on '.PlainArchiver::class.' ('.RegistryFixtures::PACKAGE.') sits on a class that implements neither WriteAction nor QueryAction.')
         ->toContain('[registry_not_an_action] #[Action] on '.TwoFacedArchiver::class.' ('.RegistryFixtures::PACKAGE.') sits on a class that implements both WriteAction and QueryAction.')
+        ->and(is_dir($directory))->toBeFalse();
+});
+
+it('refuses a #[Hook] on a class that does not implement the interface of its phase', function (): void {
+    $directory = RegistryFixtures::scratch();
+    $failed = failedRegistryBuild($directory, new ScanRoots(RegistryFixtures::root('NotAHook')));
+
+    expect($failed->codes())->toBe([BuildErrorCode::NotAHook, BuildErrorCode::NotAHook])
+        ->and($failed->getMessage())
+        ->toContain('[registry_not_a_hook] #[Hook] on '.MisphasedStamper::class.' ('.RegistryFixtures::PACKAGE.') runs in the validate phase and does not implement Cbox\Cms\Contracts\Hooks\ValidateHook, the interface of that phase (GUARDRAILS 2.4).')
+        ->toContain('[registry_not_a_hook] #[Hook] on '.PlainStamper::class.' ('.RegistryFixtures::PACKAGE.') runs in the authorize phase and does not implement Cbox\Cms\Contracts\Hooks\AuthorizeHook, the interface of that phase (GUARDRAILS 2.4).')
         ->and(is_dir($directory))->toBeFalse();
 });
 
