@@ -5,6 +5,13 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Schema\Domain\Dto;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\ColumnShape;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\PhpType;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\TypeScriptType;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\ValidationRule;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\ValueShape;
+use Cbox\Cms\Generators\Descriptor\Domain\ShapeParts;
+use Cbox\Cms\Generators\Descriptor\Domain\ValidationRuleName;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Schema\Domain\Bounds;
 use Cbox\Cms\Generators\Schema\Domain\DecimalBound;
@@ -59,5 +66,30 @@ final readonly class DecimalOptions implements FieldOptions
     public function nestedFields(): array
     {
         return [];
+    }
+
+    #[Override]
+    public function describeColumn(string $column): ColumnShape
+    {
+        return new ColumnShape(
+            sprintf('numeric(%d, %d)', $this->precision, $this->scale),
+            ShapeParts::boundChecks($column, $this->min?->value, $this->max?->value),
+        );
+    }
+
+    /**
+     * A numeric string in PHP and a string in TypeScript, because a float would round it.
+     */
+    #[Override]
+    public function describeValue(array $fields): ValueShape
+    {
+        return new ValueShape(
+            new PhpType('string', 'numeric-string'),
+            new TypeScriptType('string'),
+            [
+                new ValidationRule(ValidationRuleName::Decimal, [(string) $this->precision, (string) $this->scale]),
+                ...ShapeParts::boundRules($this->min?->value, $this->max?->value),
+            ],
+        );
     }
 }

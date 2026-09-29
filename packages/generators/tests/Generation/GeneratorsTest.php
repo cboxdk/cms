@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Generators\Tests\Generation;
 
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\CompiledSchema;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GeneratedFile;
-use Cbox\Cms\Generators\Generation\Domain\Dto\ResolvedSchema;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Generation\Domain\Generator;
@@ -13,7 +13,6 @@ use Cbox\Cms\Generators\Generation\Domain\GeneratorRunner;
 use Cbox\Cms\Generators\Generation\Domain\Generators\GeneratedLines;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeHandleEnum;
 use Cbox\Cms\Generators\Generation\Domain\Generators\TypeScriptTypeHandles;
-use Cbox\Cms\Generators\Generation\Domain\SchemaResolver;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Blueprints;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypeRegistry;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypes\CoreFieldTypes;
@@ -194,8 +193,8 @@ it('generates the same type handle from two owners as two types, and adding one 
     $acmeProduct = SchemaFixtures::type($acme, 'product', ['sku' => 'text']);
     $runner = new GeneratorRunner([new PhpTypeHandleEnum, new TypeScriptTypeHandles]);
 
-    $before = contentsOf($runner->run(SchemaResolver::resolve(new Blueprints([$appProduct], [])), SchemaFixtures::target(roots: [$app, $acme]))->files);
-    $after = contentsOf($runner->run(SchemaResolver::resolve(new Blueprints([$appProduct, $acmeProduct], [])), SchemaFixtures::target(roots: [$app, $acme]))->files);
+    $before = contentsOf($runner->run(SchemaFixtures::compiled(new Blueprints([$appProduct], [])), SchemaFixtures::target(roots: [$app, $acme]))->files);
+    $after = contentsOf($runner->run(SchemaFixtures::compiled(new Blueprints([$appProduct, $acmeProduct], [])), SchemaFixtures::target(roots: [$app, $acme]))->files);
 
     expect($after['app/Cms/Generated/TypeHandle.php'])->toContain(<<<'PHP'
             case AcmeProduct = 'acme:product';
@@ -295,7 +294,7 @@ it('writes the owner\'s fields by handle and extension fields under ext, by name
     $blog = SchemaFixtures::root('blog', 'vendor/acme/blog/schema');
     $product = SchemaFixtures::type($acme, 'product', ['title' => 'text', 'price' => 'decimal']);
     $page = SchemaFixtures::type($acme, 'page', ['title' => 'text']);
-    $schema = SchemaResolver::resolve(new Blueprints([$product, $page], [
+    $schema = SchemaFixtures::compiled(new Blueprints([$product, $page], [
         SchemaFixtures::extension($blog, 'product.yaml', $product->typeId, ['teaser' => 'long_text']),
         SchemaFixtures::extension($app, 'shop/product.yaml', $product->typeId, ['tax_code' => 'text', 'colour' => 'select']),
     ]));
@@ -366,7 +365,7 @@ it('writes the owner\'s fields by handle and extension fields under ext, by name
 });
 
 it('writes an enum without cases and never when the schema roots hold no types', function (): void {
-    $output = contentsOf(new GeneratorRunner([new PhpTypeHandleEnum, new TypeScriptTypeHandles])->run(new ResolvedSchema([]), SchemaFixtures::target())->files);
+    $output = contentsOf(new GeneratorRunner([new PhpTypeHandleEnum, new TypeScriptTypeHandles])->run(new CompiledSchema([]), SchemaFixtures::target())->files);
 
     expect($output)->toBe([
         'app/Cms/Generated/TypeHandle.php' => <<<'PHP'

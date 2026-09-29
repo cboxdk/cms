@@ -1,0 +1,1248 @@
+{
+    "capabilities": {
+        "history": "full",
+        "localization": "none",
+        "routable": true,
+        "stages": "draft-release"
+    },
+    "description": "A product of the shop, with its price, stock and supplier.",
+    "descriptor": 1,
+    "extensions": [
+        {
+            "namespace": "app",
+            "version": 2
+        }
+    ],
+    "fields": [
+        {
+            "agents": true,
+            "choices": [],
+            "classification": "public",
+            "column": {
+                "checks": [
+                    "jsonb_typeof(\"body\") = 'array'"
+                ],
+                "name": "body",
+                "not_null": false,
+                "type": "jsonb"
+            },
+            "description": "The description of the product on its page.",
+            "encrypted": false,
+            "fields": [],
+            "filterable": false,
+            "handle": "body",
+            "label": "Body",
+            "namespace": null,
+            "owner": "shop",
+            "php": {
+                "doc": "list<array<string, mixed>>",
+                "native": "array",
+                "nullable": true
+            },
+            "required": false,
+            "sortable": false,
+            "type": "rich_text",
+            "typescript": {
+                "nullable": true,
+                "type": "Array<Record<string, unknown>>"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "nullable"
+                },
+                {
+                    "arguments": [],
+                    "rule": "portable_text"
+                },
+                {
+                    "arguments": [
+                        "normal",
+                        "h2",
+                        "h3"
+                    ],
+                    "rule": "styles"
+                },
+                {
+                    "arguments": [
+                        "strong",
+                        "em"
+                    ],
+                    "rule": "marks"
+                },
+                {
+                    "arguments": [
+                        "bullet"
+                    ],
+                    "rule": "lists"
+                },
+                {
+                    "arguments": [
+                        "url"
+                    ],
+                    "rule": "links"
+                }
+            ]
+        },
+        {
+            "agents": true,
+            "choices": [],
+            "classification": "public",
+            "column": {
+                "checks": [
+                    "jsonb_typeof(\"care\") = 'array'"
+                ],
+                "name": "care",
+                "not_null": false,
+                "type": "jsonb"
+            },
+            "description": "How to take care of the product.",
+            "encrypted": false,
+            "fields": [],
+            "filterable": false,
+            "handle": "care",
+            "label": "Care",
+            "namespace": null,
+            "owner": "shop",
+            "php": {
+                "doc": "list<array<string, mixed>>",
+                "native": "array",
+                "nullable": true
+            },
+            "required": false,
+            "sortable": false,
+            "type": "rich_text",
+            "typescript": {
+                "nullable": true,
+                "type": "Array<Record<string, unknown>>"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "nullable"
+                },
+                {
+                    "arguments": [],
+                    "rule": "portable_text"
+                },
+                {
+                    "arguments": [
+                        "normal",
+                        "h2",
+                        "h3",
+                        "h4",
+                        "h5",
+                        "h6",
+                        "blockquote"
+                    ],
+                    "rule": "styles"
+                },
+                {
+                    "arguments": [
+                        "strong",
+                        "em",
+                        "underline",
+                        "strike",
+                        "code",
+                        "sub",
+                        "sup"
+                    ],
+                    "rule": "marks"
+                },
+                {
+                    "arguments": [
+                        "bullet",
+                        "number"
+                    ],
+                    "rule": "lists"
+                },
+                {
+                    "arguments": [
+                        "url"
+                    ],
+                    "rule": "links"
+                }
+            ]
+        },
+        {
+            "agents": true,
+            "choices": [],
+            "classification": "internal",
+            "column": {
+                "checks": [
+                    "\"checked_at\" >= '2000-01-01T00:00:00Z'::timestamptz"
+                ],
+                "name": "checked_at",
+                "not_null": false,
+                "type": "timestamptz"
+            },
+            "description": "When the product data was last checked.",
+            "encrypted": false,
+            "fields": [],
+            "filterable": false,
+            "handle": "checked_at",
+            "label": "Checked at",
+            "namespace": null,
+            "owner": "shop",
+            "php": {
+                "doc": "DateTimeImmutable",
+                "native": "DateTimeImmutable",
+                "nullable": true
+            },
+            "required": false,
+            "sortable": false,
+            "type": "datetime",
+            "typescript": {
+                "nullable": true,
+                "type": "string"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "nullable"
+                },
+                {
+                    "arguments": [],
+                    "rule": "datetime"
+                },
+                {
+                    "arguments": [
+                        "2000-01-01T00:00:00Z"
+                    ],
+                    "rule": "min"
+                }
+            ]
+        },
+        {
+            "agents": true,
+            "choices": [
+                {
+                    "label": "Red",
+                    "value": "red"
+                },
+                {
+                    "label": "Green",
+                    "value": "green"
+                },
+                {
+                    "label": "Blue",
+                    "value": "blue"
+                }
+            ],
+            "classification": "public",
+            "column": {
+                "checks": [
+                    "\"colour\" IN ('red', 'green', 'blue')"
+                ],
+                "name": "colour",
+                "not_null": true,
+                "type": "text"
+            },
+            "description": "The colour of the product.",
+            "encrypted": false,
+            "fields": [],
+            "filterable": true,
+            "handle": "colour",
+            "label": "Colour",
+            "namespace": null,
+            "owner": "shop",
+            "php": {
+                "doc": "'red'|'green'|'blue'",
+                "native": "string",
+                "nullable": false
+            },
+            "required": true,
+            "sortable": false,
+            "type": "select",
+            "typescript": {
+                "nullable": false,
+                "type": "'red' | 'green' | 'blue'"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "required"
+                },
+                {
+                    "arguments": [
+                        "red",
+                        "green",
+                        "blue"
+                    ],
+                    "rule": "in"
+                }
+            ]
+        },
+        {
+            "agents": true,
+            "choices": [],
+            "classification": "public",
+            "column": {
+                "checks": [
+                    "CASE WHEN jsonb_typeof(\"dimensions\") = 'array' THEN jsonb_array_length(\"dimensions\") BETWEEN 1 AND 5 ELSE false END"
+                ],
+                "name": "dimensions",
+                "not_null": false,
+                "type": "jsonb"
+            },
+            "description": "The sizes the product comes in.",
+            "encrypted": false,
+            "fields": [
+                {
+                    "agents": true,
+                    "choices": [
+                        {
+                            "label": "Small",
+                            "value": "small"
+                        },
+                        {
+                            "label": "Large",
+                            "value": "large"
+                        }
+                    ],
+                    "classification": "public",
+                    "column": null,
+                    "description": "The name of the size.",
+                    "encrypted": false,
+                    "fields": [],
+                    "filterable": false,
+                    "handle": "size",
+                    "label": "Size",
+                    "namespace": null,
+                    "owner": "shop",
+                    "php": {
+                        "doc": "'small'|'large'",
+                        "native": "string",
+                        "nullable": false
+                    },
+                    "required": true,
+                    "sortable": false,
+                    "type": "select",
+                    "typescript": {
+                        "nullable": false,
+                        "type": "'small' | 'large'"
+                    },
+                    "validation": [
+                        {
+                            "arguments": [],
+                            "rule": "required"
+                        },
+                        {
+                            "arguments": [
+                                "small",
+                                "large"
+                            ],
+                            "rule": "in"
+                        }
+                    ]
+                },
+                {
+                    "agents": true,
+                    "choices": [],
+                    "classification": "public",
+                    "column": null,
+                    "description": "The width in millimetres.",
+                    "encrypted": false,
+                    "fields": [],
+                    "filterable": false,
+                    "handle": "width",
+                    "label": "Width",
+                    "namespace": null,
+                    "owner": "shop",
+                    "php": {
+                        "doc": "int<1, max>",
+                        "native": "int",
+                        "nullable": true
+                    },
+                    "required": false,
+                    "sortable": false,
+                    "type": "integer",
+                    "typescript": {
+                        "nullable": true,
+                        "type": "number"
+                    },
+                    "validation": [
+                        {
+                            "arguments": [],
+                            "rule": "nullable"
+                        },
+                        {
+                            "arguments": [],
+                            "rule": "integer"
+                        },
+                        {
+                            "arguments": [
+                                "1"
+                            ],
+                            "rule": "min"
+                        }
+                    ]
+                }
+            ],
+            "filterable": false,
+            "handle": "dimensions",
+            "label": "Dimensions",
+            "namespace": null,
+            "owner": "shop",
+            "php": {
+                "doc": "list<array{size: 'small'|'large', width?: int<1, max>|null}>",
+                "native": "array",
+                "nullable": true
+            },
+            "required": false,
+            "sortable": false,
+            "type": "group",
+            "typescript": {
+                "nullable": true,
+                "type": "Array<{ size: 'small' | 'large'; width?: number | null }>"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "nullable"
+                },
+                {
+                    "arguments": [],
+                    "rule": "list"
+                },
+                {
+                    "arguments": [
+                        "1"
+                    ],
+                    "rule": "min_items"
+                },
+                {
+                    "arguments": [
+                        "5"
+                    ],
+                    "rule": "max_items"
+                }
+            ]
+        },
+        {
+            "agents": true,
+            "choices": [],
+            "classification": "public",
+            "column": {
+                "checks": [],
+                "name": "discontinued",
+                "not_null": false,
+                "type": "boolean"
+            },
+            "description": "Whether the shop no longer sells the product.",
+            "encrypted": false,
+            "fields": [],
+            "filterable": true,
+            "handle": "discontinued",
+            "label": "Discontinued",
+            "namespace": null,
+            "owner": "shop",
+            "php": {
+                "doc": "bool",
+                "native": "bool",
+                "nullable": true
+            },
+            "required": false,
+            "sortable": false,
+            "type": "boolean",
+            "typescript": {
+                "nullable": true,
+                "type": "boolean"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "nullable"
+                },
+                {
+                    "arguments": [],
+                    "rule": "boolean"
+                }
+            ]
+        },
+        {
+            "agents": true,
+            "choices": [],
+            "classification": "public",
+            "column": {
+                "checks": [
+                    "char_length(\"ext__app__name\") <= 255"
+                ],
+                "name": "ext__app__name",
+                "not_null": false,
+                "type": "text"
+            },
+            "description": "The name the customer's own systems use for the product.",
+            "encrypted": false,
+            "fields": [],
+            "filterable": false,
+            "handle": "name",
+            "label": "Local name",
+            "namespace": "app",
+            "owner": "app",
+            "php": {
+                "doc": "string",
+                "native": "string",
+                "nullable": true
+            },
+            "required": false,
+            "sortable": false,
+            "type": "text",
+            "typescript": {
+                "nullable": true,
+                "type": "string"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "nullable"
+                },
+                {
+                    "arguments": [],
+                    "rule": "string"
+                },
+                {
+                    "arguments": [
+                        "255"
+                    ],
+                    "rule": "max_length"
+                }
+            ]
+        },
+        {
+            "agents": true,
+            "choices": [],
+            "classification": "internal",
+            "column": {
+                "checks": [
+                    "char_length(\"ext__app__tax_code\") <= 20"
+                ],
+                "name": "ext__app__tax_code",
+                "not_null": false,
+                "type": "text"
+            },
+            "description": "The customer's tax code for the product.",
+            "encrypted": false,
+            "fields": [],
+            "filterable": true,
+            "handle": "tax_code",
+            "label": "Tax code",
+            "namespace": "app",
+            "owner": "app",
+            "php": {
+                "doc": "string",
+                "native": "string",
+                "nullable": true
+            },
+            "required": true,
+            "sortable": false,
+            "type": "text",
+            "typescript": {
+                "nullable": true,
+                "type": "string"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "nullable"
+                },
+                {
+                    "arguments": [],
+                    "rule": "string"
+                },
+                {
+                    "arguments": [
+                        "20"
+                    ],
+                    "rule": "max_length"
+                }
+            ]
+        },
+        {
+            "agents": true,
+            "choices": [],
+            "classification": "public",
+            "column": {
+                "checks": [
+                    "\"launch_date\" >= '2000-01-01'::date",
+                    "\"launch_date\" <= '2099-12-31'::date"
+                ],
+                "name": "launch_date",
+                "not_null": false,
+                "type": "date"
+            },
+            "description": "The day the product went on sale.",
+            "encrypted": false,
+            "fields": [],
+            "filterable": false,
+            "handle": "launch_date",
+            "label": "Launch date",
+            "namespace": null,
+            "owner": "shop",
+            "php": {
+                "doc": "DateTimeImmutable",
+                "native": "DateTimeImmutable",
+                "nullable": true
+            },
+            "required": false,
+            "sortable": true,
+            "type": "date",
+            "typescript": {
+                "nullable": true,
+                "type": "string"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "nullable"
+                },
+                {
+                    "arguments": [],
+                    "rule": "date"
+                },
+                {
+                    "arguments": [
+                        "2000-01-01"
+                    ],
+                    "rule": "min"
+                },
+                {
+                    "arguments": [
+                        "2099-12-31"
+                    ],
+                    "rule": "max"
+                }
+            ]
+        },
+        {
+            "agents": true,
+            "choices": [],
+            "classification": "public",
+            "column": {
+                "checks": [
+                    "char_length(\"name\") >= 1",
+                    "char_length(\"name\") <= 120"
+                ],
+                "name": "name",
+                "not_null": true,
+                "type": "text"
+            },
+            "description": "The name of the product, as the shop shows it.",
+            "encrypted": false,
+            "fields": [],
+            "filterable": true,
+            "handle": "name",
+            "label": "Name",
+            "namespace": null,
+            "owner": "shop",
+            "php": {
+                "doc": "string",
+                "native": "string",
+                "nullable": false
+            },
+            "required": true,
+            "sortable": true,
+            "type": "text",
+            "typescript": {
+                "nullable": false,
+                "type": "string"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "required"
+                },
+                {
+                    "arguments": [],
+                    "rule": "string"
+                },
+                {
+                    "arguments": [
+                        "1"
+                    ],
+                    "rule": "min_length"
+                },
+                {
+                    "arguments": [
+                        "120"
+                    ],
+                    "rule": "max_length"
+                }
+            ]
+        },
+        {
+            "agents": true,
+            "choices": [],
+            "classification": "public",
+            "column": {
+                "checks": [
+                    "\"price\" >= 0.00",
+                    "\"price\" <= 99999999.99"
+                ],
+                "name": "price",
+                "not_null": true,
+                "type": "numeric(10, 2)"
+            },
+            "description": "The price of one item, in euro.",
+            "encrypted": false,
+            "fields": [],
+            "filterable": false,
+            "handle": "price",
+            "label": "Price",
+            "namespace": null,
+            "owner": "shop",
+            "php": {
+                "doc": "numeric-string",
+                "native": "string",
+                "nullable": false
+            },
+            "required": true,
+            "sortable": true,
+            "type": "decimal",
+            "typescript": {
+                "nullable": false,
+                "type": "string"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "required"
+                },
+                {
+                    "arguments": [
+                        "10",
+                        "2"
+                    ],
+                    "rule": "decimal"
+                },
+                {
+                    "arguments": [
+                        "0.00"
+                    ],
+                    "rule": "min"
+                },
+                {
+                    "arguments": [
+                        "99999999.99"
+                    ],
+                    "rule": "max"
+                }
+            ]
+        },
+        {
+            "agents": false,
+            "choices": [],
+            "classification": "confidential",
+            "column": {
+                "checks": [],
+                "name": "purchase_price",
+                "not_null": false,
+                "type": "bytea"
+            },
+            "description": "What the shop pays the supplier for one item.",
+            "encrypted": true,
+            "fields": [],
+            "filterable": false,
+            "handle": "purchase_price",
+            "label": "Purchase price",
+            "namespace": null,
+            "owner": "shop",
+            "php": {
+                "doc": "numeric-string",
+                "native": "string",
+                "nullable": true
+            },
+            "required": false,
+            "sortable": false,
+            "type": "decimal",
+            "typescript": {
+                "nullable": true,
+                "type": "string"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "nullable"
+                },
+                {
+                    "arguments": [
+                        "10",
+                        "2"
+                    ],
+                    "rule": "decimal"
+                }
+            ]
+        },
+        {
+            "agents": true,
+            "choices": [],
+            "classification": "internal",
+            "column": {
+                "checks": [
+                    "\"stock\" >= 0",
+                    "\"stock\" <= 1000000"
+                ],
+                "name": "stock",
+                "not_null": false,
+                "type": "bigint"
+            },
+            "description": "How many items the warehouse holds.",
+            "encrypted": false,
+            "fields": [],
+            "filterable": true,
+            "handle": "stock",
+            "label": "Stock",
+            "namespace": null,
+            "owner": "shop",
+            "php": {
+                "doc": "int<0, 1000000>",
+                "native": "int",
+                "nullable": true
+            },
+            "required": false,
+            "sortable": true,
+            "type": "integer",
+            "typescript": {
+                "nullable": true,
+                "type": "number"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "nullable"
+                },
+                {
+                    "arguments": [],
+                    "rule": "integer"
+                },
+                {
+                    "arguments": [
+                        "0"
+                    ],
+                    "rule": "min"
+                },
+                {
+                    "arguments": [
+                        "1000000"
+                    ],
+                    "rule": "max"
+                }
+            ]
+        },
+        {
+            "agents": false,
+            "choices": [],
+            "classification": "internal",
+            "column": {
+                "checks": [
+                    "char_length(\"summary\") <= 2000"
+                ],
+                "name": "summary",
+                "not_null": false,
+                "type": "text"
+            },
+            "description": null,
+            "encrypted": false,
+            "fields": [],
+            "filterable": false,
+            "handle": "summary",
+            "label": "Summary",
+            "namespace": null,
+            "owner": "shop",
+            "php": {
+                "doc": "string",
+                "native": "string",
+                "nullable": true
+            },
+            "required": false,
+            "sortable": false,
+            "type": "long_text",
+            "typescript": {
+                "nullable": true,
+                "type": "string"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "nullable"
+                },
+                {
+                    "arguments": [],
+                    "rule": "string"
+                },
+                {
+                    "arguments": [
+                        "2000"
+                    ],
+                    "rule": "max_length"
+                }
+            ]
+        },
+        {
+            "agents": true,
+            "choices": [],
+            "classification": "confidential",
+            "column": {
+                "checks": [],
+                "name": "supplier",
+                "not_null": false,
+                "type": "bytea"
+            },
+            "description": "Who supplies the product, and how to reach them.",
+            "encrypted": true,
+            "fields": [
+                {
+                    "agents": true,
+                    "choices": [],
+                    "classification": "confidential",
+                    "column": null,
+                    "description": "The name of the supplier.",
+                    "encrypted": true,
+                    "fields": [],
+                    "filterable": false,
+                    "handle": "company",
+                    "label": "Company",
+                    "namespace": null,
+                    "owner": "shop",
+                    "php": {
+                        "doc": "string",
+                        "native": "string",
+                        "nullable": false
+                    },
+                    "required": true,
+                    "sortable": false,
+                    "type": "text",
+                    "typescript": {
+                        "nullable": false,
+                        "type": "string"
+                    },
+                    "validation": [
+                        {
+                            "arguments": [],
+                            "rule": "required"
+                        },
+                        {
+                            "arguments": [],
+                            "rule": "string"
+                        },
+                        {
+                            "arguments": [
+                                "255"
+                            ],
+                            "rule": "max_length"
+                        }
+                    ]
+                },
+                {
+                    "agents": false,
+                    "choices": [],
+                    "classification": "confidential",
+                    "column": null,
+                    "description": null,
+                    "encrypted": true,
+                    "fields": [],
+                    "filterable": false,
+                    "handle": "notes",
+                    "label": "Notes",
+                    "namespace": null,
+                    "owner": "shop",
+                    "php": {
+                        "doc": "string",
+                        "native": "string",
+                        "nullable": true
+                    },
+                    "required": false,
+                    "sortable": false,
+                    "type": "long_text",
+                    "typescript": {
+                        "nullable": true,
+                        "type": "string"
+                    },
+                    "validation": [
+                        {
+                            "arguments": [],
+                            "rule": "nullable"
+                        },
+                        {
+                            "arguments": [],
+                            "rule": "string"
+                        },
+                        {
+                            "arguments": [
+                                "10000"
+                            ],
+                            "rule": "max_length"
+                        }
+                    ]
+                },
+                {
+                    "agents": true,
+                    "choices": [],
+                    "classification": "confidential",
+                    "column": null,
+                    "description": "The supplier's website.",
+                    "encrypted": true,
+                    "fields": [],
+                    "filterable": false,
+                    "handle": "website",
+                    "label": "Website",
+                    "namespace": null,
+                    "owner": "shop",
+                    "php": {
+                        "doc": "string",
+                        "native": "string",
+                        "nullable": true
+                    },
+                    "required": false,
+                    "sortable": false,
+                    "type": "text",
+                    "typescript": {
+                        "nullable": true,
+                        "type": "string"
+                    },
+                    "validation": [
+                        {
+                            "arguments": [],
+                            "rule": "nullable"
+                        },
+                        {
+                            "arguments": [],
+                            "rule": "string"
+                        },
+                        {
+                            "arguments": [
+                                "255"
+                            ],
+                            "rule": "max_length"
+                        },
+                        {
+                            "arguments": [
+                                "url"
+                            ],
+                            "rule": "format"
+                        }
+                    ]
+                }
+            ],
+            "filterable": false,
+            "handle": "supplier",
+            "label": "Supplier",
+            "namespace": null,
+            "owner": "shop",
+            "php": {
+                "doc": "array{company: string, notes?: string|null, website?: string|null}",
+                "native": "array",
+                "nullable": true
+            },
+            "required": false,
+            "sortable": false,
+            "type": "group",
+            "typescript": {
+                "nullable": true,
+                "type": "{ company: string; notes?: string | null; website?: string | null }"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "nullable"
+                },
+                {
+                    "arguments": [],
+                    "rule": "object"
+                }
+            ]
+        },
+        {
+            "agents": true,
+            "choices": [],
+            "classification": "public",
+            "column": {
+                "checks": [
+                    "char_length(\"support_email\") <= 255"
+                ],
+                "name": "support_email",
+                "not_null": false,
+                "type": "text"
+            },
+            "description": "Where customers write about the product.",
+            "encrypted": false,
+            "fields": [],
+            "filterable": false,
+            "handle": "support_email",
+            "label": "Support email",
+            "namespace": null,
+            "owner": "shop",
+            "php": {
+                "doc": "string",
+                "native": "string",
+                "nullable": true
+            },
+            "required": false,
+            "sortable": false,
+            "type": "text",
+            "typescript": {
+                "nullable": true,
+                "type": "string"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "nullable"
+                },
+                {
+                    "arguments": [],
+                    "rule": "string"
+                },
+                {
+                    "arguments": [
+                        "255"
+                    ],
+                    "rule": "max_length"
+                },
+                {
+                    "arguments": [
+                        "email"
+                    ],
+                    "rule": "format"
+                }
+            ]
+        },
+        {
+            "agents": true,
+            "choices": [
+                {
+                    "label": "New",
+                    "value": "new"
+                },
+                {
+                    "label": "Sale",
+                    "value": "sale"
+                },
+                {
+                    "label": "Eco",
+                    "value": "eco"
+                }
+            ],
+            "classification": "public",
+            "column": {
+                "checks": [
+                    "\"tags\" <@ ARRAY['new', 'sale', 'eco']::text[]",
+                    "cardinality(\"tags\") >= 1",
+                    "cardinality(\"tags\") <= 3"
+                ],
+                "name": "tags",
+                "not_null": false,
+                "type": "text[]"
+            },
+            "description": "The tags the shop lists the product under.",
+            "encrypted": false,
+            "fields": [],
+            "filterable": false,
+            "handle": "tags",
+            "label": "Tags",
+            "namespace": null,
+            "owner": "shop",
+            "php": {
+                "doc": "list<'new'|'sale'|'eco'>",
+                "native": "array",
+                "nullable": true
+            },
+            "required": false,
+            "sortable": false,
+            "type": "select",
+            "typescript": {
+                "nullable": true,
+                "type": "Array<'new' | 'sale' | 'eco'>"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "nullable"
+                },
+                {
+                    "arguments": [],
+                    "rule": "list"
+                },
+                {
+                    "arguments": [],
+                    "rule": "distinct"
+                },
+                {
+                    "arguments": [
+                        "new",
+                        "sale",
+                        "eco"
+                    ],
+                    "rule": "items_in"
+                },
+                {
+                    "arguments": [
+                        "1"
+                    ],
+                    "rule": "min_items"
+                },
+                {
+                    "arguments": [
+                        "3"
+                    ],
+                    "rule": "max_items"
+                }
+            ]
+        },
+        {
+            "agents": true,
+            "choices": [],
+            "classification": "public",
+            "column": {
+                "checks": [
+                    "\"weight\" >= 1"
+                ],
+                "name": "weight",
+                "not_null": false,
+                "type": "bigint"
+            },
+            "description": "The weight of one item in grams.",
+            "encrypted": false,
+            "fields": [],
+            "filterable": false,
+            "handle": "weight",
+            "label": "Weight",
+            "namespace": null,
+            "owner": "shop",
+            "php": {
+                "doc": "int<1, max>",
+                "native": "int",
+                "nullable": true
+            },
+            "required": false,
+            "sortable": false,
+            "type": "integer",
+            "typescript": {
+                "nullable": true,
+                "type": "number"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "nullable"
+                },
+                {
+                    "arguments": [],
+                    "rule": "integer"
+                },
+                {
+                    "arguments": [
+                        "1"
+                    ],
+                    "rule": "min"
+                }
+            ]
+        }
+    ],
+    "handle": "product",
+    "label": "Product",
+    "name": "shop:product",
+    "owner": "shop",
+    "type_id": "0198d2a4-5c3e-7a41-9b2f-3c8e1f6a7d20",
+    "version": 3
+}

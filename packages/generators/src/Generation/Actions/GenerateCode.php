@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Generation\Actions;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Generators\Descriptor\Domain\DescriptorCompiler;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationTarget;
 use Cbox\Cms\Generators\Generation\Domain\Dto\WriteReport;
 use Cbox\Cms\Generators\Generation\Domain\GeneratedOutput;
@@ -15,8 +16,8 @@ use Cbox\Cms\Generators\Schema\Domain\BlueprintSource;
 
 /**
  * cms:generate (PRD 11.12, GUARDRAILS 7.1): reads the blueprint files below the target's schema
- * roots, applies the extensions to the types they extend, runs the generators and writes the
- * result. Nothing is written unless every blueprint is valid and every generator succeeded.
+ * roots, applies the extensions to the types they extend, compiles a type descriptor per type, runs
+ * the generators over the descriptors and writes the result. Nothing is written unless every blueprint is valid and every generator succeeded.
  */
 #[Internal]
 final readonly class GenerateCode
@@ -32,7 +33,7 @@ final readonly class GenerateCode
      */
     public function generate(GenerationTarget $target): WriteReport
     {
-        $schema = SchemaResolver::resolve($this->blueprints->read($target->roots));
+        $schema = DescriptorCompiler::compile(SchemaResolver::resolve($this->blueprints->read($target->roots)));
 
         return $this->output->write($target->root, $this->runner->run($schema, $target));
     }

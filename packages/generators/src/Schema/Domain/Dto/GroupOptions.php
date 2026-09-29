@@ -5,6 +5,13 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Schema\Domain\Dto;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\ColumnShape;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\PhpType;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\TypeScriptType;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\ValidationRule;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\ValueShape;
+use Cbox\Cms\Generators\Descriptor\Domain\ShapeParts;
+use Cbox\Cms\Generators\Descriptor\Domain\ValidationRuleName;
 use Cbox\Cms\Generators\Schema\Domain\FieldOptions;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypes\GroupFieldType;
 use Cbox\Cms\Generators\Schema\Domain\OptionRules;
@@ -45,5 +52,55 @@ final readonly class GroupOptions implements FieldOptions
     public function nestedFields(): array
     {
         return $this->fields;
+    }
+
+    /**
+     * A JSONB object, or a JSONB array of at most `max_items` objects for a repeated group.
+     */
+    #[Override]
+    public function describeColumn(string $column): ColumnShape
+    {
+        if (! $this->repeat instanceof GroupRepeat) {
+            return new ColumnShape('jsonb', [sprintf("jsonb_typeof(%s) = 'object'", $column)]);
+        }
+
+        return new ColumnShape('jsonb', [sprintf(
+            "CASE WHEN jsonb_typeof(%s) = 'array' THEN jsonb_array_length(%s) BETWEEN %d AND %d ELSE false END",
+            $column,
+            $column,
+            $this->repeat->minItems ?? 0,
+            $this->repeat->maxItems,
+        )]);
+    }
+
+    /**
+     * An array shape of the nested fields in PHP and an object type in TypeScript, each key the
+     * handle of a nested field and optional when its value may be null; a list of them for a
+     * repeated group.
+     */
+    #[Override]
+    public function describeValue(array $fields): ValueShape
+    {
+        $php = [];
+        $typeScript = [];
+
+        foreach ($fields as $field) {
+            $key = $field->handle->value.($field->php->nullable ? '?' : '');
+            $php[] = $key.': '.$field->php->docType();
+            $typeScript[] = $key.': '.$field->typeScript->declaration();
+        }
+
+        $shape = 'array{'.implode(', ', $php).'}';
+        $object = '{ '.implode('; ', $typeScript).' }';
+
+        if (! $this->repeat instanceof GroupRepeat) {
+            return new ValueShape(new PhpType('array', $shape), new TypeScriptType($object), [new ValidationRule(ValidationRuleName::Object)]);
+        }
+
+        return new ValueShape(
+            new PhpType('array', 'list<'.$shape.'>'),
+            new TypeScriptType('Array<'.$object.'>'),
+            [new ValidationRule(ValidationRuleName::List), ...ShapeParts::itemRules($this->repeat->minItems, $this->repeat->maxItems)],
+        );
     }
 }

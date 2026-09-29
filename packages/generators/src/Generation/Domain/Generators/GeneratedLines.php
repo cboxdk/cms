@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Generation\Domain\Generators;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\FieldDescriptor;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationTarget;
-use Cbox\Cms\Generators\Generation\Domain\Dto\ResolvedField;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
@@ -40,16 +40,16 @@ final readonly class GeneratedLines
      *
      * @throws GenerationFailed with GenerateErrorCode::InvalidOutput when the mapping lacks the type
      */
-    public static function fieldType(string $generator, array $mapping, ResolvedField $field): string
+    public static function fieldType(string $generator, array $mapping, FieldDescriptor $field): string
     {
-        $type = $field->typeName();
+        $type = $field->type;
 
         if (! array_key_exists($type, $mapping)) {
             throw GenerationFailed::because(GenerateErrorCode::InvalidOutput, sprintf(
                 '%s has no mapping for the field type "%s" of %s. Add the field type to its FIELD_TYPES.',
                 $generator,
                 $type,
-                $field->blueprint->location->describe(),
+                $field->location->describe(),
             ));
         }
 

@@ -5,6 +5,14 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Schema\Domain\Dto;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\ColumnShape;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\PhpType;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\TypeScriptType;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\ValidationRule;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\ValueShape;
+use Cbox\Cms\Generators\Descriptor\Domain\ShapeParts;
+use Cbox\Cms\Generators\Descriptor\Domain\SqlText;
+use Cbox\Cms\Generators\Descriptor\Domain\ValidationRuleName;
 use Cbox\Cms\Generators\Schema\Domain\BlueprintDatetime;
 use Cbox\Cms\Generators\Schema\Domain\Bounds;
 use Cbox\Cms\Generators\Schema\Domain\FieldOptions;
@@ -45,5 +53,29 @@ final readonly class DatetimeOptions implements FieldOptions
     public function nestedFields(): array
     {
         return [];
+    }
+
+    #[Override]
+    public function describeColumn(string $column): ColumnShape
+    {
+        return new ColumnShape('timestamptz', ShapeParts::boundChecks($column, $this->sql($this->min), $this->sql($this->max)));
+    }
+
+    /**
+     * A DateTimeImmutable in PHP, and the RFC 3339 date-time in TypeScript.
+     */
+    #[Override]
+    public function describeValue(array $fields): ValueShape
+    {
+        return new ValueShape(
+            new PhpType('DateTimeImmutable', 'DateTimeImmutable'),
+            new TypeScriptType('string'),
+            [new ValidationRule(ValidationRuleName::Datetime), ...ShapeParts::boundRules($this->min?->value, $this->max?->value)],
+        );
+    }
+
+    private function sql(?BlueprintDatetime $bound): ?string
+    {
+        return $bound instanceof BlueprintDatetime ? SqlText::literal($bound->value).'::timestamptz' : null;
     }
 }

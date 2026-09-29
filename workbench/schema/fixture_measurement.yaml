@@ -1,0 +1,61 @@
+# yaml-language-server: $schema=../../packages/contracts/resources/schemas/blueprint.v1.json
+# The workbench's second fixture type (GUARDRAILS 2.4, MILESTONES M1), owner app: a measurement
+# with no history, no stages and no route, and other fields than fixture_article, so milestone 1
+# exercises a type whose entries are written once and never drafted. Every handle and select value
+# starts with fixture_, as in fixture_article.yaml. cms:generate reads it and writes the committed
+# code in workbench/app/Cms/Generated and workbench/resources/js/cms/generated; the first line is
+# written by cms:schema:editor.
+blueprint: 1
+kind: type
+type_id: 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a6b
+handle: fixture_measurement
+label: Fixture measurement
+description: One reading of a sensor at a station.
+version: 1
+capabilities:
+  history: none
+  stages: none
+  localization: none
+  routable: false
+fields:
+  - handle: fixture_reading
+    label: Reading
+    description: The value the sensor read, in the unit of the scale.
+    type: decimal
+    required: true
+    classification: public
+    sortable: true
+    precision: 12
+    scale: 3
+  - handle: fixture_scale
+    label: Scale
+    description: The scale of the reading.
+    type: select
+    required: true
+    classification: public
+    filterable: true
+    options:
+      - value: fixture_celsius
+        label: Celsius
+      - value: fixture_kelvin
+        label: Kelvin
+  - handle: fixture_measured_at
+    label: Measured at
+    description: When the sensor took the reading.
+    type: datetime
+    required: true
+    classification: public
+    filterable: true
+    sortable: true
+  - handle: fixture_station
+    label: Station
+    description: The code of the station the sensor stands at.
+    type: text
+    classification: internal
+    filterable: true
+    max_length: 40
+  - handle: fixture_note
+    label: Note
+    type: long_text
+    classification: internal
+    agents: false

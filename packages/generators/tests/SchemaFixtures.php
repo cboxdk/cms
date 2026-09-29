@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Generators\Tests;
 
+use Cbox\Cms\Generators\Descriptor\Domain\DescriptorCompiler;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\CompiledSchema;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationTarget;
-use Cbox\Cms\Generators\Generation\Domain\Dto\ResolvedSchema;
 use Cbox\Cms\Generators\Generation\Domain\SchemaResolver;
 use Cbox\Cms\Generators\Schema\Domain\Classification;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Blueprints;
@@ -61,23 +62,31 @@ final class SchemaFixtures
     private static array $scratch = [];
 
     /**
-     * The schema of types in the owner's root, the app's by default: type handle to field handle
-     * to field type, such as `text`, in the given order.
+     * The compiled schema of types in the owner's root, the app's by default: type handle to field
+     * handle to field type, such as `text`, in the given order.
      *
      * @param  array<string, array<string, string>>  $types
      */
-    public static function schema(array $types, string $owner = Owner::APP): ResolvedSchema
+    public static function schema(array $types, string $owner = Owner::APP): CompiledSchema
     {
         $root = self::root($owner);
 
-        return SchemaResolver::resolve(new Blueprints(
+        return DescriptorCompiler::compile(SchemaResolver::resolve(new Blueprints(
             array_map(
                 static fn (string $handle, array $fields): TypeBlueprint => self::type($root, $handle, $fields),
                 array_keys($types),
                 array_values($types),
             ),
             [],
-        ));
+        )));
+    }
+
+    /**
+     * The compiled schema of the blueprints: resolved, then compiled into type descriptors.
+     */
+    public static function compiled(Blueprints $blueprints): CompiledSchema
+    {
+        return DescriptorCompiler::compile(SchemaResolver::resolve($blueprints));
     }
 
     /**

@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Generation\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\CompiledSchema;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GeneratedFile;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationTarget;
-use Cbox\Cms\Generators\Generation\Domain\Dto\ResolvedSchema;
 
 /**
- * One link of the type chain (PRD 11.12): turns the resolved schema, the types of all schema roots
- * with their extensions applied, into files.
+ * One link of the type chain (PRD 11.12): turns the compiled schema, the descriptor of every type of
+ * the schema roots with its extensions applied, into files. A generator reads the descriptors and
+ * never a blueprint, so every link agrees on columns, types and rules.
  *
  * Internal to the generators package in milestone 0. It is not a contract in Cbox\Cms\Contracts,
  * so no fake is owed (GUARDRAILS 2.3); milestone 1 decides whether addons get a generator
@@ -36,5 +37,5 @@ interface Generator
      *
      * @throws GenerationFailed
      */
-    public function generate(ResolvedSchema $schema, GenerationTarget $target): array;
+    public function generate(CompiledSchema $schema, GenerationTarget $target): array;
 }

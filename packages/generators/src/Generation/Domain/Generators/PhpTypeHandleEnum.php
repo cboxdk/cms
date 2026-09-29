@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Generation\Domain\Generators;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\CompiledSchema;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\FieldDescriptor;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\TypeDescriptor;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GeneratedFile;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationProblem;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationTarget;
-use Cbox\Cms\Generators\Generation\Domain\Dto\ResolvedField;
-use Cbox\Cms\Generators\Generation\Domain\Dto\ResolvedSchema;
-use Cbox\Cms\Generators\Generation\Domain\Dto\ResolvedType;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Generation\Domain\Generator;
@@ -23,7 +23,7 @@ use Override;
  * addresses an extension field as `ext->app->taxCode` (PRD 11.12); the column name
  * `ext__<namespace>__<handle>` belongs to the type table alone. A type is named by its owner and
  * handle, because a handle is unique only for its owner: the value of its case is
- * `<owner>:<handle>` (ResolvedType::name()), and the case name is the owner and the handle in
+ * `<owner>:<handle>` (TypeDescriptor::name()), and the case name is the owner and the handle in
  * TitleCase, so `blog_post` of `app` is `AppBlogPost = 'app:blog_post'` and `product` of `acme` is
  * `AcmeProduct = 'acme:product'`. An owner is a lowercase letter followed by lowercase letters and
  * digits, so the owner's part of a case name ends where the second capital letter begins, and the
@@ -75,12 +75,12 @@ final readonly class PhpTypeHandleEnum implements Generator
     }
 
     #[Override]
-    public function generate(ResolvedSchema $schema, GenerationTarget $target): array
+    public function generate(CompiledSchema $schema, GenerationTarget $target): array
     {
         $this->assertCaseNames($schema);
 
         $cases = array_map(
-            static fn (ResolvedType $type): string => sprintf("    case %s = '%s';", self::caseName($type), $type->name()),
+            static fn (TypeDescriptor $type): string => sprintf("    case %s = '%s';", self::caseName($type), $type->name()),
             $schema->types,
         );
 
@@ -143,9 +143,9 @@ final readonly class PhpTypeHandleEnum implements Generator
     /**
      * The enum case of a type: its owner and its handle in TitleCase.
      */
-    public static function caseName(ResolvedType $type): string
+    public static function caseName(TypeDescriptor $type): string
     {
-        return ucfirst($type->owner()->value).str_replace('_', '', ucwords($type->handle(), '_'));
+        return ucfirst($type->owner->value).str_replace('_', '', ucwords($type->handle->value, '_'));
     }
 
     /**
@@ -155,7 +155,7 @@ final readonly class PhpTypeHandleEnum implements Generator
      *
      * @throws GenerationFailed with GenerateErrorCode::InvalidCaseName
      */
-    private function assertCaseNames(ResolvedSchema $schema): void
+    private function assertCaseNames(CompiledSchema $schema): void
     {
         $types = [];
         $problems = [];
@@ -166,7 +166,7 @@ final readonly class PhpTypeHandleEnum implements Generator
             if (strtolower($case) === 'class') {
                 $problems[] = new GenerationProblem(GenerateErrorCode::InvalidCaseName, sprintf(
                     '%s: the type "%s" would become the enum case "%s", which PHP reserves. Choose another handle.',
-                    $type->blueprint->location->below('handle')->describe(),
+                    $type->location->below('handle')->describe(),
                     $type->name(),
                     $case,
                 ));
@@ -175,9 +175,9 @@ final readonly class PhpTypeHandleEnum implements Generator
             if (isset($types[$case])) {
                 $problems[] = new GenerationProblem(GenerateErrorCode::InvalidCaseName, sprintf(
                     '%s: the types "%s" (%s) and "%s" would both become the enum case "%s". Choose handles that differ in more than underscores.',
-                    $type->blueprint->location->below('handle')->describe(),
+                    $type->location->below('handle')->describe(),
                     $types[$case]->name(),
-                    $types[$case]->blueprint->location->below('handle')->describe(),
+                    $types[$case]->location->below('handle')->describe(),
                     $type->name(),
                     $case,
                 ));
@@ -196,12 +196,12 @@ final readonly class PhpTypeHandleEnum implements Generator
      *
      * @throws GenerationFailed with GenerateErrorCode::InvalidOutput
      */
-    private function fieldsArm(ResolvedType $type): array
+    private function fieldsArm(TypeDescriptor $type): array
     {
         $lines = ['            self::'.self::caseName($type).' => ['];
 
         foreach ($type->ownFields() as $field) {
-            $lines[] = sprintf("                '%s' => '%s',", $field->handle(), $this->fieldType($field));
+            $lines[] = sprintf("                '%s' => '%s',", $field->handle->value, $this->fieldType($field));
         }
 
         $lines[] = '            ],';
@@ -214,7 +214,7 @@ final readonly class PhpTypeHandleEnum implements Generator
      *
      * @throws GenerationFailed with GenerateErrorCode::InvalidOutput
      */
-    private function extensionFieldsArm(ResolvedType $type): array
+    private function extensionFieldsArm(TypeDescriptor $type): array
     {
         $extensions = $type->extensionFields();
 
@@ -228,7 +228,7 @@ final readonly class PhpTypeHandleEnum implements Generator
             $lines[] = "                '".$namespace."' => [";
 
             foreach ($fields as $field) {
-                $lines[] = sprintf("                    '%s' => '%s',", $field->handle(), $this->fieldType($field));
+                $lines[] = sprintf("                    '%s' => '%s',", $field->handle->value, $this->fieldType($field));
             }
 
             $lines[] = '                ],';
@@ -242,7 +242,7 @@ final readonly class PhpTypeHandleEnum implements Generator
     /**
      * @throws GenerationFailed with GenerateErrorCode::InvalidOutput
      */
-    private function fieldType(ResolvedField $field): string
+    private function fieldType(FieldDescriptor $field): string
     {
         return GeneratedLines::fieldType(self::class, self::FIELD_TYPES, $field);
     }

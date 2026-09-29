@@ -5,18 +5,18 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Generation\Domain\Generators;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\CompiledSchema;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\FieldDescriptor;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\TypeDescriptor;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GeneratedFile;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationTarget;
-use Cbox\Cms\Generators\Generation\Domain\Dto\ResolvedField;
-use Cbox\Cms\Generators\Generation\Domain\Dto\ResolvedSchema;
-use Cbox\Cms\Generators\Generation\Domain\Dto\ResolvedType;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Generation\Domain\Generator;
 use Override;
 
 /**
  * The M0 TypeScript link of the type chain, in `index.ts`: the union type `TypeHandle` of the
- * types, each named `<owner>:<handle>` (ResolvedType::name()) because a handle is unique only for
+ * types, each named `<owner>:<handle>` (TypeDescriptor::name()) because a handle is unique only for
  * its owner, and the interface `TypeFields` that maps each type by that name to its fields and
  * their field types. The owner's fields are keyed by handle, sorted, and the extension fields
  * follow under the reserved key `ext`, by namespace and then by handle, so TypeScript addresses
@@ -75,7 +75,7 @@ final readonly class TypeScriptTypeHandles implements Generator
     }
 
     #[Override]
-    public function generate(ResolvedSchema $schema, GenerationTarget $target): array
+    public function generate(CompiledSchema $schema, GenerationTarget $target): array
     {
         $lines = [
             '// The types of the schema roots, named <owner>:<handle>, with the fields of each type.',
@@ -106,9 +106,9 @@ final readonly class TypeScriptTypeHandles implements Generator
     /**
      * @return list<string>
      */
-    private function union(ResolvedSchema $schema): array
+    private function union(CompiledSchema $schema): array
     {
-        $members = array_map(static fn (ResolvedType $type): string => "'".$type->name()."'", $schema->types);
+        $members = array_map(static fn (TypeDescriptor $type): string => "'".$type->name()."'", $schema->types);
         $declaration = 'export type TypeHandle =';
         $line = $declaration.' '.($members === [] ? 'never' : implode(' | ', $members)).';';
 
@@ -132,12 +132,12 @@ final readonly class TypeScriptTypeHandles implements Generator
      *
      * @throws GenerationFailed with GenerateErrorCode::InvalidOutput
      */
-    private function fields(ResolvedType $type): array
+    private function fields(TypeDescriptor $type): array
     {
         $lines = ["  '".$type->name()."': {"];
 
         foreach ($type->ownFields() as $field) {
-            $lines[] = sprintf("    %s: '%s';", $field->handle(), $this->fieldType($field));
+            $lines[] = sprintf("    %s: '%s';", $field->handle->value, $this->fieldType($field));
         }
 
         $extensions = $type->extensionFields();
@@ -149,7 +149,7 @@ final readonly class TypeScriptTypeHandles implements Generator
                 $lines[] = '      '.$namespace.': {';
 
                 foreach ($fields as $field) {
-                    $lines[] = sprintf("        %s: '%s';", $field->handle(), $this->fieldType($field));
+                    $lines[] = sprintf("        %s: '%s';", $field->handle->value, $this->fieldType($field));
                 }
 
                 $lines[] = '      };';
@@ -166,7 +166,7 @@ final readonly class TypeScriptTypeHandles implements Generator
     /**
      * @throws GenerationFailed with GenerateErrorCode::InvalidOutput
      */
-    private function fieldType(ResolvedField $field): string
+    private function fieldType(FieldDescriptor $field): string
     {
         return GeneratedLines::fieldType(self::class, self::FIELD_TYPES, $field);
     }

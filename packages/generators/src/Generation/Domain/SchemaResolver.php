@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Generation\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Generators\Generation\Domain\Dto\ExtensionVersion;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationProblem;
 use Cbox\Cms\Generators\Generation\Domain\Dto\ResolvedField;
 use Cbox\Cms\Generators\Generation\Domain\Dto\ResolvedSchema;
@@ -165,13 +166,22 @@ final readonly class SchemaResolver
         }
 
         ksort($byName, SORT_STRING);
+        ksort($firsts, SORT_STRING);
 
         return new ResolvedSchema(array_values(array_map(
-            static function (TypeBlueprint $type) use ($fields): ResolvedType {
-                $typeFields = $fields[$type->typeId->toString()];
+            static function (TypeBlueprint $type) use ($fields, $firsts): ResolvedType {
+                $id = $type->typeId->toString();
+                $typeFields = $fields[$id];
                 ksort($typeFields, SORT_STRING);
+                $extensions = [];
 
-                return new ResolvedType($type, array_values($typeFields));
+                foreach ($firsts as $first) {
+                    if ($first->extends->toString() === $id) {
+                        $extensions[] = new ExtensionVersion($first->owner, $first->version);
+                    }
+                }
+
+                return new ResolvedType($type, array_values($typeFields), $extensions);
             },
             $byName,
         )));

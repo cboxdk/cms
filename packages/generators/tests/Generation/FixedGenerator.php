@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Generators\Tests\Generation;
 
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\CompiledSchema;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GeneratedFile;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationTarget;
-use Cbox\Cms\Generators\Generation\Domain\Dto\ResolvedSchema;
 use Cbox\Cms\Generators\Generation\Domain\Generator;
 use Override;
 
@@ -27,7 +27,7 @@ final readonly class FixedGenerator implements Generator
     }
 
     #[Override]
-    public function generate(ResolvedSchema $schema, GenerationTarget $target): array
+    public function generate(CompiledSchema $schema, GenerationTarget $target): array
     {
         return array_map(static fn (string $path): GeneratedFile => new GeneratedFile($path, $path."\n"), $this->paths);
     }

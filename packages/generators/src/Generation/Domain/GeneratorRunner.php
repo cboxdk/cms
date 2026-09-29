@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Generation\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\CompiledSchema;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationProblem;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationResult;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationTarget;
-use Cbox\Cms\Generators\Generation\Domain\Dto\ResolvedSchema;
 
 /**
  * Runs every generator over the schema and collects one deterministic result (PRD 11.12): the
@@ -29,7 +29,7 @@ final readonly class GeneratorRunner
     /**
      * @throws GenerationFailed
      */
-    public function run(ResolvedSchema $schema, GenerationTarget $target): GenerationResult
+    public function run(CompiledSchema $schema, GenerationTarget $target): GenerationResult
     {
         $files = [];
         $directories = [];

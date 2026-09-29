@@ -150,6 +150,29 @@ JSON Schema checks one file at a time and cannot compare values with each other.
 
 An unknown `extends` is reported only when every file was read, because a file that cannot be read may be the one that defines the type.
 
+## What cms:generate compiles
+
+Once the rules hold, `cms:generate` compiles every type, with the fields every extension adds to it, into a type descriptor, and every generator reads the descriptor instead of the blueprint files (PRD 11.12). The descriptor holds the type's `type_id`, owner, handle, version, the version of each extender's namespace, its capabilities, and for each field its column, its Postgres type with NOT NULL and CHECK constraints, its PHP and TypeScript types, the rules of its runtime validator, its classification, whether agents see it, whether it is filterable or sortable, and whether it is encrypted.
+
+| Field type | Column | PHP | TypeScript |
+|---|---|---|---|
+| `text`, `long_text` | `text`, with its length checked in characters | `string` | `string` |
+| `integer` | `bigint`, with its bounds | `int`, as `int<min, max>` with bounds | `number` |
+| `decimal` | `numeric(precision, scale)`, with its bounds | a numeric string, never a float | `string` |
+| `boolean` | `boolean` | `bool` | `boolean` |
+| `date` | `date`, with its bounds | `DateTimeImmutable` | `string`, a full date of RFC 3339 |
+| `datetime` | `timestamptz`, with its bounds | `DateTimeImmutable` | `string`, a date-time of RFC 3339 |
+| `select` | `text`, one of the values, or `text[]` of them with `multiple: true` | the values as literal types, or a list of them | the values as a union, or an array of them |
+| `rich_text` | `jsonb`, a list of Portable Text blocks | a list of blocks | an array of blocks |
+| `group` | `jsonb`, an object, or a list of at most `max_items` objects with `repeat` | an array shape of its fields, or a list of them | an object type of its fields, or an array of them |
+
+A few rules decide more than the field type does:
+
+- The column of a field of the type's owner is its handle; the column of an extension field is `ext__<namespace>__<handle>`. The fields inside a group have no column of their own: the group is one `jsonb` column.
+- A `confidential` field is encrypted (PRD 12.2): its column is `bytea` holding ciphertext, without checks, whatever its type. The fields inside a confidential group are encrypted with it.
+- A required field of the type's owner is NOT NULL, and its PHP and TypeScript types are not nullable. An extension field never is, even with `required: true`, because the owner's code creates and revises entries without knowing it; its `required` is enforced when an entry is published (PRD 11.12). Every other field is nullable.
+- A `rich_text` field that leaves out `styles`, `marks`, `lists` or `links` allows every one of that list.
+
 ## Examples
 
 These examples are the test fixtures of the schema. `composer docs:check` checks that each block below is byte for byte the file it names, and the test at the end validates the three files against the schema, as an application's or addon's own tests can.

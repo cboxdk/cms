@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=../../../../../../contracts/resources/schemas/blueprint.v1.json
+# The app's extension of the comprehensive example type, product of the module shop (PRD 11.12): its
+# fields live in the namespace app, as the columns ext__app__<handle>.
+blueprint: 1
+kind: extension
+extends: 0198d2a4-5c3e-7a41-9b2f-3c8e1f6a7d20
+version: 2
+fields:
+  - handle: tax_code
+    label: Tax code
+    description: The customer's tax code for the product.
+    type: text
+    required: true
+    classification: internal
+    filterable: true
+    max_length: 20
+  - handle: name
+    label: Local name
+    description: The name the customer's own systems use for the product.
+    type: text
+    classification: public

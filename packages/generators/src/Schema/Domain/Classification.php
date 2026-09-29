@@ -38,4 +38,13 @@ enum Classification: string
     {
         return $this === self::Public || $this === self::Internal;
     }
+
+    /**
+     * Whether a value of this classification is stored as ciphertext (PRD 12.2): confidential,
+     * with a scope key. An encrypted field is `bytea` in its type table and cannot be indexed.
+     */
+    public function encrypted(): bool
+    {
+        return $this === self::Confidential;
+    }
 }

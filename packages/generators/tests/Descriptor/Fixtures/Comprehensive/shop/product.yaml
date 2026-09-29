@@ -1,0 +1,184 @@
+# yaml-language-server: $schema=../../../../../../contracts/resources/schemas/blueprint.v1.json
+# The comprehensive example type of the type chain (PRD 11.12, MILESTONES M1 point 1): a type of
+# the module shop that uses all ten core field types, select options, a group with nested fields
+# once and repeated, required, filterable and sortable fields, every classification and both agents
+# flags. The app extends it in ../app/product.yaml. TypeDescriptorTest compiles both and compares the
+# descriptor with ../descriptor.json.
+blueprint: 1
+kind: type
+type_id: 0198d2a4-5c3e-7a41-9b2f-3c8e1f6a7d20
+handle: product
+label: Product
+description: A product of the shop, with its price, stock and supplier.
+version: 3
+capabilities:
+  history: full
+  stages: draft-release
+  localization: none
+  routable: true
+fields:
+  - handle: name
+    label: Name
+    description: The name of the product, as the shop shows it.
+    type: text
+    required: true
+    classification: public
+    filterable: true
+    sortable: true
+    min_length: 1
+    max_length: 120
+  - handle: support_email
+    label: Support email
+    description: Where customers write about the product.
+    type: text
+    classification: public
+    format: email
+  - handle: summary
+    label: Summary
+    type: long_text
+    classification: internal
+    agents: false
+    max_length: 2000
+  - handle: stock
+    label: Stock
+    description: How many items the warehouse holds.
+    type: integer
+    classification: internal
+    filterable: true
+    sortable: true
+    min: 0
+    max: 1000000
+    unit: pcs
+  - handle: weight
+    label: Weight
+    description: The weight of one item in grams.
+    type: integer
+    classification: public
+    min: 1
+  - handle: price
+    label: Price
+    description: The price of one item, in euro.
+    type: decimal
+    required: true
+    classification: public
+    sortable: true
+    precision: 10
+    scale: 2
+    min: "0.00"
+    max: "99999999.99"
+    unit: EUR
+  - handle: discontinued
+    label: Discontinued
+    description: Whether the shop no longer sells the product.
+    type: boolean
+    classification: public
+    filterable: true
+  - handle: launch_date
+    label: Launch date
+    description: The day the product went on sale.
+    type: date
+    classification: public
+    sortable: true
+    min: "2000-01-01"
+    max: "2099-12-31"
+  - handle: checked_at
+    label: Checked at
+    description: When the product data was last checked.
+    type: datetime
+    classification: internal
+    min: "2000-01-01T00:00:00Z"
+  - handle: colour
+    label: Colour
+    description: The colour of the product.
+    type: select
+    required: true
+    classification: public
+    filterable: true
+    options:
+      - value: red
+        label: Red
+      - value: green
+        label: Green
+      - value: blue
+        label: Blue
+  - handle: tags
+    label: Tags
+    description: The tags the shop lists the product under.
+    type: select
+    classification: public
+    multiple: true
+    min_items: 1
+    max_items: 3
+    options:
+      - value: new
+        label: New
+      - value: sale
+        label: Sale
+      - value: eco
+        label: Eco
+  - handle: body
+    label: Body
+    description: The description of the product on its page.
+    type: rich_text
+    classification: public
+    styles: [normal, h2, h3]
+    marks: [strong, em]
+    lists: [bullet]
+    links: [url]
+  - handle: care
+    label: Care
+    description: How to take care of the product.
+    type: rich_text
+    classification: public
+  - handle: supplier
+    label: Supplier
+    description: Who supplies the product, and how to reach them.
+    type: group
+    classification: confidential
+    agents: true
+    fields:
+      - handle: company
+        label: Company
+        description: The name of the supplier.
+        type: text
+        required: true
+      - handle: website
+        label: Website
+        description: The supplier's website.
+        type: text
+        format: url
+      - handle: notes
+        label: Notes
+        type: long_text
+        agents: false
+  - handle: dimensions
+    label: Dimensions
+    description: The sizes the product comes in.
+    type: group
+    classification: public
+    repeat:
+      min_items: 1
+      max_items: 5
+    fields:
+      - handle: size
+        label: Size
+        description: The name of the size.
+        type: select
+        required: true
+        options:
+          - value: small
+            label: Small
+          - value: large
+            label: Large
+      - handle: width
+        label: Width
+        description: The width in millimetres.
+        type: integer
+        min: 1
+  - handle: purchase_price
+    label: Purchase price
+    description: What the shop pays the supplier for one item.
+    type: decimal
+    classification: confidential
+    precision: 10
+    scale: 2

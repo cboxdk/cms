@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Tests\Feature\Tooling;
 
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\CompiledSchema;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationTarget;
-use Cbox\Cms\Generators\Generation\Domain\Dto\ResolvedSchema;
 use Cbox\Cms\Generators\Generation\Domain\GeneratorRunner;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeHandleEnum;
 use Cbox\Cms\Generators\Generation\Domain\Generators\TypeScriptTypeHandles;
-use Cbox\Cms\Generators\Generation\Domain\SchemaResolver;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Blueprints;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypeRegistry;
@@ -221,7 +220,7 @@ it('fails when a file cms:generate writes is not committed', function (): void {
  * a type of that owner and one of the app with the same handle, so the union breaks over lines,
  * every mapping is written and the tools accept two types that share a handle.
  */
-function largerSchema(SchemaRoot $app): ResolvedSchema
+function largerSchema(SchemaRoot $app): CompiledSchema
 {
     $acme = SchemaFixtures::root('acme', 'vendor/acme/schema', $app->base);
     $types = [];
@@ -239,7 +238,7 @@ function largerSchema(SchemaRoot $app): ResolvedSchema
     $product = SchemaFixtures::type($acme, 'product', ['title' => 'text']);
     $appProduct = SchemaFixtures::type($app, 'product', ['sku' => 'text']);
 
-    return SchemaResolver::resolve(new Blueprints([...$types, $product, $appProduct], [
+    return SchemaFixtures::compiled(new Blueprints([...$types, $product, $appProduct], [
         SchemaFixtures::extension($app, 'shop/product.yaml', $product->typeId, ['tax_code' => 'text']),
     ]));
 }
@@ -248,7 +247,7 @@ it('generates code that Pint, Rector, PHPStan, tsc, ESLint and Prettier accept u
     $directory = SchemaFixtures::scratch();
     $app = SchemaFixtures::root(base: $directory);
     $target = new GenerationTarget($directory, [$app], 'app/Generated', 'Cbox\Cms\Probe\Generated', 'js/generated');
-    $schema = $empty ? new ResolvedSchema([]) : largerSchema($app);
+    $schema = $empty ? new CompiledSchema([]) : largerSchema($app);
     $files = new GeneratorRunner([new PhpTypeHandleEnum, new TypeScriptTypeHandles])->run($schema, $target)->files;
 
     [$php, $typeScript] = [$files[0]->contents, $files[1]->contents];

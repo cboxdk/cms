@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Generators\Tests;
 
+use Cbox\Cms\Generators\Descriptor\Domain\DescriptorCompiler;
 use Cbox\Cms\Generators\Editor\Domain\EditorLine;
 use Cbox\Cms\Generators\Generation\Boundary\GeneratorConfig;
 use Cbox\Cms\Generators\Generation\Domain\GeneratorRunner;
@@ -12,9 +13,13 @@ use Cbox\Cms\Generators\Schema\Boundary\BlueprintSchemaFile;
 use Cbox\Cms\Generators\Schema\Boundary\YamlBlueprintSource;
 use Cbox\Cms\Generators\Schema\Domain\BlueprintSource;
 use Cbox\Cms\Generators\Schema\Domain\Classification;
+use Cbox\Cms\Generators\Schema\Domain\Dto\DatetimeOptions;
+use Cbox\Cms\Generators\Schema\Domain\Dto\DecimalOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldBlueprint;
+use Cbox\Cms\Generators\Schema\Domain\Dto\LongTextOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\RichTextOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
+use Cbox\Cms\Generators\Schema\Domain\Dto\SelectOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\TextOptions;
 use Cbox\Cms\Generators\Schema\Domain\History;
 use Cbox\Cms\Generators\Schema\Domain\Localization;
@@ -22,7 +27,9 @@ use Cbox\Cms\Generators\Schema\Domain\Stages;
 use Illuminate\Contracts\Config\Repository;
 
 /*
- * The workbench's schema root and its committed generated code (GUARDRAILS 2.6). Every file in
+ * The workbench's schema root and its committed generated code (GUARDRAILS 2.6): fixture_article
+ * with history full and stages draft-release, and fixture_measurement with history none, stages
+ * none, no route and other fields, the two fixture types of milestone 1. Every file in
  * workbench/schema is a blueprint v1 file that YamlBlueprintSource reads without problems, and the
  * committed files are exactly what the generators produce from them: the same check as
  * `composer check:generated`, without writing. Every file starts with the editor line that
@@ -38,16 +45,16 @@ it('holds only blueprint v1 files, which the YAML source reads without problems'
 
     expect(app(BlueprintSource::class))->toBeInstanceOf(YamlBlueprintSource::class)
         ->and(array_map(static fn (SchemaRoot $root): string => $root->owner->value.': '.$root->directory, $target->roots))->toBe(['app: workbench/schema'])
-        ->and($files)->toBe(['fixture_article.yaml']);
+        ->and($files)->toBe(['fixture_article.yaml', 'fixture_measurement.yaml']);
 
     foreach ($files as $file) {
         expect((string) file_get_contents($directory.'/'.$file))->toMatch('/^blueprint: 1$/m');
     }
 
     expect($blueprints->extensions)->toBe([])
-        ->and($blueprints->types)->toHaveCount(1);
+        ->and($blueprints->types)->toHaveCount(2);
 
-    $article = $blueprints->types[0];
+    [$article, $measurement] = $blueprints->types;
 
     expect($article->handle->value)->toBe('fixture_article')
         ->and($article->owner->value)->toBe('app')
@@ -60,11 +67,29 @@ it('holds only blueprint v1 files, which the YAML source reads without problems'
             ['fixture_title', TextOptions::class, Classification::Public, true],
             ['fixture_body', RichTextOptions::class, Classification::Public, true],
         ]);
+
+    expect($measurement->handle->value)->toBe('fixture_measurement')
+        ->and($measurement->owner->value)->toBe('app')
+        ->and($measurement->typeId->equals($article->typeId))->toBeFalse()
+        ->and([$measurement->capabilities->history, $measurement->capabilities->stages, $measurement->capabilities->localization, $measurement->capabilities->routable])
+        ->toBe([History::None, Stages::None, Localization::None, false])
+        ->and(array_map(static fn (FieldBlueprint $field): array => [$field->handle->value, $field->options::class, $field->classification, $field->required], $measurement->fields))
+        ->toBe([
+            ['fixture_reading', DecimalOptions::class, Classification::Public, true],
+            ['fixture_scale', SelectOptions::class, Classification::Public, true],
+            ['fixture_measured_at', DatetimeOptions::class, Classification::Public, true],
+            ['fixture_station', TextOptions::class, Classification::Internal, false],
+            ['fixture_note', LongTextOptions::class, Classification::Internal, false],
+        ])
+        ->and(array_intersect(
+            array_map(static fn (FieldBlueprint $field): string => $field->handle->value, $measurement->fields),
+            array_map(static fn (FieldBlueprint $field): string => $field->handle->value, $article->fields),
+        ))->toBe([]);
 });
 
 it('has committed generated code that matches the schema', function (): void {
     $target = GeneratorConfig::read(app(Repository::class), base_path());
-    $schema = SchemaResolver::resolve(app(BlueprintSource::class)->read($target->roots));
+    $schema = DescriptorCompiler::compile(SchemaResolver::resolve(app(BlueprintSource::class)->read($target->roots)));
     $result = app(GeneratorRunner::class)->run($schema, $target);
 
     expect($result->paths())->toBe(['workbench/app/Cms/Generated/TypeHandle.php', 'workbench/resources/js/cms/generated/index.ts']);

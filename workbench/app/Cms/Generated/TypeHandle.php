@@ -16,6 +16,7 @@ namespace Workbench\App\Cms\Generated;
 enum TypeHandle: string
 {
     case AppFixtureArticle = 'app:fixture_article';
+    case AppFixtureMeasurement = 'app:fixture_measurement';
 
     /**
      * The type's own fields: field handle to field type, sorted by handle.
@@ -28,6 +29,13 @@ enum TypeHandle: string
             self::AppFixtureArticle => [
                 'fixture_body' => 'rich_text',
                 'fixture_title' => 'text',
+            ],
+            self::AppFixtureMeasurement => [
+                'fixture_measured_at' => 'datetime',
+                'fixture_note' => 'long_text',
+                'fixture_reading' => 'decimal',
+                'fixture_scale' => 'select',
+                'fixture_station' => 'text',
             ],
         };
     }
@@ -42,6 +50,7 @@ enum TypeHandle: string
     {
         return match ($this) {
             self::AppFixtureArticle => [],
+            self::AppFixtureMeasurement => [],
         };
     }
 }

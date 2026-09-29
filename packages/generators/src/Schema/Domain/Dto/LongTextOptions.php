@@ -5,6 +5,13 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Schema\Domain\Dto;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\ColumnShape;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\PhpType;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\TypeScriptType;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\ValidationRule;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\ValueShape;
+use Cbox\Cms\Generators\Descriptor\Domain\ShapeParts;
+use Cbox\Cms\Generators\Descriptor\Domain\ValidationRuleName;
 use Cbox\Cms\Generators\Schema\Domain\FieldOptions;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypes\LongTextFieldType;
 use Cbox\Cms\Generators\Schema\Domain\OptionRules;
@@ -41,5 +48,21 @@ final readonly class LongTextOptions implements FieldOptions
     public function nestedFields(): array
     {
         return [];
+    }
+
+    #[Override]
+    public function describeColumn(string $column): ColumnShape
+    {
+        return new ColumnShape('text', ShapeParts::lengthChecks($column, $this->minLength, $this->maxLength));
+    }
+
+    #[Override]
+    public function describeValue(array $fields): ValueShape
+    {
+        return new ValueShape(
+            new PhpType('string', 'string'),
+            new TypeScriptType('string'),
+            [new ValidationRule(ValidationRuleName::String), ...ShapeParts::lengthRules($this->minLength, $this->maxLength)],
+        );
     }
 }
