@@ -12,14 +12,14 @@ use SplFileInfo;
 use Symfony\Component\Yaml\Yaml;
 
 /**
- * The rule of GUARDRAILS 2.4 that the kernel knows no content types: the core packages never name
+ * The rule of GUARDRAILS 2.4 that the kernel knows no content types: the kernel's modules never name
  * a type, a field or a select value of the workbench's fixture schema.
  *
  * The handles are read from every blueprint file below workbench/schema: the type's handle, the
  * handle of every field, groups included, and the value of every option of a select field. Each
  * starts with PREFIX, so a handle is never an ordinary word in code (`title`, `body`) and the rule
  * can match it in any spelling without false positives. The code is every file below the src
- * directory of each core package, read as text: code, strings, comments and doc blocks alike. A
+ * directory of each of the kernel's modules, read as text: code, strings, comments and doc blocks alike. A
  * handle matches anywhere in a line, in any case, with each underscore written as any run of `_`
  * and `-` or as nothing, so `fixture_article` matches `'fixture_article'`, `FixtureArticle`, `$fixtureArticle`,
  * `fixture-article` and `fixture_article_id`.
@@ -27,7 +27,7 @@ use Symfony\Component\Yaml\Yaml;
 final readonly class ContentTypeScan
 {
     /**
-     * The core packages of GUARDRAILS 2.4.
+     * The kernel's modules of GUARDRAILS 2.4, each a directory below packages/.
      *
      * @var list<string>
      */
@@ -52,7 +52,7 @@ final readonly class ContentTypeScan
     ) {}
 
     /**
-     * Scans the src directories of the core packages below the root for the handles.
+     * Scans the src directories of the kernel's modules below the root for the handles.
      *
      * @param  list<string>  $handles
      */

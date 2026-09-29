@@ -1,14 +1,14 @@
 ---
 title: Architecture and layers
 weight: 21
-description: The package cboxdk/cms, its modules, the layers a namespace belongs to, and the rules the architecture tests and PHPStan hold.
+description: The package cboxdk/cms, its modules and where they live, the boundaries between them, the layers a namespace belongs to, and the rules the architecture tests and PHPStan hold.
 ---
 
 # Architecture and layers
 
 ## The package and its modules
 
-Cbox CMS is one Composer package, `cboxdk/cms`, with one `composer.json` at the root of the repository. The kernel is six modules in `packages/`, each a namespace with its code in `packages/<module>/src` and its tests in `packages/<module>/tests`:
+Cbox CMS is one Composer package, `cboxdk/cms`, a library like `statamic/cms`, with one `composer.json` at the root of the repository. The kernel is six modules in `packages/`, each a namespace with its code in `packages/<module>/src` and its tests in `packages/<module>/tests`:
 
 | Module | Namespace | What it holds |
 |---|---|---|
@@ -19,13 +19,37 @@ Cbox CMS is one Composer package, `cboxdk/cms`, with one `composer.json` at the 
 | `http` | `Cbox\Cms\Http` | The HTTP surface. Today it holds only its service provider. |
 | `testkit` | `Cbox\Cms\Testkit` | The fakes, the shared suites, the Postgres and Valkey harnesses and the PHPStan rules. |
 
-No package boundary keeps the modules apart, so the Arch suite does (`tests/Arch/ModulesTest.php`): contracts depends only on PHP, core, http and cli never use the testkit or the generators, and no production module uses a package that `composer.json` only suggests. The testkit's and the generators' heavy dependencies, the analysis tools, Testbench, `symfony/yaml` and `opis/json-schema`, are in `suggest` and `require-dev`, never in `require`, so they never reach production; see [Requirements](../requirements.md).
+A module's service provider sits at the root of its namespace, such as `Cbox\Cms\Core\CoreServiceProvider`, and is listed in `extra.laravel.providers`, so an application discovers it. Its other files sit beside `src` and `tests`: `config/`, `database/migrations/`, `resources/schemas/` and `bin/`.
+
+### Why the code stays below packages/
+
+The modules were separate Composer packages before they became one, and their directories stayed where they were. The directory names the module, and much reads it: the Arch suite scopes its rules by `packages/*/src`, `phpstan.neon` and `rector.php` list the modules' directories, the content type rule scans the src of each kernel module, the documentation gate finds the extension points in `packages/*/src` and `packages/*/resources/schemas`, and mutation testing picks the changed files below `packages/*/src`. Outside the repository, an addon's PHPStan configuration includes `vendor/cboxdk/cms/packages/testkit/config/phpstan.neon`, and an application's blueprint files point at `vendor/cboxdk/cms/packages/contracts/resources/schemas/blueprint.v1.json`. Moving the code to `src/<Module>` would change every one of these paths, and every file's history, without changing what the code does.
+
+### The boundaries between the modules
+
+No package boundary keeps the modules apart, so the Arch suite does, in `tests/Arch/ModulesTest.php`:
+
+- The repository is the one library `cboxdk/cms`, with no `composer.json` per module, and every directory below `packages/` is a module, autoloaded from its `src` and its tests from its `tests`.
+- Contracts uses no other module and no package, only PHP.
+- Core, http and cli never use the testkit or the generators, and the generators never use the testkit. The testkit uses no module but contracts.
+- No module uses the repository's tests, tooling, workbench or examples.
+- Every package a module uses is in `require` or `suggest`, and the modules an application runs in production, contracts, core, http and cli, use none that is only suggested.
+
+The last tests of the file plant each kind of violation in a scratch directory and check that the rule reports it. The layers below and the rule that the kernel names no content type hold in every module.
+
+### Dependencies for development only
+
+`require` holds only what the production modules use: PHP, the Composer runtime, the `illuminate/*` packages they use, `psr/clock`, `psr/log`, `symfony/console` and `symfony/process`. The testkit's and the generators' heavy dependencies, PHPStan, Larastan, Rector, `driftingly/rector-laravel`, Pint, Testbench, PHPUnit, `symfony/yaml` and `opis/json-schema`, are in `suggest`, each with its reason, and in this repository's `require-dev`. An application or addon that uses the testkit or `cms:generate` puts them in its own `require-dev`, so they never reach production. `cms:generate` checks for `symfony/yaml` and `opis/json-schema` before it reads a blueprint and names the `composer require --dev` command when one is missing. [Requirements](../requirements.md) lists both.
+
+### Modules to come
+
+A first-party module is a new namespace in the same package, never a package of its own. MCP comes as `Cbox\Cms\Mcp` in `packages/mcp`, the panel's PHP side as `Cbox\Cms\Panel` in `packages/panel`, with its React code in `js/panel`, and a module that owns content types, such as end-user accounts with the member profile, as `Cbox\Cms\Members` in `packages/members`, with its types in its own schema files. A new module gets its autoload entries, its provider in `extra.laravel.providers` and `testbench.yaml`, and its place in the module rules of the Arch suite. E-commerce is an addon, a package of its own that requires `cboxdk/cms` and uses only its `#[Stable]` and `#[Experimental]` API.
 
 The rest of the repository is tooling: `workbench/` is the application the commands run in, `tools/` holds the gate runner and the other scripts behind the Composer scripts, `examples/` holds the running examples of these pages, and `js/` the shared JavaScript configuration.
 
-## Modules and layers
+## Features and layers
 
-Code sits in a module below the package, and the layer is a namespace segment below the module, as in `Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore`: the module is `ReceiptStore` and the layer `Adapter`. A namespace is in a layer when one of its segments is the layer's name; when several match, the innermost decides.
+Code sits in a feature namespace below its module, and the layer is a namespace segment below the feature, as in `Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore`: the module is core, the feature `ReceiptStore` and the layer `Adapter`. A namespace is in a layer when one of its segments is the layer's name; when several match, the innermost decides.
 
 | Layer | What lives there | May use |
 |---|---|---|
@@ -34,9 +58,9 @@ Code sits in a module below the package, and the layer is a namespace segment be
 | `Boundary` | Parsers and readers of what comes from outside: HTTP input, configuration, JSON, queue payloads. | The domain, the contracts and the framework, with `mixed` and untyped arrays. |
 | `Adapter` | Implementations of contracts that need the framework or Postgres, such as the stores. | The domain, the contracts and the framework, with `mixed` and untyped arrays. |
 | `Infrastructure` | Eloquent models, migration support and the partition manager. | The domain, the contracts, `Illuminate\Database` and Boundary. |
-| `Jobs`, `Http`, `Cli` | The surfaces: queue jobs, the HTTP package and the CLI package. Artisan commands live in `Cli\Console`. | Actions, DTOs and Boundary; not Infrastructure, Adapter or Eloquent. |
+| `Jobs`, `Http`, `Cli` | The surfaces: queue jobs, the http module and the cli module. Artisan commands live in `Cli\Console`. | Actions, DTOs and Boundary; not Infrastructure, Adapter or Eloquent. |
 
-A service provider sits at the root of its package, with no layer, and binds contracts to adapters.
+A module's service provider sits at the root of its namespace, with no layer, and binds contracts to adapters.
 
 ## The rules that hold it
 
@@ -52,4 +76,4 @@ A contract is an interface in `Cbox\Cms\Contracts`. `CoreServiceProvider` binds 
 
 ## Registries
 
-A package declares its commands and hooks with attributes and names the directories to scan in its service provider. `cms:build` reads the declarations with reflection, once, and compiles them to PHP files in `bootstrap/cache/cms/`; at run time the kernel reads those files. See [Build declarations](../addons/build-declarations.md).
+A module or an addon declares its commands and hooks with attributes and names the directories to scan in its service provider. `cms:build` reads the declarations with reflection, once, and compiles them to PHP files in `bootstrap/cache/cms/`; at run time the kernel reads those files. See [Build declarations](../addons/build-declarations.md).

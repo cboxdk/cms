@@ -82,7 +82,7 @@ A test that must see what Postgres or Valkey really does, such as locks, grants,
 
 ## The suites
 
-`phpunit.xml` splits the tests into suites by what they need. A package puts a test for a suite in `packages/<package>/tests/<Suite>`; its other tests are in `Unit`.
+`phpunit.xml` splits the tests into suites by what they need. A module puts a test for a suite in `packages/<module>/tests/<Suite>`; its other tests are in `Unit`.
 
 | Suite | What is in it | Needs |
 |---|---|---|

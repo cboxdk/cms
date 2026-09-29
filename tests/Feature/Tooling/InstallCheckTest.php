@@ -21,7 +21,8 @@ use Symfony\Component\Process\Process;
  * classes below it, and the merge queue fast-forwarded the main checkout without
  * `composer install`, so its dumped autoloader had no Examples\ and `composer check` failed the
  * Unit suite at load and 51 Contract tests with "Class not found", while CI, which installs from
- * the lock file, passed. The checkout's generators package was also older than composer.lock.
+ * the lock file, passed. The checkout's generators, then a path package, were also older than
+ * composer.lock.
  * The fixture checkouts below are written in the formats Composer writes.
  */
 
@@ -29,15 +30,15 @@ afterEach(function (): void {
     ScratchDirectory::cleanUp();
 });
 
-const INSTALL_GENERATORS_LOCKED = '0.1.x-dev@95606ba2bc82899f89eee721aedf354245ddba1b';
+const INSTALL_PATH_PACKAGE_LOCKED = '0.1.x-dev@95606ba2bc82899f89eee721aedf354245ddba1b';
 
-const INSTALL_GENERATORS_STALE = '0.1.x-dev@41332215f4384713176ed9524461fce443b86d9f';
+const INSTALL_PATH_PACKAGE_STALE = '0.1.x-dev@41332215f4384713176ed9524461fce443b86d9f';
 
 /**
  * @param  array<string, string>  $packages
  * @param  array<string, list<string>>  $autoload
  */
-function installState(array $packages = ['cboxdk/cms-generators' => INSTALL_GENERATORS_LOCKED], array $autoload = ['psr-4 Cbox\\Cms\\Tests\\' => ['tests'], 'psr-4 Examples\\' => ['examples']]): ComposerState
+function installState(array $packages = ['acme/path-package' => INSTALL_PATH_PACKAGE_LOCKED], array $autoload = ['psr-4 Cbox\\Cms\\Tests\\' => ['tests'], 'psr-4 Examples\\' => ['examples']]): ComposerState
 {
     return new ComposerState($packages, $autoload);
 }
@@ -45,18 +46,18 @@ function installState(array $packages = ['cboxdk/cms-generators' => INSTALL_GENE
 /**
  * A checkout as Composer leaves it: composer.json with autoload-dev, composer.lock with one path
  * package and one package from a VCS, and vendor/composer with installed.json and a dumped
- * autoloader. $dumpedPsr4 holds the lines of autoload_psr4.php's array, $installedGenerators the
+ * autoloader. $dumpedPsr4 holds the lines of autoload_psr4.php's array, $installedPathPackage the
  * reference installed.json has for the path package.
  *
  * @param  list<string>  $dumpedPsr4
  */
-function installCheckout(array $dumpedPsr4, string $installedGenerators = '95606ba2bc82899f89eee721aedf354245ddba1b'): string
+function installCheckout(array $dumpedPsr4, string $installedPathPackage = '95606ba2bc82899f89eee721aedf354245ddba1b'): string
 {
     $root = ScratchDirectory::make();
-    $generators = static fn (string $reference): array => [
-        'name' => 'cboxdk/cms-generators',
+    $pathPackage = static fn (string $reference): array => [
+        'name' => 'acme/path-package',
         'version' => '0.1.x-dev',
-        'dist' => ['type' => 'path', 'url' => 'packages/generators', 'reference' => $reference],
+        'dist' => ['type' => 'path', 'url' => 'packages/path-package', 'reference' => $reference],
     ];
     $yaml = [
         'name' => 'symfony/yaml',
@@ -74,12 +75,12 @@ function installCheckout(array $dumpedPsr4, string $installedGenerators = '95606
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
     ScratchDirectory::write($root.'/composer.lock', (string) json_encode([
         'content-hash' => 'd41d8cd98f00b204e9800998ecf8427e',
-        'packages' => [$generators('95606ba2bc82899f89eee721aedf354245ddba1b')],
+        'packages' => [$pathPackage('95606ba2bc82899f89eee721aedf354245ddba1b')],
         'packages-dev' => [$yaml],
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
     ScratchDirectory::write($root.'/vendor/composer/installed.json', (string) json_encode([
         'packages' => [
-            [...$generators($installedGenerators), 'install-path' => '../cboxdk/cms-generators'],
+            [...$pathPackage($installedPathPackage), 'install-path' => '../acme/path-package'],
             [...$yaml, 'install-path' => '../symfony/yaml'],
         ],
         'dev' => true,
@@ -95,7 +96,7 @@ function installCheckout(array $dumpedPsr4, string $installedGenerators = '95606
         '',
         'return array(',
         '    \'Symfony\\\\Component\\\\Yaml\\\\\' => array($vendorDir . \'/symfony/yaml\'),',
-        '    \'Cbox\\\\Cms\\\\Generators\\\\\' => array($vendorDir . \'/cboxdk/cms-generators/src\'),',
+        '    \'Acme\\\\PathPackage\\\\\' => array($vendorDir . \'/acme/path-package/src\'),',
         ...$dumpedPsr4,
         ');',
         '',
@@ -130,11 +131,11 @@ it('reports a PSR-4 prefix composer.json declares that the dumped autoloader lac
 });
 
 it('reports a package installed at another reference than composer.lock, one not installed and one composer.lock does not list', function (): void {
-    $locked = installState(['cboxdk/cms-generators' => INSTALL_GENERATORS_LOCKED, 'symfony/yaml' => 'v8.1.6@a1b2c3']);
-    $installed = installState(['cboxdk/cms-generators' => INSTALL_GENERATORS_STALE, 'opis/json-schema' => '2.6.0@d4e5f6']);
+    $locked = installState(['acme/path-package' => INSTALL_PATH_PACKAGE_LOCKED, 'symfony/yaml' => 'v8.1.6@a1b2c3']);
+    $installed = installState(['acme/path-package' => INSTALL_PATH_PACKAGE_STALE, 'opis/json-schema' => '2.6.0@d4e5f6']);
 
     expect(InstallAudit::problems($locked, $installed))->toBe([
-        'cboxdk/cms-generators is installed at '.INSTALL_GENERATORS_STALE.', but composer.lock has '.INSTALL_GENERATORS_LOCKED.'.',
+        'acme/path-package is installed at '.INSTALL_PATH_PACKAGE_STALE.', but composer.lock has '.INSTALL_PATH_PACKAGE_LOCKED.'.',
         'symfony/yaml v8.1.6@a1b2c3 is in composer.lock, but not installed in vendor/.',
         'opis/json-schema 2.6.0@d4e5f6 is installed in vendor/, but composer.lock does not list it.',
     ]);
@@ -155,7 +156,7 @@ it('reads both sides of a checkout from the files Composer writes, with only the
     $installation = ComposerInstallation::at(installCheckout([INSTALL_DUMPED_TESTS, INSTALL_DUMPED_EXAMPLES]));
 
     expect($installation->declared())->toEqual(new ComposerState(
-        ['cboxdk/cms-generators' => INSTALL_GENERATORS_LOCKED, 'symfony/yaml' => 'v8.1.6@a1b2c3'],
+        ['acme/path-package' => INSTALL_PATH_PACKAGE_LOCKED, 'symfony/yaml' => 'v8.1.6@a1b2c3'],
         ['psr-4 Cbox\\Cms\\Tests\\' => ['tests'], 'psr-4 Examples\\' => ['examples']],
     ))
         ->and($installation->installed())->toEqual($installation->declared());
@@ -168,12 +169,12 @@ it('passes a checkout whose vendor/ is current', function (): void {
         ->and($process->getOutput())->toBe("install:check: vendor/ is the installation composer.lock and composer.json describe.\n");
 });
 
-it('fails the checkout main was after the merge queue: no Examples\ in the dumped autoloader and the generators older than composer.lock', function (): void {
+it('fails the checkout main was after the merge queue: no Examples\ in the dumped autoloader and a path package older than composer.lock', function (): void {
     $process = installCheck(installCheckout([INSTALL_DUMPED_TESTS], '41332215f4384713176ed9524461fce443b86d9f'));
 
     expect($process->getExitCode())->toBe(1)
         ->and($process->getOutput())->toBe(implode("\n", [
-            'cboxdk/cms-generators is installed at '.INSTALL_GENERATORS_STALE.', but composer.lock has '.INSTALL_GENERATORS_LOCKED.'.',
+            'acme/path-package is installed at '.INSTALL_PATH_PACKAGE_STALE.', but composer.lock has '.INSTALL_PATH_PACKAGE_LOCKED.'.',
             'composer.json autoloads psr-4 Examples\\ from examples, but the dumped autoloader in vendor/composer does not.',
             '',
         ]))

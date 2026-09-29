@@ -8,8 +8,10 @@ namespace Cbox\Cms\Tooling\Selftest\Domain;
  * Finds where a tool's output names a file, and where that name leads on disk.
  *
  * Tools name files in different ways: relative to the working directory (Pint, Prettier,
- * Rector, PHPStan, tsc), absolute (ESLint), through a symlink in vendor/ (Pest's arch plugin
- * prints vendor/composer/../cboxdk/cms-core/...), JSON-escaped (Pint for agents) or with git's
+ * Rector, PHPStan, tsc), through vendor/composer/.. (Pest's arch plugin prints
+ * vendor/composer/../../packages/core/... for the root package's own modules and
+ * vendor/composer/../<vendor>/<package>/... for a package a path repository symlinks), absolute
+ * (ESLint), JSON-escaped (Pint for agents) or with git's
  * a/ and b/ diff prefixes. Every name that ends in the file's base name is resolved against the
  * directory the tool ran in and followed through symlinks with realpath. The file is found when
  * one name leads to it, and no name leads to an existing file outside the directory, which would

@@ -8,7 +8,7 @@ description: How the kernel's code is organised and checked, how cms:doctor and 
 
 This section is for people who work on the kernel itself.
 
-- [Architecture and layers](architecture.md): the packages, the modules and the layer rules the architecture tests hold.
+- [Architecture and layers](architecture.md): the package, its modules, the boundaries between them and the layer rules the architecture tests hold.
 - [Gates and CI](gates-and-ci.md): `composer check`, the eleven gates, the PR profile and `bin/ci`.
 - [cms:doctor](doctor.md): the checks, the processes of an installation, the exit codes and the JSON document.
 - [Partitions](partitions.md): the partition manager and `cms:partitions:maintain`.

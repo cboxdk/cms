@@ -30,12 +30,12 @@ function reportedPathsLayout(): array
 
     foreach ([$worktree, $other] as $checkout) {
         ScratchDirectory::write($checkout.'/packages/core/src/Selftest/Domain/Plant.php', '<?php');
-        mkdir($checkout.'/vendor/cboxdk', 0o777, true);
+        mkdir($checkout.'/vendor/acme', 0o777, true);
         mkdir($checkout.'/vendor/composer', 0o777, true);
     }
 
-    symlink('../../packages/core', $worktree.'/vendor/cboxdk/cms-core');
-    symlink($other.'/packages/core', $worktree.'/vendor/cboxdk/cms-other');
+    symlink('../../packages/core', $worktree.'/vendor/acme/linked-core');
+    symlink($other.'/packages/core', $worktree.'/vendor/acme/linked-other');
 
     return ['worktree' => $worktree, 'other' => $other];
 }
@@ -54,7 +54,8 @@ it('finds the planted file however a tool names it', function (string $output): 
 })->with([
     'relative, as Pint, Prettier, Rector and PHPStan print it' => ['  Line   packages/core/src/Selftest/Domain/Plant.php'],
     'absolute, as ESLint prints it' => ["{worktree}/packages/core/src/Selftest/Domain/Plant.php\n  1:39  error"],
-    'through the vendor symlink, as Pest arch prints it' => ["at \e[32mvendor/composer/../cboxdk/cms-core/src/Selftest/Domain/Plant.php\e[39m:\e[32m8\e[39m"],
+    'through the vendor symlink of a path repository, as Pest arch prints it' => ["at \e[32mvendor/composer/../acme/linked-core/src/Selftest/Domain/Plant.php\e[39m:\e[32m8\e[39m"],
+    'through the root package\'s autoload path, as Pest arch prints it for cboxdk/cms' => ["at \e[32mvendor/composer/../../packages/core/src/Selftest/Domain/Plant.php\e[39m:\e[32m8\e[39m"],
     'JSON-escaped, as Pint prints it for agents' => ['{"files":[{"path":"packages\/core\/src\/Selftest\/Domain\/Plant.php"}]}'],
     'with a position, as tsc prints it' => ['packages/core/src/Selftest/Domain/Plant.php(1,14): error TS2322'],
     'with git\'s diff prefixes' => ["diff --git a/packages/core/src/Selftest/Domain/Plant.php b/packages/core/src/Selftest/Domain/Plant.php\n+++ b/packages/core/src/Selftest/Domain/Plant.php"],
@@ -71,7 +72,7 @@ it('does not count a name that leads out of the worktree, and reports it', funct
         ->and($paths->outside)->toBe([$other.'/'.PLANT]);
 })->with([
     'an absolute path in another checkout' => ['{other}/packages/core/src/Selftest/Domain/Plant.php'],
-    'a vendor symlink into another checkout' => ['vendor/cboxdk/cms-other/src/Selftest/Domain/Plant.php'],
+    'a vendor symlink into another checkout' => ['vendor/acme/linked-other/src/Selftest/Domain/Plant.php'],
 ]);
 
 it('is not found when one name leads inside and another outside', function (): void {
