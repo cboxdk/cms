@@ -52,6 +52,12 @@ enum CodecKind: string
     case Enum = 'enum';
 
     /**
+     * A value object of one string, made with `new` from the string and written from its `value`
+     * property, whose constructor checks it. No rules.
+     */
+    case Value = 'value';
+
+    /**
      * The rules a value of this kind takes, in the type descriptor's vocabulary. The emitters refuse
      * any other, so no rule of a blueprint is ever dropped without being checked.
      *
@@ -70,7 +76,7 @@ enum CodecKind: string
             self::PortableText => [ValidationRuleName::PortableText, ValidationRuleName::Styles, ValidationRuleName::Marks, ValidationRuleName::Lists, ValidationRuleName::Links],
             self::Object => [ValidationRuleName::Object],
             self::List => [ValidationRuleName::List, ValidationRuleName::Distinct, ValidationRuleName::MinItems, ValidationRuleName::MaxItems],
-            self::Id, self::Enum => [],
+            self::Id, self::Enum, self::Value => [],
         };
     }
 
@@ -81,7 +87,7 @@ enum CodecKind: string
     public function isClass(): bool
     {
         return match ($this) {
-            self::Date, self::Datetime, self::PortableText, self::Object, self::Id, self::Enum => true,
+            self::Date, self::Datetime, self::PortableText, self::Object, self::Id, self::Enum, self::Value => true,
             default => false,
         };
     }

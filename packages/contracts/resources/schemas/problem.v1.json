@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Problem details, contract version 1",
+  "description": "A problem details document (RFC 9457, PRD 8.8): how a surface that speaks HTTP answers a call that ends with a code of the error catalog (PRD 6.1), sent as application/problem+json. type, title and status are the members of RFC 9457 and come from the code's entry in the catalog; detail is the concrete cause and instance names the occurrence. code, retryable and errors extend RFC 9457. Every key is always present, and instance is null when the surface names no occurrence. The PHP form is Cbox\\Cms\\Contracts\\Errors\\Problem, and the generated codec ProblemCodecV1 writes its canonical JSON: keys sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "code",
+    "detail",
+    "errors",
+    "instance",
+    "retryable",
+    "status",
+    "title",
+    "type"
+  ],
+  "properties": {
+    "code": {
+      "description": "The code of the error catalog, lowercase words and digits joined by underscores, such as idempotency_conflict. docs/reference/errors.md lists every code.",
+      "$ref": "#/$defs/code"
+    },
+    "detail": {
+      "description": "The concrete cause of this occurrence, in plain language.",
+      "type": "string",
+      "minLength": 1
+    },
+    "errors": {
+      "description": "The reasons a write was rejected, each at the input it is about, in the order the surface reports them. Empty when the problem has none.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/field_error"
+      }
+    },
+    "instance": {
+      "description": "A URI reference that names this occurrence, or null.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1
+    },
+    "retryable": {
+      "description": "Whether the same call may succeed if it is tried again later, as the catalog says for the code.",
+      "type": "boolean"
+    },
+    "status": {
+      "description": "The HTTP status the catalog gives the code, the same as the status of the response.",
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 599
+    },
+    "title": {
+      "description": "What the code means and what to do, the explanation of the catalog's entry for the code.",
+      "type": "string",
+      "minLength": 1
+    },
+    "type": {
+      "description": "A URI reference to the section of the error reference for the code: docs/reference/errors.md, a hash and the code.",
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "$defs": {
+    "code": {
+      "type": "string",
+      "maxLength": 63,
+      "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+    },
+    "field_error": {
+      "description": "One reason a write was rejected (PRD 6.1): a catalog code, the path of the input it is about, and the cause.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "detail",
+        "field"
+      ],
+      "properties": {
+        "code": {
+          "description": "The code of the error catalog for this reason.",
+          "$ref": "#/$defs/code"
+        },
+        "detail": {
+          "description": "The concrete cause, in plain language.",
+          "type": "string",
+          "minLength": 1
+        },
+        "field": {
+          "description": "The path of the input, names joined by dots and list indexes in brackets, such as blocks[2].text, or null when the reason is about the command as a whole.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*|\\[(0|[1-9][0-9]{0,17})\\])*$"
+        }
+      }
+    }
+  }
+}

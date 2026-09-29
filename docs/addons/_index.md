@@ -23,3 +23,6 @@ An extension point is `#[Stable]` or `#[Experimental]`. Every extension point do
 - [Queries and query actions](queries.md): `Query`, `QueryAction` and the typed `Result` of a read.
 - [Records and JSON codecs](codecs.md): the record DTO and the JSON codec `cms:generate` writes for every type, the JSON form of each kind of value, classification access and `Omitted`, and the `JsonCodec` contract.
 - [Runtime validators](validation.md): the validator `cms:generate` writes per type, its rules, and the kernel's `InputValidator`, which checks input from outside against them.
+- [Receipt JSON](receipt-json.md): the JSON form of the receipt a write returns, `receipt.v1.json`, and its generated codec.
+- [Problem details](problem-details.md): the problem details document (RFC 9457) a surface answers an error with, `problem.v1.json`, and its generated codec.
+- [Envelope JSON](envelope-json.md): the envelope fields a caller sends with a write, `envelope.v1.json`, and how a surface builds the `Envelope` from them.

@@ -419,4 +419,4 @@ A write ends in a `Cbox\Cms\Contracts\Results\WriteResult`, which carries the ca
 | `committed_wait_timeout` | the receipt with the changeset; the wait level was not reached in time |
 | `dry_run` | the plan the command would have committed |
 
-A `FieldPath` is a list of names and indexes, written `blocks[2].text` or `fields.ext.app.tax_code`. Each surface translates the result for its transport. No code serialises a result to JSON; the codecs generated for the contracts give it its JSON form.
+A `FieldPath` is a list of names and indexes, written `blocks[2].text` or `fields.ext.app.tax_code`. Each surface translates the result for its transport. No code serialises a result to JSON by hand: the receipt's JSON form is on [Receipt JSON](receipt-json.md), and a rejection's catalog errors become the field errors of [problem details](problem-details.md), each written by its generated codec.

@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Receipt, contract version 1",
+  "description": "The receipt a write returns (PRD 6.1, 8.4): the outcome, the changeset and its position, the wait level the caller asked for, the retention class and the status of each projection the changeset affected. Every key is always present, and a value that does not apply is null. A committed or committed_wait_timeout receipt has a changeset_id; a rejected or dry_run receipt committed nothing, so its changeset_id and position are null and it has no projections. The PHP form is Cbox\\Cms\\Contracts\\Receipts\\Receipt, and the generated codec ReceiptCodecV1 writes its canonical JSON: keys sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "changeset_id",
+    "outcome",
+    "position",
+    "projections",
+    "retention_class",
+    "wait_level"
+  ],
+  "properties": {
+    "changeset_id": {
+      "description": "The changeset the command committed, a UUIDv7 in lowercase hex, or null when it committed nothing.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "outcome": {
+      "description": "How the command ended: rejected (nothing committed), committed, committed_wait_timeout (committed, but the wait level was not reached within the deadline) or dry_run (the plan was computed and nothing committed).",
+      "enum": [
+        "rejected",
+        "committed",
+        "committed_wait_timeout",
+        "dry_run"
+      ]
+    },
+    "position": {
+      "description": "The consistency token of the commit (PRD 8.5), which a client sends with a later read, or null when the command committed nothing or the call did not read it.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/consistency_token"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "projections": {
+      "description": "The status of each projection the changeset affected, sorted by projection name, each projection at most once. Empty when the command committed nothing.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/projection_status"
+      }
+    },
+    "retention_class": {
+      "description": "How long the receipt is kept: evidence under the retention policy of the classes that need proof, such as withdrawal, redaction and erasure, and standard for 7 days (PRD 8.4).",
+      "enum": [
+        "evidence",
+        "standard"
+      ]
+    },
+    "wait_level": {
+      "description": "How long the caller asked to wait (PRD 8.4): commit, origin, edge, verified or propagated.",
+      "enum": [
+        "commit",
+        "origin",
+        "edge",
+        "verified",
+        "propagated"
+      ]
+    }
+  },
+  "$defs": {
+    "consistency_token": {
+      "description": "Where the commit is in the database's history (PRD 8.5): the failover generation and the WAL position.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generation",
+        "lsn"
+      ],
+      "properties": {
+        "generation": {
+          "description": "The failover generation, the timeline Postgres wrote the WAL on.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "lsn": {
+          "description": "The WAL position of the commit, a pg_lsn as Postgres writes it: two groups of 1 to 8 uppercase hex digits separated by a slash.",
+          "type": "string",
+          "pattern": "^[0-9A-F]{1,8}/[0-9A-F]{1,8}$"
+        }
+      }
+    },
+    "projection_status": {
+      "description": "The status of one projection (PRD 8.2, 8.4).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "acknowledged_at",
+        "projection",
+        "state"
+      ],
+      "properties": {
+        "acknowledged_at": {
+          "description": "When the projection acknowledged, RFC 3339 in UTC with six decimals, or null while it is pending. Any offset is read.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "projection": {
+          "description": "The projection's name: one or more snake_case segments separated by dots, at most 63 characters, such as fragments or acme.search.",
+          "type": "string",
+          "maxLength": 63,
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$"
+        },
+        "state": {
+          "description": "pending until the projection acknowledges the changeset, then acknowledged.",
+          "enum": [
+            "pending",
+            "acknowledged"
+          ]
+        }
+      }
+    }
+  }
+}

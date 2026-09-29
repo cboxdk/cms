@@ -43,7 +43,7 @@ final readonly class PhpSource
             CodecKind::PortableText => 'ListValue',
             CodecKind::Object => $value->object->className ?? self::missing($value, 'object'),
             CodecKind::List => 'array',
-            CodecKind::Id, CodecKind::Enum => self::shortName($value->class ?? self::missing($value, 'class')),
+            CodecKind::Id, CodecKind::Enum, CodecKind::Value => self::shortName($value->class ?? self::missing($value, 'class')),
         };
     }
 
@@ -65,7 +65,7 @@ final readonly class PhpSource
 
     /**
      * The native type of a property: its value's, with Omitted when it may be left out and null when
-     * it is not required.
+     * it may be null.
      */
     public static function propertyNative(CodecProperty $property): string
     {
@@ -78,8 +78,8 @@ final readonly class PhpSource
     }
 
     /**
-     * The classes the types of a value name, fully qualified, without the objects of the DTO's own
-     * namespace.
+     * The classes the types of a value name, fully qualified: the class of a bound object, but
+     * not the generated objects of the DTO's own namespace.
      *
      * @return list<string>
      */
@@ -88,7 +88,8 @@ final readonly class PhpSource
         return match ($value->kind) {
             CodecKind::Date, CodecKind::Datetime => [DateTimeImmutable::class],
             CodecKind::PortableText => [self::LIST_VALUE],
-            CodecKind::Id, CodecKind::Enum => [$value->class ?? self::missing($value, 'class')],
+            CodecKind::Id, CodecKind::Enum, CodecKind::Value => [$value->class ?? self::missing($value, 'class')],
+            CodecKind::Object => $value->object instanceof CodecObject && $value->object->class !== null ? [$value->object->class] : [],
             CodecKind::List => self::imports($value->item ?? self::missing($value, 'item')),
             default => [],
         };
@@ -233,7 +234,7 @@ final readonly class PhpSource
 
     private static function absent(CodecProperty $property): string
     {
-        return ($property->omittable() ? '|Omitted' : '').($property->required ? '' : '|null');
+        return ($property->omittable() ? '|Omitted' : '').($property->mayBeNull() ? '|null' : '');
     }
 
     /**

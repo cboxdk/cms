@@ -13,14 +13,14 @@ use Cbox\Cms\Generators\Descriptor\Domain\Dto\ValidationRule;
  * What a property of a generated DTO holds (GUARDRAILS 2.2): its kind, the rules its codec checks
  * when it reads the value, in the type descriptor's vocabulary without `required` and `nullable`,
  * which belong to the property, and what the kind needs besides: the object of an Object, the item
- * of a List, and the class of an Id or an Enum.
+ * of a List, and the class of an Id, an Enum or a Value.
  */
 #[Internal]
 final readonly class CodecValue
 {
     /**
      * @param  list<ValidationRule>  $rules
-     * @param  ?string  $class  the fully qualified class of an Id or an Enum
+     * @param  ?string  $class  the fully qualified class of an Id, an Enum or a Value
      */
     private function __construct(
         public CodecKind $kind,
@@ -70,5 +70,13 @@ final readonly class CodecValue
     public static function enum(string $class): self
     {
         return new self(CodecKind::Enum, [], class: $class);
+    }
+
+    /**
+     * @param  class-string  $class
+     */
+    public static function value(string $class): self
+    {
+        return new self(CodecKind::Value, [], class: $class);
     }
 }

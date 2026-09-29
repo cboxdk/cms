@@ -47,6 +47,14 @@ final class InvalidWriteResult extends InvalidArgumentException
             : sprintf('A field path name is a letter or an underscore followed by letters, digits and underscores, got "%s".', self::shown($segment)));
     }
 
+    public static function path(string $value): self
+    {
+        return new self(sprintf(
+            'A field path is a name followed by names after dots and indexes in brackets, such as "blocks[2].text", got "%s".',
+            self::shown($value),
+        ));
+    }
+
     private static function shown(string $value): string
     {
         $cut = strlen($value) > 64 ? substr($value, 0, 64).'...' : $value;

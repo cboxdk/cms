@@ -23,7 +23,7 @@ The [error reference](../reference/errors.md) lists every code. `composer docs:e
 
 A class that fails with a code names it in a constant `CODE`, such as `Conflict::CODE` and `InFlight::CODE`, or in an enum of codes, and the catalog has an entry for it. The Arch suite fails when such a code has no entry, and when an entry is used by no code. An addon that needs a code of its own asks for it in the catalog; it does not invent one.
 
-This example is a small REST surface: it looks the code up and builds the problem details document from the entry. It is in the `Unit` suite:
+This example is a small REST surface: it looks the code up and builds the problem details document from the entry with `Problem::of()`, whose JSON form is on [Problem details](problem-details.md). It is in the `Unit` suite:
 
 <!-- example: examples/Unit/Errors/ErrorCatalogTest.php -->
 ```php
@@ -37,39 +37,22 @@ use Cbox\Cms\Contracts\Errors\ErrorEntry;
 use Cbox\Cms\Contracts\Errors\ExitCode;
 use Cbox\Cms\Contracts\Errors\HttpStatus;
 use Cbox\Cms\Contracts\Errors\McpResponse;
+use Cbox\Cms\Contracts\Errors\Problem;
 use Cbox\Cms\Contracts\Idempotency\Conflict;
 use Cbox\Cms\Contracts\Idempotency\InFlight;
 
 // How a surface answers a call that ends with an error code: it looks the code up in the error
 // catalog and answers as the entry says, with the HTTP status, the exit code or the MCP response,
-// the explanation and the link to the code's section of the error reference.
-
-/**
- * The problem details document (RFC 9457) a REST surface would send for the code.
- *
- * @return array{type: string, title: string, status: int, detail: string, code: string, retryable: bool}
- */
-function problemDetails(ErrorCode $code, string $cause): array
-{
-    $entry = $code->entry();
-
-    return [
-        'type' => $entry->docs(),
-        'title' => $entry->explanation,
-        'status' => $entry->http->value,
-        'detail' => $cause,
-        'code' => $entry->code->value,
-        'retryable' => $entry->retryable,
-    ];
-}
+// the explanation and the link to the code's section of the error reference. A REST surface's
+// problem details document is a Problem, built from the entry by Problem::of().
 
 it('answers a key that is still in flight with a conflict the client may retry', function (): void {
-    $problem = problemDetails(ErrorCode::from(InFlight::CODE), 'Another call with the key order-1042 is still running.');
+    $problem = Problem::of(ErrorCode::from(InFlight::CODE), 'Another call with the key order-1042 is still running.');
 
-    expect($problem['status'])->toBe(409)
-        ->and($problem['code'])->toBe('idempotency_in_flight')
-        ->and($problem['retryable'])->toBeTrue()
-        ->and($problem['type'])->toBe('docs/reference/errors.md#idempotency_in_flight')
+    expect($problem->status)->toBe(409)
+        ->and($problem->code)->toBe(ErrorCode::IdempotencyInFlight)
+        ->and($problem->retryable)->toBeTrue()
+        ->and($problem->type)->toBe('docs/reference/errors.md#idempotency_in_flight')
         ->and(ErrorCode::IdempotencyInFlight->entry()->exit)->toBe(ExitCode::TempFail);
 });
 

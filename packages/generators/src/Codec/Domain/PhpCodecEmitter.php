@@ -81,8 +81,12 @@ final readonly class PhpCodecEmitter
         ];
         $methods = [];
 
+        if ($contract->attribute !== null) {
+            $classes[] = $contract->attribute;
+        }
+
         foreach ($objects as $object) {
-            $classes[] = $dtos->className($object->className);
+            $classes[] = $object->class ?? $dtos->className($object->className);
 
             foreach ($object->properties as $property) {
                 PhpSource::assertKey($property, $object);
@@ -111,6 +115,7 @@ final readonly class PhpCodecEmitter
             ' *',
             ' * @implements JsonCodec<'.$root->className.'>',
             ' */',
+            ...($contract->attribute === null ? [] : ['#['.PhpSource::shortName($contract->attribute).']']),
             'final readonly class '.$contract->codecClass.' implements JsonCodec',
             '{',
             '    /** The contract version this codec reads and writes. */',
@@ -174,7 +179,7 @@ final readonly class PhpCodecEmitter
             $read = '$object->'.$property->name;
             $written = self::written($property->value, $read, 0);
 
-            if (! $property->required && $written !== $read) {
+            if ($property->mayBeNull() && $written !== $read) {
                 $written = $property->value->kind->isClass()
                     ? sprintf('%s instanceof %s ? %s : null', $read, PhpSource::native($property->value), $written)
                     : sprintf('%s === null ? null : %s', $read, $written);
@@ -218,14 +223,26 @@ final readonly class PhpCodecEmitter
             '    {',
             sprintf('        $object = JsonValues::object($value, %s, %s);', $path, $keys),
             '',
-            sprintf('        return new %s(', $object->className),
         ];
 
-        foreach ($object->properties as $property) {
-            $lines[] = sprintf('            %s: %s,', $property->name, self::field($property, $path));
+        $arguments = array_map(
+            static fn (CodecProperty $property): string => sprintf('            %s: %s,', $property->name, self::field($property, $path)),
+            $object->constructorOrder(),
+        );
+
+        if ($object->class === null) {
+            return [...$lines, sprintf('        return new %s(', $object->className), ...$arguments, '        );', '    }'];
         }
 
-        return [...$lines, '        );', '    }'];
+        $static = array_any($object->properties, static fn (CodecProperty $property): bool => self::usesThis($property->value)) ? '' : 'static ';
+
+        return [
+            ...$lines,
+            sprintf('        return JsonValues::build(%s, %sfn (): %s => new %s(', $path, $static, $object->className, $object->className),
+            ...$arguments,
+            '        ));',
+            '    }',
+        ];
     }
 
     /**
@@ -239,7 +256,15 @@ final readonly class PhpCodecEmitter
         $key = PhpSource::string($property->key);
 
         if (! $property->withheld() || ! $property->classification instanceof ClassificationAccess) {
-            return sprintf('JsonValues::%s($object, %s, %s, %s)', $property->required ? 'required' : 'nullable', $key, $path, $read);
+            return match (true) {
+                $property->required => sprintf('JsonValues::%s($object, %s, %s, %s)', $property->nullable ? 'present' : 'required', $key, $path, $read),
+                $property->default !== null => sprintf('JsonValues::%s($object, %s, %s, %s, %s)', $property->nullable ? 'defaultedNullable' : 'defaulted', $key, $path, $read, $property->default),
+                default => sprintf('JsonValues::nullable($object, %s, %s, %s)', $key, $path, $read),
+            };
+        }
+
+        if ($property->nullable || $property->default !== null) {
+            throw GenerationFailed::because(GenerateErrorCode::InvalidOutput, sprintf('The property %s is withheld above a classification, so it cannot be nullable or have a default.', $property->name));
         }
 
         return sprintf(
@@ -325,6 +350,7 @@ final readonly class PhpCodecEmitter
             ]),
             CodecKind::Id => self::call('id', [$raw, $at, PhpSource::native($value).'::fromString(...)']),
             CodecKind::Enum => self::call('enum', [$raw, $at, PhpSource::native($value).'::class']),
+            CodecKind::Value => self::call('value', [$raw, $at, sprintf('static fn (string $text): %1$s => new %1$s($text)', PhpSource::native($value))]),
         };
     }
 
@@ -344,7 +370,7 @@ final readonly class PhpCodecEmitter
             CodecKind::Object => sprintf('$this->%s(%s)', self::encoderName(self::object($value)), $read),
             CodecKind::List => self::writtenList(self::item($value), $read, $depth + 1),
             CodecKind::Id => $read.'->toString()',
-            CodecKind::Enum => $read.'->value',
+            CodecKind::Enum, CodecKind::Value => $read.'->value',
         };
     }
 

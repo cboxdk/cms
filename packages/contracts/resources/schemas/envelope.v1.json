@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Envelope of a request, contract version 1",
+  "description": "The fields of a write's envelope that a caller sends through an exposed surface (PRD 6.1): the idempotency key, the correlation id, the wait level, whether it is a dry run, whom the actor acts for and the provenance of agents and ingestion. The actor, the surface and the issuer kind are never part of it: the surface takes them from the transport. The reason is part of the command. Every key but idempotency_key may be left out and then has its default. The PHP form is Cbox\\Cms\\Contracts\\Envelope\\RequestEnvelope, and the generated codec EnvelopeCodecV1 reads it and writes its canonical JSON: every key, sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "idempotency_key"
+  ],
+  "properties": {
+    "correlation_id": {
+      "description": "The id that ties the call together across HTTP, MCP, CLI, jobs and sidecars, such as a trace id: 1 to 128 visible ASCII characters. When it is null the surface makes one.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[!-~]{1,128}$",
+      "default": null
+    },
+    "dry_run": {
+      "description": "Whether to compute the plan, the blast radius and the receipt without committing.",
+      "type": "boolean",
+      "default": false
+    },
+    "idempotency_key": {
+      "description": "The caller's idempotency key: 1 to 255 visible ASCII characters, compared exactly. The same key with the same command gives the first call's result; with another command it is refused with idempotency_conflict.",
+      "type": "string",
+      "pattern": "^[!-~]{1,255}$"
+    },
+    "on_behalf_of": {
+      "description": "Whom the actor acts for, in order, from the principal it acts for directly to the person at the end of the chain, each an actor id, a UUIDv7. An actor appears at most once, and never the actor itself.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+      },
+      "default": []
+    },
+    "provenance": {
+      "description": "Where the command's content came from, for agents and ingestion (PRD 5.5). A person's command has none.",
+      "$ref": "#/$defs/provenance",
+      "default": {}
+    },
+    "wait_level": {
+      "description": "How long to wait before the call returns (PRD 8.4): commit, origin, edge, verified or propagated.",
+      "enum": [
+        "commit",
+        "origin",
+        "edge",
+        "verified",
+        "propagated"
+      ],
+      "default": "commit"
+    }
+  },
+  "$defs": {
+    "line": {
+      "description": "Text of UTF-8 without control characters.",
+      "type": "string",
+      "minLength": 1
+    },
+    "model": {
+      "description": "The model the content came from and its version, each 1 to 255 bytes of UTF-8 without control characters.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/line"
+        },
+        "version": {
+          "$ref": "#/$defs/line"
+        }
+      }
+    },
+    "parameter": {
+      "description": "One parameter the model ran with, such as temperature and 0.2, each 1 to 255 bytes of UTF-8 without control characters.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "value"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/line"
+        },
+        "value": {
+          "$ref": "#/$defs/line"
+        }
+      }
+    },
+    "provenance": {
+      "description": "The model, its parameters, a reference to the prompt and the sources. Parameters and a prompt need a model.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "description": "The model, or null when the content did not come from one.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/model"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "parameters": {
+          "description": "The parameters the model ran with, each name at most once. They are kept sorted by name.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/parameter"
+          },
+          "default": []
+        },
+        "prompt": {
+          "description": "A reference to the prompt, 1 to 1024 bytes of UTF-8 without control characters, or null. The prompt itself is stored as classified content.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "default": null
+        },
+        "sources": {
+          "description": "The sources used, such as a URL or a feed's object id, each 1 to 2048 bytes of UTF-8 without control characters and at most once, in order.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/line"
+          },
+          "default": []
+        }
+      }
+    }
+  }
+}

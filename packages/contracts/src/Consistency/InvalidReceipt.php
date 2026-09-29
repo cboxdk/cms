@@ -9,7 +9,8 @@ use DateTimeInterface;
 use InvalidArgumentException;
 
 /**
- * A receipt, a projection status or a projection name that breaks its invariants.
+ * A receipt, a projection status, a projection name or a consistency token that breaks its
+ * invariants.
  */
 #[Experimental]
 final class InvalidReceipt extends InvalidArgumentException
@@ -71,6 +72,31 @@ final class InvalidReceipt extends InvalidArgumentException
             'The projection "%s" acknowledged at %s. The time must be from 1970 to the end of 9999, in UTC.',
             $projection->value,
             $at->format(DateTimeInterface::RFC3339_EXTENDED),
+        ));
+    }
+
+    public static function unexpectedPosition(Outcome $outcome): self
+    {
+        return new self(sprintf(
+            'A %s receipt has no position: the command committed nothing.',
+            $outcome->value,
+        ));
+    }
+
+    public static function logSequenceNumber(string $value): self
+    {
+        return new self(sprintf(
+            'A WAL position is two groups of 1 to 8 uppercase hex digits separated by a slash, as Postgres writes a pg_lsn, for example "16/B374D848", got "%s".',
+            self::shown($value),
+        ));
+    }
+
+    public static function generation(int $generation): self
+    {
+        return new self(sprintf(
+            'A failover generation is a Postgres timeline id, 1 to %d, got %d.',
+            ConsistencyToken::MAX_GENERATION,
+            $generation,
         ));
     }
 

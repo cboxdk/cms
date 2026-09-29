@@ -9,6 +9,7 @@ use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationTarget;
 use Cbox\Cms\Generators\Generation\Domain\GeneratorRunner;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeHandleEnum;
 use Cbox\Cms\Generators\Generation\Domain\Generators\TypeScriptTypeHandles;
+use Cbox\Cms\Generators\Protocol\Domain\ProtocolSchemas;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Blueprints;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypeRegistry;
@@ -17,20 +18,26 @@ use Cbox\Cms\Generators\Tests\SchemaFixtures;
 use Cbox\Cms\Tests\Support\Node;
 use Cbox\Cms\Tests\Support\Phpstan;
 use Cbox\Cms\Tests\Support\Tooling\ComposerScripts;
+use Cbox\Cms\Tooling\Protocol\Adapter\ProtocolGeneration;
 use Illuminate\Contracts\Console\Kernel;
+use RuntimeException;
 use Symfony\Component\Process\Process;
 
 /*
- * Gate 6 of GUARDRAILS 10 for the workbench (PRD 11.12, GUARDRAILS 7.1): `composer
- * check:generated` fails unless the committed generated code is exactly what cms:generate writes
- * from the committed schema.
+ * Gate 6 of GUARDRAILS 10 for the workbench and the kernel (PRD 11.12, GUARDRAILS 2.2, 7.1):
+ * `composer check:generated` fails unless the committed generated code is exactly what cms:generate
+ * writes from the committed schema, and the kernel's committed codecs exactly what composer
+ * generate:protocol writes from the kernel's JSON Schemas.
  *
  * The gate is run step by step from composer.json in a scratch git repository with a copy of the
- * workbench's blueprints and generated code, so the test does not depend on the state of this
- * working copy. cms:generate runs in-process with cbox-cms.generators.root pointing at the copy.
+ * workbench's blueprints, the kernel's schemas and the generated code, so the test does not depend
+ * on the state of this working copy. cms:generate runs in-process with cbox-cms.generators.root
+ * pointing at the copy, and generate:protocol in-process with the copy as its root.
  */
 
 const GENERATED_PATHS = ['workbench/app/Cms/Generated', 'workbench/resources/js/cms/generated'];
+
+const PROTOCOL_PATH = ProtocolSchemas::PHP_DIRECTORY;
 
 afterEach(function (): void {
     SchemaFixtures::cleanUp();
@@ -66,14 +73,15 @@ const PAGE_TYPE = <<<'YAML'
     YAML;
 
 /**
- * A git repository with the workbench's blueprints and every file of its generated code, committed.
+ * A git repository with the workbench's blueprints, the kernel's schemas and every file of the
+ * generated code, committed.
  */
 function gateRepository(): string
 {
     $root = SchemaFixtures::scratch();
     $files = [];
 
-    foreach (['workbench/schema', ...GENERATED_PATHS] as $directory) {
+    foreach (['workbench/schema', ProtocolSchemas::SCHEMA_DIRECTORY, ...GENERATED_PATHS, PROTOCOL_PATH] as $directory) {
         foreach (SchemaFixtures::files(Phpstan::root().'/'.$directory) as $file) {
             $files[] = $directory.'/'.$file;
         }
@@ -115,6 +123,16 @@ function runGate(string $root): array
             $artisan = app(Kernel::class);
             $status = $artisan->call('cms:generate');
             $output .= $artisan->output();
+        } elseif ($step === '@php tools/bin/generate-protocol.php') {
+            $out = fopen('php://memory', 'w+b');
+
+            if ($out === false) {
+                throw new RuntimeException('Cannot open a memory stream.');
+            }
+
+            $status = ProtocolGeneration::main($root, $out, $out);
+            rewind($out);
+            $output .= stream_get_contents($out);
         } else {
             $process = Process::fromShellCommandline($step, $root);
             $status = $process->run();
@@ -135,15 +153,18 @@ function appendTo(string $path, string $text): void
 }
 
 it('regenerates, then fails on a diff or an untracked file under the generated paths, checked before and after', function (): void {
-    $paths = implode(' ', GENERATED_PATHS);
+    $paths = implode(' ', [...GENERATED_PATHS, PROTOCOL_PATH]);
 
-    expect(ComposerScripts::steps('check:generated'))->toHaveCount(5)
+    expect(ComposerScripts::steps('check:generated'))->toHaveCount(6)
         ->and(ComposerScripts::steps('check:generated')[2])->toBe('@php vendor/bin/testbench cms:generate --ansi')
+        ->and(ComposerScripts::steps('check:generated')[3])->toBe('@php tools/bin/generate-protocol.php')
+        ->and(ComposerScripts::steps('generate:protocol'))->toBe(['@php tools/bin/generate-protocol.php'])
         ->and(ComposerScripts::steps('check:generated:committed')[0])->toStartWith('git diff --exit-code -- '.$paths.' || ')
         ->and(ComposerScripts::steps('check:generated:committed')[1])->toStartWith('git ls-files --others --exclude-standard -- '.$paths.' | ')
         ->and(ComposerScripts::steps('check:generated'))->toBe([
             ...ComposerScripts::steps('check:generated:committed'),
             '@php vendor/bin/testbench cms:generate --ansi',
+            '@php tools/bin/generate-protocol.php',
             ...ComposerScripts::steps('check:generated:committed'),
         ]);
 });
@@ -197,6 +218,44 @@ it('passes once the regenerated code is staged with the blueprint change', funct
     [$status, $output] = runGate($root);
 
     expect($status)->toBe(0, $output);
+});
+
+it('fails after a manual edit to a kernel codec, and passes again after git checkout of it', function (): void {
+    $root = gateRepository();
+    appendTo($root.'/'.PROTOCOL_PATH.'/ReceiptCodecV1.php', "// edited by hand\n");
+
+    [$edited, $output] = runGate($root);
+    git($root, 'checkout', '--', PROTOCOL_PATH.'/ReceiptCodecV1.php');
+    [$restored] = runGate($root);
+
+    expect($edited)->not->toBe(0)
+        ->and($output)->toContain('+// edited by hand')
+        ->and($output)->toContain('The generated code above is not the committed code.')
+        ->and($restored)->toBe(0);
+});
+
+it('fails after a kernel schema changes without regenerating its codec, and passes once the codec is staged with it', function (): void {
+    $root = gateRepository();
+    $schema = $root.'/'.ProtocolSchemas::SCHEMA_DIRECTORY.'/problem.v1.json';
+    SchemaFixtures::write($schema, str_replace('"minimum": 100,', '"minimum": 200,', (string) file_get_contents($schema)));
+
+    [$changed, $output] = runGate($root);
+    git($root, 'add', '--all');
+    [$staged, $stagedOutput] = runGate($root);
+
+    expect($changed)->not->toBe(0)
+        ->and($output)->toContain('JsonValues::integer($value, $at, min: 200, max: 599)')
+        ->and($staged)->toBe(0, $stagedOutput);
+});
+
+it('fails on an untracked file in the kernel codecs\' directory', function (): void {
+    $root = gateRepository();
+    SchemaFixtures::write($root.'/'.PROTOCOL_PATH.'/HandWrittenCodec.php', "<?php\n");
+
+    [$status, $output] = runGate($root);
+
+    expect($status)->not->toBe(0)
+        ->and($output)->toContain('Untracked generated file: '.PROTOCOL_PATH.'/HandWrittenCodec.php');
 });
 
 it('fails on an untracked file in a generated directory', function (): void {

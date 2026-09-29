@@ -46,6 +46,12 @@ use stdClass;
  * - an id is its canonical string, and an enum its backing value;
  * - a list is a JSON array, and a missing optional field is left out, never written as null.
  *
+ * A contract may also say that a field's key is always present with a value that may be null
+ * (present()), or that a missing key means a default (defaulted()); the codec then always writes
+ * the key. A value object of the contracts is read from its string with value() or id(), and an
+ * object the codec builds from a class of the contracts is built with build(), which turns the
+ * class's refusal into DecodingFailed.
+ *
  * Every rule a field's blueprint sets (PRD 11.12) is a named argument, such as `maxLength: 120`. A
  * value that breaks one throws DecodingFailed with json_invalid and the path of the value.
  */
@@ -149,6 +155,98 @@ final readonly class JsonValues
         }
 
         return $object[$key] === null ? null : $read($object[$key], self::at($path, $key));
+    }
+
+    /**
+     * The value of a field whose key must be present, and whose value may be null.
+     *
+     * @template T
+     *
+     * @param  array<string, mixed>  $object
+     * @param  Closure(mixed, FieldPath): T  $read
+     * @return T|null
+     *
+     * @throws DecodingFailed with json_invalid
+     */
+    public static function present(array $object, string $key, ?FieldPath $path, Closure $read): mixed
+    {
+        $at = self::at($path, $key);
+
+        if (! array_key_exists($key, $object)) {
+            throw DecodingFailed::invalid($at, 'is missing, and the field is required');
+        }
+
+        return $object[$key] === null ? null : $read($object[$key], $at);
+    }
+
+    /**
+     * The value of a field that may be missing, which then has the value $default; null is
+     * refused.
+     *
+     * @template T
+     *
+     * @param  array<string, mixed>  $object
+     * @param  Closure(mixed, FieldPath): T  $read
+     * @param  T  $default
+     * @return T
+     *
+     * @throws DecodingFailed with json_invalid
+     */
+    public static function defaulted(array $object, string $key, ?FieldPath $path, Closure $read, mixed $default): mixed
+    {
+        if (! array_key_exists($key, $object)) {
+            return $default;
+        }
+
+        if ($object[$key] === null) {
+            throw DecodingFailed::invalid(self::at($path, $key), 'is null, and the field is not nullable');
+        }
+
+        return $read($object[$key], self::at($path, $key));
+    }
+
+    /**
+     * The value of a field that may be missing, which then has the value $default, and that may be
+     * null.
+     *
+     * @template T
+     *
+     * @param  array<string, mixed>  $object
+     * @param  Closure(mixed, FieldPath): T  $read
+     * @param  T|null  $default
+     * @return T|null
+     *
+     * @throws DecodingFailed with json_invalid
+     */
+    public static function defaultedNullable(array $object, string $key, ?FieldPath $path, Closure $read, mixed $default): mixed
+    {
+        if (! array_key_exists($key, $object)) {
+            return $default;
+        }
+
+        return $object[$key] === null ? null : $read($object[$key], self::at($path, $key));
+    }
+
+    /**
+     * The object $build makes from a class of the contracts, whose constructor refuses values that
+     * break its invariants with an InvalidArgumentException, as the contracts' classes do: the
+     * refusal becomes DecodingFailed at the object's path.
+     *
+     * @template T of object
+     *
+     * @param  ?FieldPath  $path  the object's path, or null for the document itself
+     * @param  Closure(): T  $build
+     * @return T
+     *
+     * @throws DecodingFailed with json_invalid
+     */
+    public static function build(?FieldPath $path, Closure $build): object
+    {
+        try {
+            return $build();
+        } catch (InvalidArgumentException $exception) {
+            throw DecodingFailed::invalid($path, 'breaks a rule of the contract: '.$exception->getMessage(), $exception);
+        }
     }
 
     /**
@@ -473,6 +571,30 @@ final readonly class JsonValues
             return $parse($value);
         } catch (InvalidArgumentException $exception) {
             throw DecodingFailed::invalid($at, 'is not a valid id: '.$exception->getMessage(), $exception);
+        }
+    }
+
+    /**
+     * A value object of one string, made by $make, which throws InvalidArgumentException for a
+     * string that is not one, as the value objects of the contracts do.
+     *
+     * @template T of object
+     *
+     * @param  Closure(string): T  $make
+     * @return T
+     *
+     * @throws DecodingFailed with json_invalid
+     */
+    public static function value(mixed $value, FieldPath $at, Closure $make): object
+    {
+        if (! is_string($value)) {
+            throw DecodingFailed::invalid($at, 'is not a string');
+        }
+
+        try {
+            return $make($value);
+        } catch (InvalidArgumentException $exception) {
+            throw DecodingFailed::invalid($at, 'is not valid: '.$exception->getMessage(), $exception);
         }
     }
 
