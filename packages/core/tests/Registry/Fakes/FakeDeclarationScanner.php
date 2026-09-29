@@ -14,6 +14,7 @@ use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredHook;
 use Cbox\Cms\Core\Registry\Domain\Dto\Discovery;
 use Cbox\Cms\Core\Registry\Domain\Dto\QueryEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\ScanRoots;
+use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
 use Override;
 
 /**
@@ -46,6 +47,7 @@ final class FakeDeclarationScanner implements DeclarationScanner
         $hooks = [];
         $queries = [];
         $actions = [];
+        $subscribers = [];
         $problems = [];
 
         /** @var array<string, ScanRoot> $unique */
@@ -115,10 +117,16 @@ final class FakeDeclarationScanner implements DeclarationScanner
                 }
             }
 
+            foreach ($found->subscribers as $subscriber) {
+                if ($owners[strtolower($subscriber->class)] === $root) {
+                    $subscribers[] = new SubscriberEntry($subscriber->class, $package, $subscriber->name, $subscriber->lane, $subscriber->projection, $subscriber->events);
+                }
+            }
+
             array_push($problems, ...$found->problems);
         }
 
-        return new Discovery($commands, $hooks, $problems, $queries, $actions);
+        return new Discovery($commands, $hooks, $problems, $queries, $actions, $subscribers);
     }
 
     /**
@@ -133,6 +141,7 @@ final class FakeDeclarationScanner implements DeclarationScanner
             ...array_map(static fn (DiscoveredHook $hook): string => $hook->class, $found->hooks),
             ...array_map(static fn (QueryEntry $query): string => $query->class, $found->queries),
             ...array_map(static fn (DiscoveredAction $action): string => $action->class, $found->actions),
+            ...array_map(static fn (SubscriberEntry $subscriber): string => $subscriber->class, $found->subscribers),
         ];
 
         return array_values(array_unique($classes));

@@ -24,7 +24,7 @@ enum BuildErrorCode: string
     /** An attribute sits on an interface, trait, enum or abstract class. */
     case NotAConcreteClass = 'registry_not_a_concrete_class';
 
-    /** A #[Command], #[Query] or #[Action] sits on a class that is not a final readonly class (GUARDRAILS 2.1). */
+    /** A #[Command], #[Query], #[Action] or #[Subscription] sits on a class that is not a final readonly class (GUARDRAILS 2.1). */
     case NotFinalReadonly = 'registry_not_final_readonly';
 
     /** Two different scan roots contain the same class. */
@@ -50,4 +50,16 @@ enum BuildErrorCode: string
 
     /** An #[Action] lists a surface that is not a case of Surface. */
     case UnknownSurface = 'registry_unknown_surface';
+
+    /** A #[Subscription] sits on a class that does not implement Subscriber. */
+    case NotASubscriber = 'registry_not_a_subscriber';
+
+    /** A #[Subscription] lists an event class that does not exist or does not implement Event, or whose type() fails. */
+    case UnknownEvent = 'registry_unknown_event';
+
+    /** A #[Subscription] names a lane that is not a case of Lane. */
+    case UnknownLane = 'registry_unknown_lane';
+
+    /** Two subscribers declare the same subscription name. */
+    case DuplicateSubscription = 'registry_duplicate_subscription';
 }

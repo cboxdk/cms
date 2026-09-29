@@ -53,7 +53,7 @@ The kernel writes a changeset's events with `Cbox\Cms\Core\Events\Infrastructure
 
 `Cbox\Cms\Core\Events\Infrastructure\EventReader` reads a stream after a cursor, an `EventPosition` of (xid, event_id). Transactions take their event_ids at insert and commit in another order, so reading "event_id above my cursor" would skip an event whose transaction commits later with a lower id. The reader therefore returns only events of transactions that have certainly ended, below the transaction horizon `xid < pg_snapshot_xmin(pg_current_snapshot())`, ordered by (xid, event_id) (PRD 7.4). No transaction below the horizon can still commit, so nothing is skipped. The horizon is the oldest transaction open on the primary, so delivery waits for it; that is why command transactions are short. The reader always reads the primary.
 
-A subscription keeps a cursor per stream in `event_cursors`, in the same database as the events, so it commits its cursor with its own writes (PRD 7.15). An aggregate a subscription gives up on after failed attempts is parked in `event_parked_aggregates` (PRD 7.8).
+A [subscription](subscribers.md) keeps a cursor per stream in `event_cursors`, in the same database as the events, so it commits its cursor with its own writes (PRD 7.15). An aggregate a subscription gives up on after failed attempts is parked in `event_parked_aggregates` (PRD 7.8).
 
 Each stream has its own partitions on `event_id`, kept by `cms:partitions:maintain` as the tables `events_interactive` and `events_bulk`: a runway of partitions of a million ids ahead of the sequence, and a partition the sequence has passed is dropped once its newest event is 30 days old (PRD 7.10, see [partitions](../developers/partitions.md)).
 

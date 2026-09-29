@@ -7,6 +7,7 @@ namespace Cbox\Cms\Core\Registry\Domain;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Build\ScanRoot;
+use Cbox\Cms\Core\Registry\Domain\Dto\SubscribedEvent;
 use InvalidArgumentException;
 
 /**
@@ -58,6 +59,35 @@ final class InvalidRegistryEntry extends InvalidArgumentException
         }
 
         return $surfaces;
+    }
+
+    /**
+     * The events of a subscriber, at least one, each class once and sorted by class without case,
+     * as #[Subscription] gives them, so an entry has one form and the same entries give the same
+     * bytes.
+     *
+     * @param  list<SubscribedEvent>  $events
+     * @return list<SubscribedEvent>
+     */
+    public static function checkEvents(string $subscriber, array $events): array
+    {
+        if ($events === []) {
+            throw new self(sprintf('Subscriber "%s" receives no event. A subscriber receives at least one.', $subscriber));
+        }
+
+        $classes = array_map(static fn (SubscribedEvent $event): string => strtolower($event->class), $events);
+        $canonical = array_values(array_unique($classes));
+        sort($canonical, SORT_STRING);
+
+        if ($canonical !== $classes) {
+            throw new self(sprintf(
+                'Subscriber "%s" receives the events %s. Each event class is listed once, sorted by class.',
+                $subscriber,
+                implode(', ', array_map(static fn (SubscribedEvent $event): string => $event->class, $events)),
+            ));
+        }
+
+        return $events;
     }
 
     public static function because(string $message): self

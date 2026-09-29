@@ -12,7 +12,7 @@ use Cbox\Cms\Core\Tests\Registry\RegistryFixtures;
 use DateTimeImmutable;
 
 /*
- * The registry.cache check on real files: it looks at the files of the three registries and at
+ * The registry.cache check on real files: it looks at the files of the four registries and at
  * vendor/composer/installed.json, and at nothing else in the cache directory.
  */
 
@@ -32,7 +32,7 @@ function registryProbeFixture(int $builtAt, int $manifestAt): array
     $directory = $root.'/bootstrap/cache/cms';
     RegistryFixtures::cache($directory)->write(CompiledRegistry::empty());
 
-    foreach (['actions.php', 'commands.php', 'hooks.php'] as $file) {
+    foreach (['actions.php', 'commands.php', 'hooks.php', 'subscribers.php'] as $file) {
         touch($directory.'/'.$file, $builtAt);
     }
 
@@ -43,7 +43,7 @@ function registryProbeFixture(int $builtAt, int $manifestAt): array
     return [$directory, $root.'/vendor/composer/installed.json'];
 }
 
-it('dates the cache by the oldest of the three registry files', function (): void {
+it('dates the cache by the oldest of the four registry files', function (): void {
     [$directory, $manifest] = registryProbeFixture(2_000_000_000, 1_900_000_000);
     touch($directory.'/commands.php', 1_950_000_000);
 
@@ -57,8 +57,8 @@ it('dates the cache by the oldest of the three registry files', function (): voi
 
 it('ignores an old file of a registry the cache no longer writes', function (): void {
     [$directory, $manifest] = registryProbeFixture(2_000_000_000, 1_900_000_000);
-    file_put_contents($directory.'/subscribers.php', "<?php return ['entries' => [], 'format' => 1, 'registry' => 'subscribers'];\n");
-    touch($directory.'/subscribers.php', 1_000_000_000);
+    file_put_contents($directory.'/slots.php', "<?php return ['entries' => [], 'format' => 1, 'registry' => 'slots'];\n");
+    touch($directory.'/slots.php', 1_000_000_000);
 
     $probe = new FileRegistryCacheProbe(RegistryFixtures::cache($directory), $manifest);
     $result = new RegistryCacheCheck($probe)->run();
@@ -67,12 +67,12 @@ it('ignores an old file of a registry the cache no longer writes', function (): 
         ->and($result->status)->toBe(CheckStatus::Pass);
 });
 
-it('does not ask for the files of subscribers, slots or schema', function (): void {
+it('does not ask for the files of slots or schema', function (): void {
     [$directory, $manifest] = registryProbeFixture(2_000_000_000, 1_900_000_000);
 
     $result = new RegistryCacheCheck(new FileRegistryCacheProbe(RegistryFixtures::cache($directory), $manifest))->run();
 
-    expect(glob($directory.'/*') ?: [])->toHaveCount(3)
+    expect(glob($directory.'/*') ?: [])->toHaveCount(4)
         ->and($result->status)->toBe(CheckStatus::Pass);
 });
 

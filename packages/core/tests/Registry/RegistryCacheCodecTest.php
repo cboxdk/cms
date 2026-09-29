@@ -6,13 +6,19 @@ namespace Cbox\Cms\Core\Tests\Registry;
 
 use Cbox\Cms\Contracts\Attributes\Phase;
 use Cbox\Cms\Contracts\Attributes\Surface;
+use Cbox\Cms\Contracts\Consistency\ProjectionName;
+use Cbox\Cms\Contracts\Events\EventType;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Subscribers\Lane;
+use Cbox\Cms\Contracts\Subscribers\SubscriptionName;
 use Cbox\Cms\Core\Registry\Boundary\RegistryCacheCodec;
 use Cbox\Cms\Core\Registry\Domain\ActionKind;
 use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Dto\HookEntry;
+use Cbox\Cms\Core\Registry\Domain\Dto\SubscribedEvent;
+use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
 use Cbox\Cms\Core\Registry\Domain\MalformedRegistryCache;
 use Cbox\Cms\Core\Registry\Domain\RegistryName;
 use PHPUnit\Framework\Assert;
@@ -23,6 +29,15 @@ function codecRegistry(): CompiledRegistry
         [new CommandEntry(new CommandName('note.create'), 1, 'App\Commands\CreateNote', 'acme/notes')],
         [new HookEntry('App\Hooks\Trim', 'acme/notes', new CommandName('note.create'), 1, 'App\Commands\CreateNote', Phase::Transform, -5, 3)],
         [new ActionEntry('App\Actions\CreateNoteAction', 'acme/notes', ActionKind::Write, new CommandName('note.create'), 1, 'App\Commands\CreateNote', [Surface::Rest, Surface::Mcp])],
+        [
+            new SubscriberEntry('App\Subscribers\InvalidateNotes', 'acme/notes', new SubscriptionName('notes.fragments'), Lane::Critical, new ProjectionName('fragments'), [
+                new SubscribedEvent('App\Events\NoteArchived', new EventType('note.archived', 2)),
+                new SubscribedEvent('App\Events\NoteCreated', new EventType('note.created', 1)),
+            ]),
+            new SubscriberEntry('App\Subscribers\NotifyNotes', 'acme/notes', new SubscriptionName('notes.webhooks'), Lane::External, null, [
+                new SubscribedEvent('App\Events\NoteCreated', new EventType('note.created', 1)),
+            ]),
+        ],
     );
 }
 
@@ -86,14 +101,14 @@ function codecFailure(mixed $damaged): MalformedRegistryCache
     Assert::fail('The codec read a malformed cache.');
 }
 
-it('writes the exact bytes of format 4', function (): void {
+it('writes the exact bytes of format 5', function (): void {
     $files = new RegistryCacheCodec()->encode(codecRegistry());
     $header = "<?php\n\ndeclare(strict_types=1);\n\n// Written by php artisan cms:build from the attributes in the declared scan roots (PRD 13.2).\n// Do not edit and do not commit; run cms:build again instead.\n\n";
 
-    expect(array_keys($files))->toBe(['actions', 'commands', 'hooks'])
+    expect(array_keys($files))->toBe(['actions', 'commands', 'hooks', 'subscribers'])
         ->and($files['actions'])->toBe($header.<<<'PHP'
             return [
-                'build' => '21489d411d8717ab5c997e4ee915c337656d97f05aecd4a58651aa51ec49085b',
+                'build' => 'f60dde97f2bfe39834d3368d5f5c625931387141b976e65e5b4da9fb8c0c3ebf',
                 'entries' => [
                     [
                         'class' => 'App\\Actions\\CreateNoteAction',
@@ -108,14 +123,14 @@ it('writes the exact bytes of format 4', function (): void {
                         ],
                     ],
                 ],
-                'format' => 4,
+                'format' => 5,
                 'registry' => 'actions',
             ];
 
             PHP)
         ->and($files['commands'])->toBe($header.<<<'PHP'
             return [
-                'build' => '21489d411d8717ab5c997e4ee915c337656d97f05aecd4a58651aa51ec49085b',
+                'build' => 'f60dde97f2bfe39834d3368d5f5c625931387141b976e65e5b4da9fb8c0c3ebf',
                 'entries' => [
                     [
                         'class' => 'App\\Commands\\CreateNote',
@@ -124,14 +139,14 @@ it('writes the exact bytes of format 4', function (): void {
                         'version' => 1,
                     ],
                 ],
-                'format' => 4,
+                'format' => 5,
                 'registry' => 'commands',
             ];
 
             PHP)
         ->and($files['hooks'])->toBe($header.<<<'PHP'
             return [
-                'build' => '21489d411d8717ab5c997e4ee915c337656d97f05aecd4a58651aa51ec49085b',
+                'build' => 'f60dde97f2bfe39834d3368d5f5c625931387141b976e65e5b4da9fb8c0c3ebf',
                 'entries' => [
                     [
                         'budget_ms' => 3,
@@ -144,12 +159,55 @@ it('writes the exact bytes of format 4', function (): void {
                         'priority' => -5,
                     ],
                 ],
-                'format' => 4,
+                'format' => 5,
                 'registry' => 'hooks',
             ];
 
             PHP)
-        ->and(new RegistryCacheCodec()->encode(CompiledRegistry::empty())['commands'])->toBe($header."return [\n    'build' => '".hash('sha256', "actions => [];\ncommands => [];\nhooks => [];\n")."',\n    'entries' => [],\n    'format' => 4,\n    'registry' => 'commands',\n];\n");
+        ->and($files['subscribers'])->toBe($header.<<<'PHP'
+            return [
+                'build' => 'f60dde97f2bfe39834d3368d5f5c625931387141b976e65e5b4da9fb8c0c3ebf',
+                'entries' => [
+                    [
+                        'class' => 'App\\Subscribers\\InvalidateNotes',
+                        'events' => [
+                            [
+                                'class' => 'App\\Events\\NoteArchived',
+                                'name' => 'note.archived',
+                                'version' => 2,
+                            ],
+                            [
+                                'class' => 'App\\Events\\NoteCreated',
+                                'name' => 'note.created',
+                                'version' => 1,
+                            ],
+                        ],
+                        'lane' => 'critical',
+                        'name' => 'notes.fragments',
+                        'package' => 'acme/notes',
+                        'projection' => 'fragments',
+                    ],
+                    [
+                        'class' => 'App\\Subscribers\\NotifyNotes',
+                        'events' => [
+                            [
+                                'class' => 'App\\Events\\NoteCreated',
+                                'name' => 'note.created',
+                                'version' => 1,
+                            ],
+                        ],
+                        'lane' => 'external',
+                        'name' => 'notes.webhooks',
+                        'package' => 'acme/notes',
+                        'projection' => null,
+                    ],
+                ],
+                'format' => 5,
+                'registry' => 'subscribers',
+            ];
+
+            PHP)
+        ->and(new RegistryCacheCodec()->encode(CompiledRegistry::empty())['commands'])->toBe($header."return [\n    'build' => '".hash('sha256', "actions => [];\ncommands => [];\nhooks => [];\nsubscribers => [];\n")."',\n    'entries' => [],\n    'format' => 5,\n    'registry' => 'commands',\n];\n");
 });
 
 it('reads back what it writes', function (): void {
@@ -187,17 +245,27 @@ it('refuses a malformed cache with the file and the place in it', function (call
         $files['commands'] = ['entries' => [], 'format' => 1, 'registry' => 'commands'];
 
         return $files;
-    }, 'commands.php', 'at format: format 1 is not format 4, which this version of the core reads'],
+    }, 'commands.php', 'at format: format 1 is not format 5, which this version of the core reads'],
     'a file of format 2, whose actions had no command' => [static function (array $files): array {
         $files['actions'] = [...codecFile($files, 'actions'), 'format' => 2];
 
         return $files;
-    }, 'actions.php', 'at format: format 2 is not format 4, which this version of the core reads'],
+    }, 'actions.php', 'at format: format 2 is not format 5, which this version of the core reads'],
     'a file of format 3, whose cache had no actions.php' => [static function (array $files): array {
         $files['commands'] = [...codecFile($files, 'commands'), 'format' => 3];
 
         return $files;
-    }, 'commands.php', 'at format: format 3 is not format 4, which this version of the core reads'],
+    }, 'commands.php', 'at format: format 3 is not format 5, which this version of the core reads'],
+    'a file of format 4, whose cache had no subscribers.php' => [static function (array $files): array {
+        $files['hooks'] = [...codecFile($files, 'hooks'), 'format' => 4];
+
+        return $files;
+    }, 'hooks.php', 'at format: format 4 is not format 5, which this version of the core reads'],
+    'a missing subscribers.php' => [static function (array $files): array {
+        unset($files['subscribers']);
+
+        return $files;
+    }, 'subscribers.php', 'expected an array with the keys build, entries, format, registry, got null'],
     'the wrong registry' => [static function (array $files): array {
         $files['commands'] = [...codecFile($files, 'commands'), 'registry' => 'hooks'];
 
@@ -331,7 +399,101 @@ it('refuses a malformed cache with the file and the place in it', function (call
 
         return $files;
     }, 'actions.php', 'at entries[0]: The action command class "App\" is not a fully qualified class name.'],
+    'a subscriber entry missing a key' => [static function (array $files): array {
+        $files['subscribers'] = [...codecFile($files, 'subscribers'), 'entries' => [codecSubscriber(['projection' => null])]];
+
+        return $files;
+    }, 'subscribers.php', 'at entries[0]: expected the keys class, events, lane, name, package, projection, got class, events, lane, name, package'],
+    'an unknown lane' => [static function (array $files): array {
+        $files['subscribers'] = [...codecFile($files, 'subscribers'), 'entries' => [codecSubscriber(['lane' => 'urgent'])]];
+
+        return $files;
+    }, 'subscribers.php', 'at entries[0].lane: "urgent" is not a lane'],
+    'a lane that is not a string' => [static function (array $files): array {
+        $files['subscribers'] = [...codecFile($files, 'subscribers'), 'entries' => [codecSubscriber(['lane' => 1])]];
+
+        return $files;
+    }, 'subscribers.php', 'at entries[0].lane: expected a string, got int'],
+    'a subscription name that is not one' => [static function (array $files): array {
+        $files['subscribers'] = [...codecFile($files, 'subscribers'), 'entries' => [codecSubscriber(['name' => 'Notes'])]];
+
+        return $files;
+    }, 'subscribers.php', 'at entries[0].name: The subscription name "Notes" must be dot-separated snake_case segments'],
+    'a projection name that is not one' => [static function (array $files): array {
+        $files['subscribers'] = [...codecFile($files, 'subscribers'), 'entries' => [codecSubscriber(['projection' => 'Fragments'])]];
+
+        return $files;
+    }, 'subscribers.php', 'at entries[0].projection: A projection name is dot-separated snake_case segments of at most 63 characters, for example "fragments" or "acme.search", got "Fragments". Do not edit'],
+    'a projection that is not a string' => [static function (array $files): array {
+        $files['subscribers'] = [...codecFile($files, 'subscribers'), 'entries' => [codecSubscriber(['projection' => false])]];
+
+        return $files;
+    }, 'subscribers.php', 'at entries[0].projection: expected a string, got bool'],
+    'events that are not a list' => [static function (array $files): array {
+        $files['subscribers'] = [...codecFile($files, 'subscribers'), 'entries' => [codecSubscriber(['events' => 'App\E'])]];
+
+        return $files;
+    }, 'subscribers.php', 'at entries[0].events: expected a list, got string'],
+    'no events' => [static function (array $files): array {
+        $files['subscribers'] = [...codecFile($files, 'subscribers'), 'entries' => [codecSubscriber(['events' => []])]];
+
+        return $files;
+    }, 'subscribers.php', 'at entries[0]: Subscriber "App\S" receives no event. A subscriber receives at least one.'],
+    'an event missing a key' => [static function (array $files): array {
+        $files['subscribers'] = [...codecFile($files, 'subscribers'), 'entries' => [codecSubscriber(['events' => [['class' => 'App\E', 'name' => 'a.b']]])]];
+
+        return $files;
+    }, 'subscribers.php', 'at entries[0].events[0]: expected the keys class, name, version, got class, name'],
+    'an event type that is not one' => [static function (array $files): array {
+        $files['subscribers'] = [...codecFile($files, 'subscribers'), 'entries' => [codecSubscriber(['events' => [['class' => 'App\E', 'name' => 'created', 'version' => 1]]])]];
+
+        return $files;
+    }, 'subscribers.php', 'at entries[0].events[0]: An event type name is dot-separated snake_case segments, at least two'],
+    'an event version below 1' => [static function (array $files): array {
+        $files['subscribers'] = [...codecFile($files, 'subscribers'), 'entries' => [codecSubscriber(['events' => [['class' => 'App\E', 'name' => 'a.b', 'version' => 0]]])]];
+
+        return $files;
+    }, 'subscribers.php', 'at entries[0].events[0]: An event type version starts at 1, got 0. Do not edit'],
+    'an event class that is not one' => [static function (array $files): array {
+        $files['subscribers'] = [...codecFile($files, 'subscribers'), 'entries' => [codecSubscriber(['events' => [['class' => 'App\\', 'name' => 'a.b', 'version' => 1]]])]];
+
+        return $files;
+    }, 'subscribers.php', 'at entries[0].events[0]: The event class "App\" is not a fully qualified class name.'],
+    'events out of order' => [static function (array $files): array {
+        $files['subscribers'] = [...codecFile($files, 'subscribers'), 'entries' => [codecSubscriber(['events' => [
+            ['class' => 'App\F', 'name' => 'a.f', 'version' => 1],
+            ['class' => 'App\E', 'name' => 'a.e', 'version' => 1],
+        ]])]];
+
+        return $files;
+    }, 'subscribers.php', 'at entries[0]: Subscriber "App\S" receives the events App\F, App\E. Each event class is listed once, sorted by class.'],
+    'an event listed twice' => [static function (array $files): array {
+        $files['subscribers'] = [...codecFile($files, 'subscribers'), 'entries' => [codecSubscriber(['events' => [
+            ['class' => 'App\E', 'name' => 'a.e', 'version' => 1],
+            ['class' => 'app\e', 'name' => 'a.e', 'version' => 1],
+        ]])]];
+
+        return $files;
+    }, 'subscribers.php', 'Each event class is listed once, sorted by class.'],
+    'a subscriber class that is not one' => [static function (array $files): array {
+        $files['subscribers'] = [...codecFile($files, 'subscribers'), 'entries' => [codecSubscriber(['class' => 'App\\'])]];
+
+        return $files;
+    }, 'subscribers.php', 'at entries[0]: The subscriber class "App\" is not a fully qualified class name.'],
 ]);
+
+/**
+ * An entry of subscribers.php with the given keys changed; a key set to null is left out.
+ *
+ * @param  array<string, mixed>  $changes
+ * @return array<string, mixed>
+ */
+function codecSubscriber(array $changes): array
+{
+    $entry = ['class' => 'App\S', 'events' => [['class' => 'App\E', 'name' => 'a.b', 'version' => 1]], 'lane' => 'critical', 'name' => 'a.s', 'package' => 'acme/a', 'projection' => 'fragments'];
+
+    return array_filter([...$entry, ...$changes], static fn (mixed $value): bool => $value !== null);
+}
 
 /**
  * An entry of actions.php with the given keys changed; a key set to null is left out.
@@ -367,7 +529,7 @@ it('tells files of different builds from files of one build', function (): void 
 it('knows how many entries each registry holds', function (): void {
     $registry = codecRegistry();
 
-    expect(array_map($registry->count(...), RegistryName::cases()))->toBe([1, 1, 1]);
+    expect(array_map($registry->count(...), RegistryName::cases()))->toBe([1, 1, 1, 2]);
 });
 
 it('gives the kernel the action of a command by its name and version, and by its class', function (): void {
@@ -385,4 +547,23 @@ it('gives the kernel the action of a command by its name and version, and by its
         ->and(CompiledRegistry::empty()->action(new CommandName('note.create'), 1))->toBeNull()
         ->and($query->exposes(Surface::Rest))->toBeFalse()
         ->and($write->exposes(Surface::Mcp))->toBeTrue();
+});
+
+it('reads back a subscriber without a projection as null, and one with a projection as its name', function (): void {
+    $read = new RegistryCacheCodec()->decode(codecFiles(codecRegistry()), '/cache');
+
+    expect($read->subscribers[0]->projection)->toEqual(new ProjectionName('fragments'))
+        ->and($read->subscribers[1]->projection)->toBeNull()
+        ->and($read->subscribers[0]->lane)->toBe(Lane::Critical)
+        ->and($read->subscribers[0]->events[1]->type)->toEqual(new EventType('note.created', 1));
+});
+
+it('gives another build when only a subscriber changes', function (): void {
+    $registry = codecRegistry();
+    $moved = new CompiledRegistry($registry->commands, $registry->hooks, $registry->actions, [
+        new SubscriberEntry('App\Subscribers\InvalidateNotes', 'acme/notes', new SubscriptionName('notes.fragments'), Lane::Standard, new ProjectionName('fragments'), $registry->subscribers[0]->events),
+        $registry->subscribers[1],
+    ]);
+
+    expect(codecFile(codecFiles($moved), 'commands')['build'])->not->toBe(codecFile(codecFiles($registry), 'commands')['build']);
 });

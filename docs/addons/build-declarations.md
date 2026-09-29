@@ -1,7 +1,7 @@
 ---
 title: Build declarations
 weight: 36
-description: "Declare commands, queries, actions and hooks with attributes, give cms:build your scan roots, and read the registries it compiles."
+description: "Declare commands, queries, actions, hooks and subscribers with attributes, give cms:build your scan roots, and read the registries it compiles."
 ---
 
 # Build declarations: scan roots, commands, queries, actions and hooks
@@ -11,11 +11,11 @@ description: "Declare commands, queries, actions and hooks with attributes, give
 <!-- extension-point: Cbox\Cms\Contracts\Attributes\Query -->
 <!-- extension-point: Cbox\Cms\Contracts\Attributes\Hook -->
 
-A package tells the CMS about its commands, queries, actions and hooks with attributes on its classes, and tells `cms:build` where those classes are with its service provider. `cms:build` reads the attributes with reflection and compiles three registries to `bootstrap/cache/cms/` (PRD 13.2). Reflection runs only there, at build time; at run time the CMS reads the compiled files (GUARDRAILS 2.2).
+A package tells the CMS about its commands, queries, actions, hooks and subscribers with attributes on its classes, and tells `cms:build` where those classes are with its service provider. `cms:build` reads the attributes with reflection and compiles four registries to `bootstrap/cache/cms/` (PRD 13.2). Reflection runs only there, at build time; at run time the CMS reads the compiled files (GUARDRAILS 2.2).
 
 Run `cms:build` from Composer's `post-autoload-dump` script, so it follows every `composer install`, `composer update` and `composer dump-autoload`, and in every deploy. The files are not committed. `cms:doctor` fails its check `registry.cache` when the files are missing, damaged or older than `vendor/composer/installed.json`, so a registry that misses a newly installed package does not go unnoticed.
 
-The registry holds the declarations: the classes, and the names, versions, surfaces, phases, priorities and budgets their attributes give. It does not call an action or a hook; the kernel asks it for the action of a command or query and calls it through the pipeline.
+The registry holds the declarations: the classes, and the names, versions, surfaces, phases, priorities, budgets, events, lanes and projections their attributes give. It does not call an action, a hook or a subscriber; the kernel asks it for the action of a command or query and calls it through the pipeline, and for the projections an event affects.
 
 ## Scan roots
 
@@ -26,7 +26,7 @@ A package's service provider implements `Cbox\Cms\Contracts\Build\DeclaresScanRo
 | `package` | The Composer package name, such as `acme/cms-notes`. It names the package in the registry and in build errors, and it orders hooks with the same priority. |
 | `directory` | An absolute path. Use `__DIR__`, the directory of the provider, usually the package's `src`. |
 
-`cms:build` scans every `.php` file below the directory, in sorted order, and loads each class it declares through the autoloader, so every class there must be autoloadable: the namespace and path follow the package's PSR-4 mapping. A class without one of the attributes `#[Action]`, `#[Command]`, `#[Query]` and `#[Hook]` is left out.
+`cms:build` scans every `.php` file below the directory, in sorted order, and loads each class it declares through the autoloader, so every class there must be autoloadable: the namespace and path follow the package's PSR-4 mapping. A class without one of the attributes `#[Action]`, `#[Command]`, `#[Query]`, `#[Hook]` and `#[Subscription]` is left out.
 
 `cms:build` asks every registered provider that implements the interface. It registers the deferred providers first, so a deferred provider is asked too. A package whose provider declares no scan root has nothing in the registry, even when its classes carry the attributes. A directory that is not readable, or a class that is in the scan roots of two packages, stops the build.
 
@@ -76,16 +76,20 @@ The phases are those of the command pipeline in which hooks run (PRD 6.2):
 
 Hooks are deterministic and do no network IO; work that needs IO belongs in a subscriber (PRD 6.3). Hooks of one command and phase run by priority, then by package name, then by class name, so the order never depends on the order in which packages are installed.
 
+## Subscribers
+
+`#[Subscription(name, events: [...], lane: ..., projection: ...)]` sits on a subscriber: the subscription's name, the event classes it receives, its lane, and the projection it acknowledges on a receipt, if any. See [subscribers](subscribers.md).
+
 ## The compiled registries
 
-`cms:build` writes one PHP file per registry to `bootstrap/cache/cms/`: `actions.php`, `commands.php` and `hooks.php`. It removes any other file in that directory, which it owns, except its lock file `.lock`: two builds that run at the same time write the cache one after the other, so it always holds the files of one build. Each file returns an array with these keys:
+`cms:build` writes one PHP file per registry to `bootstrap/cache/cms/`: `actions.php`, `commands.php`, `hooks.php` and `subscribers.php`. It removes any other file in that directory, which it owns, except its lock file `.lock`: two builds that run at the same time write the cache one after the other, so it always holds the files of one build. Each file returns an array with these keys:
 
 | Key | Value |
 |---|---|
 | `build` | The sha256 of the entries of every registry. The files of one build carry the same value. |
 | `entries` | The list of entries, sorted as below. |
-| `format` | `4`, the format of the files. A cache of another format is refused until `cms:build` runs again. |
-| `registry` | `actions`, `commands` or `hooks`. |
+| `format` | `5`, the format of the files. A cache of another format is refused until `cms:build` runs again. |
+| `registry` | `actions`, `commands`, `hooks` or `subscribers`. |
 
 The keys of every entry are in alphabetical order:
 
@@ -94,6 +98,7 @@ The keys of every entry are in alphabetical order:
 | `actions` | `class`, `command` (the name of the command or query it handles), `command_class`, `command_version`, `kind` (`write` or `query`), `package`, `surfaces` (the values of the surfaces, in the order of the enum) | command name, then command version |
 | `commands` | `class`, `name`, `package`, `version` | name, then version |
 | `hooks` | `budget_ms`, `class`, `command` (the command's name), `command_class`, `command_version`, `package`, `phase` (the value of the phase), `priority` | command name, command version, phase in pipeline order (authorize, transform, validate), priority with the lowest first, package, class |
+| `subscribers` | `class`, `events` (a list of `class`, `name` and `version`: each event class with its type, sorted by class), `lane` (the value of the lane), `name` (the subscription name), `package`, `projection` (the projection name, or null) | subscription name |
 
 A file holds no time and no path, so two builds of the same code give the same bytes. Read the files, never edit them: run `cms:build` again instead.
 
@@ -107,7 +112,7 @@ A file holds no time and no path, so two builds of the same code give the same b
 | `registry_class_not_loadable` | A class in a scan root cannot be autoloaded, or loading it failed. |
 | `registry_invalid_attribute` | An attribute's arguments are invalid, such as a command name with one segment, version 0, a hook's command class that does not exist or has no `#[Command]`, a budget outside 1 to 20 ms, or a surface listed twice. |
 | `registry_not_a_concrete_class` | An attribute sits on an interface, trait, enum or abstract class. |
-| `registry_not_final_readonly` | A `#[Command]`, `#[Query]` or `#[Action]` sits on a class that is not a `final readonly class`. |
+| `registry_not_final_readonly` | A `#[Command]`, `#[Query]`, `#[Action]` or `#[Subscription]` sits on a class that is not a `final readonly class`. |
 | `registry_class_in_two_roots` | Two packages' scan roots contain the same class. |
 | `registry_duplicate_command` | Two classes declare the same command or query name and version. |
 | `registry_unknown_hook_command` | A hook runs for a command class that no scan root registers: the package that holds the command declares no scan root, or its provider is not registered. |
@@ -115,6 +120,10 @@ A file holds no time and no path, so two builds of the same code give the same b
 | `registry_unknown_action_command` | An action handles a class that is not a registered command (a write action) or query (a query action): the class does not exist, lacks the attribute, is the other kind, or no scan root registers it. |
 | `registry_duplicate_action` | Two actions handle the same command or query. |
 | `registry_unknown_surface` | An `#[Action]` lists a surface that is not a case of `Surface`, such as `'rest'` or `Surface::Graphql`. |
+| `registry_not_a_subscriber` | A `#[Subscription]` sits on a class that does not implement `Subscriber`. |
+| `registry_unknown_event` | A `#[Subscription]` lists an event class that does not exist or does not implement `Event`, or whose `type()` fails. |
+| `registry_unknown_lane` | A `#[Subscription]` names a lane that is not a case of `Lane`, such as `'critical'` or `Lane::Urgent`. |
+| `registry_duplicate_subscription` | Two subscribers declare the same subscription name. |
 
 ## Example
 

@@ -104,13 +104,17 @@ enum ErrorCode: string
     case RegistryClassNotLoadable = 'registry_class_not_loadable';
     case RegistryDuplicateAction = 'registry_duplicate_action';
     case RegistryDuplicateCommand = 'registry_duplicate_command';
+    case RegistryDuplicateSubscription = 'registry_duplicate_subscription';
     case RegistryInvalidAttribute = 'registry_invalid_attribute';
     case RegistryInvalidScanRoot = 'registry_invalid_scan_root';
     case RegistryNotAConcreteClass = 'registry_not_a_concrete_class';
+    case RegistryNotASubscriber = 'registry_not_a_subscriber';
     case RegistryNotAnAction = 'registry_not_an_action';
     case RegistryNotFinalReadonly = 'registry_not_final_readonly';
     case RegistryUnknownActionCommand = 'registry_unknown_action_command';
+    case RegistryUnknownEvent = 'registry_unknown_event';
     case RegistryUnknownHookCommand = 'registry_unknown_hook_command';
+    case RegistryUnknownLane = 'registry_unknown_lane';
     case RegistryUnknownSurface = 'registry_unknown_surface';
     case Unauthorized = 'unauthorized';
     case ValidationAboveMaximum = 'validation_above_maximum';
@@ -387,10 +391,10 @@ enum ErrorCode: string
                 'A table in cbox-cms.database.partitions.tables cannot be managed as it is: it is missing, not partitioned by range, has a DEFAULT partition, or Postgres refused a step on one of its partitions. The other tables were still maintained. Run the migrations, or correct the table or its entry as the cause says.',
             ),
             self::RegistryCacheMalformed => $this->violation(
-                'The registry cache in bootstrap/cache/cms is damaged, or its files come from different builds, so the kernel cannot read its actions, commands and hooks. Run cms:build.',
+                'The registry cache in bootstrap/cache/cms is damaged, or its files come from different builds, so the kernel cannot read its actions, commands, hooks and subscribers. Run cms:build.',
             ),
             self::RegistryCacheMissing => $this->violation(
-                'The registry cache in bootstrap/cache/cms does not exist, so the kernel does not know its actions, commands and hooks. Run cms:build; Composer runs it after every install.',
+                'The registry cache in bootstrap/cache/cms does not exist, so the kernel does not know its actions, commands, hooks and subscribers. Run cms:build; Composer runs it after every install.',
             ),
             self::RegistryCacheUnwritable => $this->tooling(
                 ExitCode::CantCreat,
@@ -408,26 +412,38 @@ enum ErrorCode: string
             self::RegistryDuplicateCommand => $this->refusedInput(
                 'Two classes declare the same command or query name and version with #[Command] or #[Query]. Rename one of them, or give it another version.',
             ),
+            self::RegistryDuplicateSubscription => $this->refusedInput(
+                'Two subscribers declare the same subscription name with #[Subscription]. The event log keeps a subscription\'s cursor under its name, so rename one of them.',
+            ),
             self::RegistryInvalidAttribute => $this->refusedInput(
-                'The arguments of an #[Action], #[Command], #[Query] or #[Hook] attribute are invalid, so it cannot be built. Correct the attribute as the cause says.',
+                'The arguments of an #[Action], #[Command], #[Query], #[Hook] or #[Subscription] attribute are invalid, so it cannot be built. Correct the attribute as the cause says.',
             ),
             self::RegistryInvalidScanRoot => $this->refusedInput(
                 'A scan root that a service provider declares is not a readable directory. Correct the directory the provider returns from scanRoots().',
             ),
             self::RegistryNotAConcreteClass => $this->refusedInput(
-                'An #[Action], #[Command], #[Query] or #[Hook] attribute sits on an interface, a trait, an enum or an abstract class. Put it on a concrete class.',
+                'An #[Action], #[Command], #[Query], #[Hook] or #[Subscription] attribute sits on an interface, a trait, an enum or an abstract class. Put it on a concrete class.',
+            ),
+            self::RegistryNotASubscriber => $this->refusedInput(
+                'A #[Subscription] sits on a class that does not implement Subscriber. Implement Cbox\\Cms\\Contracts\\Subscribers\\Subscriber, or remove the attribute.',
             ),
             self::RegistryNotAnAction => $this->refusedInput(
                 'An #[Action] sits on a class that implements neither WriteAction nor QueryAction, or both (GUARDRAILS 2.1). Implement exactly one of them.',
             ),
             self::RegistryNotFinalReadonly => $this->refusedInput(
-                'A #[Command], #[Query] or #[Action] sits on a class that is not a final readonly class (GUARDRAILS 2.1). Make the class final readonly.',
+                'A #[Command], #[Query], #[Action] or #[Subscription] sits on a class that is not a final readonly class (GUARDRAILS 2.1). Make the class final readonly.',
             ),
             self::RegistryUnknownActionCommand => $this->refusedInput(
                 'An action handles a class that is not a registered command (for a WriteAction) or query (for a QueryAction). Point #[Action(handles: ...)] at a class declared with #[Command] or #[Query], or declare the scan root of the package that has it.',
             ),
+            self::RegistryUnknownEvent => $this->refusedInput(
+                'A #[Subscription] lists an event class that does not exist or does not implement Event, or whose type() fails. List the classes of the events the subscriber receives.',
+            ),
             self::RegistryUnknownHookCommand => $this->refusedInput(
                 'A hook runs for a command class that no scan root registers. Correct the command the #[Hook] names, or declare the scan root of the package that has it.',
+            ),
+            self::RegistryUnknownLane => $this->refusedInput(
+                'A #[Subscription] names a lane that is not a case of the Lane enum. Name Lane::Critical, Lane::Standard, Lane::External, Lane::Revalidate or Lane::Background.',
             ),
             self::RegistryUnknownSurface => $this->refusedInput(
                 'An #[Action] lists a surface that is not a case of the Surface enum. List only Surface::Rest, Surface::Inertia, Surface::Mcp and Surface::Cli.',

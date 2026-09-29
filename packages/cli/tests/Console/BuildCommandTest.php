@@ -39,14 +39,14 @@ it('is registered', function (): void {
         ->and(app(Kernel::class)->all()['cms:build'])->toBeInstanceOf(BuildCommand::class);
 });
 
-it('writes the three registries to the application\'s bootstrap/cache/cms, and removes the files it no longer writes', function (): void {
+it('writes the four registries to the application\'s bootstrap/cache/cms, and removes the files it no longer writes', function (): void {
     $directory = app()->bootstrapPath('cache/cms');
 
     if (! is_dir($directory)) {
         mkdir($directory, 0o775, true);
     }
 
-    file_put_contents($directory.'/subscribers.php', "<?php return ['entries' => [], 'format' => 1, 'registry' => 'subscribers'];\n");
+    file_put_contents($directory.'/slots.php', "<?php return ['entries' => [], 'format' => 1, 'registry' => 'slots'];\n");
 
     [$status, $output] = buildCommand();
 
@@ -55,9 +55,10 @@ it('writes the three registries to the application\'s bootstrap/cache/cms, and r
             'actions: 0',
             'commands: 0',
             'hooks: 0',
+            'subscribers: 0',
             sprintf('Registry written to %s.', $directory),
         ])
-        ->and(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php']);
+        ->and(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'subscribers.php']);
 });
 
 it('adds what an addon provider\'s scan root declares', function (): void {

@@ -7,22 +7,31 @@ namespace Cbox\Cms\Core\Registry\Boundary;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Attributes\Phase;
 use Cbox\Cms\Contracts\Attributes\Surface;
+use Cbox\Cms\Contracts\Consistency\InvalidReceipt;
+use Cbox\Cms\Contracts\Consistency\ProjectionName;
+use Cbox\Cms\Contracts\Events\EventType;
+use Cbox\Cms\Contracts\Events\InvalidEvent;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\InvalidCommandName;
+use Cbox\Cms\Contracts\Subscribers\InvalidSubscriptionName;
+use Cbox\Cms\Contracts\Subscribers\Lane;
+use Cbox\Cms\Contracts\Subscribers\SubscriptionName;
 use Cbox\Cms\Core\Registry\Domain\ActionKind;
 use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Dto\HookEntry;
+use Cbox\Cms\Core\Registry\Domain\Dto\SubscribedEvent;
+use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
 use Cbox\Cms\Core\Registry\Domain\InvalidRegistryEntry;
 use Cbox\Cms\Core\Registry\Domain\MalformedRegistryCache;
 use Cbox\Cms\Core\Registry\Domain\RegistryName;
 use LogicException;
 
 /**
- * The registry cache files of format 4, in both directions (PRD 13.2).
+ * The registry cache files of format 5, in both directions (PRD 13.2).
  *
- * A file is PHP that returns ['build' => '<sha256>', 'entries' => [...], 'format' => 4,
+ * A file is PHP that returns ['build' => '<sha256>', 'entries' => [...], 'format' => 5,
  * 'registry' => '<name>']. The keys of every array are written in alphabetical order, lists keep
  * the compiled order, and nothing depends on the time or the machine, so the same registry always
  * gives the same bytes. Reading checks every key and type and builds the typed entries; anything
@@ -36,7 +45,7 @@ use LogicException;
 #[Internal]
 final readonly class RegistryCacheCodec
 {
-    public const int FORMAT = 4;
+    public const int FORMAT = 5;
 
     private const string HEADER = <<<'PHP'
         <?php
@@ -124,6 +133,18 @@ final readonly class RegistryCacheCodec
                 'phase' => $hook->phase->value,
                 'priority' => $hook->priority,
             ], $registry->hooks),
+            RegistryName::Subscribers->value => array_map(static fn (SubscriberEntry $subscriber): array => [
+                'class' => $subscriber->class,
+                'events' => array_map(static fn (SubscribedEvent $event): array => [
+                    'class' => $event->class,
+                    'name' => $event->type->name,
+                    'version' => $event->type->version,
+                ], $subscriber->events),
+                'lane' => $subscriber->lane->value,
+                'name' => $subscriber->name->value,
+                'package' => $subscriber->package,
+                'projection' => $subscriber->projection?->value,
+            ], $registry->subscribers),
         ];
     }
 
@@ -248,7 +269,35 @@ final readonly class RegistryCacheCodec
             ));
         }
 
-        $registry = new CompiledRegistry($commands, $hooks, $actions);
+        $subscribers = [];
+
+        foreach ($entries[RegistryName::Subscribers->value] as $index => $entry) {
+            $path = $directory.'/'.RegistryName::Subscribers->fileName();
+            $at = sprintf('entries[%d]', $index);
+            $data = $this->map($entry, $path, $at, ['class', 'events', 'lane', 'name', 'package', 'projection']);
+            $lane = $this->string($data['lane'], $path, $at.'.lane');
+            $name = $this->subscriptionName($data['name'], $path, $at.'.name');
+            $projection = $data['projection'] === null ? null : $this->projectionName($data['projection'], $path, $at.'.projection');
+            $events = [];
+
+            foreach ($this->list($data['events'], $path, $at.'.events') as $position => $event) {
+                $eventAt = sprintf('%s.events[%d]', $at, $position);
+                $eventData = $this->map($event, $path, $eventAt, ['class', 'name', 'version']);
+                $type = $this->eventType($this->string($eventData['name'], $path, $eventAt.'.name'), $this->int($eventData['version'], $path, $eventAt.'.version'), $path, $eventAt);
+                $events[] = $this->entry($path, $eventAt, fn (): SubscribedEvent => new SubscribedEvent($this->string($eventData['class'], $path, $eventAt.'.class'), $type));
+            }
+
+            $subscribers[] = $this->entry($path, $at, fn (): SubscriberEntry => new SubscriberEntry(
+                $this->string($data['class'], $path, $at.'.class'),
+                $this->string($data['package'], $path, $at.'.package'),
+                $name,
+                Lane::tryFrom($lane) ?? throw MalformedRegistryCache::at($path, $at.'.lane', sprintf('"%s" is not a lane', $lane)),
+                $projection,
+                $events,
+            ));
+        }
+
+        $registry = new CompiledRegistry($commands, $hooks, $actions, $subscribers);
 
         if ($this->build($this->entries($registry)) !== $first[1]) {
             throw MalformedRegistryCache::at($directory.'/'.$first[0]->fileName(), 'build', 'the build does not match the entries of the registry files, so they were changed after cms:build wrote them');
@@ -362,6 +411,37 @@ final readonly class RegistryCacheCodec
         try {
             return new CommandName($name);
         } catch (InvalidCommandName $invalid) {
+            throw MalformedRegistryCache::at($path, $at, rtrim($invalid->getMessage(), '.'), $invalid);
+        }
+    }
+
+    private function subscriptionName(mixed $value, string $path, string $at): SubscriptionName
+    {
+        $name = $this->string($value, $path, $at);
+
+        try {
+            return new SubscriptionName($name);
+        } catch (InvalidSubscriptionName $invalid) {
+            throw MalformedRegistryCache::at($path, $at, rtrim($invalid->getMessage(), '.'), $invalid);
+        }
+    }
+
+    private function projectionName(mixed $value, string $path, string $at): ProjectionName
+    {
+        $name = $this->string($value, $path, $at);
+
+        try {
+            return new ProjectionName($name);
+        } catch (InvalidReceipt $invalid) {
+            throw MalformedRegistryCache::at($path, $at, rtrim($invalid->getMessage(), '.'), $invalid);
+        }
+    }
+
+    private function eventType(string $name, int $version, string $path, string $at): EventType
+    {
+        try {
+            return new EventType($name, $version);
+        } catch (InvalidEvent $invalid) {
             throw MalformedRegistryCache::at($path, $at, rtrim($invalid->getMessage(), '.'), $invalid);
         }
     }

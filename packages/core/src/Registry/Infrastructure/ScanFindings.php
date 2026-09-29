@@ -9,6 +9,7 @@ use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredAction;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredHook;
 use Cbox\Cms\Core\Registry\Domain\Dto\QueryEntry;
+use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
 
 /**
  * The declarations one scan has found so far, which AttributeScanner fills and turns into a
@@ -28,4 +29,7 @@ final class ScanFindings
 
     /** @var list<DiscoveredHook> */
     public array $hooks = [];
+
+    /** @var list<SubscriberEntry> */
+    public array $subscribers = [];
 }

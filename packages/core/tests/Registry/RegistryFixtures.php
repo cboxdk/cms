@@ -7,7 +7,11 @@ namespace Cbox\Cms\Core\Tests\Registry;
 use Cbox\Cms\Contracts\Attributes\Phase;
 use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Build\ScanRoot;
+use Cbox\Cms\Contracts\Consistency\ProjectionName;
+use Cbox\Cms\Contracts\Events\EventType;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Subscribers\Lane;
+use Cbox\Cms\Contracts\Subscribers\SubscriptionName;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
 use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
 use Cbox\Cms\Core\Registry\Boundary\RegistryCacheCodec;
@@ -17,6 +21,8 @@ use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredAction;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredHook;
 use Cbox\Cms\Core\Registry\Domain\Dto\Discovery;
 use Cbox\Cms\Core\Registry\Domain\Dto\QueryEntry;
+use Cbox\Cms\Core\Registry\Domain\Dto\SubscribedEvent;
+use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
 use Cbox\Cms\Core\Registry\Domain\RegistryCompiler;
 use Cbox\Cms\Core\Registry\Domain\RegistryName;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
@@ -24,6 +30,12 @@ use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNote;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNoteAction;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\FindNote;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\FindNoteAction;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\IndexNote;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\InvalidateNoteFragments;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\NoteArchived;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\NoteCreated;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\NoteRenamed;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\NotifyNoteWebhooks;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\TrimNoteTitle;
 use FilesystemIterator;
 use RecursiveDirectoryIterator;
@@ -47,8 +59,9 @@ final class RegistryFixtures
 
     /**
      * What the scan of the Valid fixture finds through a root of the given package: the command
-     * CreateNote, the hook TrimNoteTitle, the query FindNote and the actions CreateNoteAction and
-     * FindNoteAction.
+     * CreateNote, the hook TrimNoteTitle, the query FindNote, the actions CreateNoteAction and
+     * FindNoteAction, and the subscribers IndexNote, InvalidateNoteFragments and NotifyNoteWebhooks,
+     * in the order the scanner finds them: by file name.
      */
     public static function validDiscovery(string $package = self::PACKAGE): Discovery
     {
@@ -61,7 +74,30 @@ final class RegistryFixtures
                 new DiscoveredAction(CreateNoteAction::class, $package, ActionKind::Write, CreateNote::class, [Surface::Rest, Surface::Mcp]),
                 new DiscoveredAction(FindNoteAction::class, $package, ActionKind::Query, FindNote::class, []),
             ],
+            self::validSubscribers($package),
         );
+    }
+
+    /**
+     * The subscribers of the Valid fixture as the scanner finds them, by file name.
+     *
+     * @return list<SubscriberEntry>
+     */
+    public static function validSubscribers(string $package = self::PACKAGE): array
+    {
+        $created = new SubscribedEvent(NoteCreated::class, new EventType('fixture.note_created', 1));
+
+        return [
+            new SubscriberEntry(IndexNote::class, $package, new SubscriptionName('fixture.search'), Lane::Standard, new ProjectionName('fixture_search'), [$created]),
+            new SubscriberEntry(InvalidateNoteFragments::class, $package, new SubscriptionName('fixture.fragments'), Lane::Critical, new ProjectionName('fixture_fragments'), [
+                new SubscribedEvent(NoteArchived::class, new EventType('fixture.note_archived', 2)),
+                $created,
+            ]),
+            new SubscriberEntry(NotifyNoteWebhooks::class, $package, new SubscriptionName('fixture.webhooks'), Lane::External, null, [
+                $created,
+                new SubscribedEvent(NoteRenamed::class, new EventType('fixture.note_renamed', 1)),
+            ]),
+        ];
     }
 
     public static function builder(string $directory): BuildRegistry

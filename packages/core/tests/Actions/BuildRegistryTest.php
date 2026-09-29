@@ -7,7 +7,11 @@ namespace Cbox\Cms\Core\Tests\Actions;
 use Cbox\Cms\Contracts\Attributes\Phase;
 use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Build\ScanRoot;
+use Cbox\Cms\Contracts\Consistency\ProjectionName;
+use Cbox\Cms\Contracts\Events\EventType;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Subscribers\Lane;
+use Cbox\Cms\Contracts\Subscribers\SubscriptionName;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
 use Cbox\Cms\Core\Registry\Domain\ActionKind;
 use Cbox\Cms\Core\Registry\Domain\BuildErrorCode;
@@ -20,6 +24,8 @@ use Cbox\Cms\Core\Registry\Domain\Dto\Discovery;
 use Cbox\Cms\Core\Registry\Domain\Dto\HookEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\QueryEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\ScanRoots;
+use Cbox\Cms\Core\Registry\Domain\Dto\SubscribedEvent;
+use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
 use Cbox\Cms\Core\Registry\Domain\RegistryBuildFailed;
 use Cbox\Cms\Core\Registry\Domain\RegistryCacheUnwritable;
 use Cbox\Cms\Core\Registry\Domain\RegistryCompiler;
@@ -28,26 +34,44 @@ use Cbox\Cms\Core\Tests\Registry\Fakes\FakeDeclarationScanner;
 use Cbox\Cms\Core\Tests\Registry\Fakes\FakeRegistryCache;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\DuplicateAction\FirstPinner;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\DuplicateAction\SecondPinner;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\DuplicateSubscription\FirstIndexer;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\DuplicateSubscription\SecondIndexer;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Elsewhere\Misplaced;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\NeitherFinalNorReadonly\PlainCommand;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\NotAnAction\PlainArchiver;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\NotAnAction\TwoFacedArchiver;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\NotASubscriber\PlainListener;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\NotFinalReadonly\MutableCommand;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\NotFinalReadonly\MutableQuery;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\NotFinalReadonly\OpenAction;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\NotFinalSubscriber\MutableSubscriber;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\NotFinalSubscriber\OpenSubscriber;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\UnknownActionCommand\LabelWriter;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\UnknownActionCommand\MissingWriter;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\UnknownActionCommand\NoteLabel;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\UnknownActionCommand\RenameNote;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\UnknownActionCommand\RenameReader;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\UnknownEvent\BadlyNamedEvent;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\UnknownEvent\BadTypeSubscriber;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\UnknownEvent\MissingEventSubscriber;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\UnknownEvent\NotAnEventSubscriber;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\UnknownEvent\PlainValue;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\UnknownLane\StringLaneSubscriber;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\UnknownSurface\ShareNoteAction;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNote;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNoteAction;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\FindNote;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\FindNoteAction;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\IndexNote;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\InvalidateNoteFragments;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\NoteArchived;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\NoteCreated;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\NoteRenamed;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\NoteTitle;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\NotifyNoteWebhooks;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\TrimNoteTitle;
 use Cbox\Cms\Core\Tests\Registry\RegistryFixtures;
+use Cbox\Cms\Core\Tests\Registry\UndefinedLaneRoot;
 use Cbox\Cms\Core\Tests\Registry\UndefinedSurfaceRoot;
 use PHPUnit\Framework\Assert;
 
@@ -72,6 +96,7 @@ it('compiles what the scanner finds in the roots it is given, writes it and retu
     expect($registry)->toEqual(new RegistryCompiler()->compile(RegistryFixtures::validDiscovery('acme/notes')))
         ->and($registry->count(RegistryName::Hooks))->toBe(1)
         ->and($registry->count(RegistryName::Actions))->toBe(2)
+        ->and($registry->count(RegistryName::Subscribers))->toBe(3)
         ->and($scanner->scanned)->toBe([$roots])
         ->and($cache->stored())->toBe($registry)
         ->and($cache->writes)->toBe(1);
@@ -128,7 +153,7 @@ function failedRegistryBuild(string $directory, ScanRoots $roots): RegistryBuild
     Assert::fail('The build did not fail.');
 }
 
-it('registers exactly the fixture command, hook and actions from the fixture scan root', function (): void {
+it('registers exactly the fixture command, hook, actions and subscribers from the fixture scan root', function (): void {
     $directory = RegistryFixtures::scratch();
     $registry = RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
@@ -141,7 +166,42 @@ it('registers exactly the fixture command, hook and actions from the fixture sca
         ->and($registry->actions)->toEqual([
             new ActionEntry(CreateNoteAction::class, RegistryFixtures::PACKAGE, ActionKind::Write, new CommandName('fixture.note.create'), 1, CreateNote::class, [Surface::Rest, Surface::Mcp]),
             new ActionEntry(FindNoteAction::class, RegistryFixtures::PACKAGE, ActionKind::Query, new CommandName('fixture.note.find'), 1, FindNote::class, []),
+        ])
+        ->and($registry->subscribers)->toEqual([
+            new SubscriberEntry(InvalidateNoteFragments::class, RegistryFixtures::PACKAGE, new SubscriptionName('fixture.fragments'), Lane::Critical, new ProjectionName('fixture_fragments'), [
+                new SubscribedEvent(NoteArchived::class, new EventType('fixture.note_archived', 2)),
+                new SubscribedEvent(NoteCreated::class, new EventType('fixture.note_created', 1)),
+            ]),
+            new SubscriberEntry(IndexNote::class, RegistryFixtures::PACKAGE, new SubscriptionName('fixture.search'), Lane::Standard, new ProjectionName('fixture_search'), [
+                new SubscribedEvent(NoteCreated::class, new EventType('fixture.note_created', 1)),
+            ]),
+            new SubscriberEntry(NotifyNoteWebhooks::class, RegistryFixtures::PACKAGE, new SubscriptionName('fixture.webhooks'), Lane::External, null, [
+                new SubscribedEvent(NoteCreated::class, new EventType('fixture.note_created', 1)),
+                new SubscribedEvent(NoteRenamed::class, new EventType('fixture.note_renamed', 1)),
+            ]),
         ]);
+});
+
+/**
+ * @param  list<ProjectionName>  $projections
+ * @return list<string>
+ */
+function builtProjectionNames(array $projections): array
+{
+    return array_map(static fn (ProjectionName $projection): string => $projection->value, $projections);
+}
+
+it('tells the kernel which projections an event class affects, read back from the cache', function (): void {
+    $directory = RegistryFixtures::scratch();
+    RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
+    $read = RegistryFixtures::cache($directory)->read();
+
+    expect(builtProjectionNames($read->projectionsFor(NoteCreated::class)))->toBe(['fixture_fragments', 'fixture_search'])
+        ->and(builtProjectionNames($read->projectionsFor(NoteArchived::class)))->toBe(['fixture_fragments'])
+        ->and($read->projectionsFor(NoteRenamed::class))->toBe([])
+        ->and($read->projectionsFor(NoteTitle::class))->toBe([])
+        ->and(array_map(static fn (SubscriberEntry $subscriber): string => $subscriber->name->value, $read->subscribersOf(NoteCreated::class)))
+        ->toBe(['fixture.fragments', 'fixture.search', 'fixture.webhooks']);
 });
 
 it('gives the kernel the action of a command read back from the cache', function (): void {
@@ -166,17 +226,19 @@ it('keeps the command name as the CommandName value that the hooks and the idemp
         ->and($read->commands[0]->name->equals($read->hooks[0]->command))->toBeTrue();
 });
 
-it('writes the three files, and reading them back gives the registry that was built', function (): void {
+it('writes the four files, and reading them back gives the registry that was built', function (): void {
     $directory = RegistryFixtures::scratch();
     $built = RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
-    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php'])
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'subscribers.php'])
         ->and(RegistryFixtures::cache($directory)->read())->toEqual($built);
 
     $actions = RegistryFixtures::load($directory.'/actions.php');
     $commands = RegistryFixtures::load($directory.'/commands.php');
     $hooks = RegistryFixtures::load($directory.'/hooks.php');
+    $subscribers = RegistryFixtures::load($directory.'/subscribers.php');
     Assert::assertIsArray($actions);
+    Assert::assertIsArray($subscribers);
     Assert::assertIsArray($commands);
     Assert::assertIsArray($hooks);
 
@@ -185,7 +247,7 @@ it('writes the three files, and reading them back gives the registry that was bu
         'entries' => [
             ['class' => CreateNote::class, 'name' => 'fixture.note.create', 'package' => RegistryFixtures::PACKAGE, 'version' => 1],
         ],
-        'format' => 4,
+        'format' => 5,
         'registry' => 'commands',
     ])
         ->and($actions)->toBe([
@@ -210,8 +272,47 @@ it('writes the three files, and reading them back gives the registry that was bu
                     'surfaces' => [],
                 ],
             ],
-            'format' => 4,
+            'format' => 5,
             'registry' => 'actions',
+        ])
+        ->and($subscribers)->toBe([
+            'build' => $hooks['build'],
+            'entries' => [
+                [
+                    'class' => InvalidateNoteFragments::class,
+                    'events' => [
+                        ['class' => NoteArchived::class, 'name' => 'fixture.note_archived', 'version' => 2],
+                        ['class' => NoteCreated::class, 'name' => 'fixture.note_created', 'version' => 1],
+                    ],
+                    'lane' => 'critical',
+                    'name' => 'fixture.fragments',
+                    'package' => RegistryFixtures::PACKAGE,
+                    'projection' => 'fixture_fragments',
+                ],
+                [
+                    'class' => IndexNote::class,
+                    'events' => [
+                        ['class' => NoteCreated::class, 'name' => 'fixture.note_created', 'version' => 1],
+                    ],
+                    'lane' => 'standard',
+                    'name' => 'fixture.search',
+                    'package' => RegistryFixtures::PACKAGE,
+                    'projection' => 'fixture_search',
+                ],
+                [
+                    'class' => NotifyNoteWebhooks::class,
+                    'events' => [
+                        ['class' => NoteCreated::class, 'name' => 'fixture.note_created', 'version' => 1],
+                        ['class' => NoteRenamed::class, 'name' => 'fixture.note_renamed', 'version' => 1],
+                    ],
+                    'lane' => 'external',
+                    'name' => 'fixture.webhooks',
+                    'package' => RegistryFixtures::PACKAGE,
+                    'projection' => null,
+                ],
+            ],
+            'format' => 5,
+            'registry' => 'subscribers',
         ])
         ->and($commands['build'])->toMatch('/\A[0-9a-f]{64}\z/');
 });
@@ -223,29 +324,30 @@ it('replaces the actions.php of format 2, which listed actions without the comma
 
     $built = RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
-    expect(array_map(static fn (RegistryName $name): string => $name->fileName(), RegistryName::cases()))->toBe(['actions.php', 'commands.php', 'hooks.php'])
-        ->and(RegistryFixtures::load($directory.'/actions.php'))->toMatchArray(['format' => 4, 'registry' => 'actions'])
-        ->and(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php'])
+    expect(array_map(static fn (RegistryName $name): string => $name->fileName(), RegistryName::cases()))->toBe(['actions.php', 'commands.php', 'hooks.php', 'subscribers.php'])
+        ->and(RegistryFixtures::load($directory.'/actions.php'))->toMatchArray(['format' => 5, 'registry' => 'actions'])
+        ->and(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'subscribers.php'])
         ->and(RegistryFixtures::cache($directory)->read())->toEqual($built);
 });
 
-it('writes three empty registries when there are no scan roots', function (): void {
+it('writes four empty registries when there are no scan roots', function (): void {
     $directory = RegistryFixtures::scratch();
     $registry = RegistryFixtures::builder($directory)->build(new ScanRoots);
 
     expect($registry->commands)->toBe([])
         ->and($registry->hooks)->toBe([])
-        ->and($registry->actions)->toBe([]);
+        ->and($registry->actions)->toBe([])
+        ->and($registry->subscribers)->toBe([]);
 
-    $build = hash('sha256', "actions => [];\ncommands => [];\nhooks => [];\n");
+    $build = hash('sha256', "actions => [];\ncommands => [];\nhooks => [];\nsubscribers => [];\n");
 
     foreach (RegistryName::cases() as $name) {
         expect(RegistryFixtures::load($directory.'/'.$name->fileName()))
-            ->toBe(['build' => $build, 'entries' => [], 'format' => 4, 'registry' => $name->value]);
+            ->toBe(['build' => $build, 'entries' => [], 'format' => 5, 'registry' => $name->value]);
     }
 });
 
-it('removes the subscriber, slot and schema files an earlier version wrote', function (): void {
+it('removes the slot and schema files an earlier version wrote, and replaces its subscribers.php of format 1', function (): void {
     $directory = RegistryFixtures::scratch();
     mkdir($directory);
 
@@ -255,7 +357,8 @@ it('removes the subscriber, slot and schema files an earlier version wrote', fun
 
     $built = RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
-    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php'])
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'subscribers.php'])
+        ->and(RegistryFixtures::load($directory.'/subscribers.php'))->toMatchArray(['format' => 5, 'registry' => 'subscribers'])
         ->and(RegistryFixtures::cache($directory)->read())->toEqual($built);
 });
 
@@ -271,7 +374,7 @@ it('gives byte-identical files when it builds twice, into the same or another di
     RegistryFixtures::builder($other)->build(new ScanRoots(...array_reverse([...$roots->roots, RegistryFixtures::root('Valid')])));
     $elsewhere = RegistryFixtures::hashes($other);
 
-    expect($first)->toHaveCount(3)
+    expect($first)->toHaveCount(4)
         ->and($second)->toBe($first)
         ->and($elsewhere)->toBe($first);
 });
@@ -281,7 +384,7 @@ it('keeps no temporary files next to the cache', function (): void {
     RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
     RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
-    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php']);
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'subscribers.php']);
 });
 
 it('refuses two classes with the same command name and version, and writes nothing', function (): void {
@@ -353,7 +456,7 @@ it('refuses a command, a query and an action that are not final readonly classes
         ->and($failed->getMessage())->toContain('[registry_not_final_readonly]')
         ->toContain('#[Command] on '.MutableCommand::class.' ('.RegistryFixtures::PACKAGE.') is not readonly')
         ->toContain('#[Query] on '.MutableQuery::class.' ('.RegistryFixtures::PACKAGE.') is not readonly')
-        ->toContain('#[Action] on '.OpenAction::class.' ('.RegistryFixtures::PACKAGE.') is not final. A command, query or action is a final readonly class (GUARDRAILS 2.1).')
+        ->toContain('#[Action] on '.OpenAction::class.' ('.RegistryFixtures::PACKAGE.') is not final. A command, query, action or subscriber is a final readonly class (GUARDRAILS 2.1).')
         ->toContain('final readonly class')
         ->and(is_dir($directory))->toBeFalse();
 });
@@ -379,7 +482,7 @@ it('refuses a directory that two packages declare', function (): void {
     $failed = failedRegistryBuild($directory, new ScanRoots(RegistryFixtures::root('Valid'), RegistryFixtures::root('Valid', 'acme/copy')));
 
     expect(array_unique(array_map(static fn (BuildErrorCode $code): string => $code->value, $failed->codes())))->toBe(['registry_class_in_two_roots'])
-        ->and($failed->problems)->toHaveCount(6);
+        ->and($failed->problems)->toHaveCount(12);
 });
 
 it('refuses a scan root that is not a directory', function (): void {
@@ -486,4 +589,81 @@ it('refuses a command and a query that share a name and version', function (): v
 
     expect(static fn (): CompiledRegistry => $build->build(new ScanRoots(new ScanRoot('acme/notes', '/srv/notes/src'))))
         ->toThrow(RegistryBuildFailed::class, '[registry_duplicate_command] Command "note.find" version 1 is declared by '.CreateNote::class.' (acme/notes) and '.FindNote::class.' (acme/notes).');
+});
+
+it('refuses a subscriber that is not a final readonly class, and writes nothing', function (): void {
+    $directory = RegistryFixtures::scratch();
+    $failed = failedRegistryBuild($directory, new ScanRoots(RegistryFixtures::root('NotFinalSubscriber')));
+
+    expect($failed->codes())->toBe([BuildErrorCode::NotFinalReadonly, BuildErrorCode::NotFinalReadonly])
+        ->and($failed->getMessage())
+        ->toContain('[registry_not_final_readonly] #[Subscription] on '.MutableSubscriber::class.' ('.RegistryFixtures::PACKAGE.') is not readonly. A command, query, action or subscriber is a final readonly class (GUARDRAILS 2.1). Declare it as final readonly class MutableSubscriber.')
+        ->toContain('[registry_not_final_readonly] #[Subscription] on '.OpenSubscriber::class.' ('.RegistryFixtures::PACKAGE.') is not final.')
+        ->and(is_dir($directory))->toBeFalse();
+});
+
+it('refuses a #[Subscription] on a class that does not implement Subscriber', function (): void {
+    $directory = RegistryFixtures::scratch();
+    $failed = failedRegistryBuild($directory, new ScanRoots(RegistryFixtures::root('NotASubscriber')));
+
+    expect($failed->codes())->toBe([BuildErrorCode::NotASubscriber])
+        ->and($failed->getMessage())
+        ->toContain('[registry_not_a_subscriber] #[Subscription] on '.PlainListener::class.' ('.RegistryFixtures::PACKAGE.') sits on a class that does not implement Cbox\Cms\Contracts\Subscribers\Subscriber.')
+        ->and(is_dir($directory))->toBeFalse();
+});
+
+it('refuses an event class that does not exist, is not an event or whose type fails', function (): void {
+    $directory = RegistryFixtures::scratch();
+    $failed = failedRegistryBuild($directory, new ScanRoots(RegistryFixtures::root('UnknownEvent')));
+
+    expect($failed->codes())->toBe([BuildErrorCode::UnknownEvent, BuildErrorCode::UnknownEvent, BuildErrorCode::UnknownEvent])
+        ->and($failed->getMessage())
+        ->toContain('[registry_unknown_event] #[Subscription] on '.MissingEventSubscriber::class.' ('.RegistryFixtures::PACKAGE.') lists an event it cannot receive: #[Subscription] lists the event class "Cbox\Cms\Core\Tests\Registry\Fixtures\UnknownEvent\NoSuchEvent", which does not exist.')
+        ->toContain('[registry_unknown_event] #[Subscription] on '.NotAnEventSubscriber::class.' ('.RegistryFixtures::PACKAGE.') lists an event it cannot receive: #[Subscription] lists the class "'.PlainValue::class.'", which does not implement Cbox\Cms\Contracts\Events\Event.')
+        ->toContain('[registry_unknown_event] #[Subscription] on '.BadTypeSubscriber::class.' ('.RegistryFixtures::PACKAGE.') lists an event it cannot receive: the type() of the event class '.BadlyNamedEvent::class.' failed: An event type name is dot-separated snake_case segments')
+        ->toContain('A subscriber lists classes that implement Cbox\Cms\Contracts\Events\Event.')
+        ->and(is_dir($directory))->toBeFalse();
+});
+
+it('refuses a lane that is a string rather than a case of Lane', function (): void {
+    $directory = RegistryFixtures::scratch();
+    $failed = failedRegistryBuild($directory, new ScanRoots(RegistryFixtures::root('UnknownLane')));
+
+    expect($failed->codes())->toBe([BuildErrorCode::UnknownLane])
+        ->and($failed->getMessage())
+        ->toContain('[registry_unknown_lane] #[Subscription] on '.StringLaneSubscriber::class.' ('.RegistryFixtures::PACKAGE.') names a lane that does not exist: #[Subscription] names the lane "urgent", which is not a lane.')
+        ->toContain('The lanes are the cases of Cbox\Cms\Contracts\Subscribers\Lane: Lane::Critical, Lane::Standard, Lane::External, Lane::Revalidate, Lane::Background.')
+        ->and(is_dir($directory))->toBeFalse();
+});
+
+it('refuses a lane that names a case Lane does not have', function (): void {
+    $directory = RegistryFixtures::scratch();
+    $root = UndefinedLaneRoot::create();
+    $failed = failedRegistryBuild($directory, new ScanRoots(new ScanRoot('acme/urgent', $root)));
+
+    expect($failed->codes())->toBe([BuildErrorCode::UnknownLane])
+        ->and($failed->getMessage())
+        ->toContain('[registry_unknown_lane] #[Subscription] on '.UndefinedLaneRoot::NAMESPACE.'\UrgentSubscriber (acme/urgent) names a lane that does not exist: Undefined constant Cbox\Cms\Contracts\Subscribers\Lane::Urgent.');
+});
+
+it('refuses two subscribers with the same subscription name, and writes nothing', function (): void {
+    $directory = RegistryFixtures::scratch();
+    $failed = failedRegistryBuild($directory, new ScanRoots(RegistryFixtures::root('DuplicateSubscription')));
+
+    expect($failed->codes())->toBe([BuildErrorCode::DuplicateSubscription])
+        ->and($failed->getMessage())
+        ->toContain('[registry_duplicate_subscription] Subscription "fixture.index" is declared by '.FirstIndexer::class.' ('.RegistryFixtures::PACKAGE.') and '.SecondIndexer::class.' ('.RegistryFixtures::PACKAGE.').')
+        ->and(is_dir($directory))->toBeFalse();
+});
+
+it('refuses the same subscription name in two packages through the fake scanner too', function (): void {
+    $event = [new SubscribedEvent(NoteCreated::class, new EventType('fixture.note_created', 1))];
+    $scanner = new FakeDeclarationScanner([
+        '/srv/one/src' => new Discovery([], [], [], [], [], [new SubscriberEntry('Acme\One\Index', 'acme/one', new SubscriptionName('search.index'), Lane::Standard, null, $event)]),
+        '/srv/two/src' => new Discovery([], [], [], [], [], [new SubscriberEntry('Acme\Two\Index', 'acme/two', new SubscriptionName('search.index'), Lane::Background, null, $event)]),
+    ]);
+    $build = new BuildRegistry($scanner, new RegistryCompiler, new FakeRegistryCache);
+
+    expect(static fn (): CompiledRegistry => $build->build(new ScanRoots(new ScanRoot('acme/one', '/srv/one/src'), new ScanRoot('acme/two', '/srv/two/src'))))
+        ->toThrow(RegistryBuildFailed::class, '[registry_duplicate_subscription] Subscription "search.index" is declared by Acme\One\Index (acme/one) and Acme\Two\Index (acme/two).');
 });

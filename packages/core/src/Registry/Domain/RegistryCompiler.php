@@ -13,13 +13,14 @@ use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredAction;
 use Cbox\Cms\Core\Registry\Domain\Dto\Discovery;
 use Cbox\Cms\Core\Registry\Domain\Dto\HookEntry;
+use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
 
 /**
  * Turns what the scanner found into the registry (PRD 13.2): checks that each command or query name
  * and version belongs to one class, that each hook runs for a registered command, that each write
- * action handles a registered command and each query action a registered query, and that no
- * command or query has two actions; then sorts every list so the result depends only on the
- * declarations.
+ * action handles a registered command and each query action a registered query, that no command
+ * or query has two actions, and that each subscription name belongs to one subscriber; then sorts
+ * every list so the result depends only on the declarations.
  */
 #[Experimental]
 final readonly class RegistryCompiler
@@ -105,7 +106,7 @@ final readonly class RegistryCompiler
             );
         }
 
-        $problems = [...$problems, ...$this->duplicateActions($actions)];
+        $problems = [...$problems, ...$this->duplicateActions($actions), ...$this->duplicateSubscriptions($discovery->subscribers)];
 
         if ($problems !== []) {
             throw RegistryBuildFailed::with($problems);
@@ -119,7 +120,11 @@ final readonly class RegistryCompiler
 
         usort($actions, static fn (ActionEntry $a, ActionEntry $b): int => [$a->command->value, $a->commandVersion] <=> [$b->command->value, $b->commandVersion]);
 
-        return new CompiledRegistry($commands, $hooks, $actions);
+        $subscribers = $discovery->subscribers;
+
+        usort($subscribers, static fn (SubscriberEntry $a, SubscriberEntry $b): int => strcmp($a->name->value, $b->name->value));
+
+        return new CompiledRegistry($commands, $hooks, $actions, $subscribers);
     }
 
     /**
@@ -192,6 +197,39 @@ final readonly class RegistryCompiler
                     implode(' and ', $classes),
                 ));
             }
+        }
+
+        return $problems;
+    }
+
+    /**
+     * One problem per subscription name that more than one subscriber declares.
+     *
+     * @param  list<SubscriberEntry>  $subscribers
+     * @return list<BuildProblem>
+     */
+    private function duplicateSubscriptions(array $subscribers): array
+    {
+        $declared = [];
+
+        foreach ($subscribers as $subscriber) {
+            $declared[$subscriber->name->value][] = sprintf('%s (%s)', $subscriber->class, $subscriber->package);
+        }
+
+        $problems = [];
+
+        foreach ($declared as $name => $classes) {
+            if (count($classes) < 2) {
+                continue;
+            }
+
+            sort($classes, SORT_STRING);
+
+            $problems[] = new BuildProblem(BuildErrorCode::DuplicateSubscription, sprintf(
+                'Subscription "%s" is declared by %s. The event log keeps a subscription\'s cursor under its name, so a name belongs to one subscriber: rename one of the subscriptions.',
+                $name,
+                implode(' and ', $classes),
+            ));
         }
 
         return $problems;

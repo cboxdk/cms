@@ -92,13 +92,17 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`registry_class_not_loadable`](#registry_class_not_loadable) | 500 | 65 | internal_error | no |
 | [`registry_duplicate_action`](#registry_duplicate_action) | 500 | 65 | internal_error | no |
 | [`registry_duplicate_command`](#registry_duplicate_command) | 500 | 65 | internal_error | no |
+| [`registry_duplicate_subscription`](#registry_duplicate_subscription) | 500 | 65 | internal_error | no |
 | [`registry_invalid_attribute`](#registry_invalid_attribute) | 500 | 65 | internal_error | no |
 | [`registry_invalid_scan_root`](#registry_invalid_scan_root) | 500 | 65 | internal_error | no |
 | [`registry_not_a_concrete_class`](#registry_not_a_concrete_class) | 500 | 65 | internal_error | no |
+| [`registry_not_a_subscriber`](#registry_not_a_subscriber) | 500 | 65 | internal_error | no |
 | [`registry_not_an_action`](#registry_not_an_action) | 500 | 65 | internal_error | no |
 | [`registry_not_final_readonly`](#registry_not_final_readonly) | 500 | 65 | internal_error | no |
 | [`registry_unknown_action_command`](#registry_unknown_action_command) | 500 | 65 | internal_error | no |
+| [`registry_unknown_event`](#registry_unknown_event) | 500 | 65 | internal_error | no |
 | [`registry_unknown_hook_command`](#registry_unknown_hook_command) | 500 | 65 | internal_error | no |
+| [`registry_unknown_lane`](#registry_unknown_lane) | 500 | 65 | internal_error | no |
 | [`registry_unknown_surface`](#registry_unknown_surface) | 500 | 65 | internal_error | no |
 | [`unauthorized`](#unauthorized) | 403 | 77 | tool_error | no |
 | [`validation_above_maximum`](#validation_above_maximum) | 422 | 65 | tool_error | no |
@@ -762,7 +766,7 @@ A table in cbox-cms.database.partitions.tables cannot be managed as it is: it is
 
 ### registry_cache_malformed
 
-The registry cache in bootstrap/cache/cms is damaged, or its files come from different builds, so the kernel cannot read its actions, commands and hooks. Run cms:build.
+The registry cache in bootstrap/cache/cms is damaged, or its files come from different builds, so the kernel cannot read its actions, commands, hooks and subscribers. Run cms:build.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 78 (EX_CONFIG)
@@ -771,7 +775,7 @@ The registry cache in bootstrap/cache/cms is damaged, or its files come from dif
 
 ### registry_cache_missing
 
-The registry cache in bootstrap/cache/cms does not exist, so the kernel does not know its actions, commands and hooks. Run cms:build; Composer runs it after every install.
+The registry cache in bootstrap/cache/cms does not exist, so the kernel does not know its actions, commands, hooks and subscribers. Run cms:build; Composer runs it after every install.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 78 (EX_CONFIG)
@@ -823,9 +827,18 @@ Two classes declare the same command or query name and version with #[Command] o
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
+### registry_duplicate_subscription
+
+Two subscribers declare the same subscription name with #[Subscription]. The event log keeps a subscription's cursor under its name, so rename one of them.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
 ### registry_invalid_attribute
 
-The arguments of an #[Action], #[Command], #[Query] or #[Hook] attribute are invalid, so it cannot be built. Correct the attribute as the cause says.
+The arguments of an #[Action], #[Command], #[Query], #[Hook] or #[Subscription] attribute are invalid, so it cannot be built. Correct the attribute as the cause says.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)
@@ -843,7 +856,16 @@ A scan root that a service provider declares is not a readable directory. Correc
 
 ### registry_not_a_concrete_class
 
-An #[Action], #[Command], #[Query] or #[Hook] attribute sits on an interface, a trait, an enum or an abstract class. Put it on a concrete class.
+An #[Action], #[Command], #[Query], #[Hook] or #[Subscription] attribute sits on an interface, a trait, an enum or an abstract class. Put it on a concrete class.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_not_a_subscriber
+
+A #[Subscription] sits on a class that does not implement Subscriber. Implement Cbox\Cms\Contracts\Subscribers\Subscriber, or remove the attribute.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)
@@ -861,7 +883,7 @@ An #[Action] sits on a class that implements neither WriteAction nor QueryAction
 
 ### registry_not_final_readonly
 
-A #[Command], #[Query] or #[Action] sits on a class that is not a final readonly class (GUARDRAILS 2.1). Make the class final readonly.
+A #[Command], #[Query], #[Action] or #[Subscription] sits on a class that is not a final readonly class (GUARDRAILS 2.1). Make the class final readonly.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)
@@ -877,9 +899,27 @@ An action handles a class that is not a registered command (for a WriteAction) o
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
+### registry_unknown_event
+
+A #[Subscription] lists an event class that does not exist or does not implement Event, or whose type() fails. List the classes of the events the subscriber receives.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
 ### registry_unknown_hook_command
 
 A hook runs for a command class that no scan root registers. Correct the command the #[Hook] names, or declare the scan root of the package that has it.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_unknown_lane
+
+A #[Subscription] names a lane that is not a case of the Lane enum. Name Lane::Critical, Lane::Standard, Lane::External, Lane::Revalidate or Lane::Background.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)
