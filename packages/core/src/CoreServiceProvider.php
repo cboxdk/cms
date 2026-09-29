@@ -73,8 +73,11 @@ use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Database\ConnectionResolverInterface;
 use Illuminate\Database\DatabaseManager;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\LazyLoadingViolationException;
 use Illuminate\Support\ServiceProvider;
 use Override;
+use Psr\Log\LoggerInterface;
 
 /**
  * Registers the core package in a Laravel application. Loaded through package discovery.
@@ -84,7 +87,8 @@ use Override;
  * schedules it in a process that has the owner connection. Refuses to boot a process that serves
  * HTTP or runs queued jobs with the owner connection configured (PRD 4.2). Wires the registry that cms:build compiles to bootstrap/cache/cms/ (PRD 13.2), and
  * declares the core's own classes as a scan root. Wires the checks of cms:doctor (PRD 3.3, 4.2) to
- * their probes; a test swaps a probe by binding its interface.
+ * their probes; a test swaps a probe by binding its interface. Makes Eloquent strict for every model
+ * of the process (GUARDRAILS 4.1).
  */
 #[Internal]
 final class CoreServiceProvider extends ServiceProvider implements DeclaresScanRoots
@@ -154,6 +158,8 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
     {
         $this->refuseOwnerCredentialsOutsideTheConsole();
 
+        $this->makeEloquentStrict();
+
         // The core's tables. The owner role runs them (PRD 4.2); the app role has no DDL.
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
 
@@ -165,6 +171,42 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
             if (self::ownerConnectionConfigured($app->make(Repository::class))) {
                 $schedule->command(self::PARTITIONS_COMMAND)->hourly();
             }
+        });
+    }
+
+    /**
+     * Eloquent's strictness for every model of the process, set once here and never per model
+     * (GUARDRAILS 4.1). Reading an attribute the model did not load and mass-assigning an
+     * attribute that is not fillable throw in every environment, production included, so a
+     * missing column or a dropped value never passes as null or silence. Loading a relation
+     * lazily throws outside production; in production it is logged as an error and the relation
+     * loads, so an N+1 found there costs a log line, not a failed request.
+     *
+     * The violation handlers are set on each boot, to null outside production, because they are
+     * static and would otherwise outlive the application that set them.
+     */
+    private function makeEloquentStrict(): void
+    {
+        Model::preventAccessingMissingAttributes();
+        Model::handleMissingAttributeViolationUsing(null);
+        Model::preventSilentlyDiscardingAttributes();
+        Model::handleDiscardedAttributeViolationUsing(null);
+        Model::preventLazyLoading();
+
+        // An application without an environment, as a bare container is, counts as not production.
+        if (! $this->app->bound('env') || $this->app->environment('production') !== true) {
+            Model::handleLazyLoadingViolationUsing(null);
+
+            return;
+        }
+
+        $app = $this->app;
+
+        Model::handleLazyLoadingViolationUsing(static function (Model $model, string $relation, LazyLoadingViolationException $violation) use ($app): void {
+            $app->make(LoggerInterface::class)->error($violation->getMessage(), [
+                'model' => $model::class,
+                'relation' => $relation,
+            ]);
         });
     }
 

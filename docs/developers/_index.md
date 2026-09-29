@@ -1,7 +1,7 @@
 ---
 title: Developers
 weight: 20
-description: How the kernel's code is organised and checked, how cms:doctor and the partition manager work, how the services and tests are kept apart, and the configuration reference.
+description: How the kernel's code is organised and checked, how cms:doctor and the partition manager work, how the services and tests are kept apart, the configuration reference, and the strictness of Eloquent models.
 ---
 
 # Developers
@@ -14,3 +14,4 @@ This section is for people who work on the kernel itself.
 - [Partitions](partitions.md): the partition manager and `cms:partitions:maintain`.
 - [Services and isolation](services.md): the shared Docker services and how each checkout gets its own test database and Valkey prefix.
 - [Configuration](configuration.md): every key of `config/cbox-cms.php`.
+- [Infrastructure models](models.md): Eloquent models and the strictness the kernel sets for every model.
