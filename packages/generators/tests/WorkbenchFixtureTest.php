@@ -153,6 +153,12 @@ it('has committed generated code that matches the schema', function (): void {
         'workbench/app/Cms/Generated/Validators/AppFixtureArticleValidator.php',
         'workbench/app/Cms/Generated/Validators/AppFixtureMeasurementValidator.php',
         'workbench/resources/js/cms/generated/index.ts',
+        'workbench/resources/js/cms/generated/protocol/EnvelopeV1.ts',
+        'workbench/resources/js/cms/generated/protocol/ProblemV1.ts',
+        'workbench/resources/js/cms/generated/protocol/ReceiptV1.ts',
+        'workbench/resources/js/cms/generated/records/AppFixtureArticleV1.ts',
+        'workbench/resources/js/cms/generated/records/AppFixtureMeasurementV1.ts',
+        'workbench/resources/js/cms/generated/validation.ts',
     ]);
 
     foreach ($result->files as $file) {

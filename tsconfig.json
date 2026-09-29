@@ -7,5 +7,13 @@
     "checkJs": true,
     "types": ["node"]
   },
-  "include": ["*.js", "js/*/*.js", "js/*/src/**/*", "workbench/resources/js/**/*"]
+  "include": [
+    "*.js",
+    "js/*/*.js",
+    "js/*/src/**/*",
+    "workbench/resources/js/**/*",
+    "packages/*/resources/typescript/**/*",
+    "packages/generators/tests/Descriptor/Fixtures/Comprehensive/typescript/**/*",
+    "tests/Support/TypeScript/*.ts"
+  ]
 }

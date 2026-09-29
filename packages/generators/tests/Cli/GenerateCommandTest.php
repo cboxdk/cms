@@ -107,10 +107,15 @@ it('writes the PHP enum, the record DTO and codec, the validator and the TypeScr
             'written: app/Cms/Generated/TypeHandle.php',
             'written: app/Cms/Generated/Validators/AppPageValidator.php',
             'written: resources/js/cms/generated/index.ts',
-            'Generated 12 files: 12 written, 0 unchanged, 0 stale removed.',
+            'written: resources/js/cms/generated/protocol/EnvelopeV1.ts',
+            'written: resources/js/cms/generated/protocol/ProblemV1.ts',
+            'written: resources/js/cms/generated/protocol/ReceiptV1.ts',
+            'written: resources/js/cms/generated/records/AppPageV1.ts',
+            'written: resources/js/cms/generated/validation.ts',
+            'Generated 17 files: 17 written, 0 unchanged, 0 stale removed.',
         ])
         ->and($second)->toBe(0)
-        ->and($secondOutput)->toBe(['Generated 12 files: 0 written, 12 unchanged, 0 stale removed.'])
+        ->and($secondOutput)->toBe(['Generated 17 files: 0 written, 17 unchanged, 0 stale removed.'])
         ->and(array_map(static fn (string $file): string => (string) hash_file('sha256', $root.'/'.$file), SchemaFixtures::files($root)))->toBe($hashes)
         ->and(SchemaFixtures::files($root))->toBe([
             'app/Cms/Generated/Boundary/AppPageCodecV1.php',
@@ -125,6 +130,11 @@ it('writes the PHP enum, the record DTO and codec, the validator and the TypeScr
             'app/Cms/Generated/TypeHandle.php',
             'app/Cms/Generated/Validators/AppPageValidator.php',
             'resources/js/cms/generated/index.ts',
+            'resources/js/cms/generated/protocol/EnvelopeV1.ts',
+            'resources/js/cms/generated/protocol/ProblemV1.ts',
+            'resources/js/cms/generated/protocol/ReceiptV1.ts',
+            'resources/js/cms/generated/records/AppPageV1.ts',
+            'resources/js/cms/generated/validation.ts',
             'schema/page.yaml',
         ]);
 });
@@ -182,7 +192,8 @@ it('generates when a module release adds a type with the handle of an app type, 
             'written: app/Cms/Generated/TypeHandle.php',
             'written: app/Cms/Generated/Validators/AcmePageValidator.php',
             'written: resources/js/cms/generated/index.ts',
-            'Generated 19 files: 12 written, 7 unchanged, 0 stale removed.',
+            'written: resources/js/cms/generated/records/AcmePageV1.ts',
+            'Generated 25 files: 13 written, 12 unchanged, 0 stale removed.',
         ])
         ->and(is_file($root.'/app/Cms/Generated/Validators/AppPageValidator.php'))->toBeTrue()
         ->and((string) file_get_contents($root.'/app/Cms/Generated/TypeHandle.php'))->toContain("    case AcmePage = 'acme:page';\n    case AppPage = 'app:page';\n")

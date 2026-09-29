@@ -27,7 +27,8 @@ use Override;
  *
  * The output is formatted the way the shared Prettier configuration prints it (printWidth 100,
  * single quotes), so `prettier --check` accepts it unchanged. A union that fits on one line stays
- * on one line; a longer one gets one member per line with a leading `|`, as Prettier breaks it.
+ * on one line; a longer one moves to the next line, and one that does not fit there either gets
+ * one member per line with a leading `|`, as Prettier breaks it.
  */
 #[Internal]
 final readonly class TypeScriptTypeHandles implements Generator
@@ -117,6 +118,10 @@ final readonly class TypeScriptTypeHandles implements Generator
         }
 
         $lines = [$declaration];
+
+        if (2 + strlen(implode(' | ', $members)) + 1 <= self::PRINT_WIDTH) {
+            return [$declaration, '  '.implode(' | ', $members).';'];
+        }
 
         foreach ($members as $member) {
             $lines[] = '  | '.$member;

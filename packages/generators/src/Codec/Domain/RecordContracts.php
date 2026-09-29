@@ -11,6 +11,7 @@ use Cbox\Cms\Generators\Codec\Domain\Dto\CodecContract;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecObject;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecProperty;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecValue;
+use Cbox\Cms\Generators\Codec\Domain\Dto\StringForm;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\FieldDescriptor;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\TypeDescriptor;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\ValidationRule;
@@ -41,6 +42,12 @@ final readonly class RecordContracts
     public const string ID_KEY = 'cms_id';
 
     /**
+     * The form of the entry's id, a UUIDv7 (PRD 5.3), in the dialect of JSON Schema, as the kernel's
+     * schemas write an id; EntryId checks it in PHP, and the TypeScript validator checks this.
+     */
+    public const string ID_PATTERN = '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$';
+
+    /**
      * What the record holds for each core field type of the blueprint schema v1. A field type
      * without a mapping here is refused as invalid output. The generator-coverage test holds the
      * keys to the field types of the installed blueprint.v1.json.
@@ -68,7 +75,7 @@ final readonly class RecordContracts
         $name = PhpTypeHandleEnum::caseName($type);
         $className = $name.'V'.self::VERSION;
         $generated = self::generatedBy();
-        $properties = [new CodecProperty(self::ID_KEY, 'cmsId', CodecValue::id(EntryId::class), true, null, 'The id of the entry (PRD 5.3).')];
+        $properties = [new CodecProperty(self::ID_KEY, 'cmsId', CodecValue::id(EntryId::class, new StringForm(self::ID_PATTERN)), true, null, 'The id of the entry (PRD 5.3).')];
 
         foreach ($type->ownFields() as $field) {
             $properties[] = self::property($field, $className, $type, true);

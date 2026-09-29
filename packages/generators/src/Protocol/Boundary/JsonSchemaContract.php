@@ -11,6 +11,7 @@ use Cbox\Cms\Generators\Codec\Domain\Dto\CodecContract;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecObject;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecProperty;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecValue;
+use Cbox\Cms\Generators\Codec\Domain\Dto\StringForm;
 use Cbox\Cms\Generators\Codec\Domain\PhpSource;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\ValidationRule;
 use Cbox\Cms\Generators\Descriptor\Domain\ValidationRuleName;
@@ -403,9 +404,11 @@ final readonly class JsonSchemaContract
             throw $this->problem($pointer, sprintf('is bound to %s, which is not a class', $binding->class));
         }
 
+        $form = $this->form($node, $pointer);
+
         return match ($binding->kind) {
-            CodecKind::Id => $this->valueClass($node, $binding, $pointer, CodecValue::id($binding->class), $binding->class),
-            default => $this->valueClass($node, $binding, $pointer, CodecValue::value($binding->class), $binding->class),
+            CodecKind::Id => $this->valueClass($binding, $pointer, CodecValue::id($binding->class, $form), $binding->class),
+            default => $this->valueClass($binding, $pointer, CodecValue::value($binding->class, $form), $binding->class),
         };
     }
 
@@ -492,11 +495,8 @@ final readonly class JsonSchemaContract
      *
      * @throws GenerationFailed
      */
-    private function valueClass(stdClass $node, ValueBinding $binding, string $pointer, CodecValue $value, string $name): CodecValue
+    private function valueClass(ValueBinding $binding, string $pointer, CodecValue $value, string $name): CodecValue
     {
-        $this->integerRule($node, 'minLength', ValidationRuleName::MinLength, $pointer);
-        $this->integerRule($node, 'maxLength', ValidationRuleName::MaxLength, $pointer);
-
         $class = new ReflectionClass($name);
 
         $usable = $binding->kind === CodecKind::Id
@@ -510,6 +510,28 @@ final readonly class JsonSchemaContract
         }
 
         return $value;
+    }
+
+    /**
+     * The form of a bound string: its `pattern`, `minLength` and `maxLength`, which the bound class
+     * checks in PHP and the TypeScript validator checks from the schema.
+     *
+     * @throws GenerationFailed
+     */
+    private function form(stdClass $node, string $pointer): ?StringForm
+    {
+        $pattern = $node->pattern ?? null;
+
+        if ($pattern !== null && ! is_string($pattern)) {
+            throw $this->problem($pointer, 'has a "pattern" that is not a string');
+        }
+
+        $minLength = $this->integerRule($node, 'minLength', ValidationRuleName::MinLength, $pointer)[0]->arguments[0] ?? null;
+        $maxLength = $this->integerRule($node, 'maxLength', ValidationRuleName::MaxLength, $pointer)[0]->arguments[0] ?? null;
+
+        return $pattern === null && $minLength === null && $maxLength === null
+            ? null
+            : new StringForm($pattern, $minLength === null ? null : (int) $minLength, $maxLength === null ? null : (int) $maxLength);
     }
 
     /**

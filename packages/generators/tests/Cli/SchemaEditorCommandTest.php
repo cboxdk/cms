@@ -159,7 +159,7 @@ it('leaves files the reader still accepts', function (): void {
     [$status, $output] = editorCommand('cms:generate');
 
     expect($status)->toBe(0)
-        ->and($output)->toContain('Generated 12 files: 12 written, 0 unchanged, 0 stale removed.')
+        ->and($output)->toContain('Generated 17 files: 17 written, 0 unchanged, 0 stale removed.')
         ->and((string) file_get_contents($root.'/app/Cms/Generated/TypeHandle.php'))->toContain("    case AppPage = 'app:page';");
 });
 

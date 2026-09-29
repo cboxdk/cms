@@ -174,7 +174,7 @@ A few rules decide more than the field type does:
 - A required field of the type's owner is NOT NULL, and its PHP and TypeScript types are not nullable. An extension field never is, even with `required: true`, because the owner's code creates and revises entries without knowing it; its `required` is enforced when an entry is published (PRD 11.12). Every other field is nullable.
 - A `rich_text` field that leaves out `styles`, `marks`, `lists` or `links` allows every one of that list.
 
-From the descriptors, `cms:generate` writes the type enum and the TypeScript types, and for each type a record DTO and its JSON codec, described on [Records and JSON codecs](codecs.md).
+From the descriptors, `cms:generate` writes the type enum and the TypeScript types, and for each type a record DTO, its JSON codec and a TypeScript module with its validator, described on [Records and JSON codecs](codecs.md).
 
 The rules of each field's runtime validator become a validator per type, which checks input from outside the repository against the same schema; see [Runtime validators](validation.md).
 

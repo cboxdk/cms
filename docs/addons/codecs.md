@@ -50,6 +50,20 @@ A field classified above public can be withheld (PRD 12.2). The codec takes the 
 - `json_malformed`: the document is not well-formed JSON, not an object, nests too deep, or an object in it has the same key twice. `json_decode()` keeps the last of two equal keys; the codec refuses them.
 - `json_invalid`: a key is missing or unknown, a value has the wrong type or breaks a rule, or a field is classified above the access. `path` is the `FieldPath` of the value, such as `fixture_sources[0].fixture_source_url`.
 
+## The TypeScript form and its validator
+
+`cms:generate` also writes the JSON form as TypeScript, into the TypeScript directory of `cbox-cms.generators` (`resources/js/cms/generated` in an application), so the browser and the kernel agree on each contract version (PRD 11.12, GUARDRAILS 2.2):
+
+- `records/<Owner><Handle>V1.ts` for each type: an interface per object of the record with the JSON keys, snake_case as the handles are, the extension fields under `ext.<namespace>.<handle>`, a union type of the values of each select, and rich text as `PortableText`, a list of Portable Text blocks.
+- `protocol/ReceiptV1.ts`, `protocol/ProblemV1.ts` and `protocol/EnvelopeV1.ts`: the receipt, the problem details and the envelope of the kernel's JSON Schemas, described on [Receipt JSON](receipt-json.md), [Problem details](problem-details.md) and [Envelope JSON](envelope-json.md).
+- `validation.ts`: the runtime the modules share. It needs nothing but the language, `URL` and `TextEncoder`, so a browser and Node load it as it is.
+
+A key that is required is required in the type; a key that may be `null` has `| null`; a key that may be missing, because it is optional, has a default or is classified above public, is optional (`key?:`). Each module has a validator, such as `validateAppFixtureArticleV1(value: unknown)`, which checks a value that `JSON.parse()` gave against every rule the PHP codec checks, in the order the codec reads the keys, and gives the value typed as the contract or the first value that breaks a rule, with its path as `FieldPath` writes it: `{ valid: true, value }` or `{ valid: false, issue: { path, reason } }`, where `path` is `null` for the document itself.
+
+Where the validator and the codec differ, it is because TypeScript cannot know what PHP knows: a field's classification (a withheld field may be missing, whoever reads the document), the invariants a class of the contracts checks across its fields, such as that a rejected receipt has no changeset, and an integer that a JavaScript number cannot hold exactly, which the validator refuses. The Codecs suite runs the workbench's validators in Node against what the PHP codecs write, and against documents both must accept or refuse at the same value.
+
+The modules import one another without a file extension, as a bundler such as Vite resolves them.
+
 ## The JsonCodec contract
 
 `Cbox\Cms\Contracts\Codecs\JsonCodec` is the contract of every generated codec, with the DTO it encodes as its type argument: `encode(object $dto, ClassificationAccess $access): string` and `decode(string $json, ClassificationAccess $access): object`. A surface serves a DTO through the codec of the contract version it serves, with the classification access of the call:

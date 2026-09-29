@@ -13,6 +13,7 @@ use Cbox\Cms\Generators\Editor\Adapter\FilesystemSchemaFiles;
 use Cbox\Cms\Generators\Editor\Domain\SchemaFiles;
 use Cbox\Cms\Generators\Generation\Adapter\FilesystemGeneratedOutput;
 use Cbox\Cms\Generators\Generation\Boundary\GeneratorConfig;
+use Cbox\Cms\Generators\Generation\Boundary\TypeScriptRuntime;
 use Cbox\Cms\Generators\Generation\Domain\GeneratedOutput;
 use Cbox\Cms\Generators\Generation\Domain\GeneratorRunner;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecordDtos;
@@ -20,7 +21,9 @@ use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecords;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeCatalog;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeHandleEnum;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeValidators;
+use Cbox\Cms\Generators\Generation\Domain\Generators\TypeScriptContracts;
 use Cbox\Cms\Generators\Generation\Domain\Generators\TypeScriptTypeHandles;
+use Cbox\Cms\Generators\Protocol\Boundary\KernelContracts;
 use Cbox\Cms\Generators\Schema\Boundary\YamlBlueprintSource;
 use Cbox\Cms\Generators\Schema\Domain\BlueprintSource;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypeRegistry;
@@ -64,6 +67,7 @@ final class GeneratorsServiceProvider extends ServiceProvider implements Declare
                 new PhpTypeCatalog(ServiceProvider::class),
                 new PhpTypeValidators,
                 new TypeScriptTypeHandles,
+                new TypeScriptContracts(new TypeScriptRuntime()->source(...), new KernelContracts()->read(...)),
             ]),
         );
     }

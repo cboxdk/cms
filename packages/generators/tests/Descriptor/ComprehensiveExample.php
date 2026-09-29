@@ -68,8 +68,8 @@ final class ComprehensiveExample
     }
 
     /**
-     * Where the generators write the example: the golden PHP in PHP_DIRECTORY, and TypeScript in a
-     * directory that is not committed, because the PHP golden files are compared here.
+     * Where the generators write the example: the golden PHP in PHP_DIRECTORY, and the TypeScript in
+     * typescript/generated, whose golden files the TypeScript tests compare.
      */
     public static function target(): GenerationTarget
     {

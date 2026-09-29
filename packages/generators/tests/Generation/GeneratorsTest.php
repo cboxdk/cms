@@ -288,6 +288,13 @@ it('keeps a union that fits in Prettier\'s print width on one line, and breaks a
         ->and(max(array_map(strlen(...), explode("\n", $long))))->toBeLessThanOrEqual(TypeScriptTypeHandles::PRINT_WIDTH);
 });
 
+it('moves a union that does not fit on the line of its name to the next line when it fits there, as Prettier does', function (): void {
+    $types = ['a_moderately_long_type_handle_1' => ['f' => 'text'], 'a_moderately_long_type_handle_2' => ['f' => 'text']];
+    $contents = contentsOf(new TypeScriptTypeHandles()->generate(SchemaFixtures::schema($types), SchemaFixtures::target()))['resources/js/cms/generated/index.ts'];
+
+    expect($contents)->toContain("export type TypeHandle =\n  'app:a_moderately_long_type_handle_1' | 'app:a_moderately_long_type_handle_2';\n");
+});
+
 it('writes the owner\'s fields by handle and extension fields under ext, by namespace and handle', function (): void {
     $app = SchemaFixtures::root();
     $acme = SchemaFixtures::root('acme', 'vendor/acme/shop/schema');
