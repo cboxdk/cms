@@ -11,7 +11,7 @@ use Cbox\Cms\Contracts\Hooks\ValidateHook;
 /**
  * The pipeline phase a hook runs in (PRD 6.2 and 6.3).
  */
-#[Stable]
+#[Experimental]
 enum Phase: string
 {
     /** Phase 2. The hook may reject with a reason, never grant access. */

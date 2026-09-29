@@ -21,7 +21,7 @@ use ReflectionClass;
  * the command with hook_budget_exceeded.
  */
 #[Attribute(Attribute::TARGET_CLASS)]
-#[Stable]
+#[Experimental]
 final readonly class Hook
 {
     public const int MAX_BUDGET_MS = 20;

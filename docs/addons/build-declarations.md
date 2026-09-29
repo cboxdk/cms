@@ -57,7 +57,7 @@ A package's service provider implements `Cbox\Cms\Contracts\Build\DeclaresScanRo
 
 ## Hooks
 
-`#[Hook(command: ..., phase: ..., priority: ..., budgetMs: ...)]` sits on a hook class and says which command it runs for, in which phase, in which order and within which time budget (GUARDRAILS 2.4, PRD 6.3). The class implements the interface of its phase, and [hooks](hooks.md) says what each phase's hook gets and returns. `#[Hook]` and `Phase` are `#[Stable]`:
+`#[Hook(command: ..., phase: ..., priority: ..., budgetMs: ...)]` sits on a hook class and says which command it runs for, in which phase, in which order and within which time budget (GUARDRAILS 2.4, PRD 6.3). The class implements the interface of its phase, and [hooks](hooks.md) says what each phase's hook gets and returns. `#[Hook]` and `Phase` are `#[Experimental]`:
 
 | Argument | Value |
 |---|---|

@@ -143,3 +143,12 @@ it('gives all hooks of a command 100 ms together, five times the most one hook m
     expect(Hook::COMMAND_BUDGET_MS)->toBe(100)
         ->and(Hook::MAX_BUDGET_MS)->toBe(20);
 });
+
+it('keeps the hook declaration Experimental with the command, query and action declarations', function (): void {
+    foreach ([Hook::class, Phase::class, Command::class, Query::class, Action::class] as $class) {
+        $reflection = new ReflectionClass($class);
+
+        expect($reflection->getAttributes(Experimental::class))->toHaveCount(1, $class)
+            ->and($reflection->getAttributes(Stable::class))->toBe([], $class);
+    }
+});
