@@ -12,9 +12,10 @@ namespace Cbox\Cms\Tooling\Docs\Domain;
  * - every entry has its image, docs/screenshots/<key>.svg;
  * - every file in docs/screenshots but _index.md is the image of an entry;
  * - a page outside docs/screenshots embeds every entry, so no image is committed that no page
- *   describes;
- * - every image link to an entry's image has the entry's caption as its alt text, so the caption
- *   is written in one place.
+ *   describes; README.md, CONTRIBUTING.md and SECURITY.md count as pages here;
+ * - README.md embeds at least one entry, so the repository's front page shows what the code does;
+ * - every image link to an entry's image, on a page or in those root files, has the entry's
+ *   caption as its alt text, so the caption is written in one place.
  */
 final readonly class ScreenshotAudit
 {
@@ -61,7 +62,10 @@ final readonly class ScreenshotAudit
         /** @var array<string, true> $embedded */
         $embedded = [];
 
-        foreach ($tree->pages as $page) {
+        /** @var array<string, true> $embeddedByReadme */
+        $embeddedByReadme = [];
+
+        foreach ([...$tree->rootPages, ...$tree->pages] as $page) {
             foreach ($page->links as $link) {
                 $resolved = $link->image && $link->isRelative() ? DocsLinks::resolve($page->path, $link->path()) : null;
                 $shot = $resolved === null ? null : ($byPath[$resolved] ?? null);
@@ -74,6 +78,10 @@ final readonly class ScreenshotAudit
                     $embedded[$shot->path()] = true;
                 }
 
+                if ($page->path === DocsLayout::README) {
+                    $embeddedByReadme[$shot->path()] = true;
+                }
+
                 if ($link->text !== $shot->caption) {
                     $findings[] = Finding::at($page->path, $link->line, "the alt text of {$shot->path()} is not the caption of its entry in Screenshots: {$shot->caption}");
                 }
@@ -84,6 +92,12 @@ final readonly class ScreenshotAudit
             if (! isset($embedded[$path])) {
                 $findings[] = Finding::about($path, 'no page outside docs/screenshots embeds it; embed it on the page that describes it, or remove its entry from Screenshots');
             }
+        }
+
+        $readme = array_any($tree->rootPages, static fn (Page $page): bool => $page->path === DocsLayout::README);
+
+        if ($readme && $byPath !== [] && $embeddedByReadme === []) {
+            $findings[] = Finding::about(DocsLayout::README, 'embeds no screenshot; show at least one image of Screenshots, with its caption as the alt text');
         }
 
         return $findings;

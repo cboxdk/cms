@@ -2,7 +2,39 @@
 
 A CMS for Laravel, built on PHP 8.5, Laravel 13, Postgres and Valkey.
 
-Cbox CMS is in development and has no release yet. This repository is the one Composer package `cboxdk/cms`: the kernel and its modules, the workbench application they run in, and the tools that check every change. What exists today is described in the [documentation](docs/index.md).
+## Status
+
+Cbox CMS is pre-release. There is no tagged version and no package on Packagist, and nothing here is ready for production content yet.
+
+- **Milestone 0 is done:** the toolchain and the kernel's foundations. That is the contracts for the clock, ids, receipts and idempotency with their Postgres stores, the partition manager, the blueprint schema v1 with `cms:generate`, the compiled registry of commands and hooks, `cms:doctor`, and the gates every change passes.
+- **Milestone 1 is in progress:** the walking skeleton. It brings the command pipeline, the event log, delivery of content by path, and the REST, CLI and MCP surfaces, proven with content types that exist only as test fixtures.
+- **Not there yet:** everything milestone 1 brings, and the control panel and everything an editor would use.
+
+[What exists today](docs/index.md#what-exists-today) lists it in more detail.
+
+## What it will be
+
+Cbox CMS is meant for large editorial installations: millions of entries, several brands in one installation, and stories shared between sites without copying them. Every write is a command that commits one changeset in Postgres, so the state lives in the database and not on a node. The kernel knows no content types; every type and field comes from blueprint files, and the typed code and clients are generated from them.
+
+## Requirements
+
+PHP 8.5 and Laravel 13, Postgres 17 or newer and Valkey. Development also needs Docker and Node 22.13 or newer. [Requirements](docs/requirements.md) has the full list.
+
+## Contributing
+
+With Docker, PHP 8.5 and Node on the host:
+
+1. `composer install` and `npm ci`
+2. `npx playwright install chromium`, once per machine
+3. `composer services:up`
+4. `composer dev:prepare`
+5. `composer check`
+
+`cms:doctor` then checks the installation:
+
+![cms:doctor on a healthy installation. Every runtime check passes, and each line says what the check looked at and what it found.](docs/screenshots/doctor.svg)
+
+[Quickstart](docs/quickstart.md) explains each step, and [CONTRIBUTING.md](CONTRIBUTING.md) the gates, the commit format and the rules for changing a check.
 
 ## Documentation
 
@@ -11,13 +43,10 @@ Cbox CMS is in development and has no release yet. This repository is the one Co
 - [Requirements](docs/requirements.md): the versions and services.
 - [Getting started](docs/getting-started/_index.md), [Developers](docs/developers/_index.md), [Addons](docs/addons/_index.md) and [Security](docs/security/_index.md).
 
-## Development
+## Security
 
-With Docker, PHP 8.5 and Node 22.13 or newer:
+Report a vulnerability privately, as [SECURITY.md](SECURITY.md) describes. Do not open a public issue for it.
 
-1. `composer install` and `npm ci`
-2. `composer services:up`
-3. `composer dev:prepare`
-4. `composer check`
+## License
 
-[Installation](docs/getting-started/installation.md) explains each step, and [Gates and CI](docs/developers/gates-and-ci.md) what `composer check` runs.
+Cbox CMS is open source under the [MIT license](LICENSE).

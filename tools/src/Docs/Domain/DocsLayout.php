@@ -15,13 +15,30 @@ namespace Cbox\Cms\Tooling\Docs\Domain;
  *   so the section page comes first;
  * - below docs/ there are only Markdown pages and the screenshots of Screenshots, in
  *   docs/screenshots;
- * - no Markdown file is below packages/: the documentation is in docs/.
+ * - no Markdown file is below packages/: the documentation is in docs/;
+ * - the root of the repository has README.md, LICENSE, SECURITY.md and CONTRIBUTING.md, the files
+ *   GitHub shows a visitor, and DocsLinks checks the links of the three Markdown files as it checks
+ *   a page's.
  */
 final readonly class DocsLayout
 {
     public const string ROOT = 'docs';
 
     public const string README = 'README.md';
+
+    /**
+     * The Markdown files at the root of the repository whose links are checked, README.md first.
+     *
+     * @var list<string>
+     */
+    public const array ROOT_MARKDOWN = [self::README, 'CONTRIBUTING.md', 'SECURITY.md'];
+
+    /**
+     * The files the root of the repository must have.
+     *
+     * @var list<string>
+     */
+    public const array REPOSITORY_FILES = [self::README, 'CONTRIBUTING.md', 'LICENSE', 'SECURITY.md'];
 
     public const string SCREENSHOTS = 'docs/screenshots';
 
@@ -41,6 +58,12 @@ final readonly class DocsLayout
     {
         $findings = [];
         $files = array_flip($tree->docsFiles);
+
+        foreach (self::REPOSITORY_FILES as $path) {
+            if ($tree->files->contents($path) === null) {
+                $findings[] = Finding::about($path, 'missing; the root of the repository has README.md, LICENSE, SECURITY.md and CONTRIBUTING.md');
+            }
+        }
 
         foreach (self::ROOT_PAGES as $name) {
             if (! isset($files[self::ROOT.'/'.$name])) {

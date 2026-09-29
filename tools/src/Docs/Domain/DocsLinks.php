@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Tooling\Docs\Domain;
 
 /**
- * No relative link on a page below docs/, or in README.md, dangles: its path, from the page's
+ * No relative link on a page below docs/, or in README.md, CONTRIBUTING.md or SECURITY.md, dangles: its path, from the page's
  * folder, stays inside the repository and names a file or folder that exists, and a fragment on a
  * link to a Markdown file, or on a link to a heading of the same page, names a heading there. A link
  * with a scheme, such as https: or mailto:, is not checked.
@@ -18,9 +18,7 @@ final readonly class DocsLinks
     public static function findings(DocsTree $tree): array
     {
         $findings = [];
-        $pages = $tree->readme instanceof Page ? [$tree->readme, ...$tree->pages] : $tree->pages;
-
-        foreach ($pages as $page) {
+        foreach ([...$tree->rootPages, ...$tree->pages] as $page) {
             foreach ($page->links as $link) {
                 if ($link->isRelative()) {
                     array_push($findings, ...self::linkFindings($page, $link, $tree->files));

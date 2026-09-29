@@ -19,7 +19,8 @@ use UnexpectedValueException;
 /**
  * Reads the documentation tree below a root directory, the repository or a scratch copy of it:
  * the PHP files of packages/<package>/src and the JSON schemas of packages/<package>/resources/schemas,
- * every file and directory below docs/ with its Markdown pages, README.md, the Markdown files below
+ * every file and directory below docs/ with its Markdown pages, README.md, CONTRIBUTING.md and
+ * SECURITY.md at the root, the Markdown files below
  * packages/, the PHP files below examples/, and the gate-5 suites of the root's phpunit.xml. Every
  * list is sorted by path, and symlinked directories are not followed.
  */
@@ -48,7 +49,15 @@ final readonly class LocalDocsTree
         $docs = $real.'/'.DocsLayout::ROOT;
         $docsFiles = self::files($real, $docs, '');
         $page = static fn (string $path): Page => PageParser::parse($path, $files->contents($path) ?? '');
-        $readme = $files->contents(DocsLayout::README);
+        $rootPages = [];
+
+        foreach (DocsLayout::ROOT_MARKDOWN as $path) {
+            $contents = $files->contents($path);
+
+            if ($contents !== null) {
+                $rootPages[] = PageParser::parse($path, $contents);
+            }
+        }
 
         return new DocsTree(
             array_map(static fn (string $path): PhpFile => PhpTokens::read($path, $files->contents($path) ?? ''), $sources),
@@ -57,7 +66,7 @@ final readonly class LocalDocsTree
             array_map(static fn (string $path): PhpFile => PhpTokens::read($path, $files->contents($path) ?? ''), self::files($real, $real.'/'.DocsAudit::EXAMPLES, '.php')),
             PhpunitGateSuites::read($real.'/phpunit.xml'),
             $files,
-            $readme === null ? null : PageParser::parse(DocsLayout::README, $readme),
+            $rootPages,
             $docsFiles,
             self::directories($real, $docs),
             self::files($real, $real.'/packages', '.md'),

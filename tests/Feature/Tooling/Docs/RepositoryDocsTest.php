@@ -57,7 +57,7 @@ function repositoryDocsWithOneByteChanged(DocsTree $tree, string $path): array
     $pages = array_map(static fn (Page $each): Page => $each->path === $path ? PageParser::parse($path, $changed) : $each, $tree->pages);
 
     return [
-        new DocsTree($tree->sources, $tree->schemas, $pages, $tree->examples, $tree->suites, $tree->files, $tree->readme, $tree->docsFiles, $tree->docsDirectories, $tree->strayPages),
+        new DocsTree($tree->sources, $tree->schemas, $pages, $tree->examples, $tree->suites, $tree->files, $tree->rootPages, $tree->docsFiles, $tree->docsDirectories, $tree->strayPages),
         "{$path}:{$embed->marker->line}: the fenced block differs from {$embed->marker->target}; embed the file byte for byte",
     ];
 }

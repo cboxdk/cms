@@ -14,7 +14,7 @@ final readonly class DocsTree
      * @param  list<string>  $schemas  the repo-relative *.json files below packages/<package>/resources/schemas
      * @param  list<Page>  $pages  the Markdown files below docs/
      * @param  list<PhpFile>  $examples  the PHP files below examples
-     * @param  ?Page  $readme  README.md at the root, whose links are checked like a page's
+     * @param  list<Page>  $rootPages  the Markdown files of DocsLayout::ROOT_MARKDOWN at the root that exist, README.md first, whose links are checked like a page's
      * @param  list<string>  $docsFiles  the repo-relative path of every file below docs/, Markdown or not
      * @param  list<string>  $docsDirectories  the repo-relative path of every directory below docs/, docs/ itself not included
      * @param  list<string>  $strayPages  the repo-relative *.md files below packages/, which belong in docs/
@@ -26,7 +26,7 @@ final readonly class DocsTree
         public array $examples,
         public GateSuites $suites,
         public RepositoryFiles $files,
-        public ?Page $readme,
+        public array $rootPages,
         public array $docsFiles,
         public array $docsDirectories,
         public array $strayPages,

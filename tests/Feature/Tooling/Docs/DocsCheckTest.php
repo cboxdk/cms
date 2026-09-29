@@ -129,6 +129,10 @@ function docsTree(): string
     $root = ScratchDirectory::make('cbox-cms-docs-test-');
 
     docsWrite($root, 'phpunit.xml', DOCS_PHPUNIT);
+    docsWrite($root, 'README.md', "# Greeter\n\nSee [the docs](docs/index.md).\n");
+    docsWrite($root, 'CONTRIBUTING.md', "# Contributing\n\nRead [the quickstart](docs/quickstart.md).\n");
+    docsWrite($root, 'SECURITY.md', "# Security\n\nSee [the addons](docs/addons/).\n");
+    docsWrite($root, 'LICENSE', "MIT License\n");
     docsWrite($root, 'docs/index.md', docsFrontmatter('Greeter', 1)."# Greeter\n\nSee [the addons](addons/_index.md).\n");
     docsWrite($root, 'docs/quickstart.md', docsFrontmatter('Quickstart', 2)."# Quickstart\n");
     docsWrite($root, 'docs/requirements.md', docsFrontmatter('Requirements', 3)."# Requirements\n");
@@ -523,6 +527,50 @@ it('reports a relative link to a missing file, one that leaves the repository an
     ]);
 });
 
+it('reports each missing file of the repository root: README.md, LICENSE, SECURITY.md and CONTRIBUTING.md', function (string $path): void {
+    $root = docsTree();
+    unlink($root.'/'.$path);
+
+    expect(docsFindings($root))->toBe([
+        "{$path}: missing; the root of the repository has README.md, LICENSE, SECURITY.md and CONTRIBUTING.md",
+    ]);
+})->with(['README.md', 'LICENSE', 'SECURITY.md', 'CONTRIBUTING.md']);
+
+it('reports a dangling link or image in CONTRIBUTING.md and SECURITY.md as in README.md, and leaves LICENSE unread', function (): void {
+    $root = docsTree();
+    docsWrite($root, 'CONTRIBUTING.md', "# Contributing\n\nRead [the quickstart](docs/quickstart.md) and [the rules](docs/rules.md).\n");
+    docsWrite($root, 'SECURITY.md', "# Security\n\n![A diagram](docs/security/diagram.svg) and [the form](https://github.com/cboxdk/cms/security/advisories/new).\n");
+    docsWrite($root, 'LICENSE', "MIT License\n\n[not a link](gone.md)\n");
+
+    expect(docsFindings($root))->toBe([
+        'CONTRIBUTING.md:3: the link docs/rules.md points to docs/rules.md, which does not exist',
+        'SECURITY.md:3: the link docs/security/diagram.svg points to docs/security/diagram.svg, which does not exist',
+    ]);
+});
+
+it('requires README.md to embed a screenshot with its caption, and counts it as the embed of its entry', function (): void {
+    $root = docsTree();
+    $shots = [new Screenshot('greeting', ['php', '-r', 'echo 1;'], 'The greeting.')];
+    docsWrite($root, 'docs/screenshots/_index.md', docsFrontmatter('Screenshots', 90)."# Screenshots\n\n![The greeting.](greeting.svg)\n");
+    docsWrite($root, 'docs/screenshots/greeting.svg', '<svg/>');
+
+    $without = docsFindings($root, [], $shots);
+
+    docsWrite($root, 'README.md', "# Greeter\n\n![A greeting](docs/screenshots/greeting.svg)\n");
+    $wrongCaption = docsFindings($root, [], $shots);
+
+    docsWrite($root, 'README.md', "# Greeter\n\n![The greeting.](docs/screenshots/greeting.svg)\n");
+
+    expect($without)->toBe([
+        'README.md: embeds no screenshot; show at least one image of Screenshots, with its caption as the alt text',
+        'docs/screenshots/greeting.svg: no page outside docs/screenshots embeds it; embed it on the page that describes it, or remove its entry from Screenshots',
+    ])
+        ->and($wrongCaption)->toBe([
+            'README.md:3: the alt text of docs/screenshots/greeting.svg is not the caption of its entry in Screenshots: The greeting.',
+        ])
+        ->and(docsFindings($root, [], $shots))->toBe([]);
+});
+
 it('gives a heading the anchor GitHub gives it', function (): void {
     $page = PageParser::parse('docs/a.md', implode("\n", [
         '# The contract: DoctorCheck',
@@ -561,6 +609,7 @@ it('reports a screenshot without its file, a file without an entry, an entry no 
     expect(docsFindings($root, [], $shots))->toBe([
         'docs/index.md:11: the alt text of docs/screenshots/greeting.svg is not the caption of its entry in Screenshots: The greeting.',
         'docs/screenshots/_index.md:11: the link missing.svg points to docs/screenshots/missing.svg, which does not exist',
+        'README.md: embeds no screenshot; show at least one image of Screenshots, with its caption as the alt text',
         'docs/screenshots/farewell.svg: no page outside docs/screenshots embeds it; embed it on the page that describes it, or remove its entry from Screenshots',
         'docs/screenshots/missing.svg: missing; capture it with composer docs:screenshots -- --only=missing',
         'docs/screenshots/missing.svg: no page outside docs/screenshots embeds it; embed it on the page that describes it, or remove its entry from Screenshots',
@@ -579,6 +628,7 @@ it('reports a screenshot key that is not lowercase words joined by hyphens, one 
 
     expect(array_values(array_filter(docsFindings($root, [], $shots), static fn (string $finding): bool => ! str_starts_with($finding, 'docs/screenshots/'))))->toBe([
         'Greeting_Page: the key of a screenshot is lowercase words and digits joined by hyphens',
+        'README.md: embeds no screenshot; show at least one image of Screenshots, with its caption as the alt text',
         'bare: a screenshot has a caption and a command',
         'twice: the key of a screenshot is used twice in Screenshots',
     ]);
@@ -711,7 +761,8 @@ it('exposes the check as composer docs:check', function (): void {
 
 /**
  * A scratch copy of what the documentation check reads in this repository: the sources and
- * schemas of the packages, docs/, README.md, examples/, phpunit.xml and every file a page embeds.
+ * schemas of the packages, docs/, README.md, CONTRIBUTING.md, SECURITY.md, LICENSE, examples/,
+ * phpunit.xml and every file a page embeds.
  */
 function docsRepositoryCopy(): string
 {
@@ -731,7 +782,7 @@ function docsRepositoryCopy(): string
         }
     };
 
-    foreach ([...(glob($repository.'/packages/*/src', GLOB_ONLYDIR) ?: []), ...(glob($repository.'/packages/*/resources', GLOB_ONLYDIR) ?: []), $repository.'/docs', $repository.'/README.md', $repository.'/examples', $repository.'/phpunit.xml'] as $path) {
+    foreach ([...(glob($repository.'/packages/*/src', GLOB_ONLYDIR) ?: []), ...(glob($repository.'/packages/*/resources', GLOB_ONLYDIR) ?: []), $repository.'/docs', $repository.'/README.md', $repository.'/CONTRIBUTING.md', $repository.'/SECURITY.md', $repository.'/LICENSE', $repository.'/examples', $repository.'/phpunit.xml'] as $path) {
         $copy($path, $scratch.substr($path, strlen($repository)));
     }
 
@@ -792,6 +843,34 @@ it('fails on a copy of this repository with a planted missing _index.md, a page 
     'missing screenshot' => ['missing screenshot', 'docs/screenshots/doctor.svg: missing; capture it with composer docs:screenshots -- --only=doctor'],
     'screenshot without an entry' => ['screenshot without an entry', 'docs/screenshots/extra.svg: no entry of Cbox\Cms\Tooling\Docs\Domain\Screenshots names this file; add one, or remove the file'],
     'screenshot no page embeds' => ['screenshot no page embeds', 'docs/screenshots/doctor-violation.svg: no page outside docs/screenshots embeds it; embed it on the page that describes it, or remove its entry from Screenshots'],
+]);
+
+it('fails on a copy of this repository with a planted broken link or image in README.md, CONTRIBUTING.md or SECURITY.md, or without LICENSE, and names each', function (string $path, string $plant, string $finding): void {
+    $scratch = docsRepositoryCopy();
+    [$before] = runDocsCheck('--root='.$scratch);
+
+    if ($plant === '') {
+        unlink($scratch.'/'.$path);
+        $line = 0;
+    } else {
+        $contents = (string) file_get_contents($scratch.'/'.$path);
+        docsWrite($scratch, $path, $contents."\n".$plant."\n");
+        $line = substr_count($contents, "\n") + 2;
+    }
+
+    [$exitCode, $output] = runDocsCheck('--root='.$scratch);
+
+    ScratchDirectory::delete($scratch);
+
+    expect($before)->toBe(0)
+        ->and($exitCode)->toBe(1)
+        ->and(explode("\n", $output))->toContain(str_replace('{line}', (string) $line, $finding));
+})->with([
+    'broken link in README.md' => ['README.md', 'See [the roadmap](docs/roadmap.md).', 'README.md:{line}: the link docs/roadmap.md points to docs/roadmap.md, which does not exist'],
+    'broken image in README.md' => ['README.md', '![A shot](docs/screenshots/gone.svg)', 'README.md:{line}: the link docs/screenshots/gone.svg points to docs/screenshots/gone.svg, which does not exist'],
+    'broken link in CONTRIBUTING.md' => ['CONTRIBUTING.md', 'See [the rules](docs/developers/rules.md).', 'CONTRIBUTING.md:{line}: the link docs/developers/rules.md points to docs/developers/rules.md, which does not exist'],
+    'broken heading in SECURITY.md' => ['SECURITY.md', 'See [the scope](docs/security/scope.md#nowhere).', 'SECURITY.md:{line}: the link docs/security/scope.md#nowhere names the heading #nowhere, which docs/security/scope.md does not have'],
+    'missing LICENSE' => ['LICENSE', '', 'LICENSE: missing; the root of the repository has README.md, LICENSE, SECURITY.md and CONTRIBUTING.md'],
 ]);
 
 it('exits 2 on a usage error and 1 on a root that is not a directory', function (): void {

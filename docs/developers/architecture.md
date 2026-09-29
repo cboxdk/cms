@@ -8,7 +8,7 @@ description: The package cboxdk/cms, its modules and where they live, the bounda
 
 ## The package and its modules
 
-Cbox CMS is one Composer package, `cboxdk/cms`, a library like `statamic/cms`, with one `composer.json` at the root of the repository. The kernel is six modules in `packages/`, each a namespace with its code in `packages/<module>/src` and its tests in `packages/<module>/tests`:
+Cbox CMS is one Composer package, `cboxdk/cms`, a library, with one `composer.json` at the root of the repository. The kernel is six modules in `packages/`, each a namespace with its code in `packages/<module>/src` and its tests in `packages/<module>/tests`:
 
 | Module | Namespace | What it holds |
 |---|---|---|

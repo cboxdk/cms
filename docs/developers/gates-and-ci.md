@@ -40,7 +40,8 @@ Gate 10 is not in the local profile, but the `Unit` suite runs the same document
 - a page that documents an extension point has no running example;
 - a fenced block on a page is not a file of the repository byte for byte, embedded with an `example` or `example-file` marker, or an example test is in no suite of gate 5 or asserts nothing;
 - `docs/` breaks the layout: files other than `index.md`, `quickstart.md` and `requirements.md` at its root, a folder without `_index.md`, a page without `title`, `weight` and `description` in its frontmatter, or an `_index.md` whose weight is not the lowest in its folder;
-- a relative link in `docs/` or `README.md` points to a file, folder or heading that does not exist;
+- the root of the repository lacks `README.md`, `LICENSE`, `SECURITY.md` or `CONTRIBUTING.md`;
+- a relative link or image in `docs/`, `README.md`, `CONTRIBUTING.md` or `SECURITY.md` points to a file, folder or heading that does not exist;
 - the screenshots in `docs/screenshots` and the manifest `Cbox\Cms\Tooling\Docs\Domain\Screenshots` do not match, or a page embeds a screenshot with another caption than the manifest's;
 - a Markdown file is below `packages/`.
 
