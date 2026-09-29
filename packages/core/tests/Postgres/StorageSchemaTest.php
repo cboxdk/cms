@@ -11,11 +11,14 @@ use Closure;
 use Illuminate\Support\Facades\DB;
 
 /*
- * The structure and entry tables as the core's migrations leave them (PRD 4.1, 4.2, 5.2 to 5.9),
- * read from the catalog: the ltree extension created by the owner role, the keys, uniques and
- * foreign keys, the GiST index on the node paths, fillfactor 80 on the variant heads, forced row
- * level security without a policy, and the app role's narrowed grants. Rows are written as the
- * superuser, the one role their row level security lets in while they have no policy.
+ * The structure, entry, placement and mount override tables as the core's migrations leave them
+ * (PRD 4.1, 4.2, 5.2 to 5.9), read from the catalog: the ltree extension created by the owner role,
+ * the keys, uniques and foreign keys, the GiST index on the node paths, fillfactor 80 on the variant
+ * heads and the placement tables, forced row level security without a policy, and the app role's
+ * narrowed grants. Rows are written as the superuser, the one role their row level security lets
+ * in while they have no policy. The partial unique indexes of invariants 14 and 15 are also shown
+ * to refuse as the owner role, in a transaction that lifts the forced row level security of
+ * `placement_locales` for the owner and is rolled back.
  */
 
 afterEach(function (): void {
@@ -39,6 +42,7 @@ it('has the keys, uniques, foreign keys and indexes of the storage form', functi
         'CREATE UNIQUE INDEX entries_pkey ON entries USING btree (id)',
         'CREATE UNIQUE INDEX node_routes_node_key ON node_routes USING btree (node_id, site_id, locale)',
         'CREATE UNIQUE INDEX node_routes_pkey ON node_routes USING btree (site_id, locale, route)',
+        'CREATE UNIQUE INDEX nodes_mount_key ON nodes USING btree (id, mount_source_id)',
         'CREATE INDEX nodes_mount_source_id ON nodes USING btree (mount_source_id)',
         'CREATE INDEX nodes_parent_id ON nodes USING btree (parent_id)',
         'CREATE INDEX nodes_path ON nodes USING gist (path)',
@@ -267,4 +271,227 @@ it('keeps an entry\'s lifecycle to its states, and its home and owner to existin
     }
 
     expect($superuser->table('entries')->count())->toBe(5);
+});
+
+it('has the keys, uniques, foreign keys, partial unique indexes and storage options of the placement tables', function (): void {
+    $owner = DB::connection('pgsql_owner');
+    $tables = '{'.implode(',', StorageTables::PLACEMENT_TABLES).'}';
+
+    expect(StorageTables::texts($owner, "select regexp_replace(indexdef, ' ON [a-z0-9_.]+\\.', ' ON ') as value from pg_indexes where tablename = any (?::text[]) and schemaname = current_schema() order by tablename, indexname", [$tables]))->toBe([
+        'CREATE INDEX mount_overrides_entry_id ON mount_overrides USING btree (entry_id)',
+        'CREATE INDEX mount_overrides_mount ON mount_overrides USING btree (mount_node_id, source_node_id)',
+        'CREATE UNIQUE INDEX mount_overrides_pkey ON mount_overrides USING btree (mount_node_id, entry_id)',
+        'CREATE INDEX placement_generations_node_id ON placement_generations USING btree (node_id)',
+        'CREATE UNIQUE INDEX placement_generations_node_key ON placement_generations USING btree (placement_id, stage, node_id)',
+        'CREATE UNIQUE INDEX placement_generations_pkey ON placement_generations USING btree (placement_id, stage)',
+        'CREATE UNIQUE INDEX placement_locales_canonical_key ON placement_locales USING btree (entry_id, locale, stage) WHERE canonical',
+        'CREATE INDEX placement_locales_entry ON placement_locales USING btree (entry_id, placement_id)',
+        'CREATE INDEX placement_locales_generation ON placement_locales USING btree (placement_id, stage, node_id)',
+        'CREATE UNIQUE INDEX placement_locales_pkey ON placement_locales USING btree (placement_id, stage, locale)',
+        "CREATE UNIQUE INDEX placement_locales_slug_key ON placement_locales USING btree (node_id, locale, slug, stage) WHERE (visibility <> 'withdrawn'::text)",
+        'CREATE UNIQUE INDEX placements_entry_key ON placements USING btree (entry_id, id)',
+        'CREATE UNIQUE INDEX placements_pkey ON placements USING btree (id)',
+    ])->and(StorageTables::texts($owner, "select conrelid::regclass::text || ' ' || pg_get_constraintdef(oid) as value from pg_constraint where conrelid = any (?::regclass[]) and contype = 'f' order by 1", [$tables]))->toBe([
+        'mount_overrides FOREIGN KEY (entry_id) REFERENCES entries(id)',
+        'mount_overrides FOREIGN KEY (mount_node_id, source_node_id) REFERENCES nodes(id, mount_source_id) ON UPDATE CASCADE',
+        'placement_generations FOREIGN KEY (node_id) REFERENCES nodes(id)',
+        'placement_generations FOREIGN KEY (placement_id) REFERENCES placements(id)',
+        'placement_locales FOREIGN KEY (entry_id, placement_id) REFERENCES placements(entry_id, id)',
+        'placement_locales FOREIGN KEY (placement_id, stage, node_id) REFERENCES placement_generations(placement_id, stage, node_id) ON UPDATE CASCADE',
+        'placements FOREIGN KEY (entry_id) REFERENCES entries(id)',
+    ])->and(StorageTables::texts($owner, "select c.relname::text || ' ' || coalesce(array_to_string(c.reloptions, ','), '') || ' ' || c.relkind::text as value from pg_class c where c.oid = any (?::regclass[]) order by 1", [$tables]))->toBe([
+        'mount_overrides  r',
+        'placement_generations fillfactor=80,autovacuum_vacuum_scale_factor=0.01 r',
+        'placement_locales fillfactor=80,autovacuum_vacuum_scale_factor=0.01 r',
+        'placements fillfactor=80,autovacuum_vacuum_scale_factor=0.01 r',
+    ]);
+});
+
+it('forces row level security on the placement tables without a policy, and narrows the app role\'s grants', function (): void {
+    $owner = DB::connection('pgsql_owner');
+    $app = DB::connection();
+    $tables = '{'.implode(',', StorageTables::PLACEMENT_TABLES).'}';
+    $result = new RowSecurityCheck(app(PostgresProbe::class))->run();
+
+    expect(StorageTables::texts($owner, "select relname::text || ' ' || relrowsecurity::text || ' ' || relforcerowsecurity::text as value from pg_class where oid = any (?::regclass[]) order by 1", [$tables]))
+        ->toBe(array_map(static fn (string $table): string => $table.' true true', StorageTables::PLACEMENT_TABLES))
+        ->and($owner->scalar('select count(*) from pg_policies where tablename = any (?::text[])', [$tables]))->toBe(0)
+        ->and($result->status)->toBe(CheckStatus::Pass, (string) $result->cause);
+
+    foreach (StorageTables::PLACEMENT_TABLES as $table) {
+        foreach (['SELECT' => true, 'INSERT' => true, 'UPDATE' => true, 'DELETE' => $table !== 'placements', 'TRUNCATE' => false, 'REFERENCES' => false, 'TRIGGER' => false] as $privilege => $held) {
+            expect($app->scalar('select has_table_privilege(current_user, ?::regclass, ?)', [$table, $privilege]))->toBe($held, "{$privilege} on {$table}");
+        }
+    }
+});
+
+it('lets the app role read and write no placement rows while they have no policy', function (): void {
+    StorageTables::seedPlacement();
+    $superuser = StorageTables::superuser();
+    $app = DB::connection();
+
+    foreach (StorageTables::PLACEMENT_TABLES as $table) {
+        expect($superuser->table($table)->count())->toBe(1, $table)
+            ->and($app->table($table)->count())->toBe(0, $table);
+    }
+
+    expect(StorageTables::sqlState(fn () => $app->table('placements')->insert(StorageTables::placement('0192a0c0-0000-7000-8000-000000000071'))))->toBe('42501')
+        ->and($app->table('placement_locales')->update(['visibility' => 'hidden']))->toBe(0)
+        ->and($app->table('mount_overrides')->delete())->toBe(0)
+        ->and($superuser->table('placement_locales')->value('visibility'))->toBe('live')
+        ->and($superuser->table('mount_overrides')->count())->toBe(1);
+});
+
+it('refuses, as the owner role, a second non-withdrawn placement with the same slug under a node and a second canonical placement of an entry and locale', function (): void {
+    StorageTables::seedPlacement();
+    $superuser = StorageTables::superuser();
+    $second = '0192a0c0-0000-7000-8000-000000000071';
+    $superuser->table('placements')->insert(StorageTables::placement($second));
+    $superuser->table('placement_generations')->insert(StorageTables::generation($second));
+
+    // The owner role passes the table's row level security only while it is not forced, so each
+    // attempt lifts the force in a transaction of its own and rolls it back.
+    $asOwner = static function (array $changes): string {
+        $owner = DB::connection('pgsql_owner');
+        $owner->beginTransaction();
+
+        try {
+            $owner->statement('alter table placement_locales no force row level security');
+
+            return StorageTables::violation(static fn (): bool => $owner->table('placement_locales')->insert(StorageTables::placementLocale($changes)));
+        } finally {
+            $owner->rollBack();
+        }
+    };
+
+    expect($asOwner(['placement_id' => $second, 'canonical' => false]))->toBe('23505 placement_locales_slug_key')
+        ->and($asOwner(['placement_id' => $second, 'slug' => 'valg-2']))->toBe('23505 placement_locales_canonical_key')
+        ->and(DB::connection('pgsql_owner')->scalar("select relforcerowsecurity from pg_class where oid = 'placement_locales'::regclass"))->toBeTrue()
+        ->and($superuser->table('placement_locales')->count())->toBe(1);
+});
+
+it('keeps (node, locale, slug) unique among the placements that are not withdrawn, per stage', function (): void {
+    StorageTables::seedPlacement();
+    $superuser = StorageTables::superuser();
+    $second = '0192a0c0-0000-7000-8000-000000000071';
+    $superuser->table('placements')->insert(StorageTables::placement($second));
+    $superuser->table('placement_generations')->insert(StorageTables::generation($second));
+    $superuser->table('placement_generations')->insert(StorageTables::generation($second, 'draft'));
+    $insert = static fn (array $changes): Closure => static fn (): bool => $superuser->table('placement_locales')->insert(StorageTables::placementLocale(array_merge(['placement_id' => $second, 'canonical' => false], $changes)));
+
+    expect(StorageTables::violation($insert([])))->toBe('23505 placement_locales_slug_key')
+        ->and(StorageTables::violation($insert(['visibility' => 'hidden'])))->toBe('23505 placement_locales_slug_key');
+
+    $insert(['locale' => 'en'])();
+    $insert(['stage' => 'draft'])();
+    $superuser->table('placement_locales')->where('placement_id', StorageTables::PLACEMENT)->update(['visibility' => 'withdrawn', 'canonical' => false]);
+    $insert([])();
+
+    expect(StorageTables::violation(static fn (): int => $superuser->table('placement_locales')->where('placement_id', StorageTables::PLACEMENT)->update(['visibility' => 'hidden'])))->toBe('23505 placement_locales_slug_key')
+        ->and(StorageTables::texts($superuser, "select placement_id::text || ' ' || stage || ' ' || locale || ' ' || visibility as value from placement_locales order by placement_id, stage, locale"))->toBe([
+            StorageTables::PLACEMENT.' released da withdrawn',
+            $second.' draft da live',
+            $second.' released da live',
+            $second.' released en live',
+        ]);
+});
+
+it('allows at most one canonical placement per entry and locale, per stage, and never a withdrawn one', function (): void {
+    StorageTables::seedPlacement();
+    $superuser = StorageTables::superuser();
+    $second = '0192a0c0-0000-7000-8000-000000000071';
+    $superuser->table('placements')->insert(StorageTables::placement($second));
+    $superuser->table('placement_generations')->insert(StorageTables::generation($second));
+    $superuser->table('placement_generations')->insert(StorageTables::generation($second, 'staged'));
+    $insert = static fn (array $changes): Closure => static fn (): bool => $superuser->table('placement_locales')->insert(StorageTables::placementLocale(array_merge(['placement_id' => $second, 'slug' => 'valg-2'], $changes)));
+
+    expect(StorageTables::violation($insert([])))->toBe('23505 placement_locales_canonical_key')
+        ->and(StorageTables::violation($insert(['visibility' => 'hidden'])))->toBe('23505 placement_locales_canonical_key');
+
+    $insert(['locale' => 'en'])();
+    $insert(['stage' => 'staged'])();
+    $insert(['canonical' => false])();
+
+    expect(StorageTables::violation(static fn (): int => $superuser->table('placement_locales')->where('placement_id', StorageTables::PLACEMENT)->update(['visibility' => 'withdrawn'])))->toBe('23514 placement_locales_canonical')
+        ->and($superuser->table('placement_locales')->where('canonical', true)->count())->toBe(3);
+});
+
+it('keeps a placement locale\'s stage, locale, slug, visibility and window to their rules, and to its placement\'s entry and generation', function (): void {
+    StorageTables::seedPlacement();
+    $superuser = StorageTables::superuser();
+    $superuser->table('placement_generations')->insert(StorageTables::generation(stage: 'draft'));
+    $insert = static fn (array $changes): Closure => static fn (): bool => $superuser->table('placement_locales')->insert(StorageTables::placementLocale(array_merge(['stage' => 'draft', 'canonical' => false], $changes)));
+
+    foreach ([
+        'placement_locales_locale' => [['locale' => 'Danish'], ['locale' => 'shared'], ['locale' => 'da_DK']],
+        'placement_locales_slug' => [['slug' => ''], ['slug' => 'a/b'], ['slug' => 'a b'], ['slug' => '.'], ['slug' => '..']],
+        'placement_locales_visibility' => [['visibility' => 'published'], ['visibility' => 'Live']],
+        'placement_locales_window' => [['live_from' => '2026-03-11 06:00:00+00', 'live_until' => '2026-03-11 06:00:00+00'], ['live_from' => '2026-03-11 06:00:00+00', 'live_until' => '2026-03-10 06:00:00+00']],
+        'placement_locales_scheduled' => [['visibility' => 'scheduled', 'live_until' => '2026-03-12 06:00:00+00']],
+        'placement_locales_expired' => [['visibility' => 'expired', 'live_from' => '2026-03-09 06:00:00+00']],
+        'placement_locales_canonical' => [['visibility' => 'withdrawn', 'canonical' => true]],
+    ] as $constraint => $cases) {
+        foreach ($cases as $changes) {
+            expect(StorageTables::violation($insert($changes)))->toBe('23514 '.$constraint, (string) json_encode($changes));
+        }
+    }
+
+    expect(StorageTables::violation($insert(['entry_id' => '0192a0c0-0000-7000-8000-000000000021'])))->toBe('23503 placement_locales_placement_fkey')
+        ->and(StorageTables::violation($insert(['node_id' => StorageTables::ROOT])))->toBe('23503 placement_locales_generation_fkey')
+        ->and(StorageTables::violation($insert(['stage' => 'staged'])))->toBe('23503 placement_locales_generation_fkey')
+        ->and(StorageTables::violation(static fn (): bool => $superuser->table('placement_generations')->insert(StorageTables::generation(stage: 'published'))))->toBe('23514 placement_generations_stage')
+        ->and(StorageTables::violation(static fn (): bool => $superuser->table('placement_generations')->insert(StorageTables::generation(stage: 'draft'))))->toBe('23505 placement_generations_pkey')
+        ->and(StorageTables::violation(static fn (): bool => $superuser->table('placement_generations')->insert(StorageTables::generation(stage: 'staged', node: '0192a0c0-0000-7000-8000-0000000000ee'))))->toBe('23503 placement_generations_node_id_fkey')
+        ->and(StorageTables::violation(static fn (): bool => $superuser->table('placements')->insert(array_merge(StorageTables::placement('0192a0c0-0000-7000-8000-000000000071'), ['version' => 0]))))->toBe('23514 placements_version')
+        ->and(StorageTables::violation(static fn (): bool => $superuser->table('placements')->insert(StorageTables::placement('0192a0c0-0000-7000-8000-000000000071', '0192a0c0-0000-7000-8000-0000000000ee'))))->toBe('23503 placements_entry_id_fkey');
+
+    foreach ([
+        ['visibility' => 'hidden'],
+        ['visibility' => 'scheduled', 'live_from' => '2026-03-11 06:00:00+00', 'next_transition_at' => '2026-03-11 06:00:00+00', 'locale' => 'en'],
+        ['visibility' => 'live', 'live_until' => '2026-03-12 06:00:00+00', 'next_transition_at' => '2026-03-12 06:00:00+00', 'locale' => 'en-GB'],
+        ['visibility' => 'expired', 'live_from' => '2026-03-09 06:00:00+00', 'live_until' => '2026-03-10 06:00:00+00', 'locale' => 'sv'],
+        ['visibility' => 'withdrawn', 'locale' => 'nb'],
+    ] as $changes) {
+        $insert($changes)();
+    }
+
+    expect($superuser->table('placement_locales')->where('stage', 'draft')->count())->toBe(5);
+});
+
+it('moves a placement by changing its generation\'s node, and its locales follow', function (): void {
+    StorageTables::seedPlacement();
+    $superuser = StorageTables::superuser();
+    $list = '0192a0c0-0000-7000-8000-000000000042';
+    $superuser->table('nodes')->insert(StorageTables::node($list, StorageTables::ROOT, StorageTables::label(StorageTables::ROOT), 'list'));
+
+    $superuser->table('placement_generations')->where('placement_id', StorageTables::PLACEMENT)->update(['node_id' => $list]);
+
+    expect($superuser->table('placement_locales')->value('node_id'))->toBe($list)
+        ->and($superuser->table('placements')->value('id'))->toBe(StorageTables::PLACEMENT)
+        ->and(StorageTables::violation(static fn (): int => $superuser->table('placement_locales')->update(['node_id' => StorageTables::SECTION])))->toBe('23503 placement_locales_generation_fkey');
+});
+
+it('keeps a mount override on a mount node, with the mount\'s source, one per entry, and with an effect', function (): void {
+    StorageTables::seedPlacement();
+    $superuser = StorageTables::superuser();
+    $other = '0192a0c0-0000-7000-8000-000000000051';
+    $superuser->table('entries')->insert(StorageTables::entry($other));
+    $insert = static fn (array $changes): Closure => static fn (): bool => $superuser->table('mount_overrides')->insert(StorageTables::mountOverride($changes));
+
+    expect(StorageTables::violation($insert([])))->toBe('23505 mount_overrides_pkey')
+        ->and(StorageTables::violation($insert(['mount_node_id' => StorageTables::SECTION, 'source_node_id' => StorageTables::ROOT, 'entry_id' => $other])))->toBe('23503 mount_overrides_mount_fkey')
+        ->and(StorageTables::violation($insert(['source_node_id' => StorageTables::ROOT, 'entry_id' => $other])))->toBe('23503 mount_overrides_mount_fkey')
+        ->and(StorageTables::violation($insert(['entry_id' => '0192a0c0-0000-7000-8000-0000000000ee'])))->toBe('23503 mount_overrides_entry_id_fkey')
+        ->and(StorageTables::violation($insert(['entry_id' => $other, 'hidden' => false])))->toBe('23514 mount_overrides_effect')
+        ->and(StorageTables::violation($insert(['entry_id' => $other, 'version' => 0])))->toBe('23514 mount_overrides_version');
+
+    $insert(['entry_id' => $other, 'hidden' => false, 'priority_cap' => 3])();
+    $list = '0192a0c0-0000-7000-8000-000000000042';
+    $superuser->table('nodes')->insert(StorageTables::node($list, StorageTables::ROOT, StorageTables::label(StorageTables::ROOT), 'list'));
+    $superuser->table('nodes')->where('id', StorageTables::MOUNT)->update(['mount_source_id' => $list]);
+
+    expect(StorageTables::texts($superuser, "select entry_id::text || ' ' || source_node_id::text || ' ' || hidden::text || ' ' || coalesce(priority_cap::text, '-') as value from mount_overrides order by entry_id"))->toBe([
+        StorageTables::ENTRY.' '.$list.' true -',
+        $other.' '.$list.' false 3',
+    ]);
 });

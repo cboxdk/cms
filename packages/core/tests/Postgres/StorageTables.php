@@ -13,7 +13,7 @@ use PHPUnit\Framework\AssertionFailedError;
 use UnexpectedValueException;
 
 /**
- * Helpers for the tests of the structure and entry tables: the superuser's connection to the
+ * Helpers for the tests of the structure, entry, placement and mount override tables: the superuser's connection to the
  * checkout's database, the one role that passes their row level security while they have no policy,
  * rows to write through it, and the SQLSTATE of a statement that fails.
  */
@@ -23,6 +23,9 @@ final class StorageTables
 
     /** @var list<string> sorted */
     public const array TABLES = ['entries', 'node_routes', 'nodes', 'site_locales', 'sites', 'variant_heads'];
+
+    /** @var list<string> sorted: the placement and mount override tables */
+    public const array PLACEMENT_TABLES = ['mount_overrides', 'placement_generations', 'placement_locales', 'placements'];
 
     public const string ROOT = '0192a0c0-0000-7000-8000-000000000001';
 
@@ -37,6 +40,8 @@ final class StorageTables
     public const string TYPE = '0192a0c0-0000-7000-8000-000000000030';
 
     public const string CHANGESET = '019cd79e-4600-7000-8000-000000000070';
+
+    public const string PLACEMENT = '0192a0c0-0000-7000-8000-000000000070';
 
     public const string CREATED_AT = '2026-03-10 12:00:00+00';
 
@@ -165,6 +170,77 @@ final class StorageTables
             'release_state' => 'unreleased',
             'workflow_state' => null,
             'next_transition_at' => null,
+            'version' => 1,
+            'created_at' => self::CREATED_AT,
+        ], $changes);
+    }
+
+    /**
+     * The seeded entry, a mount of the section below the root, and a placement of the entry under
+     * the section with its released generation and a live, canonical locale da with the slug
+     * `valg`, written as the superuser.
+     */
+    public static function seedPlacement(): void
+    {
+        self::seedEntry();
+        $superuser = self::superuser();
+        $superuser->table('nodes')->insert(self::node(self::MOUNT, self::ROOT, self::label(self::ROOT), 'mount', self::SECTION));
+        $superuser->table('placements')->insert(self::placement());
+        $superuser->table('placement_generations')->insert(self::generation());
+        $superuser->table('placement_locales')->insert(self::placementLocale());
+        $superuser->table('mount_overrides')->insert(self::mountOverride());
+    }
+
+    /**
+     * @return array<string, int|string>
+     */
+    public static function placement(string $id = self::PLACEMENT, string $entry = self::ENTRY): array
+    {
+        return ['id' => $id, 'entry_id' => $entry, 'version' => 1, 'created_at' => self::CREATED_AT];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function generation(string $placement = self::PLACEMENT, string $stage = 'released', string $node = self::SECTION): array
+    {
+        return ['placement_id' => $placement, 'stage' => $stage, 'node_id' => $node, 'created_at' => self::CREATED_AT];
+    }
+
+    /**
+     * @param  array<mixed>  $changes
+     * @return array<mixed>
+     */
+    public static function placementLocale(array $changes = []): array
+    {
+        return array_merge([
+            'placement_id' => self::PLACEMENT,
+            'stage' => 'released',
+            'locale' => 'da',
+            'entry_id' => self::ENTRY,
+            'node_id' => self::SECTION,
+            'slug' => 'valg',
+            'visibility' => 'live',
+            'live_from' => null,
+            'live_until' => null,
+            'next_transition_at' => null,
+            'canonical' => true,
+            'created_at' => self::CREATED_AT,
+        ], $changes);
+    }
+
+    /**
+     * @param  array<mixed>  $changes
+     * @return array<mixed>
+     */
+    public static function mountOverride(array $changes = []): array
+    {
+        return array_merge([
+            'mount_node_id' => self::MOUNT,
+            'source_node_id' => self::SECTION,
+            'entry_id' => self::ENTRY,
+            'hidden' => true,
+            'priority_cap' => null,
             'version' => 1,
             'created_at' => self::CREATED_AT,
         ], $changes);
