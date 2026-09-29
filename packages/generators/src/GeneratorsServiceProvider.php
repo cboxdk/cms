@@ -19,6 +19,7 @@ use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecordDtos;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecords;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeCatalog;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeHandleEnum;
+use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeValidators;
 use Cbox\Cms\Generators\Generation\Domain\Generators\TypeScriptTypeHandles;
 use Cbox\Cms\Generators\Schema\Boundary\YamlBlueprintSource;
 use Cbox\Cms\Generators\Schema\Domain\BlueprintSource;
@@ -61,6 +62,7 @@ final class GeneratorsServiceProvider extends ServiceProvider implements Declare
                 new PhpTypeHandleEnum,
                 new PhpRecords,
                 new PhpTypeCatalog(ServiceProvider::class),
+                new PhpTypeValidators,
                 new TypeScriptTypeHandles,
             ]),
         );

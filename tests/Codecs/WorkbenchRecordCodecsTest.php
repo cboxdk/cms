@@ -86,10 +86,17 @@ function measurement(): AppFixtureMeasurementV1
 {
     return new AppFixtureMeasurementV1(
         cmsId: EntryId::fromString(MEASUREMENT_ID),
+        fixtureAlerts: Omitted::Field,
+        fixtureCalibrated: Omitted::Field,
+        fixtureCalibratedOn: Omitted::Field,
         fixtureMeasuredAt: new DateTimeImmutable('2026-03-10T12:59:59.25+01:00'),
         fixtureNote: 'Sensor cleaned first.',
         fixtureReading: '-12.5',
+        fixtureRemark: Omitted::Field,
+        fixtureSamples: Omitted::Field,
         fixtureScale: 'fixture_celsius',
+        fixtureSensor: Omitted::Field,
+        fixtureSeries: Omitted::Field,
         fixtureStation: 'DK-042',
     );
 }

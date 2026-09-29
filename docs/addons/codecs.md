@@ -108,10 +108,17 @@ use Workbench\App\Cms\Generated\Domain\Dto\AppFixtureMeasurementV1;
 it('serves a record without the fields above the caller\'s classification access', function (): void {
     $record = new AppFixtureMeasurementV1(
         cmsId: EntryId::fromString('0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a02'),
+        fixtureAlerts: Omitted::Field,
+        fixtureCalibrated: Omitted::Field,
+        fixtureCalibratedOn: Omitted::Field,
         fixtureMeasuredAt: new DateTimeImmutable('2026-03-10T13:00:00+01:00'),
         fixtureNote: null,
         fixtureReading: '21.5',
+        fixtureRemark: Omitted::Field,
+        fixtureSamples: Omitted::Field,
         fixtureScale: 'fixture_celsius',
+        fixtureSensor: Omitted::Field,
+        fixtureSeries: Omitted::Field,
         fixtureStation: 'DK-042',
     );
 

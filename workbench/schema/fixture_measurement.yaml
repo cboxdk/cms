@@ -1,8 +1,10 @@
 # yaml-language-server: $schema=../../packages/contracts/resources/schemas/blueprint.v1.json
 # The workbench's second fixture type (GUARDRAILS 2.4, MILESTONES M1), owner app: a measurement
 # with no history, no stages and no route, and other fields than fixture_article, so milestone 1
-# exercises a type whose entries are written once and never drafted. Every handle and select value
-# starts with fixture_, as in fixture_article.yaml. cms:generate reads it and writes the committed
+# exercises a type whose entries are written once and never drafted. It has every core field type
+# and every rule of the runtime validators, which packages/generators/tests/Validators
+# /WorkbenchValidatorsTest.php feeds input through. Every handle and select value starts with
+# fixture_, as in fixture_article.yaml. cms:generate reads it and writes the committed
 # code in workbench/app/Cms/Generated and workbench/resources/js/cms/generated; the first line is
 # written by cms:schema:editor.
 blueprint: 1
@@ -53,9 +55,98 @@ fields:
     type: text
     classification: internal
     filterable: true
+    min_length: 3
     max_length: 40
   - handle: fixture_note
     label: Note
     type: long_text
     classification: internal
     agents: false
+  - handle: fixture_samples
+    label: Samples
+    description: How many samples the sensor averaged into the reading.
+    type: integer
+    classification: public
+    min: 1
+    max: 1000
+  - handle: fixture_calibrated
+    label: Calibrated
+    description: Whether the sensor was calibrated when it took the reading.
+    type: boolean
+    classification: public
+  - handle: fixture_calibrated_on
+    label: Calibrated on
+    description: The day the sensor was last calibrated.
+    type: date
+    classification: public
+    min: '2000-01-01'
+    max: '2099-12-31'
+  - handle: fixture_alerts
+    label: Alerts
+    description: The alerts the reading raised.
+    type: select
+    classification: public
+    multiple: true
+    min_items: 1
+    max_items: 2
+    options:
+      - value: fixture_low
+        label: Low
+      - value: fixture_high
+        label: High
+      - value: fixture_drift
+        label: Drift
+  - handle: fixture_remark
+    label: Remark
+    description: A remark on the reading, in rich text.
+    type: rich_text
+    classification: public
+    styles: [normal]
+    marks: [strong]
+    lists: [bullet]
+    links: []
+  - handle: fixture_sensor
+    label: Sensor
+    description: The sensor that took the reading.
+    type: group
+    classification: internal
+    fields:
+      - handle: fixture_sensor_code
+        label: Sensor code
+        description: The code of the sensor.
+        type: text
+        required: true
+      - handle: fixture_sensor_contact
+        label: Sensor contact
+        description: Who looks after the sensor.
+        type: text
+        format: email
+      - handle: fixture_sensor_manual
+        label: Sensor manual
+        description: Where the sensor's manual can be read.
+        type: text
+        format: url
+  - handle: fixture_series
+    label: Series
+    description: The single readings the reading is the mean of.
+    type: group
+    classification: public
+    repeat:
+      min_items: 1
+      max_items: 3
+    fields:
+      - handle: fixture_series_value
+        label: Series value
+        description: One single reading.
+        type: decimal
+        required: true
+        precision: 6
+        scale: 2
+        min: '-100.00'
+        max: '1000.00'
+      - handle: fixture_series_taken_at
+        label: Series taken at
+        description: When the single reading was taken.
+        type: datetime
+        min: '2000-01-01T00:00:00Z'
+        max: '2099-12-31T23:59:59Z'

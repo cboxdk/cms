@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Workbench\App\Cms\Generated\Domain\Dto;
 
+use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Fields\Omitted;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\EntryId;
@@ -20,18 +21,32 @@ final readonly class AppFixtureMeasurementV1
 {
     /**
      * @param  EntryId  $cmsId  The id of the entry (PRD 5.3).
+     * @param  list<'fixture_low'|'fixture_high'|'fixture_drift'>|Omitted|null  $fixtureAlerts  Alerts: The alerts the reading raised.
+     * @param  bool|Omitted|null  $fixtureCalibrated  Calibrated: Whether the sensor was calibrated when it took the reading.
+     * @param  DateTimeImmutable|Omitted|null  $fixtureCalibratedOn  Calibrated on: The day the sensor was last calibrated.
      * @param  DateTimeImmutable  $fixtureMeasuredAt  Measured at: When the sensor took the reading.
      * @param  string|Omitted|null  $fixtureNote  Note.
      * @param  numeric-string  $fixtureReading  Reading: The value the sensor read, in the unit of the scale.
+     * @param  ListValue|Omitted|null  $fixtureRemark  Remark: A remark on the reading, in rich text.
+     * @param  int|Omitted|null  $fixtureSamples  Samples: How many samples the sensor averaged into the reading.
      * @param  'fixture_celsius'|'fixture_kelvin'  $fixtureScale  Scale: The scale of the reading.
+     * @param  AppFixtureMeasurementV1FixtureSensor|Omitted|null  $fixtureSensor  Sensor: The sensor that took the reading.
+     * @param  list<AppFixtureMeasurementV1FixtureSeries>|Omitted|null  $fixtureSeries  Series: The single readings the reading is the mean of.
      * @param  string|Omitted|null  $fixtureStation  Station: The code of the station the sensor stands at.
      */
     public function __construct(
         public EntryId $cmsId,
+        public array|Omitted|null $fixtureAlerts,
+        public bool|Omitted|null $fixtureCalibrated,
+        public DateTimeImmutable|Omitted|null $fixtureCalibratedOn,
         public DateTimeImmutable $fixtureMeasuredAt,
         public string|Omitted|null $fixtureNote,
         public string $fixtureReading,
+        public ListValue|Omitted|null $fixtureRemark,
+        public int|Omitted|null $fixtureSamples,
         public string $fixtureScale,
+        public AppFixtureMeasurementV1FixtureSensor|Omitted|null $fixtureSensor,
+        public array|Omitted|null $fixtureSeries,
         public string|Omitted|null $fixtureStation,
     ) {}
 
@@ -43,10 +58,17 @@ final readonly class AppFixtureMeasurementV1
     {
         return new self(
             cmsId: $this->cmsId,
+            fixtureAlerts: $this->fixtureAlerts,
+            fixtureCalibrated: $this->fixtureCalibrated,
+            fixtureCalibratedOn: $this->fixtureCalibratedOn,
             fixtureMeasuredAt: $this->fixtureMeasuredAt,
             fixtureNote: $access->allows(ClassificationAccess::Internal) ? $this->fixtureNote : Omitted::Field,
             fixtureReading: $this->fixtureReading,
+            fixtureRemark: $this->fixtureRemark,
+            fixtureSamples: $this->fixtureSamples,
             fixtureScale: $this->fixtureScale,
+            fixtureSensor: $access->allows(ClassificationAccess::Internal) ? $this->fixtureSensor : Omitted::Field,
+            fixtureSeries: $this->fixtureSeries,
             fixtureStation: $access->allows(ClassificationAccess::Internal) ? $this->fixtureStation : Omitted::Field,
         );
     }

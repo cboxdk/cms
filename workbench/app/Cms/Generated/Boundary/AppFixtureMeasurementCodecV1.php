@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Workbench\App\Cms\Generated\Boundary;
 
 use Cbox\Cms\Contracts\Codecs\JsonCodec;
+use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Fields\Omitted;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\EntryId;
@@ -17,6 +18,8 @@ use DateTimeImmutable;
 use Override;
 use stdClass;
 use Workbench\App\Cms\Generated\Domain\Dto\AppFixtureMeasurementV1;
+use Workbench\App\Cms\Generated\Domain\Dto\AppFixtureMeasurementV1FixtureSensor;
+use Workbench\App\Cms\Generated\Domain\Dto\AppFixtureMeasurementV1FixtureSeries;
 
 /**
  * The JSON codec of the record of app:fixture_measurement, contract version 1 (GUARDRAILS 2.2).
@@ -62,6 +65,19 @@ final readonly class AppFixtureMeasurementCodecV1 implements JsonCodec
     {
         $json = new stdClass;
         $json->cms_id = $object->cmsId->toString();
+
+        if (! $object->fixtureAlerts instanceof Omitted) {
+            $json->fixture_alerts = $object->fixtureAlerts;
+        }
+
+        if (! $object->fixtureCalibrated instanceof Omitted) {
+            $json->fixture_calibrated = $object->fixtureCalibrated;
+        }
+
+        if (! $object->fixtureCalibratedOn instanceof Omitted) {
+            $json->fixture_calibrated_on = $object->fixtureCalibratedOn instanceof DateTimeImmutable ? JsonValues::encodeDate($object->fixtureCalibratedOn) : null;
+        }
+
         $json->fixture_measured_at = JsonValues::encodeDatetime($object->fixtureMeasuredAt);
 
         if (! $object->fixtureNote instanceof Omitted) {
@@ -69,7 +85,24 @@ final readonly class AppFixtureMeasurementCodecV1 implements JsonCodec
         }
 
         $json->fixture_reading = JsonValues::encodeDecimal($object->fixtureReading, 12, 3);
+
+        if (! $object->fixtureRemark instanceof Omitted) {
+            $json->fixture_remark = $object->fixtureRemark instanceof ListValue ? JsonValues::encodeFieldValue($object->fixtureRemark) : null;
+        }
+
+        if (! $object->fixtureSamples instanceof Omitted) {
+            $json->fixture_samples = $object->fixtureSamples;
+        }
+
         $json->fixture_scale = $object->fixtureScale;
+
+        if (! $object->fixtureSensor instanceof Omitted) {
+            $json->fixture_sensor = $object->fixtureSensor instanceof AppFixtureMeasurementV1FixtureSensor ? $this->encodeAppFixtureMeasurementV1FixtureSensor($object->fixtureSensor) : null;
+        }
+
+        if (! $object->fixtureSeries instanceof Omitted) {
+            $json->fixture_series = $object->fixtureSeries === null ? null : array_map($this->encodeAppFixtureMeasurementV1FixtureSeries(...), $object->fixtureSeries);
+        }
 
         if (! $object->fixtureStation instanceof Omitted) {
             $json->fixture_station = $object->fixtureStation;
@@ -80,15 +113,72 @@ final readonly class AppFixtureMeasurementCodecV1 implements JsonCodec
 
     private function decodeAppFixtureMeasurementV1(stdClass $value, ClassificationAccess $access): AppFixtureMeasurementV1
     {
-        $object = JsonValues::object($value, null, ['cms_id', 'fixture_measured_at', 'fixture_note', 'fixture_reading', 'fixture_scale', 'fixture_station']);
+        $object = JsonValues::object($value, null, ['cms_id', 'fixture_alerts', 'fixture_calibrated', 'fixture_calibrated_on', 'fixture_measured_at', 'fixture_note', 'fixture_reading', 'fixture_remark', 'fixture_samples', 'fixture_scale', 'fixture_sensor', 'fixture_series', 'fixture_station']);
 
         return new AppFixtureMeasurementV1(
             cmsId: JsonValues::required($object, 'cms_id', null, static fn (mixed $value, FieldPath $at): EntryId => JsonValues::id($value, $at, EntryId::fromString(...))),
+            fixtureAlerts: JsonValues::nullable($object, 'fixture_alerts', null, static fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, static fn (mixed $item, FieldPath $itemAt): string => JsonValues::choice($item, $itemAt, ['fixture_low', 'fixture_high', 'fixture_drift']), minItems: 1, maxItems: 2, distinct: true)),
+            fixtureCalibrated: JsonValues::nullable($object, 'fixture_calibrated', null, static fn (mixed $value, FieldPath $at): bool => JsonValues::boolean($value, $at)),
+            fixtureCalibratedOn: JsonValues::nullable($object, 'fixture_calibrated_on', null, static fn (mixed $value, FieldPath $at): DateTimeImmutable => JsonValues::date($value, $at, min: '2000-01-01', max: '2099-12-31')),
             fixtureMeasuredAt: JsonValues::required($object, 'fixture_measured_at', null, static fn (mixed $value, FieldPath $at): DateTimeImmutable => JsonValues::datetime($value, $at)),
             fixtureNote: JsonValues::nullableClassified($object, 'fixture_note', null, ClassificationAccess::Internal, $access, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, maxLength: 10000)),
             fixtureReading: JsonValues::required($object, 'fixture_reading', null, static fn (mixed $value, FieldPath $at): string => JsonValues::decimal($value, $at, 12, 3)),
+            fixtureRemark: JsonValues::nullable($object, 'fixture_remark', null, static fn (mixed $value, FieldPath $at): ListValue => JsonValues::portableText($value, $at, ['normal'], ['strong'], ['bullet'], [])),
+            fixtureSamples: JsonValues::nullable($object, 'fixture_samples', null, static fn (mixed $value, FieldPath $at): int => JsonValues::integer($value, $at, min: 1, max: 1000)),
             fixtureScale: JsonValues::required($object, 'fixture_scale', null, static fn (mixed $value, FieldPath $at): string => JsonValues::choice($value, $at, ['fixture_celsius', 'fixture_kelvin'])),
-            fixtureStation: JsonValues::nullableClassified($object, 'fixture_station', null, ClassificationAccess::Internal, $access, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, maxLength: 40)),
+            fixtureSensor: JsonValues::nullableClassified($object, 'fixture_sensor', null, ClassificationAccess::Internal, $access, $this->decodeAppFixtureMeasurementV1FixtureSensor(...)),
+            fixtureSeries: JsonValues::nullable($object, 'fixture_series', null, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeAppFixtureMeasurementV1FixtureSeries(...), minItems: 1, maxItems: 3)),
+            fixtureStation: JsonValues::nullableClassified($object, 'fixture_station', null, ClassificationAccess::Internal, $access, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 3, maxLength: 40)),
+        );
+    }
+
+    private function encodeAppFixtureMeasurementV1FixtureSensor(AppFixtureMeasurementV1FixtureSensor $object): stdClass
+    {
+        $json = new stdClass;
+        $json->fixture_sensor_code = $object->fixtureSensorCode;
+
+        if (! $object->fixtureSensorContact instanceof Omitted) {
+            $json->fixture_sensor_contact = $object->fixtureSensorContact;
+        }
+
+        if (! $object->fixtureSensorManual instanceof Omitted) {
+            $json->fixture_sensor_manual = $object->fixtureSensorManual;
+        }
+
+        return $json;
+    }
+
+    private function decodeAppFixtureMeasurementV1FixtureSensor(mixed $value, FieldPath $path): AppFixtureMeasurementV1FixtureSensor
+    {
+        $object = JsonValues::object($value, $path, ['fixture_sensor_code', 'fixture_sensor_contact', 'fixture_sensor_manual']);
+
+        return new AppFixtureMeasurementV1FixtureSensor(
+            fixtureSensorCode: JsonValues::required($object, 'fixture_sensor_code', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, maxLength: 255)),
+            fixtureSensorContact: JsonValues::nullable($object, 'fixture_sensor_contact', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, maxLength: 255, format: 'email')),
+            fixtureSensorManual: JsonValues::nullable($object, 'fixture_sensor_manual', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, maxLength: 255, format: 'url')),
+        );
+    }
+
+    private function encodeAppFixtureMeasurementV1FixtureSeries(AppFixtureMeasurementV1FixtureSeries $object): stdClass
+    {
+        $json = new stdClass;
+
+        if (! $object->fixtureSeriesTakenAt instanceof Omitted) {
+            $json->fixture_series_taken_at = $object->fixtureSeriesTakenAt instanceof DateTimeImmutable ? JsonValues::encodeDatetime($object->fixtureSeriesTakenAt) : null;
+        }
+
+        $json->fixture_series_value = JsonValues::encodeDecimal($object->fixtureSeriesValue, 6, 2);
+
+        return $json;
+    }
+
+    private function decodeAppFixtureMeasurementV1FixtureSeries(mixed $value, FieldPath $path): AppFixtureMeasurementV1FixtureSeries
+    {
+        $object = JsonValues::object($value, $path, ['fixture_series_taken_at', 'fixture_series_value']);
+
+        return new AppFixtureMeasurementV1FixtureSeries(
+            fixtureSeriesTakenAt: JsonValues::nullable($object, 'fixture_series_taken_at', $path, static fn (mixed $value, FieldPath $at): DateTimeImmutable => JsonValues::datetime($value, $at, min: '2000-01-01T00:00:00Z', max: '2099-12-31T23:59:59Z')),
+            fixtureSeriesValue: JsonValues::required($object, 'fixture_series_value', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::decimal($value, $at, 6, 2, min: '-100.00', max: '1000.00')),
         );
     }
 }

@@ -12,6 +12,7 @@ use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecordDtos;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecords;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeCatalog;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeHandleEnum;
+use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeValidators;
 use Cbox\Cms\Generators\Generation\Domain\SchemaResolver;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintDocumentReader;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintSchemaFile;
@@ -84,7 +85,7 @@ final class ComprehensiveExample
     {
         $files = [];
 
-        foreach (new GeneratorRunner([new PhpRecordDtos, new PhpTypeHandleEnum, new PhpRecords, new PhpTypeCatalog(ServiceProvider::class)])->run(self::compile(), self::target())->files as $file) {
+        foreach (new GeneratorRunner([new PhpRecordDtos, new PhpTypeHandleEnum, new PhpRecords, new PhpTypeCatalog(ServiceProvider::class), new PhpTypeValidators])->run(self::compile(), self::target())->files as $file) {
             $files[$file->path] = $file->contents;
         }
 

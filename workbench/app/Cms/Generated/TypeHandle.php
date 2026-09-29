@@ -37,10 +37,17 @@ enum TypeHandle: string
                 'fixture_topics' => 'select',
             ],
             self::AppFixtureMeasurement => [
+                'fixture_alerts' => 'select',
+                'fixture_calibrated' => 'boolean',
+                'fixture_calibrated_on' => 'date',
                 'fixture_measured_at' => 'datetime',
                 'fixture_note' => 'long_text',
                 'fixture_reading' => 'decimal',
+                'fixture_remark' => 'rich_text',
+                'fixture_samples' => 'integer',
                 'fixture_scale' => 'select',
+                'fixture_sensor' => 'group',
+                'fixture_series' => 'group',
                 'fixture_station' => 'text',
             ],
         };

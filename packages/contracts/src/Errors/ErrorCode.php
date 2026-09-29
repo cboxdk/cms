@@ -109,7 +109,22 @@ enum ErrorCode: string
     case RegistryNotFinalReadonly = 'registry_not_final_readonly';
     case RegistryUnknownHookCommand = 'registry_unknown_hook_command';
     case Unauthorized = 'unauthorized';
+    case ValidationAboveMaximum = 'validation_above_maximum';
+    case ValidationBelowMinimum = 'validation_below_minimum';
+    case ValidationDuplicateItem = 'validation_duplicate_item';
     case ValidationFailed = 'validation_failed';
+    case ValidationInvalidFormat = 'validation_invalid_format';
+    case ValidationInvalidRichText = 'validation_invalid_rich_text';
+    case ValidationNotAnOption = 'validation_not_an_option';
+    case ValidationRequired = 'validation_required';
+    case ValidationRichTextNotAllowed = 'validation_rich_text_not_allowed';
+    case ValidationTooFewItems = 'validation_too_few_items';
+    case ValidationTooLong = 'validation_too_long';
+    case ValidationTooManyDigits = 'validation_too_many_digits';
+    case ValidationTooManyItems = 'validation_too_many_items';
+    case ValidationTooShort = 'validation_too_short';
+    case ValidationUnknownField = 'validation_unknown_field';
+    case ValidationWrongType = 'validation_wrong_type';
     case VersionConflict = 'version_conflict';
 
     /**
@@ -406,10 +421,85 @@ enum ErrorCode: string
                 ExitCode::NoPerm,
                 'The actor may not run this command on this target, so the command was rejected and nothing was committed. Ask for the right the command needs, or run it as an actor that has it.',
             ),
+            self::ValidationAboveMaximum => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'The value is greater than the largest value its field allows: a number above its max, a date or a time after it. Nothing was committed. Send a value within the field\'s bounds; the error names the field and the bound.',
+            ),
+            self::ValidationBelowMinimum => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'The value is less than the smallest value its field allows: a number below its min, a date or a time before it. Nothing was committed. Send a value within the field\'s bounds; the error names the field and the bound.',
+            ),
+            self::ValidationDuplicateItem => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'A list that holds each value at most once, such as the choices of a select field with several choices, has a value twice. Nothing was committed. Send each value once.',
+            ),
             self::ValidationFailed => $this->caller(
                 HttpStatus::UnprocessableContent,
                 ExitCode::DataErr,
                 'The command\'s content is invalid: a field is missing, has the wrong type or breaks a rule of its blueprint, so nothing was committed. Correct the fields the error lists, then send the command again.',
+            ),
+            self::ValidationInvalidFormat => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'The text is not in its field\'s format: an email address, or an absolute http or https URL. Nothing was committed. Send the value in the format the error names.',
+            ),
+            self::ValidationInvalidRichText => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'The rich text is not Portable Text as the field holds it (PRD 11.10): each block is an object of the type block with a key of its own and at least one span, each span has a key and its text, and a level belongs to a list item. Nothing was committed. Correct the value at the path the error names.',
+            ),
+            self::ValidationNotAnOption => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'The value is not one of the options of its select field. Nothing was committed. Send one of the options the error lists.',
+            ),
+            self::ValidationRequired => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'The field needs a value, and the input leaves it out or gives null. Nothing was committed. An extension field that its blueprint marks required needs one only when the entry is released (PRD 11.12). Send a value for the field.',
+            ),
+            self::ValidationRichTextNotAllowed => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'The rich text uses a style, a decorator mark, a kind of list or a kind of link that its field does not allow. Nothing was committed. Use only what the field allows; the error lists it.',
+            ),
+            self::ValidationTooFewItems => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'The list has fewer items than its field requires. Nothing was committed. Send at least the number of items the error names.',
+            ),
+            self::ValidationTooLong => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'The text has more characters than its field allows. Nothing was committed. Shorten it to the length the error names.',
+            ),
+            self::ValidationTooManyDigits => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'The decimal number has more digits before or after the point than its field stores, so it would be refused or rounded. Nothing was committed. Send a number with at most the digits the error names.',
+            ),
+            self::ValidationTooManyItems => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'The list has more items than its field allows (PRD 11.6). Nothing was committed. Send at most the number of items the error names.',
+            ),
+            self::ValidationTooShort => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'The text has fewer characters than its field requires. Nothing was committed. Send text of at least the length the error names.',
+            ),
+            self::ValidationUnknownField => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'The input has a field that the type does not have, in the namespace it is given in: the owner\'s fields by handle, an extender\'s under ext and its namespace, a group\'s nested fields by handle. Nothing was committed. Remove the field, or send it where the type declares it.',
+            ),
+            self::ValidationWrongType => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'The value is not of its field\'s type: text, a whole number, a decimal number written as a string, true or false, a date as YYYY-MM-DD, a date-time of RFC 3339 with its offset, an object or a list. Nothing was committed. Send a value of the type the error names.',
             ),
             self::VersionConflict => $this->caller(
                 HttpStatus::Conflict,

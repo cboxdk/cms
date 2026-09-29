@@ -8,6 +8,7 @@ use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecordDtos;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecords;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeCatalog;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeHandleEnum;
+use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeValidators;
 use Cbox\Cms\Generators\Generation\Domain\Generators\TypeScriptTypeHandles;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintSchemaFile;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypeRegistry;
@@ -41,6 +42,7 @@ function generatorMappings(): array
         PhpTypeHandleEnum::class => ['fieldTypes' => PhpTypeHandleEnum::FIELD_TYPES, 'kinds' => PhpTypeHandleEnum::KINDS],
         PhpRecords::class => ['fieldTypes' => PhpRecords::FIELD_TYPES, 'kinds' => PhpRecords::KINDS],
         PhpTypeCatalog::class => ['fieldTypes' => PhpTypeCatalog::FIELD_TYPES, 'kinds' => PhpTypeCatalog::KINDS],
+        PhpTypeValidators::class => ['fieldTypes' => PhpTypeValidators::FIELD_TYPES, 'kinds' => PhpTypeValidators::KINDS],
         TypeScriptTypeHandles::class => ['fieldTypes' => TypeScriptTypeHandles::FIELD_TYPES, 'kinds' => TypeScriptTypeHandles::KINDS],
     ];
 }
@@ -171,11 +173,13 @@ it('fails when the schema gains a field type or a kind that a generator does not
         PhpTypeHandleEnum::class.' has no mapping for the field type "relation".',
         PhpRecords::class.' has no mapping for the field type "relation".',
         PhpTypeCatalog::class.' has no mapping for the field type "relation".',
+        PhpTypeValidators::class.' has no mapping for the field type "relation".',
         TypeScriptTypeHandles::class.' has no mapping for the field type "relation".',
         PhpRecordDtos::class.' has no mapping for the kind "fieldset".',
         PhpTypeHandleEnum::class.' has no mapping for the kind "fieldset".',
         PhpRecords::class.' has no mapping for the kind "fieldset".',
         PhpTypeCatalog::class.' has no mapping for the kind "fieldset".',
+        PhpTypeValidators::class.' has no mapping for the kind "fieldset".',
         TypeScriptTypeHandles::class.' has no mapping for the kind "fieldset".',
     ]);
 });

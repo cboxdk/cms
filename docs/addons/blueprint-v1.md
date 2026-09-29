@@ -176,6 +176,8 @@ A few rules decide more than the field type does:
 
 From the descriptors, `cms:generate` writes the type enum and the TypeScript types, and for each type a record DTO and its JSON codec, described on [Records and JSON codecs](codecs.md).
 
+The rules of each field's runtime validator become a validator per type, which checks input from outside the repository against the same schema; see [Runtime validators](validation.md).
+
 ## Examples
 
 These examples are the test fixtures of the schema. `composer docs:check` checks that each block below is byte for byte the file it names, and the test at the end validates the three files against the schema, as an application's or addon's own tests can.

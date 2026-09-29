@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Fields\FieldMap;
 use Cbox\Cms\Contracts\Fields\FieldReader;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\FieldWriter;
+use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Fields\NamedValue;
 use DateTimeImmutable;
 use Override;
@@ -24,13 +25,22 @@ use Override;
 final readonly class AppFixtureMeasurement implements AppFixtureMeasurementRecord
 {
     /**
+     * @param  list<FixtureAlertsChoice>|null  $fixtureAlerts
      * @param  numeric-string  $fixtureReading
+     * @param  list<FixtureSeriesItem>|null  $fixtureSeries
      */
     public function __construct(
+        public ?array $fixtureAlerts,
+        public ?bool $fixtureCalibrated,
+        public ?DateTimeImmutable $fixtureCalibratedOn,
         public DateTimeImmutable $fixtureMeasuredAt,
         public ?string $fixtureNote,
         public string $fixtureReading,
+        public ?ListValue $fixtureRemark,
+        public ?int $fixtureSamples,
         public FixtureScaleChoice $fixtureScale,
+        public ?FixtureSensorGroup $fixtureSensor,
+        public ?array $fixtureSeries,
         public ?string $fixtureStation,
     ) {}
 
@@ -39,10 +49,17 @@ final readonly class AppFixtureMeasurement implements AppFixtureMeasurementRecor
         $fields = FieldReader::of($values->own);
 
         return new self(
+            fixtureAlerts: $fields->choicesOrNull('fixture_alerts', FixtureAlertsChoice::class),
+            fixtureCalibrated: $fields->booleanOrNull('fixture_calibrated'),
+            fixtureCalibratedOn: $fields->dateOrNull('fixture_calibrated_on'),
             fixtureMeasuredAt: $fields->dateTime('fixture_measured_at'),
             fixtureNote: $fields->textOrNull('fixture_note'),
             fixtureReading: $fields->decimal('fixture_reading'),
+            fixtureRemark: $fields->listOrNull('fixture_remark'),
+            fixtureSamples: $fields->integerOrNull('fixture_samples'),
             fixtureScale: $fields->choice('fixture_scale', FixtureScaleChoice::class),
+            fixtureSensor: FixtureSensorGroup::fromFieldsOrNull($fields->groupOrNull('fixture_sensor')),
+            fixtureSeries: FixtureSeriesItem::fromListOrNull($fields->groupsOrNull('fixture_series')),
             fixtureStation: $fields->textOrNull('fixture_station'),
         );
     }
@@ -52,10 +69,17 @@ final readonly class AppFixtureMeasurement implements AppFixtureMeasurementRecor
     {
         return new FieldValues(
             new FieldMap(
+                new NamedValue(new FieldHandle('fixture_alerts'), FieldWriter::choices($this->fixtureAlerts)),
+                new NamedValue(new FieldHandle('fixture_calibrated'), FieldWriter::boolean($this->fixtureCalibrated)),
+                new NamedValue(new FieldHandle('fixture_calibrated_on'), FieldWriter::date($this->fixtureCalibratedOn)),
                 new NamedValue(new FieldHandle('fixture_measured_at'), FieldWriter::dateTime($this->fixtureMeasuredAt)),
                 new NamedValue(new FieldHandle('fixture_note'), FieldWriter::text($this->fixtureNote)),
                 new NamedValue(new FieldHandle('fixture_reading'), FieldWriter::decimal($this->fixtureReading)),
+                new NamedValue(new FieldHandle('fixture_remark'), FieldWriter::list($this->fixtureRemark)),
+                new NamedValue(new FieldHandle('fixture_samples'), FieldWriter::integer($this->fixtureSamples)),
                 new NamedValue(new FieldHandle('fixture_scale'), FieldWriter::choice($this->fixtureScale)),
+                new NamedValue(new FieldHandle('fixture_sensor'), FieldWriter::group($this->fixtureSensor?->toFieldMap())),
+                new NamedValue(new FieldHandle('fixture_series'), FieldWriter::groups($this->fixtureSeries === null ? null : FixtureSeriesItem::toFieldMaps($this->fixtureSeries))),
                 new NamedValue(new FieldHandle('fixture_station'), FieldWriter::text($this->fixtureStation)),
             ),
         );

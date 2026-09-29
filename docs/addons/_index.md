@@ -22,3 +22,4 @@ An extension point is `#[Stable]` or `#[Experimental]`. Every extension point do
 - [Plans and mutations](plans.md): the `Plan` a write action returns, the typed mutations and the kernel-generic field values of a revision.
 - [Queries and query actions](queries.md): `Query`, `QueryAction` and the typed `Result` of a read.
 - [Records and JSON codecs](codecs.md): the record DTO and the JSON codec `cms:generate` writes for every type, the JSON form of each kind of value, classification access and `Omitted`, and the `JsonCodec` contract.
+- [Runtime validators](validation.md): the validator `cms:generate` writes per type, its rules, and the kernel's `InputValidator`, which checks input from outside against them.

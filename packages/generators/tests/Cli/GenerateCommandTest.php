@@ -86,7 +86,7 @@ it('points at the workbench\'s schema root in the workbench', function (): void 
     ]);
 });
 
-it('writes the PHP enum, the record DTO and codec, and the TypeScript union, and a second run changes nothing', function (): void {
+it('writes the PHP enum, the record DTO and codec, the validator and the TypeScript union, and a second run changes nothing', function (): void {
     $root = generateRoot();
 
     [$first, $firstOutput] = generateCommand();
@@ -104,11 +104,12 @@ it('writes the PHP enum, the record DTO and codec, and the TypeScript union, and
             'written: app/Cms/Generated/Records/AppPage/AppPageRecord.php',
             'written: app/Cms/Generated/Records/AppPage/AppPageRecordFactory.php',
             'written: app/Cms/Generated/TypeHandle.php',
+            'written: app/Cms/Generated/Validators/AppPageValidator.php',
             'written: resources/js/cms/generated/index.ts',
-            'Generated 10 files: 10 written, 0 unchanged, 0 stale removed.',
+            'Generated 11 files: 11 written, 0 unchanged, 0 stale removed.',
         ])
         ->and($second)->toBe(0)
-        ->and($secondOutput)->toBe(['Generated 10 files: 0 written, 10 unchanged, 0 stale removed.'])
+        ->and($secondOutput)->toBe(['Generated 11 files: 0 written, 11 unchanged, 0 stale removed.'])
         ->and(array_map(static fn (string $file): string => (string) hash_file('sha256', $root.'/'.$file), SchemaFixtures::files($root)))->toBe($hashes)
         ->and(SchemaFixtures::files($root))->toBe([
             'app/Cms/Generated/Boundary/AppPageCodecV1.php',
@@ -120,6 +121,7 @@ it('writes the PHP enum, the record DTO and codec, and the TypeScript union, and
             'app/Cms/Generated/Records/AppPage/AppPageRecord.php',
             'app/Cms/Generated/Records/AppPage/AppPageRecordFactory.php',
             'app/Cms/Generated/TypeHandle.php',
+            'app/Cms/Generated/Validators/AppPageValidator.php',
             'resources/js/cms/generated/index.ts',
             'schema/page.yaml',
         ]);
@@ -175,9 +177,11 @@ it('generates when a module release adds a type with the handle of an app type, 
             'written: app/Cms/Generated/Records/AcmePage/AcmePageRecord.php',
             'written: app/Cms/Generated/Records/AcmePage/AcmePageRecordFactory.php',
             'written: app/Cms/Generated/TypeHandle.php',
+            'written: app/Cms/Generated/Validators/AcmePageValidator.php',
             'written: resources/js/cms/generated/index.ts',
-            'Generated 16 files: 10 written, 6 unchanged, 0 stale removed.',
+            'Generated 18 files: 11 written, 7 unchanged, 0 stale removed.',
         ])
+        ->and(is_file($root.'/app/Cms/Generated/Validators/AppPageValidator.php'))->toBeTrue()
         ->and((string) file_get_contents($root.'/app/Cms/Generated/TypeHandle.php'))->toContain("    case AcmePage = 'acme:page';\n    case AppPage = 'app:page';\n")
         ->and($typeScript)->toContain("export type TypeHandle = 'app:page';\n")
         ->and((string) file_get_contents($root.'/resources/js/cms/generated/index.ts'))->toContain("export type TypeHandle = 'acme:page' | 'app:page';\n");

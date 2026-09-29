@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Workbench\App\Cms\Generated\Records\AppFixtureMeasurement;
 
 use Cbox\Cms\Contracts\Fields\FieldValues;
+use Cbox\Cms\Contracts\Fields\ListValue;
 use DateTimeImmutable;
 
 /**
@@ -17,6 +18,23 @@ use DateTimeImmutable;
  */
 interface AppFixtureMeasurementRecord
 {
+    /**
+     * Alerts: The alerts the reading raised.
+     *
+     * @var list<FixtureAlertsChoice>|null
+     */
+    public ?array $fixtureAlerts { get; }
+
+    /**
+     * Calibrated: Whether the sensor was calibrated when it took the reading.
+     */
+    public ?bool $fixtureCalibrated { get; }
+
+    /**
+     * Calibrated on: The day the sensor was last calibrated.
+     */
+    public ?DateTimeImmutable $fixtureCalibratedOn { get; }
+
     /**
      * Measured at: When the sensor took the reading.
      */
@@ -35,9 +53,31 @@ interface AppFixtureMeasurementRecord
     public string $fixtureReading { get; }
 
     /**
+     * Remark: A remark on the reading, in rich text.
+     */
+    public ?ListValue $fixtureRemark { get; }
+
+    /**
+     * Samples: How many samples the sensor averaged into the reading.
+     */
+    public ?int $fixtureSamples { get; }
+
+    /**
      * Scale: The scale of the reading.
      */
     public FixtureScaleChoice $fixtureScale { get; }
+
+    /**
+     * Sensor: The sensor that took the reading.
+     */
+    public ?FixtureSensorGroup $fixtureSensor { get; }
+
+    /**
+     * Series: The single readings the reading is the mean of.
+     *
+     * @var list<FixtureSeriesItem>|null
+     */
+    public ?array $fixtureSeries { get; }
 
     /**
      * Station: The code of the station the sensor stands at.

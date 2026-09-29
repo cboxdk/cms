@@ -93,6 +93,13 @@ it('holds only blueprint v1 files, which the YAML source reads without problems'
             ['fixture_measured_at', DatetimeOptions::class, Classification::Public, true],
             ['fixture_station', TextOptions::class, Classification::Internal, false],
             ['fixture_note', LongTextOptions::class, Classification::Internal, false],
+            ['fixture_samples', IntegerOptions::class, Classification::Public, false],
+            ['fixture_calibrated', BooleanOptions::class, Classification::Public, false],
+            ['fixture_calibrated_on', DateOptions::class, Classification::Public, false],
+            ['fixture_alerts', SelectOptions::class, Classification::Public, false],
+            ['fixture_remark', RichTextOptions::class, Classification::Public, false],
+            ['fixture_sensor', GroupOptions::class, Classification::Internal, false],
+            ['fixture_series', GroupOptions::class, Classification::Public, false],
         ])
         ->and(array_intersect(
             array_map(static fn (FieldBlueprint $field): string => $field->handle->value, $measurement->fields),
@@ -122,6 +129,8 @@ it('has committed generated code that matches the schema', function (): void {
         'workbench/app/Cms/Generated/Domain/Dto/AppFixtureArticleV1FixtureEmbargo.php',
         'workbench/app/Cms/Generated/Domain/Dto/AppFixtureArticleV1FixtureSources.php',
         'workbench/app/Cms/Generated/Domain/Dto/AppFixtureMeasurementV1.php',
+        'workbench/app/Cms/Generated/Domain/Dto/AppFixtureMeasurementV1FixtureSensor.php',
+        'workbench/app/Cms/Generated/Domain/Dto/AppFixtureMeasurementV1FixtureSeries.php',
         'workbench/app/Cms/Generated/GeneratedTypeCatalog.php',
         'workbench/app/Cms/Generated/GeneratedTypesServiceProvider.php',
         'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticle.php',
@@ -135,8 +144,13 @@ it('has committed generated code that matches the schema', function (): void {
         'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/AppFixtureMeasurementFactory.php',
         'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/AppFixtureMeasurementRecord.php',
         'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/AppFixtureMeasurementRecordFactory.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/FixtureAlertsChoice.php',
         'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/FixtureScaleChoice.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/FixtureSensorGroup.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/FixtureSeriesItem.php',
         'workbench/app/Cms/Generated/TypeHandle.php',
+        'workbench/app/Cms/Generated/Validators/AppFixtureArticleValidator.php',
+        'workbench/app/Cms/Generated/Validators/AppFixtureMeasurementValidator.php',
         'workbench/resources/js/cms/generated/index.ts',
     ]);
 
