@@ -16,6 +16,9 @@ enum HttpStatus: int
     /** The call succeeded, as a dry run does: it computed the plan and committed nothing. */
     case Ok = 200;
 
+    /** The call carried no credential that verifies, so the caller is not known. */
+    case Unauthorized = 401;
+
     /** The caller may not do this, and asking again does not change that. */
     case Forbidden = 403;
 
@@ -38,6 +41,7 @@ enum HttpStatus: int
     {
         return match ($this) {
             self::Ok => 'OK',
+            self::Unauthorized => 'Unauthorized',
             self::Forbidden => 'Forbidden',
             self::Conflict => 'Conflict',
             self::UnprocessableContent => 'Unprocessable Content',

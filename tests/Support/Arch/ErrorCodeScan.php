@@ -40,7 +40,6 @@ final readonly class ErrorCodeScan
      * the task that uses it.
      */
     public const array RESERVED = [
-        'actor_not_active' => 'the command kernel rejects a command of a deactivated actor, or one on behalf of one (M1 point 3, PRD 5.16, invariant 37)',
         'dry_run' => 'the surfaces answer a receipt with the outcome dry_run (M1 points 3 and 6, GUARDRAILS 2.1)',
         'unauthorized' => 'the command kernel rejects a command the actor may not run (M1 point 3, PRD 6.2)',
         'validation_failed' => 'the command kernel rejects a command whose content is invalid (M1 point 3, PRD 6.2)',

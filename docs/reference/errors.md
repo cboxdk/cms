@@ -15,6 +15,10 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | Code | HTTP | Exit | MCP | Retry |
 |---|---|---|---|---|
 | [`actor_not_active`](#actor_not_active) | 403 | 77 | tool_error | no |
+| [`credential_expired`](#credential_expired) | 401 | 77 | tool_error | no |
+| [`credential_malformed`](#credential_malformed) | 401 | 77 | tool_error | no |
+| [`credential_revoked`](#credential_revoked) | 401 | 77 | tool_error | no |
+| [`credential_unknown`](#credential_unknown) | 401 | 77 | tool_error | no |
 | [`doctor_app_role_bypassrls`](#doctor_app_role_bypassrls) | 500 | 78 | internal_error | no |
 | [`doctor_app_role_createrole`](#doctor_app_role_createrole) | 500 | 78 | internal_error | no |
 | [`doctor_app_role_has_ddl`](#doctor_app_role_has_ddl) | 500 | 78 | internal_error | no |
@@ -96,9 +100,45 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 
 ### actor_not_active
 
-The actor that ran the command, or the actor it ran on behalf of, is deactivated (PRD 5.16, invariant 37), and nothing was committed. A deactivated actor runs no command and reads nothing. Reactivate the actor, or run the command as an actor that is active.
+The actor, or an actor it acts on behalf of, is not active (PRD 5.16, invariant 37): its credentials are refused, it runs no command and reads nothing, and nothing was committed. Reactivate the actor, or call as an actor that is active.
 
 - HTTP status: 403 Forbidden
+- CLI exit code: 77 (EX_NOPERM)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### credential_expired
+
+The credential's expiry has passed, so it was refused and nothing was read or committed (PRD 5.16). Every credential has an expiry. Call again with a credential that is still valid.
+
+- HTTP status: 401 Unauthorized
+- CLI exit code: 77 (EX_NOPERM)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### credential_malformed
+
+The credential is not in the form of a credential, or its checksum does not match, so it was refused without a lookup (PRD 5.16). Check that the whole token was sent, without spaces or a missing part.
+
+- HTTP status: 401 Unauthorized
+- CLI exit code: 77 (EX_NOPERM)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### credential_revoked
+
+The credential was revoked: its actor's credential generation was counted up after it was issued, by a deactivation or a revocation of everything the actor held (PRD 5.16). Nothing was read or committed. Call again with a credential issued after that.
+
+- HTTP status: 401 Unauthorized
+- CLI exit code: 77 (EX_NOPERM)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### credential_unknown
+
+No credential has this token, so it was refused and nothing was read or committed (PRD 5.16). Call again with a credential that was issued by this installation.
+
+- HTTP status: 401 Unauthorized
 - CLI exit code: 77 (EX_NOPERM)
 - MCP: a tool result with isError set
 - Retry: no, the same call gives the same answer until something changes

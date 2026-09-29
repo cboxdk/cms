@@ -16,5 +16,7 @@ Every contract has two things in the testkit, `Cbox\Cms\Testkit`: a fake for tes
 | [`IdGenerator`](id-generator.md) | `SystemIdGenerator` | `FakeIdGenerator` | `IdGeneratorContract` |
 | [`ReceiptStore`](receipt-store.md) | `PostgresReceiptStore` | `FakeReceiptStore` | `ReceiptStoreContract` |
 | [`IdempotencyStore`](idempotency-store.md) | `PostgresIdempotencyStore` | `FakeIdempotencyStore` | `IdempotencyStoreContract` |
+| [`ActorDirectory`](actor-directory.md) | `PostgresActorDirectory` | `FakeIdentity` | `ActorDirectoryContract` |
+| [`CredentialVerifier`](credential-verifier.md) | `PostgresCredentialVerifier` | `FakeIdentity` | `CredentialVerifierContract` |
 
 The contract of a doctor check, `DoctorCheck`, is not bound in the container; an application lists its checks by class. It is on [Doctor checks](../doctor-checks.md).

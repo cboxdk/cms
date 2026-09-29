@@ -14,7 +14,7 @@ A test that changes a setting sets the single key, such as `cbox-cms.contracts.<
 
 | Key | Default | What it does |
 |---|---|---|
-| `cbox-cms.contracts` | the four entries below | Maps each contract to the class the container builds for it, as a singleton, the first time something resolves the contract. The class must implement the contract. |
+| `cbox-cms.contracts` | the six entries below | Maps each contract to the class the container builds for it, as a singleton, the first time something resolves the contract. The class must implement the contract. |
 
 | Contract | Default class |
 |---|---|
@@ -22,8 +22,10 @@ A test that changes a setting sets the single key, such as `cbox-cms.contracts.<
 | `Cbox\Cms\Contracts\IdGenerator` | `Cbox\Cms\Core\Ids\Adapter\SystemIdGenerator` |
 | `Cbox\Cms\Contracts\ReceiptStore` | `Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore` |
 | `Cbox\Cms\Contracts\IdempotencyStore` | `Cbox\Cms\Core\IdempotencyStore\Adapter\PostgresIdempotencyStore` |
+| `Cbox\Cms\Contracts\Identity\ActorDirectory` | `Cbox\Cms\Core\Identity\Adapter\PostgresActorDirectory` |
+| `Cbox\Cms\Contracts\Identity\CredentialVerifier` | `Cbox\Cms\Core\Identity\Adapter\PostgresCredentialVerifier` |
 
-For example, `'contracts' => [Clock::class => StagingClock::class]` replaces the clock and keeps the other three. See [Contracts](../addons/contracts/_index.md).
+For example, `'contracts' => [Clock::class => StagingClock::class]` replaces the clock and keeps the other five. See [Contracts](../addons/contracts/_index.md).
 
 ## Database
 

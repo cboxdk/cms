@@ -63,6 +63,10 @@ it('has the codes M1 adds, with what each surface answers', function (ErrorCode 
     'validation failed' => [ErrorCode::ValidationFailed, HttpStatus::UnprocessableContent, ExitCode::DataErr, McpResponse::ToolError, false],
     'unauthorized' => [ErrorCode::Unauthorized, HttpStatus::Forbidden, ExitCode::NoPerm, McpResponse::ToolError, false],
     'actor not active' => [ErrorCode::ActorNotActive, HttpStatus::Forbidden, ExitCode::NoPerm, McpResponse::ToolError, false],
+    'credential malformed' => [ErrorCode::CredentialMalformed, HttpStatus::Unauthorized, ExitCode::NoPerm, McpResponse::ToolError, false],
+    'credential unknown' => [ErrorCode::CredentialUnknown, HttpStatus::Unauthorized, ExitCode::NoPerm, McpResponse::ToolError, false],
+    'credential expired' => [ErrorCode::CredentialExpired, HttpStatus::Unauthorized, ExitCode::NoPerm, McpResponse::ToolError, false],
+    'credential revoked' => [ErrorCode::CredentialRevoked, HttpStatus::Unauthorized, ExitCode::NoPerm, McpResponse::ToolError, false],
     'dry run' => [ErrorCode::DryRun, HttpStatus::Ok, ExitCode::Ok, McpResponse::Result, false],
     'partition missing' => [ErrorCode::PartitionMissing, HttpStatus::ServiceUnavailable, ExitCode::TempFail, McpResponse::InternalError, true],
 ]);
@@ -115,6 +119,7 @@ it('gives every HTTP status its reason phrase', function (HttpStatus $status, in
         ->and($status->reason())->toBe($reason);
 })->with([
     [HttpStatus::Ok, 200, 'OK'],
+    [HttpStatus::Unauthorized, 401, 'Unauthorized'],
     [HttpStatus::Forbidden, 403, 'Forbidden'],
     [HttpStatus::Conflict, 409, 'Conflict'],
     [HttpStatus::UnprocessableContent, 422, 'Unprocessable Content'],

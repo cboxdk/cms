@@ -10,6 +10,8 @@ use Cbox\Cms\Contracts\Build\ScanRoot;
 use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\Doctor\InvalidDoctorCheck;
 use Cbox\Cms\Contracts\IdempotencyStore;
+use Cbox\Cms\Contracts\Identity\ActorDirectory;
+use Cbox\Cms\Contracts\Identity\CredentialVerifier;
 use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Contracts\ReceiptStore;
 use Cbox\Cms\Core\Bindings\Boundary\ContractBindings;
@@ -130,6 +132,16 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->singleton(
             IdempotencyStore::class,
             static fn (Application $app): IdempotencyStore => $app->make(ContractBindings::class)->resolve($app, IdempotencyStore::class),
+        );
+
+        $this->app->singleton(
+            ActorDirectory::class,
+            static fn (Application $app): ActorDirectory => $app->make(ContractBindings::class)->resolve($app, ActorDirectory::class),
+        );
+
+        $this->app->singleton(
+            CredentialVerifier::class,
+            static fn (Application $app): CredentialVerifier => $app->make(ContractBindings::class)->resolve($app, CredentialVerifier::class),
         );
 
         // Built on each resolution, so the default wait budget follows the configuration.

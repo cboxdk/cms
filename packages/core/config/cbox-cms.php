@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\IdempotencyStore;
+use Cbox\Cms\Contracts\Identity\ActorDirectory;
+use Cbox\Cms\Contracts\Identity\CredentialVerifier;
 use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Contracts\ReceiptStore;
 use Cbox\Cms\Core\Clock\Adapter\SystemClock;
 use Cbox\Cms\Core\IdempotencyStore\Adapter\PostgresIdempotencyStore;
+use Cbox\Cms\Core\Identity\Adapter\PostgresActorDirectory;
+use Cbox\Cms\Core\Identity\Adapter\PostgresCredentialVerifier;
 use Cbox\Cms\Core\Ids\Adapter\SystemIdGenerator;
 use Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore;
 
@@ -22,6 +26,8 @@ return [
         IdGenerator::class => SystemIdGenerator::class,
         ReceiptStore::class => PostgresReceiptStore::class,
         IdempotencyStore::class => PostgresIdempotencyStore::class,
+        ActorDirectory::class => PostgresActorDirectory::class,
+        CredentialVerifier::class => PostgresCredentialVerifier::class,
     ],
 
     'database' => [
