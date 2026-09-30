@@ -93,9 +93,10 @@
         <!-- A fixed key for the test application only; the web middleware encrypts cookies. -->
         <env name="APP_KEY" value="base64:mAfSx1dFf0ps0RjZgJUdiGI87gLFyYzz5H7IqMVPD0M="/>
         <!--
-            The services from compose.yaml on their host ports. Inside the php container,
-            compose sets DB_HOST, DB_PORT, REDIS_HOST and REDIS_PORT to the service names,
-            and PHPUnit keeps a variable that is already set.
+            The services from compose.yaml on their host ports. Inside the php container and in
+            the dev image runs of composer check (DevImageRun), DB_HOST, DB_PORT, REDIS_HOST and
+            REDIS_PORT are set to the service names and container ports, and PHPUnit keeps a
+            variable that is already set.
             Tests run as the app role (GUARDRAILS 6); pgsql_owner is the owner role.
             DB_DATABASE is the configured database the harness connects to as the owner role; the
             tests run in this checkout's own database, cms_test_<hash of the checkout's path>,

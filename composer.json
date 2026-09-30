@@ -151,6 +151,15 @@
             "Composer\\Config::disableProcessTimeout",
             "@php tools/bin/check.php"
         ],
+        "test:affected": [
+            "Composer\\Config::disableProcessTimeout",
+            "@php tools/bin/test-affected.php"
+        ],
+        "image:run": [
+            "Composer\\Config::disableProcessTimeout",
+            "@php tools/bin/dev-image.php --"
+        ],
+        "image:prune": "@php tools/bin/prune-image-volumes.php",
         "check:selftest": [
             "Composer\\Config::disableProcessTimeout",
             "@php tools/bin/check-selftest.php"

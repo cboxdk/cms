@@ -11,7 +11,7 @@ description: The shared Postgres and Valkey services of the development environm
 `compose.yaml` in the main checkout defines the services, and `composer services:up` starts them. Every checkout of the repository on the machine uses the same Postgres and Valkey: the main checkout and every git worktree of it. `composer services:up` always runs `docker compose` with the main checkout's `compose.yaml` and the main checkout as the project directory, so no container ever mounts a worktree.
 
 - **From the main checkout**, `composer services:up` starts all three services and waits until they are healthy, and `composer services:down` stops them and keeps the data volumes.
-- **From a worktree**, `composer services:up` starts only Postgres and Valkey, never recreates a running container, and says that the php container mounts the main checkout. `composer services:down` refuses, because other checkouts use the services.
+- **From a worktree**, `composer services:up` starts only Postgres and Valkey, never recreates a running container, and says that the php container mounts the main checkout. The gates of a worktree run in a container of their own that mounts the worktree and joins the services' network ([The dev image](gates-and-ci.md#the-dev-image)). `composer services:down` refuses, because other checkouts use the services.
 
 Both run the Postgres init script afterwards. It is idempotent, so an existing data volume gets the current roles and databases.
 

@@ -11,6 +11,7 @@ use Cbox\Cms\Tooling\Check\Domain\ProcessOutcome;
 use Cbox\Cms\Tooling\Check\Domain\ProcessRunner;
 use Cbox\Cms\Tooling\Check\Domain\ReportFormatter;
 use Cbox\Cms\Tooling\Check\Domain\StepResult;
+use Cbox\Cms\Tooling\DevImage\Domain\CheckoutVolume;
 use Cbox\Cms\Tooling\Selftest\Domain\Plant;
 use Cbox\Cms\Tooling\Selftest\Domain\Plants;
 use Cbox\Cms\Tooling\Selftest\Domain\PlantVerdict;
@@ -28,8 +29,10 @@ use UnexpectedValueException;
  * Composer dumped there maps every namespace of cboxdk/cms, the root package, inside the worktree. It
  * plants the violations from Plants, runs `composer check` in the worktree with a report file,
  * and asserts that each violation made the right step fail with a path inside the worktree.
- * Finally it drops the worktree's own Postgres test database, which the Postgres suite in the
- * worktree created (cms_test_<hash of the worktree's path>), removes the worktree and its
+ * `composer check` runs its gates in the dev image, which mounts the worktree and the report's
+ * directory at their own paths. Finally it drops the worktree's own Postgres test database, which
+ * the Postgres suite in the worktree created (cms_test_<hash of the worktree's path>), removes the
+ * worktree, the volumes the dev image made for it, and its
  * temporary directory, also after an error or Ctrl-C, and asserts that git no longer lists the
  * worktree. So a run leaves no worktree and no database behind. It prints the temporary
  * directory it made before anything else runs, and touches no other directory with its prefix:
@@ -236,6 +239,7 @@ final readonly class GateSelftest
         if (is_dir($worktree)) {
             $dropped = $this->dropDatabase($repository, $worktree);
             $this->processes->run(['git', 'worktree', 'remove', '--force', $worktree], $repository);
+            $dropped = $this->removeVolumes($repository, $worktree) && $dropped;
         }
 
         $this->delete($base);
@@ -284,6 +288,26 @@ final readonly class GateSelftest
 
             return false;
         }
+
+        return true;
+    }
+
+    /**
+     * Removes the volumes that `composer check` made for the worktree in the dev image
+     * (CheckoutVolume). --force, because a run that stopped before the dev image leaves none.
+     */
+    private function removeVolumes(string $repository, string $worktree): bool
+    {
+        $volumes = array_map(static fn (CheckoutVolume $volume): string => $volume->name, CheckoutVolume::all($worktree));
+        $outcome = $this->processes->run(['docker', 'volume', 'rm', '--force', ...$volumes], $repository);
+
+        if (! $outcome->succeeded()) {
+            $this->write('Could not remove the dev image volumes of the worktree: '.rtrim($outcome->output)."\n");
+
+            return false;
+        }
+
+        $this->write('Removed the dev image volumes of the worktree: '.implode(', ', $volumes).".\n");
 
         return true;
     }

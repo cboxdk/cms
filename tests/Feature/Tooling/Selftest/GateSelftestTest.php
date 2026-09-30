@@ -7,6 +7,8 @@ namespace Cbox\Cms\Tests\Feature\Tooling\Selftest;
 use Cbox\Cms\Tests\Support\Tooling\ScratchDirectory;
 use Cbox\Cms\Tests\Support\Tooling\ScriptedProcessRunner;
 use Cbox\Cms\Tooling\Check\Domain\ProcessOutcome;
+use Cbox\Cms\Tooling\DevImage\Domain\CheckoutVolume;
+use Cbox\Cms\Tooling\DevImage\Domain\VolumeKind;
 use Cbox\Cms\Tooling\Selftest\Adapter\GateSelftest;
 use Cbox\Cms\Tooling\Selftest\Domain\Plants;
 use RuntimeException;
@@ -72,9 +74,11 @@ it('installs a worktree of HEAD in the temporary directory, runs composer check 
         ->and(array_slice($commands, 5))->toBe([
             'php /srv/main/tools/bin/drop-test-database.php '.$worktree,
             "git worktree remove --force {$worktree}",
+            'docker volume rm --force '.implode(' ', array_map(static fn (CheckoutVolume $volume): string => $volume->name, CheckoutVolume::all($worktree))),
             'git worktree prune',
             'git worktree list --porcelain',
         ])
+        ->and($output)->toContain('Removed the dev image volumes of the worktree: '.CheckoutVolume::for(VolumeKind::NodeModules, $worktree)->name.', ')
         ->and($runner->calls[5]->directory)->toBe('/srv/main')
         ->and($world->droppedWhileExisting)->toBe([$worktree])
         ->and($output)->toContain("Dropped the test database cms_test_0123456789ab of {$worktree}.")

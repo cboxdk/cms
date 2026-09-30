@@ -17,7 +17,7 @@ Every change passes the same gates, in the same order. Each gate runs a Composer
 | 5 | The installation, then the Pest suites `Unit`, `Codecs`, `Contract`, `Postgres`, `Arch` and `Actions` | `composer install:check`, `vendor/bin/pest --testsuite=<suite> --parallel` | yes | yes, with the `Mutation` suite and mutation testing on the changed files |
 | 6 | Generated code is the committed code | `composer check:generated` | yes | yes |
 | 7 | Storybook, visual regression and axe | | no | not run until the panel has a UI |
-| 8 | The `Browser` suite | `vendor/bin/pest --testsuite=Browser` | no | yes |
+| 8 | The `Browser` suite | `vendor/bin/pest --testsuite=Browser`, locally `composer image:run -- vendor/bin/pest --testsuite=Browser` | no | yes |
 | 9 | Known vulnerabilities in the dependencies | `composer audit --locked --abandoned=report`, `npm audit` | no | yes |
 | 10 | Documentation | `composer docs:check` | no | yes |
 | 11 | Review of changed checks by someone other than the author | | no | not run until branch protection on main requires review by someone other than the author, a repository setting of github.com/cboxdk/cms |
@@ -31,6 +31,25 @@ Options go after `--`: `composer check -- --report=<file>` also writes a JSON re
 Gate 5 starts with `composer install:check`, which fails when `vendor/` is not the installation `composer.lock` describes, so a checkout that moved without `composer install` fails with the fix instead of a missing class. Each suite then runs on its own with `--fail-on-skipped --fail-on-incomplete --parallel`: the same tests, spread over one worker process per CPU. Each worker of the `Postgres` suite gets a test database of its own, so the workers never share rows. A suite added to `phpunit.xml` must also be added to the profile; a test fails until it is.
 
 Gate 10 is not in the local profile, but the `Unit` suite runs the same documentation audit on the repository, so `composer check` fails on everything `composer docs:check` would find.
+
+## The dev image
+
+The gates run in the php-baseimages dev image, `ghcr.io/cboxdk/php-baseimages/php-cli:8.5-bookworm-dev-v1`, on your machine as in CI: PHP 8.5 with PCOV and Xdebug, Node 22, and Playwright's Chromium in `/ms-playwright`. `composer check` started on the host checks its options and then runs itself again in a container of the image, for the checkout you run it in, a git worktree included:
+
+- The checkout is mounted at its own absolute path and is the working directory, so the reports name the paths you see, and the checkout gets its own test database, which the testkit derives from that path. A worktree also gets the main checkout's `.git` at its path, so git works in it.
+- `node_modules` is a Docker volume of the checkout's own, `laravel-cms-node-modules-<hash of the checkout's path>`, because the `node_modules` on a Mac holds macOS binaries. The first run, and every run after `package-lock.json` changed, installs it with `npm ci` in the image.
+- Your `~/.pest` is mounted, so the graph of `composer test:affected` is shared.
+- It runs as your uid and gid, never as root, because root ignores file permissions and the tests of unwritable files would skip, and with your machine's name.
+- `.cache`, where PHPStan, Rector and Pint keep their caches, and the bootstrap cache of the Testbench application are Docker volumes of the checkout's own too, because on Docker Desktop a file that one process replaces with a rename can be missing for a moment to another process reading it through the mount, and the parallel workers rewrite files there. Each run starts by copying the host's bootstrap cache into its volume, so it starts from the manifests and the registry cache the host has.
+- It joins the network of the main checkout's services and reaches them as `postgres` and `valkey`. It never starts them: when Postgres or Valkey is not running and healthy, it stops with exit 1 and says to run `composer services:up` in the main checkout.
+
+A process that already runs in the image, where the image sets `CBOX_IMAGE_TIER=dev`, runs the gates in place: CI, the php service and the container itself. `composer image:run -- <command>` runs any command the same way, such as `composer image:run -- vendor/bin/pest --testsuite=Browser` for gate 8 or `--testsuite=Mutation`, which needs PCOV. `composer image:prune` removes the volumes of checkouts that are gone, and `composer image:prune -- --dry-run` only lists them.
+
+## composer test:affected
+
+`composer test:affected` gives fast feedback while you work; it is not a gate. It runs `vendor/bin/pest --parallel --tia` in the dev image: Pest's test impact analysis records, per test, the files and tables it touches, through PCOV, in a graph below `~/.pest/tia`. The first run records the graph and runs everything; after that, a run reruns only the tests that depend on what changed and replays the results of the others. Arguments go after `--`; one that selects tests, such as `--filter` or `--testsuite`, makes Pest run the selection without the analysis.
+
+The analysis takes Pest files only and stops at a PHPUnit test class, so the command runs twice: first the Pest files with the analysis, then every PHPUnit test class, such as the classes of the contract suites, in full. Both configurations are `phpunit.xml` with the other kind of file left out.
 
 ## The documentation gate
 

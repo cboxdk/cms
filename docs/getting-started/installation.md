@@ -26,7 +26,7 @@ The browser tests need Chromium in the version Playwright pins. Download it once
 
 It then runs the Postgres init script again, which is idempotent, so an existing data volume gets the current roles and databases. The ports bind to `127.0.0.1` only. `composer services:down` stops the containers and keeps the data volumes.
 
-The php container runs as your user, mounts the main checkout at `/var/www/html`, never a worktree, and has the PHP settings of the runtime contract, among them `allow_url_fopen = Off`. Commands that must see the runtime contract, such as `cms:doctor`, run there: `docker compose exec php <command>` in the main checkout. The tests and the gates also run on the host, against the ports above.
+The php container runs as your user, mounts the main checkout at `/var/www/html`, never a worktree, and has the PHP settings of the runtime contract, among them `allow_url_fopen = Off`. Commands that must see the runtime contract, such as `cms:doctor`, run there: `docker compose exec php <command>` in the main checkout. The gates run in a container of the same image of their own, for whichever checkout runs them; see [Gates and CI](../developers/gates-and-ci.md#the-dev-image).
 
 The services are shared by every checkout of the repository on the machine, git worktrees included. [Services and isolation](../developers/services.md) explains how the tests of two checkouts stay apart.
 
@@ -56,4 +56,4 @@ On the host, PHP usually has `allow_url_fopen` on, and `cms:doctor` then fails `
 
 ## The first run of the gates
 
-`composer check` runs gates 1 to 6 with the services up. On a new checkout it also creates the checkout's own test database the first time the Postgres suite runs. [Gates and CI](../developers/gates-and-ci.md) describes each gate.
+`composer check` runs gates 1 to 6 with the services up, in the dev image. The first run in a checkout also installs its Linux `node_modules` in a Docker volume, and it creates the checkout's own test database the first time the Postgres suite runs. [Gates and CI](../developers/gates-and-ci.md) describes each gate.
