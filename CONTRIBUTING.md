@@ -24,6 +24,7 @@ A few rules the gates cannot check on their own:
 - A bug fix comes with a regression test that fails before the fix.
 - Nothing committed is unfinished: no marker comments for later work, no skipped tests, no stub bodies.
 - A new public extension point comes with a page in `docs/` and a running example that a suite tests.
+- A task that comes up again and again comes with a recipe in `docs/recipes/`, written in the shape the other recipes have.
 
 ## Commits
 

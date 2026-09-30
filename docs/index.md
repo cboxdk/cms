@@ -37,6 +37,7 @@ The command pipeline, the event log, delivery, the surfaces and the panel come w
 - [Getting started](getting-started/_index.md): the development environment, and testing with the testkit's fakes.
 - [Developers](developers/_index.md): the architecture and its layers, the gates and CI, `cms:doctor`, partitions, the services and the configuration.
 - [Addons](addons/_index.md): the extension points: the contracts, build declarations, doctor checks, the blueprint schema, and the testkit for an addon's own tests.
+- [Recipes](recipes/_index.md): the steps of the common tasks, adding a content type, writing a hook in an addon and adding a kernel action, each with the tests of a real run.
 - [Security](security/_index.md): the operating contract for the Postgres roles, the rule for outbound requests, and what the kernel does not protect yet.
 - [Reference](reference/_index.md): pages generated from the code, such as the error reference with every error code.
 - [Screenshots](screenshots/_index.md): the terminal output the pages show, and how it is captured.

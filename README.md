@@ -41,7 +41,7 @@ With Docker, PHP 8.5 and Node on the host:
 - [Overview](docs/index.md): the mental model and what exists today.
 - [Quickstart](docs/quickstart.md): from a clone to a green `composer check`.
 - [Requirements](docs/requirements.md): the versions and services.
-- [Getting started](docs/getting-started/_index.md), [Developers](docs/developers/_index.md), [Addons](docs/addons/_index.md) and [Security](docs/security/_index.md).
+- [Getting started](docs/getting-started/_index.md), [Developers](docs/developers/_index.md), [Addons](docs/addons/_index.md), [Recipes](docs/recipes/_index.md) and [Security](docs/security/_index.md).
 
 ## Security
 
