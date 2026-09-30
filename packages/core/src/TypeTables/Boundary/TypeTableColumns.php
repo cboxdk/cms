@@ -134,6 +134,21 @@ final readonly class TypeTableColumns
     }
 
     /**
+     * A field's value in the form of a revision's payload, the JSON form a group holds its fields
+     * in (StoredContent), as a field value; $at names the field in a message.
+     *
+     * @throws UnreadableTypeTable
+     */
+    public static function payloadValue(FieldDefinition $field, string $at, mixed $value): FieldValue
+    {
+        try {
+            return self::nested($field, $at, $value);
+        } catch (InvalidFieldValue $exception) {
+            throw UnreadableTypeTable::value($at, 'a valid value: '.$exception->getMessage());
+        }
+    }
+
+    /**
      * The column values of the fields the values hold, by column name. A field the values do not
      * hold is left out, so its column keeps its default.
      *
@@ -549,6 +564,7 @@ final readonly class TypeTableColumns
      * A nested field of a group from its JSON value.
      *
      * @throws UnreadableTypeTable
+     * @throws InvalidFieldValue when a value has the kind of its field but not its form
      */
     private static function nested(FieldDefinition $field, string $at, mixed $value): FieldValue
     {

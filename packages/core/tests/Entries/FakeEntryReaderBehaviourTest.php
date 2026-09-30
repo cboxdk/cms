@@ -18,14 +18,15 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * EntryReaderBehaviour against the fake the entry actions' tests use. The fake keeps no snapshots
- * apart from revisions, so both kinds of head read the same.
+ * apart from revisions, so both kinds of head read the same, and it is given the head a release
+ * leaves as the Postgres reader reads it.
  */
 final class FakeEntryReaderBehaviourTest extends TestCase
 {
     use EntryReaderBehaviour;
 
     #[Override]
-    protected function entryReader(bool $snapshots = false): EntryReader
+    protected function entryReader(bool $snapshots = false, ?string $released = null): EntryReader
     {
         $node = NodeId::fromString(self::NODE);
         $type = TypeId::fromString(self::TYPE);
@@ -33,7 +34,12 @@ final class FakeEntryReaderBehaviourTest extends TestCase
         return new FakeEntryReader()
             ->withNode($node, new AggregateVersion(3))
             ->withEntry(EntryId::fromString(self::ENTRY), $type, $node, new AggregateVersion(2))
-            ->withHead(EntryId::fromString(self::ENTRY), VariantKey::shared(), new StoredHead(new AggregateVersion(5), new RevisionNumber(4)))
+            ->withHead(EntryId::fromString(self::ENTRY), VariantKey::shared(), new StoredHead(
+                new AggregateVersion(5),
+                new RevisionNumber(4),
+                new RevisionNumber($released === null ? 4 : 5),
+                $released === 'released' ? new RevisionNumber(5) : null,
+            ))
             ->withEntry(EntryId::fromString(self::BARE_ENTRY), $type, $node, new AggregateVersion(1));
     }
 }

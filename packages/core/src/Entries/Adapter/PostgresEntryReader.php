@@ -16,6 +16,7 @@ use Cbox\Cms\Core\Entries\Domain\Dto\StoredHead;
 use Cbox\Cms\Core\Entries\Domain\EntryReader;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\ConnectionResolverInterface;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\JoinClause;
 use Override;
 use UnexpectedValueException;
@@ -25,14 +26,19 @@ use UnexpectedValueException;
  * actor context, on the default connection, or the one named, and always on the write PDO, inside
  * the command transaction.
  *
- * entry() is one statement by key: the entry, the head of the variant and the number of the head's
+ * entry() is one statement by key: the entry, the head of the variant, the number of the head's
  * draft revision, from `revisions` for a type with full history and from `head_snapshots` for one
- * whose history is audit-only or none, which keeps no revisions. node() reads one node's version.
+ * whose history is audit-only or none, which keeps no revisions, the highest number of the
+ * variant's revisions, by the unique key (entry_id, variant, rev_no), and the number of the
+ * released revision when the head's release state is released. node() reads one node's version.
  * Row level security hides what the actor's regions do not reach, so it reads as absent.
  */
 #[Internal]
 final readonly class PostgresEntryReader implements EntryReader
 {
+    /** The release state of a head whose published revision readers see (PRD 6.4). */
+    public const string RELEASED = 'released';
+
     /**
      * @param  string|null  $connection  the connection name; null for the default connection
      */
@@ -50,19 +56,32 @@ final readonly class PostgresEntryReader implements EntryReader
                 $join->on('h.entry_id', '=', 'e.id')->where('h.variant', '=', $variant->value);
             })
             ->leftJoin('revisions as r', 'r.revision_id', '=', 'h.draft_revision_id')
+            ->leftJoin('revisions as p', static function (JoinClause $join): void {
+                $join->on('p.revision_id', '=', 'h.published_revision_id')->where('h.release_state', '=', self::RELEASED);
+            })
             ->leftJoin('head_snapshots as s', static function (JoinClause $join): void {
                 $join->on('s.entry_id', '=', 'h.entry_id')->on('s.variant', '=', 'h.variant');
             })
             ->where('e.id', $entry->toString())
-            ->useWritePdo()
-            ->first([
+            ->select([
                 'e.type_id',
                 'e.home_node_id',
                 'e.version as entry_version',
                 'h.version as head_version',
                 'r.rev_no as revision_number',
                 's.rev_no as snapshot_number',
-            ]);
+                'p.rev_no as released_number',
+            ])
+            ->selectSub(
+                static fn (Builder $latest): Builder => $latest
+                    ->from('revisions', 'l')
+                    ->whereColumn('l.entry_id', 'h.entry_id')
+                    ->whereColumn('l.variant', 'h.variant')
+                    ->selectRaw('max(l.rev_no)'),
+                'latest_number',
+            )
+            ->useWritePdo()
+            ->first();
 
         if ($row === null) {
             return null;
@@ -70,6 +89,8 @@ final readonly class PostgresEntryReader implements EntryReader
 
         $headVersion = $this->integerOrNull($row, 'head_version');
         $revision = $this->integerOrNull($row, 'revision_number') ?? $this->integerOrNull($row, 'snapshot_number');
+        $latest = $this->integerOrNull($row, 'latest_number') ?? $revision;
+        $released = $this->integerOrNull($row, 'released_number');
 
         if (($headVersion === null) !== ($revision === null)) {
             throw new UnexpectedValueException(sprintf(
@@ -84,7 +105,12 @@ final readonly class PostgresEntryReader implements EntryReader
             TypeId::fromString($this->text($row, 'type_id')),
             NodeId::fromString($this->text($row, 'home_node_id')),
             new AggregateVersion($this->integer($row, 'entry_version')),
-            $headVersion === null || $revision === null ? null : new StoredHead(new AggregateVersion($headVersion), new RevisionNumber($revision)),
+            $headVersion === null || $revision === null || $latest === null ? null : new StoredHead(
+                new AggregateVersion($headVersion),
+                new RevisionNumber($revision),
+                new RevisionNumber($latest),
+                $released === null ? null : new RevisionNumber($released),
+            ),
         );
     }
 

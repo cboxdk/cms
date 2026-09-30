@@ -74,8 +74,10 @@ use Cbox\Cms\Core\Entries\Adapter\EntryCreatedWriter;
 use Cbox\Cms\Core\Entries\Adapter\HeadMovedWriter;
 use Cbox\Cms\Core\Entries\Adapter\PostgresEntryReader;
 use Cbox\Cms\Core\Entries\Adapter\PostgresEntryVersionLock;
+use Cbox\Cms\Core\Entries\Adapter\PostgresRevisionContents;
 use Cbox\Cms\Core\Entries\Adapter\PostgresVariantVersionLock;
 use Cbox\Cms\Core\Entries\Adapter\RevisionCreatedWriter;
+use Cbox\Cms\Core\Entries\Adapter\VariantReleasedWriter;
 use Cbox\Cms\Core\Entries\Domain\EntryReader;
 use Cbox\Cms\Core\IdempotencyStore\Boundary\IdempotencyConfig;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
@@ -105,6 +107,7 @@ use Cbox\Cms\Core\Pipeline\Domain\HookOverruns;
 use Cbox\Cms\Core\Pipeline\Domain\MutationWriter;
 use Cbox\Cms\Core\Pipeline\Domain\MutationWriters;
 use Cbox\Cms\Core\Pipeline\Domain\RegistryAffectedProjections;
+use Cbox\Cms\Core\Pipeline\Domain\RevisionContents;
 use Cbox\Cms\Core\Pipeline\Domain\Stopwatch;
 use Cbox\Cms\Core\Pipeline\Domain\VersionLock;
 use Cbox\Cms\Core\Pipeline\Domain\VersionLocks;
@@ -307,11 +310,13 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         // adds the locks and writers of its own aggregates and mutations.
         $this->app->tag([PostgresActorVersionLock::class, PostgresEntryVersionLock::class, PostgresVariantVersionLock::class, PostgresNodeVersionLock::class], VersionLocks::TAG);
 
-        // The entry commands, entry.create and entry.revise (PRD 5.4, 6.4): their reads, and the
-        // writers of their mutations, which store the entry, the revision or head snapshot, the
-        // head and the type table's row (PRD 4.1, 11.6).
+        // The entry commands, entry.create, entry.revise and variant.release (PRD 5.4, 5.6, 6.4):
+        // their reads, the content of a released revision the pipeline validates, and the writers
+        // of their mutations, which store the entry, the revision or head snapshot, the head, the
+        // published revision, the release log and the type table's rows (PRD 4.1, 11.6).
         $this->app->bind(EntryReader::class, PostgresEntryReader::class);
-        $this->app->tag([EntryCreatedWriter::class, RevisionCreatedWriter::class, HeadMovedWriter::class], MutationWriters::TAG);
+        $this->app->bind(RevisionContents::class, PostgresRevisionContents::class);
+        $this->app->tag([EntryCreatedWriter::class, RevisionCreatedWriter::class, HeadMovedWriter::class, VariantReleasedWriter::class], MutationWriters::TAG);
 
         // The placement commands, placement.create and placement.set_window (PRD 5.7, 5.9, 6.4): their
         // reads, the locks of placements, sites, slugs and the canonical placement of an entry, and

@@ -124,6 +124,7 @@ export type ErrorCode =
   | 'subscription_identity_invalid'
   | 'subscription_not_parked'
   | 'subscription_unknown'
+  | 'type_not_releasable'
   | 'unauthorized'
   | 'validation_above_maximum'
   | 'validation_below_minimum'
@@ -322,6 +323,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'subscription_identity_invalid',
           'subscription_not_parked',
           'subscription_unknown',
+          'type_not_releasable',
           'unauthorized',
           'validation_above_maximum',
           'validation_below_minimum',
@@ -484,6 +486,7 @@ const problemV1Rule: ObjectRule = {
           'subscription_identity_invalid',
           'subscription_not_parked',
           'subscription_unknown',
+          'type_not_releasable',
           'unauthorized',
           'validation_above_maximum',
           'validation_below_minimum',

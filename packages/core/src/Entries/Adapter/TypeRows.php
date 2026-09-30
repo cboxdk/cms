@@ -25,6 +25,12 @@ use LogicException;
  * draft row exists only where a pending draft differs (PRD 4.1). The row takes the entry's home
  * node and owning actor, which row level security tests (PRD 5.10), from `entries`. Every statement
  * is by key, so a save costs the same whatever else the table holds (GUARDRAILS 4.1).
+ *
+ * release() writes the released row of a draft-release type from the revision a release makes
+ * public (PRD 5.6). A variant without a draft row has a draft equal to its released row, so before
+ * the released row changes, its values are kept as the draft row; then the released row takes the
+ * revision's values, and the draft row is removed again when it holds the same values, so it
+ * exists after the release exactly when the pending draft differs from what was released.
  */
 #[Internal]
 final readonly class TypeRows
@@ -50,6 +56,60 @@ final readonly class TypeRows
      */
     public function write(TypeDefinition $type, EntryId $entry, VariantKey $variant, FieldValues $fields): void
     {
+        $stage = $type->capabilities->stages === Stages::None ? self::RELEASED : self::DRAFT;
+        $columns = StoredContent::columns($type, $fields);
+        $table = $type->name->table();
+
+        $this->upsert($table, $stage, $entry, $variant, $columns);
+
+        if ($stage === self::DRAFT) {
+            $this->dropDraftLikeReleased($table, array_keys($columns), $entry, $variant);
+        }
+    }
+
+    /**
+     * Writes the released row of a draft-release type from the fields of the revision released,
+     * keeping the pending draft as its own row only where it differs.
+     *
+     * @throws LogicException when the type has no stages to release, or the entry is not there to take its home node from
+     */
+    public function release(TypeDefinition $type, EntryId $entry, VariantKey $variant, FieldValues $fields): void
+    {
+        if ($type->capabilities->stages !== Stages::DraftRelease) {
+            throw new LogicException(sprintf('The type %s has stages %s, so no revision of it is released; the kernel refuses such a release before the commit.', $type->name->value, $type->capabilities->stages->value));
+        }
+
+        $columns = StoredContent::columns($type, $fields);
+        $table = $type->name->table();
+        $copied = [self::ENTRY, self::LOCALE, self::HOME, self::OWNER, ...array_keys($columns)];
+
+        $this->db->insert(
+            sprintf(
+                'insert into "%1$s" (%2$s, %3$s) select %4$s, ? from "%1$s" where %5$s = ? and %6$s = ? and %7$s = ? on conflict (%5$s, %6$s, %7$s) do nothing',
+                $table,
+                implode(', ', array_map($this->quoted(...), $copied)),
+                self::STAGE,
+                implode(', ', array_map($this->quoted(...), $copied)),
+                self::ENTRY,
+                self::LOCALE,
+                self::STAGE,
+            ),
+            [self::DRAFT, $entry->toString(), $variant->value, self::RELEASED],
+        );
+
+        $this->upsert($table, self::RELEASED, $entry, $variant, $columns);
+        $this->dropDraftLikeReleased($table, array_keys($columns), $entry, $variant);
+    }
+
+    /**
+     * Writes one row of the variant in the stage, with the entry's home node and owning actor.
+     *
+     * @param  array<string, string|int|null>  $columns
+     *
+     * @throws LogicException when the entry is not there to take its home node from
+     */
+    private function upsert(string $table, string $stage, EntryId $entry, VariantKey $variant, array $columns): void
+    {
         $identity = $this->db->table('entries')
             ->where('id', $entry->toString())
             ->useWritePdo()
@@ -61,10 +121,6 @@ final readonly class TypeRows
         if (! is_string($home) || ($owner !== null && ! is_string($owner))) {
             throw new LogicException(sprintf('The entry %s has no row to write its type row with.', $entry->toString()));
         }
-
-        $stage = $type->capabilities->stages === Stages::None ? self::RELEASED : self::DRAFT;
-        $columns = StoredContent::columns($type, $fields);
-        $table = $type->name->table();
 
         $this->db->table($table)->upsert(
             [[
@@ -78,10 +134,11 @@ final readonly class TypeRows
             [self::ENTRY, self::LOCALE, self::STAGE],
             [self::HOME, self::OWNER, ...array_keys($columns)],
         );
+    }
 
-        if ($stage === self::DRAFT) {
-            $this->dropDraftLikeReleased($table, array_keys($columns), $entry, $variant);
-        }
+    private function quoted(string $column): string
+    {
+        return '"'.$column.'"';
     }
 
     /**

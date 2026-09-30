@@ -7,6 +7,7 @@ namespace Cbox\Cms\Cli\Tests\Console;
 use Cbox\Cms\Cli\Console\BuildCommand;
 use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
 use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
 use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
@@ -58,8 +59,8 @@ it('writes the five registries to the application\'s bootstrap/cache/cms, and re
 
     expect($status)->toBe(0)
         ->and($output)->toBe([
-            'actions: 5',
-            'commands: 5',
+            'actions: 6',
+            'commands: 6',
             'hooks: 0',
             'schema: 0',
             'subscribers: 0',
@@ -76,7 +77,7 @@ it('adds what an addon provider\'s scan root declares', function (): void {
     [$status, $output] = buildCommand();
 
     expect($status)->toBe(0)
-        ->and(array_slice($output, 0, 3))->toBe(['actions: 7', 'commands: 6', 'hooks: 1'])
+        ->and(array_slice($output, 0, 3))->toBe(['actions: 8', 'commands: 7', 'hooks: 1'])
         ->and(RegistryFixtures::load($directory.'/commands.php'))->toMatchArray(['entries' => [[
             'class' => DeactivateActor::class,
             'name' => 'actor.deactivate',
@@ -105,6 +106,11 @@ it('adds what an addon provider\'s scan root declares', function (): void {
         ], [
             'class' => SetPlacementWindow::class,
             'name' => 'placement.set_window',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 1,
+        ], [
+            'class' => ReleaseVariant::class,
+            'name' => 'variant.release',
             'package' => CoreServiceProvider::PACKAGE,
             'version' => 1,
         ]]]);

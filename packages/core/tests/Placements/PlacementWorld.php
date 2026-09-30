@@ -33,6 +33,7 @@ use Cbox\Cms\Core\Entries\Adapter\EntryCreatedWriter;
 use Cbox\Cms\Core\Entries\Adapter\HeadMovedWriter;
 use Cbox\Cms\Core\Entries\Adapter\PostgresEntryReader;
 use Cbox\Cms\Core\Entries\Adapter\PostgresEntryVersionLock;
+use Cbox\Cms\Core\Entries\Adapter\PostgresRevisionContents;
 use Cbox\Cms\Core\Entries\Adapter\PostgresVariantVersionLock;
 use Cbox\Cms\Core\Entries\Adapter\RevisionCreatedWriter;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
@@ -217,6 +218,7 @@ final class PlacementWorld
             new FakeCommandAuthorizer,
             $types,
             app(FieldValidation::class),
+            new PostgresRevisionContents($connections, $this->connection),
             new PostgresChangesetCommitter(
                 $connections,
                 $this->clock,

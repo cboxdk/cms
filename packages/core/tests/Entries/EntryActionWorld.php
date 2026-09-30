@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Entries;
 
+use Cbox\Cms\Contracts\Content\RevisionNumber;
 use Cbox\Cms\Contracts\Envelope\CorrelationId;
 use Cbox\Cms\Contracts\Envelope\Envelope;
 use Cbox\Cms\Contracts\Envelope\IssuerKind as EnvelopeIssuer;
@@ -30,9 +31,13 @@ use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Pipeline\Command;
 use Cbox\Cms\Contracts\Pipeline\WriteAction;
 use Cbox\Cms\Contracts\Results\WriteResult;
+use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Core\Entries\Actions\CreateEntryAction;
+use Cbox\Cms\Core\Entries\Actions\ReleaseVariantAction;
 use Cbox\Cms\Core\Entries\Actions\ReviseEntryAction;
+use Cbox\Cms\Core\Entries\Actions\VariantReleasePlanner;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
 use Cbox\Cms\Core\Pipeline\Actions\CommandPipeline;
@@ -50,6 +55,7 @@ use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandHooks;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandTransaction;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeFieldValidation;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeHookOverruns;
+use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeRevisionContents;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeStopwatch;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeWriteActions;
 use Cbox\Cms\Testkit\Clock\FakeClock;
@@ -61,11 +67,13 @@ use Cbox\Cms\Testkit\Validation\FakeTypeValidators;
 use LogicException;
 
 /**
- * The entry actions, entry.create and entry.revise, in the command pipeline with the fakes of its
- * ports and of the contracts it reads (GUARDRAILS 9): an active editor, the test type NoteType in
- * the catalog and its validator, the entries and nodes of a FakeEntryReader, which knows the node
- * HOME at version 1, and a committer that records what it is asked to commit. Nothing touches a
- * database.
+ * The entry actions, entry.create, entry.revise and variant.release, in the command pipeline with
+ * the fakes of its ports and of the contracts it reads (GUARDRAILS 9): an active editor, the test
+ * type NoteType in the catalog and its validator, beside any other types a test adds, the entries
+ * and nodes of a FakeEntryReader, which knows the node HOME at version 1, the revisions of a
+ * FakeRevisionContents, and a committer that records what it is asked to commit. A call runs as
+ * the editor with a service credential through REST unless a test gives another issuer. Nothing
+ * touches a database.
  */
 final class EntryActionWorld
 {
@@ -79,6 +87,15 @@ final class EntryActionWorld
 
     public readonly FakeEntryReader $entries;
 
+    public readonly FakeRevisionContents $revisions;
+
+    public IssuerKind $credential = IssuerKind::Service;
+
+    public EnvelopeIssuer $issuer = EnvelopeIssuer::Human;
+
+    /** @var list<TypeDefinition> the types of the catalog besides NoteType */
+    public array $types = [];
+
     public FakeChangesetCommitter $committer;
 
     private int $keys = 0;
@@ -88,6 +105,7 @@ final class EntryActionWorld
         $this->identity = new FakeIdentity;
         $this->editor = $this->identity->addActor(ActorClass::Staff)->id;
         $this->entries = new FakeEntryReader()->withNode(self::home(), new AggregateVersion(1));
+        $this->revisions = new FakeRevisionContents;
         $this->committer = new FakeChangesetCommitter;
     }
 
@@ -149,22 +167,29 @@ final class EntryActionWorld
         return $this->run(new ReviseEntry(self::entry(), new AggregateVersion($version), $fields));
     }
 
+    public function release(int $version, int $revision): WriteResult
+    {
+        return $this->run(new ReleaseVariant(self::entry(), new RevisionNumber($revision), new AggregateVersion($version)));
+    }
+
     public function run(Command $command): WriteResult
     {
         $clock = new FakeClock;
         $keys = new FakeIdempotencyStore($clock)->session();
         $receipts = new FakeReceiptStore($clock)->session();
-        $types = new FakeTypeCatalog(NoteType::definition());
+        $types = new FakeTypeCatalog(NoteType::definition(), ...$this->types);
 
         $pipeline = new CommandPipeline(
             new FakeWriteActions([
                 CreateEntry::class => $this->binding('entry.create', new CreateEntryAction($this->entries)),
                 ReviseEntry::class => $this->binding('entry.revise', new ReviseEntryAction($this->entries)),
+                ReleaseVariant::class => $this->binding('variant.release', new ReleaseVariantAction($this->entries, new VariantReleasePlanner)),
             ]),
             $this->identity,
             new FakeCommandAuthorizer,
             $types,
             new FakeFieldValidation(new FakeTypeValidators(new NoteType)),
+            $this->revisions,
             $this->committer,
             $keys,
             $receipts,
@@ -176,14 +201,14 @@ final class EntryActionWorld
 
         $envelope = Envelope::external(
             IssuingSurface::Rest,
-            EnvelopeIssuer::Human,
+            $this->issuer,
             $this->editor,
             new IdempotencyKey('entry-call-'.++$this->keys),
             new CorrelationId('entry-correlation'),
         );
 
         return $pipeline->run(new CommandCall($command, $envelope, new AccessContext(
-            new ActorPrincipal($this->editor, [], IssuerKind::Service, ClassificationAccess::Sensitive),
+            new ActorPrincipal($this->editor, [], $this->credential, $this->credential->maximumCeiling()),
             [],
             ClassificationAccess::Internal,
         )));

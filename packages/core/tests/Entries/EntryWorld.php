@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Entries;
 
+use Cbox\Cms\Contracts\Content\RevisionNumber;
 use Cbox\Cms\Contracts\Envelope\CorrelationId;
 use Cbox\Cms\Contracts\Envelope\Envelope;
 use Cbox\Cms\Contracts\Envelope\IssuerKind as EnvelopeIssuer;
@@ -31,14 +32,19 @@ use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Core\Entries\Actions\CreateEntryAction;
+use Cbox\Cms\Core\Entries\Actions\ReleaseVariantAction;
 use Cbox\Cms\Core\Entries\Actions\ReviseEntryAction;
+use Cbox\Cms\Core\Entries\Actions\VariantReleasePlanner;
 use Cbox\Cms\Core\Entries\Adapter\EntryCreatedWriter;
 use Cbox\Cms\Core\Entries\Adapter\HeadMovedWriter;
 use Cbox\Cms\Core\Entries\Adapter\PostgresEntryReader;
 use Cbox\Cms\Core\Entries\Adapter\PostgresEntryVersionLock;
+use Cbox\Cms\Core\Entries\Adapter\PostgresRevisionContents;
 use Cbox\Cms\Core\Entries\Adapter\PostgresVariantVersionLock;
 use Cbox\Cms\Core\Entries\Adapter\RevisionCreatedWriter;
+use Cbox\Cms\Core\Entries\Adapter\VariantReleasedWriter;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
 use Cbox\Cms\Core\IdempotencyStore\Adapter\PostgresIdempotencyStore;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
@@ -77,10 +83,11 @@ use Illuminate\Support\Facades\DB;
 use LogicException;
 
 /**
- * The real command pipeline on Postgres for entry.create and entry.revise (PRD 5.4, 6.2), on the
- * default connection or the one named: the command transaction, the Postgres idempotency and
- * receipt stores, the actor directory, the entry reader, and the PostgresChangesetCommitter with
- * the locks of actors, entries, variants and nodes and the writers of the entry mutations, all on
+ * The real command pipeline on Postgres for entry.create, entry.revise and variant.release (PRD
+ * 5.4, 5.6, 6.2), on the default connection or the one named: the command transaction, the
+ * Postgres idempotency and receipt stores, the actor directory, the entry reader, the revision
+ * contents a release is validated against, and the PostgresChangesetCommitter with the locks of
+ * actors, entries, variants and nodes and the writers of the entry mutations, all on
  * that connection. The types and their validators are the workbench's generated ones. Only what the
  * kernel has no real implementation of yet is a fake: the authorizer, which allows, the content
  * hasher and the hooks.
@@ -176,6 +183,11 @@ final class EntryWorld
         return $this->run(new ReviseEntry($entry ?? self::entry(), new AggregateVersion($version), $fields), $key);
     }
 
+    public function release(int $version, int $revision, string $key = 'release-1', ?EntryId $entry = null): WriteResult
+    {
+        return $this->run(new ReleaseVariant($entry ?? self::entry(), new RevisionNumber($revision), new AggregateVersion($version)), $key);
+    }
+
     public function run(Command $command, string $key): WriteResult
     {
         $envelope = Envelope::external(
@@ -199,11 +211,13 @@ final class EntryWorld
             new FakeWriteActions([
                 CreateEntry::class => $this->binding('entry.create', $this->interleaved(new CreateEntryAction($reader))),
                 ReviseEntry::class => $this->binding('entry.revise', $this->interleaved(new ReviseEntryAction($reader))),
+                ReleaseVariant::class => $this->binding('variant.release', $this->interleaved(new ReleaseVariantAction($reader, new VariantReleasePlanner))),
             ]),
             new PostgresActorDirectory($connections, $this->connection),
             new FakeCommandAuthorizer,
             $types,
             app(FieldValidation::class),
+            new PostgresRevisionContents($connections, $this->connection),
             new PostgresChangesetCommitter(
                 $connections,
                 $this->clock,
@@ -218,6 +232,7 @@ final class EntryWorld
                     new EntryCreatedWriter($connections, $this->connection),
                     new RevisionCreatedWriter($connections, $types, $this->connection),
                     new HeadMovedWriter($connections, $this->connection),
+                    new VariantReleasedWriter($connections, $types, $this->connection),
                 ),
                 app(AffectedProjections::class),
                 new PostgresReceiptStore($connections, $this->clock, $this->connection),

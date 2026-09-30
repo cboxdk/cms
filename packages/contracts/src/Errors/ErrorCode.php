@@ -141,6 +141,7 @@ enum ErrorCode: string
     case SubscriptionIdentityInvalid = 'subscription_identity_invalid';
     case SubscriptionNotParked = 'subscription_not_parked';
     case SubscriptionUnknown = 'subscription_unknown';
+    case TypeNotReleasable = 'type_not_releasable';
     case Unauthorized = 'unauthorized';
     case ValidationAboveMaximum = 'validation_above_maximum';
     case ValidationBelowMinimum = 'validation_below_minimum';
@@ -570,6 +571,11 @@ enum ErrorCode: string
                 HttpStatus::UnprocessableContent,
                 ExitCode::DataErr,
                 'No registered subscriber has the subscription named, so nothing was released (PRD 7.6). Check the name against the #[Subscription] of the subscriber, and run cms:build when the subscriber is new.',
+            ),
+            self::TypeNotReleasable => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'The type\'s entries have no revision to release (PRD 4.1, 5.6, 6.4): a type with stages none is public as soon as it is saved, and a type whose history is audit-only or none keeps no revisions for the head to point at. Nothing was committed. Save the entry instead, or give the type stages draft-release and history full.',
             ),
             self::Unauthorized => $this->caller(
                 HttpStatus::Forbidden,

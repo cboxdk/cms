@@ -9,21 +9,28 @@ use Cbox\Cms\Contracts\Fields\BooleanValue;
 use Cbox\Cms\Contracts\Fields\DateTimeValue;
 use Cbox\Cms\Contracts\Fields\DateValue;
 use Cbox\Cms\Contracts\Fields\DecimalValue;
+use Cbox\Cms\Contracts\Fields\ExtensionFields;
 use Cbox\Cms\Contracts\Fields\FieldMap;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Fields\FieldValue;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\IntegerValue;
 use Cbox\Cms\Contracts\Fields\ListValue;
+use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Fields\NullValue;
 use Cbox\Cms\Contracts\Fields\TextValue;
 use Cbox\Cms\Contracts\Schema\ColumnDefinition;
 use Cbox\Cms\Contracts\Schema\FieldDefinition;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
+use Cbox\Cms\Contracts\Validation\TypeRules;
 use Cbox\Cms\Core\Codecs\Boundary\JsonText;
+use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
 use Cbox\Cms\Core\Pipeline\Boundary\FieldValuesInput;
+use Cbox\Cms\Core\TypeTables\Boundary\TypeTableColumns;
+use Cbox\Cms\Core\TypeTables\Domain\UnreadableTypeTable;
 use JsonException;
 use LogicException;
+use stdClass;
 
 /**
  * The stored forms of a revision's fields (PRD 4.1, 11.6), for the writers of the entry commands.
@@ -32,6 +39,9 @@ use LogicException;
  *   the fields as the input validator reads them (FieldValuesInput), a JSON object of the owner's
  *   fields by handle with the extension fields under `ext`, each namespace an object of its fields.
  *   The revision's schema version, stored beside it, tells a reader the type of every field.
+ * - fields() reads such a payload back into field values, with the type of the schema version it
+ *   was written under, as the type table's JSON columns are read (TypeTableColumns), so a release
+ *   writes the released row from the revision it releases.
  * - columns() is the type table's row: for every top-level field of the type, its column and the
  *   value the column takes, NULL for a field the revision leaves out or holds no value in. A text,
  *   a date, a decimal and an integer are given as they are, a boolean as `true` or `false`, a
@@ -53,6 +63,76 @@ final readonly class StoredContent
     public static function payload(FieldValues $fields): string
     {
         return JsonText::encode(FieldValuesInput::of($fields));
+    }
+
+    /**
+     * The fields of a payload, read with the type of the schema version it was written under.
+     *
+     * @throws LogicException when the payload is not a JSON object of the type's fields, which the kernel wrote it as
+     */
+    public static function fields(TypeDefinition $type, string $payload): FieldValues
+    {
+        try {
+            $document = JsonText::decode($payload);
+        } catch (DecodingFailed $exception) {
+            throw new LogicException(sprintf('A payload of %s is not a JSON object: %s', $type->name->value, $exception->getMessage()), 0, $exception);
+        }
+
+        $extensions = $document->{TypeRules::EXTENSIONS_KEY} ?? null;
+        unset($document->{TypeRules::EXTENSIONS_KEY});
+
+        if ($extensions !== null && ! $extensions instanceof stdClass) {
+            throw new LogicException(sprintf('The extension fields of a payload of %s are not a JSON object.', $type->name->value));
+        }
+
+        $namespaces = [];
+
+        foreach (get_object_vars($extensions ?? new stdClass) as $namespace => $fields) {
+            if (! $fields instanceof stdClass) {
+                throw new LogicException(sprintf('The fields of the namespace "%s" in a payload of %s are not a JSON object.', $namespace, $type->name->value));
+            }
+
+            $extension = new FieldNamespace((string) $namespace);
+            $namespaces[] = new ExtensionFields($extension, self::map($type, $extension, $fields));
+        }
+
+        return new FieldValues(self::map($type, null, $document), ...$namespaces);
+    }
+
+    /**
+     * The fields of one owner, the type's owner when $namespace is null, from their JSON object.
+     *
+     * @throws LogicException when the object holds a field the type does not declare
+     */
+    private static function map(TypeDefinition $type, ?FieldNamespace $namespace, stdClass $object): FieldMap
+    {
+        $named = [];
+        $values = get_object_vars($object);
+
+        foreach ($type->fields as $field) {
+            if ($field->namespace?->value !== $namespace?->value || ! array_key_exists($field->handle->value, $values)) {
+                continue;
+            }
+
+            try {
+                $named[] = new NamedValue($field->handle, TypeTableColumns::payloadValue($field, $field->address(), $values[$field->handle->value]));
+            } catch (UnreadableTypeTable $exception) {
+                throw new LogicException(sprintf('A payload of %s cannot be read: %s', $type->name->value, $exception->getMessage()), 0, $exception);
+            }
+
+            unset($values[$field->handle->value]);
+        }
+
+        if ($values !== []) {
+            throw new LogicException(sprintf(
+                'A payload of %s holds %s, which the type does not declare%s.',
+                $type->name->value,
+                implode(', ', array_map(static fn (int|string $handle): string => '"'.$handle.'"', array_keys($values))),
+                $namespace instanceof FieldNamespace ? ' in the namespace '.$namespace->value : '',
+            ));
+        }
+
+        return new FieldMap(...$named);
     }
 
     /**

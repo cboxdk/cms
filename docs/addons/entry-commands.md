@@ -88,6 +88,8 @@ The fields are validated against the type's rules in the schema version the code
 
 The content of a payload or a snapshot is the fields as JSON in the form the input validator reads: an object of the owner's fields by handle, with an extender's fields under `ext.<namespace>`, format version 1. The type table gets a value per top-level field in its column, and `NULL` for a field the revision leaves out. A draft row that holds the same values as the released row is removed, so a draft row exists only where a pending draft differs (PRD 4.1).
 
+A revise numbers its revision after the variant's highest number, which is the published revision when a [release](release-command.md) wrote one after the draft.
+
 A changeset of `entry.create` emits `entry.created` about the entry and `variant.revised` about the variant; one of `entry.revise` emits `variant.revised`. Both carry ids and revision numbers, never a field's value (see [events](events.md)).
 
 ## Rejections

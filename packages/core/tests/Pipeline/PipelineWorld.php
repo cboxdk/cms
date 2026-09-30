@@ -52,6 +52,7 @@ use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandHooks;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandTransaction;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeFieldValidation;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeHookOverruns;
+use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeRevisionContents;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeStopwatch;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeWriteActions;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\ProbeBinding;
@@ -213,6 +214,7 @@ final class PipelineWorld
             $this->authorizer,
             $types,
             $this->validation,
+            new FakeRevisionContents,
             $this->committer,
             $this->keySession,
             $this->receiptSession,

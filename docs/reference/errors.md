@@ -129,6 +129,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`subscription_identity_invalid`](#subscription_identity_invalid) | 500 | 78 | internal_error | no |
 | [`subscription_not_parked`](#subscription_not_parked) | 422 | 65 | tool_error | no |
 | [`subscription_unknown`](#subscription_unknown) | 422 | 65 | tool_error | no |
+| [`type_not_releasable`](#type_not_releasable) | 422 | 65 | tool_error | no |
 | [`unauthorized`](#unauthorized) | 403 | 77 | tool_error | no |
 | [`validation_above_maximum`](#validation_above_maximum) | 422 | 65 | tool_error | no |
 | [`validation_below_minimum`](#validation_below_minimum) | 422 | 65 | tool_error | no |
@@ -1180,6 +1181,15 @@ The aggregate is not parked for the subscription, so there is nothing to release
 ### subscription_unknown
 
 No registered subscriber has the subscription named, so nothing was released (PRD 7.6). Check the name against the #[Subscription] of the subscriber, and run cms:build when the subscriber is new.
+
+- HTTP status: 422 Unprocessable Content
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### type_not_releasable
+
+The type's entries have no revision to release (PRD 4.1, 5.6, 6.4): a type with stages none is public as soon as it is saved, and a type whose history is audit-only or none keeps no revisions for the head to point at. Nothing was committed. Save the entry instead, or give the type stages draft-release and history full.
 
 - HTTP status: 422 Unprocessable Content
 - CLI exit code: 65 (EX_DATAERR)

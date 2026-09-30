@@ -55,6 +55,7 @@ use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandHooks;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandTransaction;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeFieldValidation;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeHookOverruns;
+use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeRevisionContents;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeStopwatch;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeWriteActions;
 use Cbox\Cms\Core\Tests\Placements\Fakes\FakePlacementReader;
@@ -230,6 +231,7 @@ final class PlacementActionWorld
             new FakeCommandAuthorizer,
             $types,
             new FakeFieldValidation(new FakeTypeValidators(new NoteType)),
+            new FakeRevisionContents,
             $this->committer,
             $keys,
             $receipts,

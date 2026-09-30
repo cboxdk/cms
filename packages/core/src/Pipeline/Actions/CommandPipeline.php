@@ -12,6 +12,7 @@ use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Contracts\Fields\FieldMap;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Fields\FieldValue;
+use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\NullValue;
 use Cbox\Cms\Contracts\Idempotency\Conflict;
 use Cbox\Cms\Contracts\Idempotency\Fresh;
@@ -30,6 +31,7 @@ use Cbox\Cms\Contracts\Pipeline\RefusesCommand;
 use Cbox\Cms\Contracts\Plans\ChangesPublicVisibility;
 use Cbox\Cms\Contracts\Plans\Mutations\EntryCreated;
 use Cbox\Cms\Contracts\Plans\Mutations\RevisionCreated;
+use Cbox\Cms\Contracts\Plans\Mutations\VariantReleased;
 use Cbox\Cms\Contracts\Plans\Plan;
 use Cbox\Cms\Contracts\Receipts\Receipt;
 use Cbox\Cms\Contracts\Receipts\StoredReceipt;
@@ -38,6 +40,8 @@ use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Contracts\Results\DryRunReport;
 use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Contracts\Results\WriteResult;
+use Cbox\Cms\Contracts\Schema\History;
+use Cbox\Cms\Contracts\Schema\Stages;
 use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Contracts\Storage\PartitionMissing;
@@ -52,12 +56,14 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCall;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\Committed;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\HookRun;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\PendingChangeset;
+use Cbox\Cms\Core\Pipeline\Domain\Dto\RevisionContent;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\StaleRead;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\VersionConflict;
 use Cbox\Cms\Core\Pipeline\Domain\FieldValidation;
 use Cbox\Cms\Core\Pipeline\Domain\InvalidCommandCall;
 use Cbox\Cms\Core\Pipeline\Domain\MissingReplayReceipt;
 use Cbox\Cms\Core\Pipeline\Domain\ReplayReceipt;
+use Cbox\Cms\Core\Pipeline\Domain\RevisionContents;
 use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
 
 /**
@@ -87,17 +93,23 @@ use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
  *    unauthorized. Then an action that RefusesCommand says whether what it read refuses the
  *    command, such as a slug another placement has, and the call is rejected with its errors.
  * 3. Plan: the action's plan() from the command and the aggregates. The kernel checks its shape
- *    at once: every aggregate a mutation changes was read, every revision's type is a type of the
- *    TypeCatalog, and an entry's home node, when the action read it, exists, so the hooks only ever
- *    see a plan the kernel can read. A plan with a mutation that makes content public
- *    (ChangesPublicVisibility) is rejected with agent_visibility_forbidden when the envelope's
- *    issuer or the credential's issuer is an agent (invariant 18). Then the authorize
+ *    at once: every aggregate a mutation changes was read, every revision's and release's type is
+ *    a type of the TypeCatalog, and an entry's home node, when the action read it, exists, so the
+ *    hooks only ever see a plan the kernel can read. A plan with a mutation that makes content
+ *    public (ChangesPublicVisibility), such as a release or a window, is rejected with
+ *    agent_visibility_forbidden when the envelope's issuer or the credential's issuer is an agent
+ *    (invariant 18). A release of a type that has no revision to release, one with stages none or
+ *    with a history that keeps no revisions, is type_not_releasable. Then the authorize
  *    hooks run on the pending plan; a denial is unauthorized. They run after plan() because they
  *    see the plan, and they can only add refusals to the CommandAuthorizer's decision.
  * 4. Transform: the transform hooks change fields of the plan's revisions (HookRunner).
  * 5. Validate. The kernel validates the plan as the transforms left it (invariant 12): the fields
  *    of every revision through the type's generated validator, so a transform can never produce
- *    fields that break a rule. A transform changes only fields, so the plan's shape stands. The
+ *    fields that break a rule. A transform changes only fields, so the plan's shape stands. A
+ *    released revision is read through RevisionContents and validated against its own schema
+ *    version at the release stage, where the fields required on release are required (invariant
+ *    5, 36); a revision the variant does not have, or one written under another schema version
+ *    than the one whose rules this installation has, fails the validation. The
  *    validate hooks add their errors after the kernel's. A value for a field stored encrypted is
  *    refused with field_encryption_unavailable, because the key management that encrypts it comes
  *    with block B6 (PRD 12.2, 12.3). Any error rejects the call with validation_failed, followed by
@@ -130,12 +142,16 @@ final readonly class CommandPipeline
     /** Where a command holds the fields of the revision it writes, for the paths of field errors. */
     public const string FIELDS = 'fields';
 
+    /** Where a release's errors point: the revision it names, and its fields below it. */
+    public const string REVISION = 'revision';
+
     public function __construct(
         private WriteActions $actions,
         private ActorDirectory $actors,
         private CommandAuthorizer $authorizer,
         private TypeCatalog $types,
         private FieldValidation $fields,
+        private RevisionContents $revisions,
         private ChangesetCommitter $committer,
         private IdempotencyStore $keys,
         private ReceiptStore $receipts,
@@ -287,11 +303,17 @@ final readonly class CommandPipeline
 
         if ($public instanceof ChangesPublicVisibility) {
             return $this->rejected($call, new CatalogError(ErrorCode::AgentVisibilityForbidden, null, sprintf(
-                'The command %s is issued by an agent, and its plan would make content public (%s on "%s"), which only a person may do.',
+                'The command %s is issued by an agent, and its plan would make content public (%s on "%s"), which only a person may do (invariant 18).',
                 $binding->command->value,
                 $public::class,
                 $public->aggregate()->aggregateKey(),
             )));
+        }
+
+        $unreleasable = $this->unreleasable($plan);
+
+        if ($unreleasable instanceof CatalogError) {
+            return $this->rejected($call, $unreleasable);
         }
 
         $hooks = $this->hooks->hooksOf($binding);
@@ -364,7 +386,7 @@ final readonly class CommandPipeline
                 throw InvalidCommandCall::unreadAggregate($action, $mutation->aggregate());
             }
 
-            if ($mutation instanceof RevisionCreated && ! $this->types->find($mutation->type) instanceof TypeDefinition) {
+            if (($mutation instanceof RevisionCreated || $mutation instanceof VariantReleased) && ! $this->types->find($mutation->type) instanceof TypeDefinition) {
                 $errors[] = new CatalogError(ErrorCode::ValidationFailed, null, sprintf('No type of this installation has the id %s.', $mutation->type->toString()));
             }
 
@@ -407,7 +429,40 @@ final readonly class CommandPipeline
     }
 
     /**
-     * The fields of every revision through its type's generated validator (phase 5).
+     * The first release of a type whose entries have no revision to release (PRD 4.1, 5.6): a type
+     * with stages none is public as soon as it is saved, and a type whose history is audit-only or
+     * none keeps no revision for the head to point at.
+     */
+    private function unreleasable(Plan $plan): ?CatalogError
+    {
+        foreach ($plan->mutations() as $mutation) {
+            $type = $mutation instanceof VariantReleased ? $this->types->find($mutation->type) : null;
+
+            if (! $type instanceof TypeDefinition) {
+                continue;
+            }
+
+            $capabilities = $type->capabilities;
+
+            if ($capabilities->stages === Stages::None || $capabilities->history !== History::Full) {
+                return new CatalogError(ErrorCode::TypeNotReleasable, null, sprintf(
+                    'The type %s has stages %s and history %s, so no revision of its entries is released: %s',
+                    $type->name->value,
+                    $capabilities->stages->value,
+                    $capabilities->history->value,
+                    $capabilities->stages === Stages::None
+                        ? 'an entry of it is public as soon as it is saved.'
+                        : 'it keeps no revision for the head of a variant to point at.',
+                ));
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The fields of every revision through its type's generated validator, and the fields of every
+     * released revision at the release stage (phase 5).
      *
      * @return list<CatalogError>
      */
@@ -416,15 +471,52 @@ final readonly class CommandPipeline
         $errors = [];
 
         foreach ($plan->mutations() as $mutation) {
-            $type = $mutation instanceof RevisionCreated ? $this->types->find($mutation->type) : null;
+            $type = $mutation instanceof RevisionCreated || $mutation instanceof VariantReleased ? $this->types->find($mutation->type) : null;
 
             if ($mutation instanceof RevisionCreated && $type instanceof TypeDefinition) {
                 array_push($errors, ...$this->fields->validate($type, $mutation->fields, ValidationStage::Write, new FieldPath(self::FIELDS))->errors);
                 array_push($errors, ...$this->encrypted($type, $mutation));
             }
+
+            if ($mutation instanceof VariantReleased && $type instanceof TypeDefinition) {
+                array_push($errors, ...$this->releaseErrors($type, $mutation));
+            }
         }
 
         return $errors;
+    }
+
+    /**
+     * The released revision against its own schema version, at the release stage (invariant 5).
+     *
+     * @return list<CatalogError>
+     */
+    private function releaseErrors(TypeDefinition $type, VariantReleased $release): array
+    {
+        $content = $this->revisions->find($release->entry, $release->variant, $release->revision, $type);
+        $at = new FieldPath(self::REVISION);
+
+        if (! $content instanceof RevisionContent) {
+            return [new CatalogError(ErrorCode::ValidationFailed, $at, sprintf(
+                'The variant "%s" has no revision %d that the actor can reach, so there is nothing to release.',
+                $release->aggregate()->aggregateKey(),
+                $release->revision->value,
+            ))];
+        }
+
+        if (! $content->fields instanceof FieldValues) {
+            return [new CatalogError(ErrorCode::ValidationFailed, $at, sprintf(
+                'Revision %d of the variant "%s" was written under schema version %d of %s, and this installation has the rules of version %d only, so it cannot validate the revision against its own version (invariant 5). Save it again under version %d and release that revision.',
+                $release->revision->value,
+                $release->aggregate()->aggregateKey(),
+                $content->schemaVersion,
+                $type->name->value,
+                $type->version,
+                $type->version,
+            ))];
+        }
+
+        return $this->fields->validate($type, $content->fields, ValidationStage::Release, $at)->errors;
     }
 
     /**

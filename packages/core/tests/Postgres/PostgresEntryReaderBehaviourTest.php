@@ -30,7 +30,8 @@ use Override;
  * transaction under the actor context of a staff member whose region is the root ROOT above NODE.
  * The rows are written as the superuser: the head of ENTRY points at its revision 4 in
  * `revisions`, or, for a head of a type without revisions, has no draft revision and keeps the
- * number with its snapshot in `head_snapshots`.
+ * number with its snapshot in `head_snapshots`; a released head also points at its published
+ * revision 5.
  */
 final class PostgresEntryReaderBehaviourTest extends TestCase
 {
@@ -40,6 +41,8 @@ final class PostgresEntryReaderBehaviourTest extends TestCase
     private const string ROOT = '0192a0c0-0000-7000-8000-0000000002a1';
 
     private const int REVISION = 40;
+
+    private const int PUBLISHED = 41;
 
     #[Override]
     protected function setUp(): void
@@ -85,11 +88,24 @@ final class PostgresEntryReaderBehaviourTest extends TestCase
     }
 
     #[Override]
-    protected function entryReader(bool $snapshots = false): EntryReader
+    protected function entryReader(bool $snapshots = false, ?string $released = null): EntryReader
     {
         $superuser = StorageTables::superuser();
         $superuser->table('head_snapshots')->delete();
-        $superuser->table('variant_heads')->where('entry_id', self::ENTRY)->update(['draft_revision_id' => $snapshots ? null : self::REVISION]);
+        $superuser->table('variant_heads')->where('entry_id', self::ENTRY)->update([
+            'draft_revision_id' => $snapshots ? null : self::REVISION,
+            'published_revision_id' => null,
+            'release_state' => 'unreleased',
+        ]);
+        $superuser->table('revisions')->where('revision_id', self::PUBLISHED)->delete();
+
+        if ($released !== null) {
+            $superuser->table('revisions')->insert([
+                'revision_id' => self::PUBLISHED, 'entry_id' => self::ENTRY, 'variant' => 'shared', 'rev_no' => 5, 'kind' => 'published',
+                'schema_version' => 1, 'changeset_id' => StorageTables::CHANGESET, 'created_at' => StorageTables::CREATED_AT,
+            ]);
+            $superuser->table('variant_heads')->where('entry_id', self::ENTRY)->update(['published_revision_id' => self::PUBLISHED, 'release_state' => $released]);
+        }
 
         if ($snapshots) {
             $superuser->table('head_snapshots')->insert([

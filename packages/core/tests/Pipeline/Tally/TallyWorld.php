@@ -46,6 +46,7 @@ use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandContentHasher;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandHooks;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeFieldValidation;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeHookOverruns;
+use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeRevisionContents;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeStopwatch;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeWriteActions;
 use Cbox\Cms\Core\Tests\Postgres\StorageTables;
@@ -194,6 +195,7 @@ final class TallyWorld
             new FakeCommandAuthorizer,
             $types,
             new FakeFieldValidation(new FakeTypeValidators),
+            new FakeRevisionContents,
             $this->committer(),
             new PostgresIdempotencyStore($connections, $this->clock),
             $receipts,

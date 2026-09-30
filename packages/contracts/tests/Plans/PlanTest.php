@@ -104,7 +104,7 @@ it('names the aggregate each mutation changes', function (): void {
         [new EntryCreated($entry, TypeId::fromString(planUuid(6)), $node), 'entry:'.planUuid(1)],
         [new RevisionCreated($entry, TypeId::fromString(planUuid(6)), $variant, RevisionNumber::first(), new FieldValues), $variantKey],
         [new HeadMoved($entry, $variant, null, RevisionNumber::first()), $variantKey],
-        [new VariantReleased($entry, $variant, RevisionNumber::first()), $variantKey],
+        [new VariantReleased($entry, TypeId::fromString(planUuid(6)), $variant, RevisionNumber::first()), $variantKey],
         [new VariantUnreleased($entry, $variant, RevisionNumber::first()), $variantKey],
         [new PlacementCreated($placement, $entry, $node, $site), 'placement:'.planUuid(2)],
         [new PlacementWindowSet($placement, new Locale('da'), TimeWindow::always()), 'placement:'.planUuid(2)],

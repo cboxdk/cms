@@ -25,7 +25,7 @@ A mutation implements `Cbox\Cms\Contracts\Plans\Mutation`: a final readonly clas
 | `EntryCreated(entry, type, home)` | the entry | an entry of the `TypeId` is created with its home `NodeId` |
 | `RevisionCreated(entry, variant, revision, fields)` | the variant | a revision of the variant, with its `FieldValues` |
 | `HeadMoved(entry, variant, from, to)` | the variant | the variant's head moves from a revision, or from none, to another revision |
-| `VariantReleased(entry, variant, revision)` | the variant | the revision becomes the variant's released revision |
+| `VariantReleased(entry, type, variant, revision)` | the variant | the revision becomes the variant's released revision |
 | `VariantUnreleased(entry, variant, revision)` | the variant | the variant has no released revision any more; `revision` is the one it had |
 | `PlacementCreated(placement, entry, node, site)` | the placement | the entry is placed below the node of the site |
 | `PlacementLocaleAdded(placement, locale, slug, canonical)` | the placement | the placement gets the `Locale` with its `Slug`, hidden, canonical as the kernel decides |
@@ -33,7 +33,7 @@ A mutation implements `Cbox\Cms\Contracts\Plans\Mutation`: a final readonly clas
 | `PlacementCanonicalSet(placement, locale, canonical)` | the placement | the placement becomes, or stops being, the canonical placement of its entry in the `Locale` |
 | `ActorDeactivated(actor, source)` | the actor | the actor is deactivated (PRD 5.16), by the `DeactivationSource` given, `local` by default |
 
-A mutation that can make content public implements `Cbox\Cms\Contracts\Plans\ChangesPublicVisibility`, whose `makesPublic()` says whether it does, now or later, such as a `PlacementWindowSet` with a window. The kernel refuses a plan with one that does from an agent or a token with `agent_visibility_forbidden` (invariant 18): the envelope's issuer is an agent, or the credential was issued for one.
+A mutation that can make content public implements `Cbox\Cms\Contracts\Plans\ChangesPublicVisibility`, whose `makesPublic()` says whether it does, now or later, such as a `PlacementWindowSet` with a window, or a `VariantReleased`, which always does. The kernel refuses a plan with one that does from an agent or a token with `agent_visibility_forbidden` (invariant 18): the envelope's issuer is an agent, or the credential was issued for one.
 
 The ids are value objects over a UUIDv7: `EntryId`, `NodeId`, `PlacementId`, `SiteId`, `ActorId` and `TypeId`. A variant is a `VariantKey`, `shared` or a `Locale` such as `en-GB`; a revision is a `RevisionNumber` from 1. The kernel knows no content type (GUARDRAILS 2.4): an entry's type is the `TypeId` of its blueprint.
 

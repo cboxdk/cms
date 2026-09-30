@@ -7,6 +7,7 @@ namespace Cbox\Cms\Tests\Feature\Tooling\Mutation;
 use Cbox\Cms\Contracts\Ids\PrincipalId;
 use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Core\Doctor\Boundary\DoctorConfig;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Partitions\Actions\MaintainPartitions;
 use Cbox\Cms\Core\Partitions\Infrastructure\PartitionCatalog;
 use Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore;
@@ -29,7 +30,7 @@ it('finds the layer from the innermost layer segment and runs Adapter and Infras
     'an adapter' => [PostgresReceiptStore::class, 'Adapter', true],
     'infrastructure' => [PartitionCatalog::class, 'Infrastructure', true],
     'the testkit\'s raw SQL' => ['Cbox\Cms\Testkit\Postgres\Infrastructure\Catalog', 'Infrastructure', true],
-    'a command below Domain' => ['Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant', 'Domain', false],
+    'a command below Domain' => [ReleaseVariant::class, 'Domain', false],
     'an action' => [MaintainPartitions::class, 'Actions', false],
     'a boundary' => [DoctorConfig::class, 'Boundary', false],
     'the innermost segment decides' => ['Cbox\Cms\Http\Adapter\Boundary\RequestParser', 'Boundary', false],

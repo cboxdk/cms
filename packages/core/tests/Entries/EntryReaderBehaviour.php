@@ -37,9 +37,11 @@ trait EntryReaderBehaviour
      * The reader under test, knowing NODE at version 3 below a root it may also know, the entry
      * ENTRY of TYPE homed on NODE at version 2 with the head of its shared variant at version 5 on
      * revision 4, and BARE_ENTRY of TYPE on NODE at version 1 with no head. With $snapshots, the
-     * head keeps its revision number with its snapshot, as for a type without revisions.
+     * head keeps its revision number with its snapshot, as for a type without revisions. With
+     * $released, a release wrote revision 5, a published revision, after the draft, and the head's
+     * release state is $released.
      */
-    abstract protected function entryReader(bool $snapshots = false): EntryReader;
+    abstract protected function entryReader(bool $snapshots = false, ?string $released = null): EntryReader;
 
     #[Test]
     public function it_reads_a_node_s_version_and_nothing_for_a_node_it_does_not_know(): void
@@ -61,9 +63,19 @@ trait EntryReaderBehaviour
                 TypeId::fromString(self::TYPE),
                 NodeId::fromString(self::NODE),
                 new AggregateVersion(2),
-                new StoredHead(new AggregateVersion(5), new RevisionNumber(4)),
+                new StoredHead(new AggregateVersion(5), new RevisionNumber(4), new RevisionNumber(4), null),
             ), $entry);
         }
+    }
+
+    #[Test]
+    public function it_reads_the_highest_revision_number_and_the_released_revision_of_a_released_head(): void
+    {
+        $released = $this->entryReader(released: 'released')->entry(EntryId::fromString(self::ENTRY), VariantKey::shared())?->head;
+        $withdrawn = $this->entryReader(released: 'withdrawn')->entry(EntryId::fromString(self::ENTRY), VariantKey::shared())?->head;
+
+        Assert::assertEquals(new StoredHead(new AggregateVersion(5), new RevisionNumber(4), new RevisionNumber(5), new RevisionNumber(5)), $released);
+        Assert::assertEquals(new StoredHead(new AggregateVersion(5), new RevisionNumber(4), new RevisionNumber(5), null), $withdrawn);
     }
 
     #[Test]

@@ -23,8 +23,9 @@ use Cbox\Cms\Core\Tests\Entries\EntryActionWorld;
 
 /*
  * entry.revise's action in the command pipeline with fakes (GUARDRAILS 9, PRD 5.4, 6.2): a revise
- * reads the entry and the head of its shared variant and plans the revision after the head's and
- * the head's move to it, for the entry's own type. It is rejected for fields that break the type's
+ * reads the entry and the head of its shared variant and plans the revision after the variant's
+ * highest number, the head's draft or a published revision a release wrote after it, and the
+ * head's move to it, for the entry's own type. It is rejected for fields that break the type's
  * rules and a value for an encrypted field, and it is version_conflict when the variant is not at
  * the version the caller saw, when the entry does not exist, and when the variant changed before
  * the commit.
@@ -38,7 +39,7 @@ function reviseEntryWorld(): EntryActionWorld
     $world = new EntryActionWorld;
     $world->entries
         ->withEntry(EntryActionWorld::entry(), EntryActionWorld::type(), EntryActionWorld::home(), new AggregateVersion(2))
-        ->withHead(EntryActionWorld::entry(), VariantKey::shared(), new StoredHead(new AggregateVersion(6), new RevisionNumber(4)));
+        ->withHead(EntryActionWorld::entry(), VariantKey::shared(), new StoredHead(new AggregateVersion(6), new RevisionNumber(4), new RevisionNumber(4), null));
 
     return $world;
 }
@@ -67,6 +68,20 @@ it('plans the revision after the head\'s and the head\'s move to it, and reads t
         ->and($head instanceof HeadMoved ? [$head->from?->value, $head->to->value] : [])->toBe([4, 5])
         ->and($pending->reads->of(EntryActionWorld::entry()))->toEqual(ReadVersion::at(EntryActionWorld::entry(), new AggregateVersion(2)))
         ->and($pending->reads->of($variant))->toEqual(ReadVersion::at($variant, new AggregateVersion(6)));
+});
+
+it('numbers the revision after the published revision a release wrote after the draft, and moves the head from the draft', function (): void {
+    $world = new EntryActionWorld;
+    $world->entries
+        ->withEntry(EntryActionWorld::entry(), EntryActionWorld::type(), EntryActionWorld::home(), new AggregateVersion(2))
+        ->withHead(EntryActionWorld::entry(), VariantKey::shared(), new StoredHead(new AggregateVersion(7), new RevisionNumber(4), new RevisionNumber(5), new RevisionNumber(5)));
+
+    $result = $world->revise(7, EntryActionWorld::fields('After the release'));
+    [$revision, $head] = $world->committed()->plan->mutations();
+
+    expect($result->outcome())->toBe(Outcome::Committed)
+        ->and($revision instanceof RevisionCreated ? $revision->revision->value : null)->toBe(6)
+        ->and($head instanceof HeadMoved ? [$head->from?->value, $head->to->value] : [])->toBe([4, 6]);
 });
 
 it('rejects fields that break the type\'s rules and commits nothing', function (): void {

@@ -8,8 +8,10 @@ use Cbox\Cms\Cli\CliServiceProvider;
 use Cbox\Cms\Contracts\Build\ScanRoot;
 use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Core\Entries\Actions\CreateEntryAction;
+use Cbox\Cms\Core\Entries\Actions\ReleaseVariantAction;
 use Cbox\Cms\Core\Entries\Actions\ReviseEntryAction;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
 use Cbox\Cms\Core\Identity\Actions\DeactivateActorAction;
 use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
@@ -90,6 +92,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'entry.revise@1 '.ReviseEntry::class,
             'placement.create@1 '.CreatePlacement::class,
             'placement.set_window@1 '.SetPlacementWindow::class,
+            'variant.release@1 '.ReleaseVariant::class,
         ])
         ->and(array_map(static fn (ActionEntry $entry): string => $entry->command->value.'@'.$entry->commandVersion.' '.$entry->class.' '.$entry->kind->value, $registry->actions))
         ->toBe([
@@ -98,11 +101,12 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'entry.revise@1 '.ReviseEntryAction::class.' write',
             'placement.create@1 '.CreatePlacementAction::class.' write',
             'placement.set_window@1 '.SetPlacementWindowAction::class.' write',
+            'variant.release@1 '.ReleaseVariantAction::class.' write',
         ])
         ->and($registry->actionFor(DeactivateActor::class)?->surfaces)->toBe([])
         ->and($registry->actionFor(CreateEntry::class)?->class)->toBe(CreateEntryAction::class)
         ->and($registry->actionFor(ReviseEntry::class)?->class)->toBe(ReviseEntryAction::class)
-        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([5, 5, 0, 0, 0])
+        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([6, 6, 0, 0, 0])
         ->and($registry->hooks)->toBe([])
         ->and($registry->subscribers)->toBe([])
         ->and($registry->schema)->toBe([]);

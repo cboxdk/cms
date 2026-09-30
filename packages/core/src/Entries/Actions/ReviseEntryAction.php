@@ -24,8 +24,9 @@ use Override;
 
 /**
  * The write action of entry.revise (PRD 5.4, 6.2), exposed on every surface. resolve() reads the
- * entry with the head of its shared variant; plan() writes the revision after the head's and moves
- * the head to it, for the entry's own type.
+ * entry with the head of its shared variant; plan() writes the revision after the variant's highest
+ * number, which is the head's draft or a published revision a release wrote after it, and moves the
+ * head from its draft to the new revision, for the entry's own type.
  *
  * The command expects the variant at a version, so the kernel rejects it with version_conflict
  * before plan() when the entry or its variant is absent or at another version; plan() is only ever
@@ -67,7 +68,7 @@ final readonly class ReviseEntryAction implements WriteAction
             ));
         }
 
-        $next = $head->revision->next();
+        $next = $head->latest->next();
         $shared = VariantKey::shared();
 
         return new Plan(

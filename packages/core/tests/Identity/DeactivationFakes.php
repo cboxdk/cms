@@ -33,6 +33,7 @@ use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandHooks;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandTransaction;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeFieldValidation;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeHookOverruns;
+use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeRevisionContents;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeStopwatch;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeWriteActions;
 use Cbox\Cms\Testkit\Clock\FakeClock;
@@ -80,6 +81,7 @@ final class DeactivationFakes
             $this->authorizer,
             $types,
             new FakeFieldValidation(new FakeTypeValidators),
+            new FakeRevisionContents,
             $this->committer,
             $keys,
             $receipts,
