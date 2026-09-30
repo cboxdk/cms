@@ -7,6 +7,7 @@ namespace Cbox\Cms\Generators\Generation\Domain\Generators;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
+use Cbox\Cms\Contracts\FieldTypes\FieldBase;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Schema\ColumnDefinition;
@@ -123,6 +124,7 @@ final readonly class PhpTypeCatalog implements Generator
                 ClassificationAccess::class,
                 ColumnDefinition::class,
                 ExtensionVersion::class,
+                ...($this->hasContributedField($schema) ? [FieldBase::class] : []),
                 FieldDefinition::class,
                 FieldHandle::class,
                 FieldNamespace::class,
@@ -309,7 +311,7 @@ final readonly class PhpTypeCatalog implements Generator
      */
     private function field(FieldDescriptor $field, string $indent): array
     {
-        $fieldType = GeneratedLines::fieldType(self::class, self::FIELD_TYPES, $field);
+        $fieldType = GeneratedLines::typeName(self::class, self::FIELD_TYPES, $field);
         $nested = [];
 
         foreach ($field->fields as $inner) {
@@ -331,8 +333,25 @@ final readonly class PhpTypeCatalog implements Generator
             $indent.'    sortable: '.$flag($field->sortable).',',
             $indent.'    column: '.$this->column($field->column).',',
             ...($nested === [] ? [] : [$indent.'    fields: [', ...$nested, $indent.'    ],']),
+            ...($field->base === $field->type ? [] : [$indent.'    base: FieldBase::'.FieldBase::from($field->base)->name.',']),
             $indent.'),',
         ];
+    }
+
+    /**
+     * Whether a field of the schema is of an addon's field type, whose definition names its base.
+     */
+    private function hasContributedField(CompiledSchema $schema): bool
+    {
+        return array_any($schema->types, fn (TypeDescriptor $type): bool => $this->anyContributed($type->fields));
+    }
+
+    /**
+     * @param  list<FieldDescriptor>  $fields
+     */
+    private function anyContributed(array $fields): bool
+    {
+        return array_any($fields, fn (FieldDescriptor $field): bool => $field->base !== $field->type || $this->anyContributed($field->fields));
     }
 
     private function column(?ColumnDescriptor $column): string

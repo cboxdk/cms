@@ -6,6 +6,7 @@ namespace Cbox\Cms\Generators\Schema\Boundary;
 
 use BackedEnum;
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\FieldTypes\FieldTypeOptions;
 use Cbox\Cms\Contracts\Ids\InvalidUuid7;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationProblem;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
@@ -39,6 +40,7 @@ final readonly class DocumentValues implements FieldValues
         private SourceLocation $at,
         private ReadProblems $problems,
         private Closure $nestedFields,
+        private OptionsSchemas $optionsSchemas = new OptionsSchemas,
     ) {}
 
     /**
@@ -48,7 +50,7 @@ final readonly class DocumentValues implements FieldValues
      */
     public function withNestedFields(Closure $nestedFields): self
     {
-        return new self($this->object, $this->at, $this->problems, $nestedFields);
+        return new self($this->object, $this->at, $this->problems, $nestedFields, $this->optionsSchemas);
     }
 
     #[Override]
@@ -301,6 +303,41 @@ final readonly class DocumentValues implements FieldValues
         return ($this->nestedFields)($this->value($key), $this->at->below($key));
     }
 
+    #[Override]
+    public function fieldTypeOptions(string $key, string $fieldType, string $schema): ?FieldTypeOptions
+    {
+        $options = $this->has($key) ? $this->value($key) : new stdClass;
+        $at = $this->at->below($key);
+
+        if (! $options instanceof stdClass) {
+            $this->unreadable($key);
+
+            return null;
+        }
+
+        try {
+            $violations = $this->optionsSchemas->check($fieldType, $schema, $options, $at);
+        } catch (GenerationFailed $unusable) {
+            $violations = $unusable->problems;
+        }
+
+        foreach ($violations as $violation) {
+            $this->problems->add($violation);
+        }
+
+        if ($violations !== []) {
+            return null;
+        }
+
+        return $this->options($options, $at);
+    }
+
+    #[Override]
+    public function invalid(string $key, string $reason): void
+    {
+        $this->problems->add(new GenerationProblem(GenerateErrorCode::SchemaInvalid, sprintf('%s: %s', $this->at->below($key)->describe(), $reason)));
+    }
+
     /**
      * Records the value at the key as one this generator does not know, and reads it as null.
      */
@@ -379,8 +416,71 @@ final readonly class DocumentValues implements FieldValues
         }
     }
 
+    /**
+     * The decoded options as FieldTypeOptions, or null when they hold a value FieldTypeOptions
+     * does not hold, such as a list inside a list; that is recorded at the value.
+     */
+    private function options(stdClass $object, SourceLocation $at): ?FieldTypeOptions
+    {
+        $readable = true;
+        $values = [];
+
+        foreach (get_object_vars($object) as $key => $value) {
+            $key = (string) $key;
+            $valueAt = $at->below($key);
+
+            if (! is_array($value)) {
+                $values[$key] = $this->optionValue($value, $valueAt, $readable);
+
+                continue;
+            }
+
+            $items = [];
+
+            foreach (array_values($value) as $index => $item) {
+                if (is_array($item)) {
+                    $this->problems->add(new GenerationProblem(GenerateErrorCode::SchemaInvalid, sprintf(
+                        '%s: a list inside a list, which the options of a field type do not hold. Use a list of objects instead.',
+                        $valueAt->below($index)->describe(),
+                    )));
+                    $readable = false;
+
+                    continue;
+                }
+
+                $items[] = $this->optionValue($item, $valueAt->below($index), $readable);
+            }
+
+            $values[$key] = $items;
+        }
+
+        return $readable ? new FieldTypeOptions($values) : null;
+    }
+
+    /**
+     * A value of the options that is not a list; $readable becomes false when it cannot be read.
+     */
+    private function optionValue(mixed $value, SourceLocation $at, bool &$readable): string|int|float|bool|FieldTypeOptions|null
+    {
+        if ($value instanceof stdClass) {
+            $options = $this->options($value, $at);
+            $readable = $readable && $options instanceof FieldTypeOptions;
+
+            return $options;
+        }
+
+        if ($value === null || is_string($value) || is_int($value) || is_float($value) || is_bool($value)) {
+            return $value;
+        }
+
+        $this->problems->add(self::unreadableAt($at));
+        $readable = false;
+
+        return null;
+    }
+
     private function below(stdClass $object, SourceLocation $at): self
     {
-        return new self($object, $at, $this->problems, $this->nestedFields);
+        return new self($object, $at, $this->problems, $this->nestedFields, $this->optionsSchemas);
     }
 }

@@ -22,16 +22,24 @@ use Cbox\Cms\Generators\Schema\Domain\SourceLocation;
  * enforces it, which it never does for an extension field (PRD 11.12, point 1). $location is where
  * the blueprint declares the field, for the problems a generator reports; the canonical JSON leaves
  * it out.
+ *
+ * $base is the core field type whose form the value takes: the field type itself for a core field
+ * type, and for an addon's field type the base of its shape (FieldTypeContribution::shape()). The generators
+ * write a value by its base and name the field's type by $type, so an addon's field type is written
+ * as its base is.
  */
 #[Internal]
 final readonly class FieldDescriptor
 {
+    public string $base;
+
     /**
      * @param  string  $type  the field type as the blueprint writes it, such as `text`
      * @param  bool  $encrypted  whether the value is stored as ciphertext (PRD 12.2)
      * @param  list<ValidationRule>  $validation  `required` or `nullable` first
      * @param  list<SelectOption>  $choices  the options of a select field, in the order of the file
      * @param  list<FieldDescriptor>  $fields  the nested fields of a group, sorted by handle
+     * @param  ?string  $base  the core field type the value takes the form of; null for $type itself
      */
     public function __construct(
         public ?ColumnDescriptor $column,
@@ -53,5 +61,8 @@ final readonly class FieldDescriptor
         public array $choices,
         public array $fields,
         public SourceLocation $location,
-    ) {}
+        ?string $base = null,
+    ) {
+        $this->base = $base ?? $type;
+    }
 }

@@ -4,6 +4,17 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Generators\Tests\Generation;
 
+use Cbox\Cms\Contracts\FieldTypes\BooleanShape;
+use Cbox\Cms\Contracts\FieldTypes\DateShape;
+use Cbox\Cms\Contracts\FieldTypes\DatetimeShape;
+use Cbox\Cms\Contracts\FieldTypes\DecimalShape;
+use Cbox\Cms\Contracts\FieldTypes\FieldBase;
+use Cbox\Cms\Contracts\FieldTypes\FieldShape;
+use Cbox\Cms\Contracts\FieldTypes\IntegerShape;
+use Cbox\Cms\Contracts\FieldTypes\LongTextShape;
+use Cbox\Cms\Contracts\FieldTypes\SelectChoice;
+use Cbox\Cms\Contracts\FieldTypes\SelectShape;
+use Cbox\Cms\Contracts\FieldTypes\TextShape;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecordDtos;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecords;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeCatalog;
@@ -16,6 +27,7 @@ use Cbox\Cms\Generators\Generation\Domain\Generators\TypeTableMigrations;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintSchemaFile;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypeRegistry;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypes\CoreFieldTypes;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypes\ShapeOptions;
 use Cbox\Cms\Generators\Tests\SchemaFixtures;
 use LogicException;
 use stdClass;
@@ -27,6 +39,11 @@ use stdClass;
  * Version 1 grows by additions, so a new field type or kind in cboxdk/cms fails here
  * until the generators write it. The core's contributor to the field type registry registers
  * exactly the core field types of the schema, so the reader can read every one of them.
+ *
+ * An addon's field type is written by every generator as the core field type its shape takes the
+ * form of (PRD 11.12, 13.3), so every base of Cbox\Cms\Contracts\FieldTypes\FieldBase is a core
+ * field type that every generator maps, and a shape of each base gives the options of that core
+ * field type.
  */
 
 afterEach(function (): void {
@@ -213,4 +230,71 @@ it('registers exactly the core field types of the installed blueprint schema thr
     sort($schemaTypes);
 
     expect(new FieldTypeRegistry(new CoreFieldTypes)->names())->toBe($schemaTypes);
+});
+
+/**
+ * The bases an addon's field type can take that a generator does not map.
+ *
+ * @param  array<string, array{fieldTypes: array<string, string>, kinds: array<string, string>}>  $generators
+ * @return list<string>
+ */
+function contributedCoverageProblems(array $generators): array
+{
+    $problems = [];
+
+    foreach (FieldBase::cases() as $base) {
+        foreach ($generators as $generator => $mappings) {
+            if (! array_key_exists($base->value, $mappings['fieldTypes'])) {
+                $problems[] = sprintf('%s has no mapping for the base "%s" of an addon\'s field type.', $generator, $base->value);
+            }
+        }
+    }
+
+    return $problems;
+}
+
+/**
+ * A shape of each base an addon's field type can take.
+ *
+ * @return array<string, FieldShape>
+ */
+function shapeOfEveryBase(): array
+{
+    $shapes = [
+        new TextShape(maxLength: 20),
+        new LongTextShape,
+        new IntegerShape(1, 5),
+        new DecimalShape(5, 2, '0', '100'),
+        new BooleanShape,
+        new DateShape('2026-01-01'),
+        new DatetimeShape(max: '2030-01-01T00:00:00Z'),
+        new SelectShape([new SelectChoice('small', 'Small'), new SelectChoice('large', 'Large')]),
+    ];
+    $byBase = [];
+
+    foreach ($shapes as $shape) {
+        $byBase[$shape->base()->value] = $shape;
+    }
+
+    return $byBase;
+}
+
+it('writes a field of every base an addon\'s field type can take in every generator, as the core field type of the base', function (): void {
+    $core = schemaValues(new BlueprintSchemaFile()->load())['fieldTypes'];
+    $bases = array_map(static fn (FieldBase $base): string => $base->value, FieldBase::cases());
+
+    expect(array_diff($bases, $core))->toBe([])
+        ->and(contributedCoverageProblems(generatorMappings()))->toBe([])
+        ->and(array_keys(shapeOfEveryBase()))->toBe($bases)
+        ->and(array_map(static fn (FieldShape $shape): string => ShapeOptions::of($shape)->typeName(), shapeOfEveryBase()))->toBe(array_combine($bases, $bases));
+});
+
+it('fails when a generator does not map a base an addon\'s field type can take', function (): void {
+    $mappings = generatorMappings();
+    unset($mappings[PhpRecords::class]['fieldTypes']['integer'], $mappings[TypeScriptContracts::class]['fieldTypes']['select']);
+
+    expect(contributedCoverageProblems($mappings))->toBe([
+        PhpRecords::class.' has no mapping for the base "integer" of an addon\'s field type.',
+        TypeScriptContracts::class.' has no mapping for the base "select" of an addon\'s field type.',
+    ]);
 });

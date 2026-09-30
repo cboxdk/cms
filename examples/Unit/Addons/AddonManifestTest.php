@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Examples\Unit\Addons;
 
 use Examples\Unit\Addons\Reviews\RequireStars;
+use Examples\Unit\Addons\Reviews\ReviewsFieldTypes;
 use Examples\Unit\Addons\Reviews\ReviewsServiceProvider;
 use Examples\Unit\Addons\Reviews\UnlistedHookServiceProvider;
 use Examples\Unit\Build\BuildTestCase;
@@ -47,6 +48,7 @@ final class AddonManifestTest extends BuildTestCase
         self::assertIsArray($schema['entries']);
         self::assertContains([
             'extends' => [],
+            'field_type_contributor' => ReviewsFieldTypes::class,
             'field_types' => ['reviews:stars'],
             'namespace' => 'reviews',
             'package' => 'acme/cms-reviews',

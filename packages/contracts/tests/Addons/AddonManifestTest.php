@@ -96,6 +96,7 @@ it('holds a manifest with what it allows, its capabilities and its schema contri
             [new TypeName('reviews:review')],
             [new TypeName('shop:product'), new TypeName('app:note')],
             '/srv/reviews/schema',
+            '\\Acme\\Reviews\\ReviewsFieldTypes',
         ),
     );
 
@@ -107,6 +108,7 @@ it('holds a manifest with what it allows, its capabilities and its schema contri
         ->and($manifest->allowsSubscription(VariantReleased::class, Lane::Critical))->toBeFalse()
         ->and(array_map(static fn (ContributedFieldType $type): string => $type->value, $manifest->schema->fieldTypes))->toBe(['reviews:rating', 'reviews:stars'])
         ->and(array_map(static fn (TypeName $type): string => $type->value, $manifest->schema->extends))->toBe(['app:note', 'shop:product'])
+        ->and($manifest->schema->fieldTypeContributor)->toBe('Acme\\Reviews\\ReviewsFieldTypes')
         ->and($manifest->schema->isEmpty())->toBeFalse()
         ->and(new SchemaContributions()->isEmpty())->toBeTrue()
         ->and(new AddonCapabilities()->reads)->toBe(ClassificationAccess::Public);
@@ -117,12 +119,15 @@ it('refuses a manifest that breaks the rules of its namespace or lists something
 })->with([
     'a package that is not a Composer name' => [static fn (): AddonManifest => new AddonManifest('reviews', new AddonNamespace('reviews'), new CoreApiVersion(1, 0), '/srv/docs'), 'The addon package "reviews" is not a Composer package name'],
     'a documentation directory that is not absolute' => [static fn (): AddonManifest => new AddonManifest('acme/cms-reviews', new AddonNamespace('reviews'), new CoreApiVersion(1, 0), 'docs'), 'The documentation directory "docs" is not an absolute path.'],
-    'a field type of another namespace' => [static fn (): AddonManifest => addonManifest(new SchemaContributions([new ContributedFieldType('shop:stars')])), 'The addon "reviews" contributes the field type "shop:stars", which is outside its namespace.'],
+    'a field type of another namespace' => [static fn (): AddonManifest => addonManifest(new SchemaContributions([new ContributedFieldType('shop:stars')], fieldTypeContributor: 'Acme\\Shop\\ShopFieldTypes')), 'The addon "reviews" contributes the field type "shop:stars", which is outside its namespace.'],
     'an own type of another owner' => [static fn (): AddonManifest => addonManifest(new SchemaContributions(types: [new TypeName('app:review')], directory: '/srv/schema')), 'The addon "reviews" owns the type "app:review", which is outside its namespace.'],
     'an extension of its own type' => [static fn (): AddonManifest => addonManifest(new SchemaContributions(extends: [new TypeName('reviews:review')], directory: '/srv/schema')), 'The addon "reviews" extends its own type "reviews:review".'],
     'a hook allowed twice' => [static fn (): AddonManifest => addonManifest(hooks: [new AllowedHook(ReleaseVariant::class, Phase::Validate), new AllowedHook(strtolower(ReleaseVariant::class), Phase::Validate)]), sprintf('The hook %s in the validate phase is listed twice.', strtolower(ReleaseVariant::class))],
     'a subscription allowed twice' => [static fn (): AddonManifest => addonManifest(subscriptions: [new AllowedSubscription(VariantReleased::class, Lane::Standard), new AllowedSubscription(VariantReleased::class, Lane::Standard)]), sprintf('The subscription %s on the standard lane is listed twice.', VariantReleased::class)],
-    'a field type listed twice' => [static fn (): SchemaContributions => new SchemaContributions([new ContributedFieldType('reviews:stars'), new ContributedFieldType('reviews:stars')]), 'The field type "reviews:stars" is listed twice.'],
+    'a field type listed twice' => [static fn (): SchemaContributions => new SchemaContributions([new ContributedFieldType('reviews:stars'), new ContributedFieldType('reviews:stars')], fieldTypeContributor: 'Acme\\Reviews\\ReviewsFieldTypes'), 'The field type "reviews:stars" is listed twice.'],
+    'field types without their contributor' => [static fn (): SchemaContributions => new SchemaContributions([new ContributedFieldType('reviews:stars')]), 'The addon contributes field types but names no field type contributor.'],
+    'a contributor without field types' => [static fn (): SchemaContributions => new SchemaContributions(fieldTypeContributor: 'Acme\\Reviews\\ReviewsFieldTypes'), 'The addon names a field type contributor but contributes no field type.'],
+    'a contributor that is not a class name' => [static fn (): SchemaContributions => new SchemaContributions([new ContributedFieldType('reviews:stars')], fieldTypeContributor: 'reviews field types'), 'The class name "reviews field types" of the field type contributor is not a PHP class name.'],
     'types without a schema directory' => [static fn (): SchemaContributions => new SchemaContributions(types: [new TypeName('reviews:review')]), 'The addon owns or extends types but names no schema directory.'],
     'a schema directory that is not absolute' => [static fn (): SchemaContributions => new SchemaContributions(directory: 'schema'), 'The schema directory "schema" is not an absolute path.'],
     'a hook whose command is not a class name' => [static fn (): AllowedHook => new AllowedHook('release variant', Phase::Validate), 'The class name "release variant" of an allowed hook\'s command is not a PHP class name.'],

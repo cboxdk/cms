@@ -173,6 +173,6 @@ final readonly class TypeScriptTypeHandles implements Generator
      */
     private function fieldType(FieldDescriptor $field): string
     {
-        return GeneratedLines::fieldType(self::class, self::FIELD_TYPES, $field);
+        return GeneratedLines::typeName(self::class, self::FIELD_TYPES, $field);
     }
 }

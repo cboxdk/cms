@@ -11,7 +11,9 @@ use Cbox\Cms\Contracts\Schema\TypeName;
  * What an addon adds to the schema (PRD 13.1, 13.3, 11.12): the field types it contributes, the
  * types it owns, and the types of others it extends with blueprint extensions in its own
  * namespace. The blueprint files of its types and extensions are in its schema directory, an
- * absolute path, which it must have when it owns or extends a type.
+ * absolute path, which it must have when it owns or extends a type. The field types come with the
+ * class of their contributor, a Cbox\Cms\Contracts\FieldTypes\FieldTypeContributor that
+ * cms:generate makes through the container, which an addon has exactly when it lists a field type.
  *
  * AddonManifest holds each list to the addon's namespace: its field types and types are
  * `<namespace>:<handle>` in it, and the types it extends belong to another owner, because an
@@ -32,19 +34,25 @@ final readonly class SchemaContributions
 
     public ?string $directory;
 
+    /** The class of the addon's FieldTypeContributor, without a leading backslash, or null. */
+    public ?string $fieldTypeContributor;
+
     /**
      * @param  list<ContributedFieldType>  $fieldTypes
      * @param  list<TypeName>  $types  the types the addon owns
      * @param  list<TypeName>  $extends  the types of others the addon extends
      * @param  string|null  $directory  the absolute directory of the addon's blueprint files
+     * @param  string|null  $fieldTypeContributor  the class of the addon's FieldTypeContributor, such as ReviewsFieldTypes::class
      *
-     * @throws InvalidAddonManifest when a name is listed twice, or the directory is missing or not absolute
+     * @throws InvalidAddonManifest when a name is listed twice, the directory is missing or not
+     *                              absolute, or the field types come without their contributor or it without them
      */
     public function __construct(
         array $fieldTypes = [],
         array $types = [],
         array $extends = [],
         ?string $directory = null,
+        ?string $fieldTypeContributor = null,
     ) {
         $this->fieldTypes = $this->sorted('field type', array_map(static fn (ContributedFieldType $type): string => $type->value, $fieldTypes), $fieldTypes);
         $this->types = $this->sorted('type', array_map(static fn (TypeName $type): string => $type->value, $types), $types);
@@ -55,6 +63,14 @@ final readonly class SchemaContributions
         }
 
         $this->directory = $directory === null ? null : ClassNames::absoluteDirectory('schema', $directory);
+
+        if (($fieldTypes === []) !== ($fieldTypeContributor === null)) {
+            throw InvalidAddonManifest::because($fieldTypes === []
+                ? 'The addon names a field type contributor but contributes no field type. List its field types, or leave the contributor out.'
+                : 'The addon contributes field types but names no field type contributor. Name the class that implements Cbox\Cms\Contracts\FieldTypes\FieldTypeContributor, such as ReviewsFieldTypes::class.');
+        }
+
+        $this->fieldTypeContributor = $fieldTypeContributor === null ? null : ClassNames::check('the field type contributor', $fieldTypeContributor);
     }
 
     public function isEmpty(): bool

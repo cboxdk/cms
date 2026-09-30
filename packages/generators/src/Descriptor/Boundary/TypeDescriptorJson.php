@@ -63,6 +63,7 @@ final readonly class TypeDescriptorJson
     {
         return [
             'agents' => $field->agents,
+            'base' => $field->base,
             'choices' => array_map(
                 static fn (SelectOption $option): array => ['label' => $option->label, 'value' => $option->value->value],
                 $field->choices,

@@ -7,6 +7,7 @@ namespace Cbox\Cms\Contracts\Schema;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
+use Cbox\Cms\Contracts\FieldTypes\FieldBase;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 
 /**
@@ -16,7 +17,9 @@ use Cbox\Cms\Contracts\Identity\ClassificationAccess;
  * - `namespace` is null for a field of the type's owner, and the extender's namespace for a field
  *   an extension adds, which code addresses as `ext.<namespace>.<handle>` (address()).
  * - `fieldType` is the field type as the blueprint names it: a core field type such as `text`, or
- *   `<namespace>:<handle>` of a module or addon.
+ *   `<namespace>:<handle>` of a module or addon. `base` is null for a core field type, and for an
+ *   addon's field type the core field type whose form its value takes (FieldTypeContribution::shape()),
+ *   which valueType() gives for every field: the kernel reads and writes a value in that form.
  * - `classification` decides who may read the field (PRD 12.2), and `agents` whether MCP tools and
  *   agents see it (PRD 2.31): a public or internal field unless its blueprint says no, a
  *   confidential field only when its blueprint says yes, and a personal or sensitive field never.
@@ -37,6 +40,7 @@ final readonly class FieldDefinition
 
     /**
      * @param  list<FieldDefinition>  $fields  the nested fields of a group, each once
+     * @param  ?FieldBase  $base  the core field type an addon's field type takes the form of; null for a core field type
      */
     public function __construct(
         public ?FieldNamespace $namespace,
@@ -50,9 +54,14 @@ final readonly class FieldDefinition
         public bool $sortable,
         public ?ColumnDefinition $column,
         array $fields = [],
+        public ?FieldBase $base = null,
     ) {
         if (preg_match(self::FIELD_TYPE, $fieldType) !== 1) {
             throw InvalidTypeDefinition::fieldType($fieldType);
+        }
+
+        if (str_contains($fieldType, ':') !== $base instanceof FieldBase) {
+            throw InvalidTypeDefinition::fieldBase($fieldType);
         }
 
         if ($agents && ClassificationAccess::Confidential->rank() < $classification->rank()) {
@@ -81,6 +90,15 @@ final readonly class FieldDefinition
 
         ksort($byHandle, SORT_STRING);
         $this->fields = array_values($byHandle);
+    }
+
+    /**
+     * The core field type whose form the field's value takes: the field type itself for a core
+     * field type, and its base for an addon's.
+     */
+    public function valueType(): string
+    {
+        return $this->base instanceof FieldBase ? $this->base->value : $this->fieldType;
     }
 
     /**

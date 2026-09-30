@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "The options of reviews:stars",
+  "type": "object",
+  "properties": {
+    "max": {
+      "description": "The most stars a rating has, 5 unless set.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10
+    }
+  },
+  "additionalProperties": false
+}

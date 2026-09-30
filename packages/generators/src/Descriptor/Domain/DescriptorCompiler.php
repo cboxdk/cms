@@ -19,6 +19,7 @@ use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Schema\Domain\Classification;
 use Cbox\Cms\Generators\Schema\Domain\ColumnName;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldBlueprint;
+use Cbox\Cms\Generators\Schema\Domain\Dto\ShapedOptions;
 use Cbox\Cms\Generators\Schema\Domain\Owner;
 
 /**
@@ -169,6 +170,7 @@ final readonly class DescriptorCompiler
             $value->choices,
             $nested,
             $field->location,
+            $field->options instanceof ShapedOptions ? $field->options->base->typeName() : null,
         );
     }
 

@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Addons\InvalidAddonManifest;
 use Cbox\Cms\Contracts\Addons\ReservedAddonNamespace;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Build\DeclaresAddon;
+use Cbox\Cms\Contracts\FieldTypes\FieldTypeContributor;
 use Cbox\Cms\Core\Registry\Domain\BuildErrorCode;
 use Cbox\Cms\Core\Registry\Domain\Dto\BuildProblem;
 use Cbox\Cms\Core\Registry\Domain\Dto\DeclaredAddons;
@@ -21,7 +22,8 @@ use Illuminate\Contracts\Foundation\Application;
  * A manifest that cannot be built is a problem of the build, not an exception: a reserved
  * namespace is registry_reserved_namespace and anything else registry_invalid_manifest, each
  * naming the provider. So is a manifest whose documentation directory, or schema directory when it
- * has one, is not a readable directory.
+ * has one, is not a readable directory, and one whose field type contributor is not a class that
+ * implements FieldTypeContributor.
  */
 #[Internal]
 final readonly class ProviderAddonManifests
@@ -67,6 +69,20 @@ final readonly class ProviderAddonManifests
                     $manifest->package,
                     implode(' and ', $unreadable),
                     count($unreadable) === 1 ? 'is' : 'are',
+                ));
+
+                continue;
+            }
+
+            $contributor = $manifest->schema->fieldTypeContributor;
+
+            if ($contributor !== null && ! is_subclass_of($contributor, FieldTypeContributor::class)) {
+                $problems[] = new BuildProblem(BuildErrorCode::InvalidManifest, sprintf(
+                    'The manifest of addon "%s" (%s) names the field type contributor %s, which is not a class that implements %s. Name the class that returns the addon\'s field types.',
+                    $manifest->namespace->value,
+                    $manifest->package,
+                    $contributor,
+                    FieldTypeContributor::class,
                 ));
 
                 continue;

@@ -280,7 +280,7 @@ final readonly class PhpRecords implements Generator
         $class = $prefix.PhpSource::studly($handle);
         $repeated = $this->hasRule($field, ValidationRuleName::List);
 
-        return match ($field->type) {
+        return match ($field->base) {
             'text', 'long_text' => $this->scalar($field, 'string', null, 'text'),
             'integer' => $this->scalar($field, 'int', null, 'integer'),
             'decimal' => $this->scalar($field, 'string', 'numeric-string', 'decimal'),

@@ -78,7 +78,7 @@ it('reports a manifest that cannot be built as registry_invalid_manifest with th
 })->with([
     'a namespace with an underscore' => [static fn (): AddonManifest => RegistryFixtures::addonManifest('acme_reviews'), 'The addon namespace "acme_reviews" is not a lowercase letter'],
     'a namespace of 21 characters' => [static fn (): AddonManifest => RegistryFixtures::addonManifest(str_repeat('a', 21)), 'is not a lowercase letter followed by at most 19'],
-    'a field type of another namespace' => [static fn (): AddonManifest => new AddonManifest('acme/cms-reviews', new AddonNamespace('reviews'), CoreApiVersion::current(), __DIR__, schema: new SchemaContributions([new ContributedFieldType('shop:stars')])), 'contributes the field type "shop:stars", which is outside its namespace'],
+    'a field type of another namespace' => [static fn (): AddonManifest => new AddonManifest('acme/cms-reviews', new AddonNamespace('reviews'), CoreApiVersion::current(), __DIR__, schema: new SchemaContributions([new ContributedFieldType('shop:stars')], fieldTypeContributor: AddonFieldTypes::class)), 'contributes the field type "shop:stars", which is outside its namespace'],
 ]);
 
 it('reports a documentation or schema directory that is not there as registry_invalid_manifest', function (): void {
@@ -94,6 +94,21 @@ it('reports a documentation or schema directory that is not there as registry_in
             sprintf('[registry_invalid_manifest] The manifest of addon "glossary" (acme/cms-glossary) names the schema directory %s, which is not a readable directory. Every addon has its documentation (PRD 13.1): point the manifest at directories that exist, built from __DIR__.', $missing),
         ]);
 });
+
+it('reports a field type contributor that is not a class implementing FieldTypeContributor as registry_invalid_manifest', function (string $contributor): void {
+    $read = ProviderAddonManifests::from([
+        manifestProvider(new AddonManifest('acme/cms-reviews', new AddonNamespace('reviews'), CoreApiVersion::current(), __DIR__, schema: new SchemaContributions([new ContributedFieldType('reviews:stars')], fieldTypeContributor: $contributor))),
+        manifestProvider(new AddonManifest('acme/cms-glossary', new AddonNamespace('glossary'), CoreApiVersion::current(), __DIR__, schema: new SchemaContributions([new ContributedFieldType('glossary:stars')], fieldTypeContributor: AddonFieldTypes::class))),
+    ]);
+
+    expect(array_map(static fn (AddonManifest $manifest): string => $manifest->namespace->value, $read->manifests))->toBe(['glossary'])
+        ->and(manifestProblems(...$read->problems))->toBe([
+            sprintf('[registry_invalid_manifest] The manifest of addon "reviews" (acme/cms-reviews) names the field type contributor %s, which is not a class that implements Cbox\Cms\Contracts\FieldTypes\FieldTypeContributor. Name the class that returns the addon\'s field types.', $contributor),
+        ]);
+})->with([
+    'a class that does not exist' => ['Acme\\Reviews\\MissingFieldTypes'],
+    'a class that does not implement it' => [stdClass::class],
+]);
 
 it('fails the build with registry_reserved_namespace for an addon named app, and writes nothing', function (): void {
     $directory = RegistryFixtures::scratch();

@@ -143,6 +143,7 @@ final class RegistryFixtures
                 [new TypeName($namespace.':review')],
                 [new TypeName('app:note')],
                 __DIR__.'/AddonFiles/schema',
+                AddonFieldTypes::class,
             ),
         );
     }

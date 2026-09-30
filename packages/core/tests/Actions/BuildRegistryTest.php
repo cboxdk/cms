@@ -40,6 +40,7 @@ use Cbox\Cms\Core\Registry\Domain\RegistryBuildFailed;
 use Cbox\Cms\Core\Registry\Domain\RegistryCacheUnwritable;
 use Cbox\Cms\Core\Registry\Domain\RegistryCompiler;
 use Cbox\Cms\Core\Registry\Domain\RegistryName;
+use Cbox\Cms\Core\Tests\Registry\AddonFieldTypes;
 use Cbox\Cms\Core\Tests\Registry\Fakes\FakeDeclarationScanner;
 use Cbox\Cms\Core\Tests\Registry\Fakes\FakeRegistryCache;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Addon\IndexReviewedNote;
@@ -261,7 +262,7 @@ it('writes the five files, and reading them back gives the registry that was bui
         'entries' => [
             ['class' => CreateNote::class, 'name' => 'fixture.note.create', 'package' => RegistryFixtures::PACKAGE, 'version' => 1],
         ],
-        'format' => 6,
+        'format' => 7,
         'registry' => 'commands',
     ])
         ->and($actions)->toBe([
@@ -286,7 +287,7 @@ it('writes the five files, and reading them back gives the registry that was bui
                     'surfaces' => [],
                 ],
             ],
-            'format' => 6,
+            'format' => 7,
             'registry' => 'actions',
         ])
         ->and($subscribers)->toBe([
@@ -328,7 +329,7 @@ it('writes the five files, and reading them back gives the registry that was bui
                     'projection' => null,
                 ],
             ],
-            'format' => 6,
+            'format' => 7,
             'registry' => 'subscribers',
         ])
         ->and($commands['build'])->toMatch('/\A[0-9a-f]{64}\z/');
@@ -342,7 +343,7 @@ it('replaces the actions.php of format 2, which listed actions without the comma
     $built = RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
     expect(array_map(static fn (RegistryName $name): string => $name->fileName(), RegistryName::cases()))->toBe(['actions.php', 'commands.php', 'hooks.php', 'schema.php', 'subscribers.php'])
-        ->and(RegistryFixtures::load($directory.'/actions.php'))->toMatchArray(['format' => 6, 'registry' => 'actions'])
+        ->and(RegistryFixtures::load($directory.'/actions.php'))->toMatchArray(['format' => 7, 'registry' => 'actions'])
         ->and(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'schema.php', 'subscribers.php'])
         ->and(RegistryFixtures::cache($directory)->read())->toEqual($built);
 });
@@ -361,7 +362,7 @@ it('writes five empty registries when there are no scan roots', function (): voi
 
     foreach (RegistryName::cases() as $name) {
         expect(RegistryFixtures::load($directory.'/'.$name->fileName()))
-            ->toBe(['build' => $build, 'entries' => [], 'format' => 6, 'registry' => $name->value]);
+            ->toBe(['build' => $build, 'entries' => [], 'format' => 7, 'registry' => $name->value]);
     }
 });
 
@@ -376,8 +377,8 @@ it('removes the slot file an earlier version wrote, and replaces its schema.php 
     $built = RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
     expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'schema.php', 'subscribers.php'])
-        ->and(RegistryFixtures::load($directory.'/subscribers.php'))->toMatchArray(['format' => 6, 'registry' => 'subscribers'])
-        ->and(RegistryFixtures::load($directory.'/schema.php'))->toMatchArray(['entries' => [], 'format' => 6, 'registry' => 'schema'])
+        ->and(RegistryFixtures::load($directory.'/subscribers.php'))->toMatchArray(['format' => 7, 'registry' => 'subscribers'])
+        ->and(RegistryFixtures::load($directory.'/schema.php'))->toMatchArray(['entries' => [], 'format' => 7, 'registry' => 'schema'])
         ->and(RegistryFixtures::cache($directory)->read())->toEqual($built);
 });
 
@@ -739,7 +740,7 @@ it('compiles a valid manifest: its hook and subscriber name the addon, the hook 
         ], $reviews))
         ->and(array_map(static fn (SubscriberEntry $subscriber): ?AddonNamespace => $subscriber->addon, [$registry->subscribers[0], ...array_slice($registry->subscribers, 2)]))->toBe([null, null, null])
         ->and($registry->schema)->toEqual([
-            new SchemaEntry($reviews, RegistryFixtures::ADDON_PACKAGE, [new ContributedFieldType('reviews:stars')], [new TypeName('reviews:review')], [new TypeName('app:note')]),
+            new SchemaEntry($reviews, RegistryFixtures::ADDON_PACKAGE, [new ContributedFieldType('reviews:stars')], [new TypeName('reviews:review')], [new TypeName('app:note')], AddonFieldTypes::class),
         ])
         ->and($registry->count(RegistryName::Schema))->toBe(1)
         ->and(RegistryFixtures::cache($directory)->read())->toEqual($registry);
@@ -770,6 +771,7 @@ it('writes schema.php with each addon\'s contributions, byte for byte the same w
             'entries' => [
                 [
                     'extends' => ['app:note'],
+                    'field_type_contributor' => AddonFieldTypes::class,
                     'field_types' => ['glossary:stars'],
                     'namespace' => 'glossary',
                     'package' => 'acme/cms-glossary',
@@ -777,13 +779,14 @@ it('writes schema.php with each addon\'s contributions, byte for byte the same w
                 ],
                 [
                     'extends' => ['app:note'],
+                    'field_type_contributor' => AddonFieldTypes::class,
                     'field_types' => ['reviews:stars'],
                     'namespace' => 'reviews',
                     'package' => RegistryFixtures::ADDON_PACKAGE,
                     'types' => ['reviews:review'],
                 ],
             ],
-            'format' => 6,
+            'format' => 7,
             'registry' => 'schema',
         ]);
 });

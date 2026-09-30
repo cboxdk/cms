@@ -22,6 +22,7 @@ use Cbox\Cms\Contracts\Fields\MapValue;
 use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Fields\NullValue;
 use Cbox\Cms\Contracts\Fields\TextValue;
+use Cbox\Cms\Contracts\FieldTypes\FieldBase;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Schema\ColumnDefinition;
@@ -273,12 +274,36 @@ it('refuses a field type that has no column form', function (): void {
         new TypeName('shop:odd'),
         1,
         new TypeCapabilities(History::Full, Stages::DraftRelease, Localization::None, false),
-        [new ExtensionVersion(new FieldNamespace('acme'), 1)],
-        [columnField('colour', 'acme:colour', 'text'), columnField('extra', 'group', 'jsonb', fields: [nestedField('shade', 'acme:colour')])],
+        [],
+        [columnField('colour', 'colour', 'text'), columnField('extra', 'group', 'jsonb', fields: [nestedField('shade', 'colour')])],
     );
 
-    expect(fn (): FieldValues => TypeTableColumns::decode($type, ['colour' => 'red', 'extra' => null]))->toThrow(UnreadableTypeTable::class, 'The column colour holds a field of the type acme:colour, which has no column form in a type table.')
-        ->and(fn (): FieldValues => TypeTableColumns::decode($type, ['colour' => null, 'extra' => '{"shade":"red"}']))->toThrow(UnreadableTypeTable::class, 'The column extra.shade holds a field of the type acme:colour');
+    expect(fn (): FieldValues => TypeTableColumns::decode($type, ['colour' => 'red', 'extra' => null]))->toThrow(UnreadableTypeTable::class, 'The column colour holds a field of the type colour, which has no column form in a type table.')
+        ->and(fn (): FieldValues => TypeTableColumns::decode($type, ['colour' => null, 'extra' => '{"shade":"red"}']))->toThrow(UnreadableTypeTable::class, 'The column extra.shade holds a field of the type colour');
+});
+
+it('reads and writes a field of an addon\'s field type in the form of its base', function (): void {
+    $stars = new FieldDefinition(null, new FieldHandle('stars'), 'reviews:stars', ClassificationAccess::Public, true, false, false, true, true, new ColumnDefinition('stars', 'bigint', false, []), base: FieldBase::Integer);
+    $sizes = new FieldDefinition(null, new FieldHandle('sizes'), 'reviews:sizes', ClassificationAccess::Public, true, false, false, false, false, new ColumnDefinition('sizes', 'text[]', false, []), base: FieldBase::Select);
+    $shade = new FieldDefinition(null, new FieldHandle('shade'), 'reviews:shade', ClassificationAccess::Public, true, false, false, false, false, null, base: FieldBase::Text);
+    $type = new TypeDefinition(
+        TypeId::fromString('0192a0c0-0000-7000-8000-00000000f004'),
+        new TypeName('shop:rated'),
+        1,
+        new TypeCapabilities(History::Full, Stages::DraftRelease, Localization::None, false),
+        [],
+        [$stars, $sizes, columnField('extra', 'group', 'jsonb', fields: [$shade])],
+    );
+    $values = new FieldValues(new FieldMap(
+        named('stars', new IntegerValue(4)),
+        named('sizes', new ListValue(new TextValue('s'), new TextValue('m'))),
+        named('extra', new GroupValue(new FieldMap(named('shade', new TextValue('dark'))))),
+    ));
+
+    expect(TypeTableColumns::encode($type, $values))->toBe(['extra' => '{"shade":"dark"}', 'sizes' => '{"s","m"}', 'stars' => 4])
+        ->and(TypeTableColumns::decode($type, ['stars' => 4, 'sizes' => '{s,m}', 'extra' => '{"shade":"dark"}']))->toEqual($values)
+        ->and(fn (): array => TypeTableColumns::encode($type, new FieldValues(new FieldMap(named('stars', new TextValue('4'))))))
+        ->toThrow(UnreadableTypeTable::class, 'does not hold a Cbox\Cms\Contracts\Fields\TextValue for a field of the type reviews:stars');
 });
 
 it('refuses to write a value that does not fit its field, or one for an encrypted field', function (FieldValues $values, string $message): void {

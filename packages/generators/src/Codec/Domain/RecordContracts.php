@@ -183,18 +183,19 @@ final readonly class RecordContracts
      */
     private static function value(FieldDescriptor $field, array $rules, string $parentClass, TypeDescriptor $type): CodecValue
     {
-        if (! array_key_exists($field->type, self::FIELD_TYPES)) {
+        if (! array_key_exists($field->base, self::FIELD_TYPES)) {
             throw GenerationFailed::because(GenerateErrorCode::InvalidOutput, sprintf(
-                '%s has no mapping for the field type "%s" of %s. Add the field type to its FIELD_TYPES.',
+                '%s has no mapping for the field type "%s"%s of %s. Add the field type to its FIELD_TYPES.',
                 self::class,
-                $field->type,
+                $field->base,
+                $field->base === $field->type ? '' : sprintf(', the base of the field type "%s",', $field->type),
                 $field->location->describe(),
             ));
         }
 
         $list = self::has($rules, ValidationRuleName::List);
 
-        return match ($field->type) {
+        return match ($field->base) {
             'text', 'long_text' => CodecValue::of(CodecKind::Text, $rules),
             'integer' => CodecValue::of(CodecKind::Integer, $rules),
             'decimal' => CodecValue::of(CodecKind::Decimal, $rules),

@@ -37,9 +37,9 @@ use Cbox\Cms\Core\Registry\Domain\RegistryName;
 use LogicException;
 
 /**
- * The registry cache files of format 6, in both directions (PRD 13.2).
+ * The registry cache files of format 7, in both directions (PRD 13.2).
  *
- * A file is PHP that returns ['build' => '<sha256>', 'entries' => [...], 'format' => 6,
+ * A file is PHP that returns ['build' => '<sha256>', 'entries' => [...], 'format' => 7,
  * 'registry' => '<name>']. The keys of every array are written in alphabetical order, lists keep
  * the compiled order, and nothing depends on the time or the machine, so the same registry always
  * gives the same bytes. Reading checks every key and type and builds the typed entries; anything
@@ -53,7 +53,7 @@ use LogicException;
 #[Internal]
 final readonly class RegistryCacheCodec
 {
-    public const int FORMAT = 6;
+    public const int FORMAT = 7;
 
     private const string HEADER = <<<'PHP'
         <?php
@@ -145,6 +145,7 @@ final readonly class RegistryCacheCodec
             ], $registry->hooks),
             RegistryName::Schema->value => array_map(static fn (SchemaEntry $entry): array => [
                 'extends' => array_map(static fn (TypeName $type): string => $type->value, $entry->extends),
+                'field_type_contributor' => $entry->fieldTypeContributor,
                 'field_types' => array_map(static fn (ContributedFieldType $type): string => $type->value, $entry->fieldTypes),
                 'namespace' => $entry->namespace->value,
                 'package' => $entry->package,
@@ -296,7 +297,7 @@ final readonly class RegistryCacheCodec
         foreach ($entries[RegistryName::Schema->value] as $index => $entry) {
             $path = $directory.'/'.RegistryName::Schema->fileName();
             $at = sprintf('entries[%d]', $index);
-            $data = $this->map($entry, $path, $at, ['extends', 'field_types', 'namespace', 'package', 'types']);
+            $data = $this->map($entry, $path, $at, ['extends', 'field_type_contributor', 'field_types', 'namespace', 'package', 'types']);
             $namespace = $this->addonNamespace($data['namespace'], $path, $at.'.namespace');
             $fieldTypes = [];
 
@@ -306,6 +307,7 @@ final readonly class RegistryCacheCodec
 
             $types = $this->typeNames($data['types'], $path, $at.'.types');
             $extends = $this->typeNames($data['extends'], $path, $at.'.extends');
+            $contributor = $data['field_type_contributor'] === null ? null : $this->string($data['field_type_contributor'], $path, $at.'.field_type_contributor');
 
             $schema[] = $this->entry($path, $at, fn (): SchemaEntry => new SchemaEntry(
                 $namespace,
@@ -313,6 +315,7 @@ final readonly class RegistryCacheCodec
                 $fieldTypes,
                 $types,
                 $extends,
+                $contributor,
             ));
         }
 

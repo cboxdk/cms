@@ -23,7 +23,7 @@ use Illuminate\Support\ServiceProvider;
  * The service provider of the addon acme/cms-reviews. Its scan root holds the addon's hook, and
  * its manifest says what the addon does: it is named reviews, needs the core API 1.0, reads fields
  * up to internal, may validate the notes package's note.publish, and contributes the field type
- * reviews:stars.
+ * reviews:stars, which ReviewsFieldTypes gives cms:generate.
  */
 final class ReviewsServiceProvider extends ServiceProvider implements DeclaresAddon, DeclaresScanRoots
 {
@@ -41,7 +41,10 @@ final class ReviewsServiceProvider extends ServiceProvider implements DeclaresAd
             docs: __DIR__.'/docs',
             capabilities: new AddonCapabilities(reads: ClassificationAccess::Internal),
             hooks: [new AllowedHook(PublishNote::class, Phase::Validate)],
-            schema: new SchemaContributions(fieldTypes: [new ContributedFieldType('reviews:stars')]),
+            schema: new SchemaContributions(
+                fieldTypes: [new ContributedFieldType('reviews:stars')],
+                fieldTypeContributor: ReviewsFieldTypes::class,
+            ),
         );
     }
 }

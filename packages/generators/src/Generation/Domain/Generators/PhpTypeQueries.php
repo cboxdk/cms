@@ -156,7 +156,7 @@ final readonly class PhpTypeQueries implements Generator
                     $field->handle->value,
                     $type->name(),
                     $field->filterable ? 'filterable' : 'sortable',
-                    $field->type === 'select' ? 'select that allows several options' : $field->type,
+                    $this->unqueryable($field),
                 ));
 
                 continue;
@@ -211,15 +211,28 @@ final readonly class PhpTypeQueries implements Generator
     }
 
     /**
-     * Whether the builder can compare the field: a scalar field type, or a select with one option.
+     * Whether the builder can compare the field: a scalar field type other than long text, or a
+     * select with one option, by the field's base. Blueprint v1 refuses a filterable or sortable
+     * long text, group or rich text of the core; an addon's field type is held to its base here.
      */
     private function queryable(FieldDescriptor $field): bool
     {
-        return match ($field->type) {
-            'group', 'rich_text' => false,
+        return match ($field->base) {
+            'group', 'long_text', 'rich_text' => false,
             'select' => $field->php->native !== 'array',
             default => true,
         };
+    }
+
+    /**
+     * The field type a problem names for a field the builder cannot compare, with its base when it
+     * is an addon's field type.
+     */
+    private function unqueryable(FieldDescriptor $field): string
+    {
+        $form = $field->base === 'select' ? 'select that allows several options' : $field->base;
+
+        return $field->type === $field->base ? $form : sprintf('%s, in the form of a %s,', $field->type, $form);
     }
 
     /**
@@ -350,7 +363,7 @@ final readonly class PhpTypeQueries implements Generator
     {
         $choice = PhpSource::studly($field->handle->value).'Choice';
 
-        [$native, $doc, $value, $imports] = match ($field->type) {
+        [$native, $doc, $value, $imports] = match ($field->base) {
             'integer' => ['int', null, 'new IntegerValue($value)', [IntegerValue::class]],
             'decimal' => ['string', 'numeric-string', 'new DecimalValue($value)', [DecimalValue::class]],
             'boolean' => ['bool', null, 'new BooleanValue($value)', [BooleanValue::class]],

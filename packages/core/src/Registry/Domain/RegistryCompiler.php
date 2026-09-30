@@ -190,6 +190,7 @@ final readonly class RegistryCompiler
             $manifest->schema->fieldTypes,
             $manifest->schema->types,
             $manifest->schema->extends,
+            $manifest->schema->fieldTypeContributor,
         ), array_values($manifests));
 
         usort($schema, static fn (SchemaEntry $a, SchemaEntry $b): int => strcmp($a->namespace->value, $b->namespace->value));

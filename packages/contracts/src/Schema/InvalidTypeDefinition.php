@@ -40,6 +40,15 @@ final class InvalidTypeDefinition extends InvalidArgumentException
         return new self(sprintf('The column "%s" has no type.', self::shown($column)));
     }
 
+    public static function fieldBase(string $fieldType): self
+    {
+        return new self(sprintf(
+            'The field type "%s" %s. An addon\'s field type <namespace>:<handle> takes the form of a core field type, its base, and a core field type has none.',
+            self::shown($fieldType),
+            str_contains($fieldType, ':') ? 'has no base' : 'has a base',
+        ));
+    }
+
     public static function fieldType(string $value): self
     {
         return new self(sprintf(

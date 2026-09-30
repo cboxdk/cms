@@ -39,7 +39,8 @@ use stdClass;
  * row, as PDO returns it, into the kernel's generic field values; encode() gives the column values
  * of field values, and binding() the parameter of a filter or cursor value.
  *
- * A column holds, by the field type of its field:
+ * A column holds, by the field type of its field, or for an addon's field type by the core field
+ * type it takes the form of (FieldDefinition::valueType()):
  *
  * - text, long_text and a select with one option: text;
  * - a select with several options: a text[] of the option values;
@@ -116,7 +117,7 @@ final readonly class TypeTableColumns
         $name = $column->name;
 
         try {
-            return match ($field->fieldType) {
+            return match ($field->valueType()) {
                 'text', 'long_text' => new TextValue(self::string($name, $raw)),
                 'select' => str_ends_with($column->type, '[]') ? self::textArray($name, self::string($name, $raw)) : new TextValue(self::string($name, $raw)),
                 'integer' => new IntegerValue(self::integer($name, $raw)),
@@ -215,16 +216,16 @@ final readonly class TypeTableColumns
         $name = $column->name;
 
         return match (true) {
-            in_array($field->fieldType, ['text', 'long_text'], true) && $value instanceof TextValue => $value->value,
-            $field->fieldType === 'select' && ! str_ends_with($column->type, '[]') && $value instanceof TextValue => $value->value,
-            $field->fieldType === 'select' && str_ends_with($column->type, '[]') && $value instanceof ListValue => self::arrayLiteral($name, $value),
-            $field->fieldType === 'integer' && $value instanceof IntegerValue => $value->value,
-            $field->fieldType === 'decimal' && $value instanceof DecimalValue => $value->value,
-            $field->fieldType === 'boolean' && $value instanceof BooleanValue => $value->value,
-            $field->fieldType === 'date' && $value instanceof DateValue => $value->value,
-            $field->fieldType === 'datetime' && $value instanceof DateTimeValue => $value->value->format('Y-m-d H:i:s.uP'),
-            $field->fieldType === 'rich_text' && $value instanceof ListValue => self::json($name, self::encodeRichText($name, $value)),
-            $field->fieldType === 'group' => self::json($name, self::groupJson($field, $name, $value)),
+            in_array($field->valueType(), ['text', 'long_text'], true) && $value instanceof TextValue => $value->value,
+            $field->valueType() === 'select' && ! str_ends_with($column->type, '[]') && $value instanceof TextValue => $value->value,
+            $field->valueType() === 'select' && str_ends_with($column->type, '[]') && $value instanceof ListValue => self::arrayLiteral($name, $value),
+            $field->valueType() === 'integer' && $value instanceof IntegerValue => $value->value,
+            $field->valueType() === 'decimal' && $value instanceof DecimalValue => $value->value,
+            $field->valueType() === 'boolean' && $value instanceof BooleanValue => $value->value,
+            $field->valueType() === 'date' && $value instanceof DateValue => $value->value,
+            $field->valueType() === 'datetime' && $value instanceof DateTimeValue => $value->value->format('Y-m-d H:i:s.uP'),
+            $field->valueType() === 'rich_text' && $value instanceof ListValue => self::json($name, self::encodeRichText($name, $value)),
+            $field->valueType() === 'group' => self::json($name, self::groupJson($field, $name, $value)),
             default => throw UnreadableTypeTable::value($name, sprintf('a %s for a field of the type %s', $value::class, $field->fieldType)),
         };
     }
@@ -238,18 +239,18 @@ final readonly class TypeTableColumns
     {
         return match (true) {
             $value instanceof NullValue => null,
-            in_array($field->fieldType, ['text', 'long_text', 'select'], true) && $value instanceof TextValue => $value->value,
-            $field->fieldType === 'select' && $value instanceof ListValue => array_map(
+            in_array($field->valueType(), ['text', 'long_text', 'select'], true) && $value instanceof TextValue => $value->value,
+            $field->valueType() === 'select' && $value instanceof ListValue => array_map(
                 static fn (FieldValue $item): string => $item instanceof TextValue ? $item->value : throw UnreadableTypeTable::value($at, 'a list of option values'),
                 $value->items,
             ),
-            $field->fieldType === 'integer' && $value instanceof IntegerValue => $value->value,
-            $field->fieldType === 'decimal' && $value instanceof DecimalValue => $value->value,
-            $field->fieldType === 'boolean' && $value instanceof BooleanValue => $value->value,
-            $field->fieldType === 'date' && $value instanceof DateValue => $value->value,
-            $field->fieldType === 'datetime' && $value instanceof DateTimeValue => $value->value->format('Y-m-d\TH:i:s.u\Z'),
-            $field->fieldType === 'rich_text' && $value instanceof ListValue => self::encodeRichText($at, $value),
-            $field->fieldType === 'group' => self::groupJson($field, $at, $value),
+            $field->valueType() === 'integer' && $value instanceof IntegerValue => $value->value,
+            $field->valueType() === 'decimal' && $value instanceof DecimalValue => $value->value,
+            $field->valueType() === 'boolean' && $value instanceof BooleanValue => $value->value,
+            $field->valueType() === 'date' && $value instanceof DateValue => $value->value,
+            $field->valueType() === 'datetime' && $value instanceof DateTimeValue => $value->value->format('Y-m-d\TH:i:s.u\Z'),
+            $field->valueType() === 'rich_text' && $value instanceof ListValue => self::encodeRichText($at, $value),
+            $field->valueType() === 'group' => self::groupJson($field, $at, $value),
             default => throw UnreadableTypeTable::value($at, sprintf('a %s for a field of the type %s', $value::class, $field->fieldType)),
         };
     }
@@ -572,7 +573,7 @@ final readonly class TypeTableColumns
             return new NullValue;
         }
 
-        return match ($field->fieldType) {
+        return match ($field->valueType()) {
             'text', 'long_text' => new TextValue(self::string($at, $value)),
             'select' => is_array($value)
                 ? new ListValue(...array_map(static fn (mixed $item): TextValue => new TextValue(self::string($at, $item)), $value))

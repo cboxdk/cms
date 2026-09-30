@@ -1,0 +1,22 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "The options of acme:grade",
+    "type": "object",
+    "required": ["grades"],
+    "properties": {
+        "grades": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "required": ["value", "label"],
+                "properties": {
+                    "value": { "type": "string" },
+                    "label": { "type": "string" }
+                },
+                "additionalProperties": false
+            }
+        }
+    },
+    "additionalProperties": false
+}

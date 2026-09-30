@@ -47,7 +47,7 @@ function codecRegistry(): CompiledRegistry
             ], new AddonNamespace('reviews')),
         ],
         [
-            new SchemaEntry(new AddonNamespace('reviews'), 'acme/cms-reviews', [new ContributedFieldType('reviews:stars')], [new TypeName('reviews:review')], [new TypeName('app:note'), new TypeName('shop:product')]),
+            new SchemaEntry(new AddonNamespace('reviews'), 'acme/cms-reviews', [new ContributedFieldType('reviews:stars')], [new TypeName('reviews:review')], [new TypeName('app:note'), new TypeName('shop:product')], 'Acme\\Reviews\\ReviewsFieldTypes'),
         ],
     );
 }
@@ -112,14 +112,14 @@ function codecFailure(mixed $damaged): MalformedRegistryCache
     Assert::fail('The codec read a malformed cache.');
 }
 
-it('writes the exact bytes of format 6', function (): void {
+it('writes the exact bytes of format 7', function (): void {
     $files = new RegistryCacheCodec()->encode(codecRegistry());
     $header = "<?php\n\ndeclare(strict_types=1);\n\n// Written by php artisan cms:build from the declared scan roots and addon manifests (PRD 13.2).\n// Do not edit and do not commit; run cms:build again instead.\n\n";
 
     expect(array_keys($files))->toBe(['actions', 'commands', 'hooks', 'schema', 'subscribers'])
         ->and($files['actions'])->toBe($header.<<<'PHP'
             return [
-                'build' => '6210c03206ce71d71ef654c3ef31d9fac94a53840df4db40f094808f52de2641',
+                'build' => '29818aef2ad360af2aedd9957bf15f2529961f67d482438b2332cd8e8ce20fdb',
                 'entries' => [
                     [
                         'class' => 'App\\Actions\\CreateNoteAction',
@@ -134,14 +134,14 @@ it('writes the exact bytes of format 6', function (): void {
                         ],
                     ],
                 ],
-                'format' => 6,
+                'format' => 7,
                 'registry' => 'actions',
             ];
 
             PHP)
         ->and($files['commands'])->toBe($header.<<<'PHP'
             return [
-                'build' => '6210c03206ce71d71ef654c3ef31d9fac94a53840df4db40f094808f52de2641',
+                'build' => '29818aef2ad360af2aedd9957bf15f2529961f67d482438b2332cd8e8ce20fdb',
                 'entries' => [
                     [
                         'class' => 'App\\Commands\\CreateNote',
@@ -150,14 +150,14 @@ it('writes the exact bytes of format 6', function (): void {
                         'version' => 1,
                     ],
                 ],
-                'format' => 6,
+                'format' => 7,
                 'registry' => 'commands',
             ];
 
             PHP)
         ->and($files['hooks'])->toBe($header.<<<'PHP'
             return [
-                'build' => '6210c03206ce71d71ef654c3ef31d9fac94a53840df4db40f094808f52de2641',
+                'build' => '29818aef2ad360af2aedd9957bf15f2529961f67d482438b2332cd8e8ce20fdb',
                 'entries' => [
                     [
                         'addon' => null,
@@ -184,20 +184,21 @@ it('writes the exact bytes of format 6', function (): void {
                         'reads' => 'internal',
                     ],
                 ],
-                'format' => 6,
+                'format' => 7,
                 'registry' => 'hooks',
             ];
 
             PHP)
         ->and($files['schema'])->toBe($header.<<<'PHP'
             return [
-                'build' => '6210c03206ce71d71ef654c3ef31d9fac94a53840df4db40f094808f52de2641',
+                'build' => '29818aef2ad360af2aedd9957bf15f2529961f67d482438b2332cd8e8ce20fdb',
                 'entries' => [
                     [
                         'extends' => [
                             'app:note',
                             'shop:product',
                         ],
+                        'field_type_contributor' => 'Acme\\Reviews\\ReviewsFieldTypes',
                         'field_types' => [
                             'reviews:stars',
                         ],
@@ -208,14 +209,14 @@ it('writes the exact bytes of format 6', function (): void {
                         ],
                     ],
                 ],
-                'format' => 6,
+                'format' => 7,
                 'registry' => 'schema',
             ];
 
             PHP)
         ->and($files['subscribers'])->toBe($header.<<<'PHP'
             return [
-                'build' => '6210c03206ce71d71ef654c3ef31d9fac94a53840df4db40f094808f52de2641',
+                'build' => '29818aef2ad360af2aedd9957bf15f2529961f67d482438b2332cd8e8ce20fdb',
                 'entries' => [
                     [
                         'addon' => null,
@@ -253,12 +254,12 @@ it('writes the exact bytes of format 6', function (): void {
                         'projection' => null,
                     ],
                 ],
-                'format' => 6,
+                'format' => 7,
                 'registry' => 'subscribers',
             ];
 
             PHP)
-        ->and(new RegistryCacheCodec()->encode(CompiledRegistry::empty())['commands'])->toBe($header."return [\n    'build' => '".hash('sha256', "actions => [];\ncommands => [];\nhooks => [];\nschema => [];\nsubscribers => [];\n")."',\n    'entries' => [],\n    'format' => 6,\n    'registry' => 'commands',\n];\n");
+        ->and(new RegistryCacheCodec()->encode(CompiledRegistry::empty())['commands'])->toBe($header."return [\n    'build' => '".hash('sha256', "actions => [];\ncommands => [];\nhooks => [];\nschema => [];\nsubscribers => [];\n")."',\n    'entries' => [],\n    'format' => 7,\n    'registry' => 'commands',\n];\n");
 });
 
 it('reads back what it writes', function (): void {
@@ -296,27 +297,32 @@ it('refuses a malformed cache with the file and the place in it', function (call
         $files['commands'] = ['entries' => [], 'format' => 1, 'registry' => 'commands'];
 
         return $files;
-    }, 'commands.php', 'at format: format 1 is not format 6, which this version of the core reads'],
+    }, 'commands.php', 'at format: format 1 is not format 7, which this version of the core reads'],
     'a file of format 2, whose actions had no command' => [static function (array $files): array {
         $files['actions'] = [...codecFile($files, 'actions'), 'format' => 2];
 
         return $files;
-    }, 'actions.php', 'at format: format 2 is not format 6, which this version of the core reads'],
+    }, 'actions.php', 'at format: format 2 is not format 7, which this version of the core reads'],
     'a file of format 3, whose cache had no actions.php' => [static function (array $files): array {
         $files['commands'] = [...codecFile($files, 'commands'), 'format' => 3];
 
         return $files;
-    }, 'commands.php', 'at format: format 3 is not format 6, which this version of the core reads'],
+    }, 'commands.php', 'at format: format 3 is not format 7, which this version of the core reads'],
     'a file of format 4, whose cache had no subscribers.php' => [static function (array $files): array {
         $files['hooks'] = [...codecFile($files, 'hooks'), 'format' => 4];
 
         return $files;
-    }, 'hooks.php', 'at format: format 4 is not format 6, which this version of the core reads'],
+    }, 'hooks.php', 'at format: format 4 is not format 7, which this version of the core reads'],
     'a file of format 5, whose cache had no schema.php' => [static function (array $files): array {
         $files['subscribers'] = [...codecFile($files, 'subscribers'), 'format' => 5];
 
         return $files;
-    }, 'subscribers.php', 'at format: format 5 is not format 6, which this version of the core reads'],
+    }, 'subscribers.php', 'at format: format 5 is not format 7, which this version of the core reads'],
+    'a file of format 6, whose schema.php named no field type contributor' => [static function (array $files): array {
+        $files['schema'] = [...codecFile($files, 'schema'), 'format' => 6];
+
+        return $files;
+    }, 'schema.php', 'at format: format 6 is not format 7, which this version of the core reads'],
     'a missing schema.php' => [static function (array $files): array {
         unset($files['schema']);
 
@@ -504,7 +510,7 @@ it('refuses a malformed cache with the file and the place in it', function (call
         $files['schema'] = [...codecFile($files, 'schema'), 'entries' => [codecSchema(['extends' => null])]];
 
         return $files;
-    }, 'schema.php', 'at entries[0]: expected the keys extends, field_types, namespace, package, types, got field_types, namespace, package, types'],
+    }, 'schema.php', 'at entries[0]: expected the keys extends, field_type_contributor, field_types, namespace, package, types, got field_type_contributor, field_types, namespace, package, types'],
     'a schema entry of a reserved namespace' => [static function (array $files): array {
         $files['schema'] = [...codecFile($files, 'schema'), 'entries' => [codecSchema(['namespace' => 'ext'])]];
 
@@ -515,6 +521,26 @@ it('refuses a malformed cache with the file and the place in it', function (call
 
         return $files;
     }, 'schema.php', 'at entries[0].field_types[0]: The field type "stars" is not <namespace>:<handle>'],
+    'field types without their contributor' => [static function (array $files): array {
+        $files['schema'] = [...codecFile($files, 'schema'), 'entries' => [[...codecSchema([]), 'field_type_contributor' => null]]];
+
+        return $files;
+    }, 'schema.php', 'at entries[0]: Addon "reviews" has field types but no field type contributor.'],
+    'a contributor without field types' => [static function (array $files): array {
+        $files['schema'] = [...codecFile($files, 'schema'), 'entries' => [codecSchema(['field_types' => []])]];
+
+        return $files;
+    }, 'schema.php', 'at entries[0]: Addon "reviews" has a field type contributor but no field types.'],
+    'a contributor that is not a class name' => [static function (array $files): array {
+        $files['schema'] = [...codecFile($files, 'schema'), 'entries' => [codecSchema(['field_type_contributor' => 'reviews field types'])]];
+
+        return $files;
+    }, 'schema.php', 'at entries[0]: The field type contributor "reviews field types" is not a fully qualified class name.'],
+    'a contributor that is not a string' => [static function (array $files): array {
+        $files['schema'] = [...codecFile($files, 'schema'), 'entries' => [codecSchema(['field_type_contributor' => 7])]];
+
+        return $files;
+    }, 'schema.php', 'at entries[0].field_type_contributor'],
     'a field type of another addon' => [static function (array $files): array {
         $files['schema'] = [...codecFile($files, 'schema'), 'entries' => [codecSchema(['field_types' => ['shop:stars']])]];
 
@@ -678,7 +704,7 @@ function codecHook(array $changes): array
  */
 function codecSchema(array $changes): array
 {
-    return codecChanged(['extends' => ['app:note'], 'field_types' => ['reviews:stars'], 'namespace' => 'reviews', 'package' => 'acme/cms-reviews', 'types' => ['reviews:review']], $changes);
+    return codecChanged(['extends' => ['app:note'], 'field_type_contributor' => 'Acme\\Reviews\\ReviewsFieldTypes', 'field_types' => ['reviews:stars'], 'namespace' => 'reviews', 'package' => 'acme/cms-reviews', 'types' => ['reviews:review']], $changes);
 }
 
 /**
@@ -764,7 +790,7 @@ it('gives another build when only a subscriber changes', function (): void {
 it('gives another build when only a schema contribution or what the hook of an addon reads changes', function (): void {
     $registry = codecRegistry();
     $contributions = new CompiledRegistry($registry->commands, $registry->hooks, $registry->actions, $registry->subscribers, [
-        new SchemaEntry(new AddonNamespace('reviews'), 'acme/cms-reviews', [new ContributedFieldType('reviews:stars')], [new TypeName('reviews:review')], [new TypeName('app:note')]),
+        new SchemaEntry(new AddonNamespace('reviews'), 'acme/cms-reviews', [new ContributedFieldType('reviews:stars')], [new TypeName('reviews:review')], [new TypeName('app:note')], 'Acme\\Reviews\\ReviewsFieldTypes'),
     ]);
     $reads = new CompiledRegistry($registry->commands, [
         $registry->hooks[0],

@@ -21,7 +21,7 @@ An addon is a Composer package that declares, in one manifest, everything it doe
 | `capabilities` | An `AddonCapabilities`: what the kernel hands the addon. Public by default. |
 | `hooks` | A list of `AllowedHook`: each command class and phase a hook of the addon may run for. |
 | `subscriptions` | A list of `AllowedSubscription`: each event class a subscriber of the addon may receive, and the lane. |
-| `schema` | A `SchemaContributions`: the field types the addon contributes, the types it owns, the types of others it extends, and the absolute directory of its blueprint files. |
+| `schema` | A `SchemaContributions`: the field types the addon contributes with the class of their contributor ([Addon field types](field-types.md)), the types it owns, the types of others it extends, and the absolute directory of its blueprint files. |
 
 All of them live in `Cbox\Cms\Contracts\Addons` and are `#[Experimental]`. A manifest that breaks a rule throws `InvalidAddonManifest` from its constructor, and a reserved namespace throws `ReservedAddonNamespace`; `cms:build` turns either into a build error that names the provider.
 
@@ -29,7 +29,7 @@ All of them live in `Cbox\Cms\Contracts\Addons` and are `#[Experimental]`. A man
 
 A namespace is a lowercase letter followed by at most 19 lowercase letters and digits, without an underscore: `acme`, `reviews`, `shop2`. `app` is the application's own namespace and `ext` holds every extender's (PRD 11.12), so neither can be an addon's. A namespace is unique in the installation: two addons with one name stop the build.
 
-The manifest holds its schema contributions to the namespace: every field type is `<namespace>:<handle>`, such as `reviews:stars`, every own type is `<namespace>:<handle>`, and the addon extends no type of its own, because an owner adds fields to its own type in the type's blueprint. A field type, a type or an allowed hook or subscription listed twice is refused.
+The manifest holds its schema contributions to the namespace: every field type is `<namespace>:<handle>`, such as `reviews:stars`, every own type is `<namespace>:<handle>`, and the addon extends no type of its own, because an owner adds fields to its own type in the type's blueprint. A field type, a type or an allowed hook or subscription listed twice is refused, and so are field types without the class of their contributor, `fieldTypeContributor`, or a contributor without field types.
 
 ### The core API version
 
@@ -52,6 +52,7 @@ An addon's subscribers run as the addon's own service actor, with that actor's g
 | Key | Value |
 |---|---|
 | `extends` | The types of others the addon extends, as `<owner>:<handle>`. |
+| `field_type_contributor` | The class of the addon's `FieldTypeContributor`, which `cms:generate` makes to read its field types, or null when it contributes none. |
 | `field_types` | The field types the addon contributes, as `<namespace>:<handle>`. |
 | `namespace` | The addon's namespace. |
 | `package` | The addon's Composer package. |
@@ -65,7 +66,7 @@ A build with any of these writes nothing and exits 65, listing every problem ([e
 
 | Code | When |
 |---|---|
-| `registry_invalid_manifest` | A manifest cannot be built, its documentation or schema directory is not a readable directory, or two manifests name one package. |
+| `registry_invalid_manifest` | A manifest cannot be built, its documentation or schema directory is not a readable directory, its field type contributor is not a class that implements `FieldTypeContributor`, or two manifests name one package. |
 | `registry_reserved_namespace` | A manifest names `app` or `ext`. |
 | `registry_duplicate_namespace` | Two manifests name one namespace. |
 | `registry_incompatible_core_api` | The kernel does not satisfy the manifest's core API version. |
@@ -74,7 +75,7 @@ A build with any of these writes nothing and exits 65, listing every problem ([e
 
 ## Example
 
-The addon `acme/cms-reviews` validates the notes package's `note.publish` from [build declarations](build-declarations.md) and contributes the field type `reviews:stars`. Its provider declares the scan root and the manifest:
+The addon `acme/cms-reviews` validates the notes package's `note.publish` from [build declarations](build-declarations.md) and contributes the field type `reviews:stars`, whose contributor is on [Addon field types](field-types.md). Its provider declares the scan root and the manifest:
 
 <!-- example-file: examples/Unit/Addons/Reviews/ReviewsServiceProvider.php -->
 ```php
@@ -103,7 +104,7 @@ use Illuminate\Support\ServiceProvider;
  * The service provider of the addon acme/cms-reviews. Its scan root holds the addon's hook, and
  * its manifest says what the addon does: it is named reviews, needs the core API 1.0, reads fields
  * up to internal, may validate the notes package's note.publish, and contributes the field type
- * reviews:stars.
+ * reviews:stars, which ReviewsFieldTypes gives cms:generate.
  */
 final class ReviewsServiceProvider extends ServiceProvider implements DeclaresAddon, DeclaresScanRoots
 {
@@ -121,7 +122,10 @@ final class ReviewsServiceProvider extends ServiceProvider implements DeclaresAd
             docs: __DIR__.'/docs',
             capabilities: new AddonCapabilities(reads: ClassificationAccess::Internal),
             hooks: [new AllowedHook(PublishNote::class, Phase::Validate)],
-            schema: new SchemaContributions(fieldTypes: [new ContributedFieldType('reviews:stars')]),
+            schema: new SchemaContributions(
+                fieldTypes: [new ContributedFieldType('reviews:stars')],
+                fieldTypeContributor: ReviewsFieldTypes::class,
+            ),
         );
     }
 }
@@ -205,6 +209,7 @@ declare(strict_types=1);
 namespace Examples\Unit\Addons;
 
 use Examples\Unit\Addons\Reviews\RequireStars;
+use Examples\Unit\Addons\Reviews\ReviewsFieldTypes;
 use Examples\Unit\Addons\Reviews\ReviewsServiceProvider;
 use Examples\Unit\Addons\Reviews\UnlistedHookServiceProvider;
 use Examples\Unit\Build\BuildTestCase;
@@ -247,6 +252,7 @@ final class AddonManifestTest extends BuildTestCase
         self::assertIsArray($schema['entries']);
         self::assertContains([
             'extends' => [],
+            'field_type_contributor' => ReviewsFieldTypes::class,
             'field_types' => ['reviews:stars'],
             'namespace' => 'reviews',
             'package' => 'acme/cms-reviews',

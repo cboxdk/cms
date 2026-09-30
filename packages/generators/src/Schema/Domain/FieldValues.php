@@ -6,6 +6,7 @@ namespace Cbox\Cms\Generators\Schema\Domain;
 
 use BackedEnum;
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\FieldTypes\FieldTypeOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldBlueprint;
 
 /**
@@ -122,4 +123,20 @@ interface FieldValues
      * @return ?list<FieldBlueprint>
      */
     public function fields(string $key): ?array;
+
+    /**
+     * The object at the key, or `{}` when the object has no such key, checked against the JSON
+     * Schema file at the path and read as the options of an addon's field type (PRD 13.1). Each
+     * violation is recorded as generate_schema_invalid at its JSON pointer, and a schema that
+     * cannot be used as generate_invalid_config; either reads as null.
+     *
+     * @param  string  $fieldType  the field type the options belong to, as a problem names it
+     */
+    public function fieldTypeOptions(string $key, string $fieldType, string $schema): ?FieldTypeOptions;
+
+    /**
+     * Records the value at the key as invalid for the reason, generate_schema_invalid, such as
+     * options that a field type cannot make a shape of.
+     */
+    public function invalid(string $key, string $reason): void;
 }

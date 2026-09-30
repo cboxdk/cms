@@ -223,7 +223,7 @@ final readonly class PhpTypeValidators implements Generator
     private function fieldLines(FieldDescriptor $field, string $prefix, Presence $presence): array
     {
         $address = $prefix.$field->handle->value;
-        $lines = [sprintf(' *   %s: %s, %s', $address, GeneratedLines::fieldType(self::class, self::FIELD_TYPES, $field), match ($presence) {
+        $lines = [sprintf(' *   %s: %s, %s', $address, GeneratedLines::typeName(self::class, self::FIELD_TYPES, $field), match ($presence) {
             Presence::Required => 'required',
             Presence::RequiredOnRelease => 'required on release',
             Presence::Optional => 'optional',

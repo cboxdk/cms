@@ -16,6 +16,7 @@
     "fields": [
         {
             "agents": true,
+            "base": "rich_text",
             "choices": [],
             "classification": "public",
             "column": {
@@ -86,6 +87,7 @@
         },
         {
             "agents": true,
+            "base": "rich_text",
             "choices": [],
             "classification": "public",
             "column": {
@@ -166,6 +168,7 @@
         },
         {
             "agents": true,
+            "base": "datetime",
             "choices": [],
             "classification": "internal",
             "column": {
@@ -215,6 +218,7 @@
         },
         {
             "agents": true,
+            "base": "select",
             "choices": [
                 {
                     "label": "Red",
@@ -275,6 +279,7 @@
         },
         {
             "agents": true,
+            "base": "group",
             "choices": [],
             "classification": "public",
             "column": {
@@ -290,6 +295,7 @@
             "fields": [
                 {
                     "agents": true,
+                    "base": "select",
                     "choices": [
                         {
                             "label": "Small",
@@ -338,6 +344,7 @@
                 },
                 {
                     "agents": true,
+                    "base": "integer",
                     "choices": [],
                     "classification": "public",
                     "column": null,
@@ -421,6 +428,7 @@
         },
         {
             "agents": true,
+            "base": "boolean",
             "choices": [],
             "classification": "public",
             "column": {
@@ -462,6 +470,7 @@
         },
         {
             "agents": true,
+            "base": "text",
             "choices": [],
             "classification": "public",
             "column": {
@@ -511,6 +520,7 @@
         },
         {
             "agents": true,
+            "base": "text",
             "choices": [],
             "classification": "internal",
             "column": {
@@ -560,6 +570,7 @@
         },
         {
             "agents": true,
+            "base": "date",
             "choices": [],
             "classification": "public",
             "column": {
@@ -616,6 +627,7 @@
         },
         {
             "agents": true,
+            "base": "text",
             "choices": [],
             "classification": "public",
             "column": {
@@ -672,6 +684,7 @@
         },
         {
             "agents": true,
+            "base": "decimal",
             "choices": [],
             "classification": "public",
             "column": {
@@ -731,6 +744,7 @@
         },
         {
             "agents": false,
+            "base": "decimal",
             "choices": [],
             "classification": "confidential",
             "column": {
@@ -775,6 +789,7 @@
         },
         {
             "agents": true,
+            "base": "integer",
             "choices": [],
             "classification": "internal",
             "column": {
@@ -831,6 +846,7 @@
         },
         {
             "agents": false,
+            "base": "long_text",
             "choices": [],
             "classification": "internal",
             "column": {
@@ -880,6 +896,7 @@
         },
         {
             "agents": true,
+            "base": "group",
             "choices": [],
             "classification": "confidential",
             "column": {
@@ -893,6 +910,7 @@
             "fields": [
                 {
                     "agents": true,
+                    "base": "text",
                     "choices": [],
                     "classification": "confidential",
                     "column": null,
@@ -935,6 +953,7 @@
                 },
                 {
                     "agents": false,
+                    "base": "long_text",
                     "choices": [],
                     "classification": "confidential",
                     "column": null,
@@ -977,6 +996,7 @@
                 },
                 {
                     "agents": true,
+                    "base": "text",
                     "choices": [],
                     "classification": "confidential",
                     "column": null,
@@ -1054,6 +1074,7 @@
         },
         {
             "agents": true,
+            "base": "text",
             "choices": [],
             "classification": "public",
             "column": {
@@ -1109,6 +1130,7 @@
         },
         {
             "agents": true,
+            "base": "select",
             "choices": [
                 {
                     "label": "New",
@@ -1191,6 +1213,7 @@
         },
         {
             "agents": true,
+            "base": "integer",
             "choices": [],
             "classification": "public",
             "column": {

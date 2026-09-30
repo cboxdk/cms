@@ -13,6 +13,7 @@ An extension point is `#[Stable]` or `#[Experimental]`. Every extension point do
 - [Contracts](contracts/_index.md): the clock, the id generator, the receipt store and the idempotency store, each with its fake and shared suite.
 - [Build declarations](build-declarations.md): scan roots, `#[Command]` and `#[Hook]`, and the registries `cms:build` compiles.
 - [Addon manifest](manifest.md): the manifest an addon declares with its namespace, core API version, capabilities, allowed hooks and subscriptions, schema contributions and documentation, and `schema.php`.
+- [Addon field types](field-types.md): a field type `<namespace>:<handle>` an addon contributes, the JSON Schema of its options, and the shape every generator writes a field of it as.
 - [Hooks](hooks.md): authorize, transform and validate hooks, the classification-filtered view of the plan they get, and their time budgets.
 - [Doctor checks](doctor-checks.md): add a check to `cms:doctor` and test it.
 - [Blueprint schema v1](blueprint-v1.md): the format of blueprint files, extensions of another owner's type, and addon field types.

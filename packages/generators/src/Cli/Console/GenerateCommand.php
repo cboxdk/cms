@@ -50,10 +50,12 @@ final class GenerateCommand extends Command
     /** EX_CONFIG from sysexits.h, of generate_invalid_config. */
     public const int EXIT_INVALID_CONFIG = ExitCode::Config->value;
 
-    public function handle(GenerateCode $generate, Repository $config, Application $app): int
+    public function handle(Repository $config, Application $app): int
     {
         try {
-            $report = $generate->generate(GeneratorConfig::read($config, $app->basePath()));
+            // Made here, because making the reader registers the addons' field types, which fails
+            // as generation does when a contributor cannot be used.
+            $report = $app->make(GenerateCode::class)->generate(GeneratorConfig::read($config, $app->basePath()));
         } catch (GenerationFailed $failed) {
             foreach ($failed->problems as $problem) {
                 $this->error($problem->describe());

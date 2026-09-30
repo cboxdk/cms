@@ -6,6 +6,7 @@ namespace Cbox\Cms\Contracts\Tests\Schema;
 
 use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
+use Cbox\Cms\Contracts\FieldTypes\FieldBase;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Schema\ColumnDefinition;
@@ -119,7 +120,7 @@ it('addresses an extension field under ext and its namespace', function (): void
 it('refuses a field type that is neither a core field type nor a namespaced one', function (): void {
     expect(fn (): FieldDefinition => new FieldDefinition(null, new FieldHandle('title'), 'Text', ClassificationAccess::Public, true, false, false, false, false, column('title')))
         ->toThrow(InvalidTypeDefinition::class, 'A field type is');
-    expect(new FieldDefinition(null, new FieldHandle('title'), 'acme:colour', ClassificationAccess::Public, true, false, false, false, false, column('title'))->fieldType)->toBe('acme:colour');
+    expect(new FieldDefinition(null, new FieldHandle('title'), 'acme:colour', ClassificationAccess::Public, true, false, false, false, false, column('title'), base: FieldBase::Text)->fieldType)->toBe('acme:colour');
 });
 
 it('refuses agents on a field above confidential', function (ClassificationAccess $classification): void {
@@ -179,3 +180,15 @@ it('refuses a type that contradicts itself', function (callable $build, string $
     'a field twice' => [fn (): TypeDefinition => type([field(null, 'title'), field(null, 'title', column: column('other'))]), 'The field "title" appears twice.'],
     'a column twice' => [fn (): TypeDefinition => type([field(null, 'title'), field(null, 'name', column: column('title'))]), 'The column "title" appears twice in one type.'],
 ]);
+
+it('reads a value in the form of the field type, or of its base for an addon\'s field type, and holds the base to the field type', function (): void {
+    $stars = new FieldDefinition(null, new FieldHandle('stars'), 'reviews:stars', ClassificationAccess::Public, true, false, false, true, true, column('stars'), base: FieldBase::Integer);
+
+    expect($stars->valueType())->toBe('integer')
+        ->and($stars->base)->toBe(FieldBase::Integer)
+        ->and(new FieldDefinition(null, new FieldHandle('title'), 'text', ClassificationAccess::Public, true, false, false, false, false, column('title'))->valueType())->toBe('text')
+        ->and(fn (): FieldDefinition => new FieldDefinition(null, new FieldHandle('stars'), 'reviews:stars', ClassificationAccess::Public, true, false, false, false, false, column('stars')))
+        ->toThrow(InvalidTypeDefinition::class, 'The field type "reviews:stars" has no base.')
+        ->and(fn (): FieldDefinition => new FieldDefinition(null, new FieldHandle('title'), 'text', ClassificationAccess::Public, true, false, false, false, false, column('title'), base: FieldBase::Text))
+        ->toThrow(InvalidTypeDefinition::class, 'The field type "text" has a base.');
+});
