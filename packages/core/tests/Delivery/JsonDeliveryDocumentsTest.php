@@ -23,6 +23,7 @@ use Cbox\Cms\Core\Delivery\Domain\AnswerFormat;
 use Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryAnswer;
 use Cbox\Cms\Core\Delivery\Domain\Dto\StoredAnswer;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
+use Cbox\Cms\Core\Routing\Boundary\PathExplanationJson;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\MountStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\NodeStep;
@@ -44,7 +45,7 @@ use DateTimeImmutable;
 /*
  * The delivery API's documents as JSON (PRD 8.8, 8.9): the record with its meta, byte for byte with
  * the record spliced in as the codec wrote it; the problem as ProblemCodecV1 writes it; the
- * explanation with every step; and the stored form of an answer in a fragment.
+ * explanation with every step, as PathExplanationJson encodes it; and the stored form of an answer in a fragment.
  */
 
 const DOCUMENT_RECORD = '{"cms_id":"01936f5e-8a2b-7c3d-9e4f-000000003631","title":"The harbour opens"}';
@@ -92,6 +93,13 @@ it('writes an explanation with every step, ids in their canonical form and insta
         .',"visibility":{"at":"2026-03-10T12:00:00.000000Z","decision":"visible","lifecycle":"active","release":"released","rung":11,"stored":"live","valid_until":"2026-03-10T17:00:00.000000Z","window":{"from":"2026-03-10T11:00:00.000000Z","until":"2026-03-10T17:00:00.000000Z"}}}'
         .',"meta":{"canonical_url":"https://north.example/nyheder/harbour","contract":1,"locale":"da","type":"app:article"}'
         .',"problem":null,"status":200}');
+});
+
+it('writes the explanation with PathExplanationJson, the one encoding cms:explain --json prints', function (): void {
+    $body = new JsonDeliveryDocuments()->body(new DeliveryAnswer(HttpStatus::Ok, DOCUMENT_RECORD, new TypeName('app:article'), new Locale('da'), 'https://north.example/nyheder/harbour', explanation: documentedExplanation()));
+    $document = json_decode($body, true, 512, JSON_THROW_ON_ERROR);
+
+    expect(is_array($document) ? $document['explanation'] ?? null : null)->toBe(PathExplanationJson::toArray(documentedExplanation()));
 });
 
 it('writes the explanation of a problem with the problem and without a record, and a step it did not reach as null', function (): void {
