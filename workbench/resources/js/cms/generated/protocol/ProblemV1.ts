@@ -11,6 +11,7 @@ import { validate, type ObjectRule, type Validation } from '../validation';
 export type ErrorCode =
   | 'actor_not_active'
   | 'addon_service_actor_unavailable'
+  | 'agent_visibility_forbidden'
   | 'credential_expired'
   | 'credential_malformed'
   | 'credential_revoked'
@@ -92,6 +93,7 @@ export type ErrorCode =
   | 'partition_missing'
   | 'partition_owner_required'
   | 'partition_table_unmanageable'
+  | 'placement_slug_taken'
   | 'query_over_budget'
   | 'registry_cache_malformed'
   | 'registry_cache_missing'
@@ -207,6 +209,7 @@ const catalogErrorV1Rule: ObjectRule = {
         values: [
           'actor_not_active',
           'addon_service_actor_unavailable',
+          'agent_visibility_forbidden',
           'credential_expired',
           'credential_malformed',
           'credential_revoked',
@@ -288,6 +291,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'partition_missing',
           'partition_owner_required',
           'partition_table_unmanageable',
+          'placement_slug_taken',
           'query_over_budget',
           'registry_cache_malformed',
           'registry_cache_missing',
@@ -367,6 +371,7 @@ const problemV1Rule: ObjectRule = {
         values: [
           'actor_not_active',
           'addon_service_actor_unavailable',
+          'agent_visibility_forbidden',
           'credential_expired',
           'credential_malformed',
           'credential_revoked',
@@ -448,6 +453,7 @@ const problemV1Rule: ObjectRule = {
           'partition_missing',
           'partition_owner_required',
           'partition_table_unmanageable',
+          'placement_slug_taken',
           'query_over_budget',
           'registry_cache_malformed',
           'registry_cache_missing',

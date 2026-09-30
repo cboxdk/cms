@@ -142,12 +142,14 @@ it('lets each actor read what its regions reach, its own rows and what is public
         'placements' => [AccessWorld::PLACEMENT_PUBLIC],
         'placement_generations' => [AccessWorld::PLACEMENT_PUBLIC.' released'],
         'placement_locales' => [AccessWorld::PLACEMENT_PUBLIC.' released'],
+        'sites' => [AccessWorld::SITE],
     ];
+    $structure = ['sites' => [AccessWorld::SITE]];
     $roles = ['roles' => ['desk', 'legal'], 'role_permissions' => ['entry.create', 'entry.revise']];
 
     expect(readsAs(null))->toBe($nothing)
         ->and(array_keys($nothing))->toContain('nodes', 'entries', 'audit', 'actors', 'sites', 'mount_overrides')
-        ->and(readsAs(AccessWorld::alice()))->toBe(array_merge($nothing, $roles, [
+        ->and(readsAs(AccessWorld::alice()))->toBe(array_merge($nothing, $roles, $structure, [
             'nodes' => sortedKeys([AccessWorld::NEWS, AccessWorld::SPORT, AccessWorld::FOOTBALL, AccessWorld::CULTURE]),
             'entries' => sortedKeys([AccessWorld::ENTRY_NEWS, AccessWorld::ENTRY_FOOTBALL, AccessWorld::ENTRY_CULTURE, AccessWorld::ENTRY_PUBLIC]),
             'variant_heads' => sortedKeys([AccessWorld::ENTRY_NEWS, AccessWorld::ENTRY_FOOTBALL, AccessWorld::ENTRY_CULTURE, AccessWorld::ENTRY_PUBLIC]),
@@ -161,7 +163,7 @@ it('lets each actor read what its regions reach, its own rows and what is public
             'changesets' => [AccessWorld::CHANGESET_ALICE, AccessWorld::CHANGESET_PERSONAL],
             'grants' => sortedKeys([AccessWorld::NEWS, AccessWorld::SPORT, AccessWorld::FOOTBALL, AccessWorld::CULTURE]),
         ]))
-        ->and(readsAs(AccessWorld::bob()))->toBe(array_merge($nothing, $roles, [
+        ->and(readsAs(AccessWorld::bob()))->toBe(array_merge($nothing, $roles, $structure, [
             'nodes' => sortedKeys([AccessWorld::SPORT, AccessWorld::FOOTBALL]),
             'entries' => sortedKeys([AccessWorld::ENTRY_SPORT, AccessWorld::ENTRY_FOOTBALL, AccessWorld::ENTRY_PUBLIC, AccessWorld::ENTRY_OWNED]),
             'variant_heads' => sortedKeys([AccessWorld::ENTRY_SPORT, AccessWorld::ENTRY_FOOTBALL, AccessWorld::ENTRY_PUBLIC, AccessWorld::ENTRY_OWNED]),

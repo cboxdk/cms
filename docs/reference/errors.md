@@ -16,6 +16,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 |---|---|---|---|---|
 | [`actor_not_active`](#actor_not_active) | 403 | 77 | tool_error | no |
 | [`addon_service_actor_unavailable`](#addon_service_actor_unavailable) | 500 | 78 | internal_error | no |
+| [`agent_visibility_forbidden`](#agent_visibility_forbidden) | 403 | 77 | tool_error | no |
 | [`credential_expired`](#credential_expired) | 401 | 77 | tool_error | no |
 | [`credential_malformed`](#credential_malformed) | 401 | 77 | tool_error | no |
 | [`credential_revoked`](#credential_revoked) | 401 | 77 | tool_error | no |
@@ -97,6 +98,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`partition_missing`](#partition_missing) | 503 | 75 | internal_error | yes |
 | [`partition_owner_required`](#partition_owner_required) | 500 | 78 | internal_error | no |
 | [`partition_table_unmanageable`](#partition_table_unmanageable) | 500 | 78 | internal_error | no |
+| [`placement_slug_taken`](#placement_slug_taken) | 409 | 65 | tool_error | no |
 | [`query_over_budget`](#query_over_budget) | 422 | 65 | tool_error | no |
 | [`registry_cache_malformed`](#registry_cache_malformed) | 500 | 78 | internal_error | no |
 | [`registry_cache_missing`](#registry_cache_missing) | 500 | 78 | internal_error | no |
@@ -165,6 +167,15 @@ An addon's subscriber did not run, because the addon has no active service actor
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 78 (EX_CONFIG)
 - MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### agent_visibility_forbidden
+
+An agent or a token may not make content public (invariant 18): the command would release a revision, open a placement's window or otherwise change what the public sees, so nothing was committed. An agent can prepare the change, such as a hidden placement or a draft; a person makes it public.
+
+- HTTP status: 403 Forbidden
+- CLI exit code: 77 (EX_NOPERM)
+- MCP: a tool result with isError set
 - Retry: no, the same call gives the same answer until something changes
 
 ### credential_expired
@@ -894,6 +905,15 @@ A table in cbox-cms.database.partitions.tables cannot be managed as it is: it is
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 78 (EX_CONFIG)
 - MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### placement_slug_taken
+
+Another placement that is not withdrawn has this slug below the same node in the same language, and a URL must name one placement (PRD 5.9, invariant 15), so nothing was committed. Choose another slug, or change the other placement first.
+
+- HTTP status: 409 Conflict
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
 - Retry: no, the same call gives the same answer until something changes
 
 ### query_over_budget

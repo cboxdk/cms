@@ -8,6 +8,7 @@ description: "What a write action's plan holds: typed mutations with typed ids, 
 
 <!-- extension-point: Cbox\Cms\Contracts\Plans\Mutation -->
 <!-- extension-point: Cbox\Cms\Contracts\Fields\FieldValue -->
+<!-- extension-point: Cbox\Cms\Contracts\Plans\ChangesPublicVisibility -->
 
 A write action's `plan()` returns a `Cbox\Cms\Contracts\Plans\Plan`: what the write will change, as an ordered list of typed mutations and sub-plans (GUARDRAILS 2.1, PRD 6.2). Nothing in a plan has been written; the kernel writes the mutations in the command's one transaction, after authorization, hooks and validation. All the types on this page are `#[Experimental]`.
 
@@ -27,8 +28,12 @@ A mutation implements `Cbox\Cms\Contracts\Plans\Mutation`: a final readonly clas
 | `VariantReleased(entry, variant, revision)` | the variant | the revision becomes the variant's released revision |
 | `VariantUnreleased(entry, variant, revision)` | the variant | the variant has no released revision any more; `revision` is the one it had |
 | `PlacementCreated(placement, entry, node, site)` | the placement | the entry is placed below the node of the site |
-| `PlacementWindowSet(placement, locale, window)` | the placement | the `TimeWindow` in which the placement is live in the `Locale` |
+| `PlacementLocaleAdded(placement, locale, slug, canonical)` | the placement | the placement gets the `Locale` with its `Slug`, hidden, canonical as the kernel decides |
+| `PlacementWindowSet(placement, locale, window)` | the placement | the `TimeWindow` in which the placement is live in the `Locale`; null hides it there |
+| `PlacementCanonicalSet(placement, locale, canonical)` | the placement | the placement becomes, or stops being, the canonical placement of its entry in the `Locale` |
 | `ActorDeactivated(actor, source)` | the actor | the actor is deactivated (PRD 5.16), by the `DeactivationSource` given, `local` by default |
+
+A mutation that can make content public implements `Cbox\Cms\Contracts\Plans\ChangesPublicVisibility`, whose `makesPublic()` says whether it does, now or later, such as a `PlacementWindowSet` with a window. The kernel refuses a plan with one that does from an agent or a token with `agent_visibility_forbidden` (invariant 18): the envelope's issuer is an agent, or the credential was issued for one.
 
 The ids are value objects over a UUIDv7: `EntryId`, `NodeId`, `PlacementId`, `SiteId`, `ActorId` and `TypeId`. A variant is a `VariantKey`, `shared` or a `Locale` such as `en-GB`; a revision is a `RevisionNumber` from 1. The kernel knows no content type (GUARDRAILS 2.4): an entry's type is the `TypeId` of its blueprint.
 

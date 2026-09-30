@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\Tests\Entries;
 
 use Cbox\Cms\Contracts\Pipeline\Aggregates;
 use Cbox\Cms\Contracts\Pipeline\Command;
+use Cbox\Cms\Contracts\Pipeline\RefusesCommand;
 use Cbox\Cms\Contracts\Pipeline\WriteAction;
 use Cbox\Cms\Contracts\Plans\Plan;
 use Closure;
@@ -15,11 +16,13 @@ use Override;
 /**
  * A write action that runs what a test lets happen meanwhile right after the action it wraps has
  * read, such as another call committing on another connection, so the call goes on from reads that
- * are stale by then. Everything else is the wrapped action's.
+ * are stale by then. Everything else is the wrapped action's, its refusals too, and none when it
+ * refuses nothing.
  *
  * @implements WriteAction<Command, Aggregates>
+ * @implements RefusesCommand<Command, Aggregates>
  */
-final readonly class InterleavedAction implements WriteAction
+final readonly class InterleavedAction implements RefusesCommand, WriteAction
 {
     /**
      * @param  object  $action  a write action for the command's class
@@ -43,6 +46,12 @@ final readonly class InterleavedAction implements WriteAction
         ($this->meanwhile)();
 
         return $aggregates;
+    }
+
+    #[Override]
+    public function refusals(Command $command, Aggregates $aggregates): array
+    {
+        return $this->action instanceof RefusesCommand ? $this->action->refusals($command, $aggregates) : [];
     }
 
     #[Override]

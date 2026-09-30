@@ -7,6 +7,7 @@ namespace Cbox\Cms\Core\Pipeline\Actions;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Attributes\Phase;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
+use Cbox\Cms\Contracts\Envelope\IssuerKind as EnvelopeIssuer;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Contracts\Fields\FieldMap;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
@@ -18,11 +19,15 @@ use Cbox\Cms\Contracts\Idempotency\Replay;
 use Cbox\Cms\Contracts\IdempotencyStore;
 use Cbox\Cms\Contracts\Identity\Actor;
 use Cbox\Cms\Contracts\Identity\ActorDirectory;
+use Cbox\Cms\Contracts\Identity\ActorPrincipal;
+use Cbox\Cms\Contracts\Identity\IssuerKind as CredentialIssuer;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Pipeline\ExpectsVersions;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersions;
+use Cbox\Cms\Contracts\Pipeline\RefusesCommand;
+use Cbox\Cms\Contracts\Plans\ChangesPublicVisibility;
 use Cbox\Cms\Contracts\Plans\Mutations\EntryCreated;
 use Cbox\Cms\Contracts\Plans\Mutations\RevisionCreated;
 use Cbox\Cms\Contracts\Plans\Plan;
@@ -79,11 +84,14 @@ use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
  *    version its caller saw (invariant 11), and so is a call whose two reads of one aggregate
  *    differ.
  * 2. Authorize, through the CommandAuthorizer with the call's AccessContext; a refusal is
- *    unauthorized.
+ *    unauthorized. Then an action that RefusesCommand says whether what it read refuses the
+ *    command, such as a slug another placement has, and the call is rejected with its errors.
  * 3. Plan: the action's plan() from the command and the aggregates. The kernel checks its shape
  *    at once: every aggregate a mutation changes was read, every revision's type is a type of the
  *    TypeCatalog, and an entry's home node, when the action read it, exists, so the hooks only ever
- *    see a plan the kernel can read. Then the authorize
+ *    see a plan the kernel can read. A plan with a mutation that makes content public
+ *    (ChangesPublicVisibility) is rejected with agent_visibility_forbidden when the envelope's
+ *    issuer or the credential's issuer is an agent (invariant 18). Then the authorize
  *    hooks run on the pending plan; a denial is unauthorized. They run after plan() because they
  *    see the plan, and they can only add refusals to the CommandAuthorizer's decision.
  * 4. Transform: the transform hooks change fields of the plan's revisions (HookRunner).
@@ -252,6 +260,14 @@ final readonly class CommandPipeline
             return $this->rejected($call, new CatalogError(ErrorCode::Unauthorized, null, (string) $authorization->reason));
         }
 
+        if ($action instanceof RefusesCommand) {
+            $refusals = $action->refusals($call->command, $aggregates);
+
+            if ($refusals !== []) {
+                return $this->rejected($call, ...$refusals);
+            }
+        }
+
         $plan = $action->plan($call->command, $aggregates);
 
         if ($plan->isEmpty()) {
@@ -265,6 +281,17 @@ final readonly class CommandPipeline
 
         if ($errors !== []) {
             return $this->invalid($call, $errors);
+        }
+
+        $public = $this->agentIssued($call) ? $this->makesPublic($plan) : null;
+
+        if ($public instanceof ChangesPublicVisibility) {
+            return $this->rejected($call, new CatalogError(ErrorCode::AgentVisibilityForbidden, null, sprintf(
+                'The command %s is issued by an agent, and its plan would make content public (%s on "%s"), which only a person may do.',
+                $binding->command->value,
+                $public::class,
+                $public->aggregate()->aggregateKey(),
+            )));
         }
 
         $hooks = $this->hooks->hooksOf($binding);
@@ -351,6 +378,32 @@ final readonly class CommandPipeline
         }
 
         return $errors;
+    }
+
+    /**
+     * Whether an agent issues the call (invariant 18): the envelope says the issuer is an agent, or
+     * the principal's credential was issued for an agent.
+     */
+    private function agentIssued(CommandCall $call): bool
+    {
+        $principal = $call->access->principal;
+
+        return $call->envelope->issuerKind === EnvelopeIssuer::Agent
+            || ($principal instanceof ActorPrincipal && $principal->issuerKind === CredentialIssuer::Agent);
+    }
+
+    /**
+     * The plan's first mutation that makes content public, or null when it makes nothing public.
+     */
+    private function makesPublic(Plan $plan): ?ChangesPublicVisibility
+    {
+        foreach ($plan->mutations() as $mutation) {
+            if ($mutation instanceof ChangesPublicVisibility && $mutation->makesPublic()) {
+                return $mutation;
+            }
+        }
+
+        return null;
     }
 
     /**

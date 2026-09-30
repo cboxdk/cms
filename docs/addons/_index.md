@@ -23,6 +23,7 @@ An extension point is `#[Stable]` or `#[Experimental]`. Every extension point do
 - [Error codes](errors.md): the error catalog, where every error gets its stable code, HTTP status, exit code and MCP response.
 - [Commands and write actions](commands.md): `Command`, the `Envelope` a surface builds, `WriteAction` with its aggregates and versions, `#[Action]` and its surfaces, and the `WriteResult` a write ends with.
 - [Entry commands](entry-commands.md): `entry.create` and `entry.revise`, what the kernel stores for them as a type's capabilities say, their events and their rejections.
+- [Placement commands](placement-commands.md): `placement.create` and `placement.set_window`, where a placement is decided, the slug and canonical rules, the visibility states, their events and their rejections.
 - [Actor commands](actor-commands.md): `actor.deactivate`, what it changes in one changeset, its event and how it stops every command and read of the actor.
 - [Plans and mutations](plans.md): the `Plan` a write action returns, the typed mutations and the kernel-generic field values of a revision.
 - [Queries and query actions](queries.md): `Query`, `QueryAction` and the typed `Result` of a read.

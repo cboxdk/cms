@@ -10,7 +10,7 @@ use DateTimeInterface;
 use InvalidArgumentException;
 
 /**
- * A locale, a variant key, a revision number or a time window that breaks its invariants.
+ * A locale, a slug, a variant key, a revision number or a time window that breaks its invariants.
  */
 #[Experimental]
 final class InvalidContentValue extends InvalidArgumentException
@@ -19,6 +19,15 @@ final class InvalidContentValue extends InvalidArgumentException
     {
         return new self(sprintf(
             'A locale is a BCP 47 tag of a language, an optional script and an optional region, such as "da", "en-GB" or "sr-Latn", got "%s".',
+            self::shown($value),
+        ));
+    }
+
+    public static function slug(string $value): self
+    {
+        return new self(sprintf(
+            'A slug is 1 to %d characters without a slash or white space, and not "." or "..", got "%s".',
+            Slug::MAX_LENGTH,
             self::shown($value),
         ));
     }

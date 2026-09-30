@@ -11,6 +11,7 @@ description: "Write a command, its WriteAction and its surfaces: the Envelope a 
 <!-- extension-point: Cbox\Cms\Contracts\Pipeline\Aggregates -->
 <!-- extension-point: Cbox\Cms\Contracts\Pipeline\AggregateRef -->
 <!-- extension-point: Cbox\Cms\Contracts\Pipeline\ExpectsVersions -->
+<!-- extension-point: Cbox\Cms\Contracts\Pipeline\RefusesCommand -->
 <!-- extension-point: Cbox\Cms\Contracts\Attributes\Action -->
 
 There is one way to change state: a command, run through the kernel's command pipeline (PRD 6.1, 6.2). The panel, REST, MCP, agents, the CLI, jobs, the scheduler, subscribers, sidecars and seeds all call the same write action. All the types on this page are `#[Experimental]` and live in the contracts module.
@@ -101,6 +102,8 @@ Neither step writes, commits or calls another write action. The kernel owns the 
 What `resolve()` returns implements `Cbox\Cms\Contracts\Pipeline\Aggregates`: the action's own final readonly class with what it read, and `versions()`, the `ReadVersions` it read them at. Each `ReadVersion` names an aggregate by an `AggregateRef` and holds its `AggregateVersion`, or null when the aggregate did not exist, as for the note a create makes. At commit the kernel checks that every aggregate is still at the version it was read at, or still absent, and rejects the command with `version_conflict` otherwise, so a plan made from stale reads never commits. An aggregate is read at most once, and the reads are sorted by key. Every aggregate a mutation of the plan changes must be among the reads, a created one as absent; the kernel refuses a plan that changes an aggregate its `resolve()` did not read.
 
 A command that carries the versions its caller saw implements `Cbox\Cms\Contracts\Pipeline\ExpectsVersions`, which extends `Command`: `expectedVersions()` gives a `ReadVersions` of the aggregates the caller read, each at its version or absent. The kernel compares them with what `resolve()` read and rejects the command with `version_conflict` when one differs, before it authorizes anything (invariant 11). Each aggregate a command expects a version of must be one its action reads.
+
+A write action whose command what it read can rule out also implements `Cbox\Cms\Contracts\Pipeline\RefusesCommand`: `refusals(Command, Aggregates)` gives the errors to reject the call with, first the one that decides it, as `CatalogError`s of the [error catalog](errors.md), or none to go on. The kernel asks it after the authorize phase and before `plan()`, so a caller that may not run the command learns nothing from its reasons. It is pure like the other two steps; the kernel's `placement.create` refuses a slug another placement has below the node with it (see [placement commands](placement-commands.md)).
 
 `Cbox\Cms\Contracts\Pipeline\AggregateRef` is what names an aggregate: `aggregateKey()` gives its kind and id, such as `entry:<uuid>`, unique across every kind. The typed ids `EntryId`, `NodeId`, `PlacementId`, `SiteId` and `ActorId` implement it, and so does `VariantRef`, one variant of an entry (`variant:<uuid>:<variant>`).
 

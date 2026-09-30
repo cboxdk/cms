@@ -28,6 +28,7 @@ enum ErrorCode: string
 
     case ActorNotActive = 'actor_not_active';
     case AddonServiceActorUnavailable = 'addon_service_actor_unavailable';
+    case AgentVisibilityForbidden = 'agent_visibility_forbidden';
     case CredentialExpired = 'credential_expired';
     case CredentialMalformed = 'credential_malformed';
     case CredentialRevoked = 'credential_revoked';
@@ -109,6 +110,7 @@ enum ErrorCode: string
     case PartitionMissing = 'partition_missing';
     case PartitionOwnerRequired = 'partition_owner_required';
     case PartitionTableUnmanageable = 'partition_table_unmanageable';
+    case PlacementSlugTaken = 'placement_slug_taken';
     case QueryOverBudget = 'query_over_budget';
     case RegistryCacheMalformed = 'registry_cache_malformed';
     case RegistryCacheMissing = 'registry_cache_missing';
@@ -172,6 +174,11 @@ enum ErrorCode: string
             ),
             self::AddonServiceActorUnavailable => $this->violation(
                 'An addon\'s subscriber did not run, because the addon has no active service actor to run as (PRD 13.1, invariant 21): none is configured in cbox-cms.addons.service_actors, no actor has the configured id, or the actor is not an active service actor. It never runs as the system instead. Configure the service actor created when the addon\'s capabilities were approved, or reactivate it.',
+            ),
+            self::AgentVisibilityForbidden => $this->caller(
+                HttpStatus::Forbidden,
+                ExitCode::NoPerm,
+                'An agent or a token may not make content public (invariant 18): the command would release a revision, open a placement\'s window or otherwise change what the public sees, so nothing was committed. An agent can prepare the change, such as a hidden placement or a draft; a person makes it public.',
             ),
             self::CredentialExpired => $this->credential(
                 'The credential\'s expiry has passed, so it was refused and nothing was read or committed (PRD 5.16). Every credential has an expiry. Call again with a credential that is still valid.',
@@ -461,6 +468,11 @@ enum ErrorCode: string
             ),
             self::PartitionTableUnmanageable => $this->violation(
                 'A table in cbox-cms.database.partitions.tables cannot be managed as it is: it is missing, not partitioned by range, has a DEFAULT partition, or Postgres refused a step on one of its partitions. The other tables were still maintained. Run the migrations, or correct the table or its entry as the cause says.',
+            ),
+            self::PlacementSlugTaken => $this->caller(
+                HttpStatus::Conflict,
+                ExitCode::DataErr,
+                'Another placement that is not withdrawn has this slug below the same node in the same language, and a URL must name one placement (PRD 5.9, invariant 15), so nothing was committed. Choose another slug, or change the other placement first.',
             ),
             self::QueryOverBudget => $this->caller(
                 HttpStatus::UnprocessableContent,

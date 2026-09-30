@@ -109,6 +109,15 @@ use Cbox\Cms\Core\Pipeline\Domain\Stopwatch;
 use Cbox\Cms\Core\Pipeline\Domain\VersionLock;
 use Cbox\Cms\Core\Pipeline\Domain\VersionLocks;
 use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
+use Cbox\Cms\Core\Placements\Adapter\PlacementCanonicalSetWriter;
+use Cbox\Cms\Core\Placements\Adapter\PlacementCreatedWriter;
+use Cbox\Cms\Core\Placements\Adapter\PlacementLocaleAddedWriter;
+use Cbox\Cms\Core\Placements\Adapter\PlacementWindowSetWriter;
+use Cbox\Cms\Core\Placements\Adapter\PostgresCanonicalPlacementLock;
+use Cbox\Cms\Core\Placements\Adapter\PostgresPlacementReader;
+use Cbox\Cms\Core\Placements\Adapter\PostgresPlacementSlugLock;
+use Cbox\Cms\Core\Placements\Adapter\PostgresPlacementVersionLock;
+use Cbox\Cms\Core\Placements\Domain\PlacementReader;
 use Cbox\Cms\Core\Process\Boundary\ProcessWorkload;
 use Cbox\Cms\Core\Process\Domain\OwnerCredentialsExposed;
 use Cbox\Cms\Core\Reads\Adapter\ConnectionQueryTransaction;
@@ -126,6 +135,7 @@ use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeVersionLock;
+use Cbox\Cms\Core\Structure\Adapter\PostgresSiteVersionLock;
 use Cbox\Cms\Core\Subscriptions\Adapter\PostgresSubscriptionLog;
 use Cbox\Cms\Core\Subscriptions\Adapter\RegistryLaneSubscribers;
 use Cbox\Cms\Core\Subscriptions\Adapter\SystemPacing;
@@ -302,6 +312,14 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         // head and the type table's row (PRD 4.1, 11.6).
         $this->app->bind(EntryReader::class, PostgresEntryReader::class);
         $this->app->tag([EntryCreatedWriter::class, RevisionCreatedWriter::class, HeadMovedWriter::class], MutationWriters::TAG);
+
+        // The placement commands, placement.create and placement.set_window (PRD 5.7, 5.9, 6.4): their
+        // reads, the locks of placements, sites, slugs and the canonical placement of an entry, and
+        // the writers of their mutations, which store the placement, its locales, its windows and
+        // the canonical flag (PRD 4.1, invariants 14 and 15).
+        $this->app->bind(PlacementReader::class, PostgresPlacementReader::class);
+        $this->app->tag([PostgresPlacementVersionLock::class, PostgresSiteVersionLock::class, PostgresPlacementSlugLock::class, PostgresCanonicalPlacementLock::class], VersionLocks::TAG);
+        $this->app->tag([PlacementCreatedWriter::class, PlacementLocaleAddedWriter::class, PlacementWindowSetWriter::class, PlacementCanonicalSetWriter::class], MutationWriters::TAG);
 
         // actor.deactivate (PRD 5.16): the writer of its mutation, which deactivates the actor and
         // ends its direct grants.

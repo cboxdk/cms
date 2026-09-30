@@ -5,15 +5,17 @@ declare(strict_types=1);
 namespace Cbox\Cms\Contracts\Content;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\Ids\Identifier;
+use Override;
 
 /**
  * A language, as a BCP 47 tag of a language subtag, an optional script and an optional region,
  * such as "da", "en-GB", "sr-Latn" or "es-419" (PRD 10). The tag is stored in its canonical case:
  * the language in lower case, the script in title case and the region in upper case, so "EN-gb"
- * and "en-GB" are the same locale.
+ * and "en-GB" are the same locale. It identifies the language, so an event can carry it.
  */
 #[Experimental]
-final readonly class Locale
+final readonly class Locale implements Identifier
 {
     private const string PATTERN = '/\A([a-z]{2,3})(?:-([a-z]{4}))?(?:-([a-z]{2}|[0-9]{3}))?\z/i';
 
@@ -36,6 +38,15 @@ final readonly class Locale
         }
 
         $this->value = $tag;
+    }
+
+    /**
+     * The tag in its canonical case.
+     */
+    #[Override]
+    public function toString(): string
+    {
+        return $this->value;
     }
 
     public function equals(self $other): bool

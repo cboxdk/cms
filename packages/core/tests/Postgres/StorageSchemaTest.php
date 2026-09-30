@@ -85,7 +85,10 @@ it('forces row level security on every table, with the access migration\'s polic
     expect(StorageTables::texts($owner, "select relname::text || ' ' || relrowsecurity::text || ' ' || relforcerowsecurity::text as value from pg_class where oid = any (?::regclass[]) order by 1", [$tables]))
         ->toBe(array_map(static fn (string $table): string => $table.' true true', StorageTables::TABLES))
         ->and(StorageTables::texts($owner, 'select policyname::text as value from pg_policies where tablename = any (?::text[]) order by 1', [$tables]))
-        ->toBe(['entries_actor', 'entries_released', 'nodes_actor', 'nodes_granted', 'variant_heads_actor', 'variant_heads_released'])
+        ->toBe([
+            'entries_actor', 'entries_released', 'node_routes_owner_write', 'nodes_actor', 'nodes_granted', 'nodes_owner_write',
+            'site_locales_owner_write', 'site_locales_read', 'sites_owner_write', 'sites_read', 'variant_heads_actor', 'variant_heads_released',
+        ])
         ->and($result->status)->toBe(CheckStatus::Pass, (string) $result->cause);
 });
 
@@ -318,7 +321,10 @@ it('forces row level security on the placement tables, with the access migration
     expect(StorageTables::texts($owner, "select relname::text || ' ' || relrowsecurity::text || ' ' || relforcerowsecurity::text as value from pg_class where oid = any (?::regclass[]) order by 1", [$tables]))
         ->toBe(array_map(static fn (string $table): string => $table.' true true', StorageTables::PLACEMENT_TABLES))
         ->and(StorageTables::texts($owner, 'select policyname::text as value from pg_policies where tablename = any (?::text[]) order by 1', [$tables]))
-        ->toBe(['placement_generations_actor', 'placement_generations_released', 'placement_locales_actor', 'placement_locales_released', 'placements_actor', 'placements_released', 'placements_write'])
+        ->toBe([
+            'placement_generations_actor', 'placement_generations_released', 'placement_locales_actor', 'placement_locales_owner_write',
+            'placement_locales_released', 'placements_actor', 'placements_owner_write', 'placements_released', 'placements_write',
+        ])
         ->and($result->status)->toBe(CheckStatus::Pass, (string) $result->cause);
 
     foreach (StorageTables::PLACEMENT_TABLES as $table) {
