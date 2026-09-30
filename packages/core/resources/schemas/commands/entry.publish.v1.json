@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "entry.publish, contract version 1",
+  "description": "Publishes an entry (PRD 6.4) in one changeset: it releases a revision of the entry's shared variant and puts its home placement live in one locale, now or in a window. A type with stages none has no revision to release, so its revision is null. A variant or a placement at another version than the caller read is version_conflict. The PHP form is Cbox\\Cms\\Core\\Publishing\\Domain\\Commands\\PublishEntry, and the generated codec PublishEntryCodecV1 reads it and writes its canonical JSON: every key, sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "entry",
+    "locale",
+    "placement",
+    "placement_version",
+    "revision",
+    "version"
+  ],
+  "properties": {
+    "entry": {
+      "description": "The entry's id.",
+      "$ref": "#/$defs/id"
+    },
+    "locale": {
+      "description": "The locale the placement goes live in.",
+      "$ref": "#/$defs/locale"
+    },
+    "placement": {
+      "description": "The id of the entry's home placement, a placement below its home node.",
+      "$ref": "#/$defs/id"
+    },
+    "placement_version": {
+      "description": "The version of the home placement the caller read.",
+      "$ref": "#/$defs/version"
+    },
+    "revision": {
+      "description": "The number of the revision to release, an integer of 1 or more, or null for a type with stages none.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    },
+    "version": {
+      "description": "The version of the entry's shared variant the caller read.",
+      "$ref": "#/$defs/version"
+    },
+    "window": {
+      "description": "The window the placement is live in, or null or missing to put it live from now.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/time_window"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "locale": {
+      "description": "A language tag of a language, an optional script and an optional region, such as da, en-GB or sr-Latn-RS; the kernel writes the language in lowercase, the script in title case and the region in uppercase.",
+      "type": "string",
+      "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$"
+    },
+    "time_window": {
+      "description": "When a placement is live: from live_from, inclusive, until live_until, exclusive, each RFC 3339 with an offset, stored in UTC. A null or missing live_from is since always, and a null or missing live_until for ever; live_from is before live_until.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "live_from": {
+          "description": "When the placement goes live, RFC 3339 with an offset, or null for since always.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "default": null
+        },
+        "live_until": {
+          "description": "When the placement stops being live, RFC 3339 with an offset, or null for ever.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "default": null
+        }
+      }
+    },
+    "version": {
+      "description": "The version of an aggregate that the caller read, an integer of 1 or more; the command is version_conflict when the aggregate is at another version when it commits.",
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

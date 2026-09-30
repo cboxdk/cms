@@ -14,6 +14,10 @@ use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Consistency\ProjectionState;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
 use Cbox\Cms\Contracts\Consistency\WaitLevel;
+use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Content\RevisionNumber;
+use Cbox\Cms\Contracts\Content\Slug;
+use Cbox\Cms\Contracts\Content\TimeWindow;
 use Cbox\Cms\Contracts\Envelope\CorrelationId;
 use Cbox\Cms\Contracts\Envelope\GenerationModel;
 use Cbox\Cms\Contracts\Envelope\ModelParameter;
@@ -23,16 +27,37 @@ use Cbox\Cms\Contracts\Envelope\RequestEnvelope;
 use Cbox\Cms\Contracts\Envelope\SourceReference;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Contracts\Errors\Problem;
+use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Idempotency\IdempotencyKey;
+use Cbox\Cms\Contracts\Identity\DeactivationSource;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
+use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\Ids\NodeId;
+use Cbox\Cms\Contracts\Ids\PlacementId;
+use Cbox\Cms\Contracts\Ids\SiteId;
+use Cbox\Cms\Contracts\Ids\TypeId;
+use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Receipts\Receipt;
 use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Contracts\Results\FieldPath;
+use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
+use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
+use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCodec;
+use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
+use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
+use Cbox\Cms\Core\Placements\Domain\Dto\LocaleSlug;
+use Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry;
+use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
+use Cbox\Cms\Generators\Codec\Domain\Dto\CodecCommand;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecContract;
 use Cbox\Cms\Generators\Codec\Domain\Dto\PhpLocation;
 use Cbox\Cms\Generators\Codec\Domain\PhpCodecEmitter;
+use Cbox\Cms\Generators\Codec\Domain\PhpSource;
+use Cbox\Cms\Generators\Generation\Domain\Dto\GeneratedFile;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationResult;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
@@ -41,10 +66,16 @@ use Cbox\Cms\Generators\Protocol\Domain\Dto\ValueBinding;
 
 /**
  * The kernel's JSON Schemas and their codecs (GUARDRAILS 2.2, PRD 6.1, 8.4, 8.8): the schemas of
- * the contracts module, one file per contract version, and the codec composer generate:protocol
- * writes for each into the core's codecs, one per contract version. Each codec reads and writes the
- * classes of the contracts its binding names, so no DTO is generated and no code serialises them
- * by hand.
+ * the contracts module and of the kernel's commands, one file per contract version, and the codec
+ * composer generate:protocol writes for each into the core's codecs, one per contract version. Each
+ * codec reads and writes the classes its binding names, so no DTO is generated and no code
+ * serialises them by hand.
+ *
+ * The codec of a command's contract version carries the command's JSON Schema and builds its
+ * CommandCodec, and COMMAND_CODECS, generated with them, lists every one, which the core registers
+ * under CommandCodecs::TAG so every exposed surface reads the command (GUARDRAILS 2.1). The kernel
+ * knows no content type (GUARDRAILS 2.4), so a command's fields are the generic fields of
+ * FieldValuesSchema.
  */
 #[Internal]
 final readonly class ProtocolSchemas
@@ -57,11 +88,32 @@ final readonly class ProtocolSchemas
 
     public const string PHP_NAMESPACE = 'Cbox\Cms\Core\Codecs\Boundary\Generated';
 
+    /** Where the schemas of the kernel's commands are, relative to the root of cboxdk/cms. */
+    public const string COMMAND_SCHEMA_DIRECTORY = 'packages/core/resources/schemas/commands';
+
+    /** The generated class that lists the CommandCodec of every command's contract version. */
+    public const string COMMAND_CODECS = 'KernelCommandCodecs';
+
+    /**
+     * The PHP names of a time window's keys, live_from and live_until, which TimeWindow calls from
+     * and until.
+     *
+     * @var array<string, string>
+     */
+    private const array WINDOW_NAMES = [
+        '#/$defs/time_window/properties/live_from' => 'from',
+        '#/$defs/time_window/properties/live_until' => 'until',
+    ];
+
+    /** The class of the CommandCodecs the list holds; the generator only writes its name. */
+    private const string COMMAND_CODEC = CommandCodec::class;
+
     /** The stability of the generated codecs: the classes they read and write are Experimental. */
     public const string ATTRIBUTE = Experimental::class;
 
     /**
-     * The bindings of the kernel's schemas, sorted by file.
+     * The bindings of the schemas of the contracts module, sorted by file: the receipt, the problem
+     * details and the envelope.
      *
      * @return list<SchemaBinding>
      */
@@ -129,6 +181,77 @@ final readonly class ProtocolSchemas
     }
 
     /**
+     * Every binding composer generate:protocol writes a codec for: the kernel's contracts and its
+     * commands.
+     *
+     * @return list<SchemaBinding>
+     */
+    public static function all(): array
+    {
+        return [...self::kernel(), ...self::commands()];
+    }
+
+    /**
+     * The bindings of the schemas of the kernel's commands that an exposed surface can read, each at
+     * its version, sorted by file.
+     *
+     * @return list<SchemaBinding>
+     */
+    public static function commands(): array
+    {
+        $id = static fn (string $class): ValueBinding => ValueBinding::id($class);
+        $version = ValueBinding::value(AggregateVersion::class);
+
+        return [
+            self::command('actor.deactivate.v1.json', 'DeactivateActorCodecV1', DeactivateActor::class, [
+                '#/properties/actor' => $id(ActorId::class),
+                '#/properties/source' => ValueBinding::enum(DeactivationSource::class),
+            ]),
+            self::command('entry.create.v1.json', 'CreateEntryCodecV1', CreateEntry::class, [
+                '#/properties/entry' => $id(EntryId::class),
+                '#/properties/fields' => ValueBinding::fields(FieldValues::class),
+                '#/properties/home' => $id(NodeId::class),
+                '#/properties/type' => $id(TypeId::class),
+            ]),
+            self::command('entry.publish.v1.json', 'PublishEntryCodecV1', PublishEntry::class, [
+                '#/properties/entry' => $id(EntryId::class),
+                '#/properties/locale' => ValueBinding::value(Locale::class),
+                '#/properties/placement' => $id(PlacementId::class),
+                '#/properties/placement_version' => $version,
+                '#/properties/revision' => ValueBinding::value(RevisionNumber::class),
+                '#/properties/version' => $version,
+            ], ['#/$defs/time_window' => TimeWindow::class], self::WINDOW_NAMES),
+            self::command('entry.revise.v1.json', 'ReviseEntryCodecV1', ReviseEntry::class, [
+                '#/properties/entry' => $id(EntryId::class),
+                '#/properties/fields' => ValueBinding::fields(FieldValues::class),
+                '#/properties/version' => $version,
+            ]),
+            self::command('entry.unpublish.v1.json', 'UnpublishEntryCodecV1', UnpublishEntry::class, [
+                '#/properties/entry' => $id(EntryId::class),
+                '#/properties/version' => $version,
+            ]),
+            self::command('placement.create.v1.json', 'CreatePlacementCodecV1', CreatePlacement::class, [
+                '#/properties/entry' => $id(EntryId::class),
+                '#/properties/node' => $id(NodeId::class),
+                '#/properties/placement' => $id(PlacementId::class),
+                '#/properties/site' => $id(SiteId::class),
+                '#/$defs/locale_slug/properties/locale' => ValueBinding::value(Locale::class),
+                '#/$defs/locale_slug/properties/slug' => ValueBinding::value(Slug::class),
+            ], ['#/$defs/locale_slug' => LocaleSlug::class]),
+            self::command('placement.set_window.v1.json', 'SetPlacementWindowCodecV1', SetPlacementWindow::class, [
+                '#/properties/locale' => ValueBinding::value(Locale::class),
+                '#/properties/placement' => $id(PlacementId::class),
+                '#/properties/version' => $version,
+            ], ['#/$defs/time_window' => TimeWindow::class], self::WINDOW_NAMES),
+            self::command('variant.release.v1.json', 'ReleaseVariantCodecV1', ReleaseVariant::class, [
+                '#/properties/entry' => $id(EntryId::class),
+                '#/properties/revision' => ValueBinding::value(RevisionNumber::class),
+                '#/properties/version' => $version,
+            ]),
+        ];
+    }
+
+    /**
      * The codec files of the contracts in $location, which the result owns, sorted by path. Two
      * contracts with one codec class are refused.
      *
@@ -150,8 +273,82 @@ final readonly class ProtocolSchemas
             $files[$file->path] = $file;
         }
 
+        $commands = array_values(array_filter($contracts, static fn (CodecContract $contract): bool => $contract->command instanceof CodecCommand));
+
+        if ($commands !== []) {
+            $list = self::commandCodecs($commands, $location);
+            $files[$list->path] = $list;
+        }
+
         ksort($files, SORT_STRING);
 
         return new GenerationResult(array_values($files), [$location->directory]);
+    }
+
+    /**
+     * The binding of version 1 of a command's schema, with its document bound to the command.
+     *
+     * @param  class-string  $command
+     * @param  array<string, ValueBinding>  $values
+     * @param  array<string, string>  $objects  the objects besides the document
+     * @param  array<string, string>  $names
+     */
+    private static function command(string $schema, string $codecClass, string $command, array $values, array $objects = [], array $names = []): SchemaBinding
+    {
+        return new SchemaBinding(
+            schema: $schema,
+            codecClass: $codecClass,
+            version: 1,
+            objects: ['#' => $command, ...$objects],
+            values: $values,
+            names: $names,
+            directory: self::COMMAND_SCHEMA_DIRECTORY,
+            command: $command,
+        );
+    }
+
+    /**
+     * The class COMMAND_CODECS: the CommandCodec of each command's contract version, sorted by the
+     * command's name and version, which the core registers under CommandCodecs::TAG.
+     *
+     * @param  non-empty-list<CodecContract>  $commands
+     */
+    private static function commandCodecs(array $commands, PhpLocation $location): GeneratedFile
+    {
+        usort($commands, static fn (CodecContract $a, CodecContract $b): int => [$a->command?->name, $a->version] <=> [$b->command?->name, $b->version]);
+
+        $lines = [
+            '<?php',
+            '',
+            'declare(strict_types=1);',
+            '',
+            'namespace '.$location->namespace.';',
+            '',
+            ...PhpSource::uses([self::ATTRIBUTE, self::COMMAND_CODEC], $location->namespace),
+            '',
+            '/**',
+            ' * The CommandCodec of each version of each of the kernel\'s commands (GUARDRAILS 2.1, 2.2), which',
+            ' * the core registers under the container tag CommandCodecs::TAG, so every exposed surface reads',
+            ' * the command and describes it with its JSON Schema.',
+            ' *',
+            ' * Generated by composer generate:protocol from the schemas in '.self::COMMAND_SCHEMA_DIRECTORY.'.',
+            ' * Do not edit this file: change the schemas and run composer generate:protocol.',
+            ' */',
+            '#['.PhpSource::shortName(self::ATTRIBUTE).']',
+            'final readonly class '.self::COMMAND_CODECS,
+            '{',
+            '    /**',
+            '     * @return list<CommandCodec>',
+            '     */',
+            '    public static function all(): array',
+            '    {',
+            '        return [',
+            ...array_map(static fn (CodecContract $contract): string => '            '.$contract->codecClass.'::commandCodec(),', $commands),
+            '        ];',
+            '    }',
+            '}',
+        ];
+
+        return new GeneratedFile($location->directory.'/'.self::COMMAND_CODECS.'.php', implode("\n", $lines)."\n");
     }
 }

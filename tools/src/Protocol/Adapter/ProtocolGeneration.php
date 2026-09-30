@@ -17,7 +17,7 @@ use Cbox\Cms\Generators\Schema\Boundary\LocalFile;
 
 /**
  * `composer generate:protocol` (GUARDRAILS 2.2): reads each kernel JSON Schema of
- * ProtocolSchemas::kernel() below a root, reads it into its codec contract with its binding, emits
+ * ProtocolSchemas::all() below a root, reads it into its codec contract with its binding, emits
  * the codecs and writes them into the core's codecs, removing every other file there. Nothing is
  * written unless every schema is valid; the problems of all schemas are reported together.
  */
@@ -64,8 +64,8 @@ final readonly class ProtocolGeneration
         $contracts = [];
         $problems = [];
 
-        foreach (ProtocolSchemas::kernel() as $binding) {
-            $path = ProtocolSchemas::SCHEMA_DIRECTORY.'/'.$binding->schema;
+        foreach (ProtocolSchemas::all() as $binding) {
+            $path = $binding->path();
             $json = LocalFile::contents($root.'/'.$path);
 
             if ($json === null) {

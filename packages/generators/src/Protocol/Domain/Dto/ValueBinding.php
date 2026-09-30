@@ -9,8 +9,9 @@ use Cbox\Cms\Generators\Codec\Domain\CodecKind;
 
 /**
  * The PHP class a value of a kernel JSON Schema is bound to (GUARDRAILS 2.2): an id, parsed by its
- * static fromString() and written by toString(); a value object of one string, made with `new` and
- * written from its `value`; or a backed enum, by its value.
+ * static fromString() and written by toString(); a value object of one string or one integer, made
+ * with `new` and written from its `value`; a backed enum, by its value; or the fields of a revision
+ * of any type, FieldValues, in the form FieldValuesSchema fixes.
  */
 #[Internal]
 final readonly class ValueBinding
@@ -36,5 +37,10 @@ final readonly class ValueBinding
     public static function enum(string $class): self
     {
         return new self(CodecKind::Enum, $class);
+    }
+
+    public static function fields(string $class): self
+    {
+        return new self(CodecKind::Fields, $class);
     }
 }

@@ -58,6 +58,23 @@ enum CodecKind: string
     case Value = 'value';
 
     /**
+     * A value object of one integer, made with `new` from the integer and written from its `value`
+     * property, whose constructor checks it, such as a version; rules `min` and `max`, which the
+     * codec checks before the constructor does.
+     */
+    case IntegerValue = 'integer_value';
+
+    /**
+     * The fields of a revision of any type (GUARDRAILS 2.4), Cbox\Cms\Contracts\Fields\FieldValues, in
+     * the input form the type's validator reads: an object of the owner's fields by handle, with an
+     * extender's fields under `ext` and its namespace. A command that works for any type names no
+     * type the codec could read the values with, so each value is read as JSON gives it, and the
+     * kernel checks the fields against the type's schema at the write stage. No rules: the form is
+     * fixed.
+     */
+    case Fields = 'fields';
+
+    /**
      * The rules a value of this kind takes, in the type descriptor's vocabulary. The emitters refuse
      * any other, so no rule of a blueprint is ever dropped without being checked.
      *
@@ -76,7 +93,8 @@ enum CodecKind: string
             self::PortableText => [ValidationRuleName::PortableText, ValidationRuleName::Styles, ValidationRuleName::Marks, ValidationRuleName::Lists, ValidationRuleName::Links],
             self::Object => [ValidationRuleName::Object],
             self::List => [ValidationRuleName::List, ValidationRuleName::Distinct, ValidationRuleName::MinItems, ValidationRuleName::MaxItems],
-            self::Id, self::Enum, self::Value => [],
+            self::IntegerValue => [ValidationRuleName::Min, ValidationRuleName::Max],
+            self::Id, self::Enum, self::Value, self::Fields => [],
         };
     }
 
@@ -87,7 +105,7 @@ enum CodecKind: string
     public function isClass(): bool
     {
         return match ($this) {
-            self::Date, self::Datetime, self::PortableText, self::Object, self::Id, self::Enum, self::Value => true,
+            self::Date, self::Datetime, self::PortableText, self::Object, self::Id, self::Enum, self::Value, self::IntegerValue, self::Fields => true,
             default => false,
         };
     }

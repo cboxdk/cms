@@ -6,8 +6,14 @@ namespace Cbox\Cms\Generators\Codec\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Codecs\JsonCodec;
+use Cbox\Cms\Contracts\Codecs\JsonSchema;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Pipeline\Command;
 use Cbox\Cms\Contracts\Results\FieldPath;
+use Cbox\Cms\Core\Pipeline\Domain\CommandEncoder;
+use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCodec;
+use Cbox\Cms\Generators\Codec\Domain\Dto\CodecCommand;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecContract;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecObject;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecProperty;
@@ -53,6 +59,23 @@ final readonly class PhpCodecEmitter
 
     private const string FIELD_PATH = FieldPath::class;
 
+    /** The classes the codec of a command's contract version builds its CommandCodec with. */
+    private const string COMMAND_CODEC = CommandCodec::class;
+
+    private const string COMMAND_NAME = CommandName::class;
+
+    private const string JSON_SCHEMA = JsonSchema::class;
+
+    private const string COMMAND_ENCODER = CommandEncoder::class;
+
+    private const string COMMAND_INTERFACE = Command::class;
+
+    /**
+     * The delimiter of the nowdoc that holds a command's JSON Schema, which the schema's text never
+     * contains, so Rector's SensitiveHereNowDocRector leaves the nowdoc as it is.
+     */
+    private const string SCHEMA_DELIMITER = 'SCHEMA';
+
     /**
      * @param  PhpLocation  $dtos  where the contract's DTOs are
      * @param  PhpLocation  $codecs  where the codec goes
@@ -83,6 +106,14 @@ final readonly class PhpCodecEmitter
 
         if ($contract->attribute !== null) {
             $classes[] = $contract->attribute;
+        }
+
+        if ($contract->command instanceof CodecCommand) {
+            $classes[] = self::COMMAND_CODEC;
+            $classes[] = self::COMMAND_NAME;
+            $classes[] = self::JSON_SCHEMA;
+            $classes[] = self::COMMAND_ENCODER;
+            $classes[] = self::COMMAND_INTERFACE;
         }
 
         foreach ($objects as $object) {
@@ -116,11 +147,12 @@ final readonly class PhpCodecEmitter
             ' * @implements JsonCodec<'.$root->className.'>',
             ' */',
             ...($contract->attribute === null ? [] : ['#['.PhpSource::shortName($contract->attribute).']']),
-            'final readonly class '.$contract->codecClass.' implements JsonCodec',
+            'final readonly class '.$contract->codecClass.' implements '.($contract->command instanceof CodecCommand ? 'CommandEncoder, JsonCodec' : 'JsonCodec'),
             '{',
             '    /** The contract version this codec reads and writes. */',
             '    public const int VERSION = '.$contract->version.';',
             '',
+            ...($contract->command instanceof CodecCommand ? self::command($contract->command, $root) : []),
             '    /**',
             '     * The canonical JSON of $dto as a caller with $access may see it: sorted keys, no',
             '     * whitespace, and without every field classified above the access (PRD 12.2) or held as',
@@ -160,6 +192,63 @@ final readonly class PhpCodecEmitter
         ];
 
         return new GeneratedFile($codecs->directory.'/'.$contract->codecClass.'.php', implode("\n", $lines)."\n");
+    }
+
+    /**
+     * The members of the codec of a command's contract version: the command's name, the JSON Schema
+     * of its document in a nowdoc, and the CommandCodec the core registers under CommandCodecs::TAG.
+     *
+     * @return list<string>
+     *
+     * @throws GenerationFailed with GenerateErrorCode::InvalidOutput
+     */
+    private static function command(CodecCommand $command, CodecObject $root): array
+    {
+        $schema = explode("\n", rtrim($command->schema, "\n"));
+
+        if (str_contains($command->schema, self::SCHEMA_DELIMITER)) {
+            throw GenerationFailed::because(GenerateErrorCode::InvalidOutput, sprintf('The JSON Schema of %s contains %s, the delimiter of the nowdoc it is written in.', $command->name, self::SCHEMA_DELIMITER));
+        }
+
+        return [
+            '    /** The name of the command this codec reads, with the version VERSION. */',
+            '    public const string COMMAND = '.PhpSource::string($command->name).';',
+            '',
+            '    /**',
+            '     * The JSON Schema of the command\'s document, which this codec reads and writes, as cms:build',
+            '     * describes the command on REST and MCP (PRD 8.8, 14.5).',
+            '     */',
+            '    public const string SCHEMA = <<<\''.self::SCHEMA_DELIMITER.'\'',
+            ...array_map(static fn (string $line): string => rtrim('        '.$line), $schema),
+            '        '.self::SCHEMA_DELIMITER.';',
+            '',
+            '    /**',
+            '     * This codec with the command\'s name, its version and its JSON Schema, which the core',
+            '     * registers under the container tag CommandCodecs::TAG, so every exposed surface reads the',
+            '     * command with it (GUARDRAILS 2.1).',
+            '     */',
+            '    public static function commandCodec(): CommandCodec',
+            '    {',
+            '        return new CommandCodec(new CommandName(self::COMMAND), self::VERSION, new self, new JsonSchema(self::SCHEMA));',
+            '    }',
+            '',
+            '    /**',
+            '     * The command\'s canonical JSON with every field, which the idempotency content hash is',
+            '     * taken over (PRD 6.1).',
+            '     *',
+            '     * @throws EncodingFailed when the command is not a '.$root->className,
+            '     */',
+            '    #[Override]',
+            '    public function encodeCommand(Command $command): string',
+            '    {',
+            '        if (! $command instanceof '.$root->className.') {',
+            '            throw EncodingFailed::because(sprintf(\'%s is not a '.$root->className.'\', $command::class));',
+            '        }',
+            '',
+            '        return $this->encode($command, ClassificationAccess::Sensitive);',
+            '    }',
+            '',
+        ];
     }
 
     /**
@@ -351,6 +440,11 @@ final readonly class PhpCodecEmitter
             CodecKind::Id => self::call('id', [$raw, $at, PhpSource::native($value).'::fromString(...)']),
             CodecKind::Enum => self::call('enum', [$raw, $at, PhpSource::native($value).'::class']),
             CodecKind::Value => self::call('value', [$raw, $at, sprintf('static fn (string $text): %1$s => new %1$s($text)', PhpSource::native($value))]),
+            CodecKind::IntegerValue => self::call('integerValue', [$raw, $at, sprintf('static fn (int $number): %1$s => new %1$s($number)', PhpSource::native($value)), ...self::named($value, [
+                'min' => ValidationRuleName::Min,
+                'max' => ValidationRuleName::Max,
+            ], [])]),
+            CodecKind::Fields => self::call('fieldValues', [$raw, $at]),
         };
     }
 
@@ -370,7 +464,8 @@ final readonly class PhpCodecEmitter
             CodecKind::Object => sprintf('$this->%s(%s)', self::encoderName(self::object($value)), $read),
             CodecKind::List => self::writtenList(self::item($value), $read, $depth + 1),
             CodecKind::Id => $read.'->toString()',
-            CodecKind::Enum, CodecKind::Value => $read.'->value',
+            CodecKind::Enum, CodecKind::Value, CodecKind::IntegerValue => $read.'->value',
+            CodecKind::Fields => sprintf('JsonValues::encodeFieldValues(%s)', $read),
         };
     }
 

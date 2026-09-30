@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "placement.create, contract version 1",
+  "description": "Places an entry below a node of a site (PRD 5.7): the placement's id, which the caller makes, the entry, the node, the site the node belongs to, and a slug in each locale the placement is to have, each a locale the site publishes in. The placement is hidden until its window is set with placement.set_window. A slug another placement has below the node in the locale is placement_slug_taken, and a create of an id that exists is version_conflict. The PHP form is Cbox\\Cms\\Core\\Placements\\Domain\\Commands\\CreatePlacement, and the generated codec CreatePlacementCodecV1 reads it and writes its canonical JSON: every key, sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "entry",
+    "node",
+    "placement",
+    "site",
+    "slugs"
+  ],
+  "properties": {
+    "entry": {
+      "description": "The id of the entry to place.",
+      "$ref": "#/$defs/id"
+    },
+    "node": {
+      "description": "The id of the node to place the entry below.",
+      "$ref": "#/$defs/id"
+    },
+    "placement": {
+      "description": "The new placement's id, which the caller makes.",
+      "$ref": "#/$defs/id"
+    },
+    "site": {
+      "description": "The id of the site the node belongs to.",
+      "$ref": "#/$defs/id"
+    },
+    "slugs": {
+      "description": "The placement's slug in each locale it is to have. The kernel refuses a placement without a slug, or with a locale twice, with validation_failed.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/locale_slug"
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "locale": {
+      "description": "A language tag of a language, an optional script and an optional region, such as da, en-GB or sr-Latn-RS; the kernel writes the language in lowercase, the script in title case and the region in uppercase.",
+      "type": "string",
+      "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$"
+    },
+    "locale_slug": {
+      "description": "The slug of a placement in one locale.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "locale",
+        "slug"
+      ],
+      "properties": {
+        "locale": {
+          "description": "The locale.",
+          "$ref": "#/$defs/locale"
+        },
+        "slug": {
+          "description": "The last segment of the placement's path in the locale: 1 to 255 characters without a slash or white space, and not . or ..; compared exactly.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^(?!\\.\\.?$)[^/\\s]+$"
+        }
+      }
+    }
+  }
+}

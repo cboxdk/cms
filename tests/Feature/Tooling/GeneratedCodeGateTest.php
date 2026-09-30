@@ -73,15 +73,15 @@ const PAGE_TYPE = <<<'YAML'
     YAML;
 
 /**
- * A git repository with the workbench's blueprints, the fixture addon's, the kernel's schemas and
- * every file of the generated code, committed.
+ * A git repository with the workbench's blueprints, the fixture addon's, the kernel's schemas (the
+ * contracts' and the commands') and every file of the generated code, committed.
  */
 function gateRepository(): string
 {
     $root = SchemaFixtures::scratch();
     $files = [];
 
-    foreach (['workbench/schema', 'workbench/addons/fixtureaddon/schema', ProtocolSchemas::SCHEMA_DIRECTORY, ...GENERATED_PATHS, PROTOCOL_PATH] as $directory) {
+    foreach (['workbench/schema', 'workbench/addons/fixtureaddon/schema', ProtocolSchemas::SCHEMA_DIRECTORY, ProtocolSchemas::COMMAND_SCHEMA_DIRECTORY, ...GENERATED_PATHS, PROTOCOL_PATH] as $directory) {
         foreach (SchemaFixtures::files(Phpstan::root().'/'.$directory) as $file) {
             $files[] = $directory.'/'.$file;
         }

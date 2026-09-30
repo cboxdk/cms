@@ -108,7 +108,11 @@ final readonly class TypeScriptEmitter
 
         $imports = ['validate', 'type ObjectRule'];
 
-        if (self::usesPortableText($objects)) {
+        if (self::uses($objects, CodecKind::Fields)) {
+            $imports[] = 'type FieldValues';
+        }
+
+        if (self::uses($objects, CodecKind::PortableText)) {
             $imports[] = 'type PortableText';
         }
 
@@ -273,11 +277,14 @@ final readonly class TypeScriptEmitter
     {
         switch ($value->kind) {
             case CodecKind::Integer:
+            case CodecKind::IntegerValue:
                 return 'number';
             case CodecKind::Boolean:
                 return 'boolean';
             case CodecKind::PortableText:
                 return 'PortableText';
+            case CodecKind::Fields:
+                return 'FieldValues';
             case CodecKind::Object:
                 return $names[self::object($value)->className];
             case CodecKind::List:
@@ -391,7 +398,8 @@ final readonly class TypeScriptEmitter
                 ...self::integers($value, ['minLength' => ValidationRuleName::MinLength, 'maxLength' => ValidationRuleName::MaxLength]),
                 ...self::strings($value, ['format' => ValidationRuleName::Format]),
             ],
-            CodecKind::Integer => [$kind('integer'), ...self::bounds($value)],
+            CodecKind::Integer, CodecKind::IntegerValue => [$kind('integer'), ...self::bounds($value)],
+            CodecKind::Fields => [$kind('fields')],
             CodecKind::Decimal => [
                 $kind('decimal'),
                 ...self::precisionAndScale($value),
@@ -547,13 +555,16 @@ final readonly class TypeScriptEmitter
     }
 
     /**
+     * Whether a property of the objects, or an item of one, is a value of the kind, whose type the
+     * module imports from the runtime module.
+     *
      * @param  array<string, CodecObject>  $objects
      */
-    private static function usesPortableText(array $objects): bool
+    private static function uses(array $objects, CodecKind $kind): bool
     {
         return array_any($objects, static fn (CodecObject $object): bool => array_any(
             $object->properties,
-            static fn (CodecProperty $property): bool => $property->value->kind === CodecKind::PortableText || $property->value->item?->kind === CodecKind::PortableText,
+            static fn (CodecProperty $property): bool => $property->value->kind === $kind || $property->value->item?->kind === $kind,
         ));
     }
 

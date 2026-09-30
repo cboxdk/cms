@@ -13,7 +13,7 @@ use Cbox\Cms\Generators\Protocol\Domain\ProtocolSchemas;
 use Cbox\Cms\Generators\Schema\Boundary\LocalFile;
 
 /**
- * The codec contracts of the kernel's JSON Schemas (ProtocolSchemas::kernel()), read from the
+ * The codec contracts of the kernel's JSON Schemas (ProtocolSchemas::all()), read from the
  * schemas of the cboxdk/cms this code is part of, for the generators that write their TypeScript.
  */
 #[Internal]
@@ -25,7 +25,7 @@ final readonly class KernelContracts
     public function __construct(private ?string $root = null) {}
 
     /**
-     * The contract of each kernel schema, in the order of ProtocolSchemas::kernel().
+     * The contract of each kernel schema, in the order of ProtocolSchemas::all().
      *
      * @return list<CodecContract>
      *
@@ -37,8 +37,8 @@ final readonly class KernelContracts
         $contracts = [];
         $problems = [];
 
-        foreach (ProtocolSchemas::kernel() as $binding) {
-            $path = ProtocolSchemas::SCHEMA_DIRECTORY.'/'.$binding->schema;
+        foreach (ProtocolSchemas::all() as $binding) {
+            $path = $binding->path();
             $json = LocalFile::contents($root.'/'.$path);
 
             if ($json === null) {

@@ -35,3 +35,4 @@ An extension point is `#[Stable]` or `#[Experimental]`. Every extension point do
 - [Receipt JSON](receipt-json.md): the JSON form of the receipt a write returns, `receipt.v1.json`, and its generated codec.
 - [Problem details](problem-details.md): the problem details document (RFC 9457) a surface answers an error with, `problem.v1.json`, and its generated codec.
 - [Envelope JSON](envelope-json.md): the envelope fields a caller sends with a write, `envelope.v1.json`, and how a surface builds the `Envelope` from them.
+- [Command JSON](command-json.md): the JSON form of each of the kernel's commands, one schema per command and version, the generic fields of a revision, and the generated codecs every surface reads them with.

@@ -13,7 +13,7 @@ use Cbox\Cms\Generators\Descriptor\Domain\Dto\ValidationRule;
  * What a property of a generated DTO holds (GUARDRAILS 2.2): its kind, the rules its codec checks
  * when it reads the value, in the type descriptor's vocabulary without `required` and `nullable`,
  * which belong to the property, and what the kind needs besides: the object of an Object, the item
- * of a List, and the class of an Id, an Enum or a Value, with the form of an Id's or a Value's
+ * of a List, and the class of an Id, an Enum, a Value, an IntegerValue or Fields, with the form of an Id's or a Value's
  * string when it is known, which the TypeScript validator checks.
  */
 #[Internal]
@@ -21,7 +21,7 @@ final readonly class CodecValue
 {
     /**
      * @param  list<ValidationRule>  $rules
-     * @param  ?string  $class  the fully qualified class of an Id, an Enum or a Value
+     * @param  ?string  $class  the fully qualified class of an Id, an Enum, a Value, an IntegerValue or Fields
      */
     private function __construct(
         public CodecKind $kind,
@@ -80,5 +80,22 @@ final readonly class CodecValue
     public static function value(string $class, ?StringForm $form = null): self
     {
         return new self(CodecKind::Value, [], class: $class, form: $form);
+    }
+
+    /**
+     * @param  class-string  $class
+     * @param  list<ValidationRule>  $rules
+     */
+    public static function integerValue(string $class, array $rules = []): self
+    {
+        return new self(CodecKind::IntegerValue, $rules, class: $class);
+    }
+
+    /**
+     * @param  class-string  $class
+     */
+    public static function fields(string $class): self
+    {
+        return new self(CodecKind::Fields, [], class: $class);
     }
 }

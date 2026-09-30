@@ -27,6 +27,7 @@ use Cbox\Cms\Core\Access\Domain\AccessResolver;
 use Cbox\Cms\Core\Addons\Boundary\AddonConfig;
 use Cbox\Cms\Core\Addons\Domain\Dto\ServiceActors;
 use Cbox\Cms\Core\Bindings\Boundary\ContractBindings;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\KernelCommandCodecs;
 use Cbox\Cms\Core\Delivery\Actions\DeliverPath;
 use Cbox\Cms\Core\Delivery\Adapter\JsonDeliveryDocuments;
 use Cbox\Cms\Core\Delivery\Boundary\DeliveryConfig;
@@ -115,11 +116,13 @@ use Cbox\Cms\Core\Pipeline\Adapter\PostgresChangesetCommitter;
 use Cbox\Cms\Core\Pipeline\Adapter\RegistryCommandHooks;
 use Cbox\Cms\Core\Pipeline\Adapter\RegistryWriteActions;
 use Cbox\Cms\Core\Pipeline\Adapter\SavepointRefusal;
+use Cbox\Cms\Core\Pipeline\Boundary\CodecCommandContentHasher;
 use Cbox\Cms\Core\Pipeline\Boundary\TypeRulesFieldValidation;
 use Cbox\Cms\Core\Pipeline\Boundary\WaitConfig;
 use Cbox\Cms\Core\Pipeline\Domain\AffectedProjections;
 use Cbox\Cms\Core\Pipeline\Domain\ChangesetCommitter;
 use Cbox\Cms\Core\Pipeline\Domain\CommandCodecs;
+use Cbox\Cms\Core\Pipeline\Domain\CommandContentHasher;
 use Cbox\Cms\Core\Pipeline\Domain\CommandHooks;
 use Cbox\Cms\Core\Pipeline\Domain\CommandTransaction;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCodec;
@@ -361,6 +364,18 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
             CommandCodecs::class,
             static fn (Application $app): CommandCodecs => new CommandCodecs(...self::tagged($app, CommandCodecs::TAG, CommandCodec::class)),
         );
+
+        // The kernel's own commands (PRD 6.4) are read with the codecs composer generate:protocol
+        // writes from their JSON Schemas (GUARDRAILS 2.2), each at its version, and a command's
+        // idempotency content hash is taken over the canonical JSON its codec writes (PRD 6.1).
+        foreach (KernelCommandCodecs::all() as $codec) {
+            $id = CommandCodecs::TAG.'.'.$codec->command->value.'.v'.$codec->version;
+            $this->app->instance($id, $codec);
+            $this->app->tag($id, CommandCodecs::TAG);
+        }
+
+        $this->app->bind(CommandContentHasher::class, CodecCommandContentHasher::class);
+
         $this->app->bind(
             QueryCodecs::class,
             static fn (Application $app): QueryCodecs => new QueryCodecs(...self::tagged($app, QueryCodecs::TAG, QueryCodec::class)),

@@ -24,7 +24,20 @@ afterEach(function (): void {
     ScratchDirectory::cleanUp();
 });
 
-const PROTOCOL_CODECS = ['EnvelopeCodecV1.php', 'ProblemCodecV1.php', 'ReceiptCodecV1.php'];
+const PROTOCOL_CODECS = [
+    'CreateEntryCodecV1.php',
+    'CreatePlacementCodecV1.php',
+    'DeactivateActorCodecV1.php',
+    'EnvelopeCodecV1.php',
+    'KernelCommandCodecs.php',
+    'ProblemCodecV1.php',
+    'PublishEntryCodecV1.php',
+    'ReceiptCodecV1.php',
+    'ReleaseVariantCodecV1.php',
+    'ReviseEntryCodecV1.php',
+    'SetPlacementWindowCodecV1.php',
+    'UnpublishEntryCodecV1.php',
+];
 
 /**
  * Runs tools/bin/generate-protocol.php of this checkout with the arguments.
@@ -51,14 +64,14 @@ function protocolRead(string $path): string
 }
 
 /**
- * A tree with a copy of this checkout's kernel schemas.
+ * A tree with a copy of this checkout's kernel schemas: the contracts' and the commands'.
  */
 function protocolTree(): string
 {
     $root = ScratchDirectory::make();
 
-    foreach (['envelope.v1.json', 'problem.v1.json', 'receipt.v1.json'] as $schema) {
-        ScratchDirectory::write($root.'/'.ProtocolSchemas::SCHEMA_DIRECTORY.'/'.$schema, protocolRead(Phpstan::root().'/'.ProtocolSchemas::SCHEMA_DIRECTORY.'/'.$schema));
+    foreach (ProtocolSchemas::all() as $binding) {
+        ScratchDirectory::write($root.'/'.$binding->path(), protocolRead(Phpstan::root().'/'.$binding->path()));
     }
 
     return $root;

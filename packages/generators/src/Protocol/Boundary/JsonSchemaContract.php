@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Protocol\Boundary;
 
 use BackedEnum;
+use Cbox\Cms\Contracts\Attributes\Command;
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Generators\Codec\Domain\CodecKind;
+use Cbox\Cms\Generators\Codec\Domain\Dto\CodecCommand;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecContract;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecObject;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecProperty;
@@ -19,6 +22,7 @@ use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Protocol\Domain\Dto\SchemaBinding;
 use Cbox\Cms\Generators\Protocol\Domain\Dto\ValueBinding;
+use Cbox\Cms\Generators\Protocol\Domain\FieldValuesSchema;
 use DateTimeImmutable;
 use JsonException;
 use ReflectionClass;
@@ -42,7 +46,11 @@ use Throwable;
  *   not required has a `default`, which the codec gives it when the key is missing;
  * - a value is `type` string, integer, boolean, array or object, or one of them and null; an
  *   object may be a `$ref` to `#/$defs/<name>`, and a nullable one `anyOf` of it and null;
- * - a string with `format: date-time` is a date-time, and `enum` is a value of a bound enum.
+ * - a string with `format: date-time` is a date-time, and `enum` is a value of a bound enum;
+ * - an integer bound with ValueBinding::value() is a value object of one integer, whose `minimum`
+ *   and `maximum` the codec checks before its constructor does;
+ * - a property bound with ValueBinding::fields() is the fields of a revision of any type: a
+ *   `$ref` to `#/$defs/fields`, with the definitions of FieldValuesSchema exactly as they are there.
  *
  * `pattern`, and minLength and maxLength of a bound value, describe what the bound class's
  * constructor checks, for the other readers of the schema; the codec leaves the check to the class.
@@ -109,7 +117,35 @@ final readonly class JsonSchemaContract
             version: $binding->version,
             summary: self::summary($document, $binding, $root),
             attribute: $attribute,
+            command: $binding->command === null ? null : $reader->command($binding->command),
         );
+    }
+
+    /**
+     * The command a command's schema is bound to: the class of the document, whose #[Command] gives
+     * the name and must give the binding's version, with the schema as pretty-printed JSON.
+     *
+     * @throws GenerationFailed
+     */
+    private function command(string $class): CodecCommand
+    {
+        if (($this->binding->objects['#'] ?? null) !== $class || ! class_exists($class)) {
+            throw $this->problem('#', sprintf('is the schema of the command %s, which is not a class or not the class the document is bound to', $class));
+        }
+
+        $attributes = new ReflectionClass($class)->getAttributes(Command::class);
+
+        if (count($attributes) !== 1) {
+            throw $this->problem('#', sprintf('is the schema of the command %s, which has no #[Command]', $class));
+        }
+
+        $command = $attributes[0]->newInstance();
+
+        if ($command->version !== $this->binding->version) {
+            throw $this->problem('#', sprintf('is version %d of a command, but #[Command] of %s gives version %d', $this->binding->version, $class, $command->version));
+        }
+
+        return new CodecCommand($command->name, (string) json_encode($this->document, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
     }
 
     /**
@@ -203,6 +239,10 @@ final readonly class JsonSchemaContract
     private function value(stdClass $node, string $pointer): array
     {
         $this->assertKeywords($node, $pointer);
+
+        if (($this->binding->values[$pointer] ?? null)?->kind === CodecKind::Fields) {
+            return [$this->fields($node, $this->binding->values[$pointer], $pointer), false];
+        }
 
         if (property_exists($node, 'anyOf')) {
             return [$this->nonNull($node, $pointer), true];
@@ -420,11 +460,11 @@ final readonly class JsonSchemaContract
         $binding = $this->binding->values[$pointer] ?? null;
 
         if ($binding instanceof ValueBinding) {
-            if ($binding->kind !== CodecKind::Enum) {
-                throw $this->problem($pointer, 'is an integer bound to a class that is not an enum');
-            }
-
-            return $this->enum($node, $binding, $pointer);
+            return match ($binding->kind) {
+                CodecKind::Enum => $this->enum($node, $binding, $pointer),
+                CodecKind::Value => $this->integerValue($node, $binding, $pointer),
+                default => throw $this->problem($pointer, 'is an integer bound to a class that is neither an enum nor a value'),
+            };
         }
 
         if (property_exists($node, 'enum')) {
@@ -436,6 +476,92 @@ final readonly class JsonSchemaContract
             ...$this->integerRule($node, 'minimum', ValidationRuleName::Min, $pointer),
             ...$this->integerRule($node, 'maximum', ValidationRuleName::Max, $pointer),
         ]);
+    }
+
+    /**
+     * An integer bound to a value object of one integer, whose constructor checks it; the schema's
+     * `minimum` and `maximum` are checked by the codec first.
+     *
+     * @throws GenerationFailed
+     */
+    private function integerValue(stdClass $node, ValueBinding $binding, string $pointer): CodecValue
+    {
+        if (property_exists($node, 'enum')) {
+            throw $this->problem($pointer, 'is an integer bound to a value and has an "enum"');
+        }
+
+        if (! class_exists($binding->class)) {
+            throw $this->problem($pointer, sprintf('is bound to %s, which is not a class', $binding->class));
+        }
+
+        $class = new ReflectionClass($binding->class);
+        $constructor = $class->getConstructor();
+        $parameters = $constructor?->getParameters() ?? [];
+
+        if (! $constructor instanceof ReflectionMethod || ! $constructor->isPublic() || count($parameters) !== 1 || $this->named($parameters[0]->getType()) !== 'int'
+            || ! $class->hasProperty('value') || ! $class->getProperty('value')->isPublic() || $this->named($class->getProperty('value')->getType()) !== 'int') {
+            throw $this->problem($pointer, sprintf('is bound to %s as an integer value, which has no constructor of one int and public int $value', $binding->class));
+        }
+
+        return CodecValue::integerValue($binding->class, [
+            ...$this->integerRule($node, 'minimum', ValidationRuleName::Min, $pointer),
+            ...$this->integerRule($node, 'maximum', ValidationRuleName::Max, $pointer),
+        ]);
+    }
+
+    /**
+     * The fields of a revision of any type: a `$ref` to FieldValuesSchema::REFERENCE, with a
+     * description at most, and each definition of FieldValuesSchema in the schema's `$defs` as it
+     * is there, so every rule the schema states is one the codec checks.
+     *
+     * @throws GenerationFailed
+     */
+    private function fields(stdClass $node, ValueBinding $binding, string $pointer): CodecValue
+    {
+        if ($binding->class !== FieldValues::class) {
+            throw $this->problem($pointer, sprintf('is bound as fields to %s; fields are %s', $binding->class, FieldValues::class));
+        }
+
+        if (($node->{'$ref'} ?? null) !== FieldValuesSchema::REFERENCE || array_diff(array_keys(get_object_vars($node)), ['$ref', 'description']) !== []) {
+            throw $this->problem($pointer, sprintf('is bound as fields, but is not {"$ref": "%s"} with a description at most', FieldValuesSchema::REFERENCE));
+        }
+
+        $expected = json_decode(FieldValuesSchema::DEFINITIONS, false, 64, JSON_THROW_ON_ERROR);
+        $definitions = $this->document->{'$defs'} ?? null;
+
+        foreach (get_object_vars($expected) as $name => $definition) {
+            $actual = $definitions instanceof stdClass ? ($definitions->{$name} ?? null) : null;
+
+            if ($this->normalized($actual) !== $this->normalized($definition)) {
+                throw $this->problem(self::DEFS.$name, 'is not the definition FieldValuesSchema gives the fields of a revision; copy it from there');
+            }
+        }
+
+        return CodecValue::fields(FieldValues::class);
+    }
+
+    /**
+     * A JSON value as canonical text: the keys of every object sorted.
+     */
+    private function normalized(mixed $value): string
+    {
+        return (string) json_encode($this->sorted($value), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    }
+
+    private function sorted(mixed $value): mixed
+    {
+        if (is_array($value)) {
+            return array_map($this->sorted(...), $value);
+        }
+
+        if (! $value instanceof stdClass) {
+            return $value;
+        }
+
+        $properties = get_object_vars($value);
+        ksort($properties, SORT_STRING);
+
+        return (object) array_map($this->sorted(...), $properties);
     }
 
     /**
@@ -728,7 +854,7 @@ final readonly class JsonSchemaContract
             CodecKind::Date, CodecKind::Datetime => DateTimeImmutable::class,
             CodecKind::List, CodecKind::PortableText => 'array',
             CodecKind::Object => (string) $value->object?->class,
-            CodecKind::Id, CodecKind::Enum, CodecKind::Value => (string) $value->class,
+            CodecKind::Id, CodecKind::Enum, CodecKind::Value, CodecKind::IntegerValue, CodecKind::Fields => (string) $value->class,
         };
     }
 
@@ -855,7 +981,7 @@ final readonly class JsonSchemaContract
         return [
             sprintf('The JSON codec of %s (GUARDRAILS 2.2): %s as %s.', self::text($document->title ?? $binding->schema), $root->className, $binding->schema),
             '',
-            'Generated by composer generate:protocol from '.$binding->schema.' in the contracts module.',
+            sprintf('Generated by composer generate:protocol from %s in the %s module.', $binding->schema, explode('/', $binding->directory)[1] ?? $binding->directory),
             'Do not edit this file: change the schema and run composer generate:protocol.',
         ];
     }

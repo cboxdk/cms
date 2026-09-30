@@ -121,6 +121,14 @@ export interface StringRule {
   readonly maxLength?: number;
 }
 
+/**
+ * The fields of a revision of any type, in the input form the type's validator reads: the owner's
+ * fields by handle, and each extender's under `ext` by its namespace.
+ */
+export interface FieldsRule {
+  readonly kind: 'fields';
+}
+
 /** One of the values of an enum. */
 export interface EnumRule {
   readonly kind: 'enum';
@@ -139,7 +147,8 @@ export type ValueRule =
   | ObjectValueRule
   | ListRule
   | StringRule
-  | EnumRule;
+  | EnumRule
+  | FieldsRule;
 
 /** A key of an object, in the order the kernel's codec reads it. */
 export interface PropertyRule {
@@ -184,6 +193,23 @@ export interface PortableTextBlock {
 
 /** The value of a rich text field: a list of Portable Text blocks. */
 export type PortableText = readonly PortableTextBlock[];
+
+/**
+ * A field's value as JSON gives it: a string, an integer, a boolean, null, a list of values or an
+ * object of values by key. A decimal, a date and a date-time are strings, and a group an object of
+ * its fields.
+ */
+export type FieldValue =
+  string | number | boolean | null | readonly FieldValue[] | { readonly [key: string]: FieldValue };
+
+/**
+ * The fields of a revision of any type, in the input form the type's validator reads: the owner's
+ * fields by handle, and each extender's fields under `ext` by its namespace. The kernel checks the
+ * values against the type's schema when it writes them.
+ */
+export type FieldValues = { readonly [handle: string]: FieldValue } & {
+  readonly ext?: { readonly [namespace: string]: { readonly [handle: string]: FieldValue } };
+};
 
 /**
  * Checks a JSON value against the rules of its contract, and gives it typed as the contract or the
@@ -245,6 +271,17 @@ const MAX_KEY_BYTES = 255;
 
 /** A key that is a segment of a path. */
 const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** The key of the extension fields in an object of fields. */
+const EXTENSIONS_KEY = 'ext';
+
+/** A field handle: lowercase snake_case of at most 63 bytes, never `ext` or starting with `cms_`. */
+const FIELD_HANDLE = /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/;
+
+const MAX_HANDLE_BYTES = 63;
+
+/** A namespace of extension fields: 1 to 20 lowercase letters and digits, starting with a letter, never `ext`. */
+const FIELD_NAMESPACE = /^[a-z][a-z0-9]{0,19}$/;
 
 /** The `_type` of a mark definition for each link kind. */
 const LINK_TYPES: Readonly<Record<string, string>> = { url: 'link' };
@@ -362,6 +399,9 @@ function checkValue(value: unknown, at: Path, rule: ValueRule): void {
       break;
     case 'string':
       checkString(value, at, rule);
+      break;
+    case 'fields':
+      checkFields(value, at);
       break;
     case 'enum':
       if (
@@ -700,6 +740,104 @@ function checkJson(value: unknown, at: Path): void {
 
       checkJson(entry, NAME.test(key) ? [...at, key] : at);
     }
+  }
+}
+
+/**
+ * The fields of a revision of any type: an object of the owner's fields by handle, each a field
+ * value, and under `ext` an object of namespaces, each an object of that extender's fields by
+ * handle.
+ */
+function checkFields(value: unknown, at: Path): void {
+  if (!isRecord(value)) {
+    throw new Invalid(at, 'is not an object of fields by handle');
+  }
+
+  for (const [key, field] of Object.entries(value)) {
+    if (key === EXTENSIONS_KEY) {
+      checkExtensionFields(field, [...at, key]);
+
+      continue;
+    }
+
+    checkNamedValue(key, field, at);
+  }
+}
+
+function checkExtensionFields(value: unknown, at: Path): void {
+  if (!isRecord(value)) {
+    throw new Invalid(at, 'is not an object of extension fields by namespace');
+  }
+
+  for (const [namespace, fields] of Object.entries(value)) {
+    if (!FIELD_NAMESPACE.test(namespace) || namespace === EXTENSIONS_KEY) {
+      throw new Invalid(at, `has the key "${namespace}", which is not a namespace`);
+    }
+
+    if (!isRecord(fields)) {
+      throw new Invalid([...at, namespace], 'is not an object of fields by handle');
+    }
+
+    for (const [handle, field] of Object.entries(fields)) {
+      checkNamedValue(handle, field, [...at, namespace]);
+    }
+  }
+}
+
+function checkNamedValue(handle: string, value: unknown, at: Path): void {
+  if (
+    handle.length > MAX_HANDLE_BYTES ||
+    !FIELD_HANDLE.test(handle) ||
+    handle === EXTENSIONS_KEY ||
+    handle.startsWith('cms_')
+  ) {
+    throw new Invalid(at, `has the key "${handle}", which is not a field handle`);
+  }
+
+  checkFieldValue(value, [...at, handle]);
+}
+
+/**
+ * A field's value as JSON gives it: a string, an integer, a boolean, null, a list of values or an
+ * object of values by a key of 1 to 255 bytes.
+ */
+function checkFieldValue(value: unknown, at: Path): void {
+  if (typeof value === 'string' || typeof value === 'boolean' || value === null) {
+    return;
+  }
+
+  if (typeof value === 'number') {
+    if (!Number.isSafeInteger(value)) {
+      throw new Invalid(at, 'holds a number that is not an integer');
+    }
+
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    const items: readonly unknown[] = value;
+    items.forEach((item, index) => {
+      checkFieldValue(item, [...at, index]);
+    });
+
+    return;
+  }
+
+  if (!isRecord(value)) {
+    throw new Invalid(at, 'holds a number that is not an integer');
+  }
+
+  for (const [key, entry] of Object.entries(value)) {
+    const bytes = new TextEncoder().encode(key).length;
+
+    if (bytes === 0 || bytes > MAX_KEY_BYTES) {
+      throw new Invalid(
+        at,
+        `has a key of ${String(bytes)} bytes; a key has 1 to ${String(MAX_KEY_BYTES)}`,
+      );
+    }
+
+    checkFieldValue(entry, NAME.test(key) ? [...at, key] : at);
   }
 }
 

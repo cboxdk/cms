@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "actor.deactivate, contract version 1",
+  "description": "Deactivates an actor (PRD 5.16, 6.4) in one changeset: the actor becomes deactivated, every credential it holds is refused at once and its direct grants end. An actor that is deactivated or deprovisioned already is rejected. The PHP form is Cbox\\Cms\\Core\\Identity\\Domain\\Commands\\DeactivateActor, and the generated codec DeactivateActorCodecV1 reads it and writes its canonical JSON: every key, sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "actor"
+  ],
+  "properties": {
+    "actor": {
+      "description": "The id of the actor to deactivate.",
+      "$ref": "#/$defs/id"
+    },
+    "source": {
+      "description": "What deactivated the actor, noted on it: local, a person or a service of the installation, or inactivity, the inactivity job. Missing is local.",
+      "enum": [
+        "local",
+        "inactivity"
+      ],
+      "default": "local"
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    }
+  }
+}

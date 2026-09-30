@@ -7,21 +7,30 @@ namespace Cbox\Cms\Core\Codecs\Boundary;
 use BackedEnum;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Fields\BooleanValue;
+use Cbox\Cms\Contracts\Fields\ExtensionFields;
+use Cbox\Cms\Contracts\Fields\FieldHandle;
+use Cbox\Cms\Contracts\Fields\FieldMap;
+use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Fields\FieldValue;
+use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\IntegerValue;
+use Cbox\Cms\Contracts\Fields\InvalidFieldValue;
 use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Fields\MapEntry;
 use Cbox\Cms\Contracts\Fields\MapValue;
+use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Fields\NullValue;
 use Cbox\Cms\Contracts\Fields\Omitted;
 use Cbox\Cms\Contracts\Fields\TextValue;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Results\FieldPath;
+use Cbox\Cms\Contracts\Validation\TypeRules;
 use Cbox\Cms\Core\Codecs\Domain\DecimalNumber;
 use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
 use Cbox\Cms\Core\Codecs\Domain\EncodingFailed;
 use Cbox\Cms\Core\Codecs\Domain\PortableText;
 use Cbox\Cms\Core\Codecs\Domain\TextFormats;
+use Cbox\Cms\Core\Pipeline\Boundary\FieldValuesInput;
 use Closure;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -551,6 +560,82 @@ final readonly class JsonValues
     }
 
     /**
+     * The fields of a revision of any type (GUARDRAILS 2.4) in the input form the type's validator
+     * reads: an object of the owner's fields by handle, with the extension fields under `ext`, an
+     * object of namespaces, each an object of that extender's fields by handle. A command that works
+     * for any type names no type the codec could read the values with, so each value is read as
+     * fieldValue() reads it: a string as TextValue, an integer as IntegerValue, a boolean as
+     * BooleanValue, null as NullValue, an array as ListValue and an object as MapValue. The kernel
+     * checks the fields against the type's schema in the same input form at the write stage.
+     *
+     * @throws DecodingFailed with json_invalid
+     */
+    public static function fieldValues(mixed $value, FieldPath $at): FieldValues
+    {
+        if (! $value instanceof stdClass) {
+            throw DecodingFailed::invalid($at, 'is not an object of fields by handle');
+        }
+
+        $own = [];
+        $extensions = [];
+
+        foreach (get_object_vars($value) as $key => $field) {
+            $key = (string) $key;
+
+            if ($key === TypeRules::EXTENSIONS_KEY) {
+                $extensions = self::extensionFields($field, $at->then($key));
+
+                continue;
+            }
+
+            $own[] = self::namedValue($key, $field, $at);
+        }
+
+        return new FieldValues(new FieldMap(...$own), ...$extensions);
+    }
+
+    /**
+     * The JSON form of the fields that fieldValues() reads: the input form, with the keys of every
+     * object sorted, so the same fields always give the same bytes. A value that is not of a kind
+     * JSON gives, such as a date or a group, is written in its input form.
+     */
+    public static function encodeFieldValues(FieldValues $fields): stdClass
+    {
+        $input = get_object_vars(FieldValuesInput::of($fields));
+        ksort($input, SORT_STRING);
+        $object = new stdClass;
+
+        foreach ($input as $key => $field) {
+            $object->{$key} = $field;
+        }
+
+        return $object;
+    }
+
+    /**
+     * A value object of one integer, made by $make from the integer, which throws
+     * InvalidArgumentException for one that is not one, as the value objects of the contracts do,
+     * such as a version. The integer is checked against $min and $max first.
+     *
+     * @template T of object
+     *
+     * @param  Closure(int): T  $make
+     * @return T
+     *
+     * @throws DecodingFailed with json_invalid
+     */
+    public static function integerValue(mixed $value, FieldPath $at, Closure $make, ?int $min = null, ?int $max = null): object
+    {
+        $number = self::integer($value, $at, $min, $max);
+
+        try {
+            return $make($number);
+        } catch (InvalidArgumentException $exception) {
+            throw DecodingFailed::invalid($at, 'is not valid: '.$exception->getMessage(), $exception);
+        }
+    }
+
+    /**
      * An id, parsed from its canonical string by $parse, which throws InvalidArgumentException for
      * a string that is not one, as the ids of the contracts do.
      *
@@ -704,6 +789,60 @@ final readonly class JsonValues
      *
      * @throws DecodingFailed with json_invalid for a key that a MapEntry cannot have
      */
+    /**
+     * @return list<ExtensionFields>
+     *
+     * @throws DecodingFailed with json_invalid
+     */
+    private static function extensionFields(mixed $value, FieldPath $at): array
+    {
+        if (! $value instanceof stdClass) {
+            throw DecodingFailed::invalid($at, 'is not an object of extension fields by namespace');
+        }
+
+        $extensions = [];
+
+        foreach (get_object_vars($value) as $namespace => $fields) {
+            try {
+                $name = new FieldNamespace((string) $namespace);
+            } catch (InvalidFieldValue $invalid) {
+                throw DecodingFailed::invalid($at, sprintf('has the key "%s", which is not a namespace: %s', $namespace, $invalid->getMessage()), $invalid);
+            }
+
+            $path = $at->then($name->value);
+
+            if (! $fields instanceof stdClass) {
+                throw DecodingFailed::invalid($path, 'is not an object of fields by handle');
+            }
+
+            $named = [];
+
+            foreach (get_object_vars($fields) as $handle => $field) {
+                $named[] = self::namedValue((string) $handle, $field, $path);
+            }
+
+            $extensions[] = new ExtensionFields($name, new FieldMap(...$named));
+        }
+
+        return $extensions;
+    }
+
+    /**
+     * The field $handle of the object of fields at $at.
+     *
+     * @throws DecodingFailed with json_invalid
+     */
+    private static function namedValue(string $handle, mixed $value, FieldPath $at): NamedValue
+    {
+        try {
+            $name = new FieldHandle($handle);
+        } catch (InvalidFieldValue $invalid) {
+            throw DecodingFailed::invalid($at, sprintf('has the key "%s", which is not a field handle: %s', $handle, $invalid->getMessage()), $invalid);
+        }
+
+        return new NamedValue($name, self::fieldValue($value, $at->then($name->value)));
+    }
+
     private static function entry(string $key, mixed $value, FieldPath $at): MapEntry
     {
         if ($key === '' || strlen($key) > self::MAX_KEY_BYTES) {
