@@ -33,15 +33,7 @@ final readonly class RegistryCommandHooks implements CommandHooks
     #[Override]
     public function for(CommandName $command, int $version): array
     {
-        $hooks = [];
-
-        foreach ($this->registry->hooks as $entry) {
-            if ($entry->command->equals($command) && $entry->commandVersion === $version) {
-                $hooks[] = $this->bind($entry);
-            }
-        }
-
-        return $hooks;
+        return array_map($this->bind(...), $this->registry->hooksOf($command, $version));
     }
 
     private function bind(HookEntry $entry): BoundHook

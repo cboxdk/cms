@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Cli;
 
+use Cbox\Cms\Cli\Console\ActionsCommand;
 use Cbox\Cms\Cli\Console\BuildCommand;
 use Cbox\Cms\Cli\Console\DoctorCommand;
+use Cbox\Cms\Cli\Console\ExplainCommand;
+use Cbox\Cms\Cli\Console\HooksCommand;
 use Cbox\Cms\Cli\Console\ListParkedCommand;
 use Cbox\Cms\Cli\Console\MaintainPartitionsCommand;
 use Cbox\Cms\Cli\Console\RebuildTypeTableCommand;
@@ -47,8 +50,11 @@ final class CliServiceProvider extends ServiceProvider implements DeclaresScanRo
     {
         if ($this->app->runningInConsole()) {
             $this->commands([
+                ActionsCommand::class,
                 BuildCommand::class,
                 DoctorCommand::class,
+                ExplainCommand::class,
+                HooksCommand::class,
                 ListParkedCommand::class,
                 MaintainPartitionsCommand::class,
                 RebuildTypeTableCommand::class,

@@ -104,6 +104,21 @@ final readonly class CompiledRegistry
     }
 
     /**
+     * The hooks that run for a version of a command, in the order they run: the registry's order,
+     * phase in pipeline order, then priority with the lowest first, then package, then class (PRD
+     * 6.3). The pipeline and cms:hooks both read them here, so the map shows the order they run in.
+     *
+     * @return list<HookEntry>
+     */
+    public function hooksOf(CommandName $command, int $version): array
+    {
+        return array_values(array_filter(
+            $this->hooks,
+            static fn (HookEntry $hook): bool => $hook->command->equals($command) && $hook->commandVersion === $version,
+        ));
+    }
+
+    /**
      * The subscribers that receive events of a class, in registry order. PHP class names are
      * compared without case, as PHP compares them.
      *

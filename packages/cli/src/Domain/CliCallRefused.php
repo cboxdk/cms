@@ -12,8 +12,9 @@ use RuntimeException;
 use Throwable;
 
 /**
- * cms:run refused a call before the kernel ran it (GUARDRAILS 2.1), so nothing was committed and no
- * idempotency key was claimed. Either the call carries a code of the error catalog, with the path
+ * A cms:* command of the cli refused a call before the kernel ran it (GUARDRAILS 2.1): for cms:run
+ * nothing was committed and no idempotency key was claimed, and for the inspecting commands, such as
+ * cms:explain, nothing was read. Either the call carries a code of the error catalog, with the path
  * of the value it names, such as an envelope option the envelope's codec refused
  * (`envelope.wait_level`) or a registry cache that cannot be read, and the command exits with the
  * catalog's exit code for it; or it is a usage error or a broken installation that has no code of
