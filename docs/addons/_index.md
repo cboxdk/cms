@@ -26,6 +26,7 @@ An extension point is `#[Stable]` or `#[Experimental]`. Every extension point do
 - [Entry commands](entry-commands.md): `entry.create` and `entry.revise`, what the kernel stores for them as a type's capabilities say, their events and their rejections.
 - [Placement commands](placement-commands.md): `placement.create` and `placement.set_window`, where a placement is decided, the slug and canonical rules, the visibility states, their events and their rejections.
 - [Release command](release-command.md): `variant.release`, what the kernel checks before a revision is released, what it stores, its event and its rejections.
+- [Publish commands](publish-commands.md): `entry.publish` and `entry.unpublish`, the release and the home placement going live in one changeset, what a dry run shows, what unpublishing takes back, their events and their rejections.
 - [Actor commands](actor-commands.md): `actor.deactivate`, what it changes in one changeset, its event and how it stops every command and read of the actor.
 - [Plans and mutations](plans.md): the `Plan` a write action returns, the typed mutations and the kernel-generic field values of a revision.
 - [Queries and query actions](queries.md): `Query`, `QueryAction` and the typed `Result` of a read.

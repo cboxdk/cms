@@ -11,29 +11,36 @@ use Cbox\Cms\Contracts\Plans\Plan;
 
 /**
  * What a dry run gives instead of a commit (PRD 6.1, 6.2 phase 6): the plan that would have been
- * committed, its blast radius as counts, and its diff: one AggregateChange per aggregate the plan
+ * committed, its blast radius as counts, its diff: one AggregateChange per aggregate the plan
  * changes, with the version it was read at and the version the commit would give it, sorted by
- * aggregate key.
+ * aggregate key, and every placement the plan makes visible, as an action that ReportsVisibility
+ * gives them, sorted by placement and locale (PRD 6.4). A placement a release shows is listed
+ * although the plan does not change it.
  */
 #[Experimental]
 final readonly class DryRunReport
 {
     /**
      * @param  list<AggregateChange>  $diff
+     * @param  list<BecomesVisible>  $visible
      */
     private function __construct(
         public Plan $plan,
         public BlastRadius $blastRadius,
         public array $diff,
+        public array $visible,
     ) {}
 
     /**
-     * The report of a plan made from the reads. Every aggregate a mutation changes must be one
-     * of the reads, as the kernel requires before it commits.
+     * The report of a plan made from the reads, with the placements it makes visible. Every
+     * aggregate a mutation changes must be one of the reads, as the kernel requires before it
+     * commits.
+     *
+     * @param  list<BecomesVisible>  $visible
      *
      * @throws InvalidWriteResult when a mutation changes an aggregate that was not read
      */
-    public static function of(Plan $plan, ReadVersions $reads): self
+    public static function of(Plan $plan, ReadVersions $reads, array $visible = []): self
     {
         $mutations = $plan->mutations();
         $changed = [];
@@ -66,6 +73,8 @@ final readonly class DryRunReport
             $aggregates[] = new AggregateCount((string) $kind, $count);
         }
 
-        return new self($plan, new BlastRadius(count($mutations), $aggregates), $diff);
+        usort($visible, static fn (BecomesVisible $one, BecomesVisible $other): int => [$one->placement->toString(), $one->locale->value] <=> [$other->placement->toString(), $other->locale->value]);
+
+        return new self($plan, new BlastRadius(count($mutations), $aggregates), $diff, $visible);
     }
 }

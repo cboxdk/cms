@@ -31,6 +31,8 @@ use LogicException;
  * the released row changes, its values are kept as the draft row; then the released row takes the
  * revision's values, and the draft row is removed again when it holds the same values, so it
  * exists after the release exactly when the pending draft differs from what was released.
+ * unrelease() removes the released row again when the content is unpublished (PRD 6.4), keeping
+ * its values as the draft row where the variant had none.
  */
 #[Internal]
 final readonly class TypeRows
@@ -83,6 +85,47 @@ final readonly class TypeRows
         $table = $type->name->table();
         $copied = [self::ENTRY, self::LOCALE, self::HOME, self::OWNER, ...array_keys($columns)];
 
+        $this->keepDraft($table, $copied, $entry, $variant);
+
+        $this->upsert($table, self::RELEASED, $entry, $variant, $columns);
+        $this->dropDraftLikeReleased($table, array_keys($columns), $entry, $variant);
+    }
+
+    /**
+     * Removes the released row of a draft-release type when its content is unpublished (PRD 6.4).
+     * A variant without a draft row has a draft equal to its released row, so the released row's
+     * values are kept as the draft row first; the draft row then holds the pending draft either way.
+     *
+     * @throws LogicException when the type has no stages to release
+     */
+    public function unrelease(TypeDefinition $type, EntryId $entry, VariantKey $variant): void
+    {
+        if ($type->capabilities->stages !== Stages::DraftRelease) {
+            throw new LogicException(sprintf('The type %s has stages %s, so no revision of it is released or unreleased.', $type->name->value, $type->capabilities->stages->value));
+        }
+
+        $table = $type->name->table();
+        $columns = [];
+
+        foreach ($type->fields as $field) {
+            $columns[] = $field->column->name ?? throw new LogicException(sprintf('The top-level field "%s" of %s has no column.', $field->address(), $type->name->value));
+        }
+
+        $this->keepDraft($table, [self::ENTRY, self::LOCALE, self::HOME, self::OWNER, ...$columns], $entry, $variant);
+        $this->db->table($table)
+            ->where(self::ENTRY, $entry->toString())
+            ->where(self::LOCALE, $variant->value)
+            ->where(self::STAGE, self::RELEASED)
+            ->delete();
+    }
+
+    /**
+     * Copies the released row of the variant to its draft row when it has none.
+     *
+     * @param  list<string>  $copied  the columns the draft row takes from the released row
+     */
+    private function keepDraft(string $table, array $copied, EntryId $entry, VariantKey $variant): void
+    {
         $this->db->insert(
             sprintf(
                 'insert into "%1$s" (%2$s, %3$s) select %4$s, ? from "%1$s" where %5$s = ? and %6$s = ? and %7$s = ? on conflict (%5$s, %6$s, %7$s) do nothing',
@@ -96,9 +139,6 @@ final readonly class TypeRows
             ),
             [self::DRAFT, $entry->toString(), $variant->value, self::RELEASED],
         );
-
-        $this->upsert($table, self::RELEASED, $entry, $variant, $columns);
-        $this->dropDraftLikeReleased($table, array_keys($columns), $entry, $variant);
     }
 
     /**

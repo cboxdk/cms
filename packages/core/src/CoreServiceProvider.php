@@ -78,6 +78,7 @@ use Cbox\Cms\Core\Entries\Adapter\PostgresRevisionContents;
 use Cbox\Cms\Core\Entries\Adapter\PostgresVariantVersionLock;
 use Cbox\Cms\Core\Entries\Adapter\RevisionCreatedWriter;
 use Cbox\Cms\Core\Entries\Adapter\VariantReleasedWriter;
+use Cbox\Cms\Core\Entries\Adapter\VariantUnreleasedWriter;
 use Cbox\Cms\Core\Entries\Domain\EntryReader;
 use Cbox\Cms\Core\Fragments\Boundary\InvalidationConfig;
 use Cbox\Cms\Core\Fragments\Domain\Dto\InvalidationSettings;
@@ -115,6 +116,7 @@ use Cbox\Cms\Core\Pipeline\Domain\VersionLock;
 use Cbox\Cms\Core\Pipeline\Domain\VersionLocks;
 use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
 use Cbox\Cms\Core\Placements\Adapter\PlacementCanonicalSetWriter;
+use Cbox\Cms\Core\Placements\Adapter\PlacementClosedWriter;
 use Cbox\Cms\Core\Placements\Adapter\PlacementCreatedWriter;
 use Cbox\Cms\Core\Placements\Adapter\PlacementLocaleAddedWriter;
 use Cbox\Cms\Core\Placements\Adapter\PlacementWindowSetWriter;
@@ -333,6 +335,11 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->bind(PlacementReader::class, PostgresPlacementReader::class);
         $this->app->tag([PostgresPlacementVersionLock::class, PostgresSiteVersionLock::class, PostgresPlacementSlugLock::class, PostgresCanonicalPlacementLock::class], VersionLocks::TAG);
         $this->app->tag([PlacementCreatedWriter::class, PlacementLocaleAddedWriter::class, PlacementWindowSetWriter::class, PlacementCanonicalSetWriter::class], MutationWriters::TAG);
+
+        // The composite commands entry.publish and entry.unpublish (PRD 6.4) compose the planners of
+        // the release and the placement commands and read through their readers; they add the
+        // writers of taking a release back and of closing a placement on every site.
+        $this->app->tag([VariantUnreleasedWriter::class, PlacementClosedWriter::class], MutationWriters::TAG);
 
         // actor.deactivate (PRD 5.16): the writer of its mutation, which deactivates the actor and
         // ends its direct grants.

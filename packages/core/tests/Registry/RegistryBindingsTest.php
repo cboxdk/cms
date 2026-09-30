@@ -20,6 +20,10 @@ use Cbox\Cms\Core\Placements\Actions\CreatePlacementAction;
 use Cbox\Cms\Core\Placements\Actions\SetPlacementWindowAction;
 use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
+use Cbox\Cms\Core\Publishing\Actions\PublishEntryAction;
+use Cbox\Cms\Core\Publishing\Actions\UnpublishEntryAction;
+use Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry;
+use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
 use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
 use Cbox\Cms\Core\Registry\Boundary\ProviderScanRoots;
@@ -92,7 +96,9 @@ it('scans the packages\' own classes without a problem and registers the kernel\
         ->toBe([
             'actor.deactivate@1 '.DeactivateActor::class,
             'entry.create@1 '.CreateEntry::class,
+            'entry.publish@1 '.PublishEntry::class,
             'entry.revise@1 '.ReviseEntry::class,
+            'entry.unpublish@1 '.UnpublishEntry::class,
             'placement.create@1 '.CreatePlacement::class,
             'placement.set_window@1 '.SetPlacementWindow::class,
             'variant.release@1 '.ReleaseVariant::class,
@@ -101,7 +107,9 @@ it('scans the packages\' own classes without a problem and registers the kernel\
         ->toBe([
             'actor.deactivate@1 '.DeactivateActorAction::class.' write',
             'entry.create@1 '.CreateEntryAction::class.' write',
+            'entry.publish@1 '.PublishEntryAction::class.' write',
             'entry.revise@1 '.ReviseEntryAction::class.' write',
+            'entry.unpublish@1 '.UnpublishEntryAction::class.' write',
             'placement.create@1 '.CreatePlacementAction::class.' write',
             'placement.set_window@1 '.SetPlacementWindowAction::class.' write',
             'variant.release@1 '.ReleaseVariantAction::class.' write',
@@ -109,7 +117,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
         ->and($registry->actionFor(DeactivateActor::class)?->surfaces)->toBe([])
         ->and($registry->actionFor(CreateEntry::class)?->class)->toBe(CreateEntryAction::class)
         ->and($registry->actionFor(ReviseEntry::class)?->class)->toBe(ReviseEntryAction::class)
-        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([6, 6, 0, 0, 1])
+        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([8, 8, 0, 0, 1])
         ->and($registry->hooks)->toBe([])
         ->and(array_map(static fn (SubscriberEntry $entry): string => $entry->name->value.' '.$entry->class.' '.$entry->lane->value.' '.$entry->projection?->value, $registry->subscribers))
         ->toBe(['fragments.invalidate '.InvalidateFragments::class.' critical origin'])

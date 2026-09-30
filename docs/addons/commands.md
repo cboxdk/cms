@@ -12,6 +12,7 @@ description: "Write a command, its WriteAction and its surfaces: the Envelope a 
 <!-- extension-point: Cbox\Cms\Contracts\Pipeline\AggregateRef -->
 <!-- extension-point: Cbox\Cms\Contracts\Pipeline\ExpectsVersions -->
 <!-- extension-point: Cbox\Cms\Contracts\Pipeline\RefusesCommand -->
+<!-- extension-point: Cbox\Cms\Contracts\Pipeline\ReportsVisibility -->
 <!-- extension-point: Cbox\Cms\Contracts\Attributes\Action -->
 
 There is one way to change state: a command, run through the kernel's command pipeline (PRD 6.1, 6.2). The panel, REST, MCP, agents, the CLI, jobs, the scheduler, subscribers, sidecars and seeds all call the same write action. All the types on this page are `#[Experimental]` and live in the contracts module.
@@ -104,6 +105,8 @@ What `resolve()` returns implements `Cbox\Cms\Contracts\Pipeline\Aggregates`: th
 A command that carries the versions its caller saw implements `Cbox\Cms\Contracts\Pipeline\ExpectsVersions`, which extends `Command`: `expectedVersions()` gives a `ReadVersions` of the aggregates the caller read, each at its version or absent. The kernel compares them with what `resolve()` read and rejects the command with `version_conflict` when one differs, before it authorizes anything (invariant 11). Each aggregate a command expects a version of must be one its action reads.
 
 A write action whose command what it read can rule out also implements `Cbox\Cms\Contracts\Pipeline\RefusesCommand`: `refusals(Command, Aggregates)` gives the errors to reject the call with, first the one that decides it, as `CatalogError`s of the [error catalog](errors.md), or none to go on. The kernel asks it after the authorize phase and before `plan()`, so a caller that may not run the command learns nothing from its reasons. It is pure like the other two steps; the kernel's `placement.create` refuses a slug another placement has below the node with it (see [placement commands](placement-commands.md)).
+
+A write action whose plan can make placements visible that it does not change also implements `Cbox\Cms\Contracts\Pipeline\ReportsVisibility`: `becomesVisible(Command, Aggregates, Plan)` gives each placement in each locale the plan makes visible, or visible at another time, as a `BecomesVisible` with the time it becomes visible. The kernel asks it only on a dry run, with the plan as the hooks left it, and puts the list in the `DryRunReport`. It is pure like the other steps; the kernel's `entry.publish` lists the placements its release shows with it (see [publish commands](publish-commands.md)).
 
 `Cbox\Cms\Contracts\Pipeline\AggregateRef` is what names an aggregate: `aggregateKey()` gives its kind and id, such as `entry:<uuid>`, unique across every kind. The typed ids `EntryId`, `NodeId`, `PlacementId`, `SiteId` and `ActorId` implement it, and so does `VariantRef`, one variant of an entry (`variant:<uuid>:<variant>`).
 
@@ -438,9 +441,9 @@ A write ends in a `Cbox\Cms\Contracts\Results\WriteResult`, which carries the ca
 | `rejected` | at least one `CatalogError`: a code from the error catalog, the `FieldPath` of the input it is about or null, and the cause in plain language. Nothing was committed. |
 | `committed` | the receipt with the changeset |
 | `committed_wait_timeout` | the receipt with the changeset; the wait level was not reached in time |
-| `dry_run` | a `DryRunReport`: the plan the command would have committed, its `BlastRadius` and its diff |
+| `dry_run` | a `DryRunReport`: the plan the command would have committed, its `BlastRadius`, its diff and the placements it makes visible |
 
-A dry run's `BlastRadius` counts the mutations of the plan and the distinct aggregates they change, by kind: `of('entry')`, `of('variant')` and `total()`. Its diff is one `AggregateChange` per aggregate the plan changes, sorted by aggregate key, with the version it was read at (`before`, null when the write creates it), the version the commit would give it (`after`) and the number of mutations that change it.
+A dry run's `BlastRadius` counts the mutations of the plan and the distinct aggregates they change, by kind: `of('entry')`, `of('variant')` and `total()`. Its diff is one `AggregateChange` per aggregate the plan changes, sorted by aggregate key, with the version it was read at (`before`, null when the write creates it), the version the commit would give it (`after`) and the number of mutations that change it. Its `visible` lists the placements the plan makes visible, sorted by placement and locale, when the action `ReportsVisibility`, and none otherwise.
 
 A `FieldPath` is a list of names and indexes, written `blocks[2].text` or `fields.ext.app.tax_code`. Each surface translates the result for its transport. No code serialises a result to JSON by hand: the receipt's JSON form is on [Receipt JSON](receipt-json.md), and a rejection's catalog errors become the field errors of [problem details](problem-details.md), each written by its generated codec.
 

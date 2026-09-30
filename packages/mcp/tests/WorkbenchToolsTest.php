@@ -79,7 +79,7 @@ it('names each kernel command the workbench exposes on MCP without a codec, with
     $exposed = workbenchMcpActions($registry);
     $tools = app(McpTools::class);
 
-    expect($exposed)->toBe(['entry.create 1', 'entry.revise 1', 'placement.create 1', 'placement.set_window 1', 'variant.release 1'])
+    expect($exposed)->toBe(['entry.create 1', 'entry.publish 1', 'entry.revise 1', 'entry.unpublish 1', 'placement.create 1', 'placement.set_window 1', 'variant.release 1'])
         ->and(workbenchMcpActions(app(CompiledRegistry::class)))->toBe($exposed)
         ->and($tools->tools)->toBe([])
         ->and(undescribedActions($tools))->toBe($exposed)
@@ -95,7 +95,7 @@ it('lists the compiled tools of the workbench with the test-only actions and run
 
     expect(Route::has(McpRoutes::NAME))->toBeTrue()
         ->and(array_map(static fn (McpTool $tool): string => $tool->name->value, $tools->tools))->toBe([McpWorld::READ_TOOL, McpWorld::WRITE_TOOL])
-        ->and(undescribedActions($tools))->toBe(['entry.create 1', 'entry.revise 1', 'placement.create 1', 'placement.set_window 1', 'variant.release 1']);
+        ->and(undescribedActions($tools))->toBe(['entry.create 1', 'entry.publish 1', 'entry.revise 1', 'entry.unpublish 1', 'placement.create 1', 'placement.set_window 1', 'variant.release 1']);
 
     $listed = McpClient::tools();
     $called = McpClient::call(McpWorld::WRITE_TOOL, McpClient::writeArguments($world, ['idempotency_key' => 'mcp-workbench']), $world->exposed->credential(IssuerKind::Agent));

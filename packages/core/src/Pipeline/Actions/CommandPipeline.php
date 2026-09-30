@@ -28,6 +28,7 @@ use Cbox\Cms\Contracts\Pipeline\ExpectsVersions;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersions;
 use Cbox\Cms\Contracts\Pipeline\RefusesCommand;
+use Cbox\Cms\Contracts\Pipeline\ReportsVisibility;
 use Cbox\Cms\Contracts\Plans\ChangesPublicVisibility;
 use Cbox\Cms\Contracts\Plans\Mutations\EntryCreated;
 use Cbox\Cms\Contracts\Plans\Mutations\RevisionCreated;
@@ -115,7 +116,8 @@ use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
  *    with block B6 (PRD 12.2, 12.3). Any error rejects the call with validation_failed, followed by
  *    each error.
  * 6. Dry run: a call whose envelope asks for one ends here with the plan, its blast radius and its
- *    diff, and commits nothing.
+ *    diff, and commits nothing. An action that ReportsVisibility adds every placement the plan
+ *    makes visible, such as the placements a release shows (PRD 6.4).
  * 7. Commit, through the ChangesetCommitter, with every aggregate read and its version: the
  *    actors' and the action's. A stale read is version_conflict. A committed changeset completes
  *    the claim in the same transaction, so the key and the changeset commit together; a rejected
@@ -342,7 +344,9 @@ final readonly class CommandPipeline
         }
 
         if ($envelope->dryRun) {
-            return WriteResult::dryRun(Receipt::dryRun($envelope->waitLevel, RetentionClass::Standard), DryRunReport::of($plan, $reads));
+            $visible = $action instanceof ReportsVisibility ? $action->becomesVisible($call->command, $aggregates, $plan) : [];
+
+            return WriteResult::dryRun(Receipt::dryRun($envelope->waitLevel, RetentionClass::Standard), DryRunReport::of($plan, $reads, $visible));
         }
 
         try {

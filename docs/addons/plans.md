@@ -31,6 +31,7 @@ A mutation implements `Cbox\Cms\Contracts\Plans\Mutation`: a final readonly clas
 | `PlacementLocaleAdded(placement, locale, slug, canonical)` | the placement | the placement gets the `Locale` with its `Slug`, hidden, canonical as the kernel decides |
 | `PlacementWindowSet(placement, locale, window)` | the placement | the `TimeWindow` in which the placement is live in the `Locale`; null hides it there |
 | `PlacementCanonicalSet(placement, locale, canonical)` | the placement | the placement becomes, or stops being, the canonical placement of its entry in the `Locale` |
+| `PlacementClosed(placement, locale)` | the placement | the placement is hidden in the `Locale` and loses its window, because its entry's content is unpublished |
 | `ActorDeactivated(actor, source)` | the actor | the actor is deactivated (PRD 5.16), by the `DeactivationSource` given, `local` by default |
 
 A mutation that can make content public implements `Cbox\Cms\Contracts\Plans\ChangesPublicVisibility`, whose `makesPublic()` says whether it does, now or later, such as a `PlacementWindowSet` with a window, or a `VariantReleased`, which always does. The kernel refuses a plan with one that does from an agent or a token with `agent_visibility_forbidden` (invariant 18): the envelope's issuer is an agent, or the credential was issued for one.

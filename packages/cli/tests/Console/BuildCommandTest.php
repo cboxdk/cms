@@ -12,6 +12,8 @@ use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
 use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
 use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
+use Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry;
+use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNote;
 use Cbox\Cms\Core\Tests\Registry\Providers\FixtureRootProvider;
@@ -59,8 +61,8 @@ it('writes the five registries to the application\'s bootstrap/cache/cms, and re
 
     expect($status)->toBe(0)
         ->and($output)->toBe([
-            'actions: 6',
-            'commands: 6',
+            'actions: 8',
+            'commands: 8',
             'hooks: 0',
             'schema: 0',
             'subscribers: 1',
@@ -77,7 +79,7 @@ it('adds what an addon provider\'s scan root declares', function (): void {
     [$status, $output] = buildCommand();
 
     expect($status)->toBe(0)
-        ->and(array_slice($output, 0, 3))->toBe(['actions: 8', 'commands: 7', 'hooks: 1'])
+        ->and(array_slice($output, 0, 3))->toBe(['actions: 10', 'commands: 9', 'hooks: 1'])
         ->and(RegistryFixtures::load($directory.'/commands.php'))->toMatchArray(['entries' => [[
             'class' => DeactivateActor::class,
             'name' => 'actor.deactivate',
@@ -89,8 +91,18 @@ it('adds what an addon provider\'s scan root declares', function (): void {
             'package' => CoreServiceProvider::PACKAGE,
             'version' => 1,
         ], [
+            'class' => PublishEntry::class,
+            'name' => 'entry.publish',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 1,
+        ], [
             'class' => ReviseEntry::class,
             'name' => 'entry.revise',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 1,
+        ], [
+            'class' => UnpublishEntry::class,
+            'name' => 'entry.unpublish',
             'package' => CoreServiceProvider::PACKAGE,
             'version' => 1,
         ], [

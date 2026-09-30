@@ -64,4 +64,23 @@ enum Visibility: string
     {
         return $this !== self::Hidden && $this !== self::Withdrawn && $window instanceof TimeWindow && $window->contains($at);
     }
+
+    /**
+     * From when a placement in this state, with this window, is visible, seen at the time, as far
+     * as its own state and window decide: the time itself when it is visible now, the start of its
+     * window when that has not begun, and null when it is hidden, withdrawn or its window has
+     * ended, so that it is visible neither now nor later.
+     */
+    public function visibleFrom(?TimeWindow $window, DateTimeImmutable $at): ?DateTimeImmutable
+    {
+        if ($this === self::Hidden || $this === self::Withdrawn) {
+            return null;
+        }
+
+        return match (self::of($window, $at)) {
+            self::Live => $at,
+            self::Scheduled => $window?->from,
+            default => null,
+        };
+    }
 }

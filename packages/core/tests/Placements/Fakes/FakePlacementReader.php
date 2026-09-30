@@ -24,8 +24,8 @@ use Override;
  * The placement commands' reads from memory (GUARDRAILS 9), held to PostgresPlacementReader by
  * PlacementReaderBehaviour. A node is reached unless unreached() says otherwise, and a node, or a
  * placement below it, that the actor does not reach reads as absent, as row level security has it;
- * placements() and slugTaken() see every placement, as the Postgres reader's owner function and
- * the unique rule do.
+ * placements(), everyLocale() and slugTaken() see every placement, as the Postgres reader's owner
+ * functions and the unique rule do.
  */
 final class FakePlacementReader implements PlacementReader
 {
@@ -144,5 +144,23 @@ final class FakePlacementReader implements PlacementReader
         ksort($states);
 
         return new LocalePlacements($entry, $locale, array_values($states));
+    }
+
+    #[Override]
+    public function everyLocale(EntryId $entry): array
+    {
+        $locales = [];
+
+        foreach ($this->placements as $placement) {
+            if ($placement->entry->equals($entry)) {
+                foreach ($placement->locales as $stored) {
+                    $locales[$stored->locale->value] = $stored->locale;
+                }
+            }
+        }
+
+        ksort($locales, SORT_STRING);
+
+        return array_values(array_map(fn (Locale $locale): LocalePlacements => $this->placements($entry, $locale), $locales));
     }
 }

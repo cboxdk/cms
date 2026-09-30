@@ -34,8 +34,9 @@ use Override;
  * reach, reads as absent: placement rights are decided on the placement's node (PRD 5.10). site()
  * takes the root's path from the root's id, the one label of a root's path, because the actor may
  * reach only a section below the root. placements() reads every placement of the entry in the
- * locale through `cms_placement_locales`, which runs as the owner and returns no slug, and
- * placementVersion() a placement's version through `cms_placement_version`.
+ * locale through `cms_placement_locales`, which runs as the owner and returns no slug, everyLocale()
+ * every placement of the entry through `cms_entry_placement_locales`, which does the same for every
+ * locale in the order of the locales, and placementVersion() a placement's version through `cms_placement_version`.
  */
 #[Internal]
 final readonly class PostgresPlacementReader implements PlacementReader
@@ -79,6 +80,9 @@ final readonly class PostgresPlacementReader implements PlacementReader
 
     /** Every placement of the entry in the locale, past the actor's regions. */
     public const string PLACEMENTS = 'select placement_id, version, visibility, live_from, live_until, canonical from cms_placement_locales(?::uuid, ?)';
+
+    /** Every placement of the entry in every locale, past the actor's regions. */
+    public const string EVERY_LOCALE = 'select locale, placement_id, version, visibility, live_from, live_until, canonical from cms_entry_placement_locales(?::uuid)';
 
     /**
      * @param  string|null  $connection  the connection name; null for the default connection
@@ -191,17 +195,40 @@ final readonly class PostgresPlacementReader implements PlacementReader
         $states = [];
 
         foreach ($this->db()->select(self::PLACEMENTS, [$entry->toString(), $locale->value], false) as $row) {
-            $row = PlacementRows::object($row);
-            $states[] = new PlacementState(
-                PlacementId::fromString(PlacementRows::text($row, 'placement_id')),
-                new AggregateVersion(PlacementRows::integer($row, 'version')),
-                PlacementRows::visibility($row),
-                PlacementRows::window($row),
-                PlacementRows::boolean($row, 'canonical'),
-            );
+            $states[] = $this->state(PlacementRows::object($row));
         }
 
         return new LocalePlacements($entry, $locale, $states);
+    }
+
+    #[Override]
+    public function everyLocale(EntryId $entry): array
+    {
+        $byLocale = [];
+
+        foreach ($this->db()->select(self::EVERY_LOCALE, [$entry->toString()], false) as $row) {
+            $row = PlacementRows::object($row);
+            $byLocale[PlacementRows::text($row, 'locale')][] = $this->state($row);
+        }
+
+        $placements = [];
+
+        foreach ($byLocale as $locale => $states) {
+            $placements[] = new LocalePlacements($entry, new Locale($locale), $states);
+        }
+
+        return $placements;
+    }
+
+    private function state(object $row): PlacementState
+    {
+        return new PlacementState(
+            PlacementId::fromString(PlacementRows::text($row, 'placement_id')),
+            new AggregateVersion(PlacementRows::integer($row, 'version')),
+            PlacementRows::visibility($row),
+            PlacementRows::window($row),
+            PlacementRows::boolean($row, 'canonical'),
+        );
     }
 
     private function db(): ConnectionInterface

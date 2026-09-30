@@ -156,4 +156,23 @@ trait PlacementReaderBehaviour
         ]), $reader->placements($entry, new Locale('da')));
         Assert::assertEquals(new LocalePlacements($entry, new Locale('de'), []), $reader->placements($entry, new Locale('de')));
     }
+
+    #[Test]
+    public function it_reads_every_placement_of_an_entry_in_every_locale_in_the_order_of_the_locales(): void
+    {
+        $reader = $this->placementReader();
+        $entry = EntryId::fromString(self::ENTRY);
+
+        Assert::assertEquals([
+            new LocalePlacements($entry, new Locale('da'), [
+                new PlacementState(PlacementId::fromString(self::PLACED), new AggregateVersion(4), Visibility::Live, new TimeWindow(new DateTimeImmutable(self::LIVE_FROM)), true),
+                new PlacementState(PlacementId::fromString(self::OLD), new AggregateVersion(1), Visibility::Withdrawn, TimeWindow::always(), false),
+                new PlacementState(PlacementId::fromString(self::FAR_PLACED), new AggregateVersion(1), Visibility::Hidden, null, false),
+            ]),
+            new LocalePlacements($entry, new Locale('en'), [
+                new PlacementState(PlacementId::fromString(self::PLACED), new AggregateVersion(4), Visibility::Hidden, null, false),
+            ]),
+        ], $reader->everyLocale($entry));
+        Assert::assertSame([], $reader->everyLocale(EntryId::fromString(self::UNKNOWN)));
+    }
 }
