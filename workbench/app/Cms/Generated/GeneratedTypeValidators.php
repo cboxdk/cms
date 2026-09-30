@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Validation\TypeValidator;
 use Cbox\Cms\Contracts\Validation\TypeValidators;
 use Override;
 use Workbench\App\Cms\Generated\Validators\AppFixtureArticleValidator;
+use Workbench\App\Cms\Generated\Validators\AppFixtureEventValidator;
 use Workbench\App\Cms\Generated\Validators\AppFixtureMeasurementValidator;
 
 /**
@@ -29,6 +30,7 @@ final readonly class GeneratedTypeValidators implements TypeValidators
         $this->validators = [
             new AppFixtureMeasurementValidator,
             new AppFixtureArticleValidator,
+            new AppFixtureEventValidator,
         ];
     }
 

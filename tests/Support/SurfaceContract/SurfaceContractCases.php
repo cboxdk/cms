@@ -50,18 +50,23 @@ final readonly class SurfaceContractCases
      * of the workbench booted for it, because PHPUnit resolves a dataset before any test sets up
      * its application. The application is flushed afterwards, and the error and exception
      * handlers its bootstrap set are taken off again, so the first test finds them as PHPUnit left
-     * them.
+     * them. Testbench keeps the traits of the test case it saw first in one static cache for every
+     * test case class, which it fills before a class's first test and clears after its last; the
+     * booted case clears it again, or a test class resolved after it, such as a Postgres test that
+     * uses RealPostgres, would run without the setUp and tearDown of its own traits.
      */
     public static function booted(): CompiledRegistry
     {
         $errors = get_error_handler();
         $exceptions = get_exception_handler();
-        $app = new class('surface contract dataset') extends TestCase {}->createApplication();
+        $booted = new class('surface contract dataset') extends TestCase {};
+        $app = $booted->createApplication();
 
         try {
             return self::installation($app);
         } finally {
             $app->flush();
+            $booted::tearDownAfterClassUsingPHPUnit();
             Facade::clearResolvedInstances();
 
             while (get_error_handler() !== $errors && get_error_handler() !== null) {

@@ -11,6 +11,8 @@ use Illuminate\Support\ServiceProvider;
 use Override;
 use Workbench\App\Cms\Generated\Records\AppFixtureArticle\AppFixtureArticleFactory;
 use Workbench\App\Cms\Generated\Records\AppFixtureArticle\AppFixtureArticleRecordFactory;
+use Workbench\App\Cms\Generated\Records\AppFixtureEvent\AppFixtureEventFactory;
+use Workbench\App\Cms\Generated\Records\AppFixtureEvent\AppFixtureEventRecordFactory;
 use Workbench\App\Cms\Generated\Records\AppFixtureMeasurement\AppFixtureMeasurementFactory;
 use Workbench\App\Cms\Generated\Records\AppFixtureMeasurement\AppFixtureMeasurementRecordFactory;
 
@@ -34,6 +36,7 @@ final class GeneratedTypesServiceProvider extends ServiceProvider
         $this->app->singleton(TypeValidators::class, GeneratedTypeValidators::class);
         $this->app->singleton(RecordCodecs::class, GeneratedRecordCodecs::class);
         $this->app->singleton(AppFixtureArticleRecordFactory::class, AppFixtureArticleFactory::class);
+        $this->app->singleton(AppFixtureEventRecordFactory::class, AppFixtureEventFactory::class);
         $this->app->singleton(AppFixtureMeasurementRecordFactory::class, AppFixtureMeasurementFactory::class);
     }
 

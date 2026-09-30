@@ -17,6 +17,7 @@ namespace Workbench\App\Cms\Generated;
 enum TypeHandle: string
 {
     case AppFixtureArticle = 'app:fixture_article';
+    case AppFixtureEvent = 'app:fixture_event';
     case AppFixtureMeasurement = 'app:fixture_measurement';
 
     /**
@@ -37,6 +38,19 @@ enum TypeHandle: string
                 'fixture_sources' => 'group',
                 'fixture_title' => 'text',
                 'fixture_topics' => 'select',
+            ],
+            self::AppFixtureEvent => [
+                'fixture_doors_on' => 'date',
+                'fixture_free' => 'boolean',
+                'fixture_kind' => 'select',
+                'fixture_name' => 'text',
+                'fixture_organiser_email' => 'text',
+                'fixture_price' => 'decimal',
+                'fixture_programme' => 'rich_text',
+                'fixture_seats' => 'integer',
+                'fixture_starts_at' => 'datetime',
+                'fixture_summary' => 'long_text',
+                'fixture_venue' => 'group',
             ],
             self::AppFixtureMeasurement => [
                 'fixture_alerts' => 'select',
@@ -69,6 +83,7 @@ enum TypeHandle: string
                     'fixture_slug' => 'text',
                 ],
             ],
+            self::AppFixtureEvent => [],
             self::AppFixtureMeasurement => [],
         };
     }

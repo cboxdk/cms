@@ -26,6 +26,11 @@ const TYPE_TABLE_ROWS = [
     'app__fixture_article' => [
         'fixture_featured' => true,
     ],
+    'app__fixture_event' => [
+        'fixture_kind' => 'fixture_concert',
+        'fixture_name' => 'An event',
+        'fixture_starts_at' => '2026-03-10 12:00:00+00',
+    ],
     'app__fixture_measurement' => [
         'fixture_measured_at' => '2026-03-10 12:00:00+00',
         'fixture_reading' => '12.500',

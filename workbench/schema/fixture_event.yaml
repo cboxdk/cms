@@ -1,0 +1,138 @@
+# yaml-language-server: $schema=../../packages/contracts/resources/schemas/blueprint.v1.json
+# The workbench's third fixture type (GUARDRAILS 2.4, MILESTONES M1 exit criteria), owner app:
+# added as this schema file alone, with no change in the modules' code (packages/*/src), and working through the
+# generators, the commands, the delivery API and every surface. Its capabilities differ from both
+# other types: history audit-only (the kernel keeps head snapshots and no revisions, as
+# fixture_measurement's none does, while fixture_article keeps every revision), stages none and
+# routable, so an entry of it is public once it is placed and published, without a release. Its
+# fields use what the other two do not: a unit on an integer and a decimal, a top-level e-mail
+# address hidden from agents, a long text with a lower bound, rich text with links and numbered
+# lists, a select that is sortable, and a group with a group inside it. Every handle and select
+# value starts with fixture_, as in fixture_article.yaml. tests/Postgres/WalkingSkeleton
+# /ThirdTypeTest.php runs it end to end. cms:generate reads it and writes the committed code in
+# workbench/app/Cms/Generated, workbench/resources/js/cms/generated and the migration in
+# workbench/database/migrations/cms; the first line is written by cms:schema:editor.
+blueprint: 1
+kind: type
+type_id: 01a0f424-cbfd-727a-9467-bff093dc17b2
+handle: fixture_event
+label: Fixture event
+description: A public event with a venue, a programme, a price and the seats it has.
+version: 1
+capabilities:
+  history: audit-only
+  stages: none
+  localization: none
+  routable: true
+fields:
+  - handle: fixture_name
+    label: Name
+    description: The name of the event, as it is shown on the page and in lists.
+    type: text
+    required: true
+    classification: public
+    sortable: true
+    min_length: 2
+    max_length: 120
+  - handle: fixture_starts_at
+    label: Starts at
+    description: When the event starts.
+    type: datetime
+    required: true
+    classification: public
+    filterable: true
+    sortable: true
+  - handle: fixture_kind
+    label: Kind
+    description: What kind of event it is.
+    type: select
+    required: true
+    classification: public
+    filterable: true
+    sortable: true
+    options:
+      - value: fixture_concert
+        label: Concert
+      - value: fixture_lecture
+        label: Lecture
+      - value: fixture_market
+        label: Market
+  - handle: fixture_seats
+    label: Seats
+    description: How many seats the venue has for the event.
+    type: integer
+    classification: public
+    filterable: true
+    min: 0
+    max: 100000
+    unit: seats
+  - handle: fixture_price
+    label: Price
+    description: The price of a ticket.
+    type: decimal
+    classification: public
+    sortable: true
+    precision: 8
+    scale: 2
+    min: '0.00'
+    unit: DKK
+  - handle: fixture_summary
+    label: Summary
+    description: A short summary of the event for lists.
+    type: long_text
+    classification: public
+    min_length: 10
+    max_length: 500
+  - handle: fixture_programme
+    label: Programme
+    description: The programme of the event, with links to the performers.
+    type: rich_text
+    classification: public
+    styles: [normal, h3]
+    marks: [em]
+    lists: [number]
+    links: [url]
+  - handle: fixture_free
+    label: Free
+    description: Whether the event is free to attend.
+    type: boolean
+    classification: public
+  - handle: fixture_doors_on
+    label: Doors on
+    description: The day the doors open, when it is before the event starts.
+    type: date
+    classification: public
+  - handle: fixture_organiser_email
+    label: Organiser e-mail
+    description: The e-mail address of the person who organises the event.
+    type: text
+    classification: internal
+    agents: false
+    format: email
+  - handle: fixture_venue
+    label: Venue
+    description: Where the event takes place.
+    type: group
+    classification: public
+    fields:
+      - handle: fixture_venue_name
+        label: Venue name
+        description: The name of the venue.
+        type: text
+        required: true
+      - handle: fixture_venue_address
+        label: Venue address
+        description: The address of the venue.
+        type: group
+        fields:
+          - handle: fixture_venue_street
+            label: Street
+            description: The street and number.
+            type: text
+            required: true
+          - handle: fixture_venue_postcode
+            label: Postcode
+            description: The postcode.
+            type: text
+            min_length: 4
+            max_length: 10

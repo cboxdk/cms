@@ -12,6 +12,7 @@ use Cbox\Cms\Contracts\Results\ReadContent;
 use Cbox\Cms\Core\Codecs\Boundary\RecordDocument;
 use Override;
 use Workbench\App\Cms\Generated\Boundary\AppFixtureArticleCodecV1;
+use Workbench\App\Cms\Generated\Boundary\AppFixtureEventCodecV1;
 use Workbench\App\Cms\Generated\Boundary\AppFixtureMeasurementCodecV1;
 
 /**
@@ -37,6 +38,7 @@ final readonly class GeneratedRecordCodecs implements RecordCodecs
         return [
             TypeId::fromString('0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a6b'),
             TypeId::fromString('01a0df3e-8cef-7e9f-8daf-9faa60f1faa6'),
+            TypeId::fromString('01a0f424-cbfd-727a-9467-bff093dc17b2'),
         ];
     }
 
@@ -46,6 +48,7 @@ final readonly class GeneratedRecordCodecs implements RecordCodecs
         return match ($content->type->toString()) {
             '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a6b' => RecordDocument::write($this->catalog, new AppFixtureMeasurementCodecV1, $content, $access),
             '01a0df3e-8cef-7e9f-8daf-9faa60f1faa6' => RecordDocument::write($this->catalog, new AppFixtureArticleCodecV1, $content, $access),
+            '01a0f424-cbfd-727a-9467-bff093dc17b2' => RecordDocument::write($this->catalog, new AppFixtureEventCodecV1, $content, $access),
             default => throw InvalidRecordDocument::unknownType($content->type),
         };
     }
