@@ -82,14 +82,14 @@ Hooks are deterministic and do no network IO; work that needs IO belongs in a su
 
 ## The compiled registries
 
-`cms:build` writes one PHP file per registry to `bootstrap/cache/cms/`: `actions.php`, `commands.php`, `hooks.php`, `schema.php` and `subscribers.php`. It removes any other file in that directory, which it owns, except its lock file `.lock`: two builds that run at the same time write the cache one after the other, so it always holds the files of one build. Each file returns an array with these keys:
+`cms:build` writes one PHP file per registry to `bootstrap/cache/cms/`: `actions.php`, `commands.php`, `hooks.php`, `rest.php`, `schema.php` and `subscribers.php`, and next to them `openapi.json`, the OpenAPI 3.1 document of the REST surface (see [the REST surface](commands.md#the-rest-surface)). It removes any other file in that directory, which it owns, except its lock file `.lock`: two builds that run at the same time write the cache one after the other, so it always holds the files of one build. Each registry file returns an array with these keys:
 
 | Key | Value |
 |---|---|
 | `build` | The sha256 of the entries of every registry. The files of one build carry the same value. |
 | `entries` | The list of entries, sorted as below. |
-| `format` | `6`, the format of the files. A cache of another format is refused until `cms:build` runs again. |
-| `registry` | `actions`, `commands`, `hooks`, `schema` or `subscribers`. |
+| `format` | `7`, the format of the files. A cache of another format is refused until `cms:build` runs again. |
+| `registry` | `actions`, `commands`, `hooks`, `rest`, `schema` or `subscribers`. |
 
 The keys of every entry are in alphabetical order:
 
@@ -98,6 +98,7 @@ The keys of every entry are in alphabetical order:
 | `actions` | `class`, `command` (the name of the command or query it handles), `command_class`, `command_version`, `kind` (`write` or `query`), `package`, `surfaces` (the values of the surfaces, in the order of the enum) | command name, then command version |
 | `commands` | `class`, `name`, `package`, `version` | name, then version |
 | `hooks` | `addon` (the namespace of the hook's addon, or null), `budget_ms`, `class`, `command` (the command's name), `command_class`, `command_version`, `package`, `phase` (the value of the phase), `priority`, `reads` (the classification the addon may read, or null) | command name, command version, phase in pipeline order (authorize, transform, validate), priority with the lowest first, package, class |
+| `rest` | `kind` (`write` or `query`), `method` (`POST` for a write, `GET` for a read), `name` (the command's or query's name), `path` (`/v1/commands/<name>/v<version>` or `/v1/queries/<name>/v<version>`), `version`: one route per action exposed on `Surface::Rest` | as the actions |
 | `schema` | `extends`, `field_types`, `namespace`, `package`, `types`: an addon's schema contributions, see [addon manifest](manifest.md) | namespace |
 | `subscribers` | `addon` (the namespace of the subscriber's addon, or null), `class`, `events` (a list of `class`, `name` and `version`: each event class with its type, sorted by class), `lane` (the value of the lane), `name` (the subscription name), `package`, `projection` (the projection name, or null) | subscription name |
 
@@ -122,6 +123,7 @@ A file holds no time and no path, so two builds of the same code give the same b
 | `registry_unknown_action_command` | An action handles a class that is not a registered command (a write action) or query (a query action): the class does not exist, lacks the attribute, is the other kind, or no scan root registers it. |
 | `registry_duplicate_action` | Two actions handle the same command or query. |
 | `registry_unknown_surface` | An `#[Action]` lists a surface that is not a case of `Surface`, such as `'rest'` or `Surface::Graphql`. |
+| `registry_surface_without_codec` | An action is exposed on REST, but no codec reads its command or query, so its route cannot be described in `openapi.json` or served: register the command's `CommandCodec` or the query's `QueryCodec`, with their JSON Schemas. |
 | `registry_not_a_subscriber` | A `#[Subscription]` sits on a class that does not implement `Subscriber`. |
 | `registry_unknown_event` | A `#[Subscription]` lists an event class that does not exist or does not implement `Event`, or whose `type()` fails. |
 | `registry_unknown_lane` | A `#[Subscription]` names a lane that is not a case of `Lane`, such as `'critical'` or `Lane::Urgent`. |
@@ -143,14 +145,38 @@ namespace Examples\Unit\Build\Notes;
 
 use Cbox\Cms\Contracts\Build\DeclaresScanRoots;
 use Cbox\Cms\Contracts\Build\ScanRoot;
+use Cbox\Cms\Contracts\Codecs\JsonSchema;
+use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Core\Reads\Domain\Dto\QueryCodec;
+use Cbox\Cms\Core\Reads\Domain\QueryCodecs;
+use Examples\Unit\Build\Notes\Boundary\FindNoteCodec;
+use Examples\Unit\Build\Notes\Boundary\FoundNoteCodec;
 use Illuminate\Support\ServiceProvider;
+use Override;
 
 /**
  * The service provider of the package acme/cms-notes. Its scan root is the directory it lies in,
- * so cms:build registers the command, the hook, the query and its action next to it.
+ * so cms:build registers the command, the hook, the query and its action next to it. The query's
+ * action is on REST, so the provider registers the query's codecs, with their JSON Schemas, under
+ * QueryCodecs::TAG, which the REST surface reads the query and writes its result with and
+ * cms:build describes its route with.
  */
 final class NotesServiceProvider extends ServiceProvider implements DeclaresScanRoots
 {
+    #[Override]
+    public function register(): void
+    {
+        $this->app->bind('acme.notes.find.codec', static fn (): QueryCodec => new QueryCodec(
+            new CommandName('note.find'),
+            1,
+            new FindNoteCodec,
+            new JsonSchema(FindNoteCodec::SCHEMA),
+            new FoundNoteCodec,
+            new JsonSchema(FoundNoteCodec::SCHEMA),
+        ));
+        $this->app->tag(['acme.notes.find.codec'], QueryCodecs::TAG);
+    }
+
     public function scanRoots(): array
     {
         return [new ScanRoot('acme/cms-notes', __DIR__)];
@@ -302,6 +328,8 @@ final readonly class FindNoteAction implements QueryAction
     }
 }
 ```
+
+The action is on REST, so its query needs codecs: `NotesServiceProvider` registers a `QueryCodec` for `note.find` version 1 under `QueryCodecs::TAG`, with `Boundary\FindNoteCodec` and `Boundary\FoundNoteCodec` (a codec reads `mixed`, so it lives in a `Boundary` namespace) and their JSON Schemas, and `cms:build` compiles the route `GET /v1/queries/note.find/v1` into `rest.php` and describes it in `openapi.json` (see [the REST surface](commands.md#the-rest-surface)). Without the codecs the build fails with `registry_surface_without_codec`.
 
 `acme/cms-tagging` hooks into the notes package's command:
 
@@ -581,6 +609,24 @@ final class ScanRootsTest extends BuildTestCase
 
         // The registry names the action; the query pipeline calls it.
         self::assertEquals(new FoundNote(true), new FindNoteAction(['Groceries'])->handle(new FindNote('Groceries')));
+
+        // The action is on REST, so rest.php has its route and openapi.json describes it with the
+        // schemas of the codecs NotesServiceProvider registers, next to the kernel's routes.
+        $rest = require $this->registryFile('rest');
+        self::assertIsArray($rest);
+        self::assertIsArray($rest['entries']);
+        self::assertContains([
+            'kind' => 'query',
+            'method' => 'GET',
+            'name' => 'note.find',
+            'path' => '/v1/queries/note.find/v1',
+            'version' => 1,
+        ], $rest['entries']);
+
+        $openApi = json_decode((string) file_get_contents($this->registryDirectory().'/openapi.json'), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($openApi);
+        self::assertIsArray($openApi['paths']);
+        self::assertArrayHasKey('/v1/queries/note.find/v1', $openApi['paths']);
     }
 
     #[Test]

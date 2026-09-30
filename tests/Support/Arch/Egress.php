@@ -6,7 +6,9 @@ namespace Cbox\Cms\Tests\Support\Arch;
 
 use Cbox\Cms\Contracts\Envelope\IssuerKind;
 use Cbox\Cms\Core\Doctor\Adapter\ProcessToolProbe;
+use Cbox\Cms\Core\Registry\Adapter\FileOpenApiDocuments;
 use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
+use Cbox\Cms\Core\Registry\Boundary\OpenApiJson;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
 use Cbox\Cms\Generators\Cli\Console\GenerateCommand;
 use Cbox\Cms\Generators\Cli\Console\SchemaEditorCommand;
@@ -96,6 +98,11 @@ final class Egress
         // the fixed names of RegistryName, and opens its lock file, FileRegistryCache::LOCK_FILE,
         // there; write() refuses a directory that names a stream wrapper before it does any of it.
         FileRegistryCache::class => ['fopen', 'file_put_contents', 'mkdir', 'rename', 'scandir', 'unlink'],
+        // Reads the kernel's receipt.v1.json and problem.v1.json below the root of cboxdk/cms with
+        // an SplFileObject, and writes a temporary file next to openapi.json in the registry cache's directory, which
+        // CoreServiceProvider gives it, renames it into place and removes it when that fails; it
+        // refuses a path that names a stream wrapper before it touches it.
+        FileOpenApiDocuments::class => ['file_put_contents', 'rename', 'SplFileObject', 'unlink'],
         // Lists a schema root, whose base SchemaRoot requires to be an absolute path, which names
         // no stream wrapper.
         BlueprintFiles::class => ['FilesystemIterator', 'RecursiveDirectoryIterator'],
@@ -141,6 +148,9 @@ final class Egress
         // IssuerKind::System, the issuer kind "system" that PRD 5.5 names, a value of the
         // envelope and the changeset.
         IssuerKind::class => ['system'],
+        // The type "http" of the OpenAPI document's security scheme for a Bearer credential, a
+        // value of the document it writes, never a container id it resolves.
+        OpenApiJson::class => ['http'],
         // The lists themselves, which the Arch suite here and the testkit's HookIoRule read, and the
         // short names of the facades File and Mail, which FACADES joins to their namespace.
         EgressNames::class => [...EgressNames::WORDS, 'File', 'Mail'],

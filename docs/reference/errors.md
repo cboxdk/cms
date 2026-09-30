@@ -98,6 +98,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`host_not_configured`](#host_not_configured) | 421 | 68 | tool_error | no |
 | [`idempotency_conflict`](#idempotency_conflict) | 409 | 65 | tool_error | no |
 | [`idempotency_in_flight`](#idempotency_in_flight) | 409 | 75 | tool_error | yes |
+| [`idempotency_key_required`](#idempotency_key_required) | 400 | 64 | tool_error | no |
 | [`json_invalid`](#json_invalid) | 422 | 65 | tool_error | no |
 | [`json_malformed`](#json_malformed) | 400 | 65 | tool_error | no |
 | [`owner_credentials_exposed`](#owner_credentials_exposed) | 500 | 78 | internal_error | no |
@@ -131,6 +132,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`registry_not_an_action`](#registry_not_an_action) | 500 | 65 | internal_error | no |
 | [`registry_not_final_readonly`](#registry_not_final_readonly) | 500 | 65 | internal_error | no |
 | [`registry_reserved_namespace`](#registry_reserved_namespace) | 500 | 65 | internal_error | no |
+| [`registry_surface_without_codec`](#registry_surface_without_codec) | 500 | 65 | internal_error | no |
 | [`registry_undeclared_hook`](#registry_undeclared_hook) | 500 | 65 | internal_error | no |
 | [`registry_undeclared_subscriber`](#registry_undeclared_subscriber) | 500 | 65 | internal_error | no |
 | [`registry_unknown_action_command`](#registry_unknown_action_command) | 500 | 65 | internal_error | no |
@@ -138,6 +140,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`registry_unknown_hook_command`](#registry_unknown_hook_command) | 500 | 65 | internal_error | no |
 | [`registry_unknown_lane`](#registry_unknown_lane) | 500 | 65 | internal_error | no |
 | [`registry_unknown_surface`](#registry_unknown_surface) | 500 | 65 | internal_error | no |
+| [`request_header_invalid`](#request_header_invalid) | 400 | 64 | tool_error | no |
 | [`subscription_identity_invalid`](#subscription_identity_invalid) | 500 | 78 | internal_error | no |
 | [`subscription_not_parked`](#subscription_not_parked) | 422 | 65 | tool_error | no |
 | [`subscription_unknown`](#subscription_unknown) | 422 | 65 | tool_error | no |
@@ -920,6 +923,15 @@ Another call with the same idempotency key is still running, and it did not fini
 - MCP: a tool result with isError set
 - Retry: yes, the same call may succeed later
 
+### idempotency_key_required
+
+A command through REST needs an idempotency key (PRD 6.1), and the request has no Idempotency-Key header, or one that is not 1 to 255 visible ASCII characters. Nothing ran and nothing was committed. Send the command again with a key of your own in Idempotency-Key, and the same key when you repeat it.
+
+- HTTP status: 400 Bad Request
+- CLI exit code: 64 (EX_USAGE)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
 ### json_invalid
 
 The JSON document is well-formed, but it does not hold what its contract version says (GUARDRAILS 2.2): a field is missing, unknown, of the wrong type, classified above the caller's classification access, or breaks a rule of its blueprint. The error names the field. Correct that value and send the document again.
@@ -1217,6 +1229,15 @@ An addon manifest names the namespace app or ext. The application's own fields l
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
+### registry_surface_without_codec
+
+An action is exposed on REST, but no codec reads its command or query, so cms:build cannot describe or serve it (GUARDRAILS 2.1, 2.2). Register the command's CommandCodec under the container tag cbox-cms.command-codecs, or the query's QueryCodec under cbox-cms.query-codecs, each with its JSON Schema, and run cms:build again.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
 ### registry_undeclared_hook
 
 A #[Hook] of an addon's package runs for a command and phase that the addon's manifest does not allow (PRD 13.1, 6.3). Allow it in the manifest's hooks with an AllowedHook, or remove the hook.
@@ -1278,6 +1299,15 @@ An #[Action] lists a surface that is not a case of the Surface enum. List only S
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)
 - MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### request_header_invalid
+
+A header of the envelope of a REST command, Cbox-Wait-Level, Cbox-Dry-Run or Cbox-Correlation-Id, does not hold what the envelope allows (PRD 6.1): a wait level other than commit, origin, edge, verified or propagated, a dry run other than true or false, or a correlation id that is not 1 to 128 visible ASCII characters. Nothing ran. Correct the header the error names, or leave it out for its default.
+
+- HTTP status: 400 Bad Request
+- CLI exit code: 64 (EX_USAGE)
+- MCP: a tool result with isError set
 - Retry: no, the same call gives the same answer until something changes
 
 ### subscription_identity_invalid

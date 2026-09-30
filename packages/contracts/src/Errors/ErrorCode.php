@@ -110,6 +110,7 @@ enum ErrorCode: string
     case HostNotConfigured = 'host_not_configured';
     case IdempotencyConflict = 'idempotency_conflict';
     case IdempotencyInFlight = 'idempotency_in_flight';
+    case IdempotencyKeyRequired = 'idempotency_key_required';
     case JsonInvalid = 'json_invalid';
     case JsonMalformed = 'json_malformed';
     case OwnerCredentialsExposed = 'owner_credentials_exposed';
@@ -143,6 +144,7 @@ enum ErrorCode: string
     case RegistryNotAnAction = 'registry_not_an_action';
     case RegistryNotFinalReadonly = 'registry_not_final_readonly';
     case RegistryReservedNamespace = 'registry_reserved_namespace';
+    case RegistrySurfaceWithoutCodec = 'registry_surface_without_codec';
     case RegistryUndeclaredHook = 'registry_undeclared_hook';
     case RegistryUndeclaredSubscriber = 'registry_undeclared_subscriber';
     case RegistryUnknownActionCommand = 'registry_unknown_action_command';
@@ -150,6 +152,7 @@ enum ErrorCode: string
     case RegistryUnknownHookCommand = 'registry_unknown_hook_command';
     case RegistryUnknownLane = 'registry_unknown_lane';
     case RegistryUnknownSurface = 'registry_unknown_surface';
+    case RequestHeaderInvalid = 'request_header_invalid';
     case SubscriptionIdentityInvalid = 'subscription_identity_invalid';
     case SubscriptionNotParked = 'subscription_not_parked';
     case SubscriptionUnknown = 'subscription_unknown';
@@ -467,6 +470,14 @@ enum ErrorCode: string
                 true,
                 'Another call with the same idempotency key is still running, and it did not finish within the wait budget, cbox-cms.idempotency.wait_budget_ms (PRD 6.1). Nothing was committed by this call. Try again in a moment with the same key and content: you then get the first call\'s result.',
             ),
+            self::IdempotencyKeyRequired => new ErrorEntry(
+                $this,
+                HttpStatus::BadRequest,
+                ExitCode::Usage,
+                McpResponse::ToolError,
+                false,
+                'A command through REST needs an idempotency key (PRD 6.1), and the request has no Idempotency-Key header, or one that is not 1 to 255 visible ASCII characters. Nothing ran and nothing was committed. Send the command again with a key of your own in Idempotency-Key, and the same key when you repeat it.',
+            ),
             self::JsonInvalid => $this->caller(
                 HttpStatus::UnprocessableContent,
                 ExitCode::DataErr,
@@ -596,6 +607,9 @@ enum ErrorCode: string
             self::RegistryReservedNamespace => $this->refusedInput(
                 'An addon manifest names the namespace app or ext. The application\'s own fields live under app, and ext holds every extender\'s namespace (PRD 11.12), so neither can be an addon\'s. Give the addon a name of its own.',
             ),
+            self::RegistrySurfaceWithoutCodec => $this->refusedInput(
+                'An action is exposed on REST, but no codec reads its command or query, so cms:build cannot describe or serve it (GUARDRAILS 2.1, 2.2). Register the command\'s CommandCodec under the container tag cbox-cms.command-codecs, or the query\'s QueryCodec under cbox-cms.query-codecs, each with its JSON Schema, and run cms:build again.',
+            ),
             self::RegistryUndeclaredHook => $this->refusedInput(
                 'A #[Hook] of an addon\'s package runs for a command and phase that the addon\'s manifest does not allow (PRD 13.1, 6.3). Allow it in the manifest\'s hooks with an AllowedHook, or remove the hook.',
             ),
@@ -616,6 +630,14 @@ enum ErrorCode: string
             ),
             self::RegistryUnknownSurface => $this->refusedInput(
                 'An #[Action] lists a surface that is not a case of the Surface enum. List only Surface::Rest, Surface::Inertia, Surface::Mcp and Surface::Cli.',
+            ),
+            self::RequestHeaderInvalid => new ErrorEntry(
+                $this,
+                HttpStatus::BadRequest,
+                ExitCode::Usage,
+                McpResponse::ToolError,
+                false,
+                'A header of the envelope of a REST command, Cbox-Wait-Level, Cbox-Dry-Run or Cbox-Correlation-Id, does not hold what the envelope allows (PRD 6.1): a wait level other than commit, origin, edge, verified or propagated, a dry run other than true or false, or a correlation id that is not 1 to 128 visible ASCII characters. Nothing ran. Correct the header the error names, or leave it out for its default.',
             ),
             self::SubscriptionIdentityInvalid => $this->violation(
                 'The event runner runs its subscribers as a service actor, never as the system (PRD 6.5 invariant 21), and cbox-cms.events.runner.service_actor names none, an actor that does not exist or one that is not of class service. No event was handled. Create a service actor and name its id there.',

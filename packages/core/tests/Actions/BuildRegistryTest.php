@@ -42,6 +42,7 @@ use Cbox\Cms\Core\Registry\Domain\RegistryCompiler;
 use Cbox\Cms\Core\Registry\Domain\RegistryName;
 use Cbox\Cms\Core\Tests\Registry\AddonFieldTypes;
 use Cbox\Cms\Core\Tests\Registry\Fakes\FakeDeclarationScanner;
+use Cbox\Cms\Core\Tests\Registry\Fakes\FakeOpenApiDocuments;
 use Cbox\Cms\Core\Tests\Registry\Fakes\FakeRegistryCache;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Addon\IndexReviewedNote;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Addon\RequireNoteStars;
@@ -106,9 +107,13 @@ it('compiles what the scanner finds in the roots it is given, writes it and retu
     $cache = new FakeRegistryCache('/srv/app/bootstrap/cache/cms');
     $roots = new ScanRoots(new ScanRoot('acme/notes', '/srv/notes/src'));
 
-    $registry = new BuildRegistry($scanner, new RegistryCompiler, $cache)->build($roots);
+    $documents = new FakeOpenApiDocuments('fixture.note.create@1');
+
+    $registry = new BuildRegistry($scanner, new RegistryCompiler, $cache, $documents)->build($roots);
 
     expect($registry)->toEqual(new RegistryCompiler()->compile(RegistryFixtures::validDiscovery('acme/notes')))
+        ->and($registry->count(RegistryName::Rest))->toBe(1)
+        ->and($documents->written)->toEqual($documents->describe($registry))
         ->and($registry->count(RegistryName::Hooks))->toBe(1)
         ->and($registry->count(RegistryName::Actions))->toBe(2)
         ->and($registry->count(RegistryName::Subscribers))->toBe(3)
@@ -123,7 +128,7 @@ it('writes nothing when the scan found a problem, and keeps the cache that was t
     $cache = new FakeRegistryCache;
     $cache->write(CompiledRegistry::empty());
 
-    $build = new BuildRegistry($scanner, new RegistryCompiler, $cache);
+    $build = new BuildRegistry($scanner, new RegistryCompiler, $cache, new FakeOpenApiDocuments('fixture.note.create@1'));
 
     expect(static fn (): CompiledRegistry => $build->build(new ScanRoots(new ScanRoot('acme/broken', '/srv/broken/src'))))
         ->toThrow(RegistryBuildFailed::class, '[registry_class_not_loadable] Loading Acme\\Broken failed.')
@@ -137,17 +142,42 @@ it('writes nothing when two roots declare the same command', function (): void {
         '/srv/two/src' => new Discovery([new CommandEntry(new CommandName('x.y'), 1, NoteTitle::class, 'acme/two')], [], []),
     ]);
     $cache = new FakeRegistryCache;
-    $build = new BuildRegistry($scanner, new RegistryCompiler, $cache);
+    $build = new BuildRegistry($scanner, new RegistryCompiler, $cache, new FakeOpenApiDocuments('fixture.note.create@1'));
 
     expect(static fn (): CompiledRegistry => $build->build(new ScanRoots(new ScanRoot('acme/one', '/srv/one/src'), new ScanRoot('acme/two', '/srv/two/src'))))
         ->toThrow(RegistryBuildFailed::class, '[registry_duplicate_command]')
         ->and($cache->stored())->toBeNull();
 });
 
+it('writes nothing when an action on REST has no codec to describe its route', function (): void {
+    $scanner = new FakeDeclarationScanner(['/srv/notes/src' => RegistryFixtures::validDiscovery()]);
+    $cache = new FakeRegistryCache;
+    $documents = new FakeOpenApiDocuments;
+    $build = new BuildRegistry($scanner, new RegistryCompiler, $cache, $documents);
+
+    expect(static fn (): CompiledRegistry => $build->build(new ScanRoots(new ScanRoot('acme/notes', '/srv/notes/src'))))
+        ->toThrow(RegistryBuildFailed::class, '[registry_surface_without_codec] Action Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNoteAction is exposed on REST')
+        ->and($cache->stored())->toBeNull()
+        ->and($documents->written)->toBeNull();
+});
+
+it('writes the cache before the document, and passes on a document that cannot be written', function (): void {
+    $scanner = new FakeDeclarationScanner(['/srv/notes/src' => RegistryFixtures::validDiscovery()]);
+    $cache = new FakeRegistryCache;
+    $documents = new FakeOpenApiDocuments('fixture.note.create@1');
+    $documents->refuseWrites();
+    $build = new BuildRegistry($scanner, new RegistryCompiler, $cache, $documents);
+
+    expect(static fn (): CompiledRegistry => $build->build(new ScanRoots(new ScanRoot('acme/notes', '/srv/notes/src'))))
+        ->toThrow(RegistryCacheUnwritable::class, 'openapi.json: Permission denied')
+        ->and($cache->writes)->toBe(1)
+        ->and($documents->written)->toBeNull();
+});
+
 it('passes on a cache that cannot be written', function (): void {
     $cache = new FakeRegistryCache('/srv/app/bootstrap/cache/cms');
     $cache->refuseWrites('Permission denied');
-    $build = new BuildRegistry(new FakeDeclarationScanner, new RegistryCompiler, $cache);
+    $build = new BuildRegistry(new FakeDeclarationScanner, new RegistryCompiler, $cache, new FakeOpenApiDocuments);
 
     expect(static fn (): CompiledRegistry => $build->build(new ScanRoots))
         ->toThrow(RegistryCacheUnwritable::class, '/srv/app/bootstrap/cache/cms/actions.php: Permission denied')
@@ -241,11 +271,11 @@ it('keeps the command name as the CommandName value that the hooks and the idemp
         ->and($read->commands[0]->name->equals($read->hooks[0]->command))->toBeTrue();
 });
 
-it('writes the five files, and reading them back gives the registry that was built', function (): void {
+it('writes the six files, and reading them back gives the registry that was built', function (): void {
     $directory = RegistryFixtures::scratch();
     $built = RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
-    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'schema.php', 'subscribers.php'])
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'openapi.json', 'rest.php', 'schema.php', 'subscribers.php'])
         ->and(RegistryFixtures::cache($directory)->read())->toEqual($built);
 
     $actions = RegistryFixtures::load($directory.'/actions.php');
@@ -262,7 +292,7 @@ it('writes the five files, and reading them back gives the registry that was bui
         'entries' => [
             ['class' => CreateNote::class, 'name' => 'fixture.note.create', 'package' => RegistryFixtures::PACKAGE, 'version' => 1],
         ],
-        'format' => 7,
+        'format' => 8,
         'registry' => 'commands',
     ])
         ->and($actions)->toBe([
@@ -287,7 +317,7 @@ it('writes the five files, and reading them back gives the registry that was bui
                     'surfaces' => [],
                 ],
             ],
-            'format' => 7,
+            'format' => 8,
             'registry' => 'actions',
         ])
         ->and($subscribers)->toBe([
@@ -329,7 +359,7 @@ it('writes the five files, and reading them back gives the registry that was bui
                     'projection' => null,
                 ],
             ],
-            'format' => 7,
+            'format' => 8,
             'registry' => 'subscribers',
         ])
         ->and($commands['build'])->toMatch('/\A[0-9a-f]{64}\z/');
@@ -342,13 +372,13 @@ it('replaces the actions.php of format 2, which listed actions without the comma
 
     $built = RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
-    expect(array_map(static fn (RegistryName $name): string => $name->fileName(), RegistryName::cases()))->toBe(['actions.php', 'commands.php', 'hooks.php', 'schema.php', 'subscribers.php'])
-        ->and(RegistryFixtures::load($directory.'/actions.php'))->toMatchArray(['format' => 7, 'registry' => 'actions'])
-        ->and(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'schema.php', 'subscribers.php'])
+    expect(array_map(static fn (RegistryName $name): string => $name->fileName(), RegistryName::cases()))->toBe(['actions.php', 'commands.php', 'hooks.php', 'rest.php', 'schema.php', 'subscribers.php'])
+        ->and(RegistryFixtures::load($directory.'/actions.php'))->toMatchArray(['format' => 8, 'registry' => 'actions'])
+        ->and(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'openapi.json', 'rest.php', 'schema.php', 'subscribers.php'])
         ->and(RegistryFixtures::cache($directory)->read())->toEqual($built);
 });
 
-it('writes five empty registries when there are no scan roots', function (): void {
+it('writes six empty registries when there are no scan roots', function (): void {
     $directory = RegistryFixtures::scratch();
     $registry = RegistryFixtures::builder($directory)->build(new ScanRoots);
 
@@ -358,11 +388,11 @@ it('writes five empty registries when there are no scan roots', function (): voi
         ->and($registry->subscribers)->toBe([])
         ->and($registry->schema)->toBe([]);
 
-    $build = hash('sha256', "actions => [];\ncommands => [];\nhooks => [];\nschema => [];\nsubscribers => [];\n");
+    $build = hash('sha256', "actions => [];\ncommands => [];\nhooks => [];\nrest => [];\nschema => [];\nsubscribers => [];\n");
 
     foreach (RegistryName::cases() as $name) {
         expect(RegistryFixtures::load($directory.'/'.$name->fileName()))
-            ->toBe(['build' => $build, 'entries' => [], 'format' => 7, 'registry' => $name->value]);
+            ->toBe(['build' => $build, 'entries' => [], 'format' => 8, 'registry' => $name->value]);
     }
 });
 
@@ -376,9 +406,9 @@ it('removes the slot file an earlier version wrote, and replaces its schema.php 
 
     $built = RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
-    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'schema.php', 'subscribers.php'])
-        ->and(RegistryFixtures::load($directory.'/subscribers.php'))->toMatchArray(['format' => 7, 'registry' => 'subscribers'])
-        ->and(RegistryFixtures::load($directory.'/schema.php'))->toMatchArray(['entries' => [], 'format' => 7, 'registry' => 'schema'])
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'openapi.json', 'rest.php', 'schema.php', 'subscribers.php'])
+        ->and(RegistryFixtures::load($directory.'/subscribers.php'))->toMatchArray(['format' => 8, 'registry' => 'subscribers'])
+        ->and(RegistryFixtures::load($directory.'/schema.php'))->toMatchArray(['entries' => [], 'format' => 8, 'registry' => 'schema'])
         ->and(RegistryFixtures::cache($directory)->read())->toEqual($built);
 });
 
@@ -394,7 +424,7 @@ it('gives byte-identical files when it builds twice, into the same or another di
     RegistryFixtures::builder($other)->build(new ScanRoots(...array_reverse([...$roots->roots, RegistryFixtures::root('Valid')])));
     $elsewhere = RegistryFixtures::hashes($other);
 
-    expect($first)->toHaveCount(5)
+    expect($first)->toHaveCount(6)
         ->and($second)->toBe($first)
         ->and($elsewhere)->toBe($first);
 });
@@ -404,7 +434,7 @@ it('keeps no temporary files next to the cache', function (): void {
     RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
     RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
-    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'schema.php', 'subscribers.php']);
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'openapi.json', 'rest.php', 'schema.php', 'subscribers.php']);
 });
 
 it('refuses two classes with the same command name and version, and writes nothing', function (): void {
@@ -568,7 +598,7 @@ it('accepts an action once the scan root of its command is declared', function (
         '/srv/notes/src' => new Discovery(RegistryFixtures::validDiscovery()->commands, [], []),
         '/srv/extra/src' => new Discovery([], [], [], [], [$elsewhere]),
     ]);
-    $build = new BuildRegistry($scanner, new RegistryCompiler, new FakeRegistryCache);
+    $build = new BuildRegistry($scanner, new RegistryCompiler, new FakeRegistryCache, new FakeOpenApiDocuments('fixture.note.create@1'));
     $extra = new ScanRoot('acme/extra', '/srv/extra/src');
 
     expect(static fn (): CompiledRegistry => $build->build(new ScanRoots($extra)))
@@ -616,7 +646,7 @@ it('refuses a command and a query that share a name and version', function (): v
         [],
         [new QueryEntry(new CommandName('note.find'), 1, FindNote::class, 'acme/notes')],
     )]);
-    $build = new BuildRegistry($scanner, new RegistryCompiler, new FakeRegistryCache);
+    $build = new BuildRegistry($scanner, new RegistryCompiler, new FakeRegistryCache, new FakeOpenApiDocuments('fixture.note.create@1'));
 
     expect(static fn (): CompiledRegistry => $build->build(new ScanRoots(new ScanRoot('acme/notes', '/srv/notes/src'))))
         ->toThrow(RegistryBuildFailed::class, '[registry_duplicate_command] Command "note.find" version 1 is declared by '.CreateNote::class.' (acme/notes) and '.FindNote::class.' (acme/notes).');
@@ -693,7 +723,7 @@ it('refuses the same subscription name in two packages through the fake scanner 
         '/srv/one/src' => new Discovery([], [], [], [], [], [new SubscriberEntry('Acme\One\Index', 'acme/one', new SubscriptionName('search.index'), Lane::Standard, null, $event)]),
         '/srv/two/src' => new Discovery([], [], [], [], [], [new SubscriberEntry('Acme\Two\Index', 'acme/two', new SubscriptionName('search.index'), Lane::Background, null, $event)]),
     ]);
-    $build = new BuildRegistry($scanner, new RegistryCompiler, new FakeRegistryCache);
+    $build = new BuildRegistry($scanner, new RegistryCompiler, new FakeRegistryCache, new FakeOpenApiDocuments('fixture.note.create@1'));
 
     expect(static fn (): CompiledRegistry => $build->build(new ScanRoots(new ScanRoot('acme/one', '/srv/one/src'), new ScanRoot('acme/two', '/srv/two/src'))))
         ->toThrow(RegistryBuildFailed::class, '[registry_duplicate_subscription] Subscription "search.index" is declared by Acme\One\Index (acme/one) and Acme\Two\Index (acme/two).');
@@ -786,7 +816,7 @@ it('writes schema.php with each addon\'s contributions, byte for byte the same w
                     'types' => ['reviews:review'],
                 ],
             ],
-            'format' => 7,
+            'format' => 8,
             'registry' => 'schema',
         ]);
 });

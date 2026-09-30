@@ -9,6 +9,7 @@ use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Dto\DeclaredAddons;
 use Cbox\Cms\Core\Registry\Domain\Dto\ScanRoots;
+use Cbox\Cms\Core\Registry\Domain\OpenApiDocuments;
 use Cbox\Cms\Core\Registry\Domain\RegistryBuildFailed;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Registry\Domain\RegistryCacheUnwritable;
@@ -16,7 +17,9 @@ use Cbox\Cms\Core\Registry\Domain\RegistryCompiler;
 
 /**
  * cms:build (PRD 13.2): scans the scan roots, compiles the registry with the addon manifests
- * (PRD 13.1) and writes the cache. Nothing is written unless the whole registry compiles.
+ * (PRD 13.1), describes its REST surface in an OpenAPI document (GUARDRAILS 2.1), and writes the
+ * cache and then the document. Nothing is written unless the whole registry compiles and its REST
+ * surface can be described.
  */
 #[Experimental]
 final readonly class BuildRegistry
@@ -25,6 +28,7 @@ final readonly class BuildRegistry
         private DeclarationScanner $scanner,
         private RegistryCompiler $compiler,
         private RegistryCache $cache,
+        private OpenApiDocuments $documents,
     ) {}
 
     /**
@@ -34,8 +38,10 @@ final readonly class BuildRegistry
     public function build(ScanRoots $roots, DeclaredAddons $addons = new DeclaredAddons): CompiledRegistry
     {
         $registry = $this->compiler->compile($this->scanner->scan($roots), $addons);
+        $document = $this->documents->describe($registry);
 
         $this->cache->write($registry);
+        $this->documents->write($document);
 
         return $registry;
     }

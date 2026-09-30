@@ -165,10 +165,12 @@ use Cbox\Cms\Core\Reads\Domain\QueryCodecs;
 use Cbox\Cms\Core\Reads\Domain\QueryTransaction;
 use Cbox\Cms\Core\Reads\Domain\ReadableFields;
 use Cbox\Cms\Core\Reads\Domain\ReadAudit;
+use Cbox\Cms\Core\Registry\Adapter\FileOpenApiDocuments;
 use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
 use Cbox\Cms\Core\Registry\Boundary\RegistryCacheCodec;
 use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
+use Cbox\Cms\Core\Registry\Domain\OpenApiDocuments;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
 use Cbox\Cms\Core\Routing\Adapter\PostgresRouteReader;
@@ -332,6 +334,17 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
             static fn (Application $app): RegistryCache => new FileRegistryCache($app->bootstrapPath(self::REGISTRY_CACHE), new RegistryCacheCodec),
         );
 
+        // The OpenAPI document of the REST surface, next to the registry cache, from the JSON
+        // Schemas of the command and query codecs (GUARDRAILS 2.1).
+        $this->app->bind(
+            OpenApiDocuments::class,
+            static fn (Application $app): OpenApiDocuments => new FileOpenApiDocuments(
+                $app->bootstrapPath(self::REGISTRY_CACHE),
+                $app->make(CommandCodecs::class),
+                $app->make(QueryCodecs::class),
+            ),
+        );
+
         // Read once per process from the files cms:build wrote; a missing file throws RegistryCacheMissing.
         $this->app->singleton(
             CompiledRegistry::class,
@@ -363,6 +376,10 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->bind(
             CommandCodecs::class,
             static fn (Application $app): CommandCodecs => new CommandCodecs(...self::tagged($app, CommandCodecs::TAG, CommandCodec::class)),
+        );
+        $this->app->bind(
+            QueryCodecs::class,
+            static fn (Application $app): QueryCodecs => new QueryCodecs(...self::tagged($app, QueryCodecs::TAG, QueryCodec::class)),
         );
 
         // The kernel's own commands (PRD 6.4) are read with the codecs composer generate:protocol

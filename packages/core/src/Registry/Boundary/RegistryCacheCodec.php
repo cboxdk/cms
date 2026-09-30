@@ -28,6 +28,7 @@ use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Dto\HookEntry;
+use Cbox\Cms\Core\Registry\Domain\Dto\RestRoute;
 use Cbox\Cms\Core\Registry\Domain\Dto\SchemaEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscribedEvent;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
@@ -37,9 +38,9 @@ use Cbox\Cms\Core\Registry\Domain\RegistryName;
 use LogicException;
 
 /**
- * The registry cache files of format 7, in both directions (PRD 13.2).
+ * The registry cache files of format 8, in both directions (PRD 13.2).
  *
- * A file is PHP that returns ['build' => '<sha256>', 'entries' => [...], 'format' => 7,
+ * A file is PHP that returns ['build' => '<sha256>', 'entries' => [...], 'format' => 8,
  * 'registry' => '<name>']. The keys of every array are written in alphabetical order, lists keep
  * the compiled order, and nothing depends on the time or the machine, so the same registry always
  * gives the same bytes. Reading checks every key and type and builds the typed entries; anything
@@ -53,7 +54,7 @@ use LogicException;
 #[Internal]
 final readonly class RegistryCacheCodec
 {
-    public const int FORMAT = 7;
+    public const int FORMAT = 8;
 
     private const string HEADER = <<<'PHP'
         <?php
@@ -143,6 +144,13 @@ final readonly class RegistryCacheCodec
                 'priority' => $hook->priority,
                 'reads' => $hook->reads?->value,
             ], $registry->hooks),
+            RegistryName::Rest->value => array_map(static fn (RestRoute $route): array => [
+                'kind' => $route->kind->value,
+                'method' => $route->method->value,
+                'name' => $route->name->value,
+                'path' => $route->path,
+                'version' => $route->version,
+            ], $registry->rest),
             RegistryName::Schema->value => array_map(static fn (SchemaEntry $entry): array => [
                 'extends' => array_map(static fn (TypeName $type): string => $type->value, $entry->extends),
                 'field_type_contributor' => $entry->fieldTypeContributor,
@@ -292,6 +300,31 @@ final readonly class RegistryCacheCodec
             ));
         }
 
+        $rest = [];
+
+        foreach ($entries[RegistryName::Rest->value] as $index => $entry) {
+            $path = $directory.'/'.RegistryName::Rest->fileName();
+            $at = sprintf('entries[%d]', $index);
+            $data = $this->map($entry, $path, $at, ['kind', 'method', 'name', 'path', 'version']);
+            $kind = $this->string($data['kind'], $path, $at.'.kind');
+            $name = $this->commandName($data['name'], $path, $at.'.name');
+            $route = $this->entry($path, $at, fn (): RestRoute => new RestRoute(
+                ActionKind::tryFrom($kind) ?? throw MalformedRegistryCache::at($path, $at.'.kind', sprintf('"%s" is not an action kind', $kind)),
+                $name,
+                $this->int($data['version'], $path, $at.'.version'),
+            ));
+
+            foreach (['method' => $route->method->value, 'path' => $route->path] as $key => $expected) {
+                $held = $this->string($data[$key], $path, $at.'.'.$key);
+
+                if ($held !== $expected) {
+                    throw MalformedRegistryCache::at($path, $at.'.'.$key, sprintf('"%s" is not the %s of the route of %s version %d, "%s"', $held, $key, $route->name->value, $route->version, $expected));
+                }
+            }
+
+            $rest[] = $route;
+        }
+
         $schema = [];
 
         foreach ($entries[RegistryName::Schema->value] as $index => $entry) {
@@ -349,7 +382,7 @@ final readonly class RegistryCacheCodec
             ));
         }
 
-        $registry = new CompiledRegistry($commands, $hooks, $actions, $subscribers, $schema);
+        $registry = new CompiledRegistry($commands, $hooks, $actions, $subscribers, $schema, $rest);
 
         if ($this->build($this->entries($registry)) !== $first[1]) {
             throw MalformedRegistryCache::at($directory.'/'.$first[0]->fileName(), 'build', 'the build does not match the entries of the registry files, so they were changed after cms:build wrote them');

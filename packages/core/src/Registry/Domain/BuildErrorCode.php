@@ -54,6 +54,9 @@ enum BuildErrorCode: string
     /** An #[Action] lists a surface that is not a case of Surface. */
     case UnknownSurface = 'registry_unknown_surface';
 
+    /** An action is exposed on REST, but no codec reads its command or query, so its route cannot be described or served. */
+    case SurfaceWithoutCodec = 'registry_surface_without_codec';
+
     /** A #[Subscription] sits on a class that does not implement Subscriber. */
     case NotASubscriber = 'registry_not_a_subscriber';
 

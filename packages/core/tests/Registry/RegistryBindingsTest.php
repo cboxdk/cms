@@ -25,6 +25,7 @@ use Cbox\Cms\Core\Publishing\Actions\UnpublishEntryAction;
 use Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry;
 use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
+use Cbox\Cms\Core\Registry\Adapter\FileOpenApiDocuments;
 use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
 use Cbox\Cms\Core\Registry\Boundary\ProviderScanRoots;
 use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
@@ -33,6 +34,7 @@ use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Dto\ScanRoots;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
+use Cbox\Cms\Core\Registry\Domain\OpenApiDocuments;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Registry\Domain\RegistryName;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
@@ -126,7 +128,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
         ->and($registry->actionFor(DeactivateActor::class)?->surfaces)->toBe([])
         ->and($registry->actionFor(CreateEntry::class)?->class)->toBe(CreateEntryAction::class)
         ->and($registry->actionFor(ReviseEntry::class)?->class)->toBe(ReviseEntryAction::class)
-        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([10, 9, 0, 0, 1])
+        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([10, 9, 0, 7, 0, 1])
         ->and($registry->hooks)->toBe([])
         ->and(array_map(static fn (SubscriberEntry $entry): string => $entry->name->value.' '.$entry->class.' '.$entry->lane->value.' '.$entry->projection?->value, $registry->subscribers))
         ->toBe(['fragments.invalidate '.InvalidateFragments::class.' critical origin'])
@@ -137,12 +139,14 @@ it('binds the scanner and a cache in the application\'s bootstrap/cache/cms', fu
     expect(app(DeclarationScanner::class))->toBeInstanceOf(AttributeScanner::class)
         ->and(app(RegistryCache::class))->toBeInstanceOf(FileRegistryCache::class)
         ->and(app(RegistryCache::class)->location())->toBe(app()->bootstrapPath('cache/cms'))
-        ->and(app(BuildRegistry::class)->location())->toBe(app()->bootstrapPath('cache/cms'));
+        ->and(app(BuildRegistry::class)->location())->toBe(app()->bootstrapPath('cache/cms'))
+        ->and(app(OpenApiDocuments::class))->toBeInstanceOf(FileOpenApiDocuments::class);
 });
 
 it('loads the registry at run time from the files cms:build wrote, once per process', function (): void {
     $directory = RegistryFixtures::scratch();
     app()->instance(RegistryCache::class, RegistryFixtures::cache($directory));
+    app()->instance(OpenApiDocuments::class, RegistryFixtures::documents($directory));
     app()->forgetInstance(CompiledRegistry::class);
 
     $built = app(BuildRegistry::class)->build(new ScanRoots(RegistryFixtures::root('Valid')));

@@ -18,6 +18,9 @@ use Cbox\Cms\Core\Registry\Domain\RegistryName;
  * package, then class. Subscribers are sorted by subscription name. Schema contributions are sorted
  * by the addon's namespace.
  *
+ * The REST routes are compiled from the actions exposed on REST (RestRoute::of()), in the order of
+ * the actions.
+ *
  * The registry answers which subscribers receive an event class and which projections they
  * acknowledge, so the kernel can list on a changeset's receipt each projection its events affect
  * (PRD 8.4).
@@ -40,6 +43,7 @@ final readonly class CompiledRegistry
      * @param  list<ActionEntry>  $actions
      * @param  list<SubscriberEntry>  $subscribers
      * @param  list<SchemaEntry>  $schema
+     * @param  list<RestRoute>  $rest
      */
     public function __construct(
         public array $commands,
@@ -47,6 +51,7 @@ final readonly class CompiledRegistry
         public array $actions = [],
         public array $subscribers = [],
         public array $schema = [],
+        public array $rest = [],
     ) {
         $byCommand = [];
         $byClass = [];
@@ -81,6 +86,7 @@ final readonly class CompiledRegistry
             RegistryName::Actions => count($this->actions),
             RegistryName::Commands => count($this->commands),
             RegistryName::Hooks => count($this->hooks),
+            RegistryName::Rest => count($this->rest),
             RegistryName::Schema => count($this->schema),
             RegistryName::Subscribers => count($this->subscribers),
         };

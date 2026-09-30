@@ -16,6 +16,7 @@ use Cbox\Cms\Core\Registry\Domain\Dto\DeclaredAddons;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredAction;
 use Cbox\Cms\Core\Registry\Domain\Dto\Discovery;
 use Cbox\Cms\Core\Registry\Domain\Dto\HookEntry;
+use Cbox\Cms\Core\Registry\Domain\Dto\RestRoute;
 use Cbox\Cms\Core\Registry\Domain\Dto\SchemaEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscribedEvent;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
@@ -32,6 +33,9 @@ use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
  * of an addon's package must be one its manifest allows, and its entry names the addon; a hook's
  * also carries the classification the manifest lets the kernel hand it. Each manifest's schema
  * contributions become an entry of schema.php.
+ *
+ * The routes of the REST surface follow from the actions exposed on it (RestRoute::of()), one per
+ * action, in the order of the actions.
  */
 #[Experimental]
 final readonly class RegistryCompiler
@@ -195,7 +199,9 @@ final readonly class RegistryCompiler
 
         usort($schema, static fn (SchemaEntry $a, SchemaEntry $b): int => strcmp($a->namespace->value, $b->namespace->value));
 
-        return new CompiledRegistry($commands, $hooks, $actions, $subscribers, $schema);
+        $rest = array_values(array_filter(array_map(RestRoute::of(...), $actions), static fn (?RestRoute $route): bool => $route instanceof RestRoute));
+
+        return new CompiledRegistry($commands, $hooks, $actions, $subscribers, $schema, $rest);
     }
 
     /**
