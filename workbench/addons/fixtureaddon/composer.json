@@ -1,0 +1,22 @@
+{
+  "name": "cboxdk/cms-fixture-addon",
+  "description": "The workbench's fixture addon for Cbox CMS: a manifest in the namespace fixtureaddon, a transform hook that derives a slug on entry.create, a validate hook that requires it on variant.release, and a blueprint extension that gives app:fixture_article the field ext.fixtureaddon.fixture_slug. It is never published.",
+  "type": "library",
+  "license": "MIT",
+  "require": {
+    "php": "^8.5",
+    "cboxdk/cms": "^1.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Workbench\\FixtureAddon\\": "src/"
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Workbench\\FixtureAddon\\FixtureAddonServiceProvider"
+      ]
+    }
+  }
+}

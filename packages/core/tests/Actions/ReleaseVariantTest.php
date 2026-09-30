@@ -4,14 +4,20 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Actions;
 
+use Cbox\Cms\Contracts\Attributes\Phase;
 use Cbox\Cms\Contracts\Consistency\Outcome;
 use Cbox\Cms\Contracts\Content\RevisionNumber;
 use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Content\VariantRef;
 use Cbox\Cms\Contracts\Envelope\IssuerKind as EnvelopeIssuer;
+use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\TextValue;
+use Cbox\Cms\Contracts\Hooks\HookError;
+use Cbox\Cms\Contracts\Hooks\HookErrors;
+use Cbox\Cms\Contracts\Hooks\PlanView;
 use Cbox\Cms\Contracts\Identity\IssuerKind;
+use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
@@ -26,10 +32,12 @@ use Cbox\Cms\Contracts\Schema\TypeCapabilities;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Core\Entries\Domain\Dto\StoredHead;
+use Cbox\Cms\Core\Pipeline\Domain\Dto\BoundHook;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\StaleRead;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\VersionConflict;
 use Cbox\Cms\Core\Tests\Entries\EntryActionWorld;
 use Cbox\Cms\Core\Tests\Entries\NoteType;
+use Cbox\Cms\Core\Tests\Pipeline\Probe\Hooks\CallbackValidate;
 
 /*
  * variant.release's action in the command pipeline with fakes (GUARDRAILS 9, PRD 5.6, 6.2, 6.4): a
@@ -168,6 +176,54 @@ it('rejects a revision the variant does not have, and one written under another 
         ->and($unknown->errors[1]->path?->toString())->toBe('revision')
         ->and(releaseVariantCodes($older))->toBe(['validation_failed', 'validation_failed'])
         ->and($older->errors[1]->message)->toContain('written under schema version 2 of test:note');
+});
+
+it('gives the hooks the released revision with the fields they may read, and adds a validate hook\'s error to the release', function (): void {
+    $world = releaseVariantWorld(EntryActionWorld::fields('Groceries', ['secret' => new TextValue('hidden')]));
+    $seen = [];
+    $world->hooks->add(new CommandName('variant.release'), 1, new BoundHook(
+        new CallbackValidate(static function (PlanView $plan) use (&$seen): HookErrors {
+            $seen[] = $plan;
+
+            return new HookErrors(HookError::onField(new FieldHandle('title'), 'Released notes need a longer title.'));
+        }),
+        'acme/cms-titles',
+        Phase::Validate,
+        0,
+        5,
+    ));
+
+    $result = $world->release(6, 4);
+    $view = $seen[0] ?? null;
+
+    expect($seen)->toHaveCount(1)
+        ->and($view?->releases())->toHaveCount(1)
+        ->and($view?->release(new VariantRef(EntryActionWorld::entry(), VariantKey::shared()))?->release->revision->value)->toBe(4)
+        ->and($view?->releases()[0]->fields->equals(EntryActionWorld::fields('Groceries')))->toBeTrue()
+        ->and(releaseVariantCodes($result))->toBe(['validation_failed', 'validation_hook_failed'])
+        ->and($result->errors[1]->message)->toBe('Released notes need a longer title.')
+        ->and($world->committer->pending)->toBe([]);
+});
+
+it('gives the hooks no released revision the kernel cannot read, and rejects the release after them', function (): void {
+    $world = releaseVariantWorld(schemaVersion: 2);
+    $seen = [];
+    $world->hooks->add(new CommandName('variant.release'), 1, new BoundHook(
+        new CallbackValidate(static function (PlanView $plan) use (&$seen): HookErrors {
+            $seen[] = $plan->releases();
+
+            return HookErrors::none();
+        }),
+        'acme/cms-titles',
+        Phase::Validate,
+        0,
+        5,
+    ));
+
+    $result = $world->release(6, 4);
+
+    expect($seen)->toBe([[]])
+        ->and(releaseVariantCodes($result))->toBe(['validation_failed', 'validation_failed']);
 });
 
 it('rejects a release of a type with stages none, and of one whose history keeps no revisions, with type_not_releasable', function (): void {

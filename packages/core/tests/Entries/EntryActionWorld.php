@@ -71,7 +71,8 @@ use LogicException;
  * the fakes of its ports and of the contracts it reads (GUARDRAILS 9): an active editor, the test
  * type NoteType in the catalog and its validator, beside any other types a test adds, the entries
  * and nodes of a FakeEntryReader, which knows the node HOME at version 1, the revisions of a
- * FakeRevisionContents, and a committer that records what it is asked to commit. A call runs as
+ * FakeRevisionContents, the hooks a test adds to a FakeCommandHooks, and a committer that records
+ * what it is asked to commit. A call runs as
  * the editor with a service credential through REST unless a test gives another issuer. Nothing
  * touches a database.
  */
@@ -88,6 +89,9 @@ final class EntryActionWorld
     public readonly FakeEntryReader $entries;
 
     public readonly FakeRevisionContents $revisions;
+
+    /** The hooks the pipeline runs: none unless a test adds some. */
+    public readonly FakeCommandHooks $hooks;
 
     public IssuerKind $credential = IssuerKind::Service;
 
@@ -106,6 +110,7 @@ final class EntryActionWorld
         $this->editor = $this->identity->addActor(ActorClass::Staff)->id;
         $this->entries = new FakeEntryReader()->withNode(self::home(), new AggregateVersion(1));
         $this->revisions = new FakeRevisionContents;
+        $this->hooks = new FakeCommandHooks;
         $this->committer = new FakeChangesetCommitter;
     }
 
@@ -196,7 +201,7 @@ final class EntryActionWorld
             new FakeCommandContentHasher,
             new IdempotencySettings(WaitBudget::milliseconds(40)),
             new FakeCommandTransaction($keys, $receipts),
-            new HookRunner(new FakeCommandHooks, new HookPlans($types), new FakeStopwatch, new FakeHookOverruns),
+            new HookRunner($this->hooks, new HookPlans($types), new FakeStopwatch, new FakeHookOverruns),
         );
 
         $envelope = Envelope::external(

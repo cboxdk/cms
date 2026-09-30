@@ -21,22 +21,26 @@ final readonly class AppFixtureArticleV1
 {
     /**
      * @param  EntryId  $cmsId  The id of the entry (PRD 5.3).
+     * @param  AppFixtureArticleV1Ext  $ext  The fields extensions add, by the namespace of their extender (PRD 11.12).
      * @param  ListValue|Omitted|null  $fixtureBody  Body: The body of the article.
      * @param  AppFixtureArticleV1FixtureEmbargo|Omitted|null  $fixtureEmbargo  Embargo.
      * @param  bool  $fixtureFeatured  Featured: Whether the article is featured on the front page.
      * @param  DateTimeImmutable|Omitted|null  $fixturePublishedOn  Published on: The day the article was first published.
      * @param  int|Omitted|null  $fixtureReadingMinutes  Reading minutes: How many minutes the article takes to read.
+     * @param  string|Omitted|null  $fixtureSlug  Slug: The owner's own slug of the article, added in version 2 beside the fixture addon's ext.fixtureaddon.fixture_slug, with the same handle and no collision.
      * @param  list<AppFixtureArticleV1FixtureSources>|Omitted|null  $fixtureSources  Sources: The sources the article cites.
      * @param  string|Omitted|null  $fixtureTitle  Title: The title of the article, as it is shown on the page and in lists.
      * @param  list<'fixture_politics'|'fixture_science'|'fixture_culture'>|Omitted|null  $fixtureTopics  Topics: The topics the article is listed under.
      */
     public function __construct(
         public EntryId $cmsId,
+        public AppFixtureArticleV1Ext $ext,
         public ListValue|Omitted|null $fixtureBody,
         public AppFixtureArticleV1FixtureEmbargo|Omitted|null $fixtureEmbargo,
         public bool $fixtureFeatured,
         public DateTimeImmutable|Omitted|null $fixturePublishedOn,
         public int|Omitted|null $fixtureReadingMinutes,
+        public string|Omitted|null $fixtureSlug,
         public array|Omitted|null $fixtureSources,
         public string|Omitted|null $fixtureTitle,
         public array|Omitted|null $fixtureTopics,
@@ -50,11 +54,13 @@ final readonly class AppFixtureArticleV1
     {
         return new self(
             cmsId: $this->cmsId,
+            ext: $this->ext,
             fixtureBody: $this->fixtureBody,
             fixtureEmbargo: $access->allows(ClassificationAccess::Confidential) ? $this->fixtureEmbargo : Omitted::Field,
             fixtureFeatured: $this->fixtureFeatured,
             fixturePublishedOn: $this->fixturePublishedOn,
             fixtureReadingMinutes: $this->fixtureReadingMinutes,
+            fixtureSlug: $this->fixtureSlug,
             fixtureSources: $access->allows(ClassificationAccess::Internal) ? $this->fixtureSources : Omitted::Field,
             fixtureTitle: $this->fixtureTitle,
             fixtureTopics: $this->fixtureTopics,

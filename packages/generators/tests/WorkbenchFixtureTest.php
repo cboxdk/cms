@@ -33,8 +33,9 @@ use Cbox\Cms\Generators\Schema\Domain\Stages;
 use Illuminate\Contracts\Config\Repository;
 
 /*
- * The workbench's schema root and its committed generated code (GUARDRAILS 2.6): fixture_article
- * with history full and stages draft-release, and fixture_measurement with history none, stages
+ * The workbench's schema roots and its committed generated code (GUARDRAILS 2.6): fixture_article
+ * with history full and stages draft-release, at version 2 with the owner's fixture_slug, extended
+ * by the fixture addon's root with ext.fixtureaddon.fixture_slug, and fixture_measurement with history none, stages
  * none, no route and other fields, the two fixture types of milestone 1, which together use every
  * core field type, so the workbench's record codecs are tested with each. Every file in
  * workbench/schema is a blueprint v1 file that YamlBlueprintSource reads without problems, and the
@@ -51,27 +52,31 @@ it('holds only blueprint v1 files, which the YAML source reads without problems'
     $blueprints = app(BlueprintSource::class)->read($target->roots);
 
     expect(app(BlueprintSource::class))->toBeInstanceOf(YamlBlueprintSource::class)
-        ->and(array_map(static fn (SchemaRoot $root): string => $root->owner->value.': '.$root->directory, $target->roots))->toBe(['app: workbench/schema'])
+        ->and(array_map(static fn (SchemaRoot $root): string => $root->owner->value.': '.$root->directory, $target->roots))->toBe(['app: workbench/schema', 'fixtureaddon: workbench/addons/fixtureaddon/schema'])
         ->and($files)->toBe(['fixture_article.yaml', 'fixture_measurement.yaml']);
 
     foreach ($files as $file) {
         expect((string) file_get_contents($directory.'/'.$file))->toMatch('/^blueprint: 1$/m');
     }
 
-    expect($blueprints->extensions)->toBe([])
-        ->and($blueprints->types)->toHaveCount(2);
+    expect($blueprints->extensions)->toHaveCount(1)
+        ->and($blueprints->types)->toHaveCount(2)
+        ->and(SchemaFixtures::files($target->roots[1]->path()))->toBe(['fixture_article.yaml']);
+
+    [$extension] = $blueprints->extensions;
 
     [$article, $measurement] = $blueprints->types;
 
     expect($article->handle->value)->toBe('fixture_article')
         ->and($article->owner->value)->toBe('app')
-        ->and($article->version)->toBe(1)
+        ->and($article->version)->toBe(2)
         ->and($article->typeId->value->value)->toMatch('/\A[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\z/')
         ->and([$article->capabilities->history, $article->capabilities->stages, $article->capabilities->localization, $article->capabilities->routable])
         ->toBe([History::Full, Stages::DraftRelease, Localization::None, true])
         ->and(array_map(static fn (FieldBlueprint $field): array => [$field->handle->value, $field->options::class, $field->classification, $field->description !== null], $article->fields))
         ->toBe([
             ['fixture_title', TextOptions::class, Classification::Public, true],
+            ['fixture_slug', TextOptions::class, Classification::Public, true],
             ['fixture_body', RichTextOptions::class, Classification::Public, true],
             ['fixture_published_on', DateOptions::class, Classification::Public, true],
             ['fixture_reading_minutes', IntegerOptions::class, Classification::Public, true],
@@ -80,6 +85,14 @@ it('holds only blueprint v1 files, which the YAML source reads without problems'
             ['fixture_sources', GroupOptions::class, Classification::Internal, true],
             ['fixture_embargo', GroupOptions::class, Classification::Confidential, false],
         ]);
+
+    // The fixture addon's extension gives the article a field of the handle the owner added in
+    // version 2, in the addon's namespace: two fields, side by side (PRD 11.12 point 2).
+    expect($extension->owner->value)->toBe('fixtureaddon')
+        ->and($extension->extends->equals($article->typeId))->toBeTrue()
+        ->and($extension->version)->toBe(1)
+        ->and(array_map(static fn (FieldBlueprint $field): array => [$field->handle->value, $field->options::class, $field->classification, $field->required], $extension->fields))
+        ->toBe([['fixture_slug', TextOptions::class, Classification::Public, false]]);
 
     expect($measurement->handle->value)->toBe('fixture_measurement')
         ->and($measurement->owner->value)->toBe('app')
@@ -126,6 +139,8 @@ it('has committed generated code that matches the schema', function (): void {
         'workbench/app/Cms/Generated/Boundary/AppFixtureArticleCodecV1.php',
         'workbench/app/Cms/Generated/Boundary/AppFixtureMeasurementCodecV1.php',
         'workbench/app/Cms/Generated/Domain/Dto/AppFixtureArticleV1.php',
+        'workbench/app/Cms/Generated/Domain/Dto/AppFixtureArticleV1Ext.php',
+        'workbench/app/Cms/Generated/Domain/Dto/AppFixtureArticleV1ExtFixtureaddon.php',
         'workbench/app/Cms/Generated/Domain/Dto/AppFixtureArticleV1FixtureEmbargo.php',
         'workbench/app/Cms/Generated/Domain/Dto/AppFixtureArticleV1FixtureSources.php',
         'workbench/app/Cms/Generated/Domain/Dto/AppFixtureMeasurementV1.php',
@@ -141,7 +156,11 @@ it('has committed generated code that matches the schema', function (): void {
         'workbench/app/Cms/Generated/QueryBuilders/AppFixtureMeasurement/AppFixtureMeasurementQuery.php',
         'workbench/app/Cms/Generated/QueryBuilders/AppFixtureMeasurement/AppFixtureMeasurementSortField.php',
         'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticle.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleExt.php',
         'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleFactory.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleFixtureaddonExt.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleFixtureaddonExtension.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleFixtureaddonFields.php',
         'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleRecord.php',
         'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleRecordFactory.php',
         'workbench/app/Cms/Generated/Records/AppFixtureArticle/FixtureEmbargoGroup.php',
@@ -160,6 +179,8 @@ it('has committed generated code that matches the schema', function (): void {
         'workbench/app/Cms/Generated/Validators/AppFixtureMeasurementValidator.php',
         'workbench/database/migrations/cms/app__fixture_article.lock',
         'workbench/database/migrations/cms/app__fixture_article_0001_create.php',
+        'workbench/database/migrations/cms/app__fixture_article_0002_add_columns.php',
+        'workbench/database/migrations/cms/app__fixture_article_0003_add_columns.php',
         'workbench/database/migrations/cms/app__fixture_measurement.lock',
         'workbench/database/migrations/cms/app__fixture_measurement_0001_create.php',
         'workbench/resources/js/cms/generated/index.ts',
@@ -176,9 +197,8 @@ it('has committed generated code that matches the schema', function (): void {
     }
 });
 
-it('starts every file with the editor line, through the root to the blueprint schema of cboxdk/cms', function (): void {
-    $target = GeneratorConfig::read(app(Repository::class), base_path());
-    $directory = $target->roots[0]->path();
+it('starts every file with the editor line, through the root to the blueprint schema of cboxdk/cms', function (int $root, string $expected): void {
+    $directory = GeneratorConfig::read(app(Repository::class), base_path())->roots[$root]->path();
     $schema = new BlueprintSchemaFile()->editorPath();
     $files = SchemaFixtures::files($directory);
 
@@ -192,8 +212,11 @@ it('starts every file with the editor line, through the root to the blueprint sc
 
         $path = substr($first, strlen(EditorLine::PREFIX));
 
-        expect($path)->toBe('../../packages/contracts/resources/schemas/blueprint.v1.json')
+        expect($path)->toBe($expected)
             ->and(realpath(dirname($directory.'/'.$file).'/'.$path))->toBe(realpath(dirname(__DIR__, 3).'/packages/contracts/resources/schemas/blueprint.v1.json'))
             ->and(EditorLine::towards($schema, (string) realpath(dirname($directory.'/'.$file)))->apply($contents))->toBe($contents, $file.' is not what cms:schema:editor writes. Run `vendor/bin/testbench cms:schema:editor`.');
     }
-});
+})->with([
+    'the workbench\'s own root' => [0, '../../packages/contracts/resources/schemas/blueprint.v1.json'],
+    'the fixture addon\'s root' => [1, '../../../../packages/contracts/resources/schemas/blueprint.v1.json'],
+]);

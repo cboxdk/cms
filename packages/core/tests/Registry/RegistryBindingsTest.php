@@ -40,6 +40,7 @@ use Cbox\Cms\Core\Tests\Registry\Providers\DeferredRootProvider;
 use Cbox\Cms\Core\Tests\Registry\Providers\FixtureRootProvider;
 use Cbox\Cms\Generators\GeneratorsServiceProvider;
 use Cbox\Cms\Http\HttpServiceProvider;
+use Workbench\FixtureAddon\FixtureAddonServiceProvider;
 
 afterEach(function (): void {
     RegistryFixtures::cleanUp();
@@ -74,12 +75,14 @@ it('lets each package provider declare its own src directory as a scan root', fu
 it('collects the scan roots of every registered provider that declares them', function (): void {
     $roots = ProviderScanRoots::of(app())->roots;
 
-    expect($roots)->toHaveCount(5)
-        ->and($roots)->toEqualCanonicalizing(packageScanRoots()->roots);
+    // The module providers of cboxdk/cms, and the workbench's fixture addon, which package
+    // discovery registers.
+    expect($roots)->toHaveCount(6)
+        ->and($roots)->toEqualCanonicalizing([...packageScanRoots()->roots, new ScanRoot(FixtureAddonServiceProvider::PACKAGE, dirname(__DIR__, 4).'/workbench/addons/fixtureaddon/src')]);
 
     app()->register(FixtureRootProvider::class);
 
-    expect(ProviderScanRoots::of(app())->roots)->toHaveCount(6)->toContainEqual(RegistryFixtures::root('Valid'));
+    expect(ProviderScanRoots::of(app())->roots)->toHaveCount(7)->toContainEqual(RegistryFixtures::root('Valid'));
 });
 
 it('registers deferred providers first, so their scan roots are not missed', function (): void {

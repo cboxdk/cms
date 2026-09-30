@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Workbench\App\Cms\Generated;
 
 use Cbox\Cms\Contracts\Fields\FieldHandle;
+use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Schema\ColumnDefinition;
+use Cbox\Cms\Contracts\Schema\ExtensionVersion;
 use Cbox\Cms\Contracts\Schema\FieldDefinition;
 use Cbox\Cms\Contracts\Schema\History;
 use Cbox\Cms\Contracts\Schema\Localization;
@@ -27,6 +29,7 @@ use Override;
  *
  * Schema roots, by owner:
  *   app: workbench/schema
+ *   fixtureaddon: workbench/addons/fixtureaddon/schema
  */
 final readonly class GeneratedTypeCatalog implements TypeCatalog
 {
@@ -39,10 +42,24 @@ final readonly class GeneratedTypeCatalog implements TypeCatalog
             new TypeDefinition(
                 TypeId::fromString('01a0df3e-8cef-7e9f-8daf-9faa60f1faa6'),
                 new TypeName('app:fixture_article'),
-                1,
+                2,
                 new TypeCapabilities(History::Full, Stages::DraftRelease, Localization::None, true),
-                [],
                 [
+                    new ExtensionVersion(new FieldNamespace('fixtureaddon'), 1),
+                ],
+                [
+                    new FieldDefinition(
+                        namespace: new FieldNamespace('fixtureaddon'),
+                        handle: new FieldHandle('fixture_slug'),
+                        fieldType: 'text',
+                        classification: ClassificationAccess::Public,
+                        agents: true,
+                        encrypted: false,
+                        required: false,
+                        filterable: false,
+                        sortable: false,
+                        column: new ColumnDefinition('ext__fixtureaddon__fixture_slug', 'text', false, ['char_length("ext__fixtureaddon__fixture_slug") <= 120']),
+                    ),
                     new FieldDefinition(
                         namespace: null,
                         handle: new FieldHandle('fixture_body'),
@@ -128,6 +145,18 @@ final readonly class GeneratedTypeCatalog implements TypeCatalog
                         filterable: false,
                         sortable: false,
                         column: new ColumnDefinition('fixture_reading_minutes', 'bigint', false, ['"fixture_reading_minutes" >= 1', '"fixture_reading_minutes" <= 600']),
+                    ),
+                    new FieldDefinition(
+                        namespace: null,
+                        handle: new FieldHandle('fixture_slug'),
+                        fieldType: 'text',
+                        classification: ClassificationAccess::Public,
+                        agents: true,
+                        encrypted: false,
+                        required: false,
+                        filterable: false,
+                        sortable: false,
+                        column: new ColumnDefinition('fixture_slug', 'text', false, ['char_length("fixture_slug") <= 160']),
                     ),
                     new FieldDefinition(
                         namespace: null,

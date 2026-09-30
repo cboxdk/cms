@@ -77,10 +77,10 @@ it('is registered', function (): void {
         ->and(app(Kernel::class)->all()['cms:generate'])->toBeInstanceOf(GenerateCommand::class);
 });
 
-it('points at the workbench\'s schema root in the workbench', function (): void {
+it('points at the workbench\'s schema root and the fixture addon\'s in the workbench', function (): void {
     expect(config('cbox-cms.generators'))->toBe([
         'root' => dirname(__DIR__, 4),
-        'roots' => ['app' => 'workbench/schema'],
+        'roots' => ['app' => 'workbench/schema', 'fixtureaddon' => 'workbench/addons/fixtureaddon/schema'],
         'php_directory' => 'workbench/app/Cms/Generated',
         'php_namespace' => 'Workbench\App\Cms\Generated',
         'typescript_directory' => 'workbench/resources/js/cms/generated',

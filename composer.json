@@ -29,6 +29,7 @@
         "symfony/process": "^7.4.5 || ^8.0.5"
     },
     "require-dev": {
+        "cboxdk/cms-fixture-addon": "1.0.0",
         "driftingly/rector-laravel": "^2.6",
         "larastan/larastan": "^3.12",
         "laravel/framework": "^13.0",
@@ -57,6 +58,19 @@
         "rector/rector": "Required by the testkit's shared Rector configuration; install it with require-dev.",
         "symfony/yaml": "Required by cms:generate, which reads the blueprint files; install it with require-dev."
     },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "workbench/addons/fixtureaddon",
+            "options": {
+                "symlink": true,
+                "reference": "config",
+                "versions": {
+                    "cboxdk/cms-fixture-addon": "1.0.0"
+                }
+            }
+        }
+    ],
     "autoload": {
         "psr-4": {
             "Cbox\\Cms\\Cli\\": "packages/cli/src/",
@@ -80,6 +94,7 @@
             "Cbox\\Cms\\Tests\\": "tests/",
             "Cbox\\Cms\\Tooling\\": "tools/src/",
             "Examples\\": "examples/",
+            "Workbench\\FixtureAddon\\Tests\\": "workbench/addons/fixtureaddon/tests/",
             "Workbench\\App\\": "workbench/app/"
         },
         "classmap": [
@@ -147,6 +162,9 @@
         ]
     },
     "extra": {
+        "branch-alias": {
+            "dev-main": "1.x-dev"
+        },
         "laravel": {
             "providers": [
                 "Cbox\\Cms\\Core\\CoreServiceProvider",

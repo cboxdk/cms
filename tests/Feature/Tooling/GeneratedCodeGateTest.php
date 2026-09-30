@@ -30,7 +30,7 @@ use Symfony\Component\Process\Process;
  * generate:protocol writes from the kernel's JSON Schemas.
  *
  * The gate is run step by step from composer.json in a scratch git repository with a copy of the
- * workbench's blueprints, the kernel's schemas and the generated code, so the test does not depend
+ * workbench's blueprints and the fixture addon's, the kernel's schemas and the generated code, so the test does not depend
  * on the state of this working copy. cms:generate runs in-process with cbox-cms.generators.root
  * pointing at the copy, and generate:protocol in-process with the copy as its root.
  */
@@ -73,15 +73,15 @@ const PAGE_TYPE = <<<'YAML'
     YAML;
 
 /**
- * A git repository with the workbench's blueprints, the kernel's schemas and every file of the
- * generated code, committed.
+ * A git repository with the workbench's blueprints, the fixture addon's, the kernel's schemas and
+ * every file of the generated code, committed.
  */
 function gateRepository(): string
 {
     $root = SchemaFixtures::scratch();
     $files = [];
 
-    foreach (['workbench/schema', ProtocolSchemas::SCHEMA_DIRECTORY, ...GENERATED_PATHS, PROTOCOL_PATH] as $directory) {
+    foreach (['workbench/schema', 'workbench/addons/fixtureaddon/schema', ProtocolSchemas::SCHEMA_DIRECTORY, ...GENERATED_PATHS, PROTOCOL_PATH] as $directory) {
         foreach (SchemaFixtures::files(Phpstan::root().'/'.$directory) as $file) {
             $files[] = $directory.'/'.$file;
         }
@@ -243,8 +243,8 @@ it('writes the next step of the lock and an add_columns migration for a new opti
     expect($status)->not->toBe(0)
         ->and($output)->toContain('+++ b/workbench/database/migrations/cms/app__fixture_article.lock')
         ->and($output)->toContain('+            "name": "fixture_summary",')
-        ->and($output)->toContain('+            "step": 2,')
-        ->and((string) file_get_contents($root.'/workbench/database/migrations/cms/app__fixture_article_0002_add_columns.php'))->toContain('add column if not exists "fixture_summary" text');
+        ->and($output)->toContain('+            "step": 4,')
+        ->and((string) file_get_contents($root.'/workbench/database/migrations/cms/app__fixture_article_0004_add_columns.php'))->toContain('add column if not exists "fixture_summary" text');
 });
 
 it('fails when a field of a type that has a table is removed, and writes nothing', function (): void {

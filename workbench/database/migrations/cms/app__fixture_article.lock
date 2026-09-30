@@ -1,5 +1,5 @@
 {
-    "about": "The schema lock of the type table app__fixture_article: the columns its migrations app__fixture_article_<step> build, in 1 step. cms:generate writes the lock and the migrations from it; do not edit either.",
+    "about": "The schema lock of the type table app__fixture_article: the columns its migrations app__fixture_article_<step> build, in 3 steps. cms:generate writes the lock and the migrations from it; do not edit either.",
     "columns": [
         {
             "checks": [
@@ -78,12 +78,32 @@
             "not_null": false,
             "step": 1,
             "type": "text[]"
+        },
+        {
+            "checks": [
+                "char_length(\"ext__fixtureaddon__fixture_slug\") <= 120"
+            ],
+            "indexed": false,
+            "name": "ext__fixtureaddon__fixture_slug",
+            "not_null": false,
+            "step": 2,
+            "type": "text"
+        },
+        {
+            "checks": [
+                "char_length(\"fixture_slug\") <= 160"
+            ],
+            "indexed": false,
+            "name": "fixture_slug",
+            "not_null": false,
+            "step": 3,
+            "type": "text"
         }
     ],
     "localization": "none",
     "lock": 1,
     "stages": "draft-release",
-    "steps": 1,
+    "steps": 3,
     "table": "app__fixture_article",
     "type": "app:fixture_article",
     "type_id": "01a0df3e-8cef-7e9f-8daf-9faa60f1faa6"

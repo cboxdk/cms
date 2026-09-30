@@ -16,6 +16,7 @@ use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Fields\TextValue;
 use Cbox\Cms\Contracts\Hooks\FieldChange;
 use Cbox\Cms\Contracts\Hooks\FieldChanges;
+use Cbox\Cms\Contracts\Hooks\ReleasedRevision;
 use Cbox\Cms\Contracts\Identity\AccessContext;
 use Cbox\Cms\Contracts\Identity\ActorPrincipal;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
@@ -26,6 +27,7 @@ use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Plans\Mutations\HeadMoved;
 use Cbox\Cms\Contracts\Plans\Mutations\RevisionCreated;
+use Cbox\Cms\Contracts\Plans\Mutations\VariantReleased;
 use Cbox\Cms\Contracts\Plans\Plan;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\RefusedChange;
 use Cbox\Cms\Core\Pipeline\Domain\HookPlans;
@@ -177,4 +179,27 @@ it('shows only public fields to the anonymous principal', function (): void {
     $view = new HookPlans(new FakeTypeCatalog(ProbeType::definition()))->view(new CommandName('probe.rename'), 1, AccessContext::anonymous(), new Plan(plansRevision(PipelineWorld::ENTRY, $fields)));
 
     expect($view->revisions()[0]->fields->equals(plansFields('L')))->toBeTrue();
+});
+
+it('shows the released revisions with the fields the hook may read, and never changes them', function (): void {
+    $fields = new FieldValues(
+        new FieldMap(new NamedValue(new FieldHandle('label'), new TextValue('L')), new NamedValue(new FieldHandle('memo'), new TextValue('M'))),
+        new ExtensionFields(new FieldNamespace(ProbeType::EXTENDER), new FieldMap(new NamedValue(new FieldHandle('code'), new TextValue('C')))),
+    );
+    $release = new VariantReleased(EntryId::fromString(PipelineWorld::ENTRY), TypeId::fromString(ProbeType::ID), VariantKey::shared(), new RevisionNumber(2));
+    $plans = new HookPlans(new FakeTypeCatalog(ProbeType::definition()));
+    $plan = new Plan($release);
+
+    $all = $plans->view(new CommandName('probe.release'), 1, plansAccess(ClassificationAccess::Sensitive), $plan, null, [new ReleasedRevision($release, $fields)]);
+    $public = $plans->view(new CommandName('probe.release'), 1, plansAccess(ClassificationAccess::Sensitive), $plan, ClassificationAccess::Public, [new ReleasedRevision($release, $fields)]);
+    $refused = $plans->apply($plan, new FieldChanges(FieldChange::own(plansVariant(PipelineWorld::ENTRY), new FieldHandle('label'), new TextValue('X'))), plansAccess());
+
+    Assert::assertInstanceOf(RefusedChange::class, $refused);
+
+    expect($all->releases())->toHaveCount(1)
+        ->and($all->releases()[0]->release)->toBe($release)
+        ->and($all->releases()[0]->fields->equals($fields))->toBeTrue()
+        ->and($public->releases()[0]->fields->equals(plansFields('L')))->toBeTrue()
+        ->and($plans->view(new CommandName('probe.release'), 1, plansAccess(), $plan)->releases())->toBe([])
+        ->and($refused->reason)->toBe('The plan writes no revision of the variant "variant:'.PipelineWorld::ENTRY.':shared", so a hook cannot change it.');
 });

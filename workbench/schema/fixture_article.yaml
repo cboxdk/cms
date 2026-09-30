@@ -6,13 +6,16 @@
 # workbench/app/Cms/Generated and workbench/resources/js/cms/generated, and
 # `composer check:generated` fails when that code is not what the blueprints generate. The first
 # line, which points editors at the blueprint schema, is written by cms:schema:editor.
+# Version 2 adds the owner's fixture_slug, the handle of the fixture addon's extension field in
+# workbench/addons/fixtureaddon/schema: the two are different fields, fixture_slug and
+# ext.fixtureaddon.fixture_slug, side by side (PRD 11.12 point 2).
 blueprint: 1
 kind: type
 type_id: 01a0df3e-8cef-7e9f-8daf-9faa60f1faa6
 handle: fixture_article
 label: Fixture article
 description: A news article with a title, a body, its topics and sources, and an embargo.
-version: 1
+version: 2
 capabilities:
   history: full
   stages: draft-release
@@ -24,6 +27,12 @@ fields:
     description: The title of the article, as it is shown on the page and in lists.
     type: text
     classification: public
+  - handle: fixture_slug
+    label: Slug
+    description: The owner's own slug of the article, added in version 2 beside the fixture addon's ext.fixtureaddon.fixture_slug, with the same handle and no collision.
+    type: text
+    classification: public
+    max_length: 160
   - handle: fixture_body
     label: Body
     description: The body of the article.

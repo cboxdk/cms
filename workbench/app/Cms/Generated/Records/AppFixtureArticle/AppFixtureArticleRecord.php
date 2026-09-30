@@ -43,6 +43,11 @@ interface AppFixtureArticleRecord
     public ?int $fixtureReadingMinutes { get; }
 
     /**
+     * Slug: The owner's own slug of the article, added in version 2 beside the fixture addon's ext.fixtureaddon.fixture_slug, with the same handle and no collision.
+     */
+    public ?string $fixtureSlug { get; }
+
+    /**
      * Sources: The sources the article cites.
      *
      * @var list<FixtureSourcesItem>|null

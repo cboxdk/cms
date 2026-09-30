@@ -197,9 +197,19 @@ final class StarsFieldTypeTest extends BuildTestCase
         $schema = require $this->registryFile('schema');
         self::assertIsArray($schema);
         self::assertIsArray($schema['entries']);
-        self::assertIsArray($schema['entries'][0]);
-        self::assertSame(ReviewsFieldTypes::class, $schema['entries'][0]['field_type_contributor']);
-        self::assertSame([new StarsFieldType()->name()->value], $schema['entries'][0]['field_types']);
+
+        // One entry per addon of the installation, sorted by namespace; this is the reviews addon's.
+        $reviews = null;
+
+        foreach ($schema['entries'] as $entry) {
+            if (is_array($entry) && ($entry['namespace'] ?? null) === 'reviews') {
+                $reviews = $entry;
+            }
+        }
+
+        self::assertIsArray($reviews);
+        self::assertSame(ReviewsFieldTypes::class, $reviews['field_type_contributor']);
+        self::assertSame([new StarsFieldType()->name()->value], $reviews['field_types']);
 
         self::assertSame(0, $this->generate(<<<'YAML'
               - handle: rating

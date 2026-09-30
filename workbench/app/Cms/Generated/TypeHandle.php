@@ -12,6 +12,7 @@ namespace Workbench\App\Cms\Generated;
  *
  * Schema roots, by owner:
  *   app: workbench/schema
+ *   fixtureaddon: workbench/addons/fixtureaddon/schema
  */
 enum TypeHandle: string
 {
@@ -32,6 +33,7 @@ enum TypeHandle: string
                 'fixture_featured' => 'boolean',
                 'fixture_published_on' => 'date',
                 'fixture_reading_minutes' => 'integer',
+                'fixture_slug' => 'text',
                 'fixture_sources' => 'group',
                 'fixture_title' => 'text',
                 'fixture_topics' => 'select',
@@ -62,7 +64,11 @@ enum TypeHandle: string
     public function extensionFields(): array
     {
         return match ($this) {
-            self::AppFixtureArticle => [],
+            self::AppFixtureArticle => [
+                'fixtureaddon' => [
+                    'fixture_slug' => 'text',
+                ],
+            ],
             self::AppFixtureMeasurement => [],
         };
     }

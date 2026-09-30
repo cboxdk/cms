@@ -23,6 +23,7 @@ use Closure;
 use Illuminate\Contracts\Foundation\Application;
 use PHPUnit\Framework\Assert;
 use stdClass;
+use Workbench\FixtureAddon\FixtureAddonServiceProvider;
 
 /*
  * How cms:build reads the addon manifests of the service providers (PRD 13.1, 13.2): a manifest
@@ -131,6 +132,7 @@ it('asks the application\'s providers, deferred ones included, and no provider t
 
     $read = ProviderAddonManifests::of($app);
 
-    expect($read->manifests)->toEqual([RegistryFixtures::addonManifest()])
+    // The workbench's fixture addon, which package discovery registers, and the deferred one.
+    expect($read->manifests)->toEqual([new FixtureAddonServiceProvider($app)->addonManifest(), RegistryFixtures::addonManifest()])
         ->and($read->problems)->toBe([]);
 });

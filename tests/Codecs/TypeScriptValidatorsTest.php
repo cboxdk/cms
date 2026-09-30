@@ -190,7 +190,7 @@ function fullMeasurementJson(): string
  */
 function articleJson(array $fields = []): string
 {
-    return json_encode(['cms_id' => VALIDATED_ARTICLE_ID, 'fixture_featured' => false, ...$fields], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+    return json_encode(['cms_id' => VALIDATED_ARTICLE_ID, 'ext' => ['fixtureaddon' => new stdClass], 'fixture_featured' => false, ...$fields], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 }
 
 /**
@@ -206,10 +206,12 @@ function fullArticleJson(): string
             'markDefs' => [['_type' => 'link', '_key' => 'l', 'href' => 'https://example.org/report']],
             'children' => [['_type' => 'span', '_key' => 'a1', 'text' => 'Read the report', 'marks' => ['strong', 'l'], 'custom' => ['kept' => 1]]],
         ]],
+        'ext' => ['fixtureaddon' => ['fixture_slug' => 'budget-report-out']],
         'fixture_embargo' => ['fixture_embargo_until' => '2026-03-10T09:00:00+01:00', 'fixture_embargo_reason' => 'Waiting for the minister.'],
         'fixture_featured' => true,
         'fixture_published_on' => '2026-03-09',
         'fixture_reading_minutes' => 7,
+        'fixture_slug' => 'the-report',
         'fixture_sources' => [['fixture_source_title' => 'The report', 'fixture_source_url' => 'https://example.org/report'], ['fixture_source_title' => 'An interview']],
         'fixture_title' => 'Budget: the report is out',
         'fixture_topics' => ['fixture_politics', 'fixture_science'],
@@ -322,6 +324,11 @@ it('accepts every record of app:fixture_article v1 the PHP codec writes, and ref
         'a featured flag of null' => [articleJson(['fixture_featured' => null]), 'fixture_featured'],
         'a source that is not an object' => [articleJson(['fixture_sources' => ['The report']]), 'fixture_sources[0]'],
         'eleven sources' => [articleJson(['fixture_sources' => array_fill(0, 11, ['fixture_source_title' => 'x'])]), 'fixture_sources'],
+        'the extension fields missing' => [json_encode(['cms_id' => VALIDATED_ARTICLE_ID, 'fixture_featured' => false], JSON_THROW_ON_ERROR), 'ext'],
+        'an extender missing from ext' => [articleJson(['ext' => new stdClass]), 'ext.fixtureaddon'],
+        'the addon\'s slug longer than its 120 characters' => [articleJson(['ext' => ['fixtureaddon' => ['fixture_slug' => str_repeat('s', 121)]]]), 'ext.fixtureaddon.fixture_slug'],
+        'the owner\'s slug of 121 characters, which its 160 allow' => [articleJson(['fixture_slug' => str_repeat('s', 121)]), null],
+        'the owner\'s slug longer than its 160 characters' => [articleJson(['fixture_slug' => str_repeat('s', 161)]), 'fixture_slug'],
     ]);
 });
 

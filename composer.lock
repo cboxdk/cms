@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "5bf247b48184a55aa202e0f07e456989",
+    "content-hash": "5ce94c2a7af3233099a91070d3bd3ead",
     "packages": [
         {
             "name": "brick/math",
@@ -7375,6 +7375,40 @@
                 }
             ],
             "time": "2026-09-24T08:47:36+00:00"
+        },
+        {
+            "name": "cboxdk/cms-fixture-addon",
+            "version": "1.0.0",
+            "dist": {
+                "type": "path",
+                "url": "workbench/addons/fixtureaddon",
+                "reference": "c37cca928371f6d9a3fc27740dafd794ff0890dc"
+            },
+            "require": {
+                "cboxdk/cms": "^1.0",
+                "php": "^8.5"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Workbench\\FixtureAddon\\FixtureAddonServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Workbench\\FixtureAddon\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "The workbench's fixture addon for Cbox CMS: a manifest in the namespace fixtureaddon, a transform hook that derives a slug on entry.create, a validate hook that requires it on variant.release, and a blueprint extension that gives app:fixture_article the field ext.fixtureaddon.fixture_slug. It is never published.",
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
         },
         {
             "name": "composer/semver",

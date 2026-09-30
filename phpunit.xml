@@ -28,7 +28,9 @@
           Mutation  the tests that need a coverage driver: mutation on changed files for real, on a
                     scratch repository. PCOV is in the php container and the CI image, not on the
                     host; the PR profile runs it in gate 5
-        A package puts its tests for a suite in packages/<package>/tests/<Suite>. The running examples
+        A package puts its tests for a suite in packages/<package>/tests/<Suite>. The workbench's
+        fixture addons test themselves in workbench/addons/<addon>/tests, with their own Testbench
+        test case, in the Unit suite. The running examples
         of the documentation pages (gate 10, composer docs:check) live in examples/<Suite>/<Topic>.
     -->
     <testsuites>
@@ -36,6 +38,7 @@
             <directory suffix="Test.php">tests/Feature</directory>
             <directory suffix="Test.php">examples/Unit</directory>
             <directory suffix="Test.php">packages/*/tests</directory>
+            <directory suffix="Test.php">workbench/addons/*/tests</directory>
             <exclude>packages/*/tests/Codecs</exclude>
             <exclude>packages/*/tests/Contract</exclude>
             <exclude>packages/*/tests/Postgres</exclude>

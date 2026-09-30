@@ -5,6 +5,7 @@
 //
 // Schema roots, by owner:
 //   app: workbench/schema
+//   fixtureaddon: workbench/addons/fixtureaddon/schema
 
 /** Each type in the schema, as <owner>:<handle>. */
 export type TypeHandle = 'app:fixture_article' | 'app:fixture_measurement';
@@ -17,9 +18,15 @@ export interface TypeFields {
     fixture_featured: 'boolean';
     fixture_published_on: 'date';
     fixture_reading_minutes: 'integer';
+    fixture_slug: 'text';
     fixture_sources: 'group';
     fixture_title: 'text';
     fixture_topics: 'select';
+    ext: {
+      fixtureaddon: {
+        fixture_slug: 'text';
+      };
+    };
   };
   'app:fixture_measurement': {
     fixture_alerts: 'select';

@@ -22,12 +22,22 @@ use Cbox\Cms\Contracts\Plans\Mutations\RevisionCreated;
  * field the actor may not read. A field the view leaves out is absent from its FieldValues, as if
  * the revision did not set it. An addon's hook may be narrowed further to its manifest's
  * capabilities.
+ *
+ * A plan that releases a revision holds only the release, which names the revision; the view also
+ * holds each released revision with its fields (withReleases(), releases()), read by the kernel
+ * before the hooks run and filtered like a created revision, so a validate hook can require a field
+ * at the release (PRD 11.12, invariant 36). A release whose revision the kernel cannot read, one
+ * the variant does not have or one written under another schema version, is not among them; the
+ * kernel rejects that release after the validate hooks.
  */
 #[Experimental]
 final readonly class PlanView
 {
     /** @var list<Mutation> */
     public array $mutations;
+
+    /** @var list<ReleasedRevision> */
+    public array $released;
 
     /**
      * @throws InvalidHookResult when the version is below 1
@@ -44,6 +54,46 @@ final readonly class PlanView
         }
 
         $this->mutations = array_values($mutations);
+        $this->released = $this->releaseList();
+    }
+
+    /**
+     * The same view with the revisions the plan's releases make public, as the kernel read them.
+     */
+    public function withReleases(ReleasedRevision ...$released): self
+    {
+        return clone ($this, ['released' => $this->releaseList(...$released)]);
+    }
+
+    /**
+     * The revisions the plan releases, with their fields, in the order of the releases.
+     *
+     * @return list<ReleasedRevision>
+     */
+    public function releases(): array
+    {
+        return $this->released;
+    }
+
+    /**
+     * The revision the plan releases for the variant, or null when it releases none.
+     */
+    public function release(VariantRef $variant): ?ReleasedRevision
+    {
+        return array_find(
+            $this->released,
+            static fn (ReleasedRevision $released): bool => $variant->equals($released->variant()),
+        );
+    }
+
+    /**
+     * The released revisions of a new view: none until the kernel adds them with withReleases().
+     *
+     * @return list<ReleasedRevision>
+     */
+    private function releaseList(ReleasedRevision ...$released): array
+    {
+        return array_values($released);
     }
 
     /**

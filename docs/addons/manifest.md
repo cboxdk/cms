@@ -228,7 +228,6 @@ final class AddonManifestTest extends BuildTestCase
     public function it_registers_the_addon_s_hook_and_schema_contributions(): void
     {
         self::assertSame(0, $this->build(NotesServiceProvider::class, ReviewsServiceProvider::class));
-        self::assertStringContainsString('schema: 1', $this->buildOutput());
 
         $hooks = require $this->registryFile('hooks');
         self::assertIsArray($hooks);

@@ -14,9 +14,11 @@ use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Hooks\FieldChange;
 use Cbox\Cms\Contracts\Hooks\FieldChanges;
 use Cbox\Cms\Contracts\Hooks\PlanView;
+use Cbox\Cms\Contracts\Hooks\ReleasedRevision;
 use Cbox\Cms\Contracts\Identity\AccessContext;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Plans\Mutation;
 use Cbox\Cms\Contracts\Plans\Mutations\RevisionCreated;
 use Cbox\Cms\Contracts\Plans\Plan;
@@ -31,7 +33,8 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\RefusedChange;
  *
  * view() filters every revision's fields to the call's classification access, with each field's
  * classification from the TypeCatalog: a field above the access, or one the type does not declare,
- * is left out, so a hook sees only what the actor may read. apply() takes a transform hook's
+ * is left out, so a hook sees only what the actor may read. The revisions the plan's releases make
+ * public, which the pipeline read before the hooks, are filtered the same way. apply() takes a transform hook's
  * changes in order and refuses the first that names a variant the plan writes no revision of, or
  * writes more than one of, a field the revision's type does not declare, or a field above the
  * access. A change sets one top-level field of one revision; the rest of the plan, its order and
@@ -49,8 +52,9 @@ final readonly class HookPlans
 
     /**
      * @param  ClassificationAccess|null  $readable  the classification the hook may read, when it is lower than the access; null for the access
+     * @param  list<ReleasedRevision>  $releases  the revisions the plan's releases make public, with every field they hold
      */
-    public function view(CommandName $command, int $version, AccessContext $access, Plan $plan, ?ClassificationAccess $readable = null): PlanView
+    public function view(CommandName $command, int $version, AccessContext $access, Plan $plan, ?ClassificationAccess $readable = null, array $releases = []): PlanView
     {
         $classification = $readable ?? $access->classificationAccess;
 
@@ -63,7 +67,10 @@ final readonly class HookPlans
                 fn (Mutation $mutation): Mutation => $mutation instanceof RevisionCreated ? $this->visible($mutation, $classification) : $mutation,
                 $plan->mutations(),
             ),
-        );
+        )->withReleases(...array_map(
+            fn (ReleasedRevision $released): ReleasedRevision => new ReleasedRevision($released->release, $this->filtered($released->release->type, $released->fields, $classification)),
+            $releases,
+        ));
     }
 
     /**
@@ -159,10 +166,18 @@ final readonly class HookPlans
 
     private function visible(RevisionCreated $revision, ClassificationAccess $access): RevisionCreated
     {
-        $type = $this->types->find($revision->type);
+        return $this->withFields($revision, $this->filtered($revision->type, $revision->fields, $access));
+    }
+
+    /**
+     * The fields the access allows, of the owner and of every extension, as the type classifies them.
+     */
+    private function filtered(TypeId $typeId, FieldValues $values, ClassificationAccess $access): FieldValues
+    {
+        $type = $this->types->find($typeId);
         $extensions = [];
 
-        foreach ($revision->fields->extensions as $extension) {
+        foreach ($values->extensions as $extension) {
             $fields = $this->allowed($type, $extension->namespace, $extension->fields, $access);
 
             if (! $fields->isEmpty()) {
@@ -170,7 +185,7 @@ final readonly class HookPlans
             }
         }
 
-        return $this->withFields($revision, new FieldValues($this->allowed($type, null, $revision->fields->own, $access), ...$extensions));
+        return new FieldValues($this->allowed($type, null, $values->own, $access), ...$extensions);
     }
 
     private function allowed(?TypeDefinition $type, ?FieldNamespace $namespace, FieldMap $fields, ClassificationAccess $access): FieldMap

@@ -56,6 +56,7 @@ use Cbox\Cms\Core\Pipeline\Adapter\ConnectionCommandTransaction;
 use Cbox\Cms\Core\Pipeline\Adapter\PostgresChangesetCommitter;
 use Cbox\Cms\Core\Pipeline\Adapter\SavepointRefusal;
 use Cbox\Cms\Core\Pipeline\Domain\AffectedProjections;
+use Cbox\Cms\Core\Pipeline\Domain\CommandHooks;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\ActionBinding;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCall;
 use Cbox\Cms\Core\Pipeline\Domain\FieldValidation;
@@ -89,8 +90,8 @@ use LogicException;
  * contents a release is validated against, and the PostgresChangesetCommitter with the locks of
  * actors, entries, variants and nodes and the writers of the entry mutations, all on
  * that connection. The types and their validators are the workbench's generated ones. Only what the
- * kernel has no real implementation of yet is a fake: the authorizer, which allows, the content
- * hasher and the hooks.
+ * kernel has no real implementation of yet is a fake: the authorizer, which allows, and the content
+ * hasher. The hooks are none, unless a test gives the world the compiled registry's.
  *
  * The world's structure, written by seed() as the superuser, is the site root ROOT with the section
  * HOME below it; the call's access context reaches the whole tree. The clock stands at NOW, or at
@@ -134,8 +135,9 @@ final class EntryWorld
     /**
      * @param  string  $now  the clock's time, NOW unless a test needs another, such as one that
      *                       shares the receipts with a process on the system clock
+     * @param  CommandHooks|null  $hooks  the hooks the pipeline runs, such as the compiled registry's; none unless given
      */
-    public function __construct(private readonly ?string $connection = null, int $seed = 1, string $now = self::NOW)
+    public function __construct(private readonly ?string $connection = null, int $seed = 1, string $now = self::NOW, private readonly ?CommandHooks $hooks = null)
     {
         $this->clock = new FakeClock(new DateTimeImmutable($now));
         $this->ids = new FakeIdGenerator(seed: $seed, clock: $this->clock);
@@ -247,7 +249,7 @@ final class EntryWorld
             new FakeCommandContentHasher,
             new IdempotencySettings(WaitBudget::milliseconds(200)),
             new ConnectionCommandTransaction($connections, app(SavepointRefusal::class), $this->connection),
-            new HookRunner(new FakeCommandHooks, new HookPlans($types), new FakeStopwatch, new FakeHookOverruns),
+            new HookRunner($this->hooks ?? new FakeCommandHooks, new HookPlans($types), new FakeStopwatch, new FakeHookOverruns),
         );
     }
 

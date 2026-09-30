@@ -69,9 +69,9 @@ function listedTests(?string $suite): array
 }
 
 /**
- * The test class of each file named like a test below tests, examples and each package's tests directory,
- * outside the fixture directories: the class of the file's name that a PHPUnit file declares, or
- * the name Pest gives a file of test functions.
+ * The test class of each file named like a test below tests, examples, each package's tests
+ * directory and each workbench addon's tests directory, outside the fixture directories: the class
+ * of the file's name that a PHPUnit file declares, or the name Pest gives a file of test functions.
  *
  * @return list<string>
  */
@@ -80,7 +80,7 @@ function testFilesOnDisk(): array
     $root = Phpstan::root();
     $classes = [];
 
-    foreach ([$root.'/tests', $root.'/examples', ...(glob($root.'/packages/*/tests', GLOB_ONLYDIR) ?: [])] as $directory) {
+    foreach ([$root.'/tests', $root.'/examples', ...(glob($root.'/packages/*/tests', GLOB_ONLYDIR) ?: []), ...(glob($root.'/workbench/addons/*/tests', GLOB_ONLYDIR) ?: [])] as $directory) {
         foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS)) as $file) {
             if (! $file instanceof SplFileInfo) {
                 continue;
@@ -112,7 +112,7 @@ function testFilesOnDisk(): array
 it('defines the suites of gate 5, Unit, Codecs, Contract, Postgres, Arch and Actions, Browser for gate 8, and Mutation for the PR profile\'s gate 5', function (): void {
     expect(configuredSuites())->toBe([
         'Unit' => [
-            'directories' => ['tests/Feature', 'examples/Unit', 'packages/*/tests'],
+            'directories' => ['tests/Feature', 'examples/Unit', 'packages/*/tests', 'workbench/addons/*/tests'],
             'excludes' => ['packages/*/tests/Codecs', 'packages/*/tests/Contract', 'packages/*/tests/Postgres', 'packages/*/tests/Actions'],
         ],
         'Codecs' => ['directories' => ['tests/Codecs', 'examples/Codecs', 'packages/*/tests/Codecs'], 'excludes' => []],

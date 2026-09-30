@@ -35,6 +35,8 @@ use Workbench\App\Cms\Generated\QueryBuilders\AppFixtureArticle\AppFixtureArticl
 use Workbench\App\Cms\Generated\QueryBuilders\AppFixtureMeasurement\AppFixtureMeasurementQuery;
 use Workbench\App\Cms\Generated\QueryBuilders\AppFixtureMeasurement\AppFixtureMeasurementSortField;
 use Workbench\App\Cms\Generated\Records\AppFixtureArticle\AppFixtureArticle;
+use Workbench\App\Cms\Generated\Records\AppFixtureArticle\AppFixtureArticleExt;
+use Workbench\App\Cms\Generated\Records\AppFixtureArticle\AppFixtureArticleFixtureaddonFields;
 use Workbench\App\Cms\Generated\Records\AppFixtureArticle\AppFixtureArticleRecord;
 use Workbench\App\Cms\Generated\Records\AppFixtureMeasurement\AppFixtureMeasurement;
 use Workbench\App\Cms\Generated\Records\AppFixtureMeasurement\AppFixtureMeasurementRecord;
@@ -241,9 +243,11 @@ it('pages the articles newest first with the ones without a day first, through t
             fixtureFeatured: $number % 4 === 0,
             fixturePublishedOn: $number % 7 === 0 ? null : new DateTimeImmutable(sprintf('2026-01-%02dT00:00:00Z', 1 + intdiv($number, 2))),
             fixtureReadingMinutes: $number,
+            fixtureSlug: null,
             fixtureSources: null,
             fixtureTitle: 'Article '.$number,
             fixtureTopics: null,
+            ext: new AppFixtureArticleExt(new AppFixtureArticleFixtureaddonFields(fixtureSlug: 'article-'.$number)),
         )->toFieldValues(),
     ), range(1, 45)));
     $numbers = [];

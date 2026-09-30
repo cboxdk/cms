@@ -8,8 +8,10 @@ use Cbox\Cms\Contracts\Content\RevisionNumber;
 use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Content\VariantRef;
 use Cbox\Cms\Contracts\Fields\FieldHandle;
+use Cbox\Cms\Contracts\Fields\FieldMap;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Fields\FieldValues;
+use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Fields\TextValue;
 use Cbox\Cms\Contracts\Hooks\FieldChange;
 use Cbox\Cms\Contracts\Hooks\FieldChanges;
@@ -18,6 +20,7 @@ use Cbox\Cms\Contracts\Hooks\HookError;
 use Cbox\Cms\Contracts\Hooks\HookErrors;
 use Cbox\Cms\Contracts\Hooks\InvalidHookResult;
 use Cbox\Cms\Contracts\Hooks\PlanView;
+use Cbox\Cms\Contracts\Hooks\ReleasedRevision;
 use Cbox\Cms\Contracts\Identity\AnonymousPrincipal;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\CommandName;
@@ -26,6 +29,7 @@ use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Plans\Mutations\EntryCreated;
 use Cbox\Cms\Contracts\Plans\Mutations\RevisionCreated;
+use Cbox\Cms\Contracts\Plans\Mutations\VariantReleased;
 
 /*
  * The values hooks answer with and the view they receive (GUARDRAILS 2.4, PRD 6.3).
@@ -119,6 +123,23 @@ it('views the mutations in order and finds the revision of a variant', function 
         ->and($view->version)->toBe(2)
         ->and($view->classificationAccess)->toBe(ClassificationAccess::Public)
         ->and(new PlanView(new CommandName('note.publish'), 1, new AnonymousPrincipal, ClassificationAccess::Public)->revisions())->toBe([]);
+});
+
+it('holds the released revisions with their fields, and finds the one of a variant', function (): void {
+    $shared = new VariantReleased(EntryId::fromString(HOOK_ENTRY), TypeId::fromString(HOOK_TYPE), VariantKey::shared(), new RevisionNumber(3));
+    $other = new VariantReleased(EntryId::fromString(HOOK_OTHER_ENTRY), TypeId::fromString(HOOK_TYPE), VariantKey::shared(), new RevisionNumber(1));
+    $fields = new FieldValues(new FieldMap(new NamedValue(new FieldHandle('title'), new TextValue('Released'))));
+    $plain = new PlanView(new CommandName('note.release'), 1, new AnonymousPrincipal, ClassificationAccess::Public, $shared, $other);
+    $view = $plain->withReleases(new ReleasedRevision($shared, $fields), new ReleasedRevision($other, new FieldValues));
+
+    expect($plain->releases())->toBe([])
+        ->and($view->mutations)->toBe([$shared, $other])
+        ->and($view->command->value)->toBe('note.release')
+        ->and(array_map(static fn (ReleasedRevision $released): VariantReleased => $released->release, $view->releases()))->toBe([$shared, $other])
+        ->and($view->release(new VariantRef(EntryId::fromString(HOOK_ENTRY), VariantKey::shared()))?->fields)->toBe($fields)
+        ->and($view->release(new VariantRef(EntryId::fromString(HOOK_OTHER_ENTRY), VariantKey::shared()))?->release)->toBe($other)
+        ->and($view->release(new VariantRef(EntryId::fromString('01936f5e-8a2b-7c3d-9e4f-0000000000e3'), VariantKey::shared())))->toBeNull()
+        ->and($view->revisions())->toBe([]);
 });
 
 it('refuses a view of a command version below 1', function (int $version): void {

@@ -26,7 +26,9 @@ use Workbench\App\Cms\Generated\GeneratedTypesServiceProvider;
  * HTTP or runs queued jobs with the owner connection (PRD 4.2), so a queue worker of the workbench
  * does not boot either, and a production installation gives it to its maintenance process only.
  *
- * It also points cms:generate (PRD 11.12) at the workbench's schema root, owner app, and its
+ * It also points cms:generate (PRD 11.12) at the workbench's schema root, owner app, at the schema
+ * root of the fixture addon cboxdk/cms-fixture-addon, owner fixtureaddon, whose blueprint extension
+ * of app:fixture_article an application's generation reads as it reads its own blueprints, and its
  * committed generated code and type table migrations (GUARDRAILS 2.6), relative to the monorepo
  * root, and cms:doctor at the
  * monorepo's vendor/composer/installed.json and at the root, where package.json and node_modules
@@ -58,7 +60,7 @@ final class WorkbenchServiceProvider extends ServiceProvider
 
         $config->set('cbox-cms.generators', [
             'root' => dirname(__DIR__, 3),
-            'roots' => ['app' => 'workbench/schema'],
+            'roots' => ['app' => 'workbench/schema', 'fixtureaddon' => 'workbench/addons/fixtureaddon/schema'],
             'php_directory' => 'workbench/app/Cms/Generated',
             'php_namespace' => 'Workbench\\App\\Cms\\Generated',
             'typescript_directory' => 'workbench/resources/js/cms/generated',

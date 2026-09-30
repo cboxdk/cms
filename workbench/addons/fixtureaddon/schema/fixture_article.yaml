@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=../../../../packages/contracts/resources/schemas/blueprint.v1.json
+# The fixture addon's blueprint extension of the workbench's type app:fixture_article (PRD 11.12,
+# 13.3), read by cms:generate from the schema root of the owner fixtureaddon. It adds one field in
+# the addon's namespace: the column ext__fixtureaddon__fixture_slug of the type table, the record's
+# ext->fixtureaddon->fixtureSlug, the DTO's and TypeScript's ext.fixtureaddon.fixture_slug. It is
+# optional, because the owner's code creates and revises entries without knowing it; the addon's
+# validate hook RequireSlugOnRelease requires it on release (invariant 36). The owner's own
+# fixture_slug, from version 2 of the type, is another field beside it.
+blueprint: 1
+kind: extension
+extends: 01a0df3e-8cef-7e9f-8daf-9faa60f1faa6
+version: 1
+fields:
+  - handle: fixture_slug
+    label: Slug
+    description: The address of the article below its section, derived from the title by the fixture addon.
+    type: text
+    classification: public
+    max_length: 120

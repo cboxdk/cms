@@ -35,7 +35,8 @@ use Cbox\Cms\Core\Pipeline\Domain\Stopwatch;
  * priority with the lowest first, then package name, then class. Each gets the pending plan as a
  * PlanView filtered to the call's classification access (HookPlans), never the plan itself; a hook
  * of an addon gets it filtered to the lower of that and what its manifest lets it read (PRD 13.1,
- * invariant 21), and cannot change a field above that.
+ * invariant 21), and cannot change a field above that. The view includes the revisions the plan's
+ * releases make public, filtered in the same way (HookRun::$releases).
  *
  * - An authorize hook's denial stops the command as unauthorized with the hook's reason.
  * - A transform hook's changes enter the plan in order, and the next hook sees the changed plan; a
@@ -84,7 +85,7 @@ final readonly class HookRunner
             $readable = $hook->access($call->access->classificationAccess);
 
             if (! $view instanceof PlanView || $viewed !== $run->plan || $viewedAs !== $readable) {
-                $view = $this->plans->view($binding->command, $binding->version, $call->access, $run->plan, $readable);
+                $view = $this->plans->view($binding->command, $binding->version, $call->access, $run->plan, $readable, $run->releases);
                 $viewed = $run->plan;
                 $viewedAs = $readable;
             }

@@ -14,6 +14,7 @@ use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Fields\FieldValue;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\NullValue;
+use Cbox\Cms\Contracts\Hooks\ReleasedRevision;
 use Cbox\Cms\Contracts\Idempotency\Conflict;
 use Cbox\Cms\Contracts\Idempotency\Fresh;
 use Cbox\Cms\Contracts\Idempotency\Replay;
@@ -57,6 +58,7 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCall;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\Committed;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\HookRun;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\PendingChangeset;
+use Cbox\Cms\Core\Pipeline\Domain\Dto\ReleaseRead;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\RevisionContent;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\StaleRead;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\VersionConflict;
@@ -100,7 +102,9 @@ use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
  *    public (ChangesPublicVisibility), such as a release or a window, is rejected with
  *    agent_visibility_forbidden when the envelope's issuer or the credential's issuer is an agent
  *    (invariant 18). A release of a type that has no revision to release, one with stages none or
- *    with a history that keeps no revisions, is type_not_releasable. Then the authorize
+ *    with a history that keeps no revisions, is type_not_releasable. The kernel reads the revision
+ *    each release names once, through RevisionContents, so the hooks see its fields (PlanView
+ *    releases(), invariant 36) and phase 5 validates the same read. Then the authorize
  *    hooks run on the pending plan; a denial is unauthorized. They run after plan() because they
  *    see the plan, and they can only add refusals to the CommandAuthorizer's decision.
  * 4. Transform: the transform hooks change fields of the plan's revisions (HookRunner).
@@ -318,8 +322,9 @@ final readonly class CommandPipeline
             return $this->rejected($call, $unreleasable);
         }
 
+        $releases = $this->releases($plan);
         $hooks = $this->hooks->hooksOf($binding);
-        $run = new HookRun($plan);
+        $run = new HookRun($plan, releases: $this->released($releases));
 
         foreach ([Phase::Authorize, Phase::Transform] as $phase) {
             $run = $this->hooks->run($phase, $hooks, $call, $binding, $run);
@@ -330,7 +335,7 @@ final readonly class CommandPipeline
         }
 
         $plan = $run->plan;
-        $errors = $this->fieldErrors($plan);
+        $errors = $this->fieldErrors($plan, $releases);
         $run = $this->hooks->run(Phase::Validate, $hooks, $call, $binding, $run);
 
         if ($run->rejection instanceof CatalogError) {
@@ -465,12 +470,56 @@ final readonly class CommandPipeline
     }
 
     /**
+     * Every release of the plan with the stored revision it names, read once through
+     * RevisionContents (phase 3, before the hooks): the hooks see its fields, and phase 5 validates
+     * the release against the same read.
+     *
+     * @return list<ReleaseRead>
+     */
+    private function releases(Plan $plan): array
+    {
+        $reads = [];
+
+        foreach ($plan->mutations() as $mutation) {
+            $type = $mutation instanceof VariantReleased ? $this->types->find($mutation->type) : null;
+
+            if ($mutation instanceof VariantReleased) {
+                $reads[] = new ReleaseRead($mutation, $type instanceof TypeDefinition
+                    ? $this->revisions->find($mutation->entry, $mutation->variant, $mutation->revision, $type)
+                    : null);
+            }
+        }
+
+        return $reads;
+    }
+
+    /**
+     * The released revisions the hooks see: those whose fields the kernel could read.
+     *
+     * @param  list<ReleaseRead>  $releases
+     * @return list<ReleasedRevision>
+     */
+    private function released(array $releases): array
+    {
+        $released = [];
+
+        foreach ($releases as $read) {
+            if ($read->content?->fields instanceof FieldValues) {
+                $released[] = new ReleasedRevision($read->release, $read->content->fields);
+            }
+        }
+
+        return $released;
+    }
+
+    /**
      * The fields of every revision through its type's generated validator, and the fields of every
      * released revision at the release stage (phase 5).
      *
+     * @param  list<ReleaseRead>  $releases
      * @return list<CatalogError>
      */
-    private function fieldErrors(Plan $plan): array
+    private function fieldErrors(Plan $plan, array $releases): array
     {
         $errors = [];
 
@@ -483,7 +532,8 @@ final readonly class CommandPipeline
             }
 
             if ($mutation instanceof VariantReleased && $type instanceof TypeDefinition) {
-                array_push($errors, ...$this->releaseErrors($type, $mutation));
+                $read = array_find($releases, static fn (ReleaseRead $read): bool => $read->release === $mutation);
+                array_push($errors, ...$this->releaseErrors($type, $mutation, $read?->content));
             }
         }
 
@@ -495,9 +545,8 @@ final readonly class CommandPipeline
      *
      * @return list<CatalogError>
      */
-    private function releaseErrors(TypeDefinition $type, VariantReleased $release): array
+    private function releaseErrors(TypeDefinition $type, VariantReleased $release, ?RevisionContent $content): array
     {
-        $content = $this->revisions->find($release->entry, $release->variant, $release->revision, $type);
         $at = new FieldPath(self::REVISION);
 
         if (! $content instanceof RevisionContent) {

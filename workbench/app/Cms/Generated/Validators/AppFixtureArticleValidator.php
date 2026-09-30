@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Workbench\App\Cms\Generated\Validators;
 
 use Cbox\Cms\Contracts\Fields\FieldHandle;
+use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Ids\TypeId;
+use Cbox\Cms\Contracts\Validation\ExtensionRules;
 use Cbox\Cms\Contracts\Validation\FieldRules;
 use Cbox\Cms\Contracts\Validation\Presence;
 use Cbox\Cms\Contracts\Validation\Rule;
@@ -15,7 +17,7 @@ use Cbox\Cms\Contracts\Validation\TypeValidator;
 use Override;
 
 /**
- * The runtime validator of the type app:fixture_article, version 1 (PRD 11.8, 11.12).
+ * The runtime validator of the type app:fixture_article, version 2 (PRD 11.8, 11.12).
  *
  * It declares the rules of the type's fields for input from outside the repository, which
  * Cbox\Cms\Core\Validation\Boundary\InputValidator checks.
@@ -31,11 +33,13 @@ use Override;
  *   fixture_featured: boolean, required
  *   fixture_published_on: date, optional
  *   fixture_reading_minutes: integer, optional
+ *   fixture_slug: text, optional
  *   fixture_sources: group, optional
  *   fixture_sources[].fixture_source_title: text, required
  *   fixture_sources[].fixture_source_url: text, optional
  *   fixture_title: text, optional
  *   fixture_topics: select, optional
+ *   ext.fixtureaddon.fixture_slug: text, optional
  */
 final readonly class AppFixtureArticleValidator implements TypeValidator
 {
@@ -110,6 +114,14 @@ final readonly class AppFixtureArticleValidator implements TypeValidator
                     ],
                 ),
                 new FieldRules(
+                    new FieldHandle('fixture_slug'),
+                    Presence::Optional,
+                    [
+                        new Rule(RuleName::String),
+                        new Rule(RuleName::MaxLength, ['160']),
+                    ],
+                ),
+                new FieldRules(
                     new FieldHandle('fixture_sources'),
                     Presence::Optional,
                     [
@@ -154,6 +166,18 @@ final readonly class AppFixtureArticleValidator implements TypeValidator
                         new Rule(RuleName::MaxItems, ['2']),
                     ],
                 ),
+            ],
+            [
+                new ExtensionRules(new FieldNamespace('fixtureaddon'), [
+                    new FieldRules(
+                        new FieldHandle('fixture_slug'),
+                        Presence::Optional,
+                        [
+                            new Rule(RuleName::String),
+                            new Rule(RuleName::MaxLength, ['120']),
+                        ],
+                    ),
+                ]),
             ],
         );
     }

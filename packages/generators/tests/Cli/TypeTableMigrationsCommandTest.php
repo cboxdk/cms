@@ -21,6 +21,12 @@ afterEach(function (): void {
 
 const WORKBENCH_ARTICLE = 'workbench/schema/fixture_article.yaml';
 
+/** The fixture addon's extension of the article, which the article's lock holds a column of. */
+const WORKBENCH_ARTICLE_EXTENSION = 'workbench/addons/fixtureaddon/schema/fixture_article.yaml';
+
+/** The article's committed migrations: its creation, the addon's column and version 2's field. */
+const WORKBENCH_ARTICLE_MIGRATIONS = ['app__fixture_article.lock', 'app__fixture_article_0001_create.php', 'app__fixture_article_0002_add_columns.php', 'app__fixture_article_0003_add_columns.php'];
+
 const WORKBENCH_MIGRATIONS = 'workbench/database/migrations/cms';
 
 const ARTICLE_SUMMARY = <<<'YAML'
@@ -33,22 +39,23 @@ const ARTICLE_SUMMARY = <<<'YAML'
     YAML;
 
 /**
- * A scratch root with a copy of the workbench's fixture article and the article's committed
- * migration and lock, set as cbox-cms.generators.
+ * A scratch root with a copy of the workbench's fixture article, the fixture addon's extension of
+ * it and the article's committed migrations and lock, set as cbox-cms.generators.
  */
 function articleCopy(): string
 {
     $monorepo = dirname(__DIR__, 4);
     $root = SchemaFixtures::scratch();
     SchemaFixtures::write($root.'/schema/fixture_article.yaml', (string) file_get_contents($monorepo.'/'.WORKBENCH_ARTICLE));
+    SchemaFixtures::write($root.'/addon/fixture_article.yaml', (string) file_get_contents($monorepo.'/'.WORKBENCH_ARTICLE_EXTENSION));
 
-    foreach (['app__fixture_article.lock', 'app__fixture_article_0001_create.php'] as $file) {
+    foreach (WORKBENCH_ARTICLE_MIGRATIONS as $file) {
         SchemaFixtures::write($root.'/database/migrations/cms/'.$file, (string) file_get_contents($monorepo.'/'.WORKBENCH_MIGRATIONS.'/'.$file));
     }
 
     config()->set('cbox-cms.generators', [
         'root' => $root,
-        'roots' => ['app' => 'schema'],
+        'roots' => ['app' => 'schema', 'fixtureaddon' => 'addon'],
         'php_directory' => 'app/Cms/Generated',
         'php_namespace' => 'App\Cms\Generated',
         'typescript_directory' => 'resources/js/cms/generated',
@@ -101,14 +108,14 @@ it('writes one ADD COLUMN migration when an optional field is added to a copy of
 
     [$status, $output] = generateArticle();
     $after = migrationHashes($root);
-    $migration = (string) file_get_contents($root.'/database/migrations/cms/app__fixture_article_0002_add_columns.php');
+    $migration = (string) file_get_contents($root.'/database/migrations/cms/app__fixture_article_0004_add_columns.php');
 
     expect($status)->toBe(0, $output)
-        ->and(array_keys($after))->toBe(['app__fixture_article.lock', 'app__fixture_article_0001_create.php', 'app__fixture_article_0002_add_columns.php'])
-        ->and($after['app__fixture_article_0001_create.php'])->toBe($before['app__fixture_article_0001_create.php'])
+        ->and(array_keys($after))->toBe([...WORKBENCH_ARTICLE_MIGRATIONS, 'app__fixture_article_0004_add_columns.php'])
+        ->and(array_diff_key($after, ['app__fixture_article.lock' => true, 'app__fixture_article_0004_add_columns.php' => true]))->toBe(array_diff_key($before, ['app__fixture_article.lock' => true]))
         ->and($after['app__fixture_article.lock'])->not->toBe($before['app__fixture_article.lock'])
         ->and($output)->toContain('written: database/migrations/cms/app__fixture_article.lock')
-        ->and($output)->toContain('written: database/migrations/cms/app__fixture_article_0002_add_columns.php')
+        ->and($output)->toContain('written: database/migrations/cms/app__fixture_article_0004_add_columns.php')
         ->and(substr_count($migration, 'add column if not exists'))->toBe(1)
         ->and($migration)->toContain("alter table \"app__fixture_article\"\n                    add column if not exists \"fixture_summary\" text\n                        check (char_length(\"fixture_summary\") <= 255)\n")
         ->and($migration)->not->toContain('create index');
