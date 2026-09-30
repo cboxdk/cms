@@ -11,10 +11,14 @@ use Cbox\Cms\Contracts\Identity\ActorPrincipal;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\IssuerKind;
 use Cbox\Cms\Contracts\Identity\NodePath;
+use Cbox\Cms\Contracts\Schema\TypeCatalog;
+use Cbox\Cms\Contracts\Schema\TypeDefinition;
+use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Core\Access\Infrastructure\ActorContext;
 use Cbox\Cms\Core\Routing\Adapter\PostgresRouteReader;
 use Cbox\Cms\Core\Routing\Domain\RouteReader;
 use Cbox\Cms\Core\Tests\Routing\RouteReaderBehaviour;
+use Cbox\Cms\Core\TypeTables\Boundary\TypeTableColumns;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\FixtureWriters\Identity\Adapter\PostgresIdentitySeeder;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
@@ -23,12 +27,13 @@ use Cbox\Cms\Tests\TestCase;
 use DateTimeImmutable;
 use Illuminate\Database\ConnectionResolverInterface;
 use Illuminate\Support\Facades\DB;
+use LogicException;
 use Override;
 
 /**
  * RouteReaderBehaviour against PostgresRouteReader on real Postgres, as the app role inside a
  * transaction under the actor context of a staff member whose regions are ROOT and FAR. The rows
- * are written as the superuser.
+ * are written as the superuser, ENTRY's released row in the workbench's fixture measurement table.
  */
 final class PostgresRouteReaderBehaviourTest extends TestCase
 {
@@ -100,6 +105,11 @@ final class PostgresRouteReaderBehaviourTest extends TestCase
             ]));
         }
 
+        $superuser->table($this->releasedType()->name->table())->insert([
+            ...TypeTableColumns::encode($this->releasedType(), self::released()),
+            'cms_entry_id' => self::ENTRY, 'cms_locale' => 'shared', 'cms_stage' => 'released', 'cms_home_node' => self::SECTION,
+        ]);
+
         $clock = new FakeClock(new DateTimeImmutable('2026-03-10T12:00:00Z'));
         $actor = new PostgresIdentitySeeder(app(ConnectionResolverInterface::class), $clock, new FakeIdGenerator(clock: $clock))->addActor(ActorClass::Staff)->id;
 
@@ -124,5 +134,11 @@ final class PostgresRouteReaderBehaviourTest extends TestCase
     protected function routeReader(): RouteReader
     {
         return new PostgresRouteReader(app(ConnectionResolverInterface::class));
+    }
+
+    #[Override]
+    protected function releasedType(): TypeDefinition
+    {
+        return app(TypeCatalog::class)->named(new TypeName('app:fixture_measurement')) ?? throw new LogicException('The workbench has no fixture measurement.');
     }
 }

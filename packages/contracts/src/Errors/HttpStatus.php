@@ -25,8 +25,17 @@ enum HttpStatus: int
     /** The caller may not do this, and asking again does not change that. */
     case Forbidden = 403;
 
+    /** The delivery API has nothing to show at the path, now; it may have later. */
+    case NotFound = 404;
+
     /** The call conflicts with the current state, or with another call that is still running. */
     case Conflict = 409;
+
+    /** What the path showed was taken down, and only a reinstatement shows it again. */
+    case Gone = 410;
+
+    /** The request names a host this installation does not serve (PRD 8.10 point 7). */
+    case MisdirectedRequest = 421;
 
     /** The request was understood, but its content is invalid. */
     case UnprocessableContent = 422;
@@ -47,7 +56,10 @@ enum HttpStatus: int
             self::BadRequest => 'Bad Request',
             self::Unauthorized => 'Unauthorized',
             self::Forbidden => 'Forbidden',
+            self::NotFound => 'Not Found',
             self::Conflict => 'Conflict',
+            self::Gone => 'Gone',
+            self::MisdirectedRequest => 'Misdirected Request',
             self::UnprocessableContent => 'Unprocessable Content',
             self::InternalServerError => 'Internal Server Error',
             self::ServiceUnavailable => 'Service Unavailable',

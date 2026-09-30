@@ -12,6 +12,12 @@ use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Ids\TypeId;
+use Cbox\Cms\Contracts\Schema\History;
+use Cbox\Cms\Contracts\Schema\Localization;
+use Cbox\Cms\Contracts\Schema\Stages;
+use Cbox\Cms\Contracts\Schema\TypeCapabilities;
+use Cbox\Cms\Contracts\Schema\TypeDefinition;
+use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Routing\Domain\Dto\PlacementMatch;
 use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
@@ -62,6 +68,20 @@ final class FakeRouteReaderBehaviourTest extends TestCase
             ->withPlacement($section, $da, new Slug('harbour'), new PlacementMatch(PlacementId::fromString(self::PLACED), $entry, Visibility::Live, new TimeWindow(new DateTimeImmutable(self::LIVE_FROM)), true, $type, EntryLifecycle::Active, ReleaseState::Released))
             ->withPlacement($section, $da, new Slug('gone'), $withdrawn(self::GONE_B))
             ->withPlacement($section, $da, new Slug('gone'), $withdrawn(self::GONE_A))
-            ->withPlacement($sport, $da, new Slug('match'), new PlacementMatch(PlacementId::fromString(self::DRAFTED), EntryId::fromString(self::DRAFT), Visibility::Hidden, null, true, $type, EntryLifecycle::Active, null));
+            ->withPlacement($sport, $da, new Slug('match'), new PlacementMatch(PlacementId::fromString(self::DRAFTED), EntryId::fromString(self::DRAFT), Visibility::Hidden, null, true, $type, EntryLifecycle::Active, null))
+            ->withReleased($this->releasedType()->id, $entry, self::released());
+    }
+
+    #[Override]
+    protected function releasedType(): TypeDefinition
+    {
+        return new TypeDefinition(
+            TypeId::fromString(self::TYPE),
+            new TypeName('app:fixture_measurement'),
+            1,
+            new TypeCapabilities(History::None, Stages::None, Localization::None, true),
+            [],
+            [],
+        );
     }
 }

@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\Content\InvalidContentValue;
 use Cbox\Cms\Contracts\Content\Slug;
+use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Pipeline\Query;
@@ -52,13 +53,15 @@ use Override;
  *    the source, and what is found there is shown exactly as the source shows it (PRD 5.8).
  * 3. The rest of the path, one slug, in (node, locale, slug) of the placements' released stage.
  * 4. Whether the entry's type has URLs, then the precedence of PRD 6.6 at the Clock's time.
- * 5. For a visible placement, the canonical placement of the entry in the locale and its URL, the
- *    origin of its configured site with its node's route and its slug; a mount's placement is the
- *    source's, so its canonical URL is on the source's site.
+ * 5. For a visible placement, the fields of the entry's released row in its type's table, and the
+ *    canonical placement of the entry in the locale and its URL, the origin of its configured site
+ *    with its node's route and its slug; a mount's placement is the source's, so its canonical URL
+ *    is on the source's site.
  *
- * The answer is ResolvedPath: the entry, without fields, whenever its placement and entry were read,
- * and the PathExplanation. It costs COST, the three statements of the RouteReader at most, whatever
- * the number of routes and placements.
+ * The answer is ResolvedPath: the entry whenever its placement and entry were read, with the fields
+ * of its released row when the placement is visible and without fields otherwise, and the
+ * PathExplanation. It costs COST, the four statements of the RouteReader at most, whatever the
+ * number of routes and placements.
  *
  * @implements QueryAction<ResolvePath, ResolvedPath>
  */
@@ -66,8 +69,8 @@ use Override;
 #[Internal]
 final readonly class ResolvePathAction implements QueryAction
 {
-    /** The cost of a resolution: at most one route, one placement and one canonical placement. */
-    public const int COST = 3;
+    /** The cost of a resolution: at most one route, one placement, its released row and one canonical placement. */
+    public const int COST = 4;
 
     public function __construct(
         private RouteReader $routes,
@@ -153,6 +156,9 @@ final readonly class ResolvePathAction implements QueryAction
         }
 
         $canonical = $this->canonical($query, $placement, $mount);
+        $content = $type instanceof TypeDefinition && $content instanceof ReadContent
+            ? $content->withFields($this->routes->released($type, $placement->entry) ?? new FieldValues)
+            : $content;
 
         return new ResolvedPath($content, new PathExplanation(ResolveOutcome::Resolved, $site, $route, $node, $mount, $step, $visibility, $canonical));
     }

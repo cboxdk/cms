@@ -7,11 +7,19 @@ namespace Cbox\Cms\Core\Tests\Routing;
 use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\Slug;
 use Cbox\Cms\Contracts\Content\TimeWindow;
+use Cbox\Cms\Contracts\Fields\FieldHandle;
+use Cbox\Cms\Contracts\Fields\FieldMap;
+use Cbox\Cms\Contracts\Fields\FieldValues;
+use Cbox\Cms\Contracts\Fields\NamedValue;
+use Cbox\Cms\Contracts\Fields\TextValue;
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Ids\TypeId;
+use Cbox\Cms\Contracts\Schema\ColumnDefinition;
+use Cbox\Cms\Contracts\Schema\FieldDefinition;
 use Cbox\Cms\Contracts\Schema\History;
 use Cbox\Cms\Contracts\Schema\Localization;
 use Cbox\Cms\Contracts\Schema\Stages;
@@ -47,7 +55,9 @@ use DateTimeImmutable;
  * to FAR, "/national" to MOUNT, a mount of SECTION, and "/lokalt" to LOCAL, a section of its own,
  * and the storage folder STORE, which has no route.
  * The site west is configured at west.example, but no site has its handle. The types: ARTICLE has
- * stages and URLs, READING has no stages, NOTE has no URLs. place() adds a placement of an entry.
+ * stages and URLs, READING has no stages, NOTE has no URLs; each has a public `title` and a
+ * confidential `memo`. place() adds a placement of an entry, and the released row of the entry's
+ * type with the fields released().
  */
 final readonly class ResolveWorld
 {
@@ -146,7 +156,22 @@ final readonly class ResolveWorld
             $release,
         ));
 
+        if ($type !== null) {
+            $this->reader->withReleased(TypeId::fromString($type), EntryId::fromString($entry), self::released());
+        }
+
         return $this;
+    }
+
+    /**
+     * The fields of the released row of every entry place() places.
+     */
+    public static function released(): FieldValues
+    {
+        return new FieldValues(new FieldMap(
+            new NamedValue(new FieldHandle('memo'), new TextValue('Embargoed until noon')),
+            new NamedValue(new FieldHandle('title'), new TextValue('The harbour opens')),
+        ));
     }
 
     public function resolve(string $host, string $path, string $locale = 'da'): ResolvedPath
@@ -156,19 +181,28 @@ final readonly class ResolveWorld
 
     public function action(): ResolvePathAction
     {
-        return new ResolvePathAction(
-            $this->reader,
-            new SiteHosts([
-                new ConfiguredSite(new SiteHandle('north'), new SiteOrigin('https://north.example'), [new Host('www.north.example')]),
-                new ConfiguredSite(new SiteHandle('south'), new SiteOrigin('https://south.example')),
-                new ConfiguredSite(new SiteHandle('west'), new SiteOrigin('https://west.example')),
-            ]),
-            new FakeTypeCatalog(
-                $this->type(self::ARTICLE, 'app:article', Stages::DraftRelease, true),
-                $this->type(self::READING, 'app:reading', Stages::None, true),
-                $this->type(self::NOTE, 'app:note', Stages::DraftRelease, false),
-            ),
-            $this->clock,
+        return new ResolvePathAction($this->reader, $this->sites(), $this->catalog(), $this->clock);
+    }
+
+    /**
+     * The configured sites: north, with the alias www.north.example, south, and west, which no site
+     * has the handle of.
+     */
+    public function sites(): SiteHosts
+    {
+        return new SiteHosts([
+            new ConfiguredSite(new SiteHandle('north'), new SiteOrigin('https://north.example'), [new Host('www.north.example')]),
+            new ConfiguredSite(new SiteHandle('south'), new SiteOrigin('https://south.example')),
+            new ConfiguredSite(new SiteHandle('west'), new SiteOrigin('https://west.example')),
+        ]);
+    }
+
+    public function catalog(): FakeTypeCatalog
+    {
+        return new FakeTypeCatalog(
+            $this->type(self::ARTICLE, 'app:article', Stages::DraftRelease, true),
+            $this->type(self::READING, 'app:reading', Stages::None, true),
+            $this->type(self::NOTE, 'app:note', Stages::DraftRelease, false),
         );
     }
 
@@ -180,7 +214,12 @@ final readonly class ResolveWorld
             1,
             new TypeCapabilities($stages === Stages::None ? History::None : History::Full, $stages, Localization::None, $routable),
             [],
-            [],
+            [$this->text('memo', ClassificationAccess::Confidential), $this->text('title', ClassificationAccess::Public)],
         );
+    }
+
+    private function text(string $handle, ClassificationAccess $classification): FieldDefinition
+    {
+        return new FieldDefinition(null, new FieldHandle($handle), 'text', $classification, true, false, false, false, false, new ColumnDefinition($handle, 'text', false, []));
     }
 }

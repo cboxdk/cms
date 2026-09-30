@@ -95,6 +95,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`generate_unknown_field_type`](#generate_unknown_field_type) | 500 | 65 | internal_error | no |
 | [`hook_budget_exceeded`](#hook_budget_exceeded) | 503 | 75 | internal_error | yes |
 | [`hook_change_refused`](#hook_change_refused) | 500 | 70 | internal_error | no |
+| [`host_not_configured`](#host_not_configured) | 421 | 68 | tool_error | no |
 | [`idempotency_conflict`](#idempotency_conflict) | 409 | 65 | tool_error | no |
 | [`idempotency_in_flight`](#idempotency_in_flight) | 409 | 75 | tool_error | yes |
 | [`json_invalid`](#json_invalid) | 422 | 65 | tool_error | no |
@@ -104,6 +105,8 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`partition_missing`](#partition_missing) | 503 | 75 | internal_error | yes |
 | [`partition_owner_required`](#partition_owner_required) | 500 | 78 | internal_error | no |
 | [`partition_table_unmanageable`](#partition_table_unmanageable) | 500 | 78 | internal_error | no |
+| [`path_gone`](#path_gone) | 410 | 66 | tool_error | no |
+| [`path_not_found`](#path_not_found) | 404 | 66 | tool_error | no |
 | [`placement_slug_taken`](#placement_slug_taken) | 409 | 65 | tool_error | no |
 | [`query_over_budget`](#query_over_budget) | 422 | 65 | tool_error | no |
 | [`rebuild_identity_invalid`](#rebuild_identity_invalid) | 500 | 78 | internal_error | no |
@@ -890,6 +893,15 @@ A transform hook of an installed module or addon asked to change something a hoo
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
+### host_not_configured
+
+No configured site is served at the host the request names, so nothing was resolved (PRD 8.10 point 7). Only the hosts in cbox-cms.sites resolve, and a request's own Host or X-Forwarded-Host is never trusted instead. Ask for a host a site is served at, or add the host to its site.
+
+- HTTP status: 421 Misdirected Request
+- CLI exit code: 68 (EX_NOHOST)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
 ### idempotency_conflict
 
 The idempotency key was used before with other content (PRD 6.1), so the command was rejected and the first result was left as it was. Use a new key for a new command; send the same key only with the same content.
@@ -969,6 +981,24 @@ A table in cbox-cms.database.partitions.tables cannot be managed as it is: it is
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 78 (EX_CONFIG)
 - MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### path_gone
+
+What the path showed was withdrawn (PRD 6.6, invariant 7): the entry is no longer active, or its variant or its placement was taken down, and no scheduled change shows it again. Only a reinstatement does.
+
+- HTTP status: 410 Gone
+- CLI exit code: 66 (EX_NOINPUT)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### path_not_found
+
+Nothing is shown at the path in the language on the site now (PRD 5.9, 6.6): no route, placement or published content answers it, or its window has not opened or has ended. A publication, a new placement or an opening window can show something there later.
+
+- HTTP status: 404 Not Found
+- CLI exit code: 66 (EX_NOINPUT)
+- MCP: a tool result with isError set
 - Retry: no, the same call gives the same answer until something changes
 
 ### placement_slug_taken

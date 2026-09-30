@@ -86,7 +86,8 @@ it('resolves a direct placement and explains each step: site, route prefix, node
         ->and($explanation->visibility?->validUntil)->toEqual(new DateTimeImmutable('2026-03-10T17:00:00Z'))
         ->and($explanation->canonical)->toEqual(new CanonicalStep(PlacementId::fromString(World::PLACEMENT), 'https://north.example/nyheder/harbour', true))
         ->and(resolvedKeys($result))->toBe(['e-'.World::ENTRY, 'n-'.World::SECTION])
-        ->and($world->reader->reads)->toBe(3);
+        ->and($result->content?->fields)->toEqual(World::released())
+        ->and($world->reader->reads)->toBe(4);
 });
 
 it('resolves an alias host to its site and builds the canonical URL from the site\'s origin, not the host', function (): void {
@@ -260,9 +261,9 @@ it('gives no canonical URL when the canonical placement\'s node has no route', f
         ->and($result->explanation->canonical)->toEqual(new CanonicalStep(PlacementId::fromString(World::PLACEMENT), null, false));
 });
 
-it('costs at most one route, one placement and one canonical placement, whatever the query', function (): void {
+it('costs at most one route, one placement, its released row and one canonical placement, whatever the query', function (): void {
     $query = new ResolvePath(new Host('north.example'), new Locale('da'), new RequestPath('/nyheder/harbour'));
 
     expect(new World()->action()->cost($query)->units)->toBe(ResolvePathAction::COST)
-        ->and(ResolvePathAction::COST)->toBe(3);
+        ->and(ResolvePathAction::COST)->toBe(4);
 });

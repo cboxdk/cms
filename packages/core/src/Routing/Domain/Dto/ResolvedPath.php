@@ -12,10 +12,12 @@ use Override;
 
 /**
  * The result of path.resolve (PRD 5.9): the outcome, the entry the placement found places, as
- * content with the node the placement sits under (the mount's source for a mount) and no fields,
- * and the explanation of every step. The entry is there whenever the placement and its entry were
- * read, visible or not, so the answer carries its content keys `e-{entry}` and `n-{node}` (PRD 9.4)
- * also when the placement is not visible; it is null otherwise.
+ * content with the node the placement sits under (the mount's source for a mount), and the
+ * explanation of every step. The entry is there whenever the placement and its entry were read,
+ * visible or not, so the answer carries its content keys `e-{entry}` and `n-{node}` (PRD 9.4)
+ * also when the placement is not visible; it is null otherwise. It holds the fields of the entry's
+ * released row only when the placement is resolved, and the query pipeline strips them to the
+ * reader's classification access.
  */
 #[Experimental]
 final readonly class ResolvedPath implements ReadsContent

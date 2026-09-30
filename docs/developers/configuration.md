@@ -102,6 +102,16 @@ The invalidation subscriber, `fragments.invalidate` on the critical lane, reads 
 |---|---|---|
 | `cbox-cms.fragments.fence_seconds` | `60` | How long the fence of a purge lives, in seconds. While it lives, the fragment store refuses a fragment of the purged key that a read built at or below the purge's commit position, because that read may not have seen the change. Keep it above the slowest fragment build and the lag of a read replica. |
 
+## Delivery
+
+The delivery API's `GET /v1/resolve` reads `cbox-cms.delivery` (PRD 8.10, 8.12); see [the delivery API](delivery.md). A value that is not a whole number in its range fails when a request is answered.
+
+| Key | Default | What it does |
+|---|---|---|
+| `cbox-cms.delivery.max_age_seconds` | `300` | The longest an answer is kept as a fragment and by the edge, in seconds, `1` to `86400`. An answer is never kept past the moment a placement's window next changes it. |
+| `cbox-cms.delivery.stale_while_revalidate_seconds` | `30` | How long the edge may serve an answer stale while it refetches it, `0` to `86400`. Only an answer whose window never ends gets it; an answer before a removal never does. |
+| `cbox-cms.delivery.stale_if_error_seconds` | `3600` | How long the edge may serve an answer stale while the origin fails, `0` to `3600`, with the same rule. |
+
 ## Rebuild
 
 `cms:types:rebuild` reads `cbox-cms.rebuild` (PRD 4.1, invariant 22); see [operations](operations.md#rebuilding-a-types-read-model). A value outside its range fails when the command starts, with exit 64.

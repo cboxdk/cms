@@ -27,6 +27,12 @@ use Cbox\Cms\Core\Access\Domain\AccessResolver;
 use Cbox\Cms\Core\Addons\Boundary\AddonConfig;
 use Cbox\Cms\Core\Addons\Domain\Dto\ServiceActors;
 use Cbox\Cms\Core\Bindings\Boundary\ContractBindings;
+use Cbox\Cms\Core\Delivery\Actions\DeliverPath;
+use Cbox\Cms\Core\Delivery\Adapter\JsonDeliveryDocuments;
+use Cbox\Cms\Core\Delivery\Boundary\DeliveryConfig;
+use Cbox\Cms\Core\Delivery\Domain\DeliveryAuthorizer;
+use Cbox\Cms\Core\Delivery\Domain\DeliveryDocuments;
+use Cbox\Cms\Core\Delivery\Domain\Dto\DeliverySettings;
 use Cbox\Cms\Core\Doctor\Adapter\CatalogPartitionRunwayProbe;
 use Cbox\Cms\Core\Doctor\Adapter\ConnectionEventLogProbe;
 use Cbox\Cms\Core\Doctor\Adapter\ConnectionLcMessagesProbe;
@@ -141,6 +147,7 @@ use Cbox\Cms\Core\ReadModels\Adapter\PostgresReadModelStore;
 use Cbox\Cms\Core\ReadModels\Boundary\RebuildConfig;
 use Cbox\Cms\Core\ReadModels\Domain\Dto\RebuildSettings;
 use Cbox\Cms\Core\ReadModels\Domain\ReadModelStore;
+use Cbox\Cms\Core\Reads\Actions\QueryPipeline;
 use Cbox\Cms\Core\Reads\Adapter\ConnectionQueryTransaction;
 use Cbox\Cms\Core\Reads\Adapter\PostgresReadAudit;
 use Cbox\Cms\Core\Reads\Adapter\RegistryQueryActions;
@@ -150,6 +157,7 @@ use Cbox\Cms\Core\Reads\Domain\Dto\QuerySettings;
 use Cbox\Cms\Core\Reads\Domain\QueryActions;
 use Cbox\Cms\Core\Reads\Domain\QueryCodecs;
 use Cbox\Cms\Core\Reads\Domain\QueryTransaction;
+use Cbox\Cms\Core\Reads\Domain\ReadableFields;
 use Cbox\Cms\Core\Reads\Domain\ReadAudit;
 use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
 use Cbox\Cms\Core\Registry\Boundary\RegistryCacheCodec;
@@ -477,6 +485,28 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
                 $app->make(IdempotencySettings::class),
                 $app->make(CommandTransaction::class),
                 $app->make(HookRunner::class),
+                $app->make(PipelineTelemetry::class),
+            ));
+
+        // The delivery API's resolve (PRD 8.9, 8.10, 8.12): its documents as canonical JSON, its
+        // settings, built on each resolution, and a query pipeline of its own: the kernel's, but with
+        // the DeliveryAuthorizer, which runs path.resolve for anyone and no other read.
+        $this->app->bind(DeliveryDocuments::class, JsonDeliveryDocuments::class);
+        $this->app->bind(
+            DeliverySettings::class,
+            static fn (Application $app): DeliverySettings => DeliveryConfig::read($app->make(Repository::class)),
+        );
+        $this->app->when(DeliverPath::class)
+            ->needs(QueryPipeline::class)
+            ->give(static fn (Application $app): QueryPipeline => new QueryPipeline(
+                $app->make(QueryActions::class),
+                $app->make(CredentialVerifier::class),
+                $app->make(AccessResolver::class),
+                new DeliveryAuthorizer,
+                $app->make(QuerySettings::class),
+                $app->make(ReadableFields::class),
+                $app->make(ReadAudit::class),
+                $app->make(QueryTransaction::class),
                 $app->make(PipelineTelemetry::class),
             ));
 

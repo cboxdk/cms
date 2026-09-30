@@ -145,14 +145,20 @@ it('gives every extender its own interface and the composite record every one of
         ->and($files)->toHaveKeys([$directory.'ShopItemAppFields.php', $directory.'ShopItemErpFields.php', $directory.'ShopItemErpExtension.php']);
 });
 
-it('writes an empty catalog and empty validators, and binds only those two without types', function (): void {
+it('writes an empty catalog, empty validators and empty record codecs, and binds only those three without types', function (): void {
     $files = recordFiles(new CompiledSchema([]));
+    $codecs = $files['app/Cms/Generated/GeneratedRecordCodecs.php'];
 
-    expect(array_keys($files))->toBe(['app/Cms/Generated/GeneratedTypeCatalog.php', 'app/Cms/Generated/GeneratedTypeValidators.php', 'app/Cms/Generated/GeneratedTypesServiceProvider.php'])
+    expect(array_keys($files))->toBe(['app/Cms/Generated/GeneratedTypeCatalog.php', 'app/Cms/Generated/GeneratedTypeValidators.php', 'app/Cms/Generated/GeneratedRecordCodecs.php', 'app/Cms/Generated/GeneratedTypesServiceProvider.php'])
         ->and($files['app/Cms/Generated/GeneratedTypeCatalog.php'])->toContain('        $this->types = [];')
         ->and($files['app/Cms/Generated/GeneratedTypeCatalog.php'])->not->toContain('use Cbox\Cms\Contracts\Schema\ColumnDefinition;')
         ->and($files['app/Cms/Generated/GeneratedTypeValidators.php'])->toContain('        $this->validators = [];')
-        ->and($files['app/Cms/Generated/GeneratedTypesServiceProvider.php'])->toContain("        \$this->app->singleton(TypeCatalog::class, GeneratedTypeCatalog::class);\n        \$this->app->singleton(TypeValidators::class, GeneratedTypeValidators::class);\n    }");
+        ->and($codecs)->toContain("    public function types(): array\n    {\n        return [];\n    }")
+        ->and($codecs)->toContain("    {\n        throw InvalidRecordDocument::unknownType(\$content->type);\n    }")
+        ->and($codecs)->not->toContain('RecordDocument::write')
+        ->and($codecs)->not->toContain('use Cbox\Cms\Core\Codecs\Boundary\RecordDocument;')
+        ->and($codecs)->not->toContain('GeneratedTypeCatalog')
+        ->and($files['app/Cms/Generated/GeneratedTypesServiceProvider.php'])->toContain("        \$this->app->singleton(TypeCatalog::class, GeneratedTypeCatalog::class);\n        \$this->app->singleton(TypeValidators::class, GeneratedTypeValidators::class);\n        \$this->app->singleton(RecordCodecs::class, GeneratedRecordCodecs::class);\n    }");
 });
 
 it('gives the same bytes whatever the order of the fields in the blueprint', function (): void {

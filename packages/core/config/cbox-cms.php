@@ -229,6 +229,19 @@ return [
     ],
 
     /*
+     * The delivery API's GET /v1/resolve (PRD 8.9, 8.10, 8.12). An answer is kept as a fragment,
+     * and by the edge, for at most max_age_seconds, 1 to 86400, and never past the moment a
+     * placement's window next changes it. An answer whose window never ends may be served stale by
+     * the edge for stale_while_revalidate_seconds while it is refetched, 0 to 86400, and for
+     * stale_if_error_seconds while the origin fails, 0 to 3600; an answer before a removal never.
+     */
+    'delivery' => [
+        'max_age_seconds' => 300,
+        'stale_while_revalidate_seconds' => 30,
+        'stale_if_error_seconds' => 3600,
+    ],
+
+    /*
      * cms:doctor (PRD 3.3, 4.2, 13.2). The Postgres checks connect with the connection's settings
      * as the app role; null means the default connection. The doctor never logs in as the owner
      * role: postgres.lc_messages reads the lc_messages of the role owner_role names from the

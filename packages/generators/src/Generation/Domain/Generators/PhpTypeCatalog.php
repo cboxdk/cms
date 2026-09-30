@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Generation\Domain\Generators;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Codecs\InvalidRecordDocument;
+use Cbox\Cms\Contracts\Codecs\RecordCodecs;
 use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\FieldTypes\FieldBase;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\TypeId;
+use Cbox\Cms\Contracts\Results\ReadContent;
 use Cbox\Cms\Contracts\Schema\ColumnDefinition;
 use Cbox\Cms\Contracts\Schema\ExtensionVersion;
 use Cbox\Cms\Contracts\Schema\FieldDefinition;
@@ -22,6 +25,7 @@ use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Contracts\Validation\TypeValidator;
 use Cbox\Cms\Contracts\Validation\TypeValidators;
+use Cbox\Cms\Generators\Codec\Domain\RecordContracts;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\ColumnDescriptor;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\CompiledSchema;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\FieldDescriptor;
@@ -45,8 +49,12 @@ use Override;
  *   all from the type's descriptor. The kernel knows the types only through it, at run time.
  * - `GeneratedTypeValidators`, the implementation of Cbox\Cms\Contracts\Validation\TypeValidators
  *   with the generated validator of every type (PhpTypeValidators), sorted by type id.
+ * - `GeneratedRecordCodecs`, the implementation of Cbox\Cms\Contracts\Codecs\RecordCodecs with the
+ *   generated record codec of every type (PhpRecordDtos), sorted by type id: it writes an entry a
+ *   read returned as its type's record DTO through RecordDocument (PRD 8.9).
  * - `GeneratedTypesServiceProvider`, a Laravel service provider that binds TypeCatalog to the
- *   catalog, TypeValidators to the validators and each type's record factory interface to the
+ *   catalog, TypeValidators to the validators, RecordCodecs to the record codecs and each type's
+ *   record factory interface to the
  *   composite record's factory (PhpRecords), so the owner's code gets the composite record
  *   without knowing the extenders, and registers the migrations directory, where
  *   TypeTableMigrations writes the migrations of the type tables, with the migrator, by its path
@@ -63,6 +71,16 @@ final readonly class PhpTypeCatalog implements Generator
     public const string PROVIDER = 'GeneratedTypesServiceProvider';
 
     public const string VALIDATORS = 'GeneratedTypeValidators';
+
+    public const string RECORD_CODECS = 'GeneratedRecordCodecs';
+
+    /**
+     * The namespace of the core's codecs feature, whose writer of a record the generated record
+     * codecs use at run time. The generator only writes its name; it does not use it.
+     */
+    private const string CODECS = 'Cbox\Cms\Core\Codecs';
+
+    private const string RECORD_DOCUMENT = self::CODECS.'\Boundary\RecordDocument';
 
     /**
      * What the catalog holds for each core field type of the blueprint schema v1: its name as the
@@ -177,6 +195,7 @@ final readonly class PhpTypeCatalog implements Generator
                 '}',
             ]),
             $this->validators($schema, $target),
+            $this->recordCodecs($schema, $target),
             $this->provider($schema, $target),
         ];
     }
@@ -228,11 +247,70 @@ final readonly class PhpTypeCatalog implements Generator
     }
 
     /**
+     * The RecordCodecs of the schema: the generated record codec of every type, sorted by type id.
+     *
+     * @throws GenerationFailed with GenerateErrorCode::InvalidOutput
+     */
+    private function recordCodecs(CompiledSchema $schema, GenerationTarget $target): GeneratedFile
+    {
+        $types = $schema->types;
+        usort($types, static fn (TypeDescriptor $one, TypeDescriptor $other): int => strcmp($one->typeId->toString(), $other->typeId->toString()));
+        $imports = [ClassificationAccess::class, InvalidRecordDocument::class, Override::class, ReadContent::class, RecordCodecs::class, TypeId::class];
+        $ids = [];
+        $arms = [];
+
+        foreach ($types as $type) {
+            $codec = RecordContracts::of($type)->codecClass;
+            $imports[] = $target->phpNamespace.'\\Boundary\\'.$codec;
+            $ids[] = sprintf('            TypeId::fromString(%s),', PhpSource::literal($type->typeId->toString()));
+            $arms[] = sprintf('            %s => RecordDocument::write($this->catalog, new %s, $content, $access),', PhpSource::literal($type->typeId->toString()), $codec);
+        }
+
+        if ($types !== []) {
+            $imports[] = self::RECORD_DOCUMENT;
+        }
+
+        return PhpSource::file($target->phpDirectory.'/'.self::RECORD_CODECS.'.php', $target->phpNamespace, $imports, [
+            ...PhpSource::docblock([
+                'The record codecs of the schema roots\' types, by type (PRD 8.9, GUARDRAILS 2.2): the generated codec of every type of the TypeCatalog, through which a projection writes an entry a read returned as its type\'s record DTO, as a caller with a classification access may see it.',
+            ]),
+            'final readonly class '.self::RECORD_CODECS.' implements RecordCodecs',
+            '{',
+            ...($types === [] ? [] : [
+                '    private '.self::CATALOG.' $catalog;',
+                '',
+                '    public function __construct()',
+                '    {',
+                '        $this->catalog = new '.self::CATALOG.';',
+                '    }',
+                '',
+            ]),
+            '    #[Override]',
+            '    public function types(): array',
+            '    {',
+            ...($ids === [] ? ['        return [];'] : ['        return [', ...$ids, '        ];']),
+            '    }',
+            '',
+            '    #[Override]',
+            '    public function encode(ReadContent $content, ClassificationAccess $access): string',
+            '    {',
+            ...($arms === [] ? ['        throw InvalidRecordDocument::unknownType($content->type);'] : [
+                '        return match ($content->type->toString()) {',
+                ...$arms,
+                '            default => throw InvalidRecordDocument::unknownType($content->type),',
+                '        };',
+            ]),
+            '    }',
+            '}',
+        ]);
+    }
+
+    /**
      * @throws GenerationFailed with GenerateErrorCode::InvalidOutput
      */
     private function provider(CompiledSchema $schema, GenerationTarget $target): GeneratedFile
     {
-        $imports = [$this->serviceProvider, TypeCatalog::class, TypeValidators::class, Override::class];
+        $imports = [$this->serviceProvider, RecordCodecs::class, TypeCatalog::class, TypeValidators::class, Override::class];
         $bindings = [];
 
         foreach ($schema->types as $type) {
@@ -244,7 +322,7 @@ final readonly class PhpTypeCatalog implements Generator
 
         return PhpSource::file($target->phpDirectory.'/'.self::PROVIDER.'.php', $target->phpNamespace, $imports, [
             ...PhpSource::docblock([
-                'Binds what the generated code gives the kernel and the owners\' code (PRD 11.12): the TypeCatalog contract to the generated catalog, the TypeValidators contract to the generated validators, and each type\'s record factory interface to the factory of its composite record, with every extender\'s fields. Registers the generated migrations of the type tables with the migrator; they run with migrate, never on their own. Register it once in the application.',
+                'Binds what the generated code gives the kernel and the owners\' code (PRD 8.9, 11.12): the TypeCatalog contract to the generated catalog, the TypeValidators contract to the generated validators, the RecordCodecs contract to the generated record codecs, and each type\'s record factory interface to the factory of its composite record, with every extender\'s fields. Registers the generated migrations of the type tables with the migrator; they run with migrate, never on their own. Register it once in the application.',
             ]),
             'final class '.self::PROVIDER.' extends '.PhpSource::shortName($this->serviceProvider),
             '{',
@@ -253,6 +331,7 @@ final readonly class PhpTypeCatalog implements Generator
             '    {',
             '        $this->app->singleton(TypeCatalog::class, '.self::CATALOG.'::class);',
             '        $this->app->singleton(TypeValidators::class, '.self::VALIDATORS.'::class);',
+            '        $this->app->singleton(RecordCodecs::class, '.self::RECORD_CODECS.'::class);',
             ...$bindings,
             '    }',
             '',

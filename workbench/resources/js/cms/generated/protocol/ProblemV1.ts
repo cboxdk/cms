@@ -90,6 +90,7 @@ export type ErrorCode =
   | 'generate_unknown_field_type'
   | 'hook_budget_exceeded'
   | 'hook_change_refused'
+  | 'host_not_configured'
   | 'idempotency_conflict'
   | 'idempotency_in_flight'
   | 'json_invalid'
@@ -99,6 +100,8 @@ export type ErrorCode =
   | 'partition_missing'
   | 'partition_owner_required'
   | 'partition_table_unmanageable'
+  | 'path_gone'
+  | 'path_not_found'
   | 'placement_slug_taken'
   | 'query_over_budget'
   | 'rebuild_identity_invalid'
@@ -298,6 +301,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'generate_unknown_field_type',
           'hook_budget_exceeded',
           'hook_change_refused',
+          'host_not_configured',
           'idempotency_conflict',
           'idempotency_in_flight',
           'json_invalid',
@@ -307,6 +311,8 @@ const catalogErrorV1Rule: ObjectRule = {
           'partition_missing',
           'partition_owner_required',
           'partition_table_unmanageable',
+          'path_gone',
+          'path_not_found',
           'placement_slug_taken',
           'query_over_budget',
           'rebuild_identity_invalid',
@@ -470,6 +476,7 @@ const problemV1Rule: ObjectRule = {
           'generate_unknown_field_type',
           'hook_budget_exceeded',
           'hook_change_refused',
+          'host_not_configured',
           'idempotency_conflict',
           'idempotency_in_flight',
           'json_invalid',
@@ -479,6 +486,8 @@ const problemV1Rule: ObjectRule = {
           'partition_missing',
           'partition_owner_required',
           'partition_table_unmanageable',
+          'path_gone',
+          'path_not_found',
           'placement_slug_taken',
           'query_over_budget',
           'rebuild_identity_invalid',

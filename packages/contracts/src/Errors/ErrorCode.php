@@ -107,6 +107,7 @@ enum ErrorCode: string
     case GenerateUnknownFieldType = 'generate_unknown_field_type';
     case HookBudgetExceeded = 'hook_budget_exceeded';
     case HookChangeRefused = 'hook_change_refused';
+    case HostNotConfigured = 'host_not_configured';
     case IdempotencyConflict = 'idempotency_conflict';
     case IdempotencyInFlight = 'idempotency_in_flight';
     case JsonInvalid = 'json_invalid';
@@ -116,6 +117,8 @@ enum ErrorCode: string
     case PartitionMissing = 'partition_missing';
     case PartitionOwnerRequired = 'partition_owner_required';
     case PartitionTableUnmanageable = 'partition_table_unmanageable';
+    case PathGone = 'path_gone';
+    case PathNotFound = 'path_not_found';
     case PlacementSlugTaken = 'placement_slug_taken';
     case QueryOverBudget = 'query_over_budget';
     case RebuildIdentityInvalid = 'rebuild_identity_invalid';
@@ -446,6 +449,11 @@ enum ErrorCode: string
                 false,
                 'A transform hook of an installed module or addon asked to change something a hook may not change: a field its type does not declare, a field above the classification the actor may read, or a variant the plan writes no revision for (PRD 6.2 phase 4, invariant 12). Nothing was committed. This is a bug in the hook; report it to the package the error names.',
             ),
+            self::HostNotConfigured => $this->caller(
+                HttpStatus::MisdirectedRequest,
+                ExitCode::NoHost,
+                'No configured site is served at the host the request names, so nothing was resolved (PRD 8.10 point 7). Only the hosts in cbox-cms.sites resolve, and a request\'s own Host or X-Forwarded-Host is never trusted instead. Ask for a host a site is served at, or add the host to its site.',
+            ),
             self::IdempotencyConflict => $this->caller(
                 HttpStatus::Conflict,
                 ExitCode::DataErr,
@@ -496,6 +504,16 @@ enum ErrorCode: string
             ),
             self::PartitionTableUnmanageable => $this->violation(
                 'A table in cbox-cms.database.partitions.tables cannot be managed as it is: it is missing, not partitioned by range, has a DEFAULT partition, or Postgres refused a step on one of its partitions. The other tables were still maintained. Run the migrations, or correct the table or its entry as the cause says.',
+            ),
+            self::PathGone => $this->caller(
+                HttpStatus::Gone,
+                ExitCode::NoInput,
+                'What the path showed was withdrawn (PRD 6.6, invariant 7): the entry is no longer active, or its variant or its placement was taken down, and no scheduled change shows it again. Only a reinstatement does.',
+            ),
+            self::PathNotFound => $this->caller(
+                HttpStatus::NotFound,
+                ExitCode::NoInput,
+                'Nothing is shown at the path in the language on the site now (PRD 5.9, 6.6): no route, placement or published content answers it, or its window has not opened or has ended. A publication, a new placement or an opening window can show something there later.',
             ),
             self::PlacementSlugTaken => $this->caller(
                 HttpStatus::Conflict,

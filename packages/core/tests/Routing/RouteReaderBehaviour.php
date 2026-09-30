@@ -7,11 +7,14 @@ namespace Cbox\Cms\Core\Tests\Routing;
 use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\Slug;
 use Cbox\Cms\Contracts\Content\TimeWindow;
+use Cbox\Cms\Contracts\Fields\FieldReader;
+use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Ids\TypeId;
+use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalMatch;
 use Cbox\Cms\Core\Routing\Domain\Dto\PlacementMatch;
@@ -23,6 +26,7 @@ use Cbox\Cms\Core\Routing\Domain\ReleaseState;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Routing\Domain\RouteReader;
 use Cbox\Cms\Core\Routing\Domain\SiteHandle;
+use Cbox\Cms\Core\Tests\Entries\EntryFields;
 use DateTimeImmutable;
 use PHPUnit\Framework\Assert;
 use PHPUnit\Framework\Attributes\Test;
@@ -40,6 +44,8 @@ use PHPUnit\Framework\Attributes\Test;
  * canonical, and by OLD below SECTION in da with the same slug, withdrawn. GONE_B and GONE_A are
  * two withdrawn placements of ENTRY with the slug "gone". DRAFT, of the type TYPE, active and with
  * no head, is placed by DRAFTED below SPORT in da with the slug "match", hidden and canonical.
+ * ENTRY has a released row with the fields released() in the table of releasedType(), the
+ * workbench's fixture measurement; DRAFT has none.
  */
 trait RouteReaderBehaviour
 {
@@ -79,6 +85,19 @@ trait RouteReaderBehaviour
      * The reader under test, knowing the world above.
      */
     abstract protected function routeReader(): RouteReader;
+
+    /**
+     * The type whose table holds ENTRY's released row.
+     */
+    abstract protected function releasedType(): TypeDefinition;
+
+    /**
+     * The fields of ENTRY's released row.
+     */
+    public static function released(): FieldValues
+    {
+        return EntryFields::measurement(station: 'harbour-1');
+    }
 
     #[Test]
     public function it_finds_the_longest_route_of_the_site_in_the_locale_that_is_a_prefix_of_the_path(): void
@@ -177,5 +196,18 @@ trait RouteReaderBehaviour
             $reader->canonical(EntryId::fromString(self::DRAFT), new Locale('da')),
         );
         Assert::assertNull($reader->canonical(EntryId::fromString(self::ENTRY), new Locale('en')));
+    }
+
+    #[Test]
+    public function it_reads_the_fields_of_the_released_row_of_an_entry_and_none_without_one(): void
+    {
+        $reader = $this->routeReader();
+        $fields = $reader->released($this->releasedType(), EntryId::fromString(self::ENTRY));
+        Assert::assertInstanceOf(FieldValues::class, $fields);
+        $read = FieldReader::of($fields->own);
+
+        Assert::assertSame(['harbour-1', 3, false, 'fixture_celsius'], [$read->text('fixture_station'), $read->integer('fixture_samples'), $read->boolean('fixture_calibrated'), $read->text('fixture_scale')]);
+        Assert::assertSame('S-7', $read->group('fixture_sensor')->text('fixture_sensor_code'));
+        Assert::assertNull($reader->released($this->releasedType(), EntryId::fromString(self::DRAFT)));
     }
 }

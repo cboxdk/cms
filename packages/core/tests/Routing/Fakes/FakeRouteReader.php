@@ -6,9 +6,12 @@ namespace Cbox\Cms\Core\Tests\Routing\Fakes;
 
 use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\Slug;
+use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\SiteId;
+use Cbox\Cms\Contracts\Ids\TypeId;
+use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalMatch;
 use Cbox\Cms\Core\Routing\Domain\Dto\PlacementMatch;
@@ -23,8 +26,9 @@ use Override;
 /**
  * The reads of path.resolve from memory (GUARDRAILS 9), held to PostgresRouteReader by
  * RouteReaderBehaviour. It holds what one reader may read, as row level security leaves it: the
- * sites with their locales, the nodes with the site whose tree holds each, the routes, and the
- * placements, each below a node with a slug in a locale.
+ * sites with their locales, the nodes with the site whose tree holds each, the routes, the
+ * placements, each below a node with a slug in a locale, and the released rows, each of an entry of
+ * a type.
  */
 final class FakeRouteReader implements RouteReader
 {
@@ -39,6 +43,9 @@ final class FakeRouteReader implements RouteReader
 
     /** @var list<array{NodeId, Locale, Slug, PlacementMatch}> */
     private array $placements = [];
+
+    /** @var array<string, FieldValues> by "<type> <entry>" */
+    private array $released = [];
 
     /** How many reads were made. */
     public int $reads = 0;
@@ -70,6 +77,13 @@ final class FakeRouteReader implements RouteReader
     public function withPlacement(NodeId $node, Locale $locale, Slug $slug, PlacementMatch $placement): self
     {
         $this->placements[] = [$node, $locale, $slug, $placement];
+
+        return $this;
+    }
+
+    public function withReleased(TypeId $type, EntryId $entry, FieldValues $fields): self
+    {
+        $this->released[$type->toString().' '.$entry->toString()] = $fields;
 
         return $this;
     }
@@ -144,5 +158,13 @@ final class FakeRouteReader implements RouteReader
         }
 
         return null;
+    }
+
+    #[Override]
+    public function released(TypeDefinition $type, EntryId $entry): ?FieldValues
+    {
+        $this->reads++;
+
+        return $this->released[$type->id->toString().' '.$entry->toString()] ?? null;
     }
 }

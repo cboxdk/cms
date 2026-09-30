@@ -231,6 +231,20 @@ final readonly class TypeTableColumns
     }
 
     /**
+     * A field's value in the JSON form of a group's nested fields, which is also the form of the
+     * record codecs (RecordDocument): a text, a select's option or an array of them, an integer, a
+     * decimal's canonical string, a boolean, a date `YYYY-MM-DD`, a date-time in UTC with
+     * microseconds, rich text's blocks and a group's object or array of objects; null for
+     * NullValue. $at names the field in a message.
+     *
+     * @throws UnreadableTypeTable when the value does not fit its field
+     */
+    public static function documentValue(FieldDefinition $field, string $at, FieldValue $value): mixed
+    {
+        return self::jsonValue($field, $at, $value);
+    }
+
+    /**
      * A nested value of a group as JSON.
      *
      * @throws UnreadableTypeTable

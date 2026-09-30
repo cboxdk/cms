@@ -8,11 +8,13 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\Slug;
 use Cbox\Cms\Contracts\Content\VariantKey;
+use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Ids\TypeId;
+use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Core\Placements\Adapter\PlacementRows;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalMatch;
 use Cbox\Cms\Core\Routing\Domain\Dto\PlacementMatch;
@@ -24,6 +26,7 @@ use Cbox\Cms\Core\Routing\Domain\ReleaseState;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Routing\Domain\RouteReader;
 use Cbox\Cms\Core\Routing\Domain\SiteHandle;
+use Cbox\Cms\Core\TypeTables\Boundary\TypeTableColumns;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\ConnectionResolverInterface;
 use JsonException;
@@ -50,6 +53,9 @@ use UnexpectedValueException;
  * - CANONICAL: the canonical placement of the entry in the locale, its node's route in the site
  *   whose root is the root of the node's tree, and that site's handle; both null when the node has
  *   no route.
+ * - released(): the released row of the entry's shared variant in its type's table, by the table's
+ *   primary key, through the query builder, decoded by TypeTableColumns. The anonymous context
+ *   reads it only while the entry has a live placement (`<table>_released`).
  */
 #[Internal]
 final readonly class PostgresRouteReader implements RouteReader
@@ -187,6 +193,19 @@ final readonly class PostgresRouteReader implements RouteReader
             $handle === null ? null : new SiteHandle($handle),
             PlacementRows::textOrNull($row, 'route'),
         );
+    }
+
+    #[Override]
+    public function released(TypeDefinition $type, EntryId $entry): ?FieldValues
+    {
+        $row = $this->db()->table($type->name->table())
+            ->useWritePdo()
+            ->where('cms_entry_id', '=', $entry->toString())
+            ->where('cms_locale', '=', VariantKey::shared()->value)
+            ->where('cms_stage', '=', 'released')
+            ->first();
+
+        return $row === null ? null : TypeTableColumns::decode($type, (array) $row);
     }
 
     private function db(): ConnectionInterface
