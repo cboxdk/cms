@@ -12,6 +12,7 @@ use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecordDtos;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecords;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeCatalog;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeHandleEnum;
+use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeQueries;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeValidators;
 use Cbox\Cms\Generators\Generation\Domain\Generators\TypeTableMigrations;
 use Cbox\Cms\Generators\Generation\Domain\SchemaResolver;
@@ -46,7 +47,7 @@ final class ComprehensiveExample
 
     public const string GOLDEN = self::DIRECTORY.'/descriptor.json';
 
-    /** The committed golden PHP of the example, below DIRECTORY: what the PHP generators write, the record DTOs and codecs of PhpRecordDtos included. */
+    /** The committed golden PHP of the example, below DIRECTORY: what the PHP generators write, the record DTOs and codecs of PhpRecordDtos and the query builder of PhpTypeQueries included. */
     public const string PHP_DIRECTORY = 'Generated';
 
     /** The committed golden migrations and schema lock of the example's type table, below DIRECTORY. */
@@ -143,7 +144,7 @@ final class ComprehensiveExample
     {
         $files = [];
 
-        foreach (new GeneratorRunner([new PhpRecordDtos, new PhpTypeHandleEnum, new PhpRecords, new PhpTypeCatalog(ServiceProvider::class), new PhpTypeValidators])->run(self::compile(), self::target())->files as $file) {
+        foreach (new GeneratorRunner([new PhpRecordDtos, new PhpTypeHandleEnum, new PhpRecords, new PhpTypeCatalog(ServiceProvider::class), new PhpTypeQueries, new PhpTypeValidators])->run(self::compile(), self::target())->files as $file) {
             $files[$file->path] = $file->contents;
         }
 

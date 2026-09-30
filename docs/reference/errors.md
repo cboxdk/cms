@@ -62,6 +62,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`generate_extension_of_own_type`](#generate_extension_of_own_type) | 500 | 65 | internal_error | no |
 | [`generate_extension_version_mismatch`](#generate_extension_version_mismatch) | 500 | 65 | internal_error | no |
 | [`generate_field_changed`](#generate_field_changed) | 500 | 65 | internal_error | no |
+| [`generate_field_not_queryable`](#generate_field_not_queryable) | 500 | 65 | internal_error | no |
 | [`generate_field_removed`](#generate_field_removed) | 500 | 65 | internal_error | no |
 | [`generate_invalid_case_name`](#generate_invalid_case_name) | 500 | 65 | internal_error | no |
 | [`generate_invalid_config`](#generate_invalid_config) | 500 | 78 | internal_error | no |
@@ -573,6 +574,15 @@ Two extension files of one owner for one type declare different versions. The fi
 ### generate_field_changed
 
 A field's column type, NOT NULL, CHECK constraints or index differ from its type's schema lock, the table the committed migrations build. Until schema evolution comes (B3), an existing column never changes: undo the change, or add a new optional field instead.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### generate_field_not_queryable
+
+A field is declared filterable or sortable, but its field type has no order the typed query builder can compare: rich text, a group, or a select that allows several options. Remove filterable and sortable from the field, or model the value as its own field of a type that compares (PRD 8.8).
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)

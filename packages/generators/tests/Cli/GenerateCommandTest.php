@@ -102,6 +102,9 @@ it('writes the PHP enum, the record DTO and codec, the validator, the TypeScript
             'written: app/Cms/Generated/GeneratedTypeCatalog.php',
             'written: app/Cms/Generated/GeneratedTypeValidators.php',
             'written: app/Cms/Generated/GeneratedTypesServiceProvider.php',
+            'written: app/Cms/Generated/QueryBuilders/AppPage/AppPageFilterField.php',
+            'written: app/Cms/Generated/QueryBuilders/AppPage/AppPageQuery.php',
+            'written: app/Cms/Generated/QueryBuilders/AppPage/AppPageSortField.php',
             'written: app/Cms/Generated/Records/AppPage/AppPage.php',
             'written: app/Cms/Generated/Records/AppPage/AppPageFactory.php',
             'written: app/Cms/Generated/Records/AppPage/AppPageRecord.php',
@@ -116,10 +119,10 @@ it('writes the PHP enum, the record DTO and codec, the validator, the TypeScript
             'written: resources/js/cms/generated/protocol/ReceiptV1.ts',
             'written: resources/js/cms/generated/records/AppPageV1.ts',
             'written: resources/js/cms/generated/validation.ts',
-            'Generated 19 files: 19 written, 0 unchanged, 0 stale removed.',
+            'Generated 22 files: 22 written, 0 unchanged, 0 stale removed.',
         ])
         ->and($second)->toBe(0)
-        ->and($secondOutput)->toBe(['Generated 19 files: 0 written, 19 unchanged, 0 stale removed.'])
+        ->and($secondOutput)->toBe(['Generated 22 files: 0 written, 22 unchanged, 0 stale removed.'])
         ->and(array_map(static fn (string $file): string => (string) hash_file('sha256', $root.'/'.$file), SchemaFixtures::files($root)))->toBe($hashes)
         ->and(SchemaFixtures::files($root))->toBe([
             'app/Cms/Generated/Boundary/AppPageCodecV1.php',
@@ -127,6 +130,9 @@ it('writes the PHP enum, the record DTO and codec, the validator, the TypeScript
             'app/Cms/Generated/GeneratedTypeCatalog.php',
             'app/Cms/Generated/GeneratedTypeValidators.php',
             'app/Cms/Generated/GeneratedTypesServiceProvider.php',
+            'app/Cms/Generated/QueryBuilders/AppPage/AppPageFilterField.php',
+            'app/Cms/Generated/QueryBuilders/AppPage/AppPageQuery.php',
+            'app/Cms/Generated/QueryBuilders/AppPage/AppPageSortField.php',
             'app/Cms/Generated/Records/AppPage/AppPage.php',
             'app/Cms/Generated/Records/AppPage/AppPageFactory.php',
             'app/Cms/Generated/Records/AppPage/AppPageRecord.php',
@@ -191,6 +197,9 @@ it('generates when a module release adds a type with the handle of an app type, 
             'written: app/Cms/Generated/GeneratedTypeCatalog.php',
             'written: app/Cms/Generated/GeneratedTypeValidators.php',
             'written: app/Cms/Generated/GeneratedTypesServiceProvider.php',
+            'written: app/Cms/Generated/QueryBuilders/AcmePage/AcmePageFilterField.php',
+            'written: app/Cms/Generated/QueryBuilders/AcmePage/AcmePageQuery.php',
+            'written: app/Cms/Generated/QueryBuilders/AcmePage/AcmePageSortField.php',
             'written: app/Cms/Generated/Records/AcmePage/AcmePage.php',
             'written: app/Cms/Generated/Records/AcmePage/AcmePageFactory.php',
             'written: app/Cms/Generated/Records/AcmePage/AcmePageRecord.php',
@@ -201,7 +210,7 @@ it('generates when a module release adds a type with the handle of an app type, 
             'written: database/migrations/cms/acme__page_0001_create.php',
             'written: resources/js/cms/generated/index.ts',
             'written: resources/js/cms/generated/records/AcmePageV1.ts',
-            'Generated 29 files: 15 written, 14 unchanged, 0 stale removed.',
+            'Generated 35 files: 18 written, 17 unchanged, 0 stale removed.',
         ])
         ->and(is_file($root.'/app/Cms/Generated/Validators/AppPageValidator.php'))->toBeTrue()
         ->and((string) file_get_contents($root.'/app/Cms/Generated/TypeHandle.php'))->toContain("    case AcmePage = 'acme:page';\n    case AppPage = 'app:page';\n")

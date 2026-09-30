@@ -57,6 +57,7 @@ export type ErrorCode =
   | 'generate_extension_of_own_type'
   | 'generate_extension_version_mismatch'
   | 'generate_field_changed'
+  | 'generate_field_not_queryable'
   | 'generate_field_removed'
   | 'generate_invalid_case_name'
   | 'generate_invalid_config'
@@ -251,6 +252,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'generate_extension_of_own_type',
           'generate_extension_version_mismatch',
           'generate_field_changed',
+          'generate_field_not_queryable',
           'generate_field_removed',
           'generate_invalid_case_name',
           'generate_invalid_config',
@@ -409,6 +411,7 @@ const problemV1Rule: ObjectRule = {
           'generate_extension_of_own_type',
           'generate_extension_version_mismatch',
           'generate_field_changed',
+          'generate_field_not_queryable',
           'generate_field_removed',
           'generate_invalid_case_name',
           'generate_invalid_config',

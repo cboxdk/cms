@@ -11,6 +11,7 @@ use Cbox\Cms\Contracts\Identity\ActorDirectory;
 use Cbox\Cms\Contracts\Identity\CredentialVerifier;
 use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Contracts\ReceiptStore;
+use Cbox\Cms\Contracts\TypeTables\TypeTableReader;
 use Cbox\Cms\Core\Bindings\Boundary\InvalidContractBinding;
 use Cbox\Cms\Core\Cache\Adapter\ValkeyFragmentStore;
 use Cbox\Cms\Core\Clock\Adapter\SystemClock;
@@ -20,6 +21,7 @@ use Cbox\Cms\Core\Identity\Adapter\PostgresActorDirectory;
 use Cbox\Cms\Core\Identity\Adapter\PostgresCredentialVerifier;
 use Cbox\Cms\Core\Ids\Adapter\SystemIdGenerator;
 use Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore;
+use Cbox\Cms\Core\TypeTables\Adapter\PostgresTypeTableReader;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -100,6 +102,7 @@ it('keeps the default clock and id generator when the application configures onl
         ActorDirectory::class => PostgresActorDirectory::class,
         CredentialVerifier::class => PostgresCredentialVerifier::class,
         FragmentStore::class => ValkeyFragmentStore::class,
+        TypeTableReader::class => PostgresTypeTableReader::class,
         'Acme\\Contracts\\Other' => 'Acme\\Other',
     ])->and(app(Clock::class))->toBeInstanceOf(SystemClock::class)
         ->and(app(IdGenerator::class))->toBeInstanceOf(SystemIdGenerator::class);

@@ -25,6 +25,7 @@ A test that changes a setting sets the single key, such as `cbox-cms.contracts.<
 | `Cbox\Cms\Contracts\Identity\ActorDirectory` | `Cbox\Cms\Core\Identity\Adapter\PostgresActorDirectory` |
 | `Cbox\Cms\Contracts\Identity\CredentialVerifier` | `Cbox\Cms\Core\Identity\Adapter\PostgresCredentialVerifier` |
 | `Cbox\Cms\Contracts\Cache\FragmentStore` | `Cbox\Cms\Core\Cache\Adapter\ValkeyFragmentStore` |
+| `Cbox\Cms\Contracts\TypeTables\TypeTableReader` | `Cbox\Cms\Core\TypeTables\Adapter\PostgresTypeTableReader` |
 
 `Cbox\Cms\Contracts\Cdn\CdnDriver` has no default: the real drivers come with full-scale invalidation, and until an application sets `cbox-cms.contracts.Cbox\Cms\Contracts\Cdn\CdnDriver`, resolving it throws `InvalidContractBinding` with the key to set. Tests use the testkit's `FakeCdnDriver`; see [CDN driver](../addons/contracts/cdn-driver.md).
 

@@ -20,6 +20,7 @@ use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecordDtos;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecords;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeCatalog;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeHandleEnum;
+use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeQueries;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeValidators;
 use Cbox\Cms\Generators\Generation\Domain\Generators\TypeScriptContracts;
 use Cbox\Cms\Generators\Generation\Domain\Generators\TypeScriptTypeHandles;
@@ -71,6 +72,7 @@ final class GeneratorsServiceProvider extends ServiceProvider implements Declare
                 new PhpTypeHandleEnum,
                 new PhpRecords,
                 new PhpTypeCatalog(ServiceProvider::class),
+                new PhpTypeQueries,
                 new PhpTypeValidators,
                 new TypeScriptTypeHandles,
                 new TypeScriptContracts(new TypeScriptRuntime()->source(...), new KernelContracts()->read(...)),

@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\Tests;
 
 use Cbox\Cms\Contracts\Cache\FragmentStore;
 use Cbox\Cms\Contracts\Cdn\CdnDriver;
+use Cbox\Cms\Contracts\TypeTables\TypeTableReader;
 use Cbox\Cms\Core\Bindings\Boundary\ContractBindings;
 use Cbox\Cms\Core\Bindings\Boundary\InvalidContractBinding;
 use Cbox\Cms\Core\Cache\Adapter\ValkeyFragmentStore;
@@ -36,6 +37,7 @@ use Cbox\Cms\Core\Subscriptions\Domain\Dto\RunnerSettings;
 use Cbox\Cms\Core\Subscriptions\Domain\LaneSubscribers;
 use Cbox\Cms\Core\Subscriptions\Domain\Pacing;
 use Cbox\Cms\Core\Subscriptions\Domain\SubscriptionLog;
+use Cbox\Cms\Core\TypeTables\Adapter\PostgresTypeTableReader;
 use Cbox\Cms\Testkit\Cdn\FakeCdnDriver;
 use Cbox\Operations\Contracts\Operations;
 use Cbox\Operations\OperationManager;
@@ -121,4 +123,9 @@ it('binds the FragmentStore to the Valkey store once per process, and the CdnDri
     app()->forgetInstance(CdnDriver::class);
 
     expect(app(CdnDriver::class))->toBeInstanceOf(FakeCdnDriver::class);
+});
+
+it('binds the TypeTableReader to the Postgres reader once per process', function (): void {
+    expect(app(TypeTableReader::class))->toBeInstanceOf(PostgresTypeTableReader::class)
+        ->and(app(TypeTableReader::class))->toBe(app(TypeTableReader::class));
 });

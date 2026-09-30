@@ -16,6 +16,7 @@ use Cbox\Cms\Contracts\Identity\ActorDirectory;
 use Cbox\Cms\Contracts\Identity\CredentialVerifier;
 use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Contracts\ReceiptStore;
+use Cbox\Cms\Contracts\TypeTables\TypeTableReader;
 use Cbox\Cms\Core\Access\Adapter\PostgresAccessResolver;
 use Cbox\Cms\Core\Access\Adapter\TransactionalAccessContexts;
 use Cbox\Cms\Core\Access\Domain\AccessCompiler;
@@ -199,6 +200,11 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->singleton(
             FragmentStore::class,
             static fn (Application $app): FragmentStore => $app->make(ContractBindings::class)->resolve($app, FragmentStore::class),
+        );
+
+        $this->app->singleton(
+            TypeTableReader::class,
+            static fn (Application $app): TypeTableReader => $app->make(ContractBindings::class)->resolve($app, TypeTableReader::class),
         );
 
         // No CDN driver is configured by default; the real drivers come with full-scale

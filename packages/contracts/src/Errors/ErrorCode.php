@@ -74,6 +74,7 @@ enum ErrorCode: string
     case GenerateExtensionOfOwnType = 'generate_extension_of_own_type';
     case GenerateExtensionVersionMismatch = 'generate_extension_version_mismatch';
     case GenerateFieldChanged = 'generate_field_changed';
+    case GenerateFieldNotQueryable = 'generate_field_not_queryable';
     case GenerateFieldRemoved = 'generate_field_removed';
     case GenerateInvalidCaseName = 'generate_invalid_case_name';
     case GenerateInvalidConfig = 'generate_invalid_config';
@@ -313,6 +314,9 @@ enum ErrorCode: string
             ),
             self::GenerateFieldChanged => $this->refusedInput(
                 'A field\'s column type, NOT NULL, CHECK constraints or index differ from its type\'s schema lock, the table the committed migrations build. Until schema evolution comes (B3), an existing column never changes: undo the change, or add a new optional field instead.',
+            ),
+            self::GenerateFieldNotQueryable => $this->refusedInput(
+                'A field is declared filterable or sortable, but its field type has no order the typed query builder can compare: rich text, a group, or a select that allows several options. Remove filterable and sortable from the field, or model the value as its own field of a type that compares (PRD 8.8).',
             ),
             self::GenerateFieldRemoved => $this->refusedInput(
                 'A field whose column is in its type\'s schema lock is no longer in the schema. Until schema evolution comes (B3), a type table only grows: put the field back, and stop using it instead.',

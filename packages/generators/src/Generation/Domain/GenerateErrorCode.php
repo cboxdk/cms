@@ -148,6 +148,12 @@ enum GenerateErrorCode: string
      */
     case RequiredFieldAdded = 'generate_required_field_added';
 
+    /**
+     * A field declared filterable or sortable whose field type the typed query builder cannot
+     * compare: rich text, a group, or a select that allows several options (PRD 8.8).
+     */
+    case FieldNotQueryable = 'generate_field_not_queryable';
+
     /** A generator produced a file outside its directory, or two files with the same path. */
     case InvalidOutput = 'generate_invalid_output';
 
