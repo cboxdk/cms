@@ -13,6 +13,7 @@ use Cbox\Cms\Core\Entries\Actions\ReviseEntryAction;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
+use Cbox\Cms\Core\Fragments\Actions\InvalidateFragments;
 use Cbox\Cms\Core\Identity\Actions\DeactivateActorAction;
 use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
 use Cbox\Cms\Core\Placements\Actions\CreatePlacementAction;
@@ -27,6 +28,7 @@ use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Dto\ScanRoots;
+use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Registry\Domain\RegistryName;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
@@ -82,7 +84,7 @@ it('registers deferred providers first, so their scan roots are not missed', fun
         ->and(ProviderScanRoots::of(app())->roots)->toContainEqual(new ScanRoot('acme/deferred', __DIR__.'/Providers'));
 });
 
-it('scans the packages\' own classes without a problem and registers the kernel\'s own commands with their actions', function (): void {
+it('scans the packages\' own classes without a problem and registers the kernel\'s own commands with their actions and its invalidation subscriber', function (): void {
     $registry = RegistryFixtures::builder(RegistryFixtures::scratch())->build(packageScanRoots());
 
     expect(array_map(static fn (CommandEntry $entry): string => $entry->name->value.'@'.$entry->version.' '.$entry->class, $registry->commands))
@@ -106,9 +108,10 @@ it('scans the packages\' own classes without a problem and registers the kernel\
         ->and($registry->actionFor(DeactivateActor::class)?->surfaces)->toBe([])
         ->and($registry->actionFor(CreateEntry::class)?->class)->toBe(CreateEntryAction::class)
         ->and($registry->actionFor(ReviseEntry::class)?->class)->toBe(ReviseEntryAction::class)
-        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([6, 6, 0, 0, 0])
+        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([6, 6, 0, 0, 1])
         ->and($registry->hooks)->toBe([])
-        ->and($registry->subscribers)->toBe([])
+        ->and(array_map(static fn (SubscriberEntry $entry): string => $entry->name->value.' '.$entry->class.' '.$entry->lane->value.' '.$entry->projection?->value, $registry->subscribers))
+        ->toBe(['fragments.invalidate '.InvalidateFragments::class.' critical origin'])
         ->and($registry->schema)->toBe([]);
 });
 

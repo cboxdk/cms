@@ -93,9 +93,9 @@ use LogicException;
  * hasher and the hooks.
  *
  * The world's structure, written by seed() as the superuser, is the site root ROOT with the section
- * HOME below it; the call's access context reaches the whole tree. The clock stands at NOW, whose
- * day and the next the partitions cover. Each world adds an active staff member as its actor, so
- * two worlds are two actors.
+ * HOME below it; the call's access context reaches the whole tree. The clock stands at NOW, or at
+ * the time a test gives the world and seed(), whose day and the next the partitions cover. Each
+ * world adds an active staff member as its actor, so two worlds are two actors.
  */
 final class EntryWorld
 {
@@ -131,9 +131,13 @@ final class EntryWorld
 
     private readonly FakeIdGenerator $ids;
 
-    public function __construct(private readonly ?string $connection = null, int $seed = 1)
+    /**
+     * @param  string  $now  the clock's time, NOW unless a test needs another, such as one that
+     *                       shares the receipts with a process on the system clock
+     */
+    public function __construct(private readonly ?string $connection = null, int $seed = 1, string $now = self::NOW)
     {
-        $this->clock = new FakeClock(new DateTimeImmutable(self::NOW));
+        $this->clock = new FakeClock(new DateTimeImmutable($now));
         $this->ids = new FakeIdGenerator(seed: $seed, clock: $this->clock);
         $identity = new PostgresIdentitySeeder(app(ConnectionResolverInterface::class), $this->clock, new FakeIdGenerator(seed: 100 + $seed, clock: $this->clock));
 
@@ -141,11 +145,11 @@ final class EntryWorld
     }
 
     /**
-     * The partitions for NOW and the structure: ROOT and HOME below it.
+     * The partitions for $now, NOW by default, and the structure: ROOT and HOME below it.
      */
-    public static function seed(): void
+    public static function seed(string $now = self::NOW): void
     {
-        app(PartitionFixtures::class)->coverClock(new FakeClock(new DateTimeImmutable(self::NOW)), new DateInterval('P1D'));
+        app(PartitionFixtures::class)->coverClock(new FakeClock(new DateTimeImmutable($now)), new DateInterval('P1D'));
 
         $superuser = StorageTables::superuser();
         $superuser->table('nodes')->insert(StorageTables::node(self::ROOT, kind: 'site'));

@@ -183,6 +183,16 @@ return [
     ],
 
     /*
+     * The invalidation subscriber (PRD 8.12 point 1), fragments.invalidate on the critical lane. Each
+     * purge writes a fence that lives fence_seconds, 1 to 86400: while it lives, the fragment store
+     * refuses a fragment of the purged key built by a read that may not have seen the change. Keep
+     * it above the slowest fragment build and the lag of a read replica.
+     */
+    'fragments' => [
+        'fence_seconds' => 60,
+    ],
+
+    /*
      * cms:doctor (PRD 3.3, 4.2, 13.2). The Postgres checks connect with the connection's settings
      * as the app role; null means the default connection. The doctor never logs in as the owner
      * role: postgres.lc_messages reads the lc_messages of the role owner_role names from the

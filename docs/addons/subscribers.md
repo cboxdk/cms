@@ -62,6 +62,16 @@ A write returns a receipt with the status of each projection its changeset affec
 
 Class names are compared without case, as PHP compares them.
 
+## The kernel's invalidation subscriber
+
+The kernel has one subscriber of its own, `fragments.invalidate` on the critical lane, which acknowledges the projection `origin`, the one the wait level `origin` waits for (PRD 8.4). It receives the content events `entry.created` and `variant.revised`, and for each:
+
+1. It purges the fragments of the content keys the event affects, `e-{entry}` (PRD 9.4), through the fragment store's purge fence at the event's commit position: for `cbox-cms.fragments.fence_seconds` the store refuses a fragment of the key that a read at or below that position built, because the read may not have seen the change (PRD 8.12 point 1).
+2. It purges the same keys at the edge through the configured CDN driver, softly, because a change may be served stale while it is rebuilt (PRD 8.12 point 3); a driver without soft purges applies it hard. The fragments go first, so an edge that refetches gets a fresh origin.
+3. It acknowledges `origin` on the receipt of the event's changeset, in the runner's batch, so the acknowledgement commits with the cursor.
+
+When the CDN does not take the purge, the batch rolls back and the runner tries the event again, so `origin` is acknowledged only once both purges were taken. Every step is idempotent, and a fence never moves down, so a restarted runner that hands the event again changes nothing more. The critical lane needs a CDN driver in `cbox-cms.contracts` (see [configuration](../developers/configuration.md#contracts)).
+
 ## The subscribers registry
 
 `cms:build` finds `#[Subscription]` in the scan roots, as it finds the other declarations (see [build declarations](build-declarations.md)), and writes `bootstrap/cache/cms/subscribers.php`. An entry has these keys, in this order, and the entries are sorted by subscription name:
@@ -328,7 +338,7 @@ final readonly class NotifyPartners implements Subscriber
 }
 ```
 
-The test builds the registry with `cms:build`, reads `subscribers.php`, asks the compiled registry for the projections of each event, and hands the index subscriber a newer and then an older version of a page. It uses the `BuildTestCase` of [build declarations](build-declarations.md):
+The test builds the registry with `cms:build`, reads `subscribers.php`, where the kernel's own subscriber sorts after the package's two, asks the compiled registry for the projections of each event, and hands the index subscriber a newer and then an older version of a page. It uses the `BuildTestCase` of [build declarations](build-declarations.md):
 
 <!-- example: examples/Unit/Subscribers/SubscribersTest.php -->
 ```php
@@ -361,11 +371,16 @@ final class SubscribersTest extends BuildTestCase
     public function it_compiles_the_subscribers_of_a_package(): void
     {
         self::assertSame(0, $this->build(SearchServiceProvider::class));
-        self::assertStringContainsString('subscribers: 2', $this->buildOutput());
+        self::assertStringContainsString('subscribers: 3', $this->buildOutput());
 
         $subscribers = require $this->registryFile('subscribers');
         self::assertIsArray($subscribers);
         self::assertSame('subscribers', $subscribers['registry']);
+
+        // The package's two subscribers, and the kernel's own invalidation subscriber after them.
+        $entries = $subscribers['entries'];
+        self::assertIsArray($entries);
+        self::assertSame(['acme.search.index', 'acme.search.partners', 'fragments.invalidate'], array_column($entries, 'name'));
         self::assertSame([
             [
                 'addon' => null,
@@ -390,7 +405,7 @@ final class SubscribersTest extends BuildTestCase
                 'package' => 'acme/cms-search',
                 'projection' => null,
             ],
-        ], $subscribers['entries']);
+        ], array_slice($entries, 0, 2));
     }
 
     #[Test]

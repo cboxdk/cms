@@ -27,11 +27,16 @@ final class SubscribersTest extends BuildTestCase
     public function it_compiles_the_subscribers_of_a_package(): void
     {
         self::assertSame(0, $this->build(SearchServiceProvider::class));
-        self::assertStringContainsString('subscribers: 2', $this->buildOutput());
+        self::assertStringContainsString('subscribers: 3', $this->buildOutput());
 
         $subscribers = require $this->registryFile('subscribers');
         self::assertIsArray($subscribers);
         self::assertSame('subscribers', $subscribers['registry']);
+
+        // The package's two subscribers, and the kernel's own invalidation subscriber after them.
+        $entries = $subscribers['entries'];
+        self::assertIsArray($entries);
+        self::assertSame(['acme.search.index', 'acme.search.partners', 'fragments.invalidate'], array_column($entries, 'name'));
         self::assertSame([
             [
                 'addon' => null,
@@ -56,7 +61,7 @@ final class SubscribersTest extends BuildTestCase
                 'package' => 'acme/cms-search',
                 'projection' => null,
             ],
-        ], $subscribers['entries']);
+        ], array_slice($entries, 0, 2));
     }
 
     #[Test]

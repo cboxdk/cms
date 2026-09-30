@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Workbench\App\Providers;
 
+use Cbox\Cms\Contracts\Cdn\CdnDriver;
+use Cbox\Cms\Testkit\Cdn\FakeCdnDriver;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Support\Env;
 use Illuminate\Support\ServiceProvider;
@@ -34,12 +36,20 @@ use Workbench\App\Cms\Generated\GeneratedTypesServiceProvider;
  * It turns off server-side rendering and the check for page components on disk for the
  * workbench's Inertia test page (boot()).
  *
+ * It configures the event runner from the environment (configureEventRunner()).
+ *
  * It registers the service provider that cms:generate writes from the workbench's schema, which
  * binds the TypeCatalog contract to the generated catalog and each fixture type's record factory,
  * as an application registers its own.
  */
 final class WorkbenchServiceProvider extends ServiceProvider
 {
+    /** The environment variable that names the event runner's service actor. */
+    public const string SERVICE_ACTOR = 'CBOX_CMS_EVENTS_SERVICE_ACTOR';
+
+    /** The environment variable that picks the CDN driver; only fake is known. */
+    public const string CDN_DRIVER = 'CBOX_CMS_CDN_DRIVER';
+
     public function register(): void
     {
         $this->app->register(GeneratedTypesServiceProvider::class);
@@ -57,6 +67,8 @@ final class WorkbenchServiceProvider extends ServiceProvider
 
         $config->set('cbox-cms.doctor.project_path', dirname(__DIR__, 3));
         $config->set('cbox-cms.doctor.vendor_manifest', dirname(__DIR__, 3).'/vendor/composer/installed.json');
+
+        $this->configureEventRunner($config);
 
         $app = $config->get('database.connections.pgsql');
 
@@ -90,6 +102,26 @@ final class WorkbenchServiceProvider extends ServiceProvider
 
         $config->set('inertia.ssr.enabled', false);
         $config->set('inertia.testing.ensure_pages_exist', false);
+    }
+
+    /**
+     * The event runner of the workbench (PRD 7.6), set from its environment as an application sets
+     * it in config/cbox-cms.php: CBOX_CMS_EVENTS_SERVICE_ACTOR names the service actor the
+     * subscribers run as, and CBOX_CMS_CDN_DRIVER=fake purges the edge through the testkit's
+     * FakeCdnDriver, the CDN of the walking skeleton (MILESTONES M1 point 5). Without them the
+     * workbench keeps the core's defaults: no service actor and no CDN driver.
+     */
+    private function configureEventRunner(Repository $config): void
+    {
+        $actor = $this->env(self::SERVICE_ACTOR, '');
+
+        if ($actor !== '') {
+            $config->set('cbox-cms.events.runner.service_actor', $actor);
+        }
+
+        if ($this->env(self::CDN_DRIVER, '') === 'fake') {
+            $config->set('cbox-cms.contracts.'.CdnDriver::class, FakeCdnDriver::class);
+        }
     }
 
     private function env(string $key, string $default): string

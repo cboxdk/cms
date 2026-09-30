@@ -27,7 +27,7 @@ A test that changes a setting sets the single key, such as `cbox-cms.contracts.<
 | `Cbox\Cms\Contracts\Cache\FragmentStore` | `Cbox\Cms\Core\Cache\Adapter\ValkeyFragmentStore` |
 | `Cbox\Cms\Contracts\TypeTables\TypeTableReader` | `Cbox\Cms\Core\TypeTables\Adapter\PostgresTypeTableReader` |
 
-`Cbox\Cms\Contracts\Cdn\CdnDriver` has no default: the real drivers come with full-scale invalidation, and until an application sets `cbox-cms.contracts.Cbox\Cms\Contracts\Cdn\CdnDriver`, resolving it throws `InvalidContractBinding` with the key to set. Tests use the testkit's `FakeCdnDriver`; see [CDN driver](../addons/contracts/cdn-driver.md).
+`Cbox\Cms\Contracts\Cdn\CdnDriver` has no default: the real drivers come with full-scale invalidation, and until an application sets `cbox-cms.contracts.Cbox\Cms\Contracts\Cdn\CdnDriver`, resolving it throws `InvalidContractBinding` with the key to set. The invalidation subscriber on the critical lane purges through it, so `cms:events:run` needs one. Tests use the testkit's `FakeCdnDriver`, and the workbench binds it when its environment has `CBOX_CMS_CDN_DRIVER=fake`; see [CDN driver](../addons/contracts/cdn-driver.md).
 
 For example, `'contracts' => [Clock::class => StagingClock::class]` replaces the clock and keeps the other six. See [Contracts](../addons/contracts/_index.md).
 
@@ -76,6 +76,14 @@ For example, `'contracts' => [Clock::class => StagingClock::class]` replaces the
 | `cbox-cms.events.runner.backoff_base_ms` | `100` | The wait after the first failed try, doubled after each further one. |
 | `cbox-cms.events.runner.backoff_max_ms` | `5000` | The longest wait between tries, at least `backoff_base_ms` and at most `60000`. |
 | `cbox-cms.events.runner.idle_sleep_ms` | `200` | The wait when no subscription of the lane had anything to do. |
+
+## Fragments
+
+The invalidation subscriber, `fragments.invalidate` on the critical lane, reads `cbox-cms.fragments` (PRD 8.12 point 1); see [subscribers](../addons/subscribers.md#the-kernels-invalidation-subscriber). A value that is not a whole number from `1` to `86400` fails when the runner builds the subscriber.
+
+| Key | Default | What it does |
+|---|---|---|
+| `cbox-cms.fragments.fence_seconds` | `60` | How long the fence of a purge lives, in seconds. While it lives, the fragment store refuses a fragment of the purged key that a read built at or below the purge's commit position, because that read may not have seen the change. Keep it above the slowest fragment build and the lag of a read replica. |
 
 ## Doctor
 

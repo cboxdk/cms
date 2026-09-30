@@ -63,7 +63,7 @@ it('writes the five registries to the application\'s bootstrap/cache/cms, and re
             'commands: 6',
             'hooks: 0',
             'schema: 0',
-            'subscribers: 0',
+            'subscribers: 1',
             sprintf('Registry written to %s.', $directory),
         ])
         ->and(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'schema.php', 'subscribers.php']);

@@ -79,6 +79,8 @@ use Cbox\Cms\Core\Entries\Adapter\PostgresVariantVersionLock;
 use Cbox\Cms\Core\Entries\Adapter\RevisionCreatedWriter;
 use Cbox\Cms\Core\Entries\Adapter\VariantReleasedWriter;
 use Cbox\Cms\Core\Entries\Domain\EntryReader;
+use Cbox\Cms\Core\Fragments\Boundary\InvalidationConfig;
+use Cbox\Cms\Core\Fragments\Domain\Dto\InvalidationSettings;
 use Cbox\Cms\Core\IdempotencyStore\Boundary\IdempotencyConfig;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
 use Cbox\Cms\Core\Identity\Adapter\ActorDeactivatedWriter;
@@ -378,6 +380,12 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->bind(
             RunnerSettings::class,
             static fn (Application $app): RunnerSettings => RunnerConfig::read($app->make(Repository::class)),
+        );
+
+        // The invalidation subscriber's settings (PRD 8.12 point 1), built on each resolution.
+        $this->app->bind(
+            InvalidationSettings::class,
+            static fn (Application $app): InvalidationSettings => InvalidationConfig::read($app->make(Repository::class)),
         );
 
         $this->registerDoctor();
