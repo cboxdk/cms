@@ -13,7 +13,8 @@ use UnexpectedValueException;
 
 /**
  * The report file of `composer check --report=<file>`: the checked directory, and every gate
- * with its steps' status, exit code, time, reason, notes and full output. `composer check:selftest`
+ * with its steps' status, command, exit code, time, reason, notes and full output. A step that
+ * ran no command has an empty `command`, and a report without the key reads as one. `composer check:selftest`
  * reads it to see which gate caught which planted violation.
  */
 final readonly class CheckReportJson
@@ -26,6 +27,7 @@ final readonly class CheckReportJson
             'number' => $gate->number,
             'status' => $gate->status()->value,
             'steps' => array_map(static fn (StepResult $step): array => [
+                'command' => $step->command,
                 'exit_code' => $step->exitCode,
                 'name' => $step->step,
                 'notes' => $step->notes,
@@ -72,9 +74,14 @@ final readonly class CheckReportJson
                 $reason = $step['reason'] ?? null;
                 $seconds = $step['seconds'] ?? null;
                 $notes = [];
+                $command = [];
 
                 foreach (self::list($step['notes'] ?? [], "{$path}.notes") as $noteIndex => $note) {
                     $notes[] = self::string($note, "{$path}.notes[{$noteIndex}]");
+                }
+
+                foreach (self::list($step['command'] ?? [], "{$path}.command") as $argumentIndex => $argument) {
+                    $command[] = self::string($argument, "{$path}.command[{$argumentIndex}]");
                 }
 
                 $steps[] = StepResult::restore(
@@ -85,6 +92,7 @@ final readonly class CheckReportJson
                     is_int($seconds) || is_float($seconds) ? (float) $seconds : throw new UnexpectedValueException("{$path}.seconds is not a number."),
                     is_string($reason) || $reason === null ? $reason : throw new UnexpectedValueException("{$path}.reason is not a string."),
                     $notes,
+                    $command,
                 );
             }
 

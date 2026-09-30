@@ -14,7 +14,7 @@ Every change passes the same gates, in the same order. Each gate runs a Composer
 | 2 | Rector | `composer rector:check` | yes | yes |
 | 3 | PHPStan at level 10 with the testkit's rules | `composer analyse` | yes | yes |
 | 4 | tsc and ESLint | `npm run typecheck`, `npm run lint` | yes | yes |
-| 5 | The installation, then the Pest suites `Unit`, `Codecs`, `Contract`, `Postgres`, `Arch` and `Actions` | `composer install:check`, `vendor/bin/pest --testsuite=<suite>` | yes | yes, with the `Mutation` suite and mutation testing on the changed files |
+| 5 | The installation, then the Pest suites `Unit`, `Codecs`, `Contract`, `Postgres`, `Arch` and `Actions` | `composer install:check`, `vendor/bin/pest --testsuite=<suite> --parallel` | yes | yes, with the `Mutation` suite and mutation testing on the changed files |
 | 6 | Generated code is the committed code | `composer check:generated` | yes | yes |
 | 7 | Storybook, visual regression and axe | | no | not run until the panel has a UI |
 | 8 | The `Browser` suite | `vendor/bin/pest --testsuite=Browser` | no | yes |
@@ -28,7 +28,7 @@ Every change passes the same gates, in the same order. Each gate runs a Composer
 
 Options go after `--`: `composer check -- --report=<file>` also writes a JSON report, and `--brief` leaves the output of failed steps out of the console.
 
-Gate 5 starts with `composer install:check`, which fails when `vendor/` is not the installation `composer.lock` describes, so a checkout that moved without `composer install` fails with the fix instead of a missing class. Each suite then runs on its own with `--fail-on-skipped --fail-on-incomplete`. A suite added to `phpunit.xml` must also be added to the profile; a test fails until it is.
+Gate 5 starts with `composer install:check`, which fails when `vendor/` is not the installation `composer.lock` describes, so a checkout that moved without `composer install` fails with the fix instead of a missing class. Each suite then runs on its own with `--fail-on-skipped --fail-on-incomplete --parallel`: the same tests, spread over one worker process per CPU. Each worker of the `Postgres` suite gets a test database of its own, so the workers never share rows. A suite added to `phpunit.xml` must also be added to the profile; a test fails until it is.
 
 Gate 10 is not in the local profile, but the `Unit` suite runs the same documentation audit on the repository, so `composer check` fails on everything `composer docs:check` would find.
 

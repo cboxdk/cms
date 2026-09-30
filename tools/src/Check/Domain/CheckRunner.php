@@ -64,8 +64,11 @@ final readonly class CheckRunner
 
         $outcome = $this->processes->run($step->command, $directory, [...self::ENVIRONMENT, ...$step->environment], ownProcessGroup: $step->ownProcessGroup);
 
-        return $step->reader instanceof OutputReader
-            ? StepResult::ran($step->name, $outcome, $step->reader->read($outcome))
-            : StepResult::ran($step->name, $outcome);
+        return StepResult::ran(
+            $step->name,
+            $outcome,
+            $step->reader instanceof OutputReader ? $step->reader->read($outcome) : new OutputReading,
+            $step->command,
+        );
     }
 }

@@ -7,14 +7,16 @@ namespace Cbox\Cms\Tooling\Check\Domain;
 use InvalidArgumentException;
 
 /**
- * What one step did: its status, the exit code and the combined output of its command, or why
- * it did not run, and the notes its output reader found. A step decided without a command has no
- * exit code and no output: it failed with a reason, or passed with a note.
+ * What one step did: its status, the command it ran, the exit code and the combined output of
+ * that command, or why it did not run, and the notes its output reader found. A step decided
+ * without a command has no command, no exit code and no output: it failed with a reason, or passed
+ * with a note.
  */
 final readonly class StepResult
 {
     /**
      * @param  list<string>  $notes
+     * @param  list<string>  $command  the command the step ran, empty when it ran none
      */
     private function __construct(
         public string $step,
@@ -24,12 +26,15 @@ final readonly class StepResult
         public float $seconds,
         public ?string $reason,
         public array $notes = [],
+        public array $command = [],
     ) {}
 
     /**
      * A step that ran fails when its command did not succeed or its output reader found a failure.
+     *
+     * @param  list<string>  $command  the command the step ran
      */
-    public static function ran(string $step, ProcessOutcome $outcome, OutputReading $reading = new OutputReading): self
+    public static function ran(string $step, ProcessOutcome $outcome, OutputReading $reading = new OutputReading, array $command = []): self
     {
         return new self(
             $step,
@@ -39,6 +44,7 @@ final readonly class StepResult
             $outcome->seconds,
             $outcome->timedOut ? 'timed out' : $reading->failure,
             $reading->notes,
+            $command,
         );
     }
 
@@ -66,8 +72,9 @@ final readonly class StepResult
      * has no exit code: it passed with a note and no reason, or failed with a reason.
      *
      * @param  list<string>  $notes
+     * @param  list<string>  $command
      */
-    public static function restore(string $step, StepStatus $status, ?int $exitCode, string $output, float $seconds, ?string $reason, array $notes = []): self
+    public static function restore(string $step, StepStatus $status, ?int $exitCode, string $output, float $seconds, ?string $reason, array $notes = [], array $command = []): self
     {
         $consistent = match ($status) {
             StepStatus::NotRun => $exitCode === null && $reason !== null && $notes === [],
@@ -79,6 +86,6 @@ final readonly class StepResult
             throw new InvalidArgumentException("The result of step {$step} is inconsistent: status {$status->value} with exit code ".($exitCode ?? 'none').'.');
         }
 
-        return new self($step, $status, $exitCode, $output, $seconds, $reason, new OutputReading($notes)->notes);
+        return new self($step, $status, $exitCode, $output, $seconds, $reason, new OutputReading($notes)->notes, $command);
     }
 }

@@ -31,6 +31,7 @@ use DateTimeZone;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\AssertionFailedError;
 use Symfony\Component\Process\Process;
@@ -121,7 +122,7 @@ function skeletonRevise(PublishingWorld $world): array
 /**
  * GET /v1/resolve of the article's path on north, through the application's HTTP kernel.
  *
- * @return TestResponse<\Illuminate\Http\Response>
+ * @return TestResponse<Response>
  */
 function skeletonResolve(): TestResponse
 {

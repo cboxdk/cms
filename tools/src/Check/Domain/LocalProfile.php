@@ -13,7 +13,11 @@ namespace Cbox\Cms\Tooling\Check\Domain;
  * composer.json describe (`composer install:check`), so a checkout that moved without
  * `composer install` fails with the fix instead of failing a suite at load with "Class not
  * found". It then runs each Pest suite on its own and fails a suite with a skipped or incomplete
- * test, so a missing service fails the gate instead of skipping it.
+ * test, so a missing service fails the gate instead of skipping it. Each suite runs with Pest's
+ * `--parallel`, one worker process per CPU (GUARDRAILS 10: parallelize, never cut): the same
+ * tests with the same flags, only spread over workers. ParaTest gives each worker a TEST_TOKEN,
+ * and the testkit gives each token a Postgres test database of its own (TestDatabaseName) and each
+ * process a Valkey key prefix of its own, so the workers of the Postgres suite never share rows.
  */
 final readonly class LocalProfile
 {
@@ -80,11 +84,30 @@ final readonly class LocalProfile
     }
 
     /**
-     * The step that runs one Pest suite, failing on a skipped or incomplete test.
+     * The flags every Pest suite of gate 5 runs with: a skipped or incomplete test fails it.
+     *
+     * @var list<string>
      */
-    public static function suiteStep(string $php, string $suite): Step
+    public const array FAIL_FLAGS = ['--fail-on-skipped', '--fail-on-incomplete'];
+
+    /**
+     * The flag that runs a suite in parallel worker processes.
+     */
+    public const string PARALLEL = '--parallel';
+
+    /**
+     * The step that runs one Pest suite, failing on a skipped or incomplete test, in parallel
+     * workers when $parallel is true.
+     */
+    public static function suiteStep(string $php, string $suite, bool $parallel = true): Step
     {
-        return Step::run($suite, [$php, 'vendor/bin/pest', '--testsuite='.$suite, '--fail-on-skipped', '--fail-on-incomplete']);
+        return Step::run($suite, [
+            $php,
+            'vendor/bin/pest',
+            '--testsuite='.$suite,
+            ...self::FAIL_FLAGS,
+            ...($parallel ? [self::PARALLEL] : []),
+        ]);
     }
 
     private static function outside(int $number, string $title): Gate

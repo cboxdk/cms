@@ -167,6 +167,30 @@ it('restores a step that failed with exit code 0 because its output reader found
         ->and(static fn (): StepResult => StepResult::restore('a', StepStatus::Pass, 0, '', 0.0, null, ["two\nlines"]))->toThrow(InvalidArgumentException::class);
 });
 
+it('writes the command of each step to the report and reads it back', function (): void {
+    $report = new CheckReport('/srv/checkout', [new GateResult(5, 'Pest', [
+        StepResult::ran('Unit', new ProcessOutcome(0, 'ok', 1.0), command: ['/usr/bin/php', 'vendor/bin/pest', '--testsuite=Unit', '--parallel']),
+        StepResult::notRun('Mutation', 'mutation testing is not set up'),
+    ])]);
+    $json = CheckReportJson::encode($report);
+    $decoded = CheckReportJson::decode($json);
+
+    expect($decoded)->toEqual($report)
+        ->and($decoded->gate(5)?->step('Unit')?->command)->toBe(['/usr/bin/php', 'vendor/bin/pest', '--testsuite=Unit', '--parallel'])
+        ->and($decoded->gate(5)?->step('Mutation')?->command)->toBe([])
+        ->and($json)->toContain('"--testsuite=Unit"');
+});
+
+it('reads a report without commands as steps without commands, and refuses a command that is not a list of strings', function (): void {
+    $step = '{"name": "a", "status": "pass", "exit_code": 0, "output": "", "reason": null, "seconds": 0%s}';
+    $report = static fn (string $command): string => '{"directory": "/srv", "format": 1, "gates": [{"number": 1, "title": "a", "steps": ['.sprintf($step, $command).']}]}';
+
+    expect(CheckReportJson::decode($report(''))->gate(1)?->step('a')?->command)->toBe([])
+        ->and(CheckReportJson::decode($report(', "command": ["pest", "--parallel"]'))->gate(1)?->step('a')?->command)->toBe(['pest', '--parallel'])
+        ->and(static fn (): CheckReport => CheckReportJson::decode($report(', "command": [1]')))->toThrow(UnexpectedValueException::class)
+        ->and(static fn (): CheckReport => CheckReportJson::decode($report(', "command": "pest"')))->toThrow(UnexpectedValueException::class);
+});
+
 it('reads a report without notes as steps without notes, and refuses notes that are not strings', function (): void {
     $step = '{"name": "a", "status": "pass", "exit_code": 0, "output": "", "reason": null, "seconds": 0%s}';
     $report = static fn (string $notes): string => '{"directory": "/srv", "format": 1, "gates": [{"number": 1, "title": "a", "steps": ['.sprintf($step, $notes).']}]}';

@@ -76,6 +76,15 @@ it('never runs a step that is not in the profile and reports it with its reason'
         ->and($report->passed())->toBeTrue();
 });
 
+it('records the command each step ran in its result, and none for a step that ran none', function (): void {
+    $report = new CheckRunner(ScriptedProcessRunner::passing(), new RecordingListener)->run(sampleGates(), '/srv/checkout');
+
+    expect($report->gate(1)?->step('Pint')?->command)->toBe(['pint'])
+        ->and($report->gate(5)?->step('Unit')?->command)->toBe(['pest', 'Unit'])
+        ->and($report->gate(5)?->step('Mutation')?->command)->toBe([])
+        ->and($report->gate(7)?->step('Storybook')?->command)->toBe([]);
+});
+
 it('lifts Composer\'s process timeout for every command', function (): void {
     $runner = ScriptedProcessRunner::passing();
 

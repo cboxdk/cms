@@ -118,6 +118,22 @@ function explainDocument(string $output): array
 }
 
 /**
+ * The position of a read that ran between the reads $before and $after, as cms:explain prints
+ * it. The position is the xmin of the read's snapshot (PRD 8.4), and xids belong to the whole
+ * Postgres cluster, so another test process's transaction moves it between two reads; a later
+ * snapshot's xmin is never lower than an earlier one's, so the read in between lies within them.
+ */
+function explainedPositionBetween(string $position, QueryResult $before, QueryResult $after): void
+{
+    $lowest = $before->position->value ?? throw new LogicException('The read before has no position.');
+    $highest = $after->position->value ?? throw new LogicException('The read after has no position.');
+
+    expect($position)->toMatch('/\A[1-9][0-9]*\z/')
+        ->and((int) $position)->toBeGreaterThanOrEqual((int) $lowest)
+        ->and((int) $position)->toBeLessThanOrEqual((int) $highest);
+}
+
+/**
  * path.resolve through the installation's query pipeline, as cms:explain reads it.
  */
 function explainedRead(string $host, string $path): QueryResult
@@ -129,10 +145,17 @@ it('explains the placement on its site, step by step, with its content keys', fu
     $structure = explainedWorld();
     $section = $structure->northSection->id->toString();
 
+    $before = explainedRead('north.example', '/nyheder/harbour');
     [$status, $output] = explainCli('https://north.example/nyheder/harbour?utm_source=mail#top');
+    $after = explainedRead('north.example', '/nyheder/harbour');
+    $lines = explode("\n", rtrim($output));
+    $readAt = array_pop($lines);
+
+    expect($readAt)->toMatch('/\A  read at      [0-9]+, the read saw every changeset below it\z/');
+    explainedPositionBetween((string) preg_replace('/\A  read at      ([0-9]+),.*\z/', '$1', $readAt), $before, $after);
 
     expect($status)->toBe(0)
-        ->and(explode("\n", rtrim($output)))->toBe([
+        ->and($lines)->toBe([
             'north.example/nyheder/harbour in da: resolved',
             sprintf('  site         north (%s), publishes in da', $structure->north->id->toString()),
             '  route        /nyheder, the longest of /nyheder/harbour, /nyheder, /; the rest is "harbour"',
@@ -141,7 +164,6 @@ it('explains the placement on its site, step by step, with its content keys', fu
             '  visibility   visible (rung 11) at 2026-03-10T13:00:00.000000Z; stored live, window 2026-03-10T12:00:00.000000Z to open',
             sprintf('  canonical    https://north.example/nyheder/harbour (placement %s), this URL', EXPLAINED_PLACEMENT),
             sprintf('  content keys e-%s n-%s', EXPLAINED_ENTRY, $section),
-            sprintf('  read at      %s, the read saw every changeset below it', explainedRead('north.example', '/nyheder/harbour')->position?->value),
         ]);
 });
 
@@ -177,17 +199,21 @@ it('prints the explanation path.resolve answers the same read with, through the 
     explainedWorld();
 
     foreach (['north.example' => '/nyheder/harbour', 'south.example' => '/national/harbour'] as $host => $path) {
+        $before = explainedRead($host, $path);
         [$status, $json] = explainCli('https://'.$host.$path, ['--locale' => 'da', '--json' => true]);
         $read = explainedRead($host, $path);
         $resolved = $read->result instanceof ResolvedPath ? $read->result : throw new LogicException('The read was not answered with a resolved path.');
+        $document = explainDocument($json);
+        $position = $document['read_position'] ?? null;
 
         expect($status)->toBe(0)
-            ->and(explainDocument($json))->toBe([
-                'content_keys' => array_map(static fn (DependencyKey $key): string => $key->toString(), $read->contentKeys),
-                'explanation' => PathExplanationJson::toArray($resolved->explanation),
-                'read_position' => $read->position?->value,
-                'version' => 1,
-            ]);
+            ->and(array_keys($document))->toBe(['content_keys', 'explanation', 'read_position', 'version'])
+            ->and($document['content_keys'])->toBe(array_map(static fn (DependencyKey $key): string => $key->toString(), $read->contentKeys))
+            ->and($document['explanation'])->toBe(PathExplanationJson::toArray($resolved->explanation))
+            ->and($document['version'])->toBe(1)
+            ->and($position)->toBeString();
+
+        explainedPositionBetween(is_string($position) ? $position : '', $before, $read);
     }
 });
 

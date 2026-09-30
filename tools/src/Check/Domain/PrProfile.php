@@ -32,7 +32,9 @@ final readonly class PrProfile
 
     /**
      * The Pest suite of the tests that need a coverage driver, one of LocalProfile::OTHER_SUITES.
-     * It runs in gate 5 before mutation on changed files, which it tests.
+     * It runs in gate 5 before mutation on changed files, which it tests. It runs in one process:
+     * each of its few tests starts a Pest run with `--mutate --parallel` of its own, which already
+     * uses every CPU.
      */
     public const string MUTATION_SUITE = 'Mutation';
 
@@ -56,7 +58,7 @@ final readonly class PrProfile
                 isset(self::NOT_RUN[$gate->number]) => new Gate($gate->number, $gate->title, [Step::notRun($gate->title, self::NOT_RUN[$gate->number])]),
                 $gate->number === 5 => new Gate(5, $gate->title, [
                     ...$gate->steps,
-                    LocalProfile::suiteStep($php, self::MUTATION_SUITE),
+                    LocalProfile::suiteStep($php, self::MUTATION_SUITE, parallel: false),
                     ...MutationSteps::for($mutation, $php),
                 ]),
                 $gate->number === 8 => self::browser($gate, $php),
@@ -80,7 +82,7 @@ final readonly class PrProfile
         return new Gate($gate->number, $gate->title, [
             Step::run(
                 self::BROWSER_SUITE,
-                [$php, 'vendor/bin/pest', '--testsuite='.self::BROWSER_SUITE, '--fail-on-skipped', '--fail-on-incomplete'],
+                [$php, 'vendor/bin/pest', '--testsuite='.self::BROWSER_SUITE, ...LocalProfile::FAIL_FLAGS],
                 ownProcessGroup: true,
             ),
         ]);

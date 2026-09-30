@@ -170,12 +170,13 @@ it('runs the Browser suite as gate 8, in a process group of its own, failing ski
     $gate = prGates()[7];
     $step = $gate->steps[0] ?? null;
     $unit = array_first(array_filter(prGates()[4]->steps, static fn (Step $step): bool => $step->name === 'Unit'));
-    $gate5Flags = array_slice($unit->command ?? [], 3);
+    $gate5Flags = array_slice($unit->command ?? [], 3, 2);
 
     expect($gate->number)->toBe(8)
         ->and($gate->steps)->toHaveCount(1)
         ->and($step?->name)->toBe('Browser')
         ->and($gate5Flags)->toBe(['--fail-on-skipped', '--fail-on-incomplete'])
+        ->and(array_slice($unit->command ?? [], 5))->toBe(['--parallel'])
         ->and(LocalProfile::OTHER_SUITES)->toBe([PrProfile::BROWSER_SUITE, PrProfile::MUTATION_SUITE])
         ->and($step?->command)->toBe(['/usr/bin/php', 'vendor/bin/pest', '--testsuite=Browser', '--fail-on-skipped', '--fail-on-incomplete'])
         ->and(array_slice($step->command ?? [], 3))->toBe($gate5Flags)

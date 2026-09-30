@@ -103,14 +103,21 @@ it('uses scripts that exist and run the gate commands in composer.json and packa
         ]);
 });
 
-it('runs each Pest suite on its own in gate 5, after the installation check, and fails a suite with a skipped or incomplete test', function (): void {
+it('runs each Pest suite on its own in gate 5, after the installation check, in parallel workers, and fails a suite with a skipped or incomplete test', function (): void {
     $commands = stepCommands(localGate(5));
 
-    expect(array_keys($commands))->toBe([LocalProfile::INSTALLATION, 'Unit', 'Codecs', 'Contract', 'Postgres', 'Arch', 'Actions']);
+    expect(array_keys($commands))->toBe([LocalProfile::INSTALLATION, 'Unit', 'Codecs', 'Contract', 'Postgres', 'Arch', 'Actions'])
+        ->and(LocalProfile::FAIL_FLAGS)->toBe(['--fail-on-skipped', '--fail-on-incomplete'])
+        ->and(LocalProfile::PARALLEL)->toBe('--parallel');
 
     foreach (LocalProfile::SUITES as $suite) {
-        expect($commands[$suite])->toBe(['/usr/bin/php', 'vendor/bin/pest', '--testsuite='.$suite, '--fail-on-skipped', '--fail-on-incomplete']);
+        expect($commands[$suite])->toBe(['/usr/bin/php', 'vendor/bin/pest', '--testsuite='.$suite, '--fail-on-skipped', '--fail-on-incomplete', '--parallel']);
     }
+});
+
+it('runs a suite in one process only when asked, with the same flags otherwise', function (): void {
+    expect(LocalProfile::suiteStep('/usr/bin/php', 'Unit', parallel: false)->command)->toBe(['/usr/bin/php', 'vendor/bin/pest', '--testsuite=Unit', '--fail-on-skipped', '--fail-on-incomplete'])
+        ->and(LocalProfile::suiteStep('/usr/bin/php', 'Unit')->command)->toBe(['/usr/bin/php', 'vendor/bin/pest', '--testsuite=Unit', '--fail-on-skipped', '--fail-on-incomplete', '--parallel']);
 });
 
 it('checks in gate 5, before the suites load any class, that vendor/ is the installation composer.lock and composer.json describe', function (): void {
@@ -128,7 +135,7 @@ it('runs the Actions suite as an ordinary step of gate 5, never as not run', fun
     expect(LocalProfile::SUITES)->toContain('Actions')
         ->and(array_filter($steps, static fn (Step $step): bool => ! $step->runs()))->toBe([])
         ->and(array_last($steps)?->name)->toBe('Actions')
-        ->and(array_last($steps)?->command)->toBe(['/usr/bin/php', 'vendor/bin/pest', '--testsuite=Actions', '--fail-on-skipped', '--fail-on-incomplete']);
+        ->and(array_last($steps)?->command)->toBe(['/usr/bin/php', 'vendor/bin/pest', '--testsuite=Actions', '--fail-on-skipped', '--fail-on-incomplete', '--parallel']);
 });
 
 it('covers every suite in phpunit.xml except Browser, which is gate 8, and Mutation, which needs a coverage driver and runs in the PR profile', function (): void {
