@@ -41,6 +41,7 @@ it('has the keys, uniques, foreign keys and indexes of the storage form', functi
         'CREATE INDEX entries_home_node_id ON entries USING btree (home_node_id)',
         'CREATE INDEX entries_owner_actor_id ON entries USING btree (owner_actor_id)',
         'CREATE UNIQUE INDEX entries_pkey ON entries USING btree (id)',
+        'CREATE INDEX entries_type_id ON entries USING btree (type_id, id)',
         'CREATE UNIQUE INDEX node_routes_node_key ON node_routes USING btree (node_id, site_id, locale)',
         'CREATE UNIQUE INDEX node_routes_pkey ON node_routes USING btree (site_id, locale, route)',
         'CREATE UNIQUE INDEX nodes_mount_key ON nodes USING btree (id, mount_source_id)',

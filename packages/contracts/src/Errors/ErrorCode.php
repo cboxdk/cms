@@ -112,6 +112,9 @@ enum ErrorCode: string
     case PartitionTableUnmanageable = 'partition_table_unmanageable';
     case PlacementSlugTaken = 'placement_slug_taken';
     case QueryOverBudget = 'query_over_budget';
+    case RebuildIdentityInvalid = 'rebuild_identity_invalid';
+    case RebuildSchemaVersionUnsupported = 'rebuild_schema_version_unsupported';
+    case RebuildTypeUnknown = 'rebuild_type_unknown';
     case RegistryCacheMalformed = 'registry_cache_malformed';
     case RegistryCacheMissing = 'registry_cache_missing';
     case RegistryCacheUnwritable = 'registry_cache_unwritable';
@@ -479,6 +482,19 @@ enum ErrorCode: string
                 HttpStatus::UnprocessableContent,
                 ExitCode::DataErr,
                 'The read costs more than the budget of its principal, cbox-cms.queries.budgets (PRD 6.2, 8.8), so it was rejected before anything was read. The cost comes from the rows the read may return, how deep it reads and the relations it expands. Ask for fewer rows or a smaller selection, or call with a credential whose budget allows the read.',
+            ),
+            self::RebuildIdentityInvalid => $this->violation(
+                'A rebuild of a type\'s read model runs as a service actor, never as the system (PRD 5.10, 6.5 invariant 21), and cbox-cms.rebuild.service_actor names none, an actor that does not exist or one that is not of class service. Nothing was rebuilt. Create a service actor, grant it a role on the nodes whose entries it rebuilds, and name its id there.',
+            ),
+            self::RebuildSchemaVersionUnsupported => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'A rebuild of a type\'s read model found a revision or head snapshot written under another schema version than the type\'s current one (PRD 4.1, 11.6, invariant 22). Upcasting a payload to the current version comes with the upcasters, so the rebuild reads payloads at the current version only. The chunk that found it rolled back, and the chunks before it stay rebuilt. Run the rebuild again once the payload can be read at the current version; it resumes at that chunk.',
+            ),
+            self::RebuildTypeUnknown => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'No type of this installation has the name given to the rebuild, so nothing was rebuilt. Name the type as <owner>:<handle>, the name cms:generate gives it.',
             ),
             self::RegistryCacheMalformed => $this->violation(
                 'The registry cache in bootstrap/cache/cms is damaged, or its files come from different builds, so the kernel cannot read its actions, commands, hooks, schema contributions and subscribers. Run cms:build.',

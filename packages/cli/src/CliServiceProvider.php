@@ -8,6 +8,7 @@ use Cbox\Cms\Cli\Console\BuildCommand;
 use Cbox\Cms\Cli\Console\DoctorCommand;
 use Cbox\Cms\Cli\Console\ListParkedCommand;
 use Cbox\Cms\Cli\Console\MaintainPartitionsCommand;
+use Cbox\Cms\Cli\Console\RebuildTypeTableCommand;
 use Cbox\Cms\Cli\Console\ReleaseParkedCommand;
 use Cbox\Cms\Cli\Console\RunCommand;
 use Cbox\Cms\Cli\Console\RunEventsCommand;
@@ -49,6 +50,7 @@ final class CliServiceProvider extends ServiceProvider implements DeclaresScanRo
                 DoctorCommand::class,
                 ListParkedCommand::class,
                 MaintainPartitionsCommand::class,
+                RebuildTypeTableCommand::class,
                 ReleaseParkedCommand::class,
                 RunCommand::class,
                 RunEventsCommand::class,

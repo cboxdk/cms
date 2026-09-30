@@ -95,6 +95,9 @@ export type ErrorCode =
   | 'partition_table_unmanageable'
   | 'placement_slug_taken'
   | 'query_over_budget'
+  | 'rebuild_identity_invalid'
+  | 'rebuild_schema_version_unsupported'
+  | 'rebuild_type_unknown'
   | 'registry_cache_malformed'
   | 'registry_cache_missing'
   | 'registry_cache_unwritable'
@@ -294,6 +297,9 @@ const catalogErrorV1Rule: ObjectRule = {
           'partition_table_unmanageable',
           'placement_slug_taken',
           'query_over_budget',
+          'rebuild_identity_invalid',
+          'rebuild_schema_version_unsupported',
+          'rebuild_type_unknown',
           'registry_cache_malformed',
           'registry_cache_missing',
           'registry_cache_unwritable',
@@ -457,6 +463,9 @@ const problemV1Rule: ObjectRule = {
           'partition_table_unmanageable',
           'placement_slug_taken',
           'query_over_budget',
+          'rebuild_identity_invalid',
+          'rebuild_schema_version_unsupported',
+          'rebuild_type_unknown',
           'registry_cache_malformed',
           'registry_cache_missing',
           'registry_cache_unwritable',

@@ -85,6 +85,15 @@ The invalidation subscriber, `fragments.invalidate` on the critical lane, reads 
 |---|---|---|
 | `cbox-cms.fragments.fence_seconds` | `60` | How long the fence of a purge lives, in seconds. While it lives, the fragment store refuses a fragment of the purged key that a read built at or below the purge's commit position, because that read may not have seen the change. Keep it above the slowest fragment build and the lag of a read replica. |
 
+## Rebuild
+
+`cms:types:rebuild` reads `cbox-cms.rebuild` (PRD 4.1, invariant 22); see [operations](operations.md#rebuilding-a-types-read-model). A value outside its range fails when the command starts, with exit 64.
+
+| Key | Default | What it does |
+|---|---|---|
+| `cbox-cms.rebuild.service_actor` | `null` | The UUIDv7 of the service actor a rebuild runs as. It must exist and be of class service, or the rebuild is refused with [`rebuild_identity_invalid`](../reference/errors.md#rebuild_identity_invalid), and be active, or with [`actor_not_active`](../reference/errors.md#actor_not_active). Row level security holds for it, so it rebuilds the entries its grants reach. |
+| `cbox-cms.rebuild.chunk_size` | `100` | The most entries one chunk rebuilds in its transaction, `1` to `1000`. Postgres ends a chunk's transaction after 2 seconds; lower it when a chunk comes near that. |
+
 ## Doctor
 
 | Key | Default | What it does |

@@ -183,6 +183,19 @@ return [
     ],
 
     /*
+     * Rebuilding a type's read model (PRD 4.1, 11.6, invariant 22), `cms:types:rebuild`, which
+     * recomputes the rows of a type's table from the heads' revisions or head snapshots. It runs
+     * as the service actor service_actor names, the UUIDv7 of an active actor of class service,
+     * and rebuilds the entries that actor's grants reach; without one it refuses to run. It works
+     * through the type's entries in chunks of chunk_size entries, 1 to 1000, each in a transaction
+     * Postgres ends after 2 seconds (GUARDRAILS 4.1).
+     */
+    'rebuild' => [
+        'service_actor' => null,
+        'chunk_size' => 100,
+    ],
+
+    /*
      * The invalidation subscriber (PRD 8.12 point 1), fragments.invalidate on the critical lane. Each
      * purge writes a fence that lives fence_seconds, 1 to 86400: while it lives, the fragment store
      * refuses a fragment of the purged key built by a read that may not have seen the change. Keep

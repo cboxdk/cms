@@ -166,6 +166,15 @@ final class ResumeOperationTest extends AddonTestCase
 }
 ```
 
+## Rebuilding a type's read model
+
+A type's table is derived (PRD 4.1, 11.6, invariant 22): every row can be computed again from the entry's variant heads. `cms:types:rebuild <owner>:<handle> [--run=<name>]` does it as the operation `type_tables.rebuild` with the key `<type>@<run>`; `--run` defaults to the Clock's time, such as `20260930T123456Z`. The action is `Cbox\Cms\Core\ReadModels\Actions\RebuildReadModels`.
+
+- It runs as the service actor of `cbox-cms.rebuild.service_actor` (see [configuration](configuration.md#rebuild)), never as the system, so row level security decides which entries it rebuilds.
+- When it starts, it plans the type's entries in id order in ranges of `cbox-cms.rebuild.chunk_size`, one chunk per range, named `entries:<first id>:<last id>`.
+- Each chunk is one transaction, which Postgres ends after 2 seconds. It locks the variant heads of its entries, so a command on one of them waits for it. It reads each head's content: the draft and the published revision for a type with full history, or the head snapshot for one whose history is audit-only or none. Then it removes the entries' rows and writes them again with the writer the entry commands use. A chunk that runs again writes the same rows.
+- A payload at another schema version than the type's current one stops the run at its chunk with [`rebuild_schema_version_unsupported`](../reference/errors.md#rebuild_schema_version_unsupported). Upcasting comes with the upcasters; until then the rebuild reads the current version only. The chunks before it stay rebuilt, and running again with the same `--run` resumes at that chunk.
+
 ## What the package does not do yet
 
 `cboxdk/laravel-operations` is pinned at 0.1.0. Its timestamps come from Carbon's clock, not the kernel's `Clock`, and its ids are prefixed ULIDs, not ids from `IdGenerator`. Its `operations` table uses `timestamp` without a time zone and is not partitioned, so finished operations stay until someone removes them. These are recorded for the package's own repository; the kernel does not work around them.

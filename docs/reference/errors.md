@@ -100,6 +100,9 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`partition_table_unmanageable`](#partition_table_unmanageable) | 500 | 78 | internal_error | no |
 | [`placement_slug_taken`](#placement_slug_taken) | 409 | 65 | tool_error | no |
 | [`query_over_budget`](#query_over_budget) | 422 | 65 | tool_error | no |
+| [`rebuild_identity_invalid`](#rebuild_identity_invalid) | 500 | 78 | internal_error | no |
+| [`rebuild_schema_version_unsupported`](#rebuild_schema_version_unsupported) | 422 | 65 | tool_error | no |
+| [`rebuild_type_unknown`](#rebuild_type_unknown) | 422 | 65 | tool_error | no |
 | [`registry_cache_malformed`](#registry_cache_malformed) | 500 | 78 | internal_error | no |
 | [`registry_cache_missing`](#registry_cache_missing) | 500 | 78 | internal_error | no |
 | [`registry_cache_unwritable`](#registry_cache_unwritable) | 500 | 73 | internal_error | no |
@@ -920,6 +923,33 @@ Another placement that is not withdrawn has this slug below the same node in the
 ### query_over_budget
 
 The read costs more than the budget of its principal, cbox-cms.queries.budgets (PRD 6.2, 8.8), so it was rejected before anything was read. The cost comes from the rows the read may return, how deep it reads and the relations it expands. Ask for fewer rows or a smaller selection, or call with a credential whose budget allows the read.
+
+- HTTP status: 422 Unprocessable Content
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### rebuild_identity_invalid
+
+A rebuild of a type's read model runs as a service actor, never as the system (PRD 5.10, 6.5 invariant 21), and cbox-cms.rebuild.service_actor names none, an actor that does not exist or one that is not of class service. Nothing was rebuilt. Create a service actor, grant it a role on the nodes whose entries it rebuilds, and name its id there.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 78 (EX_CONFIG)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### rebuild_schema_version_unsupported
+
+A rebuild of a type's read model found a revision or head snapshot written under another schema version than the type's current one (PRD 4.1, 11.6, invariant 22). Upcasting a payload to the current version comes with the upcasters, so the rebuild reads payloads at the current version only. The chunk that found it rolled back, and the chunks before it stay rebuilt. Run the rebuild again once the payload can be read at the current version; it resumes at that chunk.
+
+- HTTP status: 422 Unprocessable Content
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### rebuild_type_unknown
+
+No type of this installation has the name given to the rebuild, so nothing was rebuilt. Name the type as <owner>:<handle>, the name cms:generate gives it.
 
 - HTTP status: 422 Unprocessable Content
 - CLI exit code: 65 (EX_DATAERR)

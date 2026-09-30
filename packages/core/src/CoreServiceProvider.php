@@ -127,6 +127,10 @@ use Cbox\Cms\Core\Placements\Adapter\PostgresPlacementVersionLock;
 use Cbox\Cms\Core\Placements\Domain\PlacementReader;
 use Cbox\Cms\Core\Process\Boundary\ProcessWorkload;
 use Cbox\Cms\Core\Process\Domain\OwnerCredentialsExposed;
+use Cbox\Cms\Core\ReadModels\Adapter\PostgresReadModelStore;
+use Cbox\Cms\Core\ReadModels\Boundary\RebuildConfig;
+use Cbox\Cms\Core\ReadModels\Domain\Dto\RebuildSettings;
+use Cbox\Cms\Core\ReadModels\Domain\ReadModelStore;
 use Cbox\Cms\Core\Reads\Adapter\ConnectionQueryTransaction;
 use Cbox\Cms\Core\Reads\Adapter\PostgresReadAudit;
 use Cbox\Cms\Core\Reads\Adapter\RegistryQueryActions;
@@ -175,7 +179,7 @@ use Psr\Log\LoggerInterface;
  * HTTP or runs queued jobs with the owner connection configured (PRD 4.2). Wires the registry that cms:build compiles to bootstrap/cache/cms/ (PRD 13.2), and
  * declares the core's own classes as a scan root. Binds the kernel's settings for idempotency keys, the
  * default wait budget, from `cbox-cms.idempotency`. Binds the event runner's ports and settings, from
- * `cbox-cms.events.runner`. Wires the checks of cms:doctor (PRD 3.3, 4.2) to
+ * `cbox-cms.events.runner`, and the rebuild's store and settings, from `cbox-cms.rebuild`. Wires the checks of cms:doctor (PRD 3.3, 4.2) to
  * their probes; a test swaps a probe by binding its interface. Makes Eloquent strict for every model
  * of the process (GUARDRAILS 4.1).
  */
@@ -393,6 +397,18 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->bind(
             RunnerSettings::class,
             static fn (Application $app): RunnerSettings => RunnerConfig::read($app->make(Repository::class)),
+        );
+
+        // The rebuild of a type's read model (PRD 4.1, invariant 22): the heads and type tables on the
+        // default connection, and the settings, built on each resolution so they follow the
+        // configuration.
+        $this->app->bind(
+            ReadModelStore::class,
+            static fn (Application $app): ReadModelStore => new PostgresReadModelStore($app->make(ConnectionResolverInterface::class)),
+        );
+        $this->app->bind(
+            RebuildSettings::class,
+            static fn (Application $app): RebuildSettings => RebuildConfig::read($app->make(Repository::class)),
         );
 
         // The invalidation subscriber's settings (PRD 8.12 point 1), built on each resolution.
