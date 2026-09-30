@@ -78,7 +78,9 @@ it('has the keys, foreign keys and indexes of roles, grants and the audit, and p
     expect(StorageTables::texts($owner, "select regexp_replace(indexdef, ' ON (ONLY )?[a-z0-9_.]+\\.', ' ON \\1') as value from pg_indexes where tablename = any (?::text[]) and schemaname = current_schema() order by tablename, indexname", [$tables]))->toBe([
         'CREATE INDEX audit_actor_id ON ONLY audit USING btree (actor_id)',
         'CREATE UNIQUE INDEX audit_pkey ON ONLY audit USING btree (changeset_id)',
-        'CREATE UNIQUE INDEX grants_actor_role_node_key ON grants USING btree (actor_id, role_id, node_id)',
+        'CREATE INDEX grants_actor_id ON grants USING btree (actor_id)',
+        'CREATE UNIQUE INDEX grants_actor_role_node_key ON grants USING btree (actor_id, role_id, node_id) WHERE (ended_changeset_id IS NULL)',
+        'CREATE INDEX grants_ended_changeset_id ON grants USING btree (ended_changeset_id)',
         'CREATE INDEX grants_node_id ON grants USING btree (node_id)',
         'CREATE UNIQUE INDEX grants_pkey ON grants USING btree (id)',
         'CREATE INDEX grants_role_id ON grants USING btree (role_id)',
@@ -89,6 +91,7 @@ it('has the keys, foreign keys and indexes of roles, grants and the audit, and p
         'audit FOREIGN KEY (actor_id) REFERENCES actors(id)',
         'audit FOREIGN KEY (changeset_id) REFERENCES changeset_register(changeset_id)',
         'grants FOREIGN KEY (actor_id) REFERENCES actors(id)',
+        'grants FOREIGN KEY (ended_changeset_id) REFERENCES changeset_register(changeset_id)',
         'grants FOREIGN KEY (node_id) REFERENCES nodes(id)',
         'grants FOREIGN KEY (role_id) REFERENCES roles(id)',
         'role_permissions FOREIGN KEY (role_id) REFERENCES roles(id)',

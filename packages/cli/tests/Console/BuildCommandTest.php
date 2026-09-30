@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Cbox\Cms\Cli\Tests\Console;
 
 use Cbox\Cms\Cli\Console\BuildCommand;
+use Cbox\Cms\Core\CoreServiceProvider;
+use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
+use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNote;
 use Cbox\Cms\Core\Tests\Registry\Providers\FixtureRootProvider;
@@ -52,8 +56,8 @@ it('writes the five registries to the application\'s bootstrap/cache/cms, and re
 
     expect($status)->toBe(0)
         ->and($output)->toBe([
-            'actions: 2',
-            'commands: 2',
+            'actions: 3',
+            'commands: 3',
             'hooks: 0',
             'schema: 0',
             'subscribers: 0',
@@ -70,13 +74,28 @@ it('adds what an addon provider\'s scan root declares', function (): void {
     [$status, $output] = buildCommand();
 
     expect($status)->toBe(0)
-        ->and(array_slice($output, 0, 3))->toBe(['actions: 4', 'commands: 3', 'hooks: 1'])
-        ->and(registryEntries(RegistryFixtures::load($directory.'/commands.php')))->toContain([
+        ->and(array_slice($output, 0, 3))->toBe(['actions: 5', 'commands: 4', 'hooks: 1'])
+        ->and(RegistryFixtures::load($directory.'/commands.php'))->toMatchArray(['entries' => [[
+            'class' => DeactivateActor::class,
+            'name' => 'actor.deactivate',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 1,
+        ], [
+            'class' => CreateEntry::class,
+            'name' => 'entry.create',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 1,
+        ], [
+            'class' => ReviseEntry::class,
+            'name' => 'entry.revise',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 1,
+        ], [
             'class' => CreateNote::class,
             'name' => 'fixture.note.create',
             'package' => RegistryFixtures::PACKAGE,
             'version' => 1,
-        ]);
+        ]]]);
 });
 
 it('exits with 65 and prints the error code when two classes declare the same command and version', function (): void {
@@ -105,13 +124,3 @@ it('exits with 73 when the cache cannot be written', function (): void {
     expect($status)->toBe(BuildCommand::EXIT_UNWRITABLE)
         ->and($output[0])->toStartWith('[registry_cache_unwritable] ');
 });
-
-/**
- * The entries of a loaded registry file, or none when it is not an array with entries.
- *
- * @return array<mixed>
- */
-function registryEntries(mixed $registry): array
-{
-    return is_array($registry) && is_array($registry['entries'] ?? null) ? $registry['entries'] : [];
-}

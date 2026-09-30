@@ -83,7 +83,7 @@ it('lets only the owner read and write the tables, and the app role look up one 
         ->and($app->scalar('select count(*) from cms_identity_actor(?)', ['0192a0c0-0000-7000-8000-0000000000ff']))->toBe(0)
         ->and(ReceiptTables::texts($owner, "select p.proname::text || ' ' || p.prosecdef::text || ' ' || pg_get_userbyid(p.proowner)::text || ' ' || array_to_string(p.proconfig, ',') as value from pg_proc p where p.proname like 'cms\\_identity\\_%' and p.pronamespace = current_schema()::regnamespace order by 1"))->toBe(array_map(
             static fn (string $name): string => "{$name} true {$ownerRole} search_path=".ReceiptTables::texts($owner, 'select current_schema()::text as value')[0].', pg_temp',
-            ['cms_identity_actor', 'cms_identity_credential', 'cms_identity_delegations', 'cms_identity_lock_actor'],
+            ['cms_identity_actor', 'cms_identity_credential', 'cms_identity_deactivate_actor', 'cms_identity_delegations', 'cms_identity_lock_actor'],
         ));
 });
 

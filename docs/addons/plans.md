@@ -28,7 +28,7 @@ A mutation implements `Cbox\Cms\Contracts\Plans\Mutation`: a final readonly clas
 | `VariantUnreleased(entry, variant, revision)` | the variant | the variant has no released revision any more; `revision` is the one it had |
 | `PlacementCreated(placement, entry, node, site)` | the placement | the entry is placed below the node of the site |
 | `PlacementWindowSet(placement, locale, window)` | the placement | the `TimeWindow` in which the placement is live in the `Locale` |
-| `ActorDeactivated(actor)` | the actor | the actor is deactivated (PRD 5.16) |
+| `ActorDeactivated(actor, source)` | the actor | the actor is deactivated (PRD 5.16), by the `DeactivationSource` given, `local` by default |
 
 The ids are value objects over a UUIDv7: `EntryId`, `NodeId`, `PlacementId`, `SiteId`, `ActorId` and `TypeId`. A variant is a `VariantKey`, `shared` or a `Locale` such as `en-GB`; a revision is a `RevisionNumber` from 1. The kernel knows no content type (GUARDRAILS 2.4): an entry's type is the `TypeId` of its blueprint.
 

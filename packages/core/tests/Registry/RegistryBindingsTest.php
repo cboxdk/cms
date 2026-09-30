@@ -11,10 +11,13 @@ use Cbox\Cms\Core\Entries\Actions\CreateEntryAction;
 use Cbox\Cms\Core\Entries\Actions\ReviseEntryAction;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
+use Cbox\Cms\Core\Identity\Actions\DeactivateActorAction;
+use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
 use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
 use Cbox\Cms\Core\Registry\Boundary\ProviderScanRoots;
 use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
+use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Dto\ScanRoots;
@@ -73,16 +76,28 @@ it('registers deferred providers first, so their scan roots are not missed', fun
         ->and(ProviderScanRoots::of(app())->roots)->toContainEqual(new ScanRoot('acme/deferred', __DIR__.'/Providers'));
 });
 
-it('scans the packages\' own classes without a problem; the core declares the entry commands and their actions', function (): void {
+it('scans the packages\' own classes without a problem and registers the kernel\'s own commands with their actions', function (): void {
     $registry = RegistryFixtures::builder(RegistryFixtures::scratch())->build(packageScanRoots());
 
-    expect(array_map(static fn (CommandEntry $command): string => $command->name->value.' '.$command->class, $registry->commands))->toBe([
-        'entry.create '.CreateEntry::class,
-        'entry.revise '.ReviseEntry::class,
-    ])
+    expect(array_map(static fn (CommandEntry $entry): string => $entry->name->value.'@'.$entry->version.' '.$entry->class, $registry->commands))
+        ->toBe([
+            'actor.deactivate@1 '.DeactivateActor::class,
+            'entry.create@1 '.CreateEntry::class,
+            'entry.revise@1 '.ReviseEntry::class,
+        ])
+        ->and(array_map(static fn (ActionEntry $entry): string => $entry->command->value.'@'.$entry->commandVersion.' '.$entry->class.' '.$entry->kind->value, $registry->actions))
+        ->toBe([
+            'actor.deactivate@1 '.DeactivateActorAction::class.' write',
+            'entry.create@1 '.CreateEntryAction::class.' write',
+            'entry.revise@1 '.ReviseEntryAction::class.' write',
+        ])
+        ->and($registry->actionFor(DeactivateActor::class)?->surfaces)->toBe([])
         ->and($registry->actionFor(CreateEntry::class)?->class)->toBe(CreateEntryAction::class)
         ->and($registry->actionFor(ReviseEntry::class)?->class)->toBe(ReviseEntryAction::class)
-        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([2, 2, 0, 0, 0]);
+        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([3, 3, 0, 0, 0])
+        ->and($registry->hooks)->toBe([])
+        ->and($registry->subscribers)->toBe([])
+        ->and($registry->schema)->toBe([]);
 });
 
 it('binds the scanner and a cache in the application\'s bootstrap/cache/cms', function (): void {

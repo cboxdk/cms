@@ -109,6 +109,10 @@ use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
  * the call with hook_budget_exceeded. The pipeline never begins or ends a transaction; the
  * CommandTransaction does.
  *
+ * A plan with no mutation changes nothing, such as the deactivation of an actor that is
+ * deactivated already: the call is rejected with validation_failed right after plan(), before the
+ * hooks, and a dry run of it too, because there is nothing to commit.
+ *
  * A rejected call and a dry run commit nothing, so their receipts carry no changeset; they are
  * never stored, and their retention class is Standard.
  */
@@ -249,6 +253,14 @@ final readonly class CommandPipeline
         }
 
         $plan = $action->plan($call->command, $aggregates);
+
+        if ($plan->isEmpty()) {
+            return $this->rejected($call, new CatalogError(ErrorCode::ValidationFailed, null, sprintf(
+                'The command %s changes nothing here, so nothing was committed: its action planned no mutation for what it read.',
+                $binding->command->value,
+            )));
+        }
+
         $errors = $this->shape($action::class, $plan, $reads);
 
         if ($errors !== []) {

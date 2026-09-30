@@ -29,11 +29,11 @@ use UnexpectedValueException;
  *
  * The anonymous principal gets AccessContext::anonymous(). For an actor it first sets a context
  * that names only the actor, with no regions and public access, because the app role reads the
- * grants of the context's actor and nothing else; it reads the actor's grants with their roles'
- * ceilings and nodes' paths, compiles them with the AccessCompiler and sets the compiled context,
- * which it returns. The kernel runs it once per command and read, after the credential verifier.
- * Like ActorContext it needs the caller's open transaction and throws TransactionRequired without
- * one, before any statement.
+ * grants of the context's actor and nothing else; it reads the actor's grants that have not ended
+ * (a deactivation ends them, PRD 5.16) with their roles' ceilings and nodes' paths, compiles them
+ * with the AccessCompiler and sets the compiled context, which it returns. The kernel runs it once
+ * per command and read, after the credential verifier. Like ActorContext it needs the caller's open
+ * transaction and throws TransactionRequired without one, before any statement.
  */
 #[Internal]
 final readonly class PostgresAccessResolver implements AccessResolver
@@ -81,6 +81,7 @@ final readonly class PostgresAccessResolver implements AccessResolver
             ->join('roles as r', 'r.id', '=', 'g.role_id')
             ->join('nodes as n', 'n.id', '=', 'g.node_id')
             ->where('g.actor_id', $principal->actor->toString())
+            ->whereNull('g.ended_changeset_id')
             ->orderBy('g.id')
             ->get(['g.role_id', 'r.classification_ceiling', 'n.path', 'g.effect', 'g.locales']) as $row) {
             $grants[] = $this->grant($row);

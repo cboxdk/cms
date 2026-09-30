@@ -14,7 +14,7 @@ use Override;
  * is created and never reused.
  */
 #[Experimental]
-final readonly class ActorId implements AggregateRef
+final readonly class ActorId implements AggregateRef, Identifier
 {
     public function __construct(public Uuid7 $value) {}
 
@@ -26,6 +26,7 @@ final readonly class ActorId implements AggregateRef
         return new self(new Uuid7($value));
     }
 
+    #[Override]
     public function toString(): string
     {
         return $this->value->value;

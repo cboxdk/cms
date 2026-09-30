@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\Tests\Pipeline;
 
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Plans\Mutations\ActorDeactivated;
+use Cbox\Cms\Core\Identity\Adapter\ActorDeactivatedWriter;
 use Cbox\Cms\Core\Identity\Adapter\PostgresActorVersionLock;
 use Cbox\Cms\Core\Pipeline\Domain\MutationWriter;
 use Cbox\Cms\Core\Pipeline\Domain\MutationWriters;
@@ -55,11 +56,12 @@ it('refuses two locks of one kind', function (): void {
         ->toThrow(UncommittableChangeset::class, 'Two VersionLocks are registered for the kind of aggregate "tally".');
 });
 
-it('registers the actor\'s version lock in the container and no mutation writer of its own', function (): void {
+it('registers the actor\'s version lock and the writer of its deactivation in the container', function (): void {
     $locks = app(VersionLocks::class);
 
     expect($locks->for(ActorId::fromString(COMMIT_ACTOR)))->toBeInstanceOf(PostgresActorVersionLock::class)
-        ->and(fn () => app(MutationWriters::class)->for(new ActorDeactivated(ActorId::fromString(COMMIT_ACTOR))))
+        ->and(app(MutationWriters::class)->for(new ActorDeactivated(ActorId::fromString(COMMIT_ACTOR))))->toBeInstanceOf(ActorDeactivatedWriter::class)
+        ->and(fn () => app(MutationWriters::class)->for(new TallyAdded(TallyWorld::tally(), 1)))
         ->toThrow(UncommittableChangeset::class);
 });
 
