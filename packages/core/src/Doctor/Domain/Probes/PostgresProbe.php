@@ -7,6 +7,7 @@ namespace Cbox\Cms\Core\Doctor\Domain\Probes;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Core\Doctor\Domain\Dto\DdlPrivileges;
 use Cbox\Cms\Core\Doctor\Domain\Dto\InstalledExtensions;
+use Cbox\Cms\Core\Doctor\Domain\Dto\OpenTransactions;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PostgresRole;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PostgresVersion;
 use Cbox\Cms\Core\Doctor\Domain\Dto\RowSecurity;
@@ -41,6 +42,17 @@ interface PostgresProbe
 
     /** @throws ProbeFailed */
     public function transactionTimeout(): TimeoutSetting;
+
+    /** @throws ProbeFailed */
+    public function idleInTransactionTimeout(): TimeoutSetting;
+
+    /**
+     * The oldest transactions that hold a transaction id or a snapshot, the doctor's own session
+     * left out.
+     *
+     * @throws ProbeFailed
+     */
+    public function openTransactions(): OpenTransactions;
 
     /** @throws ProbeFailed */
     public function maxPreparedTransactions(): int;

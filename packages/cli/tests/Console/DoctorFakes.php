@@ -6,6 +6,7 @@ namespace Cbox\Cms\Cli\Tests\Console;
 
 use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PartitionCoverage;
+use Cbox\Cms\Core\Doctor\Domain\Probes\EventLogProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\LcMessagesProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PartitionRunwayProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PhpSettingsProbe;
@@ -14,6 +15,7 @@ use Cbox\Cms\Core\Doctor\Domain\Probes\RegistryCacheProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\RuntimeProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\ToolProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\ValkeyProbe;
+use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeEventLogProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeLcMessagesProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePartitionRunwayProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePhpSettingsProbe;
@@ -47,6 +49,8 @@ final class DoctorFakes
 
     public FakeToolProbe $tools;
 
+    public FakeEventLogProbe $events;
+
     public FakeLogger $log;
 
     public function __construct()
@@ -61,6 +65,7 @@ final class DoctorFakes
         $this->partitions = new FakePartitionRunwayProbe([new PartitionCoverage('receipts_standard', new DateTimeImmutable('2026-03-24T00:00:00Z'))]);
         $this->registry = new FakeRegistryCacheProbe;
         $this->tools = new FakeToolProbe;
+        $this->events = new FakeEventLogProbe;
 
         app()->instance(Clock::class, $clock);
         app()->instance(RuntimeProbe::class, $this->runtime);
@@ -71,6 +76,7 @@ final class DoctorFakes
         app()->instance(PartitionRunwayProbe::class, $this->partitions);
         app()->instance(RegistryCacheProbe::class, $this->registry);
         app()->instance(ToolProbe::class, $this->tools);
+        app()->instance(EventLogProbe::class, $this->events);
 
         $this->log = new FakeLogger;
         app()->instance(LoggerInterface::class, $this->log);

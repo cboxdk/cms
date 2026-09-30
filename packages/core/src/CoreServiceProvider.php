@@ -28,6 +28,7 @@ use Cbox\Cms\Core\Addons\Boundary\AddonConfig;
 use Cbox\Cms\Core\Addons\Domain\Dto\ServiceActors;
 use Cbox\Cms\Core\Bindings\Boundary\ContractBindings;
 use Cbox\Cms\Core\Doctor\Adapter\CatalogPartitionRunwayProbe;
+use Cbox\Cms\Core\Doctor\Adapter\ConnectionEventLogProbe;
 use Cbox\Cms\Core\Doctor\Adapter\ConnectionLcMessagesProbe;
 use Cbox\Cms\Core\Doctor\Adapter\ConnectionPostgresProbe;
 use Cbox\Cms\Core\Doctor\Adapter\ContainerDoctorChecks;
@@ -43,12 +44,16 @@ use Cbox\Cms\Core\Doctor\Domain\Checks\AllowUrlFopenCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\AppRoleCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\ChromiumCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\DdlPrivilegesCheck;
+use Cbox\Cms\Core\Doctor\Domain\Checks\EventLagCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\ExtensionsCheck;
+use Cbox\Cms\Core\Doctor\Domain\Checks\IdleInTransactionTimeoutCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\InvalidConfigurationCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\LaravelVersionCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\LcMessagesCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\NodeCheck;
+use Cbox\Cms\Core\Doctor\Domain\Checks\OldestTransactionCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\OwnerCredentialsCheck;
+use Cbox\Cms\Core\Doctor\Domain\Checks\ParkedAggregatesCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\PartitionRunwayCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\PhpVersionCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\PlaywrightCheck;
@@ -63,6 +68,7 @@ use Cbox\Cms\Core\Doctor\Domain\DoctorChecks;
 use Cbox\Cms\Core\Doctor\Domain\Dto\DoctorSettings;
 use Cbox\Cms\Core\Doctor\Domain\InvalidDoctorConfig;
 use Cbox\Cms\Core\Doctor\Domain\OrderedDoctorChecks;
+use Cbox\Cms\Core\Doctor\Domain\Probes\EventLogProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\LcMessagesProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PartitionRunwayProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PhpSettingsProbe;
@@ -652,6 +658,7 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->bind(PostgresProbe::class, ConnectionPostgresProbe::class);
         $this->app->bind(PartitionRunwayProbe::class, CatalogPartitionRunwayProbe::class);
         $this->app->bind(ValkeyProbe::class, RedisValkeyProbe::class);
+        $this->app->bind(EventLogProbe::class, ConnectionEventLogProbe::class);
         $this->app->bind(ProcessProbe::class, FrameworkProcessProbe::class);
         // The owner role's lc_messages is read from the catalog on the app role's connection; the
         // doctor never logs in as the owner role (PRD 4.2).
@@ -691,11 +698,13 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
                     new PostgresVersionCheck($postgres),
                     new AppRoleCheck($postgres),
                     new TransactionTimeoutCheck($postgres),
+                    new IdleInTransactionTimeoutCheck($postgres),
                     new PreparedTransactionsCheck($postgres),
                     new LcMessagesCheck($app->make(LcMessagesProbe::class)),
                     new DdlPrivilegesCheck($postgres),
                     new RowSecurityCheck($postgres),
                     new ExtensionsCheck($postgres),
+                    new OldestTransactionCheck($postgres),
                     new ValkeyReachableCheck($app->make(ValkeyProbe::class)),
                     new PartitionRunwayCheck(
                         $app->make(PartitionRunwayProbe::class),
@@ -704,6 +713,8 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
                         $settings->runwayPartitions,
                     ),
                     new RegistryCacheCheck($app->make(RegistryCacheProbe::class)),
+                    new EventLagCheck($app->make(EventLogProbe::class), $app->make(Clock::class)),
+                    new ParkedAggregatesCheck($app->make(EventLogProbe::class)),
                     new OwnerCredentialsCheck($app->make(ProcessProbe::class), $settings->ownerConnection, $settings->maintenanceProcess),
                 ],
                 dev: [

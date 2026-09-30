@@ -5,10 +5,18 @@ declare(strict_types=1);
 namespace Cbox\Cms\Cli\Tests\Postgres;
 
 use Cbox\Cms\Contracts\Clock;
+use Cbox\Cms\Contracts\Events\EventPosition;
+use Cbox\Cms\Contracts\Events\EventStream;
+use Cbox\Cms\Contracts\Subscribers\SubscriptionName;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PhpSettingsProbe;
+use Cbox\Cms\Core\Events\Infrastructure\EventReader;
+use Cbox\Cms\Core\Subscriptions\Adapter\PostgresSubscriptionLog;
 use Cbox\Cms\Core\Tests\Doctor\DoctorSchema;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePhpSettingsProbe;
+use Cbox\Cms\Core\Tests\Fragments\InvalidationWorld;
+use Cbox\Cms\Core\Tests\Subscriptions\CommittedEvents;
 use Cbox\Cms\Testkit\Clock\FakeClock;
+use Cbox\Cms\Testkit\Postgres\IndependentConnections;
 use Cbox\Cms\Testkit\Postgres\PartitionFixtures;
 use Cbox\Cms\Tests\Support\CheckoutDatabase;
 use Cbox\Cms\Tests\Support\Phpstan;
@@ -149,7 +157,7 @@ it('passes every runtime check against the services, in-process', function (): v
     expect($status)->toBe(0, (string) json_encode($document))
         ->and($document['status'])->toBe('ok')
         ->and(array_unique(doctorStatuses($document)))->toBe(['php.version' => 'pass'])
-        ->and(doctorStatuses($document))->toHaveCount(16)
+        ->and(doctorStatuses($document))->toHaveCount(20)
         ->and(doctorCheck($document, 'postgres.transaction_timeout')['explanation'])->toBe('transaction_timeout is 5000 ms on the app role cms_app.')
         ->and(doctorCheck($document, 'postgres.lc_messages')['explanation'])->toBe('Messages are English: lc_messages is C for the role cms_app and C for the role cms_owner, and LC_MESSAGES of the PHP process is C.')
         ->and(doctorCheck($document, 'postgres.ddl_privileges')['explanation'])->toBe('The app role cms_app owns nothing and cannot create objects in the database '.CheckoutDatabase::name().' or its schemas.');
@@ -180,6 +188,43 @@ it('fails transaction_timeout, DDL and the app role for a role without the timeo
         ->and($appRole['status'])->toBe('fail')
         ->and($appRole['code'])->toBe('doctor_app_role_privileged_membership')
         ->and($appRole['cause'])->toBe('The role cms_owner is a member of pg_database_owner, which owns or may create objects in the database or its schemas; pg_signal_backend, which cancels and terminates the sessions of every other non-superuser role, the owner\'s migrations and partition maintenance included.');
+});
+
+it('exits 79 with events.lag failing while an open transaction holds the horizon below an event of the critical lane', function (): void {
+    $clock = doctorClock('2047-06-11T09:00:00Z');
+    buildRegistry();
+    $holder = app(IndependentConnections::class)->open(1)[0];
+
+    try {
+        // A transaction that took a transaction id before the event commits holds the horizon, so the
+        // critical lane's runner cannot read the event and fragments.invalidate falls behind.
+        $holder->beginTransaction();
+        $holder->selectOne('select pg_current_xact_id()');
+        [$position] = new CommittedEvents($clock)->write(EventStream::Interactive, [InvalidationWorld::created()]);
+
+        expect(new EventReader(app('db'))->after(EventStream::Interactive, EventPosition::start(), 10))->toBe([]);
+
+        $clock->advance(new DateInterval('PT2S'));
+        [$status, $document] = inProcessDoctor();
+        $lag = doctorCheck($document, 'events.lag');
+
+        expect($status)->toBe(79)
+            ->and($document['status'])->toBe('not_ready')
+            ->and(array_filter(doctorStatuses($document), static fn (string $status): bool => $status !== 'pass'))->toBe(['events.lag' => 'fail'])
+            ->and($lag['blocking'])->toBeFalse()
+            ->and($lag['failure'])->toBe('violation')
+            ->and($lag['code'])->toBe('doctor_events_lag')
+            ->and($lag['cause'])->toBe('At 2047-06-11T09:00:02.000Z: fragments.invalidate (lane critical, target 500 ms) has not handled an event of the interactive stream from 2047-06-11T09:00:00.000Z, 2000 ms old.');
+
+        $holder->rollBack();
+    } finally {
+        app(IndependentConnections::class)->closeAll();
+    }
+
+    // Once the runner has handled the event, the lane is within its target again.
+    new PostgresSubscriptionLog(app('db'), $clock)->advance(new SubscriptionName('fragments.invalidate'), EventStream::Interactive, $position);
+
+    expect(inProcessDoctor()[0])->toBe(0);
 });
 
 it('fails the partition runway with 79 when only 2 days of partitions exist, because it only affects readiness', function (): void {
@@ -355,7 +400,7 @@ it('exits 0 from the command line with --dev --json when the services, partition
     expect($status)->toBe(0, $errors.json_encode($document))
         ->and($document['status'])->toBe('ok')
         ->and($document['dev'])->toBeTrue()
-        ->and(doctorStatuses($document))->toHaveCount(19)
+        ->and(doctorStatuses($document))->toHaveCount(23)
         ->and(doctorStatuses($document)['postgres.lc_messages'])->toBe('pass')
         ->and(array_unique(doctorStatuses($document)))->toBe(['php.version' => 'pass'])
         ->and(array_slice(array_keys(doctorStatuses($document)), -3))->toBe(['dev.node', 'dev.playwright', 'dev.chromium']);

@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="968" height="766" viewBox="0 0 968 766" role="img" aria-label="php -d allow_url_fopen=1 vendor/bin/testbench cms:doctor">
+<svg xmlns="http://www.w3.org/2000/svg" width="968" height="906" viewBox="0 0 968 906" role="img" aria-label="php -d allow_url_fopen=1 vendor/bin/testbench cms:doctor">
 <title>php -d allow_url_fopen=1 vendor/bin/testbench cms:doctor</title>
 <style>text{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, &apos;DejaVu Sans Mono&apos;, &apos;Liberation Mono&apos;, monospace;font-size:13px;white-space:pre}.b{font-weight:700}.d{opacity:.66}.i{font-style:italic}.u{text-decoration:underline}</style>
-<rect x="0.5" y="0.5" width="967" height="765" rx="8" fill="#0d1117" stroke="#30363d"/>
+<rect x="0.5" y="0.5" width="967" height="905" rx="8" fill="#0d1117" stroke="#30363d"/>
 <path d="M0.5 34V8.5a8 8 0 0 1 8-8H959.5a8 8 0 0 1 8 8V34Z" fill="#161b22" stroke="#30363d"/>
 <circle cx="20" cy="17" r="6" fill="#ff5f57"/>
 <circle cx="40" cy="17" r="6" fill="#febc2e"/>
@@ -9,54 +9,65 @@
 <text x="16" y="64" fill="#0dbc79" class="b" textLength="7.8">$</text>
 <text x="31.6" y="64" fill="#e6edf3" class="b" textLength="436.8">php -d allow_url_fopen=1 vendor/bin/testbench cms:doctor</text>
 <text x="23.8" y="84" fill="#0dbc79" textLength="31.2">pass</text>
-<text x="55" y="84" fill="#e6edf3" textLength="561.6">  php.version                     PHP 8.5.10 meets the minimum, PHP 8.5.</text>
+<text x="55" y="84" fill="#e6edf3" textLength="608.4">  php.version                           PHP 8.5.10 meets the minimum, PHP 8.5.</text>
 <rect x="23.8" y="90" width="31.2" height="20" fill="#cd3131"/>
 <text x="23.8" y="104" fill="#e5e5e5" textLength="31.2">FAIL</text>
-<text x="55" y="104" fill="#e6edf3" textLength="897">  php.allow_url_fopen             Outbound HTTP may only go through the egress gateway and its SSRF guard, so PHP m</text>
-<text x="16" y="124" fill="#e6edf3" textLength="210.6">ust not open URLs as files.</text>
-<text x="16" y="144" fill="#e6edf3" textLength="936">                                       cause  allow_url_fopen is on in this process: fopen, file, copy, SplFileObject an</text>
-<text x="16" y="164" fill="#e6edf3" textLength="444.6">d the other file functions fetch http:// and ftp:// URLs.</text>
-<text x="16" y="184" fill="#e6edf3" textLength="936">                                       fix    Set allow_url_fopen = Off in the php.ini of every process that runs Cbox C</text>
-<text x="16" y="204" fill="#e6edf3" textLength="553.8">MS, for example in a conf.d file, or run PHP with -d allow_url_fopen=0.</text>
-<text x="16" y="224" fill="#e6edf3" textLength="912.6">                                       code   doctor_php_allow_url_fopen (violation, blocks the kernel from starting)</text>
-<text x="23.8" y="244" fill="#0dbc79" textLength="31.2">pass</text>
-<text x="55" y="244" fill="#e6edf3" textLength="709.8">  laravel.version                 Laravel 13.4.0 is the major Cbox CMS follows, Laravel 13.</text>
+<text x="55" y="104" fill="#e6edf3" textLength="897">  php.allow_url_fopen                   Outbound HTTP may only go through the egress gateway and its SSRF guard, so</text>
+<text x="16" y="124" fill="#e6edf3" textLength="257.4"> PHP must not open URLs as files.</text>
+<text x="16" y="144" fill="#e6edf3" textLength="936">                                             cause  allow_url_fopen is on in this process: fopen, file, copy, SplFileObj</text>
+<text x="16" y="164" fill="#e6edf3" textLength="491.4">ect and the other file functions fetch http:// and ftp:// URLs.</text>
+<text x="16" y="184" fill="#e6edf3" textLength="928.2">                                             fix    Set allow_url_fopen = Off in the php.ini of every process that runs</text>
+<text x="16" y="204" fill="#e6edf3" textLength="600.6">Cbox CMS, for example in a conf.d file, or run PHP with -d allow_url_fopen=0.</text>
+<text x="16" y="224" fill="#e6edf3" textLength="936">                                             code   doctor_php_allow_url_fopen (violation, blocks the kernel from starti</text>
+<text x="16" y="244" fill="#e6edf3" textLength="23.4">ng)</text>
 <text x="23.8" y="264" fill="#0dbc79" textLength="31.2">pass</text>
-<text x="55" y="264" fill="#e6edf3" textLength="772.2">  postgres.reachable              Connected to Postgres as cms_app@fake:5432/cms (connection fake).</text>
+<text x="55" y="264" fill="#e6edf3" textLength="756.6">  laravel.version                       Laravel 13.4.0 is the major Cbox CMS follows, Laravel 13.</text>
 <text x="23.8" y="284" fill="#0dbc79" textLength="31.2">pass</text>
-<text x="55" y="284" fill="#e6edf3" textLength="624">  postgres.version                Postgres 17.11 meets the minimum, Postgres 17.</text>
+<text x="55" y="284" fill="#e6edf3" textLength="819">  postgres.reachable                    Connected to Postgres as cms_app@fake:5432/cms (connection fake).</text>
 <text x="23.8" y="304" fill="#0dbc79" textLength="31.2">pass</text>
-<text x="55" y="304" fill="#e6edf3" textLength="897">  postgres.app_role               The app role cms_app is not a superuser, has NOBYPASSRLS and NOCREATEROLE, and is</text>
-<text x="16" y="324" fill="#e6edf3" textLength="936"> not a member of a superuser, a BYPASSRLS or CREATEROLE role, a role that owns relations or may create objects, or a pre</text>
-<text x="16" y="344" fill="#e6edf3" textLength="795.6">defined role that reaches every table or the server, signals other sessions or reads their query text.</text>
-<text x="23.8" y="364" fill="#0dbc79" textLength="31.2">pass</text>
-<text x="55" y="364" fill="#e6edf3" textLength="694.2">  postgres.transaction_timeout    transaction_timeout is 5000 ms on the app role cms_app.</text>
+<text x="55" y="304" fill="#e6edf3" textLength="670.8">  postgres.version                      Postgres 17.11 meets the minimum, Postgres 17.</text>
+<text x="23.8" y="324" fill="#0dbc79" textLength="31.2">pass</text>
+<text x="55" y="324" fill="#e6edf3" textLength="889.2">  postgres.app_role                     The app role cms_app is not a superuser, has NOBYPASSRLS and NOCREATEROLE,</text>
+<text x="16" y="344" fill="#e6edf3" textLength="936">and is not a member of a superuser, a BYPASSRLS or CREATEROLE role, a role that owns relations or may create objects, or</text>
+<text x="16" y="364" fill="#e6edf3" textLength="842.4"> a predefined role that reaches every table or the server, signals other sessions or reads their query text.</text>
 <text x="23.8" y="384" fill="#0dbc79" textLength="31.2">pass</text>
-<text x="55" y="384" fill="#e6edf3" textLength="819">  postgres.prepared_transactions  max_prepared_transactions is 0, so no transaction can be left prepared.</text>
+<text x="55" y="384" fill="#e6edf3" textLength="741">  postgres.transaction_timeout          transaction_timeout is 5000 ms on the app role cms_app.</text>
 <text x="23.8" y="404" fill="#0dbc79" textLength="31.2">pass</text>
-<text x="55" y="404" fill="#e6edf3" textLength="897">  postgres.lc_messages            Messages are English: lc_messages is C for the role cms_app and C for the role cm</text>
-<text x="16" y="424" fill="#e6edf3" textLength="382.2">s_owner, and LC_MESSAGES of the PHP process is C.</text>
+<text x="55" y="404" fill="#e6edf3" textLength="865.8">  postgres.idle_in_transaction_timeout  idle_in_transaction_session_timeout is 5000 ms on the app role cms_app.</text>
+<text x="23.8" y="424" fill="#0dbc79" textLength="31.2">pass</text>
+<text x="55" y="424" fill="#e6edf3" textLength="865.8">  postgres.prepared_transactions        max_prepared_transactions is 0, so no transaction can be left prepared.</text>
 <text x="23.8" y="444" fill="#0dbc79" textLength="31.2">pass</text>
-<text x="55" y="444" fill="#e6edf3" textLength="897">  postgres.ddl_privileges         The app role cms_app owns nothing and cannot create objects in the database cms o</text>
-<text x="16" y="464" fill="#e6edf3" textLength="109.2">r its schemas.</text>
+<text x="55" y="444" fill="#e6edf3" textLength="897">  postgres.lc_messages                  Messages are English: lc_messages is C for the role cms_app and C for the r</text>
+<text x="16" y="464" fill="#e6edf3" textLength="429">ole cms_owner, and LC_MESSAGES of the PHP process is C.</text>
 <text x="23.8" y="484" fill="#0dbc79" textLength="31.2">pass</text>
-<text x="55" y="484" fill="#e6edf3" textLength="897">  postgres.row_security           All 2 tables with row level security in the database cms force it on their owner.</text>
-<text x="23.8" y="504" fill="#0dbc79" textLength="31.2">pass</text>
-<text x="55" y="504" fill="#e6edf3" textLength="717.6">  postgres.extensions             The database cms has the extensions the core needs: ltree.</text>
+<text x="55" y="484" fill="#e6edf3" textLength="897">  postgres.ddl_privileges               The app role cms_app owns nothing and cannot create objects in the database</text>
+<text x="16" y="504" fill="#e6edf3" textLength="156"> cms or its schemas.</text>
 <text x="23.8" y="524" fill="#0dbc79" textLength="31.2">pass</text>
-<text x="55" y="524" fill="#e6edf3" textLength="741">  valkey.reachable                Valkey answered PING on fake:6379 (Redis connection default).</text>
-<text x="23.8" y="544" fill="#0dbc79" textLength="31.2">pass</text>
-<text x="55" y="544" fill="#e6edf3" textLength="897">  partitions.runway               Every managed table has partitions at least 7 days ahead: receipts_standard until</text>
-<text x="16" y="564" fill="#e6edf3" textLength="936"> 2026-03-24T00:00:00Z (13.5 days), receipts_evidence until 2026-05-01T00:00:00Z (51.5 days), receipt_projections_standar</text>
-<text x="16" y="584" fill="#e6edf3" textLength="936">d until 2026-03-24T00:00:00Z (13.5 days), receipt_projections_evidence until 2026-05-01T00:00:00Z (51.5 days), idempoten</text>
-<text x="16" y="604" fill="#e6edf3" textLength="366.6">cy_keys until 2026-03-24T00:00:00Z (13.5 days).</text>
+<text x="55" y="524" fill="#e6edf3" textLength="889.2">  postgres.row_security                 All 2 tables with row level security in the database cms force it on their</text>
+<text x="16" y="544" fill="#e6edf3" textLength="46.8">owner.</text>
+<text x="23.8" y="564" fill="#0dbc79" textLength="31.2">pass</text>
+<text x="55" y="564" fill="#e6edf3" textLength="764.4">  postgres.extensions                   The database cms has the extensions the core needs: ltree.</text>
+<text x="23.8" y="584" fill="#0dbc79" textLength="31.2">pass</text>
+<text x="55" y="584" fill="#e6edf3" textLength="897">  postgres.oldest_xact                  Within the limits of 5000 ms for a transaction id and 5000 ms for a snapsho</text>
+<text x="16" y="604" fill="#e6edf3" textLength="826.8">t: no transaction the app role can see holds a transaction id, and none holds a snapshot in this database.</text>
 <text x="23.8" y="624" fill="#0dbc79" textLength="31.2">pass</text>
-<text x="55" y="624" fill="#e6edf3" textLength="897">  registry.cache                  The registry cache in /app/bootstrap/cache/cms was built at 2026-01-01T10:00:05Z,</text>
-<text x="16" y="644" fill="#e6edf3" textLength="475.8"> after Composer last changed vendor/ at 2026-01-01T10:00:00Z.</text>
-<text x="23.8" y="664" fill="#0dbc79" textLength="31.2">pass</text>
-<text x="55" y="664" fill="#e6edf3" textLength="897">  postgres.owner_credentials      The owner connection pgsql_owner is configured in this process, which CBOX_CMS_MA</text>
-<text x="16" y="684" fill="#e6edf3" textLength="936">INTENANCE_PROCESS=true in its environment declares the maintenance process, and it serves no HTTP and runs no queued job</text>
-<text x="16" y="704" fill="#e6edf3" textLength="15.6">s.</text>
-<rect x="16" y="730" width="452.4" height="20" fill="#cd3131"/>
-<text x="16" y="744" fill="#e5e5e5" textLength="452.4">cms:doctor: violation (exit 78). The kernel may not start.</text>
+<text x="55" y="624" fill="#e6edf3" textLength="787.8">  valkey.reachable                      Valkey answered PING on fake:6379 (Redis connection default).</text>
+<text x="23.8" y="644" fill="#0dbc79" textLength="31.2">pass</text>
+<text x="55" y="644" fill="#e6edf3" textLength="897">  partitions.runway                     Every managed table has partitions at least 7 days ahead: receipts_standard</text>
+<text x="16" y="664" fill="#e6edf3" textLength="936"> until 2026-03-24T00:00:00Z (13.5 days), receipts_evidence until 2026-05-01T00:00:00Z (51.5 days), receipt_projections_s</text>
+<text x="16" y="684" fill="#e6edf3" textLength="936">tandard until 2026-03-24T00:00:00Z (13.5 days), receipt_projections_evidence until 2026-05-01T00:00:00Z (51.5 days), ide</text>
+<text x="16" y="704" fill="#e6edf3" textLength="413.4">mpotency_keys until 2026-03-24T00:00:00Z (13.5 days).</text>
+<text x="23.8" y="724" fill="#0dbc79" textLength="31.2">pass</text>
+<text x="55" y="724" fill="#e6edf3" textLength="897">  registry.cache                        The registry cache in /app/bootstrap/cache/cms was built at 2026-01-01T10:0</text>
+<text x="16" y="744" fill="#e6edf3" textLength="522.6">0:05Z, after Composer last changed vendor/ at 2026-01-01T10:00:00Z.</text>
+<text x="23.8" y="764" fill="#0dbc79" textLength="31.2">pass</text>
+<text x="55" y="764" fill="#e6edf3" textLength="819">  events.lag                            No subscriptions are registered, so no lane has events to handle.</text>
+<text x="23.8" y="784" fill="#0dbc79" textLength="31.2">pass</text>
+<text x="55" y="784" fill="#e6edf3" textLength="624">  events.parked                         No subscription has parked an aggregate.</text>
+<text x="23.8" y="804" fill="#0dbc79" textLength="31.2">pass</text>
+<text x="55" y="804" fill="#e6edf3" textLength="897">  postgres.owner_credentials            The owner connection pgsql_owner is configured in this process, which CBOX_</text>
+<text x="16" y="824" fill="#e6edf3" textLength="936">CMS_MAINTENANCE_PROCESS=true in its environment declares the maintenance process, and it serves no HTTP and runs no queu</text>
+<text x="16" y="844" fill="#e6edf3" textLength="62.4">ed jobs.</text>
+<rect x="16" y="870" width="452.4" height="20" fill="#cd3131"/>
+<text x="16" y="884" fill="#e5e5e5" textLength="452.4">cms:doctor: violation (exit 78). The kernel may not start.</text>
 </svg>

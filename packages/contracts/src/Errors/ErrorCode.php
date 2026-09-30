@@ -41,7 +41,12 @@ enum ErrorCode: string
     case DoctorCheckCrashed = 'doctor_check_crashed';
     case DoctorChromiumMissing = 'doctor_chromium_missing';
     case DoctorConfigInvalid = 'doctor_config_invalid';
+    case DoctorEventLogUnreadable = 'doctor_event_log_unreadable';
+    case DoctorEventsLag = 'doctor_events_lag';
+    case DoctorEventsParked = 'doctor_events_parked';
     case DoctorExtensionMissing = 'doctor_extension_missing';
+    case DoctorHorizonHeld = 'doctor_horizon_held';
+    case DoctorIdleInTransactionTimeoutMissing = 'doctor_idle_in_transaction_timeout_missing';
     case DoctorLaravelVersion = 'doctor_laravel_version';
     case DoctorLcMessagesNotEnglish = 'doctor_lc_messages_not_english';
     case DoctorNodeMissing = 'doctor_node_missing';
@@ -61,6 +66,7 @@ enum ErrorCode: string
     case DoctorRegistryCacheMissing = 'doctor_registry_cache_missing';
     case DoctorRegistryCacheStale = 'doctor_registry_cache_stale';
     case DoctorRowSecurityNotForced = 'doctor_row_security_not_forced';
+    case DoctorSnapshotHeld = 'doctor_snapshot_held';
     case DoctorTransactionTimeoutMissing = 'doctor_transaction_timeout_missing';
     case DoctorValkeyRefused = 'doctor_valkey_refused';
     case DoctorValkeyUnavailable = 'doctor_valkey_unavailable';
@@ -220,8 +226,23 @@ enum ErrorCode: string
             self::DoctorConfigInvalid => $this->violation(
                 'A setting under cbox-cms.doctor, or the environment variable CBOX_CMS_MAINTENANCE_PROCESS, is invalid, or a check it names cannot be used, so cms:doctor cannot run its checks. Correct the setting the cause names, then run cms:doctor again.',
             ),
+            self::DoctorEventLogUnreadable => $this->readiness(
+                'The doctor could not read the event log\'s cursors, events or parked aggregates, or the subscriptions of the registry cache, so it cannot say how far the subscribers are behind (PRD 7.12). Check that the core\'s migrations have run and that cms:build has written the registry cache, then run cms:doctor again.',
+            ),
+            self::DoctorEventsLag => $this->readiness(
+                'A subscription has an event it has not handled that is older than the lag target of its lane, such as 500 ms for the critical lane (PRD 7.6, 7.12). Either no runner is running the lane (cms:events:run), or a transaction that is still open holds back the transaction horizon below which the runners read (PRD 7.4). Start the lane\'s runner, or end the transaction that postgres.oldest_xact names.',
+            ),
+            self::DoctorEventsParked => $this->readiness(
+                'A subscription has parked aggregates: events it failed to handle as often as it may, whose later events wait with them (PRD 7.8). List them with cms:events:parked, fix the cause the subscriber failed on, and release them with cms:events:release.',
+            ),
             self::DoctorExtensionMissing => $this->violation(
                 'A Postgres extension the core\'s tables need, such as ltree, is not installed in the database, so the migrations have not run against it (PRD 4.2). Run the migrations as the owner role in the maintenance process, then run cms:doctor again.',
+            ),
+            self::DoctorHorizonHeld => $this->readiness(
+                'A transaction has held a transaction id for longer than the command budget, so the transaction horizon, below which the event runners read, cannot pass it and no subscriber sees the events committed after it began (PRD 4.2, 7.4). End the transaction the cause names, with pg_terminate_backend(<pid>) as its role or a superuser if it hangs, and find what keeps it open.',
+            ),
+            self::DoctorIdleInTransactionTimeoutMissing => $this->violation(
+                'The app role has no idle_in_transaction_session_timeout of its own, so a session that begins a transaction and then waits holds its locks, the event horizon and vacuum until something else ends it (PRD 7.4). As a superuser, run ALTER ROLE <app role> SET idle_in_transaction_session_timeout = \'5s\', then run cms:doctor again.',
             ),
             self::DoctorLaravelVersion => $this->violation(
                 'The installed Laravel is not the major version this cboxdk/cms is built for. Install the Laravel version that composer.json of cboxdk/cms requires, then run cms:doctor again.',
@@ -279,6 +300,9 @@ enum ErrorCode: string
             ),
             self::DoctorRowSecurityNotForced => $this->violation(
                 'A table has row level security enabled but not forced, so its policies do not hold for the table\'s owner (PRD 4.2). Run ALTER TABLE <table> FORCE ROW LEVEL SECURITY as the owner role, then run cms:doctor again.',
+            ),
+            self::DoctorSnapshotHeld => $this->readiness(
+                'A session of this database has held a snapshot for longer than the command budget, so vacuum cannot remove the rows that changed after it was taken, and the tables and their indexes grow (PRD 4.2). End the transaction the cause names, and run long reads on a replica, never on the primary.',
             ),
             self::DoctorTransactionTimeoutMissing => $this->violation(
                 'The app role has no transaction_timeout of its own, so a transaction that hangs holds back the event horizon and vacuum until someone ends it (PRD 4.2). As a superuser, run ALTER ROLE <app role> SET transaction_timeout = \'5s\', then run cms:doctor again.',

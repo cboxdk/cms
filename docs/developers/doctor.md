@@ -35,14 +35,18 @@ The core's checks run in this order. The last three run only with `--dev`. A che
 | `postgres.version` | yes | `postgres.reachable` | Postgres 17 or newer |
 | `postgres.app_role` | yes | `postgres.reachable` | the app role is not a superuser, has NOBYPASSRLS and NOCREATEROLE, and is not a member of a role with more power |
 | `postgres.transaction_timeout` | yes | `postgres.version` | `transaction_timeout` is above zero and set on the app role |
+| `postgres.idle_in_transaction_timeout` | yes | `postgres.version` | `idle_in_transaction_session_timeout` is above zero and set on the app role |
 | `postgres.prepared_transactions` | yes | `postgres.reachable` | `max_prepared_transactions` is 0 |
 | `postgres.lc_messages` | yes | `postgres.reachable` | the messages of Postgres and libpq are English |
 | `postgres.ddl_privileges` | yes | `postgres.reachable` | the app role owns nothing and cannot create objects |
 | `postgres.row_security` | yes | `postgres.reachable` | every table with row level security also forces it |
 | `postgres.extensions` | yes | `postgres.reachable` | the extensions the core's tables need, ltree, are installed; the core's migrations create them as the owner role |
+| `postgres.oldest_xact` | no | `postgres.reachable` | no transaction has held a transaction id, and no session of this database a snapshot, for longer than 5 s (see [The horizon and the event log](#the-horizon-and-the-event-log)) |
 | `valkey.reachable` | yes | | Valkey answers PING |
 | `partitions.runway` | no | `postgres.reachable` | every partitioned table has partitions far enough ahead of the clock, or of its sequence for a table with the key `bigint` |
 | `registry.cache` | yes | | the registry cache of `cms:build` exists and is not older than `vendor/` |
+| `events.lag` | no | `postgres.reachable`, `registry.cache` | no subscription has an unhandled event older than the lag target of its lane |
+| `events.parked` | no | `postgres.reachable` | no subscription has parked aggregates |
 | `postgres.owner_credentials` | no | | only the maintenance process holds the owner role's credentials |
 | `dev.node` | no | | Node on the PATH, at least the configured minimum |
 | `dev.playwright` | no | `dev.node` | Playwright is installed in the project |
@@ -74,6 +78,17 @@ The kernel recognises some Postgres errors by their text, because the SQLSTATE d
 - `ALTER ROLE <app role> SET lc_messages = 'C'` and `ALTER ROLE <owner role> SET lc_messages = 'C'`, so a session of either role is English whatever the server's default.
 
 A value set with `ALTER ROLE ... IN DATABASE` wins over both, so reset it there. Start PHP with `LC_ALL` and `LC_MESSAGES` unset, `C` or `en_*`. When the check fails, its fix names the roles and the commands for this installation.
+
+## The horizon and the event log
+
+The event runners read only the events of transactions that have certainly ended, below the transaction horizon (PRD 7.4), so one transaction that stays open delays every subscriber of the installation. Four checks watch this (PRD 7.12, GUARDRAILS 5). Only the first blocks; the other three affect readiness, because the kernel must run for the runners to catch up, and a failure of them makes the doctor exit 79.
+
+- **`postgres.idle_in_transaction_timeout`** checks, like `postgres.transaction_timeout`, that a new session of the app role gets an `idle_in_transaction_session_timeout` above zero from the role itself, so a session that begins a transaction and then waits, for a lost client or a call to another service, is ended by the server. As a superuser, run `ALTER ROLE <app role> SET idle_in_transaction_session_timeout = '5s'`.
+- **`postgres.oldest_xact`** gives the two alarms of the horizon (PRD 4.2). It fails with `doctor_horizon_held` when a client backend anywhere on the server has held a transaction id for longer than 5 s, because transaction ids are shared by every database of the server and so is the event horizon; and with `doctor_snapshot_held` when a session of this database has held a snapshot for longer than 5 s, which holds back vacuum. 5 s is the command budget: command transactions are capped there and background work runs in transactions under 2 s, so anything older is outside every budget. The age is the time since the transaction began, `xact_start` in `pg_stat_activity`, an upper bound, because Postgres records neither when it assigned the id nor when it took the snapshot. Postgres shows that time only to members of the session's role, and the app role is a member of no other role, so the check counts and names the sessions of other roles, such as the owner role's migrations, without an age, and they never fail it.
+- **`events.lag`** reads, for each subscription the registry cache lists, the first event past its cursor of a type it receives, in the order the runner hands them over, whether or not the event is below the horizon yet. It fails with `doctor_events_lag` when one is older, at the doctor's clock, than the lag target of the subscription's lane (PRD 7.6): 500 ms for `critical`, 60 s for `standard`, 5 min for `external` and 2 s for `revalidate`. The `background` lane is best effort; its lag is listed and never fails the check. The cause names each subscription behind, its lane and target, and the stream, time and age of its oldest unhandled event. Either no runner runs the lane, `php artisan cms:events:run --lane=<lane>`, or a transaction holds the horizon, which `postgres.oldest_xact` names.
+- **`events.parked`** fails with `doctor_events_parked` while a subscription has parked aggregates that are not yet released (PRD 7.8), and names the count per subscription. List them with `php artisan cms:events:parked` and release each with `php artisan cms:events:release` once the fault is fixed.
+
+When the event log or the registry cache cannot be read, `events.lag` and `events.parked` fail with `doctor_event_log_unreadable`.
 
 ## Skips and crashes
 

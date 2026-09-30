@@ -24,7 +24,12 @@ export type ErrorCode =
   | 'doctor_check_crashed'
   | 'doctor_chromium_missing'
   | 'doctor_config_invalid'
+  | 'doctor_event_log_unreadable'
+  | 'doctor_events_lag'
+  | 'doctor_events_parked'
   | 'doctor_extension_missing'
+  | 'doctor_horizon_held'
+  | 'doctor_idle_in_transaction_timeout_missing'
   | 'doctor_laravel_version'
   | 'doctor_lc_messages_not_english'
   | 'doctor_node_missing'
@@ -44,6 +49,7 @@ export type ErrorCode =
   | 'doctor_registry_cache_missing'
   | 'doctor_registry_cache_stale'
   | 'doctor_row_security_not_forced'
+  | 'doctor_snapshot_held'
   | 'doctor_transaction_timeout_missing'
   | 'doctor_valkey_refused'
   | 'doctor_valkey_unavailable'
@@ -226,7 +232,12 @@ const catalogErrorV1Rule: ObjectRule = {
           'doctor_check_crashed',
           'doctor_chromium_missing',
           'doctor_config_invalid',
+          'doctor_event_log_unreadable',
+          'doctor_events_lag',
+          'doctor_events_parked',
           'doctor_extension_missing',
+          'doctor_horizon_held',
+          'doctor_idle_in_transaction_timeout_missing',
           'doctor_laravel_version',
           'doctor_lc_messages_not_english',
           'doctor_node_missing',
@@ -246,6 +257,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'doctor_registry_cache_missing',
           'doctor_registry_cache_stale',
           'doctor_row_security_not_forced',
+          'doctor_snapshot_held',
           'doctor_transaction_timeout_missing',
           'doctor_valkey_refused',
           'doctor_valkey_unavailable',
@@ -392,7 +404,12 @@ const problemV1Rule: ObjectRule = {
           'doctor_check_crashed',
           'doctor_chromium_missing',
           'doctor_config_invalid',
+          'doctor_event_log_unreadable',
+          'doctor_events_lag',
+          'doctor_events_parked',
           'doctor_extension_missing',
+          'doctor_horizon_held',
+          'doctor_idle_in_transaction_timeout_missing',
           'doctor_laravel_version',
           'doctor_lc_messages_not_english',
           'doctor_node_missing',
@@ -412,6 +429,7 @@ const problemV1Rule: ObjectRule = {
           'doctor_registry_cache_missing',
           'doctor_registry_cache_stale',
           'doctor_row_security_not_forced',
+          'doctor_snapshot_held',
           'doctor_transaction_timeout_missing',
           'doctor_valkey_refused',
           'doctor_valkey_unavailable',

@@ -6,6 +6,7 @@ namespace Cbox\Cms\Tooling\Docs\Adapter;
 
 use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PartitionCoverage;
+use Cbox\Cms\Core\Doctor\Domain\Probes\EventLogProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\LcMessagesProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PartitionRunwayProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PhpSettingsProbe;
@@ -14,6 +15,7 @@ use Cbox\Cms\Core\Doctor\Domain\Probes\RegistryCacheProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\RuntimeProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\ToolProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\ValkeyProbe;
+use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeEventLogProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeLcMessagesProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePartitionRunwayProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePhpSettingsProbe;
@@ -62,6 +64,7 @@ final readonly class SceneFixtures
         $app->instance(ValkeyProbe::class, new FakeValkeyProbe);
         $app->instance(PartitionRunwayProbe::class, new FakePartitionRunwayProbe($runways));
         $app->instance(RegistryCacheProbe::class, new FakeRegistryCacheProbe);
+        $app->instance(EventLogProbe::class, new FakeEventLogProbe);
         $app->instance(ToolProbe::class, new FakeToolProbe);
     }
 }

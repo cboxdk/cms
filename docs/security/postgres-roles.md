@@ -16,11 +16,12 @@ The web and queue processes connect as the app role, on the default connection. 
 - is not a member, directly or through other roles, of a role with more power: a superuser, a role with `BYPASSRLS` or `CREATEROLE`, a role that owns relations or may create objects, or a predefined role that reaches every table or the server's files, signals other sessions or reads their queries;
 - owns nothing and cannot create objects in the database or its schemas, so it cannot change the schema, turn off a table's row level security or grant itself more;
 - has a `transaction_timeout` above zero, set on the role, so a transaction that hangs ends by itself;
+- has an `idle_in_transaction_session_timeout` above zero, set on the role, so a session that begins a transaction and then waits is ended as well;
 - gets English messages from Postgres, `lc_messages` `C`, because the kernel recognises some errors by their text.
 
 The server runs with `max_prepared_transactions = 0`, so no transaction can be left prepared and hold its locks after the session is gone.
 
-`cms:doctor` checks each of these: `postgres.app_role`, `postgres.ddl_privileges`, `postgres.transaction_timeout`, `postgres.lc_messages` and `postgres.prepared_transactions`.
+`cms:doctor` checks each of these: `postgres.app_role`, `postgres.ddl_privileges`, `postgres.transaction_timeout`, `postgres.idle_in_transaction_timeout`, `postgres.lc_messages` and `postgres.prepared_transactions`.
 
 ## Row level security
 

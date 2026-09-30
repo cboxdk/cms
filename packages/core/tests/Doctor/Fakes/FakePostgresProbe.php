@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\Tests\Doctor\Fakes;
 
 use Cbox\Cms\Core\Doctor\Domain\Dto\DdlPrivileges;
 use Cbox\Cms\Core\Doctor\Domain\Dto\InstalledExtensions;
+use Cbox\Cms\Core\Doctor\Domain\Dto\OpenTransactions;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PostgresRole;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PostgresVersion;
 use Cbox\Cms\Core\Doctor\Domain\Dto\RoleMembership;
@@ -18,7 +19,8 @@ use Cbox\Cms\Core\Doctor\Domain\SettingSource;
 /**
  * A Postgres that keeps the runtime contract until the test changes a property: version 17.11,
  * the app role cms_app without superuser, BYPASSRLS or CREATEROLE and without privileged memberships,
- * transaction_timeout 5 s from the role, no prepared transactions, no DDL, and two tables with row
+ * transaction_timeout and idle_in_transaction_session_timeout 5 s from the role, no open transaction
+ * that holds an id or a snapshot, no prepared transactions, no DDL, and two tables with row
  * level security that force it, and the extensions ltree and plpgsql installed.
  */
 final class FakePostgresProbe implements PostgresProbe
@@ -45,6 +47,12 @@ final class FakePostgresProbe implements PostgresProbe
 
     public SettingSource $transactionTimeoutSource = SettingSource::User;
 
+    public int $idleInTransactionTimeoutMs = 5000;
+
+    public SettingSource $idleInTransactionTimeoutSource = SettingSource::User;
+
+    public OpenTransactions $openTransactions;
+
     public int $maxPreparedTransactions = 0;
 
     /** @var list<string> */
@@ -67,6 +75,11 @@ final class FakePostgresProbe implements PostgresProbe
     public array $extensions = ['ltree', 'plpgsql'];
 
     public int $connects = 0;
+
+    public function __construct()
+    {
+        $this->openTransactions = new OpenTransactions(null, null);
+    }
 
     public function target(): string
     {
@@ -101,6 +114,20 @@ final class FakePostgresProbe implements PostgresProbe
         $this->query();
 
         return new TimeoutSetting('cms_app', $this->transactionTimeoutMs, $this->transactionTimeoutSource);
+    }
+
+    public function idleInTransactionTimeout(): TimeoutSetting
+    {
+        $this->query();
+
+        return new TimeoutSetting('cms_app', $this->idleInTransactionTimeoutMs, $this->idleInTransactionTimeoutSource);
+    }
+
+    public function openTransactions(): OpenTransactions
+    {
+        $this->query();
+
+        return $this->openTransactions;
     }
 
     public function maxPreparedTransactions(): int

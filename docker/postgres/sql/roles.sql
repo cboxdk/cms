@@ -12,6 +12,8 @@
 --   (PRD 4.2, "Indeks-DDL") and CREATE INDEX CONCURRENTLY can run for a long time.
 -- app: the application and the tests. Owns nothing, has no DDL and NOBYPASSRLS
 --   (GUARDRAILS 6), and every transaction is capped at the command budget (GUARDRAILS 4.1).
+--   idle_in_transaction_session_timeout at the same budget, so a session that begins a
+--   transaction and then waits is ended as well (PRD 7.4, postgres.idle_in_transaction_timeout).
 -- Both: lc_messages = 'C', so their server messages are English whatever the server's default
 --   (PRD 4.2); the kernel reads the text of some errors. lc_messages is superuser-only, so it
 --   is set here, by the superuser that runs the script.
@@ -35,4 +37,5 @@ ALTER ROLE :"app_role" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICAT
     PASSWORD :'app_password';
 ALTER ROLE :"app_role" SET search_path = :"schema";
 ALTER ROLE :"app_role" SET transaction_timeout = :'app_transaction_timeout';
+ALTER ROLE :"app_role" SET idle_in_transaction_session_timeout = :'app_transaction_timeout';
 ALTER ROLE :"app_role" SET lc_messages = 'C';

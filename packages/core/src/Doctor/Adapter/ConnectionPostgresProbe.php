@@ -6,7 +6,9 @@ namespace Cbox\Cms\Core\Doctor\Adapter;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Core\Doctor\Domain\Dto\DdlPrivileges;
+use Cbox\Cms\Core\Doctor\Domain\Dto\HeldTransaction;
 use Cbox\Cms\Core\Doctor\Domain\Dto\InstalledExtensions;
+use Cbox\Cms\Core\Doctor\Domain\Dto\OpenTransactions;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PostgresRole;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PostgresVersion;
 use Cbox\Cms\Core\Doctor\Domain\Dto\RoleMembership;
@@ -151,21 +153,68 @@ final readonly class ConnectionPostgresProbe implements PostgresProbe
     #[Override]
     public function transactionTimeout(): TimeoutSetting
     {
-        $rows = $this->connection->rows(
-            "select current_user::text as role, s.setting::bigint as milliseconds, s.source::text as source from pg_settings s where s.name = 'transaction_timeout'",
-        );
+        return $this->timeout('transaction_timeout', 'it arrived in Postgres 17');
+    }
 
-        if ($rows === []) {
-            throw ProbeFailed::violation('The server has no setting transaction_timeout; it arrived in Postgres 17.');
+    #[Override]
+    public function idleInTransactionTimeout(): TimeoutSetting
+    {
+        return $this->timeout('idle_in_transaction_session_timeout', 'it arrived in Postgres 9.6');
+    }
+
+    /**
+     * The client backends that hold a transaction id anywhere on the server, or a snapshot in the
+     * current database, the doctor's own session left out. pg_stat_activity shows backend_xid,
+     * backend_xmin and usename for every session, but xact_start and backend_type only for the
+     * sessions of roles the app role is a member of, so a session without backend_type is counted
+     * without an age. The age is clock_timestamp() - xact_start, on the server's clock.
+     */
+    #[Override]
+    public function openTransactions(): OpenTransactions
+    {
+        $rows = CatalogRow::all($this->connection->rows(<<<'SQL'
+            select a.pid,
+                   coalesce(a.usename::text, '') as role,
+                   a.backend_xid is not null as holds_xid,
+                   a.backend_xmin is not null and a.datname = current_database() as holds_snapshot,
+                   a.xact_start is not null as measured,
+                   coalesce(floor(extract(epoch from clock_timestamp() - a.xact_start) * 1000)::bigint, 0) as milliseconds
+            from pg_stat_activity a
+            where a.pid <> pg_backend_pid()
+              and (a.backend_type = 'client backend' or a.backend_type is null)
+              and (a.backend_xid is not null or (a.backend_xmin is not null and a.datname = current_database()))
+            order by a.pid
+            SQL));
+
+        $oldestXid = null;
+        $oldestSnapshot = null;
+        $unmeasured = 0;
+        $roles = [];
+
+        foreach ($rows as $row) {
+            if (! $row->bool('measured')) {
+                $unmeasured++;
+                $role = $row->string('role');
+                $roles[$role === '' ? 'unknown' : $role] = true;
+
+                continue;
+            }
+
+            $held = new HeldTransaction($row->int('pid'), $row->string('role'), max(0, $row->int('milliseconds')));
+
+            if ($row->bool('holds_xid') && (! $oldestXid instanceof HeldTransaction || $held->milliseconds > $oldestXid->milliseconds)) {
+                $oldestXid = $held;
+            }
+
+            if ($row->bool('holds_snapshot') && (! $oldestSnapshot instanceof HeldTransaction || $held->milliseconds > $oldestSnapshot->milliseconds)) {
+                $oldestSnapshot = $held;
+            }
         }
 
-        $row = CatalogRow::one($rows);
+        $roles = array_keys($roles);
+        sort($roles);
 
-        return new TimeoutSetting(
-            $row->string('role'),
-            $row->int('milliseconds'),
-            SettingSourceParser::parse('transaction_timeout', $row->string('source')),
-        );
+        return new OpenTransactions($oldestXid, $oldestSnapshot, $unmeasured, $roles);
     }
 
     #[Override]
@@ -281,6 +330,29 @@ final readonly class ConnectionPostgresProbe implements PostgresProbe
                 static fn (CatalogRow $row): string => $row->string('name'),
                 CatalogRow::all($this->connection->rows('select extname::text as name from pg_extension order by 1')),
             ),
+        );
+    }
+
+    /**
+     * A timeout of a new session of the doctor's connection and where Postgres took it from.
+     */
+    private function timeout(string $name, string $since): TimeoutSetting
+    {
+        $rows = $this->connection->rows(
+            'select current_user::text as role, s.setting::bigint as milliseconds, s.source::text as source from pg_settings s where s.name = ?',
+            [$name],
+        );
+
+        if ($rows === []) {
+            throw ProbeFailed::violation(sprintf('The server has no setting %s; %s.', $name, $since));
+        }
+
+        $row = CatalogRow::one($rows);
+
+        return new TimeoutSetting(
+            $row->string('role'),
+            $row->int('milliseconds'),
+            SettingSourceParser::parse($name, $row->string('source')),
         );
     }
 }

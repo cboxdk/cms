@@ -124,7 +124,7 @@ it('prints the JSON document and nothing else with --json', function (): void {
         ->and($document['dev'])->toBeFalse()
         ->and($document['status'])->toBe('ok')
         ->and($document['exit_code'])->toBe(0)
-        ->and(checkStatuses($document))->toHaveCount(16)
+        ->and(checkStatuses($document))->toHaveCount(20)
         ->and(array_keys(checkOf($document, 'php.version')))->toBe(['blocking', 'cause', 'code', 'explanation', 'failure', 'fix', 'id', 'status']);
 });
 
@@ -218,12 +218,16 @@ it('exits 75 when Postgres cannot be reached, and skips the checks that need it'
             'postgres.version' => 'skip',
             'postgres.app_role' => 'skip',
             'postgres.transaction_timeout' => 'skip',
+            'postgres.idle_in_transaction_timeout' => 'skip',
             'postgres.prepared_transactions' => 'skip',
             'postgres.lc_messages' => 'skip',
             'postgres.ddl_privileges' => 'skip',
             'postgres.row_security' => 'skip',
             'postgres.extensions' => 'skip',
+            'postgres.oldest_xact' => 'skip',
             'partitions.runway' => 'skip',
+            'events.lag' => 'skip',
+            'events.parked' => 'skip',
         ]);
 });
 
@@ -318,7 +322,7 @@ it('runs the checks an application or addon names in cbox-cms.doctor.checks and 
     [$devStatus, $dev] = doctorJson(['--dev' => true]);
 
     expect($runtimeStatus)->toBe(0)
-        ->and(checkStatuses($runtime))->toHaveCount(17)
+        ->and(checkStatuses($runtime))->toHaveCount(21)
         ->and(array_slice(checkStatuses($runtime), -2))->toBe(['postgres.owner_credentials' => 'pass', 'addon.ready' => 'pass'])
         ->and(checkOf($runtime, 'addon.ready')['blocking'])->toBeFalse()
         ->and(checkOf($runtime, 'addon.ready')['explanation'])->toBe('The fixed check addon.ready passes.')
@@ -450,7 +454,7 @@ it('lines up every check under the longest id and prints the cause, fix and code
     }
 
     expect($status)->toBe(78)
-        ->and($width)->toBe(strlen('postgres.prepared_transactions'))
+        ->and($width)->toBe(strlen('postgres.idle_in_transaction_timeout'))
         ->and(explode("\n", $output))->toBe([...$expected, '', 'cms:doctor: violation (exit 78). The kernel may not start.', ''])
         ->and($output)->toContain('code   doctor_lc_messages_not_english (violation, blocks the kernel from starting)', 'code   doctor_partition_runway_short (violation, affects readiness only)');
 });

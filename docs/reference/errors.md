@@ -29,7 +29,12 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`doctor_check_crashed`](#doctor_check_crashed) | 500 | 78 | internal_error | no |
 | [`doctor_chromium_missing`](#doctor_chromium_missing) | 503 | 79 | internal_error | no |
 | [`doctor_config_invalid`](#doctor_config_invalid) | 500 | 78 | internal_error | no |
+| [`doctor_event_log_unreadable`](#doctor_event_log_unreadable) | 503 | 79 | internal_error | no |
+| [`doctor_events_lag`](#doctor_events_lag) | 503 | 79 | internal_error | no |
+| [`doctor_events_parked`](#doctor_events_parked) | 503 | 79 | internal_error | no |
 | [`doctor_extension_missing`](#doctor_extension_missing) | 500 | 78 | internal_error | no |
+| [`doctor_horizon_held`](#doctor_horizon_held) | 503 | 79 | internal_error | no |
+| [`doctor_idle_in_transaction_timeout_missing`](#doctor_idle_in_transaction_timeout_missing) | 500 | 78 | internal_error | no |
 | [`doctor_laravel_version`](#doctor_laravel_version) | 500 | 78 | internal_error | no |
 | [`doctor_lc_messages_not_english`](#doctor_lc_messages_not_english) | 500 | 78 | internal_error | no |
 | [`doctor_node_missing`](#doctor_node_missing) | 503 | 79 | internal_error | no |
@@ -49,6 +54,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`doctor_registry_cache_missing`](#doctor_registry_cache_missing) | 500 | 78 | internal_error | no |
 | [`doctor_registry_cache_stale`](#doctor_registry_cache_stale) | 500 | 78 | internal_error | no |
 | [`doctor_row_security_not_forced`](#doctor_row_security_not_forced) | 500 | 78 | internal_error | no |
+| [`doctor_snapshot_held`](#doctor_snapshot_held) | 503 | 79 | internal_error | no |
 | [`doctor_transaction_timeout_missing`](#doctor_transaction_timeout_missing) | 500 | 78 | internal_error | no |
 | [`doctor_valkey_refused`](#doctor_valkey_refused) | 500 | 78 | internal_error | no |
 | [`doctor_valkey_unavailable`](#doctor_valkey_unavailable) | 503 | 75 | internal_error | yes |
@@ -290,9 +296,54 @@ A setting under cbox-cms.doctor, or the environment variable CBOX_CMS_MAINTENANC
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
+### doctor_event_log_unreadable
+
+The doctor could not read the event log's cursors, events or parked aggregates, or the subscriptions of the registry cache, so it cannot say how far the subscribers are behind (PRD 7.12). Check that the core's migrations have run and that cms:build has written the registry cache, then run cms:doctor again.
+
+- HTTP status: 503 Service Unavailable
+- CLI exit code: 79 (NOT_READY)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### doctor_events_lag
+
+A subscription has an event it has not handled that is older than the lag target of its lane, such as 500 ms for the critical lane (PRD 7.6, 7.12). Either no runner is running the lane (cms:events:run), or a transaction that is still open holds back the transaction horizon below which the runners read (PRD 7.4). Start the lane's runner, or end the transaction that postgres.oldest_xact names.
+
+- HTTP status: 503 Service Unavailable
+- CLI exit code: 79 (NOT_READY)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### doctor_events_parked
+
+A subscription has parked aggregates: events it failed to handle as often as it may, whose later events wait with them (PRD 7.8). List them with cms:events:parked, fix the cause the subscriber failed on, and release them with cms:events:release.
+
+- HTTP status: 503 Service Unavailable
+- CLI exit code: 79 (NOT_READY)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
 ### doctor_extension_missing
 
 A Postgres extension the core's tables need, such as ltree, is not installed in the database, so the migrations have not run against it (PRD 4.2). Run the migrations as the owner role in the maintenance process, then run cms:doctor again.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 78 (EX_CONFIG)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### doctor_horizon_held
+
+A transaction has held a transaction id for longer than the command budget, so the transaction horizon, below which the event runners read, cannot pass it and no subscriber sees the events committed after it began (PRD 4.2, 7.4). End the transaction the cause names, with pg_terminate_backend(<pid>) as its role or a superuser if it hangs, and find what keeps it open.
+
+- HTTP status: 503 Service Unavailable
+- CLI exit code: 79 (NOT_READY)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### doctor_idle_in_transaction_timeout_missing
+
+The app role has no idle_in_transaction_session_timeout of its own, so a session that begins a transaction and then waits holds its locks, the event horizon and vacuum until something else ends it (PRD 7.4). As a superuser, run ALTER ROLE <app role> SET idle_in_transaction_session_timeout = '5s', then run cms:doctor again.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 78 (EX_CONFIG)
@@ -467,6 +518,15 @@ A table has row level security enabled but not forced, so its policies do not ho
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 78 (EX_CONFIG)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### doctor_snapshot_held
+
+A session of this database has held a snapshot for longer than the command budget, so vacuum cannot remove the rows that changed after it was taken, and the tables and their indexes grow (PRD 4.2). End the transaction the cause names, and run long reads on a replica, never on the primary.
+
+- HTTP status: 503 Service Unavailable
+- CLI exit code: 79 (NOT_READY)
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
