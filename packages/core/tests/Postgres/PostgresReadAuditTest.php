@@ -14,6 +14,7 @@ use DateTimeImmutable;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use LogicException;
 
 /*
  * The read audit on Postgres (PRD 12.12): one row per audited entry of a read, with the read's id
@@ -82,4 +83,18 @@ it('refuses a read on a day no partition covers with PartitionMissing, and write
     }
 
     expect($tables->rows())->toBe([]);
+});
+
+it('makes its tables only before a transaction opens, because a snapshot already taken never sees the actor the owner commits', function (): void {
+    $app = DB::connection();
+
+    $app->beginTransaction();
+
+    try {
+        expect(fn (): ReadAuditTables => ReadAuditTables::at())->toThrow(LogicException::class, 'made before a transaction opens on the default connection, which has 1 open');
+    } finally {
+        $app->rollBack();
+    }
+
+    expect(StorageTables::superuser()->table('actors')->count())->toBe(0);
 });

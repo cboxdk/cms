@@ -23,11 +23,18 @@ use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
 use Cbox\Cms\Testkit\Postgres\PartitionFixtures;
 use DateInterval;
 use Illuminate\Database\DatabaseManager;
+use LogicException;
 
 /**
  * The read audit on Postgres for tests: an actor to read as, the partitions of the clock's day,
  * the audit on the default connection, the actor context it writes under, and the rows as the
  * superuser, who passes row level security, reads them.
+ *
+ * It is made before a transaction opens on the default connection: it commits the actor on the
+ * owner connection, and a transaction that has already taken its snapshot never sees that commit,
+ * so the audit's foreign key to the actor would fail. When a REPEATABLE READ transaction takes its
+ * snapshot depends on the client (with the CI image's PHP, already at SET TRANSACTION), so it is
+ * refused inside any transaction.
  */
 final readonly class ReadAuditTables
 {
@@ -37,6 +44,12 @@ final readonly class ReadAuditTables
 
     private function __construct(public FakeClock $clock)
     {
+        $open = app(DatabaseManager::class)->connection()->transactionLevel();
+
+        if ($open > 0) {
+            throw new LogicException(sprintf('The read audit tables are made before a transaction opens on the default connection, which has %d open: the actor is committed on the owner connection, and a snapshot taken before that commit never sees it.', $open));
+        }
+
         app(PartitionFixtures::class)->coverClock($clock, new DateInterval('P1D'));
         $this->actor = PostgresIdentity::at($clock)->addActor(ActorClass::Service)->id;
     }

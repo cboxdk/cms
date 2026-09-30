@@ -24,6 +24,17 @@ final class ConnectionQueryTransactionBehaviourTest extends TestCase
 
     private ?ReadAuditTables $tables = null;
 
+    /**
+     * Seeds the actor and covers the partitions before any transaction opens (ReadAuditTables).
+     */
+    #[Override]
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->tables();
+    }
+
     #[Override]
     protected function tearDown(): void
     {
