@@ -15,6 +15,7 @@ use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
 use Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry;
 use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
+use Cbox\Cms\Core\Seeding\Domain\Commands\SeedEntries;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNote;
 use Cbox\Cms\Core\Tests\Registry\Providers\FixtureRootProvider;
 use Cbox\Cms\Core\Tests\Registry\RegistryFixtures;
@@ -61,8 +62,8 @@ it('writes the five registries to the application\'s bootstrap/cache/cms, and re
 
     expect($status)->toBe(0)
         ->and($output)->toBe([
-            'actions: 8',
-            'commands: 8',
+            'actions: 9',
+            'commands: 9',
             // The workbench's fixture addon, which package discovery registers: its two hooks and
             // its extension of app:fixture_article.
             'hooks: 2',
@@ -81,7 +82,7 @@ it('adds what an addon provider\'s scan root declares', function (): void {
     [$status, $output] = buildCommand();
 
     expect($status)->toBe(0)
-        ->and(array_slice($output, 0, 3))->toBe(['actions: 10', 'commands: 9', 'hooks: 3'])
+        ->and(array_slice($output, 0, 3))->toBe(['actions: 11', 'commands: 10', 'hooks: 3'])
         ->and(RegistryFixtures::load($directory.'/commands.php'))->toMatchArray(['entries' => [[
             'class' => DeactivateActor::class,
             'name' => 'actor.deactivate',
@@ -120,6 +121,11 @@ it('adds what an addon provider\'s scan root declares', function (): void {
         ], [
             'class' => SetPlacementWindow::class,
             'name' => 'placement.set_window',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 1,
+        ], [
+            'class' => SeedEntries::class,
+            'name' => 'seed.entries',
             'package' => CoreServiceProvider::PACKAGE,
             'version' => 1,
         ], [

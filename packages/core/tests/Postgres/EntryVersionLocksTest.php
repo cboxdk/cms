@@ -112,3 +112,29 @@ it('gives no version for an aggregate whose row does not exist', function (): vo
         ->and(new PostgresVariantVersionLock($connections)->lock(new VariantRef($missing, VariantKey::shared()), LockStrength::Update))->toBeNull()
         ->and(new PostgresNodeVersionLock($connections)->lock(NodeId::fromString(EntryWorld::NOWHERE), LockStrength::Share))->toBeNull();
 });
+
+it('locks a run of aggregates of its kind in one statement, giving each version and null for a missing one', function (string $kind): void {
+    $world = lockedWorld();
+    $connections = app(ConnectionResolverInterface::class);
+    $missing = EntryId::fromString('0192a0c0-0000-7000-8000-0000000001e8');
+    [$lock, $aggregates, $table, $where, $key] = match ($kind) {
+        'entry' => [new PostgresEntryVersionLock($connections), [EntryWorld::entry(), $missing], 'entries', 'id = ?', EntryWorld::ENTRY],
+        'variant' => [new PostgresVariantVersionLock($connections), [new VariantRef(EntryWorld::entry(), VariantKey::shared()), new VariantRef($missing, VariantKey::shared())], 'variant_heads', "entry_id = ? and variant = 'shared'", EntryWorld::ENTRY],
+        default => [new PostgresNodeVersionLock($connections), [EntryWorld::home(), NodeId::fromString(EntryWorld::NOWHERE)], 'nodes', 'id = ?', EntryWorld::HOME],
+    };
+    $statements = 0;
+    DB::listen(static function () use (&$statements): void {
+        $statements++;
+    });
+
+    DB::connection()->beginTransaction();
+    new ActorContext($connections)->set($world->access());
+    $before = $statements;
+    $versions = $lock->lockAll($aggregates, LockStrength::Update);
+    $after = $statements;
+    $blocked = ! otherSessionLocks($table, $where, $key, 'share');
+
+    expect($versions)->toEqual([$aggregates[0]->aggregateKey() => new AggregateVersion(1), $aggregates[1]->aggregateKey() => null])
+        ->and($after - $before)->toBe(1)
+        ->and($blocked)->toBeTrue();
+})->with(['entry', 'variant', 'node']);

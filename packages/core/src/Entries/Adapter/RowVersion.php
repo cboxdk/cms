@@ -41,4 +41,14 @@ final readonly class RowVersion
 
         return new AggregateVersion($version);
     }
+
+    /**
+     * A text column of a row a lock read.
+     */
+    public static function text(object $row, string $column): string
+    {
+        $value = property_exists($row, $column) ? $row->{$column} : null;
+
+        return is_string($value) ? $value : throw new UnexpectedValueException(sprintf('The column %s of a locked row is text, got %s.', $column, get_debug_type($value)));
+    }
 }

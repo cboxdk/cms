@@ -16,6 +16,7 @@ use Cbox\Cms\Contracts\Identity\ActorDirectory;
 use Cbox\Cms\Contracts\Identity\CredentialVerifier;
 use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Contracts\ReceiptStore;
+use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Contracts\TypeTables\TypeTableReader;
 use Cbox\Cms\Core\Access\Adapter\PostgresAccessResolver;
 use Cbox\Cms\Core\Access\Adapter\TransactionalAccessContexts;
@@ -91,6 +92,8 @@ use Cbox\Cms\Core\Operations\Domain\OperationRunner;
 use Cbox\Cms\Core\Partitions\Boundary\PartitionConfig;
 use Cbox\Cms\Core\Partitions\Domain\PartitionMaintenance;
 use Cbox\Cms\Core\Partitions\Infrastructure\PostgresPartitionManager;
+use Cbox\Cms\Core\Pipeline\Actions\CommandPipeline;
+use Cbox\Cms\Core\Pipeline\Actions\HookRunner;
 use Cbox\Cms\Core\Pipeline\Adapter\ConnectionCommandTransaction;
 use Cbox\Cms\Core\Pipeline\Adapter\HrtimeStopwatch;
 use Cbox\Cms\Core\Pipeline\Adapter\LoggedHookOverruns;
@@ -147,6 +150,15 @@ use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
+use Cbox\Cms\Core\Seeding\Actions\SeedDataset;
+use Cbox\Cms\Core\Seeding\Adapter\PostgresSeedReader;
+use Cbox\Cms\Core\Seeding\Adapter\TransactionalSeedTargets;
+use Cbox\Cms\Core\Seeding\Boundary\SeedContentHasher;
+use Cbox\Cms\Core\Seeding\Boundary\SeedingConfig;
+use Cbox\Cms\Core\Seeding\Domain\Dto\SeedSettings;
+use Cbox\Cms\Core\Seeding\Domain\SeedAuthorizer;
+use Cbox\Cms\Core\Seeding\Domain\SeedReader;
+use Cbox\Cms\Core\Seeding\Domain\SeedTargets;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeVersionLock;
 use Cbox\Cms\Core\Structure\Adapter\PostgresSiteVersionLock;
 use Cbox\Cms\Core\Subscriptions\Adapter\PostgresSubscriptionLog;
@@ -179,7 +191,7 @@ use Psr\Log\LoggerInterface;
  * HTTP or runs queued jobs with the owner connection configured (PRD 4.2). Wires the registry that cms:build compiles to bootstrap/cache/cms/ (PRD 13.2), and
  * declares the core's own classes as a scan root. Binds the kernel's settings for idempotency keys, the
  * default wait budget, from `cbox-cms.idempotency`. Binds the event runner's ports and settings, from
- * `cbox-cms.events.runner`, and the rebuild's store and settings, from `cbox-cms.rebuild`. Wires the checks of cms:doctor (PRD 3.3, 4.2) to
+ * `cbox-cms.events.runner`, and the rebuild's store and settings, from `cbox-cms.rebuild`. Binds the seeder's ports and its own pipeline, from `cbox-cms.seeding`. Wires the checks of cms:doctor (PRD 3.3, 4.2) to
  * their probes; a test swaps a probe by binding its interface. Makes Eloquent strict for every model
  * of the process (GUARDRAILS 4.1).
  */
@@ -410,6 +422,36 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
             RebuildSettings::class,
             static fn (Application $app): RebuildSettings => RebuildConfig::read($app->make(Repository::class)),
         );
+
+        // The seeder (GUARDRAILS 4.3, PRD 23): seed.entries reads the chunk through the SeedReader
+        // on the command transaction's connection, the run reads the nodes its actor reaches in a
+        // transaction of its own, and its settings name the service actor, built on each
+        // resolution. SeedDataset runs its chunks through a pipeline of its own: the kernel's, but
+        // with the SeedAuthorizer, which allows seed.entries only and no field the actor may not
+        // write, and the SeedContentHasher, which hashes a chunk's canonical form.
+        $this->app->bind(SeedReader::class, PostgresSeedReader::class);
+        $this->app->bind(SeedTargets::class, TransactionalSeedTargets::class);
+        $this->app->bind(
+            SeedSettings::class,
+            static fn (Application $app): SeedSettings => SeedingConfig::read($app->make(Repository::class)),
+        );
+        $this->app->when(SeedDataset::class)
+            ->needs(CommandPipeline::class)
+            ->give(static fn (Application $app): CommandPipeline => new CommandPipeline(
+                $app->make(WriteActions::class),
+                $app->make(ActorDirectory::class),
+                new SeedAuthorizer($app->make(TypeCatalog::class)),
+                $app->make(TypeCatalog::class),
+                $app->make(FieldValidation::class),
+                $app->make(RevisionContents::class),
+                $app->make(ChangesetCommitter::class),
+                $app->make(IdempotencyStore::class),
+                $app->make(ReceiptStore::class),
+                new SeedContentHasher,
+                $app->make(IdempotencySettings::class),
+                $app->make(CommandTransaction::class),
+                $app->make(HookRunner::class),
+            ));
 
         // The invalidation subscriber's settings (PRD 8.12 point 1), built on each resolution.
         $this->app->bind(

@@ -8,8 +8,8 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Pipeline\AggregateRef;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Core\Pipeline\Domain\BatchVersionLock;
 use Cbox\Cms\Core\Pipeline\Domain\LockStrength;
-use Cbox\Cms\Core\Pipeline\Domain\VersionLock;
 use Illuminate\Database\ConnectionResolverInterface;
 use InvalidArgumentException;
 use Override;
@@ -23,7 +23,7 @@ use UnexpectedValueException;
  * the command transaction.
  */
 #[Internal]
-final readonly class PostgresNodeVersionLock implements VersionLock
+final readonly class PostgresNodeVersionLock implements BatchVersionLock
 {
     public const string KIND = 'node';
 
@@ -64,5 +64,41 @@ final readonly class PostgresNodeVersionLock implements VersionLock
         }
 
         return new AggregateVersion($version);
+    }
+
+    #[Override]
+    public function lockAll(array $aggregates, LockStrength $strength): array
+    {
+        $versions = [];
+
+        foreach ($aggregates as $aggregate) {
+            if (! $aggregate instanceof NodeId) {
+                throw new InvalidArgumentException(sprintf('The node version lock locks nodes, not "%s".', $aggregate->aggregateKey()));
+            }
+
+            $versions[$aggregate->aggregateKey()] = null;
+        }
+
+        $rows = $this->connections->connection($this->connection)->select(
+            sprintf(
+                'select id::text as id, version from nodes where id = any(?::uuid[]) order by id %s',
+                $strength === LockStrength::Update ? 'for no key update' : 'for share',
+            ),
+            ['{'.implode(',', array_map(static fn (NodeId $node): string => $node->toString(), $aggregates)).'}'],
+            false,
+        );
+
+        foreach ($rows as $row) {
+            $id = is_object($row) && property_exists($row, 'id') ? $row->id : null;
+            $version = is_object($row) && property_exists($row, 'version') ? $row->version : null;
+
+            if (! is_string($id) || ! is_int($version)) {
+                throw new UnexpectedValueException(sprintf('A locked node has a text id and an integer version, got %s and %s.', get_debug_type($id), get_debug_type($version)));
+            }
+
+            $versions[NodeId::fromString($id)->aggregateKey()] = new AggregateVersion($version);
+        }
+
+        return $versions;
     }
 }

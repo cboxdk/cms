@@ -77,6 +77,14 @@ For example, `'contracts' => [Clock::class => StagingClock::class]` replaces the
 | `cbox-cms.events.runner.backoff_max_ms` | `5000` | The longest wait between tries, at least `backoff_base_ms` and at most `60000`. |
 | `cbox-cms.events.runner.idle_sleep_ms` | `200` | The wait when no subscription of the lane had anything to do. |
 
+## Seeding
+
+`cms:seed-scale` reads `cbox-cms.seeding` (GUARDRAILS 4.3); see [seeding](seeding.md). A value that is neither null nor a UUIDv7 fails when the command starts, with exit 78.
+
+| Key | Default | What it does |
+|---|---|---|
+| `cbox-cms.seeding.service_actor` | `null` | The UUIDv7 of the service actor the seeder writes as. It must exist, be of class service and be active, or the seeder refuses to run. Its grants decide where the entries go and which fields it writes. |
+
 ## Fragments
 
 The invalidation subscriber, `fragments.invalidate` on the critical lane, reads `cbox-cms.fragments` (PRD 8.12 point 1); see [subscribers](../addons/subscribers.md#the-kernels-invalidation-subscriber). A value that is not a whole number from `1` to `86400` fails when the runner builds the subscriber.

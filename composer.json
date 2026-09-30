@@ -126,6 +126,10 @@
             "Composer\\Config::disableProcessTimeout",
             "@php tools/bin/prune-test-databases.php"
         ],
+        "scale:check": [
+            "Composer\\Config::disableProcessTimeout",
+            "@php tools/bin/scale-check.php"
+        ],
         "progress:check": "@php tools/bin/progress-check.php",
         "progress:test": "@php vendor/bin/pest --testsuite=Unit --fail-on-skipped --fail-on-incomplete --fail-on-empty-test-suite tests/Feature/Tooling/Progress",
         "docs:check": "@php tools/bin/docs-check.php",

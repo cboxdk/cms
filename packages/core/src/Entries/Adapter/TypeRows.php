@@ -11,6 +11,7 @@ use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Schema\Stages;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Core\Entries\Boundary\StoredContent;
+use Cbox\Cms\Core\Entries\Domain\Dto\VariantFields;
 use Illuminate\Database\ConnectionInterface;
 use LogicException;
 
@@ -24,7 +25,8 @@ use LogicException;
  * its draft row, and then removes it again when it holds the same values as the released row, so a
  * draft row exists only where a pending draft differs (PRD 4.1). The row takes the entry's home
  * node and owning actor, which row level security tests (PRD 5.10), from `entries`. Every statement
- * is by key, so a save costs the same whatever else the table holds (GUARDRAILS 4.1).
+ * is by key, so a save costs the same whatever else the table holds (GUARDRAILS 4.1), and
+ * writeAll() and releaseAll() write a run of variants of one type in the same statements.
  *
  * release() writes the released row of a draft-release type from the revision a release makes
  * public (PRD 5.6). A variant without a draft row has a draft equal to its released row, so before
@@ -51,6 +53,9 @@ final readonly class TypeRows
 
     public const string DRAFT = 'draft';
 
+    /** The most rows one upsert carries, well below Postgres' 65535 bindings for up to 200 fields and the system columns. */
+    public const int ROWS_PER_STATEMENT = 250;
+
     public function __construct(private ConnectionInterface $db) {}
 
     /**
@@ -58,14 +63,24 @@ final readonly class TypeRows
      */
     public function write(TypeDefinition $type, EntryId $entry, VariantKey $variant, FieldValues $fields): void
     {
-        $stage = $type->capabilities->stages === Stages::None ? self::RELEASED : self::DRAFT;
-        $columns = StoredContent::columns($type, $fields);
-        $table = $type->name->table();
+        $this->writeAll($type, [new VariantFields($entry, $variant, $fields)]);
+    }
 
-        $this->upsert($table, $stage, $entry, $variant, $columns);
+    /**
+     * write() for a run of variants of one type, in one statement per step.
+     *
+     * @param  non-empty-list<VariantFields>  $variants
+     *
+     * @throws LogicException when an entry is not there to take its home node from
+     */
+    public function writeAll(TypeDefinition $type, array $variants): void
+    {
+        $stage = $type->capabilities->stages === Stages::None ? self::RELEASED : self::DRAFT;
+        $table = $type->name->table();
+        $columns = $this->upsert($type, $table, $stage, $variants);
 
         if ($stage === self::DRAFT) {
-            $this->dropDraftLikeReleased($table, array_keys($columns), $entry, $variant);
+            $this->dropDraftLikeReleased($table, $columns, $variants);
         }
     }
 
@@ -77,18 +92,29 @@ final readonly class TypeRows
      */
     public function release(TypeDefinition $type, EntryId $entry, VariantKey $variant, FieldValues $fields): void
     {
+        $this->releaseAll($type, [new VariantFields($entry, $variant, $fields)]);
+    }
+
+    /**
+     * release() for a run of variants of one type, in one statement per step.
+     *
+     * @param  non-empty-list<VariantFields>  $variants
+     *
+     * @throws LogicException when the type has no stages to release, or an entry is not there to take its home node from
+     */
+    public function releaseAll(TypeDefinition $type, array $variants): void
+    {
         if ($type->capabilities->stages !== Stages::DraftRelease) {
             throw new LogicException(sprintf('The type %s has stages %s, so no revision of it is released; the kernel refuses such a release before the commit.', $type->name->value, $type->capabilities->stages->value));
         }
 
-        $columns = StoredContent::columns($type, $fields);
         $table = $type->name->table();
-        $copied = [self::ENTRY, self::LOCALE, self::HOME, self::OWNER, ...array_keys($columns)];
+        [$entries, $locales] = $this->keys($variants);
 
-        $this->keepDraft($table, $copied, $entry, $variant);
+        $this->keepDraft($table, $this->copied($type), $entries, $locales);
 
-        $this->upsert($table, self::RELEASED, $entry, $variant, $columns);
-        $this->dropDraftLikeReleased($table, array_keys($columns), $entry, $variant);
+        $columns = $this->upsert($type, $table, self::RELEASED, $variants);
+        $this->dropDraftLikeReleased($table, $columns, $variants);
     }
 
     /**
@@ -105,13 +131,8 @@ final readonly class TypeRows
         }
 
         $table = $type->name->table();
-        $columns = [];
 
-        foreach ($type->fields as $field) {
-            $columns[] = $field->column->name ?? throw new LogicException(sprintf('The top-level field "%s" of %s has no column.', $field->address(), $type->name->value));
-        }
-
-        $this->keepDraft($table, [self::ENTRY, self::LOCALE, self::HOME, self::OWNER, ...$columns], $entry, $variant);
+        $this->keepDraft($table, $this->copied($type), '{'.$entry->toString().'}', '{"'.$variant->value.'"}');
         $this->db->table($table)
             ->where(self::ENTRY, $entry->toString())
             ->where(self::LOCALE, $variant->value)
@@ -120,60 +141,101 @@ final readonly class TypeRows
     }
 
     /**
-     * Copies the released row of the variant to its draft row when it has none.
+     * The columns a draft row takes from the released row: the keys, the home node, the owner and
+     * every top-level field's column.
+     *
+     * @return list<string>
+     *
+     * @throws LogicException when a top-level field has no column
+     */
+    private function copied(TypeDefinition $type): array
+    {
+        $copied = [self::ENTRY, self::LOCALE, self::HOME, self::OWNER];
+
+        foreach ($type->fields as $field) {
+            $copied[] = $field->column->name ?? throw new LogicException(sprintf('The top-level field "%s" of %s has no column.', $field->address(), $type->name->value));
+        }
+
+        return $copied;
+    }
+
+    /**
+     * Copies the released row of each variant to its draft row when it has none, in one statement.
      *
      * @param  list<string>  $copied  the columns the draft row takes from the released row
+     * @param  string  $entries  the entries as a Postgres array literal, as keys() gives them
+     * @param  string  $locales  the variants' locales as a Postgres array literal, in the same order
      */
-    private function keepDraft(string $table, array $copied, EntryId $entry, VariantKey $variant): void
+    private function keepDraft(string $table, array $copied, string $entries, string $locales): void
     {
         $this->db->insert(
             sprintf(
-                'insert into "%1$s" (%2$s, %3$s) select %4$s, ? from "%1$s" where %5$s = ? and %6$s = ? and %7$s = ? on conflict (%5$s, %6$s, %7$s) do nothing',
+                'insert into "%1$s" (%2$s, %3$s) select %4$s, ? from "%1$s" as t join unnest(?::uuid[], ?::text[]) as k(entry_id, locale) on t.%5$s = k.entry_id and t.%6$s = k.locale where t.%3$s = ? on conflict (%5$s, %6$s, %3$s) do nothing',
                 $table,
                 implode(', ', array_map($this->quoted(...), $copied)),
                 self::STAGE,
-                implode(', ', array_map($this->quoted(...), $copied)),
+                implode(', ', array_map(static fn (string $column): string => 't."'.$column.'"', $copied)),
                 self::ENTRY,
                 self::LOCALE,
-                self::STAGE,
             ),
-            [self::DRAFT, $entry->toString(), $variant->value, self::RELEASED],
+            [self::DRAFT, $entries, $locales, self::RELEASED],
         );
     }
 
     /**
-     * Writes one row of the variant in the stage, with the entry's home node and owning actor.
+     * Writes one row of each variant in the stage, with its entry's home node and owning actor.
+     * Returns the field columns.
      *
-     * @param  array<string, string|int|null>  $columns
+     * @param  non-empty-list<VariantFields>  $variants
+     * @return list<string>
      *
-     * @throws LogicException when the entry is not there to take its home node from
+     * @throws LogicException when an entry is not there to take its home node from
      */
-    private function upsert(string $table, string $stage, EntryId $entry, VariantKey $variant, array $columns): void
+    private function upsert(TypeDefinition $type, string $table, string $stage, array $variants): array
     {
-        $identity = $this->db->table('entries')
-            ->where('id', $entry->toString())
+        $identities = [];
+
+        foreach ($this->db->table('entries')
+            ->whereIn('id', array_values(array_unique(array_map(static fn (VariantFields $variant): string => $variant->entry->toString(), $variants))))
             ->useWritePdo()
-            ->first(['home_node_id', 'owner_actor_id']);
-
-        $home = $identity !== null && property_exists($identity, 'home_node_id') ? $identity->home_node_id : null;
-        $owner = $identity !== null && property_exists($identity, 'owner_actor_id') ? $identity->owner_actor_id : null;
-
-        if (! is_string($home) || ($owner !== null && ! is_string($owner))) {
-            throw new LogicException(sprintf('The entry %s has no row to write its type row with.', $entry->toString()));
+            ->get(['id', 'home_node_id', 'owner_actor_id']) as $identity) {
+            $id = property_exists($identity, 'id') ? $identity->id : null;
+            $identities[is_string($id) ? $id : ''] = $identity;
         }
 
-        $this->db->table($table)->upsert(
-            [[
-                self::ENTRY => $entry->toString(),
-                self::LOCALE => $variant->value,
+        $rows = [];
+        $fieldColumns = [];
+
+        foreach ($variants as $variant) {
+            $identity = $identities[$variant->entry->toString()] ?? null;
+            $home = $identity !== null && property_exists($identity, 'home_node_id') ? $identity->home_node_id : null;
+            $owner = $identity !== null && property_exists($identity, 'owner_actor_id') ? $identity->owner_actor_id : null;
+
+            if (! is_string($home) || ($owner !== null && ! is_string($owner))) {
+                throw new LogicException(sprintf('The entry %s has no row to write its type row with.', $variant->entry->toString()));
+            }
+
+            $columns = StoredContent::columns($type, $variant->fields);
+            $fieldColumns = array_keys($columns);
+            $rows[] = [
+                self::ENTRY => $variant->entry->toString(),
+                self::LOCALE => $variant->variant->value,
                 self::STAGE => $stage,
                 self::HOME => $home,
                 self::OWNER => $owner,
                 ...$columns,
-            ]],
-            [self::ENTRY, self::LOCALE, self::STAGE],
-            [self::HOME, self::OWNER, ...array_keys($columns)],
-        );
+            ];
+        }
+
+        foreach (array_chunk($rows, self::ROWS_PER_STATEMENT) as $chunk) {
+            $this->db->table($table)->upsert(
+                $chunk,
+                [self::ENTRY, self::LOCALE, self::STAGE],
+                [self::HOME, self::OWNER, ...$fieldColumns],
+            );
+        }
+
+        return $fieldColumns;
     }
 
     private function quoted(string $column): string
@@ -182,28 +244,45 @@ final readonly class TypeRows
     }
 
     /**
-     * Removes the draft row when the released row holds the same value in every field's column.
+     * The entries and locales of the variants as Postgres array literals, for unnest().
+     *
+     * @param  non-empty-list<VariantFields>  $variants
+     * @return array{string, string}
+     */
+    private function keys(array $variants): array
+    {
+        return [
+            '{'.implode(',', array_map(static fn (VariantFields $variant): string => $variant->entry->toString(), $variants)).'}',
+            '{'.implode(',', array_map(static fn (VariantFields $variant): string => '"'.$variant->variant->value.'"', $variants)).'}',
+        ];
+    }
+
+    /**
+     * Removes each variant's draft row when its released row holds the same value in every
+     * field's column.
      *
      * @param  list<string>  $columns
+     * @param  non-empty-list<VariantFields>  $variants
      */
-    private function dropDraftLikeReleased(string $table, array $columns, EntryId $entry, VariantKey $variant): void
+    private function dropDraftLikeReleased(string $table, array $columns, array $variants): void
     {
         $same = $columns === [] ? '' : sprintf(
             ' and row(%s) is not distinct from row(%s)',
             implode(', ', array_map(static fn (string $column): string => 'd."'.$column.'"', $columns)),
             implode(', ', array_map(static fn (string $column): string => 'r."'.$column.'"', $columns)),
         );
+        [$entries, $locales] = $this->keys($variants);
 
         $this->db->delete(
             sprintf(
-                'delete from "%1$s" as d using "%1$s" as r where d.%2$s = ? and d.%3$s = ? and d.%4$s = ? and r.%2$s = d.%2$s and r.%3$s = d.%3$s and r.%4$s = ?%5$s',
+                'delete from "%1$s" as d using "%1$s" as r, unnest(?::uuid[], ?::text[]) as k(entry_id, locale) where d.%2$s = k.entry_id and d.%3$s = k.locale and d.%4$s = ? and r.%2$s = d.%2$s and r.%3$s = d.%3$s and r.%4$s = ?%5$s',
                 $table,
                 self::ENTRY,
                 self::LOCALE,
                 self::STAGE,
                 $same,
             ),
-            [$entry->toString(), $variant->value, self::DRAFT, self::RELEASED],
+            [$entries, $locales, self::DRAFT, self::RELEASED],
         );
     }
 }

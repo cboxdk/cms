@@ -36,6 +36,8 @@ use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Registry\Domain\RegistryName;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
+use Cbox\Cms\Core\Seeding\Actions\SeedEntriesAction;
+use Cbox\Cms\Core\Seeding\Domain\Commands\SeedEntries;
 use Cbox\Cms\Core\Tests\Registry\Providers\DeferredRootProvider;
 use Cbox\Cms\Core\Tests\Registry\Providers\FixtureRootProvider;
 use Cbox\Cms\Generators\GeneratorsServiceProvider;
@@ -104,6 +106,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'entry.unpublish@1 '.UnpublishEntry::class,
             'placement.create@1 '.CreatePlacement::class,
             'placement.set_window@1 '.SetPlacementWindow::class,
+            'seed.entries@1 '.SeedEntries::class,
             'variant.release@1 '.ReleaseVariant::class,
         ])
         ->and(array_map(static fn (ActionEntry $entry): string => $entry->command->value.'@'.$entry->commandVersion.' '.$entry->class.' '.$entry->kind->value, $registry->actions))
@@ -115,12 +118,13 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'entry.unpublish@1 '.UnpublishEntryAction::class.' write',
             'placement.create@1 '.CreatePlacementAction::class.' write',
             'placement.set_window@1 '.SetPlacementWindowAction::class.' write',
+            'seed.entries@1 '.SeedEntriesAction::class.' write',
             'variant.release@1 '.ReleaseVariantAction::class.' write',
         ])
         ->and($registry->actionFor(DeactivateActor::class)?->surfaces)->toBe([])
         ->and($registry->actionFor(CreateEntry::class)?->class)->toBe(CreateEntryAction::class)
         ->and($registry->actionFor(ReviseEntry::class)?->class)->toBe(ReviseEntryAction::class)
-        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([8, 8, 0, 0, 1])
+        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([9, 9, 0, 0, 1])
         ->and($registry->hooks)->toBe([])
         ->and(array_map(static fn (SubscriberEntry $entry): string => $entry->name->value.' '.$entry->class.' '.$entry->lane->value.' '.$entry->projection?->value, $registry->subscribers))
         ->toBe(['fragments.invalidate '.InvalidateFragments::class.' critical origin'])

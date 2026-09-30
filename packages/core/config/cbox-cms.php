@@ -196,6 +196,16 @@ return [
     ],
 
     /*
+     * The seeder (GUARDRAILS 4.3, PRD 23), `cms:seed-scale`. It writes through the kernel as the
+     * service actor service_actor names, the UUIDv7 of an active actor of class service; without
+     * one it refuses to run. The actor's grants decide where it seeds: every node its regions
+     * reach, but mounts, and the fields at or below its classification access.
+     */
+    'seeding' => [
+        'service_actor' => null,
+    ],
+
+    /*
      * The invalidation subscriber (PRD 8.12 point 1), fragments.invalidate on the critical lane. Each
      * purge writes a fence that lives fence_seconds, 1 to 86400: while it lives, the fragment store
      * refuses a fragment of the purged key built by a read that may not have seen the change. Keep

@@ -16,9 +16,11 @@ use Cbox\Cms\Core\IdempotencyStore\Boundary\IdempotencyConfig;
 use Cbox\Cms\Core\Operations\Adapter\PackageOperationRunner;
 use Cbox\Cms\Core\Operations\Domain\OperationRunner;
 use Cbox\Cms\Core\Partitions\Boundary\PartitionConfig;
+use Cbox\Cms\Core\Pipeline\Actions\CommandPipeline;
 use Cbox\Cms\Core\Pipeline\Actions\HookRunner;
 use Cbox\Cms\Core\Pipeline\Adapter\HrtimeStopwatch;
 use Cbox\Cms\Core\Pipeline\Adapter\LoggedHookOverruns;
+use Cbox\Cms\Core\Pipeline\Adapter\PostgresChangesetCommitter;
 use Cbox\Cms\Core\Pipeline\Adapter\RegistryCommandHooks;
 use Cbox\Cms\Core\Pipeline\Adapter\RegistryWriteActions;
 use Cbox\Cms\Core\Pipeline\Boundary\TypeRulesFieldValidation;
@@ -33,6 +35,14 @@ use Cbox\Cms\Core\ReadModels\Domain\Dto\RebuildSettings;
 use Cbox\Cms\Core\ReadModels\Domain\ReadModelStore;
 use Cbox\Cms\Core\Reads\Boundary\QueryConfig;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
+use Cbox\Cms\Core\Seeding\Actions\SeedDataset;
+use Cbox\Cms\Core\Seeding\Adapter\PostgresSeedReader;
+use Cbox\Cms\Core\Seeding\Adapter\TransactionalSeedTargets;
+use Cbox\Cms\Core\Seeding\Boundary\SeedContentHasher;
+use Cbox\Cms\Core\Seeding\Domain\Dto\SeedSettings;
+use Cbox\Cms\Core\Seeding\Domain\SeedAuthorizer;
+use Cbox\Cms\Core\Seeding\Domain\SeedReader;
+use Cbox\Cms\Core\Seeding\Domain\SeedTargets;
 use Cbox\Cms\Core\Subscriptions\Adapter\PostgresSubscriptionLog;
 use Cbox\Cms\Core\Subscriptions\Adapter\RegistryLaneSubscribers;
 use Cbox\Cms\Core\Subscriptions\Adapter\SystemPacing;
@@ -48,6 +58,7 @@ use Cbox\Operations\OperationManager;
 use Cbox\Operations\OperationsServiceProvider;
 use Illuminate\Config\Repository;
 use ReflectionClass;
+use ReflectionProperty;
 
 it('is loaded through package discovery', function (): void {
     expect(app()->getLoadedProviders())->toHaveKey(CoreServiceProvider::class)
@@ -78,7 +89,7 @@ it('merges config/cbox-cms.php under cbox-cms, the only root of the configuratio
     $defaults = new Repository(['cbox-cms' => require __DIR__.'/../config/cbox-cms.php']);
 
     expect(array_map(basename(...), glob(__DIR__.'/../config/*.php') ?: []))->toBe(['cbox-cms.php'])
-        ->and(array_keys($defaults->array('cbox-cms')))->toBe(['contracts', 'database', 'addons', 'cli', 'queries', 'idempotency', 'events', 'rebuild', 'fragments', 'doctor'])
+        ->and(array_keys($defaults->array('cbox-cms')))->toBe(['contracts', 'database', 'addons', 'cli', 'queries', 'idempotency', 'events', 'rebuild', 'seeding', 'fragments', 'doctor'])
         ->and(config('cbox-cms.contracts'))->toBe($defaults->get('cbox-cms.contracts'))
         ->and(config('cbox-cms.database.partitions.runway_days'))->toBe($defaults->get('cbox-cms.database.partitions.runway_days'))
         ->and(config('cbox-cms.queries.budgets'))->toBe($defaults->get('cbox-cms.queries.budgets'))
@@ -145,4 +156,22 @@ it('binds the FragmentStore to the Valkey store once per process, and the CdnDri
 it('binds the TypeTableReader to the Postgres reader once per process', function (): void {
     expect(app(TypeTableReader::class))->toBeInstanceOf(PostgresTypeTableReader::class)
         ->and(app(TypeTableReader::class))->toBe(app(TypeTableReader::class));
+});
+
+it('binds the seeder\'s ports and settings, and gives SeedDataset a pipeline with the seeder\'s authorizer and content hasher', function (): void {
+    config(['cbox-cms.seeding.service_actor' => '01936f5e-8a2b-7c3d-9e4f-0000000047c1']);
+    $pipeline = new ReflectionProperty(SeedDataset::class, 'pipeline')->getValue(app(SeedDataset::class));
+
+    expect(app(SeedReader::class))->toBeInstanceOf(PostgresSeedReader::class)
+        ->and(app(SeedTargets::class))->toBeInstanceOf(TransactionalSeedTargets::class)
+        ->and(app(SeedSettings::class)->serviceActor?->toString())->toBe('01936f5e-8a2b-7c3d-9e4f-0000000047c1')
+        ->and($pipeline)->toBeInstanceOf(CommandPipeline::class);
+
+    if (! $pipeline instanceof CommandPipeline) {
+        return;
+    }
+
+    expect(new ReflectionProperty(CommandPipeline::class, 'authorizer')->getValue($pipeline))->toBeInstanceOf(SeedAuthorizer::class)
+        ->and(new ReflectionProperty(CommandPipeline::class, 'hasher')->getValue($pipeline))->toBeInstanceOf(SeedContentHasher::class)
+        ->and(new ReflectionProperty(CommandPipeline::class, 'committer')->getValue($pipeline))->toBeInstanceOf(PostgresChangesetCommitter::class);
 });

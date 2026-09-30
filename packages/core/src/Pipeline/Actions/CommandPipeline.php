@@ -104,15 +104,17 @@ use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
  *    (invariant 18). A release of a type that has no revision to release, one with stages none or
  *    with a history that keeps no revisions, is type_not_releasable. The kernel reads the revision
  *    each release names once, through RevisionContents, so the hooks see its fields (PlanView
- *    releases(), invariant 36) and phase 5 validates the same read. Then the authorize
+ *    releases(), invariant 36) and phase 5 validates the same read; a revision the plan itself
+ *    creates is not stored yet and is not read. Then the authorize
  *    hooks run on the pending plan; a denial is unauthorized. They run after plan() because they
  *    see the plan, and they can only add refusals to the CommandAuthorizer's decision.
  * 4. Transform: the transform hooks change fields of the plan's revisions (HookRunner).
  * 5. Validate. The kernel validates the plan as the transforms left it (invariant 12): the fields
  *    of every revision through the type's generated validator, so a transform can never produce
  *    fields that break a rule. A transform changes only fields, so the plan's shape stands. A
- *    released revision is read through RevisionContents and validated against its own schema
- *    version at the release stage, where the fields required on release are required (invariant
+ *    released revision is validated as phase 3 read it, or taken from the plan when the plan
+ *    creates it (a composed plan that creates and releases an entry in one changeset), and
+ *    validated against its own schema version at the release stage, where the fields required on release are required (invariant
  *    5, 36); a revision the variant does not have, or one written under another schema version
  *    than the one whose rules this installation has, fails the validation. The
  *    validate hooks add their errors after the kernel's. A value for a field stored encrypted is
@@ -472,7 +474,8 @@ final readonly class CommandPipeline
     /**
      * Every release of the plan with the stored revision it names, read once through
      * RevisionContents (phase 3, before the hooks): the hooks see its fields, and phase 5 validates
-     * the release against the same read.
+     * the release against the same read. A revision the plan itself creates is not stored yet, so
+     * it is not read: its release has no stored content, and phase 5 validates it from the plan.
      *
      * @return list<ReleaseRead>
      */
@@ -484,7 +487,7 @@ final readonly class CommandPipeline
             $type = $mutation instanceof VariantReleased ? $this->types->find($mutation->type) : null;
 
             if ($mutation instanceof VariantReleased) {
-                $reads[] = new ReleaseRead($mutation, $type instanceof TypeDefinition
+                $reads[] = new ReleaseRead($mutation, $type instanceof TypeDefinition && ! $this->plannedRevision($plan, $mutation) instanceof RevisionCreated
                     ? $this->revisions->find($mutation->entry, $mutation->variant, $mutation->revision, $type)
                     : null);
             }
@@ -533,7 +536,7 @@ final readonly class CommandPipeline
 
             if ($mutation instanceof VariantReleased && $type instanceof TypeDefinition) {
                 $read = array_find($releases, static fn (ReleaseRead $read): bool => $read->release === $mutation);
-                array_push($errors, ...$this->releaseErrors($type, $mutation, $read?->content));
+                array_push($errors, ...$this->releaseErrors($type, $mutation, $read?->content, $plan));
             }
         }
 
@@ -541,13 +544,22 @@ final readonly class CommandPipeline
     }
 
     /**
-     * The released revision against its own schema version, at the release stage (invariant 5).
+     * The released revision against its own schema version, at the release stage (invariant 5). A
+     * revision the plan itself creates, such as the first revision of an entry a composed plan
+     * creates and releases in one changeset, is validated as the plan holds it, after the
+     * transforms, under the type's current version; any other is validated as phase 3 read it
+     * through RevisionContents.
      *
      * @return list<CatalogError>
      */
-    private function releaseErrors(TypeDefinition $type, VariantReleased $release, ?RevisionContent $content): array
+    private function releaseErrors(TypeDefinition $type, VariantReleased $release, ?RevisionContent $content, Plan $plan): array
     {
         $at = new FieldPath(self::REVISION);
+        $planned = $this->plannedRevision($plan, $release);
+
+        if ($planned instanceof RevisionCreated) {
+            return $this->fields->validate($type, $planned->fields, ValidationStage::Release, $at)->errors;
+        }
 
         if (! $content instanceof RevisionContent) {
             return [new CatalogError(ErrorCode::ValidationFailed, $at, sprintf(
@@ -570,6 +582,23 @@ final readonly class CommandPipeline
         }
 
         return $this->fields->validate($type, $content->fields, ValidationStage::Release, $at)->errors;
+    }
+
+    /**
+     * The revision the plan creates that the release names: the same entry, variant and number.
+     */
+    private function plannedRevision(Plan $plan, VariantReleased $release): ?RevisionCreated
+    {
+        foreach ($plan->mutations() as $mutation) {
+            if ($mutation instanceof RevisionCreated
+                && $mutation->entry->equals($release->entry)
+                && $mutation->variant->equals($release->variant)
+                && $mutation->revision->equals($release->revision)) {
+                return $mutation;
+            }
+        }
+
+        return null;
     }
 
     /**

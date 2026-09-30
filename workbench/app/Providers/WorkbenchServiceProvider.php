@@ -38,7 +38,8 @@ use Workbench\App\Cms\Generated\GeneratedTypesServiceProvider;
  * It turns off server-side rendering and the check for page components on disk for the
  * workbench's Inertia test page (boot()).
  *
- * It configures the event runner from the environment (configureEventRunner()).
+ * It configures the event runner and the seeder's service actor from the environment
+ * (configureEventRunner()).
  *
  * It registers the service provider that cms:generate writes from the workbench's schema, which
  * binds the TypeCatalog contract to the generated catalog and each fixture type's record factory,
@@ -48,6 +49,9 @@ final class WorkbenchServiceProvider extends ServiceProvider
 {
     /** The environment variable that names the event runner's service actor. */
     public const string SERVICE_ACTOR = 'CBOX_CMS_EVENTS_SERVICE_ACTOR';
+
+    /** The environment variable that names the seeder's service actor, as composer scale:check sets it. */
+    public const string SEEDING_ACTOR = 'CBOX_CMS_SEEDING_SERVICE_ACTOR';
 
     /** The environment variable that picks the CDN driver; only fake is known. */
     public const string CDN_DRIVER = 'CBOX_CMS_CDN_DRIVER';
@@ -119,6 +123,12 @@ final class WorkbenchServiceProvider extends ServiceProvider
 
         if ($actor !== '') {
             $config->set('cbox-cms.events.runner.service_actor', $actor);
+        }
+
+        $seeder = $this->env(self::SEEDING_ACTOR, '');
+
+        if ($seeder !== '') {
+            $config->set('cbox-cms.seeding.service_actor', $seeder);
         }
 
         if ($this->env(self::CDN_DRIVER, '') === 'fake') {

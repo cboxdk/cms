@@ -10,8 +10,9 @@ use Cbox\Cms\Contracts\Plans\Mutation;
 use Cbox\Cms\Contracts\Plans\Mutations\HeadMoved;
 use Cbox\Cms\Core\Entries\Domain\Events\VariantRevised;
 use Cbox\Cms\Core\Entries\Domain\Events\VariantRevisedV1;
+use Cbox\Cms\Core\Pipeline\Domain\BatchMutationWriter;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\MutationContext;
-use Cbox\Cms\Core\Pipeline\Domain\MutationWriter;
+use Cbox\Cms\Core\Pipeline\Domain\Dto\PendingMutation;
 use Illuminate\Database\ConnectionResolverInterface;
 use InvalidArgumentException;
 use LogicException;
@@ -28,20 +29,24 @@ use Override;
  * a plan the kernel should not have committed, and the writer throws.
  */
 #[Internal]
-final readonly class HeadMovedWriter implements MutationWriter
+final readonly class HeadMovedWriter implements BatchMutationWriter
 {
-    /** The move of one head, with the revision or snapshot it moves to. */
+    /** The moves of a run of heads, each with the revision or snapshot it moves to. */
     public const string MOVE = <<<'SQL'
         update variant_heads as h
-        set draft_revision_id = c.revision_id, schema_version = c.schema_version, version = ?
-        from (
-            select r.revision_id, r.schema_version from revisions as r where r.entry_id = ?::uuid and r.variant = ? and r.rev_no = ?
+        set draft_revision_id = c.revision_id, schema_version = c.schema_version, version = m.version
+        from unnest(?::uuid[], ?::text[], ?::bigint[], ?::bigint[]) as m(entry_id, variant, rev_no, version)
+        cross join lateral (
+            select r.revision_id, r.schema_version from revisions as r where r.entry_id = m.entry_id and r.variant = m.variant and r.rev_no = m.rev_no
             union all
-            select null, s.schema_version from head_snapshots as s where s.entry_id = ?::uuid and s.variant = ? and s.rev_no = ?
+            select null, s.schema_version from head_snapshots as s where s.entry_id = m.entry_id and s.variant = m.variant and s.rev_no = m.rev_no
             limit 1
         ) as c
-        where h.entry_id = ?::uuid and h.variant = ?
+        where h.entry_id = m.entry_id and h.variant = m.variant
         SQL;
+
+    /** The most heads one update moves. */
+    public const int ROWS_PER_STATEMENT = 1000;
 
     /**
      * @param  string|null  $connection  the connection name; null for the default connection
@@ -63,35 +68,57 @@ final readonly class HeadMovedWriter implements MutationWriter
     #[Override]
     public function write(Mutation $mutation, MutationContext $context): array
     {
-        if (! $mutation instanceof HeadMoved) {
-            throw new InvalidArgumentException(sprintf('The head writer writes HeadMoved, not %s.', $mutation::class));
-        }
+        return $this->writeAll([new PendingMutation($mutation, $context)]);
+    }
 
-        $entry = $mutation->entry->toString();
-        $variant = $mutation->variant->value;
-        $to = $mutation->to->value;
+    /**
+     * A run of moves in one statement per ROWS_PER_STATEMENT.
+     *
+     * @throws LogicException when a variant has no head, or no revision or snapshot with the number it moves to
+     */
+    #[Override]
+    public function writeAll(array $mutations): array
+    {
+        $events = [];
+        $moves = [];
 
-        $moved = $this->connections->connection($this->connection)->update(self::MOVE, [
-            $context->version->value,
-            $entry, $variant, $to,
-            $entry, $variant, $to,
-            $entry, $variant,
-        ]);
+        foreach ($mutations as $pending) {
+            $mutation = $pending->mutation;
 
-        if ($moved !== 1) {
-            throw new LogicException(sprintf(
-                'The head of the variant %s of the entry %s cannot move to revision %d: the head or the revision is not there.',
-                $variant,
-                $entry,
-                $to,
+            if (! $mutation instanceof HeadMoved) {
+                throw new InvalidArgumentException(sprintf('The head writer writes HeadMoved, not %s.', $mutation::class));
+            }
+
+            $moves[] = [$mutation->entry->toString(), $mutation->variant->value, $mutation->to->value, $pending->context->version->value];
+            $events[] = new VariantRevised($pending->context->version->value, new VariantRevisedV1(
+                $mutation->entry,
+                new VariantRef($mutation->entry, $mutation->variant),
+                $mutation->to->value,
+                $mutation->from?->value,
             ));
         }
 
-        return [new VariantRevised($context->version->value, new VariantRevisedV1(
-            $mutation->entry,
-            new VariantRef($mutation->entry, $mutation->variant),
-            $to,
-            $mutation->from?->value,
-        ))];
+        $db = $this->connections->connection($this->connection);
+
+        foreach (array_chunk($moves, self::ROWS_PER_STATEMENT) as $chunk) {
+            $moved = $db->update(self::MOVE, [
+                '{'.implode(',', array_column($chunk, 0)).'}',
+                '{'.implode(',', array_map(static fn (string $variant): string => '"'.$variant.'"', array_column($chunk, 1))).'}',
+                '{'.implode(',', array_column($chunk, 2)).'}',
+                '{'.implode(',', array_column($chunk, 3)).'}',
+            ]);
+
+            if ($moved !== count($chunk)) {
+                throw new LogicException(sprintf(
+                    'The head of the variant %s of the entry %s cannot move to revision %d: the head or the revision is not there%s.',
+                    $chunk[0][1],
+                    $chunk[0][0],
+                    $chunk[0][2],
+                    count($chunk) === 1 ? '' : sprintf(', or the head or revision of another of the %d heads, of which %d moved', count($chunk), $moved),
+                ));
+            }
+        }
+
+        return $events;
     }
 }
