@@ -8,7 +8,10 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Fields\ExtensionFields;
 use Cbox\Cms\Contracts\Fields\FieldMap;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
+use Cbox\Cms\Contracts\Fields\FieldValue;
 use Cbox\Cms\Contracts\Fields\FieldValues;
+use Cbox\Cms\Contracts\Fields\GroupValue;
+use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Results\ReadContent;
@@ -26,7 +29,14 @@ use Cbox\Cms\Core\Reads\Domain\Dto\AuditedRead;
  * entry's type does not declare, so an entry of a type the installation does not have keeps no
  * field: what the kernel cannot classify, it does not hand out. An extender whose fields are all
  * left out is left out too. A group is one top-level field with one classification, so it is kept
- * or left out whole.
+ * or left out whole by its classification.
+ *
+ * For an agent it also leaves out every field whose definition does not open it to agents
+ * (FieldDefinition::$agents, PRD 2.31, 12.2): a public or internal field unless its blueprint says
+ * `agents: false`, a confidential field only with `agents: true`, and never a personal or
+ * sensitive field. Inside a group it opens to agents, the nested fields that its blueprint closes
+ * to them are left out of every value of the group, a repeated group's items included, at every
+ * depth.
  *
  * audited() names the fields of a stripped entry whose classification requires the read audit:
  * every sensitive field (PRD 12.12). The other rules of PRD 12.2, personal fields in list reads
@@ -41,20 +51,23 @@ final readonly class ReadableFields
 
     public function __construct(private TypeCatalog $types) {}
 
-    public function strip(ReadContent $content, ClassificationAccess $access): ReadContent
+    /**
+     * @param  bool  $agent  whether the reader's credential was issued for an agent
+     */
+    public function strip(ReadContent $content, ClassificationAccess $access, bool $agent = false): ReadContent
     {
         $type = $this->types->find($content->type);
         $extensions = [];
 
         foreach ($content->fields->extensions as $extension) {
-            $fields = $this->allowed($type, $extension->namespace, $extension->fields, $access);
+            $fields = $this->allowed($type, $extension->namespace, $extension->fields, $access, $agent);
 
             if (! $fields->isEmpty()) {
                 $extensions[] = new ExtensionFields($extension->namespace, $fields);
             }
         }
 
-        return $content->withFields(new FieldValues($this->allowed($type, null, $content->fields->own, $access), ...$extensions));
+        return $content->withFields(new FieldValues($this->allowed($type, null, $content->fields->own, $access, $agent), ...$extensions));
     }
 
     /**
@@ -76,16 +89,50 @@ final readonly class ReadableFields
         return $highest instanceof ClassificationAccess ? new AuditedRead($content->entry, $fields, $highest) : null;
     }
 
-    private function allowed(?TypeDefinition $type, ?FieldNamespace $namespace, FieldMap $fields, ClassificationAccess $access): FieldMap
+    private function allowed(?TypeDefinition $type, ?FieldNamespace $namespace, FieldMap $fields, ClassificationAccess $access, bool $agent): FieldMap
     {
-        return new FieldMap(...array_filter(
-            $fields->fields,
-            static function (NamedValue $field) use ($type, $namespace, $access): bool {
-                $definition = $type?->field($namespace, $field->handle);
+        $allowed = [];
 
-                return $definition instanceof FieldDefinition && $access->allows($definition->classification);
-            },
-        ));
+        foreach ($fields->fields as $field) {
+            $definition = $type?->field($namespace, $field->handle);
+
+            if ($definition instanceof FieldDefinition && $access->allows($definition->classification) && (! $agent || $definition->agents)) {
+                $allowed[] = $agent ? new NamedValue($field->handle, $this->forAgents($definition, $field->value)) : $field;
+            }
+        }
+
+        return new FieldMap(...$allowed);
+    }
+
+    /**
+     * The value of a field agents see, with the nested fields of a group that agents do not see
+     * left out, in the group's value and in each item of a repeated group's.
+     */
+    private function forAgents(FieldDefinition $definition, FieldValue $value): FieldValue
+    {
+        if ($definition->fields === []) {
+            return $value;
+        }
+
+        if ($value instanceof ListValue) {
+            return new ListValue(...array_map(fn (FieldValue $item): FieldValue => $this->forAgents($definition, $item), $value->items));
+        }
+
+        if (! $value instanceof GroupValue) {
+            return $value;
+        }
+
+        $nested = [];
+
+        foreach ($value->fields->fields as $field) {
+            $member = $definition->field($field->handle);
+
+            if ($member instanceof FieldDefinition && $member->agents) {
+                $nested[] = new NamedValue($field->handle, $this->forAgents($member, $field->value));
+            }
+        }
+
+        return new GroupValue(new FieldMap(...$nested));
     }
 
     /**

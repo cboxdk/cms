@@ -8,9 +8,9 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use LogicException;
 
 /**
- * A query that no query action handles, or whose registered action is not a query action. A
- * surface only builds queries the registry lists, so this is a stale registry cache or a bug, not
- * bad input: run cms:build.
+ * A query that no query action handles, whose registered action is not a query action, or that no
+ * codec reads. A surface only builds queries the registry lists, so this is a stale registry cache
+ * or a bug, not bad input: run cms:build, or register the query's codec.
  */
 #[Internal]
 final class UnknownQuery extends LogicException
@@ -18,6 +18,11 @@ final class UnknownQuery extends LogicException
     public static function noAction(string $queryClass): self
     {
         return new self(sprintf('No query action handles the query %s. Declare one with #[Action(handles: ...)] and run cms:build.', $queryClass));
+    }
+
+    public static function noCodec(string $query, int $version): self
+    {
+        return new self(sprintf('No codec reads version %d of the query %s, so no exposed surface can read it. Tag its QueryCodec with QueryCodecs::TAG.', $version, $query));
     }
 
     public static function version(string $query, int $version): self

@@ -13,6 +13,7 @@ use Cbox\Cms\Contracts\Identity\ActorPrincipal;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\CredentialRejected;
 use Cbox\Cms\Contracts\Identity\CredentialVerifier;
+use Cbox\Cms\Contracts\Identity\IssuerKind;
 use Cbox\Cms\Contracts\Identity\Principal;
 use Cbox\Cms\Contracts\Pipeline\ReadsContent;
 use Cbox\Cms\Contracts\Results\CatalogError;
@@ -40,7 +41,8 @@ use Cbox\Cms\Core\Reads\Domain\ReadAudit;
  *    principal, or the anonymous principal when it carried none (invariant 25). A credential that is
  *    refused rejects the read with the code of its reason, and one of an actor that is not active,
  *    or that acts on behalf of one, with actor_not_active (PRD 5.16, invariant 37). The actor is
- *    never taken from the query or from anything else the caller sends.
+ *    never taken from the query or from anything else the caller sends. A read through a surface
+ *    that requires an agent, MCP, is unauthorized without an agent's credential (PRD 2.31, 22).
  * 2. Context. The AccessResolver compiles the principal's grants into its AccessContext and sets it
  *    with SET LOCAL in the read transaction, so row level security holds for everything the read
  *    does (PRD 5.10), and the context ends with the transaction.
@@ -51,11 +53,15 @@ use Cbox\Cms\Core\Reads\Domain\ReadAudit;
  *    replica by a consistency token comes with the replicas (PRD 8.5).
  * 6. Strip. A result that ReadsContent gets its entries back with every field above the context's
  *    classification access left out, and every field their type does not declare (ReadableFields).
+ *    For an agent's credential, every field its blueprint does not open to agents is left out too
+ *    (PRD 2.31, 12.2): public and internal fields unless they say `agents: false`, confidential
+ *    fields only with `agents: true`, and never a personal or sensitive field.
  * 7. Read audit. The fields of the stripped entries whose classification requires it are recorded
  *    through the ReadAudit in the same transaction, with the read's position, so the audit commits
  *    with the answer.
  * 8. Content keys and position. The answer carries the content keys of the entries, `e-{entry}` and
- *    `n-{node}` (PRD 9.4), and the read's position, the xmin of its snapshot (PRD 8.4).
+ *    `n-{node}` (PRD 9.4), the read's position, the xmin of its snapshot (PRD 8.4), and the
+ *    context's classification access, which a surface encodes the result with.
  *
  * The pipeline holds nothing between calls, and the actor context lives only in the transaction of
  * the read it was set for, so no context survives from one read to the next in a shared worker.
@@ -90,6 +96,13 @@ final readonly class QueryPipeline
             return QueryResult::rejected(new CatalogError(ErrorCode::from($rejected->reason->value), null, $rejected->getMessage()));
         }
 
+        if ($call->surface?->requiresAgent() === true && ! $this->isAgent($principal)) {
+            return QueryResult::rejected(new CatalogError(ErrorCode::Unauthorized, null, sprintf(
+                'A read through the %s surface is made by an agent, and the call carries no credential issued for one. Send the credential of an agent, such as an MCP token.',
+                $call->surface->value,
+            )));
+        }
+
         $access = $this->access->resolve($principal);
         $authorization = $this->authorizer->authorize($access, $binding->query, $call->query);
 
@@ -114,23 +127,24 @@ final readonly class QueryPipeline
         $contents = [];
 
         if ($result instanceof ReadsContent) {
-            $result = $this->stripped($result, $access);
+            $result = $this->stripped($result, $access, $this->isAgent($principal));
             $contents = $result->contents();
         }
 
         $position = $this->transaction->position();
         $this->audit($principal, $binding, $contents, $position);
 
-        return QueryResult::answered($result, $this->contentKeys($contents), $position);
+        return QueryResult::answered($result, $this->contentKeys($contents), $position, $access->classificationAccess);
     }
 
     /**
-     * The result with every entry's fields stripped to the context's classification access.
+     * The result with every entry's fields stripped to the context's classification access, and for
+     * an agent to the fields its blueprint opens to agents.
      */
-    private function stripped(ReadsContent $result, AccessContext $access): ReadsContent
+    private function stripped(ReadsContent $result, AccessContext $access, bool $agent): ReadsContent
     {
         $contents = array_map(
-            fn (ReadContent $content): ReadContent => $this->fields->strip($content, $access->classificationAccess),
+            fn (ReadContent $content): ReadContent => $this->fields->strip($content, $access->classificationAccess, $agent),
             $result->contents(),
         );
         $stripped = $result->withContents($contents);
@@ -140,6 +154,14 @@ final readonly class QueryPipeline
         }
 
         return $stripped;
+    }
+
+    /**
+     * Whether the principal is an actor whose credential was issued for an agent.
+     */
+    private function isAgent(Principal $principal): bool
+    {
+        return $principal instanceof ActorPrincipal && $principal->issuerKind === IssuerKind::Agent;
     }
 
     /**

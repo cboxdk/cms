@@ -23,17 +23,18 @@ enum Layer: string
     case Jobs = 'Jobs';
     case Http = 'Http';
     case Cli = 'Cli';
+    case Mcp = 'Mcp';
 
     public const string CONTRACTS = 'Cbox\Cms\Contracts';
 
     /**
-     * The surfaces of GUARDRAILS 2.5: the http and cli packages, and queue jobs.
+     * The surfaces of GUARDRAILS 2.5: the http, cli and mcp modules, and queue jobs.
      *
      * @return list<self>
      */
     public static function surfaces(): array
     {
-        return [self::Http, self::Cli, self::Jobs];
+        return [self::Http, self::Cli, self::Mcp, self::Jobs];
     }
 
     public static function of(string $namespace): ?self

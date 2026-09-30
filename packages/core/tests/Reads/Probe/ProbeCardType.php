@@ -20,7 +20,9 @@ use Cbox\Cms\Contracts\Schema\TypeName;
 
 /**
  * The type of the probe's cards, test:card: a public label, an internal note, a confidential memo,
- * a sensitive diagnosis, and from the extender `probe` a public tag and a sensitive code.
+ * a sensitive diagnosis, and from the extender `probe` a public tag and a sensitive code. Each
+ * field is open to agents as a blueprint without `agents` makes it (PRD 2.31): the public and
+ * internal fields are, the others are not.
  */
 final readonly class ProbeCardType
 {
@@ -56,7 +58,7 @@ final readonly class ProbeCardType
             new FieldHandle($handle),
             'text',
             $classification,
-            false,
+            $classification === ClassificationAccess::Public || $classification === ClassificationAccess::Internal,
             false,
             false,
             false,

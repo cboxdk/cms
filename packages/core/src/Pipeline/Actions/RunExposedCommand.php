@@ -34,14 +34,16 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\ExposedCall;
  * 1. The credential is verified with the CredentialVerifier. A refused credential rejects the call
  *    with the verifier's code, and a call without one, the anonymous principal, is unauthorized:
  *    every write through an exposed surface is made by an actor.
- * 2. The on-behalf-of chain is the credential's. A caller may repeat it in the envelope; a chain
+ * 2. A surface that requires an agent, MCP (Surface::requiresAgent()), takes only a credential
+ *    issued for an agent: any other is unauthorized (PRD 2.31, 22).
+ * 3. The on-behalf-of chain is the credential's. A caller may repeat it in the envelope; a chain
  *    that differs is unauthorized, because the chain comes from authentication, never from input.
- * 3. The AccessContext of the principal comes from AccessContexts.
- * 4. The command is read from its JSON document with its generated codec, as a caller with the
+ * 4. The AccessContext of the principal comes from AccessContexts.
+ * 5. The command is read from its JSON document with its generated codec, as a caller with the
  *    context's classification access, so a field classified above it is refused. A document the
  *    codec refuses rejects the call with json_malformed or json_invalid at the path of the value,
  *    relative to the command's document.
- * 5. The Envelope is built from the caller's fields with the surface, the actor, the issuer kind of
+ * 6. The Envelope is built from the caller's fields with the surface, the actor, the issuer kind of
  *    the credential (an agent's as agent, a service's as system) and the caller's correlation id,
  *    or one from the IdGenerator when the caller sent none, and the command pipeline runs the call.
  *
@@ -70,6 +72,10 @@ final readonly class RunExposedCommand
 
         if (! $principal instanceof ActorPrincipal) {
             return $this->rejected($request, ErrorCode::Unauthorized, null, 'The call carries no credential. A command through an exposed surface is made by an actor; send the actor\'s credential.');
+        }
+
+        if ($call->surface->requiresAgent() && $principal->issuerKind !== IssuerKind::Agent) {
+            return $this->rejected($request, ErrorCode::Unauthorized, null, sprintf('A call through the %s surface is made by an agent, and the credential was not issued for one. Send the credential of an agent, such as an MCP token.', $call->surface->value));
         }
 
         if ($request->onBehalfOf !== [] && ! $this->sameChain($request->onBehalfOf, $principal->onBehalfOf)) {

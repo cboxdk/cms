@@ -7,6 +7,7 @@ laravel: '@testbench'
 providers:
   - Cbox\Cms\Core\CoreServiceProvider
   - Cbox\Cms\Http\HttpServiceProvider
+  - Cbox\Cms\Mcp\McpServiceProvider
   - Cbox\Cms\Cli\CliServiceProvider
   - Cbox\Cms\Generators\GeneratorsServiceProvider
   - Workbench\App\Providers\WorkbenchServiceProvider
@@ -23,7 +24,7 @@ workbench:
   install: false
   discovers:
     web: true
-    api: false
+    api: true
     commands: false
     components: false
     views: true

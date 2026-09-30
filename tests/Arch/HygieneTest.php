@@ -28,7 +28,7 @@ function codeNamespaces(): array
 }
 
 arch('strict_types: every class in the packages and the workbench declares strict types', function (): void {
-    expect(codeNamespaces())->toHaveCount(8)->toUseStrictTypes();
+    expect(codeNamespaces())->toHaveCount(9)->toUseStrictTypes();
 });
 
 arch('strict_types: every PHP file in the packages, tests, tools, workbench, examples and root starts with declare(strict_types=1)', function (): void {

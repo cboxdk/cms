@@ -25,11 +25,11 @@ use SplFileInfo;
  * rules keeps one module from using another or a package that composer.json only suggests:
  *
  * - contracts depends only on PHP: it uses no other module and no package;
- * - core, http and cli never use the testkit or the generators, and no module uses the tests,
+ * - core, http, cli and mcp never use the testkit or the generators, and no module uses the tests,
  *   the tooling, the workbench or the examples;
  * - the testkit uses no module but contracts;
  * - every package a module uses is in composer.json's require or suggest, and the production
- *   modules (contracts, core, http, cli) use none that composer.json only suggests, because those
+ *   modules (contracts, core, http, cli, mcp) use none that composer.json only suggests, because those
  *   are installed for development only and never reach production. The testkit is left out of
  *   this rule: it runs only in development, and its PHPStan rules name the classes of PHPStan, of
  *   nikic/php-parser inside PHPStan and of the clock and id libraries they report, not packages
@@ -59,6 +59,7 @@ final readonly class ModuleDependencies
         'core' => 'Cbox\Cms\Core',
         'generators' => 'Cbox\Cms\Generators',
         'http' => 'Cbox\Cms\Http',
+        'mcp' => 'Cbox\Cms\Mcp',
         'testkit' => 'Cbox\Cms\Testkit',
     ];
 
@@ -67,7 +68,7 @@ final readonly class ModuleDependencies
      *
      * @var list<string>
      */
-    public const array PRODUCTION = ['cli', 'contracts', 'core', 'http'];
+    public const array PRODUCTION = ['cli', 'contracts', 'core', 'http', 'mcp'];
 
     /**
      * The modules each module may not use.
@@ -76,11 +77,12 @@ final readonly class ModuleDependencies
      */
     public const array FORBIDDEN_MODULES = [
         'cli' => ['generators', 'testkit'],
-        'contracts' => ['cli', 'core', 'generators', 'http', 'testkit'],
+        'contracts' => ['cli', 'core', 'generators', 'http', 'mcp', 'testkit'],
         'core' => ['generators', 'testkit'],
         'generators' => ['testkit'],
         'http' => ['generators', 'testkit'],
-        'testkit' => ['cli', 'core', 'generators', 'http'],
+        'mcp' => ['generators', 'testkit'],
+        'testkit' => ['cli', 'core', 'generators', 'http', 'mcp'],
     ];
 
     /**

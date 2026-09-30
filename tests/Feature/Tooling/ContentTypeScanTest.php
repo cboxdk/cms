@@ -183,6 +183,7 @@ it('scans the src directory of each core package and nothing else', function ():
             'packages/core/src/Domain/Type.php',
             'packages/generators/src/Domain/Type.php',
             'packages/http/src/Domain/Type.php',
+            'packages/mcp/src/Domain/Type.php',
             'packages/testkit/src/Domain/Type.php',
         ])
         ->and($scan->hits)->toBe(array_map(static fn (string $file): string => $file.':3: fixture_article', $scan->files));

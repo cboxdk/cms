@@ -1,6 +1,6 @@
 {
     "name": "cboxdk/cms",
-    "description": "Cbox CMS: the kernel and the first-party modules in one package, with the contracts, core, HTTP and CLI surfaces, the generators and the testkit as namespaces.",
+    "description": "Cbox CMS: the kernel and the first-party modules in one package, with the contracts, core, HTTP, MCP and CLI surfaces, the generators and the testkit as namespaces.",
     "type": "library",
     "license": "MIT",
     "authors": [
@@ -21,6 +21,7 @@
         "illuminate/routing": "^13.0",
         "illuminate/support": "^13.0",
         "inertiajs/inertia-laravel": "3.4.0",
+        "laravel/mcp": "~1.0.1",
         "psr/clock": "^1.0",
         "psr/log": "^3.0",
         "symfony/console": "^7.4 || ^8.0",
@@ -63,6 +64,7 @@
             "Cbox\\Cms\\Core\\": "packages/core/src/",
             "Cbox\\Cms\\Generators\\": "packages/generators/src/",
             "Cbox\\Cms\\Http\\": "packages/http/src/",
+            "Cbox\\Cms\\Mcp\\": "packages/mcp/src/",
             "Cbox\\Cms\\Testkit\\": "packages/testkit/src/"
         }
     },
@@ -73,6 +75,7 @@
             "Cbox\\Cms\\Core\\Tests\\": "packages/core/tests/",
             "Cbox\\Cms\\Generators\\Tests\\": "packages/generators/tests/",
             "Cbox\\Cms\\Http\\Tests\\": "packages/http/tests/",
+            "Cbox\\Cms\\Mcp\\Tests\\": "packages/mcp/tests/",
             "Cbox\\Cms\\Testkit\\Tests\\": "packages/testkit/tests/",
             "Cbox\\Cms\\Tests\\": "tests/",
             "Cbox\\Cms\\Tooling\\": "tools/src/",
@@ -148,6 +151,7 @@
             "providers": [
                 "Cbox\\Cms\\Core\\CoreServiceProvider",
                 "Cbox\\Cms\\Http\\HttpServiceProvider",
+                "Cbox\\Cms\\Mcp\\McpServiceProvider",
                 "Cbox\\Cms\\Cli\\CliServiceProvider",
                 "Cbox\\Cms\\Generators\\GeneratorsServiceProvider"
             ]

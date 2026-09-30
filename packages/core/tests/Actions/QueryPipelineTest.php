@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Actions;
 
+use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Cache\DependencyKey;
 use Cbox\Cms\Contracts\Fields\ExtensionFields;
 use Cbox\Cms\Contracts\Fields\FieldHandle;
@@ -24,6 +25,7 @@ use Cbox\Cms\Core\Reads\Domain\Dto\AuditedRead;
 use Cbox\Cms\Core\Reads\Domain\Dto\QueryCall;
 use Cbox\Cms\Core\Reads\Domain\InvalidQueryCall;
 use Cbox\Cms\Core\Reads\Domain\UnknownQuery;
+use Cbox\Cms\Core\Tests\Reads\Probe\AgentCardType;
 use Cbox\Cms\Core\Tests\Reads\Probe\ProbeCards;
 use Cbox\Cms\Core\Tests\Reads\Probe\ProbeCount;
 use Cbox\Cms\Core\Tests\Reads\Probe\ReadProbe;
@@ -37,7 +39,8 @@ use DateInterval;
  * probe.read and the fakes of its ports and of the contracts it reads (GUARDRAILS 9): the identity,
  * the access resolver, the authorizer, the type catalog, the read audit and the read transaction.
  * It covers the answer, the rejections of a credential, of an actor that is not active, of the
- * authorizer and of the budget, the stripping of fields, the read audit and the content keys.
+ * authorizer and of the budget, the stripping of fields, an agent's fields and a read through MCP
+ * without one (PRD 2.31), the read audit and the content keys.
  */
 
 /**
@@ -289,4 +292,50 @@ it('refuses a query that no query action handles before it begins a transaction'
 
     expect(fn (): QueryResult => $world->pipeline()->run(new QueryCall($stray, null)))->toThrow(UnknownQuery::class, 'No query action handles the query '.$stray::class)
         ->and($world->transaction->commits + $world->transaction->rollBacks)->toBe(0);
+});
+
+it('answers with the classification access of the read\'s principal, which the surface writes the result with', function (): void {
+    $actor = new QueryWorld()->read(1);
+    $anonymous = new QueryWorld()->read(1, anonymous: true);
+
+    expect($actor->access)->toBe(ClassificationAccess::Confidential)
+        ->and($anonymous->access)->toBe(ClassificationAccess::Public);
+});
+
+it('shows an agent only the fields the blueprint opens to agents, never a personal or sensitive one, even when its grants allow more', function (): void {
+    $world = new QueryWorld(AgentCardType::definition(), [AgentCardType::card(QueryWorld::ENTRIES[0])]);
+    $world->access->grant($world->reader, [], ClassificationAccess::Sensitive);
+
+    $result = $world->pipeline()->run(new QueryCall(new ReadProbe, $world->agentCredential(), Surface::Mcp));
+
+    expect($result->isAnswered())->toBeTrue()
+        ->and(answeredFields($result))->toBe([AgentCardType::VISIBLE])
+        ->and($result->access)->toBe(ClassificationAccess::Confidential)
+        ->and($world->audit->records)->toBe([]);
+});
+
+it('rejects a read through MCP without an agent\'s credential as unauthorized, before it sets a context or reads', function (bool $anonymous): void {
+    $world = new QueryWorld(AgentCardType::definition(), [AgentCardType::card(QueryWorld::ENTRIES[0])]);
+
+    $result = $world->pipeline()->run(new QueryCall(new ReadProbe, $anonymous ? null : $world->credential, Surface::Mcp));
+
+    expect($result->isAnswered())->toBeFalse()
+        ->and(queryErrors($result))->toBe(['unauthorized'])
+        ->and($result->errors[0]->message)->toContain('through the mcp surface is made by an agent')
+        ->and($world->access->resolved)->toBe([])
+        ->and($world->library->handled)->toBe([])
+        ->and($world->transaction->commits)->toBe(0);
+})->with([
+    'a service\'s credential' => [false],
+    'no credential' => [true],
+]);
+
+it('strips an agent\'s fields through every surface, and a service\'s credential reads every field its access allows', function (): void {
+    $world = new QueryWorld(AgentCardType::definition(), [AgentCardType::card(QueryWorld::ENTRIES[0])]);
+
+    $agent = $world->pipeline()->run(new QueryCall(new ReadProbe, $world->agentCredential(), Surface::Rest));
+    $service = $world->pipeline()->run(new QueryCall(new ReadProbe, $world->credential, Surface::Rest));
+
+    expect(answeredFields($agent))->toBe([AgentCardType::VISIBLE])
+        ->and(answeredFields($service))->toBe([['aside', 'brief', 'label', 'memo', 'note', 'sources', 'ext.probe.code', 'ext.probe.tag']]);
 });

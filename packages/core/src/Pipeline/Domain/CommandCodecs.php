@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Pipeline\Domain;
 
-use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCodec;
 use InvalidArgumentException;
@@ -15,7 +15,7 @@ use InvalidArgumentException;
  * version. A command task adds its command's codec by tagging it; an exposed surface cannot read a
  * command without one.
  */
-#[Internal]
+#[Experimental]
 final readonly class CommandCodecs
 {
     /** The container tag the codecs are registered under. */
@@ -49,7 +49,15 @@ final readonly class CommandCodecs
      */
     public function for(CommandName $command, int $version): CommandCodec
     {
-        return $this->codecs[$this->key($command, $version)] ?? throw UnknownCommand::noCodec($command->value, $version);
+        return $this->find($command, $version) ?? throw UnknownCommand::noCodec($command->value, $version);
+    }
+
+    /**
+     * The codec of that version of the command, or null when none is registered.
+     */
+    public function find(CommandName $command, int $version): ?CommandCodec
+    {
+        return $this->codecs[$this->key($command, $version)] ?? null;
     }
 
     private function key(CommandName $command, int $version): string

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Pipeline;
 
 use Cbox\Cms\Contracts\Attributes\Surface;
+use Cbox\Cms\Contracts\Codecs\JsonSchema;
 use Cbox\Cms\Contracts\Envelope\RequestEnvelope;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Identity\ActorClass;
@@ -70,7 +71,7 @@ final readonly class ExposedWorld
 
     public static function codec(): CommandCodec
     {
-        return new CommandCodec(new CommandName(self::COMMAND), 1, new RenameProbeCodec);
+        return new CommandCodec(new CommandName(self::COMMAND), 1, new RenameProbeCodec, new JsonSchema(RenameProbeCodec::SCHEMA));
     }
 
     public static function codecs(): CommandCodecs

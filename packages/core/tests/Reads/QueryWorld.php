@@ -23,6 +23,7 @@ use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Pipeline\QueryCost;
 use Cbox\Cms\Contracts\Results\QueryResult;
 use Cbox\Cms\Contracts\Results\ReadContent;
+use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Core\Reads\Actions\QueryPipeline;
 use Cbox\Cms\Core\Reads\Domain\Dto\QueryCall;
 use Cbox\Cms\Core\Reads\Domain\Dto\QuerySettings;
@@ -47,8 +48,9 @@ use DateInterval;
  * The query pipeline with the test-only query probe.read and the fakes of its ports and of the
  * contracts it reads (GUARDRAILS 9): the identity, the type catalog, the access resolver, the read
  * audit and the read transaction. The library holds three cards of test:card, each with every
- * field of the type and an undeclared one; the reader is a service actor whose credential's ceiling
- * is sensitive and whose grants allow confidential.
+ * field of the type and an undeclared one, or the type and cards a test gives; the reader is a
+ * service actor whose credential's ceiling is sensitive and whose grants allow confidential, and
+ * agentCredential() gives it a credential issued for an agent.
  */
 final class QueryWorld
 {
@@ -85,13 +87,19 @@ final class QueryWorld
 
     public FakeQueryAuthorizer $authorizer;
 
-    public function __construct()
+    public readonly TypeDefinition $type;
+
+    /**
+     * @param  list<ReadContent>|null  $cards  the library's cards, or a card of test:card per ENTRIES
+     */
+    public function __construct(?TypeDefinition $type = null, ?array $cards = null)
     {
+        $this->type = $type ?? ProbeCardType::definition();
         $this->clock = new FakeClock;
         $this->identity = new FakeIdentity($this->clock);
         $this->reader = $this->identity->addActor(ActorClass::Service)->id;
         $this->credential = $this->identity->issue(new ServiceCredentialSpec($this->reader, IssuerKind::Service, ClassificationAccess::Sensitive, $this->clock->now()->add(new DateInterval('P1D'))));
-        $this->library = new ProbeLibrary(array_map(self::card(...), self::ENTRIES));
+        $this->library = new ProbeLibrary($cards ?? array_map(self::card(...), self::ENTRIES));
         $this->access = new FakeAccessResolver()->grant($this->reader, [], ClassificationAccess::Confidential);
         $this->audit = new FakeReadAudit;
         $this->transaction = new FakeQueryTransaction(new CommitPosition(self::POSITION), $this->access, $this->audit);
@@ -137,7 +145,7 @@ final class QueryWorld
             $this->access,
             $this->authorizer,
             new QuerySettings(new QueryCost(self::ANONYMOUS_BUDGET), new QueryCost(self::ACTOR_BUDGET)),
-            new ReadableFields(new FakeTypeCatalog(ProbeCardType::definition())),
+            new ReadableFields(new FakeTypeCatalog($this->type)),
             $this->audit,
             $this->transaction,
         );
@@ -146,5 +154,14 @@ final class QueryWorld
     public function read(int $rows = 1, bool $anonymous = false): QueryResult
     {
         return $this->pipeline()->run(new QueryCall(new ReadProbe($rows), $anonymous ? null : $this->credential));
+    }
+
+    /**
+     * A credential of the reader issued for an agent, whose ceiling is the most an agent's may be,
+     * confidential (PRD 2.31).
+     */
+    public function agentCredential(): TransportCredential
+    {
+        return $this->identity->issue(new ServiceCredentialSpec($this->reader, IssuerKind::Agent, IssuerKind::Agent->maximumCeiling(), $this->clock->now()->add(new DateInterval('P1D'))));
     }
 }

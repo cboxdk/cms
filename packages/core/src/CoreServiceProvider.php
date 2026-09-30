@@ -129,8 +129,10 @@ use Cbox\Cms\Core\Reads\Adapter\ConnectionQueryTransaction;
 use Cbox\Cms\Core\Reads\Adapter\PostgresReadAudit;
 use Cbox\Cms\Core\Reads\Adapter\RegistryQueryActions;
 use Cbox\Cms\Core\Reads\Boundary\QueryConfig;
+use Cbox\Cms\Core\Reads\Domain\Dto\QueryCodec;
 use Cbox\Cms\Core\Reads\Domain\Dto\QuerySettings;
 use Cbox\Cms\Core\Reads\Domain\QueryActions;
+use Cbox\Cms\Core\Reads\Domain\QueryCodecs;
 use Cbox\Cms\Core\Reads\Domain\QueryTransaction;
 use Cbox\Cms\Core\Reads\Domain\ReadAudit;
 use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
@@ -298,12 +300,16 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
 
         // What an exposed surface needs before it hands a call to the pipeline (GUARDRAILS 2.1): the
         // access context of the verified principal, read in a transaction of its own on the default
-        // connection, and the codec of each command it reads, which each command registers under
-        // the tag CommandCodecs::TAG.
+        // connection, and the codecs of each command and query it reads, which each command and
+        // query registers under the tag CommandCodecs::TAG or QueryCodecs::TAG.
         $this->app->bind(AccessContexts::class, TransactionalAccessContexts::class);
         $this->app->bind(
             CommandCodecs::class,
             static fn (Application $app): CommandCodecs => new CommandCodecs(...self::tagged($app, CommandCodecs::TAG, CommandCodec::class)),
+        );
+        $this->app->bind(
+            QueryCodecs::class,
+            static fn (Application $app): QueryCodecs => new QueryCodecs(...self::tagged($app, QueryCodecs::TAG, QueryCodec::class)),
         );
 
         // The commit (PRD 6.2 phase 7) on the default connection, the command transaction's, with

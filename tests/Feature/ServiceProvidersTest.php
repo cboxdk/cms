@@ -9,15 +9,17 @@ use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Core\Tests\Process\ProcessEnvironment;
 use Cbox\Cms\Generators\GeneratorsServiceProvider;
 use Cbox\Cms\Http\HttpServiceProvider;
+use Cbox\Cms\Mcp\McpServiceProvider;
 use Illuminate\Config\Repository;
 use Illuminate\Container\Container;
 use Illuminate\Foundation\Application;
 use Workbench\App\Providers\WorkbenchServiceProvider;
 
-it('loads the service providers of core, http, cli and generators through package discovery', function (): void {
+it('loads the service providers of core, http, mcp, cli and generators through package discovery', function (): void {
     expect(app()->getLoadedProviders())->toHaveKeys([
         CoreServiceProvider::class,
         HttpServiceProvider::class,
+        McpServiceProvider::class,
         CliServiceProvider::class,
         GeneratorsServiceProvider::class,
     ]);

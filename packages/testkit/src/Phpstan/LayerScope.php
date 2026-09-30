@@ -22,7 +22,7 @@ final class LayerScope
      *
      * @var list<string>
      */
-    public const array LAYERS = ['Domain', 'Actions', 'Boundary', 'Adapter', 'Infrastructure', 'Jobs', 'Http', 'Cli'];
+    public const array LAYERS = ['Domain', 'Actions', 'Boundary', 'Adapter', 'Infrastructure', 'Jobs', 'Http', 'Cli', 'Mcp'];
 
     /**
      * The only layers that may use mixed, untyped arrays and phpstan-ignore comments.

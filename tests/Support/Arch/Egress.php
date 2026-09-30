@@ -15,6 +15,7 @@ use Cbox\Cms\Generators\Generation\Adapter\FilesystemGeneratedOutput;
 use Cbox\Cms\Generators\Migrations\Boundary\LockFiles;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintFiles;
 use Cbox\Cms\Generators\Schema\Boundary\LocalFile;
+use Cbox\Cms\Mcp\Boundary\KernelSchemas;
 use Cbox\Cms\Testkit\Phpstan\EgressNames;
 use Cbox\Cms\Testkit\Phpstan\LaravelBootLock;
 use Cbox\Cms\Testkit\Phpstan\PhpstanIgnoreCollector;
@@ -82,6 +83,10 @@ final class Egress
         // (LocalPath::namesStreamWrapper()) before it touches it, and the generators read every
         // schema and generated file through it.
         LocalFile::class => ['SplFileObject'],
+        // Reads the kernel's envelope.v1.json, which the MCP tools embed in their input schemas,
+        // from a path fixed below the mcp module's directory in the same package, and refuses a
+        // path that names a stream wrapper before it touches it.
+        KernelSchemas::class => ['SplFileObject'],
         // Lists a scan root with a RecursiveDirectoryIterator and reads the .php files it finds
         // there; ScanRoot requires the directory to be an absolute path, and the scanner lists its
         // realpath(), which resolves no stream wrapper.

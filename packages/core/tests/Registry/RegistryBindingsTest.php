@@ -54,6 +54,7 @@ function packageScanRoots(): ScanRoots
         new ScanRoot('cboxdk/cms', $packages.'/http/src'),
         new ScanRoot('cboxdk/cms', $packages.'/cli/src'),
         new ScanRoot('cboxdk/cms', $packages.'/generators/src'),
+        new ScanRoot('cboxdk/cms', $packages.'/mcp/src'),
     );
 }
 
@@ -69,12 +70,12 @@ it('lets each package provider declare its own src directory as a scan root', fu
 it('collects the scan roots of every registered provider that declares them', function (): void {
     $roots = ProviderScanRoots::of(app())->roots;
 
-    expect($roots)->toHaveCount(4)
+    expect($roots)->toHaveCount(5)
         ->and($roots)->toEqualCanonicalizing(packageScanRoots()->roots);
 
     app()->register(FixtureRootProvider::class);
 
-    expect(ProviderScanRoots::of(app())->roots)->toHaveCount(5)->toContainEqual(RegistryFixtures::root('Valid'));
+    expect(ProviderScanRoots::of(app())->roots)->toHaveCount(6)->toContainEqual(RegistryFixtures::root('Valid'));
 });
 
 it('registers deferred providers first, so their scan roots are not missed', function (): void {

@@ -8,6 +8,7 @@ use Cbox\Cms\Cli\CliServiceProvider;
 use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Generators\GeneratorsServiceProvider;
 use Cbox\Cms\Http\HttpServiceProvider;
+use Cbox\Cms\Mcp\McpServiceProvider;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Tests\Support\Arch\Codebase;
 use Cbox\Cms\Tests\Support\Arch\ModuleDependencies;
@@ -24,7 +25,7 @@ use Workbench\App\Providers\WorkbenchServiceProvider;
 /*
  * Cbox CMS is one Composer package, cboxdk/cms, like statamic/cms (GUARDRAILS 2.6, PRD 2.32). The
  * kernel's modules are namespaces with their code in packages/<module>/src, and no package
- * boundary keeps them apart, so these rules do: contracts depends only on PHP, core, http and cli
+ * boundary keeps them apart, so these rules do: contracts depends only on PHP, core, http, cli and mcp
  * never use the testkit or the generators, and no production module uses a package that
  * composer.json only suggests (ModuleDependencies). The last tests plant each kind of violation in
  * a scratch directory and check that the rule reports it.
@@ -143,6 +144,7 @@ arch('modules: the service providers of the modules are listed in extra.laravel.
     expect($providers)->toBe([
         CoreServiceProvider::class,
         HttpServiceProvider::class,
+        McpServiceProvider::class,
         CliServiceProvider::class,
         GeneratorsServiceProvider::class,
     ]);
@@ -156,8 +158,8 @@ arch('modules: the workbench registers the providers of extra.laravel.providers 
     $testbench = Yaml::parseFile(Codebase::root().'/testbench.yaml');
     $providers = is_array($testbench) && is_array($testbench['providers'] ?? null) ? $testbench['providers'] : [];
 
-    expect(array_slice($providers, 0, 4))->toBe(modulesSection('extra', 'laravel', 'providers'))
-        ->and(array_slice($providers, 4))->toBe([WorkbenchServiceProvider::class]);
+    expect(array_slice($providers, 0, 5))->toBe(modulesSection('extra', 'laravel', 'providers'))
+        ->and(array_slice($providers, 5))->toBe([WorkbenchServiceProvider::class]);
 });
 
 arch('modules: the heavy development tools are suggested and required for development, never in require', function (): void {
@@ -179,12 +181,12 @@ arch('modules: the generators use symfony/yaml, opis/json-schema and the Compose
 
 arch('modules: the rules report contracts using another module or any package', function (): void {
     expect(modulesViolationsOf('contracts', 'final class Planted { public function of(\Cbox\Cms\Core\CoreServiceProvider $core): void {} }'))
-        ->toBe(['<plant>/Planted.php: Cbox\Cms\Core\CoreServiceProvider (module core): contracts may not use cli, core, generators, http, testkit.'])
+        ->toBe(['<plant>/Planted.php: Cbox\Cms\Core\CoreServiceProvider (module core): contracts may not use cli, core, generators, http, mcp, testkit.'])
         ->and(modulesViolationsOf('contracts', 'final class Planted { public function of(\Illuminate\Support\Collection $items): void {} }'))
         ->toBe(['<plant>/Planted.php: Illuminate\Support\Collection (package illuminate/support): contracts depends only on PHP.']);
 });
 
-arch('modules: the rules report core, http and cli using the testkit or the generators', function (string $module, string $class, string $owner): void {
+arch('modules: the rules report core, http, cli and mcp using the testkit or the generators', function (string $module, string $class, string $owner): void {
     expect(modulesViolationsOf($module, "final class Planted { public function of(\\{$class} \$used): void {} }"))
         ->toBe(["<plant>/Planted.php: {$class} (module {$owner}): {$module} may not use generators, testkit."]);
 })->with([
@@ -192,6 +194,8 @@ arch('modules: the rules report core, http and cli using the testkit or the gene
     'core using the generators' => ['core', GeneratorsServiceProvider::class, 'generators'],
     'http using the testkit' => ['http', FakeClock::class, 'testkit'],
     'cli using the generators' => ['cli', GeneratorsServiceProvider::class, 'generators'],
+    'mcp using the testkit' => ['mcp', FakeClock::class, 'testkit'],
+    'mcp using the generators' => ['mcp', GeneratorsServiceProvider::class, 'generators'],
 ]);
 
 arch('modules: the rules report a production module using a package composer.json only suggests', function (string $module, string $class, string $package): void {
@@ -202,6 +206,7 @@ arch('modules: the rules report a production module using a package composer.jso
     'core using opis/json-schema' => ['core', CompliantValidator::class, 'opis/json-schema'],
     'cli using Larastan' => ['cli', ApplicationResolver::class, 'larastan/larastan'],
     'http using PHPUnit' => ['http', Assert::class, 'phpunit/phpunit'],
+    'mcp using opis/json-schema' => ['mcp', CompliantValidator::class, 'opis/json-schema'],
 ]);
 
 arch('modules: the rules report a module using the tests, the tooling, the workbench or the examples', function (): void {

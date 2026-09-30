@@ -36,8 +36,9 @@ use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
  * RunExposedCommand (GUARDRAILS 2.1, PRD 6.1, 6.2) called directly with its DTO, the test-only
  * command probe.rename and the fakes of its ports (GUARDRAILS 9): the identity as the credential
  * verifier, the fake AccessContexts and the command pipeline of the PipelineWorld. It covers success
- * with the envelope the action builds, every rejection before the pipeline, the rejections the
- * pipeline gives back, the conflict at commit and the dry run.
+ * with the envelope the action builds, every rejection before the pipeline, a call through MCP
+ * without an agent's credential among them, the rejections the pipeline gives back, the conflict at
+ * commit and the dry run.
  */
 
 /**
@@ -184,4 +185,23 @@ it('runs a dry run, which commits nothing', function (): void {
     expect($result->outcome())->toBe(Outcome::DryRun)
         ->and($result->dryRun)->not->toBeNull()
         ->and($exposed->world->committer->pending)->toBe([]);
+});
+
+it('runs a call through MCP only with an agent\'s credential, as the agent, and rejects any other as unauthorized before the context', function (): void {
+    $exposed = new ExposedWorld;
+
+    $agent = $exposed->action()->run($exposed->call($exposed->credential(IssuerKind::Agent), exposedRequest('exposed-mcp-agent'), surface: Surface::Mcp));
+    $envelope = $exposed->world->committer->pending[0]->envelope;
+    $asked = count($exposed->contexts->asked);
+
+    $service = $exposed->action()->run($exposed->call($exposed->credential(), exposedRequest('exposed-mcp-service'), surface: Surface::Mcp));
+
+    expect($agent->outcome())->toBe(Outcome::Committed)
+        ->and($envelope->surface)->toBe(IssuingSurface::Mcp)
+        ->and($envelope->issuerKind)->toBe(EnvelopeIssuer::Agent)
+        ->and($exposed->world->committer->pending[0]->access->classificationAccess)->toBe(ClassificationAccess::Internal)
+        ->and(exposedErrors($service))->toBe(['unauthorized -'])
+        ->and($service->errors[0]->message)->toContain('through the mcp surface is made by an agent')
+        ->and($exposed->world->committer->pending)->toHaveCount(1)
+        ->and($exposed->contexts->asked)->toHaveCount($asked);
 });

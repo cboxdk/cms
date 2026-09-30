@@ -29,6 +29,8 @@ parameters:
         - packages/generators/tests
         - packages/http/src
         - packages/http/tests
+        - packages/mcp/src
+        - packages/mcp/tests
         - packages/testkit/bin
         - packages/testkit/config
         - packages/testkit/src

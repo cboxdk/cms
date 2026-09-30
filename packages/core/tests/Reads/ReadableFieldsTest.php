@@ -9,6 +9,8 @@ use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Fields\FieldMap;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Fields\FieldValues;
+use Cbox\Cms\Contracts\Fields\GroupValue;
+use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Fields\TextValue;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
@@ -16,6 +18,7 @@ use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Results\ReadContent;
 use Cbox\Cms\Core\Reads\Domain\Dto\AuditedRead;
 use Cbox\Cms\Core\Reads\Domain\ReadableFields;
+use Cbox\Cms\Core\Tests\Reads\Probe\AgentCardType;
 use Cbox\Cms\Core\Tests\Reads\Probe\ProbeCardType;
 use Cbox\Cms\Testkit\Schema\FakeTypeCatalog;
 
@@ -23,7 +26,8 @@ use Cbox\Cms\Testkit\Schema\FakeTypeCatalog;
  * The fields of a read as the principal may see them (PRD 6.2, 12.2): each classification access
  * keeps the fields at or below it, an undeclared field or extender is left out, an entry of a type
  * the installation does not have keeps nothing, and the sensitive fields left are the ones the read
- * audit names (PRD 12.12).
+ * audit names (PRD 12.12). An agent sees only the fields the blueprint opens to agents (PRD 2.31),
+ * inside a group too.
  */
 
 function readableFields(): ReadableFields
@@ -95,4 +99,33 @@ it('names the sensitive fields of an entry for the read audit, sorted, and nothi
         ->and($audited?->fields)->toBe(['diagnosis', 'ext.probe.code'])
         ->and($audited?->classification)->toBe(ClassificationAccess::Sensitive)
         ->and($fields->audited($fields->strip($card, ClassificationAccess::Personal)))->toBeNull();
+});
+
+it('shows an agent only the fields the blueprint opens to agents, at or below its access', function (ClassificationAccess $access, array $kept): void {
+    $fields = new ReadableFields(new FakeTypeCatalog(AgentCardType::definition()));
+
+    expect(addresses($fields->strip(AgentCardType::card(QueryWorld::ENTRIES[0]), $access, agent: true)))->toBe($kept);
+})->with([
+    'public' => [ClassificationAccess::Public, ['label', 'ext.probe.tag']],
+    'internal' => [ClassificationAccess::Internal, ['label', 'note', 'sources', 'ext.probe.tag']],
+    'confidential' => [ClassificationAccess::Confidential, AgentCardType::VISIBLE],
+]);
+
+it('leaves the fields agents do not see out of every item of a group agents see, and keeps the rest of it', function (): void {
+    $fields = new ReadableFields(new FakeTypeCatalog(AgentCardType::definition()));
+    $card = AgentCardType::card(QueryWorld::ENTRIES[0]);
+
+    $sources = $fields->strip($card, ClassificationAccess::Confidential, agent: true)->fields->own->get(new FieldHandle('sources'));
+    $titles = static fn (string $name): GroupValue => new GroupValue(new FieldMap(new NamedValue(new FieldHandle('title'), new TextValue($name.' title'))));
+
+    expect($sources)->toEqual(new ListValue($titles('first'), $titles('second')))
+        ->and($fields->strip($card, ClassificationAccess::Confidential)->fields->own->get(new FieldHandle('sources')))
+        ->toEqual(new ListValue(AgentCardType::source('first'), AgentCardType::source('second')));
+});
+
+it('keeps every field at or below the access for a reader that is not an agent, whatever agents says', function (): void {
+    $fields = new ReadableFields(new FakeTypeCatalog(AgentCardType::definition()));
+
+    expect(addresses($fields->strip(AgentCardType::card(QueryWorld::ENTRIES[0]), ClassificationAccess::Sensitive)))
+        ->toBe(['aside', 'brief', 'contact', 'diagnosis', 'label', 'memo', 'note', 'sources', 'ext.probe.code', 'ext.probe.tag']);
 });
