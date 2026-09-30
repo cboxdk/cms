@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\Pipeline\Actions;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Attributes\Phase;
+use Cbox\Cms\Contracts\Consistency\Outcome;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
 use Cbox\Cms\Contracts\Envelope\IssuerKind as EnvelopeIssuer;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
@@ -131,6 +132,12 @@ use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
  *    call leaves the key fresh, and a retry runs again. A write that no partition covers, in the
  *    commit or in the completion of the key, is partition_missing: Postgres has failed the
  *    transaction, and the CommandTransaction rolls back everything the call wrote.
+ * 8. Wait (PRD 8.4). Once the transaction has committed, a committed call waits for the wait level
+ *    its envelope asks for, within the wait budget (cbox-cms.receipts.wait_budget_ms), through
+ *    AwaitWaitLevel: commit returns at once, origin once the invalidation subscriber has
+ *    acknowledged the origin projection on the receipt. A level not reached within the budget
+ *    makes the call committed_wait_timeout, which is committed but not waited out; nothing after
+ *    commit can make the call fail. A replay's receipt is decided without a wait (ReplayReceipt).
  *
  * resolve() and plan() get the command and the aggregates and nothing else: no connection, no
  * envelope and no access context, so an action cannot write or commit. The hooks get a view of
@@ -173,13 +180,29 @@ final readonly class CommandPipeline
         private CommandTransaction $transaction,
         private HookRunner $hooks,
         private PipelineTelemetry $telemetry,
+        private AwaitWaitLevel $wait,
     ) {}
 
     public function run(CommandCall $call): WriteResult
     {
         $binding = $this->actions->for($call->command);
 
-        return $this->telemetry->command($binding, $call, fn (): WriteResult => $this->transaction->run($call->access, fn (): WriteResult => $this->claimed($call, $binding)));
+        return $this->telemetry->command($binding, $call, fn (): WriteResult => $this->waited(
+            $this->transaction->run($call->access, fn (): WriteResult => $this->claimed($call, $binding)),
+        ));
+    }
+
+    /**
+     * Phase 8's wait (PRD 8.4): a committed result, once its transaction has committed, waits for
+     * the level its envelope asks for, within the wait budget.
+     */
+    private function waited(WriteResult $result): WriteResult
+    {
+        if ($result->outcome() !== Outcome::Committed) {
+            return $result;
+        }
+
+        return WriteResult::committed($this->wait->after($result->receipt));
     }
 
     /**

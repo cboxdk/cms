@@ -30,12 +30,14 @@ use Cbox\Cms\Contracts\Results\WriteResult;
 use Cbox\Cms\Core\IdempotencyStore\Adapter\PostgresIdempotencyStore;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
 use Cbox\Cms\Core\Identity\Adapter\PostgresActorVersionLock;
+use Cbox\Cms\Core\Pipeline\Actions\AwaitWaitLevel;
 use Cbox\Cms\Core\Pipeline\Actions\CommandPipeline;
 use Cbox\Cms\Core\Pipeline\Actions\HookRunner;
 use Cbox\Cms\Core\Pipeline\Adapter\PostgresChangesetCommitter;
 use Cbox\Cms\Core\Pipeline\Domain\CommandTransaction;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\ActionBinding;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCall;
+use Cbox\Cms\Core\Pipeline\Domain\Dto\WaitSettings;
 use Cbox\Cms\Core\Pipeline\Domain\HookPlans;
 use Cbox\Cms\Core\Pipeline\Domain\MutationWriters;
 use Cbox\Cms\Core\Pipeline\Domain\VersionLocks;
@@ -51,6 +53,7 @@ use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeRevisionContents;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeStopwatch;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeWriteActions;
 use Cbox\Cms\Core\Tests\Postgres\StorageTables;
+use Cbox\Cms\Core\Tests\Subscriptions\Fakes\FakePacing;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\FixtureWriters\Identity\Adapter\PostgresIdentitySeeder;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
@@ -206,6 +209,7 @@ final class TallyWorld
             app(CommandTransaction::class),
             new HookRunner(new FakeCommandHooks, new HookPlans($types), new FakeStopwatch, new FakeHookOverruns),
             new PipelineTelemetry(new FakeTelemetry, new FakeClock, new FakeStopwatch),
+            new AwaitWaitLevel($receipts, new FakePacing, new WaitSettings(0)),
         );
     }
 

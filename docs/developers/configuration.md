@@ -72,6 +72,14 @@ For example, `'contracts' => [Clock::class => StagingClock::class]` replaces the
 | `cbox-cms.queries.budgets.actor` | `1000` | The cost budget of a read as an actor, with the same rules. |
 | `cbox-cms.idempotency.wait_budget_ms` | `2000` | How long a command waits, in milliseconds, for another call with the same idempotency key to end. When the budget runs out, the command is rejected with [`idempotency_in_flight`](../reference/errors.md#idempotency_in_flight), which the client may retry. It is `0` to `5000`, part of the 5 seconds a command transaction may take, and `0` means do not wait. A value outside that range fails when the kernel reads it. |
 
+## Wait levels
+
+A command waits after its commit for the wait level its envelope asks for (PRD 8.4); see [commands](../addons/commands.md#the-command-pipeline).
+
+| Key | Default | What it does |
+|---|---|---|
+| `cbox-cms.receipts.wait_budget_ms` | `5000` | How long a committed command waits, in milliseconds of real time, for its wait level, such as `origin`, which the invalidation subscriber reaches once it has purged the server fragments. When the budget runs out, the command returns `committed_wait_timeout`: committed, but not waited out. The wait runs after the transaction has committed, so it holds no lock. It is `0` to `30000`, and `0` means never wait past commit. A value outside that range fails when the kernel reads it. |
+
 ## Event runner
 
 `cms:events:run` reads `cbox-cms.events.runner` (PRD 7.4 to 7.8); see [subscribers](../addons/subscribers.md#the-runner). A value outside its range fails when the runner starts, with exit 64.

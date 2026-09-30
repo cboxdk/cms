@@ -31,12 +31,14 @@ use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Pipeline\WriteAction;
 use Cbox\Cms\Contracts\Results\WriteResult;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
+use Cbox\Cms\Core\Pipeline\Actions\AwaitWaitLevel;
 use Cbox\Cms\Core\Pipeline\Actions\CommandPipeline;
 use Cbox\Cms\Core\Pipeline\Actions\HookRunner;
 use Cbox\Cms\Core\Pipeline\Domain\CommitOutcome;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\ActionBinding;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCall;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\PendingChangeset;
+use Cbox\Cms\Core\Pipeline\Domain\Dto\WaitSettings;
 use Cbox\Cms\Core\Pipeline\Domain\HookPlans;
 use Cbox\Cms\Core\Seeding\Actions\SeedDataset;
 use Cbox\Cms\Core\Seeding\Actions\SeedEntriesAction;
@@ -58,6 +60,7 @@ use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeStopwatch;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeWriteActions;
 use Cbox\Cms\Core\Tests\Seeding\Fakes\FakeSeedReader;
 use Cbox\Cms\Core\Tests\Seeding\Fakes\FakeSeedTargets;
+use Cbox\Cms\Core\Tests\Subscriptions\Fakes\FakePacing;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\Idempotency\FakeIdempotencySession;
 use Cbox\Cms\Testkit\Idempotency\FakeIdempotencyStore;
@@ -196,6 +199,7 @@ final class SeedActionWorld
             new FakeCommandTransaction($this->keys, $this->receipts),
             new HookRunner(new FakeCommandHooks, new HookPlans($types), new FakeStopwatch, new FakeHookOverruns),
             new PipelineTelemetry(new FakeTelemetry, new FakeClock, new FakeStopwatch),
+            new AwaitWaitLevel($this->receipts, new FakePacing, new WaitSettings(0)),
         );
     }
 

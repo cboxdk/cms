@@ -26,6 +26,7 @@ use Cbox\Cms\Core\Entries\Domain\Events\EntryCreated;
 use Cbox\Cms\Core\Entries\Domain\Events\VariantRevised;
 use Cbox\Cms\Core\Fragments\Domain\ContentKeys;
 use Cbox\Cms\Core\Fragments\Domain\Dto\InvalidationSettings;
+use Cbox\Cms\Core\Pipeline\Domain\WaitLevelRule;
 use Override;
 
 /**
@@ -57,7 +58,7 @@ final readonly class InvalidateFragments implements Subscriber
     public const string NAME = 'fragments.invalidate';
 
     /** The projection of the wait level origin: server fragments are invalidated (PRD 8.4). */
-    public const string PROJECTION = 'origin';
+    public const string PROJECTION = WaitLevelRule::ORIGIN;
 
     public function __construct(
         private FragmentStore $fragments,

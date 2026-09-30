@@ -40,12 +40,14 @@ use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
+use Cbox\Cms\Core\Pipeline\Actions\AwaitWaitLevel;
 use Cbox\Cms\Core\Pipeline\Actions\CommandPipeline;
 use Cbox\Cms\Core\Pipeline\Actions\HookRunner;
 use Cbox\Cms\Core\Pipeline\Domain\CommitOutcome;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\ActionBinding;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCall;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\PendingChangeset;
+use Cbox\Cms\Core\Pipeline\Domain\Dto\WaitSettings;
 use Cbox\Cms\Core\Pipeline\Domain\HookPlans;
 use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\Tests\Entries\Fakes\FakeEntryReader;
@@ -59,6 +61,7 @@ use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeHookOverruns;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeRevisionContents;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeStopwatch;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeWriteActions;
+use Cbox\Cms\Core\Tests\Subscriptions\Fakes\FakePacing;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\Idempotency\FakeIdempotencyStore;
 use Cbox\Cms\Testkit\Identity\FakeIdentity;
@@ -205,6 +208,7 @@ final class EntryActionWorld
             new FakeCommandTransaction($keys, $receipts),
             new HookRunner($this->hooks, new HookPlans($types), new FakeStopwatch, new FakeHookOverruns),
             new PipelineTelemetry(new FakeTelemetry, new FakeClock, new FakeStopwatch),
+            new AwaitWaitLevel($receipts, new FakePacing, new WaitSettings(0)),
         );
 
         $envelope = Envelope::external(

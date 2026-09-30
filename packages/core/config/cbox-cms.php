@@ -174,6 +174,18 @@ return [
     ],
 
     /*
+     * The wait after commit (PRD 8.4). A command's envelope names a wait level: commit returns once
+     * the transaction has committed, origin once the invalidation subscriber has purged the server
+     * fragments of what it changed and acknowledged the origin projection on its receipt. The call
+     * waits for its level at most wait_budget_ms of real time, after its transaction has committed,
+     * and otherwise returns committed_wait_timeout: committed, but not waited out. It is 0 to 30000
+     * ms, and 0 means never wait past commit.
+     */
+    'receipts' => [
+        'wait_budget_ms' => 5000,
+    ],
+
+    /*
      * The event runner (PRD 7.4 to 7.8), `cms:events:run`, one process per lane. It runs the
      * subscribers as the service actor service_actor names, the UUIDv7 of an active actor of class
      * service; without one it refuses to run. A batch reads at most batch_size events after the

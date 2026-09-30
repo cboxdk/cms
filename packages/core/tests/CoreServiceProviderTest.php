@@ -25,6 +25,7 @@ use Cbox\Cms\Core\Pipeline\Adapter\PostgresChangesetCommitter;
 use Cbox\Cms\Core\Pipeline\Adapter\RegistryCommandHooks;
 use Cbox\Cms\Core\Pipeline\Adapter\RegistryWriteActions;
 use Cbox\Cms\Core\Pipeline\Boundary\TypeRulesFieldValidation;
+use Cbox\Cms\Core\Pipeline\Boundary\WaitConfig;
 use Cbox\Cms\Core\Pipeline\Domain\CommandHooks;
 use Cbox\Cms\Core\Pipeline\Domain\FieldValidation;
 use Cbox\Cms\Core\Pipeline\Domain\HookOverruns;
@@ -93,11 +94,12 @@ it('merges config/cbox-cms.php under cbox-cms, the only root of the configuratio
     $defaults = new Repository(['cbox-cms' => require __DIR__.'/../config/cbox-cms.php']);
 
     expect(array_map(basename(...), glob(__DIR__.'/../config/*.php') ?: []))->toBe(['cbox-cms.php'])
-        ->and(array_keys($defaults->array('cbox-cms')))->toBe(['contracts', 'database', 'addons', 'cli', 'queries', 'sites', 'idempotency', 'events', 'rebuild', 'seeding', 'fragments', 'delivery', 'doctor'])
+        ->and(array_keys($defaults->array('cbox-cms')))->toBe(['contracts', 'database', 'addons', 'cli', 'queries', 'sites', 'idempotency', 'receipts', 'events', 'rebuild', 'seeding', 'fragments', 'delivery', 'doctor'])
         ->and(config('cbox-cms.contracts'))->toBe($defaults->get('cbox-cms.contracts'))
         ->and(config('cbox-cms.database.partitions.runway_days'))->toBe($defaults->get('cbox-cms.database.partitions.runway_days'))
         ->and(config('cbox-cms.queries.budgets'))->toBe($defaults->get('cbox-cms.queries.budgets'))
         ->and(config('cbox-cms.idempotency.wait_budget_ms'))->toBe($defaults->get('cbox-cms.idempotency.wait_budget_ms'))
+        ->and(config('cbox-cms.receipts.wait_budget_ms'))->toBe($defaults->get('cbox-cms.receipts.wait_budget_ms'))
         ->and(config('cbox-cms.events.runner'))->toBe($defaults->get('cbox-cms.events.runner'))
         ->and(config('cbox-cms.rebuild'))->toBe($defaults->get('cbox-cms.rebuild'))
         ->and($defaults->get('cbox-cms.rebuild'))->toBe(['service_actor' => null, 'chunk_size' => 100])
@@ -105,8 +107,8 @@ it('merges config/cbox-cms.php under cbox-cms, the only root of the configuratio
         ->and(config('cbox-cms.cli.credential'))->toBeNull()
         ->and($defaults->get('cbox-cms.cli.credential'))->toBeNull()
         ->and(config()->has('cms'))->toBeFalse()
-        ->and([ContractBindings::CONFIG_KEY, DoctorConfig::CONFIG_KEY, PartitionConfig::CONFIG_KEY, IdempotencyConfig::CONFIG_KEY, RunnerConfig::CONFIG_KEY, QueryConfig::CONFIG_KEY])
-        ->toBe(['cbox-cms.contracts', 'cbox-cms.doctor', 'cbox-cms.database', 'cbox-cms.idempotency', 'cbox-cms.events.runner', 'cbox-cms.queries']);
+        ->and([ContractBindings::CONFIG_KEY, DoctorConfig::CONFIG_KEY, PartitionConfig::CONFIG_KEY, IdempotencyConfig::CONFIG_KEY, WaitConfig::CONFIG_KEY, RunnerConfig::CONFIG_KEY, QueryConfig::CONFIG_KEY])
+        ->toBe(['cbox-cms.contracts', 'cbox-cms.doctor', 'cbox-cms.database', 'cbox-cms.idempotency', 'cbox-cms.receipts', 'cbox-cms.events.runner', 'cbox-cms.queries']);
 });
 
 it('binds the rebuild\'s store and its settings from the configuration', function (): void {

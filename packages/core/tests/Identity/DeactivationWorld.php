@@ -26,6 +26,7 @@ use Cbox\Cms\Core\Identity\Adapter\ActorDeactivatedWriter;
 use Cbox\Cms\Core\Identity\Adapter\PostgresActorDirectory;
 use Cbox\Cms\Core\Identity\Adapter\PostgresActorVersionLock;
 use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
+use Cbox\Cms\Core\Pipeline\Actions\AwaitWaitLevel;
 use Cbox\Cms\Core\Pipeline\Actions\CommandPipeline;
 use Cbox\Cms\Core\Pipeline\Actions\HookRunner;
 use Cbox\Cms\Core\Pipeline\Adapter\ConnectionCommandTransaction;
@@ -35,10 +36,12 @@ use Cbox\Cms\Core\Pipeline\Domain\ChangesetCommitter;
 use Cbox\Cms\Core\Pipeline\Domain\CommandAuthorizer;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\ActionBinding;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCall;
+use Cbox\Cms\Core\Pipeline\Domain\Dto\WaitSettings;
 use Cbox\Cms\Core\Pipeline\Domain\HookPlans;
 use Cbox\Cms\Core\Pipeline\Domain\MutationWriters;
 use Cbox\Cms\Core\Pipeline\Domain\VersionLocks;
 use Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore;
+use Cbox\Cms\Core\Subscriptions\Adapter\SystemPacing;
 use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeAffectedProjections;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandAuthorizer;
@@ -130,6 +133,7 @@ final readonly class DeactivationWorld
             new ConnectionCommandTransaction($this->connections, new SavepointRefusal),
             new HookRunner(new FakeCommandHooks, new HookPlans($types), new FakeStopwatch, new FakeHookOverruns),
             new PipelineTelemetry(new FakeTelemetry, new FakeClock, new FakeStopwatch),
+            new AwaitWaitLevel(new PostgresReceiptStore($this->connections, $this->clock), new SystemPacing, new WaitSettings(0)),
         );
     }
 

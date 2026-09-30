@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Publishing;
 
+use Cbox\Cms\Contracts\Consistency\WaitLevel;
 use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\RevisionNumber;
 use Cbox\Cms\Contracts\Content\Slug;
@@ -31,6 +32,7 @@ use Cbox\Cms\Contracts\Pipeline\WriteAction;
 use Cbox\Cms\Contracts\Results\WriteResult;
 use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Core\Entries\Actions\CreateEntryAction;
+use Cbox\Cms\Core\Entries\Actions\ReviseEntryAction;
 use Cbox\Cms\Core\Entries\Adapter\EntryCreatedWriter;
 use Cbox\Cms\Core\Entries\Adapter\HeadMovedWriter;
 use Cbox\Cms\Core\Entries\Adapter\PostgresEntryReader;
@@ -41,10 +43,12 @@ use Cbox\Cms\Core\Entries\Adapter\RevisionCreatedWriter;
 use Cbox\Cms\Core\Entries\Adapter\VariantReleasedWriter;
 use Cbox\Cms\Core\Entries\Adapter\VariantUnreleasedWriter;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
 use Cbox\Cms\Core\IdempotencyStore\Adapter\PostgresIdempotencyStore;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
 use Cbox\Cms\Core\Identity\Adapter\PostgresActorDirectory;
 use Cbox\Cms\Core\Identity\Adapter\PostgresActorVersionLock;
+use Cbox\Cms\Core\Pipeline\Actions\AwaitWaitLevel;
 use Cbox\Cms\Core\Pipeline\Actions\CommandPipeline;
 use Cbox\Cms\Core\Pipeline\Actions\HookRunner;
 use Cbox\Cms\Core\Pipeline\Adapter\ConnectionCommandTransaction;
@@ -53,6 +57,7 @@ use Cbox\Cms\Core\Pipeline\Adapter\SavepointRefusal;
 use Cbox\Cms\Core\Pipeline\Domain\AffectedProjections;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\ActionBinding;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCall;
+use Cbox\Cms\Core\Pipeline\Domain\Dto\WaitSettings;
 use Cbox\Cms\Core\Pipeline\Domain\FieldValidation;
 use Cbox\Cms\Core\Pipeline\Domain\HookPlans;
 use Cbox\Cms\Core\Pipeline\Domain\MutationWriters;
@@ -78,6 +83,7 @@ use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
 use Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeVersionLock;
 use Cbox\Cms\Core\Structure\Adapter\PostgresSiteVersionLock;
+use Cbox\Cms\Core\Subscriptions\Adapter\SystemPacing;
 use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\Tests\Entries\EntryWorld;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandAuthorizer;
@@ -104,8 +110,10 @@ use LogicException;
  * locks and writers of entries, releases and placements. Only what the kernel has no real
  * implementation of yet is a fake: the authorizer, which allows, the content hasher and the hooks.
  *
- * The structure is PlacementWorld::seed()'s: the sites north and south, each with a section. The
- * clock stands at EntryWorld::NOW. Each world adds an active staff member as its actor, whose
+ * entry.revise revises what they published. The structure is PlacementWorld::seed()'s: the sites
+ * north and south, each with a section. The clock stands at EntryWorld::NOW, or at the time a test
+ * gives the world and PlacementWorld::seed(). A committed call waits for its wait level at most the
+ * world's wait budget, 0 unless a test gives one, on real time. Each world adds an active staff member as its actor, whose
  * regions are the roots given.
  */
 final readonly class PublishingWorld
@@ -118,12 +126,18 @@ final readonly class PublishingWorld
 
     /**
      * @param  list<StructureNode>  $regions  the roots of the actor's access regions
+     * @param  string  $now  the clock's time, EntryWorld::NOW unless a test needs another, such as one
+     *                       that shares the receipts with a process on the system clock
+     * @param  int  $waitBudget  how long a committed call waits for its wait level, in milliseconds
+     *                           of real time; 0, never past commit, unless a test waits
      */
     public function __construct(
         private array $regions,
         int $seed = 1,
+        string $now = EntryWorld::NOW,
+        private int $waitBudget = 0,
     ) {
-        $this->clock = new FakeClock(new DateTimeImmutable(EntryWorld::NOW));
+        $this->clock = new FakeClock(new DateTimeImmutable($now));
         $this->ids = new FakeIdGenerator(seed: $seed, clock: $this->clock);
         $identity = new PostgresIdentitySeeder(app(ConnectionResolverInterface::class), $this->clock, new FakeIdGenerator(seed: 100 + $seed, clock: $this->clock));
 
@@ -164,12 +178,20 @@ final readonly class PublishingWorld
         ), $key, $dryRun);
     }
 
+    /**
+     * entry.revise of the entry's shared variant at the version, at the wait level given.
+     */
+    public function revise(EntryId $entry, int $version, FieldValues $fields, string $key, WaitLevel $waitLevel = WaitLevel::Commit): WriteResult
+    {
+        return $this->run(new ReviseEntry($entry, new AggregateVersion($version), $fields), $key, waitLevel: $waitLevel);
+    }
+
     public function unpublish(EntryId $entry, int $version, string $key): WriteResult
     {
         return $this->run(new UnpublishEntry($entry, new AggregateVersion($version)), $key);
     }
 
-    public function run(Command $command, string $key, bool $dryRun = false): WriteResult
+    public function run(Command $command, string $key, bool $dryRun = false, WaitLevel $waitLevel = WaitLevel::Commit): WriteResult
     {
         $envelope = Envelope::external(
             IssuingSurface::Rest,
@@ -178,6 +200,7 @@ final readonly class PublishingWorld
             new IdempotencyKey($key),
             new CorrelationId('publishing-correlation'),
             dryRun: $dryRun,
+            waitLevel: $waitLevel,
         );
 
         return $this->pipeline()->run(new CommandCall($command, $envelope, new AccessContext(
@@ -197,6 +220,7 @@ final readonly class PublishingWorld
         return new CommandPipeline(
             new FakeWriteActions([
                 CreateEntry::class => $this->binding('entry.create', new CreateEntryAction($entries)),
+                ReviseEntry::class => $this->binding('entry.revise', new ReviseEntryAction($entries)),
                 CreatePlacement::class => $this->binding('placement.create', new CreatePlacementAction($placements, $this->clock)),
                 SetPlacementWindow::class => $this->binding('placement.set_window', new SetPlacementWindowAction($placements, $this->clock)),
                 PublishEntry::class => $this->binding('entry.publish', new PublishEntryAction($entries, $placements, $types, $this->clock)),
@@ -243,6 +267,7 @@ final readonly class PublishingWorld
             new ConnectionCommandTransaction($connections, app(SavepointRefusal::class)),
             new HookRunner(new FakeCommandHooks, new HookPlans($types), new FakeStopwatch, new FakeHookOverruns),
             new PipelineTelemetry(new FakeTelemetry, new FakeClock, new FakeStopwatch),
+            new AwaitWaitLevel(new PostgresReceiptStore($connections, $this->clock), new SystemPacing, new WaitSettings($this->waitBudget)),
         );
     }
 

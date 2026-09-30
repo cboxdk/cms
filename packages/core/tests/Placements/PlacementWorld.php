@@ -41,6 +41,7 @@ use Cbox\Cms\Core\IdempotencyStore\Adapter\PostgresIdempotencyStore;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
 use Cbox\Cms\Core\Identity\Adapter\PostgresActorDirectory;
 use Cbox\Cms\Core\Identity\Adapter\PostgresActorVersionLock;
+use Cbox\Cms\Core\Pipeline\Actions\AwaitWaitLevel;
 use Cbox\Cms\Core\Pipeline\Actions\CommandPipeline;
 use Cbox\Cms\Core\Pipeline\Actions\HookRunner;
 use Cbox\Cms\Core\Pipeline\Adapter\ConnectionCommandTransaction;
@@ -49,6 +50,7 @@ use Cbox\Cms\Core\Pipeline\Adapter\SavepointRefusal;
 use Cbox\Cms\Core\Pipeline\Domain\AffectedProjections;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\ActionBinding;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCall;
+use Cbox\Cms\Core\Pipeline\Domain\Dto\WaitSettings;
 use Cbox\Cms\Core\Pipeline\Domain\FieldValidation;
 use Cbox\Cms\Core\Pipeline\Domain\HookPlans;
 use Cbox\Cms\Core\Pipeline\Domain\MutationWriters;
@@ -69,6 +71,7 @@ use Cbox\Cms\Core\Placements\Domain\Dto\LocaleSlug;
 use Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeVersionLock;
 use Cbox\Cms\Core\Structure\Adapter\PostgresSiteVersionLock;
+use Cbox\Cms\Core\Subscriptions\Adapter\SystemPacing;
 use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\Tests\Entries\EntryFields;
 use Cbox\Cms\Core\Tests\Entries\EntryWorld;
@@ -133,11 +136,11 @@ final class PlacementWorld
     }
 
     /**
-     * The partitions for NOW and the structure of two sites.
+     * The partitions for $now, EntryWorld::NOW by default, and the structure of two sites.
      */
-    public static function seed(): PlacementStructure
+    public static function seed(string $now = EntryWorld::NOW): PlacementStructure
     {
-        $clock = new FakeClock(new DateTimeImmutable(EntryWorld::NOW));
+        $clock = new FakeClock(new DateTimeImmutable($now));
         app(PartitionFixtures::class)->coverClock($clock, new DateInterval('P1D'));
 
         $fixtures = new PostgresStructureFixtures(app(ConnectionResolverInterface::class), $clock, new FakeIdGenerator(seed: 900, clock: $clock));
@@ -255,6 +258,7 @@ final class PlacementWorld
             new ConnectionCommandTransaction($connections, app(SavepointRefusal::class), $this->connection),
             new HookRunner(new FakeCommandHooks, new HookPlans($types), new FakeStopwatch, new FakeHookOverruns),
             new PipelineTelemetry(new FakeTelemetry, new FakeClock, new FakeStopwatch),
+            new AwaitWaitLevel(new PostgresReceiptStore($connections, $this->clock, $this->connection), new SystemPacing, new WaitSettings(0)),
         );
     }
 

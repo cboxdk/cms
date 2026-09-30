@@ -38,13 +38,16 @@ use Cbox\Cms\Contracts\Plans\Plan;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Results\WriteResult;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
+use Cbox\Cms\Core\Pipeline\Actions\AwaitWaitLevel;
 use Cbox\Cms\Core\Pipeline\Actions\CommandPipeline;
 use Cbox\Cms\Core\Pipeline\Actions\HookRunner;
 use Cbox\Cms\Core\Pipeline\Domain\CommitOutcome;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\BoundHook;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCall;
+use Cbox\Cms\Core\Pipeline\Domain\Dto\WaitSettings;
 use Cbox\Cms\Core\Pipeline\Domain\HookPlans;
 use Cbox\Cms\Core\Pipeline\Domain\Stopwatch;
+use Cbox\Cms\Core\Subscriptions\Domain\Pacing;
 use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeChangesetCommitter;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandAuthorizer;
@@ -62,6 +65,7 @@ use Cbox\Cms\Core\Tests\Pipeline\Probe\ProbeShelf;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\ProbeType;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\RenameProbe;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\RenameProbeAction;
+use Cbox\Cms\Core\Tests\Subscriptions\Fakes\FakePacing;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\Idempotency\FakeIdempotencySession;
 use Cbox\Cms\Testkit\Idempotency\FakeIdempotencyStore;
@@ -145,6 +149,12 @@ final class PipelineWorld
 
     public ?Plan $unreadPlan = null;
 
+    /** The real time the wait after commit reads and sleeps on. */
+    public Pacing $pacing;
+
+    /** How long a committed call waits for its wait level, in milliseconds; 0 by default. */
+    public int $waitBudget = 0;
+
     public function __construct()
     {
         $this->identity = new FakeIdentity;
@@ -166,6 +176,7 @@ final class PipelineWorld
         $this->timer = $this->stopwatch;
         $this->overruns = new FakeHookOverruns;
         $this->telemetry = new FakeTelemetry;
+        $this->pacing = new FakePacing;
     }
 
     /**
@@ -229,6 +240,7 @@ final class PipelineWorld
             $this->transaction,
             new HookRunner($this->hooks, new HookPlans($types), $this->timer, $this->overruns),
             new PipelineTelemetry($this->telemetry, $this->clock, $this->stopwatch),
+            new AwaitWaitLevel($this->receiptSession, $this->pacing, new WaitSettings($this->waitBudget)),
         );
     }
 

@@ -105,6 +105,7 @@ use Cbox\Cms\Core\Operations\Domain\OperationRunner;
 use Cbox\Cms\Core\Partitions\Boundary\PartitionConfig;
 use Cbox\Cms\Core\Partitions\Domain\PartitionMaintenance;
 use Cbox\Cms\Core\Partitions\Infrastructure\PostgresPartitionManager;
+use Cbox\Cms\Core\Pipeline\Actions\AwaitWaitLevel;
 use Cbox\Cms\Core\Pipeline\Actions\CommandPipeline;
 use Cbox\Cms\Core\Pipeline\Actions\HookRunner;
 use Cbox\Cms\Core\Pipeline\Adapter\ConnectionCommandTransaction;
@@ -115,12 +116,14 @@ use Cbox\Cms\Core\Pipeline\Adapter\RegistryCommandHooks;
 use Cbox\Cms\Core\Pipeline\Adapter\RegistryWriteActions;
 use Cbox\Cms\Core\Pipeline\Adapter\SavepointRefusal;
 use Cbox\Cms\Core\Pipeline\Boundary\TypeRulesFieldValidation;
+use Cbox\Cms\Core\Pipeline\Boundary\WaitConfig;
 use Cbox\Cms\Core\Pipeline\Domain\AffectedProjections;
 use Cbox\Cms\Core\Pipeline\Domain\ChangesetCommitter;
 use Cbox\Cms\Core\Pipeline\Domain\CommandCodecs;
 use Cbox\Cms\Core\Pipeline\Domain\CommandHooks;
 use Cbox\Cms\Core\Pipeline\Domain\CommandTransaction;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCodec;
+use Cbox\Cms\Core\Pipeline\Domain\Dto\WaitSettings;
 use Cbox\Cms\Core\Pipeline\Domain\FieldValidation;
 use Cbox\Cms\Core\Pipeline\Domain\HookOverruns;
 use Cbox\Cms\Core\Pipeline\Domain\MutationWriter;
@@ -210,7 +213,8 @@ use Psr\Log\LoggerInterface;
  * schedules it in a process that has the owner connection. Refuses to boot a process that serves
  * HTTP or runs queued jobs with the owner connection configured (PRD 4.2). Wires the registry that cms:build compiles to bootstrap/cache/cms/ (PRD 13.2), and
  * declares the core's own classes as a scan root. Binds the kernel's settings for idempotency keys, the
- * default wait budget, from `cbox-cms.idempotency`. Binds the event runner's ports and settings, from
+ * default wait budget, from `cbox-cms.idempotency`, and how long a command waits for its wait level
+ * after commit, from `cbox-cms.receipts`. Binds the event runner's ports and settings, from
  * `cbox-cms.events.runner`, and the rebuild's store and settings, from `cbox-cms.rebuild`. Binds the seeder's ports and its own pipeline, from `cbox-cms.seeding`. Wires the checks of cms:doctor (PRD 3.3, 4.2) to
  * their probes; a test swaps a probe by binding its interface. Makes Eloquent strict for every model
  * of the process (GUARDRAILS 4.1).
@@ -294,6 +298,13 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->bind(
             IdempotencySettings::class,
             static fn (Application $app): IdempotencySettings => IdempotencyConfig::read($app->make(Repository::class)),
+        );
+
+        // Built on each resolution, so how long a command waits for its wait level after commit
+        // (PRD 8.4) follows the configuration.
+        $this->app->bind(
+            WaitSettings::class,
+            static fn (Application $app): WaitSettings => WaitConfig::read($app->make(Repository::class)),
         );
 
         // Built on each resolution, so the policy follows the configuration.
@@ -486,6 +497,7 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
                 $app->make(CommandTransaction::class),
                 $app->make(HookRunner::class),
                 $app->make(PipelineTelemetry::class),
+                $app->make(AwaitWaitLevel::class),
             ));
 
         // The delivery API's resolve (PRD 8.9, 8.10, 8.12): its documents as canonical JSON, its
