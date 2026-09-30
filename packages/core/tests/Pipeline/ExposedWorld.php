@@ -15,9 +15,11 @@ use Cbox\Cms\Contracts\Identity\TransportCredential;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Core\Pipeline\Actions\RunExposedCommand;
+use Cbox\Cms\Core\Pipeline\Domain\ChangesetCommitter;
 use Cbox\Cms\Core\Pipeline\Domain\CommandCodecs;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCodec;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\ExposedCall;
+use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
 use Cbox\Cms\Core\Tests\Access\Fakes\FakeAccessContexts;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\RenameProbeCodec;
 use Cbox\Cms\Testkit\Identity\ServiceCredentialSpec;
@@ -87,9 +89,13 @@ final readonly class ExposedWorld
         return new RenameProbeCodec()->encode($this->world->command($fields), ClassificationAccess::Sensitive);
     }
 
-    public function action(): RunExposedCommand
+    /**
+     * The action every exposed surface runs a write with, over the world's pipeline, with the write
+     * actions and the committer given, or the world's.
+     */
+    public function action(?WriteActions $actions = null, ?ChangesetCommitter $committer = null): RunExposedCommand
     {
-        return new RunExposedCommand($this->world->identity, $this->contexts, $this->ids, $this->world->pipeline());
+        return new RunExposedCommand($this->world->identity, $this->contexts, $this->ids, $this->world->pipeline($actions, $committer));
     }
 
     public function call(?TransportCredential $credential, RequestEnvelope $envelope, ?string $document = null, Surface $surface = Surface::Rest): ExposedCall

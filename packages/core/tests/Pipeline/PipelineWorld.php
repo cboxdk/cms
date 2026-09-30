@@ -41,12 +41,14 @@ use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
 use Cbox\Cms\Core\Pipeline\Actions\AwaitWaitLevel;
 use Cbox\Cms\Core\Pipeline\Actions\CommandPipeline;
 use Cbox\Cms\Core\Pipeline\Actions\HookRunner;
+use Cbox\Cms\Core\Pipeline\Domain\ChangesetCommitter;
 use Cbox\Cms\Core\Pipeline\Domain\CommitOutcome;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\BoundHook;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCall;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\WaitSettings;
 use Cbox\Cms\Core\Pipeline\Domain\HookPlans;
 use Cbox\Cms\Core\Pipeline\Domain\Stopwatch;
+use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
 use Cbox\Cms\Core\Subscriptions\Domain\Pacing;
 use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeChangesetCommitter;
@@ -219,20 +221,24 @@ final class PipelineWorld
         return $this;
     }
 
-    public function pipeline(): CommandPipeline
+    /**
+     * The command pipeline over the world's fakes, with the probe action for probe.rename unless
+     * other write actions are given, and the world's committer unless another is given.
+     */
+    public function pipeline(?WriteActions $actions = null, ?ChangesetCommitter $committer = null): CommandPipeline
     {
         $action = new RenameProbeAction($this->shelf, $this->calls, $this->extraReads, $this->unreadPlan);
 
         $types = new FakeTypeCatalog(ProbeType::definition());
 
         return new CommandPipeline(
-            new FakeWriteActions([RenameProbe::class => ProbeBinding::of($action)]),
+            $actions ?? new FakeWriteActions([RenameProbe::class => ProbeBinding::of($action)]),
             $this->identity,
             $this->authorizer,
             $types,
             $this->validation,
             new FakeRevisionContents,
-            $this->committer,
+            $committer ?? $this->committer,
             $this->keySession,
             $this->receiptSession,
             $this->hasher,
