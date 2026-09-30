@@ -1,0 +1,307 @@
+{
+ "block": "M1",
+ "summary": "M1 third run: T65 (generated command codecs, found missing when T38 failed integration in the second run wf_7bc06e80-bbd) and the tasks that depend on REST: T38, T42, T50, T59, T58. Then review and the exit criteria of the whole block.",
+ "tasks": [
+  {
+   "id": "T67",
+   "title": "The fast Pest suites run in parallel in composer check",
+   "goal": "composer check runs the Pest suites of gate 5 one process at a time; Unit alone takes about 150 s on an idle 16-core machine and much longer under load, and every task runs composer check at least twice. Run the suites that allow it (Unit, Codecs, Contract, Arch, Actions) with Pest --parallel in the local profile and the PR profile, keeping --fail-on-skipped --fail-on-incomplete and the same tests, so nothing is skipped or weakened (GUARDRAILS 7.3, GUARDRAILS 10: parallelize, never cut). Tests that are not safe in parallel are made safe, not excluded. The Postgres suite stays serial unless it is made safe with one test database per worker, as M1-T4 did for the mutation step. The selftest must still catch every planted violation.",
+   "prdRefs": [
+    "GUARDRAILS 10",
+    "GUARDRAILS 7.3"
+   ],
+   "acceptance": [
+    "composer check runs Unit, Codecs, Contract, Arch and Actions with --parallel and the same --fail-on flags, shown by the step commands in composer check -- --report=<file>",
+    "The number of tests each suite runs is the same as before the change (compare --list-tests or the report counts)",
+    "composer check wall time on an idle machine is recorded before and after in PROGRESS.md",
+    "composer check:selftest passes with every planted violation caught",
+    "composer check is green"
+   ],
+   "dependsOn": [],
+   "touches": [
+    "tools/src/Check",
+    "tests/Feature/Tooling",
+    "phpunit.xml"
+   ]
+  },
+  {
+   "id": "T68",
+   "title": "The gates and test:affected run in the php-baseimages dev image, locally as in CI",
+   "goal": "Sylvester decided 30 September: the cboxdk php-baseimages dev image (ghcr.io/cboxdk/php-baseimages/php-cli:8.5-bookworm-dev-v1: PHP 8.5, PCOV, Xdebug, SPX, Node 22 and Playwright's Chromium in /ms-playwright) is used everywhere, locally as in CI, as dogfooding. CI already runs in it (ci.yml, compose.ci.yaml, docker/ci-setup.sh). Make the local runs use it too, for the current checkout, a linked worktree included: (1) composer check runs its steps in the image, with the same gates, steps, suites and flags as today, so nothing is skipped or weakened (GUARDRAILS 7.3); (2) composer test:affected runs vendor/bin/pest --parallel --tia with any extra arguments in the image, for fast feedback while working (Pest 5 test impact analysis records per test the files and tables it touches through PCOV and reruns only the affected tests); it is not a gate; (3) the Browser suite (gate 8) can run locally in the image with its Chromium. Mount the checkout at the same absolute path as on the host and use it as the working directory (the testkit derives the checkout's own test database from that path, so two worktrees never share one); run as the host user's uid and gid (file permission tests skip as root); join the network of the shared services of the main checkout's compose.yaml and reach Postgres and Valkey by their service names; mount the host's ~/.pest so the TIA graph is shared; never start or recreate the shared services, and fail with the fix when they are down. Solve what differs between the host and the Linux image rather than excluding it: node_modules with platform binaries installed on macOS (for example a separate Linux node_modules volume per checkout, or npm ci in the image), and the file system speed of bind mounts on macOS (measure composer check wall time on the host and in the image and record both in PROGRESS.md). Update CLAUDE.md, AGENTS.md and the developer docs, which today say the host runs the gates and the php container mounts only the main checkout.",
+   "prdRefs": [
+    "GUARDRAILS 10"
+   ],
+   "acceptance": [
+    "composer check from a linked worktree runs every gate step inside the dev image with the same steps, suites and flags as before (show the report), using that worktree's own test database, and passes",
+    "composer test:affected from a linked worktree records the TIA graph once and then, after one source file changes, runs only the dependent tests and replays the rest (show the counts)",
+    "vendor/bin/pest --testsuite=Browser runs locally in the image with its Chromium and passes",
+    "Runs are as the host user, not root, and fail with a clear message when the shared services are down; a test covers the docker command built (mounts, user, network, environment) with a fake docker",
+    "composer check:selftest passes with every planted violation caught; the containerized CI run passes",
+    "composer check wall time on the host and in the image is recorded in PROGRESS.md"
+   ],
+   "dependsOn": [
+    "T67"
+   ],
+   "touches": [
+    "tools/bin",
+    "tools/src",
+    "tests/Feature/Tooling",
+    "composer.json",
+    "package.json",
+    "compose.yaml",
+    "docker",
+    "docs",
+    "CLAUDE.md",
+    "AGENTS.md"
+   ]
+  },
+  {
+   "id": "T65",
+   "title": "Generated command codecs for every kernel command",
+   "goal": "No kernel command has a CommandCodec yet, so none can be read on REST, CLI, Inertia or MCP (MCP lists them as undescribed; T38 failed integration because its build check registry_surface_without_codec refuses entry.create and entry.revise on REST). Generate, with the generators and never by hand (GeneratedCodecsTest refuses hand-written codecs), a JSON Schema, a PHP CommandCodec with its JsonSchema and a TypeScript type and runtime validator for every command the kernel exposes: entry.create, entry.revise, variant.release, entry.publish, entry.unpublish, placement.create, placement.set_window and actor.deactivate, each at its version, and register each codec under CommandCodecs::TAG. The kernel knows no content types (GUARDRAILS 2.4): field values are the generic field values, not a named type. Branch wip/M1-T38-entry-codecs-draft (2f46d10) holds a hand-written draft for entry.create and entry.revise that GeneratedCodecsTest refuses; use it only as a reference for the shapes. Branch wip/M1-T38 (48df7d1) holds T38, which needs these codecs.",
+   "prdRefs": [
+    "11.12",
+    "GUARDRAILS 2.2"
+   ],
+   "acceptance": [
+    "Every write action of the compiled registry that is exposed on any surface has a registered CommandCodec, checked by a test that fails when one is missing (show it failing with a planted exposed command without a codec)",
+    "The codecs, schemas and TypeScript are generated: composer check:generated is clean after cms:generate, and GeneratedCodecsTest passes",
+    "Round-trip tests per command: encode then decode gives an equal command, and every rule the JSON Schema states is refused by the PHP codec and the TS validator",
+    "cms:run entry.create 1 <document> creates an entry for a workbench fixture type through the CLI, and MCP lists the kernel commands with input schemas, not as undescribed",
+    "composer check is green"
+   ],
+   "dependsOn": [],
+   "touches": [
+    "packages/generators",
+    "packages/core/src/Pipeline",
+    "packages/contracts/resources/schemas",
+    "workbench",
+    "packages/mcp"
+   ]
+  },
+  {
+   "id": "T38",
+   "title": "REST surface compiled from the actions registry, with OpenAPI",
+   "goal": "MILESTONES M1 point 6 and GUARDRAILS 2.1: routes and OpenAPI are generated by cms:build from the registry. cms:build writes the REST route table and an OpenAPI 3.1 document to bootstrap/cache/cms, from actions.php and the generated JSON forms of T62 and T19. The http module registers the write and query endpoints under /v1 from that table. Controllers contain no logic. They parse the body through the generated decoder in a Boundary, and build the Envelope with the principal from the credential (T11), the Idempotency-Key header and the wait level. Then they call the pipeline and translate the result. Committed and dry-run return the receipt JSON, and committed_wait_timeout keeps its own status. Rejected returns problem details (RFC 9457) with the catalog code, field errors and HTTP status. Commands from the REST surface require an idempotency key. The consistency token is B4 or B5. The command palette is B1. Record both as interpretations. The work is built on branch wip/M1-T38 (48df7d1) in worktree /Users/sylvester/Projects/Cbox/cms-worktrees/M1-T38; it failed integration only because no command had a codec, which T65 adds. Rebase it on main after T65, keep registry_surface_without_codec as it is, and finish it.",
+   "acceptance": [
+    "an HTTP test runs a test-only action through a compiled route and covers a field error, version conflict, dry-run and success with problem details and receipt bodies",
+    "a test validates the OpenAPI document written by cms:build against the OpenAPI 3.1 schema, and shows it lists the test-only action's route",
+    "an Arch test forbids logic in the REST controllers: they use only actions, DTOs and Boundary",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "T65"
+   ],
+   "prdRefs": [
+    "6.1",
+    "8.8",
+    "GUARDRAILS 2.1"
+   ],
+   "touches": [
+    "http module: Cbox\\Cms\\Http\\Rest",
+    "core module: Registry (surface compilation)",
+    "tests/Arch (surface rules)"
+   ]
+  },
+  {
+   "id": "T42",
+   "title": "Surface contract tests generated from the actions registry",
+   "goal": "MILESTONES M1 point 6 and GUARDRAILS 2.1 and 9 ('én per action og overflade'). A Pest dataset built from the compiled actions registry yields one contract test per action and surface (REST, Inertia, MCP, CLI) for all eight M1 commands. Each test checks a field error, a version conflict, dry-run, and a receipt that is committed but has not reached its wait level. A new action gets its surface tests without writing them by hand, and a surface without a profile fails the suite.",
+   "acceptance": [
+    "vendor/bin/pest --filter=SurfaceContract runs the 8 commands times the surfaces each declares, and all pass",
+    "a test shows an action registered with a surface that has no profile fails the suite",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "T38"
+   ],
+   "prdRefs": [
+    "GUARDRAILS 2.1",
+    "GUARDRAILS 9"
+   ],
+   "touches": [
+    "tests/ (surface contract suite)",
+    "testkit module (surface contract support)"
+   ]
+  },
+  {
+   "id": "T50",
+   "title": "A third fixture type, added only as a schema file, end to end",
+   "goal": "The M1 exit criterion that proves GUARDRAILS 2.4. Add a third fixture type to workbench/schema, with handles prefixed fixture_. Its fields and capabilities differ from both others: history audit-only, stages draft-release, routable, and field types the other two do not use. Run cms:generate and commit the generated code and migration. Change nothing in the source modules: this task's commit touches only workbench/ and tests/. Add tests/Postgres/WalkingSkeleton/ThirdTypeTest.php. It creates, revises, releases and publishes an entry of the type, places it, resolves it over GET /v1/resolve, checks its fragment invalidation, and runs the generated surface contract tests for its commands. It also shows that a rebuild from head snapshots gives identical rows.",
+   "acceptance": [
+    "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/ThirdTypeTest.php passes",
+    "git show --stat of this task's commit lists no file under packages/, only workbench/ and tests/",
+    "composer check:generated and composer check are green"
+   ],
+   "dependsOn": [
+    "T42"
+   ],
+   "prdRefs": [
+    "11.12",
+    "GUARDRAILS 2.4"
+   ],
+   "touches": [
+    "workbench/schema",
+    "workbench generated code and migrations",
+    "tests/Postgres/WalkingSkeleton"
+   ]
+  },
+  {
+   "id": "T59",
+   "title": "Recipes for agents for the common M1 tasks",
+   "goal": "GUARDRAILS 7.3 and 11, and T7's interpretation. Write docs/recipes with an _index.md and three recipes in the same shape the generators use, so that an agent and a generator do the same thing. Add a content type as a schema file (blueprint, cms:schema:editor, cms:generate, migrations, check:generated), following T50's commit. Write a hook in an addon (manifest, hook class, budgets, tests with the testkit), following T45. Add a kernel action with #[Action] and surfaces (command, planner, mutation writer, Actions-suite and surface tests), following T28. Each recipe embeds its running examples by the gate 10 markers.",
+   "acceptance": [
+    "composer docs:check passes with docs/recipes and each recipe embedding at least one example test",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "T50"
+   ],
+   "prdRefs": [
+    "14.5",
+    "GUARDRAILS 7.3",
+    "GUARDRAILS 11"
+   ],
+   "touches": [
+    "docs/recipes",
+    "examples/"
+   ]
+  },
+  {
+   "id": "T58",
+   "title": "Invariant coverage map for M1",
+   "goal": "GUARDRAILS 9 and 11. PRD 6.5's invariants need tests that try to break them through every issuer, and they are (review) until the property-based generator exists. Add a map in tests/Support, as a typed PHP list, of every invariant M1 touches (1, 2, 3, 4, 5, 6, 10, 11, 12, 13, 14, 15, 18, 21, 22, 25, 36, 37) to the test ids that cover it and the issuers they cover. A test fails when a mapped test does not exist or is skipped, and when an invariant in the list has no test. Invariants not touched in M1, and the missing property-based generator, are listed as (review) in the task result for \"Info\" in PROGRESS.md.",
+   "acceptance": [
+    "vendor/bin/pest --filter=InvariantCoverage passes, and fails on a planted map entry that names a missing test",
+    "composer check is green"
+   ],
+   "dependsOn": [
+    "T50"
+   ],
+   "prdRefs": [
+    "6.5",
+    "GUARDRAILS 9",
+    "GUARDRAILS 11"
+   ],
+   "touches": [
+    "tests/Support (invariant map)",
+    "tests/Feature (coverage test)"
+   ]
+  },
+  {
+   "id": "T66",
+   "title": "main green on GitHub CI within the 15-minute budget",
+   "goal": "GitHub CI (ci.yml, bin/ci, the PR profile) has not passed on main since 1487b6e (29 September): runs fail or are cancelled by the job timeout of 20 minutes. Known causes: mutation on changed files ran no mutations because Tests\\Arch\\MarkersTest threw a RuntimeException inside the mutation run (run on cfbb6f5); ConnectionQueryTransactionBehaviourTest fails in the Postgres suite of the containerized run with read_audit_actor_id_fkey (found by M1-T45 and the T47+T48 integration); mutation scores below 80 for the seeding classes of M1-T47 (SeedRequestLimits, SeedText and others); and the wall time exceeds the 15-minute budget of GUARDRAILS 10. Fix every cause at its root: tests that kill the surviving mutations, fixes of the failing tests or the code, and parallelism (GUARDRAILS 10: parallelize, never cut). Never lower the mutation threshold, exclude classes, skip tests or raise the job timeout above what the budget allows (GUARDRAILS 7.3). Work on the main of this run after T65, T38, T42, T50, T58 and T59 are merged, so the fix covers the whole block.",
+   "prdRefs": [
+    "GUARDRAILS 10",
+    "GUARDRAILS 7.3"
+   ],
+   "acceptance": [
+    "docker compose -f compose.ci.yaml run --rm ci exits 0 on HEAD with CMS_CI_BASE_REF set to the commit before the block (59f0d88), and its bin/ci wall time is recorded under 15 minutes",
+    "The mutation steps print a report and every changed class scores at least 80",
+    "ConnectionQueryTransactionBehaviourTest passes in the containerized run and in composer check",
+    "composer check and composer check:selftest are green"
+   ],
+   "dependsOn": [
+    "T58",
+    "T59"
+   ],
+   "touches": [
+    "bin/ci",
+    "tools/src/Mutation",
+    "tests",
+    "packages/*/tests",
+    ".github/workflows/ci.yml"
+   ]
+  }
+ ],
+ "exitCriteria": [
+  {
+   "id": "E1",
+   "description": "udgiv, opløs sti, server fra fragment, revidér, og fragmentet er invalideret, med en kvittering der viser origin",
+   "command": "composer services:up && vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/PublishResolveReviseTest.php"
+  },
+  {
+   "id": "E2",
+   "description": "to samtidige gem på separate forbindelser giver én commit og én konflikt",
+   "command": "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/ConcurrentSavesTest.php"
+  },
+  {
+   "id": "E3",
+   "description": "fem gentagelser med samme idempotensnøgle giver ét changeset, og samme nøgle med andet indhold afvises",
+   "command": "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/IdempotentRepeatsTest.php"
+  },
+  {
+   "id": "E4",
+   "description": "en genstart efter commit fører stadig til invalidering",
+   "command": "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/RestartAfterCommitTest.php"
+  },
+  {
+   "id": "E5",
+   "description": "begge typers læsemodeller kan genopbygges med identiske værdier, fra revisioner og fra hovedsnapshot",
+   "command": "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/RebuildReadModelsTest.php"
+  },
+  {
+   "id": "E6",
+   "description": "en læsning som app-rollen uden aktørkontekst giver nul rækker",
+   "command": "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/RlsWithoutActorContextTest.php"
+  },
+  {
+   "id": "E7",
+   "description": "`cms:seed-scale` med 1 million entries giver en listning under 20 ms i databasen",
+   "command": "composer services:up && composer scale:check -- --entries=1000000 (exit 0 and a printed median EXPLAIN ANALYZE execution time under 20 ms; the machine and wall time recorded in PROGRESS.md)"
+  },
+  {
+   "id": "E8",
+   "description": "en tredje type, tilføjet kun som schema-fil i `workbench/` med andre felter, andre kapabiliteter og routebar, virker gennem generator, kommandoer, levering og alle overflader uden en ændring i `packages/`",
+   "command": "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/ThirdTypeTest.php && composer check:generated; then procedure: git show --stat <M1-T50 commit> lists only files under workbench/ and tests/, none under packages/"
+  },
+  {
+   "id": "E9",
+   "description": "fixture-addonets udvidelsesfelt findes i typetabellen, recorden, DTO'en og TypeScript under addonets navnerum, og en ny version af fixture-typen med et felt med samme handle genererer og består portene uden kollision",
+   "command": "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/AddonExtensionTest.php && composer check:generated && composer check"
+  },
+  {
+   "id": "E10",
+   "description": "en kommando som en deaktiveret aktør, eller på vegne af en, afvises; en deaktivering der committer mens en kommando fra aktøren er i gang, får kommandoen til at fejle med en konflikt; og en læsning som aktøren afvises",
+   "command": "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/DeactivatedActorTest.php"
+  },
+  {
+   "id": "E11",
+   "description": "alt går gennem portene 1 til 6 med mutation på ændrede filer",
+   "command": "composer check (gates 1 to 6 pass) && CMS_CI_BASE_REF=59f0d88 docker compose -f compose.ci.yaml run --rm ci (exits 0: PR profile with mutation on changed files at 80 or more per class); docker compose -f compose.ci.yaml down. The run spans the whole block, not one PR, so its wall time is recorded in PROGRESS.md and compared with the 15-minute PR budget as information; a wall time over budget is recorded for review and does not fail E11"
+  },
+  {
+   "id": "E12",
+   "description": "Carry-over: Cbox CMS is one Composer package cboxdk/cms (GUARDRAILS 1.10), with the module boundaries held by Arch tests",
+   "command": "! ls packages/*/composer.json 2>/dev/null && composer validate --strict && test \"$(composer show --self --name-only)\" = cboxdk/cms && vendor/bin/pest --testsuite=Arch"
+  },
+  {
+   "id": "E13",
+   "description": "Carry-over: docs hygiene (H3 to H6): one docs/ tree in the cboxdk layout, README, LICENSE, SECURITY and CONTRIBUTING, a screenshot, a generated requirements.md, no competitor names",
+   "command": "composer docs:check && composer docs:requirements && git diff --exit-code docs/requirements.md && test -f README.md -a -f LICENSE -a -f SECURITY.md -a -f CONTRIBUTING.md && ! grep -rniwE 'statamic|contentful|storyblok|directus|supabase|wordpress|strapi|craft cms|payload cms|sanity\\.io|sanity studio' README.md SECURITY.md CONTRIBUTING.md docs"
+  },
+  {
+   "id": "E14",
+   "description": "Carry-over: M0-R1-12 is on main (column grants on receipt_projections and final acknowledgements), gate 11's reason no longer claims there is no remote, and the mutation gate accepts duplicate identical mutations and runs Postgres mutation in parallel",
+   "command": "vendor/bin/pest --testsuite=Postgres --filter='ReceiptSchema|TablePrivileges' && vendor/bin/pest --filter='MutationReportReader|MutationSteps' && ! git grep -n -i 'there is no remote' -- . ':!PROGRESS.md' ':!CHECKS-LOG.md' ':!.harness'"
+  },
+  {
+   "id": "E15",
+   "description": "Carry-over: actions.php is back in the registry and named in CLAUDE.md and AGENTS.md, the recipes interpretation is recorded, and recipes exist for the common M1 tasks",
+   "command": "vendor/bin/testbench cms:build && test -f bootstrap/cache/cms/actions.php && grep -q 'actions.php' CLAUDE.md && grep -q 'actions.php' AGENTS.md && test -f docs/recipes/_index.md && composer docs:check; then procedure: PROGRESS.md has an entry about recipes (docs/recipes) under \"Tolkninger\""
+  },
+  {
+   "id": "E16",
+   "description": "Every invariant M1 touches has named covering tests, and the rest are recorded as (review)",
+   "command": "vendor/bin/pest --filter=InvariantCoverage"
+  }
+ ],
+ "blockers": [
+  "M0-T47 (open under 'Til review af Sylvester'): whether the testkit's shared contract suites are left out of mutation on changed files. They live in src and get mutated, although no test can catch a mutated assertion. M1 adds several new shared suites (identity, type catalog, fragment store, CDN driver, telemetry), so E11 may fail only on them. The plan keeps them in scope as today. If E11 fails only on shared-suite assertions, the main session records it for Sylvester and does not weaken the gate.",
+  "Outward-facing names that M1 introduces beyond what the PRD fixes. These are error codes beyond the PRD's (T10), REST paths other than /v1/resolve (T38), CLI command names and the configuration key for the CLI's service credential (T39), MCP tool names (T41), the addon manifest's file name and keys (T44), the fixture addon's namespace (T45), and the exact holder line in LICENSE (T7; MIT itself is fixed by the PRD). The tasks name them after the PRD's wording and list them under 'Til review af Sylvester'. This does not block M1.",
+  "Gate 11 (review by someone other than the author) needs branch protection with required reviews on main in github.com/cboxdk/cms. That is a repository setting for Sylvester. T2 only corrects the reason; the gate stays reported as not run.",
+  "Possible: cboxdk/laravel-operations may not install on PHP 8.5 and Laravel 13. T57 checks it without changing the package. If it fails, the need goes under 'Til review af Sylvester' (GUARDRAILS 3), and T46 and T47 run their chunk actions from a console command under a recorded interpretation, so E5 and E7 do not depend on it.",
+  "Not blocking, for awareness: in M1, service credentials, actors, grants, roles, sites, nodes and routes are created only by testkit fixtures, because token issuance, login, grant commands and node commands are B1 and B2 by the build order. Real CDN drivers are B4, replica routing by consistency token is B4 and B5, planned transitions are B3, and upcasters are B3. The tasks record these as interpretations, not as decisions for Sylvester."
+ ]
+}
