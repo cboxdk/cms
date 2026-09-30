@@ -28,7 +28,9 @@ use Cbox\Cms\Core\Reads\Actions\QueryPipeline;
 use Cbox\Cms\Core\Reads\Domain\Dto\QueryCall;
 use Cbox\Cms\Core\Reads\Domain\Dto\QuerySettings;
 use Cbox\Cms\Core\Reads\Domain\ReadableFields;
+use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\Tests\Access\Fakes\FakeAccessResolver;
+use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeStopwatch;
 use Cbox\Cms\Core\Tests\Reads\Fakes\FakeQueryActions;
 use Cbox\Cms\Core\Tests\Reads\Fakes\FakeQueryAuthorizer;
 use Cbox\Cms\Core\Tests\Reads\Fakes\FakeQueryTransaction;
@@ -42,6 +44,7 @@ use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\Identity\FakeIdentity;
 use Cbox\Cms\Testkit\Identity\ServiceCredentialSpec;
 use Cbox\Cms\Testkit\Schema\FakeTypeCatalog;
+use Cbox\Cms\Testkit\Telemetry\FakeTelemetry;
 use DateInterval;
 
 /**
@@ -71,6 +74,9 @@ final class QueryWorld
 
     public readonly FakeClock $clock;
 
+    /** Where the pipeline exports each call's span and metrics. */
+    public readonly FakeTelemetry $telemetry;
+
     public readonly FakeIdentity $identity;
 
     public readonly ActorId $reader;
@@ -96,6 +102,7 @@ final class QueryWorld
     {
         $this->type = $type ?? ProbeCardType::definition();
         $this->clock = new FakeClock;
+        $this->telemetry = new FakeTelemetry;
         $this->identity = new FakeIdentity($this->clock);
         $this->reader = $this->identity->addActor(ActorClass::Service)->id;
         $this->credential = $this->identity->issue(new ServiceCredentialSpec($this->reader, IssuerKind::Service, ClassificationAccess::Sensitive, $this->clock->now()->add(new DateInterval('P1D'))));
@@ -148,6 +155,7 @@ final class QueryWorld
             new ReadableFields(new FakeTypeCatalog($this->type)),
             $this->audit,
             $this->transaction,
+            new PipelineTelemetry($this->telemetry, $this->clock, new FakeStopwatch),
         );
     }
 

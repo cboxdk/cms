@@ -65,6 +65,7 @@ use Cbox\Cms\Core\Pipeline\Domain\MutationWriters;
 use Cbox\Cms\Core\Pipeline\Domain\VersionLocks;
 use Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeVersionLock;
+use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandAuthorizer;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandContentHasher;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandHooks;
@@ -76,6 +77,7 @@ use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\FixtureWriters\Identity\Adapter\PostgresIdentitySeeder;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
 use Cbox\Cms\Testkit\Postgres\PartitionFixtures;
+use Cbox\Cms\Testkit\Telemetry\FakeTelemetry;
 use Closure;
 use DateInterval;
 use DateTimeImmutable;
@@ -250,6 +252,7 @@ final class EntryWorld
             new IdempotencySettings(WaitBudget::milliseconds(200)),
             new ConnectionCommandTransaction($connections, app(SavepointRefusal::class), $this->connection),
             new HookRunner($this->hooks ?? new FakeCommandHooks, new HookPlans($types), new FakeStopwatch, new FakeHookOverruns),
+            new PipelineTelemetry(new FakeTelemetry, new FakeClock, new FakeStopwatch),
         );
     }
 

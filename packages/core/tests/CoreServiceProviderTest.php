@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\Tests;
 
 use Cbox\Cms\Contracts\Cache\FragmentStore;
 use Cbox\Cms\Contracts\Cdn\CdnDriver;
+use Cbox\Cms\Contracts\Telemetry\Telemetry;
 use Cbox\Cms\Contracts\TypeTables\TypeTableReader;
 use Cbox\Cms\Core\Bindings\Boundary\ContractBindings;
 use Cbox\Cms\Core\Bindings\Boundary\InvalidContractBinding;
@@ -51,8 +52,11 @@ use Cbox\Cms\Core\Subscriptions\Domain\Dto\RunnerSettings;
 use Cbox\Cms\Core\Subscriptions\Domain\LaneSubscribers;
 use Cbox\Cms\Core\Subscriptions\Domain\Pacing;
 use Cbox\Cms\Core\Subscriptions\Domain\SubscriptionLog;
+use Cbox\Cms\Core\Telemetry\Adapter\LogTelemetry;
+use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\TypeTables\Adapter\PostgresTypeTableReader;
 use Cbox\Cms\Testkit\Cdn\FakeCdnDriver;
+use Cbox\Cms\Testkit\Telemetry\FakeTelemetry;
 use Cbox\Operations\Contracts\Operations;
 use Cbox\Operations\OperationManager;
 use Cbox\Operations\OperationsServiceProvider;
@@ -174,4 +178,15 @@ it('binds the seeder\'s ports and settings, and gives SeedDataset a pipeline wit
     expect(new ReflectionProperty(CommandPipeline::class, 'authorizer')->getValue($pipeline))->toBeInstanceOf(SeedAuthorizer::class)
         ->and(new ReflectionProperty(CommandPipeline::class, 'hasher')->getValue($pipeline))->toBeInstanceOf(SeedContentHasher::class)
         ->and(new ReflectionProperty(CommandPipeline::class, 'committer')->getValue($pipeline))->toBeInstanceOf(PostgresChangesetCommitter::class);
+});
+
+it('binds Telemetry to the log exporter once per process, and builds the pipelines\' telemetry with it', function (): void {
+    expect(app(Telemetry::class))->toBeInstanceOf(LogTelemetry::class)
+        ->and(app(Telemetry::class))->toBe(app(Telemetry::class))
+        ->and(app(PipelineTelemetry::class))->toBeInstanceOf(PipelineTelemetry::class);
+
+    config()->set('cbox-cms.contracts.'.Telemetry::class, FakeTelemetry::class);
+    app()->forgetInstance(Telemetry::class);
+
+    expect(app(Telemetry::class))->toBeInstanceOf(FakeTelemetry::class);
 });

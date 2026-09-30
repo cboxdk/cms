@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Identity\ActorDirectory;
 use Cbox\Cms\Contracts\Identity\CredentialVerifier;
 use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Contracts\ReceiptStore;
+use Cbox\Cms\Contracts\Telemetry\Telemetry;
 use Cbox\Cms\Contracts\TypeTables\TypeTableReader;
 use Cbox\Cms\Core\Cache\Adapter\ValkeyFragmentStore;
 use Cbox\Cms\Core\Clock\Adapter\SystemClock;
@@ -17,6 +18,7 @@ use Cbox\Cms\Core\Identity\Adapter\PostgresActorDirectory;
 use Cbox\Cms\Core\Identity\Adapter\PostgresCredentialVerifier;
 use Cbox\Cms\Core\Ids\Adapter\SystemIdGenerator;
 use Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore;
+use Cbox\Cms\Core\Telemetry\Adapter\LogTelemetry;
 use Cbox\Cms\Core\TypeTables\Adapter\PostgresTypeTableReader;
 
 return [
@@ -34,6 +36,7 @@ return [
         CredentialVerifier::class => PostgresCredentialVerifier::class,
         FragmentStore::class => ValkeyFragmentStore::class,
         TypeTableReader::class => PostgresTypeTableReader::class,
+        Telemetry::class => LogTelemetry::class,
     ],
 
     'database' => [

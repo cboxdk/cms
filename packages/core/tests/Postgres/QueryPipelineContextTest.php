@@ -22,7 +22,9 @@ use Cbox\Cms\Core\Reads\Domain\Dto\QuerySettings;
 use Cbox\Cms\Core\Reads\Domain\QueryTransaction;
 use Cbox\Cms\Core\Reads\Domain\ReadableFields;
 use Cbox\Cms\Core\Reads\Domain\ReadAudit;
+use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\Tests\Identity\PostgresIdentity;
+use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeStopwatch;
 use Cbox\Cms\Core\Tests\Postgres\QueryProbe\SeeEntries;
 use Cbox\Cms\Core\Tests\Postgres\QueryProbe\SeeEntriesAction;
 use Cbox\Cms\Core\Tests\Postgres\QueryProbe\SeenContext;
@@ -34,6 +36,7 @@ use Cbox\Cms\Testkit\FixtureWriters\Access\Adapter\PostgresAccessFixtures;
 use Cbox\Cms\Testkit\Identity\ServiceCredentialSpec;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
 use Cbox\Cms\Testkit\Schema\FakeTypeCatalog;
+use Cbox\Cms\Testkit\Telemetry\FakeTelemetry;
 use DateInterval;
 use DateTimeImmutable;
 use Illuminate\Database\DatabaseManager;
@@ -85,6 +88,7 @@ function workerWorld(): array
         new ReadableFields(new FakeTypeCatalog),
         app(ReadAudit::class),
         app(QueryTransaction::class),
+        new PipelineTelemetry(new FakeTelemetry, new FakeClock, new FakeStopwatch),
     );
 
     return [$pipeline, $seen, $credentials[0], $credentials[1], $identity];

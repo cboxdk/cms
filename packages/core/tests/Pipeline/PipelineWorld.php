@@ -45,6 +45,7 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\BoundHook;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCall;
 use Cbox\Cms\Core\Pipeline\Domain\HookPlans;
 use Cbox\Cms\Core\Pipeline\Domain\Stopwatch;
+use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeChangesetCommitter;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandAuthorizer;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandContentHasher;
@@ -69,6 +70,7 @@ use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
 use Cbox\Cms\Testkit\ReceiptStore\FakeReceiptSession;
 use Cbox\Cms\Testkit\ReceiptStore\FakeReceiptStore;
 use Cbox\Cms\Testkit\Schema\FakeTypeCatalog;
+use Cbox\Cms\Testkit\Telemetry\FakeTelemetry;
 use Cbox\Cms\Testkit\Validation\FakeTypeValidators;
 
 /**
@@ -127,6 +129,9 @@ final class PipelineWorld
 
     public readonly FakeHookOverruns $overruns;
 
+    /** Where the pipeline exports each call's span and metrics. */
+    public readonly FakeTelemetry $telemetry;
+
     /** The stopwatch the hooks are timed with; the fake unless a test swaps in the real one. */
     public Stopwatch $timer;
 
@@ -160,6 +165,7 @@ final class PipelineWorld
         $this->stopwatch = new FakeStopwatch;
         $this->timer = $this->stopwatch;
         $this->overruns = new FakeHookOverruns;
+        $this->telemetry = new FakeTelemetry;
     }
 
     /**
@@ -222,6 +228,7 @@ final class PipelineWorld
             new IdempotencySettings(WaitBudget::milliseconds(self::BUDGET_MILLISECONDS)),
             $this->transaction,
             new HookRunner($this->hooks, new HookPlans($types), $this->timer, $this->overruns),
+            new PipelineTelemetry($this->telemetry, $this->clock, $this->stopwatch),
         );
     }
 

@@ -39,6 +39,7 @@ use Cbox\Cms\Core\Pipeline\Domain\HookPlans;
 use Cbox\Cms\Core\Pipeline\Domain\MutationWriters;
 use Cbox\Cms\Core\Pipeline\Domain\VersionLocks;
 use Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore;
+use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeAffectedProjections;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandAuthorizer;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandContentHasher;
@@ -51,6 +52,7 @@ use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeWriteActions;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
 use Cbox\Cms\Testkit\Schema\FakeTypeCatalog;
+use Cbox\Cms\Testkit\Telemetry\FakeTelemetry;
 use Cbox\Cms\Testkit\Validation\FakeTypeValidators;
 use Closure;
 use DateTimeImmutable;
@@ -127,6 +129,7 @@ final readonly class DeactivationWorld
             new IdempotencySettings(WaitBudget::milliseconds(200)),
             new ConnectionCommandTransaction($this->connections, new SavepointRefusal),
             new HookRunner(new FakeCommandHooks, new HookPlans($types), new FakeStopwatch, new FakeHookOverruns),
+            new PipelineTelemetry(new FakeTelemetry, new FakeClock, new FakeStopwatch),
         );
     }
 

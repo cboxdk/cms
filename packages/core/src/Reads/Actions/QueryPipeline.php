@@ -31,6 +31,7 @@ use Cbox\Cms\Core\Reads\Domain\QueryAuthorizer;
 use Cbox\Cms\Core\Reads\Domain\QueryTransaction;
 use Cbox\Cms\Core\Reads\Domain\ReadableFields;
 use Cbox\Cms\Core\Reads\Domain\ReadAudit;
+use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 
 /**
  * The query pipeline (GUARDRAILS 2.1, PRD 6.2 "Læsninger"): the one way a read runs. It owns every
@@ -63,6 +64,9 @@ use Cbox\Cms\Core\Reads\Domain\ReadAudit;
  *    `n-{node}` (PRD 9.4), the read's position, the xmin of its snapshot (PRD 8.4), and the
  *    context's classification access, which a surface encodes the result with.
  *
+ * Every call gets a span named after its query and the metrics for its duration and its errors
+ * through PipelineTelemetry, which runs the call, its transaction included (GUARDRAILS 5).
+ *
  * The pipeline holds nothing between calls, and the actor context lives only in the transaction of
  * the read it was set for, so no context survives from one read to the next in a shared worker.
  * The pipeline never begins or ends a transaction; the QueryTransaction does.
@@ -79,13 +83,14 @@ final readonly class QueryPipeline
         private ReadableFields $fields,
         private ReadAudit $audit,
         private QueryTransaction $transaction,
+        private PipelineTelemetry $telemetry,
     ) {}
 
     public function run(QueryCall $call): QueryResult
     {
         $binding = $this->actions->for($call->query);
 
-        return $this->transaction->run(fn (): QueryResult => $this->phases($call, $binding));
+        return $this->telemetry->query($binding, $call, fn (): QueryResult => $this->transaction->run(fn (): QueryResult => $this->phases($call, $binding)));
     }
 
     private function phases(QueryCall $call, QueryBinding $binding): QueryResult

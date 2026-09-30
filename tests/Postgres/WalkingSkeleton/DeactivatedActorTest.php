@@ -21,7 +21,9 @@ use Cbox\Cms\Core\Reads\Domain\Dto\QuerySettings;
 use Cbox\Cms\Core\Reads\Domain\QueryTransaction;
 use Cbox\Cms\Core\Reads\Domain\ReadableFields;
 use Cbox\Cms\Core\Reads\Domain\ReadAudit;
+use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\Tests\Identity\DeactivationWorld;
+use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeStopwatch;
 use Cbox\Cms\Core\Tests\Pipeline\Tally\AddTally;
 use Cbox\Cms\Core\Tests\Pipeline\Tally\TallyTable;
 use Cbox\Cms\Core\Tests\Pipeline\Tally\TallyWorld;
@@ -32,11 +34,13 @@ use Cbox\Cms\Core\Tests\Postgres\StorageTables;
 use Cbox\Cms\Core\Tests\Reads\Fakes\FakeQueryActions;
 use Cbox\Cms\Core\Tests\Reads\Fakes\FakeQueryAuthorizer;
 use Cbox\Cms\Core\Tests\Reads\Probe\ProbeQueryBinding;
+use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\Identity\ServiceCredentialSpec;
 use Cbox\Cms\Testkit\Postgres\ChildProcess;
 use Cbox\Cms\Testkit\Postgres\ChildProcesses;
 use Cbox\Cms\Testkit\Postgres\ProcessContext;
 use Cbox\Cms\Testkit\Schema\FakeTypeCatalog;
+use Cbox\Cms\Testkit\Telemetry\FakeTelemetry;
 use DateInterval;
 use Illuminate\Database\DatabaseManager;
 use PHPUnit\Framework\AssertionFailedError;
@@ -169,6 +173,7 @@ it('rejects a read as a deactivated actor through the query pipeline', function 
         new ReadableFields(new FakeTypeCatalog),
         app(ReadAudit::class),
         app(QueryTransaction::class),
+        new PipelineTelemetry(new FakeTelemetry, new FakeClock, new FakeStopwatch),
     );
     $before = $pipeline->run(new QueryCall(new SeeEntries, $credential));
 

@@ -40,6 +40,7 @@ use Cbox\Cms\Core\Pipeline\Domain\HookPlans;
 use Cbox\Cms\Core\Pipeline\Domain\MutationWriters;
 use Cbox\Cms\Core\Pipeline\Domain\VersionLocks;
 use Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore;
+use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeAffectedProjections;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandAuthorizer;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandContentHasher;
@@ -55,6 +56,7 @@ use Cbox\Cms\Testkit\FixtureWriters\Identity\Adapter\PostgresIdentitySeeder;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
 use Cbox\Cms\Testkit\Postgres\PartitionFixtures;
 use Cbox\Cms\Testkit\Schema\FakeTypeCatalog;
+use Cbox\Cms\Testkit\Telemetry\FakeTelemetry;
 use Cbox\Cms\Testkit\Validation\FakeTypeValidators;
 use Closure;
 use DateInterval;
@@ -203,6 +205,7 @@ final class TallyWorld
             new IdempotencySettings(WaitBudget::milliseconds(200)),
             app(CommandTransaction::class),
             new HookRunner(new FakeCommandHooks, new HookPlans($types), new FakeStopwatch, new FakeHookOverruns),
+            new PipelineTelemetry(new FakeTelemetry, new FakeClock, new FakeStopwatch),
         );
     }
 

@@ -45,6 +45,7 @@ use Cbox\Cms\Core\Seeding\Domain\Commands\SeedEntries;
 use Cbox\Cms\Core\Seeding\Domain\Dto\SeededEntry;
 use Cbox\Cms\Core\Seeding\Domain\Dto\SeedSettings;
 use Cbox\Cms\Core\Seeding\Domain\SeedAuthorizer;
+use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\Tests\Access\Fakes\FakeAccessContexts;
 use Cbox\Cms\Core\Tests\Operations\Fakes\FakeOperationRunner;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeChangesetCommitter;
@@ -65,6 +66,7 @@ use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
 use Cbox\Cms\Testkit\ReceiptStore\FakeReceiptSession;
 use Cbox\Cms\Testkit\ReceiptStore\FakeReceiptStore;
 use Cbox\Cms\Testkit\Schema\FakeTypeCatalog;
+use Cbox\Cms\Testkit\Telemetry\FakeTelemetry;
 use Cbox\Cms\Testkit\Validation\FakeTypeValidators;
 use LogicException;
 
@@ -193,6 +195,7 @@ final class SeedActionWorld
             new IdempotencySettings(WaitBudget::milliseconds(40)),
             new FakeCommandTransaction($this->keys, $this->receipts),
             new HookRunner(new FakeCommandHooks, new HookPlans($types), new FakeStopwatch, new FakeHookOverruns),
+            new PipelineTelemetry(new FakeTelemetry, new FakeClock, new FakeStopwatch),
         );
     }
 

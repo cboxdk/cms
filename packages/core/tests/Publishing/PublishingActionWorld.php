@@ -54,6 +54,7 @@ use Cbox\Cms\Core\Publishing\Actions\PublishEntryAction;
 use Cbox\Cms\Core\Publishing\Actions\UnpublishEntryAction;
 use Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry;
 use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
+use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\Tests\Entries\EntryActionWorld;
 use Cbox\Cms\Core\Tests\Entries\Fakes\FakeEntryReader;
 use Cbox\Cms\Core\Tests\Entries\NoteType;
@@ -73,6 +74,7 @@ use Cbox\Cms\Testkit\Idempotency\FakeIdempotencyStore;
 use Cbox\Cms\Testkit\Identity\FakeIdentity;
 use Cbox\Cms\Testkit\ReceiptStore\FakeReceiptStore;
 use Cbox\Cms\Testkit\Schema\FakeTypeCatalog;
+use Cbox\Cms\Testkit\Telemetry\FakeTelemetry;
 use Cbox\Cms\Testkit\Validation\FakeTypeValidators;
 use DateTimeImmutable;
 use LogicException;
@@ -271,6 +273,7 @@ final class PublishingActionWorld
             new IdempotencySettings(WaitBudget::milliseconds(40)),
             new FakeCommandTransaction($keys, $receipts),
             new HookRunner(new FakeCommandHooks, new HookPlans($types), new FakeStopwatch, new FakeHookOverruns),
+            new PipelineTelemetry(new FakeTelemetry, new FakeClock, new FakeStopwatch),
         );
 
         $envelope = Envelope::external(

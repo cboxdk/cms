@@ -69,6 +69,7 @@ use Cbox\Cms\Core\Placements\Domain\Dto\LocaleSlug;
 use Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeVersionLock;
 use Cbox\Cms\Core\Structure\Adapter\PostgresSiteVersionLock;
+use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\Tests\Entries\EntryFields;
 use Cbox\Cms\Core\Tests\Entries\EntryWorld;
 use Cbox\Cms\Core\Tests\Entries\InterleavedAction;
@@ -85,6 +86,7 @@ use Cbox\Cms\Testkit\FixtureWriters\Structure\Domain\Dto\StructureNode;
 use Cbox\Cms\Testkit\FixtureWriters\Structure\Domain\Dto\StructureSite;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
 use Cbox\Cms\Testkit\Postgres\PartitionFixtures;
+use Cbox\Cms\Testkit\Telemetry\FakeTelemetry;
 use Closure;
 use DateInterval;
 use DateTimeImmutable;
@@ -252,6 +254,7 @@ final class PlacementWorld
             new IdempotencySettings(WaitBudget::milliseconds(200)),
             new ConnectionCommandTransaction($connections, app(SavepointRefusal::class), $this->connection),
             new HookRunner(new FakeCommandHooks, new HookPlans($types), new FakeStopwatch, new FakeHookOverruns),
+            new PipelineTelemetry(new FakeTelemetry, new FakeClock, new FakeStopwatch),
         );
     }
 

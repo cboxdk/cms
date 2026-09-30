@@ -68,6 +68,7 @@ use Cbox\Cms\Core\Pipeline\Domain\MissingReplayReceipt;
 use Cbox\Cms\Core\Pipeline\Domain\ReplayReceipt;
 use Cbox\Cms\Core\Pipeline\Domain\RevisionContents;
 use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
+use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 
 /**
  * The command pipeline (GUARDRAILS 2.1, PRD 6.1, 6.2): the one way a write changes state. It owns
@@ -141,6 +142,10 @@ use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
  * deactivated already: the call is rejected with validation_failed right after plan(), before the
  * hooks, and a dry run of it too, because there is nothing to commit.
  *
+ * Every call gets a span named after its command, with its outcome, its changeset and its
+ * correlation id, and the metrics for its duration and its errors, through PipelineTelemetry, which
+ * runs the call, its transaction included, so no action is instrumented by hand (GUARDRAILS 5).
+ *
  * A rejected call and a dry run commit nothing, so their receipts carry no changeset; they are
  * never stored, and their retention class is Standard.
  */
@@ -167,13 +172,14 @@ final readonly class CommandPipeline
         private IdempotencySettings $idempotency,
         private CommandTransaction $transaction,
         private HookRunner $hooks,
+        private PipelineTelemetry $telemetry,
     ) {}
 
     public function run(CommandCall $call): WriteResult
     {
         $binding = $this->actions->for($call->command);
 
-        return $this->transaction->run($call->access, fn (): WriteResult => $this->claimed($call, $binding));
+        return $this->telemetry->command($binding, $call, fn (): WriteResult => $this->transaction->run($call->access, fn (): WriteResult => $this->claimed($call, $binding)));
     }
 
     /**

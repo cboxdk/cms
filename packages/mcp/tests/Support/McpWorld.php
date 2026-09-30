@@ -19,7 +19,9 @@ use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Dto\ScanRoots;
 use Cbox\Cms\Core\Registry\Domain\RegistryCompiler;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
+use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\Tests\Pipeline\ExposedWorld;
+use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeStopwatch;
 use Cbox\Cms\Core\Tests\Reads\Fakes\FakeQueryActions;
 use Cbox\Cms\Core\Tests\Reads\Probe\AgentCardType;
 use Cbox\Cms\Core\Tests\Reads\Probe\ProbeQueryBinding;
@@ -29,7 +31,9 @@ use Cbox\Cms\Mcp\Boundary\ToolCompiler;
 use Cbox\Cms\Mcp\Domain\McpTools;
 use Cbox\Cms\Mcp\Tests\Fixtures\Surface\ReadAgentCards;
 use Cbox\Cms\Mcp\Tests\Fixtures\Surface\ReadAgentCardsAction;
+use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\Schema\FakeTypeCatalog;
+use Cbox\Cms\Testkit\Telemetry\FakeTelemetry;
 use Illuminate\Contracts\Container\Container;
 
 /**
@@ -129,6 +133,7 @@ final readonly class McpWorld
             new ReadableFields(new FakeTypeCatalog($this->reads->type)),
             $this->reads->audit,
             $this->reads->transaction,
+            new PipelineTelemetry(new FakeTelemetry, new FakeClock, new FakeStopwatch),
         );
     }
 

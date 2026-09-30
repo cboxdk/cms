@@ -17,6 +17,7 @@ use Cbox\Cms\Contracts\Identity\CredentialVerifier;
 use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Contracts\ReceiptStore;
 use Cbox\Cms\Contracts\Schema\TypeCatalog;
+use Cbox\Cms\Contracts\Telemetry\Telemetry;
 use Cbox\Cms\Contracts\TypeTables\TypeTableReader;
 use Cbox\Cms\Core\Access\Adapter\PostgresAccessResolver;
 use Cbox\Cms\Core\Access\Adapter\TransactionalAccessContexts;
@@ -169,6 +170,7 @@ use Cbox\Cms\Core\Subscriptions\Domain\Dto\RunnerSettings;
 use Cbox\Cms\Core\Subscriptions\Domain\LaneSubscribers;
 use Cbox\Cms\Core\Subscriptions\Domain\Pacing;
 use Cbox\Cms\Core\Subscriptions\Domain\SubscriptionLog;
+use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Operations\OperationsServiceProvider;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Config\Repository;
@@ -249,6 +251,11 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->singleton(
             TypeTableReader::class,
             static fn (Application $app): TypeTableReader => $app->make(ContractBindings::class)->resolve($app, TypeTableReader::class),
+        );
+
+        $this->app->singleton(
+            Telemetry::class,
+            static fn (Application $app): Telemetry => $app->make(ContractBindings::class)->resolve($app, Telemetry::class),
         );
 
         // No CDN driver is configured by default; the real drivers come with full-scale
@@ -451,6 +458,7 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
                 $app->make(IdempotencySettings::class),
                 $app->make(CommandTransaction::class),
                 $app->make(HookRunner::class),
+                $app->make(PipelineTelemetry::class),
             ));
 
         // The invalidation subscriber's settings (PRD 8.12 point 1), built on each resolution.
