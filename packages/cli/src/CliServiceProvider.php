@@ -9,22 +9,37 @@ use Cbox\Cms\Cli\Console\DoctorCommand;
 use Cbox\Cms\Cli\Console\ListParkedCommand;
 use Cbox\Cms\Cli\Console\MaintainPartitionsCommand;
 use Cbox\Cms\Cli\Console\ReleaseParkedCommand;
+use Cbox\Cms\Cli\Console\RunCommand;
 use Cbox\Cms\Cli\Console\RunEventsCommand;
+use Cbox\Cms\Cli\Domain\CliActions;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Build\DeclaresScanRoots;
 use Cbox\Cms\Contracts\Build\ScanRoot;
+use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
+use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
+use Override;
 
 /**
  * Registers the cli package in a Laravel application. Loaded through package discovery.
  *
- * Registers the cms:* Artisan commands, and declares the package's classes as a scan root for
- * cms:build (PRD 13.2).
+ * Registers the cms:* Artisan commands, binds the writes the CLI surface runs, read once per
+ * process from the compiled registry when cms:run first asks for them, and declares the package's
+ * classes as a scan root for cms:build (PRD 13.2).
  */
 #[Internal]
 final class CliServiceProvider extends ServiceProvider implements DeclaresScanRoots
 {
     public const string PACKAGE = 'cboxdk/cms';
+
+    #[Override]
+    public function register(): void
+    {
+        $this->app->singleton(
+            CliActions::class,
+            static fn (Application $app): CliActions => new CliActions($app->make(CompiledRegistry::class)),
+        );
+    }
 
     public function boot(): void
     {
@@ -35,6 +50,7 @@ final class CliServiceProvider extends ServiceProvider implements DeclaresScanRo
                 ListParkedCommand::class,
                 MaintainPartitionsCommand::class,
                 ReleaseParkedCommand::class,
+                RunCommand::class,
                 RunEventsCommand::class,
             ]);
         }

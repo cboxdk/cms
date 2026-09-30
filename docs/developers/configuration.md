@@ -49,6 +49,12 @@ For example, `'contracts' => [Clock::class => StagingClock::class]` replaces the
 |---|---|---|
 | `cbox-cms.addons.service_actors` | `[]` | The service actor of each installed addon, by the namespace its manifest names: `['reviews' => '<actor id>']`. The actor is created when the installation approves the addon's capabilities, and the addon's subscribers run as it, with its own grants, never as the system. A subscriber of an addon without an active service actor does not run: [`addon_service_actor_unavailable`](../reference/errors.md#addon_service_actor_unavailable). A key that is not an addon namespace, or a value that is not a UUIDv7 actor id, fails when the kernel reads it. See [Addon manifest](../addons/manifest.md). |
 
+## CLI surface
+
+| Key | Default | What it does |
+|---|---|---|
+| `cbox-cms.cli.credential` | `null` | The token of the service credential `cms:run` runs writes as, for example `env('CBOX_CMS_CLI_CREDENTIAL')`. The actor of every write through the CLI is this credential's actor, verified like a Bearer token; it never comes from an argument or an option. `null` is no credential, and every write is rejected with [`unauthorized`](../reference/errors.md#unauthorized), exit 77. Any value other than `null` or a non-empty string makes `cms:run` exit 78. See [The CLI surface](../addons/commands.md#the-cli-surface). |
+
 ## Idempotency
 
 | Key | Default | What it does |

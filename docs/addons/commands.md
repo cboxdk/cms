@@ -441,6 +441,21 @@ A dry run's `BlastRadius` counts the mutations of the plan and the distinct aggr
 
 A `FieldPath` is a list of names and indexes, written `blocks[2].text` or `fields.ext.app.tax_code`. Each surface translates the result for its transport. No code serialises a result to JSON by hand: the receipt's JSON form is on [Receipt JSON](receipt-json.md), and a rejection's catalog errors become the field errors of [problem details](problem-details.md), each written by its generated codec.
 
+## The CLI surface
+
+A write action whose `#[Action]` lists `Surface::Cli` runs from the command line with one generic command, `cms:run <name> <version> <document>`, such as `php artisan cms:run note.save 1 '{"title":"A"}' --idempotency-key=note-1`. The names and versions it accepts are the write actions the registry that `cms:build` compiles exposes on the CLI; any other exits 64 and lists the ones it exposes. `<document>` is the command's JSON document, read by the command's generated codec at the actor's classification access, as REST and the Inertia profile read it.
+
+| Option | Envelope field | What it does |
+|---|---|---|
+| `--idempotency-key=` | `idempotency_key` | required; a repeat with the same key and document gives the same receipt, another document with the same key is `idempotency_conflict` |
+| `--dry-run` | `dry_run` | computes the plan and the receipt and commits nothing |
+| `--wait-level=` | `wait_level` | `commit` (the default), `origin`, `edge`, `verified` or `propagated` |
+| `--json` | | prints the receipt, or the problem details of a rejection, as one line of JSON |
+
+The options are read through the envelope's generated codec, so a value it refuses is `json_invalid` at `envelope.<field>`, such as `envelope.wait_level`. The actor is never an argument or an option: it is the actor of the process's configured service credential, `cbox-cms.cli.credential` (see [configuration](../developers/configuration.md#cli-surface)), verified like a Bearer token, and a run without one is rejected with `unauthorized`. The on-behalf-of chain is the credential's.
+
+The exit code comes from the [error catalog](../reference/errors.md): 0 for `committed` and `committed_wait_timeout` (the change is committed; do not run it again), the exit code of `dry_run` (0) for a dry run, and for a rejection the exit code of its first error, such as 65 for `validation_failed`, `json_invalid` and `version_conflict` and 77 for `unauthorized` and a refused credential. With `--json`, standard output holds the receipt ([receipt JSON](receipt-json.md)) of a call that was not rejected and the [problem details](problem-details.md) of one that was; paths of the command's errors are relative to `<document>`. Without it, the outcome is one sentence on standard output and each error of a rejection a line on standard error. An invalid `cbox-cms.cli.credential` exits 78, and an exposed command without a codec 70, with a message and no JSON.
+
 ## The command pipeline
 
 The kernel runs every write through one pipeline, in the core, and the action only resolves and plans (PRD 6.2, GUARDRAILS 2.1). The whole call runs in one transaction, which commits only when the call committed a changeset.

@@ -39,9 +39,7 @@ final readonly class ErrorCodeScan
      * will be used. The test fails once a code here is used, so the entry leaves this list with
      * the task that uses it.
      */
-    public const array RESERVED = [
-        'dry_run' => 'the surfaces answer a receipt with the outcome dry_run (M1 points 3 and 6, GUARDRAILS 2.1)',
-    ];
+    public const array RESERVED = [];
 
     /**
      * @param  list<ErrorCodeDeclaration>  $declarations

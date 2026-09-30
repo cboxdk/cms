@@ -127,6 +127,16 @@ return [
     ],
 
     /*
+     * The CLI surface (GUARDRAILS 2.1), `cms:run`. credential is the token of the service
+     * credential the process runs writes as, for example env('CBOX_CMS_CLI_CREDENTIAL'); the actor
+     * of every write through cms:run is that credential's actor, never an argument or an option.
+     * Null, the default, is no credential, and every write is refused as unauthorized.
+     */
+    'cli' => [
+        'credential' => null,
+    ],
+
+    /*
      * The query pipeline (PRD 6.2, 8.8). Every read states its cost from its query, from the rows
      * it may return, how deep it reads and the relations it expands, and a read that costs more
      * than the budget of its principal is rejected with query_over_budget before it reads
