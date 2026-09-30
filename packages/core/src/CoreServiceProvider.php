@@ -76,6 +76,8 @@ use Cbox\Cms\Core\Entries\Adapter\PostgresEntryReader;
 use Cbox\Cms\Core\Entries\Adapter\PostgresEntryVersionLock;
 use Cbox\Cms\Core\Entries\Adapter\PostgresVariantVersionLock;
 use Cbox\Cms\Core\Entries\Adapter\RevisionCreatedWriter;
+use Cbox\Cms\Core\Entries\Boundary\CreateEntryCodec;
+use Cbox\Cms\Core\Entries\Boundary\ReviseEntryCodec;
 use Cbox\Cms\Core\Entries\Domain\EntryReader;
 use Cbox\Cms\Core\IdempotencyStore\Boundary\IdempotencyConfig;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
@@ -174,6 +176,11 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
 
     /** Where cms:build writes the registry, below the application's bootstrap path. */
     public const string REGISTRY_CACHE = 'cache/cms';
+
+    /** The container ids of the codecs of entry.create and entry.revise, version 1. */
+    private const string ENTRY_CREATE_CODEC = 'cbox-cms.command-codecs.entry.create.v1';
+
+    private const string ENTRY_REVISE_CODEC = 'cbox-cms.command-codecs.entry.revise.v1';
 
     #[Override]
     public function register(): void
@@ -321,6 +328,12 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         // head and the type table's row (PRD 4.1, 11.6).
         $this->app->bind(EntryReader::class, PostgresEntryReader::class);
         $this->app->tag([EntryCreatedWriter::class, RevisionCreatedWriter::class, HeadMovedWriter::class], MutationWriters::TAG);
+
+        // Their codecs, which every surface they are exposed on reads them with, and which
+        // cms:build describes their REST routes with (GUARDRAILS 2.1, 2.2).
+        $this->app->bind(self::ENTRY_CREATE_CODEC, static fn (): CommandCodec => CreateEntryCodec::commandCodec());
+        $this->app->bind(self::ENTRY_REVISE_CODEC, static fn (): CommandCodec => ReviseEntryCodec::commandCodec());
+        $this->app->tag([self::ENTRY_CREATE_CODEC, self::ENTRY_REVISE_CODEC], CommandCodecs::TAG);
 
         // actor.deactivate (PRD 5.16): the writer of its mutation, which deactivates the actor and
         // ends its direct grants.

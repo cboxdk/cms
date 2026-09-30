@@ -44,7 +44,12 @@ final readonly class CreateNoteCodec implements JsonCodec
 
     public static function codecs(): CommandCodecs
     {
-        return new CommandCodecs(new CommandCodec(new CommandName('fixture.note.create'), 1, new self, new JsonSchema(self::SCHEMA)));
+        return new CommandCodecs(self::commandCodec());
+    }
+
+    public static function commandCodec(): CommandCodec
+    {
+        return new CommandCodec(new CommandName('fixture.note.create'), 1, new self, new JsonSchema(self::SCHEMA));
     }
 
     /**

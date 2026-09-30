@@ -22,6 +22,9 @@ use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Contracts\Subscribers\Lane;
 use Cbox\Cms\Contracts\Subscribers\SubscriptionName;
+use Cbox\Cms\Core\Entries\Boundary\CreateEntryCodec;
+use Cbox\Cms\Core\Entries\Boundary\ReviseEntryCodec;
+use Cbox\Cms\Core\Pipeline\Domain\CommandCodecs;
 use Cbox\Cms\Core\Reads\Domain\QueryCodecs;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
 use Cbox\Cms\Core\Registry\Adapter\FileOpenApiDocuments;
@@ -156,12 +159,17 @@ final class RegistryFixtures
     }
 
     /**
-     * The OpenAPI documents in the directory, with the codec of the fixture root Valid's one
-     * command on REST, fixture.note.create.
+     * The OpenAPI documents in the directory, with the codecs of the commands on REST that the
+     * tests' scan roots declare: the fixture root Valid's one, fixture.note.create, and the
+     * kernel's own, entry.create and entry.revise, which the core's service provider registers.
      */
     public static function documents(string $directory): FileOpenApiDocuments
     {
-        return new FileOpenApiDocuments($directory, CreateNoteCodec::codecs(), new QueryCodecs);
+        return new FileOpenApiDocuments($directory, new CommandCodecs(
+            CreateNoteCodec::commandCodec(),
+            CreateEntryCodec::commandCodec(),
+            ReviseEntryCodec::commandCodec(),
+        ), new QueryCodecs);
     }
 
     public static function cache(string $directory): FileRegistryCache

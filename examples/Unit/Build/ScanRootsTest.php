@@ -88,21 +88,24 @@ final class ScanRootsTest extends BuildTestCase
         self::assertEquals(new FoundNote(true), new FindNoteAction(['Groceries'])->handle(new FindNote('Groceries')));
 
         // The action is on REST, so rest.php has its route and openapi.json describes it with the
-        // schemas of the codecs NotesServiceProvider registers.
+        // schemas of the codecs NotesServiceProvider registers. The kernel's own commands on REST,
+        // entry.create and entry.revise, have their routes next to it.
         $rest = require $this->registryFile('rest');
         self::assertIsArray($rest);
-        self::assertSame([[
+        self::assertIsArray($rest['entries']);
+        self::assertSame(['entry.create', 'entry.revise', 'note.find'], array_column($rest['entries'], 'name'));
+        self::assertSame([
             'kind' => 'query',
             'method' => 'GET',
             'name' => 'note.find',
             'path' => '/v1/queries/note.find/v1',
             'version' => 1,
-        ]], $rest['entries']);
+        ], $rest['entries'][2]);
 
         $openApi = json_decode((string) file_get_contents($this->registryDirectory().'/openapi.json'), true, 512, JSON_THROW_ON_ERROR);
         self::assertIsArray($openApi);
         self::assertIsArray($openApi['paths']);
-        self::assertSame(['/v1/queries/note.find/v1'], array_keys($openApi['paths']));
+        self::assertSame(['/v1/commands/entry.create/v1', '/v1/commands/entry.revise/v1', '/v1/queries/note.find/v1'], array_keys($openApi['paths']));
     }
 
     #[Test]

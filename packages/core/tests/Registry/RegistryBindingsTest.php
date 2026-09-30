@@ -21,6 +21,7 @@ use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
 use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
+use Cbox\Cms\Core\Registry\Domain\Dto\RestRoute;
 use Cbox\Cms\Core\Registry\Domain\Dto\ScanRoots;
 use Cbox\Cms\Core\Registry\Domain\OpenApiDocuments;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
@@ -96,7 +97,11 @@ it('scans the packages\' own classes without a problem and registers the kernel\
         ->and($registry->actionFor(DeactivateActor::class)?->surfaces)->toBe([])
         ->and($registry->actionFor(CreateEntry::class)?->class)->toBe(CreateEntryAction::class)
         ->and($registry->actionFor(ReviseEntry::class)?->class)->toBe(ReviseEntryAction::class)
-        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([3, 3, 0, 0, 0])
+        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([3, 3, 0, 2, 0, 0])
+        ->and(array_map(static fn (RestRoute $route): string => $route->method->value.' '.$route->path, $registry->rest))->toBe([
+            'POST /v1/commands/entry.create/v1',
+            'POST /v1/commands/entry.revise/v1',
+        ])
         ->and($registry->hooks)->toBe([])
         ->and($registry->subscribers)->toBe([])
         ->and($registry->schema)->toBe([]);

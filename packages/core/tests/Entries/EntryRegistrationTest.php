@@ -10,6 +10,7 @@ use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Content\VariantRef;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Ids\ActorId;
+use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\TypeId;
@@ -25,9 +26,12 @@ use Cbox\Cms\Core\Entries\Adapter\PostgresEntryReader;
 use Cbox\Cms\Core\Entries\Adapter\PostgresEntryVersionLock;
 use Cbox\Cms\Core\Entries\Adapter\PostgresVariantVersionLock;
 use Cbox\Cms\Core\Entries\Adapter\RevisionCreatedWriter;
+use Cbox\Cms\Core\Entries\Boundary\CreateEntryCodec;
+use Cbox\Cms\Core\Entries\Boundary\ReviseEntryCodec;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
 use Cbox\Cms\Core\Entries\Domain\EntryReader;
+use Cbox\Cms\Core\Pipeline\Domain\CommandCodecs;
 use Cbox\Cms\Core\Pipeline\Domain\LockStrength;
 use Cbox\Cms\Core\Pipeline\Domain\MutationWriters;
 use Cbox\Cms\Core\Pipeline\Domain\VersionLocks;
@@ -42,6 +46,8 @@ use InvalidArgumentException;
  * under entry.create and entry.revise version 1 on every surface, the container gives the pipeline
  * those actions with the Postgres reader, and the commit finds the lock of every aggregate they
  * read and the writer of every mutation they plan. Each lock refuses an aggregate of another kind.
+ * Every surface they are exposed on reads them with their codecs, which cms:build requires of an
+ * action on REST (registry_surface_without_codec).
  */
 
 const REGISTRATION_ENTRY = '01936f5e-8a2b-7c3d-9e4f-0000000004e1';
@@ -60,6 +66,17 @@ it('registers entry.create and entry.revise version 1 on every surface', functio
             ->and($entry?->package)->toBe('cboxdk/cms')
             ->and($entry?->surfaces)->toBe([Surface::Rest, Surface::Inertia, Surface::Mcp, Surface::Cli]);
     }
+});
+
+it('gives every surface the entry actions are exposed on the codecs of entry.create and entry.revise version 1', function (): void {
+    $codecs = app(CommandCodecs::class);
+    $create = $codecs->for(new CommandName('entry.create'), 1);
+    $revise = $codecs->for(new CommandName('entry.revise'), 1);
+
+    expect($create->codec)->toBeInstanceOf(CreateEntryCodec::class)
+        ->and($create->schema->json)->toBe(CreateEntryCodec::SCHEMA)
+        ->and($revise->codec)->toBeInstanceOf(ReviseEntryCodec::class)
+        ->and($revise->schema->json)->toBe(ReviseEntryCodec::SCHEMA);
 });
 
 it('gives the pipeline the entry actions with the Postgres reader', function (): void {
