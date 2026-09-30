@@ -25,23 +25,27 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\RichTextOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SelectOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\TextOptions;
+use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypeRegistry;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypes\CoreFieldTypes;
 use Cbox\Cms\Generators\Schema\Domain\History;
 use Cbox\Cms\Generators\Schema\Domain\Localization;
 use Cbox\Cms\Generators\Schema\Domain\Stages;
 use Illuminate\Contracts\Config\Repository;
+use LogicException;
 
 /*
  * The workbench's schema roots and its committed generated code (GUARDRAILS 2.6): fixture_article
  * with history full and stages draft-release, at version 2 with the owner's fixture_slug, extended
  * by the fixture addon's root with ext.fixtureaddon.fixture_slug, and fixture_measurement with history none, stages
- * none, no route and other fields, the two fixture types of milestone 1, which together use every
- * core field type, so the workbench's record codecs are tested with each. Every file in
- * workbench/schema is a blueprint v1 file that YamlBlueprintSource reads without problems, and the
- * committed files are exactly what the generators produce from them: the same check as
- * `composer check:generated`, without writing. Every file starts with the editor line that
- * cms:schema:editor writes, so running it changes nothing.
+ * none, no route and other fields, which together use every core field type, so the workbench's
+ * record codecs are tested with each. The workbench may hold more types: the test finds these two
+ * by handle and reads the rest as they are, so a type added as a schema file changes nothing
+ * here (tests/Feature/Workbench/WorkbenchSchemaTest.php lists the workbench's files exactly). Every
+ * file in workbench/schema is a blueprint v1 file of one type that YamlBlueprintSource reads without
+ * problems, and the committed files are exactly what the generators produce from them, no more and
+ * no fewer: the same check as `composer check:generated`, without writing. Every file starts with
+ * the editor line that cms:schema:editor writes, so running it changes nothing.
  */
 
 it('holds only blueprint v1 files, which the YAML source reads without problems', function (): void {
@@ -53,19 +57,24 @@ it('holds only blueprint v1 files, which the YAML source reads without problems'
 
     expect(app(BlueprintSource::class))->toBeInstanceOf(YamlBlueprintSource::class)
         ->and(array_map(static fn (SchemaRoot $root): string => $root->owner->value.': '.$root->directory, $target->roots))->toBe(['app: workbench/schema', 'fixtureaddon: workbench/addons/fixtureaddon/schema'])
-        ->and($files)->toBe(['fixture_article.yaml', 'fixture_measurement.yaml']);
+        ->and($files)->toContain('fixture_article.yaml', 'fixture_measurement.yaml');
 
     foreach ($files as $file) {
         expect((string) file_get_contents($directory.'/'.$file))->toMatch('/^blueprint: 1$/m');
     }
 
     expect($blueprints->extensions)->toHaveCount(1)
-        ->and($blueprints->types)->toHaveCount(2)
+        ->and($blueprints->types)->toHaveCount(count($files))
         ->and(SchemaFixtures::files($target->roots[1]->path()))->toBe(['fixture_article.yaml']);
 
     [$extension] = $blueprints->extensions;
 
-    [$article, $measurement] = $blueprints->types;
+    $article = array_find($blueprints->types, static fn (TypeBlueprint $type): bool => $type->handle->value === 'fixture_article');
+    $measurement = array_find($blueprints->types, static fn (TypeBlueprint $type): bool => $type->handle->value === 'fixture_measurement');
+
+    if ($article === null || $measurement === null) {
+        throw new LogicException('The workbench has no fixture_article or no fixture_measurement.');
+    }
 
     expect($article->handle->value)->toBe('fixture_article')
         ->and($article->owner->value)->toBe('app')
@@ -135,71 +144,24 @@ it('has committed generated code that matches the schema', function (): void {
     $schema = DescriptorCompiler::compile(SchemaResolver::resolve(app(BlueprintSource::class)->read($target->roots)));
     $result = app(GeneratorRunner::class)->run($schema, $target);
 
-    expect($result->paths())->toBe([
-        'workbench/app/Cms/Generated/Boundary/AppFixtureArticleCodecV1.php',
-        'workbench/app/Cms/Generated/Boundary/AppFixtureMeasurementCodecV1.php',
-        'workbench/app/Cms/Generated/Domain/Dto/AppFixtureArticleV1.php',
-        'workbench/app/Cms/Generated/Domain/Dto/AppFixtureArticleV1Ext.php',
-        'workbench/app/Cms/Generated/Domain/Dto/AppFixtureArticleV1ExtFixtureaddon.php',
-        'workbench/app/Cms/Generated/Domain/Dto/AppFixtureArticleV1FixtureEmbargo.php',
-        'workbench/app/Cms/Generated/Domain/Dto/AppFixtureArticleV1FixtureSources.php',
-        'workbench/app/Cms/Generated/Domain/Dto/AppFixtureMeasurementV1.php',
-        'workbench/app/Cms/Generated/Domain/Dto/AppFixtureMeasurementV1FixtureSensor.php',
-        'workbench/app/Cms/Generated/Domain/Dto/AppFixtureMeasurementV1FixtureSeries.php',
-        'workbench/app/Cms/Generated/GeneratedRecordCodecs.php',
-        'workbench/app/Cms/Generated/GeneratedTypeCatalog.php',
-        'workbench/app/Cms/Generated/GeneratedTypeValidators.php',
-        'workbench/app/Cms/Generated/GeneratedTypesServiceProvider.php',
-        'workbench/app/Cms/Generated/QueryBuilders/AppFixtureArticle/AppFixtureArticleFilterField.php',
-        'workbench/app/Cms/Generated/QueryBuilders/AppFixtureArticle/AppFixtureArticleQuery.php',
-        'workbench/app/Cms/Generated/QueryBuilders/AppFixtureArticle/AppFixtureArticleSortField.php',
-        'workbench/app/Cms/Generated/QueryBuilders/AppFixtureMeasurement/AppFixtureMeasurementFilterField.php',
-        'workbench/app/Cms/Generated/QueryBuilders/AppFixtureMeasurement/AppFixtureMeasurementQuery.php',
-        'workbench/app/Cms/Generated/QueryBuilders/AppFixtureMeasurement/AppFixtureMeasurementSortField.php',
-        'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticle.php',
-        'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleExt.php',
-        'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleFactory.php',
-        'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleFixtureaddonExt.php',
-        'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleFixtureaddonExtension.php',
-        'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleFixtureaddonFields.php',
-        'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleRecord.php',
-        'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleRecordFactory.php',
-        'workbench/app/Cms/Generated/Records/AppFixtureArticle/FixtureEmbargoGroup.php',
-        'workbench/app/Cms/Generated/Records/AppFixtureArticle/FixtureSourcesItem.php',
-        'workbench/app/Cms/Generated/Records/AppFixtureArticle/FixtureTopicsChoice.php',
-        'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/AppFixtureMeasurement.php',
-        'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/AppFixtureMeasurementFactory.php',
-        'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/AppFixtureMeasurementRecord.php',
-        'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/AppFixtureMeasurementRecordFactory.php',
-        'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/FixtureAlertsChoice.php',
-        'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/FixtureScaleChoice.php',
-        'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/FixtureSensorGroup.php',
-        'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/FixtureSeriesItem.php',
-        'workbench/app/Cms/Generated/TypeHandle.php',
-        'workbench/app/Cms/Generated/Validators/AppFixtureArticleValidator.php',
-        'workbench/app/Cms/Generated/Validators/AppFixtureMeasurementValidator.php',
-        'workbench/database/migrations/cms/app__fixture_article.lock',
-        'workbench/database/migrations/cms/app__fixture_article_0001_create.php',
-        'workbench/database/migrations/cms/app__fixture_article_0002_add_columns.php',
-        'workbench/database/migrations/cms/app__fixture_article_0003_add_columns.php',
-        'workbench/database/migrations/cms/app__fixture_measurement.lock',
-        'workbench/database/migrations/cms/app__fixture_measurement_0001_create.php',
-        'workbench/resources/js/cms/generated/index.ts',
-        'workbench/resources/js/cms/generated/protocol/CreateEntryV1.ts',
-        'workbench/resources/js/cms/generated/protocol/CreatePlacementV1.ts',
-        'workbench/resources/js/cms/generated/protocol/DeactivateActorV1.ts',
-        'workbench/resources/js/cms/generated/protocol/EnvelopeV1.ts',
-        'workbench/resources/js/cms/generated/protocol/ProblemV1.ts',
-        'workbench/resources/js/cms/generated/protocol/PublishEntryV1.ts',
-        'workbench/resources/js/cms/generated/protocol/ReceiptV1.ts',
-        'workbench/resources/js/cms/generated/protocol/ReleaseVariantV1.ts',
-        'workbench/resources/js/cms/generated/protocol/ReviseEntryV1.ts',
-        'workbench/resources/js/cms/generated/protocol/SetPlacementWindowV1.ts',
-        'workbench/resources/js/cms/generated/protocol/UnpublishEntryV1.ts',
-        'workbench/resources/js/cms/generated/records/AppFixtureArticleV1.ts',
-        'workbench/resources/js/cms/generated/records/AppFixtureMeasurementV1.ts',
-        'workbench/resources/js/cms/generated/validation.ts',
-    ]);
+    $committed = [];
+
+    foreach ([$target->phpDirectory, $target->typeScriptDirectory, $target->migrationsDirectory] as $directory) {
+        foreach (SchemaFixtures::files($target->root.'/'.$directory) as $file) {
+            $committed[] = $directory.'/'.$file;
+        }
+    }
+
+    sort($committed, SORT_STRING);
+
+    expect($result->paths())->toBe($committed, 'The committed generated files are not the ones the schema generates. Run `vendor/bin/testbench cms:generate`.')
+        ->and($result->paths())->toContain(
+            'workbench/app/Cms/Generated/GeneratedTypeCatalog.php',
+            'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleRecord.php',
+            'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/AppFixtureMeasurementRecord.php',
+            'workbench/database/migrations/cms/app__fixture_article_0003_add_columns.php',
+            'workbench/resources/js/cms/generated/index.ts',
+        );
 
     foreach ($result->files as $file) {
         expect(file_get_contents($target->root.'/'.$file->path))->toBe($file->contents, $file->path.' differs from what the schema generates. Run `vendor/bin/testbench cms:generate`.');

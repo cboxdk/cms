@@ -11,6 +11,8 @@ use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Schema\TypeCatalog;
+use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Core\Seeding\Actions\SeedDataset;
 use Cbox\Cms\Core\Seeding\Domain\Dto\SeedReport;
 use Cbox\Cms\Core\Seeding\Domain\Dto\SeedRequest;
@@ -43,11 +45,10 @@ final readonly class SeedWorld
 
     public const int SECTIONS = 12;
 
-    /** @var list<string> the kernel's tables a seed run writes to, and the workbench's type tables */
+    /** @var list<string> the kernel's tables a seed run writes to; the type tables come from the TypeCatalog */
     public const array TABLES = [
         'audit', 'changesets', 'entries', 'events', 'head_snapshots', 'idempotency_keys', 'receipts',
         'release_log', 'revision_payloads', 'revisions', 'variant_heads',
-        'app__fixture_article', 'app__fixture_measurement',
     ];
 
     public ActorId $actor;
@@ -84,7 +85,22 @@ final readonly class SeedWorld
     }
 
     /**
-     * The rows of each table the seeder writes, read as the superuser, past row level security.
+     * The table of every type in the installation's TypeCatalog, sorted, so a type added as a
+     * schema file is counted without a change here (GUARDRAILS 2.4).
+     *
+     * @return list<string>
+     */
+    public static function typeTables(): array
+    {
+        $tables = array_map(static fn (TypeDefinition $type): string => $type->name->table(), app(TypeCatalog::class)->all());
+        sort($tables, SORT_STRING);
+
+        return $tables;
+    }
+
+    /**
+     * The rows of each table the seeder writes, the kernel's and every type table, read as the
+     * superuser, past row level security.
      *
      * @return array<string, int>
      */
@@ -92,7 +108,7 @@ final readonly class SeedWorld
     {
         $rows = [];
 
-        foreach (self::TABLES as $table) {
+        foreach ([...self::TABLES, ...self::typeTables()] as $table) {
             $rows[$table] = StorageTables::superuser()->table($table)->count();
         }
 

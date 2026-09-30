@@ -38,7 +38,7 @@ it('seeds 2,000 entries with the small profile deterministically', function (): 
         ->and($report->operation->completedNames())->toHaveCount(20)
         ->and($rows['entries'])->toBe(2_000)
         ->and($rows['changesets'])->toBe(20)
-        ->and($rows['app__fixture_article'] + $rows['app__fixture_measurement'])->toBeGreaterThanOrEqual(2_000)
+        ->and(array_sum(array_map(static fn (string $table): int => $rows[$table], SeedWorld::typeTables())))->toBeGreaterThanOrEqual(2_000)
         ->and($entries)->toHaveCount(2_000)
         ->and(StorageTables::superuser()->table('events')->where('stream', 'bulk')->count())->toBe($rows['events']);
 
