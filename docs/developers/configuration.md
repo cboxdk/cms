@@ -56,6 +56,14 @@ For example, `'contracts' => [Clock::class => StagingClock::class]` replaces the
 |---|---|---|
 | `cbox-cms.cli.credential` | `null` | The token of the service credential `cms:run` runs writes as, for example `env('CBOX_CMS_CLI_CREDENTIAL')`. The actor of every write through the CLI is this credential's actor, verified like a Bearer token; it never comes from an argument or an option. `null` is no credential, and every write is rejected with [`unauthorized`](../reference/errors.md#unauthorized), exit 77. Any value other than `null` or a non-empty string makes `cms:run` exit 78. See [The CLI surface](../addons/commands.md#the-cli-surface). |
 
+## Sites
+
+`path.resolve` reads `cbox-cms.sites` (PRD 5.9, 8.10 point 7) to map the host of a request to a site and to build canonical URLs. A value that is not a map of site handles to an origin and a list of hosts, or a host configured for two sites, fails when the kernel reads it.
+
+| Key | Default | What it does |
+|---|---|---|
+| `cbox-cms.sites` | `[]` | The sites that are served, by the handle each has in the `sites` table, such as `'north' => ['origin' => 'https://north.example', 'hosts' => ['www.north.example']]`. `origin` is the scheme and host every canonical URL of the site is built from; `hosts` lists other hosts that resolve to it and defaults to `[]`. The origin's host resolves to the site too, and a host belongs to one site. Only a configured host resolves, and no URL is ever built from the host a request names. |
+
 ## Idempotency
 
 | Key | Default | What it does |

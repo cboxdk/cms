@@ -36,6 +36,7 @@ use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Registry\Domain\RegistryName;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
+use Cbox\Cms\Core\Routing\Actions\ResolvePathAction;
 use Cbox\Cms\Core\Seeding\Actions\SeedEntriesAction;
 use Cbox\Cms\Core\Seeding\Domain\Commands\SeedEntries;
 use Cbox\Cms\Core\Tests\Registry\Providers\DeferredRootProvider;
@@ -116,6 +117,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'entry.publish@1 '.PublishEntryAction::class.' write',
             'entry.revise@1 '.ReviseEntryAction::class.' write',
             'entry.unpublish@1 '.UnpublishEntryAction::class.' write',
+            'path.resolve@1 '.ResolvePathAction::class.' query',
             'placement.create@1 '.CreatePlacementAction::class.' write',
             'placement.set_window@1 '.SetPlacementWindowAction::class.' write',
             'seed.entries@1 '.SeedEntriesAction::class.' write',
@@ -124,7 +126,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
         ->and($registry->actionFor(DeactivateActor::class)?->surfaces)->toBe([])
         ->and($registry->actionFor(CreateEntry::class)?->class)->toBe(CreateEntryAction::class)
         ->and($registry->actionFor(ReviseEntry::class)?->class)->toBe(ReviseEntryAction::class)
-        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([9, 9, 0, 0, 1])
+        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([10, 9, 0, 0, 1])
         ->and($registry->hooks)->toBe([])
         ->and(array_map(static fn (SubscriberEntry $entry): string => $entry->name->value.' '.$entry->class.' '.$entry->lane->value.' '.$entry->projection?->value, $registry->subscribers))
         ->toBe(['fragments.invalidate '.InvalidateFragments::class.' critical origin'])

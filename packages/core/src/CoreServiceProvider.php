@@ -151,6 +151,10 @@ use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
+use Cbox\Cms\Core\Routing\Adapter\PostgresRouteReader;
+use Cbox\Cms\Core\Routing\Boundary\SitesConfig;
+use Cbox\Cms\Core\Routing\Domain\RouteReader;
+use Cbox\Cms\Core\Routing\Domain\SiteHosts;
 use Cbox\Cms\Core\Seeding\Actions\SeedDataset;
 use Cbox\Cms\Core\Seeding\Adapter\PostgresSeedReader;
 use Cbox\Cms\Core\Seeding\Adapter\TransactionalSeedTargets;
@@ -401,6 +405,15 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->bind(
             QuerySettings::class,
             static fn (Application $app): QuerySettings => QueryConfig::read($app->make(Repository::class)),
+        );
+
+        // path.resolve (PRD 5.9): its reads on the default connection, under the read's actor
+        // context, and the configured sites, built on each resolution so they follow the
+        // configuration.
+        $this->app->bind(RouteReader::class, PostgresRouteReader::class);
+        $this->app->bind(
+            SiteHosts::class,
+            static fn (Application $app): SiteHosts => SitesConfig::read($app->make(Repository::class)),
         );
 
         // The event runner's ports (PRD 7.4 to 7.8): the cursors and parked aggregates on the default

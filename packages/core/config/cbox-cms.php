@@ -154,6 +154,16 @@ return [
     ],
 
     /*
+     * The sites path.resolve serves (PRD 5.9, 8.10 point 7), by the handle each has in the sites
+     * table: origin is the scheme and host its canonical URLs are built from, such as
+     * 'https://example.dk', and hosts the other hosts that resolve to it, such as
+     * ['www.example.dk']. The origin's host resolves to the site too, and a host belongs to one
+     * site. Only a configured host resolves, and no URL is ever built from the host a request
+     * names.
+     */
+    'sites' => [],
+
+    /*
      * Idempotency keys (PRD 6.1). A command whose key another call still holds waits at most
      * wait_budget_ms for that call to end, then it is rejected with idempotency_in_flight, which
      * the client may retry. It is 0 to 5000 ms, part of the 5 seconds a command transaction may

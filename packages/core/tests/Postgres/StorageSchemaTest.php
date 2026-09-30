@@ -87,7 +87,7 @@ it('forces row level security on every table, with the access migration\'s polic
         ->toBe(array_map(static fn (string $table): string => $table.' true true', StorageTables::TABLES))
         ->and(StorageTables::texts($owner, 'select policyname::text as value from pg_policies where tablename = any (?::text[]) order by 1', [$tables]))
         ->toBe([
-            'entries_actor', 'entries_released', 'node_routes_owner_write', 'nodes_actor', 'nodes_granted', 'nodes_owner_write',
+            'entries_actor', 'entries_released', 'node_routes_owner_write', 'node_routes_read', 'nodes_actor', 'nodes_granted', 'nodes_owner_write',
             'site_locales_owner_write', 'site_locales_read', 'sites_owner_write', 'sites_read', 'variant_heads_actor', 'variant_heads_released',
         ])
         ->and($result->status)->toBe(CheckStatus::Pass, (string) $result->cause);
@@ -295,6 +295,7 @@ it('has the keys, uniques, foreign keys, partial unique indexes and storage opti
         'CREATE INDEX placement_locales_generation ON placement_locales USING btree (placement_id, stage, node_id)',
         'CREATE UNIQUE INDEX placement_locales_pkey ON placement_locales USING btree (placement_id, stage, locale)',
         "CREATE UNIQUE INDEX placement_locales_slug_key ON placement_locales USING btree (node_id, locale, slug, stage) WHERE (visibility <> 'withdrawn'::text)",
+        "CREATE INDEX placement_locales_withdrawn_slug ON placement_locales USING btree (node_id, locale, slug, stage) WHERE (visibility = 'withdrawn'::text)",
         'CREATE UNIQUE INDEX placements_entry_key ON placements USING btree (entry_id, id)',
         'CREATE UNIQUE INDEX placements_pkey ON placements USING btree (id)',
     ])->and(StorageTables::texts($owner, "select conrelid::regclass::text || ' ' || pg_get_constraintdef(oid) as value from pg_constraint where conrelid = any (?::regclass[]) and contype = 'f' order by 1", [$tables]))->toBe([
