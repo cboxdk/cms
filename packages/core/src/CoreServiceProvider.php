@@ -70,6 +70,13 @@ use Cbox\Cms\Core\Doctor\Domain\Probes\RegistryCacheProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\RuntimeProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\ToolProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\ValkeyProbe;
+use Cbox\Cms\Core\Entries\Adapter\EntryCreatedWriter;
+use Cbox\Cms\Core\Entries\Adapter\HeadMovedWriter;
+use Cbox\Cms\Core\Entries\Adapter\PostgresEntryReader;
+use Cbox\Cms\Core\Entries\Adapter\PostgresEntryVersionLock;
+use Cbox\Cms\Core\Entries\Adapter\PostgresVariantVersionLock;
+use Cbox\Cms\Core\Entries\Adapter\RevisionCreatedWriter;
+use Cbox\Cms\Core\Entries\Domain\EntryReader;
 use Cbox\Cms\Core\IdempotencyStore\Boundary\IdempotencyConfig;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
 use Cbox\Cms\Core\Identity\Adapter\PostgresActorVersionLock;
@@ -117,6 +124,7 @@ use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
+use Cbox\Cms\Core\Structure\Adapter\PostgresNodeVersionLock;
 use Cbox\Cms\Core\Subscriptions\Adapter\PostgresSubscriptionLog;
 use Cbox\Cms\Core\Subscriptions\Adapter\RegistryLaneSubscribers;
 use Cbox\Cms\Core\Subscriptions\Adapter\SystemPacing;
@@ -286,7 +294,13 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         // the version lock of each kind of aggregate and the writer of each mutation class that
         // the container has under their tags. The core registers the actor's lock; each command
         // adds the locks and writers of its own aggregates and mutations.
-        $this->app->tag([PostgresActorVersionLock::class], VersionLocks::TAG);
+        $this->app->tag([PostgresActorVersionLock::class, PostgresEntryVersionLock::class, PostgresVariantVersionLock::class, PostgresNodeVersionLock::class], VersionLocks::TAG);
+
+        // The entry commands, entry.create and entry.revise (PRD 5.4, 6.4): their reads, and the
+        // writers of their mutations, which store the entry, the revision or head snapshot, the
+        // head and the type table's row (PRD 4.1, 11.6).
+        $this->app->bind(EntryReader::class, PostgresEntryReader::class);
+        $this->app->tag([EntryCreatedWriter::class, RevisionCreatedWriter::class, HeadMovedWriter::class], MutationWriters::TAG);
         $this->app->bind(
             VersionLocks::class,
             static fn (Application $app): VersionLocks => new VersionLocks(...self::tagged($app, VersionLocks::TAG, VersionLock::class)),

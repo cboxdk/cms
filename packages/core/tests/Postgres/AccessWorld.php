@@ -263,7 +263,7 @@ final class AccessWorld
         }
 
         foreach ([self::ENTRY_NEWS, self::ENTRY_PUBLIC] as $entry) {
-            $superuser->table('head_snapshots')->insert(['entry_id' => $entry, 'variant' => 'shared', 'schema_version' => 1, 'format_version' => 1, 'content' => '{}', 'updated_at' => self::CREATED_AT]);
+            $superuser->table('head_snapshots')->insert(['entry_id' => $entry, 'variant' => 'shared', 'rev_no' => 1, 'schema_version' => 1, 'format_version' => 1, 'content' => '{}', 'updated_at' => self::CREATED_AT]);
         }
 
         $superuser->table('release_log')->insert(['entry_id' => self::ENTRY_PUBLIC, 'variant' => 'shared', 'action' => 'released', 'revision_id' => 6, 'effective_at' => self::CREATED_AT, 'changeset_id' => self::CHANGESET_BOB]);

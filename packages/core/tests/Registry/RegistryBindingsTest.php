@@ -7,13 +7,19 @@ namespace Cbox\Cms\Core\Tests\Registry;
 use Cbox\Cms\Cli\CliServiceProvider;
 use Cbox\Cms\Contracts\Build\ScanRoot;
 use Cbox\Cms\Core\CoreServiceProvider;
+use Cbox\Cms\Core\Entries\Actions\CreateEntryAction;
+use Cbox\Cms\Core\Entries\Actions\ReviseEntryAction;
+use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
 use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
 use Cbox\Cms\Core\Registry\Boundary\ProviderScanRoots;
 use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
+use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Dto\ScanRoots;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
+use Cbox\Cms\Core\Registry\Domain\RegistryName;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
 use Cbox\Cms\Core\Tests\Registry\Providers\DeferredRootProvider;
 use Cbox\Cms\Core\Tests\Registry\Providers\FixtureRootProvider;
@@ -67,10 +73,16 @@ it('registers deferred providers first, so their scan roots are not missed', fun
         ->and(ProviderScanRoots::of(app())->roots)->toContainEqual(new ScanRoot('acme/deferred', __DIR__.'/Providers'));
 });
 
-it('scans the packages\' own classes without a problem; none of them is declared yet', function (): void {
+it('scans the packages\' own classes without a problem; the core declares the entry commands and their actions', function (): void {
     $registry = RegistryFixtures::builder(RegistryFixtures::scratch())->build(packageScanRoots());
 
-    expect($registry)->toEqual(CompiledRegistry::empty());
+    expect(array_map(static fn (CommandEntry $command): string => $command->name->value.' '.$command->class, $registry->commands))->toBe([
+        'entry.create '.CreateEntry::class,
+        'entry.revise '.ReviseEntry::class,
+    ])
+        ->and($registry->actionFor(CreateEntry::class)?->class)->toBe(CreateEntryAction::class)
+        ->and($registry->actionFor(ReviseEntry::class)?->class)->toBe(ReviseEntryAction::class)
+        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([2, 2, 0, 0, 0]);
 });
 
 it('binds the scanner and a cache in the application\'s bootstrap/cache/cms', function (): void {

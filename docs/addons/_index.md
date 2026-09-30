@@ -22,6 +22,7 @@ An extension point is `#[Stable]` or `#[Experimental]`. Every extension point do
 - [Subscribers](subscribers.md): a subscriber class with `#[Subscription]`, its lane and the projection it acknowledges on a receipt, and the subscribers registry.
 - [Error codes](errors.md): the error catalog, where every error gets its stable code, HTTP status, exit code and MCP response.
 - [Commands and write actions](commands.md): `Command`, the `Envelope` a surface builds, `WriteAction` with its aggregates and versions, `#[Action]` and its surfaces, and the `WriteResult` a write ends with.
+- [Entry commands](entry-commands.md): `entry.create` and `entry.revise`, what the kernel stores for them as a type's capabilities say, their events and their rejections.
 - [Plans and mutations](plans.md): the `Plan` a write action returns, the typed mutations and the kernel-generic field values of a revision.
 - [Queries and query actions](queries.md): `Query`, `QueryAction` and the typed `Result` of a read.
 - [Records and JSON codecs](codecs.md): the record DTO and the JSON codec `cms:generate` writes for every type, the JSON form of each kind of value, classification access and `Omitted`, and the `JsonCodec` contract.

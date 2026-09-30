@@ -54,6 +54,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`doctor_vendor_manifest_missing`](#doctor_vendor_manifest_missing) | 500 | 78 | internal_error | no |
 | [`dry_run`](#dry_run) | 200 | 0 | result | no |
 | [`fake_check_failed`](#fake_check_failed) | 500 | 78 | internal_error | no |
+| [`field_encryption_unavailable`](#field_encryption_unavailable) | 422 | 65 | tool_error | no |
 | [`generate_column_name_too_long`](#generate_column_name_too_long) | 500 | 65 | internal_error | no |
 | [`generate_duplicate_field_handle`](#generate_duplicate_field_handle) | 500 | 65 | internal_error | no |
 | [`generate_duplicate_select_value`](#generate_duplicate_select_value) | 500 | 65 | internal_error | no |
@@ -506,6 +507,15 @@ A FakeDoctorCheck of the testkit failed, because a test told it to. Only tests s
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 78 (EX_CONFIG)
 - MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### field_encryption_unavailable
+
+The field is classified confidential or above, so it is stored only as ciphertext under a scope or subject key (PRD 12.2), and this installation has no key management yet (PRD 12.3). The kernel refuses the value rather than store it in plain text, and nothing was committed. Leave the field out or send null.
+
+- HTTP status: 422 Unprocessable Content
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
 - Retry: no, the same call gives the same answer until something changes
 
 ### generate_column_name_too_long

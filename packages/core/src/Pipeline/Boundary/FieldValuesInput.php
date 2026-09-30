@@ -62,7 +62,11 @@ final readonly class FieldValuesInput
         return $object;
     }
 
-    private static function value(FieldValue $value): mixed
+    /**
+     * One value in the same form: what a field of the input, a group's field or an item of a list
+     * holds.
+     */
+    public static function value(FieldValue $value): mixed
     {
         return match (true) {
             $value instanceof NullValue => null,

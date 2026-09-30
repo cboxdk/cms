@@ -66,6 +66,7 @@ enum ErrorCode: string
     case DoctorVendorManifestMissing = 'doctor_vendor_manifest_missing';
     case DryRun = 'dry_run';
     case FakeCheckFailed = 'fake_check_failed';
+    case FieldEncryptionUnavailable = 'field_encryption_unavailable';
     case GenerateColumnNameTooLong = 'generate_column_name_too_long';
     case GenerateDuplicateFieldHandle = 'generate_duplicate_field_handle';
     case GenerateDuplicateSelectValue = 'generate_duplicate_select_value';
@@ -290,6 +291,11 @@ enum ErrorCode: string
             ),
             self::FakeCheckFailed => $this->violation(
                 'A FakeDoctorCheck of the testkit failed, because a test told it to. Only tests see this code.',
+            ),
+            self::FieldEncryptionUnavailable => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'The field is classified confidential or above, so it is stored only as ciphertext under a scope or subject key (PRD 12.2), and this installation has no key management yet (PRD 12.3). The kernel refuses the value rather than store it in plain text, and nothing was committed. Leave the field out or send null.',
             ),
             self::GenerateColumnNameTooLong => $this->refusedInput(
                 'A field\'s column name is longer than 63 bytes, the limit Postgres has for a name. The column of an extension field is ext__<namespace>__<handle>. Give the field, or the namespace, a shorter handle.',

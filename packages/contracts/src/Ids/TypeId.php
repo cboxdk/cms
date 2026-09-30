@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Contracts\Ids;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Override;
 
 /**
  * The stable id of a content type, the type_id of its blueprint, unchanged when the type is
@@ -12,7 +13,7 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
  * of whatever type a schema defines. It is a UUIDv7, made by the IdGenerator contract.
  */
 #[Experimental]
-final readonly class TypeId
+final readonly class TypeId implements Identifier
 {
     public function __construct(public Uuid7 $value) {}
 
@@ -24,6 +25,7 @@ final readonly class TypeId
         return new self(new Uuid7($value));
     }
 
+    #[Override]
     public function toString(): string
     {
         return $this->value->value;

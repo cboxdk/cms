@@ -49,6 +49,7 @@ export type ErrorCode =
   | 'doctor_vendor_manifest_missing'
   | 'dry_run'
   | 'fake_check_failed'
+  | 'field_encryption_unavailable'
   | 'generate_column_name_too_long'
   | 'generate_duplicate_field_handle'
   | 'generate_duplicate_select_value'
@@ -244,6 +245,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'doctor_vendor_manifest_missing',
           'dry_run',
           'fake_check_failed',
+          'field_encryption_unavailable',
           'generate_column_name_too_long',
           'generate_duplicate_field_handle',
           'generate_duplicate_select_value',
@@ -403,6 +405,7 @@ const problemV1Rule: ObjectRule = {
           'doctor_vendor_manifest_missing',
           'dry_run',
           'fake_check_failed',
+          'field_encryption_unavailable',
           'generate_column_name_too_long',
           'generate_duplicate_field_handle',
           'generate_duplicate_select_value',

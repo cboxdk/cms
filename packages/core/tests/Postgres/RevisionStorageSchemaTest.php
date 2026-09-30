@@ -219,7 +219,7 @@ it('lets the app role read no rows, insert none and change none without an actor
     $superuser->table('changeset_principals')->insert(['changeset_id' => StorageTables::CHANGESET, 'position' => 1, 'actor_id' => REVISION_STORAGE_ACTOR]);
     $superuser->table('changeset_reason_texts')->insert(['changeset_id' => StorageTables::CHANGESET, 'classification' => 'confidential', 'text' => 'Wrong photo credit.', 'created_at' => StorageTables::CREATED_AT]);
     $superuser->table('revision_payloads')->insert(['revision_id' => 1, 'kind' => 'draft', 'format_version' => 1, 'content' => '{"value":"A"}']);
-    $superuser->table('head_snapshots')->insert(['entry_id' => StorageTables::ENTRY, 'variant' => 'shared', 'schema_version' => 1, 'format_version' => 1, 'content' => '{"value":"A"}', 'updated_at' => StorageTables::CREATED_AT]);
+    $superuser->table('head_snapshots')->insert(['entry_id' => StorageTables::ENTRY, 'variant' => 'shared', 'rev_no' => 1, 'schema_version' => 1, 'format_version' => 1, 'content' => '{"value":"A"}', 'updated_at' => StorageTables::CREATED_AT]);
     $superuser->table('release_log')->insert(['entry_id' => StorageTables::ENTRY, 'variant' => 'shared', 'action' => 'released', 'revision_id' => 2, 'effective_at' => StorageTables::CREATED_AT, 'changeset_id' => StorageTables::CHANGESET]);
     $app = DB::connection();
 
@@ -238,7 +238,7 @@ it('lets the app role read no rows, insert none and change none without an actor
         'changeset_reason_texts' => ['changeset_id' => StorageTables::CHANGESET, 'classification' => 'confidential', 'text' => 'Again.', 'created_at' => StorageTables::CREATED_AT],
         'revisions' => StorageTables::revision(4),
         'revision_payloads' => ['revision_id' => 4, 'kind' => 'draft', 'format_version' => 1, 'content' => '{}'],
-        'head_snapshots' => ['entry_id' => StorageTables::ENTRY, 'variant' => 'da', 'schema_version' => 1, 'format_version' => 1, 'content' => '{}', 'updated_at' => StorageTables::CREATED_AT],
+        'head_snapshots' => ['entry_id' => StorageTables::ENTRY, 'variant' => 'da', 'rev_no' => 1, 'schema_version' => 1, 'format_version' => 1, 'content' => '{}', 'updated_at' => StorageTables::CREATED_AT],
         'release_log' => ['entry_id' => StorageTables::ENTRY, 'variant' => 'shared', 'action' => 'withdrawn', 'revision_id' => null, 'effective_at' => StorageTables::CREATED_AT, 'changeset_id' => StorageTables::CHANGESET],
     ] as $table => $row) {
         expect(StorageTables::sqlState(fn (): bool => $app->table($table)->insert($row)))->toBe('42501', $table);
@@ -400,7 +400,7 @@ it('keeps each payload in the partition of its kind and revision_id, once per re
 it('keeps one snapshot per variant head, and the release log to its heads, revisions and changesets', function (): void {
     seedChangeset();
     $superuser = StorageTables::superuser();
-    $snapshot = static fn (array $changes): Closure => static fn (): bool => $superuser->table('head_snapshots')->insert(array_merge(['entry_id' => StorageTables::ENTRY, 'variant' => 'shared', 'schema_version' => 1, 'format_version' => 1, 'content' => '{}', 'updated_at' => StorageTables::CREATED_AT], $changes));
+    $snapshot = static fn (array $changes): Closure => static fn (): bool => $superuser->table('head_snapshots')->insert(array_merge(['entry_id' => StorageTables::ENTRY, 'variant' => 'shared', 'rev_no' => 1, 'schema_version' => 1, 'format_version' => 1, 'content' => '{}', 'updated_at' => StorageTables::CREATED_AT], $changes));
     $release = static fn (array $changes): Closure => static fn (): bool => $superuser->table('release_log')->insert(array_merge(['entry_id' => StorageTables::ENTRY, 'variant' => 'shared', 'action' => 'released', 'revision_id' => 2, 'effective_at' => StorageTables::CREATED_AT, 'changeset_id' => StorageTables::CHANGESET], $changes));
 
     $snapshot([])();
@@ -409,6 +409,7 @@ it('keeps one snapshot per variant head, and the release log to its heads, revis
         ->and(StorageTables::violation($snapshot(['variant' => 'da'])))->toBe('23503 head_snapshots_head_fkey')
         ->and(StorageTables::violation($snapshot(['variant' => 'da', 'schema_version' => 0])))->toBe('23514 head_snapshots_schema_version')
         ->and(StorageTables::violation($snapshot(['variant' => 'da', 'format_version' => 0])))->toBe('23514 head_snapshots_format_version')
+        ->and(StorageTables::violation($snapshot(['variant' => 'da', 'rev_no' => 0])))->toBe('23514 head_snapshots_rev_no')
         ->and(StorageTables::violation($snapshot(['variant' => 'da', 'content' => '"text"'])))->toBe('23514 head_snapshots_content');
 
     $release([])();

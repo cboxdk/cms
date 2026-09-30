@@ -8,6 +8,10 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Attributes\Phase;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
+use Cbox\Cms\Contracts\Fields\FieldMap;
+use Cbox\Cms\Contracts\Fields\FieldNamespace;
+use Cbox\Cms\Contracts\Fields\FieldValue;
+use Cbox\Cms\Contracts\Fields\NullValue;
 use Cbox\Cms\Contracts\Idempotency\Conflict;
 use Cbox\Cms\Contracts\Idempotency\Fresh;
 use Cbox\Cms\Contracts\Idempotency\Replay;
@@ -19,6 +23,7 @@ use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Pipeline\ExpectsVersions;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersions;
+use Cbox\Cms\Contracts\Plans\Mutations\EntryCreated;
 use Cbox\Cms\Contracts\Plans\Mutations\RevisionCreated;
 use Cbox\Cms\Contracts\Plans\Plan;
 use Cbox\Cms\Contracts\Receipts\Receipt;
@@ -76,16 +81,19 @@ use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
  * 2. Authorize, through the CommandAuthorizer with the call's AccessContext; a refusal is
  *    unauthorized.
  * 3. Plan: the action's plan() from the command and the aggregates. The kernel checks its shape
- *    at once: every aggregate a mutation changes was read, and every revision's type is a type of
- *    the TypeCatalog, so the hooks only ever see a plan the kernel can read. Then the authorize
+ *    at once: every aggregate a mutation changes was read, every revision's type is a type of the
+ *    TypeCatalog, and an entry's home node, when the action read it, exists, so the hooks only ever
+ *    see a plan the kernel can read. Then the authorize
  *    hooks run on the pending plan; a denial is unauthorized. They run after plan() because they
  *    see the plan, and they can only add refusals to the CommandAuthorizer's decision.
  * 4. Transform: the transform hooks change fields of the plan's revisions (HookRunner).
  * 5. Validate. The kernel validates the plan as the transforms left it (invariant 12): the fields
  *    of every revision through the type's generated validator, so a transform can never produce
  *    fields that break a rule. A transform changes only fields, so the plan's shape stands. The
- *    validate hooks add their errors after the kernel's. Any error rejects the call with
- *    validation_failed, followed by each error.
+ *    validate hooks add their errors after the kernel's. A value for a field stored encrypted is
+ *    refused with field_encryption_unavailable, because the key management that encrypts it comes
+ *    with block B6 (PRD 12.2, 12.3). Any error rejects the call with validation_failed, followed by
+ *    each error.
  * 6. Dry run: a call whose envelope asks for one ends here with the plan, its blast radius and its
  *    diff, and commits nothing.
  * 7. Commit, through the ChangesetCommitter, with every aggregate read and its version: the
@@ -301,8 +309,9 @@ final readonly class CommandPipeline
     }
 
     /**
-     * The kernel's rules for the shape of a plan: every aggregate a mutation changes was read, and
-     * every revision's type is a type of the installation.
+     * The kernel's rules for the shape of a plan: every aggregate a mutation changes was read,
+     * every revision's type is a type of the installation, and an entry is not created on a home
+     * node its action read as absent, which is how a node the actor's regions do not reach reads.
      *
      * @param  class-string  $action
      * @return list<CatalogError>
@@ -318,6 +327,14 @@ final readonly class CommandPipeline
 
             if ($mutation instanceof RevisionCreated && ! $this->types->find($mutation->type) instanceof TypeDefinition) {
                 $errors[] = new CatalogError(ErrorCode::ValidationFailed, null, sprintf('No type of this installation has the id %s.', $mutation->type->toString()));
+            }
+
+            if ($mutation instanceof EntryCreated) {
+                $home = $reads->of($mutation->home);
+
+                if ($home instanceof ReadVersion && ! $home->existed()) {
+                    $errors[] = new CatalogError(ErrorCode::ValidationFailed, null, sprintf('No node %s exists that the actor can reach, so it cannot be the home of the entry %s.', $mutation->home->toString(), $mutation->entry->toString()));
+                }
             }
         }
 
@@ -338,6 +355,34 @@ final readonly class CommandPipeline
 
             if ($mutation instanceof RevisionCreated && $type instanceof TypeDefinition) {
                 array_push($errors, ...$this->fields->validate($type, $mutation->fields, ValidationStage::Write, new FieldPath(self::FIELDS))->errors);
+                array_push($errors, ...$this->encrypted($type, $mutation));
+            }
+        }
+
+        return $errors;
+    }
+
+    /**
+     * A value for a field stored as ciphertext (PRD 12.2): the key management that encrypts it with
+     * its scope or subject key comes with block B6 (PRD 12.3), so until then the kernel refuses the
+     * value rather than store it in plain text, and an encrypted field can only be left empty.
+     *
+     * @return list<CatalogError>
+     */
+    private function encrypted(TypeDefinition $type, RevisionCreated $mutation): array
+    {
+        $errors = [];
+
+        foreach ($type->fields as $field) {
+            $map = $field->namespace instanceof FieldNamespace ? $mutation->fields->extension($field->namespace) : $mutation->fields->own;
+            $value = $map instanceof FieldMap ? $map->get($field->handle) : null;
+
+            if ($field->encrypted && $value instanceof FieldValue && ! $value instanceof NullValue) {
+                $errors[] = new CatalogError(
+                    ErrorCode::FieldEncryptionUnavailable,
+                    new FieldPath(self::FIELDS, ...explode('.', $field->address())),
+                    sprintf('The field "%s" is classified %s and is stored encrypted, and this installation has no key to encrypt it with yet, so it takes no value.', $field->address(), $field->classification->value),
+                );
             }
         }
 
