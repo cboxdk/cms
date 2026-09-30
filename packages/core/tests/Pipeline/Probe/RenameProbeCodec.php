@@ -32,6 +32,33 @@ use stdClass;
  */
 final readonly class RenameProbeCodec implements JsonCodec
 {
+    /** The JSON Schema of the document, as a command's codec carries it for the OpenAPI document. */
+    public const string SCHEMA = <<<'JSON'
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "title": "probe.rename, version 1",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["entry", "fields", "home", "type"],
+          "properties": {
+            "entry": {"$ref": "#/$defs/id"},
+            "fields": {
+              "description": "The owner's fields by handle.",
+              "type": "object",
+              "propertyNames": {"pattern": "^[a-z][a-z0-9_]*$"}
+            },
+            "home": {"$ref": "#/$defs/id"},
+            "type": {"$ref": "#/$defs/id"}
+          },
+          "$defs": {
+            "id": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+            }
+          }
+        }
+        JSON;
+
     /**
      * @param  RenameProbe  $dto
      */

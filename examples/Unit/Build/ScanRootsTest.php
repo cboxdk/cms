@@ -86,6 +86,23 @@ final class ScanRootsTest extends BuildTestCase
 
         // The registry names the action; the query pipeline calls it.
         self::assertEquals(new FoundNote(true), new FindNoteAction(['Groceries'])->handle(new FindNote('Groceries')));
+
+        // The action is on REST, so rest.php has its route and openapi.json describes it with the
+        // schemas of the codecs NotesServiceProvider registers.
+        $rest = require $this->registryFile('rest');
+        self::assertIsArray($rest);
+        self::assertSame([[
+            'kind' => 'query',
+            'method' => 'GET',
+            'name' => 'note.find',
+            'path' => '/v1/queries/note.find/v1',
+            'version' => 1,
+        ]], $rest['entries']);
+
+        $openApi = json_decode((string) file_get_contents($this->registryDirectory().'/openapi.json'), true, 512, JSON_THROW_ON_ERROR);
+        self::assertIsArray($openApi);
+        self::assertIsArray($openApi['paths']);
+        self::assertSame(['/v1/queries/note.find/v1'], array_keys($openApi['paths']));
     }
 
     #[Test]

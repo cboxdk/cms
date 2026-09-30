@@ -22,7 +22,9 @@ use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Contracts\Subscribers\Lane;
 use Cbox\Cms\Contracts\Subscribers\SubscriptionName;
+use Cbox\Cms\Core\Reads\Domain\QueryCodecs;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
+use Cbox\Cms\Core\Registry\Adapter\FileOpenApiDocuments;
 use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
 use Cbox\Cms\Core\Registry\Boundary\RegistryCacheCodec;
 use Cbox\Cms\Core\Registry\Domain\ActionKind;
@@ -47,6 +49,7 @@ use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\NoteCreated;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\NoteRenamed;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\NotifyNoteWebhooks;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\TrimNoteTitle;
+use Cbox\Cms\Core\Tests\Registry\FixtureSupport\CreateNoteCodec;
 use FilesystemIterator;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -149,7 +152,16 @@ final class RegistryFixtures
 
     public static function builder(string $directory): BuildRegistry
     {
-        return new BuildRegistry(new AttributeScanner, new RegistryCompiler, self::cache($directory));
+        return new BuildRegistry(new AttributeScanner, new RegistryCompiler, self::cache($directory), self::documents($directory));
+    }
+
+    /**
+     * The OpenAPI documents in the directory, with the codec of the fixture root Valid's one
+     * command on REST, fixture.note.create.
+     */
+    public static function documents(string $directory): FileOpenApiDocuments
+    {
+        return new FileOpenApiDocuments($directory, CreateNoteCodec::codecs(), new QueryCodecs);
     }
 
     public static function cache(string $directory): FileRegistryCache

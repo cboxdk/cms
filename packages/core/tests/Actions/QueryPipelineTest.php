@@ -290,3 +290,11 @@ it('refuses a query that no query action handles before it begins a transaction'
     expect(fn (): QueryResult => $world->pipeline()->run(new QueryCall($stray, null)))->toThrow(UnknownQuery::class, 'No query action handles the query '.$stray::class)
         ->and($world->transaction->commits + $world->transaction->rollBacks)->toBe(0);
 });
+
+it('answers with the classification access of the read\'s principal, which the surface writes the result with', function (): void {
+    $actor = new QueryWorld()->read(1);
+    $anonymous = new QueryWorld()->read(1, anonymous: true);
+
+    expect($actor->access)->toBe(ClassificationAccess::Confidential)
+        ->and($anonymous->access)->toBe(ClassificationAccess::Public);
+});

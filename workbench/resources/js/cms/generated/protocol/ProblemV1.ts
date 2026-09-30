@@ -85,6 +85,7 @@ export type ErrorCode =
   | 'hook_change_refused'
   | 'idempotency_conflict'
   | 'idempotency_in_flight'
+  | 'idempotency_key_required'
   | 'json_invalid'
   | 'json_malformed'
   | 'owner_credentials_exposed'
@@ -112,6 +113,7 @@ export type ErrorCode =
   | 'registry_not_an_action'
   | 'registry_not_final_readonly'
   | 'registry_reserved_namespace'
+  | 'registry_surface_without_codec'
   | 'registry_undeclared_hook'
   | 'registry_undeclared_subscriber'
   | 'registry_unknown_action_command'
@@ -119,6 +121,7 @@ export type ErrorCode =
   | 'registry_unknown_hook_command'
   | 'registry_unknown_lane'
   | 'registry_unknown_surface'
+  | 'request_header_invalid'
   | 'subscription_identity_invalid'
   | 'subscription_not_parked'
   | 'subscription_unknown'
@@ -281,6 +284,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'hook_change_refused',
           'idempotency_conflict',
           'idempotency_in_flight',
+          'idempotency_key_required',
           'json_invalid',
           'json_malformed',
           'owner_credentials_exposed',
@@ -308,6 +312,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'registry_not_an_action',
           'registry_not_final_readonly',
           'registry_reserved_namespace',
+          'registry_surface_without_codec',
           'registry_undeclared_hook',
           'registry_undeclared_subscriber',
           'registry_unknown_action_command',
@@ -315,6 +320,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'registry_unknown_hook_command',
           'registry_unknown_lane',
           'registry_unknown_surface',
+          'request_header_invalid',
           'subscription_identity_invalid',
           'subscription_not_parked',
           'subscription_unknown',
@@ -441,6 +447,7 @@ const problemV1Rule: ObjectRule = {
           'hook_change_refused',
           'idempotency_conflict',
           'idempotency_in_flight',
+          'idempotency_key_required',
           'json_invalid',
           'json_malformed',
           'owner_credentials_exposed',
@@ -468,6 +475,7 @@ const problemV1Rule: ObjectRule = {
           'registry_not_an_action',
           'registry_not_final_readonly',
           'registry_reserved_namespace',
+          'registry_surface_without_codec',
           'registry_undeclared_hook',
           'registry_undeclared_subscriber',
           'registry_unknown_action_command',
@@ -475,6 +483,7 @@ const problemV1Rule: ObjectRule = {
           'registry_unknown_hook_command',
           'registry_unknown_lane',
           'registry_unknown_surface',
+          'request_header_invalid',
           'subscription_identity_invalid',
           'subscription_not_parked',
           'subscription_unknown',

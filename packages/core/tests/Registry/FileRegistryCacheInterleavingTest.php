@@ -15,9 +15,9 @@ use PHPUnit\Framework\Assert;
 /*
  * A cms:build replaces the registry files one at a time while requests and workers read them. The
  * steps below rename the files of a new build into place between the files a read loads, in the
- * order a build renames them (actions, commands, hooks, schema, subscribers). A read loads
- * actions.php, commands.php, hooks.php, schema.php and subscribers.php as opens 1 to 5, and a second
- * attempt as 6 to 10.
+ * order a build renames them (actions, commands, hooks, rest, schema, subscribers). A read loads
+ * actions.php, commands.php, hooks.php, rest.php, schema.php and subscribers.php as opens 1 to 6,
+ * and a second attempt as 7 to 12.
  * Whatever the order, a read gives the whole old registry or the whole new one, never a mix of the
  * two builds.
  */
@@ -85,14 +85,15 @@ it('reads the whole old or the whole new registry while a build renames its file
     expect($read)->toEqual($expected === 'old' ? interleavedOld() : CompiledRegistry::empty());
 })->with([
     'the build ends before the read' => [[1 => RegistryName::cases()], 'new'],
-    'the build starts after the read' => [[6 => RegistryName::cases()], 'old'],
+    'the build starts after the read' => [[7 => RegistryName::cases()], 'old'],
     'the build lands after the actions are read' => [[2 => RegistryName::cases()], 'new'],
     'the build lands after the commands are read' => [[3 => RegistryName::cases()], 'new'],
     'the build lands after the hooks are read' => [[4 => RegistryName::cases()], 'new'],
-    'the build lands after the schema contributions are read' => [[5 => RegistryName::cases()], 'new'],
-    'each file is renamed just after it is read' => [[2 => [RegistryName::Actions], 3 => [RegistryName::Commands], 4 => [RegistryName::Hooks], 5 => [RegistryName::Schema], 6 => [RegistryName::Subscribers]], 'old'],
-    'the actions are renamed before the read and the rest after it' => [[1 => [RegistryName::Actions], 6 => [RegistryName::Commands, RegistryName::Hooks, RegistryName::Schema, RegistryName::Subscribers]], 'new'],
-    'the hooks, schema and subscribers are renamed while the read looks again' => [[1 => [RegistryName::Actions, RegistryName::Commands], 8 => [RegistryName::Hooks, RegistryName::Schema, RegistryName::Subscribers]], 'new'],
+    'the build lands after the REST routes are read' => [[5 => RegistryName::cases()], 'new'],
+    'the build lands after the schema contributions are read' => [[6 => RegistryName::cases()], 'new'],
+    'each file is renamed just after it is read' => [[2 => [RegistryName::Actions], 3 => [RegistryName::Commands], 4 => [RegistryName::Hooks], 5 => [RegistryName::Rest], 6 => [RegistryName::Schema], 7 => [RegistryName::Subscribers]], 'old'],
+    'the actions are renamed before the read and the rest after it' => [[1 => [RegistryName::Actions], 7 => [RegistryName::Commands, RegistryName::Hooks, RegistryName::Rest, RegistryName::Schema, RegistryName::Subscribers]], 'new'],
+    'the hooks, REST routes, schema and subscribers are renamed while the read looks again' => [[1 => [RegistryName::Actions, RegistryName::Commands], 9 => [RegistryName::Hooks, RegistryName::Rest, RegistryName::Schema, RegistryName::Subscribers]], 'new'],
 ]);
 
 it('refuses files from two builds that stay mixed, as a build that stopped halfway leaves them', function (): void {
@@ -106,5 +107,5 @@ it('refuses files from two builds that stay mixed, as a build that stopped halfw
             ->toContain('run php artisan cms:build');
     }
 
-    expect(InterleavedFiles::opens())->toBeGreaterThan(5);
+    expect(InterleavedFiles::opens())->toBeGreaterThan(6);
 });

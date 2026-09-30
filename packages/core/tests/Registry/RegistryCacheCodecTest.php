@@ -21,6 +21,7 @@ use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Dto\HookEntry;
+use Cbox\Cms\Core\Registry\Domain\Dto\RestRoute;
 use Cbox\Cms\Core\Registry\Domain\Dto\SchemaEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscribedEvent;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
@@ -49,6 +50,7 @@ function codecRegistry(): CompiledRegistry
         [
             new SchemaEntry(new AddonNamespace('reviews'), 'acme/cms-reviews', [new ContributedFieldType('reviews:stars')], [new TypeName('reviews:review')], [new TypeName('app:note'), new TypeName('shop:product')]),
         ],
+        [new RestRoute(ActionKind::Write, new CommandName('note.create'), 1)],
     );
 }
 
@@ -112,14 +114,14 @@ function codecFailure(mixed $damaged): MalformedRegistryCache
     Assert::fail('The codec read a malformed cache.');
 }
 
-it('writes the exact bytes of format 6', function (): void {
+it('writes the exact bytes of format 7', function (): void {
     $files = new RegistryCacheCodec()->encode(codecRegistry());
     $header = "<?php\n\ndeclare(strict_types=1);\n\n// Written by php artisan cms:build from the declared scan roots and addon manifests (PRD 13.2).\n// Do not edit and do not commit; run cms:build again instead.\n\n";
 
-    expect(array_keys($files))->toBe(['actions', 'commands', 'hooks', 'schema', 'subscribers'])
+    expect(array_keys($files))->toBe(['actions', 'commands', 'hooks', 'rest', 'schema', 'subscribers'])
         ->and($files['actions'])->toBe($header.<<<'PHP'
             return [
-                'build' => '6210c03206ce71d71ef654c3ef31d9fac94a53840df4db40f094808f52de2641',
+                'build' => '354e3e42bc301adf81e064a9fd148b99499677bca40b293dd41361e822d4ad25',
                 'entries' => [
                     [
                         'class' => 'App\\Actions\\CreateNoteAction',
@@ -134,14 +136,14 @@ it('writes the exact bytes of format 6', function (): void {
                         ],
                     ],
                 ],
-                'format' => 6,
+                'format' => 7,
                 'registry' => 'actions',
             ];
 
             PHP)
         ->and($files['commands'])->toBe($header.<<<'PHP'
             return [
-                'build' => '6210c03206ce71d71ef654c3ef31d9fac94a53840df4db40f094808f52de2641',
+                'build' => '354e3e42bc301adf81e064a9fd148b99499677bca40b293dd41361e822d4ad25',
                 'entries' => [
                     [
                         'class' => 'App\\Commands\\CreateNote',
@@ -150,14 +152,14 @@ it('writes the exact bytes of format 6', function (): void {
                         'version' => 1,
                     ],
                 ],
-                'format' => 6,
+                'format' => 7,
                 'registry' => 'commands',
             ];
 
             PHP)
         ->and($files['hooks'])->toBe($header.<<<'PHP'
             return [
-                'build' => '6210c03206ce71d71ef654c3ef31d9fac94a53840df4db40f094808f52de2641',
+                'build' => '354e3e42bc301adf81e064a9fd148b99499677bca40b293dd41361e822d4ad25',
                 'entries' => [
                     [
                         'addon' => null,
@@ -184,14 +186,31 @@ it('writes the exact bytes of format 6', function (): void {
                         'reads' => 'internal',
                     ],
                 ],
-                'format' => 6,
+                'format' => 7,
                 'registry' => 'hooks',
+            ];
+
+            PHP)
+        ->and($files['rest'])->toBe($header.<<<'PHP'
+            return [
+                'build' => '354e3e42bc301adf81e064a9fd148b99499677bca40b293dd41361e822d4ad25',
+                'entries' => [
+                    [
+                        'kind' => 'write',
+                        'method' => 'POST',
+                        'name' => 'note.create',
+                        'path' => '/v1/commands/note.create/v1',
+                        'version' => 1,
+                    ],
+                ],
+                'format' => 7,
+                'registry' => 'rest',
             ];
 
             PHP)
         ->and($files['schema'])->toBe($header.<<<'PHP'
             return [
-                'build' => '6210c03206ce71d71ef654c3ef31d9fac94a53840df4db40f094808f52de2641',
+                'build' => '354e3e42bc301adf81e064a9fd148b99499677bca40b293dd41361e822d4ad25',
                 'entries' => [
                     [
                         'extends' => [
@@ -208,14 +227,14 @@ it('writes the exact bytes of format 6', function (): void {
                         ],
                     ],
                 ],
-                'format' => 6,
+                'format' => 7,
                 'registry' => 'schema',
             ];
 
             PHP)
         ->and($files['subscribers'])->toBe($header.<<<'PHP'
             return [
-                'build' => '6210c03206ce71d71ef654c3ef31d9fac94a53840df4db40f094808f52de2641',
+                'build' => '354e3e42bc301adf81e064a9fd148b99499677bca40b293dd41361e822d4ad25',
                 'entries' => [
                     [
                         'addon' => null,
@@ -253,12 +272,12 @@ it('writes the exact bytes of format 6', function (): void {
                         'projection' => null,
                     ],
                 ],
-                'format' => 6,
+                'format' => 7,
                 'registry' => 'subscribers',
             ];
 
             PHP)
-        ->and(new RegistryCacheCodec()->encode(CompiledRegistry::empty())['commands'])->toBe($header."return [\n    'build' => '".hash('sha256', "actions => [];\ncommands => [];\nhooks => [];\nschema => [];\nsubscribers => [];\n")."',\n    'entries' => [],\n    'format' => 6,\n    'registry' => 'commands',\n];\n");
+        ->and(new RegistryCacheCodec()->encode(CompiledRegistry::empty())['commands'])->toBe($header."return [\n    'build' => '".hash('sha256', "actions => [];\ncommands => [];\nhooks => [];\nrest => [];\nschema => [];\nsubscribers => [];\n")."',\n    'entries' => [],\n    'format' => 7,\n    'registry' => 'commands',\n];\n");
 });
 
 it('reads back what it writes', function (): void {
@@ -296,27 +315,67 @@ it('refuses a malformed cache with the file and the place in it', function (call
         $files['commands'] = ['entries' => [], 'format' => 1, 'registry' => 'commands'];
 
         return $files;
-    }, 'commands.php', 'at format: format 1 is not format 6, which this version of the core reads'],
+    }, 'commands.php', 'at format: format 1 is not format 7, which this version of the core reads'],
     'a file of format 2, whose actions had no command' => [static function (array $files): array {
         $files['actions'] = [...codecFile($files, 'actions'), 'format' => 2];
 
         return $files;
-    }, 'actions.php', 'at format: format 2 is not format 6, which this version of the core reads'],
+    }, 'actions.php', 'at format: format 2 is not format 7, which this version of the core reads'],
     'a file of format 3, whose cache had no actions.php' => [static function (array $files): array {
         $files['commands'] = [...codecFile($files, 'commands'), 'format' => 3];
 
         return $files;
-    }, 'commands.php', 'at format: format 3 is not format 6, which this version of the core reads'],
+    }, 'commands.php', 'at format: format 3 is not format 7, which this version of the core reads'],
     'a file of format 4, whose cache had no subscribers.php' => [static function (array $files): array {
         $files['hooks'] = [...codecFile($files, 'hooks'), 'format' => 4];
 
         return $files;
-    }, 'hooks.php', 'at format: format 4 is not format 6, which this version of the core reads'],
+    }, 'hooks.php', 'at format: format 4 is not format 7, which this version of the core reads'],
     'a file of format 5, whose cache had no schema.php' => [static function (array $files): array {
         $files['subscribers'] = [...codecFile($files, 'subscribers'), 'format' => 5];
 
         return $files;
-    }, 'subscribers.php', 'at format: format 5 is not format 6, which this version of the core reads'],
+    }, 'subscribers.php', 'at format: format 5 is not format 7, which this version of the core reads'],
+    'a file of format 6, whose cache had no rest.php' => [static function (array $files): array {
+        $files['schema'] = [...codecFile($files, 'schema'), 'format' => 6];
+
+        return $files;
+    }, 'schema.php', 'at format: format 6 is not format 7, which this version of the core reads'],
+    'a missing rest.php' => [static function (array $files): array {
+        unset($files['rest']);
+
+        return $files;
+    }, 'rest.php', 'expected an array with the keys build, entries, format, registry, got null'],
+    'a REST route missing a key' => [static function (array $files): array {
+        $files['rest'] = [...codecFile($files, 'rest'), 'entries' => [codecRoute(['method' => null])]];
+
+        return $files;
+    }, 'rest.php', 'at entries[0]: expected the keys kind, method, name, path, version, got kind, name, path, version'],
+    'a REST route of an unknown kind' => [static function (array $files): array {
+        $files['rest'] = [...codecFile($files, 'rest'), 'entries' => [codecRoute(['kind' => 'delete'])]];
+
+        return $files;
+    }, 'rest.php', 'at entries[0].kind: "delete" is not an action kind'],
+    'a REST route of version 0' => [static function (array $files): array {
+        $files['rest'] = [...codecFile($files, 'rest'), 'entries' => [codecRoute(['version' => 0])]];
+
+        return $files;
+    }, 'rest.php', 'at entries[0]: The REST route of "note.create" has version 0. Versions start at 1.'],
+    'a REST route whose method is not its kind\'s' => [static function (array $files): array {
+        $files['rest'] = [...codecFile($files, 'rest'), 'entries' => [codecRoute(['method' => 'GET'])]];
+
+        return $files;
+    }, 'rest.php', 'at entries[0].method: "GET" is not the method of the route of note.create version 1, "POST"'],
+    'a REST route whose path is not its own' => [static function (array $files): array {
+        $files['rest'] = [...codecFile($files, 'rest'), 'entries' => [codecRoute(['path' => '/v1/note.create'])]];
+
+        return $files;
+    }, 'rest.php', 'at entries[0].path: "/v1/note.create" is not the path of the route of note.create version 1, "/v1/commands/note.create/v1"'],
+    'a REST route with a name that is not a command name' => [static function (array $files): array {
+        $files['rest'] = [...codecFile($files, 'rest'), 'entries' => [codecRoute(['name' => 'Note'])]];
+
+        return $files;
+    }, 'rest.php', 'at entries[0].name: A command name is dot-separated snake_case segments'],
     'a missing schema.php' => [static function (array $files): array {
         unset($files['schema']);
 
@@ -682,6 +741,17 @@ function codecSchema(array $changes): array
 }
 
 /**
+ * An entry of rest.php with the given keys changed; a key set to null is left out.
+ *
+ * @param  array<string, mixed>  $changes
+ * @return array<string, mixed>
+ */
+function codecRoute(array $changes): array
+{
+    return codecChanged(['kind' => 'write', 'method' => 'POST', 'name' => 'note.create', 'path' => '/v1/commands/note.create/v1', 'version' => 1], $changes);
+}
+
+/**
  * An entry of actions.php with the given keys changed; a key set to null is left out.
  *
  * @param  array<string, mixed>  $changes
@@ -715,7 +785,7 @@ it('tells files of different builds from files of one build', function (): void 
 it('knows how many entries each registry holds', function (): void {
     $registry = codecRegistry();
 
-    expect(array_map($registry->count(...), RegistryName::cases()))->toBe([1, 1, 2, 1, 2]);
+    expect(array_map($registry->count(...), RegistryName::cases()))->toBe([1, 1, 2, 1, 1, 2]);
 });
 
 it('gives the kernel the action of a command by its name and version, and by its class', function (): void {

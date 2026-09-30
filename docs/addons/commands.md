@@ -455,3 +455,34 @@ Before the phases comes idempotency. The kernel claims the envelope's idempotenc
 6. **Commit.** The plan is written as one changeset in the call's transaction, with a version check of every aggregate read, the actors included, so a deactivation that commits while a command of the actor is under way fails that command with `version_conflict`. The changeset completes the idempotency key in the same transaction, so the key and the changeset commit together. A write that no partition covers is `partition_missing`, and nothing of the call is kept. A rejected call leaves the key fresh, and a retry runs again.
 
 `resolve()` and `plan()` get the command and the aggregates and nothing else: no connection, envelope or access context. An action lives in an `Actions` namespace, where the architecture tests and PHPStan forbid the framework, the DB facade, connections and transactions, so it cannot write.
+
+## The REST surface
+
+`cms:build` compiles the REST surface from the registry (GUARDRAILS 2.1): one route per action whose `#[Action]` lists `Surface::Rest`, written to `bootstrap/cache/cms/rest.php`, and an OpenAPI 3.1 document of those routes, `bootstrap/cache/cms/openapi.json`. The path carries the version of the REST contract, `v1`, first (PRD 8.8):
+
+| Action | Route | Request | Answer |
+|---|---|---|---|
+| write action | `POST /v1/commands/<name>/v<version>`, such as `POST /v1/commands/note.save/v1` | the command's JSON document as the body; the envelope in headers; a Bearer credential | 200 with the receipt when it committed or ran dry, 202 with the receipt when it committed but did not reach its wait level (`committed_wait_timeout`, which is not sent again as a new command) |
+| query action | `GET /v1/queries/<name>/v<version>` | the query's JSON document in the query parameter `query`, an empty object when it is left out; a Bearer credential, or none for the anonymous principal | 200 with the result, without the fields above the caller's classification access |
+
+A rejected call, and a request the surface cannot read, answer with problem details (RFC 9457, `application/problem+json`, see [problem details](problem-details.md)): the catalog code of the error that decided it, the HTTP status the [error catalog](errors.md) gives that code, and every error with the path of its field in the document the caller sent. No answer may be stored by a cache (`Cache-Control: no-store, private`).
+
+The envelope of a write comes from the headers, read through the envelope's generated codec (see [envelope JSON](envelope-json.md)):
+
+| Header | Envelope field | When it is left out |
+|---|---|---|
+| `Idempotency-Key` | the idempotency key, 1 to 255 visible ASCII characters | the command is refused with `idempotency_key_required`: every command through REST carries a key |
+| `Cbox-Wait-Level` | the wait level: `commit`, `origin`, `edge`, `verified` or `propagated` | `commit` |
+| `Cbox-Dry-Run` | `true` or `false` | `false` |
+| `Cbox-Correlation-Id` | the correlation id, 1 to 128 visible ASCII characters | the surface makes one |
+
+A header sent twice, or one that breaks its rule, is refused with `request_header_invalid`, or `idempotency_key_required` for the key, and nothing runs. The actor and the on-behalf-of chain come from the credential alone, and REST sends no provenance.
+
+The surface reads each command and query with its codecs, so a command or query on REST needs them registered in the container, each with the JSON Schema of the document it reads, which `openapi.json` describes the route with:
+
+- a command: a `Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCodec` (name, version, the `JsonCodec` of the command and its `Cbox\Cms\Contracts\Codecs\JsonSchema`), tagged `cbox-cms.command-codecs`;
+- a query: a `Cbox\Cms\Core\Reads\Domain\Dto\QueryCodec` (name, version, the codec and schema of the query, and the codec and schema of its result), tagged `cbox-cms.query-codecs`. A query holds no classified content and is read at public classification access; the result is written at the classification access of the read's principal.
+
+An action on REST whose command or query has no codec fails `cms:build` with `registry_surface_without_codec`, and nothing is written. Every JSON Schema gets an `$id` of its own in `openapi.json` when it has none, `urn:cbox-cms:<component>`, so its references to its own `$defs` resolve inside it.
+
+An application registers the routes in its API routes with the registry the container reads from the cache, `Cbox\Cms\Http\Rest\RestRoutes::register($router, app(CompiledRegistry::class))`. A route needs no session, cookies or CSRF token. Its controllers hold no logic: `RestRequest` reads the request, the core's shared action for exposed writes or the query pipeline runs the call, and `RestResponse` translates the typed result.

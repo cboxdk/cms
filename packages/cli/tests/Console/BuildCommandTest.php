@@ -9,6 +9,7 @@ use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
 use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
+use Cbox\Cms\Core\Registry\Domain\OpenApiDocuments;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNote;
 use Cbox\Cms\Core\Tests\Registry\Providers\FixtureRootProvider;
@@ -43,7 +44,7 @@ it('is registered', function (): void {
         ->and(app(Kernel::class)->all()['cms:build'])->toBeInstanceOf(BuildCommand::class);
 });
 
-it('writes the five registries to the application\'s bootstrap/cache/cms, and removes the files it no longer writes', function (): void {
+it('writes the six registries to the application\'s bootstrap/cache/cms, and removes the files it no longer writes', function (): void {
     $directory = app()->bootstrapPath('cache/cms');
 
     if (! is_dir($directory)) {
@@ -59,22 +60,24 @@ it('writes the five registries to the application\'s bootstrap/cache/cms, and re
             'actions: 3',
             'commands: 3',
             'hooks: 0',
+            'rest: 2',
             'schema: 0',
             'subscribers: 0',
             sprintf('Registry written to %s.', $directory),
         ])
-        ->and(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'schema.php', 'subscribers.php']);
+        ->and(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'openapi.json', 'rest.php', 'schema.php', 'subscribers.php']);
 });
 
 it('adds what an addon provider\'s scan root declares', function (): void {
     $directory = RegistryFixtures::scratch();
     app()->instance(RegistryCache::class, RegistryFixtures::cache($directory));
+    app()->instance(OpenApiDocuments::class, RegistryFixtures::documents($directory));
     app()->register(FixtureRootProvider::class);
 
     [$status, $output] = buildCommand();
 
     expect($status)->toBe(0)
-        ->and(array_slice($output, 0, 3))->toBe(['actions: 5', 'commands: 4', 'hooks: 1'])
+        ->and(array_slice($output, 0, 4))->toBe(['actions: 5', 'commands: 4', 'hooks: 1', 'rest: 3'])
         ->and(RegistryFixtures::load($directory.'/commands.php'))->toMatchArray(['entries' => [[
             'class' => DeactivateActor::class,
             'name' => 'actor.deactivate',

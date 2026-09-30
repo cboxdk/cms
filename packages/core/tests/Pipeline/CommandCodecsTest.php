@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Pipeline;
 
+use Cbox\Cms\Contracts\Codecs\JsonSchema;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Core\Pipeline\Domain\CommandCodecs;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCodec;
@@ -17,12 +18,24 @@ use InvalidArgumentException;
  */
 
 it('gives the codec of each version of a command', function (): void {
-    $first = new CommandCodec(new CommandName('probe.rename'), 1, new RenameProbeCodec);
-    $second = new CommandCodec(new CommandName('probe.rename'), 2, new RenameProbeCodec);
+    $first = new CommandCodec(new CommandName('probe.rename'), 1, new RenameProbeCodec, new JsonSchema(RenameProbeCodec::SCHEMA));
+    $second = new CommandCodec(new CommandName('probe.rename'), 2, new RenameProbeCodec, new JsonSchema(RenameProbeCodec::SCHEMA));
     $codecs = new CommandCodecs($first, $second);
 
     expect($codecs->for(new CommandName('probe.rename'), 1))->toBe($first)
         ->and($codecs->for(new CommandName('probe.rename'), 2))->toBe($second);
+});
+
+it('finds the codec of a version, or null when none reads it', function (): void {
+    $codecs = new CommandCodecs(ExposedWorld::codec());
+
+    expect($codecs->find(new CommandName('probe.rename'), 1))->toEqual(ExposedWorld::codec())
+        ->and($codecs->find(new CommandName('probe.rename'), 2))->toBeNull()
+        ->and($codecs->find(new CommandName('probe.other'), 1))->toBeNull();
+});
+
+it('carries the JSON Schema of the command\'s document', function (): void {
+    expect(ExposedWorld::codec()->schema->json)->toBe(RenameProbeCodec::SCHEMA);
 });
 
 it('refuses a version no codec reads, naming the command and the tag', function (): void {
@@ -36,7 +49,7 @@ it('refuses two codecs for one version of a command', function (): void {
 });
 
 it('refuses a codec for version 0', function (): void {
-    expect(static fn (): CommandCodec => new CommandCodec(new CommandName('probe.rename'), 0, new RenameProbeCodec))
+    expect(static fn (): CommandCodec => new CommandCodec(new CommandName('probe.rename'), 0, new RenameProbeCodec, new JsonSchema(RenameProbeCodec::SCHEMA)))
         ->toThrow(UnknownCommand::class, 'The command probe.rename has version 0. Versions start at 1.');
 });
 

@@ -40,9 +40,10 @@ use Throwable;
  * while another write has it open would let a third write lock a new file and run next to it.
  *
  * The cache owns its directory. After the files are in place, every other file there is removed,
- * so a registry an earlier version wrote, or a file someone put there, cannot linger. Three things
- * stay: the lock file, subdirectories, which the cache never writes, and the temporary file of a
- * registry that a write has not renamed yet.
+ * so a registry an earlier version wrote, or a file someone put there, cannot linger. Four things
+ * stay: the lock file, subdirectories, which the cache never writes, the temporary file of a
+ * registry that a write has not renamed yet, and the OpenAPI document cms:build writes next to the
+ * registry, FileOpenApiDocuments::FILE, with its temporary file.
  *
  * The cache writes only a local directory: write() refuses a directory that names a stream wrapper,
  * such as ftp://, before any file function sees it (GUARDRAILS 3).
@@ -227,8 +228,8 @@ final readonly class FileRegistryCache implements RegistryCache
     }
 
     /**
-     * Removes every file in the directory that is not the lock file, the file of a registry or the
-     * temporary file of one.
+     * Removes every file in the directory that is not the lock file, the file of a registry, the
+     * OpenAPI document or the temporary file of one of them.
      *
      * @throws RegistryCacheUnwritable
      */
@@ -252,7 +253,10 @@ final readonly class FileRegistryCache implements RegistryCache
             throw RegistryCacheUnwritable::removing($directory, $failure);
         }
 
-        $names = array_map(static fn (RegistryName $name): string => preg_quote($name->fileName(), '/'), RegistryName::cases());
+        $names = array_map(static fn (string $file): string => preg_quote($file, '/'), [
+            ...array_map(static fn (RegistryName $name): string => $name->fileName(), RegistryName::cases()),
+            FileOpenApiDocuments::FILE,
+        ]);
         $keep = '/\A(?:(?:'.implode('|', $names).')(?:\.[0-9a-f]{16}\.tmp)?|'.preg_quote(self::LOCK_FILE, '/').')\z/';
 
         foreach ($entries as $entry) {

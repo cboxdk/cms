@@ -55,7 +55,8 @@ use Cbox\Cms\Core\Reads\Domain\ReadAudit;
  *    through the ReadAudit in the same transaction, with the read's position, so the audit commits
  *    with the answer.
  * 8. Content keys and position. The answer carries the content keys of the entries, `e-{entry}` and
- *    `n-{node}` (PRD 9.4), and the read's position, the xmin of its snapshot (PRD 8.4).
+ *    `n-{node}` (PRD 9.4), the read's position, the xmin of its snapshot (PRD 8.4), and the
+ *    context's classification access, which a surface encodes the result with.
  *
  * The pipeline holds nothing between calls, and the actor context lives only in the transaction of
  * the read it was set for, so no context survives from one read to the next in a shared worker.
@@ -121,7 +122,7 @@ final readonly class QueryPipeline
         $position = $this->transaction->position();
         $this->audit($principal, $binding, $contents, $position);
 
-        return QueryResult::answered($result, $this->contentKeys($contents), $position);
+        return QueryResult::answered($result, $this->contentKeys($contents), $position, $access->classificationAccess);
     }
 
     /**

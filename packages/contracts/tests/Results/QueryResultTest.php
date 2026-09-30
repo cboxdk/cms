@@ -12,6 +12,7 @@ use Cbox\Cms\Contracts\Fields\FieldMap;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Fields\TextValue;
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\TypeId;
@@ -54,7 +55,15 @@ it('rejects with its errors in order and nothing else', function (): void {
         ->and($rejected->errors)->toBe([$first, $second])
         ->and($rejected->result)->toBeNull()
         ->and($rejected->contentKeys)->toBe([])
-        ->and($rejected->position)->toBeNull();
+        ->and($rejected->position)->toBeNull()
+        ->and($rejected->access)->toBe(ClassificationAccess::Public);
+});
+
+it('carries the classification access of the read\'s principal, which a surface writes the result with, and public unless it is given', function (): void {
+    $result = new readonly class implements Result {};
+
+    expect(QueryResult::answered($result, [], new CommitPosition('1'), ClassificationAccess::Confidential)->access)->toBe(ClassificationAccess::Confidential)
+        ->and(QueryResult::answered($result, [], new CommitPosition('1'))->access)->toBe(ClassificationAccess::Public);
 });
 
 it('gives a read entry\'s content keys and keeps all but its fields when they change', function (): void {

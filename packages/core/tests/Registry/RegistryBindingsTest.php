@@ -14,6 +14,7 @@ use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
 use Cbox\Cms\Core\Identity\Actions\DeactivateActorAction;
 use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
+use Cbox\Cms\Core\Registry\Adapter\FileOpenApiDocuments;
 use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
 use Cbox\Cms\Core\Registry\Boundary\ProviderScanRoots;
 use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
@@ -21,6 +22,7 @@ use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Dto\ScanRoots;
+use Cbox\Cms\Core\Registry\Domain\OpenApiDocuments;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Registry\Domain\RegistryName;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
@@ -104,12 +106,14 @@ it('binds the scanner and a cache in the application\'s bootstrap/cache/cms', fu
     expect(app(DeclarationScanner::class))->toBeInstanceOf(AttributeScanner::class)
         ->and(app(RegistryCache::class))->toBeInstanceOf(FileRegistryCache::class)
         ->and(app(RegistryCache::class)->location())->toBe(app()->bootstrapPath('cache/cms'))
-        ->and(app(BuildRegistry::class)->location())->toBe(app()->bootstrapPath('cache/cms'));
+        ->and(app(BuildRegistry::class)->location())->toBe(app()->bootstrapPath('cache/cms'))
+        ->and(app(OpenApiDocuments::class))->toBeInstanceOf(FileOpenApiDocuments::class);
 });
 
 it('loads the registry at run time from the files cms:build wrote, once per process', function (): void {
     $directory = RegistryFixtures::scratch();
     app()->instance(RegistryCache::class, RegistryFixtures::cache($directory));
+    app()->instance(OpenApiDocuments::class, RegistryFixtures::documents($directory));
     app()->forgetInstance(CompiledRegistry::class);
 
     $built = app(BuildRegistry::class)->build(new ScanRoots(RegistryFixtures::root('Valid')));

@@ -28,6 +28,7 @@
         "symfony/process": "^7.4.5 || ^8.0.5"
     },
     "require-dev": {
+        "devizzent/cebe-php-openapi": "^1.1.5",
         "driftingly/rector-laravel": "^2.6",
         "larastan/larastan": "^3.12",
         "laravel/framework": "^13.0",
