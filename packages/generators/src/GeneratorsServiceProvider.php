@@ -26,6 +26,7 @@ use Cbox\Cms\Generators\Generation\Domain\Generators\TypeScriptContracts;
 use Cbox\Cms\Generators\Generation\Domain\Generators\TypeScriptTypeHandles;
 use Cbox\Cms\Generators\Generation\Domain\Generators\TypeTableMigrations;
 use Cbox\Cms\Generators\Migrations\Boundary\LockFiles;
+use Cbox\Cms\Generators\Migrations\Boundary\TypeTableLockJson;
 use Cbox\Cms\Generators\Migrations\Domain\SchemaLocks;
 use Cbox\Cms\Generators\Protocol\Boundary\KernelContracts;
 use Cbox\Cms\Generators\Schema\Boundary\RegisteredFieldTypes;
@@ -77,7 +78,7 @@ final class GeneratorsServiceProvider extends ServiceProvider implements Declare
                 new PhpTypeValidators,
                 new TypeScriptTypeHandles,
                 new TypeScriptContracts(new TypeScriptRuntime()->source(...), new KernelContracts()->read(...)),
-                new TypeTableMigrations($app->make(SchemaLocks::class)),
+                new TypeTableMigrations($app->make(SchemaLocks::class), TypeTableLockJson::encode(...)),
             ]),
         );
     }

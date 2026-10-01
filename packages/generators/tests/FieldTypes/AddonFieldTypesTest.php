@@ -30,6 +30,7 @@ use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeValidators;
 use Cbox\Cms\Generators\Generation\Domain\Generators\TypeScriptContracts;
 use Cbox\Cms\Generators\Generation\Domain\Generators\TypeScriptTypeHandles;
 use Cbox\Cms\Generators\Generation\Domain\Generators\TypeTableMigrations;
+use Cbox\Cms\Generators\Migrations\Boundary\TypeTableLockJson;
 use Cbox\Cms\Generators\Protocol\Boundary\KernelContracts;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintDocumentReader;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintSchemaFile;
@@ -210,7 +211,7 @@ function everyGenerator(): array
         new PhpTypeValidators,
         new TypeScriptTypeHandles,
         new TypeScriptContracts(new TypeScriptRuntime()->source(...), new KernelContracts()->read(...)),
-        new TypeTableMigrations(new FakeSchemaLocks),
+        new TypeTableMigrations(new FakeSchemaLocks, TypeTableLockJson::encode(...)),
     ];
 }
 

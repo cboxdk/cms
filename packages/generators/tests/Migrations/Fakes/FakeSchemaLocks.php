@@ -7,7 +7,6 @@ namespace Cbox\Cms\Generators\Tests\Migrations\Fakes;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Migrations\Boundary\TypeTableLockJson;
 use Cbox\Cms\Generators\Migrations\Domain\Dto\TypeTableLock;
-use Cbox\Cms\Generators\Migrations\Domain\LockText;
 use Cbox\Cms\Generators\Migrations\Domain\SchemaLocks;
 use Override;
 
@@ -31,7 +30,7 @@ final class FakeSchemaLocks implements SchemaLocks
         $fake = new self;
 
         foreach ($locks as $lock) {
-            $fake->put($root.'/'.$directory.'/'.$lock->file(), LockText::encode($lock));
+            $fake->put($root.'/'.$directory.'/'.$lock->file(), TypeTableLockJson::encode($lock));
         }
 
         return $fake;

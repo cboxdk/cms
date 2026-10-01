@@ -12,7 +12,6 @@ use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Migrations\Domain\Dto\LockedColumn;
 use Cbox\Cms\Generators\Migrations\Domain\Dto\TypeTableLock;
-use Cbox\Cms\Generators\Migrations\Domain\LockText;
 use Cbox\Cms\Generators\Schema\Domain\Localization;
 use Cbox\Cms\Generators\Schema\Domain\Stages;
 use Cbox\Cms\Generators\Schema\Domain\TypeId;
@@ -20,16 +19,59 @@ use JsonException;
 use Throwable;
 
 /**
- * Reads a schema lock file (PRD 11.6) back into a TypeTableLock. It takes only a lock in the form
- * cms:generate writes (LockText): format 1, every key, the table `<owner>__<handle>` of its type
- * and its file name, the columns sorted by step and then by name with each name once, each step
- * from 1 to `steps`, and every step after the first with a column; and the text must be exactly
- * what LockText writes for it. Anything else is generate_lock_invalid, so a lock edited by hand is
- * never silently taken or rewritten.
+ * The JSON form of a schema lock file (PRD 11.6), written and read here alone, so one Boundary
+ * owns the format TypeTableLock::FORMAT (GUARDRAILS 2.2).
+ *
+ * encode() writes every key, the keys of each object in sorted order, the columns in the lock's
+ * order (by step, then by name), pretty-printed with four spaces, unescaped slashes and unescaped
+ * Unicode, ending with one newline, so the same lock always gives the same bytes. The migrations
+ * generator gets it as a closure, because the domain writes no JSON.
+ *
+ * decode() takes only a lock in that form: format 1, every key, the table `<owner>__<handle>` of
+ * its type and its file name, the columns sorted by step and then by name with each name once,
+ * each step from 1 to `steps`, and every step after the first with a column; and the text must be
+ * exactly what encode() writes for it. Anything else is generate_lock_invalid, so a lock edited by
+ * hand is never silently taken or rewritten.
  */
 #[Internal]
 final readonly class TypeTableLockJson
 {
+    public static function encode(TypeTableLock $lock): string
+    {
+        $columns = [];
+
+        foreach ($lock->columns as $column) {
+            $columns[] = [
+                'checks' => $column->checks,
+                'indexed' => $column->indexed,
+                'name' => $column->name,
+                'not_null' => $column->notNull,
+                'step' => $column->step,
+                'type' => $column->type,
+            ];
+        }
+
+        $document = [
+            'about' => sprintf(
+                'The schema lock of the type table %s: the columns its migrations %s_<step> build, in %d %s. cms:generate writes the lock and the migrations from it; do not edit either.',
+                $lock->table,
+                $lock->table,
+                $lock->steps,
+                $lock->steps === 1 ? 'step' : 'steps',
+            ),
+            'columns' => $columns,
+            'localization' => $lock->localization->value,
+            'lock' => TypeTableLock::FORMAT,
+            'stages' => $lock->stages->value,
+            'steps' => $lock->steps,
+            'table' => $lock->table,
+            'type' => $lock->type->value,
+            'type_id' => $lock->typeId->toString(),
+        ];
+
+        return json_encode($document, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)."\n";
+    }
+
     /**
      * @param  string  $file  the lock's path relative to the root, for the message
      *
@@ -70,7 +112,7 @@ final readonly class TypeTableLockJson
         $columns = self::columns($file, $document['columns'] ?? null, $steps);
         $lock = new TypeTableLock($table, $type, $typeId, $stages, $localization, $steps, $columns);
 
-        if (LockText::encode($lock) !== $json) {
+        if (self::encode($lock) !== $json) {
             throw self::invalid($file, 'it is not in the form cms:generate writes. It was edited by hand.');
         }
 

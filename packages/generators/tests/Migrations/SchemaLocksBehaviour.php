@@ -6,8 +6,8 @@ namespace Cbox\Cms\Generators\Tests\Migrations;
 
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
+use Cbox\Cms\Generators\Migrations\Boundary\TypeTableLockJson;
 use Cbox\Cms\Generators\Migrations\Domain\Dto\TypeTableLock;
-use Cbox\Cms\Generators\Migrations\Domain\LockText;
 use Cbox\Cms\Generators\Migrations\Domain\SchemaLocks;
 use Cbox\Cms\Generators\Migrations\Domain\TableChanges;
 use PHPUnit\Framework\Assert;
@@ -44,8 +44,8 @@ trait SchemaLocksBehaviour
         [$alpha, $zeta] = $this->twoLocks();
         $locks = $this->schemaLocks();
         $root = $this->locksRoot();
-        $this->putFile($locks, $root, 'database/migrations/cms/'.$zeta->file(), LockText::encode($zeta));
-        $this->putFile($locks, $root, 'database/migrations/cms/'.$alpha->file(), LockText::encode($alpha));
+        $this->putFile($locks, $root, 'database/migrations/cms/'.$zeta->file(), TypeTableLockJson::encode($zeta));
+        $this->putFile($locks, $root, 'database/migrations/cms/'.$alpha->file(), TypeTableLockJson::encode($alpha));
         $this->putFile($locks, $root, 'database/migrations/cms/app__alpha_0001_create.php', "<?php\n");
         $this->putFile($locks, $root, 'database/migrations/cms/notes.txt', "{\n");
         $this->putFile($locks, $root, 'database/migrations/other/app__other.lock', "{\n");
@@ -60,7 +60,7 @@ trait SchemaLocksBehaviour
         [$alpha, $zeta] = $this->twoLocks();
         $locks = $this->schemaLocks();
         $root = $this->locksRoot();
-        $this->putFile($locks, $root, 'database/migrations/cms/'.$alpha->file(), LockText::encode($alpha)."\n");
+        $this->putFile($locks, $root, 'database/migrations/cms/'.$alpha->file(), TypeTableLockJson::encode($alpha)."\n");
         $this->putFile($locks, $root, 'database/migrations/cms/'.$zeta->file(), 'not json');
 
         try {

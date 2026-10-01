@@ -8,7 +8,6 @@ use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Migrations\Boundary\TypeTableLockJson;
 use Cbox\Cms\Generators\Migrations\Domain\Dto\LockedColumn;
 use Cbox\Cms\Generators\Migrations\Domain\Dto\TypeTableLock;
-use Cbox\Cms\Generators\Migrations\Domain\LockText;
 use Cbox\Cms\Generators\Migrations\Domain\TableChanges;
 use Cbox\Cms\Generators\Tests\SchemaFixtures;
 use LogicException;
@@ -43,17 +42,17 @@ function grownNoteLock(): TypeTableLock
 
 it('writes the lock as sorted, pretty-printed JSON and reads it back', function (): void {
     $lock = grownNoteLock();
-    $text = LockText::encode($lock);
+    $text = TypeTableLockJson::encode($lock);
 
     expect($text)->toStartWith("{\n    \"about\": \"The schema lock of the type table app__note: the columns its migrations app__note_<step> build, in 2 steps.")
         ->and($text)->toEndWith("    \"type_id\": \"01a0df3e-8cef-7e9f-8daf-9faa60f1fbb1\"\n}\n")
         ->and($text)->toContain("\"checks\": [\n                \"char_length(\\\"zone\\\") <= 255\"\n            ],\n            \"indexed\": true,\n            \"name\": \"zone\",\n            \"not_null\": false,\n            \"step\": 2,")
         ->and(TypeTableLockJson::decode('database/migrations/cms/app__note.lock', $text))->toEqual($lock)
-        ->and(LockText::encode(TypeTableLockJson::decode('database/migrations/cms/app__note.lock', $text)))->toBe($text);
+        ->and(TypeTableLockJson::encode(TypeTableLockJson::decode('database/migrations/cms/app__note.lock', $text)))->toBe($text);
 });
 
 it('says step for a lock of one step', function (): void {
-    expect(LockText::encode(TableChanges::next(MigrationFixtures::compile(['note.yaml' => MigrationFixtures::note()]), [])[0]))
+    expect(TypeTableLockJson::encode(TableChanges::next(MigrationFixtures::compile(['note.yaml' => MigrationFixtures::note()]), [])[0]))
         ->toContain('build, in 1 step. cms:generate writes the lock');
 });
 
@@ -90,7 +89,7 @@ function editedLock(string $case, string $text): string
 }
 
 it('refuses a lock that is not what cms:generate writes', function (string $case, string $reason): void {
-    $text = editedLock($case, LockText::encode(grownNoteLock()));
+    $text = editedLock($case, TypeTableLockJson::encode(grownNoteLock()));
     $failed = MigrationFixtures::failure(static fn (): TypeTableLock => TypeTableLockJson::decode('database/migrations/cms/app__note.lock', $text));
 
     expect($failed->codes())->toBe([GenerateErrorCode::LockInvalid])
@@ -122,7 +121,7 @@ it('refuses a lock that is not what cms:generate writes', function (string $case
 ]);
 
 it('refuses a lock whose file is not named after its table', function (): void {
-    $failed = MigrationFixtures::failure(static fn (): TypeTableLock => TypeTableLockJson::decode('database/migrations/cms/note.lock', LockText::encode(grownNoteLock())));
+    $failed = MigrationFixtures::failure(static fn (): TypeTableLock => TypeTableLockJson::decode('database/migrations/cms/note.lock', TypeTableLockJson::encode(grownNoteLock())));
 
     expect($failed->codes())->toBe([GenerateErrorCode::LockInvalid])
         ->and($failed->getMessage())->toContain('or its file is not named after it.');

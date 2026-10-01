@@ -38,7 +38,7 @@ function migrationFiles(CompiledSchema $schema, FakeSchemaLocks $locks): array
 {
     $files = [];
 
-    foreach (new TypeTableMigrations($locks)->generate($schema, SchemaFixtures::target()) as $file) {
+    foreach (new TypeTableMigrations($locks, TypeTableLockJson::encode(...))->generate($schema, SchemaFixtures::target()) as $file) {
         $files[$file->path] = $file->contents;
     }
 
@@ -77,7 +77,7 @@ it('writes the committed golden migration and schema lock of the comprehensive e
 });
 
 it('owns the target\'s migrations directory, and writes the locks and migrations there', function (): void {
-    $generator = new TypeTableMigrations(new FakeSchemaLocks);
+    $generator = new TypeTableMigrations(new FakeSchemaLocks, TypeTableLockJson::encode(...));
 
     expect($generator->directory(SchemaFixtures::target()))->toBe('database/migrations/cms')
         ->and(array_keys(migrationFiles(MigrationFixtures::compile(['note.yaml' => MigrationFixtures::note()]), new FakeSchemaLocks)))->toBe([
@@ -150,7 +150,7 @@ it('refuses a field type it has no mapping for', function (): void {
     $field = $type->fields[0];
     $unknown = new FieldDescriptor($field->column, $field->handle, $field->namespace, $field->owner, 'acme:colour', $field->label, $field->description, $field->required, $field->classification, $field->agents, $field->filterable, $field->sortable, $field->encrypted, $field->php, $field->typeScript, $field->validation, $field->choices, $field->fields, $field->location);
     $changed = new TypeDescriptor($type->typeId, $type->owner, $type->handle, $type->label, $type->description, $type->version, $type->capabilities, $type->extensions, [$unknown], $type->location);
-    $failed = MigrationFixtures::failure(static fn (): array => new TypeTableMigrations(new FakeSchemaLocks)->generate(new CompiledSchema([$changed]), SchemaFixtures::target()));
+    $failed = MigrationFixtures::failure(static fn (): array => new TypeTableMigrations(new FakeSchemaLocks, TypeTableLockJson::encode(...))->generate(new CompiledSchema([$changed]), SchemaFixtures::target()));
 
     expect($failed->codes())->toBe([GenerateErrorCode::InvalidOutput])
         ->and($failed->getMessage())->toContain(TypeTableMigrations::class.' has no mapping for the field type "acme:colour"');
@@ -192,7 +192,7 @@ it('writes migrations that Pint, Rector and PHPStan accept unchanged', function 
 });
 
 it('gives a generated file for every step of every lock', function (): void {
-    $files = new TypeTableMigrations(new FakeSchemaLocks)->generate(MigrationFixtures::compile([
+    $files = new TypeTableMigrations(new FakeSchemaLocks, TypeTableLockJson::encode(...))->generate(MigrationFixtures::compile([
         'note.yaml' => MigrationFixtures::note(),
         'other.yaml' => MigrationFixtures::note(typeId: '01a0df3e-8cef-7e9f-8daf-9faa60f1fbd1', handle: 'other'),
     ]), SchemaFixtures::target());

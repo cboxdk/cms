@@ -16,6 +16,7 @@ use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeQueries;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeValidators;
 use Cbox\Cms\Generators\Generation\Domain\Generators\TypeTableMigrations;
 use Cbox\Cms\Generators\Generation\Domain\SchemaResolver;
+use Cbox\Cms\Generators\Migrations\Boundary\TypeTableLockJson;
 use Cbox\Cms\Generators\Migrations\Domain\TableChanges;
 use Cbox\Cms\Generators\Migrations\Domain\TypeTableDdl;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintDocumentReader;
@@ -100,7 +101,7 @@ final class ComprehensiveExample
     {
         $files = [];
 
-        foreach (new TypeTableMigrations(new FakeSchemaLocks)->generate(self::compile(), self::target()) as $file) {
+        foreach (new TypeTableMigrations(new FakeSchemaLocks, TypeTableLockJson::encode(...))->generate(self::compile(), self::target()) as $file) {
             $files[$file->path] = $file->contents;
         }
 

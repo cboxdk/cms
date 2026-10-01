@@ -12,10 +12,10 @@ use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationTarget;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Generation\Domain\Generator;
 use Cbox\Cms\Generators\Migrations\Domain\Dto\TypeTableLock;
-use Cbox\Cms\Generators\Migrations\Domain\LockText;
 use Cbox\Cms\Generators\Migrations\Domain\MigrationSource;
 use Cbox\Cms\Generators\Migrations\Domain\SchemaLocks;
 use Cbox\Cms\Generators\Migrations\Domain\TableChanges;
+use Closure;
 use Override;
 
 /**
@@ -27,7 +27,9 @@ use Override;
  * schema evolution (B3), and writes each lock as `<table>.lock` and a migration per step of it
  * (MigrationSource). So the output is a function of the compiled schema and the committed locks:
  * a run that finds nothing new writes the same bytes, a new type adds a lock and its create
- * migration, and a new optional field adds a step and its add_columns migration.
+ * migration, and a new optional field adds a step and its add_columns migration. The lock's text
+ * comes from the closure it is given, the Boundary's TypeTableLockJson::encode() in the container,
+ * which also reads the locks back, so one Boundary owns the lock's JSON (GUARDRAILS 2.2).
  */
 #[Internal]
 final readonly class TypeTableMigrations implements Generator
@@ -64,7 +66,13 @@ final readonly class TypeTableMigrations implements Generator
         'type' => 'a type table <owner>__<handle> with a schema lock and a migration per step of it',
     ];
 
-    public function __construct(private SchemaLocks $locks) {}
+    /**
+     * @param  Closure(TypeTableLock): string  $lockText  gives the text of a lock file
+     */
+    public function __construct(
+        private SchemaLocks $locks,
+        private Closure $lockText,
+    ) {}
 
     #[Override]
     public function directory(GenerationTarget $target): string
@@ -97,7 +105,7 @@ final readonly class TypeTableMigrations implements Generator
      */
     private function files(TypeTableLock $lock, string $directory): array
     {
-        $files = [new GeneratedFile($directory.'/'.$lock->file(), LockText::encode($lock))];
+        $files = [new GeneratedFile($directory.'/'.$lock->file(), ($this->lockText)($lock))];
 
         foreach (range(1, $lock->steps) as $step) {
             $files[] = new GeneratedFile($directory.'/'.MigrationSource::name($lock, $step).'.php', MigrationSource::source($lock, $step));
