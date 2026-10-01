@@ -18,17 +18,20 @@ final class KernelSchema
 {
     public const string DIRECTORY = __DIR__.'/../../../contracts/resources/schemas';
 
+    /** The schemas of the core's own documents, such as delivery-fragment.v1.json. */
+    public const string CORE_DIRECTORY = __DIR__.'/../../resources/schemas';
+
     /**
      * The validation errors of a JSON document, by JSON pointer; empty when it is valid.
      *
      * @return array<string, list<string>>
      */
-    public static function errors(string $schema, string $json): array
+    public static function errors(string $schema, string $json, string $directory = self::DIRECTORY): array
     {
-        $contents = file_get_contents(self::DIRECTORY.'/'.$schema);
+        $contents = file_get_contents($directory.'/'.$schema);
 
         if ($contents === false) {
-            throw new RuntimeException('The schema '.$schema.' cannot be read in '.self::DIRECTORY.'.');
+            throw new RuntimeException('The schema '.$schema.' cannot be read in '.$directory.'.');
         }
 
         $result = new Validator()->validate(json_decode($json, false, 512, JSON_THROW_ON_ERROR), $contents);

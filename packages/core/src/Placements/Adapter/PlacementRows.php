@@ -9,7 +9,6 @@ use Cbox\Cms\Contracts\Content\TimeWindow;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use DateTimeImmutable;
 use DateTimeZone;
-use JsonException;
 use UnexpectedValueException;
 
 /**
@@ -82,26 +81,6 @@ final readonly class PlacementRows
         }
 
         return new TimeWindow($from, $until);
-    }
-
-    /**
-     * A JSON array of strings, as the reader aggregates a list.
-     *
-     * @return list<string>
-     */
-    public static function textList(object $row, string $column): array
-    {
-        try {
-            $decoded = json_decode(self::text($row, $column), false, 2, JSON_THROW_ON_ERROR);
-        } catch (JsonException $exception) {
-            throw new UnexpectedValueException(sprintf('The column %s is a JSON array.', $column), 0, $exception);
-        }
-
-        if (! is_array($decoded) || ! array_is_list($decoded)) {
-            throw new UnexpectedValueException(sprintf('The column %s is a JSON array.', $column));
-        }
-
-        return array_map(static fn (mixed $item): string => is_string($item) ? $item : throw new UnexpectedValueException(sprintf('The column %s holds strings.', $column)), $decoded);
     }
 
     public static function timestamp(?DateTimeImmutable $at): ?string

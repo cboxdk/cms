@@ -445,6 +445,7 @@ final readonly class PhpCodecEmitter
                 'max' => ValidationRuleName::Max,
             ], [])]),
             CodecKind::Fields => self::call('fieldValues', [$raw, $at]),
+            CodecKind::Document => self::call('document', [$raw, $at, sprintf('static fn (string $text): %1$s => new %1$s($text)', PhpSource::native($value))]),
         };
     }
 
@@ -466,6 +467,7 @@ final readonly class PhpCodecEmitter
             CodecKind::Id => $read.'->toString()',
             CodecKind::Enum, CodecKind::Value, CodecKind::IntegerValue => $read.'->value',
             CodecKind::Fields => sprintf('JsonValues::encodeFieldValues(%s)', $read),
+            CodecKind::Document => sprintf('JsonValues::encodeDocument(%s->value)', $read),
         };
     }
 

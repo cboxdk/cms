@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Delivery fragment, contract version 1",
+  "description": "What a fragment of the delivery API holds of an answer (PRD 8.12, 9.3): its HTTP status, the form and the bytes of its body, and whether a shared cache may serve it stale. The fragment store keeps it under the fragment's key with the fragment's content keys and valid_until; it is the delivery API's own and never leaves the server. The PHP form is Cbox\\Cms\\Core\\Delivery\\Domain\\Dto\\StoredAnswer, and the generated codec DeliveryFragmentCodecV1 writes and reads its canonical JSON: keys sorted, no whitespace. A fragment the codec does not read is rebuilt, never served.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "body",
+    "format",
+    "stale",
+    "status"
+  ],
+  "properties": {
+    "body": {
+      "description": "The bytes of the answer's body, a document of delivery.v1.json, problem.v1.json or delivery-explanation.v1.json as format says.",
+      "type": "string"
+    },
+    "format": {
+      "description": "The form of the body: record, problem or explanation.",
+      "enum": [
+        "record",
+        "problem",
+        "explanation"
+      ]
+    },
+    "stale": {
+      "description": "Whether a shared cache may serve the answer stale while it refetches it or while the origin fails.",
+      "type": "boolean"
+    },
+    "status": {
+      "description": "The HTTP status of the answer.",
+      "enum": [
+        200,
+        400,
+        401,
+        403,
+        404,
+        409,
+        410,
+        421,
+        422,
+        500,
+        503
+      ]
+    }
+  }
+}

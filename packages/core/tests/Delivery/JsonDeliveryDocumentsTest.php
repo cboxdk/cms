@@ -17,13 +17,13 @@ use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Schema\TypeName;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\PathExplanationCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ProblemCodecV1;
 use Cbox\Cms\Core\Delivery\Adapter\JsonDeliveryDocuments;
 use Cbox\Cms\Core\Delivery\Domain\AnswerFormat;
 use Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryAnswer;
 use Cbox\Cms\Core\Delivery\Domain\Dto\StoredAnswer;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
-use Cbox\Cms\Core\Routing\Boundary\PathExplanationJson;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\MountStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\NodeStep;
@@ -43,9 +43,11 @@ use Cbox\Cms\Core\Routing\Domain\VisibilityDecision;
 use DateTimeImmutable;
 
 /*
- * The delivery API's documents as JSON (PRD 8.8, 8.9): the record with its meta, byte for byte with
- * the record spliced in as the codec wrote it; the problem as ProblemCodecV1 writes it; the
- * explanation with every step, as PathExplanationJson encodes it; and the stored form of an answer in a fragment.
+ * The delivery API's documents as JSON through their generated codecs (PRD 8.8, 8.9, GUARDRAILS
+ * 2.2): the record with its meta (delivery.v1.json), byte for byte with the record embedded as its
+ * codec wrote it; the problem as ProblemCodecV1 writes it; the explanation
+ * (delivery-explanation.v1.json) with every step, as PathExplanationCodecV1 writes it; and the
+ * stored form of an answer in a fragment (delivery-fragment.v1.json).
  */
 
 const DOCUMENT_RECORD = '{"cms_id":"01936f5e-8a2b-7c3d-9e4f-000000003631","title":"The harbour opens"}';
@@ -88,18 +90,17 @@ it('writes an explanation with every step, ids in their canonical form and insta
         .',"node":{"kind":"mount","node":"01936f5e-8a2b-7c3d-9e4f-000000003614"}'
         .',"outcome":"resolved"'
         .',"placement":{"canonical":true,"entry":"01936f5e-8a2b-7c3d-9e4f-000000003631","looked_under":"01936f5e-8a2b-7c3d-9e4f-000000003612","placement":"01936f5e-8a2b-7c3d-9e4f-000000003641","routable":true,"slug":"harbour","type":"01936f5e-8a2b-7c3d-9e4f-000000003621"}'
-        .',"route":{"candidates":["/national/harbour","/national","/"],"path":"/national/harbour","rest":"harbour","route":"/national"}'
+        .',"route":{"path":"/national/harbour","rest":"harbour","route":"/national"}'
         .',"site":{"handle":"south","host":"south.example","locale":"da","locale_published":true,"site":"01936f5e-8a2b-7c3d-9e4f-000000003602"}'
-        .',"visibility":{"at":"2026-03-10T12:00:00.000000Z","decision":"visible","lifecycle":"active","release":"released","rung":11,"stored":"live","valid_until":"2026-03-10T17:00:00.000000Z","window":{"from":"2026-03-10T11:00:00.000000Z","until":"2026-03-10T17:00:00.000000Z"}}}'
+        .',"visibility":{"at":"2026-03-10T12:00:00.000000Z","decision":"visible","lifecycle":"active","release":"released","stored":"live","valid_until":"2026-03-10T17:00:00.000000Z","window":{"from":"2026-03-10T11:00:00.000000Z","until":"2026-03-10T17:00:00.000000Z"}}}'
         .',"meta":{"canonical_url":"https://north.example/nyheder/harbour","contract":1,"locale":"da","type":"app:article"}'
         .',"problem":null,"status":200}');
 });
 
-it('writes the explanation with PathExplanationJson, the one encoding cms:explain --json prints', function (): void {
+it('writes the explanation with PathExplanationCodecV1, the one encoding cms:explain --json prints', function (): void {
     $body = new JsonDeliveryDocuments()->body(new DeliveryAnswer(HttpStatus::Ok, DOCUMENT_RECORD, new TypeName('app:article'), new Locale('da'), 'https://north.example/nyheder/harbour', explanation: documentedExplanation()));
-    $document = json_decode($body, true, 512, JSON_THROW_ON_ERROR);
 
-    expect(is_array($document) ? $document['explanation'] ?? null : null)->toBe(PathExplanationJson::toArray(documentedExplanation()));
+    expect($body)->toContain(',"explanation":'.new PathExplanationCodecV1()->encode(documentedExplanation(), ClassificationAccess::Public).',"meta":');
 });
 
 it('writes the explanation of a problem with the problem and without a record, and a step it did not reach as null', function (): void {
@@ -121,7 +122,7 @@ it('writes an open window end and a missing decision input as null', function ()
     );
     $body = new JsonDeliveryDocuments()->body(DeliveryAnswer::problem(Problem::of(ErrorCode::PathNotFound, 'Not shown.'), $explanation));
 
-    expect($body)->toContain('"visibility":{"at":"2026-03-10T12:00:00.000000Z","decision":"entry_not_active","lifecycle":null,"release":null,"rung":2,"stored":"hidden","valid_until":null,"window":null}')
+    expect($body)->toContain('"visibility":{"at":"2026-03-10T12:00:00.000000Z","decision":"entry_not_active","lifecycle":null,"release":null,"stored":"hidden","valid_until":null,"window":null}')
         ->and($body)->toContain('"canonical":{"here":false,"placement":null,"url":null}');
 
     $windowed = new PathExplanation(

@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Delivery answer, contract version 1",
+  "description": "The body of a 200 answer of the delivery API's GET /v1/resolve (PRD 8.8, 8.9): the record of what the path shows and what it is. Every other answer is a problem details document of problem.v1.json, and an answer with debug=1 a document of delivery-explanation.v1.json. The PHP form is Cbox\\Cms\\Core\\Delivery\\Domain\\Dto\\DeliveryDocument, and the generated codec DeliveryCodecV1 writes its canonical JSON: keys sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "data",
+    "meta"
+  ],
+  "properties": {
+    "data": {
+      "description": "The record, in the record contract of the type meta names, exactly as that type's generated codec wrote it at the public classification access: the entry's id under cms_id and each public field. Validate it with the validator of that type's record contract.",
+      "type": "object"
+    },
+    "meta": {
+      "description": "What the record is.",
+      "$ref": "#/$defs/meta"
+    }
+  },
+  "$defs": {
+    "meta": {
+      "description": "What the record is: its type, the locale, the canonical URL and the version of the record contract.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canonical_url",
+        "contract",
+        "locale",
+        "type"
+      ],
+      "properties": {
+        "canonical_url": {
+          "description": "The canonical URL of the entry in the locale (PRD 5.7), or null when the reader can read no canonical placement with a URL.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "contract": {
+          "description": "The version of the record contract the record is written in (RecordCodecs::VERSION), 1.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1
+        },
+        "locale": {
+          "description": "The locale of the record, a language tag such as da, en-GB or sr-Latn-RS.",
+          "type": "string",
+          "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$"
+        },
+        "type": {
+          "description": "The name of the record's type, <owner>:<handle>, such as app:blog_post; the record is in that type's record contract.",
+          "type": "string",
+          "maxLength": 84,
+          "pattern": "^[a-z][a-z0-9]{0,19}:[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+        }
+      }
+    }
+  }
+}

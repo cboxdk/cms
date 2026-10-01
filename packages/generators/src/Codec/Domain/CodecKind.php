@@ -75,6 +75,16 @@ enum CodecKind: string
     case Fields = 'fields';
 
     /**
+     * A JSON object of another contract, such as a record of a type's record contract or a document
+     * of another kernel schema, written and read by that contract's own generated codec and held as
+     * a value object of the object's JSON text, made with `new` from the text and written from its
+     * `value`, whose constructor checks that the text is one JSON object. The contract that holds it
+     * checks only that it is an object; its own contract's codec and validator check its keys. No
+     * rules.
+     */
+    case Document = 'document';
+
+    /**
      * The rules a value of this kind takes, in the type descriptor's vocabulary. The emitters refuse
      * any other, so no rule of a blueprint is ever dropped without being checked.
      *
@@ -94,7 +104,7 @@ enum CodecKind: string
             self::Object => [ValidationRuleName::Object],
             self::List => [ValidationRuleName::List, ValidationRuleName::Distinct, ValidationRuleName::MinItems, ValidationRuleName::MaxItems],
             self::IntegerValue => [ValidationRuleName::Min, ValidationRuleName::Max],
-            self::Id, self::Enum, self::Value, self::Fields => [],
+            self::Id, self::Enum, self::Value, self::Fields, self::Document => [],
         };
     }
 
@@ -105,7 +115,7 @@ enum CodecKind: string
     public function isClass(): bool
     {
         return match ($this) {
-            self::Date, self::Datetime, self::PortableText, self::Object, self::Id, self::Enum, self::Value, self::IntegerValue, self::Fields => true,
+            self::Date, self::Datetime, self::PortableText, self::Object, self::Id, self::Enum, self::Value, self::IntegerValue, self::Fields, self::Document => true,
             default => false,
         };
     }

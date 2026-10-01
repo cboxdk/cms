@@ -24,7 +24,7 @@ The controller holds no logic. The action `Cbox\Cms\Core\Delivery\Actions\Delive
 
 | Status | When | Body |
 |---|---|---|
-| 200 | the path resolves to a visible placement | `{"data":<record>,"meta":{"canonical_url":...,"contract":1,"locale":...,"type":...}}` |
+| 200 | the path resolves to a visible placement | `{"data":<record>,"meta":{"canonical_url":...,"contract":1,"locale":...,"type":...}}`, a document of [`delivery.v1.json`](../addons/delivery-json.md) |
 | 404 | nothing answers the path now: no site, locale, route or placement, a type without URLs, or a placement that is hidden, not yet or no longer in its window | problem details, [`path_not_found`](../reference/errors.md#path_not_found) |
 | 410 | the variant or the placement was withdrawn, or the entry tombstoned or purged | problem details, [`path_gone`](../reference/errors.md#path_gone) |
 | 421 | no site is served at the host | problem details, [`host_not_configured`](../reference/errors.md#host_not_configured) |
@@ -40,8 +40,8 @@ The controller holds no logic. The action `Cbox\Cms\Core\Delivery\Actions\Delive
 
 ## Fragments
 
-An answer the edge may keep is stored in the [`FragmentStore`](../addons/contracts/fragment-store.md) under a key of the host, the locale and the path, with its content keys, the position of the read it was built from and its lifetime. The next request for the same key is served from the fragment, without the query pipeline and without a query, for what is left of that lifetime. When a dependency was purged at or above the read's position, the store refuses the fragment, and the answer is sent with `no-store` (PRD 8.12 point 1). The invalidation subscriber purges the fragments of an entry when it changes; see [subscribers](../addons/subscribers.md#the-kernels-invalidation-subscriber).
+An answer the edge may keep is stored in the [`FragmentStore`](../addons/contracts/fragment-store.md) under a key of the host, the locale and the path, as a document of [`delivery-fragment.v1.json`](../addons/delivery-json.md), with its content keys, the position of the read it was built from and its lifetime. The next request for the same key is served from the fragment, without the query pipeline and without a query, for what is left of that lifetime. When a dependency was purged at or above the read's position, the store refuses the fragment, and the answer is sent with `no-store` (PRD 8.12 point 1). The invalidation subscriber purges the fragments of an entry when it changes; see [subscribers](../addons/subscribers.md#the-kernels-invalidation-subscriber).
 
 ## The explanation
 
-With `debug=1` the read runs as the principal of the request's Bearer credential, and the answer is `{"data":...,"explanation":{...},"meta":...,"problem":...,"status":...}`: the record or the problem, and every step of the resolution, the site, the route and its candidates, the node, a mount, the placement, the visibility decision with its rung and valid_until, and the canonical placement. Only an actor whose classification access is at least internal gets it; anyone else is answered with [`unauthorized`](../reference/errors.md#unauthorized). The explanation is never stored and always sent with `private, no-store`.
+With `debug=1` the read runs as the principal of the request's Bearer credential, and the answer is `{"data":...,"explanation":{...},"meta":...,"problem":...,"status":...}`, a document of [`delivery-explanation.v1.json`](../addons/delivery-json.md): the record or the problem, and every step of the resolution, the site, the route, the node, a mount, the placement, the visibility decision with its valid_until, and the canonical placement. Only an actor whose classification access is at least internal gets it; anyone else is answered with [`unauthorized`](../reference/errors.md#unauthorized). The explanation is never stored and always sent with `private, no-store`.

@@ -187,7 +187,7 @@ final readonly class PostgresPlacementReader implements PlacementReader
             $site,
             new AggregateVersion(PlacementRows::integer($row, 'version')),
             new NodePath(str_replace('-', '', PlacementRows::text($row, 'root_node_id'))),
-            array_map(static fn (string $locale): Locale => new Locale($locale), PlacementRows::textList($row, 'locales')),
+            array_map(static fn (string $locale): Locale => new Locale($locale), TextListColumn::of($row, 'locales')),
         );
     }
 

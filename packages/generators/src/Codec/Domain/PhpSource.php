@@ -43,7 +43,7 @@ final readonly class PhpSource
             CodecKind::PortableText => 'ListValue',
             CodecKind::Object => $value->object->className ?? self::missing($value, 'object'),
             CodecKind::List => 'array',
-            CodecKind::Id, CodecKind::Enum, CodecKind::Value, CodecKind::IntegerValue, CodecKind::Fields => self::shortName($value->class ?? self::missing($value, 'class')),
+            CodecKind::Id, CodecKind::Enum, CodecKind::Value, CodecKind::IntegerValue, CodecKind::Fields, CodecKind::Document => self::shortName($value->class ?? self::missing($value, 'class')),
         };
     }
 
@@ -88,7 +88,7 @@ final readonly class PhpSource
         return match ($value->kind) {
             CodecKind::Date, CodecKind::Datetime => [DateTimeImmutable::class],
             CodecKind::PortableText => [self::LIST_VALUE],
-            CodecKind::Id, CodecKind::Enum, CodecKind::Value, CodecKind::IntegerValue, CodecKind::Fields => [$value->class ?? self::missing($value, 'class')],
+            CodecKind::Id, CodecKind::Enum, CodecKind::Value, CodecKind::IntegerValue, CodecKind::Fields, CodecKind::Document => [$value->class ?? self::missing($value, 'class')],
             CodecKind::Object => $value->object instanceof CodecObject && $value->object->class !== null ? [$value->object->class] : [],
             CodecKind::List => self::imports($value->item ?? self::missing($value, 'item')),
             default => [],

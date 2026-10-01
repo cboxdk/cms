@@ -8,16 +8,20 @@ use Cbox\Cms\Cli\Domain\CliCallRefused;
 use Cbox\Cms\Cli\Domain\Dto\CliAnswer;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Cache\DependencyKey;
+use Cbox\Cms\Contracts\Codecs\JsonDocument;
 use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Content\TimeWindow;
 use Cbox\Cms\Contracts\Errors\ExitCode;
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Results\QueryResult;
-use Cbox\Cms\Core\Routing\Boundary\PathExplanationJson;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\ExplainedPathCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\PathExplanationCodecV1;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalStep;
+use Cbox\Cms\Core\Routing\Domain\Dto\ExplainedPath;
 use Cbox\Cms\Core\Routing\Domain\Dto\MountStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\NodeStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation;
@@ -27,27 +31,30 @@ use Cbox\Cms\Core\Routing\Domain\Dto\RouteStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\VisibilityStep;
 use Cbox\Cms\Core\Routing\Domain\SiteHandle;
 use DateTimeImmutable;
+use DateTimeZone;
 
 /**
  * What cms:explain prints (GUARDRAILS 5 and 7.1): why the page at a URL looks as it does, read
  * from the typed explanation path.resolve returns. It has no explain code of its own: the steps
- * are those of the PathExplanation, and --json writes them with PathExplanationJson, the encoding
- * every surface uses.
+ * are those of the PathExplanation, and --json writes them through the generated codecs, the
+ * encoding every surface uses (GUARDRAILS 2.2).
  *
  * - An answered read exits 0, whatever its outcome: the explanation is the answer, a page that does
- *   not resolve included. With --json one document, keys sorted: `{"content_keys": [...],
- *   "explanation": <PathExplanationJson>, "read_position": "<xmin>", "version": 1}`, where
- *   content_keys are the keys the answer is tagged with (PRD 9.4). Without it the outcome and a
- *   line per step the resolution reached, then the content keys and the read's position.
+ *   not resolve included. With --json one line of explained-path.v1.json, written by
+ *   ExplainedPathCodecV1: the content keys the answer is tagged with (PRD 9.4), the explanation as
+ *   PathExplanationCodecV1 writes it, and the read's position. Without it the outcome and a line
+ *   per step the resolution reached, then the content keys and the read's position.
  * - A rejected read exits with the catalog's exit code of its first error and prints it as
  *   RefusalOutput does, the problem details with --json.
  */
 #[Internal]
 final readonly class ExplainOutput
 {
-    public const int VERSION = 1;
-
-    public function __construct(private RefusalOutput $refusals) {}
+    public function __construct(
+        private RefusalOutput $refusals,
+        private ExplainedPathCodecV1 $documents = new ExplainedPathCodecV1,
+        private PathExplanationCodecV1 $explanations = new PathExplanationCodecV1,
+    ) {}
 
     public function of(QueryResult $read, bool $json): CliAnswer
     {
@@ -63,15 +70,11 @@ final readonly class ExplainOutput
         $explanation = $read->result->explanation;
 
         if ($json) {
-            return new CliAnswer(ExitCode::Ok, [json_encode(
-                [
-                    'content_keys' => $keys,
-                    'explanation' => PathExplanationJson::toArray($explanation),
-                    'read_position' => $read->position->value,
-                    'version' => self::VERSION,
-                ],
-                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
-            )]);
+            return new CliAnswer(ExitCode::Ok, [$this->documents->encode(new ExplainedPath(
+                $read->contentKeys,
+                new JsonDocument($this->explanations->encode($explanation, ClassificationAccess::Public)),
+                $read->position,
+            ), ClassificationAccess::Public)]);
         }
 
         return new CliAnswer(ExitCode::Ok, [
@@ -167,10 +170,10 @@ final readonly class ExplainOutput
             'visibility',
             $visibility->decision->value,
             $visibility->decision->rung(),
-            PathExplanationJson::time($visibility->at),
+            $this->time($visibility->at),
             $visibility->stored->value,
             $visibility->window instanceof TimeWindow ? $this->window($visibility->window) : 'none',
-            $visibility->validUntil instanceof DateTimeImmutable ? '; valid until '.PathExplanationJson::time($visibility->validUntil) : '',
+            $visibility->validUntil instanceof DateTimeImmutable ? '; valid until '.$this->time($visibility->validUntil) : '',
         );
     }
 
@@ -178,8 +181,8 @@ final readonly class ExplainOutput
     {
         return sprintf(
             '%s to %s',
-            $window->from instanceof DateTimeImmutable ? PathExplanationJson::time($window->from) : 'always',
-            $window->until instanceof DateTimeImmutable ? PathExplanationJson::time($window->until) : 'open',
+            $window->from instanceof DateTimeImmutable ? $this->time($window->from) : 'always',
+            $window->until instanceof DateTimeImmutable ? $this->time($window->until) : 'open',
         );
     }
 
@@ -196,5 +199,13 @@ final readonly class ExplainOutput
             $canonical->placement->toString(),
             $canonical->here ? ', this URL' : ', not this URL',
         );
+    }
+
+    /**
+     * A time as the explanation's document writes it: UTC with microseconds.
+     */
+    private function time(DateTimeImmutable $time): string
+    {
+        return $time->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d\TH:i:s.u\Z');
     }
 }

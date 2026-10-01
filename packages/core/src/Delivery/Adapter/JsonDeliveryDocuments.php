@@ -5,45 +5,55 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Delivery\Adapter;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Codecs\JsonDocument;
 use Cbox\Cms\Contracts\Codecs\RecordCodecs;
-use Cbox\Cms\Contracts\Content\Locale;
-use Cbox\Cms\Contracts\Errors\HttpStatus;
 use Cbox\Cms\Contracts\Errors\Problem;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
-use Cbox\Cms\Contracts\Schema\TypeName;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\DeliveryCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\DeliveryExplanationCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\DeliveryFragmentCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\PathExplanationCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ProblemCodecV1;
+use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
 use Cbox\Cms\Core\Delivery\Domain\AnswerFormat;
 use Cbox\Cms\Core\Delivery\Domain\DeliveryDocuments;
 use Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryAnswer;
+use Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryDocument;
+use Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryExplanation;
+use Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryMeta;
 use Cbox\Cms\Core\Delivery\Domain\Dto\StoredAnswer;
-use Cbox\Cms\Core\Routing\Boundary\PathExplanationJson;
 use LogicException;
 use Override;
-use stdClass;
 
 /**
- * The delivery API's documents as canonical JSON (PRD 8.8, 8.9, 8.12): keys sorted, no whitespace.
+ * The delivery API's documents through their generated codecs (PRD 8.8, 8.9, 8.12, GUARDRAILS 2.2),
+ * each canonical JSON: keys sorted, no whitespace.
  *
- * - A record: `{"data":<record>,"meta":{"canonical_url":...,"contract":1,"locale":...,"type":...}}`,
- *   where the record is spliced in exactly as the type's generated codec wrote it.
- * - A problem: the problem details document, written by the generated ProblemCodecV1.
- * - An explanation: `{"data":<record>|null,"explanation":{...},"meta":{...}|null,
- *   "problem":<problem>|null,"status":<status>}`, where the explanation is written by
- *   PathExplanationJson, the one encoding of a PathExplanation, which cms:explain --json prints too.
- * - A fragment: `{"body":...,"format":...,"stale":...,"status":...}`; stored() gives null for any
- *   other bytes.
+ * - A record: delivery.v1.json by DeliveryCodecV1, with the record embedded exactly as the type's
+ *   generated codec wrote it.
+ * - A problem: problem.v1.json by ProblemCodecV1.
+ * - An explanation: delivery-explanation.v1.json by DeliveryExplanationCodecV1, with the
+ *   explanation written by PathExplanationCodecV1 and the problem by ProblemCodecV1.
+ * - A fragment: delivery-fragment.v1.json by DeliveryFragmentCodecV1; stored() gives null for any
+ *   bytes the codec does not read, so a damaged fragment is rebuilt instead of served.
  */
 #[Internal]
 final readonly class JsonDeliveryDocuments implements DeliveryDocuments
 {
-    public function __construct(private ProblemCodecV1 $problems = new ProblemCodecV1) {}
+    public function __construct(
+        private DeliveryCodecV1 $records = new DeliveryCodecV1,
+        private DeliveryExplanationCodecV1 $explanations = new DeliveryExplanationCodecV1,
+        private PathExplanationCodecV1 $paths = new PathExplanationCodecV1,
+        private ProblemCodecV1 $problems = new ProblemCodecV1,
+        private DeliveryFragmentCodecV1 $fragments = new DeliveryFragmentCodecV1,
+    ) {}
 
     #[Override]
     public function body(DeliveryAnswer $answer): string
     {
         return match ($answer->format()) {
-            AnswerFormat::Record => $this->record($answer),
-            AnswerFormat::Problem => $this->problem($answer),
+            AnswerFormat::Record => $this->records->encode(new DeliveryDocument($this->record($answer), $this->meta($answer)), ClassificationAccess::Public),
+            AnswerFormat::Problem => $this->problem($answer->problem ?? throw new LogicException('A problem answer holds its problem.')),
             AnswerFormat::Explanation => $this->explanation($answer),
         };
     }
@@ -51,78 +61,50 @@ final readonly class JsonDeliveryDocuments implements DeliveryDocuments
     #[Override]
     public function fragment(StoredAnswer $answer): string
     {
-        $fragment = new stdClass;
-        $fragment->body = $answer->body;
-        $fragment->format = $answer->format->value;
-        $fragment->stale = $answer->stale;
-        $fragment->status = $answer->status->value;
-
-        return DeliveryJson::encode($fragment);
+        return $this->fragments->encode($answer, ClassificationAccess::Public);
     }
 
     #[Override]
     public function stored(string $fragment): ?StoredAnswer
     {
-        $read = DeliveryJson::decode($fragment);
-
-        if (! $read instanceof stdClass) {
+        try {
+            return $this->fragments->decode($fragment, ClassificationAccess::Public);
+        } catch (DecodingFailed) {
             return null;
         }
-
-        $body = $read->body ?? null;
-        $format = is_string($read->format ?? null) ? AnswerFormat::tryFrom($read->format) : null;
-        $stale = $read->stale ?? null;
-        $status = is_int($read->status ?? null) ? HttpStatus::tryFrom($read->status) : null;
-
-        if (! is_string($body) || ! $format instanceof AnswerFormat || ! is_bool($stale) || ! $status instanceof HttpStatus || count(get_object_vars($read)) !== 4) {
-            return null;
-        }
-
-        return new StoredAnswer($status, $format, $body, $stale);
-    }
-
-    private function record(DeliveryAnswer $answer): string
-    {
-        return '{"data":'.$this->recordJson($answer).',"meta":'.DeliveryJson::encode($this->meta($answer)).'}';
-    }
-
-    private function problem(DeliveryAnswer $answer): string
-    {
-        return $this->problems->encode($this->problemOf($answer), ClassificationAccess::Public);
     }
 
     private function explanation(DeliveryAnswer $answer): string
     {
         $explanation = $answer->explanation ?? throw new LogicException('An explanation answer holds its explanation.');
-        $problem = $answer->problem instanceof Problem ? $this->problems->encode($answer->problem, ClassificationAccess::Public) : 'null';
-        $record = $answer->problem instanceof Problem ? 'null' : $this->recordJson($answer);
-        $meta = $answer->problem instanceof Problem ? 'null' : DeliveryJson::encode($this->meta($answer));
+        $problem = $answer->problem;
 
-        return '{"data":'.$record
-            .',"explanation":'.DeliveryJson::encode((object) PathExplanationJson::toArray($explanation))
-            .',"meta":'.$meta
-            .',"problem":'.$problem
-            .',"status":'.$answer->status->value.'}';
+        return $this->explanations->encode(new DeliveryExplanation(
+            data: $problem instanceof Problem ? null : $this->record($answer),
+            explanation: new JsonDocument($this->paths->encode($explanation, ClassificationAccess::Public)),
+            meta: $problem instanceof Problem ? null : $this->meta($answer),
+            problem: $problem instanceof Problem ? new JsonDocument($this->problem($problem)) : null,
+            status: $answer->status,
+        ), ClassificationAccess::Public);
     }
 
-    private function recordJson(DeliveryAnswer $answer): string
+    private function problem(Problem $problem): string
     {
-        return $answer->record ?? throw new LogicException('A record answer holds its record.');
+        return $this->problems->encode($problem, ClassificationAccess::Public);
     }
 
-    private function problemOf(DeliveryAnswer $answer): Problem
+    private function record(DeliveryAnswer $answer): JsonDocument
     {
-        return $answer->problem ?? throw new LogicException('A problem answer holds its problem.');
+        return new JsonDocument($answer->record ?? throw new LogicException('A record answer holds its record.'));
     }
 
-    private function meta(DeliveryAnswer $answer): stdClass
+    private function meta(DeliveryAnswer $answer): DeliveryMeta
     {
-        $meta = new stdClass;
-        $meta->canonical_url = $answer->canonicalUrl;
-        $meta->contract = RecordCodecs::VERSION;
-        $meta->locale = $answer->locale instanceof Locale ? $answer->locale->value : null;
-        $meta->type = $answer->type instanceof TypeName ? $answer->type->value : null;
-
-        return $meta;
+        return new DeliveryMeta(
+            canonicalUrl: $answer->canonicalUrl,
+            contract: RecordCodecs::VERSION,
+            locale: $answer->locale ?? throw new LogicException('A record answer holds its locale.'),
+            type: $answer->type ?? throw new LogicException('A record answer holds its type.'),
+        );
     }
 }

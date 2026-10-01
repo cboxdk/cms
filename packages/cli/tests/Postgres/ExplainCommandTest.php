@@ -10,12 +10,14 @@ use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\Consistency\Outcome;
 use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\TimeWindow;
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Results\QueryResult;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\ExplainedPathCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\PathExplanationCodecV1;
 use Cbox\Cms\Core\Reads\Actions\QueryPipeline;
 use Cbox\Cms\Core\Reads\Domain\Dto\QueryCall;
-use Cbox\Cms\Core\Routing\Boundary\PathExplanationJson;
 use Cbox\Cms\Core\Routing\Boundary\SitesConfig;
 use Cbox\Cms\Core\Routing\Domain\Dto\ResolvedPath;
 use Cbox\Cms\Core\Routing\Domain\Host;
@@ -42,10 +44,10 @@ use RuntimeException;
  * pipeline of the installation, compiled from the workbench's scan roots, as the anonymous
  * principal, with the sites north and south configured in cbox-cms.sites and the clock an hour
  * after the publish. It explains the placement on north and the mount URL on the second site, whose
- * canonical URL stays on north, and it prints the explanation path.resolve returns, encoded by
- * PathExplanationJson, the one encoding of it: the document of --json is exactly the encoding of
- * the explanation the query pipeline answers the same read with. The kernel's QueryAuthorizer
- * allows it, because path.resolve is a public read.
+ * canonical URL stays on north, and it prints the explanation path.resolve returns, written by the
+ * generated PathExplanationCodecV1, the one encoding of it: the document of --json, one line of
+ * explained-path.v1.json, holds exactly the encoding of the explanation the query pipeline answers
+ * the same read with. The kernel's QueryAuthorizer allows it, because path.resolve is a public read.
  */
 
 afterEach(function (): void {
@@ -181,7 +183,6 @@ it('explains the mount URL on the second site: the placement below the source, c
         ->and($output)->toContain(sprintf('  placement    slug harbour below %s: placement %s of entry %s', $section, EXPLAINED_PLACEMENT, EXPLAINED_ENTRY))
         ->and($output)->toContain(sprintf("  canonical    https://north.example/nyheder/harbour (placement %s), not this URL\n", EXPLAINED_PLACEMENT))
         ->and($jsonStatus)->toBe(0)
-        ->and($document['version'] ?? null)->toBe(1)
         ->and($document['content_keys'] ?? null)->toBe(['e-'.EXPLAINED_ENTRY, 'n-'.$section])
         ->and($document['explanation'] ?? null)->toMatchArray([
             'outcome' => 'resolved',
@@ -190,7 +191,7 @@ it('explains the mount URL on the second site: the placement below the source, c
         ]);
 });
 
-it('prints the explanation path.resolve answers the same read with, through the one encoding of it', function (): void {
+it('prints the explanation path.resolve answers the same read with, through the generated codecs', function (): void {
     explainedWorld();
 
     foreach (['north.example' => '/nyheder/harbour', 'south.example' => '/national/harbour'] as $host => $path) {
@@ -202,10 +203,11 @@ it('prints the explanation path.resolve answers the same read with, through the 
         $position = $document['read_position'] ?? null;
 
         expect($status)->toBe(0)
-            ->and(array_keys($document))->toBe(['content_keys', 'explanation', 'read_position', 'version'])
+            ->and(array_keys($document))->toBe(['content_keys', 'explanation', 'read_position'])
+            ->and(substr_count(trim($json), "\n"))->toBe(0)
+            ->and(new ExplainedPathCodecV1()->decode(trim($json), ClassificationAccess::Public)->readPosition->value)->toBe($position)
             ->and($document['content_keys'])->toBe(array_map(static fn (DependencyKey $key): string => $key->toString(), $read->contentKeys))
-            ->and($document['explanation'])->toBe(PathExplanationJson::toArray($resolved->explanation))
-            ->and($document['version'])->toBe(1)
+            ->and($document['explanation'])->toBe(json_decode(new PathExplanationCodecV1()->encode($resolved->explanation, ClassificationAccess::Public), true, 512, JSON_THROW_ON_ERROR))
             ->and($position)->toBeString();
 
         explainedPositionBetween(is_string($position) ? $position : '', $before, $read);

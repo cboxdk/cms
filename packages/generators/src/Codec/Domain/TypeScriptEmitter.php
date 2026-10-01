@@ -112,6 +112,10 @@ final readonly class TypeScriptEmitter
             $imports[] = 'type FieldValues';
         }
 
+        if (self::uses($objects, CodecKind::Document)) {
+            $imports[] = 'type JsonObject';
+        }
+
         if (self::uses($objects, CodecKind::PortableText)) {
             $imports[] = 'type PortableText';
         }
@@ -285,6 +289,8 @@ final readonly class TypeScriptEmitter
                 return 'PortableText';
             case CodecKind::Fields:
                 return 'FieldValues';
+            case CodecKind::Document:
+                return 'JsonObject';
             case CodecKind::Object:
                 return $names[self::object($value)->className];
             case CodecKind::List:
@@ -400,6 +406,7 @@ final readonly class TypeScriptEmitter
             ],
             CodecKind::Integer, CodecKind::IntegerValue => [$kind('integer'), ...self::bounds($value)],
             CodecKind::Fields => [$kind('fields')],
+            CodecKind::Document => [$kind('document')],
             CodecKind::Decimal => [
                 $kind('decimal'),
                 ...self::precisionAndScale($value),

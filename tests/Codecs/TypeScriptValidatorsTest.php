@@ -7,7 +7,12 @@ namespace Cbox\Cms\Tests\Codecs;
 use Cbox\Cms\Contracts\Codecs\JsonCodec;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\DeliveryCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\DeliveryExplanationCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\DeliveryFragmentCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\EnvelopeCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\ExplainedPathCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\PathExplanationCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ProblemCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ReceiptCodecV1;
 use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
@@ -20,7 +25,8 @@ use Workbench\App\Cms\Generated\Boundary\AppFixtureMeasurementCodecV1;
 /*
  * The TypeScript validators cms:generate writes, run in Node against what the PHP codecs actually
  * write (PRD 11.12, GUARDRAILS 2.2 and 9): one test per contract version, the workbench's records
- * of both fixture types, the receipt, the problem details and the envelope. Each test has its own
+ * of both fixture types, the receipt, the problem details, the envelope, the delivery API's
+ * documents and fragment, the path explanation and cms:explain's document. Each test has its own
  * fixtures, written by hand: documents with every field type, null and omitted fields that both
  * sides must accept, and documents that break one rule each, which both must refuse at the same
  * value. Every document the PHP codec accepts is written again by the PHP codec, as callers with
@@ -393,6 +399,69 @@ it('accepts every envelope v1 the PHP codec writes, and refuses what it refuses 
     ]);
 });
 
+const VALIDATED_EXPLANATION = '{"canonical":{"here":false,"placement":"01936f5e-8a2b-7c3d-9e4f-000000003641","url":"https://north.example/nyheder/harbour"},"mount":{"mount":"01936f5e-8a2b-7c3d-9e4f-000000003614","source":"01936f5e-8a2b-7c3d-9e4f-000000003612"},"node":{"kind":"mount","node":"01936f5e-8a2b-7c3d-9e4f-000000003614"},"outcome":"resolved","placement":{"canonical":true,"entry":"01936f5e-8a2b-7c3d-9e4f-000000003631","looked_under":"01936f5e-8a2b-7c3d-9e4f-000000003612","placement":"01936f5e-8a2b-7c3d-9e4f-000000003641","routable":true,"slug":"harbour","type":"01936f5e-8a2b-7c3d-9e4f-000000003621"},"route":{"path":"/national/harbour","rest":"harbour","route":"/national"},"site":{"handle":"south","host":"south.example","locale":"da","locale_published":true,"site":"01936f5e-8a2b-7c3d-9e4f-000000003602"},"visibility":{"at":"2026-03-10T12:00:00.000000Z","decision":"visible","lifecycle":"active","release":"released","stored":"live","valid_until":"2026-03-10T17:00:00.000000Z","window":{"from":"2026-03-10T11:00:00.000000Z","until":"2026-03-10T17:00:00.000000Z"}}}';
+
+const VALIDATED_DELIVERY = '{"data":{"cms_id":"01936f5e-8a2b-7c3d-9e4f-000000003631","title":"The harbour opens"},"meta":{"canonical_url":"https://north.example/nyheder/harbour","contract":1,"locale":"da","type":"app:article"}}';
+
+it('accepts every path explanation v1 the PHP codec writes, and refuses what it refuses at the same value', function (): void {
+    $explanation = static fn (string $from, string $to): string => str_replace($from, $to, VALIDATED_EXPLANATION);
+
+    crossCheck(new PathExplanationCodecV1, 'protocol/PathExplanationV1', 'validatePathExplanationV1', [
+        'a resolved mount' => [VALIDATED_EXPLANATION, null],
+        'an unknown host' => ['{"canonical":null,"mount":null,"node":null,"outcome":"unknown_host","placement":null,"route":null,"site":{"handle":null,"host":"Nowhere.Example","locale":"da","locale_published":false,"site":null},"visibility":null}', null],
+        'a window open at both ends and no inputs to the decision' => [$explanation('"lifecycle":"active","release":"released"', '"lifecycle":null,"release":null'), null],
+        'an outcome that is not one' => [$explanation('"outcome":"resolved"', '"outcome":"found"'), 'outcome'],
+        'a step missing' => [$explanation('"mount":{"mount":"01936f5e-8a2b-7c3d-9e4f-000000003614","source":"01936f5e-8a2b-7c3d-9e4f-000000003612"},', ''), 'mount'],
+        'a key it does not have' => [$explanation('"outcome":"resolved"', '"outcome":"resolved","rung":11'), ''],
+        'a path without its leading slash' => [$explanation('"path":"/national/harbour"', '"path":"national/harbour"'), 'route.path'],
+        'a slug with a slash' => [$explanation('"slug":"harbour"', '"slug":"har/bour"'), 'placement.slug'],
+        'a site handle in upper case' => [$explanation('"handle":"south"', '"handle":"South"'), 'site.handle'],
+        'a node that is not a UUIDv7' => [$explanation('"node":"01936f5e-8a2b-7c3d-9e4f-000000003614"', '"node":"node-14"'), 'node.node'],
+        'a decision that is not one' => [$explanation('"decision":"visible"', '"decision":"shown"'), 'visibility.decision'],
+        'a window start that is no time' => [$explanation('"from":"2026-03-10T11:00:00.000000Z"', '"from":"morning"'), 'visibility.window.from'],
+        'canonical here as a string' => [$explanation('"here":false', '"here":"no"'), 'canonical.here'],
+    ]);
+});
+
+it('accepts every delivery answer and delivery explanation v1 the PHP codecs write, and refuses what they refuse at the same value', function (): void {
+    $delivery = static fn (string $from, string $to): string => str_replace($from, $to, VALIDATED_DELIVERY);
+    $explanation = '{"data":null,"explanation":'.VALIDATED_EXPLANATION.',"meta":null,"problem":'.problemJson(ErrorCode::PathNotFound).',"status":404}';
+
+    crossCheck(new DeliveryCodecV1, 'protocol/DeliveryV1', 'validateDeliveryV1', [
+        'a record with its meta' => [VALIDATED_DELIVERY, null],
+        'a record without a canonical URL' => [$delivery('"https://north.example/nyheder/harbour"', 'null'), null],
+        'a record that is a list' => [$delivery('{"cms_id":"01936f5e-8a2b-7c3d-9e4f-000000003631","title":"The harbour opens"}', '[]'), 'data'],
+        'another record contract' => [$delivery('"contract":1', '"contract":2'), 'meta.contract'],
+        'a type without its owner' => [$delivery('"app:article"', '"article"'), 'meta.type'],
+        'a locale that is not one' => [$delivery('"locale":"da"', '"locale":"danish"'), 'meta.locale'],
+    ]);
+    crossCheck(new DeliveryExplanationCodecV1, 'protocol/DeliveryExplanationV1', 'validateDeliveryExplanationV1', [
+        'a problem with its explanation' => [$explanation, null],
+        'a status the kernel never answers' => [str_replace('"status":404', '"status":418', $explanation), 'status'],
+        'an explanation of null' => [str_replace('"explanation":'.VALIDATED_EXPLANATION, '"explanation":null', $explanation), 'explanation'],
+        'a problem that is a string' => [str_replace('"problem":'.problemJson(ErrorCode::PathNotFound), '"problem":"gone"', $explanation), 'problem'],
+    ]);
+});
+
+it('accepts every explained path and delivery fragment v1 the PHP codecs write, and refuses what they refuse at the same value', function (): void {
+    $explained = '{"content_keys":["e-01936f5e-8a2b-7c3d-9e4f-000000003631","n-01936f5e-8a2b-7c3d-9e4f-000000003612"],"explanation":'.VALIDATED_EXPLANATION.',"read_position":"4827"}';
+    $fragment = '{"body":"{}","format":"record","stale":true,"status":200}';
+
+    crossCheck(new ExplainedPathCodecV1, 'protocol/ExplainedPathV1', 'validateExplainedPathV1', [
+        'an explained path' => [$explained, null],
+        'no content keys' => [str_replace('"e-01936f5e-8a2b-7c3d-9e4f-000000003631","n-01936f5e-8a2b-7c3d-9e4f-000000003612"', '', $explained), null],
+        'a content key of another kind' => [str_replace('"e-01936f5e', '"x-01936f5e', $explained), 'content_keys[0]'],
+        'a read position with a leading zero' => [str_replace('"4827"', '"04827"', $explained), 'read_position'],
+    ]);
+    crossCheck(new DeliveryFragmentCodecV1, 'protocol/DeliveryFragmentV1', 'validateDeliveryFragmentV1', [
+        'a fragment' => [$fragment, null],
+        'a format that is not one' => [str_replace('"record"', '"page"', $fragment), 'format'],
+        'a status that is not one' => [str_replace('200', '299', $fragment), 'status'],
+        'stale as a string' => [str_replace('true', '"yes"', $fragment), 'stale'],
+        'a body that is an object' => [str_replace('"{}"', '{}', $fragment), 'body'],
+    ]);
+});
+
 it('refuses a value of the PHP codec\'s output planted wrong', function (JsonCodec $codec, string $module, string $validator, string $document, array $path, mixed $wrong, string $refusedAt): void {
     $output = $codec->encode($codec->decode($document, ClassificationAccess::Sensitive), ClassificationAccess::Sensitive);
     $verdicts = TypeScriptValidators::run(GENERATED, [
@@ -411,4 +480,6 @@ it('refuses a value of the PHP codec\'s output planted wrong', function (JsonCod
     'a receipt\'s WAL position in lower case' => [new ReceiptCodecV1, 'protocol/ReceiptV1', 'validateReceiptV1', COMMITTED_RECEIPT_JSON, ['consistency_token', 'lsn'], '16/b374d848', 'consistency_token.lsn'],
     'a problem\'s status as a string' => [new ProblemCodecV1, 'protocol/ProblemV1', 'validateProblemV1', problemJson(), ['status'], '422', 'status'],
     'an envelope\'s dry run as a string' => [new EnvelopeCodecV1, 'protocol/EnvelopeV1', 'validateEnvelopeV1', AGENT_ENVELOPE_JSON, ['dry_run'], 'yes', 'dry_run'],
+    'a delivery answer\'s record as a list' => [new DeliveryCodecV1, 'protocol/DeliveryV1', 'validateDeliveryV1', VALIDATED_DELIVERY, ['data'], [], 'data'],
+    'an explanation\'s visibility time without its offset' => [new PathExplanationCodecV1, 'protocol/PathExplanationV1', 'validatePathExplanationV1', VALIDATED_EXPLANATION, ['visibility', 'at'], '2026-03-10T12:00:00', 'visibility.at'],
 ]);

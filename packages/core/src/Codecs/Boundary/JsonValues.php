@@ -684,6 +684,48 @@ final readonly class JsonValues
     }
 
     /**
+     * A JSON object of another contract, such as a record or a document of another kernel schema,
+     * made by $make from its JSON text in the canonical form: the contract that holds it checks only
+     * that it is an object, and its own contract's codec reads its keys. $make throws
+     * InvalidArgumentException for text that is not one JSON object, as Contracts\Codecs\JsonDocument
+     * does.
+     *
+     * @template T of object
+     *
+     * @param  Closure(string): T  $make
+     * @return T
+     *
+     * @throws DecodingFailed with json_invalid
+     */
+    public static function document(mixed $value, FieldPath $at, Closure $make): object
+    {
+        if (! $value instanceof stdClass) {
+            throw DecodingFailed::invalid($at, 'is not an object');
+        }
+
+        try {
+            return $make(JsonText::encode($value));
+        } catch (EncodingFailed|InvalidArgumentException $exception) {
+            throw DecodingFailed::invalid($at, 'is not a valid document: '.$exception->getMessage(), $exception);
+        }
+    }
+
+    /**
+     * A JSON object of another contract, from the JSON text its own codec wrote: the reverse of
+     * document(), so the text is embedded as it is.
+     *
+     * @throws EncodingFailed when the text is not one JSON object
+     */
+    public static function encodeDocument(string $json): stdClass
+    {
+        try {
+            return JsonText::decode($json);
+        } catch (DecodingFailed $exception) {
+            throw EncodingFailed::because('a document of another contract is not one JSON object: '.$exception->getMessage(), $exception);
+        }
+    }
+
+    /**
      * A case of a backed enum, by its value, compared strictly: a string-backed enum takes a string
      * and an int-backed enum an integer.
      *

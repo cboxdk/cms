@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Explained path, contract version 1",
+  "description": "What cms:explain <url> --json prints for an answered read (GUARDRAILS 5 and 7.1): the explanation of the resolution of the URL, the content keys the answer is tagged with (PRD 9.4) and the position of the read. The PHP form is Cbox\\Cms\\Core\\Routing\\Domain\\Dto\\ExplainedPath, and the generated codec ExplainedPathCodecV1 writes its canonical JSON on one line: keys sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "content_keys",
+    "explanation",
+    "read_position"
+  ],
+  "properties": {
+    "content_keys": {
+      "description": "The content keys the answer is tagged with, each once and sorted: e-<entry> for an entry and n-<node> for a node, each a UUIDv7 in lowercase.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 38,
+        "pattern": "^[en]-[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      }
+    },
+    "explanation": {
+      "description": "The explanation of the resolution, a document of path-explanation.v1.json.",
+      "type": "object"
+    },
+    "read_position": {
+      "description": "The position of the read (PRD 8.4): the xmin of its snapshot, in decimal; the read saw every changeset whose position is below it.",
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,19})$"
+    }
+  }
+}

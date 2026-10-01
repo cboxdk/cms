@@ -6,6 +6,8 @@ namespace Cbox\Cms\Generators\Protocol\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Cache\DependencyKey;
+use Cbox\Cms\Contracts\Codecs\JsonDocument;
 use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Consistency\ConsistencyToken;
 use Cbox\Cms\Contracts\Consistency\LogSequenceNumber;
@@ -26,6 +28,7 @@ use Cbox\Cms\Contracts\Envelope\Provenance;
 use Cbox\Cms\Contracts\Envelope\RequestEnvelope;
 use Cbox\Cms\Contracts\Envelope\SourceReference;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
+use Cbox\Cms\Contracts\Errors\HttpStatus;
 use Cbox\Cms\Contracts\Errors\Problem;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Idempotency\IdempotencyKey;
@@ -42,6 +45,12 @@ use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Receipts\Receipt;
 use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Contracts\Results\FieldPath;
+use Cbox\Cms\Contracts\Schema\TypeName;
+use Cbox\Cms\Core\Delivery\Domain\AnswerFormat;
+use Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryDocument;
+use Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryExplanation;
+use Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryMeta;
+use Cbox\Cms\Core\Delivery\Domain\Dto\StoredAnswer;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
@@ -50,8 +59,26 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCodec;
 use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
 use Cbox\Cms\Core\Placements\Domain\Dto\LocaleSlug;
+use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry;
 use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
+use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalStep;
+use Cbox\Cms\Core\Routing\Domain\Dto\ExplainedPath;
+use Cbox\Cms\Core\Routing\Domain\Dto\MountStep;
+use Cbox\Cms\Core\Routing\Domain\Dto\NodeStep;
+use Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation;
+use Cbox\Cms\Core\Routing\Domain\Dto\PlacementStep;
+use Cbox\Cms\Core\Routing\Domain\Dto\RouteStep;
+use Cbox\Cms\Core\Routing\Domain\Dto\SiteStep;
+use Cbox\Cms\Core\Routing\Domain\Dto\VisibilityStep;
+use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
+use Cbox\Cms\Core\Routing\Domain\Host;
+use Cbox\Cms\Core\Routing\Domain\NodeKind;
+use Cbox\Cms\Core\Routing\Domain\ReleaseState;
+use Cbox\Cms\Core\Routing\Domain\RequestPath;
+use Cbox\Cms\Core\Routing\Domain\ResolveOutcome;
+use Cbox\Cms\Core\Routing\Domain\SiteHandle;
+use Cbox\Cms\Core\Routing\Domain\VisibilityDecision;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecCommand;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecContract;
 use Cbox\Cms\Generators\Codec\Domain\Dto\PhpLocation;
@@ -111,15 +138,55 @@ final readonly class ProtocolSchemas
     /** The stability of the generated codecs: the classes they read and write are Experimental. */
     public const string ATTRIBUTE = Experimental::class;
 
+    /** Where the schemas of the core's own documents are, relative to the root of cboxdk/cms. */
+    public const string CORE_SCHEMA_DIRECTORY = 'packages/core/resources/schemas';
+
     /**
-     * The bindings of the schemas of the contracts module, sorted by file: the receipt, the problem
-     * details and the envelope.
+     * The bindings of the kernel's documents, sorted by file: the schemas of the contracts module,
+     * the delivery explanation, the delivery API's answers, the envelope, the explained path, the
+     * path explanation, the problem details and the receipt, then the core's own, the delivery
+     * API's fragment. A member of a document that is a document of another contract, such as the
+     * record of a delivery answer or the explanation inside a delivery explanation, is bound with
+     * ValueBinding::document(), so its own contract's codec writes it.
      *
      * @return list<SchemaBinding>
      */
     public static function kernel(): array
     {
+        $document = ValueBinding::document(JsonDocument::class);
+        $id = static fn (string $class): ValueBinding => ValueBinding::id($class);
+        $meta = [
+            '#/$defs/meta/properties/locale' => ValueBinding::value(Locale::class),
+            '#/$defs/meta/properties/type' => ValueBinding::value(TypeName::class),
+        ];
+
         return [
+            new SchemaBinding(
+                schema: 'delivery-explanation.v1.json',
+                codecClass: 'DeliveryExplanationCodecV1',
+                version: 1,
+                objects: [
+                    '#' => DeliveryExplanation::class,
+                    '#/$defs/meta' => DeliveryMeta::class,
+                ],
+                values: [
+                    '#/properties/data' => $document,
+                    '#/properties/explanation' => $document,
+                    '#/properties/problem' => $document,
+                    '#/properties/status' => ValueBinding::enum(HttpStatus::class),
+                    ...$meta,
+                ],
+            ),
+            new SchemaBinding(
+                schema: 'delivery.v1.json',
+                codecClass: 'DeliveryCodecV1',
+                version: 1,
+                objects: [
+                    '#' => DeliveryDocument::class,
+                    '#/$defs/meta' => DeliveryMeta::class,
+                ],
+                values: ['#/properties/data' => $document, ...$meta],
+            ),
             new SchemaBinding(
                 schema: 'envelope.v1.json',
                 codecClass: 'EnvelopeCodecV1',
@@ -137,6 +204,55 @@ final readonly class ProtocolSchemas
                     '#/properties/wait_level' => ValueBinding::enum(WaitLevel::class),
                     '#/$defs/provenance/properties/prompt' => ValueBinding::value(PromptReference::class),
                     '#/$defs/provenance/properties/sources/items' => ValueBinding::value(SourceReference::class),
+                ],
+            ),
+            new SchemaBinding(
+                schema: 'explained-path.v1.json',
+                codecClass: 'ExplainedPathCodecV1',
+                version: 1,
+                objects: ['#' => ExplainedPath::class],
+                values: [
+                    '#/properties/content_keys/items' => $id(DependencyKey::class),
+                    '#/properties/explanation' => $document,
+                    '#/properties/read_position' => ValueBinding::value(CommitPosition::class),
+                ],
+            ),
+            new SchemaBinding(
+                schema: 'path-explanation.v1.json',
+                codecClass: 'PathExplanationCodecV1',
+                version: 1,
+                objects: [
+                    '#' => PathExplanation::class,
+                    '#/$defs/canonical_step' => CanonicalStep::class,
+                    '#/$defs/mount_step' => MountStep::class,
+                    '#/$defs/node_step' => NodeStep::class,
+                    '#/$defs/placement_step' => PlacementStep::class,
+                    '#/$defs/route_step' => RouteStep::class,
+                    '#/$defs/site_step' => SiteStep::class,
+                    '#/$defs/time_window' => TimeWindow::class,
+                    '#/$defs/visibility_step' => VisibilityStep::class,
+                ],
+                values: [
+                    '#/properties/outcome' => ValueBinding::enum(ResolveOutcome::class),
+                    '#/$defs/canonical_step/properties/placement' => $id(PlacementId::class),
+                    '#/$defs/mount_step/properties/mount' => $id(NodeId::class),
+                    '#/$defs/mount_step/properties/source' => $id(NodeId::class),
+                    '#/$defs/node_step/properties/kind' => ValueBinding::enum(NodeKind::class),
+                    '#/$defs/node_step/properties/node' => $id(NodeId::class),
+                    '#/$defs/placement_step/properties/entry' => $id(EntryId::class),
+                    '#/$defs/placement_step/properties/looked_under' => $id(NodeId::class),
+                    '#/$defs/placement_step/properties/placement' => $id(PlacementId::class),
+                    '#/$defs/placement_step/properties/slug' => ValueBinding::value(Slug::class),
+                    '#/$defs/placement_step/properties/type' => $id(TypeId::class),
+                    '#/$defs/route_step/properties/path' => ValueBinding::value(RequestPath::class),
+                    '#/$defs/site_step/properties/handle' => ValueBinding::value(SiteHandle::class),
+                    '#/$defs/site_step/properties/host' => ValueBinding::value(Host::class),
+                    '#/$defs/site_step/properties/locale' => ValueBinding::value(Locale::class),
+                    '#/$defs/site_step/properties/site' => $id(SiteId::class),
+                    '#/$defs/visibility_step/properties/decision' => ValueBinding::enum(VisibilityDecision::class),
+                    '#/$defs/visibility_step/properties/lifecycle' => ValueBinding::enum(EntryLifecycle::class),
+                    '#/$defs/visibility_step/properties/release' => ValueBinding::enum(ReleaseState::class),
+                    '#/$defs/visibility_step/properties/stored' => ValueBinding::enum(Visibility::class),
                 ],
             ),
             new SchemaBinding(
@@ -176,6 +292,17 @@ final readonly class ProtocolSchemas
                     '#/$defs/projection_status/properties/projection' => ValueBinding::value(ProjectionName::class),
                     '#/$defs/projection_status/properties/state' => ValueBinding::enum(ProjectionState::class),
                 ],
+            ),
+            new SchemaBinding(
+                schema: 'delivery-fragment.v1.json',
+                codecClass: 'DeliveryFragmentCodecV1',
+                version: 1,
+                objects: ['#' => StoredAnswer::class],
+                values: [
+                    '#/properties/format' => ValueBinding::enum(AnswerFormat::class),
+                    '#/properties/status' => ValueBinding::enum(HttpStatus::class),
+                ],
+                directory: self::CORE_SCHEMA_DIRECTORY,
             ),
         ];
     }

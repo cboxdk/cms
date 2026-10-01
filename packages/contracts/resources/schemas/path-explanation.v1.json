@@ -1,0 +1,442 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Path explanation, contract version 1",
+  "description": "Why the page at a path looks as it does (PRD 5.9, GUARDRAILS 5): the explanation path.resolve gives of one resolution of a host, a locale and a path, each step it took in order and the outcome, named by the step that stopped it. cms:explain --json and the explanation of GET /v1/resolve?debug=1 hold it. Every key is always present; a step the resolution did not reach is null, and mount is null too for a node that is not a mount. It holds ids, handles, the path and the decisions, never a field of the entry. The PHP form is Cbox\\Cms\\Core\\Routing\\Domain\\Dto\\PathExplanation, and the generated codec PathExplanationCodecV1 writes its canonical JSON: keys sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "canonical",
+    "mount",
+    "node",
+    "outcome",
+    "placement",
+    "route",
+    "site",
+    "visibility"
+  ],
+  "properties": {
+    "canonical": {
+      "description": "The canonical URL of the entry in the locale (PRD 5.7), or null when the resolution did not reach a placement the reader can read.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/canonical_step"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "mount": {
+      "description": "The mount the route reached (PRD 5.8), or null when the node is not a mount or the resolution did not reach a node.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/mount_step"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "node": {
+      "description": "The node the route reaches, or null when the resolution found no route.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/node_step"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "outcome": {
+      "description": "How the resolution ended, named by the step that stopped it: unknown_host (no configured site has the host), unknown_site (the host's site is configured, but no site has its handle), locale_not_published, no_route, no_slug (what is left of the path is not one slug), no_placement (no placement the reader can read has the slug), not_routable (the type has no URLs), not_visible (the precedence of PRD 6.6 blocks the placement) or resolved.",
+      "enum": [
+        "unknown_host",
+        "unknown_site",
+        "locale_not_published",
+        "no_route",
+        "no_slug",
+        "no_placement",
+        "not_routable",
+        "not_visible",
+        "resolved"
+      ]
+    },
+    "placement": {
+      "description": "The slug looked up below the node and the placement found, or null when the resolution did not reach the lookup.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/placement_step"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "route": {
+      "description": "The longest route of the site in the locale that is a prefix of the path, or null when the resolution stopped at the site.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/route_step"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "site": {
+      "description": "The host to a site.",
+      "$ref": "#/$defs/site_step"
+    },
+    "visibility": {
+      "description": "The visibility decision at the time of the read, or null when the resolution did not reach a placement the reader can read.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/visibility_step"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "canonical_step": {
+      "description": "The canonical URL (PRD 5.7, 5.9).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "here",
+        "placement",
+        "url"
+      ],
+      "properties": {
+        "here": {
+          "description": "Whether the path resolved is the canonical placement on its own site; false for any other placement and for a mount, whose source stays canonical.",
+          "type": "boolean"
+        },
+        "placement": {
+          "description": "The canonical placement of the entry in the locale, or null when the reader can read none.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+        },
+        "url": {
+          "description": "The canonical URL: the origin of the canonical placement's site with its node's route and its slug, or null when its node has no route or its site is not configured.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "mount_step": {
+      "description": "The route reached a mount (PRD 5.8): the slug is looked up below its source, and the placement found there is shown as it is.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mount",
+        "source"
+      ],
+      "properties": {
+        "mount": {
+          "description": "The mount node.",
+          "$ref": "#/$defs/id"
+        },
+        "source": {
+          "description": "The node the mount shows the placements of.",
+          "$ref": "#/$defs/id"
+        }
+      }
+    },
+    "node_step": {
+      "description": "The node the route reaches (PRD 5.8, 5.9 step 2).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "node"
+      ],
+      "properties": {
+        "kind": {
+          "description": "The kind of the node.",
+          "enum": [
+            "site",
+            "section",
+            "page",
+            "list",
+            "storage",
+            "mount"
+          ]
+        },
+        "node": {
+          "description": "The node.",
+          "$ref": "#/$defs/id"
+        }
+      }
+    },
+    "placement_step": {
+      "description": "Step 3 of a resolution (PRD 5.9): the slug looked up below the node, the mount's source for a mount, and what was found.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canonical",
+        "entry",
+        "looked_under",
+        "placement",
+        "routable",
+        "slug",
+        "type"
+      ],
+      "properties": {
+        "canonical": {
+          "description": "Whether the placement is the canonical one of its entry in the locale.",
+          "type": "boolean"
+        },
+        "entry": {
+          "description": "The entry of the placement, or null when no placement was found.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+        },
+        "looked_under": {
+          "description": "The node the slug was looked up below: the node, or the mount's source.",
+          "$ref": "#/$defs/id"
+        },
+        "placement": {
+          "description": "The placement found, or null when the reader can read none.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+        },
+        "routable": {
+          "description": "Whether the entry's type has URLs, its blueprint's routable.",
+          "type": "boolean"
+        },
+        "slug": {
+          "description": "The slug looked up: 1 to 255 characters without a slash or white space, and not . or ..",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^(?!\\.\\.?$)[^/\\s]+$"
+        },
+        "type": {
+          "description": "The entry's type, or null when the reader cannot read the entry.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+        }
+      }
+    },
+    "route_step": {
+      "description": "Step 2 of a resolution (PRD 5.9): the path, and the longest route of the site in the locale that is a prefix of it. The routes looked up are the path's prefixes, the longest first: the path itself, each shorter run of its leading segments, and /.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "rest",
+        "route"
+      ],
+      "properties": {
+        "path": {
+          "description": "The path requested, which starts with a slash: / or segments of no slash and no white space, at most 32 segments and 2048 bytes, without . or .. segments.",
+          "type": "string",
+          "pattern": "^(/|(/[^/\\s]+)+)$"
+        },
+        "rest": {
+          "description": "What is left of the path after the route, which step 3 looks up as a slug, or null without a route.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "route": {
+          "description": "The longest route that is a prefix of the path, or null when none is.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "site_step": {
+      "description": "Step 1 of a resolution (PRD 5.9): the host to a site.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "handle",
+        "host",
+        "locale",
+        "locale_published",
+        "site"
+      ],
+      "properties": {
+        "handle": {
+          "description": "The handle of the configured site that serves the host, or null when none does.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "host": {
+          "description": "The host the path was requested at: a DNS name in lowercase with an optional port.",
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(:[1-9][0-9]{0,4})?$"
+        },
+        "locale": {
+          "description": "The locale requested, a language tag such as da, en-GB or sr-Latn-RS.",
+          "type": "string",
+          "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$"
+        },
+        "locale_published": {
+          "description": "Whether the site publishes in the locale; false when no site was found.",
+          "type": "boolean"
+        },
+        "site": {
+          "description": "The site with the handle, or null when there is none.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+        }
+      }
+    },
+    "time_window": {
+      "description": "A placement's window: from when and until when it is live, each null when it is open at that end.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "until"
+      ],
+      "properties": {
+        "from": {
+          "description": "The start of the window, RFC 3339 in UTC with six decimals, such as 2026-09-30T12:00:00.000000Z. Any offset is read. Null when it is open at the start.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "until": {
+          "description": "The end of the window, RFC 3339 in UTC with six decimals, such as 2026-09-30T12:00:00.000000Z. Any offset is read. Null when it never ends.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      }
+    },
+    "visibility_step": {
+      "description": "The visibility decision (PRD 6.6, 6.7) at the time of the read, and what it was decided on.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "at",
+        "decision",
+        "lifecycle",
+        "release",
+        "stored",
+        "valid_until",
+        "window"
+      ],
+      "properties": {
+        "at": {
+          "description": "The time the decision is for, RFC 3339 in UTC with six decimals, such as 2026-09-30T12:00:00.000000Z. Any offset is read.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "decision": {
+          "description": "The rung of PRD 6.6 that decided, strongest first: entry_not_active (rung 2: the entry is not active, or the reader cannot read it), variant_withdrawn (rung 3), placement_withdrawn (rung 5), no_released_revision (rung 8), placement_hidden (rung 9: no window), before_window and after_window (rung 9), or visible (rung 11, live).",
+          "enum": [
+            "entry_not_active",
+            "variant_withdrawn",
+            "placement_withdrawn",
+            "no_released_revision",
+            "placement_hidden",
+            "before_window",
+            "after_window",
+            "visible"
+          ]
+        },
+        "lifecycle": {
+          "description": "The entry's lifecycle, or null when the reader cannot read the entry.",
+          "anyOf": [
+            {
+              "enum": [
+                "active",
+                "archived",
+                "merged",
+                "tombstoned",
+                "purged"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "release": {
+          "description": "The release state of the variant's head, or null when the reader cannot read it.",
+          "anyOf": [
+            {
+              "enum": [
+                "unreleased",
+                "released",
+                "withdrawn"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stored": {
+          "description": "The placement's stored visibility state in the locale.",
+          "enum": [
+            "hidden",
+            "scheduled",
+            "live",
+            "expired",
+            "withdrawn"
+          ]
+        },
+        "valid_until": {
+          "description": "When the decision can next change because of the window, RFC 3339 in UTC with six decimals, such as 2026-09-30T12:00:00.000000Z. Any offset is read. Its end for a visible placement, its start for one whose window has not begun, and null when the window never changes it again.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "window": {
+          "description": "The placement's window, or null when it has none.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/time_window"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

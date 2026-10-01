@@ -129,6 +129,14 @@ export interface FieldsRule {
   readonly kind: 'fields';
 }
 
+/**
+ * A JSON object of another contract, such as a record or a document of another kernel schema: an
+ * object whose keys its own contract's validator checks.
+ */
+export interface DocumentRule {
+  readonly kind: 'document';
+}
+
 /** One of the values of an enum. */
 export interface EnumRule {
   readonly kind: 'enum';
@@ -148,7 +156,8 @@ export type ValueRule =
   | ListRule
   | StringRule
   | EnumRule
-  | FieldsRule;
+  | FieldsRule
+  | DocumentRule;
 
 /** A key of an object, in the order the kernel's codec reads it. */
 export interface PropertyRule {
@@ -201,6 +210,12 @@ export type PortableText = readonly PortableTextBlock[];
  */
 export type FieldValue =
   string | number | boolean | null | readonly FieldValue[] | { readonly [key: string]: FieldValue };
+
+/**
+ * A JSON object of another contract, whose own validator checks its keys, such as the record of a
+ * type with the validator of its record contract.
+ */
+export type JsonObject = { readonly [key: string]: unknown };
 
 /**
  * The fields of a revision of any type, in the input form the type's validator reads: the owner's
@@ -402,6 +417,11 @@ function checkValue(value: unknown, at: Path, rule: ValueRule): void {
       break;
     case 'fields':
       checkFields(value, at);
+      break;
+    case 'document':
+      if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+        throw new Invalid(at, 'is not an object');
+      }
       break;
     case 'enum':
       if (

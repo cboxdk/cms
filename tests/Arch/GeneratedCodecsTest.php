@@ -8,8 +8,13 @@ use Cbox\Cms\Contracts\Codecs\JsonCodec;
 use Cbox\Cms\Contracts\Envelope\RequestEnvelope;
 use Cbox\Cms\Contracts\Errors\Problem;
 use Cbox\Cms\Contracts\Receipts\Receipt;
+use Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryDocument;
+use Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryExplanation;
+use Cbox\Cms\Core\Delivery\Domain\Dto\StoredAnswer;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
+use Cbox\Cms\Core\Routing\Domain\Dto\ExplainedPath;
+use Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation;
 use Cbox\Cms\Generators\Protocol\Domain\Dto\SchemaBinding;
 use Cbox\Cms\Generators\Protocol\Domain\ProtocolSchemas;
 use Cbox\Cms\Tests\Support\Arch\Codebase;
@@ -18,11 +23,13 @@ use Cbox\Cms\Tests\Support\Arch\Rules;
 
 /*
  * Serialisation is generated (GUARDRAILS 2.2): the JSON form of the receipt, the problem details
- * document, the envelope and each of the kernel's commands is fixed by their JSON Schemas and
+ * document, the envelope, the delivery API's documents and fragment, the path explanation and
+ * cms:explain's document, and each of the kernel's commands is fixed by their JSON Schemas and
  * written and read only by the codecs composer generate:protocol writes into a Generated directory.
  * No code in packages/*\/src or workbench/app serialises a class the contracts' schemas bind, or a
  * command a command's schema is bound to, by hand, no class outside a Generated directory
- * implements JsonCodec, and no bound class serialises itself. The values a command holds, such as a
+ * implements JsonCodec, and no bound class serialises itself. A JSON helper, a class that writes
+ * or reads JSON and takes or gives an object, counts as JSON where a file names a bound class. The values a command holds, such as a
  * TimeWindow, appear in other documents too, so only the command itself counts as bound here.
  * tests/Feature/Tooling/HandWrittenCodecScanTest.php covers what the scan finds.
  */
@@ -37,7 +44,7 @@ arch('generated codecs: no hand-written encoder of a class the kernel schemas bi
     ]));
     sort($bound);
 
-    expect($bound)->toContain(Receipt::class, Problem::class, RequestEnvelope::class, CreateEntry::class, ReviseEntry::class)
+    expect($bound)->toContain(Receipt::class, Problem::class, RequestEnvelope::class, CreateEntry::class, ReviseEntry::class, DeliveryDocument::class, DeliveryExplanation::class, StoredAnswer::class, PathExplanation::class, ExplainedPath::class)
         ->and(ProtocolSchemas::commands())->toHaveCount(8);
 
     Rules::none(

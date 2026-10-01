@@ -10,6 +10,7 @@ use Cbox\Cms\Core\Codecs\Boundary\JsonText;
 use Cbox\Cms\Core\Codecs\Boundary\JsonValues;
 use Cbox\Cms\Tests\Support\Arch\Codebase;
 use Cbox\Cms\Tests\Support\Arch\Fixtures\Codecs\ArraySlip;
+use Cbox\Cms\Tests\Support\Arch\Fixtures\Codecs\ObjectJsonSlip;
 use Cbox\Cms\Tests\Support\Arch\Fixtures\Codecs\SelfEncodingSlip;
 use Cbox\Cms\Tests\Support\Arch\HandWrittenCodecScan;
 use Cbox\Cms\Tests\Support\Arch\SourceFile;
@@ -115,4 +116,76 @@ it('reports a bound class that serialises itself', function (): void {
         SelfEncodingSlip::class.' serialises itself (JsonSerializable, jsonserialize); its JSON form is written only by its generated codec.',
         ArraySlip::class.' serialises itself (toarray); its JSON form is written only by its generated codec.',
     ]);
+});
+
+/**
+ * The findings of the scan over the planted JSON helpers and one planted file at $path that uses
+ * them.
+ *
+ * @return list<string>
+ */
+function helperFindings(string $path, string $code): array
+{
+    $fixtures = Codebase::root().'/tests/Support/Arch/Fixtures/Codecs';
+
+    return HandWrittenCodecScan::findings(
+        [
+            SourceFile::read($fixtures.'/ObjectJsonSlip.php'),
+            SourceFile::read($fixtures.'/JsonConstantsSlip.php'),
+            SourceFile::parse(Codebase::root().'/'.$path, $code),
+        ],
+        [Problem::class, Receipt::class],
+        static fn (string $class): bool => false,
+    );
+}
+
+const RECEIPT_THROUGH_HELPER = <<<'PHP'
+    <?php
+
+    declare(strict_types=1);
+
+    namespace Cbox\Cms\Http\Boundary;
+
+    use Cbox\Cms\Contracts\Receipts\Receipt;
+    use Cbox\Cms\Tests\Support\Arch\Fixtures\Codecs\ObjectJsonSlip;
+    use stdClass;
+
+    final readonly class ReceiptBody
+    {
+        public static function of(Receipt $receipt): string
+        {
+            $json = new stdClass;
+            $json->outcome = $receipt->outcome->value;
+
+            return ObjectJsonSlip::encode($json);
+        }
+    }
+    PHP;
+
+it('reports a file that names a bound class and writes it through a JSON helper that takes or gives an object', function (): void {
+    expect(helperFindings('packages/http/src/Boundary/ReceiptBody.php', RECEIPT_THROUGH_HELPER))->toBe([
+        'packages/http/src/Boundary/ReceiptBody.php:8: serialises Cbox\Cms\Contracts\Receipts\Receipt by hand with '.ObjectJsonSlip::class.'; its JSON form is written and read only by its generated codec.',
+    ]);
+});
+
+it('reports a file in a JSON helper\'s own namespace, which uses it without an import, at its first bound class', function (): void {
+    $code = str_replace(
+        ['namespace Cbox\Cms\Http\Boundary;', "use Cbox\\Cms\\Tests\\Support\\Arch\\Fixtures\\Codecs\\ObjectJsonSlip;\n"],
+        ['namespace Cbox\Cms\Tests\Support\Arch\Fixtures\Codecs;', ''],
+        RECEIPT_THROUGH_HELPER,
+    );
+
+    expect(helperFindings('tests/Support/Arch/Fixtures/Codecs/ReceiptBody.php', $code))->toBe([
+        'tests/Support/Arch/Fixtures/Codecs/ReceiptBody.php:7: serialises Cbox\Cms\Contracts\Receipts\Receipt by hand with '.ObjectJsonSlip::class.'; its JSON form is written and read only by its generated codec.',
+    ]);
+});
+
+it('does not count a class that writes JSON but takes and gives no object as a JSON helper', function (): void {
+    $code = str_replace(
+        ['use Cbox\Cms\Tests\Support\Arch\Fixtures\Codecs\ObjectJsonSlip;', 'return ObjectJsonSlip::encode($json);'],
+        ['use Cbox\Cms\Tests\Support\Arch\Fixtures\Codecs\JsonConstantsSlip;', 'return JsonConstantsSlip::MEDIA_TYPE.$json->outcome;'],
+        RECEIPT_THROUGH_HELPER,
+    );
+
+    expect(helperFindings('packages/http/src/Boundary/ReceiptBody.php', $code))->toBe([]);
 });

@@ -50,7 +50,9 @@ use Throwable;
  * - an integer bound with ValueBinding::value() is a value object of one integer, whose `minimum`
  *   and `maximum` the codec checks before its constructor does;
  * - a property bound with ValueBinding::fields() is the fields of a revision of any type: a
- *   `$ref` to `#/$defs/fields`, with the definitions of FieldValuesSchema exactly as they are there.
+ *   `$ref` to `#/$defs/fields`, with the definitions of FieldValuesSchema exactly as they are there;
+ * - a property bound with ValueBinding::document() is a JSON object of another contract, `"type":
+ *   "object"` (or it and null) without keys of its own, which its own contract's codec reads.
  *
  * `pattern`, and minLength and maxLength of a bound value, describe what the bound class's
  * constructor checks, for the other readers of the schema; the codec leaves the check to the class.
@@ -242,6 +244,10 @@ final readonly class JsonSchemaContract
 
         if (($this->binding->values[$pointer] ?? null)?->kind === CodecKind::Fields) {
             return [$this->fields($node, $this->binding->values[$pointer], $pointer), false];
+        }
+
+        if (($this->binding->values[$pointer] ?? null)?->kind === CodecKind::Document) {
+            return $this->document($node, $this->binding->values[$pointer], $pointer);
         }
 
         if (property_exists($node, 'anyOf')) {
@@ -538,6 +544,41 @@ final readonly class JsonSchemaContract
         }
 
         return CodecValue::fields(FieldValues::class);
+    }
+
+    /**
+     * A JSON object of another contract: `"type": "object"`, or `["object", "null"]` when it may be
+     * null, with a description at most, and no keys of its own, because its own contract's codec
+     * reads them; bound to a value object of one string, made with `new` from the object's JSON
+     * text and written from its `value`.
+     *
+     * @return array{CodecValue, bool}
+     *
+     * @throws GenerationFailed
+     */
+    private function document(stdClass $node, ValueBinding $binding, string $pointer): array
+    {
+        if (array_diff(array_keys(get_object_vars($node)), ['type', 'description']) !== []) {
+            throw $this->problem($pointer, 'is bound as a document of another contract, but has keywords besides "type" and "description"; its own contract fixes its keys');
+        }
+
+        $nullable = match ($node->type ?? null) {
+            'object' => false,
+            ['object', 'null'], ['null', 'object'] => true,
+            default => throw $this->problem($pointer, 'is bound as a document of another contract, but its "type" is not "object" or ["object", "null"]'),
+        };
+
+        if (! class_exists($binding->class)) {
+            throw $this->problem($pointer, sprintf('is bound to %s, which is not a class', $binding->class));
+        }
+
+        $class = new ReflectionClass($binding->class);
+
+        if (! $this->takesOneString($class) || ! $class->hasProperty('value') || ! $class->getProperty('value')->isPublic() || $this->named($class->getProperty('value')->getType()) !== 'string') {
+            throw $this->problem($pointer, sprintf('is bound to %s as a document, which has no constructor of one string and public string $value', $binding->class));
+        }
+
+        return [CodecValue::document($binding->class), $nullable];
     }
 
     /**
@@ -854,7 +895,7 @@ final readonly class JsonSchemaContract
             CodecKind::Date, CodecKind::Datetime => DateTimeImmutable::class,
             CodecKind::List, CodecKind::PortableText => 'array',
             CodecKind::Object => (string) $value->object?->class,
-            CodecKind::Id, CodecKind::Enum, CodecKind::Value, CodecKind::IntegerValue, CodecKind::Fields => (string) $value->class,
+            CodecKind::Id, CodecKind::Enum, CodecKind::Value, CodecKind::IntegerValue, CodecKind::Fields, CodecKind::Document => (string) $value->class,
         };
     }
 
