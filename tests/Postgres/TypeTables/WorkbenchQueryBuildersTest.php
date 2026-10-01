@@ -21,6 +21,7 @@ use Cbox\Cms\Contracts\TypeTables\RecordPage;
 use Cbox\Cms\Contracts\TypeTables\SortDirection;
 use Cbox\Cms\Contracts\TypeTables\TypeTableCursor;
 use Cbox\Cms\Core\Access\Infrastructure\ActorContext;
+use Cbox\Cms\Core\Reads\Domain\ReadAudit;
 use Cbox\Cms\Core\Tests\TypeTables\PostgresTypeTables;
 use Cbox\Cms\Core\TypeTables\Adapter\PostgresTypeTableReader;
 use Cbox\Cms\Testkit\TypeTables\TypeTableSeed;
@@ -201,7 +202,7 @@ it('filters, sorts and pages with a keyset through 200 rows in two regions, and 
 it('reads the same rows through a join to nodes as through the listed nodes of the regions', function (): void {
     seedMeasurements();
     $joined = new AppFixtureMeasurementQuery(
-        new PostgresTypeTableReader(app(ConnectionResolverInterface::class), app(TypeCatalog::class), regionNodeLimit: 0),
+        new PostgresTypeTableReader(app(ConnectionResolverInterface::class), app(TypeCatalog::class), app(ReadAudit::class), regionNodeLimit: 0),
         app(AppFixtureMeasurementRecordFactory::class),
     );
     $station = static fn (AppFixtureMeasurementQuery $query): AppFixtureMeasurementQuery => $query

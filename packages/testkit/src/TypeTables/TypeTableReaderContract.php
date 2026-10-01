@@ -114,23 +114,25 @@ trait TypeTableReaderContract
 
     /**
      * The suite's type: a field of every core field type, a group with nested fields, an
-     * encrypted field and an extension field of the namespace acme.
+     * encrypted field and an extension field of the namespace acme. `price` is internal, `day`
+     * personal, and the extension field `code` and the group's nested `amount` are closed to
+     * agents, so the cases can hold the reader to the fields a context may read.
      */
     public static function suiteType(): TypeDefinition
     {
-        $field = static fn (string $handle, string $fieldType, string $column, bool $notNull = false, bool $filterable = false, bool $sortable = false, ?string $namespace = null): FieldDefinition => new FieldDefinition(
+        $field = static fn (string $handle, string $fieldType, string $column, bool $notNull = false, bool $filterable = false, bool $sortable = false, ?string $namespace = null, ClassificationAccess $classification = ClassificationAccess::Public, bool $agents = true): FieldDefinition => new FieldDefinition(
             namespace: $namespace === null ? null : new FieldNamespace($namespace),
             handle: new FieldHandle($handle),
             fieldType: $fieldType,
-            classification: ClassificationAccess::Public,
-            agents: true,
+            classification: $classification,
+            agents: $agents,
             encrypted: false,
             required: $notNull,
             filterable: $filterable,
             sortable: $sortable,
             column: new ColumnDefinition($namespace === null ? $handle : 'ext__'.$namespace.'__'.$handle, $column, $notNull, []),
         );
-        $nested = static fn (string $handle, string $fieldType): FieldDefinition => new FieldDefinition(null, new FieldHandle($handle), $fieldType, ClassificationAccess::Public, true, false, false, false, false, null);
+        $nested = static fn (string $handle, string $fieldType, bool $agents = true): FieldDefinition => new FieldDefinition(null, new FieldHandle($handle), $fieldType, ClassificationAccess::Public, $agents, false, false, false, false, null);
 
         return new TypeDefinition(
             TypeId::fromString('0192a0c0-0000-7000-8000-00000000f001'),
@@ -141,19 +143,19 @@ trait TypeTableReaderContract
             [
                 $field('label', 'text', 'text', notNull: true, filterable: true, sortable: true),
                 $field('rank', 'integer', 'bigint', filterable: true, sortable: true),
-                $field('price', 'decimal', 'numeric(10, 2)', filterable: true),
-                $field('day', 'date', 'date', sortable: true),
+                $field('price', 'decimal', 'numeric(10, 2)', filterable: true, classification: ClassificationAccess::Internal),
+                $field('day', 'date', 'date', sortable: true, classification: ClassificationAccess::Personal, agents: false),
                 $field('at', 'datetime', 'timestamptz', filterable: true),
                 $field('flag', 'boolean', 'boolean', filterable: true),
                 $field('tags', 'select', 'text[]'),
                 $field('body', 'rich_text', 'jsonb'),
                 new FieldDefinition(null, new FieldHandle('notes'), 'group', ClassificationAccess::Public, true, false, false, false, false, new ColumnDefinition('notes', 'jsonb', false, []), [
                     $nested('note', 'text'),
-                    $nested('amount', 'decimal'),
+                    $nested('amount', 'decimal', agents: false),
                     $nested('seen_at', 'datetime'),
                 ]),
                 new FieldDefinition(null, new FieldHandle('secret'), 'text', ClassificationAccess::Confidential, false, true, false, false, false, new ColumnDefinition('secret', 'bytea', false, [])),
-                $field('code', 'text', 'text', filterable: true, sortable: true, namespace: 'acme'),
+                $field('code', 'text', 'text', filterable: true, sortable: true, namespace: 'acme', agents: false),
             ],
         );
     }
@@ -339,6 +341,57 @@ trait TypeTableReaderContract
     }
 
     #[Test]
+    public function it_leaves_out_every_field_above_the_contexts_classification_access(): void
+    {
+        $reader = $this->suiteReader();
+
+        foreach ([[ClassificationAccess::Personal, []], [ClassificationAccess::Internal, ['day']], [ClassificationAccess::Public, ['day', 'price']]] as [$access, $hidden]) {
+            $rows = $reader->page(self::suiteQuery(), self::suiteAliceAt($access))->rows;
+
+            Assert::assertSame(['e01', 'e02', 'e03', 'e06', 'e07', 'e09', 'e10'], self::suiteNames($rows), $access->value);
+
+            foreach ($rows as $row) {
+                $expected = self::suiteReadAs($row, $hidden, agent: false);
+                Assert::assertTrue($expected->equals($row->fields), sprintf('At %s access the fields of %s are not the fields the context may read.', $access->value, self::suiteName($row)));
+            }
+        }
+    }
+
+    #[Test]
+    public function an_agent_reads_only_the_fields_their_blueprints_open_to_agents(): void
+    {
+        $rows = $this->suiteReader()->page(self::suiteQuery(), self::suiteAliceAt(ClassificationAccess::Confidential, IssuerKind::Agent))->rows;
+
+        Assert::assertSame(['e01', 'e02', 'e03', 'e06', 'e07', 'e09', 'e10'], self::suiteNames($rows));
+
+        foreach ($rows as $row) {
+            Assert::assertTrue(self::suiteReadAs($row, ['day'], agent: true)->equals($row->fields), sprintf('The agent reads other fields of %s than its blueprint opens to agents.', self::suiteName($row)));
+            Assert::assertSame([], $row->fields->extensions, 'An extender whose fields are all closed to agents is left out.');
+        }
+    }
+
+    #[Test]
+    public function it_refuses_a_filter_or_an_order_on_a_field_the_context_may_not_read(): void
+    {
+        $this->assertSuiteRefusedFor(self::suiteQuery(filters: [new ColumnFilter('price', FilterOperator::Gt, new DecimalValue('10'))]), self::suiteAliceAt(ClassificationAccess::Public), 'is not readable');
+        $this->assertSuiteRefusedFor(self::suiteQuery(filters: [new ColumnFilter('price', FilterOperator::IsNull)]), AccessContext::anonymous(), 'is not readable');
+        $this->assertSuiteRefusedFor(self::suiteQuery(order: [new ColumnOrder('day')]), self::suiteAliceAt(ClassificationAccess::Internal), 'is not readable');
+        $this->assertSuiteRefusedFor(self::suiteQuery(filters: [new ColumnFilter('ext__acme__code', FilterOperator::Eq, new TextValue('x'))]), self::suiteAliceAt(ClassificationAccess::Confidential, IssuerKind::Agent), 'is not readable');
+        $this->assertSuiteRefusedFor(self::suiteQuery(order: [new ColumnOrder('ext__acme__code')]), self::suiteAliceAt(ClassificationAccess::Public, IssuerKind::Agent), 'is not readable');
+    }
+
+    #[Test]
+    public function it_filters_and_orders_on_the_fields_the_context_may_read(): void
+    {
+        $page = $this->suiteReader()->page(
+            self::suiteQuery(filters: [new ColumnFilter('price', FilterOperator::Gte, new DecimalValue('10.50'))], order: [new ColumnOrder('day', SortDirection::Descending)]),
+            self::suiteAliceAt(ClassificationAccess::Personal),
+        );
+
+        Assert::assertSame(['e09', 'e06', 'e01'], self::suiteNames($page->rows));
+    }
+
+    #[Test]
     public function it_refuses_a_type_the_catalog_does_not_have(): void
     {
         $this->assertSuiteRefused(new TypeTableQuery(new TypeName('suite:missing'), VariantKey::shared()), 'The installation has no type suite:missing.');
@@ -364,8 +417,13 @@ trait TypeTableReaderContract
 
     private function assertSuiteRefused(TypeTableQuery $query, string $message): void
     {
+        $this->assertSuiteRefusedFor($query, self::suiteAlice(), $message);
+    }
+
+    private function assertSuiteRefusedFor(TypeTableQuery $query, AccessContext $access, string $message): void
+    {
         try {
-            $this->suiteReader()->page($query, self::suiteAlice());
+            $this->suiteReader()->page($query, $access);
         } catch (InvalidTypeTableQuery $exception) {
             Assert::assertStringContainsString($message, $exception->getMessage());
 
@@ -399,6 +457,18 @@ trait TypeTableReaderContract
                 new AccessRegion(self::suitePath(self::ROOT, self::SOUTH, self::CITY, self::PARK)),
             ],
             ClassificationAccess::Sensitive,
+        );
+    }
+
+    /**
+     * ALICE's regions at the classification access, through a credential of the issuer kind.
+     */
+    private static function suiteAliceAt(ClassificationAccess $access, IssuerKind $issuer = IssuerKind::Service): AccessContext
+    {
+        return new AccessContext(
+            new ActorPrincipal(ActorId::fromString(self::ALICE), [], $issuer, $access),
+            self::suiteAlice()->regions,
+            $access,
         );
     }
 
@@ -496,6 +566,50 @@ trait TypeTableReaderContract
         }
 
         return new FieldValues(new FieldMap(...$own), ...$fields->extensions);
+    }
+
+    /**
+     * The fields a reader gives for the row's seed to a context that may not read the hidden
+     * fields of the owner, and for an agent without the extension field and the group's nested
+     * field that are closed to agents.
+     *
+     * @param  list<string>  $hidden
+     */
+    private static function suiteReadAs(TypeTableRow $row, array $hidden, bool $agent): FieldValues
+    {
+        $seed = array_find(self::suiteRows(), static fn (TypeTableSeed $seed): bool => $seed->entry->equals($row->entry));
+        Assert::assertInstanceOf(TypeTableSeed::class, $seed);
+        $read = self::suiteRead($seed->fields);
+        $own = [];
+
+        foreach ($read->own->fields as $field) {
+            if (in_array($field->handle->value, $hidden, true)) {
+                continue;
+            }
+
+            $own[] = $agent && $field->handle->value === 'notes' ? new NamedValue($field->handle, self::suiteWithoutAmount($field->value)) : $field;
+        }
+
+        return new FieldValues(new FieldMap(...$own), ...($agent ? [] : $read->extensions));
+    }
+
+    /**
+     * The value of the group `notes` without its nested field `amount`, in each item of a list.
+     */
+    private static function suiteWithoutAmount(FieldValue $value): FieldValue
+    {
+        if ($value instanceof ListValue) {
+            return new ListValue(...array_map(self::suiteWithoutAmount(...), $value->items));
+        }
+
+        if (! $value instanceof GroupValue) {
+            return $value;
+        }
+
+        return new GroupValue(new FieldMap(...array_values(array_filter(
+            $value->fields->fields,
+            static fn (NamedValue $field): bool => $field->handle->value !== 'amount',
+        ))));
     }
 
     /**

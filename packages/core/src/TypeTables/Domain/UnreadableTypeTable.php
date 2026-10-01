@@ -35,4 +35,9 @@ final class UnreadableTypeTable extends LogicException
     {
         return new self(sprintf('The column %s holds an encrypted field, and the kernel holds no key to write its ciphertext (PRD 12.2).', $column));
     }
+
+    public static function position(): self
+    {
+        return new self('Postgres gave the read\'s snapshot no xmin as text, so the read audit has no position.');
+    }
 }

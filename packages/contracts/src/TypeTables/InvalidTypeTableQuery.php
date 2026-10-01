@@ -82,6 +82,11 @@ final class InvalidTypeTableQuery extends InvalidArgumentException
         return new self(sprintf('The field of %s in the column %s is not sortable: its blueprint does not declare it sortable, so it has no index.', $type->value, $column));
     }
 
+    public static function notReadable(TypeName $type, string $column): self
+    {
+        return new self(sprintf('The field of %s in the column %s is not readable in this access context: its classification is above the context\'s classification access, or it is closed to agents, so a query may neither filter on it nor order by it.', $type->value, $column));
+    }
+
     private static function shown(string $value): string
     {
         $cut = strlen($value) > self::SHOWN ? substr($value, 0, self::SHOWN).'...' : $value;

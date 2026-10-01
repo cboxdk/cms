@@ -43,7 +43,8 @@ use Override;
  * memory, over the types of a TypeCatalog such as the FakeTypeCatalog. It runs the shared suite
  * TypeTableReaderContract, so a test of code that reads through the reader, a generated query
  * builder among them, sees what the kernel's reader on Postgres gives: the same refusals, the same
- * access predicate, filters, order with null as the greatest value, keyset pagination and fields.
+ * access predicate, filters, order with null as the greatest value, keyset pagination and fields,
+ * each row's fields as the context may read them. It writes no read audit.
  *
  * Text compares byte by byte, as Postgres compares it under the C collation; a test that depends
  * on a language's collation belongs on Postgres.
@@ -86,6 +87,7 @@ final readonly class FakeTypeTableReader implements TypeTableReader
         }
 
         $query->assertAllowedBy($type);
+        $query->assertReadableBy($type, $access);
         $actor = $access->principal instanceof ActorPrincipal ? $access->principal->actor : null;
 
         if ((! $actor instanceof ActorId && $access->regions === []) || ! $query->variant->isShared()) {
@@ -117,7 +119,7 @@ final readonly class FakeTypeTableReader implements TypeTableReader
             : null;
 
         return new TypeTablePage(
-            array_map(static fn (TypeTableSeed $row): TypeTableRow => new TypeTableRow($row->entry, self::read($type, $row->fields)), $page),
+            array_map(static fn (TypeTableSeed $row): TypeTableRow => new TypeTableRow($row->entry, $type->readable(self::read($type, $row->fields), $access->classificationAccess, $access->readsAsAgent())), $page),
             $next,
         );
     }

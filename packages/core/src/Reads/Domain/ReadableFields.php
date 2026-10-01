@@ -5,15 +5,10 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Reads\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
-use Cbox\Cms\Contracts\Fields\ExtensionFields;
 use Cbox\Cms\Contracts\Fields\FieldMap;
-use Cbox\Cms\Contracts\Fields\FieldNamespace;
-use Cbox\Cms\Contracts\Fields\FieldValue;
 use Cbox\Cms\Contracts\Fields\FieldValues;
-use Cbox\Cms\Contracts\Fields\GroupValue;
-use Cbox\Cms\Contracts\Fields\ListValue;
-use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Results\ReadContent;
 use Cbox\Cms\Contracts\Schema\FieldDefinition;
 use Cbox\Cms\Contracts\Schema\TypeCatalog;
@@ -26,10 +21,9 @@ use Cbox\Cms\Core\Reads\Domain\Dto\AuditedRead;
  * (PRD 12.12).
  *
  * strip() leaves out every field classified above the classification access, and every field the
- * entry's type does not declare, so an entry of a type the installation does not have keeps no
- * field: what the kernel cannot classify, it does not hand out. An extender whose fields are all
- * left out is left out too. A group is one top-level field with one classification, so it is kept
- * or left out whole by its classification.
+ * entry's type does not declare, by the type's TypeDefinition::readable(), the one rule every
+ * reader of fields applies, the TypeTableReader's included; an entry of a type the installation
+ * does not have keeps no field: what the kernel cannot classify, it does not hand out.
  *
  * For an agent it also leaves out every field whose definition does not open it to agents
  * (FieldDefinition::$agents, PRD 2.31, 12.2): a public or internal field unless its blueprint says
@@ -57,17 +51,8 @@ final readonly class ReadableFields
     public function strip(ReadContent $content, ClassificationAccess $access, bool $agent = false): ReadContent
     {
         $type = $this->types->find($content->type);
-        $extensions = [];
 
-        foreach ($content->fields->extensions as $extension) {
-            $fields = $this->allowed($type, $extension->namespace, $extension->fields, $access, $agent);
-
-            if (! $fields->isEmpty()) {
-                $extensions[] = new ExtensionFields($extension->namespace, $fields);
-            }
-        }
-
-        return $content->withFields(new FieldValues($this->allowed($type, null, $content->fields->own, $access, $agent), ...$extensions));
+        return $content->withFields($type instanceof TypeDefinition ? $type->readable($content->fields, $access, $agent) : new FieldValues(new FieldMap));
     }
 
     /**
@@ -75,64 +60,26 @@ final readonly class ReadableFields
      */
     public function audited(ReadContent $content): ?AuditedRead
     {
-        $type = $this->types->find($content->type);
-        $fields = [];
+        return self::auditedOf($this->types->find($content->type), $content->entry, $content->fields);
+    }
+
+    /**
+     * The fields of an entry of the type that require the read audit, or null when none does,
+     * for a reader that has the entry's fields without a ReadContent, such as the TypeTableReader.
+     */
+    public static function auditedOf(?TypeDefinition $type, EntryId $entry, FieldValues $fields): ?AuditedRead
+    {
+        $names = [];
         $highest = null;
 
-        foreach ($this->definitions($type, $content->fields) as $definition) {
+        foreach (self::definitions($type, $fields) as $definition) {
             if (in_array($definition->classification, self::AUDITED, true)) {
-                $fields[] = $definition->address();
+                $names[] = $definition->address();
                 $highest = ! $highest instanceof ClassificationAccess || $highest->rank() < $definition->classification->rank() ? $definition->classification : $highest;
             }
         }
 
-        return $highest instanceof ClassificationAccess ? new AuditedRead($content->entry, $fields, $highest) : null;
-    }
-
-    private function allowed(?TypeDefinition $type, ?FieldNamespace $namespace, FieldMap $fields, ClassificationAccess $access, bool $agent): FieldMap
-    {
-        $allowed = [];
-
-        foreach ($fields->fields as $field) {
-            $definition = $type?->field($namespace, $field->handle);
-
-            if ($definition instanceof FieldDefinition && $access->allows($definition->classification) && (! $agent || $definition->agents)) {
-                $allowed[] = $agent ? new NamedValue($field->handle, $this->forAgents($definition, $field->value)) : $field;
-            }
-        }
-
-        return new FieldMap(...$allowed);
-    }
-
-    /**
-     * The value of a field agents see, with the nested fields of a group that agents do not see
-     * left out, in the group's value and in each item of a repeated group's.
-     */
-    private function forAgents(FieldDefinition $definition, FieldValue $value): FieldValue
-    {
-        if ($definition->fields === []) {
-            return $value;
-        }
-
-        if ($value instanceof ListValue) {
-            return new ListValue(...array_map(fn (FieldValue $item): FieldValue => $this->forAgents($definition, $item), $value->items));
-        }
-
-        if (! $value instanceof GroupValue) {
-            return $value;
-        }
-
-        $nested = [];
-
-        foreach ($value->fields->fields as $field) {
-            $member = $definition->field($field->handle);
-
-            if ($member instanceof FieldDefinition && $member->agents) {
-                $nested[] = new NamedValue($field->handle, $this->forAgents($member, $field->value));
-            }
-        }
-
-        return new GroupValue(new FieldMap(...$nested));
+        return $highest instanceof ClassificationAccess ? new AuditedRead($entry, $names, $highest) : null;
     }
 
     /**
@@ -141,7 +88,7 @@ final readonly class ReadableFields
      *
      * @return list<FieldDefinition>
      */
-    private function definitions(?TypeDefinition $type, FieldValues $fields): array
+    private static function definitions(?TypeDefinition $type, FieldValues $fields): array
     {
         $definitions = [];
         $maps = [[null, $fields->own]];

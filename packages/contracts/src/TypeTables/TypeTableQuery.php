@@ -6,6 +6,7 @@ namespace Cbox\Cms\Contracts\TypeTables;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Content\VariantKey;
+use Cbox\Cms\Contracts\Identity\AccessContext;
 use Cbox\Cms\Contracts\Schema\ColumnDefinition;
 use Cbox\Cms\Contracts\Schema\FieldDefinition;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
@@ -87,6 +88,29 @@ final readonly class TypeTableQuery
         foreach ($this->order as $key) {
             if (! self::fieldOf($type, $key->column)->sortable) {
                 throw InvalidTypeTableQuery::notSortable($this->type, $key->column);
+            }
+        }
+    }
+
+    /**
+     * Refuses the query unless the context may read every field it filters on or orders by, and
+     * so every field its cursor holds (PRD 6.2, 12.2), as a reader checks it before it reads: a
+     * filter or an order on a field the reader would leave out of the rows would tell the caller
+     * about its values.
+     *
+     * @throws InvalidTypeTableQuery
+     */
+    public function assertReadableBy(TypeDefinition $type, AccessContext $access): void
+    {
+        $agent = $access->readsAsAgent();
+        $columns = [
+            ...array_map(static fn (ColumnFilter $filter): string => $filter->column, $this->filters),
+            ...array_map(static fn (ColumnOrder $key): string => $key->column, $this->order),
+        ];
+
+        foreach ($columns as $column) {
+            if (! self::fieldOf($type, $column)->readableBy($access->classificationAccess, $agent)) {
+                throw InvalidTypeTableQuery::notReadable($this->type, $column);
             }
         }
     }

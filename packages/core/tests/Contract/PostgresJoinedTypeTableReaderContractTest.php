@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\Tests\Contract;
 
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Contracts\TypeTables\TypeTableReader;
+use Cbox\Cms\Core\Reads\Domain\ReadAudit;
 use Cbox\Cms\Core\Tests\TypeTables\PostgresTypeTables;
 use Cbox\Cms\Core\TypeTables\Adapter\PostgresTypeTableReader;
 use Cbox\Cms\Testkit\Postgres\RealPostgres;
@@ -41,6 +42,6 @@ final class PostgresJoinedTypeTableReaderContractTest extends TestCase
         PostgresTypeTables::create($type);
         PostgresTypeTables::seed($type, ...$rows);
 
-        return PostgresTypeTables::inContext(new PostgresTypeTableReader(app(ConnectionResolverInterface::class), new FakeTypeCatalog($type), regionNodeLimit: 0));
+        return PostgresTypeTables::inContext(new PostgresTypeTableReader(app(ConnectionResolverInterface::class), new FakeTypeCatalog($type), app(ReadAudit::class), regionNodeLimit: 0));
     }
 }

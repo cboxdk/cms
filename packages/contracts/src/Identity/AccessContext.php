@@ -62,4 +62,13 @@ final readonly class AccessContext
     {
         return array_any($this->regions, fn (AccessRegion $region): bool => $region->reaches($node));
     }
+
+    /**
+     * Whether the principal is an actor whose credential was issued for an agent, who reads only
+     * the fields their blueprints open to agents (PRD 2.31, 12.2).
+     */
+    public function readsAsAgent(): bool
+    {
+        return $this->principal instanceof ActorPrincipal && $this->principal->issuerKind === IssuerKind::Agent;
+    }
 }

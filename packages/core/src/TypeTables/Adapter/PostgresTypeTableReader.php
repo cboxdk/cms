@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\TypeTables\Adapter;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Fields\FieldValue;
 use Cbox\Cms\Contracts\Fields\FieldValues;
@@ -13,6 +14,7 @@ use Cbox\Cms\Contracts\Identity\AccessContext;
 use Cbox\Cms\Contracts\Identity\AccessRegion;
 use Cbox\Cms\Contracts\Identity\ActorPrincipal;
 use Cbox\Cms\Contracts\Ids\ActorId;
+use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Schema\ColumnDefinition;
 use Cbox\Cms\Contracts\Schema\TypeCatalog;
@@ -28,6 +30,11 @@ use Cbox\Cms\Contracts\TypeTables\TypeTablePage;
 use Cbox\Cms\Contracts\TypeTables\TypeTableQuery;
 use Cbox\Cms\Contracts\TypeTables\TypeTableReader;
 use Cbox\Cms\Contracts\TypeTables\TypeTableRow;
+use Cbox\Cms\Core\Reads\Adapter\ConnectionQueryTransaction;
+use Cbox\Cms\Core\Reads\Domain\Dto\AuditedRead;
+use Cbox\Cms\Core\Reads\Domain\Dto\ReadAuditRecord;
+use Cbox\Cms\Core\Reads\Domain\ReadableFields;
+use Cbox\Cms\Core\Reads\Domain\ReadAudit;
 use Cbox\Cms\Core\TypeTables\Boundary\TypeTableColumns;
 use Cbox\Cms\Core\TypeTables\Domain\UnreadableTypeTable;
 use Illuminate\Database\ConnectionInterface;
@@ -52,6 +59,15 @@ use Override;
  * stays. So a page costs two queries, whatever the number of matching rows (GUARDRAILS 4.1), and a
  * context without an actor and without regions reads no row and runs none.
  *
+ * Each row's fields are those the context may read, TypeDefinition::readable() of the decoded
+ * row (PRD 6.2, 12.2), the rule the query pipeline strips by too; a filter or order on a field the
+ * context may not read is refused before the page is read (TypeTableQuery::assertReadableBy()).
+ * When the rows give an actor a field that requires the read audit, a sensitive one (PRD 12.12),
+ * the page writes it through the ReadAudit in the caller's read transaction, under the query name
+ * `type_tables.page` version 1 and at the read's position, the xmin of its snapshot; the ReadAudit
+ * writes on its own connection, the default one in the container, so a reader on a named
+ * connection is given a ReadAudit on the same one.
+ *
  * Null sorts as the greatest value, as Postgres sorts it by default, so the type table's indexes
  * on (cms_stage, cms_locale, column, cms_entry_id) serve both directions. The entry id follows the
  * direction of the last key.
@@ -61,6 +77,11 @@ final readonly class PostgresTypeTableReader implements TypeTableReader
 {
     /** The most nodes the regions may reach for the predicate to list them instead of joining nodes. */
     public const int REGION_NODE_LIMIT = 100;
+
+    /** The name the read audit records a page of a type table under; no query action has it. */
+    public const string AUDIT_QUERY = 'type_tables.page';
+
+    public const int AUDIT_QUERY_VERSION = 1;
 
     private const string TABLE = 't';
 
@@ -73,6 +94,7 @@ final readonly class PostgresTypeTableReader implements TypeTableReader
     public function __construct(
         private ConnectionResolverInterface $connections,
         private TypeCatalog $catalog,
+        private ReadAudit $audit,
         private ?string $connection = null,
         private int $regionNodeLimit = self::REGION_NODE_LIMIT,
     ) {}
@@ -87,6 +109,7 @@ final readonly class PostgresTypeTableReader implements TypeTableReader
         }
 
         $query->assertAllowedBy($type);
+        $query->assertReadableBy($type, $access);
 
         $actor = $access->principal instanceof ActorPrincipal ? $access->principal->actor : null;
 
@@ -123,12 +146,44 @@ final readonly class PostgresTypeTableReader implements TypeTableReader
                 throw UnreadableTypeTable::missingColumn('cms_entry_id');
             }
 
-            $read[] = new TypeTableRow(EntryId::fromString($entry), TypeTableColumns::decode($type, $values));
+            $read[] = new TypeTableRow(EntryId::fromString($entry), $type->readable(TypeTableColumns::decode($type, $values), $access->classificationAccess, $access->readsAsAgent()));
         }
 
+        $this->audit($db, $type, $access, $read);
         $last = $read === [] ? null : $read[count($read) - 1];
 
         return new TypeTablePage($read, $more && $last instanceof TypeTableRow ? $this->cursor($type, $query->order, $last) : null);
+    }
+
+    /**
+     * The read audit of the rows' fields that require it (PRD 12.12), in the caller's read
+     * transaction with the read's position, as the query pipeline writes it. Only an actor reads a
+     * field that requires it.
+     *
+     * @param  list<TypeTableRow>  $rows
+     */
+    private function audit(ConnectionInterface $db, TypeDefinition $type, AccessContext $access, array $rows): void
+    {
+        if (! $access->principal instanceof ActorPrincipal) {
+            return;
+        }
+
+        $reads = array_values(array_filter(array_map(
+            static fn (TypeTableRow $row): ?AuditedRead => ReadableFields::auditedOf($type, $row->entry, $row->fields),
+            $rows,
+        )));
+
+        if ($reads === []) {
+            return;
+        }
+
+        $position = $db->scalar(ConnectionQueryTransaction::POSITION);
+
+        if (! is_string($position)) {
+            throw UnreadableTypeTable::position();
+        }
+
+        $this->audit->record(new ReadAuditRecord($access->principal->actor, new CommandName(self::AUDIT_QUERY), self::AUDIT_QUERY_VERSION, new CommitPosition($position), $reads));
     }
 
     private function filter(Builder $builder, ColumnFilter $filter): void

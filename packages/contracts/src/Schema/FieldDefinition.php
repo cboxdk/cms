@@ -93,6 +93,18 @@ final readonly class FieldDefinition
     }
 
     /**
+     * Whether a reader with the classification access may read the field (PRD 6.2, 12.2): its
+     * classification is at most the access, and for an agent its blueprint opens it to agents
+     * (PRD 2.31).
+     *
+     * @param  bool  $agent  whether the reader's credential was issued for an agent
+     */
+    public function readableBy(ClassificationAccess $access, bool $agent): bool
+    {
+        return $access->allows($this->classification) && (! $agent || $this->agents);
+    }
+
+    /**
      * The core field type whose form the field's value takes: the field type itself for a core
      * field type, and its base for an addon's.
      */
