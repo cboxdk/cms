@@ -94,7 +94,7 @@ function sortedKeys(array $keys): array
     return $keys;
 }
 
-it('compiles an allow, a deny below it and a more specific allow below the deny into regions, with the highest ceiling capped by the credential', function (): void {
+it('compiles an allow, a deny below it and a more specific allow below the deny into regions, with the access that holds on every node reached, capped by the credential', function (): void {
     AccessWorld::seed();
     $app = DB::connection();
     $resolver = new PostgresAccessResolver(app('db'), new AccessCompiler);
@@ -111,7 +111,7 @@ it('compiles an allow, a deny below it and a more specific allow below the deny 
     $culture = new NodePath(AccessWorld::path(AccessWorld::ROOT, AccessWorld::CULTURE));
 
     expect($alice->regions)->toEqual(sortedRegions([new AccessRegion($news, [$sport]), new AccessRegion($football), new AccessRegion($culture)]))
-        ->and($alice->classificationAccess)->toBe(ClassificationAccess::Confidential)
+        ->and($alice->classificationAccess)->toBe(ClassificationAccess::Internal)
         ->and($alice->reaches($football))->toBeTrue()
         ->and($alice->reaches($sport))->toBeFalse()
         ->and($bob->regions)->toEqual([new AccessRegion($sport)])

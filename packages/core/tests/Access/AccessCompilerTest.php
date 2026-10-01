@@ -128,15 +128,25 @@ it('keeps a node reached through the locales a deny does not name', function ():
         ->and(regionsOf([grantOn('r.news', locales: ['da']), grantOn('r.news', GrantEffect::Deny, locales: ['en'])]))->toBe(['r.news']);
 });
 
-it('gives the highest ceiling among the roles that reach a node, capped by the credential\'s ceiling', function (): void {
+it('gives on each node the highest ceiling among the roles that reach it, the lowest of those over the nodes, capped by the credential\'s ceiling', function (): void {
     expect(classificationOf([grantOn('r.news')]))->toBe(ClassificationAccess::Internal)
-        ->and(classificationOf([grantOn('r.news'), grantOn('r.culture', role: LEGAL, ceiling: ClassificationAccess::Personal)]))->toBe(ClassificationAccess::Personal)
-        ->and(classificationOf([grantOn('r.culture', role: LEGAL, ceiling: ClassificationAccess::Personal), grantOn('r.news')]))->toBe(ClassificationAccess::Personal)
-        ->and(classificationOf([grantOn('r.news'), grantOn('r.culture', role: LEGAL, ceiling: ClassificationAccess::Personal)], ClassificationAccess::Confidential))->toBe(ClassificationAccess::Confidential)
+        ->and(classificationOf([grantOn('r.news'), grantOn('r.news', role: LEGAL, ceiling: ClassificationAccess::Personal)]))->toBe(ClassificationAccess::Personal)
+        ->and(classificationOf([grantOn('r.news', role: LEGAL, ceiling: ClassificationAccess::Personal), grantOn('r', ceiling: ClassificationAccess::Public), grantOn('r.culture', role: LEGAL, ceiling: ClassificationAccess::Personal)]))->toBe(ClassificationAccess::Public)
+        ->and(classificationOf([grantOn('r.news'), grantOn('r', role: LEGAL, ceiling: ClassificationAccess::Personal)]))->toBe(ClassificationAccess::Personal)
+        ->and(classificationOf([grantOn('r.news'), grantOn('r.news', role: LEGAL, ceiling: ClassificationAccess::Personal)], ClassificationAccess::Confidential))->toBe(ClassificationAccess::Confidential)
         ->and(classificationOf([grantOn('r.news'), grantOn('r.culture', GrantEffect::Deny, LEGAL, ClassificationAccess::Sensitive)]))->toBe(ClassificationAccess::Internal)
         ->and(classificationOf([grantOn('r.culture', role: LEGAL, ceiling: ClassificationAccess::Sensitive), grantOn('r.culture', GrantEffect::Deny, LEGAL, ClassificationAccess::Sensitive)]))->toBe(ClassificationAccess::Public)
         ->and(classificationOf([grantOn('r.culture', role: LEGAL, ceiling: ClassificationAccess::Sensitive, locales: ['da']), grantOn('r.culture', GrantEffect::Deny, LEGAL, ClassificationAccess::Sensitive, ['en'])]))->toBe(ClassificationAccess::Sensitive)
         ->and(classificationOf([grantOn('r.news', ceiling: ClassificationAccess::Public)]))->toBe(ClassificationAccess::Public);
+});
+
+it('never lifts the access on the nodes of one role by the ceiling another role has on other nodes', function (): void {
+    expect(classificationOf([grantOn('r.site1', ceiling: ClassificationAccess::Public), grantOn('r.site2.small', role: LEGAL, ceiling: ClassificationAccess::Sensitive)]))->toBe(ClassificationAccess::Public)
+        ->and(classificationOf([grantOn('r.site2.small', role: LEGAL, ceiling: ClassificationAccess::Sensitive), grantOn('r.site1', ceiling: ClassificationAccess::Public)]))->toBe(ClassificationAccess::Public)
+        ->and(classificationOf([grantOn('r.news'), grantOn('r.culture', role: LEGAL, ceiling: ClassificationAccess::Personal)]))->toBe(ClassificationAccess::Internal)
+        ->and(classificationOf([grantOn('r', role: LEGAL, ceiling: ClassificationAccess::Sensitive), grantOn('r.news', GrantEffect::Deny, LEGAL, ClassificationAccess::Sensitive), grantOn('r.news', ceiling: ClassificationAccess::Public)]))->toBe(ClassificationAccess::Public)
+        ->and(classificationOf([grantOn('r', role: LEGAL, ceiling: ClassificationAccess::Sensitive), grantOn('r.news', GrantEffect::Deny, LEGAL, ClassificationAccess::Sensitive), grantOn('r.news.sport', role: LEGAL, ceiling: ClassificationAccess::Sensitive)]))->toBe(ClassificationAccess::Sensitive)
+        ->and(classificationOf([grantOn('r', role: LEGAL, ceiling: ClassificationAccess::Sensitive, locales: ['da']), grantOn('r.news', ceiling: ClassificationAccess::Public, locales: ['en'])]))->toBe(ClassificationAccess::Sensitive);
 });
 
 it('returns a context the contract accepts, whose reach matches the grants node by node', function (): void {

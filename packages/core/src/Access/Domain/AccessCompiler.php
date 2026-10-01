@@ -30,8 +30,10 @@ use Cbox\Cms\Core\Access\Domain\Dto\Grant;
  * nearest decided node above is reached, as its exceptions. A region can then lie inside another's
  * exception, and no node is in two regions.
  *
- * The classification access is the highest ceiling among the roles that apply, those that reach at
- * least one node, capped by the credential's ceiling; with no role that applies it is public.
+ * The classification access is the one that holds on every node reached: on each node the highest
+ * ceiling among the roles that reach it, and the lowest of those over the nodes, capped by the
+ * credential's ceiling; with no node reached it is public. One context carries one access, so a
+ * role with a high ceiling on a few nodes never lifts the fields of the others.
  */
 #[Internal]
 final readonly class AccessCompiler
@@ -56,7 +58,7 @@ final readonly class AccessCompiler
         return new AccessContext(
             $principal,
             $this->regions($marks, $paths),
-            $this->classification($grants, $decisions)->atMost($principal->classificationCeiling()),
+            $this->classification($grants, $decisions, $paths)->atMost($principal->classificationCeiling()),
         );
     }
 
@@ -121,15 +123,13 @@ final readonly class AccessCompiler
      */
     private function reached(array $decisions, NodePath $node): bool
     {
+        $reached = false;
+
         foreach ($decisions as $byLocale) {
-            foreach ($byLocale as $byPath) {
-                if ($this->nearest($byPath, $node) === GrantEffect::Allow) {
-                    return true;
-                }
-            }
+            $reached = $reached || $this->roleReaches($byLocale, $node);
         }
 
-        return false;
+        return $reached;
     }
 
     /**
@@ -228,39 +228,61 @@ final readonly class AccessCompiler
     }
 
     /**
-     * The highest ceiling among the roles that reach a node in some locale: those with an allow
-     * that no deny on the same path and locale beats.
+     * The classification access that holds on every node the actor reaches: for each node, the
+     * highest ceiling among the roles that reach it in some locale, and of those the lowest. A role
+     * whose ceiling is high on one node therefore never raises the access on a node it does not
+     * reach (PRD 5.10, 12.2). The decisions change only at the paths the grants name, so a node
+     * below such a path and above no other gets the same roles as the path, and the paths are the
+     * nodes to look at. With no node reached the access is public.
      *
      * @param  list<Grant>  $grants
      * @param  array<string, array<string, array<string, GrantEffect>>>  $decisions
+     * @param  array<string, NodePath>  $paths
      */
-    private function classification(array $grants, array $decisions): ClassificationAccess
+    private function classification(array $grants, array $decisions, array $paths): ClassificationAccess
     {
-        $highest = ClassificationAccess::Public;
+        $ceilings = [];
 
         foreach ($grants as $grant) {
-            if ($grant->roleCeiling->rank() > $highest->rank() && $this->applies($decisions[$grant->role->toString()] ?? [])) {
-                $highest = $grant->roleCeiling;
+            $ceilings[$grant->role->toString()] = $grant->roleCeiling;
+        }
+
+        $lowest = null;
+
+        foreach ($paths as $path) {
+            $highest = null;
+
+            foreach ($decisions as $role => $byLocale) {
+                if (! $this->roleReaches($byLocale, $path)) {
+                    continue;
+                }
+
+                if ($highest === null || $ceilings[$role]->rank() > $highest->rank()) {
+                    $highest = $ceilings[$role];
+                }
+            }
+
+            if ($highest !== null && ($lowest === null || $highest->rank() < $lowest->rank())) {
+                $lowest = $highest;
             }
         }
 
-        return $highest;
+        return $lowest ?? ClassificationAccess::Public;
     }
 
     /**
-     * Whether a role reaches a node in a locale: it has an allow that no deny on the same path
-     * and locale beats.
+     * Whether one role reaches the node in some locale.
      *
      * @param  array<string, array<string, GrantEffect>>  $byLocale
      */
-    private function applies(array $byLocale): bool
+    private function roleReaches(array $byLocale, NodePath $node): bool
     {
-        $effects = [];
+        $reaches = false;
 
         foreach ($byLocale as $byPath) {
-            array_push($effects, ...array_values($byPath));
+            $reaches = $reaches || $this->nearest($byPath, $node) === GrantEffect::Allow;
         }
 
-        return in_array(GrantEffect::Allow, $effects, true);
+        return $reaches;
     }
 }

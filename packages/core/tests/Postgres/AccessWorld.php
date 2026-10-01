@@ -27,10 +27,11 @@ use Illuminate\Database\DatabaseManager;
  * The tree: the site root ROOT with NEWS, SPORT below NEWS, FOOTBALL below SPORT, CULTURE below the
  * root, and the mount MOUNT of NEWS below the root. ALICE holds the role desk (ceiling internal)
  * allowed on NEWS, denied on SPORT and allowed again on FOOTBALL, and the role legal (ceiling
- * personal) on CULTURE; her credential's ceiling is confidential. BOB holds desk on SPORT, with a
+ * personal) on CULTURE; her credential's ceiling is confidential, and her access internal, the one
+ * that holds on every node she reaches. BOB holds desk on SPORT, with a
  * credential ceiling of sensitive, and owns ENTRY_OWNED. The entries are homed on NEWS, SPORT,
  * FOOTBALL, CULTURE and twice on the root: ENTRY_PUBLIC, released with a live placement on NEWS,
- * and ENTRY_OWNED. CHANGESET_ALICE has a confidential reason text and CHANGESET_PERSONAL a personal
+ * and ENTRY_OWNED. CHANGESET_ALICE has an internal reason text and CHANGESET_PERSONAL a personal
  * one.
  */
 final class AccessWorld
@@ -240,7 +241,7 @@ final class AccessWorld
         ]);
 
         $superuser->table('changeset_principals')->insert(['changeset_id' => self::CHANGESET_BOB, 'position' => 1, 'actor_id' => self::ALICE]);
-        $superuser->table('changeset_reason_texts')->insert(['changeset_id' => self::CHANGESET_ALICE, 'classification' => 'confidential', 'text' => 'Source asked for a correction.', 'created_at' => self::CREATED_AT]);
+        $superuser->table('changeset_reason_texts')->insert(['changeset_id' => self::CHANGESET_ALICE, 'classification' => 'internal', 'text' => 'Source asked for a correction.', 'created_at' => self::CREATED_AT]);
         $superuser->table('changeset_reason_texts')->insert(['changeset_id' => self::CHANGESET_PERSONAL, 'classification' => 'personal', 'text' => 'Corrected a reader\'s address.', 'created_at' => self::CREATED_AT]);
 
         foreach (self::REVISIONS as $revision => [$entry, $kind, $changeset]) {
