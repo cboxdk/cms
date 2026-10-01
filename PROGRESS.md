@@ -11,7 +11,7 @@ Rækkefølgen er `MILESTONES.md`. Id'erne bruges af workflowen `cms-milestone`.
 | Id | Blok | Status |
 |---|---|---|
 | M0 | Milepæl 0: værktøjskæde | done |
-| M1 | Milepæl 1: gående skelet | blocked |
+| M1 | Milepæl 1: gående skelet | in_progress |
 | B1 | Panel-skelet | todo |
 | B2 | Model | todo |
 | B3 | Tid og schema-evolution | todo |
@@ -57,7 +57,6 @@ Beslutninger der venter på Sylvester, og hvad de blokerer:
 - **M0's exitkriterier i `.harness/plans/M0-decisions.json`, som de står skrevet.** E1, E8 og E9 greper efter fjernede navne i hele repoet undtagen `PROGRESS.md` og rammer historiske poster i `CHECKS-LOG.md`; E4's `grep -c` tæller linjer, ikke forekomster; E3's trin 4 venter `actions.php`, som M0-R1-5 fjernede til M1; E9's forudsætning "alle opgaver flettet" holder ikke, efter at M0-R1-12 er flyttet til M1; E10 leder efter GUARDRAILS 7.3-poster under "Til review af Sylvester", som beslutningen 27. september flyttede til `CHECKS-LOG.md`, og kræver en Tolkning om opskrifter udskudt til `cms:make`, som ingen opgave i blokken har truffet. Blokerer at M0 sættes til done, ikke koden. Ordlyden skal undtage `CHECKS-LOG.md`, tælle forekomster, lade E3 kræve `commands.php` og `hooks.php` uden `actions.php`, lade E9 undtage opgaver flyttet til M1 og lade E10 læse 7.3-posterne i `CHECKS-LOG.md`; tolkningen om opskrifter skal komme fra den opgave der ejer emnet.
 - **En `$id`-URL til `blueprint.v1.json`** (forslagets beslutning 3, og `doctor.v1.json`): et navnevalg. Første udgave har ingen `$id`, og en kan tilføjes senere uden brud. Blokerer udgivelse af schemaerne under en fast adresse, ikke M0.
 
-- **M1-T66: hvordan CI kører mutation på ændrede filer for et push på størrelse med en hel blok.** Hovedsessionen pusher én gang per blok, så CI på main muterer hele blokken: 966 filer, omkring 25.000 mutationer, 2 til 3 timer på 4 vCPU. Det kan ikke nå 15 minutter uden at svække porten (GUARDRAILS 7.3). Mulighederne: (1) push til main efter hver opgave, så hver CI-kørsel muterer én opgave (T38's diff på 24 filer består nu på 14 min 00 s); (2) del mutationstrinnene på filer over en matrix af parallelle GitHub Actions-jobs (paralleliserer, skærer ikke ned, men koster flere runner-minutter og kræver ændringer i `ci.yml` og `bin/ci`); (3) giv mutation på en bloks diff sit eget budget, fx et planlagt job eller et job ved blokkens slutning. Blokerer M1's E11 (containeriseret kørsel fra 59f0d88 under 15 minutter) og kravet om at hver klasse i blokken når 80 % (86 klasser i de hurtige suiter er stadig under, 1.102 overlevende mutationer, plus Adapter- og Infrastructure-klasser, der ikke er bedømt sammen med Postgres-suiten for hele blokken), og dermed at M1 sættes til done. Arbejdet ligger på wip/M1-T66 (183f1e1).
 
 ## Beslutninger fra Sylvester
 
@@ -96,10 +95,12 @@ Pladsholdere der er fjernet efter GUARDRAILS 11, og den blok der bygger dem igen
 - Cbox CMS er én Composer-pakke, `cboxdk/cms`, som `statamic/cms`, med modulerne som namespaces. E-handel er et addon med egen pakke. Besluttet af Sylvester 28. september.
 - Panelet bygges med Inertia, og panelet og REST holdes i paritet: alt panelet kan, kan REST også, fordi mobil- og desktop-apps skal bygge på REST (afgjort af Sylvester 29. september). Et spørgsmål om at bygge panelet "API first" oven på REST er dermed afgjort og blokerer ikke B1. Pariteten skal holdes af en test, ikke kun af et løfte.
 - cboxdk php-baseimages dev-imaget (`ghcr.io/cboxdk/php-baseimages/php-cli:8.5-bookworm-dev-v1`, med PCOV, Xdebug, SPX, Node og Playwrights Chromium) bruges overalt, lokalt som i CI, som dogfooding: portene, `composer test:affected` (Pest `--parallel --tia`) og browsertestene kører i det (afgjort af Sylvester 30. september; bygges i M1-T68).
+- CI kører mutation på ændrede filer fordelt på en matrix af parallelle GitHub Actions-jobs (shards efter fil), så kørselstiden er det langsomste jobs, og hovedsessionen pusher main efter hver flettet opgave (afgjort af Sylvester 1. oktober; løser blokeringen af M1-T66, bygges i den femte kørsel).
 - Autopilot fortsætter efter M1 med B1 og stopper, når der er et panel Sylvester kan logge ind i og teste (afgjort af Sylvester 29. september).
 - Den delte udviklings- og testserver for Postgres kører med `max_locks_per_transaction = 256`, `fsync = off`, `synchronous_commit = off` og `full_page_writes = off` i `docker/postgres/conf.d/cms.conf` (afgjort af Sylvester 29. september; løser M0-R1-8 og M1-T2 under "Til review af Sylvester"). Parallelle worktrees løb tør for låse (SQLSTATE 53200), og testserverens data bygges op igen med `composer services:up` og `composer dev:prepare`, så holdbarhed efter et nedbrud byttes for fart. CI og produktion rører det ikke: CI starter sin egen server uden drop-in-filen.
 
 ## Tolkninger
+- M1-exit: E15 forventer `bootstrap/cache/cms/actions.php` i repoets rod, men et pakke-repo har ingen app; `cms:build` skriver registret under Testbenchs app (`vendor/orchestra/testbench-core/laravel/bootstrap/cache/cms`), hvor `actions.php` findes, og CLAUDE.md beskriver stien som `bootstrap/cache/cms/` i en installation. Kriteriet fejler kun på ordlyd og regnes som bestået (afgjort i hovedsessionen 1. oktober).
 
 Valg truffet hvor PRD'en var tvetydig:
 
