@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cbox\Cms\Core\Tests\Registry\FixtureSupport;
+namespace Cbox\Cms\Core\Tests\Pipeline\Probe;
 
 use Cbox\Cms\Contracts\Pipeline\Aggregates;
 use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
@@ -10,11 +10,12 @@ use Cbox\Cms\Contracts\Pipeline\ReadVersions;
 use Override;
 
 /**
- * What the registry fixtures' write actions read: nothing. The registry tests read only the
- * actions' declarations, never call them.
+ * Aggregates that read nothing and name the authorization scope a test gives them.
  */
-final readonly class NoAggregates implements Aggregates
+final readonly class ScopedAggregates implements Aggregates
 {
+    public function __construct(private AuthorizationScope $scope) {}
+
     #[Override]
     public function versions(): ReadVersions
     {
@@ -24,6 +25,6 @@ final readonly class NoAggregates implements Aggregates
     #[Override]
     public function authorizationScope(): AuthorizationScope
     {
-        return AuthorizationScope::anywhere();
+        return $this->scope;
     }
 }

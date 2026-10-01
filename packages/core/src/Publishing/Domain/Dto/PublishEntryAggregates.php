@@ -12,6 +12,8 @@ use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Pipeline\Aggregates;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationTarget;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersions;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
@@ -75,5 +77,26 @@ final readonly class PublishEntryAggregates implements Aggregates
         ];
 
         return PlacementReads::unique($reads);
+    }
+
+    /**
+     * The entry's home and the home placement's node, each in the command's locale: the release is
+     * a content right, the window a placement right (PRD 5.10). What read as absent is left out,
+     * and anywhere when both did.
+     */
+    #[Override]
+    public function authorizationScope(): AuthorizationScope
+    {
+        $targets = [];
+
+        if ($this->stored instanceof StoredEntry) {
+            $targets[] = new AuthorizationTarget($this->stored->home, $this->locale);
+        }
+
+        if ($this->storedPlacement instanceof StoredPlacement) {
+            $targets[] = new AuthorizationTarget($this->storedPlacement->node, $this->locale);
+        }
+
+        return $targets === [] ? AuthorizationScope::anywhere() : AuthorizationScope::on(...$targets);
     }
 }

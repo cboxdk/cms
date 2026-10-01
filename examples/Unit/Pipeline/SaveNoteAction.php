@@ -47,7 +47,7 @@ final readonly class SaveNoteAction implements WriteAction
     #[Override]
     public function resolve(Command $command): NoteAggregates
     {
-        return new NoteAggregates($command->note, $this->shelf->find($command->note), $this->newPlacement);
+        return new NoteAggregates($command->note, $this->shelf->find($command->note), $this->newPlacement, $command->home);
     }
 
     /**

@@ -9,6 +9,8 @@ use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Content\VariantRef;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Pipeline\Aggregates;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationTarget;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersions;
 use Cbox\Cms\Core\Entries\Domain\Dto\StoredEntry;
@@ -51,5 +53,15 @@ final readonly class UnpublishEntryAggregates implements Aggregates
         }
 
         return PlacementReads::unique($reads);
+    }
+
+    /**
+     * The entry's home in every locale: taking content back everywhere is a content right (PRD
+     * 5.10); anywhere when the entry read as absent.
+     */
+    #[Override]
+    public function authorizationScope(): AuthorizationScope
+    {
+        return $this->stored instanceof StoredEntry ? AuthorizationScope::on(new AuthorizationTarget($this->stored->home)) : AuthorizationScope::anywhere();
     }
 }

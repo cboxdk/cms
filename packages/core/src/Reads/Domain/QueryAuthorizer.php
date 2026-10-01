@@ -17,9 +17,8 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\Authorization;
  * language, which the pipeline answers as unauthorized. What rows the read reaches is not its
  * question; row level security under the context decides that (PRD 5.10).
  *
- * The kernel's implementation comes with the rule for which roles' permissions allow which commands
- * and reads, together with the CommandAuthorizer's (PROGRESS.md, "Til review af Sylvester"); until
- * one is bound, the container cannot build the QueryPipeline.
+ * The kernel's implementation is the Access feature's PostgresQueryAuthorizer: a public read for
+ * anyone, any other through a role whose permissions name it.
  */
 #[Internal]
 interface QueryAuthorizer

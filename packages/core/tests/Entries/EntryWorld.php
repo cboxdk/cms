@@ -94,8 +94,8 @@ use LogicException;
  * Postgres idempotency and receipt stores, the actor directory, the entry reader, the revision
  * contents a release is validated against, and the PostgresChangesetCommitter with the locks of
  * actors, entries, variants and nodes and the writers of the entry mutations, all on
- * that connection. The types and their validators are the workbench's generated ones. Only what the
- * kernel has no real implementation of yet is a fake: the authorizer, which allows, and the content
+ * that connection. The types and their validators are the workbench's generated ones. Fakes, so a test decides
+ * what they answer: the authorizer, which allows, and the content
  * hasher. The hooks are none, unless a test gives the world the compiled registry's.
  *
  * The world's structure, written by seed() as the superuser, is the site root ROOT with the section

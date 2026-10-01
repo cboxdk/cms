@@ -11,6 +11,8 @@ use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Pipeline\Aggregates;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationTarget;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersions;
 use Override;
@@ -41,5 +43,15 @@ final readonly class CreateEntryAggregates implements Aggregates
             new ReadVersion($variant, $this->existing?->head?->version),
             new ReadVersion($this->home, $this->homeVersion),
         );
+    }
+
+    /**
+     * The home node in every locale, when it was read; anywhere when it read as absent, which the
+     * kernel rejects after the authorization.
+     */
+    #[Override]
+    public function authorizationScope(): AuthorizationScope
+    {
+        return $this->homeVersion instanceof AggregateVersion ? AuthorizationScope::on(new AuthorizationTarget($this->home)) : AuthorizationScope::anywhere();
     }
 }

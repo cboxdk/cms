@@ -9,6 +9,8 @@ use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationTarget;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Plans\Mutation;
 use Cbox\Cms\Contracts\Plans\Mutations\HeadMoved;
@@ -60,6 +62,7 @@ it('creates, places and heads a new note, and reads it as absent', function (): 
     expect($aggregates)->toBeInstanceOf(NoteAggregates::class)
         ->and($aggregates->versions()->reads)->toHaveCount(3)
         ->and($aggregates->versions()->of($command->note))->toEqual(ReadVersion::absent($command->note))
+        ->and($aggregates->authorizationScope())->toEqual(AuthorizationScope::on(new AuthorizationTarget($command->home)))
         ->and(array_map(static fn (Mutation $mutation): bool => $aggregates->versions()->of($mutation->aggregate()) instanceof ReadVersion, $plan->mutations()))->toBe([true, true, true, true])
         ->and(mutationNames(...$plan->mutations()))->toBe(['EntryCreated', 'RevisionCreated', 'HeadMoved', 'PlacementCreated']);
 });

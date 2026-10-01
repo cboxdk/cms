@@ -104,6 +104,8 @@ What `resolve()` returns implements `Cbox\Cms\Contracts\Pipeline\Aggregates`: th
 
 A command that carries the versions its caller saw implements `Cbox\Cms\Contracts\Pipeline\ExpectsVersions`, which extends `Command`: `expectedVersions()` gives a `ReadVersions` of the aggregates the caller read, each at its version or absent. The kernel compares them with what `resolve()` read and rejects the command with `version_conflict` when one differs, before it authorizes anything (invariant 11). Each aggregate a command expects a version of must be one its action reads.
 
+`Aggregates` also tells the kernel where to authorize the command (PRD 5.10): `authorizationScope()` gives a `Cbox\Cms\Contracts\Pipeline\AuthorizationScope` of `AuthorizationTarget`s, each a `NodeId` and the `Locale` the command acts in there, or null for a command that acts in every locale, such as one on an entry's shared variant. Name the node from what `resolve()` read: the entry's home for a content right, the placement's node for a placement right. The kernel allows the command only when a role of the actor whose permissions name the command reaches every target, with the grants that hold in its locale; a target in every locale must be reached in each locale, so a grant limited to some locales does not reach it. `AuthorizationScope::anywhere()` is for a command whose aggregates name no node, or whose node read as absent: the kernel then needs the permission on some node and leaves the absent aggregate to the later phases. The anonymous principal holds no role and runs no command.
+
 A write action whose command what it read can rule out also implements `Cbox\Cms\Contracts\Pipeline\RefusesCommand`: `refusals(Command, Aggregates)` gives the errors to reject the call with, first the one that decides it, as `CatalogError`s of the [error catalog](errors.md), or none to go on. The kernel asks it after the authorize phase and before `plan()`, so a caller that may not run the command learns nothing from its reasons. It is pure like the other two steps; the kernel's `placement.create` refuses a slug another placement has below the node with it (see [placement commands](placement-commands.md)).
 
 A write action whose plan can make placements visible that it does not change also implements `Cbox\Cms\Contracts\Pipeline\ReportsVisibility`: `becomesVisible(Command, Aggregates, Plan)` gives each placement in each locale the plan makes visible, or visible at another time, as a `BecomesVisible` with the time it becomes visible. The kernel asks it only on a dry run, with the plan as the hooks left it, and puts the list in the `DryRunReport`. It is pure like the other steps; the kernel's `entry.publish` lists the placements its release shows with it (see [publish commands](publish-commands.md)).
@@ -155,8 +157,11 @@ namespace Examples\Unit\Pipeline;
 use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Content\VariantRef;
 use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Pipeline\Aggregates;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationTarget;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersions;
 use Override;
@@ -166,6 +171,8 @@ use Override;
  * placement a new note gets. versions() tells the kernel what to check at commit, and names every
  * aggregate the plan changes, as the kernel requires: the note's shared variant at the version it
  * was read at, or that the note, its shared variant and its placement are still absent.
+ * authorizationScope() tells the kernel where to authorize the command: on the note's home node,
+ * in every locale, because a note's title is shared by all of them.
  */
 final readonly class NoteAggregates implements Aggregates
 {
@@ -173,6 +180,7 @@ final readonly class NoteAggregates implements Aggregates
         public EntryId $note,
         public ?StoredNote $stored,
         public PlacementId $placement,
+        public NodeId $home,
     ) {}
 
     #[Override]
@@ -183,6 +191,12 @@ final readonly class NoteAggregates implements Aggregates
         return $this->stored instanceof StoredNote
             ? new ReadVersions(ReadVersion::at($shared, $this->stored->version))
             : new ReadVersions(ReadVersion::absent($this->note), ReadVersion::absent($shared), ReadVersion::absent($this->placement));
+    }
+
+    #[Override]
+    public function authorizationScope(): AuthorizationScope
+    {
+        return AuthorizationScope::on(new AuthorizationTarget($this->home));
     }
 }
 ```
@@ -266,7 +280,7 @@ final readonly class SaveNoteAction implements WriteAction
     #[Override]
     public function resolve(Command $command): NoteAggregates
     {
-        return new NoteAggregates($command->note, $this->shelf->find($command->note), $this->newPlacement);
+        return new NoteAggregates($command->note, $this->shelf->find($command->note), $this->newPlacement, $command->home);
     }
 
     /**
@@ -312,6 +326,8 @@ use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationTarget;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Plans\Mutation;
 use Cbox\Cms\Contracts\Plans\Mutations\HeadMoved;
@@ -363,6 +379,7 @@ it('creates, places and heads a new note, and reads it as absent', function (): 
     expect($aggregates)->toBeInstanceOf(NoteAggregates::class)
         ->and($aggregates->versions()->reads)->toHaveCount(3)
         ->and($aggregates->versions()->of($command->note))->toEqual(ReadVersion::absent($command->note))
+        ->and($aggregates->authorizationScope())->toEqual(AuthorizationScope::on(new AuthorizationTarget($command->home)))
         ->and(array_map(static fn (Mutation $mutation): bool => $aggregates->versions()->of($mutation->aggregate()) instanceof ReadVersion, $plan->mutations()))->toBe([true, true, true, true])
         ->and(mutationNames(...$plan->mutations()))->toBe(['EntryCreated', 'RevisionCreated', 'HeadMoved', 'PlacementCreated']);
 });
@@ -481,7 +498,7 @@ The kernel runs every write through one pipeline, in the core, and the action on
 Before the phases comes idempotency. The kernel claims the envelope's idempotency key, in the scope of the actor and the command's name, with a hash of the command's name, version and input (PRD 6.1). It waits for another call that holds the same key at most the wait budget, `cbox-cms.idempotency.wait_budget_ms`. A fresh key runs the phases below. A key committed before with the same content returns that first call's receipt and runs nothing, so a retry after a timeout never commits twice; the receipt is built for the wait level the retry asks for, by the rule of the wait below, and a level not reached makes the retry `committed_wait_timeout`; a replay does not wait again. The same key with other content is `idempotency_conflict`, and a key another call still holds after the wait budget is `idempotency_in_flight`, which a client retries later with the same key and content. An internal issuer's key is the one its envelope derived from its unit of work. A dry run claims no key.
 
 1. **Resolve.** The kernel reads the actor and every actor of its on-behalf-of chain as aggregates and rejects the call with `actor_not_active` when one is missing or not active (invariant 37). Then it calls `resolve()`, and checks the versions of a command that `ExpectsVersions`.
-2. **Authorize.** The call's access context, the principal with its regions and classification access, is checked against the command and what was read; a refusal is `unauthorized`.
+2. **Authorize.** The call's access context, the principal with its regions and classification access, is checked against the command and what was read: a role of the actor whose permissions name the command must reach every target of the aggregates' `authorizationScope()` in its locale. A refusal is `unauthorized`.
 3. **Plan.** It calls `plan()`.
 4. **Validate.** Every aggregate a mutation changes was read, every revision names a type of the installation, and the fields of every revision pass the type's generated validator (see [runtime validators](validation.md)). Any error rejects the call with `validation_failed`, followed by each field error with its path below `fields`.
 5. **Dry run.** A call whose envelope asks for a dry run ends here with its `DryRunReport` and commits nothing.

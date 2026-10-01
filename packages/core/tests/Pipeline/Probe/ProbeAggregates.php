@@ -10,6 +10,7 @@ use Cbox\Cms\Contracts\Content\VariantRef;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Pipeline\Aggregates;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersions;
 use Override;
@@ -44,5 +45,11 @@ final readonly class ProbeAggregates implements Aggregates
             new ReadVersion($this->variant(), $this->variantVersion),
             ...$this->extra,
         );
+    }
+
+    #[Override]
+    public function authorizationScope(): AuthorizationScope
+    {
+        return AuthorizationScope::anywhere();
     }
 }

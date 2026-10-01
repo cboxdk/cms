@@ -18,4 +18,10 @@ interface Aggregates
      * Every aggregate that was read, with its version, including those that did not exist.
      */
     public function versions(): ReadVersions;
+
+    /**
+     * Where the kernel authorizes the command (PRD 5.10): the nodes it acts on with their locales,
+     * taken from what was read, or anywhere() when what it acts on names no node or read as absent.
+     */
+    public function authorizationScope(): AuthorizationScope;
 }

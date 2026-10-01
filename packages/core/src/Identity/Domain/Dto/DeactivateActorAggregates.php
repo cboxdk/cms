@@ -10,6 +10,7 @@ use Cbox\Cms\Contracts\Identity\ActorState;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Pipeline\Aggregates;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersions;
 use Override;
@@ -43,5 +44,14 @@ final readonly class DeactivateActorAggregates implements Aggregates
             $this->actor,
             $this->current instanceof Actor ? new AggregateVersion($this->current->version) : null,
         ));
+    }
+
+    /**
+     * Anywhere: an actor is not in the tree.
+     */
+    #[Override]
+    public function authorizationScope(): AuthorizationScope
+    {
+        return AuthorizationScope::anywhere();
     }
 }

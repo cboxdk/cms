@@ -68,7 +68,7 @@ use LogicException;
  * The real command pipeline on Postgres for actor.deactivate (PRD 5.16, 6.2): the command
  * transaction, the Postgres idempotency and receipt stores, the actor directory, the action and the
  * PostgresChangesetCommitter with the actor's version lock and the writer of ActorDeactivated, all
- * on the connections given. Only what the kernel has no real implementation of yet is a fake: the
+ * on the connections given. Fakes, so a test decides what they answer: the
  * authorizer, which allows unless a test gives another, the content hasher, the type catalog and
  * the hooks.
  *

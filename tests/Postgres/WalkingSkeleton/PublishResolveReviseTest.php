@@ -88,7 +88,7 @@ function skeletonPublished(int $budget): PublishingWorld
     $structure = PlacementWorld::seed($now);
     expect(app(Kernel::class)->call('cms:build'))->toBe(0);
 
-    $world = new PublishingWorld([$structure->north->root, $structure->south->root], now: $now, waitBudget: $budget);
+    $world = new PublishingWorld([$structure->north->root, $structure->south->root], now: $now, waitBudget: $budget, granted: true);
     $entry = EntryId::fromString(SKELETON_ENTRY);
     $placement = PlacementId::fromString(SKELETON_PLACEMENT);
 

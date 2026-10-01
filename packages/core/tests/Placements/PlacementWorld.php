@@ -101,7 +101,7 @@ use LogicException;
  * entry.create to make the entries they place (PRD 5.7, 6.2), on the default connection or the one
  * named: the command transaction, the Postgres stores, the actor directory, the entry and placement
  * readers, and the PostgresChangesetCommitter with the locks and writers of entries and
- * placements. Only what the kernel has no real implementation of yet is a fake: the authorizer,
+ * placements. Fakes, so a test decides what they answer: the authorizer,
  * which allows, the content hasher and the hooks.
  *
  * seed() writes the structure through the testkit's structure fixtures: the site NORTH, publishing

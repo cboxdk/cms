@@ -7,7 +7,7 @@ namespace Cbox\Cms\Core\Routing\Domain\Queries;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Attributes\Query as QueryName;
 use Cbox\Cms\Contracts\Content\Locale;
-use Cbox\Cms\Contracts\Pipeline\Query;
+use Cbox\Cms\Contracts\Pipeline\PublicQuery;
 use Cbox\Cms\Core\Routing\Domain\Host;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
 
@@ -17,7 +17,7 @@ use Cbox\Cms\Core\Routing\Domain\RequestPath;
  */
 #[QueryName('path.resolve', version: 1)]
 #[Experimental]
-final readonly class ResolvePath implements Query
+final readonly class ResolvePath implements PublicQuery
 {
     public function __construct(
         public Host $host,

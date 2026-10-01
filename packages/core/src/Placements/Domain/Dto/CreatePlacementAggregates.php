@@ -12,6 +12,8 @@ use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Pipeline\Aggregates;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationTarget;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersions;
 use DateTimeImmutable;
@@ -78,5 +80,21 @@ final readonly class CreatePlacementAggregates implements Aggregates
         }
 
         return PlacementReads::unique($reads);
+    }
+
+    /**
+     * The node the placement is created below, in each locale of the command's slugs (PRD 5.10);
+     * anywhere when the node read as absent.
+     */
+    #[Override]
+    public function authorizationScope(): AuthorizationScope
+    {
+        if (! $this->storedNode instanceof StoredNode) {
+            return AuthorizationScope::anywhere();
+        }
+
+        $targets = array_map(fn (LocalePlacements $placements): AuthorizationTarget => new AuthorizationTarget($this->node, $placements->locale), $this->placements);
+
+        return $targets === [] ? AuthorizationScope::on(new AuthorizationTarget($this->node)) : AuthorizationScope::on(...$targets);
     }
 }

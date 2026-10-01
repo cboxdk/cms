@@ -58,6 +58,7 @@ use Cbox\Cms\Core\Pipeline\Adapter\ConnectionCommandTransaction;
 use Cbox\Cms\Core\Pipeline\Adapter\PostgresChangesetCommitter;
 use Cbox\Cms\Core\Pipeline\Adapter\SavepointRefusal;
 use Cbox\Cms\Core\Pipeline\Domain\AffectedProjections;
+use Cbox\Cms\Core\Pipeline\Domain\CommandAuthorizer;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\ActionBinding;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCall;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\WaitSettings;
@@ -96,6 +97,7 @@ use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeHookOverruns;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeStopwatch;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeWriteActions;
 use Cbox\Cms\Testkit\Clock\FakeClock;
+use Cbox\Cms\Testkit\FixtureWriters\Access\Adapter\PostgresAccessFixtures;
 use Cbox\Cms\Testkit\FixtureWriters\Identity\Adapter\PostgresIdentitySeeder;
 use Cbox\Cms\Testkit\FixtureWriters\Structure\Domain\Dto\StructureNode;
 use Cbox\Cms\Testkit\FixtureWriters\Structure\Domain\Dto\StructureSite;
@@ -103,6 +105,7 @@ use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
 use Cbox\Cms\Testkit\Telemetry\FakeTelemetry;
 use DateTimeImmutable;
 use Illuminate\Database\ConnectionResolverInterface;
+use Illuminate\Database\DatabaseManager;
 use LogicException;
 
 /**
@@ -110,8 +113,9 @@ use LogicException;
  * entry.create, placement.create and placement.set_window to make what they publish: the command
  * transaction, the Postgres stores, the actor directory, the entry and placement readers, the
  * revision contents a release is validated against, and the PostgresChangesetCommitter with the
- * locks and writers of entries, releases and placements. Only what the kernel has no real
- * implementation of yet is a fake: the authorizer, which allows, the content hasher and the hooks.
+ * locks and writers of entries, releases and placements. The authorizer is a fake that allows,
+ * unless the world is granted, when it is the kernel's, with a role the world grants its actor; the
+ * content hasher and the hooks are fakes.
  *
  * entry.revise revises what they published. The structure is PlacementWorld::seed()'s: the sites
  * north and south, each with a section. The clock stands at EntryWorld::NOW, or at the time a test
@@ -121,6 +125,9 @@ use LogicException;
  */
 final readonly class PublishingWorld
 {
+    /** @var list<string> the commands the world runs, which a granted world's role may run */
+    public const array COMMANDS = ['entry.create', 'entry.revise', 'placement.create', 'placement.set_window', 'entry.publish', 'entry.unpublish'];
+
     public FakeClock $clock;
 
     public ActorId $actor;
@@ -133,18 +140,30 @@ final readonly class PublishingWorld
      *                       that shares the receipts with a process on the system clock
      * @param  int  $waitBudget  how long a committed call waits for its wait level, in milliseconds
      *                           of real time; 0, never past commit, unless a test waits
+     * @param  bool  $granted  whether the kernel's CommandAuthorizer decides, with the actor granted a
+     *                         role that may run COMMANDS on each root; otherwise a fake that allows
      */
     public function __construct(
         private array $regions,
         int $seed = 1,
         string $now = EntryWorld::NOW,
         private int $waitBudget = 0,
+        private bool $granted = false,
     ) {
         $this->clock = new FakeClock(new DateTimeImmutable($now));
         $this->ids = new FakeIdGenerator(seed: $seed, clock: $this->clock);
         $identity = new PostgresIdentitySeeder(app(ConnectionResolverInterface::class), $this->clock, new FakeIdGenerator(seed: 100 + $seed, clock: $this->clock));
 
         $this->actor = $identity->addActor(ActorClass::Staff)->id;
+
+        if ($granted) {
+            $access = new PostgresAccessFixtures(app(DatabaseManager::class), $this->clock, new FakeIdGenerator(seed: 200 + $seed, clock: $this->clock));
+            $role = $access->role('publisher_'.$seed, ClassificationAccess::Internal, array_map(static fn (string $name): CommandName => new CommandName($name), self::COMMANDS));
+
+            foreach ($regions as $root) {
+                $access->grant($this->actor, $role, $root->id);
+            }
+        }
     }
 
     /**
@@ -231,7 +250,7 @@ final readonly class PublishingWorld
                 UnpublishEntry::class => $this->binding('entry.unpublish', new UnpublishEntryAction($entries, $placements, $this->clock)),
             ]),
             new PostgresActorDirectory($connections),
-            new FakeCommandAuthorizer,
+            $this->granted ? app(CommandAuthorizer::class) : new FakeCommandAuthorizer,
             $types,
             app(FieldValidation::class),
             new PostgresRevisionContents($connections),

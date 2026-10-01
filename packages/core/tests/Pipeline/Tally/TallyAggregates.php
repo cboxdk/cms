@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Pipeline\Tally;
 
 use Cbox\Cms\Contracts\Pipeline\Aggregates;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersions;
 use Override;
@@ -26,5 +27,11 @@ final readonly class TallyAggregates implements Aggregates
     public function versions(): ReadVersions
     {
         return new ReadVersions(...$this->tallies);
+    }
+
+    #[Override]
+    public function authorizationScope(): AuthorizationScope
+    {
+        return AuthorizationScope::anywhere();
     }
 }

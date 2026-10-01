@@ -72,8 +72,7 @@ use LogicException;
  * The real command pipeline on Postgres for the test-only command tally.add (PRD 6.1, 6.2 phase
  * 7): the container's command transaction, the Postgres idempotency and receipt stores, the actor
  * directory, and the PostgresChangesetCommitter with the actor's version lock, the tally's lock and
- * writer, and the projection PROJECTION pending for every tally.raised event. Only what the kernel
- * has no real implementation of yet is a fake: the authorizer, which allows, the content hasher,
+ * writer, and the projection PROJECTION pending for every tally.raised event. Fakes, so a test decides what they answer: the authorizer, which allows, the content hasher,
  * the type catalog and the hooks. The actor is an active staff member, seeded as the owner role.
  * The clock stands at NOW, whose day and the next the partitions cover, and the scratch table of
  * the tallies exists; cleanUp() drops it.

@@ -9,6 +9,8 @@ use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Pipeline\Aggregates;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationTarget;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersions;
 use DateTimeImmutable;
@@ -43,5 +45,15 @@ final readonly class SetPlacementWindowAggregates implements Aggregates
         }
 
         return PlacementReads::unique($reads);
+    }
+
+    /**
+     * The placement's node in the command's locale (PRD 5.10); anywhere when the placement read as
+     * absent.
+     */
+    #[Override]
+    public function authorizationScope(): AuthorizationScope
+    {
+        return $this->stored instanceof StoredPlacement ? AuthorizationScope::on(new AuthorizationTarget($this->stored->node, $this->locale)) : AuthorizationScope::anywhere();
     }
 }

@@ -20,10 +20,13 @@ use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Contracts\Telemetry\Telemetry;
 use Cbox\Cms\Contracts\TypeTables\TypeTableReader;
 use Cbox\Cms\Core\Access\Adapter\PostgresAccessResolver;
+use Cbox\Cms\Core\Access\Adapter\PostgresCommandAuthorizer;
+use Cbox\Cms\Core\Access\Adapter\PostgresQueryAuthorizer;
 use Cbox\Cms\Core\Access\Adapter\TransactionalAccessContexts;
 use Cbox\Cms\Core\Access\Domain\AccessCompiler;
 use Cbox\Cms\Core\Access\Domain\AccessContexts;
 use Cbox\Cms\Core\Access\Domain\AccessResolver;
+use Cbox\Cms\Core\Access\Domain\PermissionRule;
 use Cbox\Cms\Core\Addons\Boundary\AddonConfig;
 use Cbox\Cms\Core\Addons\Domain\Dto\ServiceActors;
 use Cbox\Cms\Core\Bindings\Boundary\ContractBindings;
@@ -121,6 +124,7 @@ use Cbox\Cms\Core\Pipeline\Boundary\TypeRulesFieldValidation;
 use Cbox\Cms\Core\Pipeline\Boundary\WaitConfig;
 use Cbox\Cms\Core\Pipeline\Domain\AffectedProjections;
 use Cbox\Cms\Core\Pipeline\Domain\ChangesetCommitter;
+use Cbox\Cms\Core\Pipeline\Domain\CommandAuthorizer;
 use Cbox\Cms\Core\Pipeline\Domain\CommandCodecs;
 use Cbox\Cms\Core\Pipeline\Domain\CommandContentHasher;
 use Cbox\Cms\Core\Pipeline\Domain\CommandHooks;
@@ -161,6 +165,7 @@ use Cbox\Cms\Core\Reads\Boundary\QueryConfig;
 use Cbox\Cms\Core\Reads\Domain\Dto\QueryCodec;
 use Cbox\Cms\Core\Reads\Domain\Dto\QuerySettings;
 use Cbox\Cms\Core\Reads\Domain\QueryActions;
+use Cbox\Cms\Core\Reads\Domain\QueryAuthorizer;
 use Cbox\Cms\Core\Reads\Domain\QueryCodecs;
 use Cbox\Cms\Core\Reads\Domain\QueryTransaction;
 use Cbox\Cms\Core\Reads\Domain\ReadableFields;
@@ -437,6 +442,14 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
             static fn (Application $app): MutationWriters => new MutationWriters(...self::tagged($app, MutationWriters::TAG, MutationWriter::class)),
         );
         $this->app->bind(ChangesetCommitter::class, PostgresChangesetCommitter::class);
+
+        // Phase 2 (PRD 5.10, 6.2): a command is authorized by the actor's roles whose permissions
+        // name it, on the nodes and locales its action's aggregates name, on the command
+        // transaction's connection under its actor context.
+        $this->app->bind(
+            CommandAuthorizer::class,
+            static fn (Application $app): CommandAuthorizer => new PostgresCommandAuthorizer($app->make(ConnectionResolverInterface::class), new PermissionRule),
+        );
         $this->app->bind(CommandHooks::class, RegistryCommandHooks::class);
         $this->app->singleton(Stopwatch::class, HrtimeStopwatch::class);
         $this->app->bind(HookOverruns::class, LoggedHookOverruns::class);
@@ -444,9 +457,13 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         // The query pipeline's ports that the core implements (PRD 6.2): the query action of a
         // query from the compiled registry, the read transaction on the default connection, which
         // the access resolver, the read audit and the actions' read ports use too, and the settings,
-        // built on each resolution so the budgets follow the configuration. The QueryAuthorizer is not
-        // bound yet; its docblock says why.
+        // built on each resolution so the budgets follow the configuration. A read is authorized by
+        // the actor's roles and their permissions, or by being public (PostgresQueryAuthorizer).
         $this->app->bind(QueryActions::class, RegistryQueryActions::class);
+        $this->app->bind(
+            QueryAuthorizer::class,
+            static fn (Application $app): QueryAuthorizer => new PostgresQueryAuthorizer($app->make(ConnectionResolverInterface::class), new PermissionRule),
+        );
         $this->app->bind(
             QueryTransaction::class,
             static fn (Application $app): QueryTransaction => new ConnectionQueryTransaction($app->make(ConnectionResolverInterface::class)),

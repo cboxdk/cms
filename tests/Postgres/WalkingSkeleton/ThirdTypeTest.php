@@ -40,14 +40,12 @@ use Cbox\Cms\Contracts\Schema\Stages;
 use Cbox\Cms\Contracts\Subscribers\Lane;
 use Cbox\Cms\Core\Fragments\Actions\InvalidateFragments;
 use Cbox\Cms\Core\Operations\Domain\OperationState;
-use Cbox\Cms\Core\Pipeline\Domain\CommandAuthorizer;
 use Cbox\Cms\Core\ReadModels\Domain\Dto\ChunkResult;
 use Cbox\Cms\Core\Subscriptions\Actions\RunLane;
 use Cbox\Cms\Core\Subscriptions\Domain\Dto\LaneRun;
 use Cbox\Cms\Core\Tests\Entries\EntryFields;
 use Cbox\Cms\Core\Tests\Entries\EntryWorld;
 use Cbox\Cms\Core\Tests\Identity\PostgresIdentity;
-use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandAuthorizer;
 use Cbox\Cms\Core\Tests\Placements\PlacementStructure;
 use Cbox\Cms\Core\Tests\Placements\PlacementWorld;
 use Cbox\Cms\Core\Tests\Postgres\StorageTables;
@@ -278,7 +276,7 @@ it('is installed from the schema file with capabilities neither other fixture ty
 
 it('creates, revises, places and publishes an event, keeps head snapshots and no revisions, and serves it over GET /v1/resolve', function (): void {
     $structure = thirdTypeStructure();
-    $world = new PublishingWorld([$structure->north->root, $structure->south->root]);
+    $world = new PublishingWorld([$structure->north->root, $structure->south->root], granted: true);
     thirdTypeRunner($world);
     $entry = EntryId::fromString(THIRD_ENTRY);
     $placement = PlacementId::fromString(THIRD_PLACEMENT);
@@ -324,7 +322,7 @@ it('creates, revises, places and publishes an event, keeps head snapshots and no
 
 it('invalidates the event\'s fragment once the runner has handled a revise, and resolves the revised fields', function (): void {
     $structure = thirdTypeStructure();
-    $world = new PublishingWorld([$structure->north->root, $structure->south->root]);
+    $world = new PublishingWorld([$structure->north->root, $structure->south->root], granted: true);
     thirdTypeRunner($world);
     $entry = EntryId::fromString(THIRD_ENTRY);
     $placement = PlacementId::fromString(THIRD_PLACEMENT);
@@ -363,7 +361,6 @@ it('creates, revises, places and publishes an event through cms:run as the confi
     $structure = thirdTypeStructure();
     $clock = new PublishingWorld([$structure->north->root])->clock;
     app()->instance(Clock::class, $clock);
-    app()->instance(CommandAuthorizer::class, new FakeCommandAuthorizer);
     app()->instance(IdGenerator::class, new FakeIdGenerator(seed: 5001, clock: $clock));
 
     $identity = PostgresIdentity::at($clock);
