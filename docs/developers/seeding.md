@@ -34,7 +34,7 @@ The exit codes are:
 Every entry goes through the command pipeline, as the kernel's command `seed.entries` version 1.
 
 - **One changeset per chunk.** Each chunk of the profile's chunk size is one call and one changeset. The issuer is the internal issuer `seed`, so the chunk's events go to the bulk stream (PRD 7.5).
-- **Idempotent chunks.** The idempotency key is derived from the chunk's unit of work, `seed:<profile>@<version>:<seed>:<chunk>:<entries of the chunk>`. A chunk that runs again replays its first receipt instead of seeding twice.
+- **Idempotent chunks.** The idempotency key is derived from the chunk's unit of work, `seed:<profile>@<version>:<seed>:<chunk>:<entries of the chunk>`. A chunk that runs again replays its first receipt instead of seeding twice. A chunk whose entries all exist already is done without a command, also after its idempotency record has expired (after 7 days, or when its partition is dropped).
 - **An operation.** The run is an [operation](operations.md) of the kind `cms.seed`, keyed by the profile, the seed and the entries. A run that stopped resumes at its first chunk that did not complete, and a run that completed seeds nothing again.
 - **The Clock's time.** Changesets, events and audit rows are written at the Clock's time, so the partitions' runway covers them. The runway of the tables partitioned on a sequence, such as the events, grows with the hourly `cms:partitions:maintain`, as it does for any other write.
 

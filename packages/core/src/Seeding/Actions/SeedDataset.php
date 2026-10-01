@@ -62,7 +62,7 @@ final readonly class SeedDataset
     public function run(SeedRequest $request): SeedReport
     {
         $scope = $this->scope();
-        $chunks = new SeedChunks($request, $scope, $this->pipeline);
+        $chunks = new SeedChunks($request, $scope, $this->pipeline, $this->targets);
         $progress = $this->operations->run(new OperationRequest($chunks, new OperationKey($request->operationKey())));
 
         return new SeedReport($request, $scope, $progress);

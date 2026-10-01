@@ -11,6 +11,7 @@ use Cbox\Cms\Contracts\Envelope\IssuerKind;
 use Cbox\Cms\Contracts\Envelope\IssuingSurface;
 use Cbox\Cms\Contracts\Envelope\UnitOfWork;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
+use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Core\Operations\Domain\ChunkedAction;
 use Cbox\Cms\Core\Operations\Domain\ChunkName;
@@ -20,10 +21,12 @@ use Cbox\Cms\Core\Operations\Domain\OperationKind;
 use Cbox\Cms\Core\Pipeline\Actions\CommandPipeline;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCall;
 use Cbox\Cms\Core\Seeding\Domain\Commands\SeedEntries;
+use Cbox\Cms\Core\Seeding\Domain\Dto\SeededEntry;
 use Cbox\Cms\Core\Seeding\Domain\Dto\SeedRequest;
 use Cbox\Cms\Core\Seeding\Domain\Dto\SeedScope;
 use Cbox\Cms\Core\Seeding\Domain\EntryGenerator;
 use Cbox\Cms\Core\Seeding\Domain\SeedRefused;
+use Cbox\Cms\Core\Seeding\Domain\SeedTargets;
 use Override;
 
 /**
@@ -34,8 +37,12 @@ use Override;
  *
  * A chunk is idempotent: its idempotency key is derived from its unit of work (the profile, the
  * seed, the chunk and its size, SeedRequest::unitOf()), so a chunk that committed and runs again,
- * because the process died before the operation recorded it, replays its first receipt. A chunk the
- * kernel rejects throws SeedRefused and leaves the operation running at that chunk.
+ * because the process died before the operation recorded it, replays its first receipt. A chunk
+ * whose entries all exist already is done without a command: its idempotency record may have
+ * expired (7 days, or its partition dropped), or a run of the same seed with more entries reaches
+ * the ids an earlier run wrote, and seed.entries would plan nothing, which the kernel rejects. The
+ * entries are read through SeedTargets under the run's context, as seed.entries reads them. A chunk
+ * the kernel rejects throws SeedRefused and leaves the operation running at that chunk.
  */
 #[Internal]
 final readonly class SeedChunks implements ChunkedAction
@@ -48,6 +55,7 @@ final readonly class SeedChunks implements ChunkedAction
         private SeedRequest $request,
         private SeedScope $scope,
         private CommandPipeline $pipeline,
+        private SeedTargets $targets,
     ) {}
 
     #[Override]
@@ -77,6 +85,11 @@ final readonly class SeedChunks implements ChunkedAction
     {
         $index = $this->index($chunk);
         $command = $this->command($index);
+
+        if ($this->seeded($command)) {
+            return;
+        }
+
         $unit = $this->request->unitOf($index);
         $envelope = Envelope::internal(
             IssuingSurface::Seed,
@@ -110,6 +123,16 @@ final readonly class SeedChunks implements ChunkedAction
         }
 
         return new SeedEntries(...$entries);
+    }
+
+    /**
+     * Whether every entry of the chunk exists already.
+     */
+    private function seeded(SeedEntries $command): bool
+    {
+        $entries = array_map(static fn (SeededEntry $entry): EntryId => $entry->entry, $command->entries);
+
+        return count($this->targets->existing($this->scope->access, $entries)) === count($entries);
     }
 
     private function index(ChunkName $chunk): int

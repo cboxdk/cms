@@ -11,6 +11,7 @@ use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\IssuerKind;
 use Cbox\Cms\Contracts\Identity\NodePath;
 use Cbox\Cms\Contracts\Ids\ActorId;
+use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Core\Seeding\Domain\SeedTargets;
 use PHPUnit\Framework\Assert;
@@ -18,7 +19,8 @@ use PHPUnit\Framework\Attributes\Test;
 
 /**
  * What every SeedTargets does, the fake and the Postgres one alike: the nodes the context's regions
- * reach that are not mounts, sorted by id.
+ * reach that are not mounts, sorted by id, and the entries of a list that exist and whose home the
+ * context's regions reach, in the list's order.
  */
 trait SeedTargetsBehaviour
 {
@@ -34,9 +36,18 @@ trait SeedTargetsBehaviour
 
     public const string OUTSIDE = '0192a0c0-0000-7000-8000-0000000048a6';
 
+    public const string IN_FIRST = '0192a0c0-0000-7000-8000-0000000048b1';
+
+    public const string IN_DEEP = '0192a0c0-0000-7000-8000-0000000048b2';
+
+    public const string IN_OUTSIDE = '0192a0c0-0000-7000-8000-0000000048b3';
+
+    public const string UNKNOWN = '0192a0c0-0000-7000-8000-0000000048b4';
+
     /**
      * The targets under test, knowing the site root ROOT with FIRST, SECOND and the mount MOUNT
-     * (of FIRST) below it, DEEP below SECOND, and the root OUTSIDE of another tree.
+     * (of FIRST) below it, DEEP below SECOND, and the root OUTSIDE of another tree, and the entries
+     * IN_FIRST homed on FIRST, IN_DEEP on DEEP and IN_OUTSIDE on OUTSIDE, owned by no actor.
      */
     abstract protected function seedTargets(): SeedTargets;
 
@@ -64,6 +75,28 @@ trait SeedTargetsBehaviour
             array_map(static fn (NodeId $node): string => $node->toString(), $this->seedTargets()->nodes($this->access(new AccessRegion($root, [$second])))),
         );
         Assert::assertSame([], $this->seedTargets()->nodes($this->access()));
+    }
+
+    #[Test]
+    public function it_gives_the_entries_of_the_list_that_exist_where_the_regions_reach_in_the_list_s_order(): void
+    {
+        $root = new NodePath($this->label(self::ROOT));
+        $second = new NodePath($this->label(self::ROOT).'.'.$this->label(self::SECOND));
+        $list = array_map(EntryId::fromString(...), [self::UNKNOWN, self::IN_DEEP, self::IN_OUTSIDE, self::IN_FIRST]);
+
+        Assert::assertSame([self::IN_DEEP, self::IN_FIRST], $this->entryIds($this->seedTargets()->existing($this->access(new AccessRegion($root)), $list)));
+        Assert::assertSame([self::IN_FIRST], $this->entryIds($this->seedTargets()->existing($this->access(new AccessRegion($root, [$second])), $list)));
+        Assert::assertSame([], $this->seedTargets()->existing($this->access(), $list));
+        Assert::assertSame([], $this->seedTargets()->existing($this->access(new AccessRegion($root)), []));
+    }
+
+    /**
+     * @param  list<EntryId>  $entries
+     * @return list<string>
+     */
+    private function entryIds(array $entries): array
+    {
+        return array_map(static fn (EntryId $entry): string => $entry->toString(), $entries);
     }
 
     protected function label(string $id): string

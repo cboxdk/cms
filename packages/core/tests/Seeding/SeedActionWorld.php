@@ -103,6 +103,11 @@ final class SeedActionWorld
 
     public ClassificationAccess $access = ClassificationAccess::Internal;
 
+    public ?FakeSeedTargets $targets = null;
+
+    /** @var list<SeededEntry> the entries that exist before the world's commands run */
+    private array $existing = [];
+
     private readonly FakeIdGenerator $ids;
 
     private readonly FakeIdempotencySession $keys;
@@ -147,6 +152,20 @@ final class SeedActionWorld
             new FieldValues(new FieldMap(...$named)),
             $release,
         );
+    }
+
+    /**
+     * Entries that exist already, known to the reader of seed.entries and to the targets of the
+     * datasets the world builds after this call, each homed on HOME or SECOND.
+     */
+    public function exists(SeededEntry ...$entries): self
+    {
+        foreach ($entries as $entry) {
+            $this->reader->withEntry($entry->entry);
+            $this->existing[] = $entry;
+        }
+
+        return $this;
     }
 
     public function commitWith(CommitOutcome $outcome): self
@@ -206,7 +225,8 @@ final class SeedActionWorld
     /**
      * SeedDataset with the world's pipeline, as the world's actor unless another is given, granted
      * internal access on ROOT, where HOME and SECOND lie, both known to the reader unless $nodes
-     * is false, when the actor reaches no node.
+     * is false, when the actor reaches no node. Its targets, kept in $targets, know the entries
+     * that exist().
      */
     public function dataset(?ActorId $actor = null, ?FakeTypeCatalog $types = null, ?FakeOperationRunner $runner = null, bool $nodes = true): SeedDataset
     {
@@ -219,6 +239,12 @@ final class SeedActionWorld
                 ->withNode($second, new NodePath($root.'.'.str_replace('-', '', self::SECOND)));
             $this->reader->withNode($second, new AggregateVersion(4));
         }
+
+        foreach ($this->existing as $entry) {
+            $targets->withEntry($entry->entry, new NodePath($root.'.'.str_replace('-', '', $entry->home->toString())));
+        }
+
+        $this->targets = $targets;
 
         return new SeedDataset(
             new SeedSettings($actor ?? $this->actor),

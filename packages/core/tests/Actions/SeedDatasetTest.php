@@ -58,6 +58,30 @@ it('seeds the chunks of the run as an operation, one changeset each, and runs a 
         ->and($world->committer->pending)->toHaveCount(3);
 });
 
+it('skips the chunks whose entries all exist, once their idempotency records are gone, and seeds the rest', function (): void {
+    $first = new SeedActionWorld;
+    $first->dataset()->run(new SeedRequest(SeedProfiles::small(), 7, 200));
+    $seeded = [];
+
+    foreach ($first->committer->pending as $changeset) {
+        $seeded = [...$seeded, ...($changeset->input instanceof SeedEntries ? $changeset->input->entries : [])];
+    }
+
+    // The same seed again with more entries, in a world with the entries of the first run but none
+    // of its idempotency records, as after they expired or their partitions were dropped.
+    $world = new SeedActionWorld()->exists(...$seeded);
+    $report = $world->dataset()->run(new SeedRequest(SeedProfiles::small(), 7, 400));
+    $units = array_map(static fn (PendingChangeset $changeset): ?string => $changeset->envelope->unitOfWork?->value, $world->committer->pending);
+    $created = $world->committer->pending[0]->input instanceof SeedEntries ? $world->committer->pending[0]->input->entries[0]->entry : null;
+
+    expect($seeded)->toHaveCount(200)
+        ->and($report->operation->state)->toBe(OperationState::Completed)
+        ->and($report->operation->completedNames())->toBe(['chunk-0', 'chunk-1', 'chunk-2', 'chunk-3'])
+        ->and($units)->toBe(['seed:small@1:7:2:100', 'seed:small@1:7:3:100'])
+        ->and($created?->value->unixMilliseconds())->toBe(Uuid7::unixMillisecondsOf(SeedProfiles::small()->anchor) + 200)
+        ->and($world->targets?->entryReads)->toBe(4);
+});
+
 it('refuses a service actor that is not configured, unknown, not a service or not active', function (): void {
     $world = new SeedActionWorld;
     $staff = $world->identity->addActor(ActorClass::Staff)->id;
@@ -110,7 +134,8 @@ it('stops at a chunk the kernel rejects, naming its unit of work, and leaves the
 it('plans a chunk per profile chunk, and refuses a chunk it did not plan', function (): void {
     $world = new SeedActionWorld;
     $request = new SeedRequest(SeedProfiles::small(), 1, 201);
-    $chunks = new SeedChunks($request, $world->dataset()->scope(), $world->pipeline());
+    $scope = $world->dataset()->scope();
+    $chunks = new SeedChunks($request, $scope, $world->pipeline(), $world->targets ?? new FakeSeedTargets);
 
     expect($chunks->kind()->value)->toBe('cms.seed')
         ->and($chunks->chunks()->names())->toBe(['chunk-0', 'chunk-1', 'chunk-2'])
