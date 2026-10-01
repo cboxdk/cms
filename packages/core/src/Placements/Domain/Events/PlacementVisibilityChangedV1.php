@@ -10,14 +10,16 @@ use Cbox\Cms\Contracts\Events\EventData;
 use Cbox\Cms\Contracts\Events\EventDatum;
 use Cbox\Cms\Contracts\Events\EventPayload;
 use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use DateTimeImmutable;
 use Override;
 
 /**
- * Version 1 of the payload of placement.visibility_changed: the placement, its entry, the locale,
- * the state before and after, live_from and live_until (null when open or when there is no
+ * Version 1 of the payload of placement.visibility_changed: the placement, its entry, the node it
+ * sits under (the node its slug is looked up under, so an invalidation reaches the answers of its
+ * path, PRD 9.4), the locale, the state before and after, live_from and live_until (null when open or when there is no
  * window), and next_transition_at.
  */
 #[Experimental]
@@ -26,6 +28,7 @@ final readonly class PlacementVisibilityChangedV1 implements EventPayload
     public function __construct(
         public PlacementId $placement,
         public EntryId $entry,
+        public NodeId $node,
         public Locale $locale,
         public Visibility $previous,
         public Visibility $visibility,
@@ -40,6 +43,7 @@ final readonly class PlacementVisibilityChangedV1 implements EventPayload
         return EventData::empty()
             ->with('placement', EventDatum::identifier($this->placement))
             ->with('entry', EventDatum::identifier($this->entry))
+            ->with('node', EventDatum::identifier($this->node))
             ->with('locale', EventDatum::identifier($this->locale))
             ->with('previous', EventDatum::enum($this->previous))
             ->with('visibility', EventDatum::enum($this->visibility))

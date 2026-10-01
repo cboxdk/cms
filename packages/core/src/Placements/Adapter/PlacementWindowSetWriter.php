@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\Placements\Adapter;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Plans\Mutation;
 use Cbox\Cms\Contracts\Plans\Mutations\PlacementWindowSet;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\MutationContext;
@@ -45,7 +46,7 @@ final readonly class PlacementWindowSetWriter implements MutationWriter
         set visibility = ?, live_from = ?::timestamptz, live_until = ?::timestamptz, next_transition_at = ?::timestamptz
         from old
         where pl.placement_id = old.placement_id and pl.stage = old.stage and pl.locale = old.locale
-        returning pl.entry_id, old.visibility as previous
+        returning pl.entry_id, pl.node_id, old.visibility as previous
         SQL;
 
     /**
@@ -100,6 +101,7 @@ final readonly class PlacementWindowSetWriter implements MutationWriter
         return [new PlacementVisibilityChanged($context->version->value, new PlacementVisibilityChangedV1(
             $mutation->placement,
             EntryId::fromString(PlacementRows::text($row, 'entry_id')),
+            NodeId::fromString(PlacementRows::text($row, 'node_id')),
             $mutation->locale,
             $previous,
             $visibility,

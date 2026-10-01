@@ -16,6 +16,7 @@ use Cbox\Cms\Contracts\Consistency\ProjectionState;
 use Cbox\Cms\Contracts\Events\InvalidEvent;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
+use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Tests\Events\Fixtures\CounterRaised;
 use Cbox\Cms\Core\Tests\Fragments\InvalidationWorld;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
@@ -136,3 +137,65 @@ it('refuses an event that carries no entry and purges nothing', function (): voi
     expect($world->cdn->requests())->toBe([])
         ->and($world->origin($changeset)?->state)->toBe(ProjectionState::Pending);
 });
+
+it('invalidates the entry of variant.released and purges the edge softly, because the released content is a change', function (): void {
+    $world = new InvalidationWorld;
+    $world->write('page:a', 90);
+    $changeset = $world->changeset('origin');
+
+    $world->handle($world->stored(InvalidationWorld::released(3, 2), $changeset, 100));
+
+    expect($world->fragments->read(new FragmentKey('page:a')))->toBeNull()
+        ->and($world->write('page:a', 100))->toBeInstanceOf(FragmentFenced::class)
+        ->and($world->cdn->requests())->toEqual([new CdnPurge([InvalidationWorld::key()], PurgeMode::Soft)])
+        ->and($world->origin($changeset)?->state)->toBe(ProjectionState::Acknowledged);
+});
+
+it('invalidates the entry of variant.unreleased and purges the edge hard, because the content is removed', function (): void {
+    $world = new InvalidationWorld;
+    $world->write('page:a', 90);
+    $changeset = $world->changeset('origin');
+
+    $world->handle($world->stored(InvalidationWorld::unreleased(4, 2), $changeset, 100));
+
+    expect($world->fragments->read(new FragmentKey('page:a')))->toBeNull()
+        ->and($world->cdn->requests())->toEqual([new CdnPurge([InvalidationWorld::key()], PurgeMode::Hard)])
+        ->and($world->origin($changeset)?->state)->toBe(ProjectionState::Acknowledged);
+});
+
+it('invalidates the entry and the node of placement.created, so a 404 of the path below the node is purged too', function (): void {
+    $world = new InvalidationWorld;
+    $world->write('page:a', 90);
+    $world->writeUnderNode('missing:harbour', 90);
+    $changeset = $world->changeset('origin');
+
+    $world->handle($world->stored(InvalidationWorld::placed(), $changeset, 100));
+
+    expect($world->fragments->read(new FragmentKey('page:a')))->toBeNull()
+        ->and($world->fragments->read(new FragmentKey('missing:harbour')))->toBeNull()
+        ->and($world->fragments->fragmentsOf(InvalidationWorld::nodeKey()))->toBe([])
+        ->and($world->writeUnderNode('missing:harbour', 100))->toBeInstanceOf(FragmentFenced::class)
+        ->and($world->writeUnderNode('missing:harbour', 101))->toBeInstanceOf(FragmentStored::class)
+        ->and($world->cdn->requests())->toEqual([new CdnPurge([InvalidationWorld::key(), InvalidationWorld::nodeKey()], PurgeMode::Soft)])
+        ->and($world->origin($changeset)?->state)->toBe(ProjectionState::Acknowledged);
+});
+
+it('purges the entry and the node of placement.visibility_changed softly when the placement goes live and hard when it is no longer live', function (Visibility $previous, Visibility $visibility, PurgeMode $mode): void {
+    $world = new InvalidationWorld;
+    $world->write('page:a', 90);
+    $world->writeUnderNode('missing:harbour', 90);
+    $changeset = $world->changeset('origin');
+
+    $world->handle($world->stored(InvalidationWorld::windowed(2, $previous, $visibility), $changeset, 100));
+
+    expect($world->fragments->read(new FragmentKey('page:a')))->toBeNull()
+        ->and($world->fragments->read(new FragmentKey('missing:harbour')))->toBeNull()
+        ->and($world->cdn->requests())->toEqual([new CdnPurge([InvalidationWorld::key(), InvalidationWorld::nodeKey()], $mode)])
+        ->and($world->origin($changeset)?->state)->toBe(ProjectionState::Acknowledged);
+})->with([
+    'opened' => [Visibility::Hidden, Visibility::Live, PurgeMode::Soft],
+    'window moved' => [Visibility::Live, Visibility::Live, PurgeMode::Soft],
+    'unpublished' => [Visibility::Live, Visibility::Hidden, PurgeMode::Hard],
+    'scheduled for later' => [Visibility::Live, Visibility::Scheduled, PurgeMode::Hard],
+    'expired' => [Visibility::Live, Visibility::Expired, PurgeMode::Hard],
+]);

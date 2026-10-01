@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\Placements\Adapter;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Plans\Mutation;
 use Cbox\Cms\Contracts\Plans\Mutations\PlacementClosed;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\MutationContext;
@@ -31,7 +32,7 @@ use UnexpectedValueException;
 #[Internal]
 final readonly class PlacementClosedWriter implements MutationWriter
 {
-    public const string CLOSE = 'select entry_id, previous from cms_placement_close(?::uuid, ?, ?::bigint, ?::uuid)';
+    public const string CLOSE = 'select entry_id, node_id, previous from cms_placement_close(?::uuid, ?, ?::bigint, ?::uuid)';
 
     /**
      * @param  string|null  $connection  the connection name; null for the default connection
@@ -75,6 +76,7 @@ final readonly class PlacementClosedWriter implements MutationWriter
         return [new PlacementVisibilityChanged($context->version->value, new PlacementVisibilityChangedV1(
             $mutation->placement,
             EntryId::fromString(PlacementRows::text($row, 'entry_id')),
+            NodeId::fromString(PlacementRows::text($row, 'node_id')),
             $mutation->locale,
             $previous,
             Visibility::Hidden,

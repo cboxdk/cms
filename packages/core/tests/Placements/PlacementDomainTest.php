@@ -105,7 +105,7 @@ it('tells that a placement was created and that its window was set, with ids, st
     $placement = PlacementId::fromString('01936f5e-8a2b-7c3d-9e4f-0000000007c1');
     $entry = EntryId::fromString('01936f5e-8a2b-7c3d-9e4f-0000000007e1');
     $created = new PlacementCreated(1, new PlacementCreatedV1($placement, $entry, NodeId::fromString('01936f5e-8a2b-7c3d-9e4f-0000000007a1'), SiteId::fromString('01936f5e-8a2b-7c3d-9e4f-0000000007b1')));
-    $changed = new PlacementVisibilityChanged(2, new PlacementVisibilityChangedV1($placement, $entry, new Locale('da'), Visibility::Hidden, Visibility::Live, domainAt('-1 hour'), null, null));
+    $changed = new PlacementVisibilityChanged(2, new PlacementVisibilityChangedV1($placement, $entry, NodeId::fromString('01936f5e-8a2b-7c3d-9e4f-0000000007a1'), new Locale('da'), Visibility::Hidden, Visibility::Live, domainAt('-1 hour'), null, null));
     $data = $changed->payload()->data();
 
     expect(PlacementCreated::type())->toEqual(new EventType('placement.created', 1))
@@ -113,7 +113,7 @@ it('tells that a placement was created and that its window was set, with ids, st
         ->and([$created->aggregate()->type->value, $created->aggregate()->id->value, $created->aggregate()->version])->toBe(['placement', '01936f5e-8a2b-7c3d-9e4f-0000000007c1', 1])
         ->and(array_keys($created->payload()->data()->fields()))->toBe(['entry', 'node', 'placement', 'site'])
         ->and($changed->aggregate()->version)->toBe(2)
-        ->and(array_keys($data->fields()))->toBe(['entry', 'live_from', 'live_until', 'locale', 'next_transition_at', 'placement', 'previous', 'visibility'])
+        ->and(array_keys($data->fields()))->toBe(['entry', 'live_from', 'live_until', 'locale', 'next_transition_at', 'node', 'placement', 'previous', 'visibility'])
         ->and($data->get('locale')->asIdentifier()->value)->toBe('da')
         ->and([$data->get('previous')->asEnumValue(), $data->get('visibility')->asEnumValue()])->toBe(['hidden', 'live'])
         ->and($data->get('live_from')->asTime())->toEqual(domainAt('-1 hour'))

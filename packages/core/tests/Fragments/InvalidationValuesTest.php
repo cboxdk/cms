@@ -8,10 +8,14 @@ use Cbox\Cms\Contracts\Attributes\Subscription;
 use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Subscribers\Lane;
 use Cbox\Cms\Core\Entries\Domain\Events\EntryCreated;
+use Cbox\Cms\Core\Entries\Domain\Events\VariantReleased;
 use Cbox\Cms\Core\Entries\Domain\Events\VariantRevised;
+use Cbox\Cms\Core\Entries\Domain\Events\VariantUnreleased;
 use Cbox\Cms\Core\Fragments\Actions\InvalidateFragments;
 use Cbox\Cms\Core\Fragments\Boundary\InvalidationConfig;
 use Cbox\Cms\Core\Fragments\Domain\Dto\InvalidationSettings;
+use Cbox\Cms\Core\Placements\Domain\Events\PlacementCreated;
+use Cbox\Cms\Core\Placements\Domain\Events\PlacementVisibilityChanged;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use DateInterval;
 use DateTimeImmutable;
@@ -34,7 +38,7 @@ it('declares fragments.invalidate on the critical lane for the content events, a
     expect($subscription->name)->toBe('fragments.invalidate')
         ->and($subscription->lane)->toBe(Lane::Critical)
         ->and($subscription->projection)->toBe('origin')
-        ->and($subscription->events)->toBe([EntryCreated::class, VariantRevised::class]);
+        ->and($subscription->events)->toBe([EntryCreated::class, VariantReleased::class, VariantRevised::class, VariantUnreleased::class, PlacementCreated::class, PlacementVisibilityChanged::class]);
 });
 
 it('is in the compiled registry, so a receipt of a content event lists origin', function (): void {
@@ -42,6 +46,10 @@ it('is in the compiled registry, so a receipt of a content event lists origin', 
 
     expect(array_map(static fn (ProjectionName $name): string => $name->value, $registry->projectionsFor(VariantRevised::class)))->toContain('origin')
         ->and(array_map(static fn (ProjectionName $name): string => $name->value, $registry->projectionsFor(EntryCreated::class)))->toContain('origin');
+
+    foreach ([VariantReleased::class, VariantUnreleased::class, PlacementCreated::class, PlacementVisibilityChanged::class] as $event) {
+        expect(array_map(static fn (ProjectionName $name): string => $name->value, $registry->projectionsFor($event)))->toContain('origin');
+    }
 });
 
 it('keeps a fence for its seconds', function (): void {

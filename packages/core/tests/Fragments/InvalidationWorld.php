@@ -11,6 +11,7 @@ use Cbox\Cms\Contracts\Cache\FragmentWriteOutcome;
 use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Content\VariantRef;
 use Cbox\Cms\Contracts\Events\Event;
@@ -21,16 +22,27 @@ use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
+use Cbox\Cms\Contracts\Ids\PlacementId;
+use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Receipts\StoredReceipt;
 use Cbox\Cms\Contracts\Subscribers\Delivery;
 use Cbox\Cms\Core\Entries\Domain\Events\EntryCreated;
 use Cbox\Cms\Core\Entries\Domain\Events\EntryCreatedV1;
+use Cbox\Cms\Core\Entries\Domain\Events\VariantReleased;
+use Cbox\Cms\Core\Entries\Domain\Events\VariantReleasedV1;
 use Cbox\Cms\Core\Entries\Domain\Events\VariantRevised;
 use Cbox\Cms\Core\Entries\Domain\Events\VariantRevisedV1;
+use Cbox\Cms\Core\Entries\Domain\Events\VariantUnreleased;
+use Cbox\Cms\Core\Entries\Domain\Events\VariantUnreleasedV1;
 use Cbox\Cms\Core\Fragments\Actions\InvalidateFragments;
 use Cbox\Cms\Core\Fragments\Domain\Dto\InvalidationSettings;
+use Cbox\Cms\Core\Placements\Domain\Events\PlacementCreated;
+use Cbox\Cms\Core\Placements\Domain\Events\PlacementCreatedV1;
+use Cbox\Cms\Core\Placements\Domain\Events\PlacementVisibilityChanged;
+use Cbox\Cms\Core\Placements\Domain\Events\PlacementVisibilityChangedV1;
+use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Testkit\Cache\FakeFragmentStore;
 use Cbox\Cms\Testkit\Cdn\FakeCdnDriver;
 use Cbox\Cms\Testkit\Clock\FakeClock;
@@ -54,6 +66,10 @@ final readonly class InvalidationWorld
     public const string NODE = '0192a0c0-0000-7000-8000-0000000001a2';
 
     public const string TYPE = '0192a0c0-0000-7000-8000-0000000001c1';
+
+    public const string PLACEMENT = '0192a0c0-0000-7000-8000-0000000001d1';
+
+    public const string SITE = '0192a0c0-0000-7000-8000-0000000001b1';
 
     public FakeClock $clock;
 
@@ -113,6 +129,51 @@ final readonly class InvalidationWorld
         return new VariantRevised($version, new VariantRevisedV1($id, new VariantRef($id, VariantKey::shared()), $version, $version > 1 ? $version - 1 : null));
     }
 
+    /**
+     * The key of the node the world's placements sit under.
+     */
+    public static function nodeKey(): DependencyKey
+    {
+        return DependencyKey::node(NodeId::fromString(self::NODE));
+    }
+
+    public static function released(int $version, int $revision): VariantReleased
+    {
+        $id = self::entry();
+
+        return new VariantReleased($version, new VariantReleasedV1($id, new VariantRef($id, VariantKey::shared()), $revision, $revision + 1, null));
+    }
+
+    public static function unreleased(int $version, int $revision): VariantUnreleased
+    {
+        $id = self::entry();
+
+        return new VariantUnreleased($version, new VariantUnreleasedV1($id, new VariantRef($id, VariantKey::shared()), $revision));
+    }
+
+    public static function placed(): PlacementCreated
+    {
+        return new PlacementCreated(1, new PlacementCreatedV1(PlacementId::fromString(self::PLACEMENT), self::entry(), NodeId::fromString(self::NODE), SiteId::fromString(self::SITE)));
+    }
+
+    /**
+     * placement.visibility_changed of the world's placement in da, from the state before to the state after.
+     */
+    public static function windowed(int $version, Visibility $previous, Visibility $visibility): PlacementVisibilityChanged
+    {
+        return new PlacementVisibilityChanged($version, new PlacementVisibilityChangedV1(
+            PlacementId::fromString(self::PLACEMENT),
+            self::entry(),
+            NodeId::fromString(self::NODE),
+            new Locale('da'),
+            $previous,
+            $visibility,
+            null,
+            null,
+            null,
+        ));
+    }
+
     public static function created(string $entry = self::ENTRY): EntryCreated
     {
         return new EntryCreated(1, new EntryCreatedV1(self::entry($entry), TypeId::fromString(self::TYPE), NodeId::fromString(self::NODE)));
@@ -146,6 +207,21 @@ final readonly class InvalidationWorld
             new FragmentKey($name),
             'body of '.$name,
             [self::key($entry)],
+            new CommitPosition((string) $builtAt),
+            $this->clock->now()->add(new DateInterval('PT1H')),
+        ));
+    }
+
+    /**
+     * Writes a fragment that depends only on the node the world's placements sit under, as a 404 of
+     * a slug nothing was placed at, built at the position and valid for an hour.
+     */
+    public function writeUnderNode(string $name, int $builtAt): FragmentWriteOutcome
+    {
+        return $this->fragments->write(new Fragment(
+            new FragmentKey($name),
+            'body of '.$name,
+            [self::nodeKey()],
             new CommitPosition((string) $builtAt),
             $this->clock->now()->add(new DateInterval('PT1H')),
         ));
