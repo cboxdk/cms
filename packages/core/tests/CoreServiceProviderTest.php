@@ -8,6 +8,8 @@ use Cbox\Cms\Contracts\Cache\FragmentStore;
 use Cbox\Cms\Contracts\Cdn\CdnDriver;
 use Cbox\Cms\Contracts\Telemetry\Telemetry;
 use Cbox\Cms\Contracts\TypeTables\TypeTableReader;
+use Cbox\Cms\Core\Access\Adapter\GrantCommandAuthorizer;
+use Cbox\Cms\Core\Access\Adapter\GrantQueryAuthorizer;
 use Cbox\Cms\Core\Bindings\Boundary\ContractBindings;
 use Cbox\Cms\Core\Bindings\Boundary\InvalidContractBinding;
 use Cbox\Cms\Core\Cache\Adapter\ValkeyFragmentStore;
@@ -19,6 +21,7 @@ use Cbox\Cms\Core\Operations\Domain\OperationRunner;
 use Cbox\Cms\Core\Partitions\Boundary\PartitionConfig;
 use Cbox\Cms\Core\Pipeline\Actions\CommandPipeline;
 use Cbox\Cms\Core\Pipeline\Actions\HookRunner;
+use Cbox\Cms\Core\Pipeline\Actions\RunExposedCommand;
 use Cbox\Cms\Core\Pipeline\Adapter\HrtimeStopwatch;
 use Cbox\Cms\Core\Pipeline\Adapter\LoggedHookOverruns;
 use Cbox\Cms\Core\Pipeline\Adapter\PostgresChangesetCommitter;
@@ -26,6 +29,7 @@ use Cbox\Cms\Core\Pipeline\Adapter\RegistryCommandHooks;
 use Cbox\Cms\Core\Pipeline\Adapter\RegistryWriteActions;
 use Cbox\Cms\Core\Pipeline\Boundary\TypeRulesFieldValidation;
 use Cbox\Cms\Core\Pipeline\Boundary\WaitConfig;
+use Cbox\Cms\Core\Pipeline\Domain\CommandAuthorizer;
 use Cbox\Cms\Core\Pipeline\Domain\CommandHooks;
 use Cbox\Cms\Core\Pipeline\Domain\FieldValidation;
 use Cbox\Cms\Core\Pipeline\Domain\HookOverruns;
@@ -35,7 +39,9 @@ use Cbox\Cms\Core\ReadModels\Adapter\PostgresReadModelStore;
 use Cbox\Cms\Core\ReadModels\Boundary\RebuildConfig;
 use Cbox\Cms\Core\ReadModels\Domain\Dto\RebuildSettings;
 use Cbox\Cms\Core\ReadModels\Domain\ReadModelStore;
+use Cbox\Cms\Core\Reads\Actions\QueryPipeline;
 use Cbox\Cms\Core\Reads\Boundary\QueryConfig;
+use Cbox\Cms\Core\Reads\Domain\QueryAuthorizer;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Seeding\Actions\SeedDataset;
 use Cbox\Cms\Core\Seeding\Adapter\PostgresSeedReader;
@@ -136,6 +142,16 @@ it('binds the command pipeline\'s ports it implements: the registry\'s write act
 
     expect(app(WriteActions::class))->toBeInstanceOf(RegistryWriteActions::class)
         ->and(app(FieldValidation::class))->toBeInstanceOf(TypeRulesFieldValidation::class);
+});
+
+it('binds both pipelines\' authorizers to the grant-based ones, so the exposed surfaces and the query pipeline build from the container', function (): void {
+    app()->instance(CompiledRegistry::class, CompiledRegistry::empty());
+
+    expect(app(CommandAuthorizer::class))->toBeInstanceOf(GrantCommandAuthorizer::class)
+        ->and(app(QueryAuthorizer::class))->toBeInstanceOf(GrantQueryAuthorizer::class)
+        ->and(app(CommandPipeline::class))->toBeInstanceOf(CommandPipeline::class)
+        ->and(app(RunExposedCommand::class))->toBeInstanceOf(RunExposedCommand::class)
+        ->and(app(QueryPipeline::class))->toBeInstanceOf(QueryPipeline::class);
 });
 
 it('binds the hooks\' ports: the registry\'s hooks, the hrtime stopwatch once per process and the log for overruns', function (): void {

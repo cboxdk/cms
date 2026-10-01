@@ -9,8 +9,9 @@ use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Content\VariantRef;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
-use Cbox\Cms\Contracts\Pipeline\Aggregates;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationTarget;
+use Cbox\Cms\Contracts\Pipeline\AuthorizedOn;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersions;
 use Override;
@@ -22,7 +23,7 @@ use Override;
  * still absent and the node still at its version, so two creates of one id commit once.
  */
 #[Internal]
-final readonly class CreateEntryAggregates implements Aggregates
+final readonly class CreateEntryAggregates implements AuthorizedOn
 {
     public function __construct(
         public EntryId $entry,
@@ -41,5 +42,14 @@ final readonly class CreateEntryAggregates implements Aggregates
             new ReadVersion($variant, $this->existing?->head?->version),
             new ReadVersion($this->home, $this->homeVersion),
         );
+    }
+
+    /**
+     * The home node the entry is created below (PRD 5.10).
+     */
+    #[Override]
+    public function authorizationTargets(): array
+    {
+        return [new AuthorizationTarget($this->home)];
     }
 }

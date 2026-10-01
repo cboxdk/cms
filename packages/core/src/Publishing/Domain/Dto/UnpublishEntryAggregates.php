@@ -8,7 +8,8 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Content\VariantRef;
 use Cbox\Cms\Contracts\Ids\EntryId;
-use Cbox\Cms\Contracts\Pipeline\Aggregates;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationTarget;
+use Cbox\Cms\Contracts\Pipeline\AuthorizedOn;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersions;
 use Cbox\Cms\Core\Entries\Domain\Dto\StoredEntry;
@@ -26,7 +27,7 @@ use Override;
  * left live.
  */
 #[Internal]
-final readonly class UnpublishEntryAggregates implements Aggregates
+final readonly class UnpublishEntryAggregates implements AuthorizedOn
 {
     /**
      * @param  list<LocalePlacements>  $everywhere  one per locale the entry has placements in
@@ -51,5 +52,14 @@ final readonly class UnpublishEntryAggregates implements Aggregates
         }
 
         return PlacementReads::unique($reads);
+    }
+
+    /**
+     * The entry's home (PRD 5.10), or none when the entry is absent.
+     */
+    #[Override]
+    public function authorizationTargets(): array
+    {
+        return $this->stored instanceof StoredEntry ? [new AuthorizationTarget($this->stored->home)] : [];
     }
 }

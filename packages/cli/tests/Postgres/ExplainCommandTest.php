@@ -15,7 +15,6 @@ use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Results\QueryResult;
 use Cbox\Cms\Core\Reads\Actions\QueryPipeline;
 use Cbox\Cms\Core\Reads\Domain\Dto\QueryCall;
-use Cbox\Cms\Core\Reads\Domain\QueryAuthorizer;
 use Cbox\Cms\Core\Routing\Boundary\PathExplanationJson;
 use Cbox\Cms\Core\Routing\Boundary\SitesConfig;
 use Cbox\Cms\Core\Routing\Domain\Dto\ResolvedPath;
@@ -27,7 +26,6 @@ use Cbox\Cms\Core\Tests\Entries\EntryWorld;
 use Cbox\Cms\Core\Tests\Placements\PlacementStructure;
 use Cbox\Cms\Core\Tests\Placements\PlacementWorld;
 use Cbox\Cms\Core\Tests\Publishing\PublishingWorld;
-use Cbox\Cms\Core\Tests\Reads\Fakes\FakeQueryAuthorizer;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\FixtureWriters\Structure\Adapter\PostgresStructureFixtures;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
@@ -48,8 +46,8 @@ use RuntimeException;
  * PathExplanationJson, the one encoding of it: the document of --json is exactly the encoding of
  * the explanation the query pipeline answers the same read with.
  *
- * The installation binds no QueryAuthorizer yet (PROGRESS.md, "Til review af Sylvester"), so the
- * test binds one that allows every read.
+ * The read is authorized by the kernel's GrantQueryAuthorizer, which runs path.resolve, a public
+ * read, for the anonymous principal.
  */
 
 afterEach(function (): void {
@@ -63,7 +61,7 @@ const EXPLAINED_PLACEMENT = '0192a0c0-0000-7000-8000-0000000043c1';
 /**
  * The structure of PlacementWorld with the mount "/national" on south of north's section, the
  * fixture article published there as "harbour" with the window given, and the installation set up
- * to resolve on it: the workbench's registry, the configured sites, an authorizer that allows and
+ * to resolve on it: the workbench's registry, the configured sites and
  * the clock an hour after the publish.
  */
 function explainedWorld(?TimeWindow $window = null): PlacementStructure
@@ -86,7 +84,6 @@ function explainedWorld(?TimeWindow $window = null): PlacementStructure
     }
 
     WorkbenchRegistry::bind();
-    app()->instance(QueryAuthorizer::class, new FakeQueryAuthorizer);
     app()->instance(Clock::class, new FakeClock(new DateTimeImmutable(EntryWorld::NOW)->modify('+1 hour')));
     config()->set(SitesConfig::CONFIG_KEY, [
         'north' => ['origin' => 'https://north.example'],

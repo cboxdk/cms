@@ -8,7 +8,8 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Content\VariantRef;
 use Cbox\Cms\Contracts\Ids\EntryId;
-use Cbox\Cms\Contracts\Pipeline\Aggregates;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationTarget;
+use Cbox\Cms\Contracts\Pipeline\AuthorizedOn;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersions;
 use Override;
@@ -20,7 +21,7 @@ use Override;
  * the variant is the aggregate the revise changes.
  */
 #[Internal]
-final readonly class ReviseEntryAggregates implements Aggregates
+final readonly class ReviseEntryAggregates implements AuthorizedOn
 {
     public function __construct(
         public EntryId $entry,
@@ -34,5 +35,14 @@ final readonly class ReviseEntryAggregates implements Aggregates
             new ReadVersion($this->entry, $this->stored?->version),
             new ReadVersion(new VariantRef($this->entry, VariantKey::shared()), $this->stored?->head?->version),
         );
+    }
+
+    /**
+     * The entry's home (PRD 5.10), or none when the entry is absent.
+     */
+    #[Override]
+    public function authorizationTargets(): array
+    {
+        return $this->stored instanceof StoredEntry ? [new AuthorizationTarget($this->stored->home)] : [];
     }
 }

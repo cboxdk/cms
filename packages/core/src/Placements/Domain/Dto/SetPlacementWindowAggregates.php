@@ -7,8 +7,9 @@ namespace Cbox\Cms\Core\Placements\Domain\Dto;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Ids\PlacementId;
-use Cbox\Cms\Contracts\Pipeline\Aggregates;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationTarget;
+use Cbox\Cms\Contracts\Pipeline\AuthorizedOn;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersions;
 use DateTimeImmutable;
@@ -22,7 +23,7 @@ use Override;
  * placement and every other placement of the entry in the locale are still at the versions read.
  */
 #[Internal]
-final readonly class SetPlacementWindowAggregates implements Aggregates
+final readonly class SetPlacementWindowAggregates implements AuthorizedOn
 {
     public function __construct(
         public PlacementId $placement,
@@ -43,5 +44,14 @@ final readonly class SetPlacementWindowAggregates implements Aggregates
         }
 
         return PlacementReads::unique($reads);
+    }
+
+    /**
+     * The placement's node in the window's locale (PRD 5.10), or none when the placement is absent.
+     */
+    #[Override]
+    public function authorizationTargets(): array
+    {
+        return $this->stored instanceof StoredPlacement ? [new AuthorizationTarget($this->stored->node, $this->locale)] : [];
     }
 }

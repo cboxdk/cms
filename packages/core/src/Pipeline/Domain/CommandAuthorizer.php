@@ -15,7 +15,8 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\Authorization;
  * Phase 2 of the command pipeline (PRD 6.2): whether the call's AccessContext may run the command
  * on the aggregates the resolve phase read. It only looks: it reads nothing it was not given,
  * writes nothing, and a refusal carries the reason in plain language. Authorization hooks may add
- * refusals to the kernel's decision, never grant what it refuses.
+ * refusals to the kernel's decision, never grant what it refuses. The kernel binds
+ * Access\Adapter\GrantCommandAuthorizer.
  */
 #[Internal]
 interface CommandAuthorizer

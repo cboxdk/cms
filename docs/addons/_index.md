@@ -30,6 +30,7 @@ An extension point is `#[Stable]` or `#[Experimental]`. Every extension point do
 - [Actor commands](actor-commands.md): `actor.deactivate`, what it changes in one changeset, its event and how it stops every command and read of the actor.
 - [Plans and mutations](plans.md): the `Plan` a write action returns, the typed mutations and the kernel-generic field values of a revision.
 - [Queries and query actions](queries.md): `Query`, `QueryAction` and the typed `Result` of a read.
+- [Authorization](authorization.md): permissions on roles and grants on nodes, the nodes a command's aggregates name with `AuthorizedOn`, and public reads with `PublicQuery`.
 - [Records and JSON codecs](codecs.md): the record DTO and the JSON codec `cms:generate` writes for every type, the JSON form of each kind of value, classification access and `Omitted`, and the `JsonCodec` contract.
 - [Runtime validators](validation.md): the validator `cms:generate` writes per type, its rules, and the kernel's `InputValidator`, which checks input from outside against them.
 - [Receipt JSON](receipt-json.md): the JSON form of the receipt a write returns, `receipt.v1.json`, and its generated codec.

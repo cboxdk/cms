@@ -10,8 +10,9 @@ use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Ids\SiteId;
-use Cbox\Cms\Contracts\Pipeline\Aggregates;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationTarget;
+use Cbox\Cms\Contracts\Pipeline\AuthorizedOn;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersions;
 use DateTimeImmutable;
@@ -29,7 +30,7 @@ use Override;
  * on it would find nothing (PRD 5.10).
  */
 #[Internal]
-final readonly class CreatePlacementAggregates implements Aggregates
+final readonly class CreatePlacementAggregates implements AuthorizedOn
 {
     /**
      * @param  list<SlugClaim>  $slugs  in the order of the command's slugs
@@ -78,5 +79,20 @@ final readonly class CreatePlacementAggregates implements Aggregates
         }
 
         return PlacementReads::unique($reads);
+    }
+
+    /**
+     * The node the placement is created below (PRD 5.10), in each locale of its slugs.
+     */
+    #[Override]
+    public function authorizationTargets(): array
+    {
+        $targets = [];
+
+        foreach ($this->slugs as $claim) {
+            $targets[] = new AuthorizationTarget($this->node, $claim->slug->locale);
+        }
+
+        return $targets === [] ? [new AuthorizationTarget($this->node)] : $targets;
     }
 }

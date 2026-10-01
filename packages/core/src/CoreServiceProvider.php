@@ -19,7 +19,10 @@ use Cbox\Cms\Contracts\ReceiptStore;
 use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Contracts\Telemetry\Telemetry;
 use Cbox\Cms\Contracts\TypeTables\TypeTableReader;
+use Cbox\Cms\Core\Access\Adapter\GrantCommandAuthorizer;
+use Cbox\Cms\Core\Access\Adapter\GrantQueryAuthorizer;
 use Cbox\Cms\Core\Access\Adapter\PostgresAccessResolver;
+use Cbox\Cms\Core\Access\Adapter\PostgresPermissions;
 use Cbox\Cms\Core\Access\Adapter\TransactionalAccessContexts;
 use Cbox\Cms\Core\Access\Domain\AccessCompiler;
 use Cbox\Cms\Core\Access\Domain\AccessContexts;
@@ -121,6 +124,7 @@ use Cbox\Cms\Core\Pipeline\Boundary\TypeRulesFieldValidation;
 use Cbox\Cms\Core\Pipeline\Boundary\WaitConfig;
 use Cbox\Cms\Core\Pipeline\Domain\AffectedProjections;
 use Cbox\Cms\Core\Pipeline\Domain\ChangesetCommitter;
+use Cbox\Cms\Core\Pipeline\Domain\CommandAuthorizer;
 use Cbox\Cms\Core\Pipeline\Domain\CommandCodecs;
 use Cbox\Cms\Core\Pipeline\Domain\CommandContentHasher;
 use Cbox\Cms\Core\Pipeline\Domain\CommandHooks;
@@ -161,6 +165,7 @@ use Cbox\Cms\Core\Reads\Boundary\QueryConfig;
 use Cbox\Cms\Core\Reads\Domain\Dto\QueryCodec;
 use Cbox\Cms\Core\Reads\Domain\Dto\QuerySettings;
 use Cbox\Cms\Core\Reads\Domain\QueryActions;
+use Cbox\Cms\Core\Reads\Domain\QueryAuthorizer;
 use Cbox\Cms\Core\Reads\Domain\QueryCodecs;
 use Cbox\Cms\Core\Reads\Domain\QueryTransaction;
 use Cbox\Cms\Core\Reads\Domain\ReadableFields;
@@ -441,11 +446,21 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->singleton(Stopwatch::class, HrtimeStopwatch::class);
         $this->app->bind(HookOverruns::class, LoggedHookOverruns::class);
 
+        // Phase 2 of both pipelines (PRD 5.10, 6.2): a command runs when the actor's roles with its
+        // permission reach every node its aggregates name, and a read when it is a public read or
+        // the actor's roles with its permission reach a node; both read the grants on the default
+        // connection, inside the pipeline's transaction and under the context it set.
+        $this->app->bind(
+            PostgresPermissions::class,
+            static fn (Application $app): PostgresPermissions => new PostgresPermissions($app->make(ConnectionResolverInterface::class)),
+        );
+        $this->app->bind(CommandAuthorizer::class, GrantCommandAuthorizer::class);
+        $this->app->bind(QueryAuthorizer::class, GrantQueryAuthorizer::class);
+
         // The query pipeline's ports that the core implements (PRD 6.2): the query action of a
         // query from the compiled registry, the read transaction on the default connection, which
         // the access resolver, the read audit and the actions' read ports use too, and the settings,
-        // built on each resolution so the budgets follow the configuration. The QueryAuthorizer is not
-        // bound yet; its docblock says why.
+        // built on each resolution so the budgets follow the configuration.
         $this->app->bind(QueryActions::class, RegistryQueryActions::class);
         $this->app->bind(
             QueryTransaction::class,

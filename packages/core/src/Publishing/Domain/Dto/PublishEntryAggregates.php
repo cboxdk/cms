@@ -10,8 +10,9 @@ use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Content\VariantRef;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
-use Cbox\Cms\Contracts\Pipeline\Aggregates;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationTarget;
+use Cbox\Cms\Contracts\Pipeline\AuthorizedOn;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersions;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
@@ -33,7 +34,7 @@ use Override;
  * entry in the placement's locale, with its canonical slot, are still at the versions read.
  */
 #[Internal]
-final readonly class PublishEntryAggregates implements Aggregates
+final readonly class PublishEntryAggregates implements AuthorizedOn
 {
     /**
      * @param  list<LocalePlacements>  $everywhere  one per locale the entry has placements in
@@ -75,5 +76,26 @@ final readonly class PublishEntryAggregates implements Aggregates
         ];
 
         return PlacementReads::unique($reads);
+    }
+
+    /**
+     * The entry's home, where its release is decided, and the home placement's node in the
+     * command's locale, where its window is (PRD 5.10); none when the entry is absent, and only the
+     * home when the placement is.
+     */
+    #[Override]
+    public function authorizationTargets(): array
+    {
+        if (! $this->stored instanceof StoredEntry) {
+            return [];
+        }
+
+        $targets = [new AuthorizationTarget($this->stored->home)];
+
+        if ($this->storedPlacement instanceof StoredPlacement) {
+            $targets[] = new AuthorizationTarget($this->storedPlacement->node, $this->locale);
+        }
+
+        return $targets;
     }
 }

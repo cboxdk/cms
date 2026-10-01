@@ -12,10 +12,8 @@ use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\IssuerKind;
 use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Contracts\Ids\CommandName;
-use Cbox\Cms\Core\Pipeline\Domain\CommandAuthorizer;
 use Cbox\Cms\Core\Tests\Entries\EntryWorld;
 use Cbox\Cms\Core\Tests\Identity\PostgresIdentity;
-use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandAuthorizer;
 use Cbox\Cms\Core\Tests\Postgres\StorageTables;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\FixtureWriters\Access\Adapter\PostgresAccessFixtures;
@@ -39,9 +37,9 @@ use RuntimeException;
  * as the document gives them, and a document that breaks the command's schema is refused before
  * anything runs.
  *
- * The kernel binds no CommandAuthorizer yet (the rights model is open for review, PROGRESS.md
- * M1-T23 and M1-T32), so the test binds the allowing FakeCommandAuthorizer, as the other Postgres
- * tests of the pipeline do; everything else is the container's.
+ * Everything is the container's, the kernel's GrantCommandAuthorizer included: the role's
+ * permission on the site's root allows entry.create there, and a home on a site where the actor
+ * holds no grant is refused as unauthorized (exit 77) before anything is written.
  */
 
 const RUN_CREATE_NOW = '2026-03-10T12:00:00.000000+00:00';
@@ -60,7 +58,6 @@ function runCreateWorld(): string
 {
     $clock = new FakeClock(new DateTimeImmutable(RUN_CREATE_NOW));
     app()->instance(Clock::class, $clock);
-    app()->instance(CommandAuthorizer::class, new FakeCommandAuthorizer);
     app()->instance(IdGenerator::class, new FakeIdGenerator(seed: 6501, clock: $clock));
     app(PartitionFixtures::class)->coverClock($clock, new DateInterval('P1D'));
 
@@ -110,6 +107,24 @@ it('creates an entry of a workbench fixture type through cms:run entry.create 1 
         ->and($receipt['changeset_id'] ?? null)->toBeString()
         ->and($entry === null ? null : [$entry->type_id, $entry->home_node_id, $entry->version])->toBe([$type->id->toString(), $home, 1])
         ->and($row === null ? null : [$row->fixture_title, $row->fixture_featured, $row->fixture_reading_minutes])->toBe(['The harbour opens', true, 4]);
+});
+
+it('refuses entry.create as unauthorized on a home where no role of the actor carries the permission', function (): void {
+    runCreateWorld();
+    $clock = app(Clock::class);
+    $elsewhere = new PostgresStructureFixtures(app(ConnectionResolverInterface::class), $clock, new FakeIdGenerator(seed: 6504, clock: $clock))->site('elsewhere', [new Locale('da')]);
+    $document = json_encode([
+        'entry' => RUN_CREATE_ENTRY,
+        'fields' => ['fixture_featured' => true, 'fixture_reading_minutes' => 4, 'fixture_title' => 'The harbour opens'],
+        'home' => $elsewhere->root->id->toString(),
+        'type' => EntryWorld::type(EntryWorld::ARTICLE)->id->toString(),
+    ], JSON_THROW_ON_ERROR);
+
+    [$status, $problem] = runCreate($document, 'cli-entry-unauthorized');
+
+    expect($status)->toBe(77, (string) json_encode($problem))
+        ->and($problem['code'] ?? null)->toBe('unauthorized')
+        ->and(StorageTables::superuser()->table('entries')->where('id', RUN_CREATE_ENTRY)->count())->toBe(0);
 });
 
 it('refuses a document that breaks the schema of entry.create before it runs, with the codec\'s path', function (): void {
