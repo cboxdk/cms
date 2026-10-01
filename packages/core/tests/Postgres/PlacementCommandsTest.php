@@ -23,7 +23,9 @@ use Illuminate\Support\Facades\DB;
  * the sites north and south, each with a section. An entry placed on both sites has exactly one
  * canonical placement once both are visible, and the flag moves to a visible placement, also across
  * the actor's regions; a slug another placement has below the node and a node outside the actor's
- * regions are refused; two commands that claim one slug, or would each make a placement canonical,
+ * regions are refused; a window that would make a placement of an entry without a released
+ * revision live or scheduled is refused, and is version_conflict when the release is taken back
+ * between the read and the commit (invariant 6); two commands that claim one slug, or would each make a placement canonical,
  * commit one after the other; and a command costs the same queries whatever the number of
  * placements below the node.
  */
@@ -187,6 +189,53 @@ it('refuses a slug another placement has below the node, and a node outside the 
         ->and(placementCodes($outside))->toBe(['unauthorized'])
         ->and(placementCodes($window))->toBe(['unauthorized'])
         ->and(StorageTables::superuser()->table('placements')->count())->toBe(1)
+        ->and(placementLocales())->toBe([NORTH_PLACEMENT.' hidden true']);
+});
+
+it('refuses a window that would make a placement of an entry with no released revision live or scheduled, and moves no canonical flag', function (): void {
+    $structure = PlacementWorld::seed();
+    $world = new PlacementWorld([$structure->north->root, $structure->south->root]);
+    $entry = EntryId::fromString(PLACEMENT_ENTRY);
+    $now = new DateTimeImmutable(EntryWorld::NOW);
+    $world->createEntry($entry, $structure->northSection, 'entry', released: false);
+    $world->place(placementId(NORTH_PLACEMENT), $entry, $structure->northSection, $structure->north, ['da' => 'harbour'], 'north');
+    $world->place(placementId(SOUTH_PLACEMENT_ID), $entry, $structure->southSection, $structure->south, ['da' => 'harbour'], 'south');
+
+    $live = $world->setWindow(placementId(SOUTH_PLACEMENT_ID), 1, new TimeWindow($now), 'south-live');
+    $scheduled = $world->setWindow(placementId(SOUTH_PLACEMENT_ID), 1, new TimeWindow($now->modify('+2 hours')), 'south-scheduled');
+    $hidden = $world->setWindow(placementId(SOUTH_PLACEMENT_ID), 1, null, 'south-hidden');
+    $refused = placementLocales();
+    $released = $world->release($entry, 'release');
+    $after = $world->setWindow(placementId(SOUTH_PLACEMENT_ID), 2, new TimeWindow($now), 'south-live-released');
+
+    expect(placementCodes($live))->toBe(['validation_failed'])
+        ->and($live->errors[0]->path?->toString())->toBe('window')
+        ->and(placementCodes($scheduled))->toBe(['validation_failed'])
+        ->and($hidden->outcome())->toBe(Outcome::Committed)
+        ->and($refused)->toBe([NORTH_PLACEMENT.' hidden true', SOUTH_PLACEMENT_ID.' hidden false'])
+        ->and($released->outcome())->toBe(Outcome::Committed)
+        ->and($after->outcome())->toBe(Outcome::Committed)
+        ->and(placementLocales())->toBe([NORTH_PLACEMENT.' hidden false', SOUTH_PLACEMENT_ID.' live true']);
+});
+
+it('is version_conflict for a window when the entry\'s release is taken back between the read and the commit', function (): void {
+    $structure = PlacementWorld::seed();
+    $world = new PlacementWorld([$structure->north->root]);
+    $entry = EntryId::fromString(PLACEMENT_ENTRY);
+    $world->createEntry($entry, $structure->northSection, 'entry');
+    $world->place(placementId(NORTH_PLACEMENT), $entry, $structure->northSection, $structure->north, ['da' => 'harbour'], 'north');
+
+    $world->meanwhile = static function (): void {
+        StorageTables::superuser()->table('variant_heads')->where('entry_id', PLACEMENT_ENTRY)->where('variant', 'shared')->update([
+            'release_state' => 'unreleased',
+            'published_revision_id' => null,
+            'version' => DB::raw('version + 1'),
+        ]);
+    };
+    $result = $world->setWindow(placementId(NORTH_PLACEMENT), 1, new TimeWindow(new DateTimeImmutable(EntryWorld::NOW)), 'north-live');
+
+    expect(placementCodes($result))->toBe(['version_conflict'])
+        ->and($result->errors[0]->message)->toContain('entry_release:'.PLACEMENT_ENTRY)
         ->and(placementLocales())->toBe([NORTH_PLACEMENT.' hidden true']);
 });
 

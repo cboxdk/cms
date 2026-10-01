@@ -28,7 +28,7 @@ use LogicException;
  * 5.10, 6.2, 6.4, invariant 1), on the structure of the testkit's structure fixtures: the sites
  * north and south, each with a section. A publish is one changeset with the events of both its
  * sub-plans, the release and the home placement going live, and its dry run lists every placement
- * that becomes visible, the ones whose windows the release opens included; an unpublish is one
+ * that becomes visible; an unpublish is one
  * changeset that takes the release back and closes every placement, also below nodes the actor's
  * regions do not reach, and the entry can be published again. A type with stages none only puts
  * its placement live. Both cost the same queries whatever the number of placements below the node.
@@ -121,8 +121,8 @@ function publishedNeighbours(StructureNode $node, int $count, int $first): void
 }
 
 /**
- * An article homed on the north section, placed there and below the south section, with the south
- * placement's window open since an hour ago while nothing is released.
+ * An article homed on the north section, placed there, canonical, and below the south section, both
+ * hidden while nothing is released.
  */
 function publishedArticle(PublishingWorld $world, PlacementStructure $structure): void
 {
@@ -130,7 +130,19 @@ function publishedArticle(PublishingWorld $world, PlacementStructure $structure)
     $world->createEntry($entry, EntryWorld::ARTICLE, EntryFields::article('The harbour opens'), $structure->northSection, 'entry');
     $world->place(publishedPlacement(HOME_PLACEMENT_ID), $entry, $structure->northSection, $structure->north, 'harbour', 'home');
     $world->place(publishedPlacement(AWAY_PLACEMENT_ID), $entry, $structure->southSection, $structure->south, 'harbour', 'away');
-    $world->setWindow(publishedPlacement(AWAY_PLACEMENT_ID), 1, new TimeWindow(new DateTimeImmutable(EntryWorld::NOW)->modify('-1 hour')), 'away-window');
+}
+
+/**
+ * The south placement's window, open since an hour ago, set once the article is released, because
+ * a window cannot make a placement of an entry without a released revision live (invariant 6).
+ */
+function openedAway(PublishingWorld $world): void
+{
+    $result = $world->setWindow(publishedPlacement(AWAY_PLACEMENT_ID), publishedVersion('placements', 'id', AWAY_PLACEMENT_ID), new TimeWindow(new DateTimeImmutable(EntryWorld::NOW)->modify('-1 hour')), 'away-window');
+
+    if ($result->outcome() !== Outcome::Committed) {
+        throw new LogicException('The south placement\'s window did not open.');
+    }
 }
 
 it('publishes and unpublishes, each in exactly one changeset with the events of both sub-plans, and publishes again', function (): void {
@@ -145,6 +157,7 @@ it('publishes and unpublishes, each in exactly one changeset with the events of 
     $afterDryRun = publishedChangesets();
     $published = $world->publish($entry, 1, 1, $home, publishedVersion('placements', 'id', HOME_PLACEMENT_ID), 'publish');
     $afterPublish = publishedChangesets();
+    openedAway($world);
     $publishedLocales = publishedLocales();
     $publishedHead = StorageTables::texts(StorageTables::superuser(), "select release_state || ' ' || version::text as value from variant_heads where entry_id = ?::uuid", [PUBLISHED_ENTRY]);
 
@@ -155,7 +168,7 @@ it('publishes and unpublishes, each in exactly one changeset with the events of 
 
     expect($dryRun->outcome())->toBe(Outcome::DryRun)
         ->and(array_map(static fn (BecomesVisible $visible): string => $visible->placement->toString().' '.$visible->locale->value.' '.$visible->from->format('H:i'), $dryRun->dryRun instanceof DryRunReport ? $dryRun->dryRun->visible : []))
-        ->toBe([HOME_PLACEMENT_ID.' da 12:00', AWAY_PLACEMENT_ID.' da 12:00'])
+        ->toBe([HOME_PLACEMENT_ID.' da 12:00'])
         ->and($afterDryRun)->toBe($before)
         ->and($published->outcome())->toBe(Outcome::Committed)
         ->and($afterPublish)->toBe($before + 1)
@@ -164,9 +177,9 @@ it('publishes and unpublishes, each in exactly one changeset with the events of 
             'placement.visibility_changed '.HOME_PLACEMENT_ID,
         ])
         ->and($publishedHead)->toBe(['released 2'])
-        ->and($publishedLocales)->toBe([HOME_PLACEMENT_ID.' live false', AWAY_PLACEMENT_ID.' live true'])
+        ->and($publishedLocales)->toBe([HOME_PLACEMENT_ID.' live true', AWAY_PLACEMENT_ID.' live false'])
         ->and($unpublished->outcome())->toBe(Outcome::Committed)
-        ->and($afterUnpublish)->toBe($before + 2)
+        ->and($afterUnpublish)->toBe($before + 3)
         ->and(publishedEvents(publishedChangeset($unpublished)))->toBe([
             'variant.unreleased '.PUBLISHED_ENTRY.':shared',
             'placement.visibility_changed '.HOME_PLACEMENT_ID,
@@ -185,6 +198,7 @@ it('takes the release back: the head, the release log and the type table\'s rows
     publishedArticle($world, $structure);
     $entry = publishedEntry();
     $world->publish($entry, 1, 1, publishedPlacement(HOME_PLACEMENT_ID), publishedVersion('placements', 'id', HOME_PLACEMENT_ID), 'publish');
+    openedAway($world);
     $released = StorageTables::texts(StorageTables::superuser(), 'select cms_stage || \' \' || fixture_title as value from app__fixture_article where cms_entry_id = ?::uuid order by cms_stage', [PUBLISHED_ENTRY]);
 
     $result = $world->unpublish($entry, 2, 'unpublish');
@@ -201,7 +215,7 @@ it('takes the release back: the head, the release log and the type table\'s rows
         ->and(StorageTables::texts(StorageTables::superuser(), 'select cms_stage || \' \' || fixture_title as value from app__fixture_article where cms_entry_id = ?::uuid order by cms_stage', [PUBLISHED_ENTRY]))
         ->toBe(['draft The harbour opens'])
         ->and(StorageTables::superuser()->table('release_log')->where('entry_id', PUBLISHED_ENTRY)->where('action', 'unreleased')->value('changeset_id'))->toBe(publishedChangeset($result))
-        ->and(publishedLocales())->toBe([HOME_PLACEMENT_ID.' hidden false', AWAY_PLACEMENT_ID.' hidden true'])
+        ->and(publishedLocales())->toBe([HOME_PLACEMENT_ID.' hidden true', AWAY_PLACEMENT_ID.' hidden false'])
         ->and($window)->toBe(['- - -', '- - -']);
 });
 
@@ -211,11 +225,12 @@ it('closes the placements below nodes the actor\'s regions do not reach, because
     $home = new PublishingWorld([$structure->north->root], seed: 2);
     publishedArticle($national, $structure);
     $national->publish(publishedEntry(), 1, 1, publishedPlacement(HOME_PLACEMENT_ID), publishedVersion('placements', 'id', HOME_PLACEMENT_ID), 'publish');
+    openedAway($national);
 
     $result = $home->unpublish(publishedEntry(), 2, 'unpublish');
 
     expect($result->outcome())->toBe(Outcome::Committed)
-        ->and(publishedLocales())->toBe([HOME_PLACEMENT_ID.' hidden false', AWAY_PLACEMENT_ID.' hidden true'])
+        ->and(publishedLocales())->toBe([HOME_PLACEMENT_ID.' hidden true', AWAY_PLACEMENT_ID.' hidden false'])
         ->and(StorageTables::texts(StorageTables::superuser(), "select array_to_string(aggregates, ' ') as value from audit where command = 'entry.unpublish'", []))
         ->toBe([implode(' ', ['variant:'.PUBLISHED_ENTRY.':shared', 'placement:'.HOME_PLACEMENT_ID, 'placement:'.AWAY_PLACEMENT_ID])]);
 });

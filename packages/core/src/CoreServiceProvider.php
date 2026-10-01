@@ -147,6 +147,7 @@ use Cbox\Cms\Core\Placements\Adapter\PlacementCreatedWriter;
 use Cbox\Cms\Core\Placements\Adapter\PlacementLocaleAddedWriter;
 use Cbox\Cms\Core\Placements\Adapter\PlacementWindowSetWriter;
 use Cbox\Cms\Core\Placements\Adapter\PostgresCanonicalPlacementLock;
+use Cbox\Cms\Core\Placements\Adapter\PostgresEntryReleaseLock;
 use Cbox\Cms\Core\Placements\Adapter\PostgresPlacementReader;
 use Cbox\Cms\Core\Placements\Adapter\PostgresPlacementSlugLock;
 use Cbox\Cms\Core\Placements\Adapter\PostgresPlacementVersionLock;
@@ -418,11 +419,11 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->tag([EntryCreatedWriter::class, RevisionCreatedWriter::class, HeadMovedWriter::class, VariantReleasedWriter::class], MutationWriters::TAG);
 
         // The placement commands, placement.create and placement.set_window (PRD 5.7, 5.9, 6.4): their
-        // reads, the locks of placements, sites, slugs and the canonical placement of an entry, and
-        // the writers of their mutations, which store the placement, its locales, its windows and
+        // reads, the locks of placements, sites, slugs, the canonical placement of an entry and
+        // whether the entry may be shown (invariant 6), and the writers of their mutations, which store the placement, its locales, its windows and
         // the canonical flag (PRD 4.1, invariants 14 and 15).
         $this->app->bind(PlacementReader::class, PostgresPlacementReader::class);
-        $this->app->tag([PostgresPlacementVersionLock::class, PostgresSiteVersionLock::class, PostgresPlacementSlugLock::class, PostgresCanonicalPlacementLock::class], VersionLocks::TAG);
+        $this->app->tag([PostgresPlacementVersionLock::class, PostgresSiteVersionLock::class, PostgresPlacementSlugLock::class, PostgresCanonicalPlacementLock::class, PostgresEntryReleaseLock::class], VersionLocks::TAG);
         $this->app->tag([PlacementCreatedWriter::class, PlacementLocaleAddedWriter::class, PlacementWindowSetWriter::class, PlacementCanonicalSetWriter::class], MutationWriters::TAG);
 
         // The composite commands entry.publish and entry.unpublish (PRD 6.4) compose the planners of

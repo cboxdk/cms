@@ -74,6 +74,7 @@ use Cbox\Cms\Core\Placements\Adapter\PlacementCreatedWriter;
 use Cbox\Cms\Core\Placements\Adapter\PlacementLocaleAddedWriter;
 use Cbox\Cms\Core\Placements\Adapter\PlacementWindowSetWriter;
 use Cbox\Cms\Core\Placements\Adapter\PostgresCanonicalPlacementLock;
+use Cbox\Cms\Core\Placements\Adapter\PostgresEntryReleaseLock;
 use Cbox\Cms\Core\Placements\Adapter\PostgresPlacementReader;
 use Cbox\Cms\Core\Placements\Adapter\PostgresPlacementSlugLock;
 use Cbox\Cms\Core\Placements\Adapter\PostgresPlacementVersionLock;
@@ -245,7 +246,7 @@ final readonly class PublishingWorld
                 ReviseEntry::class => $this->binding('entry.revise', new ReviseEntryAction($entries)),
                 ReleaseVariant::class => $this->binding('variant.release', new ReleaseVariantAction($entries, new VariantReleasePlanner)),
                 CreatePlacement::class => $this->binding('placement.create', new CreatePlacementAction($placements, $this->clock)),
-                SetPlacementWindow::class => $this->binding('placement.set_window', new SetPlacementWindowAction($placements, $this->clock)),
+                SetPlacementWindow::class => $this->binding('placement.set_window', new SetPlacementWindowAction($placements, $types, $this->clock)),
                 PublishEntry::class => $this->binding('entry.publish', new PublishEntryAction($entries, $placements, $types, $this->clock)),
                 UnpublishEntry::class => $this->binding('entry.unpublish', new UnpublishEntryAction($entries, $placements, $this->clock)),
             ]),
@@ -267,6 +268,7 @@ final readonly class PublishingWorld
                     new PostgresPlacementVersionLock($connections),
                     new PostgresPlacementSlugLock($connections),
                     new PostgresCanonicalPlacementLock($connections),
+                    new PostgresEntryReleaseLock($connections),
                 ),
                 new MutationWriters(
                     new EntryCreatedWriter($connections),

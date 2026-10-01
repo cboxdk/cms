@@ -12,7 +12,9 @@ use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Ids\SiteId;
+use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Core\Placements\Domain\Dto\EntryRelease;
 use Cbox\Cms\Core\Placements\Domain\Dto\LocalePlacements;
 use Cbox\Cms\Core\Placements\Domain\Dto\PlacementState;
 use Cbox\Cms\Core\Placements\Domain\Dto\StoredNode;
@@ -21,6 +23,8 @@ use Cbox\Cms\Core\Placements\Domain\Dto\StoredPlacementLocale;
 use Cbox\Cms\Core\Placements\Domain\Dto\StoredSite;
 use Cbox\Cms\Core\Placements\Domain\PlacementReader;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
+use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
+use Cbox\Cms\Core\Routing\Domain\ReleaseState;
 use DateTimeImmutable;
 use PHPUnit\Framework\Assert;
 use PHPUnit\Framework\Attributes\Test;
@@ -32,7 +36,9 @@ use PHPUnit\Framework\Attributes\Test;
  *
  * The world: the site SITE on the root ROOT publishes in da and en; below ROOT are the section NODE
  * at version 3 and the mount MOUNT of NODE. The site FAR_SITE on the root FAR lies outside the
- * actor's regions. The entry ENTRY is homed on NODE at version 2. PLACED puts ENTRY below NODE at
+ * actor's regions. The entry ENTRY of ENTRY_TYPE is homed on NODE at version 2, active, with the
+ * head of its shared variant unreleased at version 5. The entry FAR_ENTRY of ENTRY_TYPE is homed on
+ * FAR, archived, with its shared head withdrawn at version 2. PLACED puts ENTRY below NODE at
  * version 4: in da with the slug "harbour", live since LIVE_FROM and canonical, and in en with the
  * slug "harbour", hidden. OLD puts ENTRY below NODE at version 1, withdrawn in da with the slug
  * "old". FAR_PLACED puts ENTRY below FAR at version 1, hidden in da with the slug "harbour".
@@ -54,6 +60,10 @@ trait PlacementReaderBehaviour
     public const string FAR_SITE = '0192a0c0-0000-7000-8000-0000000003b2';
 
     public const string ENTRY = '0192a0c0-0000-7000-8000-0000000003e1';
+
+    public const string FAR_ENTRY = '0192a0c0-0000-7000-8000-0000000003e2';
+
+    public const string ENTRY_TYPE = '0192a0c0-0000-7000-8000-0000000003f1';
 
     public const string PLACED = '0192a0c0-0000-7000-8000-0000000003c1';
 
@@ -99,6 +109,23 @@ trait PlacementReaderBehaviour
 
         Assert::assertEquals(new AggregateVersion(2), $reader->entry(EntryId::fromString(self::ENTRY)));
         Assert::assertNull($reader->entry(EntryId::fromString(self::UNKNOWN)));
+    }
+
+    #[Test]
+    public function it_reads_an_entry_s_lifecycle_and_the_release_of_its_shared_head_past_the_actor_s_regions(): void
+    {
+        $reader = $this->placementReader();
+        $type = TypeId::fromString(self::ENTRY_TYPE);
+
+        Assert::assertEquals(
+            new EntryRelease(EntryId::fromString(self::ENTRY), $type, EntryLifecycle::Active, ReleaseState::Unreleased, new AggregateVersion(5)),
+            $reader->entryRelease(EntryId::fromString(self::ENTRY)),
+        );
+        Assert::assertEquals(
+            new EntryRelease(EntryId::fromString(self::FAR_ENTRY), $type, EntryLifecycle::Archived, ReleaseState::Withdrawn, new AggregateVersion(2)),
+            $reader->entryRelease(EntryId::fromString(self::FAR_ENTRY)),
+        );
+        Assert::assertNull($reader->entryRelease(EntryId::fromString(self::UNKNOWN)));
     }
 
     #[Test]

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Placements;
 
 use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Content\RevisionNumber;
 use Cbox\Cms\Contracts\Content\Slug;
 use Cbox\Cms\Contracts\Content\TimeWindow;
 use Cbox\Cms\Contracts\Envelope\CorrelationId;
@@ -29,6 +30,8 @@ use Cbox\Cms\Contracts\Pipeline\WriteAction;
 use Cbox\Cms\Contracts\Results\WriteResult;
 use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Core\Entries\Actions\CreateEntryAction;
+use Cbox\Cms\Core\Entries\Actions\ReleaseVariantAction;
+use Cbox\Cms\Core\Entries\Actions\VariantReleasePlanner;
 use Cbox\Cms\Core\Entries\Adapter\EntryCreatedWriter;
 use Cbox\Cms\Core\Entries\Adapter\HeadMovedWriter;
 use Cbox\Cms\Core\Entries\Adapter\PostgresEntryReader;
@@ -36,7 +39,9 @@ use Cbox\Cms\Core\Entries\Adapter\PostgresEntryVersionLock;
 use Cbox\Cms\Core\Entries\Adapter\PostgresRevisionContents;
 use Cbox\Cms\Core\Entries\Adapter\PostgresVariantVersionLock;
 use Cbox\Cms\Core\Entries\Adapter\RevisionCreatedWriter;
+use Cbox\Cms\Core\Entries\Adapter\VariantReleasedWriter;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\IdempotencyStore\Adapter\PostgresIdempotencyStore;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
 use Cbox\Cms\Core\Identity\Adapter\PostgresActorDirectory;
@@ -62,6 +67,7 @@ use Cbox\Cms\Core\Placements\Adapter\PlacementCreatedWriter;
 use Cbox\Cms\Core\Placements\Adapter\PlacementLocaleAddedWriter;
 use Cbox\Cms\Core\Placements\Adapter\PlacementWindowSetWriter;
 use Cbox\Cms\Core\Placements\Adapter\PostgresCanonicalPlacementLock;
+use Cbox\Cms\Core\Placements\Adapter\PostgresEntryReleaseLock;
 use Cbox\Cms\Core\Placements\Adapter\PostgresPlacementReader;
 use Cbox\Cms\Core\Placements\Adapter\PostgresPlacementSlugLock;
 use Cbox\Cms\Core\Placements\Adapter\PostgresPlacementVersionLock;
@@ -98,7 +104,7 @@ use LogicException;
 
 /**
  * The real command pipeline on Postgres for placement.create and placement.set_window, with
- * entry.create to make the entries they place (PRD 5.7, 6.2), on the default connection or the one
+ * entry.create and variant.release to make the entries they place (PRD 5.7, 6.2), on the default connection or the one
  * named: the command transaction, the Postgres stores, the actor directory, the entry and placement
  * readers, and the PostgresChangesetCommitter with the locks and writers of entries and
  * placements. Fakes, so a test decides what they answer: the authorizer,
@@ -155,13 +161,23 @@ final class PlacementWorld
     }
 
     /**
-     * entry.create of a fixture article homed on the node.
+     * entry.create of a fixture article homed on the node, followed by variant.release of its first
+     * revision unless $released is false, so a window can make its placements live (invariant 6).
      */
-    public function createEntry(EntryId $entry, StructureNode $home, string $key): WriteResult
+    public function createEntry(EntryId $entry, StructureNode $home, string $key, bool $released = true): WriteResult
     {
         $type = EntryWorld::type(EntryWorld::ARTICLE);
+        $created = $this->run(new CreateEntry($entry, $type->id, $home->id, EntryFields::article()), $key);
 
-        return $this->run(new CreateEntry($entry, $type->id, $home->id, EntryFields::article()), $key);
+        return $released ? $this->release($entry, $key.'-release') : $created;
+    }
+
+    /**
+     * variant.release of the revision of the entry's shared variant, read at the version given.
+     */
+    public function release(EntryId $entry, string $key, int $revision = 1, int $version = 1): WriteResult
+    {
+        return $this->run(new ReleaseVariant($entry, new RevisionNumber($revision), new AggregateVersion($version)), $key);
     }
 
     /**
@@ -216,8 +232,9 @@ final class PlacementWorld
         return new CommandPipeline(
             new FakeWriteActions([
                 CreateEntry::class => $this->binding('entry.create', new CreateEntryAction(new PostgresEntryReader($connections, $this->connection))),
+                ReleaseVariant::class => $this->binding('variant.release', new ReleaseVariantAction(new PostgresEntryReader($connections, $this->connection), new VariantReleasePlanner)),
                 CreatePlacement::class => $this->binding('placement.create', $this->interleaved(new CreatePlacementAction($placements, $this->clock))),
-                SetPlacementWindow::class => $this->binding('placement.set_window', $this->interleaved(new SetPlacementWindowAction($placements, $this->clock))),
+                SetPlacementWindow::class => $this->binding('placement.set_window', $this->interleaved(new SetPlacementWindowAction($placements, $types, $this->clock))),
             ]),
             new PostgresActorDirectory($connections, $this->connection),
             new FakeCommandAuthorizer,
@@ -237,11 +254,13 @@ final class PlacementWorld
                     new PostgresPlacementVersionLock($connections, $this->connection),
                     new PostgresPlacementSlugLock($connections, $this->connection),
                     new PostgresCanonicalPlacementLock($connections, $this->connection),
+                    new PostgresEntryReleaseLock($connections, $this->connection),
                 ),
                 new MutationWriters(
                     new EntryCreatedWriter($connections, $this->connection),
                     new RevisionCreatedWriter($connections, $types, $this->connection),
                     new HeadMovedWriter($connections, $this->connection),
+                    new VariantReleasedWriter($connections, $types, $this->connection),
                     new PlacementCreatedWriter($connections, $this->connection),
                     new PlacementLocaleAddedWriter($connections, $this->connection),
                     new PlacementWindowSetWriter($connections, $this->connection),

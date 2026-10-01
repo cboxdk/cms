@@ -43,12 +43,15 @@ use Cbox\Cms\Core\Placements\Actions\CreatePlacementAction;
 use Cbox\Cms\Core\Placements\Actions\SetPlacementWindowAction;
 use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
+use Cbox\Cms\Core\Placements\Domain\Dto\EntryRelease;
 use Cbox\Cms\Core\Placements\Domain\Dto\LocaleSlug;
 use Cbox\Cms\Core\Placements\Domain\Dto\StoredNode;
 use Cbox\Cms\Core\Placements\Domain\Dto\StoredPlacement;
 use Cbox\Cms\Core\Placements\Domain\Dto\StoredPlacementLocale;
 use Cbox\Cms\Core\Placements\Domain\Dto\StoredSite;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
+use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
+use Cbox\Cms\Core\Routing\Domain\ReleaseState;
 use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\Tests\Entries\NoteType;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeChangesetCommitter;
@@ -81,8 +84,9 @@ use LogicException;
  *
  * The reader knows the site NORTH on the root NORTH_ROOT, publishing in da and en, with the section
  * NORTH_NODE and the mount MOUNT below the root; the site SOUTH on SOUTH_ROOT, publishing in da,
- * with SOUTH_NODE; FAR, a node the editor's regions do not reach; and the entry ENTRY. Tests add
- * placements with place().
+ * with SOUTH_NODE; FAR, a node the editor's regions do not reach; and the entry ENTRY of the note
+ * type, active, with its shared head released at version RELEASE_VERSION, unless release() says
+ * otherwise. Tests add placements with place().
  */
 final class PlacementActionWorld
 {
@@ -107,6 +111,9 @@ final class PlacementActionWorld
     public const string ENTRY = '01936f5e-8a2b-7c3d-9e4f-000000000541';
 
     public const string PLACEMENT = '01936f5e-8a2b-7c3d-9e4f-000000000551';
+
+    /** The version of ENTRY's shared head. */
+    public const int RELEASE_VERSION = 3;
 
     public readonly FakeIdentity $identity;
 
@@ -135,6 +142,23 @@ final class PlacementActionWorld
             ->withSite(new StoredSite(SiteId::fromString(self::NORTH), new AggregateVersion(1), $this->path(self::NORTH_ROOT), [new Locale('da'), new Locale('en')]))
             ->withSite(new StoredSite(SiteId::fromString(self::SOUTH), new AggregateVersion(1), $this->path(self::SOUTH_ROOT), [new Locale('da')]))
             ->withEntry(self::entry(), new AggregateVersion(1));
+        $this->release(EntryLifecycle::Active, ReleaseState::Released);
+    }
+
+    /**
+     * ENTRY in the lifecycle state, with its shared head in the release state, or without one.
+     */
+    public function release(EntryLifecycle $lifecycle, ?ReleaseState $release): self
+    {
+        $this->placements->withRelease(new EntryRelease(
+            self::entry(),
+            NoteType::definition()->id,
+            $lifecycle,
+            $release,
+            $release instanceof ReleaseState ? new AggregateVersion(self::RELEASE_VERSION) : null,
+        ));
+
+        return $this;
     }
 
     public static function entry(): EntryId
@@ -230,7 +254,7 @@ final class PlacementActionWorld
         $pipeline = new CommandPipeline(
             new FakeWriteActions([
                 CreatePlacement::class => $this->binding('placement.create', new CreatePlacementAction($this->placements, $this->clock)),
-                SetPlacementWindow::class => $this->binding('placement.set_window', new SetPlacementWindowAction($this->placements, $this->clock)),
+                SetPlacementWindow::class => $this->binding('placement.set_window', new SetPlacementWindowAction($this->placements, $types, $this->clock)),
             ]),
             $this->identity,
             new FakeCommandAuthorizer,

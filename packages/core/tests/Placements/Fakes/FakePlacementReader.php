@@ -11,6 +11,7 @@ use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Core\Placements\Domain\Dto\EntryRelease;
 use Cbox\Cms\Core\Placements\Domain\Dto\LocalePlacements;
 use Cbox\Cms\Core\Placements\Domain\Dto\PlacementState;
 use Cbox\Cms\Core\Placements\Domain\Dto\StoredNode;
@@ -24,13 +25,16 @@ use Override;
  * The placement commands' reads from memory (GUARDRAILS 9), held to PostgresPlacementReader by
  * PlacementReaderBehaviour. A node is reached unless unreached() says otherwise, and a node, or a
  * placement below it, that the actor does not reach reads as absent, as row level security has it;
- * placements(), everyLocale() and slugTaken() see every placement, as the Postgres reader's owner
- * functions and the unique rule do.
+ * placements(), everyLocale() and slugTaken() see every placement, and entryRelease() every entry
+ * given with withRelease(), as the Postgres reader's owner functions and the unique rule do.
  */
 final class FakePlacementReader implements PlacementReader
 {
     /** @var array<string, AggregateVersion> */
     private array $entries = [];
+
+    /** @var array<string, EntryRelease> */
+    private array $releases = [];
 
     /** @var array<string, StoredNode> */
     private array $nodes = [];
@@ -47,6 +51,13 @@ final class FakePlacementReader implements PlacementReader
     public function withEntry(EntryId $entry, AggregateVersion $version): self
     {
         $this->entries[$entry->toString()] = $version;
+
+        return $this;
+    }
+
+    public function withRelease(EntryRelease $release): self
+    {
+        $this->releases[$release->entry->toString()] = $release;
 
         return $this;
     }
@@ -100,6 +111,12 @@ final class FakePlacementReader implements PlacementReader
     public function entry(EntryId $entry): ?AggregateVersion
     {
         return $this->entries[$entry->toString()] ?? null;
+    }
+
+    #[Override]
+    public function entryRelease(EntryId $entry): ?EntryRelease
+    {
+        return $this->releases[$entry->toString()] ?? null;
     }
 
     #[Override]

@@ -28,7 +28,8 @@ use Override;
 /**
  * PlacementReaderBehaviour against PostgresPlacementReader on real Postgres, as the app role inside
  * a transaction under the actor context of a staff member whose region is ROOT. The rows are
- * written as the superuser.
+ * written as the superuser; the shared heads have no draft revision, as a type without revisions
+ * keeps them.
  */
 final class PostgresPlacementReaderBehaviourTest extends TestCase
 {
@@ -55,7 +56,14 @@ final class PostgresPlacementReaderBehaviourTest extends TestCase
             ['site_id' => self::SITE, 'locale' => 'da', 'created_at' => StorageTables::CREATED_AT],
             ['site_id' => self::FAR_SITE, 'locale' => 'da', 'created_at' => StorageTables::CREATED_AT],
         ]);
-        $superuser->table('entries')->insert([...StorageTables::entry(self::ENTRY), 'home_node_id' => self::NODE, 'version' => 2]);
+        $superuser->table('entries')->insert([
+            [...StorageTables::entry(self::ENTRY), 'type_id' => self::ENTRY_TYPE, 'home_node_id' => self::NODE, 'version' => 2],
+            [...StorageTables::entry(self::FAR_ENTRY), 'type_id' => self::ENTRY_TYPE, 'home_node_id' => self::FAR, 'lifecycle' => 'archived'],
+        ]);
+        $superuser->table('variant_heads')->insert([
+            ['entry_id' => self::ENTRY, 'variant' => 'shared', 'schema_version' => 1, 'release_state' => 'unreleased', 'version' => 5, 'created_at' => StorageTables::CREATED_AT],
+            ['entry_id' => self::FAR_ENTRY, 'variant' => 'shared', 'schema_version' => 1, 'release_state' => 'withdrawn', 'version' => 2, 'created_at' => StorageTables::CREATED_AT],
+        ]);
 
         foreach ([[self::PLACED, 4, self::NODE], [self::OLD, 1, self::NODE], [self::FAR_PLACED, 1, self::FAR]] as [$placement, $version, $node]) {
             $superuser->table('placements')->insert([...StorageTables::placement($placement, self::ENTRY), 'version' => $version]);

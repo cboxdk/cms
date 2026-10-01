@@ -12,13 +12,17 @@ use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Ids\SiteId;
+use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Core\Placements\Domain\Dto\EntryRelease;
 use Cbox\Cms\Core\Placements\Domain\Dto\StoredNode;
 use Cbox\Cms\Core\Placements\Domain\Dto\StoredPlacement;
 use Cbox\Cms\Core\Placements\Domain\Dto\StoredPlacementLocale;
 use Cbox\Cms\Core\Placements\Domain\Dto\StoredSite;
 use Cbox\Cms\Core\Placements\Domain\PlacementReader;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
+use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
+use Cbox\Cms\Core\Routing\Domain\ReleaseState;
 use Cbox\Cms\Core\Tests\Placements\Fakes\FakePlacementReader;
 use DateTimeImmutable;
 use Override;
@@ -48,6 +52,8 @@ final class FakePlacementReaderBehaviourTest extends TestCase
             ->withSite(new StoredSite(SiteId::fromString(self::SITE), new AggregateVersion(1), new NodePath($root), [$da, new Locale('en')]))
             ->withSite(new StoredSite(SiteId::fromString(self::FAR_SITE), new AggregateVersion(1), new NodePath(str_replace('-', '', self::FAR)), [$da]))
             ->withEntry($entry, new AggregateVersion(2))
+            ->withRelease(new EntryRelease($entry, TypeId::fromString(self::ENTRY_TYPE), EntryLifecycle::Active, ReleaseState::Unreleased, new AggregateVersion(5)))
+            ->withRelease(new EntryRelease(EntryId::fromString(self::FAR_ENTRY), TypeId::fromString(self::ENTRY_TYPE), EntryLifecycle::Archived, ReleaseState::Withdrawn, new AggregateVersion(2)))
             ->withPlacement(new StoredPlacement(PlacementId::fromString(self::PLACED), $entry, $node, new AggregateVersion(4), [
                 new StoredPlacementLocale($da, new Slug('harbour'), Visibility::Live, new TimeWindow(new DateTimeImmutable(self::LIVE_FROM)), true),
                 new StoredPlacementLocale(new Locale('en'), new Slug('harbour'), Visibility::Hidden, null, false),

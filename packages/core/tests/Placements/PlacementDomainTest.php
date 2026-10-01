@@ -12,22 +12,28 @@ use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Ids\SiteId;
+use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Contracts\Schema\Stages;
 use Cbox\Cms\Core\Placements\Domain\CanonicalPlacementRef;
 use Cbox\Cms\Core\Placements\Domain\CanonicalRule;
+use Cbox\Cms\Core\Placements\Domain\Dto\EntryRelease;
 use Cbox\Cms\Core\Placements\Domain\Dto\PlacementState;
+use Cbox\Cms\Core\Placements\Domain\EntryReleaseRef;
 use Cbox\Cms\Core\Placements\Domain\Events\PlacementCreated;
 use Cbox\Cms\Core\Placements\Domain\Events\PlacementCreatedV1;
 use Cbox\Cms\Core\Placements\Domain\Events\PlacementVisibilityChanged;
 use Cbox\Cms\Core\Placements\Domain\Events\PlacementVisibilityChangedV1;
 use Cbox\Cms\Core\Placements\Domain\PlacementSlugRef;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
+use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
+use Cbox\Cms\Core\Routing\Domain\ReleaseState;
 use DateTimeImmutable;
 
 /*
  * The placement domain (PRD 5.7, 6.4, 6.7, invariant 14): the state a window gives at a time and
- * its next transition, the canonical rule, the aggregate keys of a slug and of an entry's canonical
- * placement, and the events placement.created and placement.visibility_changed, which carry ids,
+ * its next transition, the canonical rule, the aggregate keys of a slug, of an entry's canonical
+ * placement and of its release, whether an entry may be shown (invariant 6), and the events placement.created and placement.visibility_changed, which carry ids,
  * states and times and never a slug (invariant 10).
  */
 
@@ -118,4 +124,25 @@ it('tells that a placement was created and that its window was set, with ids, st
         ->and([$data->get('previous')->asEnumValue(), $data->get('visibility')->asEnumValue()])->toBe(['hidden', 'live'])
         ->and($data->get('live_from')->asTime())->toEqual(domainAt('-1 hour'))
         ->and($data->get('live_until')->isNull())->toBeTrue();
+});
+
+it('shows an entry only while it is active with a shared head that is released, or not withdrawn for stages none', function (): void {
+    $entry = EntryId::fromString('01936f5e-8a2b-7c3d-9e4f-000000000941');
+    $release = static fn (EntryLifecycle $lifecycle, ?ReleaseState $state): EntryRelease => new EntryRelease(
+        $entry,
+        TypeId::fromString('01936f5e-8a2b-7c3d-9e4f-000000000942'),
+        $lifecycle,
+        $state,
+        $state instanceof ReleaseState ? new AggregateVersion(4) : null,
+    );
+    $shown = static fn (EntryRelease $release): array => [$release->showable(Stages::DraftRelease), $release->showable(Stages::None)];
+
+    expect($shown($release(EntryLifecycle::Active, ReleaseState::Released)))->toBe([true, true])
+        ->and($shown($release(EntryLifecycle::Active, ReleaseState::Unreleased)))->toBe([false, true])
+        ->and($shown($release(EntryLifecycle::Active, ReleaseState::Withdrawn)))->toBe([false, false])
+        ->and($shown($release(EntryLifecycle::Active, null)))->toBe([false, false])
+        ->and($shown($release(EntryLifecycle::Archived, ReleaseState::Released)))->toBe([false, false])
+        ->and($release(EntryLifecycle::Active, ReleaseState::Unreleased)->aggregateVersion())->toEqual(new AggregateVersion(4))
+        ->and($release(EntryLifecycle::Merged, ReleaseState::Released)->aggregateVersion())->toBeNull()
+        ->and(new EntryReleaseRef($entry)->aggregateKey())->toBe('entry_release:'.$entry->toString());
 });

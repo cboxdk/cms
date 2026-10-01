@@ -98,6 +98,10 @@ final readonly class M1InvariantMap
                 TestReference::of('packages/core/tests/Postgres/PublishingCommandsTest.php', 'takes the release back: the head, the release log and the type table\'s rows, and hides the placements', $kernel),
                 TestReference::of('packages/core/tests/Actions/PublishEntryTest.php', 'refuses a publish without a revision for a type with stages', $kernel),
                 TestReference::of('packages/core/tests/Postgres/AccessPoliciesTest.php', 'lets each actor read what its regions reach, its own rows and what is public, and the anonymous context only what is released with a live placement', $database),
+                TestReference::of('packages/core/tests/Actions/SetPlacementWindowTest.php', 'refuses a window that would make a placement live or scheduled while the entry has no released revision, and moves no canonical flag', $kernel),
+                TestReference::of('packages/core/tests/Actions/SetPlacementWindowTest.php', 'refuses a window for an entry that is not active or has no shared head', $kernel),
+                TestReference::of(self::PLACEMENTS, 'refuses a window that would make a placement of an entry with no released revision live or scheduled, and moves no canonical flag', $kernel),
+                TestReference::of(self::PLACEMENTS, 'is version_conflict for a window when the entry\'s release is taken back between the read and the commit', $kernel),
             ]),
             new InvariantCoverage(10, 'Fields above public never reach edge-cacheable answers or telemetry, and events and audit hold no text of content.', [
                 TestReference::of('packages/http/tests/Postgres/DeliveryResolveTest.php', 'it_leaves_the_confidential_and_the_internal_field_of_the_type_out_of_the_body', [Issuer::Delivery]),

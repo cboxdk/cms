@@ -12,7 +12,9 @@ use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Ids\SiteId;
+use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Core\Placements\Domain\Dto\EntryRelease;
 use Cbox\Cms\Core\Placements\Domain\Dto\LocalePlacements;
 use Cbox\Cms\Core\Placements\Domain\Dto\PlacementState;
 use Cbox\Cms\Core\Placements\Domain\Dto\StoredNode;
@@ -20,9 +22,12 @@ use Cbox\Cms\Core\Placements\Domain\Dto\StoredPlacement;
 use Cbox\Cms\Core\Placements\Domain\Dto\StoredPlacementLocale;
 use Cbox\Cms\Core\Placements\Domain\Dto\StoredSite;
 use Cbox\Cms\Core\Placements\Domain\PlacementReader;
+use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
+use Cbox\Cms\Core\Routing\Domain\ReleaseState;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\ConnectionResolverInterface;
 use Override;
+use UnexpectedValueException;
 
 /**
  * The placement commands' reads on Postgres (PRD 5.7, 5.9, 6.2 phase 1), as the app role under the
@@ -36,7 +41,9 @@ use Override;
  * reach only a section below the root. placements() reads every placement of the entry in the
  * locale through `cms_placement_locales`, which runs as the owner and returns no slug, everyLocale()
  * every placement of the entry through `cms_entry_placement_locales`, which does the same for every
- * locale in the order of the locales, and placementVersion() a placement's version through `cms_placement_version`.
+ * locale in the order of the locales, placementVersion() a placement's version through `cms_placement_version`,
+ * and entryRelease() the entry's lifecycle and the release state of its shared head through
+ * `cms_entry_release`.
  */
 #[Internal]
 final readonly class PostgresPlacementReader implements PlacementReader
@@ -74,6 +81,9 @@ final readonly class PostgresPlacementReader implements PlacementReader
             where node_id = ?::uuid and locale = ? and slug = ? and stage = 'released' and visibility <> 'withdrawn'
         ) as taken
         SQL;
+
+    /** An entry's type and lifecycle and its shared head's release state and version, past the actor's regions. */
+    public const string ENTRY_RELEASE = 'select type_id::text as type_id, lifecycle, release_state, version from cms_entry_release(?::uuid)';
 
     /** A placement's version, past the actor's regions. */
     public const string VERSION = 'select cms_placement_version(?::uuid) as version';
@@ -187,6 +197,29 @@ final readonly class PostgresPlacementReader implements PlacementReader
         $row = $this->db()->selectOne(self::SLUG_TAKEN, [$node->toString(), $locale->value, $slug->value], false);
 
         return PlacementRows::boolean(PlacementRows::object($row), 'taken');
+    }
+
+    #[Override]
+    public function entryRelease(EntryId $entry): ?EntryRelease
+    {
+        $row = $this->db()->selectOne(self::ENTRY_RELEASE, [$entry->toString()], false);
+
+        if ($row === null) {
+            return null;
+        }
+
+        $row = PlacementRows::object($row);
+        $lifecycle = PlacementRows::text($row, 'lifecycle');
+        $release = PlacementRows::textOrNull($row, 'release_state');
+        $version = property_exists($row, 'version') ? $row->version : null;
+
+        return new EntryRelease(
+            $entry,
+            TypeId::fromString(PlacementRows::text($row, 'type_id')),
+            EntryLifecycle::tryFrom($lifecycle) ?? throw new UnexpectedValueException(sprintf('The lifecycle "%s" is not a state of PRD 6.4.', $lifecycle)),
+            $release === null ? null : (ReleaseState::tryFrom($release) ?? throw new UnexpectedValueException(sprintf('The release state "%s" is not a state of PRD 6.4.', $release))),
+            $version === null ? null : new AggregateVersion(PlacementRows::integerValue($version, 'the version of a variant head')),
+        );
     }
 
     #[Override]
