@@ -8,10 +8,14 @@ use Cbox\Cms\Contracts\Cache\FragmentStore;
 use Cbox\Cms\Contracts\Cdn\CdnDriver;
 use Cbox\Cms\Contracts\Telemetry\Telemetry;
 use Cbox\Cms\Contracts\TypeTables\TypeTableReader;
+use Cbox\Cms\Core\Access\Adapter\PostgresCommandAuthorizer;
+use Cbox\Cms\Core\Access\Adapter\PostgresQueryAuthorizer;
 use Cbox\Cms\Core\Bindings\Boundary\ContractBindings;
 use Cbox\Cms\Core\Bindings\Boundary\InvalidContractBinding;
 use Cbox\Cms\Core\Cache\Adapter\ValkeyFragmentStore;
 use Cbox\Cms\Core\CoreServiceProvider;
+use Cbox\Cms\Core\Delivery\Actions\DeliverPath;
+use Cbox\Cms\Core\Delivery\Domain\DeliveryAuthorizer;
 use Cbox\Cms\Core\Doctor\Boundary\DoctorConfig;
 use Cbox\Cms\Core\IdempotencyStore\Boundary\IdempotencyConfig;
 use Cbox\Cms\Core\Operations\Adapter\PackageOperationRunner;
@@ -19,6 +23,7 @@ use Cbox\Cms\Core\Operations\Domain\OperationRunner;
 use Cbox\Cms\Core\Partitions\Boundary\PartitionConfig;
 use Cbox\Cms\Core\Pipeline\Actions\CommandPipeline;
 use Cbox\Cms\Core\Pipeline\Actions\HookRunner;
+use Cbox\Cms\Core\Pipeline\Actions\RunExposedCommand;
 use Cbox\Cms\Core\Pipeline\Adapter\HrtimeStopwatch;
 use Cbox\Cms\Core\Pipeline\Adapter\LoggedHookOverruns;
 use Cbox\Cms\Core\Pipeline\Adapter\PostgresChangesetCommitter;
@@ -26,6 +31,7 @@ use Cbox\Cms\Core\Pipeline\Adapter\RegistryCommandHooks;
 use Cbox\Cms\Core\Pipeline\Adapter\RegistryWriteActions;
 use Cbox\Cms\Core\Pipeline\Boundary\TypeRulesFieldValidation;
 use Cbox\Cms\Core\Pipeline\Boundary\WaitConfig;
+use Cbox\Cms\Core\Pipeline\Domain\CommandAuthorizer;
 use Cbox\Cms\Core\Pipeline\Domain\CommandHooks;
 use Cbox\Cms\Core\Pipeline\Domain\FieldValidation;
 use Cbox\Cms\Core\Pipeline\Domain\HookOverruns;
@@ -35,7 +41,9 @@ use Cbox\Cms\Core\ReadModels\Adapter\PostgresReadModelStore;
 use Cbox\Cms\Core\ReadModels\Boundary\RebuildConfig;
 use Cbox\Cms\Core\ReadModels\Domain\Dto\RebuildSettings;
 use Cbox\Cms\Core\ReadModels\Domain\ReadModelStore;
+use Cbox\Cms\Core\Reads\Actions\QueryPipeline;
 use Cbox\Cms\Core\Reads\Boundary\QueryConfig;
+use Cbox\Cms\Core\Reads\Domain\QueryAuthorizer;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Seeding\Actions\SeedDataset;
 use Cbox\Cms\Core\Seeding\Adapter\PostgresSeedReader;
@@ -136,6 +144,25 @@ it('binds the command pipeline\'s ports it implements: the registry\'s write act
 
     expect(app(WriteActions::class))->toBeInstanceOf(RegistryWriteActions::class)
         ->and(app(FieldValidation::class))->toBeInstanceOf(TypeRulesFieldValidation::class);
+});
+
+it('binds both pipelines\' authorizers to the grant-based ones, so the exposed surfaces and the query pipeline build from the container, and keeps the delivery pipeline\'s own', function (): void {
+    app()->instance(CompiledRegistry::class, CompiledRegistry::empty());
+    $exposed = new ReflectionProperty(RunExposedCommand::class, 'pipeline')->getValue(app(RunExposedCommand::class));
+    $delivery = new ReflectionProperty(DeliverPath::class, 'pipeline')->getValue(app(DeliverPath::class));
+
+    expect(app(CommandAuthorizer::class))->toBeInstanceOf(PostgresCommandAuthorizer::class)
+        ->and(app(QueryAuthorizer::class))->toBeInstanceOf(PostgresQueryAuthorizer::class)
+        ->and(new ReflectionProperty(QueryPipeline::class, 'authorizer')->getValue(app(QueryPipeline::class)))->toBeInstanceOf(PostgresQueryAuthorizer::class)
+        ->and($exposed)->toBeInstanceOf(CommandPipeline::class)
+        ->and($delivery)->toBeInstanceOf(QueryPipeline::class);
+
+    if (! $exposed instanceof CommandPipeline || ! $delivery instanceof QueryPipeline) {
+        return;
+    }
+
+    expect(new ReflectionProperty(CommandPipeline::class, 'authorizer')->getValue($exposed))->toBeInstanceOf(PostgresCommandAuthorizer::class)
+        ->and(new ReflectionProperty(QueryPipeline::class, 'authorizer')->getValue($delivery))->toBeInstanceOf(DeliveryAuthorizer::class);
 });
 
 it('binds the hooks\' ports: the registry\'s hooks, the hrtime stopwatch once per process and the log for overruns', function (): void {
