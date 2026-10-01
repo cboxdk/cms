@@ -36,7 +36,7 @@ It requires these packages directly:
 | `illuminate/redis` | `^13.0` |
 | `illuminate/routing` | `^13.0` |
 | `illuminate/support` | `^13.0` |
-| `inertiajs/inertia-laravel` | `3.4.0` |
+| `inertiajs/inertia-laravel` | `^3.4` |
 | `laravel/mcp` | `~1.0.1` |
 | `psr/clock` | `^1.0` |
 | `psr/log` | `^3.0` |
