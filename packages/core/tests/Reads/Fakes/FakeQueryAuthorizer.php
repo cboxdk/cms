@@ -54,6 +54,16 @@ final class FakeQueryAuthorizer implements QueryAuthorizer
             return Authorization::refuse(sprintf('The anonymous principal may run only public reads, and %s is not one.', $query->value));
         }
 
-        return new PermissionRule()->query($query, $this->permissions->of($principal->actor, $query));
+        $authorization = new PermissionRule()->query($query, $this->permissions->of($principal->actor, $query));
+
+        foreach ($principal->onBehalfOf as $delegator) {
+            if (! $authorization->allowed()) {
+                break;
+            }
+
+            $authorization = new PermissionRule()->query($query, $this->permissions->of($delegator, $query));
+        }
+
+        return $authorization;
     }
 }

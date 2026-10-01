@@ -41,6 +41,14 @@ trait QueryAuthorizerBehaviour
     abstract protected function queryAuthorizer(): QueryAuthorizer;
 
     /**
+     * A second active actor holding exactly the grants, with roles of its own, as the principal of
+     * its credential issued on behalf of the person (PRD 5.16).
+     *
+     * @param  list<array{string, list<string>, string, GrantEffect, list<string>|null}>  $grants
+     */
+    abstract protected function delegateOf(ActorPrincipal $person, array $grants): ActorPrincipal;
+
+    /**
      * Runs the authorization with the principal's access context, inside its read transaction with
      * the context set.
      *
@@ -83,6 +91,17 @@ trait QueryAuthorizerBehaviour
         ]);
 
         Assert::assertFalse($this->authorized($actor, 'probe.read', new ReadProbe)->allowed());
+    }
+
+    #[Test]
+    public function it_allows_an_actor_on_behalf_of_a_person_a_read_only_when_both_may_run_it(): void
+    {
+        $person = $this->grantedActor([['reader', ['probe.read'], AccessWorld::NEWS, GrantEffect::Allow, null]]);
+        $delegate = $this->delegateOf($person, [['agent', ['probe.read', 'probe.list'], AccessWorld::ROOT, GrantEffect::Allow, null]]);
+
+        Assert::assertTrue($this->authorized($delegate, 'probe.read', new ReadProbe)->allowed());
+        Assert::assertFalse($this->authorized($delegate, 'probe.list', new ReadProbe)->allowed());
+        Assert::assertTrue($this->authorized($delegate, 'path.resolve', $this->resolve())->allowed());
     }
 
     private function authorized(Principal $principal, string $query, Query $input): Authorization

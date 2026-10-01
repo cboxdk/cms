@@ -291,6 +291,33 @@ final class AccessWorld
         $superuser->table('mount_overrides')->insert(['mount_node_id' => self::MOUNT, 'source_node_id' => self::NEWS, 'entry_id' => self::ENTRY_PUBLIC, 'hidden' => true, 'version' => 1, 'created_at' => self::CREATED_AT]);
     }
 
+    /**
+     * A new active service actor with a credential issued on behalf of the actors given, in order,
+     * written as the superuser; the credential's token is never used, because the tests resolve
+     * the principal the verifier would give. Its grants are the test's.
+     *
+     * @param  list<string>  $onBehalfOf
+     */
+    public static function delegate(string $actor, string $credential, array $onBehalfOf): void
+    {
+        $superuser = StorageTables::superuser();
+        $superuser->table('actors')->insert(['id' => $actor, 'actor_class' => 'service', 'state' => 'active', 'version' => 1, 'credential_generation' => 1, 'created_at' => self::CREATED_AT]);
+        $superuser->table('service_credentials')->insert([
+            'id' => $credential,
+            'actor_id' => $actor,
+            'secret_hash' => hash('sha256', $credential),
+            'credential_generation' => 1,
+            'issuer_kind' => 'service',
+            'classification_ceiling' => 'sensitive',
+            'expires_at' => '2026-04-10 12:00:00+00',
+            'created_at' => self::CREATED_AT,
+        ]);
+
+        foreach ($onBehalfOf as $position => $person) {
+            $superuser->table('service_credential_delegations')->insert(['credential_id' => $credential, 'position' => $position, 'actor_id' => $person]);
+        }
+    }
+
     private static function pathOf(string $node): string
     {
         return match ($node) {

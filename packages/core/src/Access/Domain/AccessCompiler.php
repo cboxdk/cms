@@ -34,6 +34,11 @@ use Cbox\Cms\Core\Access\Domain\Dto\Grant;
  * ceiling among the roles that reach it, and the lowest of those over the nodes, capped by the
  * credential's ceiling; with no node reached it is public. One context carries one access, so a
  * role with a high ceiling on a few nodes never lifts the fields of the others.
+ *
+ * An actor that acts on behalf of others (PRD 5.16, 2.31, 22) gets the intersection of its own
+ * compiled context and the compiled context of every actor of its chain (intersect()): a node is
+ * reached only when every context reaches it, and the classification access is the lowest of
+ * theirs, still capped by the credential's ceiling.
  */
 #[Internal]
 final readonly class AccessCompiler
@@ -60,6 +65,48 @@ final readonly class AccessCompiler
             $this->regions($marks, $paths),
             $this->classification($grants, $decisions, $paths)->atMost($principal->classificationCeiling()),
         );
+    }
+
+    /**
+     * The intersection of contexts compiled for one call (PRD 5.16): the context of the actor and
+     * that of every actor it acts on behalf of, each compiled from that actor's own grants. A node
+     * is reached only when every context reaches it, and the classification access is the lowest of
+     * theirs, capped by the principal's ceiling. The regions are again the fewest that say the same.
+     *
+     * Each context's reach is decided, for any node, by the deepest of its region paths and
+     * exceptions at or above the node, so the intersection's reach is decided by the deepest of all
+     * contexts' paths at or above it, and is marked on those paths as compile() marks the grants'.
+     */
+    public function intersect(ActorPrincipal $principal, AccessContext $first, AccessContext ...$others): AccessContext
+    {
+        $contexts = [$first, ...array_values($others)];
+        $paths = [];
+        $classification = $principal->classificationCeiling();
+
+        foreach ($contexts as $context) {
+            $classification = $classification->atMost($context->classificationAccess);
+
+            foreach ($context->regions as $region) {
+                $paths[$region->path->value] = $region->path;
+
+                foreach ($region->exceptions as $exception) {
+                    $paths[$exception->value] = $exception;
+                }
+            }
+        }
+
+        $paths = $this->sorted($paths);
+        $marks = [];
+
+        foreach ($paths as $key => $path) {
+            $reached = array_all($contexts, static fn (AccessContext $context): bool => $context->reaches($path));
+
+            if ($reached !== $this->implied($marks, $paths, $path)) {
+                $marks[$key] = $reached;
+            }
+        }
+
+        return new AccessContext($principal, $this->regions($marks, $paths), $classification);
     }
 
     /**
@@ -111,6 +158,17 @@ final readonly class AccessCompiler
             $paths[$grant->node->value] = $grant->node;
         }
 
+        return $this->sorted($paths);
+    }
+
+    /**
+     * The paths from the shallowest to the deepest.
+     *
+     * @param  array<string, NodePath>  $paths
+     * @return array<string, NodePath>
+     */
+    private function sorted(array $paths): array
+    {
         uksort($paths, static fn (string $a, string $b): int => [substr_count($a, '.'), $a] <=> [substr_count($b, '.'), $b]);
 
         return $paths;

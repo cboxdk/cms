@@ -55,6 +55,12 @@ final class PostgresCommandAuthorizerBehaviourTest extends TestCase
     }
 
     #[Override]
+    protected function delegateOf(ActorPrincipal $person, array $grants): ActorPrincipal
+    {
+        return AuthorizerWorld::delegateOf($person, $grants);
+    }
+
+    #[Override]
     protected function within(Principal $principal, Closure $authorize): Authorization
     {
         return AuthorizerWorld::within($principal, $authorize);

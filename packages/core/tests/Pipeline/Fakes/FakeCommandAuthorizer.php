@@ -6,11 +6,14 @@ namespace Cbox\Cms\Core\Tests\Pipeline\Fakes;
 
 use Cbox\Cms\Contracts\Identity\AccessContext;
 use Cbox\Cms\Contracts\Identity\ActorPrincipal;
+use Cbox\Cms\Contracts\Identity\NodePath;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Pipeline\Aggregates;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
 use Cbox\Cms\Contracts\Pipeline\AuthorizationTarget;
 use Cbox\Cms\Contracts\Pipeline\Command;
+use Cbox\Cms\Core\Access\Domain\Dto\Grant;
 use Cbox\Cms\Core\Access\Domain\PermissionRule;
 use Cbox\Cms\Core\Pipeline\Domain\CommandAuthorizer;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\Authorization;
@@ -52,19 +55,31 @@ final class FakeCommandAuthorizer implements CommandAuthorizer
             return Authorization::refuse(sprintf('The anonymous principal holds no role, so it may not run %s.', $command->value));
         }
 
-        $permitted = $this->permissions->of($principal->actor, $command);
+        $scope = $aggregates->authorizationScope();
+        $paths = $this->permissions->paths(array_map(static fn (AuthorizationTarget $target): NodeId => $target->node, $scope->targets));
+        $authorization = $this->decide($command, $scope, $this->permissions->of($principal->actor, $command), $paths, 'the actor');
 
-        if ($permitted === []) {
-            return Authorization::refuse(sprintf('No role of the actor may run %s.', $command->value));
+        foreach ($principal->onBehalfOf as $delegator) {
+            if (! $authorization->allowed()) {
+                break;
+            }
+
+            $authorization = $this->decide($command, $scope, $this->permissions->of($delegator, $command), $paths, sprintf('the actor %s it acts on behalf of', $delegator->toString()));
         }
 
-        $scope = $aggregates->authorizationScope();
+        return $authorization;
+    }
 
-        return new PermissionRule()->command(
-            $command,
-            $scope,
-            $permitted,
-            $this->permissions->paths(array_map(static fn (AuthorizationTarget $target): NodeId => $target->node, $scope->targets)),
-        );
+    /**
+     * @param  list<Grant>  $permitted
+     * @param  array<string, NodePath>  $paths
+     */
+    private function decide(CommandName $command, AuthorizationScope $scope, array $permitted, array $paths, string $whose): Authorization
+    {
+        if ($permitted === []) {
+            return Authorization::refuse(sprintf('No role of %s may run %s.', $whose, $command->value));
+        }
+
+        return new PermissionRule()->command($command, $scope, $permitted, $paths);
     }
 }

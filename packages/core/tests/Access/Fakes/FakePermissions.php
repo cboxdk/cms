@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Core\Access\Domain\Dto\Grant;
+use LogicException;
 
 /**
  * The grants, roles' permissions and node paths the fake authorizers decide from, in memory: what
@@ -53,6 +54,14 @@ final class FakePermissions
         }
 
         return $grants;
+    }
+
+    /**
+     * The path of a node it knows, by its id.
+     */
+    public function path(string $node): NodePath
+    {
+        return $this->paths[$node] ?? throw new LogicException(sprintf('The fake permissions know no node %s.', $node));
     }
 
     /**

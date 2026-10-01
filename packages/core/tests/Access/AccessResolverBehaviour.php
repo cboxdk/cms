@@ -20,8 +20,9 @@ use PHPUnit\Framework\Attributes\Test;
  * What every AccessResolver does (PRD 5.10, 6.2), held against the fake the query pipeline's action
  * tests use and the Postgres resolver: inside a transaction it gives the anonymous principal the
  * anonymous context, an actor the regions of its grants with the classification its roles allow,
- * capped by the credential's ceiling, and an actor without grants no regions and public access;
- * outside one it refuses.
+ * capped by the credential's ceiling, an actor without grants no regions and public access, and an
+ * actor on behalf of others the intersection of its context and theirs (PRD 5.16); outside one it
+ * refuses.
  */
 trait AccessResolverBehaviour
 {
@@ -41,6 +42,13 @@ trait AccessResolverBehaviour
      * An actor without grants.
      */
     abstract protected function ungrantedActor(): ActorId;
+
+    /**
+     * An actor whose own grants reach every node of grantedRegions() and nodes beyond them, with
+     * sensitive classification access, and that holds a credential issued on behalf of
+     * grantedActor() and ungrantedActor().
+     */
+    abstract protected function delegate(): ActorId;
 
     abstract protected function begin(): void;
 
@@ -79,6 +87,33 @@ trait AccessResolverBehaviour
 
         Assert::assertSame([], $context->regions);
         Assert::assertSame(ClassificationAccess::Public, $context->classificationAccess);
+    }
+
+    #[Test]
+    public function it_gives_an_actor_on_behalf_of_a_person_no_more_than_the_person_s_regions_and_classification(): void
+    {
+        $alone = $this->resolved(new ActorPrincipal($this->delegate(), [], IssuerKind::Service, ClassificationAccess::Sensitive));
+
+        Assert::assertNotEquals($this->grantedRegions(), $alone->regions);
+        Assert::assertSame(ClassificationAccess::Sensitive, $alone->classificationAccess);
+
+        $principal = new ActorPrincipal($this->delegate(), [$this->grantedActor()], IssuerKind::Service, ClassificationAccess::Sensitive);
+        $delegated = $this->resolved($principal);
+
+        Assert::assertSame($principal, $delegated->principal);
+        Assert::assertEquals($this->grantedRegions(), $delegated->regions);
+        Assert::assertSame(ClassificationAccess::Internal, $delegated->classificationAccess);
+    }
+
+    #[Test]
+    public function it_gives_an_actor_on_behalf_of_a_person_without_grants_no_regions_and_public_access(): void
+    {
+        foreach ([[$this->ungrantedActor()], [$this->grantedActor(), $this->ungrantedActor()]] as $chain) {
+            $context = $this->resolved(new ActorPrincipal($this->delegate(), $chain, IssuerKind::Service, ClassificationAccess::Sensitive));
+
+            Assert::assertSame([], $context->regions);
+            Assert::assertSame(ClassificationAccess::Public, $context->classificationAccess);
+        }
     }
 
     #[Test]

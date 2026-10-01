@@ -24,7 +24,8 @@ use UnexpectedValueException;
  * under the actor context the caller's transaction holds (PRD 5.10): the app role reads only the
  * grants of the context's actor, the nodes those grants name and the nodes its regions reach, and
  * every actor reads the roles and their permissions. Every read uses the write PDO, the primary
- * the caller's transaction runs on.
+ * the caller's transaction runs on. The grants of the actors the context's actor acts on behalf of
+ * come from ofDelegator().
  */
 #[Internal]
 final readonly class PostgresGrants
@@ -64,6 +65,29 @@ final readonly class PostgresGrants
         $grants = [];
 
         foreach ($query->get(['g.role_id', 'r.classification_ceiling', 'n.path', 'g.effect', 'g.locales']) as $row) {
+            $grants[] = $this->grant($row);
+        }
+
+        return $grants;
+    }
+
+    /**
+     * The grants of an actor the context's actor acts on behalf of (PRD 5.16), as of() gives the
+     * grants of the context's actor: the app role reads no other actor's grants, so they are read
+     * through the owner function cms_delegator_grants, which gives none for an actor no credential
+     * of the context's actor is issued on behalf of, so such a chain reaches nothing.
+     *
+     * @return list<Grant>
+     */
+    public function ofDelegator(ActorId $actor, ?CommandName $permission = null): array
+    {
+        $grants = [];
+
+        foreach ($this->db()->select(
+            'select role_id, classification_ceiling, path, effect, locales from cms_delegator_grants(?, ?)',
+            [$actor->toString(), $permission?->value],
+            false,
+        ) as $row) {
             $grants[] = $this->grant($row);
         }
 

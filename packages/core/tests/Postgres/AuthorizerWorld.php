@@ -32,23 +32,50 @@ final class AuthorizerWorld
 {
     public const string ACTOR = '0192a0c0-0000-7000-8000-0000000000c9';
 
+    public const string DELEGATE = '0192a0c0-0000-7000-8000-0000000000c7';
+
+    public const string CREDENTIAL = '0192a0c0-0000-7000-8000-0000000000c8';
+
     /**
      * @param  list<array{string, list<string>, string, GrantEffect, list<string>|null}>  $grants  role handle, permissions, node, effect, locales
      */
     public static function grantedActor(array $grants): ActorPrincipal
     {
         StorageTables::superuser()->table('actors')->insert(['id' => self::ACTOR, 'actor_class' => 'staff', 'state' => 'active', 'version' => 1, 'credential_generation' => 1, 'created_at' => AccessWorld::CREATED_AT]);
-        $clock = new FakeClock(new DateTimeImmutable('2026-03-10T12:00:00Z'));
-        $fixtures = new PostgresAccessFixtures(app(DatabaseManager::class), $clock, new FakeIdGenerator(seed: 77, clock: $clock));
         $actor = ActorId::fromString(self::ACTOR);
+        self::grant($actor, 'authorizer_', $grants, 77);
+
+        return new ActorPrincipal($actor, [], IssuerKind::Service, ClassificationAccess::Internal);
+    }
+
+    /**
+     * A service actor with a credential issued on behalf of the person, holding the grants with
+     * roles of its own, as the principal the verifier gives for that credential.
+     *
+     * @param  list<array{string, list<string>, string, GrantEffect, list<string>|null}>  $grants  role handle, permissions, node, effect, locales
+     */
+    public static function delegateOf(ActorPrincipal $person, array $grants): ActorPrincipal
+    {
+        AccessWorld::delegate(self::DELEGATE, self::CREDENTIAL, [$person->actor->toString()]);
+        $delegate = ActorId::fromString(self::DELEGATE);
+        self::grant($delegate, 'delegate_', $grants, 78);
+
+        return new ActorPrincipal($delegate, [$person->actor], IssuerKind::Service, ClassificationAccess::Internal);
+    }
+
+    /**
+     * @param  list<array{string, list<string>, string, GrantEffect, list<string>|null}>  $grants
+     */
+    private static function grant(ActorId $actor, string $prefix, array $grants, int $seed): void
+    {
+        $clock = new FakeClock(new DateTimeImmutable('2026-03-10T12:00:00Z'));
+        $fixtures = new PostgresAccessFixtures(app(DatabaseManager::class), $clock, new FakeIdGenerator(seed: $seed, clock: $clock));
         $roles = [];
 
         foreach ($grants as [$handle, $names, $node, $effect, $locales]) {
-            $roles[$handle] ??= $fixtures->role('authorizer_'.$handle, ClassificationAccess::Internal, array_map(static fn (string $name): CommandName => new CommandName($name), $names));
+            $roles[$handle] ??= $fixtures->role($prefix.$handle, ClassificationAccess::Internal, array_map(static fn (string $name): CommandName => new CommandName($name), $names));
             $fixtures->grant($actor, $roles[$handle], NodeId::fromString($node), $effect, $locales === null ? null : array_map(static fn (string $locale): Locale => new Locale($locale), $locales));
         }
-
-        return new ActorPrincipal($actor, [], IssuerKind::Service, ClassificationAccess::Internal);
     }
 
     /**

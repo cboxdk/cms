@@ -33,6 +33,7 @@ use PHPUnit\Framework\Attributes\Test;
  * locale; a deny beats the allow it inherits, an allow below a deny reaches again, a grant limited
  * to some locales reaches only those, and a target in every locale must be reached in each. A
  * scope without targets needs the permission on some node, and the anonymous principal is refused.
+ * An actor on behalf of a person may run only what each of them may run with their own grants.
  *
  * The tree is AccessWorld's: ROOT, with NEWS, SPORT below it and FOOTBALL below that, and CULTURE.
  * The actor of each test holds only the grants the test gives it.
@@ -49,6 +50,14 @@ trait CommandAuthorizerBehaviour
     abstract protected function grantedActor(array $grants): ActorPrincipal;
 
     abstract protected function commandAuthorizer(): CommandAuthorizer;
+
+    /**
+     * A second active actor holding exactly the grants, with roles of its own, as the principal of
+     * its credential issued on behalf of the person (PRD 5.16).
+     *
+     * @param  list<array{string, list<string>, string, GrantEffect, list<string>|null}>  $grants
+     */
+    abstract protected function delegateOf(ActorPrincipal $person, array $grants): ActorPrincipal;
 
     /**
      * Runs the authorization with the principal's access context, as the pipeline does: inside its
@@ -149,6 +158,29 @@ trait CommandAuthorizerBehaviour
 
         Assert::assertTrue($this->authorized($actor, 'actor.deactivate', AuthorizationScope::anywhere())->allowed());
         Assert::assertFalse($this->authorized($actor, 'entry.create', AuthorizationScope::anywhere())->allowed());
+    }
+
+    #[Test]
+    public function it_allows_an_actor_on_behalf_of_a_person_only_what_both_may_do(): void
+    {
+        $person = $this->grantedActor([['writer', ['entry.create'], AccessWorld::NEWS, GrantEffect::Allow, null]]);
+        $delegate = $this->delegateOf($person, [['agent', ['entry.create', 'entry.publish'], AccessWorld::ROOT, GrantEffect::Allow, null]]);
+
+        Assert::assertTrue($this->authorized($delegate, 'entry.create', $this->on(AccessWorld::SPORT))->allowed());
+        Assert::assertFalse($this->authorized($delegate, 'entry.create', $this->on(AccessWorld::CULTURE))->allowed());
+        Assert::assertFalse($this->authorized($delegate, 'entry.publish', $this->on(AccessWorld::NEWS, 'da'))->allowed());
+        Assert::assertFalse($this->authorized($delegate, 'entry.publish', AuthorizationScope::anywhere())->allowed());
+    }
+
+    #[Test]
+    public function it_refuses_an_actor_on_behalf_of_a_person_what_it_may_not_do_itself(): void
+    {
+        $person = $this->grantedActor([['writer', ['entry.create', 'entry.revise'], AccessWorld::ROOT, GrantEffect::Allow, null]]);
+        $delegate = $this->delegateOf($person, [['agent', ['entry.create'], AccessWorld::NEWS, GrantEffect::Allow, null]]);
+
+        Assert::assertTrue($this->authorized($delegate, 'entry.create', $this->on(AccessWorld::NEWS))->allowed());
+        Assert::assertFalse($this->authorized($delegate, 'entry.create', $this->on(AccessWorld::CULTURE))->allowed());
+        Assert::assertFalse($this->authorized($delegate, 'entry.revise', $this->on(AccessWorld::NEWS))->allowed());
     }
 
     #[Test]

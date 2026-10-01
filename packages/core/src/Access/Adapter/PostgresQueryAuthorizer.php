@@ -20,8 +20,9 @@ use Override;
  * The kernel's QueryAuthorizer (PRD 5.10, 6.2): a PublicQuery, such as path.resolve, may be run by
  * anyone, the anonymous principal included (invariant 25); any other read only by an actor with a
  * role whose permissions (role_permissions, where reads share the commands' names) name it and that
- * reaches some node, as the PermissionRule decides. What rows the read reaches is not its question:
- * row level security under the context decides that.
+ * reaches some node, as the PermissionRule decides; an actor that acts on behalf of others only
+ * when every actor of its chain may run it too (PRD 5.16). What rows the read reaches is not its
+ * question: row level security under the context decides that.
  *
  * It reads the actor's grants of those roles on the default connection, or the one named, inside
  * the read transaction and under its actor context.
@@ -51,6 +52,17 @@ final readonly class PostgresQueryAuthorizer implements QueryAuthorizer
             return Authorization::refuse(sprintf('The anonymous principal may run only public reads, and %s is not one.', $query->value));
         }
 
-        return $this->rule->query($query, new PostgresGrants($this->connections, $this->connection)->of($principal->actor, $query));
+        $grants = new PostgresGrants($this->connections, $this->connection);
+        $authorization = $this->rule->query($query, $grants->of($principal->actor, $query));
+
+        foreach ($principal->onBehalfOf as $delegator) {
+            if (! $authorization->allowed()) {
+                break;
+            }
+
+            $authorization = $this->rule->query($query, $grants->ofDelegator($delegator, $query));
+        }
+
+        return $authorization;
     }
 }

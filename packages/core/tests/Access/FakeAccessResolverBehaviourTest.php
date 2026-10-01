@@ -22,6 +22,8 @@ final class FakeAccessResolverBehaviourTest extends TestCase
 
     private const string GRANTED = '01936f5e-8a2b-7c3d-9e4f-0000000000c1';
 
+    private const string DELEGATE = '01936f5e-8a2b-7c3d-9e4f-0000000000c3';
+
     private ?FakeAccessResolver $resolver = null;
 
     #[Override]
@@ -49,6 +51,12 @@ final class FakeAccessResolverBehaviourTest extends TestCase
     }
 
     #[Override]
+    protected function delegate(): ActorId
+    {
+        return ActorId::fromString(self::DELEGATE);
+    }
+
+    #[Override]
     protected function begin(): void
     {
         $this->resolver()->begin();
@@ -62,6 +70,8 @@ final class FakeAccessResolverBehaviourTest extends TestCase
 
     private function resolver(): FakeAccessResolver
     {
-        return $this->resolver ??= new FakeAccessResolver()->grant(ActorId::fromString(self::GRANTED), $this->grantedRegions(), ClassificationAccess::Internal);
+        return $this->resolver ??= new FakeAccessResolver()
+            ->grant(ActorId::fromString(self::GRANTED), $this->grantedRegions(), ClassificationAccess::Internal)
+            ->grant(ActorId::fromString(self::DELEGATE), [new AccessRegion(new NodePath('root'))], ClassificationAccess::Sensitive);
     }
 }

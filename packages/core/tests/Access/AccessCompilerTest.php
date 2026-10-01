@@ -174,6 +174,38 @@ it('returns a context the contract accepts, whose reach matches the grants node 
         ->and(regionsOf($grants))->toBe(['r -r.a -r.e.f', 'r.a.b -r.a.b.c', 'r.a.b.c.d']);
 });
 
+it('intersects the contexts of an actor and the people it acts for, node by node, with the lowest classification', function (): void {
+    $compiler = new AccessCompiler;
+    $principal = compilerPrincipal();
+    $agent = $compiler->compile($principal, [grantOn('r', ceiling: ClassificationAccess::Sensitive), grantOn('r.e', GrantEffect::Deny, ceiling: ClassificationAccess::Sensitive)]);
+    $person = $compiler->compile($principal, [
+        grantOn('r.a', role: LEGAL, ceiling: ClassificationAccess::Personal),
+        grantOn('r.a.b', GrantEffect::Deny, LEGAL, ClassificationAccess::Personal),
+        grantOn('r.a.b.c', role: LEGAL, ceiling: ClassificationAccess::Personal),
+        grantOn('r.e.f', role: LEGAL, ceiling: ClassificationAccess::Personal),
+        grantOn('q', role: LEGAL, ceiling: ClassificationAccess::Personal),
+    ]);
+    $context = $compiler->intersect($principal, $agent, $person);
+    $reached = [];
+
+    foreach (['r', 'r.a', 'r.a.x', 'r.a.b', 'r.a.b.c', 'r.a.b.c.d', 'r.e', 'r.e.f', 'q'] as $path) {
+        $reached[$path] = $context->reaches(new NodePath($path));
+        expect($reached[$path])->toBe($agent->reaches(new NodePath($path)) && $person->reaches(new NodePath($path)));
+    }
+
+    expect($reached)->toBe(['r' => false, 'r.a' => true, 'r.a.x' => true, 'r.a.b' => false, 'r.a.b.c' => true, 'r.a.b.c.d' => true, 'r.e' => false, 'r.e.f' => false, 'q' => false])
+        ->and(array_map(
+            static fn (AccessRegion $region): string => implode(' -', [$region->path->value, ...array_map(static fn (NodePath $path): string => $path->value, $region->exceptions)]),
+            $context->regions,
+        ))->toBe(['r.a -r.a.b', 'r.a.b.c'])
+        ->and($context->classificationAccess)->toBe(ClassificationAccess::Personal)
+        ->and($context->principal)->toBe($principal)
+        ->and($compiler->intersect($principal, $agent)->regions)->toEqual($agent->regions)
+        ->and($compiler->intersect($principal, $agent, $person, $compiler->compile($principal, []))->regions)->toBe([])
+        ->and($compiler->intersect($principal, $agent, $compiler->compile($principal, []))->classificationAccess)->toBe(ClassificationAccess::Public)
+        ->and($compiler->intersect(compilerPrincipal(ClassificationAccess::Internal), $agent, $person)->classificationAccess)->toBe(ClassificationAccess::Internal);
+});
+
 it('refuses a grant with an empty locale set or one that names a locale twice, and holds a grant in its locales', function (): void {
     $grant = grantOn('r.news', locales: ['da', 'en-GB']);
 
