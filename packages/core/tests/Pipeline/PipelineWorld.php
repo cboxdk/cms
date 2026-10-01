@@ -260,10 +260,13 @@ final class PipelineWorld
         return new FieldValues(new FieldMap(new NamedValue(new FieldHandle('label'), new TextValue($label))));
     }
 
-    public function command(?FieldValues $fields = null, ?TypeId $type = null, ReadVersions $expected = new ReadVersions): RenameProbe
+    /**
+     * probe.rename of the world's entry, or of the entry given.
+     */
+    public function command(?FieldValues $fields = null, ?TypeId $type = null, ReadVersions $expected = new ReadVersions, ?EntryId $entry = null): RenameProbe
     {
         return new RenameProbe(
-            $this->entry(),
+            $entry ?? $this->entry(),
             $type ?? TypeId::fromString(ProbeType::ID),
             NodeId::fromString(self::HOME),
             $fields ?? self::fields('Before'),

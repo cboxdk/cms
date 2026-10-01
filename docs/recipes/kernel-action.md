@@ -315,8 +315,6 @@ use Cbox\Cms\Contracts\Plans\Mutations\HeadMoved;
 use Cbox\Cms\Contracts\Plans\Mutations\RevisionCreated;
 use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Contracts\Results\WriteResult;
-use Cbox\Cms\Core\Pipeline\Domain\Dto\StaleRead;
-use Cbox\Cms\Core\Pipeline\Domain\Dto\VersionConflict;
 use Cbox\Cms\Core\Tests\Entries\EntryActionWorld;
 
 /*
@@ -416,13 +414,15 @@ it('is version_conflict for an entry id that exists', function (): void {
 });
 
 it('is version_conflict when the entry was created by another call before the commit', function (): void {
-    $world = new EntryActionWorld()->commitWith(new VersionConflict(new StaleRead(EntryActionWorld::entry(), null, new AggregateVersion(1))));
+    $world = new EntryActionWorld;
+    $world->committer->at(EntryActionWorld::entry(), new AggregateVersion(1));
 
     $result = $world->create(EntryActionWorld::fields('Groceries'));
 
     expect($result->outcome())->toBe(Outcome::Rejected)
         ->and(createEntryCodes($result))->toBe(['version_conflict'])
-        ->and($result->errors[0]->message)->toContain('changed after it was read');
+        ->and($result->errors[0]->message)->toContain('changed after it was read')
+        ->and($result->errors[0]->message)->toContain('entry:'.EntryActionWorld::ENTRY);
 });
 ```
 

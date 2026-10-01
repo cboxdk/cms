@@ -111,16 +111,18 @@ it('refuses a window for an entry that is not active or has no shared head', fun
 ]);
 
 it('hides a placement and sets a window that has ended whatever the entry\'s release, without reading it', function (): void {
-    $world = new World()
+    $world = static fn (): World => new World()
         ->release(EntryLifecycle::Active, ReleaseState::Unreleased)
         ->place(World::PLACEMENT, World::NORTH_NODE, 'harbour', Visibility::Live, World::window(-2), true);
+    $hiding = $world();
+    $ending = $world();
 
-    $hidden = $world->setWindow(World::PLACEMENT, 1, null);
-    $ended = $world->setWindow(World::PLACEMENT, 1, World::window(-5, -2));
+    $hidden = $hiding->setWindow(World::PLACEMENT, 1, null);
+    $ended = $ending->setWindow(World::PLACEMENT, 1, World::window(-5, -2));
 
     expect($hidden->outcome())->toBe(Outcome::Committed)
         ->and($ended->outcome())->toBe(Outcome::Committed)
-        ->and(array_map(static fn (PendingChangeset $pending): ?ReadVersion => $pending->reads->of(new EntryReleaseRef(World::entry())), $world->committer->pending))->toBe([null, null]);
+        ->and(array_map(static fn (PendingChangeset $pending): ?ReadVersion => $pending->reads->of(new EntryReleaseRef(World::entry())), [...$hiding->committer->pending, ...$ending->committer->pending]))->toBe([null, null]);
 });
 
 it('is version_conflict when the entry\'s release changed before the commit', function (): void {

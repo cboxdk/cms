@@ -21,6 +21,7 @@ use Cbox\Cms\Contracts\Idempotency\WaitBudget;
 use Cbox\Cms\Contracts\Identity\ActorClass;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersions;
@@ -304,7 +305,8 @@ it('keeps each actor\'s keys apart', function (): void {
     $other = $world->identity->addActor(ActorClass::Staff)->id;
 
     $mine = $world->pipeline()->run($world->keyed($world->command(), 'shared-key'));
-    $theirs = $world->pipeline()->run($world->keyed($world->command(), 'shared-key', actor: $other));
+    // Another entry, so the second command does not create the entry the first one created.
+    $theirs = $world->pipeline()->run($world->keyed($world->command(entry: EntryId::fromString('01936f5e-8a2b-7c3d-9e4f-0000000000f1')), 'shared-key', actor: $other));
 
     expect($mine->outcome())->toBe(Outcome::Committed)
         ->and($theirs->outcome())->toBe(Outcome::Committed)

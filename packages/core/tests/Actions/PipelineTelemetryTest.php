@@ -16,6 +16,7 @@ use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Fields\TextValue;
 use Cbox\Cms\Contracts\Hooks\HookDecision;
 use Cbox\Cms\Contracts\Ids\ActorId;
+use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Plans\Mutations\ActorDeactivated;
 use Cbox\Cms\Contracts\Plans\Plan;
 use Cbox\Cms\Contracts\Results\WriteResult;
@@ -150,7 +151,11 @@ it('gives each command a span of its own with its own changeset', function (): v
     $world = new PipelineWorld;
     $world->committing();
 
-    $results = [$world->run($world->command()), $world->run($world->command()), $world->run($world->command())];
+    // Three entries, so each command creates its own and none reads what another committed.
+    $results = array_map(
+        static fn (string $entry): WriteResult => $world->run($world->command(entry: EntryId::fromString($entry))),
+        ['01936f5e-8a2b-7c3d-9e4f-0000000000f1', '01936f5e-8a2b-7c3d-9e4f-0000000000f2', '01936f5e-8a2b-7c3d-9e4f-0000000000f3'],
+    );
     $spans = $world->telemetry->spans();
 
     expect($spans)->toHaveCount(3)
