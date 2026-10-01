@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Cli\Tests\Postgres;
 
-use Cbox\Cms\Cli\Console\MaintainPartitionsCommand;
+use Cbox\Cms\Contracts\Errors\ErrorCode;
+use Cbox\Cms\Contracts\Errors\ExitCode;
 use Cbox\Cms\Core\Partitions\Domain\LockTimeout;
 use Cbox\Cms\Core\Partitions\Domain\OwnerConnectionRequired;
 use Cbox\Cms\Core\Partitions\Domain\UnmanageableTable;
@@ -94,10 +95,10 @@ it('ends the report\'s runway at a detached partition, whichever side of the gap
         ]);
 });
 
-it('exits 2 on invalid options, without touching the database', function (array $options, string $message): void {
+it('exits 64 (usage) on invalid options, without touching the database', function (array $options, string $message): void {
     [$status, $output] = maintainCommand($options);
 
-    expect($status)->toBe(MaintainPartitionsCommand::EXIT_INVALID)
+    expect($status)->toBe(ExitCode::Usage->value)
         ->and(implode("\n", $output))->toContain($message)
         ->and(PartitionScratch::partitions(PartitionScratch::UUID_TABLE))->toBe([]);
 })->with([
@@ -113,7 +114,7 @@ it('exits 78 when the owner connection is the app connection', function (): void
 
     [$status, $output] = maintainCommand();
 
-    expect($status)->toBe(MaintainPartitionsCommand::EXIT_NOT_OWNER)
+    expect($status)->toBe(ErrorCode::PartitionOwnerRequired->entry()->exit->value)
         ->and(implode("\n", $output))->toContain('['.OwnerConnectionRequired::CODE.']');
 });
 
@@ -125,7 +126,7 @@ it('exits 75 when a lock stays busy on every attempt', function (): void {
     [$status, $output] = maintainCommand();
     $other->select('select pg_advisory_unlock(?)', [PostgresPartitionManager::ADVISORY_LOCK]);
 
-    expect($status)->toBe(MaintainPartitionsCommand::EXIT_LOCK_TIMEOUT)
+    expect($status)->toBe(ErrorCode::PartitionLockTimeout->entry()->exit->value)
         ->and(implode("\n", $output))->toContain('['.LockTimeout::CODE.']');
 });
 
@@ -145,7 +146,7 @@ it('maintains every other table when one table\'s lock stays busy, prints what i
     [$status, $output] = maintainCommand();
     $other->rollBack();
 
-    expect($status)->toBe(MaintainPartitionsCommand::EXIT_LOCK_TIMEOUT)
+    expect($status)->toBe(ErrorCode::PartitionLockTimeout->entry()->exit->value)
         ->and(array_slice($output, 0, 9))->toBe([
             'created partition_scratch.partition_scratch_p20260110',
             'created partition_scratch.partition_scratch_p20260111',
@@ -179,7 +180,7 @@ it('maintains every other table when a listed table has not been migrated yet, p
 
     [$status, $output] = maintainCommand();
 
-    expect($status)->toBe(MaintainPartitionsCommand::EXIT_UNMANAGEABLE)
+    expect($status)->toBe(ErrorCode::PartitionTableUnmanageable->entry()->exit->value)
         ->and($output)->toBe([
             'created partition_scratch.partition_scratch_p20260110',
             'created partition_scratch.partition_scratch_p20260111',
@@ -204,7 +205,7 @@ it('maintains every other table when Postgres refuses a step of one table, print
 
     [$status, $output] = maintainCommand();
 
-    expect($status)->toBe(MaintainPartitionsCommand::EXIT_UNMANAGEABLE)
+    expect($status)->toBe(ErrorCode::PartitionTableUnmanageable->entry()->exit->value)
         ->and(array_slice($output, 0, 8))->toBe([
             'created partition_scratch.partition_scratch_p20260110',
             'created partition_scratch_ts.partition_scratch_ts_p20260110',
@@ -230,7 +231,7 @@ it('exits 78 without a stack trace when the owner connection is inside a transac
         $owner->rollBack();
     }
 
-    expect($status)->toBe(MaintainPartitionsCommand::EXIT_UNMANAGEABLE)
+    expect($status)->toBe(ErrorCode::PartitionTableUnmanageable->entry()->exit->value)
         ->and($output)->toBe(['['.UnmanageableTable::CODE.'] The connection [pgsql_owner] is inside a transaction. Partition maintenance runs DETACH PARTITION CONCURRENTLY, which Postgres runs only outside a transaction.'])
         ->and(PartitionScratch::partitions(PartitionScratch::UUID_TABLE))->toBe([]);
 });

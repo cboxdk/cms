@@ -5,15 +5,10 @@ declare(strict_types=1);
 namespace Cbox\Cms\Cli\Console;
 
 use Cbox\Cms\Cli\Boundary\PartitionRangeOptions;
+use Cbox\Cms\Cli\Boundary\PartitionReportOutput;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Core\Partitions\Actions\MaintainPartitions;
-use Cbox\Cms\Core\Partitions\Domain\Dto\FailedTable;
-use Cbox\Cms\Core\Partitions\Domain\Dto\GaveUpStep;
-use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionChange;
 use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionRange;
-use Cbox\Cms\Core\Partitions\Domain\Dto\PartitionReport;
-use Cbox\Cms\Core\Partitions\Domain\Dto\SequenceRunway;
-use Cbox\Cms\Core\Partitions\Domain\Dto\TableRunway;
 use Cbox\Cms\Core\Partitions\Domain\LockTimeout;
 use Cbox\Cms\Core\Partitions\Domain\OwnerConnectionRequired;
 use Cbox\Cms\Core\Partitions\Domain\UnmanageableTable;
@@ -21,7 +16,7 @@ use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use InvalidArgumentException;
-use Psr\Log\LoggerInterface;
+use Symfony\Component\Console\Output\OutputInterface;
 
 /**
  * `cms:partitions:maintain`: keeps the range partitions of the tables in
@@ -38,9 +33,11 @@ use Psr\Log\LoggerInterface;
  * that cannot be attached again): the command prints what the run did, then each step that gave
  * up and each table that failed, and exits after every other table has been maintained.
  *
- * Exit codes: 0 done, 2 invalid options, 75 a lock was busy on every attempt, the maintenance
- * lock or a table's (try again later), 78 not the owner role's connection, or a table it cannot
- * manage (configuration: an operator has to fix it, so 78 wins over 75).
+ * The exit codes come from the error catalog (GUARDRAILS 2.1), through PartitionReportOutput: 0
+ * done, 64 invalid options, 75 a lock was busy on every attempt, the maintenance lock or a table's
+ * (partition_lock_timeout, try again later), 78 not the owner role's connection
+ * (partition_owner_required) or a table it cannot manage (partition_table_unmanageable;
+ * configuration: an operator has to fix it, so 78 wins over 75).
  */
 #[Internal]
 #[Description('Create partitions ahead of the clock and remove partitions past retention, as the owner role')]
@@ -49,127 +46,23 @@ use Psr\Log\LoggerInterface;
         {--to= : Only create the partitions that cover up to this date or ISO 8601 time (needs --from)}')]
 final class MaintainPartitionsCommand extends Command
 {
-    public const int EXIT_INVALID = 2;
-
-    /** EX_TEMPFAIL from sysexits.h. */
-    public const int EXIT_LOCK_TIMEOUT = 75;
-
-    /** EX_CONFIG from sysexits.h. */
-    public const int EXIT_NOT_OWNER = 78;
-
-    /** EX_CONFIG from sysexits.h: a table in the policy cannot be managed as it is. */
-    public const int EXIT_UNMANAGEABLE = 78;
-
-    public function handle(MaintainPartitions $partitions, LoggerInterface $log): int
+    public function handle(MaintainPartitions $partitions, PartitionReportOutput $output): int
     {
         try {
             $range = PartitionRangeOptions::parse($this->option('from'), $this->option('to'));
-        } catch (InvalidArgumentException $invalid) {
-            $this->error($invalid->getMessage());
-
-            return self::EXIT_INVALID;
+            $answer = $output->of($range instanceof PartitionRange ? $partitions->cover($range) : $partitions->maintain());
+        } catch (InvalidArgumentException|LockTimeout|OwnerConnectionRequired|UnmanageableTable $refusal) {
+            $answer = $output->refused($refusal);
         }
 
-        try {
-            $report = $range instanceof PartitionRange ? $partitions->cover($range) : $partitions->maintain();
-        } catch (InvalidArgumentException $invalid) {
-            $this->error($invalid->getMessage());
-
-            return self::EXIT_INVALID;
-        } catch (LockTimeout $timeout) {
-            $this->gaveUp(GaveUpStep::of($timeout), $log);
-
-            return self::EXIT_LOCK_TIMEOUT;
-        } catch (OwnerConnectionRequired $notOwner) {
-            $this->error($notOwner->getMessage());
-
-            return self::EXIT_NOT_OWNER;
-        } catch (UnmanageableTable $unmanageable) {
-            $this->error($unmanageable->getMessage());
-
-            return self::EXIT_UNMANAGEABLE;
+        foreach ($answer->output as $line) {
+            $this->output->writeln($line, OutputInterface::OUTPUT_RAW);
         }
 
-        $this->report($report, $log);
-
-        foreach ($report->gaveUp as $step) {
-            $this->gaveUp($step, $log);
+        foreach ($answer->errors as $line) {
+            $this->output->getErrorStyle()->writeln($line, OutputInterface::OUTPUT_RAW);
         }
 
-        foreach ($report->failed as $table) {
-            $this->failed($table, $log);
-        }
-
-        return match (true) {
-            $report->failed !== [] => self::EXIT_UNMANAGEABLE,
-            $report->gaveUp !== [] => self::EXIT_LOCK_TIMEOUT,
-            default => self::SUCCESS,
-        };
-    }
-
-    private function failed(FailedTable $table, LoggerInterface $log): void
-    {
-        $log->error('Partition maintenance could not manage a table.', [
-            'code' => UnmanageableTable::CODE,
-            'table' => $table->table,
-            'partition' => $table->partition,
-            'cause' => $table->cause,
-        ]);
-        $this->error($table->message);
-    }
-
-    private function gaveUp(GaveUpStep $step, LoggerInterface $log): void
-    {
-        $log->warning('Partition maintenance gave up on a lock.', [
-            'code' => LockTimeout::CODE,
-            'step' => $step->step->value,
-            'table' => $step->table,
-            'partition' => $step->partition,
-            'attempts' => $step->attempts,
-            'cause' => $step->cause,
-        ]);
-        $this->error($step->message);
-    }
-
-    private function report(PartitionReport $report, LoggerInterface $log): void
-    {
-        foreach ($report->changes as $change) {
-            $this->line(sprintf('%s %s.%s', $change->kind->value, $change->table, $change->partition));
-        }
-
-        foreach ($report->analyzed as $root) {
-            $this->line(sprintf('analyzed %s', $root));
-        }
-
-        foreach ($report->runways as $runway) {
-            $this->line(sprintf('runway %s until %s', $runway->table, self::runway($runway)));
-        }
-
-        $this->info(sprintf('Partitions maintained as role %s: %d changes.', $report->role, count($report->changes)));
-
-        $log->info('Partition maintenance ran.', [
-            'role' => $report->role,
-            'changes' => array_map(static fn (PartitionChange $change): string => $change->kind->value.' '.$change->partition, $report->changes),
-            'runways' => array_map(static fn (TableRunway $runway): string => $runway->table.' '.self::runway($runway), $report->runways),
-            'analyzed' => $report->analyzed,
-        ]);
-    }
-
-    /**
-     * Where a table's runway ends: a time for a table partitioned on time, and for one partitioned
-     * on a sequence the id with the empty partitions ahead of the sequence's current value; none
-     * when no partition holds now or the current value.
-     */
-    private static function runway(TableRunway $runway): string
-    {
-        $sequence = $runway->sequence;
-
-        if (! $sequence instanceof SequenceRunway) {
-            return $runway->coveredUntil?->format('Y-m-d\TH:i:s\Z') ?? 'none';
-        }
-
-        return $sequence->coveredUntil === null
-            ? sprintf('none (current id %d)', $sequence->current)
-            : sprintf('id %d (%d %s ahead of id %d)', $sequence->coveredUntil, $sequence->partitionsAhead, $sequence->partitionsAhead === 1 ? 'partition' : 'partitions', $sequence->current);
+        return $answer->exit->value;
     }
 }

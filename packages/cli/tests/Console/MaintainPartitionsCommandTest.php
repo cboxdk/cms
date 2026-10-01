@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Cli\Tests\Console;
 
-use Cbox\Cms\Cli\Console\MaintainPartitionsCommand;
+use Cbox\Cms\Contracts\Errors\ErrorCode;
+use Cbox\Cms\Contracts\Errors\ExitCode;
 use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Core\Partitions\Actions\MaintainPartitions;
 use Cbox\Cms\Core\Partitions\Domain\PartitionedTable;
@@ -127,12 +128,12 @@ it('only covers the range of --from and --to, analyzes nothing, and prints a run
         ->and($partitions->partitions('events'))->toBe(['events_p20240228', 'events_p20240229', 'events_p20240301']);
 });
 
-it('exits 2 with the reason for invalid options or a range it will not cover, and changes nothing', function (array $options, string $message): void {
+it('exits 64 (usage) with the reason for invalid options or a range it will not cover, and changes nothing', function (array $options, string $message): void {
     [$partitions, $logger] = partitionsCommandWith();
 
     [$status, $lines] = runPartitionsCommand($options);
 
-    expect($status)->toBe(MaintainPartitionsCommand::EXIT_INVALID)
+    expect($status)->toBe(ExitCode::Usage->value)
         ->and(implode("\n", $lines))->toContain($message)
         ->and($partitions->partitions('events'))->toBe([])
         ->and($logger->records)->toBe([]);
@@ -148,7 +149,7 @@ it('exits 75 when a lock stays busy, prints why and logs the step as a warning',
 
     [$status, $lines] = runPartitionsCommand();
 
-    expect($status)->toBe(MaintainPartitionsCommand::EXIT_LOCK_TIMEOUT)
+    expect($status)->toBe(ErrorCode::PartitionLockTimeout->entry()->exit->value)
         ->and(implode("\n", $lines))->toContain('Gave up on step "lock"')
         ->and($logger->records)->toBe([['warning', 'Partition maintenance gave up on a lock.', [
             'code' => 'partition_lock_timeout',
@@ -166,7 +167,7 @@ it('reports the run, then logs the table and partition of a lock that stays busy
 
     [$status, $lines] = runPartitionsCommand();
 
-    expect($status)->toBe(MaintainPartitionsCommand::EXIT_LOCK_TIMEOUT)
+    expect($status)->toBe(ErrorCode::PartitionLockTimeout->entry()->exit->value)
         ->and(array_slice($lines, 0, 2))->toBe([
             'runway events until none',
             'Partitions maintained as role cms_owner: 0 changes.',
@@ -190,7 +191,7 @@ it('exits 78 when the policy names the application\'s connection, and changes no
 
     [$status, $lines] = runPartitionsCommand();
 
-    expect($status)->toBe(MaintainPartitionsCommand::EXIT_NOT_OWNER)
+    expect($status)->toBe(ErrorCode::PartitionOwnerRequired->entry()->exit->value)
         ->and(implode("\n", $lines))->toContain('which is the application\'s default connection')
         ->and($partitions->partitions('events'))->toBe([])
         ->and($logger->records)->toBe([]);
@@ -215,7 +216,7 @@ it('reports the run, then prints and logs each table it could not manage, and ex
 
     [$status, $lines] = runPartitionsCommand();
 
-    expect($status)->toBe(MaintainPartitionsCommand::EXIT_UNMANAGEABLE)
+    expect($status)->toBe(ErrorCode::PartitionTableUnmanageable->entry()->exit->value)
         ->and(array_slice($lines, 0, 6))->toBe([
             'created events.events_p20260501',
             'created events.events_p20260502',
@@ -237,7 +238,7 @@ it('reports the run, then prints and logs each table it could not manage, and ex
 
     $partitions->unlockTable('metrics');
 
-    expect(runPartitionsCommand()[0])->toBe(MaintainPartitionsCommand::EXIT_UNMANAGEABLE);
+    expect(runPartitionsCommand()[0])->toBe(ErrorCode::PartitionTableUnmanageable->entry()->exit->value);
 });
 
 it('prints and logs the runway of a table on a sequence in ids and in empty partitions ahead of its current value', function (): void {

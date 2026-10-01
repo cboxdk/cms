@@ -68,7 +68,7 @@ Without options, the command creates the partitions from the span that holds now
 
 `--from` and `--to` only create the partitions that cover a range of dates, for rows that arrive with past or future keys, and the runway ahead of the sequence of each table on a sequence, because a range of dates says nothing about ids.
 
-The exit codes: 0 done, 2 invalid options, 75 a lock was busy on every attempt, 78 not the owner's connection or a table the manager cannot manage, such as one with a DEFAULT partition.
+The exit codes come from the error catalog: 0 done, 64 invalid options, 75 a lock was busy on every attempt (`partition_lock_timeout`), 78 not the owner's connection (`partition_owner_required`) or a table the manager cannot manage, such as one with a DEFAULT partition (`partition_table_unmanageable`). The steps that gave up and the tables that failed are printed on standard error.
 
 `cms:doctor` checks the runway with `partitions.runway`: every table must have unbroken partitions from now to `cbox-cms.doctor.partition_runway_days` ahead, 7 by default, and every table on a sequence at least `cbox-cms.doctor.partition_runway_partitions` empty partitions ahead of its sequence, 1 by default. The check does not block the kernel from starting, because the scheduler of the started application extends the runway.
 
