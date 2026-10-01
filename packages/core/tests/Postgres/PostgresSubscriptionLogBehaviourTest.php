@@ -79,6 +79,15 @@ final class PostgresSubscriptionLogBehaviourTest extends TestCase
         $this->holder = null;
     }
 
+    #[Override]
+    protected function actorInBatch(SubscriptionLog $log): ?string
+    {
+        $row = app('db')->selectOne("select nullif(current_setting('cbox_cms.actor', true), '') as actor");
+        $actor = is_object($row) && property_exists($row, 'actor') ? $row->actor : null;
+
+        return is_string($actor) ? $actor : null;
+    }
+
     private function eventClock(): FakeClock
     {
         return new FakeClock(new DateTimeImmutable('2026-04-01T08:00:00Z'));

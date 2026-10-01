@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Subscriptions\Fixtures;
 
+use Cbox\Cms\Contracts\Addons\AddonNamespace;
 use Cbox\Cms\Contracts\Events\StoredEvent;
 use Cbox\Cms\Contracts\Subscribers\Delivery;
 use Cbox\Cms\Contracts\Subscribers\Lane;
@@ -24,20 +25,25 @@ final readonly class RecordingSubscriber implements Subscriber
     /**
      * The subscriber registered as the subscription on the lane, receiving counter.raised.
      */
-    public static function bound(SubscriberJournal $journal, string $subscription = 'test.counters', Lane $lane = Lane::Critical): SubscriberBinding
+    public static function bound(SubscriberJournal $journal, string $subscription = 'test.counters', Lane $lane = Lane::Critical, ?AddonNamespace $addon = null): SubscriberBinding
     {
-        return new SubscriberBinding(self::entry($subscription, $lane), new self($journal));
+        return new SubscriberBinding(self::entry($subscription, $lane, $addon), new self($journal));
     }
 
-    public static function entry(string $subscription = 'test.counters', Lane $lane = Lane::Critical): SubscriberEntry
+    /**
+     * The registry's entry of the subscriber; with an addon, the entry of an addon's subscriber, from
+     * the addon's own package.
+     */
+    public static function entry(string $subscription = 'test.counters', Lane $lane = Lane::Critical, ?AddonNamespace $addon = null): SubscriberEntry
     {
         return new SubscriberEntry(
             self::class,
-            'cboxdk/cms',
+            $addon instanceof AddonNamespace ? 'acme/cms-'.$addon->value : 'cboxdk/cms',
             new SubscriptionName($subscription),
             $lane,
             null,
             [new SubscribedEvent(CounterRaised::class, CounterRaised::type())],
+            $addon,
         );
     }
 

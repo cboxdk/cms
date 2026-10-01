@@ -8,17 +8,26 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Events\EventPosition;
 use Cbox\Cms\Contracts\Events\EventStream;
 use Cbox\Cms\Contracts\Events\StoredEvent;
+use Cbox\Cms\Contracts\Identity\AccessContext;
+use Cbox\Cms\Contracts\Identity\Actor;
 use Cbox\Cms\Contracts\Identity\ActorClass;
 use Cbox\Cms\Contracts\Identity\ActorDirectory;
+use Cbox\Cms\Contracts\Identity\ActorPrincipal;
+use Cbox\Cms\Contracts\Identity\IssuerKind;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Subscribers\Delivery;
+use Cbox\Cms\Core\Access\Domain\AccessContexts;
+use Cbox\Cms\Core\Addons\Actions\ResolveSubscriberActor;
+use Cbox\Cms\Core\Addons\Domain\SubscriberActorUnavailable;
 use Cbox\Cms\Core\Subscriptions\Domain\AggregateKey;
 use Cbox\Cms\Core\Subscriptions\Domain\Dto\BatchProgress;
 use Cbox\Cms\Core\Subscriptions\Domain\Dto\LaneReport;
 use Cbox\Cms\Core\Subscriptions\Domain\Dto\LaneRun;
 use Cbox\Cms\Core\Subscriptions\Domain\Dto\Parking;
+use Cbox\Cms\Core\Subscriptions\Domain\Dto\RefusedSubscription;
 use Cbox\Cms\Core\Subscriptions\Domain\Dto\RunnerSettings;
 use Cbox\Cms\Core\Subscriptions\Domain\Dto\SubscriberBinding;
+use Cbox\Cms\Core\Subscriptions\Domain\Dto\SubscriberIdentity;
 use Cbox\Cms\Core\Subscriptions\Domain\LaneState;
 use Cbox\Cms\Core\Subscriptions\Domain\LaneSubscribers;
 use Cbox\Cms\Core\Subscriptions\Domain\Pacing;
@@ -37,6 +46,14 @@ use Throwable;
  * through the ActorDirectory and refuses to go on when it is missing, not a service actor or not
  * active (ServiceIdentityRefused), so a deactivation stops the runner within a round (PRD 5.16).
  *
+ * Each subscription runs as its own identity, never as the system (PRD 6.5 invariant 21, 13.1): an
+ * addon's subscription as the addon's service actor, which ResolveSubscriberActor reads each round,
+ * and every other subscription as the runner's service actor. Its batches run under that actor's
+ * AccessContext, compiled once per actor and round through AccessContexts, and its Delivery names
+ * that actor. An addon's subscription whose service actor is not configured, unknown or not an
+ * active service actor is refused for the round (addon_service_actor_unavailable, in the report):
+ * it is handed nothing and its cursor stays, while the lane's other subscriptions go on.
+ *
  * A round gives each subscription of the lane, in registry order, one batch of its released
  * aggregates and then one batch per stream. A batch is one transaction of the SubscriptionLog,
  * which holds the subscription's lock, so a second runner of the lane passes the subscription
@@ -46,7 +63,8 @@ use Throwable;
  * - passes it when the subscription does not receive its type, or its aggregate is parked for the
  *   subscription: a parked aggregate's later events are parked with it (PRD 7.8);
  * - parks its aggregate when the event failed maxAttempts tries in a row, and passes it;
- * - hands it to the subscriber otherwise, with a Delivery that names the service actor and the try.
+ * - hands it to the subscriber otherwise, with a Delivery that names the subscription's actor and
+ *   the try.
  *
  * It then moves the cursor to the last event it passed or handled and commits: the cursor commits
  * with what the subscriber wrote on the connection (PRD 7.4). A batch reads at most batchSize
@@ -82,6 +100,8 @@ final readonly class RunLane
         private ActorDirectory $actors,
         private RunnerSettings $settings,
         private Pacing $pacing,
+        private AccessContexts $contexts,
+        private ResolveSubscriberActor $addonActors,
     ) {}
 
     /**
@@ -95,13 +115,20 @@ final readonly class RunLane
 
         while (! $stop->requested()) {
             $actor = $this->identity();
+            $contexts = [];
             $moved = false;
 
             foreach ($bindings as $binding) {
-                $moved = $this->releases($binding, $actor, $state) || $moved;
+                $identity = $this->subscriberIdentity($binding, $actor, $contexts, $state);
+
+                if (! $identity instanceof SubscriberIdentity) {
+                    continue;
+                }
+
+                $moved = $this->releases($binding, $identity, $state) || $moved;
 
                 foreach (EventStream::cases() as $stream) {
-                    $moved = $this->events($binding, $stream, $actor, $state) || $moved;
+                    $moved = $this->events($binding, $stream, $identity, $state) || $moved;
                 }
             }
 
@@ -145,17 +172,42 @@ final readonly class RunLane
     }
 
     /**
+     * The actor the subscription runs as this round, with its access context: the addon's service
+     * actor for an addon's subscription, the runner's otherwise; null, recorded as refused, when the
+     * addon has none it may run as.
+     *
+     * @param  array<string, AccessContext>  $contexts  the contexts compiled this round, by actor
+     */
+    private function subscriberIdentity(SubscriberBinding $binding, ActorId $runner, array &$contexts, LaneState $state): ?SubscriberIdentity
+    {
+        try {
+            $addonActor = $this->addonActors->for($binding->entry);
+        } catch (SubscriberActorUnavailable $unavailable) {
+            $state->refused(new RefusedSubscription($binding->entry->name, SubscriberActorUnavailable::CODE, $unavailable->getMessage()));
+
+            return null;
+        }
+
+        $actor = $addonActor instanceof Actor ? $addonActor->id : $runner;
+        $contexts[$actor->toString()] ??= $this->contexts->for(
+            new ActorPrincipal($actor, [], IssuerKind::Service, IssuerKind::Service->maximumCeiling()),
+        );
+
+        return new SubscriberIdentity($actor, $contexts[$actor->toString()]);
+    }
+
+    /**
      * One batch of the subscription's events in the stream; whether it did anything or has units
      * to hand again at once.
      */
-    private function events(SubscriberBinding $binding, EventStream $stream, ActorId $actor, LaneState $state): bool
+    private function events(SubscriberBinding $binding, EventStream $stream, SubscriberIdentity $identity, LaneState $state): bool
     {
         $queue = $binding->entry->name->value.'|'.$stream->value;
 
-        return $this->batch($queue, $binding, $state, fn (): BatchProgress => $this->handleEvents(
+        return $this->batch($queue, $binding, $identity, $state, fn (): BatchProgress => $this->handleEvents(
             $binding,
             $stream,
-            $actor,
+            $identity->actor,
             $state,
             $state->limit($queue, $this->settings->batchSize),
         ));
@@ -164,13 +216,13 @@ final readonly class RunLane
     /**
      * One batch of the subscription's released aggregates.
      */
-    private function releases(SubscriberBinding $binding, ActorId $actor, LaneState $state): bool
+    private function releases(SubscriberBinding $binding, SubscriberIdentity $identity, LaneState $state): bool
     {
         $queue = $binding->entry->name->value.'|'.self::RELEASES;
 
-        return $this->batch($queue, $binding, $state, fn (): BatchProgress => $this->handleReleases(
+        return $this->batch($queue, $binding, $identity, $state, fn (): BatchProgress => $this->handleReleases(
             $binding,
-            $actor,
+            $identity->actor,
             $state,
             $state->limit($queue, $this->settings->batchSize),
         ));
@@ -182,14 +234,14 @@ final readonly class RunLane
      *
      * @param  Closure(): BatchProgress  $work
      */
-    private function batch(string $queue, SubscriberBinding $binding, LaneState $state, Closure $work): bool
+    private function batch(string $queue, SubscriberBinding $binding, SubscriberIdentity $identity, LaneState $state, Closure $work): bool
     {
         if (! $state->due($queue, $this->pacing->milliseconds())) {
             return false;
         }
 
         try {
-            $progress = $this->log->transaction($binding->entry->name, $work);
+            $progress = $this->log->transaction($binding->entry->name, $identity->context, $work);
         } catch (SubscriberFailed $failed) {
             $failures = $state->failures($failed->unit) + 1;
             $wait = $failures >= $this->settings->maxAttempts ? 0 : $this->settings->backoff($failures);

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Subscriptions;
 
 use Cbox\Cms\Contracts\Events\EventStream;
+use Cbox\Cms\Contracts\Identity\ActorPrincipal;
 use Cbox\Cms\Contracts\Subscribers\SubscriptionName;
 use Cbox\Cms\Core\Subscriptions\Domain\SubscriptionLog;
 use Cbox\Cms\Core\Tests\Subscriptions\Fakes\FakeSubscriptionLog;
@@ -56,6 +57,14 @@ final class FakeSubscriptionLogBehaviourTest extends TestCase
         }
 
         $this->held = null;
+    }
+
+    #[Override]
+    protected function actorInBatch(SubscriptionLog $log): ?string
+    {
+        $principal = $this->fake()->context()?->principal;
+
+        return $principal instanceof ActorPrincipal ? $principal->actor->toString() : null;
     }
 
     private function fake(): FakeSubscriptionLog

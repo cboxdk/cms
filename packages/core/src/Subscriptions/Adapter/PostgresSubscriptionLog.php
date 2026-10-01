@@ -10,7 +10,9 @@ use Cbox\Cms\Contracts\Events\EventPosition;
 use Cbox\Cms\Contracts\Events\EventStream;
 use Cbox\Cms\Contracts\Events\EventType;
 use Cbox\Cms\Contracts\Events\StoredEvent;
+use Cbox\Cms\Contracts\Identity\AccessContext;
 use Cbox\Cms\Contracts\Subscribers\SubscriptionName;
+use Cbox\Cms\Core\Access\Infrastructure\ActorContext;
 use Cbox\Cms\Core\Events\Boundary\EventRows;
 use Cbox\Cms\Core\Events\Infrastructure\EventReader;
 use Cbox\Cms\Core\Subscriptions\Boundary\ParkedRows;
@@ -31,7 +33,9 @@ use Throwable;
  * connection, or a named one, as the app role: the connection the subscribers write on, so their
  * writes commit with the cursor.
  *
- * A batch's transaction begins at READ COMMITTED and takes the transaction-scoped advisory lock
+ * A batch's transaction begins at READ COMMITTED, then sets the access context of the actor the
+ * subscription runs as through ActorContext (PRD 6.5 invariant 21), so the subscriber's reads and
+ * writes on the connection are bounded by that actor's row level security, and then takes the transaction-scoped advisory lock
  * SubscriptionLock::of() with pg_try_advisory_xact_lock, so it never waits for another runner: when
  * the lock is taken it rolls back and gives null. Postgres releases the lock when the transaction
  * ends. Every read runs on the write PDO, the primary (PRD 7.4), and the events are read with the
@@ -113,7 +117,7 @@ final readonly class PostgresSubscriptionLog implements SubscriptionLog
     ) {}
 
     #[Override]
-    public function transaction(SubscriptionName $subscription, Closure $work): ?BatchProgress
+    public function transaction(SubscriptionName $subscription, AccessContext $context, Closure $work): ?BatchProgress
     {
         $name = $this->connection ?? $this->connections->getDefaultConnection();
         $db = $this->connections->connection($name);
@@ -126,6 +130,7 @@ final readonly class PostgresSubscriptionLog implements SubscriptionLog
 
         try {
             $db->statement(self::READ_COMMITTED);
+            new ActorContext($this->connections, $name)->set($context);
             $lock = $db->selectOne(self::LOCK, [SubscriptionLock::of($subscription)], false);
 
             if (! is_object($lock) || ! property_exists($lock, 'locked') || $lock->locked !== true) {

@@ -4,12 +4,18 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Postgres;
 
+use Cbox\Cms\Contracts\Addons\AddonNamespace;
 use Cbox\Cms\Contracts\Events\EventPosition;
 use Cbox\Cms\Contracts\Events\EventStream;
 use Cbox\Cms\Contracts\Identity\ActorClass;
+use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Subscribers\Delivery;
 use Cbox\Cms\Contracts\Subscribers\Lane;
 use Cbox\Cms\Contracts\Subscribers\SubscriptionName;
+use Cbox\Cms\Core\Access\Adapter\TransactionalAccessContexts;
+use Cbox\Cms\Core\Access\Domain\AccessCompiler;
+use Cbox\Cms\Core\Addons\Actions\ResolveSubscriberActor;
+use Cbox\Cms\Core\Addons\Domain\Dto\ServiceActors;
 use Cbox\Cms\Core\Identity\Adapter\PostgresActorDirectory;
 use Cbox\Cms\Core\Subscriptions\Actions\ReleaseParked;
 use Cbox\Cms\Core\Subscriptions\Actions\RunLane;
@@ -22,6 +28,7 @@ use Cbox\Cms\Core\Subscriptions\Domain\Dto\ParkedAggregate;
 use Cbox\Cms\Core\Subscriptions\Domain\Dto\ParkedRelease;
 use Cbox\Cms\Core\Subscriptions\Domain\Dto\Parking;
 use Cbox\Cms\Core\Subscriptions\Domain\Dto\RunnerSettings;
+use Cbox\Cms\Core\Subscriptions\Domain\Dto\SubscriberBinding;
 use Cbox\Cms\Core\Tests\Events\Fixtures\CounterRaised;
 use Cbox\Cms\Core\Tests\Identity\PostgresIdentity;
 use Cbox\Cms\Core\Tests\Subscriptions\CommittedEvents;
@@ -70,13 +77,40 @@ function eventRunner(SubscriberJournal $journal, int $maxAttempts = 3): RunLane
     $service = PostgresIdentity::at($clock)->addActor(ActorClass::Service);
     $journal->each(RunnerScratch::write(...));
 
+    return eventRunnerWith([RecordingSubscriber::bound($journal)], $service->id, new ServiceActors, $maxAttempts);
+}
+
+/**
+ * The critical lane's runner on Postgres with the bindings, as the service actor, and the addons'
+ * service actors.
+ *
+ * @param  list<SubscriberBinding>  $bindings
+ */
+function eventRunnerWith(array $bindings, ActorId $service, ServiceActors $addonActors, int $maxAttempts = 3): RunLane
+{
+    $directory = new PostgresActorDirectory(app(DatabaseManager::class));
+
     return new RunLane(
-        new PostgresSubscriptionLog(app('db'), $clock),
-        new FakeLaneSubscribers([RecordingSubscriber::bound($journal)]),
-        new PostgresActorDirectory(app(DatabaseManager::class)),
-        new RunnerSettings($service->id, maxAttempts: $maxAttempts, backoffBaseMs: 1, backoffMaxMs: 4, idleSleepMs: 5),
+        new PostgresSubscriptionLog(app('db'), eventRunnerClock()),
+        new FakeLaneSubscribers($bindings),
+        $directory,
+        new RunnerSettings($service, maxAttempts: $maxAttempts, backoffBaseMs: 1, backoffMaxMs: 4, idleSleepMs: 5),
         new SystemPacing,
+        new TransactionalAccessContexts(app('db'), new AccessCompiler),
+        new ResolveSubscriberActor($addonActors, $directory),
     );
+}
+
+/**
+ * The actor of the access context on the default connection, the batch's, as row level security
+ * reads it; "none" without one.
+ */
+function eventRunnerContextActor(): string
+{
+    $row = app('db')->selectOne("select nullif(current_setting('cbox_cms.actor', true), '') as actor");
+    $actor = is_object($row) && property_exists($row, 'actor') ? $row->actor : null;
+
+    return is_string($actor) ? $actor : 'none';
 }
 
 function eventRunnerRun(RunLane $runner): LaneReport
@@ -194,4 +228,56 @@ it('parks a failing subscriber\'s aggregate after its tries while other aggregat
         ->and(RunnerScratch::rows())->toBe(['bad@3 release', 'good-a@1', 'good-b@1', 'good-c@1'])
         ->and(new PostgresSubscriptionLog(app('db'), eventRunnerClock())->parked(null))->toBe([])
         ->and(array_map(static fn (Delivery $delivery): bool => $delivery->release, $journal->deliveries()))->toContain(true);
+});
+
+it('runs an addon\'s subscriber under the addon\'s own service actor and a kernel subscriber under the runner\'s, on the batch\'s connection (invariant 21)', function (): void {
+    $identity = PostgresIdentity::at(eventRunnerClock());
+    $runnerActor = $identity->addActor(ActorClass::Service);
+    $addonActor = $identity->addActor(ActorClass::Service);
+    $kernel = new SubscriberJournal;
+    $addon = new SubscriberJournal;
+    $kernelSeen = [];
+    $addonSeen = [];
+    $kernel->each(static function () use (&$kernelSeen): void {
+        $kernelSeen[] = eventRunnerContextActor();
+    });
+    $addon->each(static function () use (&$addonSeen): void {
+        $addonSeen[] = eventRunnerContextActor();
+    });
+    $runner = eventRunnerWith(
+        [RecordingSubscriber::bound($kernel), RecordingSubscriber::bound($addon, 'fixtureaddon.counters', addon: new AddonNamespace('fixtureaddon'))],
+        $runnerActor->id,
+        new ServiceActors(['fixtureaddon' => $addonActor->id]),
+    );
+    new CommittedEvents(eventRunnerClock())->commit(EventStream::Interactive, [CounterRaised::of('counter-a', 1)]);
+
+    eventRunnerUntil($runner, $addon, 1);
+    eventRunnerUntil($runner, $kernel, 1);
+
+    expect($addonSeen)->toBe([$addonActor->id->toString()])
+        ->and($kernelSeen)->toBe([$runnerActor->id->toString()])
+        ->and($addon->deliveries()[0]->actor->equals($addonActor->id))->toBeTrue()
+        ->and($kernel->deliveries()[0]->actor->equals($runnerActor->id))->toBeTrue()
+        ->and(eventRunnerContextActor())->toBe('none');
+});
+
+it('refuses an addon\'s subscriber without an active service actor and never runs it as the runner\'s actor', function (): void {
+    $identity = PostgresIdentity::at(eventRunnerClock());
+    $runnerActor = $identity->addActor(ActorClass::Service);
+    $kernel = new SubscriberJournal;
+    $addon = new SubscriberJournal;
+    $runner = eventRunnerWith(
+        [RecordingSubscriber::bound($kernel), RecordingSubscriber::bound($addon, 'fixtureaddon.counters', addon: new AddonNamespace('fixtureaddon'))],
+        $runnerActor->id,
+        new ServiceActors,
+    );
+    new CommittedEvents(eventRunnerClock())->commit(EventStream::Interactive, [CounterRaised::of('counter-a', 1)]);
+
+    eventRunnerUntil($runner, $kernel, 1);
+    $report = eventRunnerRun($runner);
+
+    expect($addon->calls())->toBe([])
+        ->and($report->refused)->toHaveCount(1)
+        ->and($report->refused[0]->code)->toBe('addon_service_actor_unavailable')
+        ->and(new PostgresSubscriptionLog(app('db'), eventRunnerClock())->cursor(new SubscriptionName('fixtureaddon.counters'), EventStream::Interactive)->equals(EventPosition::start()))->toBeTrue();
 });

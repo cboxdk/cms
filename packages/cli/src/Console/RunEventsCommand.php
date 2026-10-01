@@ -13,6 +13,7 @@ use Cbox\Cms\Core\Subscriptions\Actions\RunLane;
 use Cbox\Cms\Core\Subscriptions\Domain\Dto\LaneReport;
 use Cbox\Cms\Core\Subscriptions\Domain\Dto\LaneRun;
 use Cbox\Cms\Core\Subscriptions\Domain\Dto\Parking;
+use Cbox\Cms\Core\Subscriptions\Domain\Dto\RefusedSubscription;
 use Cbox\Cms\Core\Subscriptions\Domain\ServiceIdentityRefused;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
@@ -26,6 +27,10 @@ use Psr\Log\LoggerInterface;
  * event log to the lane's subscribers as the subscribers' service identity, with retries, backoff
  * and parking (the action RunLane). Run one process per lane; a second process of the same lane is
  * safe, because each subscription's batches hold its lock.
+ *
+ * Each subscription runs as its own actor (PRD 6.5 invariant 21): an addon's as the addon's service
+ * actor of cbox-cms.addons.service_actors. An addon's subscription without a usable one is refused,
+ * printed and logged with addon_service_actor_unavailable, and the others go on.
  *
  * It runs until SIGTERM or SIGINT and ends after the batch in progress, or, with --until-idle,
  * once the lane has nothing to handle and no try waits.
@@ -80,6 +85,15 @@ final class RunEventsCommand extends Command
             $this->line(sprintf('parked %s %s after %d tries', $parking->subscription->value, $parking->aggregate->toString(), $parking->attempts));
         }
 
+        foreach ($report->refused as $refused) {
+            $this->error(sprintf('refused %s: %s', $refused->subscription->value, $refused->reason));
+            $log->error('The event runner refused a subscription without an actor it may run as.', [
+                'code' => $refused->code,
+                'lane' => $report->lane->value,
+                'subscription' => $refused->subscription->value,
+            ]);
+        }
+
         foreach ($report->releasedWithoutEvent as $aggregate) {
             $this->line(sprintf('released %s without an event to hand', $aggregate->toString()));
         }
@@ -104,6 +118,7 @@ final class RunEventsCommand extends Command
             'failures' => $report->failures,
             'parked' => array_map(static fn (Parking $parking): string => $parking->subscription->value.' '.$parking->aggregate->toString(), $report->parked),
             'released' => $report->released,
+            'refused' => array_map(static fn (RefusedSubscription $refused): string => $refused->subscription->value, $report->refused),
         ]);
     }
 }

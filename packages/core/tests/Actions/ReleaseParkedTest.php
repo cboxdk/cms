@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Actions;
 
 use Cbox\Cms\Contracts\Events\EventStream;
+use Cbox\Cms\Contracts\Identity\AccessContext;
 use Cbox\Cms\Contracts\Subscribers\SubscriptionName;
 use Cbox\Cms\Core\Subscriptions\Actions\ListParked;
 use Cbox\Cms\Core\Subscriptions\Actions\ReleaseParked;
@@ -34,7 +35,7 @@ function releaseParkedPark(LaneWorld $world, string $subscription, string $id): 
 {
     [$event] = $world->log->record(EventStream::Interactive, [CounterRaised::of($id, 1)]);
     $name = new SubscriptionName($subscription);
-    $world->log->transaction($name, static function () use ($world, $name, $event): BatchProgress {
+    $world->log->transaction($name, AccessContext::anonymous(), static function () use ($world, $name, $event): BatchProgress {
         $world->log->park($name, $event, 5);
 
         return new BatchProgress;

@@ -10,6 +10,7 @@ use Cbox\Cms\Contracts\Subscribers\Lane;
 use Cbox\Cms\Core\Subscriptions\Domain\Dto\BatchProgress;
 use Cbox\Cms\Core\Subscriptions\Domain\Dto\LaneReport;
 use Cbox\Cms\Core\Subscriptions\Domain\Dto\Parking;
+use Cbox\Cms\Core\Subscriptions\Domain\Dto\RefusedSubscription;
 
 /**
  * What one run of a lane's runner remembers between its batches (PRD 7.7, 7.8): the failed tries
@@ -47,6 +48,9 @@ final class LaneState
     private array $releasedWithoutEvent = [];
 
     private int $busy = 0;
+
+    /** @var array<string, RefusedSubscription> by subscription, the last refusal of each */
+    private array $refused = [];
 
     /**
      * The failed tries in a row of the unit so far.
@@ -119,6 +123,14 @@ final class LaneState
         array_push($this->releasedWithoutEvent, ...$progress->releasedWithoutEvent);
     }
 
+    /**
+     * Records that a subscription was not run in a round, because it has no actor it may run as.
+     */
+    public function refused(RefusedSubscription $refused): void
+    {
+        $this->refused[$refused->subscription->value] = $refused;
+    }
+
     public function busy(): void
     {
         $this->busy++;
@@ -154,6 +166,7 @@ final class LaneState
             $this->released,
             $this->releasedWithoutEvent,
             $this->busy,
+            array_values($this->refused),
         );
     }
 }

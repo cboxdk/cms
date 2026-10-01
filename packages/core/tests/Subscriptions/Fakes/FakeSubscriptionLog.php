@@ -10,6 +10,7 @@ use Cbox\Cms\Contracts\Events\EventPosition;
 use Cbox\Cms\Contracts\Events\EventStream;
 use Cbox\Cms\Contracts\Events\EventType;
 use Cbox\Cms\Contracts\Events\StoredEvent;
+use Cbox\Cms\Contracts\Identity\AccessContext;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Subscribers\SubscriptionName;
 use Cbox\Cms\Core\Subscriptions\Domain\AggregateKey;
@@ -28,7 +29,8 @@ use Throwable;
  * below the horizon at once; each record() is a transaction of its own with the next xid, and the
  * events get the next event_ids. A transaction keeps a copy of the cursors and parkings and puts it
  * back when the work throws, so a failed batch leaves nothing, as a rollback in Postgres does.
- * hold() makes a subscription's lock taken by another runner.
+ * hold() makes a subscription's lock taken by another runner. context() gives the access context of
+ * the open transaction, as a subscriber on Postgres reads it from the connection's settings.
  */
 final class FakeSubscriptionLog implements SubscriptionLog
 {
@@ -45,6 +47,8 @@ final class FakeSubscriptionLog implements SubscriptionLog
     private array $held = [];
 
     private bool $open = false;
+
+    private ?AccessContext $context = null;
 
     private int $xid = 1000;
 
@@ -94,6 +98,14 @@ final class FakeSubscriptionLog implements SubscriptionLog
     }
 
     /**
+     * The access context of the open transaction; null outside one, as the settings end with it.
+     */
+    public function context(): ?AccessContext
+    {
+        return $this->context;
+    }
+
+    /**
      * The transactions that ran their work.
      */
     public function transactions(): int
@@ -102,7 +114,7 @@ final class FakeSubscriptionLog implements SubscriptionLog
     }
 
     #[Override]
-    public function transaction(SubscriptionName $subscription, Closure $work): ?BatchProgress
+    public function transaction(SubscriptionName $subscription, AccessContext $context, Closure $work): ?BatchProgress
     {
         if ($this->open) {
             throw SubscriptionTransactionOpen::onConnection('fake');
@@ -115,6 +127,7 @@ final class FakeSubscriptionLog implements SubscriptionLog
         $cursors = $this->cursors;
         $parkings = $this->parkings;
         $this->open = true;
+        $this->context = $context;
         $this->transactions++;
 
         try {
@@ -126,6 +139,7 @@ final class FakeSubscriptionLog implements SubscriptionLog
             throw $exception;
         } finally {
             $this->open = false;
+            $this->context = null;
         }
     }
 

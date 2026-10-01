@@ -8,6 +8,11 @@ use Cbox\Cms\Contracts\Events\Event;
 use Cbox\Cms\Contracts\Events\EventPosition;
 use Cbox\Cms\Contracts\Events\EventStream;
 use Cbox\Cms\Contracts\Events\StoredEvent;
+use Cbox\Cms\Contracts\Identity\AccessContext;
+use Cbox\Cms\Contracts\Identity\ActorPrincipal;
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Contracts\Identity\IssuerKind;
+use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Subscribers\SubscriptionName;
 use Cbox\Cms\Core\Subscriptions\Domain\AggregateKey;
 use Cbox\Cms\Core\Subscriptions\Domain\Dto\BatchProgress;
@@ -49,6 +54,32 @@ trait SubscriptionLogBehaviour
     abstract protected function holdLock(SubscriptionName $subscription): void;
 
     abstract protected function freeLock(): void;
+
+    /**
+     * The actor of the access context the log's open batch runs under, as a subscriber on the
+     * batch's connection reads it; null when none is set.
+     */
+    abstract protected function actorInBatch(SubscriptionLog $log): ?string;
+
+    #[Test]
+    public function it_runs_a_batch_under_the_access_context_it_is_given(): void
+    {
+        $log = $this->subscriptionLog(new FakeClock);
+        $name = new SubscriptionName('test.context');
+        $context = $this->batchContext();
+        $seen = null;
+
+        $log->transaction($name, $context, function () use ($log, &$seen): BatchProgress {
+            $seen = $this->actorInBatch($log);
+
+            return new BatchProgress;
+        });
+
+        $principal = $context->principal;
+        Assert::assertInstanceOf(ActorPrincipal::class, $principal);
+        Assert::assertSame($principal->actor->toString(), $seen);
+        Assert::assertNull($this->actorInBatch($log));
+    }
 
     #[Test]
     public function it_moves_a_cursor_per_stream_forward_only(): void
@@ -195,7 +226,7 @@ trait SubscriptionLogBehaviour
         $name = new SubscriptionName('test.rollback');
         [$event] = $this->commitEvents(EventStream::Interactive, [CounterRaised::of('bad', 1)]);
 
-        $progress = $log->transaction($name, static function () use ($log, $name, $event): BatchProgress {
+        $progress = $log->transaction($name, $this->batchContext(), static function () use ($log, $name, $event): BatchProgress {
             $log->advance($name, EventStream::Interactive, $event->position);
 
             return new BatchProgress(handled: 1, moved: true);
@@ -204,7 +235,7 @@ trait SubscriptionLogBehaviour
         Assert::assertEquals(new BatchProgress(handled: 1, moved: true), $progress);
 
         try {
-            $log->transaction($name, static function () use ($log, $name, $event): BatchProgress {
+            $log->transaction($name, $this->batchContext(), static function () use ($log, $name, $event): BatchProgress {
                 $log->advance($name, EventStream::Interactive, new EventPosition($event->position->xid + 1, $event->position->eventId + 1));
                 $log->park($name, $event, 1);
 
@@ -228,12 +259,12 @@ trait SubscriptionLogBehaviour
         $this->holdLock($name);
 
         try {
-            $progress = $log->transaction($name, static function () use (&$ran): BatchProgress {
+            $progress = $log->transaction($name, $this->batchContext(), static function () use (&$ran): BatchProgress {
                 $ran = true;
 
                 return new BatchProgress;
             });
-            $other = $log->transaction(new SubscriptionName('test.free'), static fn (): BatchProgress => new BatchProgress(moved: true));
+            $other = $log->transaction(new SubscriptionName('test.free'), $this->batchContext(), static fn (): BatchProgress => new BatchProgress(moved: true));
         } finally {
             $this->freeLock();
         }
@@ -241,7 +272,7 @@ trait SubscriptionLogBehaviour
         Assert::assertNull($progress);
         Assert::assertFalse($ran);
         Assert::assertEquals(new BatchProgress(moved: true), $other);
-        Assert::assertEquals(new BatchProgress, $log->transaction($name, static fn (): BatchProgress => new BatchProgress));
+        Assert::assertEquals(new BatchProgress, $log->transaction($name, $this->batchContext(), static fn (): BatchProgress => new BatchProgress));
     }
 
     #[Test]
@@ -251,13 +282,13 @@ trait SubscriptionLogBehaviour
         $name = new SubscriptionName('test.nested');
 
         try {
-            $log->transaction($name, static fn (): BatchProgress => $log->transaction(new SubscriptionName('test.inner'), static fn (): BatchProgress => new BatchProgress) ?? new BatchProgress);
+            $log->transaction($name, $this->batchContext(), static fn (): BatchProgress => $log->transaction(new SubscriptionName('test.inner'), AccessContext::anonymous(), static fn (): BatchProgress => new BatchProgress) ?? new BatchProgress);
             Assert::fail('A batch inside a batch is refused.');
         } catch (SubscriptionTransactionOpen $open) {
             Assert::assertStringContainsString('begins its own transaction', $open->getMessage());
         }
 
-        Assert::assertEquals(new BatchProgress, $log->transaction($name, static fn (): BatchProgress => new BatchProgress));
+        Assert::assertEquals(new BatchProgress, $log->transaction($name, $this->batchContext(), static fn (): BatchProgress => new BatchProgress));
     }
 
     /**
@@ -265,10 +296,22 @@ trait SubscriptionLogBehaviour
      */
     private function inBatch(SubscriptionLog $log, SubscriptionName $name, Closure $work): void
     {
-        $log->transaction($name, static function () use ($work): BatchProgress {
+        $log->transaction($name, $this->batchContext(), static function () use ($work): BatchProgress {
             $work();
 
             return new BatchProgress;
         });
+    }
+
+    /**
+     * The access context of a service actor without grants, as the runner compiles it.
+     */
+    private function batchContext(): AccessContext
+    {
+        return new AccessContext(
+            new ActorPrincipal(ActorId::fromString('01936f5e-8a2b-7c3d-9e4f-00000000c0de'), [], IssuerKind::Service, IssuerKind::Service->maximumCeiling()),
+            [],
+            ClassificationAccess::Public,
+        );
     }
 }

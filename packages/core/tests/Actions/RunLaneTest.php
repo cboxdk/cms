@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Actions;
 
+use Cbox\Cms\Contracts\Addons\AddonNamespace;
 use Cbox\Cms\Contracts\Events\EventPosition;
 use Cbox\Cms\Contracts\Events\EventStream;
 use Cbox\Cms\Contracts\Events\StoredEvent;
+use Cbox\Cms\Contracts\Identity\AccessContext;
 use Cbox\Cms\Contracts\Identity\ActorClass;
+use Cbox\Cms\Contracts\Identity\ActorPrincipal;
 use Cbox\Cms\Contracts\Identity\ActorState;
+use Cbox\Cms\Contracts\Identity\Principal;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Subscribers\Delivery;
 use Cbox\Cms\Contracts\Subscribers\Lane;
@@ -224,7 +228,7 @@ it('parks a released aggregate again when its release fails max_attempts tries',
 it('unparks and reports a released aggregate that has no event of the subscription\'s types left', function (): void {
     $world = new LaneWorld;
     [$reset] = $world->log->record(EventStream::Interactive, [CounterReset::of('ghost', 1)]);
-    $world->log->transaction(laneSubscription(), static function () use ($world, $reset): BatchProgress {
+    $world->log->transaction(laneSubscription(), AccessContext::anonymous(), static function () use ($world, $reset): BatchProgress {
         $world->log->advance(laneSubscription(), EventStream::Interactive, $reset->position);
         $world->log->park(laneSubscription(), $reset, 5);
 
@@ -356,3 +360,76 @@ it('stops within a round once its service actor is deactivated', function (): vo
 
     expect($world->journal->calls())->toBe(['a@1 try 1', 'a@2 try 1']);
 });
+
+/**
+ * The actor of the access context the fake log's open batch runs under, as "<actor>".
+ */
+function laneContextActor(LaneWorld $world): string
+{
+    $principal = $world->log->context()?->principal;
+
+    return $principal instanceof ActorPrincipal ? $principal->actor->toString() : 'none';
+}
+
+it('runs each subscription under its own actor: an addon\'s as the addon\'s service actor, the others as the runner\'s', function (): void {
+    $world = new LaneWorld;
+    $reviews = $world->identity->addActor(ActorClass::Service);
+    $world->addonActors = ['reviews' => $reviews->id];
+    $addonJournal = new SubscriberJournal;
+    $world->bindings[] = RecordingSubscriber::bound($addonJournal, 'reviews.counters', addon: new AddonNamespace('reviews'));
+    $kernelSeen = [];
+    $addonSeen = [];
+    $world->journal->each(static function () use ($world, &$kernelSeen): void {
+        $kernelSeen[] = laneContextActor($world);
+    });
+    $addonJournal->each(static function () use ($world, &$addonSeen): void {
+        $addonSeen[] = laneContextActor($world);
+    });
+    $world->raise('a@1', 'b@1');
+
+    $report = $world->untilIdle();
+
+    expect($world->journal->calls())->toBe(['a@1 try 1', 'b@1 try 1'])
+        ->and($addonJournal->calls())->toBe(['a@1 try 1', 'b@1 try 1'])
+        ->and($kernelSeen)->toBe([$world->service->id->toString(), $world->service->id->toString()])
+        ->and($addonSeen)->toBe([$reviews->id->toString(), $reviews->id->toString()])
+        ->and(array_map(static fn (Delivery $delivery): string => $delivery->actor->toString(), $addonJournal->deliveries()))
+        ->each->toBe($reviews->id->toString())
+        ->and($report->actor->equals($world->service->id))->toBeTrue()
+        ->and($report->refused)->toBe([]);
+
+    // The contexts are compiled once per actor and round, each for a service principal.
+    $asked = array_map(static fn (Principal $principal): string => $principal instanceof ActorPrincipal ? $principal->actor->toString().' '.$principal->issuerKind->value : 'anonymous', $world->contexts->asked);
+
+    expect(array_values(array_unique($asked)))->toBe([$world->service->id->toString().' service', $reviews->id->toString().' service']);
+});
+
+it('refuses an addon\'s subscription whose service actor is unavailable, hands it nothing and keeps its cursor, while the others run', function (?string $configured, string $reason): void {
+    $world = new LaneWorld;
+    $other = $world->identity->addActor(ActorClass::Service);
+    $world->addonActors = match ($configured) {
+        null => [],
+        'unknown' => ['reviews' => ActorId::fromString('01936f5e-8a2b-7c3d-9e4f-00000000a001')],
+        'staff' => ['reviews' => $world->identity->addActor(ActorClass::Staff)->id],
+        default => ['reviews' => $world->identity->addActor(ActorClass::Service, ActorState::Deactivated)->id],
+    };
+    $world->addonActors['glossary'] = $other->id;
+    $addonJournal = new SubscriberJournal;
+    $world->bindings[] = RecordingSubscriber::bound($addonJournal, 'reviews.counters', addon: new AddonNamespace('reviews'));
+    $world->raise('a@1');
+
+    $report = $world->untilIdle();
+
+    expect($addonJournal->calls())->toBe([])
+        ->and($world->log->cursor(new SubscriptionName('reviews.counters'), EventStream::Interactive)->equals(EventPosition::start()))->toBeTrue()
+        ->and($world->journal->calls())->toBe(['a@1 try 1'])
+        ->and($report->refused)->toHaveCount(1)
+        ->and($report->refused[0]->subscription->value)->toBe('reviews.counters')
+        ->and($report->refused[0]->code)->toBe('addon_service_actor_unavailable')
+        ->and($report->refused[0]->reason)->toContain($reason);
+})->with([
+    'not configured' => [null, 'no service actor is configured for the addon'],
+    'unknown' => ['unknown', 'no actor has the configured service actor id'],
+    'not a service actor' => ['staff', 'is a staff actor'],
+    'not active' => ['deactivated', 'in the state deactivated'],
+]);

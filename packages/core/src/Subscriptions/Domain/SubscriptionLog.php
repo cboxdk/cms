@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Events\EventPosition;
 use Cbox\Cms\Contracts\Events\EventStream;
 use Cbox\Cms\Contracts\Events\EventType;
 use Cbox\Cms\Contracts\Events\StoredEvent;
+use Cbox\Cms\Contracts\Identity\AccessContext;
 use Cbox\Cms\Contracts\Subscribers\SubscriptionName;
 use Cbox\Cms\Core\Subscriptions\Domain\Dto\BatchProgress;
 use Cbox\Cms\Core\Subscriptions\Domain\Dto\ParkedAggregate;
@@ -19,8 +20,10 @@ use Closure;
  * stream, the events after it, and the aggregates it parked.
  *
  * transaction() runs a batch: one transaction at READ COMMITTED on the connection the subscribers
- * write on, holding the subscription's lock for its length, so two runners never handle the same
- * subscription at once. What the batch and the subscribers wrote commits together with the moved
+ * write on, under the access context of the actor the subscription runs as (PRD 6.5 invariant 21),
+ * set as its first statement after the isolation level, so what the subscriber reads and writes
+ * there is bounded by that actor's grants and row level security, and holding the subscription's
+ * lock for its length, so two runners never handle the same subscription at once. What the batch and the subscribers wrote commits together with the moved
  * cursor, or none of it does: when the work throws, the transaction rolls back and the exception
  * goes on. When another runner holds the lock, it returns null without running the work. It never
  * nests, because savepoints are forbidden (PRD 4.2). The other methods run in the caller's
@@ -35,7 +38,7 @@ interface SubscriptionLog
      * @throws SubscriptionTransactionOpen when a transaction is already open on the connection
      * @throws SubscriberFailed when the work throws it, after the transaction rolled back
      */
-    public function transaction(SubscriptionName $subscription, Closure $work): ?BatchProgress;
+    public function transaction(SubscriptionName $subscription, AccessContext $context, Closure $work): ?BatchProgress;
 
     /**
      * The position of the last event the subscription passed in the stream, or

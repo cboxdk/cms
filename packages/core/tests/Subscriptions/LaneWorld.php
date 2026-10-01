@@ -8,13 +8,17 @@ use Cbox\Cms\Contracts\Events\EventStream;
 use Cbox\Cms\Contracts\Events\StoredEvent;
 use Cbox\Cms\Contracts\Identity\Actor;
 use Cbox\Cms\Contracts\Identity\ActorClass;
+use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Subscribers\Lane;
+use Cbox\Cms\Core\Addons\Actions\ResolveSubscriberActor;
+use Cbox\Cms\Core\Addons\Domain\Dto\ServiceActors;
 use Cbox\Cms\Core\Subscriptions\Actions\RunLane;
 use Cbox\Cms\Core\Subscriptions\Domain\Dto\LaneReport;
 use Cbox\Cms\Core\Subscriptions\Domain\Dto\LaneRun;
 use Cbox\Cms\Core\Subscriptions\Domain\Dto\RunnerSettings;
 use Cbox\Cms\Core\Subscriptions\Domain\Dto\SubscriberBinding;
 use Cbox\Cms\Core\Subscriptions\Domain\RunnerStop;
+use Cbox\Cms\Core\Tests\Access\Fakes\FakeAccessContexts;
 use Cbox\Cms\Core\Tests\Events\Fixtures\CounterRaised;
 use Cbox\Cms\Core\Tests\Subscriptions\Fakes\FakeLaneSubscribers;
 use Cbox\Cms\Core\Tests\Subscriptions\Fakes\FakePacing;
@@ -26,8 +30,9 @@ use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\Identity\FakeIdentity;
 
 /**
- * The runner's action tests' world (GUARDRAILS 9): the fake log, pacing and identity, an active
- * service actor, and the recording subscriber on the critical lane as test.counters.
+ * The runner's action tests' world (GUARDRAILS 9): the fake log, pacing, identity and access
+ * contexts, an active service actor, the addons' service actors by namespace, and the recording
+ * subscriber on the critical lane as test.counters.
  */
 final class LaneWorld
 {
@@ -41,6 +46,11 @@ final class LaneWorld
 
     public readonly Actor $service;
 
+    public readonly FakeAccessContexts $contexts;
+
+    /** @var array<string, ActorId> the addons' service actors by namespace */
+    public array $addonActors = [];
+
     /** @var list<SubscriberBinding> */
     public array $bindings;
 
@@ -51,6 +61,7 @@ final class LaneWorld
         $this->pacing = new FakePacing;
         $this->identity = new FakeIdentity($clock);
         $this->journal = new SubscriberJournal;
+        $this->contexts = new FakeAccessContexts;
         $this->service = $this->identity->addActor(ActorClass::Service);
         $this->bindings = [RecordingSubscriber::bound($this->journal)];
     }
@@ -77,6 +88,8 @@ final class LaneWorld
             $this->identity,
             $settings ?? $this->settings(),
             $this->pacing,
+            $this->contexts,
+            new ResolveSubscriberActor(new ServiceActors($this->addonActors), $this->identity),
         );
     }
 
