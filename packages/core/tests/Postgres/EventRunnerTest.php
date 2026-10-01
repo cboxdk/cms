@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Postgres;
 
 use Cbox\Cms\Contracts\Addons\AddonNamespace;
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Events\EventPosition;
 use Cbox\Cms\Contracts\Events\EventStream;
 use Cbox\Cms\Contracts\Identity\ActorClass;
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Subscribers\Delivery;
 use Cbox\Cms\Contracts\Subscribers\Lane;
@@ -38,11 +40,17 @@ use Cbox\Cms\Core\Tests\Subscriptions\Fixtures\RecordingSubscriber;
 use Cbox\Cms\Core\Tests\Subscriptions\Fixtures\SubscriberJournal;
 use Cbox\Cms\Core\Tests\Subscriptions\RunnerScratch;
 use Cbox\Cms\Testkit\Clock\FakeClock;
+use Cbox\Cms\Testkit\FixtureWriters\Access\Adapter\PostgresAccessFixtures;
+use Cbox\Cms\Testkit\FixtureWriters\Structure\Adapter\PostgresStructureFixtures;
+use Cbox\Cms\Testkit\FixtureWriters\Structure\Domain\Dto\StructureNode;
+use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
 use Cbox\Cms\Testkit\Postgres\IndependentConnections;
 use Cbox\Cms\Testkit\Postgres\PartitionFixtures;
 use DateInterval;
 use DateTimeImmutable;
+use Illuminate\Database\ConnectionResolverInterface;
 use Illuminate\Database\DatabaseManager;
+use Illuminate\Database\QueryException;
 use PHPUnit\Framework\AssertionFailedError;
 
 /*
@@ -280,4 +288,115 @@ it('refuses an addon\'s subscriber without an active service actor and never run
         ->and($report->refused)->toHaveCount(1)
         ->and($report->refused[0]->code)->toBe('addon_service_actor_unavailable')
         ->and(new PostgresSubscriptionLog(app('db'), eventRunnerClock())->cursor(new SubscriptionName('fixtureaddon.counters'), EventStream::Interactive)->equals(EventPosition::start()))->toBeTrue();
+});
+
+/**
+ * The ids of the nodes, in order, that the batch's connection reads under its access context.
+ *
+ * @param  list<StructureNode>  $nodes
+ * @return list<string>
+ */
+function eventRunnerVisibleNodes(array $nodes): array
+{
+    $ids = array_map(static fn (StructureNode $node): string => $node->id->toString(), $nodes);
+
+    return array_values(array_filter(
+        $ids,
+        static fn (string $id): bool => app('db')->table('nodes')->where('id', $id)->exists(),
+    ));
+}
+
+/**
+ * Whether the batch's connection changed the node: an update row level security filters out
+ * changes nothing.
+ */
+function eventRunnerTouchesNode(StructureNode $node): bool
+{
+    return app('db')->table('nodes')->where('id', $node->id->toString())->update(['version' => 1]) === 1;
+}
+
+/**
+ * Adds a section below the parent on the batch's connection; row level security refuses a row
+ * outside the context's regions with SQLSTATE 42501, which fails the batch.
+ */
+function eventRunnerAddNodeBelow(StructureNode $parent, FakeIdGenerator $ids): string
+{
+    $id = $ids->next()->value;
+
+    app('db')->table('nodes')->insert([
+        'id' => $id,
+        'parent_id' => $parent->id->toString(),
+        'kind' => 'section',
+        'path' => $parent->path->value.'.'.str_replace('-', '', $id),
+        'version' => 1,
+        'created_at' => '2026-04-01 08:00:00+00',
+    ]);
+
+    return $id;
+}
+
+it('holds an addon\'s subscriber to its service actor\'s regions: it reads and writes the nodes its grants reach and none of the runner\'s (invariant 21)', function (): void {
+    $clock = eventRunnerClock();
+    $connections = app(ConnectionResolverInterface::class);
+    $structure = new PostgresStructureFixtures($connections, $clock, new FakeIdGenerator(seed: 910, clock: $clock));
+    $access = new PostgresAccessFixtures($connections, $clock, new FakeIdGenerator(seed: 920, clock: $clock));
+    $north = $structure->site('north', [new Locale('da')]);
+    $south = $structure->site('south', [new Locale('da')]);
+    $northSection = $structure->node($north->root);
+    $southSection = $structure->node($south->root);
+    $identity = PostgresIdentity::at($clock);
+    $runnerActor = $identity->addActor(ActorClass::Service);
+    $addonActor = $identity->addActor(ActorClass::Service);
+    $role = $access->role('subscriber', ClassificationAccess::Internal);
+    $access->grant($runnerActor->id, $role, $south->root->id);
+    $access->grant($addonActor->id, $role, $northSection->id);
+    $nodes = [$north->root, $northSection, $south->root, $southSection];
+    $ids = new FakeIdGenerator(seed: 930, clock: $clock);
+    $kernel = new SubscriberJournal;
+    $addon = new SubscriberJournal;
+    $outside = new SubscriberJournal;
+    $seen = [];
+    $added = [];
+    $kernel->each(static function () use (&$seen, $nodes, $southSection): void {
+        $seen['kernel'] = [eventRunnerVisibleNodes($nodes), eventRunnerTouchesNode($southSection)];
+    });
+    $addon->each(static function () use (&$seen, &$added, $nodes, $northSection, $southSection, $ids): void {
+        $seen['addon'] = [eventRunnerVisibleNodes($nodes), eventRunnerTouchesNode($northSection), eventRunnerTouchesNode($southSection)];
+        $added[] = eventRunnerAddNodeBelow($northSection, $ids);
+    });
+    $outside->each(static function () use (&$seen, &$added, $southSection, $ids): void {
+        try {
+            $added[] = eventRunnerAddNodeBelow($southSection, $ids);
+        } catch (QueryException $refused) {
+            $seen['outside'] = (string) $refused->getCode();
+
+            throw $refused;
+        }
+    });
+    $addonNamespace = new AddonNamespace('fixtureaddon');
+    $runner = eventRunnerWith(
+        [
+            RecordingSubscriber::bound($kernel),
+            RecordingSubscriber::bound($addon, 'fixtureaddon.counters', addon: $addonNamespace),
+            RecordingSubscriber::bound($outside, 'fixtureaddon.outside', addon: $addonNamespace),
+        ],
+        $runnerActor->id,
+        new ServiceActors(['fixtureaddon' => $addonActor->id]),
+        maxAttempts: 1,
+    );
+    new CommittedEvents($clock)->commit(EventStream::Interactive, [CounterRaised::of('counter-a', 1)]);
+
+    eventRunnerUntil($runner, $addon, 1);
+    eventRunnerUntil($runner, $kernel, 1);
+
+    $stored = $connections->connection('pgsql_owner')->table('nodes')->whereIn('id', $added)->pluck('parent_id')->all();
+
+    expect($seen['addon'])->toBe([[$northSection->id->toString()], true, false])
+        ->and($seen['kernel'])->toBe([[$south->root->id->toString(), $southSection->id->toString()], true])
+        ->and($seen['outside'] ?? null)->toBe('42501')
+        ->and($stored)->toBe([$northSection->id->toString()])
+        ->and(array_map(
+            static fn (ParkedAggregate $parked): string => $parked->subscription->value.' '.$parked->aggregate->id->value,
+            new PostgresSubscriptionLog(app('db'), $clock)->parked(null),
+        ))->toBe(['fixtureaddon.outside counter-a']);
 });
