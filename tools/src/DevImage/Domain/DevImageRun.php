@@ -36,7 +36,7 @@ final readonly class DevImageRun
 
     /**
      * The host variables a run passes on when they are set: the terminal type, and the base of
-     * the change for mutation on changed files in `composer check -- --pr`.
+     * the change for mutation on changed files in `composer check -- --pr --mutation`.
      *
      * @var list<string>
      */

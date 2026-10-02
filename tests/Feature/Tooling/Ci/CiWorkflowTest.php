@@ -21,7 +21,9 @@ const DECLARED_RUNNER = 'Declared runner: GitHub-hosted ubuntu-latest, 4 vCPU an
 
 /**
  * The jobs of ci.yml, by name: plan, gates, one per shard of mutation on changed files, and the
- * verdict over them (M1-T66).
+ * verdict over them (M1-T66). Only gates runs on a pull request and a push; the others run only in
+ * a run started by hand with the input mutation, as mutation testing is deferred until after v1
+ * (Sylvester, 2 October 2026).
  *
  * @var list<string>
  */
@@ -33,6 +35,13 @@ const WORKFLOW_JOBS = ['plan', 'gates', 'mutation', 'verdict'];
  * @var list<string>
  */
 const SERVICE_JOBS = ['gates', 'mutation'];
+
+/**
+ * The jobs of mutation testing, which run only when a run started by hand sets the input mutation.
+ *
+ * @var list<string>
+ */
+const MUTATION_JOBS = ['plan', 'mutation', 'verdict'];
 
 /**
  * @return array<array-key, mixed>
@@ -148,6 +157,27 @@ it('names each job\'s part of bin/ci in CMS_CI_PART, a shard of the plan\'s matr
         ]);
 });
 
+it('runs the jobs of mutation testing only in a run started by hand with the input mutation, and the gates job in every run as its result', function (): void {
+    $workflow = CiFiles::yaml(CiFiles::WORKFLOW);
+    $on = CiFiles::at($workflow, 'on') ?? CiFiles::at($workflow, '1');
+
+    expect(CiFiles::at(workflowJob('plan'), 'if'))->toBe('inputs.mutation')
+        ->and(CiFiles::at(workflowJob('mutation'), 'if'))->toBe('inputs.mutation')
+        ->and(CiFiles::at(workflowJob('verdict'), 'if'))->toBe('always() && inputs.mutation')
+        ->and(array_keys(workflowJob('gates')))->not->toContain('if')
+        ->and(array_keys(workflowJob('gates')))->not->toContain('needs')
+        ->and(CiFiles::at(workflowJob('gates'), 'name'))->toBe('Gates of the PR profile (GUARDRAILS 10)')
+        ->and(CiFiles::at(workflowJob('verdict'), 'name'))->toBe('Verdict of mutation testing (GUARDRAILS 10)')
+        ->and(is_array($on) ? CiFiles::at($on, 'pull_request') : 'missing')->toBeNull()
+        ->and(is_array($on) ? CiFiles::at($on, 'push') : null)->toBe(['branches' => ['main']])
+        ->and(workflowEnvironment()['CMS_CI_MUTATION'] ?? null)->toBe('${{ inputs.mutation && \'1\' || \'0\' }}')
+        ->and(CiFiles::text(CiFiles::WORKFLOW))->toContain('The gates job is the run\'s result, and the status check a pull request requires');
+
+    foreach (MUTATION_JOBS as $name) {
+        expect(CiFiles::at(workflowJob($name), 'if'))->toBeString()->toContain('inputs.mutation');
+    }
+});
+
 it('runs a mutation job per shard of the plan, each to its end, and the verdict after every job, whatever they did', function (): void {
     $bin = CiFiles::stepWith(workflowSteps('plan'), 'run', 'bin/ci');
     $download = CiFiles::stepWith(workflowSteps('verdict'), 'uses', 'actions/download-artifact');
@@ -158,7 +188,7 @@ it('runs a mutation job per shard of the plan, each to its end, and the verdict 
         ->and(CiFiles::at(workflowJob('mutation'), 'strategy'))->toBe(['fail-fast' => false, 'matrix' => ['shard' => '${{ fromJSON(needs.plan.outputs.shards) }}']])
         ->and(array_keys(workflowJob('gates')))->not->toContain('needs')
         ->and(CiFiles::at(workflowJob('verdict'), 'needs'))->toBe(['plan', 'gates', 'mutation'])
-        ->and(CiFiles::at(workflowJob('verdict'), 'if'))->toBe('always()')
+        ->and(CiFiles::at(workflowJob('verdict'), 'if'))->toStartWith('always() && ')
         ->and(CiFiles::at($download, 'with'))->toBe(['pattern' => 'mutation-*', 'path' => 'build/ci/artifacts']);
 });
 
@@ -173,7 +203,7 @@ it('keeps the plan and each shard\'s report as artifacts the verdict fetches, na
         ->and(CiFiles::at($gates, 'with', 'name'))->toBe('gate-report')
         ->and(CiFiles::codeLines(CiFiles::ENTRY))->toContain(
             'composer mutation:plan -- --output="$1/mutation-plan.json" --github-output="$outputs"',
-            'check "$3/check.json" --shard="$1/$2" --mutation-report="$3/mutation-shard.json"',
+            'check "$3/check.json" --mutation --shard="$1/$2" --mutation-report="$3/mutation-shard.json"',
             'composer mutation:verdict -- --plan="$1/mutation-plan/mutation-plan.json" --reports="$1" --gates="$2" --shards="$3" 2>&1 | tee "$1/verdict.log"',
         );
 });
@@ -202,8 +232,9 @@ it('gives every job and the ci service the same environment, and the roles of co
     $roles = array_filter($postgres, static fn (string $key): bool => str_starts_with($key, 'CMS_'), ARRAY_FILTER_USE_KEY);
 
     // The runner and the base of the change differ by design; the next test pins the base. The
-    // part is each job's own, and the host's in compose.ci.yaml.
-    unset($job['CMS_CI_RUNNER'], $service['CMS_CI_RUNNER'], $service['CI'], $job['CMS_CI_BASE_REF'], $service['CMS_CI_BASE_REF'], $service['CMS_CI_PART']);
+    // part is each job's own, and the host's in compose.ci.yaml. Mutation testing is the input
+    // mutation's in ci.yml and the host's in compose.ci.yaml, both off unless asked for.
+    unset($job['CMS_CI_RUNNER'], $service['CMS_CI_RUNNER'], $service['CI'], $job['CMS_CI_BASE_REF'], $service['CMS_CI_BASE_REF'], $service['CMS_CI_PART'], $job['CMS_CI_MUTATION'], $service['CMS_CI_MUTATION']);
     ksort($job);
     ksort($service);
     ksort($roles);
@@ -215,7 +246,9 @@ it('gives every job and the ci service the same environment, and the roles of co
         ->and($job['CMS_CI_POSTGRES_PASSWORD'] ?? null)->toBe($postgres['POSTGRES_PASSWORD'] ?? null)
         ->and($job['CMS_CI_PROVISION_POSTGRES'] ?? null)->toBe('1')
         ->and($job['XDEBUG_MODE'] ?? null)->toBe('off')
-        ->and(CiFiles::strings(CiFiles::yaml(CiFiles::COMPOSE_CI), 'services', 'ci', 'environment')['CMS_CI_PART'] ?? null)->toBe('${CMS_CI_PART:-}');
+        ->and(CiFiles::strings(CiFiles::yaml(CiFiles::COMPOSE_CI), 'services', 'ci', 'environment')['CMS_CI_PART'] ?? null)->toBe('${CMS_CI_PART:-}')
+        ->and(CiFiles::strings(CiFiles::yaml(CiFiles::COMPOSE_CI), 'services', 'ci', 'environment')['CMS_CI_MUTATION'] ?? null)->toBe('${CMS_CI_MUTATION:-}')
+        ->and(workflowEnvironment()['CMS_CI_MUTATION'] ?? null)->toBe('${{ inputs.mutation && \'1\' || \'0\' }}');
 });
 
 it('gives mutation on changed files its base: the pull request\'s base commit in ci.yml with the whole history in every job, the host\'s CMS_CI_BASE_REF in compose.ci.yaml', function (string $name): void {
@@ -231,25 +264,34 @@ it('gives mutation on changed files its base: the pull request\'s base commit in
     }
 })->with(WORKFLOW_JOBS);
 
-it('takes the base of a run started by hand from its required input base_ref, in a concurrency group of its own', function (): void {
+it('takes the base of a run started by hand from its input base_ref, which may be empty now that mutation testing is its own input mutation, off by default, in a concurrency group of its own', function (): void {
     $workflow = CiFiles::yaml(CiFiles::WORKFLOW);
     $on = CiFiles::at($workflow, 'on') ?? CiFiles::at($workflow, '1');
     $inputs = is_array($on) ? CiFiles::at($on, 'workflow_dispatch', 'inputs') : null;
 
-    expect(is_array($inputs) ? array_keys($inputs) : null)->toBe(['base_ref'])
+    expect(is_array($inputs) ? array_keys($inputs) : null)->toBe(['base_ref', 'mutation'])
         ->and(is_array($on) ? CiFiles::strings($on, 'workflow_dispatch', 'inputs', 'base_ref') : [])->toBe([
-            'description' => 'The base of the change that mutation on changed files mutates: a commit, or a ref of the checkout such as origin/main',
-            'required' => 'true',
+            'description' => 'The base of the change that mutation on changed files mutates: a commit, or a ref of the checkout such as origin/main; empty derives it',
+            'required' => 'false',
             'type' => 'string',
+        ])
+        ->and(is_array($on) ? CiFiles::strings($on, 'workflow_dispatch', 'inputs', 'mutation') : [])->toBe([
+            'description' => 'Run mutation testing, deferred until after v1 (Sylvester, 2 October 2026): the Mutation suite and mutation on changed files',
+            'required' => 'false',
+            'type' => 'boolean',
+            'default' => 'false',
         ])
         ->and(workflowEnvironment()['CMS_CI_BASE_REF'] ?? '')->toStartWith('${{ inputs.base_ref || ')
         ->and(CiFiles::at($workflow, 'concurrency', 'group'))->toBe('ci-${{ github.event_name }}-${{ github.ref }}')
         ->and(preg_match('/run:.*inputs\\./', CiFiles::text(CiFiles::WORKFLOW)))->toBe(0);
 });
 
-it('names mutation on changed files as a step CI runs in gate 5, with a minimum score of 80, and never as not run', function (): void {
+it('names mutation on changed files as a step CI runs in gate 5 with CMS_CI_MUTATION=1, with a minimum score of 80, and as deferred until after v1 without it', function (): void {
     expect(CiFiles::text(CiFiles::ENTRY))->toContain('vendor/bin/pest --mutate --everything --path=<files>, minimum score 80', 'gate 5  vendor/bin/pest --testsuite=Mutation')
         ->and(CiFiles::text(CiFiles::WORKFLOW))->toContain('mutation on changed files: Pest\'s --mutate with PCOV and a minimum score of 80 for each class')
+        ->and(CiFiles::text(CiFiles::ENTRY))->toContain('Mutation testing is deferred until after v1 (Sylvester, 2 October 2026)', 'CMS_CI_MUTATION=1, as ci.yml\'s run by hand with the input mutation sets it')
+        ->and(CiFiles::text(CiFiles::WORKFLOW))->toContain('Mutation testing is deferred until after v1 (Sylvester, 2 October 2026)')
+        ->and(CiFiles::text(CiFiles::COMPOSE_CI))->toContain('Mutation testing is deferred until after v1 (Sylvester, 2 October 2026)')
         ->and(CiFiles::text(CiFiles::ENTRY))->not->toContain('and mutation on changed')
         ->and(CiFiles::text(CiFiles::WORKFLOW))->not->toContain('11 and mutation');
 });

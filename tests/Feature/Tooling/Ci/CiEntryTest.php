@@ -10,7 +10,8 @@ use Cbox\Cms\Tests\Support\Tooling\ScratchRepository;
 use Symfony\Component\Process\Process;
 
 /*
- * bin/ci, the single CI entry script, and docker/ci-entry.sh, which runs it on a clean git
+ * bin/ci, the single CI entry script, which leaves mutation testing out unless CMS_CI_MUTATION=1
+ * (deferred until after v1, Sylvester, 2 October 2026), and docker/ci-entry.sh, which runs it on a clean git
  * archive of HEAD in compose.ci.yaml, on the merge base of CMS_CI_BASE_REF, or on the base it
  * derives when that is unset, empty or 40 zeros. bin/ci runs here with fake composer, npm, php, node, psql
  * and pg_isready on the PATH, which record how they were called; ci-entry.sh runs on a scratch
@@ -75,6 +76,7 @@ function ciJobVariables(): array
 {
     return [
         'CMS_CI_PART' => false,
+        'CMS_CI_MUTATION' => false,
         'CMS_CI_BASE_REF' => false,
         'CMS_CI_GATES_RESULT' => false,
         'CMS_CI_SHARDS_RESULT' => false,
@@ -121,9 +123,32 @@ function ciWork(array $calls): array
     return array_values(array_filter($calls, static fn (string $call): bool => ! str_contains($call, ' --version')));
 }
 
-it('installs the locked dependencies and runs every part with the PR profile, nothing else: the plan, the gates, each shard and the verdict', function (): void {
+it('installs the locked dependencies and by default runs only the gates of the PR profile, with nothing of mutation testing, which is deferred until after v1', function (string|false $mutation): void {
     $scratch = ScratchDirectory::make();
-    [$process, $calls] = runBinCi($scratch, ['FAKE_SHARDS' => '2']);
+    [$process, $calls] = runBinCi($scratch, ['FAKE_SHARDS' => '2', 'CMS_CI_MUTATION' => $mutation, 'CMS_CI_BASE_REF' => 'abc123']);
+    $output = $process->getOutput();
+
+    expect($process->getExitCode())->toBe(0, $process->getErrorOutput())
+        ->and(ciWork($calls))->toBe([
+            'composer install --no-interaction --no-progress --prefer-dist',
+            'npm ci --no-audit --no-fund',
+            "composer check -- --pr --report={$scratch}/build/check.json",
+        ])
+        ->and($output)->toContain('runner: the test runner', 'part: all', 'Summary')
+        ->and($output)->toContain("mutation testing: not run, mutation testing deferred until after v1 (Sylvester, 2 October 2026); CMS_CI_MUTATION=1 runs it\n")
+        ->and($output)->toMatch('/bin\/ci: gates: 0m \d\ds, pass\n/')
+        ->and($output)->not->toContain('base of the change')
+        ->and($output)->not->toContain('verdict')
+        ->and($output)->not->toContain('shard')
+        ->and($output)->not->toContain('plan:')
+        ->and($output)->toContain('wall time on the test runner for all; the GUARDRAILS 10 budget is 15 minutes for each part')
+        ->and((string) file_get_contents($scratch.'/build/check.log'))->toContain('Gate 1   pass')
+        ->and($scratch.'/build/artifacts')->not->toBeDirectory();
+})->with(['unset' => [false], 'empty' => [''], '0' => ['0']]);
+
+it('installs the locked dependencies and with CMS_CI_MUTATION=1 runs every part with the PR profile, nothing else: the plan, the gates, each shard and the verdict', function (): void {
+    $scratch = ScratchDirectory::make();
+    [$process, $calls] = runBinCi($scratch, ['FAKE_SHARDS' => '2', 'CMS_CI_MUTATION' => '1']);
     $artifacts = $scratch.'/build/artifacts';
 
     expect($process->getExitCode())->toBe(0, $process->getErrorOutput())
@@ -131,12 +156,12 @@ it('installs the locked dependencies and runs every part with the PR profile, no
             'composer install --no-interaction --no-progress --prefer-dist',
             'npm ci --no-audit --no-fund',
             "composer mutation:plan -- --output={$artifacts}/mutation-plan/mutation-plan.json --github-output={$artifacts}/mutation-plan/plan.env",
-            "composer check -- --pr --report={$scratch}/build/check.json --only=gates",
-            "composer check -- --pr --report={$artifacts}/mutation-shard-1/check.json --shard=1/2 --mutation-report={$artifacts}/mutation-shard-1/mutation-shard.json",
-            "composer check -- --pr --report={$artifacts}/mutation-shard-2/check.json --shard=2/2 --mutation-report={$artifacts}/mutation-shard-2/mutation-shard.json",
+            "composer check -- --pr --report={$scratch}/build/check.json --mutation --only=gates",
+            "composer check -- --pr --report={$artifacts}/mutation-shard-1/check.json --mutation --shard=1/2 --mutation-report={$artifacts}/mutation-shard-1/mutation-shard.json",
+            "composer check -- --pr --report={$artifacts}/mutation-shard-2/check.json --mutation --shard=2/2 --mutation-report={$artifacts}/mutation-shard-2/mutation-shard.json",
             "composer mutation:verdict -- --plan={$artifacts}/mutation-plan/mutation-plan.json --reports={$artifacts} --gates=success --shards=success",
         ])
-        ->and($process->getOutput())->toContain('runner: the test runner', 'part: all', 'Summary', 'verdict: pass')
+        ->and($process->getOutput())->toContain('runner: the test runner', 'part: all', 'Summary', 'verdict: pass', "mutation testing: run, as CMS_CI_MUTATION=1 asks\n")
         ->and($process->getOutput())->toMatch('/bin\/ci: plan: 0m \d\ds, pass\n/')
         ->and($process->getOutput())->toMatch('/bin\/ci: gates: 0m \d\ds, pass\n/')
         ->and($process->getOutput())->toMatch('/bin\/ci: shard:1\/2: 0m \d\ds, pass\n/')
@@ -150,7 +175,7 @@ it('installs the locked dependencies and runs every part with the PR profile, no
 
 it('runs every part when the process that runs the suite is itself a job of ci.yml', function (): void {
     $scratch = ScratchDirectory::make();
-    $inherited = ['CMS_CI_PART' => 'shard:1/1', 'CMS_CI_GATES_RESULT' => 'failure', 'CMS_CI_SHARDS_RESULT' => 'failure'];
+    $inherited = ['CMS_CI_PART' => 'shard:1/1', 'CMS_CI_MUTATION' => '1', 'CMS_CI_GATES_RESULT' => 'failure', 'CMS_CI_SHARDS_RESULT' => 'failure'];
 
     foreach ($inherited as $name => $value) {
         putenv("{$name}={$value}");
@@ -158,7 +183,8 @@ it('runs every part when the process that runs the suite is itself a job of ci.y
     }
 
     try {
-        [$process, $calls] = runBinCi($scratch, ['FAKE_SHARDS' => '1']);
+        [$process, $calls] = runBinCi($scratch, ['FAKE_SHARDS' => '1', 'CMS_CI_MUTATION' => '1']);
+        [$default, $defaultCalls] = runBinCi(ScratchDirectory::make(), ['FAKE_SHARDS' => '1']);
     } finally {
         foreach (array_keys($inherited) as $name) {
             putenv($name);
@@ -168,12 +194,15 @@ it('runs every part when the process that runs the suite is itself a job of ci.y
 
     expect($process->getExitCode())->toBe(0, $process->getErrorOutput())
         ->and($process->getOutput())->toContain('part: all', 'verdict: pass')
-        ->and(array_last(ciWork($calls)))->toEndWith('--gates=success --shards=success');
+        ->and(array_last(ciWork($calls)))->toEndWith('--gates=success --shards=success')
+        ->and($default->getExitCode())->toBe(0, $default->getErrorOutput())
+        ->and($default->getOutput())->toContain('part: all', 'mutation testing: not run')
+        ->and(array_last(ciWork($defaultCalls)))->toEndWith('/build/check.json');
 });
 
 it('hands the verdict a failed shard and a failed gate as failure, and exits 1', function (string $variable, string $gates, string $shards): void {
     $scratch = ScratchDirectory::make();
-    [$process, $calls] = runBinCi($scratch, [$variable => '1', 'FAKE_SHARDS' => '2', 'FAKE_VERDICT_EXIT' => '1']);
+    [$process, $calls] = runBinCi($scratch, [$variable => '1', 'FAKE_SHARDS' => '2', 'FAKE_VERDICT_EXIT' => '1', 'CMS_CI_MUTATION' => '1']);
 
     expect($process->getExitCode())->toBe(1)
         ->and(array_last(ciWork($calls)))->toEndWith("--gates={$gates} --shards={$shards}")
@@ -203,27 +232,50 @@ it('runs one part of ci.yml\'s jobs when CMS_CI_PART names it', function (string
     'the plan, without npm' => ['plan', [
         'composer install --no-interaction --no-progress --prefer-dist',
         'composer mutation:plan -- --output={scratch}/build/mutation-plan.json --github-output={scratch}/build/plan.env',
-    ], []],
-    'the gates' => ['gates', [
+    ], ['CMS_CI_MUTATION' => '1']],
+    'the gates, without mutation testing' => ['gates', [
         'composer install --no-interaction --no-progress --prefer-dist',
         'npm ci --no-audit --no-fund',
-        'composer check -- --pr --report={scratch}/build/check.json --only=gates',
+        'composer check -- --pr --report={scratch}/build/check.json',
     ], []],
+    'the gates, with the Mutation suite' => ['gates', [
+        'composer install --no-interaction --no-progress --prefer-dist',
+        'npm ci --no-audit --no-fund',
+        'composer check -- --pr --report={scratch}/build/check.json --mutation --only=gates',
+    ], ['CMS_CI_MUTATION' => '1']],
     'a shard' => ['shard:3/12', [
         'composer install --no-interaction --no-progress --prefer-dist',
         'npm ci --no-audit --no-fund',
-        'composer check -- --pr --report={scratch}/build/check.json --shard=3/12 --mutation-report={scratch}/build/mutation-shard.json',
-    ], []],
+        'composer check -- --pr --report={scratch}/build/check.json --mutation --shard=3/12 --mutation-report={scratch}/build/mutation-shard.json',
+    ], ['CMS_CI_MUTATION' => '1']],
     'the verdict, without npm' => ['verdict', [
         'composer install --no-interaction --no-progress --prefer-dist',
         'composer mutation:verdict -- --plan={scratch}/downloaded/mutation-plan/mutation-plan.json --reports={scratch}/downloaded --gates=success --shards=cancelled',
-    ], ['CMS_CI_GATES_RESULT' => 'success', 'CMS_CI_SHARDS_RESULT' => 'cancelled', 'CMS_CI_ARTIFACTS' => '{scratch}/downloaded']],
+    ], ['CMS_CI_GATES_RESULT' => 'success', 'CMS_CI_SHARDS_RESULT' => 'cancelled', 'CMS_CI_ARTIFACTS' => '{scratch}/downloaded', 'CMS_CI_MUTATION' => '1']],
 ]);
+
+it('refuses a part of mutation testing without CMS_CI_MUTATION=1, before installing anything, because it is deferred until after v1', function (string $part, string|false $mutation): void {
+    $scratch = ScratchDirectory::make();
+    [$process, $calls] = runBinCi($scratch, ['CMS_CI_PART' => $part, 'CMS_CI_MUTATION' => $mutation]);
+
+    expect($process->getExitCode())->toBe(2)
+        ->and($process->getErrorOutput())->toContain("CMS_CI_PART={$part} is a part of mutation testing, which runs only with CMS_CI_MUTATION=1: mutation testing deferred until after v1 (Sylvester, 2 October 2026)")
+        ->and(ciWork($calls))->toBe([]);
+})->with(['plan', 'shard:1/2', 'verdict'])->with(['unset' => [false], '0' => ['0']]);
+
+it('refuses a CMS_CI_MUTATION other than 1, 0 or empty before installing anything', function (string $value): void {
+    $scratch = ScratchDirectory::make();
+    [$process, $calls] = runBinCi($scratch, ['CMS_CI_MUTATION' => $value]);
+
+    expect($process->getExitCode())->toBe(2)
+        ->and($process->getErrorOutput())->toContain("CMS_CI_MUTATION={$value} is neither 1")
+        ->and(ciWork($calls))->toBe([]);
+})->with(['true', 'yes', '2']);
 
 it('writes the plan\'s count and matrix to GitHub\'s step outputs in the part plan', function (): void {
     $scratch = ScratchDirectory::make();
     ScratchDirectory::write($scratch.'/github-output', "earlier=1\n");
-    [$process] = runBinCi($scratch, ['CMS_CI_PART' => 'plan', 'FAKE_SHARDS' => '3', 'GITHUB_OUTPUT' => $scratch.'/github-output']);
+    [$process] = runBinCi($scratch, ['CMS_CI_PART' => 'plan', 'FAKE_SHARDS' => '3', 'GITHUB_OUTPUT' => $scratch.'/github-output', 'CMS_CI_MUTATION' => '1']);
 
     expect($process->getExitCode())->toBe(0, $process->getErrorOutput())
         ->and((string) file_get_contents($scratch.'/github-output'))->toBe("earlier=1\ncount=3\nshards=[1,2,3]\n");
@@ -238,34 +290,46 @@ it('refuses a part it does not know, and a shard outside its count, before insta
         ->and(ciWork($calls))->toBe([]);
 })->with(['mutation', 'shard:3/2', 'shard:0/2', 'shard:1', 'shard:a/b']);
 
-it('runs the gates without a base of the change, and says the base is derived, when CMS_CI_BASE_REF is unset, empty or 40 zeros', function (string|false $ref, string $shown): void {
+it('runs the gates without a base of the change, and says the base is derived, when CMS_CI_BASE_REF is unset, empty or 40 zeros with CMS_CI_MUTATION=1', function (string|false $ref, string $shown): void {
     $scratch = ScratchDirectory::make();
-    [$process, $calls] = runBinCi($scratch, ['CMS_CI_BASE_REF' => $ref]);
+    [$process, $calls] = runBinCi($scratch, ['CMS_CI_BASE_REF' => $ref, 'CMS_CI_MUTATION' => '1']);
 
     expect($process->getExitCode())->toBe(0, $process->getErrorOutput())
         ->and($process->getOutput())->toContain("base of the change: CMS_CI_BASE_REF={$shown} names none, so it is derived from the checkout: HEAD~1 on main, the merge base with origin/main on another branch, every file for a first commit")
-        ->and($calls)->toContain("composer check -- --pr --report={$scratch}/build/check.json --only=gates");
+        ->and($calls)->toContain("composer check -- --pr --report={$scratch}/build/check.json --mutation --only=gates");
 })->with([
     'unset' => [false, '(not set)'],
     'empty' => ['', ''],
     '40 zeros' => [str_repeat('0', 40), str_repeat('0', 40)],
 ]);
 
-it('names the base of the change it was given', function (): void {
-    [$process] = runBinCi(ScratchDirectory::make(), ['CMS_CI_BASE_REF' => 'abc123']);
+it('names the base of the change it was given with CMS_CI_MUTATION=1', function (): void {
+    [$process] = runBinCi(ScratchDirectory::make(), ['CMS_CI_BASE_REF' => 'abc123', 'CMS_CI_MUTATION' => '1']);
 
     expect($process->getExitCode())->toBe(0)
         ->and($process->getOutput())->toContain("base of the change: CMS_CI_BASE_REF=abc123\n")
         ->and($process->getOutput())->not->toContain('derived');
 });
 
-it('exits 1 when a gate fails, after writing the summary for GitHub', function (): void {
+it('exits 1 when a gate fails, after writing the summary for GitHub without a mutation verdict, as mutation testing is deferred', function (): void {
     $scratch = ScratchDirectory::make();
     [$process] = runBinCi($scratch, ['FAKE_CHECK_EXIT' => '1', 'GITHUB_STEP_SUMMARY' => $scratch.'/summary.md']);
     $summary = (string) file_get_contents($scratch.'/summary.md');
 
     expect($process->getExitCode())->toBe(1)
-        ->and($summary)->toContain("### PR profile (GUARDRAILS 10): all\n\n```text\nSummary\n  Gate 1   pass      Pint and Prettier\nmutation:verdict: the fake verdict\nverdict: pass\n", 'the GUARDRAILS 10 budget is 15 minutes')
+        ->and($summary)->toContain("### PR profile (GUARDRAILS 10): all\n\nmutation testing: not run, mutation testing deferred until after v1 (Sylvester, 2 October 2026); CMS_CI_MUTATION=1 runs it\n\n```text\nSummary\n  Gate 1   pass      Pint and Prettier\ngates: ", 'the GUARDRAILS 10 budget is 15 minutes')
+        ->and($summary)->toMatch('/gates: 0m \d\ds, fail\n/')
+        ->and($summary)->not->toContain('verdict')
+        ->and($summary)->not->toContain('Gate 1  Pint and Prettier');
+});
+
+it('exits 1 when a gate fails with CMS_CI_MUTATION=1, after writing the summary for GitHub with the verdict', function (): void {
+    $scratch = ScratchDirectory::make();
+    [$process] = runBinCi($scratch, ['FAKE_CHECK_EXIT' => '1', 'GITHUB_STEP_SUMMARY' => $scratch.'/summary.md', 'CMS_CI_MUTATION' => '1']);
+    $summary = (string) file_get_contents($scratch.'/summary.md');
+
+    expect($process->getExitCode())->toBe(1)
+        ->and($summary)->toContain("### PR profile (GUARDRAILS 10): all\n\nmutation testing: run, as CMS_CI_MUTATION=1 asks\n\n```text\nSummary\n  Gate 1   pass      Pint and Prettier\nmutation:verdict: the fake verdict\nverdict: pass\n", 'the GUARDRAILS 10 budget is 15 minutes')
         ->and($summary)->toMatch('/gates: 0m \d\ds, fail\n/')
         ->and($summary)->not->toContain('Gate 1  Pint and Prettier');
 });

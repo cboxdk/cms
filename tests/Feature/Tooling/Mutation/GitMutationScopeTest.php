@@ -10,6 +10,7 @@ use Cbox\Cms\Tests\Support\Tooling\ScratchDirectory;
 use Cbox\Cms\Tests\Support\Tooling\ScratchRepository;
 use Cbox\Cms\Tests\Support\Tooling\ScriptedProcessRunner;
 use Cbox\Cms\Tooling\Check\Domain\CheckRunner;
+use Cbox\Cms\Tooling\Check\Domain\PrPart;
 use Cbox\Cms\Tooling\Check\Domain\PrProfile;
 use Cbox\Cms\Tooling\Check\Domain\StepStatus;
 use Cbox\Cms\Tooling\Mutation\Boundary\GitMutationScope;
@@ -184,7 +185,7 @@ it('fails the step of the PR profile with the reason, and mutates nothing, when 
     $runner = ScriptedProcessRunner::passing();
 
     $scope = GitMutationScope::resolve($repository->root, $ref);
-    $gate5 = PrProfile::gates('/usr/bin/php', ['/usr/bin/php', '/usr/bin/composer'], $scope)[4];
+    $gate5 = PrProfile::gates('/usr/bin/php', ['/usr/bin/php', '/usr/bin/composer'], $scope, PrPart::all())[4];
     $report = new CheckRunner($runner, new GitScopeListener)->run([$gate5], $repository->root);
     $step = $report->gate(5)?->step(MutationSteps::NAME);
 
@@ -233,7 +234,7 @@ it('fails the step with the ref in the reason when CMS_CI_BASE_REF names no comm
     $repository->commit('base');
 
     $scope = GitMutationScope::resolve($repository->root, 'origin/no-such-branch');
-    $gate5 = PrProfile::gates('/usr/bin/php', ['/usr/bin/php', '/usr/bin/composer'], $scope)[4];
+    $gate5 = PrProfile::gates('/usr/bin/php', ['/usr/bin/php', '/usr/bin/composer'], $scope, PrPart::all())[4];
     $step = new CheckRunner(ScriptedProcessRunner::passing(), new GitScopeListener)->run([$gate5], $repository->root)->gate(5)?->step(MutationSteps::NAME);
 
     expect($scope->failure)->toStartWith("CMS_CI_BASE_REF=origin/no-such-branch names no commit in {$repository->root}: ")

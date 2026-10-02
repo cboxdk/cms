@@ -4,31 +4,41 @@
 # CMS_CI_PART naming its part. bin/ci installs the locked dependencies and runs
 # `composer check -- --pr`, which calls the same Composer and npm scripts as `composer check`:
 # lint:check, format:check, rector:check, analyse, typecheck, lint, install:check and
-# check:generated, and the Pest suites of gate 5. Gate 5 adds the Mutation suite and
-# mutation on changed files: Pest's --mutate with PCOV and a minimum score of 80 for each class on
-# the files below packages/*/src changed since the merge base of CMS_CI_BASE_REF and HEAD. It also runs
-# gate 8, the Browser suite, gate 9, composer audit and npm audit, and
-# gate 10, composer docs:check. It reports what it did not run: gates 7 and 11, each with the
-# reason, in the log and the job summary.
+# check:generated, and the Pest suites of gate 5. It also runs gate 8, the Browser suite,
+# gate 9, composer audit and npm audit, and gate 10, composer docs:check. It reports what it did
+# not run: gates 7 and 11, each with the reason, in the log and the job summary.
 #
-# The jobs run in parallel, so the run takes as long as the slowest (Sylvester's decision of
+# Mutation testing is deferred until after v1 (Sylvester, 2 October 2026): it made every merge
+# take far longer, and the architecture will change before v1, so tests of tests are not worth
+# the time now; the ordinary tests stay required. A pull request and a push to main run only the
+# gates job, whose gate 5 reports the Mutation suite and mutation on changed files as not run with
+# that reason. The gates job is the run's result, and the status check a pull request requires:
+# the jobs of mutation testing are skipped there, and GitHub counts a skipped job as passed.
+#
+# Mutation testing runs only in a run started by hand with the input mutation set to true
+# (workflow_dispatch; Actions > CI > Run workflow, or
+# `gh workflow run ci.yml --ref main -f mutation=true -f base_ref=<commit before the block>`),
+# which sets CMS_CI_MUTATION=1 for every job. Gate 5 then adds the Mutation suite and
+# mutation on changed files: Pest's --mutate with PCOV and a minimum score of 80 for each class
+# on the files below packages/*/src changed since the merge base of CMS_CI_BASE_REF and HEAD. The
+# jobs run in parallel, so the run takes as long as the slowest (Sylvester's decision of
 # 1 October): plan splits mutation on changed files into shards by file (composer mutation:plan;
-# one shard per 10 changed files, at most 100), gates runs every gate but mutation on changed
-# files, mutation runs one job per shard of the plan's matrix, and verdict, which runs whatever
-# the others did, fails unless the plan, the gates and every shard passed and every changed class
-# reaches 80 % over all its mutations in all shards (composer mutation:verdict). Each job's budget
-# is 15 minutes (GUARDRAILS 10).
+# one shard per 10 changed files, at most 100), gates runs every gate and the Mutation suite but
+# not mutation on changed files, mutation runs one job per shard of the plan's matrix, and
+# verdict, which runs whatever the others did, fails unless the plan, the gates and every shard
+# passed and every changed class reaches 80 % over all its mutations in all shards
+# (composer mutation:verdict). Each job's budget is 15 minutes (GUARDRAILS 10).
 #
-# CMS_CI_BASE_REF is the pull request's base commit, or for a push to main the commit before the
-# push. The checkout fetches the whole history (fetch-depth: 0), so the merge base is there. A push
-# that creates the branch has 40 zeros as the commit before it; bin/ci then derives the base from
-# the checkout: HEAD~1 on main, and the merge base with origin/main on another branch.
+# CMS_CI_BASE_REF, which only mutation on changed files reads, is the pull request's base commit,
+# or for a push to main the commit before the push. The checkout fetches the whole history
+# (fetch-depth: 0), so the merge base is there. A push that creates the branch has 40 zeros as the
+# commit before it; bin/ci then derives the base from the checkout: HEAD~1 on main, and the merge
+# base with origin/main on another branch.
 #
 # A run started by hand (workflow_dispatch) takes the base as its input base_ref, a commit or a ref
 # of the checkout such as origin/main, so a whole block's change, which main receives one task at a
-# time, can run as one matrix: Actions > CI > Run workflow, or
-# `gh workflow run ci.yml --ref main -f base_ref=<commit before the block>`. Its runs have a
-# concurrency group of their own, so the next push does not cancel one.
+# time, can run as one matrix; left empty, bin/ci derives it as above. Its runs have a concurrency
+# group of their own, so the next push does not cancel one.
 #
 # Every action is pinned to the commit of its release tag, which the comment names; a tag can be
 # moved, a commit cannot. docker/ci-setup.sh is the setup compose.ci.yaml runs too: psql, git,
@@ -37,8 +47,8 @@
 # Declared runner: GitHub-hosted ubuntu-latest, 4 vCPU and 16 GB RAM, the standard Linux runner
 # for public repositories. A private repository gets 2 vCPU on ubuntu-latest and needs a 4-core
 # larger runner for the same shape. The budget is 15 minutes (GUARDRAILS 10) for each job.
-# compose.ci.yaml runs the same bin/ci on the same image locally, every part one after the other,
-# and PROGRESS.md records each part's wall time as the proxy.
+# compose.ci.yaml runs the same bin/ci on the same image locally, the gates and with
+# CMS_CI_MUTATION=1 every part one after the other, and PROGRESS.md records each part's wall time as the proxy.
 
 name: CI
 
@@ -49,9 +59,14 @@ on:
   workflow_dispatch:
     inputs:
       base_ref:
-        description: 'The base of the change that mutation on changed files mutates: a commit, or a ref of the checkout such as origin/main'
-        required: true
+        description: 'The base of the change that mutation on changed files mutates: a commit, or a ref of the checkout such as origin/main; empty derives it'
+        required: false
         type: string
+      mutation:
+        description: 'Run mutation testing, deferred until after v1 (Sylvester, 2 October 2026): the Mutation suite and mutation on changed files'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -64,6 +79,8 @@ concurrency:
 env:
   CMS_CI_RUNNER: 'ubuntu-latest, 4 vCPU'
   CMS_CI_BASE_REF: ${{ inputs.base_ref || github.event.pull_request.base.sha || github.event.before }}
+  # 1 only in a run started by hand with the input mutation; bin/ci then runs mutation testing.
+  CMS_CI_MUTATION: ${{ inputs.mutation && '1' || '0' }}
   CMS_CI_PROVISION_POSTGRES: '1'
   CMS_CI_USER: ci
   DB_HOST: postgres
@@ -86,6 +103,8 @@ env:
 jobs:
   plan:
     name: Plan the shards of mutation on changed files
+    # Mutation testing runs only when a run started by hand asks for it.
+    if: inputs.mutation
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # PHP 8.5 of the v1 channel with Node 22, the base of docker/ci.Dockerfile.
@@ -119,6 +138,7 @@ jobs:
 
   gates:
     name: Gates of the PR profile (GUARDRAILS 10)
+    # The run's result and the status check a pull request requires: it runs in every run.
     runs-on: ubuntu-latest
     # The budget is 15 minutes (GUARDRAILS 10); the limit leaves room for the setup and stops a
     # hung job long before GitHub's default of six hours.
@@ -177,6 +197,7 @@ jobs:
   mutation:
     name: Mutation shard ${{ matrix.shard }} of ${{ needs.plan.outputs.count }}
     needs: plan
+    if: inputs.mutation
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -236,10 +257,11 @@ jobs:
           if-no-files-found: warn
 
   verdict:
-    name: Verdict of the PR profile (GUARDRAILS 10)
+    name: Verdict of mutation testing (GUARDRAILS 10)
     needs: [plan, gates, mutation]
-    # Runs whatever the other jobs did, so a failed, cancelled or skipped job fails it.
-    if: always()
+    # In a run with mutation testing it runs whatever the other jobs did, so a failed, cancelled or
+    # skipped job fails it; without, it is skipped, so it is never the required status check.
+    if: always() && inputs.mutation
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # PHP 8.5 of the v1 channel with Node 22, the base of docker/ci.Dockerfile.

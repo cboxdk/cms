@@ -3,18 +3,23 @@
 #   docker compose -f compose.ci.yaml run --rm ci
 #   docker compose -f compose.ci.yaml down      # stops postgres and valkey afterwards
 #
+# Mutation testing is deferred until after v1 (Sylvester, 2 October 2026), so the run leaves it
+# out and reports it as not run. CMS_CI_MUTATION=1 on the host runs it as well:
+# CMS_CI_MUTATION=1 docker compose -f compose.ci.yaml run --rm ci.
+#
 # CMS_CI_BASE_REF is the base of the change, such as main or HEAD~3, for mutation on changed files
 # in gate 5; ci.yml sets it to the pull request's base commit. It is optional here:
-# CMS_CI_BASE_REF=HEAD~3 docker compose -f compose.ci.yaml run --rm ci. docker/ci-entry.sh
+# CMS_CI_MUTATION=1 CMS_CI_BASE_REF=HEAD~3 docker compose -f compose.ci.yaml run --rm ci. docker/ci-entry.sh
 # resolves it in the mounted .git and builds the archive as two commits, the merge base's tree and
 # HEAD's, with CMS_CI_BASE_REF=HEAD~1 inside. Unset or empty, the script derives the base in the
 # mounted .git as bin/ci does: HEAD~1 when HEAD is main, and the merge base with origin/main, or
 # main without a remote, on another branch.
 #
-# bin/ci runs every part of ci.yml's jobs one after the other (CMS_CI_PART=all): the plan of the
-# shards of mutation on changed files, the gates, each shard, and the verdict over them, and times
-# each part against the budget, because ci.yml runs them as parallel jobs. One part runs alone with
-# CMS_CI_PART, such as CMS_CI_PART=shard:3/12 or CMS_CI_PART=gates.
+# bin/ci runs every part of ci.yml's jobs one after the other (CMS_CI_PART=all): the gates, and
+# with CMS_CI_MUTATION=1 also the plan of the shards of mutation on changed files, each shard, and
+# the verdict over them, and times each part against the budget, because ci.yml runs them as
+# parallel jobs. One part runs alone with CMS_CI_PART, such as CMS_CI_PART=gates, or
+# CMS_CI_MUTATION=1 CMS_CI_PART=shard:3/12.
 #
 # The ci service runs the two steps .github/workflows/ci.yml runs after its checkout,
 # docker/ci-setup.sh and bin/ci, on a clean git archive of HEAD: the repository's .git is mounted
@@ -56,6 +61,8 @@ services:
       CMS_CI_BASE_REF: ${CMS_CI_BASE_REF:-}
       # The part of bin/ci to run from the host's environment; empty runs every part.
       CMS_CI_PART: ${CMS_CI_PART:-}
+      # Mutation testing from the host's environment; empty leaves it out (deferred until after v1).
+      CMS_CI_MUTATION: ${CMS_CI_MUTATION:-}
       CMS_CI_PROVISION_POSTGRES: '1'
       CMS_CI_USER: ci
       DB_HOST: postgres

@@ -31,8 +31,10 @@ use InvalidArgumentException;
 
 /*
  * The PR profile as CI runs it through bin/ci (`composer check -- --pr`): the steps of gates 1 to
- * 6 are the local profile's, so CI and a developer run the same commands, and gate 5 adds the
- * Mutation suite and mutation on changed files; gate 8 runs the Browser suite in a process group
+ * 6 are the local profile's, so CI and a developer run the same commands. Mutation testing is
+ * deferred until after v1 (Sylvester, 2 October 2026): by default gate 5 reports the Mutation
+ * suite and mutation on changed files as not run with that reason, and with --mutation
+ * (PrPart::all() and its parts) gate 5 adds both, as before the decision; gate 8 runs the Browser suite in a process group
  * of its own, gate 9 runs composer audit and npm audit and gate 10 runs composer docs:check;
  * everything else of the PR profile in GUARDRAILS 10 is reported as not run with a reason. The runs here use the scripted process
  * runner; BrowserStepTest runs a Browser step for real, tests/Mutation a mutation step.
@@ -43,9 +45,9 @@ const PR_COMPOSER = ['/usr/bin/php', '/usr/bin/composer'];
 /**
  * @return list<Gate>
  */
-function prGates(?MutationScope $mutation = null): array
+function prGates(?MutationScope $mutation = null, ?PrPart $part = null): array
 {
-    return PrProfile::gates('/usr/bin/php', PR_COMPOSER, $mutation ?? MutationScope::changed('abc123', []));
+    return PrProfile::gates('/usr/bin/php', PR_COMPOSER, $mutation ?? MutationScope::changed('abc123', []), $part);
 }
 
 /**
@@ -73,6 +75,17 @@ function runPrGates(string $composerAuditOutput, int $composerAuditExit): CheckR
 }
 
 /**
+ * The numbers of the gates with a step reported as not run.
+ *
+ * @param  list<Gate>  $gates
+ * @return list<int>
+ */
+function gatesWithNotRunSteps(array $gates): array
+{
+    return array_map(static fn (Gate $gate): int => $gate->number, array_values(array_filter($gates, static fn (Gate $gate): bool => array_any($gate->steps, static fn (Step $step): bool => $step->notRunReason !== null))));
+}
+
+/**
  * @param  list<Step>  $steps
  * @return list<array{string, list<string>, ?string}>
  */
@@ -81,10 +94,10 @@ function stepTriples(array $steps): array
     return array_map(static fn (Step $step): array => [$step->name, $step->command, $step->notRunReason], $steps);
 }
 
-it('runs the local profile\'s steps for gates 1 to 6, unchanged, and adds only the Mutation suite and mutation on changed files to gate 5', function (): void {
+it('runs the local profile\'s steps for gates 1 to 6, unchanged, and with --mutation adds only the Mutation suite and mutation on changed files to gate 5', function (): void {
     $local = LocalProfile::gates('/usr/bin/php', PR_COMPOSER);
     $scope = MutationScope::changed('abc123', [new ChangedSource('packages/contracts/src/Ids/PrincipalId.php', PrincipalId::class)]);
-    $pr = prGates($scope);
+    $pr = prGates($scope, PrPart::all());
 
     expect(array_map(static fn (Gate $gate): int => $gate->number, $pr))->toBe(range(1, 11));
 
@@ -104,9 +117,54 @@ it('runs the local profile\'s steps for gates 1 to 6, unchanged, and adds only t
         ->and(LocalProfile::OTHER_SUITES)->toContain(PrProfile::MUTATION_SUITE);
 });
 
-it('runs mutation on changed files in gate 5 and never reports it as not run: a missing base fails it, no change passes it', function (): void {
-    $unresolved = prGates(MutationScope::unresolved('CMS_CI_BASE_REF is not set'))[4];
-    $unchanged = prGates(MutationScope::changed('abc123', []))[4];
+it('runs the local profile\'s steps for gates 1 to 6 by default, and reports the Mutation suite and mutation on changed files as deferred until after v1, without a scope', function (): void {
+    $local = LocalProfile::gates('/usr/bin/php', PR_COMPOSER);
+    $default = PrProfile::gates('/usr/bin/php', PR_COMPOSER);
+    $optIn = prGates(MutationScope::changed('abc123', [new ChangedSource('packages/contracts/src/Ids/PrincipalId.php', PrincipalId::class)]), PrPart::all());
+
+    expect(array_map(static fn (Gate $gate): int => $gate->number, $default))->toBe(range(1, 11))
+        ->and($default)->toEqual(prGates(part: PrPart::withoutMutation()))
+        ->and($default)->toEqual(prGates(MutationScope::unresolved('CMS_CI_BASE_REF is not set')));
+
+    foreach ([1, 2, 3, 4, 6, 7, 8, 9, 10, 11] as $number) {
+        expect($default[$number - 1])->toEqual($optIn[$number - 1]);
+    }
+
+    foreach ([1, 2, 3, 4, 6] as $number) {
+        expect($default[$number - 1])->toEqual($local[$number - 1]);
+    }
+
+    expect(stepTriples($default[4]->steps))->toBe([
+        ...stepTriples($local[4]->steps),
+        ['Mutation', [], PrProfile::MUTATION_DEFERRED],
+        [MutationSteps::NAME, [], PrProfile::MUTATION_DEFERRED],
+    ])
+        ->and(PrProfile::MUTATION_DEFERRED)->toBe('mutation testing deferred until after v1 (Sylvester, 2 October 2026); run it with --mutation, or CMS_CI_MUTATION=1 for bin/ci');
+});
+
+it('passes gate 5 by default when its suites pass, with the steps of mutation testing not run, and runs no mutation', function (): void {
+    $runner = new ScriptedProcessRunner(static fn (array $command): ProcessOutcome => new ProcessOutcome(0, composerAuditJson(), 0.1));
+    $report = new CheckRunner($runner, new SilentListener)->run(PrProfile::gates('/usr/bin/php', PR_COMPOSER), '/srv/checkout');
+
+    expect($report->passed())->toBeTrue()
+        ->and($report->gate(5)?->status())->toBe(StepStatus::Pass)
+        ->and($report->gate(5)?->step('Mutation')?->status)->toBe(StepStatus::NotRun)
+        ->and($report->gate(5)?->step(MutationSteps::NAME)?->status)->toBe(StepStatus::NotRun)
+        ->and($report->gate(5)?->step(MutationSteps::NAME)?->reason)->toBe(PrProfile::MUTATION_DEFERRED)
+        ->and(array_filter($runner->calls, static fn (RecordedCommand $call): bool => in_array('--mutate', $call->command, true) || in_array('--testsuite=Mutation', $call->command, true)))->toBe([])
+        ->and(ReportFormatter::summary($report))->toContain('not run   Mutation on changed files: '.PrProfile::MUTATION_DEFERRED);
+});
+
+it('needs the scope of mutation on changed files only in a part that runs it', function (): void {
+    expect(static fn (): array => PrProfile::gates('/usr/bin/php', PR_COMPOSER, null, PrPart::all()))->toThrow(InvalidArgumentException::class, 'Mutation on changed files needs its scope')
+        ->and(static fn (): array => PrProfile::gates('/usr/bin/php', PR_COMPOSER, null, PrPart::shard(1, 2)))->toThrow(InvalidArgumentException::class)
+        ->and(PrProfile::gates('/usr/bin/php', PR_COMPOSER, null, PrPart::gates()))->toHaveCount(11)
+        ->and(PrProfile::gates('/usr/bin/php', PR_COMPOSER, null, PrPart::withoutMutation()))->toHaveCount(11);
+});
+
+it('runs mutation on changed files in gate 5 with --mutation and never reports it as not run: a missing base fails it, no change passes it', function (): void {
+    $unresolved = prGates(MutationScope::unresolved('CMS_CI_BASE_REF is not set'), PrPart::all())[4];
+    $unchanged = prGates(MutationScope::changed('abc123', []), PrPart::all())[4];
 
     expect(array_filter([...$unresolved->steps, ...$unchanged->steps], static fn (Step $step): bool => $step->notRunReason !== null))->toBe([])
         ->and(array_last($unresolved->steps)?->decided)->toBe(StepStatus::Fail)
@@ -131,8 +189,10 @@ it('reports gates 7 and 11 as not run, each with its own reason and never the lo
 
     expect(PrProfile::NOT_RUN[11])->toBe('not a command: review by someone other than the author needs branch protection on main that requires it, a repository setting on github.com/cboxdk/cms that Sylvester makes');
 
+    // By default gate 5 has the steps of mutation testing not run as well (Sylvester, 2 October 2026).
     expect(array_unique(PrProfile::NOT_RUN))->toHaveCount(2)
-        ->and(array_map(static fn (Gate $gate): int => $gate->number, array_values(array_filter(prGates(), static fn (Gate $gate): bool => array_any($gate->steps, static fn (Step $step): bool => $step->notRunReason !== null)))))->toBe([7, 11]);
+        ->and(gatesWithNotRunSteps(prGates(part: PrPart::all())))->toBe([7, 11])
+        ->and(gatesWithNotRunSteps(prGates()))->toBe([5, 7, 11]);
 });
 
 it('runs composer docs:check as gate 10, the single step, under the local profile\'s title', function (): void {
@@ -291,16 +351,18 @@ it('picks the gates by profile and names the profile in the header', function ()
 
     expect(Profile::Local->gates('/usr/bin/php', PR_COMPOSER))->toEqual(LocalProfile::gates('/usr/bin/php', PR_COMPOSER))
         ->and(Profile::Pr->gates('/usr/bin/php', PR_COMPOSER, $scope))->toEqual(prGates($scope))
-        ->and(static fn (): array => Profile::Pr->gates('/usr/bin/php', PR_COMPOSER))->toThrow(InvalidArgumentException::class)
+        ->and(Profile::Pr->gates('/usr/bin/php', PR_COMPOSER, $scope, PrPart::all()))->toEqual(prGates($scope, PrPart::all()))
+        ->and(Profile::Pr->gates('/usr/bin/php', PR_COMPOSER))->toEqual(prGates())
+        ->and(static fn (): array => Profile::Pr->gates('/usr/bin/php', PR_COMPOSER, null, PrPart::all()))->toThrow(InvalidArgumentException::class)
         ->and(Profile::Pr->mutates())->toBeTrue()
         ->and(Profile::Local->mutates())->toBeFalse()
         ->and(ReportFormatter::header('/repo'))->toBe("composer check: the local profile of GUARDRAILS 10, gates 1 to 6, in /repo\n")
-        ->and(ReportFormatter::header('/repo', Profile::Pr))->toBe("composer check: the PR profile of GUARDRAILS 10 as CI runs it today, gates 1 to 6 with mutation on changed files, 8, 9 and 10, with 7 and 11 reported as not run, in /repo\n");
+        ->and(ReportFormatter::header('/repo', Profile::Pr))->toBe("composer check: the PR profile of GUARDRAILS 10 as CI runs it today, gates 1 to 6, 8, 9 and 10, with 7 and 11 reported as not run, in /repo\n");
 });
 
 it('runs every gate but mutation on changed files in the gates job, and reports that step as run in the shards', function (): void {
     $scope = MutationScope::changed('abc123', [new ChangedSource('packages/contracts/src/Ids/PrincipalId.php', PrincipalId::class)]);
-    $full = PrProfile::gates('/usr/bin/php', PR_COMPOSER, $scope);
+    $full = PrProfile::gates('/usr/bin/php', PR_COMPOSER, $scope, PrPart::all());
     $gates = PrProfile::gates('/usr/bin/php', PR_COMPOSER, $scope, PrPart::gates());
     $mutationSteps = count(MutationSteps::for($scope, '/usr/bin/php'));
 
@@ -332,9 +394,18 @@ it('runs only its shard of mutation on changed files in a shard job, with the ta
     }
 });
 
-it('names the part in the header of a run that is not the whole profile', function (): void {
+it('names the part in the header of a run of the PR profile, whether it runs mutation testing or not', function (): void {
     expect(ReportFormatter::header('/srv/checkout', Profile::Pr, PrPart::shard(2, 3)))->toContain('; this run: mutation on changed files, shard 2 of 3, in /srv/checkout')
         ->and(ReportFormatter::header('/srv/checkout', Profile::Pr, PrPart::gates()))->toContain('; this run: the gates, with mutation on changed files run in its shards')
-        ->and(ReportFormatter::header('/srv/checkout', Profile::Pr, PrPart::all()))->not->toContain('this run')
-        ->and(ReportFormatter::header('/srv/checkout', Profile::Pr))->not->toContain('this run');
+        ->and(ReportFormatter::header('/srv/checkout', Profile::Pr, PrPart::all()))->toContain('; this run: every gate, with mutation testing, in /srv/checkout')
+        ->and(ReportFormatter::header('/srv/checkout', Profile::Pr, PrPart::withoutMutation()))->toContain('; this run: every gate, without mutation testing, which is deferred until after v1, in /srv/checkout')
+        ->and(ReportFormatter::header('/srv/checkout', Profile::Pr))->not->toContain('this run')
+        ->and(ReportFormatter::header('/srv/checkout', Profile::Local, PrPart::all()))->not->toContain('this run');
+});
+
+it('runs the Mutation suite and mutation on changed files only in the parts that opt in to mutation testing', function (): void {
+    expect([PrPart::withoutMutation()->runsGates(), PrPart::withoutMutation()->runsMutationSuite(), PrPart::withoutMutation()->runsMutation(), PrPart::withoutMutation()->mutationTesting])->toBe([true, false, false, false])
+        ->and([PrPart::all()->runsGates(), PrPart::all()->runsMutationSuite(), PrPart::all()->runsMutation(), PrPart::all()->mutationTesting])->toBe([true, true, true, true])
+        ->and([PrPart::gates()->runsGates(), PrPart::gates()->runsMutationSuite(), PrPart::gates()->runsMutation(), PrPart::gates()->mutationTesting])->toBe([true, true, false, true])
+        ->and([PrPart::shard(1, 2)->runsGates(), PrPart::shard(1, 2)->runsMutationSuite(), PrPart::shard(1, 2)->runsMutation(), PrPart::shard(1, 2)->mutationTesting])->toBe([false, false, true, true]);
 });

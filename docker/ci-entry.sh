@@ -10,7 +10,8 @@
 # uncommitted change or an untracked file in the working tree therefore never reaches the run.
 #
 # CMS_CI_BASE_REF is the base of the change for mutation on changed files in gate 5, as the pull
-# request's base commit is in ci.yml. The script resolves it in the mounted repository and builds
+# request's base commit is in ci.yml; bin/ci reads it only with CMS_CI_MUTATION=1, because mutation
+# testing is deferred until after v1 (Sylvester, 2 October 2026). The script resolves it in the mounted repository and builds
 # the new repository as two commits: the tree of the merge base of CMS_CI_BASE_REF and HEAD, then
 # the tree of HEAD. Inside, CMS_CI_BASE_REF is HEAD~1, so the step mutates what changed since the
 # merge base. A ref that names no commit, or has no merge base with HEAD, stops the script before

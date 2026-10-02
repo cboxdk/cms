@@ -15,7 +15,7 @@ The repository is one Composer package, `cboxdk/cms`. The kernel is a set of mod
 Every change passes the gates. Run them before you ask for review:
 
 - `composer check` runs gates 1 to 6: formatting, Rector, PHPStan at level 10, tsc and ESLint, the Pest suites, and a check that generated code matches the committed code. It needs the services from `composer services:up` and exits 1 when a gate fails.
-- CI runs `bin/ci` on every pull request, which adds mutation testing on the changed files, split into parallel shards, the browser tests, the dependency audit and `composer docs:check`.
+- CI runs `bin/ci` on every pull request, which adds the browser tests, the dependency audit and `composer docs:check`. Mutation testing is deferred until after v1 and runs only on demand, in a CI run started by hand with the input `mutation`.
 
 [Gates and CI](docs/developers/gates-and-ci.md) describes each gate and how to run CI in a container on your machine.
 

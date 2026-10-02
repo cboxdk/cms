@@ -7,21 +7,28 @@ namespace Cbox\Cms\Tooling\Check\Domain;
 use Cbox\Cms\Tooling\Mutation\Domain\MutationScope;
 use Cbox\Cms\Tooling\Mutation\Domain\MutationSteps;
 use Cbox\Cms\Tooling\Mutation\Domain\MutationTally;
+use InvalidArgumentException;
 
 /**
  * The PR profile of GUARDRAILS 10 as CI runs it today, through `bin/ci`: the steps of gates 1 to
- * 6 from the local profile, unchanged, with gate 5 adding the Mutation suite and mutation on
- * changed files (MutationSteps), gate 8 (the Browser suite), gate 9 (composer audit and npm
+ * 6 from the local profile, unchanged, gate 8 (the Browser suite), gate 9 (composer audit and npm
  * audit) and gate 10 (`composer docs:check`, documentation with running examples for every
  * public extension point), and gates 7 and 11 reported as not run, each with the reason.
+ *
+ * Mutation testing is deferred until after v1 (Sylvester, 2 October 2026), so by default gate 5
+ * reports the Mutation suite and mutation on changed files (MutationSteps) as not run, with
+ * MUTATION_DEFERRED. With `--mutation` (CMS_CI_MUTATION=1 for bin/ci) gate 5 adds both, as it did
+ * before the decision.
+ *
  * GUARDRAILS 10 wants every gate that did not run reported explicitly; a gate that starts running
  * in CI moves out of NOT_RUN. The local profile leaves gate 10 out, as GUARDRAILS 10 says, but
  * gate 5 runs the same audit on the repository in tests/Feature/Tooling/Docs/RepositoryDocsTest.php,
  * so `composer check` fails on every finding of gate 10 as well (GUARDRAILS 7.3).
  *
- * CI runs it in parts (PrPart): the gates job runs every gate but mutation on changed files, which
- * it reports as not run, and each shard job runs only its shard of mutation on changed files and
- * reports the other gates as not run; the verdict job judges them together.
+ * With mutation testing, CI runs it in parts (PrPart): the gates job runs every gate but mutation
+ * on changed files, which it reports as not run, and each shard job runs only its shard of
+ * mutation on changed files and reports the other gates as not run; the verdict job judges them
+ * together.
  */
 final readonly class PrProfile
 {
@@ -54,6 +61,11 @@ final readonly class PrProfile
     public const string MUTATION_IN_SHARDS = 'run in the shard jobs of mutation on changed files, which the verdict judges together (MutationVerdict)';
 
     /**
+     * Why the default run reports the Mutation suite and mutation on changed files as not run.
+     */
+    public const string MUTATION_DEFERRED = 'mutation testing deferred until after v1 (Sylvester, 2 October 2026); run it with --mutation, or CMS_CI_MUTATION=1 for bin/ci';
+
+    /**
      * Why a shard job reports every gate but mutation on changed files as not run.
      */
     public const string GATE_IN_GATES_JOB = 'run in the gates job; a shard runs only its part of mutation on changed files';
@@ -61,15 +73,22 @@ final readonly class PrProfile
     /**
      * @param  string  $php  the PHP binary
      * @param  list<string>  $composer  the command that runs Composer
-     * @param  MutationScope  $mutation  what changed since the base of the change, for mutation on
-     *                                   changed files: the whole change, or one shard's part of it
-     * @param  PrPart|null  $part  the part of the profile to run; null for all of it
+     * @param  MutationScope|null  $mutation  what changed since the base of the change, for
+     *                                        mutation on changed files: the whole change, or one
+     *                                        shard's part of it; needed only by a part that runs it
+     * @param  PrPart|null  $part  the part of the profile to run; null for the default, without
+     *                             mutation testing
      * @param  MutationTally|null  $tally  where mutation on changed files counts each changed class
      * @return list<Gate>
      */
-    public static function gates(string $php, array $composer, MutationScope $mutation, ?PrPart $part = null, ?MutationTally $tally = null): array
+    public static function gates(string $php, array $composer, ?MutationScope $mutation = null, ?PrPart $part = null, ?MutationTally $tally = null): array
     {
-        $part ??= PrPart::all();
+        $part ??= PrPart::withoutMutation();
+
+        if ($part->runsMutation() && ! $mutation instanceof MutationScope) {
+            throw new InvalidArgumentException('Mutation on changed files needs its scope: what changed since the base of the change.');
+        }
+
         $gates = [];
 
         foreach (LocalProfile::gates($php, $composer) as $gate) {
@@ -90,16 +109,23 @@ final readonly class PrProfile
     }
 
     /**
-     * Gate 5: the local profile's steps and the Mutation suite, unless the part is a shard, and
-     * mutation on changed files, unless the part is the gates job, which reports it as not run.
+     * Gate 5: the local profile's steps, unless the part is a shard; the Mutation suite with
+     * mutation testing, and reported as not run without it; and mutation on changed files, unless
+     * the part is the default, which reports it as deferred, or the gates job, which reports it as
+     * run in the shards.
      */
-    private static function pest(Gate $gate, string $php, MutationScope $mutation, PrPart $part, ?MutationTally $tally): Gate
+    private static function pest(Gate $gate, string $php, ?MutationScope $mutation, PrPart $part, ?MutationTally $tally): Gate
     {
-        $steps = $part->runsGates() ? [...$gate->steps, LocalProfile::suiteStep($php, self::MUTATION_SUITE, parallel: false)] : [];
+        $suite = $part->runsMutationSuite()
+            ? LocalProfile::suiteStep($php, self::MUTATION_SUITE, parallel: false)
+            : Step::notRun(self::MUTATION_SUITE, self::MUTATION_DEFERRED);
+        $steps = $part->runsGates() ? [...$gate->steps, $suite] : [];
 
         return new Gate(5, $gate->title, [
             ...$steps,
-            ...($part->runsMutation() ? MutationSteps::for($mutation, $php, $tally) : [Step::notRun(MutationSteps::NAME, self::MUTATION_IN_SHARDS)]),
+            ...($part->runsMutation() && $mutation instanceof MutationScope
+                ? MutationSteps::for($mutation, $php, $tally)
+                : [Step::notRun(MutationSteps::NAME, $part->mutationTesting ? self::MUTATION_IN_SHARDS : self::MUTATION_DEFERRED)]),
         ]);
     }
 

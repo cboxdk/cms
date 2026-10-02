@@ -9,7 +9,7 @@ use InvalidArgumentException;
 /**
  * What one shard of mutation on changed files reports to the verdict: which shard of how many it
  * ran, the sources it mutated, whether its `composer check` passed, and the count of each source
- * its steps judged (MutationTally). Written by `composer check -- --pr --shard=<i>/<n>
+ * its steps judged (MutationTally). Written by `composer check -- --pr --mutation --shard=<i>/<n>
  * --mutation-report=<file>`, as MutationShardReportJson.
  */
 final readonly class MutationShardReport

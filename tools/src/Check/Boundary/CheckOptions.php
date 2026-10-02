@@ -14,14 +14,19 @@ use InvalidArgumentException;
  *   --brief          leave the output of failed steps out of the console; the report keeps it
  *   --pr             the PR profile as CI runs it (bin/ci) instead of the local profile. Not
  *                    --profile, which is Composer's own option for timing and memory
- *   --only=gates     with --pr: the gates without mutation on changed files, as CI's gates job
- *   --shard=<i>/<n>  with --pr: only mutation on changed files, shard i of the n shards of the
- *                    plan (MutationShards), as CI's shard job i
+ *                    By default it runs without mutation testing, which is deferred until after
+ *                    v1 (Sylvester, 2 October 2026), and reports its steps as not run
+ *   --mutation       with --pr: opt in to mutation testing, the Mutation suite and mutation on
+ *                    changed files, as CI's run by hand with the input mutation does
+ *   --only=gates     with --pr --mutation: the gates and the Mutation suite without mutation on
+ *                    changed files, as CI's gates job of such a run
+ *   --shard=<i>/<n>  with --pr --mutation: only mutation on changed files, shard i of the n
+ *                    shards of the plan (MutationShards), as CI's shard job i
  *   --mutation-report=<file>  with --shard: also write the shard's report for the verdict
  */
 final readonly class CheckOptions
 {
-    public const string USAGE = 'Usage: composer check [-- [--report=<file>] [--brief] [--pr] [--only=gates | --shard=<i>/<n> [--mutation-report=<file>]]]';
+    public const string USAGE = 'Usage: composer check [-- [--report=<file>] [--brief] [--pr [--mutation [--only=gates | --shard=<i>/<n> [--mutation-report=<file>]]]]]';
 
     private function __construct(
         public ?string $reportFile,
@@ -40,6 +45,7 @@ final readonly class CheckOptions
         $mutationReportFile = null;
         $brief = false;
         $profile = Profile::Local;
+        $mutation = false;
         $part = PrPart::all();
         $parts = 0;
 
@@ -52,6 +58,8 @@ final readonly class CheckOptions
                 $mutationReportFile = substr($argument, strlen('--mutation-report='));
             } elseif ($argument === '--pr') {
                 $profile = Profile::Pr;
+            } elseif ($argument === '--mutation') {
+                $mutation = true;
             } elseif ($argument === '--only=gates') {
                 $part = PrPart::gates();
                 $parts++;
@@ -69,6 +77,18 @@ final readonly class CheckOptions
 
         if ($parts === 1 && $profile !== Profile::Pr) {
             throw new InvalidArgumentException('--only and --shard pick a part of the PR profile, so they need --pr. '.self::USAGE);
+        }
+
+        if ($mutation && $profile !== Profile::Pr) {
+            throw new InvalidArgumentException('--mutation opts in to the mutation testing of the PR profile, so it needs --pr. '.self::USAGE);
+        }
+
+        if ($parts === 1 && ! $mutation) {
+            throw new InvalidArgumentException('--only and --shard pick a part of the run with mutation testing, which is deferred until after v1 (Sylvester, 2 October 2026), so they need --mutation. '.self::USAGE);
+        }
+
+        if (! $mutation) {
+            $part = PrPart::withoutMutation();
         }
 
         if ($mutationReportFile !== null && ! $part->isShard()) {

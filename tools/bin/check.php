@@ -7,13 +7,15 @@ declare(strict_types=1);
  * every gate, also after a failure, prints each gate and step as pass, fail or not run, and exits
  * 1 when a gate fails. Options: --report=<file> writes the report as JSON, --brief leaves the
  * output of failed steps out of the console, --pr runs the PR profile as CI runs it
- * (bin/ci): the same steps, mutation on changed files in gate 5, gates 8, 9 and 10, and the gates
- * CI does not run yet reported as not run. With --pr, --only=gates runs the gates without mutation
- * on changed files and --shard=<i>/<n> only shard i of the plan's n shards of it (MutationShards),
- * as CI's jobs run them; --mutation-report=<file> writes the shard's report for the verdict
- * (composer mutation:verdict). Mutation on changed files mutates what changed since the
- * merge base of CMS_CI_BASE_REF and HEAD; when the variable is unset, empty or 40 zeros, it derives
- * the base from the checkout (GitMutationScope).
+ * (bin/ci): the same steps, gates 8, 9 and 10, and the gates CI does not run yet reported as not
+ * run. Mutation testing is deferred until after v1 (Sylvester, 2 October 2026): without
+ * --mutation, gate 5 reports the Mutation suite and mutation on changed files as not run. With
+ * --pr --mutation it runs both; --only=gates then runs the gates and the Mutation suite without
+ * mutation on changed files and --shard=<i>/<n> only shard i of the plan's n shards of it
+ * (MutationShards), as CI's jobs of a run with mutation run them; --mutation-report=<file> writes
+ * the shard's report for the verdict (composer mutation:verdict). Mutation on changed files
+ * mutates what changed since the merge base of CMS_CI_BASE_REF and HEAD; when the variable is
+ * unset, empty or 40 zeros, it derives the base from the checkout (GitMutationScope).
  *
  * Every step runs in the php-baseimages dev image, the image CI runs in (DevImage). Started on
  * the host, it checks the options and then runs itself again in a container of the image for this
@@ -79,7 +81,7 @@ $listener = new ConsoleListener(STDOUT, $options->brief);
 $listener->write(ReportFormatter::header($root, $options->profile, $options->part));
 
 $baseRef = getenv(GitMutationScope::VARIABLE);
-$mutation = $options->profile->mutates() ? GitMutationScope::resolve($root, $baseRef === false ? null : $baseRef) : null;
+$mutation = $options->profile->mutates() && $options->part->runsMutation() ? GitMutationScope::resolve($root, $baseRef === false ? null : $baseRef) : null;
 $plan = $mutation instanceof MutationScope ? MutationShards::plan($mutation) : null;
 $part = $options->part;
 

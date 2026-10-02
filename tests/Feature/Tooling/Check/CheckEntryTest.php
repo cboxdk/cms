@@ -55,13 +55,28 @@ it('runs the local profile unless --pr asks for the PR profile, and refuses --pr
         ->and(CheckOptions::parse(['--pr'])->profile)->toBe(Profile::Pr)
         ->and(CheckOptions::parse(['--brief', '--pr', '--report=/tmp/r.json'])->profile)->toBe(Profile::Pr)
         ->and(static fn (): CheckOptions => CheckOptions::parse(['--profile=pr']))->toThrow(InvalidArgumentException::class, 'Unknown option --profile=pr')
-        ->and(CheckOptions::USAGE)->toContain('[--pr]');
+        ->and(CheckOptions::USAGE)->toContain('[--pr [--mutation [--only=gates | --shard=<i>/<n>');
 });
 
-it('picks a part of the PR profile with --only=gates or --shard=<i>/<n>, and a shard\'s report with --mutation-report', function (): void {
-    $all = CheckOptions::parse(['--pr']);
-    $gates = CheckOptions::parse(['--pr', '--only=gates']);
-    $shard = CheckOptions::parse(['--pr', '--shard=3/12', '--mutation-report=/tmp/shard.json']);
+it('runs the PR profile without mutation testing unless --mutation opts in, as Sylvester decided on 2 October 2026', function (): void {
+    $default = CheckOptions::parse(['--pr']);
+    $optIn = CheckOptions::parse(['--pr', '--mutation']);
+
+    expect($default->part)->toEqual(PrPart::withoutMutation())
+        ->and($default->part->runsMutation())->toBeFalse()
+        ->and($default->part->runsMutationSuite())->toBeFalse()
+        ->and($default->mutationReportFile)->toBeNull()
+        ->and($optIn->part)->toEqual(PrPart::all())
+        ->and($optIn->part->runsMutation())->toBeTrue()
+        ->and($optIn->part->runsMutationSuite())->toBeTrue()
+        ->and(CheckOptions::parse(['--mutation', '--pr'])->part)->toEqual(PrPart::all())
+        ->and(CheckOptions::USAGE)->toContain('[--pr [--mutation');
+});
+
+it('picks a part of the PR profile with --mutation and --only=gates or --shard=<i>/<n>, and a shard\'s report with --mutation-report', function (): void {
+    $all = CheckOptions::parse(['--pr', '--mutation']);
+    $gates = CheckOptions::parse(['--pr', '--mutation', '--only=gates']);
+    $shard = CheckOptions::parse(['--pr', '--mutation', '--shard=3/12', '--mutation-report=/tmp/shard.json']);
 
     expect($all->part)->toEqual(PrPart::all())
         ->and($all->mutationReportFile)->toBeNull()
@@ -75,18 +90,22 @@ it('picks a part of the PR profile with --only=gates or --shard=<i>/<n>, and a s
         ->and(CheckOptions::USAGE)->toContain('--only=gates', '--shard=<i>/<n>', '--mutation-report=<file>');
 });
 
-it('refuses a part without --pr, two parts, a shard outside its count and a shard report without a shard', function (array $arguments, string $message): void {
+it('refuses a part without --pr or --mutation, --mutation without --pr, two parts, a shard outside its count and a shard report without a shard', function (array $arguments, string $message): void {
     expect(static fn (): CheckOptions => CheckOptions::parse(array_values(array_filter($arguments, is_string(...)))))->toThrow(InvalidArgumentException::class, $message);
 })->with([
     'a shard of the local profile' => [['--shard=1/2'], 'need --pr'],
     'the gates of the local profile' => [['--only=gates'], 'need --pr'],
-    'gates and a shard' => [['--pr', '--only=gates', '--shard=1/2'], 'not both or twice'],
-    'two shards' => [['--pr', '--shard=1/2', '--shard=2/2'], 'not both or twice'],
-    'shard 3 of 2' => [['--pr', '--shard=3/2'], 'Shard 3 of 2 is not a shard'],
-    'shard 0' => [['--pr', '--shard=0/2'], 'Unknown option --shard=0/2'],
-    'a shard without a count' => [['--pr', '--shard=1'], 'Unknown option --shard=1'],
-    'only something else' => [['--pr', '--only=mutation'], 'Unknown option --only=mutation'],
-    'a report without a shard' => [['--pr', '--mutation-report=/tmp/r.json'], 'needs --shard'],
+    'mutation testing of the local profile' => [['--mutation'], 'needs --pr'],
+    'a shard without --mutation' => [['--pr', '--shard=1/2'], 'need --mutation'],
+    'the gates without --mutation' => [['--pr', '--only=gates'], 'need --mutation'],
+    'gates and a shard' => [['--pr', '--mutation', '--only=gates', '--shard=1/2'], 'not both or twice'],
+    'two shards' => [['--pr', '--mutation', '--shard=1/2', '--shard=2/2'], 'not both or twice'],
+    'shard 3 of 2' => [['--pr', '--mutation', '--shard=3/2'], 'Shard 3 of 2 is not a shard'],
+    'shard 0' => [['--pr', '--mutation', '--shard=0/2'], 'Unknown option --shard=0/2'],
+    'a shard without a count' => [['--pr', '--mutation', '--shard=1'], 'Unknown option --shard=1'],
+    'only something else' => [['--pr', '--mutation', '--only=mutation'], 'Unknown option --only=mutation'],
+    'a report without a shard' => [['--pr', '--mutation', '--mutation-report=/tmp/r.json'], 'needs --shard'],
+    'a report of the default run' => [['--pr', '--mutation-report=/tmp/r.json'], 'needs --shard'],
 ]);
 
 it('exits 2 on an unknown option before running any gate', function (): void {

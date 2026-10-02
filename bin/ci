@@ -13,14 +13,6 @@
 #           the local profile
 #   gate 6  composer check:generated
 # and what the PR profile adds that CI runs:
-#   gate 5  vendor/bin/pest --testsuite=Mutation, the tests that need PCOV, and mutation on
-#           changed files: vendor/bin/pest --mutate --everything --path=<files>, minimum score 80
-#           for each class, on the files below packages/*/src changed since the merge base of
-#           CMS_CI_BASE_REF and HEAD, with PCOV from tools/mutation/pcov.ini. Every file runs with
-#           --parallel against the fast suites, then the mutations they left against the
-#           Postgres suite, unless the fast suites caught all of them. The files are split
-#           into shards by file (composer mutation:plan), each run in a job of its own, and
-#           composer mutation:verdict judges every class over all its mutations in all shards
 #   gate 8  vendor/bin/pest --testsuite=Browser, in a process group of its own that the runner
 #           kills when the step ends, so a Playwright server left by a dead Pest cannot hold the
 #           output open; docker/ci-setup.sh gives the image the pinned Playwright's Chromium
@@ -30,21 +22,43 @@
 # and reports what CI does not run yet as not run: gates 7 and 11. tests/Feature/Tooling/Ci
 # keeps this list and the one in ci.yml equal to the profiles.
 #
+# Mutation testing is deferred until after v1 (Sylvester, 2 October 2026): it made every merge
+# take far longer, and the architecture will change before v1. By default gate 5 reports it as not
+# run, with the reason, and nothing of the plan, the shards or the verdict runs. With
+# CMS_CI_MUTATION=1, as ci.yml's run by hand with the input mutation sets it, it runs what CI ran
+# before the decision, through `composer check -- --pr --mutation`:
+#   gate 5  vendor/bin/pest --testsuite=Mutation, the tests that need PCOV, and mutation on
+#           changed files: vendor/bin/pest --mutate --everything --path=<files>, minimum score 80
+#           for each class, on the files below packages/*/src changed since the merge base of
+#           CMS_CI_BASE_REF and HEAD, with PCOV from tools/mutation/pcov.ini. Every file runs with
+#           --parallel against the fast suites, then the mutations they left against the
+#           Postgres suite, unless the fast suites caught all of them. The files are split
+#           into shards by file (composer mutation:plan), each run in a job of its own, and
+#           composer mutation:verdict judges every class over all its mutations in all shards
+#
 # The parts (CMS_CI_PART), each a job of ci.yml, so the run takes as long as its slowest job:
-#   plan          composer mutation:plan: the shards of mutation on changed files, as a file for
-#                 the verdict and, on GitHub, the step outputs count and shards for the matrix
-#   gates         composer check -- --pr --only=gates: every gate but mutation on changed files
-#   shard:<i>/<n> composer check -- --pr --shard=<i>/<n>: shard i of the plan's n shards
-#   verdict       composer mutation:verdict over the plan and the shards' reports in
-#                 CMS_CI_ARTIFACTS, with how the gates and the shards ended in CMS_CI_GATES_RESULT
-#                 and CMS_CI_SHARDS_RESULT (success, failure, cancelled or skipped)
-#   all           the default: plan, gates, every shard one after the other, and the verdict, as
-#                 the containerized run does. Each part is timed against the budget on its own,
-#                 because CI runs them as parallel jobs.
+#   gates         composer check -- --pr: every gate, with mutation testing reported as not run;
+#                 with CMS_CI_MUTATION=1, composer check -- --pr --mutation --only=gates: every
+#                 gate and the Mutation suite, without mutation on changed files
+#   plan          with CMS_CI_MUTATION=1 only: composer mutation:plan, the shards of mutation on
+#                 changed files, as a file for the verdict and, on GitHub, the step outputs count
+#                 and shards for the matrix
+#   shard:<i>/<n> with CMS_CI_MUTATION=1 only: composer check -- --pr --mutation --shard=<i>/<n>:
+#                 shard i of the plan's n shards
+#   verdict       with CMS_CI_MUTATION=1 only: composer mutation:verdict over the plan and the
+#                 shards' reports in CMS_CI_ARTIFACTS, with how the gates and the shards ended in
+#                 CMS_CI_GATES_RESULT and CMS_CI_SHARDS_RESULT (success, failure, cancelled or
+#                 skipped)
+#   all           the default: the gates, as the containerized run does; with CMS_CI_MUTATION=1,
+#                 plan, gates, every shard one after the other, and the verdict. Each part is timed
+#                 against the budget on its own, because CI runs them as parallel jobs.
 #
 # Environment:
 #   CMS_CI_PART                  the part to run, as above (default all)
-#   CMS_CI_BASE_REF              the base of the change for mutation on changed files: a commit
+#   CMS_CI_MUTATION              1 opts in to mutation testing, deferred until after v1; unset,
+#                                empty or 0 leaves it out. Any other value is refused
+#   CMS_CI_BASE_REF              with CMS_CI_MUTATION=1, the base of the change for mutation on
+#                                changed files: a commit
 #                                or ref, such as the pull request's base commit or the commit
 #                                before a push that ci.yml sets, or HEAD~1 that docker/ci-entry.sh
 #                                sets in compose.ci.yaml's archive. The step mutates what changed
@@ -79,8 +93,9 @@
 #   GITHUB_STEP_SUMMARY          set by GitHub Actions; each part's summary is appended to it
 #
 # Exit code: 0 when every part that ran passed, 1 when a gate, a shard or the verdict failed, 2 for
-# a CMS_CI_PART it does not know, and the failing command's code when provisioning or installing
-# fails.
+# a CMS_CI_PART it does not know, a part of mutation testing without CMS_CI_MUTATION=1 or a
+# CMS_CI_MUTATION other than 1, 0 or empty, and the failing command's code when provisioning or
+# installing fails.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -107,6 +122,17 @@ started=$SECONDS
 timings=()
 failed=0
 
+# Mutation testing is deferred until after v1 (Sylvester, 2 October 2026) and runs only on demand.
+readonly deferred='mutation testing deferred until after v1 (Sylvester, 2 October 2026); CMS_CI_MUTATION=1 runs it'
+case "${CMS_CI_MUTATION:-}" in
+    1) mutation=1 ;;
+    '' | 0) mutation=0 ;;
+    *)
+        echo "bin/ci: CMS_CI_MUTATION=${CMS_CI_MUTATION} is neither 1, which runs mutation testing, nor 0 or empty, which leaves it out." >&2
+        exit 2
+        ;;
+esac
+
 case "$part" in
     all | plan | gates | verdict) ;;
     shard:[1-9]*/[1-9]*)
@@ -120,6 +146,11 @@ case "$part" in
         exit 2
         ;;
 esac
+
+if [[ $mutation -eq 0 && "$part" != all && "$part" != gates ]]; then
+    echo "bin/ci: CMS_CI_PART=${part} is a part of mutation testing, which runs only with CMS_CI_MUTATION=1: ${deferred}." >&2
+    exit 2
+fi
 
 section() {
     printf '\n== bin/ci: %s\n' "$1"
@@ -177,7 +208,7 @@ plan() {
 
 # Runs one shard and keeps its reports in a directory. Arguments: i, n, the directory.
 shard() {
-    check "$3/check.json" --shard="$1/$2" --mutation-report="$3/mutation-shard.json"
+    check "$3/check.json" --mutation --shard="$1/$2" --mutation-report="$3/mutation-shard.json"
 }
 
 # Judges the plan and the shards' reports below a directory, and sets $status. Arguments: the
@@ -194,11 +225,18 @@ section 'environment'
 echo "runner: ${runner}"
 echo "part: ${part}"
 echo "commit: $(git rev-parse HEAD 2>/dev/null || echo 'not a git checkout')"
-base_ref="${CMS_CI_BASE_REF-}"
-if [[ -z "${CMS_CI_BASE_REF+set}" || -z "${base_ref//[[:space:]]/}" || "$base_ref" =~ ^[[:space:]]*0{40}[[:space:]]*$ ]]; then
-    echo "base of the change: CMS_CI_BASE_REF=${CMS_CI_BASE_REF-(not set)} names none, so it is derived from the checkout: HEAD~1 on main, the merge base with origin/main on another branch, every file for a first commit"
+if [[ $mutation -eq 0 ]]; then
+    mutation_line="mutation testing: not run, ${deferred}"
+    echo "$mutation_line"
 else
-    echo "base of the change: CMS_CI_BASE_REF=${base_ref}"
+    mutation_line='mutation testing: run, as CMS_CI_MUTATION=1 asks'
+    echo "$mutation_line"
+    base_ref="${CMS_CI_BASE_REF-}"
+    if [[ -z "${CMS_CI_BASE_REF+set}" || -z "${base_ref//[[:space:]]/}" || "$base_ref" =~ ^[[:space:]]*0{40}[[:space:]]*$ ]]; then
+        echo "base of the change: CMS_CI_BASE_REF=${CMS_CI_BASE_REF-(not set)} names none, so it is derived from the checkout: HEAD~1 on main, the merge base with origin/main on another branch, every file for a first commit"
+    else
+        echo "base of the change: CMS_CI_BASE_REF=${base_ref}"
+    fi
 fi
 php --version | head -n 1
 echo "node $(node --version), npm $(npm --version)"
@@ -238,7 +276,11 @@ case "$part" in
     gates)
         section 'gates'
         part_started=$SECONDS
-        check "$report" --only=gates
+        if [[ $mutation -eq 1 ]]; then
+            check "$report" --mutation --only=gates
+        else
+            check "$report"
+        fi
         finish_part gates "$part_started" "$status"
         ;;
     shard:*)
@@ -255,30 +297,37 @@ case "$part" in
         finish_part verdict "$part_started" "$status"
         ;;
     all)
-        section 'plan'
-        part_started=$SECONDS
-        plan "$artifacts/mutation-plan"
-        finish_part plan "$part_started" 0
-
-        section 'gates'
-        part_started=$SECONDS
-        check "$report" --only=gates
-        gates_result=$([[ $status -eq 0 ]] && echo success || echo failure)
-        finish_part gates "$part_started" "$status"
-
-        shards_result=success
-        for ((i = 1; i <= shards; i++)); do
-            section "mutation on changed files, shard ${i} of ${shards}"
+        if [[ $mutation -eq 0 ]]; then
+            section 'gates'
             part_started=$SECONDS
-            shard "$i" "$shards" "$artifacts/mutation-shard-${i}"
-            [[ $status -eq 0 ]] || shards_result=failure
-            finish_part "shard:${i}/${shards}" "$part_started" "$status"
-        done
+            check "$report"
+            finish_part gates "$part_started" "$status"
+        else
+            section 'plan'
+            part_started=$SECONDS
+            plan "$artifacts/mutation-plan"
+            finish_part plan "$part_started" 0
 
-        section 'verdict'
-        part_started=$SECONDS
-        verdict "$artifacts" "$gates_result" "$shards_result"
-        finish_part verdict "$part_started" "$status"
+            section 'gates'
+            part_started=$SECONDS
+            check "$report" --mutation --only=gates
+            gates_result=$([[ $status -eq 0 ]] && echo success || echo failure)
+            finish_part gates "$part_started" "$status"
+
+            shards_result=success
+            for ((i = 1; i <= shards; i++)); do
+                section "mutation on changed files, shard ${i} of ${shards}"
+                part_started=$SECONDS
+                shard "$i" "$shards" "$artifacts/mutation-shard-${i}"
+                [[ $status -eq 0 ]] || shards_result=failure
+                finish_part "shard:${i}/${shards}" "$part_started" "$status"
+            done
+
+            section 'verdict'
+            part_started=$SECONDS
+            verdict "$artifacts" "$gates_result" "$shards_result"
+            finish_part verdict "$part_started" "$status"
+        fi
         ;;
 esac
 
@@ -287,11 +336,14 @@ timing="$(printf 'bin/ci: %dm %02ds wall time on %s for %s; the GUARDRAILS 10 bu
     $((elapsed / 60)) $((elapsed % 60)) "$runner" "$part" "$budget_minutes")"
 section 'done'
 printf '%s\n' "${timings[@]}"
+echo "$mutation_line"
 echo "$timing"
 
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
     {
         echo "### PR profile (GUARDRAILS 10): ${part}"
+        echo
+        echo "$mutation_line"
         echo
         echo '```text'
         for log in "$out/check.log" "$artifacts/verdict.log"; do

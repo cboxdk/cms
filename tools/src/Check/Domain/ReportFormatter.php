@@ -15,7 +15,7 @@ final readonly class ReportFormatter
 
     public static function header(string $directory, Profile $profile = Profile::Local, ?PrPart $part = null): string
     {
-        $only = $profile === Profile::Pr && $part instanceof PrPart && ($part->isShard() || ! $part->runsMutation()) ? '; this run: '.$part->description() : '';
+        $only = $profile === Profile::Pr && $part instanceof PrPart ? '; this run: '.$part->description() : '';
 
         return "composer check: {$profile->description()}{$only}, in {$directory}\n";
     }

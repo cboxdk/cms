@@ -5,7 +5,7 @@ declare(strict_types=1);
 /*
  * `composer mutation:plan`: how mutation on changed files is split into shards for this checkout
  * (Cbox\Cms\Tooling\Mutation\Domain\MutationShards). It finds the changed sources since the base
- * of the change as `composer check -- --pr` does (GitMutationScope, from CMS_CI_BASE_REF), prints
+ * of the change as `composer check -- --pr --mutation` does (GitMutationScope, from CMS_CI_BASE_REF), prints
  * each shard with its files, and with --output writes the plan as JSON for the verdict, with
  * --github-output the shard jobs' matrix as step outputs of GitHub Actions.
  *

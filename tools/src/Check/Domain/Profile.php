@@ -6,7 +6,6 @@ namespace Cbox\Cms\Tooling\Check\Domain;
 
 use Cbox\Cms\Tooling\Mutation\Domain\MutationScope;
 use Cbox\Cms\Tooling\Mutation\Domain\MutationTally;
-use InvalidArgumentException;
 
 /**
  * The profiles of GUARDRAILS 10 that `composer check` runs. Local is `composer check`; Pr is what
@@ -20,10 +19,11 @@ enum Profile: string
 
     /**
      * @param  list<string>  $composer
-     * @param  MutationScope|null  $mutation  what changed since the base of the change; the PR
-     *                                        profile needs it for mutation on changed files, the
-     *                                        local profile has no such step
-     * @param  PrPart|null  $part  the part of the PR profile to run; null for all of it
+     * @param  MutationScope|null  $mutation  what changed since the base of the change; a part of
+     *                                        the PR profile that runs mutation on changed files
+     *                                        needs it, the local profile has no such step
+     * @param  PrPart|null  $part  the part of the PR profile to run; null for the default,
+     *                             without mutation testing
      * @param  MutationTally|null  $tally  where mutation on changed files counts each class
      * @return list<Gate>
      */
@@ -31,12 +31,13 @@ enum Profile: string
     {
         return match ($this) {
             self::Local => LocalProfile::gates($php, $composer),
-            self::Pr => PrProfile::gates($php, $composer, $mutation ?? throw new InvalidArgumentException('The PR profile needs the scope of mutation on changed files.'), $part, $tally),
+            self::Pr => PrProfile::gates($php, $composer, $mutation, $part, $tally),
         };
     }
 
     /**
-     * Whether the profile runs mutation on changed files, so its scope must be found first.
+     * Whether the profile can run mutation on changed files, so a part of it that does
+     * (PrPart::runsMutation(), with --mutation) must find its scope first.
      */
     public function mutates(): bool
     {
@@ -47,7 +48,7 @@ enum Profile: string
     {
         return match ($this) {
             self::Local => 'the local profile of GUARDRAILS 10, gates 1 to 6',
-            self::Pr => 'the PR profile of GUARDRAILS 10 as CI runs it today, gates 1 to 6 with mutation on changed files, 8, 9 and 10, with 7 and 11 reported as not run',
+            self::Pr => 'the PR profile of GUARDRAILS 10 as CI runs it today, gates 1 to 6, 8, 9 and 10, with 7 and 11 reported as not run',
         };
     }
 }
