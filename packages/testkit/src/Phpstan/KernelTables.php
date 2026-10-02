@@ -20,6 +20,7 @@ final class KernelTables
      * @var list<string>
      */
     public const array NAMES = [
+        'actor_profiles',
         'actors',
         'audit',
         'changeset_principals',

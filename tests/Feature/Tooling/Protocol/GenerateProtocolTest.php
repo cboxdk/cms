@@ -25,6 +25,7 @@ afterEach(function (): void {
 });
 
 const PROTOCOL_CODECS = [
+    'ActivateActorCodecV1.php',
     'CreateEntryCodecV1.php',
     'CreatePlacementCodecV1.php',
     'DeactivateActorCodecV1.php',
@@ -38,6 +39,7 @@ const PROTOCOL_CODECS = [
     'ProblemCodecV1.php',
     'PublishEntryCodecV1.php',
     'ReceiptCodecV1.php',
+    'RegisterActorCodecV1.php',
     'ReleaseVariantCodecV1.php',
     'ReviseEntryCodecV1.php',
     'SetPlacementWindowCodecV1.php',

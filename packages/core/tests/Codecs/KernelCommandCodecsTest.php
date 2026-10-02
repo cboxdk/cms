@@ -13,7 +13,9 @@ use Cbox\Cms\Core\Codecs\Domain\EncodingFailed;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
+use Cbox\Cms\Core\Identity\Domain\Commands\ActivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
+use Cbox\Cms\Core\Identity\Domain\Commands\RegisterActor;
 use Cbox\Cms\Core\Pipeline\Domain\CommandEncoder;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCodec;
 use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
@@ -38,7 +40,9 @@ use stdClass;
 function kernelCommandClasses(): array
 {
     return [
+        'actor.activate' => ActivateActor::class,
         'actor.deactivate' => DeactivateActor::class,
+        'actor.register' => RegisterActor::class,
         'entry.create' => CreateEntry::class,
         'entry.publish' => PublishEntry::class,
         'entry.revise' => ReviseEntry::class,

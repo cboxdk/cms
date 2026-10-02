@@ -115,6 +115,7 @@ it('writes the PHP enum, the record DTO and codec, the validator, the TypeScript
             'written: database/migrations/cms/app__page.lock',
             'written: database/migrations/cms/app__page_0001_create.php',
             'written: resources/js/cms/generated/index.ts',
+            'written: resources/js/cms/generated/protocol/ActivateActorV1.ts',
             'written: resources/js/cms/generated/protocol/CreateEntryV1.ts',
             'written: resources/js/cms/generated/protocol/CreatePlacementV1.ts',
             'written: resources/js/cms/generated/protocol/DeactivateActorV1.ts',
@@ -127,16 +128,17 @@ it('writes the PHP enum, the record DTO and codec, the validator, the TypeScript
             'written: resources/js/cms/generated/protocol/ProblemV1.ts',
             'written: resources/js/cms/generated/protocol/PublishEntryV1.ts',
             'written: resources/js/cms/generated/protocol/ReceiptV1.ts',
+            'written: resources/js/cms/generated/protocol/RegisterActorV1.ts',
             'written: resources/js/cms/generated/protocol/ReleaseVariantV1.ts',
             'written: resources/js/cms/generated/protocol/ReviseEntryV1.ts',
             'written: resources/js/cms/generated/protocol/SetPlacementWindowV1.ts',
             'written: resources/js/cms/generated/protocol/UnpublishEntryV1.ts',
             'written: resources/js/cms/generated/records/AppPageV1.ts',
             'written: resources/js/cms/generated/validation.ts',
-            'Generated 36 files: 36 written, 0 unchanged, 0 stale removed.',
+            'Generated 38 files: 38 written, 0 unchanged, 0 stale removed.',
         ])
         ->and($second)->toBe(0)
-        ->and($secondOutput)->toBe(['Generated 36 files: 0 written, 36 unchanged, 0 stale removed.'])
+        ->and($secondOutput)->toBe(['Generated 38 files: 0 written, 38 unchanged, 0 stale removed.'])
         ->and(array_map(static fn (string $file): string => (string) hash_file('sha256', $root.'/'.$file), SchemaFixtures::files($root)))->toBe($hashes)
         ->and(SchemaFixtures::files($root))->toBe([
             'app/Cms/Generated/Boundary/AppPageCodecV1.php',
@@ -157,6 +159,7 @@ it('writes the PHP enum, the record DTO and codec, the validator, the TypeScript
             'database/migrations/cms/app__page.lock',
             'database/migrations/cms/app__page_0001_create.php',
             'resources/js/cms/generated/index.ts',
+            'resources/js/cms/generated/protocol/ActivateActorV1.ts',
             'resources/js/cms/generated/protocol/CreateEntryV1.ts',
             'resources/js/cms/generated/protocol/CreatePlacementV1.ts',
             'resources/js/cms/generated/protocol/DeactivateActorV1.ts',
@@ -169,6 +172,7 @@ it('writes the PHP enum, the record DTO and codec, the validator, the TypeScript
             'resources/js/cms/generated/protocol/ProblemV1.ts',
             'resources/js/cms/generated/protocol/PublishEntryV1.ts',
             'resources/js/cms/generated/protocol/ReceiptV1.ts',
+            'resources/js/cms/generated/protocol/RegisterActorV1.ts',
             'resources/js/cms/generated/protocol/ReleaseVariantV1.ts',
             'resources/js/cms/generated/protocol/ReviseEntryV1.ts',
             'resources/js/cms/generated/protocol/SetPlacementWindowV1.ts',
@@ -239,7 +243,7 @@ it('generates when a module release adds a type with the handle of an app type, 
             'written: database/migrations/cms/acme__page_0001_create.php',
             'written: resources/js/cms/generated/index.ts',
             'written: resources/js/cms/generated/records/AcmePageV1.ts',
-            'Generated 49 files: 19 written, 30 unchanged, 0 stale removed.',
+            'Generated 51 files: 19 written, 32 unchanged, 0 stale removed.',
         ])
         ->and(is_file($root.'/app/Cms/Generated/Validators/AppPageValidator.php'))->toBeTrue()
         ->and((string) file_get_contents($root.'/app/Cms/Generated/TypeHandle.php'))->toContain("    case AcmePage = 'acme:page';\n    case AppPage = 'app:page';\n")

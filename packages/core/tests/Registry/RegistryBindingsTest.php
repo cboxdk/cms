@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Registry;
 
 use Cbox\Cms\Cli\CliServiceProvider;
+use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Build\ScanRoot;
 use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Core\Entries\Actions\CreateEntryAction;
@@ -14,8 +15,12 @@ use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
 use Cbox\Cms\Core\Fragments\Actions\InvalidateFragments;
+use Cbox\Cms\Core\Identity\Actions\ActivateActorAction;
 use Cbox\Cms\Core\Identity\Actions\DeactivateActorAction;
+use Cbox\Cms\Core\Identity\Actions\RegisterActorAction;
+use Cbox\Cms\Core\Identity\Domain\Commands\ActivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
+use Cbox\Cms\Core\Identity\Domain\Commands\RegisterActor;
 use Cbox\Cms\Core\Placements\Actions\CreatePlacementAction;
 use Cbox\Cms\Core\Placements\Actions\SetPlacementWindowAction;
 use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
@@ -102,7 +107,9 @@ it('scans the packages\' own classes without a problem and registers the kernel\
 
     expect(array_map(static fn (CommandEntry $entry): string => $entry->name->value.'@'.$entry->version.' '.$entry->class, $registry->commands))
         ->toBe([
+            'actor.activate@1 '.ActivateActor::class,
             'actor.deactivate@1 '.DeactivateActor::class,
+            'actor.register@1 '.RegisterActor::class,
             'entry.create@1 '.CreateEntry::class,
             'entry.publish@1 '.PublishEntry::class,
             'entry.revise@1 '.ReviseEntry::class,
@@ -114,7 +121,9 @@ it('scans the packages\' own classes without a problem and registers the kernel\
         ])
         ->and(array_map(static fn (ActionEntry $entry): string => $entry->command->value.'@'.$entry->commandVersion.' '.$entry->class.' '.$entry->kind->value, $registry->actions))
         ->toBe([
+            'actor.activate@1 '.ActivateActorAction::class.' write',
             'actor.deactivate@1 '.DeactivateActorAction::class.' write',
+            'actor.register@1 '.RegisterActorAction::class.' write',
             'entry.create@1 '.CreateEntryAction::class.' write',
             'entry.publish@1 '.PublishEntryAction::class.' write',
             'entry.revise@1 '.ReviseEntryAction::class.' write',
@@ -126,9 +135,11 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'variant.release@1 '.ReleaseVariantAction::class.' write',
         ])
         ->and($registry->actionFor(DeactivateActor::class)?->surfaces)->toBe([])
+        ->and($registry->actionFor(ActivateActor::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia, Surface::Cli])
+        ->and($registry->actionFor(RegisterActor::class)?->surfaces)->toBe([Surface::Cli])
         ->and($registry->actionFor(CreateEntry::class)?->class)->toBe(CreateEntryAction::class)
         ->and($registry->actionFor(ReviseEntry::class)?->class)->toBe(ReviseEntryAction::class)
-        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([10, 9, 0, 7, 0, 1])
+        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([12, 11, 0, 8, 0, 1])
         ->and($registry->hooks)->toBe([])
         ->and(array_map(static fn (SubscriberEntry $entry): string => $entry->name->value.' '.$entry->class.' '.$entry->lane->value.' '.$entry->projection?->value, $registry->subscribers))
         ->toBe(['fragments.invalidate '.InvalidateFragments::class.' critical origin'])

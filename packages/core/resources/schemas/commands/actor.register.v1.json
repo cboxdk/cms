@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "actor.register, contract version 1",
+  "description": "Registers an actor (PRD 5.16, 6.4), the first step of a registration: the actor is created pending at version 1 and credential generation 1 with its profile, in one changeset, and runs nothing until actor.activate makes it active. The command expects the actor not to exist; an id that exists is version_conflict. An end user, a staff actor with a responsible person and a service actor without an active staff actor responsible for it are refused with validation_failed. The display name and the email are personal data, classified personal (PRD 12.2). The PHP form is Cbox\\Cms\\Core\\Identity\\Domain\\Commands\\RegisterActor, and the generated codec RegisterActorCodecV1 reads it and writes its canonical JSON: every key, sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "actor",
+    "class",
+    "display_name",
+    "email"
+  ],
+  "properties": {
+    "actor": {
+      "description": "The id of the actor to register, made by the caller.",
+      "$ref": "#/$defs/id"
+    },
+    "class": {
+      "description": "The actor's class, which never changes: staff for a person who logs in to the panel, service for an agent, an integration or a sidecar, which only holds service credentials. end_user is refused until the end users' connections come (B13).",
+      "enum": [
+        "staff",
+        "end_user",
+        "service"
+      ]
+    },
+    "display_name": {
+      "description": "The name the actor's profile shows, 1 to 200 characters without control characters, that starts and ends with a character that is not white space. Personal data.",
+      "type": "string",
+      "pattern": "^[^\\s\\x00-\\x1F\\x7F]([^\\x00-\\x1F\\x7F]*[^\\s\\x00-\\x1F\\x7F])?$",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "email": {
+      "description": "The contact email address of the actor's profile, or of the person responsible for a service: a local part, an @ and a domain with a dot, at most 254 characters, without white space or control characters. It is never the key of an identity. Personal data.",
+      "type": "string",
+      "pattern": "^[^\\s@\\x00-\\x1F\\x7F]+@[^\\s@\\x00-\\x1F\\x7F]+\\.[^\\s@\\x00-\\x1F\\x7F]+$",
+      "minLength": 5,
+      "maxLength": 254
+    },
+    "responsible": {
+      "description": "For a service actor, the id of the active staff actor responsible for it; null, or missing, for a staff actor.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/id"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    }
+  }
+}

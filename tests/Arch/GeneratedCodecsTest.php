@@ -50,7 +50,7 @@ arch('generated codecs: no hand-written encoder of a class the kernel schemas bi
     sort($bound);
 
     expect($bound)->toContain(Receipt::class, Problem::class, RequestEnvelope::class, CreateEntry::class, ReviseEntry::class, DeliveryDocument::class, DeliveryExplanation::class, StoredAnswer::class, PathExplanation::class, ExplainedPath::class)
-        ->and(ProtocolSchemas::commands())->toHaveCount(8);
+        ->and(ProtocolSchemas::commands())->toHaveCount(10);
 
     Rules::none(
         HandWrittenCodecScan::findings(

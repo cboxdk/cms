@@ -6,7 +6,9 @@ description: "The JSON form of the kernel's commands, one JSON Schema per comman
 
 # Command JSON
 
+<!-- extension-point: packages/core/resources/schemas/commands/actor.activate.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/commands/actor.deactivate.v1.json -->
+<!-- extension-point: packages/core/resources/schemas/commands/actor.register.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/commands/entry.create.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/commands/entry.publish.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/commands/entry.revise.v1.json -->
@@ -28,16 +30,19 @@ A caller sends a command to a surface as a JSON document: the body of a REST cal
 | `placement.create` | `placement.create.v1.json` | `CreatePlacementCodecV1` | [`CreatePlacement`](placement-commands.md) |
 | `placement.set_window` | `placement.set_window.v1.json` | `SetPlacementWindowCodecV1` | [`SetPlacementWindow`](placement-commands.md) |
 | `actor.deactivate` | `actor.deactivate.v1.json` | `DeactivateActorCodecV1` | [`DeactivateActor`](actor-commands.md) |
+| `actor.register` | `actor.register.v1.json` | `RegisterActorCodecV1` | [`RegisterActor`](actor-commands.md) |
+| `actor.activate` | `actor.activate.v1.json` | `ActivateActorCodecV1` | [`ActivateActor`](actor-commands.md) |
 
 ## The documents
 
-A document is an object of the command's keys in snake_case and no other key. Every key is required unless its schema gives it a default: `window` of `entry.publish` may be left out, which is `null`, and `source` of `actor.deactivate` may be left out, which is `local`.
+A document is an object of the command's keys in snake_case and no other key. Every key is required unless its schema gives it a default: `window` of `entry.publish` may be left out, which is `null`, `source` of `actor.deactivate` may be left out, which is `local`, and `responsible` of `actor.register` may be left out, which is `null`.
 
 - An id is a UUIDv7 in a string, such as `"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"`, written back in lowercase.
 - A version and a revision number are integers of 1 or more. `revision` of `entry.publish` is `null` for a type with stages none.
 - A locale is a language tag, such as `da`, `en-GB` or `sr-Latn-RS`, written back with the language in lowercase, the script in title case and the region in uppercase.
 - A window is an object of `live_from` and `live_until`, each RFC 3339 with an offset or `null`, written back in UTC with six decimals; `live_from` is before `live_until`, which the codec checks with the `TimeWindow` it builds.
 - A slug of `placement.create` is an object of `locale` and `slug`: 1 to 255 characters without a slash or white space, and not `.` or `..`.
+- `display_name` of `actor.register` is 1 to 200 characters without control characters that start and end with a character that is not white space, and `email` a local part, an `@` and a domain with a dot, at most 254 characters, without white space or control characters. Both are personal data (PRD 12.2), and no error message repeats them.
 
 ## The fields of a revision
 

@@ -9,7 +9,9 @@ use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
+use Cbox\Cms\Core\Identity\Domain\Commands\ActivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
+use Cbox\Cms\Core\Identity\Domain\Commands\RegisterActor;
 use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
 use Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry;
@@ -63,12 +65,12 @@ it('writes the six registries to the application\'s bootstrap/cache/cms, and rem
 
     expect($status)->toBe(0)
         ->and($output)->toBe([
-            'actions: 10',
-            'commands: 9',
+            'actions: 12',
+            'commands: 11',
             // The workbench's fixture addon, which package discovery registers: its two hooks and
             // its extension of app:fixture_article.
             'hooks: 2',
-            'rest: 7',
+            'rest: 8',
             'schema: 1',
             'subscribers: 1',
             sprintf('Registry written to %s.', $directory),
@@ -85,10 +87,20 @@ it('adds what an addon provider\'s scan root declares', function (): void {
     [$status, $output] = buildCommand();
 
     expect($status)->toBe(0)
-        ->and(array_slice($output, 0, 4))->toBe(['actions: 12', 'commands: 10', 'hooks: 3', 'rest: 8'])
+        ->and(array_slice($output, 0, 4))->toBe(['actions: 14', 'commands: 12', 'hooks: 3', 'rest: 9'])
         ->and(RegistryFixtures::load($directory.'/commands.php'))->toMatchArray(['entries' => [[
+            'class' => ActivateActor::class,
+            'name' => 'actor.activate',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 1,
+        ], [
             'class' => DeactivateActor::class,
             'name' => 'actor.deactivate',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 1,
+        ], [
+            'class' => RegisterActor::class,
+            'name' => 'actor.register',
             'package' => CoreServiceProvider::PACKAGE,
             'version' => 1,
         ], [

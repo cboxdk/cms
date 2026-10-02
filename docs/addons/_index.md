@@ -27,7 +27,7 @@ An extension point is `#[Stable]` or `#[Experimental]`. Every extension point do
 - [Placement commands](placement-commands.md): `placement.create` and `placement.set_window`, where a placement is decided, the slug and canonical rules, the visibility states, their events and their rejections.
 - [Release command](release-command.md): `variant.release`, what the kernel checks before a revision is released, what it stores, its event and its rejections.
 - [Publish commands](publish-commands.md): `entry.publish` and `entry.unpublish`, the release and the home placement going live in one changeset, what a dry run shows, what unpublishing takes back, their events and their rejections.
-- [Actor commands](actor-commands.md): `actor.deactivate`, what it changes in one changeset, its event and how it stops every command and read of the actor.
+- [Actor commands](actor-commands.md): `actor.register`, `actor.activate` and `actor.deactivate`, the order of a registration, the actor's profile as personal data, their events, and how a deactivation stops every command and read of the actor.
 - [Plans and mutations](plans.md): the `Plan` a write action returns, the typed mutations and the kernel-generic field values of a revision.
 - [Queries and query actions](queries.md): `Query`, `QueryAction` and the typed `Result` of a read.
 - [Records and JSON codecs](codecs.md): the record DTO and the JSON codec `cms:generate` writes for every type, the JSON form of each kind of value, classification access and `Omitted`, and the `JsonCodec` contract.

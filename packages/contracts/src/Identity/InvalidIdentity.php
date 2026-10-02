@@ -112,4 +112,28 @@ final class InvalidIdentity extends InvalidArgumentException
     {
         return new self(sprintf('A verified assertion gives each %s once, but gives one twice (PRD 5.16).', $what));
     }
+
+    /**
+     * A display name that breaks its rules. The message never repeats the value, which is
+     * personal data (PRD 12.2, invariant 10).
+     */
+    public static function displayName(): self
+    {
+        return new self(sprintf(
+            'A display name is 1 to %d characters without control characters, and starts and ends with a character that is not white space.',
+            DisplayName::MAX_LENGTH,
+        ));
+    }
+
+    /**
+     * An email address that breaks its rules. The message never repeats the value, which is
+     * personal data (PRD 12.2, invariant 10).
+     */
+    public static function email(): self
+    {
+        return new self(sprintf(
+            'An email address is a local part, an @ and a domain with a dot, at most %d characters, without white space or control characters.',
+            EmailAddress::MAX_LENGTH,
+        ));
+    }
 }

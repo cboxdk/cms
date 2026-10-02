@@ -18,13 +18,18 @@ use Cbox\Cms\Contracts\Hooks\FieldChange;
 use Cbox\Cms\Contracts\Hooks\FieldChanges;
 use Cbox\Cms\Contracts\Hooks\ReleasedRevision;
 use Cbox\Cms\Contracts\Identity\AccessContext;
+use Cbox\Cms\Contracts\Identity\ActorClass;
 use Cbox\Cms\Contracts\Identity\ActorPrincipal;
+use Cbox\Cms\Contracts\Identity\ActorProfile;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Contracts\Identity\DisplayName;
+use Cbox\Cms\Contracts\Identity\EmailAddress;
 use Cbox\Cms\Contracts\Identity\IssuerKind;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\TypeId;
+use Cbox\Cms\Contracts\Plans\Mutations\ActorRegistered;
 use Cbox\Cms\Contracts\Plans\Mutations\HeadMoved;
 use Cbox\Cms\Contracts\Plans\Mutations\RevisionCreated;
 use Cbox\Cms\Contracts\Plans\Mutations\VariantReleased;
@@ -38,7 +43,8 @@ use PHPUnit\Framework\Assert;
 /*
  * What hooks see of a plan and how their changes enter it, beside the pipeline's action tests:
  * sub-plans keep their place, a later change of a field wins, a revision of an unknown type shows
- * no field, and a variant written twice cannot be changed.
+ * no field, a variant written twice cannot be changed, and a mutation's classified values are shown
+ * only to an access that allows them.
  */
 
 const PLANS_OTHER_ENTRY = '01936f5e-8a2b-7c3d-9e4f-0000000000e7';
@@ -202,4 +208,22 @@ it('shows the released revisions with the fields the hook may read, and never ch
         ->and($public->releases()[0]->fields->equals(plansFields('L')))->toBeTrue()
         ->and($plans->view(new CommandName('probe.release'), 1, plansAccess(), $plan)->releases())->toBe([])
         ->and($refused->reason)->toBe('The plan writes no revision of the variant "variant:'.PipelineWorld::ENTRY.':shared", so a hook cannot change it.');
+});
+
+it('shows a hook a mutation with classified values without them when its access does not allow them', function (): void {
+    $registered = new ActorRegistered(
+        ActorId::fromString('01936f5e-8a2b-7c3d-9e4f-0000000000b2'),
+        ActorClass::Staff,
+        new ActorProfile(new DisplayName('Mette Holm'), new EmailAddress('mette@example.com')),
+    );
+    $plans = new HookPlans(new FakeTypeCatalog);
+    $command = new CommandName('actor.register');
+
+    $internal = $plans->view($command, 1, plansAccess(), new Plan($registered));
+    $personal = $plans->view($command, 1, plansAccess(ClassificationAccess::Personal), new Plan($registered));
+    $addon = $plans->view($command, 1, plansAccess(ClassificationAccess::Personal), new Plan($registered), ClassificationAccess::Public);
+
+    expect($internal->mutations)->toEqual([$registered->withoutClassified()])
+        ->and($personal->mutations)->toEqual([$registered])
+        ->and($addon->mutations)->toEqual([$registered->withoutClassified()]);
 });

@@ -32,6 +32,7 @@ final class SampleDocument
         '0199a3c1-2b4d-7e5f-8a6b-%012d',
         'da',
         'fixture%d',
+        'fixture%d@example.com',
     ];
 
     private const string DATE_TIME = '2026-03-09T10:00:00+00:00';

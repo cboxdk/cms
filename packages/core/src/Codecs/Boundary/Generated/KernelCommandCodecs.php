@@ -24,7 +24,9 @@ final readonly class KernelCommandCodecs
     public static function all(): array
     {
         return [
+            ActivateActorCodecV1::commandCodec(),
             DeactivateActorCodecV1::commandCodec(),
+            RegisterActorCodecV1::commandCodec(),
             CreateEntryCodecV1::commandCodec(),
             PublishEntryCodecV1::commandCodec(),
             ReviseEntryCodecV1::commandCodec(),

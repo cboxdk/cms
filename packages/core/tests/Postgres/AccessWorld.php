@@ -108,7 +108,7 @@ final class AccessWorld
      * @var list<string>
      */
     public const array TABLES = [
-        'actors', 'audit', 'changeset_principals', 'changeset_reason_texts', 'changeset_register', 'changesets', 'entries',
+        'actor_profiles', 'actors', 'audit', 'changeset_principals', 'changeset_reason_texts', 'changeset_register', 'changesets', 'entries',
         'grants', 'head_snapshots', 'mount_overrides', 'node_routes', 'nodes', 'placement_generations', 'placement_locales',
         'placements', 'read_audit', 'release_log', 'revision_payloads', 'revisions', 'role_permissions', 'roles',
         'service_credential_delegations', 'service_credentials', 'site_locales', 'sites', 'variant_heads',
@@ -164,6 +164,8 @@ final class AccessWorld
         foreach ([self::ALICE => 'staff', self::BOB => 'staff', self::SERVICE => 'service'] as $actor => $class) {
             $superuser->table('actors')->insert(['id' => $actor, 'actor_class' => $class, 'state' => 'active', 'version' => 1, 'credential_generation' => 1, 'created_at' => self::CREATED_AT]);
         }
+
+        $superuser->table('actor_profiles')->insert(['actor_id' => self::ALICE, 'display_name' => 'Alice', 'email' => 'alice@example.com', 'version' => 1]);
 
         $superuser->table('service_credentials')->insert([
             'id' => self::CREDENTIAL,

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "actor.activate, contract version 1",
+  "description": "Activates a pending actor (PRD 5.16, 6.4), the last step of a registration, once its credential is written: in one changeset the actor becomes active at its next version. An actor at another version than the caller read is version_conflict, and an actor that is not pending is refused with validation_failed. The PHP form is Cbox\\Cms\\Core\\Identity\\Domain\\Commands\\ActivateActor, and the generated codec ActivateActorCodecV1 reads it and writes its canonical JSON: every key, sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "actor",
+    "version"
+  ],
+  "properties": {
+    "actor": {
+      "description": "The id of the pending actor to activate.",
+      "$ref": "#/$defs/id"
+    },
+    "version": {
+      "description": "The version of the actor the caller read.",
+      "$ref": "#/$defs/version"
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "version": {
+      "description": "The version of an aggregate that the caller read, an integer of 1 or more; the command is version_conflict when the aggregate is at another version when it commits.",
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

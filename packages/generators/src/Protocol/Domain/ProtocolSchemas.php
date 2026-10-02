@@ -32,7 +32,10 @@ use Cbox\Cms\Contracts\Errors\HttpStatus;
 use Cbox\Cms\Contracts\Errors\Problem;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Idempotency\IdempotencyKey;
+use Cbox\Cms\Contracts\Identity\ActorClass;
 use Cbox\Cms\Contracts\Identity\DeactivationSource;
+use Cbox\Cms\Contracts\Identity\DisplayName;
+use Cbox\Cms\Contracts\Identity\EmailAddress;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Ids\EntryId;
@@ -54,7 +57,9 @@ use Cbox\Cms\Core\Delivery\Domain\Dto\StoredAnswer;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
+use Cbox\Cms\Core\Identity\Domain\Commands\ActivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
+use Cbox\Cms\Core\Identity\Domain\Commands\RegisterActor;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCodec;
 use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
@@ -330,9 +335,20 @@ final readonly class ProtocolSchemas
         $version = ValueBinding::value(AggregateVersion::class);
 
         return [
+            self::command('actor.activate.v1.json', 'ActivateActorCodecV1', ActivateActor::class, [
+                '#/properties/actor' => $id(ActorId::class),
+                '#/properties/version' => $version,
+            ]),
             self::command('actor.deactivate.v1.json', 'DeactivateActorCodecV1', DeactivateActor::class, [
                 '#/properties/actor' => $id(ActorId::class),
                 '#/properties/source' => ValueBinding::enum(DeactivationSource::class),
+            ]),
+            self::command('actor.register.v1.json', 'RegisterActorCodecV1', RegisterActor::class, [
+                '#/properties/actor' => $id(ActorId::class),
+                '#/properties/class' => ValueBinding::enum(ActorClass::class),
+                '#/properties/display_name' => ValueBinding::value(DisplayName::class),
+                '#/properties/email' => ValueBinding::value(EmailAddress::class),
+                '#/properties/responsible' => $id(ActorId::class),
             ]),
             self::command('entry.create.v1.json', 'CreateEntryCodecV1', CreateEntry::class, [
                 '#/properties/entry' => $id(EntryId::class),

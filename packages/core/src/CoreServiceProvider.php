@@ -102,7 +102,9 @@ use Cbox\Cms\Core\Fragments\Boundary\InvalidationConfig;
 use Cbox\Cms\Core\Fragments\Domain\Dto\InvalidationSettings;
 use Cbox\Cms\Core\IdempotencyStore\Boundary\IdempotencyConfig;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
+use Cbox\Cms\Core\Identity\Adapter\ActorActivatedWriter;
 use Cbox\Cms\Core\Identity\Adapter\ActorDeactivatedWriter;
+use Cbox\Cms\Core\Identity\Adapter\ActorRegisteredWriter;
 use Cbox\Cms\Core\Identity\Adapter\PostgresActorVersionLock;
 use Cbox\Cms\Core\Operations\Adapter\PackageOperationRunner;
 use Cbox\Cms\Core\Operations\Domain\OperationRunner;
@@ -434,6 +436,10 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         // actor.deactivate (PRD 5.16): the writer of its mutation, which deactivates the actor and
         // ends its direct grants.
         $this->app->tag([ActorDeactivatedWriter::class], MutationWriters::TAG);
+
+        // actor.register and actor.activate (PRD 5.16): the writers of the registration, which
+        // creates the actor pending with its profile, and of the activation.
+        $this->app->tag([ActorRegisteredWriter::class, ActorActivatedWriter::class], MutationWriters::TAG);
         $this->app->bind(
             VersionLocks::class,
             static fn (Application $app): VersionLocks => new VersionLocks(...self::tagged($app, VersionLocks::TAG, VersionLock::class)),

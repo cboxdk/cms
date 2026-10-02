@@ -22,8 +22,11 @@ use Cbox\Cms\Contracts\Fields\MapValue;
 use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Fields\NullValue;
 use Cbox\Cms\Contracts\Fields\TextValue;
+use Cbox\Cms\Contracts\Identity\ActorClass;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\DeactivationSource;
+use Cbox\Cms\Contracts\Identity\DisplayName;
+use Cbox\Cms\Contracts\Identity\EmailAddress;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
@@ -32,10 +35,12 @@ use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Pipeline\Command;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\ActivateActorCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\CreateEntryCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\CreatePlacementCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\DeactivateActorCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\PublishEntryCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\RegisterActorCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ReleaseVariantCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ReviseEntryCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\SetPlacementWindowCodecV1;
@@ -44,7 +49,9 @@ use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
+use Cbox\Cms\Core\Identity\Domain\Commands\ActivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
+use Cbox\Cms\Core\Identity\Domain\Commands\RegisterActor;
 use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
 use Cbox\Cms\Core\Placements\Domain\Dto\LocaleSlug;
@@ -365,6 +372,9 @@ it('decodes every command it encodes into an equal command', function (JsonCodec
     'placement.set_window hidden' => [new SetPlacementWindowCodecV1, new SetPlacementWindow(PlacementId::fromString(COMMAND_PLACEMENT), new AggregateVersion(3), new Locale('da'), null)],
     'actor.deactivate' => [new DeactivateActorCodecV1, new DeactivateActor(ActorId::fromString(COMMAND_ACTOR))],
     'actor.deactivate for inactivity' => [new DeactivateActorCodecV1, new DeactivateActor(ActorId::fromString(COMMAND_ACTOR), DeactivationSource::Inactivity)],
+    'actor.register of staff' => [new RegisterActorCodecV1, new RegisterActor(ActorId::fromString(COMMAND_ACTOR), ActorClass::Staff, new DisplayName('Mette Holm ✓'), new EmailAddress('mette@example.com'))],
+    'actor.register of a service' => [new RegisterActorCodecV1, new RegisterActor(ActorId::fromString(COMMAND_ACTOR), ActorClass::Service, new DisplayName('Nightly import'), new EmailAddress('ops+import@example.co.uk'), ActorId::fromString(COMMAND_ENTRY))],
+    'actor.activate' => [new ActivateActorCodecV1, new ActivateActor(ActorId::fromString(COMMAND_ACTOR), new AggregateVersion(1))],
 ]);
 
 it('reads the fields of entry.create as JSON gives them, and writes them back in the same form', function (): void {
@@ -497,5 +507,44 @@ it('refuses every rule of placement.create, placement.set_window and actor.deact
         'a source that is not one' => [commandJson($deactivate, ['source' => 'scim']), 'source'],
         'a source of null' => [commandJson($deactivate, ['source' => null]), 'source'],
         ...idFixtures($deactivate, 'actor'),
+    ]);
+});
+
+it('refuses every rule of actor.register and actor.activate that their JSON Schemas state, as the TypeScript validators and the schemas do', function (): void {
+    $register = ['actor' => COMMAND_ACTOR, 'class' => 'staff', 'display_name' => 'Mette Holm', 'email' => 'mette@example.com'];
+    $activate = ['actor' => COMMAND_ACTOR, 'version' => 1];
+
+    commandCrossCheck(new RegisterActorCodecV1, 'actor.register.v1.json', [
+        'a staff registration' => [commandJson($register), null],
+        'a service registration with its responsible person' => [commandJson($register, ['class' => 'service', 'responsible' => COMMAND_ENTRY]), null],
+        'an end user, which the action refuses' => [commandJson($register, ['class' => 'end_user']), null],
+        'a responsible person of null' => [commandJson($register, ['responsible' => null]), null],
+        'a display name of 200 characters of four bytes each' => [commandJson($register, ['display_name' => str_repeat('😀', 200)]), null],
+        'a display name with inner spaces and letters of any script' => [commandJson($register, ['display_name' => 'Søren Ærø-Ågård']), null],
+        'an unknown key' => [commandJson($register, ['state' => 'active']), ''],
+        ...idFixtures($register, 'actor'),
+        'a class that is not one' => [commandJson($register, ['class' => 'agent']), 'class'],
+        'the class missing' => [commandJson($register, omit: ['class']), 'class'],
+        'the display name missing' => [commandJson($register, omit: ['display_name']), 'display_name'],
+        'an empty display name' => [commandJson($register, ['display_name' => '']), 'display_name'],
+        'a display name that starts with a space' => [commandJson($register, ['display_name' => ' Mette']), 'display_name'],
+        'a display name that ends with a space' => [commandJson($register, ['display_name' => 'Mette ']), 'display_name'],
+        'a display name with a line break' => [commandJson($register, ['display_name' => "Mette\nHolm"]), 'display_name'],
+        'a display name of 201 characters' => [commandJson($register, ['display_name' => str_repeat('m', 201)]), 'display_name'],
+        'a display name that is a number' => [commandJson($register, ['display_name' => 7]), 'display_name'],
+        'the email missing' => [commandJson($register, omit: ['email']), 'email'],
+        'an email without an @' => [commandJson($register, ['email' => 'mette.example.com']), 'email'],
+        'an email without a dot in its domain' => [commandJson($register, ['email' => 'mette@localhost']), 'email'],
+        'an email with a space' => [commandJson($register, ['email' => 'mette holm@example.com']), 'email'],
+        'an email with two @' => [commandJson($register, ['email' => 'mette@holm@example.com']), 'email'],
+        'an email of 255 characters' => [commandJson($register, ['email' => str_repeat('m', 243).'@example.com']), 'email'],
+        'a responsible person that is not an id' => [commandJson($register, ['responsible' => 'someone']), 'responsible'],
+    ]);
+
+    commandCrossCheck(new ActivateActorCodecV1, 'actor.activate.v1.json', [
+        'an activation' => [commandJson($activate), null],
+        'an unknown key' => [commandJson($activate, ['source' => 'local']), ''],
+        ...idFixtures($activate, 'actor'),
+        ...versionFixtures($activate, 'version'),
     ]);
 });

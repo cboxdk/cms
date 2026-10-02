@@ -19,6 +19,7 @@ use Cbox\Cms\Contracts\Identity\AccessContext;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\TypeId;
+use Cbox\Cms\Contracts\Plans\ClassifiedMutation;
 use Cbox\Cms\Contracts\Plans\Mutation;
 use Cbox\Cms\Contracts\Plans\Mutations\RevisionCreated;
 use Cbox\Cms\Contracts\Plans\Plan;
@@ -33,7 +34,9 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\RefusedChange;
  *
  * view() filters every revision's fields to the call's classification access, with each field's
  * classification from the TypeCatalog: a field above the access, or one the type does not declare,
- * is left out, so a hook sees only what the actor may read. The revisions the plan's releases make
+ * is left out, so a hook sees only what the actor may read. A ClassifiedMutation whose
+ * classification the access does not allow, such as the profile of an actor actor.register
+ * creates, is shown without its classified values (withoutClassified()). The revisions the plan's releases make
  * public, which the pipeline read before the hooks, are filtered the same way. apply() takes a transform hook's
  * changes in order and refuses the first that names a variant the plan writes no revision of, or
  * writes more than one of, a field the revision's type does not declare, or a field above the
@@ -64,7 +67,11 @@ final readonly class HookPlans
             $access->principal,
             $classification,
             ...array_map(
-                fn (Mutation $mutation): Mutation => $mutation instanceof RevisionCreated ? $this->visible($mutation, $classification) : $mutation,
+                fn (Mutation $mutation): Mutation => match (true) {
+                    $mutation instanceof RevisionCreated => $this->visible($mutation, $classification),
+                    $mutation instanceof ClassifiedMutation && ! $classification->allows($mutation->classification()) => $mutation->withoutClassified(),
+                    default => $mutation,
+                },
                 $plan->mutations(),
             ),
         )->withReleases(...array_map(
