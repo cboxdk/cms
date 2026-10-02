@@ -19,12 +19,16 @@ use Cbox\Cms\Contracts\Identity\ActorState;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\DisplayName;
 use Cbox\Cms\Contracts\Identity\EmailAddress;
+use Cbox\Cms\Contracts\Identity\GrantEffect;
 use Cbox\Cms\Contracts\Identity\IssuerKind;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Ids\GrantId;
 use Cbox\Cms\Contracts\Ids\NodeId;
+use Cbox\Cms\Contracts\Ids\RoleId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Core\Access\Domain\Commands\AssignGrant;
 use Cbox\Cms\Core\Identity\Domain\Commands\ActivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\RegisterActor;
@@ -44,10 +48,17 @@ use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandAuthorizer;
  * command by the installation operator on an envelope of the maintenance issuer runs; an unlisted
  * command, another actor or another issuer is refused as unauthorized and commits nothing. Invariant
  * 37 still holds for every actor but the genesis: a command whose actor is pending is refused with
- * actor_not_active before it is authorized.
+ * actor_not_active before it is authorized. role.create and grant.assign run only through the access
+ * bootstrap's authorizer, which runs nothing else.
  */
 
 const MAINTAINED_ACTOR = '01936f5e-8a2b-7c3d-9e4f-000000000501';
+
+const BOOTSTRAP_GRANT = '01936f5e-8a2b-7c3d-9e4f-000000000502';
+
+const BOOTSTRAP_ROLE = '01936f5e-8a2b-7c3d-9e4f-000000000503';
+
+const BOOTSTRAP_NODE = '01936f5e-8a2b-7c3d-9e4f-000000000504';
 
 /**
  * The actor command fakes with an active service operator, named in the installation, and the
@@ -113,7 +124,7 @@ it('refuses a command that is not on its list, also by the operator on a mainten
 
     expect($result->outcome())->toBe(Outcome::Rejected)
         ->and(ActorCommandFakes::errors($result))->toBe(['unauthorized'])
-        ->and($result->errors[0]->message)->toBe('A maintenance command runs only actor.activate, actor.register, grant.assign, role.create, site.register, not actor.deactivate.')
+        ->and($result->errors[0]->message)->toBe('A maintenance command runs only actor.activate, actor.register, site.register, not actor.deactivate.')
         ->and($world->committer->pending)->toBe([]);
 });
 
@@ -178,4 +189,26 @@ it('still refuses a command whose actor is pending with actor_not_active, the ge
         ->and(ActorCommandFakes::errors($result))->toBe(['actor_not_active'])
         ->and($asOperator->outcome())->toBe(Outcome::Committed)
         ->and($world->committer->pending)->toHaveCount(1);
+});
+
+it('allows role.create and grant.assign only to the access bootstrap\'s authorizer, which allows nothing else', function (): void {
+    [$world, $operator] = maintenanceWorld();
+    $installation = new FakeInstallationOperator($operator);
+    $aggregates = new RegisterActorAggregates(ActorId::fromString(MAINTAINED_ACTOR), null, null, null);
+    $grant = new AssignGrant(GrantId::fromString(BOOTSTRAP_GRANT), ActorId::fromString(MAINTAINED_ACTOR), RoleId::fromString(BOOTSTRAP_ROLE), NodeId::fromString(BOOTSTRAP_NODE), GrantEffect::Allow);
+    $setup = new MaintenanceAuthorizer($installation);
+    $bootstrap = MaintenanceAuthorizer::forAccessBootstrap($installation);
+    $decide = static fn (MaintenanceAuthorizer $authorizer, string $command): bool => $authorizer->authorize(
+        maintenanceAccess($operator),
+        new CommandName($command),
+        $command === 'grant.assign' ? $grant : maintainedStaff(),
+        $aggregates,
+        maintenanceEnvelope($operator, 'access-bootstrap:test'),
+    )->allowed();
+
+    expect(array_map(static fn (string $command): bool => $decide($setup, $command), ['actor.register', 'role.create', 'grant.assign']))->toBe([true, false, false])
+        ->and(array_map(static fn (string $command): bool => $decide($bootstrap, $command), ['actor.register', 'site.register', 'role.create', 'grant.assign']))->toBe([false, false, true, true])
+        ->and($setup->authorize(maintenanceAccess($operator), new CommandName('grant.assign'), $grant, $aggregates, maintenanceEnvelope($operator))->reason)
+        ->toBe('A maintenance command runs only actor.activate, actor.register, site.register, not grant.assign.')
+        ->and($bootstrap->authorize(maintenanceAccess($operator), new CommandName('grant.assign'), $grant, $aggregates, maintenanceEnvelope($world->admin))->allowed())->toBeFalse();
 });

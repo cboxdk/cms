@@ -9,6 +9,9 @@ import { validate, type ObjectRule, type Validation } from '../validation';
 
 /** The values of ErrorCode. */
 export type ErrorCode =
+  | 'access_bootstrap_done'
+  | 'access_bootstrap_production'
+  | 'access_bootstrap_role_conflict'
   | 'actor_not_active'
   | 'addon_service_actor_unavailable'
   | 'agent_visibility_forbidden'
@@ -131,6 +134,7 @@ export type ErrorCode =
   | 'login_state_mismatch'
   | 'login_tenant_claim_missing'
   | 'login_tenant_mismatch'
+  | 'maintenance_process_required'
   | 'owner_credentials_exposed'
   | 'partition_lock_timeout'
   | 'partition_missing'
@@ -282,6 +286,9 @@ const catalogErrorV1Rule: ObjectRule = {
       value: {
         kind: 'enum',
         values: [
+          'access_bootstrap_done',
+          'access_bootstrap_production',
+          'access_bootstrap_role_conflict',
           'actor_not_active',
           'addon_service_actor_unavailable',
           'agent_visibility_forbidden',
@@ -404,6 +411,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'login_state_mismatch',
           'login_tenant_claim_missing',
           'login_tenant_mismatch',
+          'maintenance_process_required',
           'owner_credentials_exposed',
           'partition_lock_timeout',
           'partition_missing',
@@ -519,6 +527,9 @@ const problemV1Rule: ObjectRule = {
       value: {
         kind: 'enum',
         values: [
+          'access_bootstrap_done',
+          'access_bootstrap_production',
+          'access_bootstrap_role_conflict',
           'actor_not_active',
           'addon_service_actor_unavailable',
           'agent_visibility_forbidden',
@@ -641,6 +652,7 @@ const problemV1Rule: ObjectRule = {
           'login_state_mismatch',
           'login_tenant_claim_missing',
           'login_tenant_mismatch',
+          'maintenance_process_required',
           'owner_credentials_exposed',
           'partition_lock_timeout',
           'partition_missing',

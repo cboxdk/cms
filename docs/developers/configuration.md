@@ -214,6 +214,14 @@ The login policy is read the first time a login asks it; a policy out of form th
 
 The installation operator, the service actor the maintenance commands run as, has no key. `cms:install` creates it once, and the kernel keeps its id in the table `installation`, never in `.env` or the configuration, so every process and every deploy of an installation finds the same one, and no deploy can name another. The operator is created on `cbox-cms.database.owner_connection`, in the maintenance process. See [Maintenance commands](maintenance-commands.md).
 
+## Access
+
+`cms:access:bootstrap` reads `cbox-cms.access` (PRD 5.10); see [Maintenance commands](maintenance-commands.md#the-access-bootstrap). A handle out of form fails when the command starts, with exit 78.
+
+| Key | Default | What it does |
+|---|---|---|
+| `cbox-cms.access.bootstrap_role` | `administrator` | The handle of the bootstrap role: a lowercase letter and up to 62 lowercase letters, digits and underscores. The bootstrap creates the role with every command and query of the registry and the ceiling sensitive, or uses the role with the handle when one exists with that ceiling and every one of them. |
+
 ## Generators
 
 | Key | Default | What it does |

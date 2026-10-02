@@ -22,7 +22,8 @@ use Override;
  * runs in a fresh installation, before any actor holds a grant. It allows a command only when all
  * of these hold, and refuses every other call as unauthorized:
  *
- * - the command is one of COMMANDS, the commands that set up an installation;
+ * - the command is on its list: COMMANDS, the commands that set up an installation, or for the
+ *   one-time access bootstrap alone BOOTSTRAP_COMMANDS (forAccessBootstrap());
  * - the envelope comes from the internal issuer maintenance;
  * - the principal is the installation operator, acting on behalf of no one, and the envelope's
  *   actor is the operator too.
@@ -36,21 +37,44 @@ use Override;
 final readonly class MaintenanceAuthorizer implements CommandAuthorizer
 {
     /**
-     * The commands the operator may run: the actor commands, and the commands of the first site,
-     * the roles and the grants, which later tasks of block B1 add (site.register, role.create and
-     * grant.assign).
+     * The commands the operator may run to set up an installation: the actor commands and the
+     * command of the first site.
      *
      * @var list<string>
      */
-    public const array COMMANDS = ['actor.activate', 'actor.register', 'grant.assign', 'role.create', 'site.register'];
+    public const array COMMANDS = ['actor.activate', 'actor.register', 'site.register'];
 
-    public function __construct(private InstallationOperator $installation) {}
+    /**
+     * The commands the operator may run in the one-time access bootstrap alone (PRD 5.10): the
+     * bootstrap role and its grant to the first staff member. No other maintenance command gives
+     * access, which belongs to staff members with roles.
+     *
+     * @var list<string>
+     */
+    public const array BOOTSTRAP_COMMANDS = ['grant.assign', 'role.create'];
+
+    /**
+     * @param  list<string>  $commands  the commands it allows, COMMANDS unless built for the bootstrap
+     */
+    public function __construct(
+        private InstallationOperator $installation,
+        private array $commands = self::COMMANDS,
+    ) {}
+
+    /**
+     * The authorizer of the one-time access bootstrap's pipeline, which allows BOOTSTRAP_COMMANDS
+     * and nothing else.
+     */
+    public static function forAccessBootstrap(InstallationOperator $installation): self
+    {
+        return new self($installation, self::BOOTSTRAP_COMMANDS);
+    }
 
     #[Override]
     public function authorize(AccessContext $access, CommandName $command, Command $input, Aggregates $aggregates, Envelope $envelope): Authorization
     {
-        if (! in_array($command->value, self::COMMANDS, true)) {
-            return Authorization::refuse(sprintf('A maintenance command runs only %s, not %s.', implode(', ', self::COMMANDS), $command->value));
+        if (! in_array($command->value, $this->commands, true)) {
+            return Authorization::refuse(sprintf('A maintenance command runs only %s, not %s.', implode(', ', $this->commands), $command->value));
         }
 
         if ($envelope->surface !== IssuingSurface::Maintenance) {

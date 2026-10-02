@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Cli;
 
+use Cbox\Cms\Cli\Console\AccessBootstrapCommand;
 use Cbox\Cms\Cli\Console\ActionsCommand;
 use Cbox\Cms\Cli\Console\BuildCommand;
 use Cbox\Cms\Cli\Console\DoctorCommand;
@@ -52,6 +53,7 @@ final class CliServiceProvider extends ServiceProvider implements DeclaresScanRo
     {
         if ($this->app->runningInConsole()) {
             $this->commands([
+                AccessBootstrapCommand::class,
                 ActionsCommand::class,
                 BuildCommand::class,
                 DoctorCommand::class,

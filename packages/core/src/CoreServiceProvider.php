@@ -132,9 +132,14 @@ use Cbox\Cms\Core\Identity\Adapter\ActorRegisteredWriter;
 use Cbox\Cms\Core\Identity\Adapter\PostgresActorListing;
 use Cbox\Cms\Core\Identity\Adapter\PostgresActorVersionLock;
 use Cbox\Cms\Core\Identity\Domain\ActorListing;
+use Cbox\Cms\Core\Maintenance\Actions\BootstrapAccess;
 use Cbox\Cms\Core\Maintenance\Actions\RunMaintenanceCommand;
 use Cbox\Cms\Core\Maintenance\Adapter\PostgresInstallationOperator;
 use Cbox\Cms\Core\Maintenance\Adapter\PostgresOperatorGenesis;
+use Cbox\Cms\Core\Maintenance\Adapter\TransactionalAccessBootstrapState;
+use Cbox\Cms\Core\Maintenance\Boundary\BootstrapConfig;
+use Cbox\Cms\Core\Maintenance\Domain\AccessBootstrapState;
+use Cbox\Cms\Core\Maintenance\Domain\Dto\BootstrapSettings;
 use Cbox\Cms\Core\Maintenance\Domain\InstallationOperator;
 use Cbox\Cms\Core\Maintenance\Domain\MaintenanceAuthorizer;
 use Cbox\Cms\Core\Maintenance\Domain\OperatorGenesis;
@@ -654,22 +659,28 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         );
         $this->app->when(RunMaintenanceCommand::class)
             ->needs(CommandPipeline::class)
-            ->give(static fn (Application $app): CommandPipeline => new CommandPipeline(
-                $app->make(WriteActions::class),
-                $app->make(ActorDirectory::class),
+            ->give(static fn (Application $app): CommandPipeline => self::maintenancePipeline(
+                $app,
                 new MaintenanceAuthorizer($app->make(InstallationOperator::class)),
-                $app->make(TypeCatalog::class),
-                $app->make(FieldValidation::class),
-                $app->make(RevisionContents::class),
-                $app->make(ChangesetCommitter::class),
-                $app->make(IdempotencyStore::class),
-                $app->make(ReceiptStore::class),
-                $app->make(CommandContentHasher::class),
-                $app->make(IdempotencySettings::class),
-                $app->make(CommandTransaction::class),
-                $app->make(HookRunner::class),
-                $app->make(PipelineTelemetry::class),
-                $app->make(AwaitWaitLevel::class),
+            ));
+
+        // The one-time access bootstrap (PRD 5.10, 5.16): it reads its state as the installation
+        // operator, its settings are built on each resolution, so they follow the configuration and
+        // the environment, and it runs its commands through a RunMaintenanceCommand of its own, whose
+        // pipeline has the MaintenanceAuthorizer built for the bootstrap: role.create and
+        // grant.assign, which no other maintenance command may run, and nothing else.
+        $this->app->bind(AccessBootstrapState::class, TransactionalAccessBootstrapState::class);
+        $this->app->bind(
+            BootstrapSettings::class,
+            static fn (Application $app): BootstrapSettings => BootstrapConfig::read($app->make(Repository::class), $app->environment()),
+        );
+        $this->app->when(BootstrapAccess::class)
+            ->needs(RunMaintenanceCommand::class)
+            ->give(static fn (Application $app): RunMaintenanceCommand => new RunMaintenanceCommand(
+                $app->make(InstallationOperator::class),
+                $app->make(AccessContexts::class),
+                $app->make(IdGenerator::class),
+                self::maintenancePipeline($app, MaintenanceAuthorizer::forAccessBootstrap($app->make(InstallationOperator::class))),
             ));
 
         // The delivery API's resolve (PRD 8.9, 8.10, 8.12): its documents as canonical JSON, its
@@ -791,6 +802,31 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
     /**
      * The owner connection's name, when this process has it configured; null otherwise.
      */
+    /**
+     * The maintenance pipeline (PRD 5.16): the kernel's command pipeline with the authorizer given,
+     * a MaintenanceAuthorizer, in place of the kernel's.
+     */
+    private static function maintenancePipeline(Application $app, MaintenanceAuthorizer $authorizer): CommandPipeline
+    {
+        return new CommandPipeline(
+            $app->make(WriteActions::class),
+            $app->make(ActorDirectory::class),
+            $authorizer,
+            $app->make(TypeCatalog::class),
+            $app->make(FieldValidation::class),
+            $app->make(RevisionContents::class),
+            $app->make(ChangesetCommitter::class),
+            $app->make(IdempotencyStore::class),
+            $app->make(ReceiptStore::class),
+            $app->make(CommandContentHasher::class),
+            $app->make(IdempotencySettings::class),
+            $app->make(CommandTransaction::class),
+            $app->make(HookRunner::class),
+            $app->make(PipelineTelemetry::class),
+            $app->make(AwaitWaitLevel::class),
+        );
+    }
+
     public static function ownerConnection(Repository $config): ?string
     {
         $owner = $config->get('cbox-cms.database.owner_connection');

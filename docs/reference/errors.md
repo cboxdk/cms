@@ -14,6 +14,9 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 
 | Code | HTTP | Exit | MCP | Retry |
 |---|---|---|---|---|
+| [`access_bootstrap_done`](#access_bootstrap_done) | 409 | 77 | tool_error | no |
+| [`access_bootstrap_production`](#access_bootstrap_production) | 403 | 77 | tool_error | no |
+| [`access_bootstrap_role_conflict`](#access_bootstrap_role_conflict) | 409 | 65 | tool_error | no |
 | [`actor_not_active`](#actor_not_active) | 403 | 77 | tool_error | no |
 | [`addon_service_actor_unavailable`](#addon_service_actor_unavailable) | 500 | 78 | internal_error | no |
 | [`agent_visibility_forbidden`](#agent_visibility_forbidden) | 403 | 77 | tool_error | no |
@@ -136,6 +139,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`login_state_mismatch`](#login_state_mismatch) | 401 | 77 | tool_error | no |
 | [`login_tenant_claim_missing`](#login_tenant_claim_missing) | 401 | 77 | tool_error | no |
 | [`login_tenant_mismatch`](#login_tenant_mismatch) | 401 | 77 | tool_error | no |
+| [`maintenance_process_required`](#maintenance_process_required) | 500 | 78 | internal_error | no |
 | [`owner_credentials_exposed`](#owner_credentials_exposed) | 500 | 78 | internal_error | no |
 | [`partition_lock_timeout`](#partition_lock_timeout) | 503 | 75 | internal_error | yes |
 | [`partition_missing`](#partition_missing) | 503 | 75 | internal_error | yes |
@@ -225,6 +229,33 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`version_conflict`](#version_conflict) | 409 | 65 | tool_error | no |
 
 ## Codes
+
+### access_bootstrap_done
+
+The one-time access bootstrap was refused, because a staff member holds a grant already (PRD 5.10, 5.16), so it has done its work once. Nothing was committed. Give further access in the panel as a staff member whose roles allow it; the escalation guard holds every grant to what its issuer has.
+
+- HTTP status: 409 Conflict
+- CLI exit code: 77 (EX_NOPERM)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### access_bootstrap_production
+
+The one-time access bootstrap does not run in the production environment (PRD 5.10): full access in production comes only from a role that only actors on the emergency access list can assign, and that list is not built yet. Nothing was committed. Bootstrap access in an environment that is not production.
+
+- HTTP status: 403 Forbidden
+- CLI exit code: 77 (EX_NOPERM)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### access_bootstrap_role_conflict
+
+The one-time access bootstrap was refused, because a role has the handle in cbox-cms.access.bootstrap_role already and it is not the full role the bootstrap grants: its ceiling is below sensitive, or it lacks a command or query of the registry (PRD 5.10). Nothing was committed. Name another handle in cbox-cms.access.bootstrap_role.
+
+- HTTP status: 409 Conflict
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
 
 ### actor_not_active
 
@@ -1322,6 +1353,15 @@ The login was refused: the token's tenant claim names another tenant than the on
 - HTTP status: 401 Unauthorized
 - CLI exit code: 77 (EX_NOPERM)
 - MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### maintenance_process_required
+
+The command runs only in the maintenance process (PRD 4.2, 5.16), the console process that has the owner connection and runs the migrations, and this process serves HTTP, runs queued jobs or has no owner connection. Nothing ran. Run it from the console of the maintenance process, with cbox-cms.database.owner_connection naming the owner role's connection.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 78 (EX_CONFIG)
+- MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
 ### owner_credentials_exposed

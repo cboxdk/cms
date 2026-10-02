@@ -26,6 +26,9 @@ enum ErrorCode: string
     /** Lowercase words and digits joined by underscores, starting with a letter. */
     public const string PATTERN = '/\A[a-z][a-z0-9]*(?:_[a-z0-9]+)*\z/';
 
+    case AccessBootstrapDone = 'access_bootstrap_done';
+    case AccessBootstrapProduction = 'access_bootstrap_production';
+    case AccessBootstrapRoleConflict = 'access_bootstrap_role_conflict';
     case ActorNotActive = 'actor_not_active';
     case AddonServiceActorUnavailable = 'addon_service_actor_unavailable';
     case AgentVisibilityForbidden = 'agent_visibility_forbidden';
@@ -148,6 +151,7 @@ enum ErrorCode: string
     case LoginStateMismatch = 'login_state_mismatch';
     case LoginTenantClaimMissing = 'login_tenant_claim_missing';
     case LoginTenantMismatch = 'login_tenant_mismatch';
+    case MaintenanceProcessRequired = 'maintenance_process_required';
     case OwnerCredentialsExposed = 'owner_credentials_exposed';
     case PartitionLockTimeout = 'partition_lock_timeout';
     case PartitionMissing = 'partition_missing';
@@ -242,6 +246,21 @@ enum ErrorCode: string
     public function entry(): ErrorEntry
     {
         return match ($this) {
+            self::AccessBootstrapDone => $this->caller(
+                HttpStatus::Conflict,
+                ExitCode::NoPerm,
+                'The one-time access bootstrap was refused, because a staff member holds a grant already (PRD 5.10, 5.16), so it has done its work once. Nothing was committed. Give further access in the panel as a staff member whose roles allow it; the escalation guard holds every grant to what its issuer has.',
+            ),
+            self::AccessBootstrapProduction => $this->caller(
+                HttpStatus::Forbidden,
+                ExitCode::NoPerm,
+                'The one-time access bootstrap does not run in the production environment (PRD 5.10): full access in production comes only from a role that only actors on the emergency access list can assign, and that list is not built yet. Nothing was committed. Bootstrap access in an environment that is not production.',
+            ),
+            self::AccessBootstrapRoleConflict => $this->caller(
+                HttpStatus::Conflict,
+                ExitCode::DataErr,
+                'The one-time access bootstrap was refused, because a role has the handle in cbox-cms.access.bootstrap_role already and it is not the full role the bootstrap grants: its ceiling is below sensitive, or it lacks a command or query of the registry (PRD 5.10). Nothing was committed. Name another handle in cbox-cms.access.bootstrap_role.',
+            ),
             self::ActorNotActive => $this->caller(
                 HttpStatus::Forbidden,
                 ExitCode::NoPerm,
@@ -679,6 +698,9 @@ enum ErrorCode: string
             ),
             self::LoginTenantMismatch => $this->credential(
                 'The login was refused: the token\'s tenant claim names another tenant than the one the login connection is pinned to (PRD 5.16), so no session was issued. An issuer with several tenants is trusted only for the pinned tenant. Log in with an account of the organisation the connection is for.',
+            ),
+            self::MaintenanceProcessRequired => $this->violation(
+                'The command runs only in the maintenance process (PRD 4.2, 5.16), the console process that has the owner connection and runs the migrations, and this process serves HTTP, runs queued jobs or has no owner connection. Nothing ran. Run it from the console of the maintenance process, with cbox-cms.database.owner_connection naming the owner role\'s connection.',
             ),
             self::OwnerCredentialsExposed => $this->violation(
                 'The core refused to boot a process that serves HTTP or runs queued jobs, because the owner connection is configured in it (PRD 4.2). Give the owner connection to the maintenance process alone, which runs the migrations and cms:partitions:maintain.',

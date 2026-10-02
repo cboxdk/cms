@@ -242,6 +242,17 @@ return [
     ],
 
     /*
+     * Access (PRD 5.10, 5.16). `cms:access:bootstrap` gives the first staff member access once, in
+     * the maintenance process: it creates the bootstrap role with the handle bootstrap_role, a
+     * lowercase letter and up to 62 lowercase letters, digits and underscores, with every command
+     * and query of the registry and the ceiling sensitive, and grants it on a node. It is refused
+     * once any staff member holds a grant, and in the production environment.
+     */
+    'access' => [
+        'bootstrap_role' => 'administrator',
+    ],
+
+    /*
      * The invalidation subscriber (PRD 8.12 point 1), fragments.invalidate on the critical lane. Each
      * purge writes a fence that lives fence_seconds, 1 to 86400: while it lives, the fragment store
      * refuses a fragment of the purged key built by a read that may not have seen the change. Keep

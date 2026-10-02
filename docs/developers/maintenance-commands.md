@@ -1,7 +1,7 @@
 ---
 title: Maintenance commands
 weight: 30
-description: How cms:install creates the installation operator once, why its genesis is the one exception to invariant 37, and how the maintenance commands run as the operator through a pipeline that allows only a named list of commands.
+description: How cms:install creates the installation operator once, why its genesis is the one exception to invariant 37, how the maintenance commands run as the operator through a pipeline that allows only a named list of commands, and how cms:access:bootstrap gives the first staff member access once.
 ---
 
 # Maintenance commands
@@ -64,10 +64,10 @@ The operator holds no grant, so the kernel's own authorizer refuses it every com
 | `actor.register` | block B1, task 4; run by `cms:staff:create` | a staff or service actor, pending |
 | `actor.activate` | block B1, task 4; run by `cms:staff:create` | a pending actor, active |
 | `site.register` | block B1, task 6 | a site with its root node and locales, from `cbox-cms.sites`, through `cms:sites:sync` ([site commands](../addons/site-commands.md)) |
-| `role.create` | block B1, the access bootstrap (task 24) | a role with its permissions |
-| `grant.assign` | block B1, the access bootstrap (task 24) | a grant of a role on a node |
 
-The list names all five, also the commands a later task of block B1 builds; a name the registry does not know never reaches the authorizer, because the pipeline finds no action for it. A task that builds one of them adds, in the same change:
+`role.create` and `grant.assign` are not on the list. Only the access bootstrap runs them, through a pipeline of its own whose authorizer allows those two and nothing else (`MaintenanceAuthorizer::BOOTSTRAP_COMMANDS`); see [the access bootstrap](#the-access-bootstrap).
+
+The list names all three, also the commands a later task of block B1 builds; a name the registry does not know never reaches the authorizer, because the pipeline finds no action for it. A task that builds one of them adds, in the same change:
 
 1. its console command in the cli, which builds the command and its stable unit of work and calls `RunMaintenanceCommand`, in the maintenance process only;
 2. its case in `packages/core/tests/Actions/MaintenanceAuthorizerTest.php` and a Postgres test of the console command, with a rerun that replays;
@@ -78,3 +78,28 @@ A command that is not in the list today, such as `actor.deactivate`, is added to
 ## cms:staff:create
 
 `php artisan cms:staff:create --email=<address> --name=<display name>` is the first maintenance command of the identity module: it registers a local member of staff as the operator, `actor.register`, then the credential, then `actor.activate`, and prints the actor's id. The password is read hidden from the terminal or with `--password-stdin` from standard input, never from an argument. [Local accounts](../security/local-accounts.md#creating-a-member-of-staff) describes the order, what a failure leaves and the exit codes. The command lives in the identity module, `Cbox\Cms\Identity\Cli\Console\StaffCreateCommand`, because the cli module may not use the identity module.
+
+## The access bootstrap
+
+A fresh installation has no staff member with a grant, and the escalation guard lets an actor give only what it holds itself (PRD 5.10, invariant 31), so nobody could give the first grant. `php artisan cms:access:bootstrap <actor> <node>` gives it once: it creates the bootstrap role and grants it to an active staff actor on a node, as the installation operator.
+
+The bootstrap role has the handle in `cbox-cms.access.bootstrap_role` (`administrator` by default), every command and query of the registry as its permissions, and the ceiling sensitive. When a role with the handle exists with that ceiling and every one of those permissions, as after a run whose grant was rejected, the bootstrap uses it and creates none.
+
+It runs in the maintenance process only, the console process with the owner connection, and through `RunMaintenanceCommand`, so the role and the grant are a `role.create` and a `grant.assign` changeset by the operator from the internal issuer `maintenance`, each with its audit row. Their pipeline has the `MaintenanceAuthorizer` built with `forAccessBootstrap()`, which allows those two commands to the operator and nothing else. That authorizer takes the place of the kernel's, so the escalation guard and the step-up that a grant of an administrative role needs do not apply: the operator holds nothing, and step-up is a person's fresh login in the panel, which the maintenance process does not have.
+
+It is refused, with nothing committed:
+
+| Exit | Code | When |
+|---|---|---|
+| 78 | [`maintenance_process_required`](../reference/errors.md#maintenance_process_required) | the process serves HTTP, runs queued jobs or has no owner connection |
+| 77 | [`access_bootstrap_production`](../reference/errors.md#access_bootstrap_production) | the environment is production |
+| 78 | [`installation_operator_missing`](../reference/errors.md#installation_operator_missing) | the installation has no operator; run `cms:install` first |
+| 77 | [`access_bootstrap_done`](../reference/errors.md#access_bootstrap_done) | any staff member holds a grant, also one that has ended |
+| 65 | [`validation_failed`](../reference/errors.md#validation_failed) | the node does not exist, or the actor is not a staff actor |
+| 77 | [`actor_not_active`](../reference/errors.md#actor_not_active) | the staff actor is not active |
+| 65 | [`access_bootstrap_role_conflict`](../reference/errors.md#access_bootstrap_role_conflict) | a role has the handle and is not the bootstrap role |
+| 64 | | the actor or the node is not a UUIDv7 |
+
+A command the pipeline rejects exits with the code of its first error. Two runs at once commit at most one grant: the grant's unit of work is `access-bootstrap:grant` for every run, so the second claims the same idempotency key, waits for the first and is rejected with [`idempotency_conflict`](../reference/errors.md#idempotency_conflict), or with [`idempotency_in_flight`](../reference/errors.md#idempotency_in_flight) while the first is still running.
+
+The bootstrap never runs in production. PRD 5.10 lets full access in production come only from a role that only actors on the emergency access list can assign, and that list comes with block B6. Until then an installation in production has no way to give its first staff member access; the decision is recorded for review in `PROGRESS.md`.
