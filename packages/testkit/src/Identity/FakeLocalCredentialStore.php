@@ -29,7 +29,7 @@ use Override;
  * FakeClock's time, and binds an account only to an actor its ActorDirectory knows: by default a
  * FakeIdentity of its own, in which actor() makes active staff actors; a test that registers
  * actors elsewhere gives that directory. It keeps a reset token only as its SHA-256, as a real
- * store does.
+ * store does, and resetTokens() counts the tokens it holds.
  */
 #[Experimental]
 final class FakeLocalCredentialStore implements LocalCredentialStore, LocalCredentialStoreHarness
@@ -123,18 +123,52 @@ final class FakeLocalCredentialStore implements LocalCredentialStore, LocalCrede
     }
 
     #[Override]
+    public function resetTokenActor(PasswordResetToken $token): ?ActorId
+    {
+        $stored = $this->tokens[$token->hash()] ?? null;
+
+        if (! $stored instanceof FakeResetToken || $stored->usedAt instanceof DateTimeImmutable || $stored->expiresAt <= $this->clock->now()) {
+            return null;
+        }
+
+        return $stored->actor;
+    }
+
+    #[Override]
     public function resetPassword(PasswordResetToken $token, PasswordHash $hash): LocalAccount
     {
         $stored = $this->tokens[$token->hash()] ?? null;
         $now = $this->clock->now();
 
-        if (! $stored instanceof FakeResetToken || $stored->used || $stored->expiresAt <= $now || ! $this->ofActor($stored->actor) instanceof LocalAccount) {
+        if (! $stored instanceof FakeResetToken || $stored->usedAt instanceof DateTimeImmutable || $stored->expiresAt <= $now || ! $this->ofActor($stored->actor) instanceof LocalAccount) {
             throw PasswordResetRefused::token();
         }
 
-        $this->tokens[$token->hash()] = new FakeResetToken($stored->actor, $stored->expiresAt, used: true);
+        foreach ($this->tokens as $key => $other) {
+            if ($other->actor->equals($stored->actor) && ! $other->usedAt instanceof DateTimeImmutable && $other->expiresAt > $now) {
+                $this->tokens[$key] = $other->usedAt($now);
+            }
+        }
 
         return $this->changePassword($stored->actor, $hash);
+    }
+
+    #[Override]
+    public function pruneResetTokens(DateTimeImmutable $before): int
+    {
+        $kept = array_filter($this->tokens, static fn (FakeResetToken $token): bool => ($token->usedAt ?? $token->expiresAt) >= $before);
+        $pruned = count($this->tokens) - count($kept);
+        $this->tokens = $kept;
+
+        return $pruned;
+    }
+
+    /**
+     * How many reset tokens the fake holds, used and expired ones included, for a test of pruning.
+     */
+    public function resetTokens(): int
+    {
+        return count($this->tokens);
     }
 
     #[Override]

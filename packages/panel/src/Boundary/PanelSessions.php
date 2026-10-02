@@ -180,6 +180,16 @@ final readonly class PanelSessions
     }
 
     /**
+     * After a password reset that set the password but logged no one in, because the login policy
+     * wants another kind of login: the person's sessions were ended, so this clears the session
+     * cookie, empties Laravel's session and redirects to the login page with the reason.
+     */
+    public function passwordChanged(Request $request): Response
+    {
+        return $this->signedOut($request, SignInReason::PasswordChanged);
+    }
+
+    /**
      * Once the kernel has handled a request that ended the sessions: Laravel's own middleware has
      * stored the empty session it started after the logout and set its cookie, so this destroys
      * that session in its store and replaces the cookie with one that clears it. Every other

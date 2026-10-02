@@ -14,27 +14,31 @@ use InvalidArgumentException;
 
 /**
  * Reads the limits of the login throttle from `cbox-cms.identity.login.throttle` (PRD 5.16): for
- * `identifier` and for `ip`, the `attempts` that may fail within `window_seconds`.
+ * `identifier` and for `ip`, the `attempts` that may fail within `window_seconds`. The throttle of
+ * password reset requests reads the same form from `cbox-cms.identity.password_reset.throttle`
+ * (RESET_KEY).
  */
 #[Internal]
 final readonly class LoginThrottleConfig
 {
     public const string KEY = IdentityConfig::KEY.'.login.throttle';
 
+    public const string RESET_KEY = IdentityConfig::KEY.'.password_reset.throttle';
+
     /**
      * @throws InvalidLoginThrottle when a limit is missing or out of its range
      */
-    public static function read(Repository $config): LoginThrottleSettings
+    public static function read(Repository $config, string $key = self::KEY): LoginThrottleSettings
     {
-        return new LoginThrottleSettings(self::limit($config, 'identifier'), self::limit($config, 'ip'));
+        return new LoginThrottleSettings(self::limit($config, $key, 'identifier'), self::limit($config, $key, 'ip'));
     }
 
     /**
      * @throws InvalidLoginThrottle
      */
-    private static function limit(Repository $config, string $scope): ThrottleLimit
+    private static function limit(Repository $config, string $base, string $scope): ThrottleLimit
     {
-        $key = self::KEY.'.'.$scope;
+        $key = $base.'.'.$scope;
         $attempts = $config->get($key.'.attempts');
         $window = $config->get($key.'.window_seconds');
 

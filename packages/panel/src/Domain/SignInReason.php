@@ -32,6 +32,9 @@ enum SignInReason: string
     /** The person logged out. */
     case SignedOut = 'signed_out';
 
+    /** The person set a new password with a reset link, and the login policy wants a login of another kind, so they sign in with it here. */
+    case PasswordChanged = 'password_changed';
+
     /**
      * The reason for a session the CredentialVerifier refused with $code.
      */

@@ -79,6 +79,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`dry_run`](#dry_run) | 200 | 0 | result | no |
 | [`egress_blocked`](#egress_blocked) | 422 | 65 | tool_error | no |
 | [`egress_guard_disabled`](#egress_guard_disabled) | 500 | 78 | internal_error | no |
+| [`egress_mail_failed`](#egress_mail_failed) | 503 | 75 | internal_error | yes |
 | [`egress_redirect_refused`](#egress_redirect_refused) | 503 | 69 | internal_error | no |
 | [`egress_unavailable`](#egress_unavailable) | 503 | 75 | internal_error | yes |
 | [`fake_check_failed`](#fake_check_failed) | 500 | 78 | internal_error | no |
@@ -815,6 +816,15 @@ The egress gateway sent nothing, because the policy of its SSRF guard is switche
 - CLI exit code: 78 (EX_CONFIG)
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
+
+### egress_mail_failed
+
+A mail was not handed to the mail transport of the installation's mailer, which the operator configures in mail.default and mail.mailers: the transport refused it, did not answer, or the mail has no sender, mail.from (PRD 5.16). Nothing was sent. Check the mailer's settings and that its host is reachable, then try again.
+
+- HTTP status: 503 Service Unavailable
+- CLI exit code: 75 (EX_TEMPFAIL)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: yes, the same call may succeed later
 
 ### egress_redirect_refused
 

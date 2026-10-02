@@ -24,6 +24,9 @@ final class EgressFailed extends RuntimeException
     /** The destination did not answer within the timeouts, or the connection failed. */
     public const string CODE_UNAVAILABLE = 'egress_unavailable';
 
+    /** The mail transport refused a mail or did not answer, or the mail has no sender (MailGateway). */
+    public const string CODE_MAIL_FAILED = 'egress_mail_failed';
+
     /** The SSRF guard's policy does not enforce its checks or does not pin DNS. */
     public const string CODE_GUARD_DISABLED = 'egress_guard_disabled';
 
@@ -61,6 +64,16 @@ final class EgressFailed extends RuntimeException
         return new self(
             sprintf('The destination of the outbound request for %s did not answer within the timeouts of cbox-cms.egress, or the connection failed.', $hostClass->value),
             self::CODE_UNAVAILABLE,
+            EgressOutcome::Unavailable,
+            $hostClass,
+        );
+    }
+
+    public static function mailFailed(HostClass $hostClass): self
+    {
+        return new self(
+            sprintf('The mail for %s was not handed to the mail transport: the transport refused it or did not answer, or the mail has no sender. Check mail.default, its mailer in mail.mailers and mail.from.', $hostClass->value),
+            self::CODE_MAIL_FAILED,
             EgressOutcome::Unavailable,
             $hostClass,
         );

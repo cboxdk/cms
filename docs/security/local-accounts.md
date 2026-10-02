@@ -1,7 +1,7 @@
 ---
 title: Local accounts
 weight: 52
-description: How a member of staff gets a local account with cms:staff:create, the password policy, how passwords are hashed with Argon2id and rehashed, and how the local connection verifies a login without telling which emails have an account.
+description: How a member of staff gets a local account with cms:staff:create, the password policy, how passwords are hashed with Argon2id and rehashed, how the local connection verifies a login without telling which emails have an account, and how a password is reset by mail or by an operator.
 ---
 
 # Local accounts
@@ -60,3 +60,40 @@ The local connection is the [LoginConnection](../addons/contracts/login-connecti
 It checks that the response belongs to the pending login, then finds the account by the email in lower case, without white space at either end, and verifies the password against the account's hash once. An email without an account, an identifier that is not one and an empty password are verified once against a fixed dummy hash at the installation's parameters, which no password verifies against. They do the same hashing work as a wrong password, so the time of a refusal does not tell which emails have an account. A password longer than 1024 bytes is refused before any hashing. Every refusal is [`login_rejected`](../reference/errors.md#login_rejected), and its message holds neither the email nor the password.
 
 An accepted login gives a verified assertion whose issuer is the installation's local issuer, `cbox-cms.identity.local.issuer` or the application's URL, whose subject is the actor's id, whose `auth_time` is the Clock's time and whose `amr` is `pwd`. Whether the actor may log in, its state, its class and the [login policy](login-policy.md), is decided after the connection, by the login path.
+
+## Resetting a password
+
+A member of staff who forgot the password asks for a link on the panel's page at `/cms/forgot-password`, which the login page links to. The page answers every email the same way, so it never tells which emails have an account:
+
+1. An email left empty is refused with [`validation_required`](../reference/errors.md#validation_required) under the field.
+2. The request is counted by a rate limit of its own in Valkey, per email and per IP address: 3 and 20 requests within an hour by default (`cbox-cms.identity.password_reset.throttle`). A request above a limit sends nothing, so the page cannot be used to fill someone's mailbox.
+3. Only a known local account whose actor is active gets a link. The credential store keeps the SHA-256 of a new random token, never the token, with its expiry, 60 minutes by default (`cbox-cms.identity.password_reset.token_minutes`). The link is the reset page's address with the token, `cbox-cms.identity.password_reset.url`, which is `app.url` followed by `/cms/reset-password` when it is not set. It is never built from the request's host, so a forged `Host` header cannot send a link elsewhere.
+4. The link is mailed to the account's email through the [mail gateway](egress.md#mail). A mail the transport does not take is counted as a failure; the person sees the same answer, and the token expires unused.
+
+The time of the answer is not made equal: an email that gets a link waits for the mail transport, so the answer can take longer than for one that does not. The rate limit bounds how many emails can be tried this way; an installation that needs the times equal can put a queueing mail transport, such as a local relay, in `mail.default`.
+
+The reset page, `/cms/reset-password/<token>`, sends `Referrer-Policy: no-referrer` and `Cache-Control: no-store`, because its address holds the token. Its form takes a new password, and then:
+
+1. A text that is not in the form of a token, or whose checksum does not match, is refused with [`password_reset_token_invalid`](../reference/errors.md#password_reset_token_invalid) before any lookup, and so is a token the store does not hold unused and unexpired, which it looks up without taking. A dead link therefore costs no breach check and no hashing.
+2. The password must keep the policy above. A refused password, and a breach check that cannot be made, leave the token usable.
+3. The store takes the token once, before it expires, and sets the new hash in the same transaction, and takes every other unused token of the account too. A token that is unknown, used or expired is one refusal, [`password_reset_token_invalid`](../reference/errors.md#password_reset_token_invalid), so the answer does not tell which.
+4. Every session of the actor is ended, through the session store's set of the actor's sessions, and so is the session the browser still carried.
+5. The [login policy](login-policy.md) decides the login with the method `password_reset`. When it allows it, the person gets a new session with a new id and lands on the panel's start page. When it does not, for example when local staff logins need a passkey, the password stays set and the person signs in on the login page.
+
+Every request adds 1 to the counter `cms.password_reset.requests` with `cms.outcome` (`mailed`, `no_account`, `rate_limited` or `mail_failed`), and every reset to `cms.password_reset.resets` with `cms.outcome` (`logged_in`, `changed` or `refused`) and, for a refusal, `cms.error.code`. No counter, log entry or message holds an email address, a token or a link.
+
+### A link from an operator
+
+When a mail cannot reach the person, an operator prints a link in the maintenance process with `php artisan cms:staff:reset-link <email>` and hands it over another way. It issues the link as the page does and sends nothing. It prints the link alone on the first line and when it expires on the second:
+
+| Exit | Code | When |
+|---|---|---|
+| 0 | | the link was issued |
+| 64 | | the argument is not a login |
+| 67 | [`local_account_missing`](../reference/errors.md#local_account_missing) | no local account has the email as its login |
+| 77 | [`actor_not_active`](../reference/errors.md#actor_not_active) | the account's actor is not active |
+| 78 | [`maintenance_process_required`](../reference/errors.md#maintenance_process_required) | the process is not the maintenance process |
+
+### Pruning the tokens
+
+`php artisan cms:identity:prune` removes the reset tokens that were used, or expired, more than 24 hours ago, and prints how many. The maintenance process's scheduler runs it every hour; it runs only there, and exits 78 with [`maintenance_process_required`](../reference/errors.md#maintenance_process_required) anywhere else.

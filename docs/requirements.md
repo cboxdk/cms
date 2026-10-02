@@ -35,6 +35,7 @@ It requires these packages directly:
 | `illuminate/cookie` | `^13.0` |
 | `illuminate/database` | `^13.0` |
 | `illuminate/http` | `^13.0` |
+| `illuminate/mail` | `^13.0` |
 | `illuminate/redis` | `^13.0` |
 | `illuminate/routing` | `^13.0` |
 | `illuminate/support` | `^13.0` |
@@ -46,6 +47,8 @@ It requires these packages directly:
 | `symfony/console` | `^7.4 \|\| ^8.0` |
 | `symfony/http-foundation` | `^7.4 \|\| ^8.0` |
 | `symfony/http-kernel` | `^7.4 \|\| ^8.0` |
+| `symfony/mailer` | `^7.4 \|\| ^8.0` |
+| `symfony/mime` | `^7.4 \|\| ^8.0` |
 | `symfony/process` | `^7.4.5 \|\| ^8.0.5` |
 
 ### Suggested for development

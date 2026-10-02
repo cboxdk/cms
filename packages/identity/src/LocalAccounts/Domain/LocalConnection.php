@@ -118,6 +118,24 @@ final readonly class LocalConnection implements LoginConnection
     }
 
     /**
+     * The assertion of a password reset (PRD 5.16): the account's password was just set with a
+     * reset token, which proved that the person holds the account's email and chose the password
+     * now. Only a store's resetPassword() gives the account, so this is the connection's word for
+     * that login, as complete() is for a typed password: the local issuer, the actor's id, the
+     * Clock's time and the amr `pwd`.
+     */
+    public function resetAssertion(LocalAccount $account): VerifiedAssertion
+    {
+        return new VerifiedAssertion(
+            $this->id(),
+            $this->issuer,
+            new Subject($account->actor->toString()),
+            $this->clock->now(),
+            [new AuthenticationMethod(self::PASSWORD_METHOD)],
+        );
+    }
+
+    /**
      * The installation's local issuer, which every assertion of the connection names.
      */
     public function issuer(): Issuer

@@ -14,13 +14,16 @@ use Cbox\Cms\Contracts\Identity\BreachedPasswords;
 use Cbox\Cms\Contracts\Identity\CredentialVerifier;
 use Cbox\Cms\Contracts\Identity\LocalCredentialStore;
 use Cbox\Cms\Core\Bindings\Boundary\ContractBindings;
+use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Core\Doctor\Adapter\DoctorConnection;
 use Cbox\Cms\Core\Doctor\Boundary\DoctorConfig;
 use Cbox\Cms\Core\Doctor\Domain\Dto\DoctorSettings;
 use Cbox\Cms\Core\Process\Boundary\ProcessWorkload;
 use Cbox\Cms\Core\Process\Domain\Workload;
 use Cbox\Cms\Identity\BreachedPasswords\Adapter\HibpBreachedPasswords;
+use Cbox\Cms\Identity\Cli\Console\IdentityPruneCommand;
 use Cbox\Cms\Identity\Cli\Console\StaffCreateCommand;
+use Cbox\Cms\Identity\Cli\Console\StaffResetLinkCommand;
 use Cbox\Cms\Identity\CredentialStore\Adapter\PostgresLocalCredentialStore;
 use Cbox\Cms\Identity\CredentialStore\Boundary\IdentityConfig;
 use Cbox\Cms\Identity\Doctor\Adapter\ConfigSessionCookieProbe;
@@ -45,6 +48,9 @@ use Cbox\Cms\Identity\LoginPolicy\Adapter\PostgresIdpLinks;
 use Cbox\Cms\Identity\LoginPolicy\Boundary\LoginPolicyConfig;
 use Cbox\Cms\Identity\LoginPolicy\Domain\Dto\LoginPolicy;
 use Cbox\Cms\Identity\LoginPolicy\Domain\IdpLinks;
+use Cbox\Cms\Identity\PasswordReset\Actions\RequestPasswordReset;
+use Cbox\Cms\Identity\PasswordReset\Boundary\PasswordResetConfig;
+use Cbox\Cms\Identity\PasswordReset\Domain\Dto\ResetSettings;
 use Cbox\Cms\Identity\Sessions\Adapter\SessionCredentialVerifier;
 use Cbox\Cms\Identity\Sessions\Adapter\ValkeySessionStore;
 use Cbox\Cms\Identity\Sessions\Boundary\SessionCookieConfig;
@@ -53,6 +59,7 @@ use Cbox\Cms\Identity\Sessions\Domain\InsecureSessionCookie;
 use Cbox\Cms\Identity\Sessions\Domain\InvalidSessionCookie;
 use Cbox\Cms\Identity\Sessions\Domain\SessionCounters;
 use Cbox\Cms\Identity\Sessions\Domain\SessionStore;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Redis\Factory;
@@ -76,7 +83,10 @@ use Override;
  * unless the application names another. Binds the Argon2id PasswordHasher at
  * `cbox-cms.identity.passwords.argon2id` and the LocalConnection with the installation's local
  * issuer, and registers cms:staff:create in the console. Binds the session cookie of the
- * environment, the session store and the login throttle in Valkey (`cbox-cms.identity.login`), and
+ * environment, the session store and the login throttle in Valkey (`cbox-cms.identity.login`), the
+ * password reset's settings and its own throttle (`cbox-cms.identity.password_reset`), registers
+ * cms:staff:reset-link and cms:identity:prune and schedules the prune every hour in the maintenance
+ * process, and
  * puts the session verifier in front of the bound CredentialVerifier with the container's extend(),
  * so a session is a credential of every surface and the core never names this module. Refuses to boot a process that serves HTTP when the
  * session cookie of its environment is invalid or not safe there (PRD 5.16). Declares the module's
@@ -165,6 +175,16 @@ final class IdentityServiceProvider extends ServiceProvider implements DeclaresS
             $app->make(Factory::class),
             $app->make(LoginThrottleSettings::class),
         ));
+        // The password reset (PRD 5.16): its settings, read when first asked for, and its own
+        // throttle of the requests for a link, the login throttle's script under another prefix
+        // with the limits of cbox-cms.identity.password_reset.throttle.
+        $this->app->singleton(ResetSettings::class, static fn (Application $app): ResetSettings => PasswordResetConfig::read($app->make(Repository::class)));
+        $this->app->when(RequestPasswordReset::class)->needs(LoginThrottle::class)->give(static fn (Application $app): LoginThrottle => new ValkeyLoginThrottle(
+            $app->make(Factory::class),
+            LoginThrottleConfig::read($app->make(Repository::class), LoginThrottleConfig::RESET_KEY),
+            null,
+            ValkeyLoginThrottle::RESET_KEY,
+        ));
         $this->app->extend(CredentialVerifier::class, static fn (CredentialVerifier $verifier, Application $app): CredentialVerifier => new SessionCredentialVerifier(
             $verifier,
             $app->make(SessionStore::class),
@@ -200,8 +220,16 @@ final class IdentityServiceProvider extends ServiceProvider implements DeclaresS
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
 
         if ($this->app->runningInConsole()) {
-            $this->commands([StaffCreateCommand::class]);
+            $this->commands([StaffCreateCommand::class, StaffResetLinkCommand::class, IdentityPruneCommand::class]);
         }
+
+        // Pruning the reset tokens is the maintenance process's (PRD 4.2), the process with the
+        // owner connection, so the web and queue processes schedule nothing.
+        $this->callAfterResolving(Schedule::class, static function (Schedule $schedule, Application $app): void {
+            if (CoreServiceProvider::ownerConnectionConfigured($app->make(Repository::class))) {
+                $schedule->command(IdentityPruneCommand::NAME)->hourly();
+            }
+        });
         $this->refuseAnUnsafeSessionCookie();
     }
 

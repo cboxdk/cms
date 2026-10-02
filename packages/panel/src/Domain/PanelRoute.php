@@ -19,6 +19,18 @@ enum PanelRoute: string
     /** POST <prefix>/login: a local login from the login form. */
     case LoginSubmit = 'cbox-cms.panel.login.submit';
 
+    /** GET <prefix>/forgot-password: the page that asks for a password reset link. */
+    case ForgotPassword = 'cbox-cms.panel.forgot-password';
+
+    /** POST <prefix>/forgot-password: a request for a password reset link from that page. */
+    case ForgotPasswordSubmit = 'cbox-cms.panel.forgot-password.submit';
+
+    /** GET <prefix>/reset-password/{token}: the page a reset link opens, which sets a new password. */
+    case ResetPassword = 'cbox-cms.panel.reset-password';
+
+    /** POST <prefix>/reset-password: a new password with the token of a reset link. */
+    case ResetPasswordSubmit = 'cbox-cms.panel.reset-password.submit';
+
     /** POST <prefix>/logout: ends the person's session. */
     case Logout = 'cbox-cms.panel.logout';
 

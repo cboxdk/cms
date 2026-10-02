@@ -66,4 +66,16 @@ final readonly class FailingCredentialWrites implements LocalCredentialStore
     {
         throw new RuntimeException(self::MESSAGE);
     }
+
+    #[Override]
+    public function resetTokenActor(PasswordResetToken $token): ?ActorId
+    {
+        return $this->store->resetTokenActor($token);
+    }
+
+    #[Override]
+    public function pruneResetTokens(DateTimeImmutable $before): int
+    {
+        throw new RuntimeException(self::MESSAGE);
+    }
 }

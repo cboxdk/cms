@@ -79,6 +79,10 @@ A command that is not in the list today, such as `actor.deactivate`, is added to
 
 `php artisan cms:staff:create --email=<address> --name=<display name>` is the first maintenance command of the identity module: it registers a local member of staff as the operator, `actor.register`, then the credential, then `actor.activate`, and prints the actor's id. The password is read hidden from the terminal or with `--password-stdin` from standard input, never from an argument. [Local accounts](../security/local-accounts.md#creating-a-member-of-staff) describes the order, what a failure leaves and the exit codes. The command lives in the identity module, `Cbox\Cms\Identity\Cli\Console\StaffCreateCommand`, because the cli module may not use the identity module.
 
+## cms:staff:reset-link and cms:identity:prune
+
+`cms:staff:reset-link <email>` prints a password reset link for a local account, for an operator who hands it to the person another way than by mail, and `cms:identity:prune` removes the reset tokens used or expired more than 24 hours ago; the scheduler runs the prune every hour. Neither is a command through the pipeline: the tokens live in the credential store, not in the kernel's tables. Both run only in the maintenance process, the console process with the owner connection, and exit 78 with [`maintenance_process_required`](../reference/errors.md#maintenance_process_required) anywhere else. See [Local accounts](../security/local-accounts.md#resetting-a-password).
+
 ## The access bootstrap
 
 A fresh installation has no staff member with a grant, and the escalation guard lets an actor give only what it holds itself (PRD 5.10, invariant 31), so nobody could give the first grant. `php artisan cms:access:bootstrap <actor> <node>` gives it once: it creates the bootstrap role and grants it to an active staff actor on a node, as the installation operator.

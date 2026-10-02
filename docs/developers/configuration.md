@@ -89,7 +89,7 @@ A command waits after its commit for the wait level its envelope asks for (PRD 8
 | `cbox-cms.egress.connect_timeout_ms` | `2000` | How long the egress gateway waits for a connection, in milliseconds, before the request fails with [`egress_unavailable`](../reference/errors.md#egress_unavailable). It is `1` to `30000`. |
 | `cbox-cms.egress.timeout_ms` | `10000` | How long a request through the egress gateway may take in all, in milliseconds. It is from the connect timeout to `60000`. A value outside either range, or one that is not a whole number, fails when the kernel reads it. |
 
-Which destinations the gateway refuses is the policy of cboxdk/laravel-ssrf, `ssrf` in the configuration, which keeps its own keys; its `enforce` and `pin_dns` must stay on, or the gateway sends nothing. See [Egress](../security/egress.md).
+Which destinations the gateway refuses is the policy of cboxdk/laravel-ssrf, `ssrf` in the configuration, which keeps its own keys; its `enforce` and `pin_dns` must stay on, or the gateway sends nothing. Mail goes through the mail gateway on Laravel's own `mail.default`, `mail.mailers` and `mail.from`, which keep Laravel's keys. See [Egress](../security/egress.md).
 
 ## Event runner
 
@@ -171,6 +171,12 @@ An invalid doctor setting makes `cms:doctor` run the single check `doctor.config
 | `cbox-cms.identity.login.throttle.identifier.window_seconds` | `900` | The window of an email address's count, from its first attempt, 1 to 86400 seconds. |
 | `cbox-cms.identity.login.throttle.ip.attempts` | `50` | The logins that may fail from one IP address within its window, 1 to 10000, whatever the emails; the next is refused with [`login_rate_limited`](../reference/errors.md#login_rate_limited). |
 | `cbox-cms.identity.login.throttle.ip.window_seconds` | `900` | The window of an IP address's count, from its first attempt, 1 to 86400 seconds. |
+| `cbox-cms.identity.password_reset.token_minutes` | `60` | How long a password reset link works, 5 to 1440 minutes. A link sets a password once. See [Local accounts](../security/local-accounts.md#resetting-a-password). |
+| `cbox-cms.identity.password_reset.url` | `null` | The address of the panel's reset page, which a reset link points at with the token as its last path segment: an https URL, or an http URL of a loopback host, without a query or a fragment. Null takes `app.url` followed by `/cms/reset-password`; an application that mounts the panel at another prefix sets it. It is never read from a request. |
+| `cbox-cms.identity.password_reset.throttle.identifier.attempts` | `3` | The requests for a reset link for one email address within its window, 1 to 10000; a request above it is answered the same and sends nothing. |
+| `cbox-cms.identity.password_reset.throttle.identifier.window_seconds` | `3600` | The window of an email address's count of reset requests, from its first request, 1 to 86400 seconds. |
+| `cbox-cms.identity.password_reset.throttle.ip.attempts` | `20` | The requests for a reset link from one IP address within its window, 1 to 10000, whatever the emails. |
+| `cbox-cms.identity.password_reset.throttle.ip.window_seconds` | `3600` | The window of an IP address's count of reset requests, from its first request, 1 to 86400 seconds. |
 | `cbox-cms.identity.passwords.argon2id.memory_kib` | `65536` | The memory, in KiB, of the Argon2id hash of a local account's password: 1024 to 4194304. A login whose hash was made with other parameters is hashed again with these. |
 | `cbox-cms.identity.passwords.argon2id.time` | `4` | The passes of the Argon2id hash of a local account's password: 1 to 64. The hash always uses one thread. |
 | `cbox-cms.identity.policy.authoritative_connections` | `[]` | The federated connections marked authoritative: their identity provider owns the access of the actors linked to them, so such an actor has no local login (invariant 38). Never `local`. See [Login policy](../security/login-policy.md). |

@@ -22,7 +22,9 @@ use UnexpectedValueException;
  * process of the installation counts against the same limits.
  *
  * A key's count is `cms:login_throttle:<scope>:<SHA-256>`, below the connection's own prefix: an
- * integer that expires its scope's window after the first attempt it counted. Counting and taking
+ * integer that expires its scope's window after the first attempt it counted. The throttle of
+ * password reset requests is another instance with the prefix RESET_KEY and its own limits, so the
+ * two never count against each other. Counting and taking
  * back each run one Lua script over both keys, so two attempts at the same time are counted one
  * after the other and the first ones are the ones let through.
  */
@@ -30,6 +32,8 @@ use UnexpectedValueException;
 final readonly class ValkeyLoginThrottle implements LoginThrottle
 {
     public const string KEY = 'cms:login_throttle:';
+
+    public const string RESET_KEY = 'cms:reset_throttle:';
 
     /**
      * KEYS: the identifier's count, the IP address's count.
@@ -67,6 +71,7 @@ final readonly class ValkeyLoginThrottle implements LoginThrottle
         private Factory $redis,
         private LoginThrottleSettings $settings,
         private ?string $connection = null,
+        private string $prefix = self::KEY,
     ) {}
 
     #[Override]
@@ -96,9 +101,9 @@ final readonly class ValkeyLoginThrottle implements LoginThrottle
     /**
      * The name of a key's count, below the connection's prefix.
      */
-    public static function key(ThrottleScope $scope, LoginThrottleKeys $keys): string
+    public static function key(ThrottleScope $scope, LoginThrottleKeys $keys, string $prefix = self::KEY): string
     {
-        return self::KEY.$scope->value.':'.$keys->key($scope);
+        return $prefix.$scope->value.':'.$keys->key($scope);
     }
 
     /**
@@ -113,7 +118,7 @@ final readonly class ValkeyLoginThrottle implements LoginThrottle
             $client->clearLastError();
         }
 
-        $result = $connection->command('eval', [$script, [self::key(ThrottleScope::Identifier, $keys), self::key(ThrottleScope::Ip, $keys), ...$arguments], 2]);
+        $result = $connection->command('eval', [$script, [self::key(ThrottleScope::Identifier, $keys, $this->prefix), self::key(ThrottleScope::Ip, $keys, $this->prefix), ...$arguments], 2]);
 
         if (! is_int($result)) {
             throw new UnexpectedValueException(sprintf(

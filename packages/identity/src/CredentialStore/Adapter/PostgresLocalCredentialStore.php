@@ -30,13 +30,15 @@ use Override;
  * the identity role's connection, cbox-cms.identity.connection (PRD 5.16, "Lokale konti"). The app
  * role cannot read the tables, so no other connection is used.
  *
- * Every statement runs on its own, but resetPassword(), which marks the token used and sets the
- * hash in one transaction of the identity connection. bind() inserts with ON CONFLICT DO NOTHING
+ * Every statement runs on its own, but resetPassword(), which marks the token used, sets the hash
+ * and marks the actor's other unused tokens used in one transaction of the identity connection. bind() inserts with ON CONFLICT DO NOTHING
  * and tells from the account of the actor whether the actor or the login was taken; a foreign key
  * violation, SQLSTATE 23503, is an actor the register does not have. A rehash and a password
  * change are one UPDATE each, the rehash only while the row has the hash the caller verified. A
  * reset token is stored as its SHA-256 and taken with one UPDATE that requires it unused and not
- * expired at the Clock's time, so two resets with one token set one password. Times are the
+ * expired at the Clock's time, so two resets with one token set one password. A prune is one
+ * DELETE of the tokens whose use, or else expiry, is before the time given: a used token has its
+ * used_at at or before its expires_at, so it goes once it was used that long ago. Times are the
  * Clock's, written with their microseconds.
  */
 #[Internal]
@@ -52,6 +54,12 @@ final readonly class PostgresLocalCredentialStore implements LocalCredentialStor
 
     private const string TAKE_TOKEN = 'update cms_identity.password_reset_tokens set used_at = ? '
         .'where token_hash = ? and used_at is null and expires_at > ? returning actor_id';
+
+    /** Takes every other token of the actor that is still unused, at the time of the reset. */
+    private const string TAKE_OTHERS = 'update cms_identity.password_reset_tokens set used_at = ? '
+        .'where actor_id = ? and used_at is null and expires_at > ? and created_at <= ? and token_hash <> ?';
+
+    private const string PRUNE = 'delete from cms_identity.password_reset_tokens where coalesce(used_at, expires_at) < ?';
 
     private const string CHANGE = 'update cms_identity.local_accounts '
         .'set password_hash = ?, password_changed_at = ?, version = version + 1 '
@@ -158,6 +166,18 @@ final readonly class PostgresLocalCredentialStore implements LocalCredentialStor
     }
 
     #[Override]
+    public function resetTokenActor(PasswordResetToken $token): ?ActorId
+    {
+        $actor = $this->connection()->table(CredentialStore::table(self::TOKENS))
+            ->where('token_hash', $token->hash())
+            ->whereNull('used_at')
+            ->where('expires_at', '>', $this->clock->now()->format(self::TIME))
+            ->value('actor_id');
+
+        return is_string($actor) ? ActorId::fromString($actor) : null;
+    }
+
+    #[Override]
     public function resetPassword(PasswordResetToken $token, PasswordHash $hash): LocalAccount
     {
         $connection = $this->connection();
@@ -173,8 +193,20 @@ final readonly class PostgresLocalCredentialStore implements LocalCredentialStor
 
             $row = $connection->selectOne(self::CHANGE, [$hash->value, $now, $actor]);
 
-            return $row === null ? throw PasswordResetRefused::token() : $this->account($row);
+            if ($row === null) {
+                throw PasswordResetRefused::token();
+            }
+
+            $connection->update(self::TAKE_OTHERS, [$now, $actor, $now, $now, $token->hash()]);
+
+            return $this->account($row);
         });
+    }
+
+    #[Override]
+    public function pruneResetTokens(DateTimeImmutable $before): int
+    {
+        return $this->connection()->delete(self::PRUNE, [$before->format(self::TIME)]);
     }
 
     private function accounts(): Builder

@@ -43,8 +43,10 @@ use Throwable;
  * actor that does not exist not at all, with messages that never hold the login; a rehash replaces
  * only the hash the caller verified and keeps when the password was set; a password change sets
  * the hash and the time; a reset token sets a password once and not after it expires, an unknown
- * token is refused as a used one is, and a token is issued only for an account and with an expiry
- * after now.
+ * token is refused as a used one is, a token is looked up without being taken and only while it is
+ * usable, a reset takes the account's other unused tokens, a token is
+ * issued only for an account and with an expiry after now, and a prune removes exactly the tokens
+ * used or expired before its time.
  */
 #[Experimental]
 trait LocalCredentialStoreContract
@@ -245,6 +247,73 @@ trait LocalCredentialStoreContract
 
         Assert::assertNotSame($first->reveal(), $second->reveal());
         Assert::assertInstanceOf(PasswordResetToken::class, PasswordResetToken::parse($first->reveal()));
+    }
+
+    #[Test]
+    public function a_token_is_looked_up_without_being_taken_and_only_while_it_is_usable(): void
+    {
+        $harness = $this->harness();
+        $actor = $harness->actor();
+        $harness->store()->bind($actor, new LoginIdentifier(self::LOGIN), new PasswordHash(self::HASH));
+        $token = $harness->store()->issueResetToken($actor, $harness->clock()->now()->add(new DateInterval('PT1H')));
+        $expiring = $harness->store()->issueResetToken($actor, $harness->clock()->now()->add(new DateInterval('PT30M')));
+
+        Assert::assertTrue($harness->store()->resetTokenActor($token)?->equals($actor));
+        Assert::assertNull($harness->store()->resetTokenActor(PasswordResetToken::fromSecret(str_repeat("\x07", PasswordResetToken::SECRET_BYTES))));
+
+        $harness->clock()->advance(new DateInterval('PT30M'));
+
+        Assert::assertNull($harness->store()->resetTokenActor($expiring));
+
+        // The lookups took nothing: the token still sets a password, once.
+        Assert::assertSame(self::OTHER_HASH, $harness->store()->resetPassword($token, new PasswordHash(self::OTHER_HASH))->hash->value);
+        Assert::assertNull($harness->store()->resetTokenActor($token));
+    }
+
+    #[Test]
+    public function a_reset_takes_every_other_unused_token_of_the_account(): void
+    {
+        $harness = $this->harness();
+        $actor = $harness->actor();
+        $other = $harness->actor();
+        $harness->store()->bind($actor, new LoginIdentifier(self::LOGIN), new PasswordHash(self::HASH));
+        $harness->store()->bind($other, new LoginIdentifier('grace.hopper@example.org'), new PasswordHash(self::HASH));
+        $expiry = $harness->clock()->now()->add(new DateInterval('PT1H'));
+        $earlier = $harness->store()->issueResetToken($actor, $expiry);
+        $used = $harness->store()->issueResetToken($actor, $expiry);
+        $others = $harness->store()->issueResetToken($other, $expiry);
+        $harness->clock()->advance(new DateInterval('PT1M'));
+
+        $harness->store()->resetPassword($used, new PasswordHash(self::OTHER_HASH));
+        $refused = $this->refusal(static fn (): LocalAccount => $harness->store()->resetPassword($earlier, new PasswordHash(self::THIRD_HASH)));
+
+        Assert::assertInstanceOf(PasswordResetRefused::class, $refused);
+        Assert::assertSame(self::OTHER_HASH, $harness->store()->ofActor($actor)?->hash->value);
+        Assert::assertSame(self::THIRD_HASH, $harness->store()->resetPassword($others, new PasswordHash(self::THIRD_HASH))->hash->value);
+    }
+
+    #[Test]
+    public function a_prune_removes_exactly_the_tokens_used_or_expired_before_its_time(): void
+    {
+        $harness = $this->harness();
+        $start = $harness->clock()->now();
+        $used = $harness->actor();
+        $expired = $harness->actor();
+        $usable = $harness->actor();
+        $harness->store()->bind($used, new LoginIdentifier(self::LOGIN), new PasswordHash(self::HASH));
+        $harness->store()->bind($expired, new LoginIdentifier('grace.hopper@example.org'), new PasswordHash(self::HASH));
+        $harness->store()->bind($usable, new LoginIdentifier('katherine.johnson@example.org'), new PasswordHash(self::HASH));
+        $first = $harness->store()->issueResetToken($used, $start->add(new DateInterval('PT1H')));
+        $harness->store()->issueResetToken($expired, $start->add(new DateInterval('PT1H')));
+        $kept = $harness->store()->issueResetToken($usable, $start->add(new DateInterval('PT3H')));
+        $harness->clock()->advance(new DateInterval('PT5M'));
+        $harness->store()->resetPassword($first, new PasswordHash(self::OTHER_HASH));
+
+        Assert::assertSame(0, $harness->store()->pruneResetTokens($start->add(new DateInterval('PT5M'))));
+        Assert::assertSame(1, $harness->store()->pruneResetTokens($start->add(new DateInterval('PT1H'))));
+        Assert::assertSame(1, $harness->store()->pruneResetTokens($start->add(new DateInterval('PT2H'))));
+        Assert::assertSame(0, $harness->store()->pruneResetTokens($start->add(new DateInterval('PT3H'))));
+        Assert::assertSame(self::THIRD_HASH, $harness->store()->resetPassword($kept, new PasswordHash(self::THIRD_HASH))->hash->value);
     }
 
     /**

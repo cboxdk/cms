@@ -108,10 +108,12 @@ use Cbox\Cms\Core\Doctor\Domain\Probes\RegistryCacheProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\RuntimeProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\ToolProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\ValkeyProbe;
+use Cbox\Cms\Core\Egress\Adapter\LaravelMailGateway;
 use Cbox\Cms\Core\Egress\Adapter\SsrfEgressGateway;
 use Cbox\Cms\Core\Egress\Boundary\EgressConfig;
 use Cbox\Cms\Core\Egress\Domain\Dto\EgressSettings;
 use Cbox\Cms\Core\Egress\Domain\EgressGateway;
+use Cbox\Cms\Core\Egress\Domain\MailGateway;
 use Cbox\Cms\Core\Entries\Adapter\EntryCreatedWriter;
 use Cbox\Cms\Core\Entries\Adapter\HeadMovedWriter;
 use Cbox\Cms\Core\Entries\Adapter\PostgresEntryReader;
@@ -267,7 +269,7 @@ use Psr\Log\LoggerInterface;
  *
  * Binds each contract to the implementation configured in `cbox-cms.contracts` (GUARDRAILS 2.3), loads
  * the core's migrations, registers laravel-operations and binds the OperationRunner to it, registers
- * laravel-ssrf and binds the egress gateway to it with its timeouts from `cbox-cms.egress`, binds partition maintenance to the Postgres partition manager, and
+ * laravel-ssrf and binds the egress gateway to it with its timeouts from `cbox-cms.egress` and the mail gateway to the default mailer, binds partition maintenance to the Postgres partition manager, and
  * schedules it in a process that has the owner connection. Refuses to boot a process that serves
  * HTTP or runs queued jobs with the owner connection configured (PRD 4.2). Wires the registry that cms:build compiles to bootstrap/cache/cms/ (PRD 13.2), and
  * declares the core's own classes as a scan root. Binds the kernel's settings for idempotency keys, the
@@ -390,6 +392,8 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
             static fn (Application $app): EgressSettings => EgressConfig::read($app->make(Repository::class)),
         );
         $this->app->bind(EgressGateway::class, SsrfEgressGateway::class);
+        // Mail goes through the mail gateway, on the transport of the operator's default mailer.
+        $this->app->bind(MailGateway::class, LaravelMailGateway::class);
 
         $this->app->bind(DeclarationScanner::class, AttributeScanner::class);
 

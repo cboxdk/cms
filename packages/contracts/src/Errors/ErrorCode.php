@@ -91,6 +91,7 @@ enum ErrorCode: string
     case DryRun = 'dry_run';
     case EgressBlocked = 'egress_blocked';
     case EgressGuardDisabled = 'egress_guard_disabled';
+    case EgressMailFailed = 'egress_mail_failed';
     case EgressRedirectRefused = 'egress_redirect_refused';
     case EgressUnavailable = 'egress_unavailable';
     case FakeCheckFailed = 'fake_check_failed';
@@ -458,6 +459,9 @@ enum ErrorCode: string
             ),
             self::EgressGuardDisabled => $this->violation(
                 'The egress gateway sent nothing, because the policy of its SSRF guard is switched off: ssrf.enforce or ssrf.pin_dns of cboxdk/laravel-ssrf is false (GUARDRAILS 3). Without them the gateway cannot promise that a request never reaches a private address. Turn both on in config/ssrf.php or the environment (SSRF_ENFORCE).',
+            ),
+            self::EgressMailFailed => $this->dependency(
+                'A mail was not handed to the mail transport of the installation\'s mailer, which the operator configures in mail.default and mail.mailers: the transport refused it, did not answer, or the mail has no sender, mail.from (PRD 5.16). Nothing was sent. Check the mailer\'s settings and that its host is reachable, then try again.',
             ),
             self::EgressRedirectRefused => new ErrorEntry(
                 $this,

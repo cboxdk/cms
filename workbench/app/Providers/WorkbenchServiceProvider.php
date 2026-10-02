@@ -39,6 +39,9 @@ use Workbench\App\Cms\Generated\GeneratedTypesServiceProvider;
  * are for --dev. Testbench's application links vendor/ into its base path only while a command runs, so
  * the default below the base path is not there in the tests.
  *
+ * It gives the workbench Laravel's array mailer, so no mail leaves it, and points the password reset
+ * links at the panel at the site's origin.
+ *
  * It turns off server-side rendering and the check for page components on disk for the
  * workbench's Inertia test page (boot()).
  *
@@ -97,6 +100,13 @@ final class WorkbenchServiceProvider extends ServiceProvider
         // factor, so its login policy lets a member of staff log in locally with a password alone
         // (PRD 5.16). Every other environment keeps the default, passkey_or_two_factors.
         $config->set('cbox-cms.identity.policy.staff.local_factors', 'password');
+
+        // The workbench sends no mail: its mailer is Laravel's array mailer, which keeps every
+        // mail in the process, where the tests read the password reset links from it (PRD 5.16).
+        // The links point at the panel served at the site's origin.
+        $config->set('mail.default', 'array');
+        $config->set('mail.from', ['address' => 'cms@workbench.localhost', 'name' => 'Cbox CMS workbench']);
+        $config->set('cbox-cms.identity.password_reset.url', 'http://localhost:8000/cms/reset-password');
 
         $app = $config->get('database.connections.pgsql');
 

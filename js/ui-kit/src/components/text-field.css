@@ -9,6 +9,12 @@
   font-weight: var(--cms-font-weight-medium);
 }
 
+.cms-text-field__hint {
+  margin: 0;
+  color: var(--cms-color-text-muted);
+  font-size: var(--cms-font-size-md);
+}
+
 .cms-text-field__input {
   width: 100%;
   min-height: calc(var(--cms-target-size) + var(--cms-space-4));

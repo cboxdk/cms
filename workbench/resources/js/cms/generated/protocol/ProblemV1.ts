@@ -74,6 +74,7 @@ export type ErrorCode =
   | 'dry_run'
   | 'egress_blocked'
   | 'egress_guard_disabled'
+  | 'egress_mail_failed'
   | 'egress_redirect_refused'
   | 'egress_unavailable'
   | 'fake_check_failed'
@@ -352,6 +353,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'dry_run',
           'egress_blocked',
           'egress_guard_disabled',
+          'egress_mail_failed',
           'egress_redirect_refused',
           'egress_unavailable',
           'fake_check_failed',
@@ -594,6 +596,7 @@ const problemV1Rule: ObjectRule = {
           'dry_run',
           'egress_blocked',
           'egress_guard_disabled',
+          'egress_mail_failed',
           'egress_redirect_refused',
           'egress_unavailable',
           'fake_check_failed',

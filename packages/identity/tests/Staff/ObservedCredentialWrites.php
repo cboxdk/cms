@@ -78,4 +78,16 @@ final class ObservedCredentialWrites implements LocalCredentialStore
     {
         return $this->store->resetPassword($token, $hash);
     }
+
+    #[Override]
+    public function resetTokenActor(PasswordResetToken $token): ?ActorId
+    {
+        return $this->store->resetTokenActor($token);
+    }
+
+    #[Override]
+    public function pruneResetTokens(DateTimeImmutable $before): int
+    {
+        return $this->store->pruneResetTokens($before);
+    }
 }

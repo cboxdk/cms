@@ -1,15 +1,18 @@
-import { Alert, Button, Form, TaskScreen, TextField } from '@cboxdk/cms-ui-kit';
+import { Alert, Button, Form, TaskScreen, TextField, TextLink } from '@cboxdk/cms-ui-kit';
 import { Head, useForm, usePage } from '@inertiajs/react';
 import type { SubmitEvent } from 'react';
 
 import { useTranslation, type TranslationKey } from '../../i18n/translations';
 
 /** Why the panel sent the browser here, as the server names it. */
-export type SignInReason = 'required' | 'expired' | 'ended' | 'revoked' | 'signed_out';
+export type SignInReason =
+  'required' | 'expired' | 'ended' | 'revoked' | 'signed_out' | 'password_changed';
 
 export interface LoginProps {
   /** The address the form posts to. */
   readonly action: string;
+  /** The address of the page that asks for a password reset link. */
+  readonly forgot: string;
   /** Why the panel sent the browser to this page, or null when it did not. */
   readonly reason: SignInReason | null;
 }
@@ -20,6 +23,7 @@ const REASONS: Readonly<Record<SignInReason, TranslationKey>> = {
   ended: 'panel.login.reason.ended',
   revoked: 'panel.login.reason.revoked',
   signed_out: 'panel.login.reason.signed_out',
+  password_changed: 'panel.login.reason.password_changed',
 };
 
 /**
@@ -42,11 +46,11 @@ function refusal(code: string | undefined): TranslationKey | undefined {
 
 /**
  * The login page of the panel (PRD 5.16): a member of staff signs in with the email and password
- * of their local account. The form posts to the server, which answers with the start page, or
+ * of their local account, or follows the link to ask for a password reset link. The form posts to the server, which answers with the start page, or
  * back here with the catalog code of the refusal in the errors prop: under the field it is about,
  * or under `form` for the login as a whole.
  */
-export default function Login({ action, reason }: LoginProps) {
+export default function Login({ action, forgot, reason }: LoginProps) {
   const { t } = useTranslation();
   const { errors } = usePage().props;
   const form = useForm({ email: '', password: '' });
@@ -68,7 +72,11 @@ export default function Login({ action, reason }: LoginProps) {
   return (
     <>
       <Head title={t('panel.login.title')} />
-      <TaskScreen title={t('panel.login.title')} description={t('panel.login.description')}>
+      <TaskScreen
+        title={t('panel.login.title')}
+        description={t('panel.login.description')}
+        footer={<TextLink href={forgot}>{t('panel.login.forgot')}</TextLink>}
+      >
         {reason === null || failed !== undefined ? null : <Alert>{t(REASONS[reason])}</Alert>}
         {failed === undefined ? null : <Alert tone="danger">{t(failed)}</Alert>}
         <Form method="post" action={action} onSubmit={submit}>

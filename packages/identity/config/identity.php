@@ -34,6 +34,25 @@ return [
         ],
     ],
 
+    'password_reset' => [
+        // How long a password reset link works, in minutes, 5 to 1440 (PRD 5.16). A link sets a
+        // password once; cms:identity:prune removes it 24 hours after it was used or expired.
+        'token_minutes' => 60,
+        // The address of the panel's page that resets a password, which the link in the mail and
+        // cms:staff:reset-link point at with the token as a last path segment: an https URL, or an
+        // http URL of a loopback host, without a query or a fragment. Null takes the application's
+        // URL, app.url, followed by /cms/reset-password, the page where PanelRoutes mounts it by
+        // default. It is never read from a request, so a forged Host header cannot change a link.
+        'url' => null,
+        // The rate limit of requests for a link (PRD 5.16), counted in Valkey as the login
+        // throttle counts: per login identifier and per IP address, within `window_seconds` of the
+        // first. A request above a limit is answered as every other request is, and sends nothing.
+        'throttle' => [
+            'identifier' => ['attempts' => 3, 'window_seconds' => 3600],
+            'ip' => ['attempts' => 20, 'window_seconds' => 3600],
+        ],
+    ],
+
     'passwords' => [
         // The Argon2id parameters the local accounts hash their passwords with (PRD 5.16): memory
         // in KiB, 1024 to 4194304, and passes, 1 to 64, with one thread. PHP's defaults, 64 MiB and

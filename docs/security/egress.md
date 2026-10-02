@@ -1,12 +1,12 @@
 ---
 title: Egress
 weight: 53
-description: "The egress gateway: every outbound request goes through it and its SSRF guard on cboxdk/laravel-ssrf, what it refuses, its timeouts and counters, how the architecture tests hold the rule, and why PHP runs with allow_url_fopen off."
+description: "The egress gateway: every outbound request goes through it and its SSRF guard on cboxdk/laravel-ssrf, what it refuses, its timeouts and counters, the mail gateway and why the guard does not apply to mail, how the architecture tests hold the rule, and why PHP runs with allow_url_fopen off."
 ---
 
 # Egress
 
-A CMS fetches URLs that people and other systems give it, which makes it a way into the network it runs in. The rule is therefore that every outbound request goes through one gateway, the namespace `Cbox\Cms\Core\Egress`, which checks the destination with an SSRF guard before it connects (GUARDRAILS 3).
+A CMS fetches URLs that people and other systems give it, which makes it a way into the network it runs in. The rule is therefore that every outbound request goes through one gateway, the namespace `Cbox\Cms\Core\Egress`, which checks the destination with an SSRF guard before it connects, and every mail through its mail gateway (GUARDRAILS 3).
 
 <!-- extension-point: Cbox\Cms\Core\Egress\Domain\EgressGateway -->
 
@@ -82,6 +82,66 @@ it('fetches a public https URL and refuses one whose DNS points at the metadata 
 
 Every request adds 1 to `cms.egress.requests`, and every request that does not end with a `2xx` status adds 1 to `cms.egress.failures`, both through the [Telemetry](../addons/contracts/telemetry.md) contract. Each counter has two attributes and no others: `cms.egress.host_class` and `cms.egress.outcome`, which is `ok`, `status` (another status that is not a redirect), `redirect`, `blocked`, `unavailable` or `guard_disabled`. The host, the path and the query of the URL are never counted, because a URL can carry a token or personal data.
 
+## Mail
+
+<!-- extension-point: Cbox\Cms\Core\Egress\Domain\MailGateway -->
+
+Mail leaves the process through the mail gateway, `Cbox\Cms\Core\Egress\Domain\MailGateway`, as HTTP leaves it through the egress gateway; the architecture tests fail on any other use of a mailer. It has one method, `send(OutboundMail $mail)`. An `OutboundMail` is a `HostClass` to count it under, such as `password_reset`, one recipient, a subject of one line and a plain text. The interface is `#[Experimental]`, and the container gives `LaravelMailGateway`, which hands the mail to the transport of Laravel's default mailer, `mail.default`, from the sender `mail.from`.
+
+The SSRF guard does not apply to mail. The guard protects against a destination that comes from input, such as a URL an editor pastes. The mail transport's host, whether an SMTP server or an API such as Postmark or SES, is the operator's configuration, `mail.mailers`, and never input: a mail's recipient, subject and text choose what is sent, not where the process connects. The SMTP server then delivers to the recipient's domain, outside the process. So the gateway checks the mail's form, not its destination, and the network rule that limits the servers' outbound traffic should let them reach the configured mail host.
+
+A transport that refuses the mail or does not answer, and a mail without a sender, fail with `EgressFailed` and [`egress_mail_failed`](../reference/errors.md#egress_mail_failed). The exception of the transport is not kept, because its message can name the recipient. Every mail adds 1 to `cms.egress.mails`, and every failed one also to `cms.egress.failures`, with the same two attributes as a request, `cms.egress.host_class` and `cms.egress.outcome` (`ok` or `unavailable`), never the recipient.
+
+This example is in the `Unit` suite; it sets Laravel's array mailer, as the workbench does, so nothing leaves the test:
+
+<!-- example: examples/Unit/Egress/MailGatewayTest.php -->
+```php
+<?php
+
+declare(strict_types=1);
+
+use Cbox\Cms\Contracts\Identity\EmailAddress;
+use Cbox\Cms\Core\Egress\Domain\Dto\OutboundMail;
+use Cbox\Cms\Core\Egress\Domain\HostClass;
+use Cbox\Cms\Core\Egress\Domain\MailGateway;
+use Illuminate\Mail\MailManager;
+use Illuminate\Mail\Transport\ArrayTransport;
+use Symfony\Component\Mailer\SentMessage;
+
+// An addon mails a weekly digest to an editor. It asks the container for the mail gateway and
+// sends the mail through it, in plain text, from the installation's sender, mail.from. The test
+// sets Laravel's array mailer as mail.default, so nothing leaves the test, and reads the mail back
+// from its transport.
+
+it('sends a mail through the mail gateway on the default mailer', function (): void {
+    config([
+        'mail.default' => 'array',
+        'mail.from' => ['address' => 'cms@example.com', 'name' => 'Cbox CMS'],
+    ]);
+
+    // What the addon does: send the mail through the MailGateway the container gives.
+    $digest = static function (MailGateway $mail, string $editor): void {
+        $mail->send(new OutboundMail(
+            new HostClass('digest'),
+            new EmailAddress($editor),
+            'Your weekly digest',
+            "Three entries were published this week.\n",
+        ));
+    };
+
+    $digest(app(MailGateway::class), 'editor@example.org');
+
+    $transport = app(MailManager::class)->mailer()->getSymfonyTransport();
+    assert($transport instanceof ArrayTransport);
+    $sent = $transport->messages()->first();
+    assert($sent instanceof SentMessage);
+
+    expect($sent->getEnvelope()->getRecipients()[0]->getAddress())->toBe('editor@example.org')
+        ->and($sent->getEnvelope()->getSender()->getAddress())->toBe('cms@example.com')
+        ->and($sent->toString())->toContain('Subject: Your weekly digest');
+});
+```
+
 ## What the rule covers
 
 The architecture tests fail on every use of:
@@ -89,10 +149,10 @@ The architecture tests fail on every use of:
 - HTTP clients: Guzzle, Laravel's `Http` facade and the other clients, and the `curl_*` functions;
 - sockets: `fsockopen`, `pfsockopen`, `stream_socket_client`, the `socket_*` and `ftp_*` functions;
 - every function that opens a file name, because PHP's URL wrappers let it fetch `http://`, `https://` and `ftp://`: `file_get_contents`, `fopen`, `file`, `readfile`, `copy`, `SplFileObject`, `DOMDocument` and `XMLReader` loading, and the others;
-- the framework's services that reach other hosts: the mailers, notifications, the filesystem disks and the image manager;
+- the framework's services that reach other hosts: the mailers, notifications, the filesystem disks and the image manager; mail goes through the mail gateway;
 - the functions that run a program, and Symfony and Illuminate Process, because a program can make its own requests.
 
-A class may use one of these only when the architecture test lists it as an exception, with the names it may use and the reason; the gateway's namespace is no exception as a whole. The exceptions are the gateway's adapter, `SsrfEgressGateway`, with Laravel's HTTP client and nothing else; the classes that read and write the local files the kernel owns, such as the registry cache, the blueprint files and the generated code, each of which refuses a path that names a stream wrapper before it opens it; the doctor's probe that runs `node --version`; and the testkit's helpers for tests.
+A class may use one of these only when the architecture test lists it as an exception, with the names it may use and the reason; the gateway's namespace is no exception as a whole. The exceptions are the gateway's adapters, `SsrfEgressGateway` with Laravel's HTTP client and nothing else, and `LaravelMailGateway` with Laravel's mailer and Symfony's mailer exceptions; the classes that read and write the local files the kernel owns, such as the registry cache, the blueprint files and the generated code, each of which refuses a path that names a stream wrapper before it opens it; the doctor's probe that runs `node --version`; and the testkit's helpers for tests.
 
 ## allow_url_fopen
 

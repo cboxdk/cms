@@ -25,7 +25,12 @@ use DateTimeImmutable;
  *   account still has the hash the caller verified; it keeps when the password was set.
  * - changePassword() sets a new hash, at the Clock's time.
  * - issueResetToken() makes a reset token for an account, which expires at the time given;
- *   resetPassword() takes a token once, before it expires, and sets the new hash with it.
+ *   resetPassword() takes a token once, before it expires, and sets the new hash with it. The
+ *   reset also takes every other token of the account that is still unused, so a link mailed
+ *   earlier cannot set the password again after it. resetTokenActor() looks a token up without
+ *   taking it, so a reset page can refuse a dead link before it checks and hashes a password.
+ * - pruneResetTokens() removes the tokens that were used, or expired, before a time, which the
+ *   maintenance process passes as 24 hours ago (cms:identity:prune).
  *
  * Every change of the hash adds 1 to the account's version. A message of the store never holds a
  * login identifier, a hash or a token. The default is the identity module's
@@ -63,9 +68,22 @@ interface LocalCredentialStore
     public function issueResetToken(ActorId $actor, DateTimeImmutable $expiresAt): PasswordResetToken;
 
     /**
+     * The actor of a reset token that is usable at the Clock's time, unused and not expired, or
+     * null for a token that is unknown, used or expired. It takes nothing.
+     */
+    public function resetTokenActor(PasswordResetToken $token): ?ActorId;
+
+    /**
      * Marks the token used and sets the new hash, both or neither.
      *
      * @throws PasswordResetRefused when the token is unknown, used or expired
      */
     public function resetPassword(PasswordResetToken $token, PasswordHash $hash): LocalAccount;
+
+    /**
+     * Removes every reset token that was used before $before, and every one that expired before
+     * it, used or not, and returns how many it removed. A token that is still usable, or that was
+     * used or expired at or after $before, stays.
+     */
+    public function pruneResetTokens(DateTimeImmutable $before): int;
 }

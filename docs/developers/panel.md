@@ -17,12 +17,15 @@ An application mounts the panel in its web routes, inside the web middleware gro
 - `GET build/{path}`, named `cbox-cms.panel.asset`: a file of the panel's build;
 - the panel's pages, each behind the Content-Security-Policy below and Inertia's middleware with the panel's root view:
   - `GET login`, named `cbox-cms.panel.login`, the login page, and `POST login`, named `cbox-cms.panel.login.submit`, a login from its form;
+  - `GET forgot-password` and `POST forgot-password`, named `cbox-cms.panel.forgot-password` and `cbox-cms.panel.forgot-password.submit`, the page that asks for a password reset link and its form, and `GET reset-password/{token}` and `POST reset-password`, named `cbox-cms.panel.reset-password` and `cbox-cms.panel.reset-password.submit`, the page a reset link opens and its form;
   - behind the panel's session middleware, which sends a request without a session that verifies to the login page: `GET` the prefix itself, named `cbox-cms.panel.home`, the start page; `POST logout`, named `cbox-cms.panel.logout`; and `POST commands/{command}/v{version}`, named `cbox-cms.panel.command`, the Inertia command profile, which runs a command as the person who logged in;
 - last, any other path, named `cbox-cms.panel.not-found`: the page that says the panel has no page at the address, with 404 and a link back to the start of the panel.
 
 ## Logging in
 
-The login page takes the email and password of a local account. A login that succeeds goes to the start page with a new session; one that is refused comes back to the login page with one message, whatever the reason, and logins are rate limited per email and per IP address. Every state-changing panel request is checked for the CSRF token of Laravel's session. [Sessions](../security/sessions.md#the-panel-and-laravels-session) describes the session cookie, how it relates to Laravel's session, and the rate limit.
+The login page takes the email and password of a local account. A login that succeeds goes to the start page with a new session; one that is refused comes back to the login page with one message, whatever the reason, and logins are rate limited per email and per IP address. Every state-changing panel request is checked for the CSRF token of Laravel's session.
+
+The login page links to the page that asks for a password reset link, which answers every email the same. The link in the mail opens the reset page, which takes a new password, ends the person's other sessions and signs them in. The link points at `cbox-cms.identity.password_reset.url`, which is `app.url` with `/cms/reset-password` by default, so an application that mounts the panel at another prefix sets it. [Local accounts](../security/local-accounts.md#resetting-a-password) describes the whole reset. [Sessions](../security/sessions.md#the-panel-and-laravels-session) describes the session cookie, how it relates to Laravel's session, and the rate limit.
 
 ## The Content-Security-Policy
 

@@ -6,6 +6,7 @@ namespace Cbox\Cms\Tests\Support\Arch;
 
 use Cbox\Cms\Contracts\Envelope\IssuerKind;
 use Cbox\Cms\Core\Doctor\Adapter\ProcessToolProbe;
+use Cbox\Cms\Core\Egress\Adapter\LaravelMailGateway;
 use Cbox\Cms\Core\Egress\Adapter\SsrfEgressGateway;
 use Cbox\Cms\Core\Registry\Adapter\FileOpenApiDocuments;
 use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
@@ -30,8 +31,9 @@ use Cbox\Cms\Testkit\Postgres\ChildProcesses;
 
 /**
  * What only the egress gateway may call (GUARDRAILS 3): everything outbound goes through the SSRF
- * guard in Codebase::GATEWAY. The gateway is not exempt as a namespace: its adapter is allowed
- * exactly the names it uses, as every other class with an allowance is.
+ * guard in Codebase::GATEWAY, and every mail through its mail gateway. The gateway is not exempt as
+ * a namespace: its adapters are allowed exactly the names they use, as every other class with an
+ * allowance is.
  *
  * That is more than the HTTP clients. PHP's URL wrappers make every function that opens a file
  * name fetch http://, https:// and ftp:// URLs: fopen, file, readfile, copy, SplFileObject,
@@ -91,6 +93,12 @@ final class Egress
         // gateway is held to exactly these names like any other class; nothing else in its
         // namespace may use a name from the lists.
         SsrfEgressGateway::class => ['Illuminate\Http\Client\\'],
+        // The mail gateway (GUARDRAILS 3): Laravel's mailer contract, the Message its callback
+        // builds and the Symfony mailer's transport exception. The SSRF guard does not apply to
+        // mail: the transport's host is mail.default's, the operator's configuration, never input,
+        // and a mail's content and recipient never choose where the process connects
+        // (docs/security/egress.md). Nothing else may use a mailer.
+        LaravelMailGateway::class => ['Illuminate\Contracts\Mail\\', 'Illuminate\Mail\\', 'Symfony\Component\Mailer\\'],
         // Reads local files: it refuses a path that names a stream wrapper
         // (LocalPath::namesStreamWrapper()) before it touches it, and the generators read every
         // schema and generated file through it.

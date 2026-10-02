@@ -32,3 +32,11 @@
   gap: var(--cms-space-4);
   margin-top: var(--cms-space-6);
 }
+
+.cms-task-screen__footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--cms-space-2) var(--cms-space-4);
+  margin-top: var(--cms-space-6);
+}
