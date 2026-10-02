@@ -187,4 +187,41 @@ final class InvalidIdentity extends InvalidArgumentException
             RoleHandle::MAX_LENGTH - 1,
         ));
     }
+
+    /**
+     * A login identifier that breaks its rules. The message never repeats the value, which is
+     * personal data (PRD 12.2).
+     */
+    public static function loginIdentifier(): self
+    {
+        return new self(sprintf(
+            'A login identifier is 1 to %d characters in lower case, without white space or control characters.',
+            LoginIdentifier::MAX_LENGTH,
+        ));
+    }
+
+    /**
+     * A password hash that is not an Argon2id hash in PHP's encoded form. The message never repeats
+     * the value.
+     */
+    public static function passwordHash(): self
+    {
+        return new self('A password hash is an Argon2id hash in PHP\'s encoded form, as password_hash() writes it with PASSWORD_ARGON2ID.');
+    }
+
+    /**
+     * A local account whose password was set before the account was made.
+     */
+    public static function localAccountTimes(): self
+    {
+        return new self('A local account\'s password is set when the account is made or later.');
+    }
+
+    /**
+     * A secret of a password reset token that is not 32 bytes.
+     */
+    public static function resetTokenSecret(int $length): self
+    {
+        return new self(sprintf('The secret of a password reset token is %d bytes, not %d.', PasswordResetToken::SECRET_BYTES, $length));
+    }
 }

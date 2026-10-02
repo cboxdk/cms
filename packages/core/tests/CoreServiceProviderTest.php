@@ -7,6 +7,7 @@ namespace Cbox\Cms\Core\Tests;
 use Cbox\Cms\Contracts\Cache\FragmentStore;
 use Cbox\Cms\Contracts\Cdn\CdnDriver;
 use Cbox\Cms\Contracts\Identity\BreachedPasswords;
+use Cbox\Cms\Contracts\Identity\LocalCredentialStore;
 use Cbox\Cms\Contracts\Telemetry\Telemetry;
 use Cbox\Cms\Contracts\TypeTables\TypeTableReader;
 use Cbox\Cms\Core\Access\Adapter\PostgresCommandAuthorizer;
@@ -67,6 +68,7 @@ use Cbox\Cms\Core\Telemetry\Adapter\LogTelemetry;
 use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\TypeTables\Adapter\PostgresTypeTableReader;
 use Cbox\Cms\Identity\BreachedPasswords\Adapter\HibpBreachedPasswords;
+use Cbox\Cms\Identity\CredentialStore\Adapter\PostgresLocalCredentialStore;
 use Cbox\Cms\Testkit\Cdn\FakeCdnDriver;
 use Cbox\Cms\Testkit\Telemetry\FakeTelemetry;
 use Cbox\Operations\Contracts\Operations;
@@ -106,7 +108,7 @@ it('merges config/cbox-cms.php under cbox-cms, the only root of the configuratio
 
     expect(array_map(basename(...), glob(__DIR__.'/../config/*.php') ?: []))->toBe(['cbox-cms.php'])
         ->and(array_keys($defaults->array('cbox-cms')))->toBe(['contracts', 'database', 'addons', 'cli', 'queries', 'sites', 'idempotency', 'receipts', 'egress', 'events', 'rebuild', 'seeding', 'fragments', 'delivery', 'doctor'])
-        ->and(config('cbox-cms.contracts'))->toBe([...(array) $defaults->get('cbox-cms.contracts'), BreachedPasswords::class => HibpBreachedPasswords::class])
+        ->and(config('cbox-cms.contracts'))->toBe([...(array) $defaults->get('cbox-cms.contracts'), BreachedPasswords::class => HibpBreachedPasswords::class, LocalCredentialStore::class => PostgresLocalCredentialStore::class])
         ->and(config('cbox-cms.egress'))->toBe($defaults->get('cbox-cms.egress'))
         ->and(config('cbox-cms.database.partitions.runway_days'))->toBe($defaults->get('cbox-cms.database.partitions.runway_days'))
         ->and(config('cbox-cms.queries.budgets'))->toBe($defaults->get('cbox-cms.queries.budgets'))

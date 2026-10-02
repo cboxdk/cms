@@ -122,6 +122,8 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`installation_operator_missing`](#installation_operator_missing) | 500 | 78 | internal_error | no |
 | [`json_invalid`](#json_invalid) | 422 | 65 | tool_error | no |
 | [`json_malformed`](#json_malformed) | 400 | 65 | tool_error | no |
+| [`local_account_exists`](#local_account_exists) | 409 | 65 | tool_error | no |
+| [`local_account_missing`](#local_account_missing) | 404 | 67 | tool_error | no |
 | [`login_authoritative_link`](#login_authoritative_link) | 403 | 77 | tool_error | no |
 | [`login_class_not_allowed`](#login_class_not_allowed) | 403 | 77 | tool_error | no |
 | [`login_connection_not_allowed`](#login_connection_not_allowed) | 403 | 77 | tool_error | no |
@@ -139,6 +141,10 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`partition_missing`](#partition_missing) | 503 | 75 | internal_error | yes |
 | [`partition_owner_required`](#partition_owner_required) | 500 | 78 | internal_error | no |
 | [`partition_table_unmanageable`](#partition_table_unmanageable) | 500 | 78 | internal_error | no |
+| [`password_breached`](#password_breached) | 422 | 65 | tool_error | no |
+| [`password_reset_token_invalid`](#password_reset_token_invalid) | 400 | 65 | tool_error | no |
+| [`password_too_long`](#password_too_long) | 422 | 65 | tool_error | no |
+| [`password_too_short`](#password_too_short) | 422 | 65 | tool_error | no |
 | [`path_gone`](#path_gone) | 410 | 66 | tool_error | no |
 | [`path_not_found`](#path_not_found) | 404 | 66 | tool_error | no |
 | [`placement_slug_taken`](#placement_slug_taken) | 409 | 65 | tool_error | no |
@@ -1192,6 +1198,24 @@ The document is not a well-formed JSON object, or an object in it has the same k
 - MCP: a tool result with isError set
 - Retry: no, the same call gives the same answer until something changes
 
+### local_account_exists
+
+A local account was not created: its login identifier, the email address in lower case, is the login of another local account already, or the actor has a local account (PRD 5.16, "Lokale konti"). Every login belongs to one account and every account to one actor. Nothing was written. Use another email address, or reset the password of the account that exists.
+
+- HTTP status: 409 Conflict
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### local_account_missing
+
+The actor has no local account, so its password cannot be changed or reset (PRD 5.16). Nothing was written. An actor that logs in only through a federated connection has no local account.
+
+- HTTP status: 404 Not Found
+- CLI exit code: 67 (EX_NOUSER)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
 ### login_authoritative_link
 
 The login was refused by the login policy: it came through the local connection, and the actor is linked to a connection marked authoritative, whose identity provider owns the actor's access, so the actor has no local login methods (PRD 5.16, invariant 38). No session was issued. Log in through the authoritative connection; the person is only told that the login failed.
@@ -1343,6 +1367,42 @@ A table in cbox-cms.database.partitions.tables cannot be managed as it is: it is
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 78 (EX_CONFIG)
 - MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### password_breached
+
+The password was refused: it is known from data breaches, so someone could guess it from the lists of leaked passwords (PRD 5.16, "Lokale konti"). Nothing was written. Choose another password, such as a sentence of several unrelated words, that you have not used anywhere else.
+
+- HTTP status: 422 Unprocessable Content
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### password_reset_token_invalid
+
+The password reset link was refused: its token is unknown, has been used already or has expired (PRD 5.16). Nothing was changed. Ask for a new link from the page that resets a password; a link sets a password once and expires.
+
+- HTTP status: 400 Bad Request
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### password_too_long
+
+The password was refused: it is longer than 1024 bytes in UTF-8, the most a local account takes, so hashing it cannot be used to slow the server down (PRD 5.16). Nothing was written. Choose a shorter password.
+
+- HTTP status: 422 Unprocessable Content
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### password_too_short
+
+The password was refused: it has fewer than 12 characters, the least a local account takes (PRD 5.16, "Lokale konti"). Nothing was written. Choose a longer password, such as a sentence of several unrelated words.
+
+- HTTP status: 422 Unprocessable Content
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
 - Retry: no, the same call gives the same answer until something changes
 
 ### path_gone

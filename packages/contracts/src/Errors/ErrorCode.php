@@ -134,6 +134,8 @@ enum ErrorCode: string
     case InstallationOperatorMissing = 'installation_operator_missing';
     case JsonInvalid = 'json_invalid';
     case JsonMalformed = 'json_malformed';
+    case LocalAccountExists = 'local_account_exists';
+    case LocalAccountMissing = 'local_account_missing';
     case LoginAuthoritativeLink = 'login_authoritative_link';
     case LoginClassNotAllowed = 'login_class_not_allowed';
     case LoginConnectionNotAllowed = 'login_connection_not_allowed';
@@ -151,6 +153,10 @@ enum ErrorCode: string
     case PartitionMissing = 'partition_missing';
     case PartitionOwnerRequired = 'partition_owner_required';
     case PartitionTableUnmanageable = 'partition_table_unmanageable';
+    case PasswordBreached = 'password_breached';
+    case PasswordResetTokenInvalid = 'password_reset_token_invalid';
+    case PasswordTooLong = 'password_too_long';
+    case PasswordTooShort = 'password_too_short';
     case PathGone = 'path_gone';
     case PathNotFound = 'path_not_found';
     case PlacementSlugTaken = 'placement_slug_taken';
@@ -616,6 +622,16 @@ enum ErrorCode: string
                 false,
                 'The document is not a well-formed JSON object, or an object in it has the same key twice, so none of it was read (GUARDRAILS 2.2). Send one JSON object, encoded as UTF-8, with every key once in each object.',
             ),
+            self::LocalAccountExists => $this->caller(
+                HttpStatus::Conflict,
+                ExitCode::DataErr,
+                'A local account was not created: its login identifier, the email address in lower case, is the login of another local account already, or the actor has a local account (PRD 5.16, "Lokale konti"). Every login belongs to one account and every account to one actor. Nothing was written. Use another email address, or reset the password of the account that exists.',
+            ),
+            self::LocalAccountMissing => $this->caller(
+                HttpStatus::NotFound,
+                ExitCode::NoUser,
+                'The actor has no local account, so its password cannot be changed or reset (PRD 5.16). Nothing was written. An actor that logs in only through a federated connection has no local account.',
+            ),
             self::LoginAuthoritativeLink => $this->caller(
                 HttpStatus::Forbidden,
                 ExitCode::NoPerm,
@@ -688,6 +704,26 @@ enum ErrorCode: string
             ),
             self::PartitionTableUnmanageable => $this->violation(
                 'A table in cbox-cms.database.partitions.tables cannot be managed as it is: it is missing, not partitioned by range, has a DEFAULT partition, or Postgres refused a step on one of its partitions. The other tables were still maintained. Run the migrations, or correct the table or its entry as the cause says.',
+            ),
+            self::PasswordBreached => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'The password was refused: it is known from data breaches, so someone could guess it from the lists of leaked passwords (PRD 5.16, "Lokale konti"). Nothing was written. Choose another password, such as a sentence of several unrelated words, that you have not used anywhere else.',
+            ),
+            self::PasswordResetTokenInvalid => $this->caller(
+                HttpStatus::BadRequest,
+                ExitCode::DataErr,
+                'The password reset link was refused: its token is unknown, has been used already or has expired (PRD 5.16). Nothing was changed. Ask for a new link from the page that resets a password; a link sets a password once and expires.',
+            ),
+            self::PasswordTooLong => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'The password was refused: it is longer than 1024 bytes in UTF-8, the most a local account takes, so hashing it cannot be used to slow the server down (PRD 5.16). Nothing was written. Choose a shorter password.',
+            ),
+            self::PasswordTooShort => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'The password was refused: it has fewer than 12 characters, the least a local account takes (PRD 5.16, "Lokale konti"). Nothing was written. Choose a longer password, such as a sentence of several unrelated words.',
             ),
             self::PathGone => $this->caller(
                 HttpStatus::Gone,

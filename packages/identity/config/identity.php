@@ -16,6 +16,23 @@ return [
     // database as the default connection, with the identity role's username and password.
     'connection' => 'pgsql_identity',
 
+    'local' => [
+        // The issuer every login through the local connection names (PRD 5.16): an https URL, or an
+        // http URL of a loopback host. Null takes the application's URL, app.url.
+        'issuer' => null,
+    ],
+
+    'passwords' => [
+        // The Argon2id parameters the local accounts hash their passwords with (PRD 5.16): memory
+        // in KiB, 1024 to 4194304, and passes, 1 to 64, with one thread. PHP's defaults, 64 MiB and
+        // 4 passes, are above the OWASP minimum. A login whose hash was made with other parameters
+        // is hashed again with these.
+        'argon2id' => [
+            'memory_kib' => 65536,
+            'time' => 4,
+        ],
+    ],
+
     'session' => [
         // The cookie that carries the session id (PRD 5.16, docs/security/sessions.md), per
         // environment. An environment without an entry takes the entry of `production`. The cookie

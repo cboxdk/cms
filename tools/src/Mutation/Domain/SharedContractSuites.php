@@ -31,6 +31,7 @@ final readonly class SharedContractSuites
         'packages/testkit/src/Identity/ActorDirectoryContract.php',
         'packages/testkit/src/Identity/BreachedPasswordsContract.php',
         'packages/testkit/src/Identity/CredentialVerifierContract.php',
+        'packages/testkit/src/Identity/LocalCredentialStoreContract.php',
         'packages/testkit/src/Identity/SessionCredentialContract.php',
         'packages/testkit/src/Ids/IdGeneratorContract.php',
         'packages/testkit/src/Login/IssuerResolverContract.php',

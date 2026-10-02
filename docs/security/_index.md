@@ -10,6 +10,7 @@ The kernel's security rests on rules that the code, the tests and `cms:doctor` h
 
 - [Postgres roles](postgres-roles.md): the app role and the owner role, row level security, and the processes that may hold the owner's credentials.
 - [Credential store](credential-store.md): where the local accounts keep their credentials, the identity role that alone reaches them, and how to set it up in production.
+- [Local accounts](local-accounts.md): how a member of staff gets a local account with `cms:staff:create`, the password policy, Argon2id hashing, and the local connection.
 - [Login policy](login-policy.md): the login policy per actor class and environment, which every login path asks before a session is issued.
 - [Sessions](sessions.md): the session of a person who logged in, how long it lives, how it ends, and its cookie.
 - [Egress](egress.md): the rule for outbound requests, and `allow_url_fopen`.

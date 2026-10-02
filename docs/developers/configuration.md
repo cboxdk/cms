@@ -28,6 +28,7 @@ A test that changes a setting sets the single key, such as `cbox-cms.contracts.<
 | `Cbox\Cms\Contracts\TypeTables\TypeTableReader` | `Cbox\Cms\Core\TypeTables\Adapter\PostgresTypeTableReader` |
 | `Cbox\Cms\Contracts\Telemetry\Telemetry` | `Cbox\Cms\Core\Telemetry\Adapter\LogTelemetry` |
 | `Cbox\Cms\Contracts\Identity\BreachedPasswords` | `Cbox\Cms\Identity\BreachedPasswords\Adapter\HibpBreachedPasswords`, set by the identity module's provider when the application names none |
+| `Cbox\Cms\Contracts\Identity\LocalCredentialStore` | `Cbox\Cms\Identity\CredentialStore\Adapter\PostgresLocalCredentialStore`, set by the identity module's provider when the application names none |
 
 `Cbox\Cms\Contracts\Cdn\CdnDriver` has no default: the real drivers come with full-scale invalidation, and until an application sets `cbox-cms.contracts.Cbox\Cms\Contracts\Cdn\CdnDriver`, resolving it throws `InvalidContractBinding` with the key to set. The invalidation subscriber on the critical lane purges through it, so `cms:events:run` needs one. Tests use the testkit's `FakeCdnDriver`, and the workbench binds it when its environment has `CBOX_CMS_CDN_DRIVER=fake`; see [CDN driver](../addons/contracts/cdn-driver.md).
 
@@ -165,6 +166,9 @@ An invalid doctor setting makes `cms:doctor` run the single check `doctor.config
 | Key | Default | What it does |
 |---|---|---|
 | `cbox-cms.identity.connection` | `pgsql_identity` | The database connection of the identity role, the only role that reaches the credential store of the local accounts in the schema `cms_identity`. It goes to the same database as the default connection with a role of its own. See [Credential store](../security/credential-store.md). |
+| `cbox-cms.identity.local.issuer` | `null` | The issuer every login through the local connection names in its verified assertion: an https URL, or an http URL of a loopback host. Null takes the application's URL, `app.url`, without a trailing slash. See [Local accounts](../security/local-accounts.md). |
+| `cbox-cms.identity.passwords.argon2id.memory_kib` | `65536` | The memory, in KiB, of the Argon2id hash of a local account's password: 1024 to 4194304. A login whose hash was made with other parameters is hashed again with these. |
+| `cbox-cms.identity.passwords.argon2id.time` | `4` | The passes of the Argon2id hash of a local account's password: 1 to 64. The hash always uses one thread. |
 | `cbox-cms.identity.policy.authoritative_connections` | `[]` | The federated connections marked authoritative: their identity provider owns the access of the actors linked to them, so such an actor has no local login (invariant 38). Never `local`. See [Login policy](../security/login-policy.md). |
 | `cbox-cms.identity.policy.staff.connections.local` | `true` | Whether members of staff may log in through the local connection, the local accounts of the identity module. Add a federated connection by its name, such as `cbox-cms.identity.policy.staff.connections.entra`, set to `true`. |
 | `cbox-cms.identity.policy.staff.methods.password` | `true` | Whether members of staff may log in with the method `password`. A method the map does not name is not allowed. |

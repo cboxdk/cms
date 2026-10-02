@@ -12,6 +12,7 @@ use Cbox\Cms\Contracts\Doctor\DoctorCheck;
 use Cbox\Cms\Contracts\Identity\ActorDirectory;
 use Cbox\Cms\Contracts\Identity\BreachedPasswords;
 use Cbox\Cms\Contracts\Identity\CredentialVerifier;
+use Cbox\Cms\Contracts\Identity\LocalCredentialStore;
 use Cbox\Cms\Core\Bindings\Boundary\ContractBindings;
 use Cbox\Cms\Core\Doctor\Adapter\DoctorConnection;
 use Cbox\Cms\Core\Doctor\Boundary\DoctorConfig;
@@ -19,6 +20,8 @@ use Cbox\Cms\Core\Doctor\Domain\Dto\DoctorSettings;
 use Cbox\Cms\Core\Process\Boundary\ProcessWorkload;
 use Cbox\Cms\Core\Process\Domain\Workload;
 use Cbox\Cms\Identity\BreachedPasswords\Adapter\HibpBreachedPasswords;
+use Cbox\Cms\Identity\Cli\Console\StaffCreateCommand;
+use Cbox\Cms\Identity\CredentialStore\Adapter\PostgresLocalCredentialStore;
 use Cbox\Cms\Identity\CredentialStore\Boundary\IdentityConfig;
 use Cbox\Cms\Identity\Doctor\Adapter\ConfigSessionCookieProbe;
 use Cbox\Cms\Identity\Doctor\Adapter\ConnectionCredentialStoreProbe;
@@ -30,6 +33,10 @@ use Cbox\Cms\Identity\Doctor\Domain\Checks\SessionCookieCheck;
 use Cbox\Cms\Identity\Doctor\Domain\Probes\CredentialStoreProbe;
 use Cbox\Cms\Identity\Doctor\Domain\Probes\PasswordHashingProbe;
 use Cbox\Cms\Identity\Doctor\Domain\Probes\SessionCookieProbe;
+use Cbox\Cms\Identity\LocalAccounts\Adapter\Argon2idPasswordHasher;
+use Cbox\Cms\Identity\LocalAccounts\Boundary\LocalAccountsConfig;
+use Cbox\Cms\Identity\LocalAccounts\Domain\LocalConnection;
+use Cbox\Cms\Identity\LocalAccounts\Domain\PasswordHasher;
 use Cbox\Cms\Identity\LoginPolicy\Adapter\PostgresIdpLinks;
 use Cbox\Cms\Identity\LoginPolicy\Boundary\LoginPolicyConfig;
 use Cbox\Cms\Identity\LoginPolicy\Domain\Dto\LoginPolicy;
@@ -60,7 +67,11 @@ use Override;
  * identity.argon2id and identity.session_cookie, with their probes. Binds the login policy of
  * `cbox-cms.identity.policy`, read when it is first asked for, and the IdP links it reads (PRD
  * 5.16, invariant 38). Binds BreachedPasswords to the class `cbox-cms.contracts` names for it,
- * HibpBreachedPasswords unless the application names another. Binds the session cookie of the
+ * HibpBreachedPasswords unless the application names another, and LocalCredentialStore to the
+ * class `cbox-cms.contracts` names for it, PostgresLocalCredentialStore on the identity connection
+ * unless the application names another. Binds the Argon2id PasswordHasher at
+ * `cbox-cms.identity.passwords.argon2id` and the LocalConnection with the installation's local
+ * issuer, and registers cms:staff:create in the console. Binds the session cookie of the
  * environment, the session store in Valkey, and puts the session verifier in front of the bound
  * CredentialVerifier with the container's extend(), so a session is a credential of every surface
  * and the core never names this module. Refuses to boot a process that serves HTTP when the
@@ -112,6 +123,32 @@ final class IdentityServiceProvider extends ServiceProvider implements DeclaresS
             static fn (Application $app): BreachedPasswords => $app->make(ContractBindings::class)->resolve($app, BreachedPasswords::class),
         );
 
+        // The local accounts: the store of their credentials, bound as any contract with the
+        // module's Postgres store as the default, the Argon2id hasher at the installation's
+        // parameters, and the local connection with the installation's local issuer.
+        $store = ContractBindings::CONFIG_KEY.'.'.LocalCredentialStore::class;
+
+        if ($config->get($store) === null) {
+            $config->set($store, PostgresLocalCredentialStore::class);
+        }
+
+        $this->app->bind(PostgresLocalCredentialStore::class, static fn (Application $app): PostgresLocalCredentialStore => new PostgresLocalCredentialStore(
+            $app->make(DatabaseManager::class),
+            IdentityConfig::connection($app->make(Repository::class)),
+            $app->make(Clock::class),
+        ));
+        $this->app->singleton(
+            LocalCredentialStore::class,
+            static fn (Application $app): LocalCredentialStore => $app->make(ContractBindings::class)->resolve($app, LocalCredentialStore::class),
+        );
+        $this->app->singleton(PasswordHasher::class, static fn (Application $app): PasswordHasher => new Argon2idPasswordHasher(LocalAccountsConfig::argon2id($app->make(Repository::class))));
+        $this->app->singleton(LocalConnection::class, static fn (Application $app): LocalConnection => new LocalConnection(
+            $app->make(LocalCredentialStore::class),
+            $app->make(PasswordHasher::class),
+            LocalAccountsConfig::issuer($app->make(Repository::class)),
+            $app->make(Clock::class),
+        ));
+
         $this->app->bind(PasswordHashingProbe::class, PhpPasswordHashingProbe::class);
         $this->app->bind(SessionCookieProbe::class, ConfigSessionCookieProbe::class);
         $this->app->singleton(SessionCookie::class, static fn (Application $app): SessionCookie => SessionCookieConfig::read($app->make(Repository::class), $app->environment()));
@@ -152,6 +189,10 @@ final class IdentityServiceProvider extends ServiceProvider implements DeclaresS
     public function boot(): void
     {
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([StaffCreateCommand::class]);
+        }
         $this->refuseAnUnsafeSessionCookie();
     }
 

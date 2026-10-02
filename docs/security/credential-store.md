@@ -16,6 +16,8 @@ The identity module, `Cbox\Cms\Identity`, owns the store. Its migrations create 
 - `cms_identity.password_reset_tokens` holds a reset token of a local account as the SHA-256 of the token, never the token itself, with when it expires and when it was used.
 - `cms_identity.idp_links` holds the links of actors to IdP identities (PRD 5.16, "Koblinger"): an IdP identity, its connection, issuer and subject, is the key and points at one actor in `actors`. The [login policy](login-policy.md) reads them to refuse a local login of an actor linked to an authoritative connection. The federated connections and SCIM write them; they come with B1 part 2.
 
+The module's [LocalCredentialStore](../addons/contracts/local-credential-store.md), `PostgresLocalCredentialStore`, reads and writes the accounts and the reset tokens on the identity connection; [Local accounts](local-accounts.md) says how a member of staff gets one.
+
 No code outside the identity module writes these tables: the testkit's PHPStan rule `cboxCms.kernelTableWrite` reports a write to a table of `cms_identity` anywhere else, the core included.
 
 ## What cms:doctor checks

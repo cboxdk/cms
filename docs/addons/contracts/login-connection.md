@@ -11,7 +11,7 @@ description: "The LoginConnection contract: one shape for a direct credential ch
 <!-- extension-point: Cbox\Cms\Testkit\Login\LoginConnectionHarness -->
 <!-- extension-point: Cbox\Cms\Testkit\Login\LoginConnectionContract -->
 
-The kernel knows no particular identity provider (PRD 5.16). A login connection verifies who logged in, when and with which factors, and hands the kernel a `VerifiedAssertion`. Everything after that is the kernel's: the actor, its state, the login policy, grants and revocation. The contracts live in `Cbox\Cms\Contracts\Identity\Login` and are `#[Experimental]`: the real connections, local accounts and OpenID Connect, come with the identity module, and until then only the testkit's fake implements them.
+The kernel knows no particular identity provider (PRD 5.16). A login connection verifies who logged in, when and with which factors, and hands the kernel a `VerifiedAssertion`. Everything after that is the kernel's: the actor, its state, the login policy, grants and revocation. The contracts live in `Cbox\Cms\Contracts\Identity\Login` and are `#[Experimental]`. The identity module's local connection, `local`, of the flow `Direct`, implements them for the local accounts (see [Local accounts](../../security/local-accounts.md#the-local-connection)); the OpenID Connect connections come with B1 part 2.
 
 ## The contract
 

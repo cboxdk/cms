@@ -47,7 +47,7 @@ The core action `RunMaintenanceCommand` runs one command as the operator. It tak
 3. gets the operator's access context from its grants, as for any caller;
 4. runs the command through the maintenance pipeline.
 
-The unit of work names the work, not the run, so a rerun of the same work replays the first run's receipt. Once the idempotency record has expired, after seven days, a rerun plans nothing for an aggregate that already exists. Use a unit that the same input always gives, such as `sites:<handle>:<hash of the configured locales>` for a site or `staff:<sha256 of the lowercased email>` for a staff member.
+The unit of work names the work, not the run, so a rerun of the same work replays the first run's receipt. Once the idempotency record has expired, after seven days, a rerun plans nothing for an aggregate that already exists. Use a unit that the same input always gives, such as `sites:<handle>:<hash of the configured locales>` for a site. A registration of a member of staff makes the actor's id first and uses `staff:<actor id>` for both its commands, because `actor.register` carries the new id, so a unit from the email alone would conflict with the content of an earlier run.
 
 The maintenance pipeline is the kernel's command pipeline with one difference, its authorizer. `MaintenanceAuthorizer` allows a command only when all of these hold, and refuses every other call as [`unauthorized`](../reference/errors.md#unauthorized):
 
@@ -61,11 +61,11 @@ The operator holds no grant, so the kernel's own authorizer refuses it every com
 
 | Command | Added by | What it sets up |
 |---|---|---|
-| `actor.register` | block B1, task 4 | a staff or service actor, pending |
-| `actor.activate` | block B1, task 4 | a pending actor, active |
+| `actor.register` | block B1, task 4; run by `cms:staff:create` | a staff or service actor, pending |
+| `actor.activate` | block B1, task 4; run by `cms:staff:create` | a pending actor, active |
 | `site.register` | block B1, task 6 | a site with its root node and locales, from `cbox-cms.sites`, through `cms:sites:sync` ([site commands](../addons/site-commands.md)) |
-| `role.create` | block B1, task 8 | a role with its permissions |
-| `grant.assign` | block B1, task 8 | a grant of a role on a node |
+| `role.create` | block B1, the access bootstrap (task 24) | a role with its permissions |
+| `grant.assign` | block B1, the access bootstrap (task 24) | a grant of a role on a node |
 
 The list names all five, also the commands a later task of block B1 builds; a name the registry does not know never reaches the authorizer, because the pipeline finds no action for it. A task that builds one of them adds, in the same change:
 
@@ -74,3 +74,7 @@ The list names all five, also the commands a later task of block B1 builds; a na
 3. its line in the table above.
 
 A command that is not in the list today, such as `actor.deactivate`, is added to `MaintenanceAuthorizer::COMMANDS` only with a reason in the same change: the list is what the operator can do, and it should stay the setup of an installation, not its administration, which belongs to staff members with roles.
+
+## cms:staff:create
+
+`php artisan cms:staff:create --email=<address> --name=<display name>` is the first maintenance command of the identity module: it registers a local member of staff as the operator, `actor.register`, then the credential, then `actor.activate`, and prints the actor's id. The password is read hidden from the terminal or with `--password-stdin` from standard input, never from an argument. [Local accounts](../security/local-accounts.md#creating-a-member-of-staff) describes the order, what a failure leaves and the exit codes. The command lives in the identity module, `Cbox\Cms\Identity\Cli\Console\StaffCreateCommand`, because the cli module may not use the identity module.

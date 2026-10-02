@@ -117,6 +117,8 @@ export type ErrorCode =
   | 'installation_operator_missing'
   | 'json_invalid'
   | 'json_malformed'
+  | 'local_account_exists'
+  | 'local_account_missing'
   | 'login_authoritative_link'
   | 'login_class_not_allowed'
   | 'login_connection_not_allowed'
@@ -134,6 +136,10 @@ export type ErrorCode =
   | 'partition_missing'
   | 'partition_owner_required'
   | 'partition_table_unmanageable'
+  | 'password_breached'
+  | 'password_reset_token_invalid'
+  | 'password_too_long'
+  | 'password_too_short'
   | 'path_gone'
   | 'path_not_found'
   | 'placement_slug_taken'
@@ -384,6 +390,8 @@ const catalogErrorV1Rule: ObjectRule = {
           'installation_operator_missing',
           'json_invalid',
           'json_malformed',
+          'local_account_exists',
+          'local_account_missing',
           'login_authoritative_link',
           'login_class_not_allowed',
           'login_connection_not_allowed',
@@ -401,6 +409,10 @@ const catalogErrorV1Rule: ObjectRule = {
           'partition_missing',
           'partition_owner_required',
           'partition_table_unmanageable',
+          'password_breached',
+          'password_reset_token_invalid',
+          'password_too_long',
+          'password_too_short',
           'path_gone',
           'path_not_found',
           'placement_slug_taken',
@@ -615,6 +627,8 @@ const problemV1Rule: ObjectRule = {
           'installation_operator_missing',
           'json_invalid',
           'json_malformed',
+          'local_account_exists',
+          'local_account_missing',
           'login_authoritative_link',
           'login_class_not_allowed',
           'login_connection_not_allowed',
@@ -632,6 +646,10 @@ const problemV1Rule: ObjectRule = {
           'partition_missing',
           'partition_owner_required',
           'partition_table_unmanageable',
+          'password_breached',
+          'password_reset_token_invalid',
+          'password_too_long',
+          'password_too_short',
           'path_gone',
           'path_not_found',
           'placement_slug_taken',

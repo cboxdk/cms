@@ -20,9 +20,10 @@ Every contract has two things in the testkit, `Cbox\Cms\Testkit`: a fake for tes
 | [`CredentialVerifier`](credential-verifier.md) | `PostgresCredentialVerifier` | `FakeIdentity` | `CredentialVerifierContract` |
 | [`FragmentStore`](fragment-store.md) | `ValkeyFragmentStore` | `FakeFragmentStore` | `FragmentStoreContract` |
 | [`CdnDriver`](cdn-driver.md) | none until full-scale invalidation | `FakeCdnDriver` | `CdnDriverContract` |
-| [`LoginConnection`](login-connection.md) | none until the identity module's connections | `FakeLoginConnection` | `LoginConnectionContract` |
+| [`LoginConnection`](login-connection.md) | the identity module's `LocalConnection` for local accounts; none yet for OpenID Connect | `FakeLoginConnection` | `LoginConnectionContract` |
 | [`IssuerResolver`](issuer-resolver.md) | none until the OpenID Connect implementation | `FakeIssuerResolver` | `IssuerResolverContract` |
 | [`BreachedPasswords`](breached-passwords.md) | `HibpBreachedPasswords`, of the identity module | `FakeBreachedPasswords` | `BreachedPasswordsContract` |
+| [`LocalCredentialStore`](local-credential-store.md) | `PostgresLocalCredentialStore`, of the identity module | `FakeLocalCredentialStore` | `LocalCredentialStoreContract` |
 | [`BackChannelLogoutReceiver`](back-channel-logout.md) | none until the OpenID Connect implementation | `FakeBackChannelLogoutReceiver` | `BackChannelLogoutContract` |
 | [`SecurityEventReceiver`](security-event-receiver.md) | none until the identity module's receivers (B6) | `FakeSecurityEventReceiver` | `SecurityEventReceiverContract` |
 | [`ScimProvisioning`](scim-provisioning.md) | none until the identity module's SCIM server (B6) | `FakeScimProvisioning` | `ScimProvisioningContract` |
