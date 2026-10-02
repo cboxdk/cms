@@ -1279,6 +1279,8 @@ B1-T24: `access_bootstrap_done` tæller også afsluttede staff-tildelinger (fejl
 
 ## Info
 
+- B1, røgtest 3. oktober 2026 på main 822c55a4: lokal login, start og logout virker i workbenchen (`vendor/bin/testbench serve`, `/cms/login`). Til T19's vej i `docs/getting-started`: `testbench serve` kræver `workbench/.env` med en `APP_KEY` (ellers `MissingAppKeyException`), `composer panel:build` før serve, og `composer install` i main-checkouten efter en fletning, fordi merge-køen ikke installerer.
+
 Oplysninger fra opgaverne, der ikke kræver en beslutning:
 
 - M0-T5: Pests `not->toUse()` består på en liste, så snart ét mål er rent; Arch-reglerne tjekker derfor hvert mål for sig.
