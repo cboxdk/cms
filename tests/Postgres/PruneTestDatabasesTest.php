@@ -79,6 +79,7 @@ function pruneSessionScalar(PDO $session, string $sql): mixed
 it('prunes only the database of a gone checkout on this host, also with an app-role session connected, and a dry run drops nothing', function (): void {
     $serverOwner = ConnectionSettings::of('pgsql_owner', config())->withDatabase('cms_test');
     $serverApp = ConnectionSettings::of('pgsql', config())->withDatabase('cms_test');
+    $identity = ConnectionSettings::of('pgsql_identity', config())->withDatabase('cms_test');
     $host = TestDatabaseComment::of(Phpstan::root())->host;
     $ownerDb = DB::connection('pgsql_owner');
     $checkout = ConnectionSettings::of('pgsql', config())->database;
@@ -88,7 +89,7 @@ it('prunes only the database of a gone checkout on this host, also with an app-r
 
     try {
         // The configured database of this test's prune, and every database below it, are this test's.
-        $made[] = $configured = TestDatabase::provision($serverOwner, $serverApp, ScratchDirectory::make('cbox-cms-prune-configured-'));
+        $made[] = $configured = TestDatabase::provision($serverOwner, $serverApp, $identity, ScratchDirectory::make('cbox-cms-prune-configured-'));
         $owner = $serverOwner->withDatabase($configured);
         $app = $serverApp->withDatabase($configured);
 
@@ -101,10 +102,10 @@ it('prunes only the database of a gone checkout on this host, also with an app-r
         $names = [];
 
         foreach ($roots as $key => $root) {
-            $made[] = $names[$key] = TestDatabase::provision($owner, $app, $root);
+            $made[] = $names[$key] = TestDatabase::provision($owner, $app, $identity, $root);
         }
 
-        $made[] = $current = TestDatabase::provision($owner, $app, CheckoutRoot::current());
+        $made[] = $current = TestDatabase::provision($owner, $app, $identity, CheckoutRoot::current());
         $ownerDb->statement(sprintf(
             'COMMENT ON DATABASE %s IS %s',
             TestDatabaseSetup::identifier($names['other host']),
@@ -121,7 +122,7 @@ it('prunes only the database of a gone checkout on this host, also with an app-r
         // Another checkout's run of this test leaves the database of a gone checkout on this host
         // below the shared configured database cms_test, for its own prune, while this one runs.
         $foreignRoot = ScratchDirectory::make('cbox-cms-prune-foreign-');
-        $made[] = $foreign = TestDatabase::provision($serverOwner, $serverApp, $foreignRoot);
+        $made[] = $foreign = TestDatabase::provision($serverOwner, $serverApp, $identity, $foreignRoot);
         ScratchDirectory::delete($foreignRoot);
 
         $session = new PDO($app->withDatabase($names['gone'])->dsn(2), $app->username, $app->password, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);

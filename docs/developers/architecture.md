@@ -8,7 +8,7 @@ description: The package cboxdk/cms, its modules and where they live, the bounda
 
 ## The package and its modules
 
-Cbox CMS is one Composer package, `cboxdk/cms`, a library, with one `composer.json` at the root of the repository. The kernel is seven modules in `packages/`, each a namespace with its code in `packages/<module>/src` and its tests in `packages/<module>/tests`:
+Cbox CMS is one Composer package, `cboxdk/cms`, a library, with one `composer.json` at the root of the repository. The kernel is eight modules in `packages/`, each a namespace with its code in `packages/<module>/src` and its tests in `packages/<module>/tests`:
 
 | Module | Namespace | What it holds |
 |---|---|---|
@@ -18,6 +18,7 @@ Cbox CMS is one Composer package, `cboxdk/cms`, a library, with one `composer.js
 | `cli` | `Cbox\Cms\Cli` | The Artisan commands `cms:build`, `cms:doctor` and `cms:partitions:maintain`. |
 | `http` | `Cbox\Cms\Http` | The HTTP surface. Today it holds only its service provider. |
 | `mcp` | `Cbox\Cms\Mcp` | The MCP surface: one tool per action exposed on MCP, for agents, served by `laravel/mcp` behind the module's adapter. |
+| `identity` | `Cbox\Cms\Identity` | Login: the local accounts and their credential store, in the schema `cms_identity` on a connection and a role of its own (see [Credential store](../security/credential-store.md)). The actor aggregate and the actor commands stay in the core, in `Cbox\Cms\Core\Identity`. |
 | `testkit` | `Cbox\Cms\Testkit` | The fakes, the shared suites, the Postgres and Valkey harnesses and the PHPStan rules. |
 
 A module's service provider sits at the root of its namespace, such as `Cbox\Cms\Core\CoreServiceProvider`, and is listed in `extra.laravel.providers`, so an application discovers it. Its other files sit beside `src` and `tests`: `config/`, `database/migrations/`, `resources/schemas/` and `bin/`.
@@ -32,9 +33,9 @@ No package boundary keeps the modules apart, so the Arch suite does, in `tests/A
 
 - The repository is the one library `cboxdk/cms`, with no `composer.json` per module, and every directory below `packages/` is a module, autoloaded from its `src` and its tests from its `tests`.
 - Contracts uses no other module and no package, only PHP.
-- Core, http, cli and mcp never use the testkit or the generators, and the generators never use the testkit. The testkit uses no module but contracts.
+- Core, http, cli and mcp never use the testkit, the generators or identity, identity never uses the testkit or the generators, and the generators never use the testkit. The testkit uses no module but contracts.
 - No module uses the repository's tests, tooling, workbench or examples.
-- Every package a module uses is in `require` or `suggest`, and the modules an application runs in production, contracts, core, http, cli and mcp, use none that is only suggested.
+- Every package a module uses is in `require` or `suggest`, and the modules an application runs in production, contracts, core, http, cli, mcp and identity, use none that is only suggested.
 
 The last tests of the file plant each kind of violation in a scratch directory and check that the rule reports it. The layers below and the rule that the kernel names no content type hold in every module.
 

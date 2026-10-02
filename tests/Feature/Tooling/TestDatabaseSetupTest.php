@@ -107,7 +107,7 @@ function harnessSetup(TestDatabaseSetup $setup): array
  */
 function setupVariables(): array
 {
-    return ['db' => 'cms_test_0123456789ab', 'owner_role' => 'cms_owner', 'app_role' => 'cms_app', 'schema' => 'cms'];
+    return ['db' => 'cms_test_0123456789ab', 'owner_role' => 'cms_owner', 'app_role' => 'cms_app', 'schema' => 'cms', 'identity_role' => 'cms_identity'];
 }
 
 /**
@@ -115,7 +115,7 @@ function setupVariables(): array
  */
 function harnessSetupOf(array $variables): TestDatabaseSetup
 {
-    return new TestDatabaseSetup($variables['db'], $variables['owner_role'], $variables['app_role'], $variables['schema']);
+    return new TestDatabaseSetup($variables['db'], $variables['owner_role'], $variables['app_role'], $variables['schema'], $variables['identity_role']);
 }
 
 it('runs the statements of database.sql, statement for statement, with the psql variables substituted', function (): void {
@@ -123,13 +123,13 @@ it('runs the statements of database.sql, statement for statement, with the psql 
     $script = psqlScript(Phpstan::root().'/'.DATABASE_SQL, $variables);
 
     expect(harnessSetup(harnessSetupOf($variables)))->toBe($script)
-        ->and($script['onServer'])->toHaveCount(4)
-        ->and($script['inDatabase'])->toHaveCount(7)
+        ->and($script['onServer'])->toHaveCount(5)
+        ->and($script['inDatabase'])->toHaveCount(12)
         ->and($script['onServer'][0])->toBe("SELECT format('CREATE DATABASE %I OWNER %I', 'cms_test_0123456789ab', 'cms_owner') WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'cms_test_0123456789ab') \\gexec");
 });
 
 it('quotes the names as psql does, also when they need quoting', function (): void {
-    $variables = ['db' => 'Test "db"', 'owner_role' => "o'wner", 'app_role' => 'App', 'schema' => 'my schema'];
+    $variables = ['db' => 'Test "db"', 'owner_role' => "o'wner", 'app_role' => 'App', 'schema' => 'my schema', 'identity_role' => 'Identity "role"'];
 
     expect(harnessSetup(harnessSetupOf($variables)))->toBe(psqlScript(Phpstan::root().'/'.DATABASE_SQL, $variables))
         ->and(harnessSetupOf($variables)->onServer()[1]->sql)->toBe('ALTER DATABASE "Test ""db""" OWNER TO "o\'wner"');
@@ -150,10 +150,26 @@ it('fails when one statement of a copy of database.sql changes', function (strin
     'an added statement' => ["GRANT CONNECT ON DATABASE :\"db\" TO :\"app_role\";\n", "GRANT CONNECT ON DATABASE :\"db\" TO :\"app_role\";\nGRANT TEMPORARY ON DATABASE :\"db\" TO :\"app_role\";\n"],
     'the connect' => ['\connect :"db"', '\connect postgres'],
     'the creation' => ["format('CREATE DATABASE %I OWNER %I'", "format('CREATE DATABASE %I'"],
+    'the credential store\'s grant' => ['GRANT USAGE ON SCHEMA cms_identity TO :"identity_role";', 'GRANT USAGE ON SCHEMA cms_identity TO :"app_role";'],
+    'the credential store\'s default privilege' => ['IN SCHEMA cms_identity', 'IN SCHEMA :"schema"'],
 ]);
 
+it('gives the identity role, and only it, the schema of the credential store', function (): void {
+    $statements = array_map(static fn (SetupStatement $statement): string => $statement->sql, harnessSetupOf(setupVariables())->inDatabase());
+    $credentialStore = array_values(array_filter($statements, static fn (string $sql): bool => str_contains($sql, TestDatabaseSetup::IDENTITY_SCHEMA)));
+
+    expect(TestDatabaseSetup::IDENTITY_SCHEMA)->toBe('cms_identity')
+        ->and($credentialStore)->toBe([
+            'CREATE SCHEMA IF NOT EXISTS cms_identity AUTHORIZATION "cms_owner"',
+            'ALTER SCHEMA cms_identity OWNER TO "cms_owner"',
+            'REVOKE ALL ON SCHEMA cms_identity FROM PUBLIC',
+            'GRANT USAGE ON SCHEMA cms_identity TO "cms_identity"',
+            'ALTER DEFAULT PRIVILEGES FOR ROLE "cms_owner" IN SCHEMA cms_identity GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "cms_identity"',
+        ]);
+});
+
 it('refuses a set-up whose database, owner role, app role or schema has no valid name', function (int $position, string $name, string $what): void {
-    $names = ['cms_test', 'cms_owner', 'cms_app', 'cms'];
+    $names = ['cms_test', 'cms_owner', 'cms_app', 'cms', 'cms_identity'];
     $names[$position] = $name;
 
     expect(static fn (): TestDatabaseSetup => new TestDatabaseSetup(...$names))->toThrow(InvalidArgumentException::class, "The {$what} of the test database set-up has no valid name.");
@@ -163,4 +179,5 @@ it('refuses a set-up whose database, owner role, app role or schema has no valid
     'an empty owner role' => [1, '', 'owner role'],
     'an empty app role' => [2, '', 'app role'],
     'a schema with a NUL' => [3, "cms\0", 'schema'],
+    'an empty identity role' => [4, '', 'identity role'],
 ]);

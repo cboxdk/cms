@@ -6,7 +6,7 @@ description: The operating contract for Postgres, with an app role that owns not
 
 # Postgres roles
 
-The kernel connects to Postgres with two roles, and the operating contract says what each may do (PRD 4.2). `cms:doctor` checks the contract every time it runs, and the checks block the kernel from starting when it is broken.
+The kernel connects to Postgres with two roles, and the operating contract says what each may do (PRD 4.2). The identity module adds a third, the identity role, which alone reaches the credentials of the local accounts; see [Credential store](credential-store.md). `cms:doctor` checks the contract every time it runs, and the checks block the kernel from starting when it is broken.
 
 ## The app role
 

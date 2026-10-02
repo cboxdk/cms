@@ -10,6 +10,7 @@ use Cbox\Cms\Testkit\Postgres\Boundary\CheckoutRoot;
 use Cbox\Cms\Testkit\Postgres\Boundary\ConnectionSettings;
 use Cbox\Cms\Testkit\Postgres\Infrastructure\OwnerTruncation;
 use Cbox\Cms\Testkit\Postgres\Infrastructure\PartitionSweep;
+use Cbox\Cms\Testkit\Postgres\Infrastructure\TestDatabaseSetup;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Contracts\Events\Dispatcher;
@@ -25,9 +26,11 @@ use PHPUnit\Framework\AssertionFailedError;
  * One Postgres test from set-up to tear-down (GUARDRAILS 9, real Postgres; PRD 4.2).
  *
  * Set-up checks that no transaction wraps the test, points every pgsql connection at the
- * checkout's own test database (TestDatabase), provisions that database once per process and
- * fails fast when the services are down or the owner role lacks CREATEDB, builds the schema as
- * the owner role once per process, and installs the nested transaction guard. The test then
+ * checkout's own test database (TestDatabase), the identity connection of the credential store
+ * included, provisions that database once per process and fails fast when the services are down
+ * or the owner role lacks CREATEDB, checks that the owner connection's search path reaches the
+ * credential store's schema, builds the schemas as the owner role once per process, and installs
+ * the nested transaction guard. The test then
  * runs as the app role on the default connection, and its commits are real. Tear-down stops
  * child processes, closes independent connections, rolls back what the test left open, drops
  * every leaf partition (PartitionSweep) and truncates every table as the owner role, disconnects
@@ -50,6 +53,9 @@ final readonly class PostgresHarness
      * @var list<class-string>
      */
     public const array WRAPPING_TRAITS = [DatabaseTransactions::class, RefreshDatabase::class, LazilyRefreshDatabase::class];
+
+    /** The configuration key that names the identity role's connection to the credential store. */
+    public const string IDENTITY_CONNECTION_KEY = 'cbox-cms.identity.connection';
 
     private function __construct(
         private DatabaseManager $database,
@@ -99,11 +105,16 @@ final readonly class PostgresHarness
             $database->purge($name);
         }
 
+        $owner = ConnectionSettings::of($ownerConnection, $config);
+
         TestDatabase::ensure(
-            ConnectionSettings::of($ownerConnection, $config),
+            $owner,
             ConnectionSettings::of($database->getDefaultConnection(), $config),
+            ConnectionSettings::of(self::identityConnection($config), $config),
             $root,
         );
+
+        self::assertOwnerReachesCredentialStore($owner);
 
         OwnerMigrations::ensure($app->make(Kernel::class), $database->connection($ownerConnection), $ownerConnection);
 
@@ -118,6 +129,45 @@ final readonly class PostgresHarness
         $app->instance(ChildProcesses::class, $processes);
 
         return new self($database, $ownerConnection, $guard, $connections, $processes);
+    }
+
+    /**
+     * The connection of the credential store's identity role, which cbox-cms.identity.connection
+     * names (PRD 5.16, "Lokale konti"). The harness grants its role the credential store's schema
+     * in the test database, as database.sql does, and CheckoutConnections points it at the
+     * checkout's or the worker's database with the others.
+     */
+    public static function identityConnection(Repository $config): string
+    {
+        $name = $config->get(self::IDENTITY_CONNECTION_KEY);
+
+        if (! is_string($name) || $name === '') {
+            throw new AssertionFailedError(sprintf(
+                '%s names no database connection. The Postgres harness sets up the credential store of the local accounts for the role of that connection, such as pgsql_identity.',
+                self::IDENTITY_CONNECTION_KEY,
+            ));
+        }
+
+        return $name;
+    }
+
+    /**
+     * The owner connection's search path lists the credential store's schema after the kernel's,
+     * so migrate:fresh, which drops the tables of the schemas in the search path, rebuilds the
+     * credential store's tables with the others, and the truncation after each test empties them.
+     */
+    public static function assertOwnerReachesCredentialStore(ConnectionSettings $owner): void
+    {
+        $schemas = array_map(trim(...), explode(',', str_replace(['"', "'"], '', $owner->searchPath)));
+
+        if (! in_array(TestDatabaseSetup::IDENTITY_SCHEMA, array_slice($schemas, 1), true)) {
+            throw new AssertionFailedError(sprintf(
+                'The search path of the owner connection [%s] is "%s". It must list the kernel\'s schema first and %s after it, so migrate:fresh rebuilds the credential store and the harness empties its tables after each test.',
+                $owner->name,
+                $owner->searchPath,
+                TestDatabaseSetup::IDENTITY_SCHEMA,
+            ));
+        }
     }
 
     public function finish(): void

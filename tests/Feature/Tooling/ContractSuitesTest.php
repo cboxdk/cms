@@ -204,7 +204,7 @@ it('runs every shared IdempotencyStore case once for the PostgresIdempotencyStor
         ->and($listed)->toBe($expected);
 });
 
-it('runs every shared DoctorCheck case once for the fake, once for each check of the core and once for the documented UploadsDirectoryCheck example', function (): void {
+it('runs every shared DoctorCheck case once for the fake, once for each check of the core and the identity module and once for the documented UploadsDirectoryCheck example', function (): void {
     $cases = sharedCases(DoctorCheckContract::class);
     $classes = [FakeDoctorCheckContractTest::class, UploadsDirectoryDoctorCheckContractTest::class];
 
@@ -215,6 +215,10 @@ it('runs every shared DoctorCheck case once for the fake, once for each check of
         if ($check !== 'InvalidConfiguration') {
             $classes[] = 'Cbox\\Cms\\Core\\Tests\\Contract\\'.$check.'DoctorCheckContractTest';
         }
+    }
+
+    foreach (glob(Phpstan::root().'/packages/identity/src/Doctor/Domain/Checks/*Check.php') ?: [] as $file) {
+        $classes[] = 'Cbox\\Cms\\Identity\\Tests\\Contract\\'.basename($file, 'Check.php').'DoctorCheckContractTest';
     }
 
     $expected = [];
@@ -232,7 +236,7 @@ it('runs every shared DoctorCheck case once for the fake, once for each check of
     sort($expected);
     sort($listed);
 
-    expect($classes)->toHaveCount(25)
+    expect($classes)->toHaveCount(28)
         ->and($cases)->toContain(
             'a_passing_check_returns_a_pass_for_itself',
             'a_failing_check_returns_a_fail_with_its_kind_code_cause_and_fix',

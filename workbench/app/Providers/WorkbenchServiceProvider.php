@@ -14,10 +14,14 @@ use Workbench\App\Cms\Generated\GeneratedTypesServiceProvider;
 /**
  * Boots the workbench application that the packages are tested and developed against.
  *
- * It wires the two Postgres roles from compose.yaml (PRD 4.2, GUARDRAILS 6):
- * `pgsql` connects as the app role, which the application and the tests use, and
- * `pgsql_owner` connects as the owner role, which runs migrations. Both use the
- * dedicated schema instead of Laravel's default search_path of public. The workbench is a
+ * It wires the three Postgres roles from compose.yaml (PRD 4.2, 5.16, GUARDRAILS 6):
+ * `pgsql` connects as the app role, which the application and the tests use,
+ * `pgsql_owner` connects as the owner role, which runs migrations, and `pgsql_identity` connects
+ * as the identity role, the only one that reaches the credential store of the local accounts,
+ * whose connection cbox-cms.identity.connection names. They use the dedicated schema instead of
+ * Laravel's default search_path of public; the owner's search path lists the credential store's
+ * schema after it, so migrate:fresh rebuilds that too, and the identity role's search path is
+ * the credential store's schema alone. The workbench is a
  * development application whose console runs the migrations and partition maintenance itself, so
  * its console processes get `pgsql_owner`, and the environment of its tests (phpunit.xml) and of
  * vendor/bin/testbench (testbench.yaml) declares them the maintenance process for cms:doctor with
@@ -53,6 +57,9 @@ final class WorkbenchServiceProvider extends ServiceProvider
     /** The environment variable that names the seeder's service actor, as composer scale:check sets it. */
     public const string SEEDING_ACTOR = 'CBOX_CMS_SEEDING_SERVICE_ACTOR';
 
+    /** The schema of the credential store of the local accounts, as docs/security/credential-store.md names it. */
+    public const string CREDENTIAL_STORE = 'cms_identity';
+
     /** The environment variable that picks the CDN driver; only fake is known. */
     public const string CDN_DRIVER = 'CBOX_CMS_CDN_DRIVER';
 
@@ -85,6 +92,11 @@ final class WorkbenchServiceProvider extends ServiceProvider
         $app['search_path'] = $this->env('DB_SCHEMA', 'cms');
 
         $config->set('database.connections.pgsql', $app);
+        $config->set('database.connections.pgsql_identity', array_merge($app, [
+            'username' => $this->env('DB_IDENTITY_USERNAME', 'cms_identity'),
+            'password' => $this->env('DB_IDENTITY_PASSWORD', ''),
+            'search_path' => self::CREDENTIAL_STORE,
+        ]));
 
         if (! $this->app->runningInConsole()) {
             return;
@@ -93,6 +105,7 @@ final class WorkbenchServiceProvider extends ServiceProvider
         $config->set('database.connections.pgsql_owner', array_merge($app, [
             'username' => $this->env('DB_OWNER_USERNAME', 'cms_owner'),
             'password' => $this->env('DB_OWNER_PASSWORD', ''),
+            'search_path' => $app['search_path'].','.self::CREDENTIAL_STORE,
         ]));
     }
 

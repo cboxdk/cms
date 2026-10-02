@@ -57,8 +57,9 @@ parameters:
 # filesystem, process, database, cache or Redis: the names of EgressNames and the rule's own lists.
 # Rule 10, KernelTableWriteRule (PRD 6.5 invariants 1 and 13, 11.12): no code outside the core
 # module and the testkit's fixture writers (Cbox\Cms\Testkit\FixtureWriters) writes a kernel table,
-# KernelTables::NAMES, by name through the query builder, DB or raw SQL. Both check test code too,
-# and their errors are non-ignorable.
+# KernelTables::NAMES, by name through the query builder, DB or raw SQL, and no code outside the
+# identity module (Cbox\Cms\Identity and its migrations) writes a table of the credential store,
+# CredentialTables (PRD 5.16). Both check test code too, and their errors are non-ignorable.
 # FunctionCallablesRule, MethodCallablesRule and StaticMethodCallablesRule apply both to
 # first-class callables such as time(...), which PHPStan gives to rules as their own nodes.
 rules:

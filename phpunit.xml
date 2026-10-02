@@ -100,7 +100,9 @@
             the dev image runs of composer check (DevImageRun), DB_HOST, DB_PORT, REDIS_HOST and
             REDIS_PORT are set to the service names and container ports, and PHPUnit keeps a
             variable that is already set.
-            Tests run as the app role (GUARDRAILS 6); pgsql_owner is the owner role.
+            Tests run as the app role (GUARDRAILS 6); pgsql_owner is the owner role, and
+            pgsql_identity the identity role of the credential store (PRD 5.16), the
+            CMS_IDENTITY_ROLE of compose.yaml, compose.ci.yaml and ci.yml.
             DB_DATABASE is the configured database the harness connects to as the owner role; the
             tests run in this checkout's own database, cms_test_<hash of the checkout's path>,
             which the harness creates there (packages/testkit, TestDatabase).
@@ -114,6 +116,8 @@
         <env name="DB_PASSWORD" value="cms_app"/>
         <env name="DB_OWNER_USERNAME" value="cms_owner"/>
         <env name="DB_OWNER_PASSWORD" value="cms_owner"/>
+        <env name="DB_IDENTITY_USERNAME" value="cms_identity"/>
+        <env name="DB_IDENTITY_PASSWORD" value="cms_identity"/>
         <!--
             The tests run in the workbench's console, which holds pgsql_owner and runs the
             migrations, so it is the maintenance process for cms:doctor's

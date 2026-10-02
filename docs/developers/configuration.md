@@ -6,7 +6,7 @@ description: Every key of the cbox-cms configuration, its default and what it do
 
 # Configuration
 
-The kernel's settings live under the key `cbox-cms`. The core's defaults are in `packages/core/config/cbox-cms.php`, and the generators add theirs under `cbox-cms.generators` from `packages/generators/config/generators.php`. An application sets only the keys it changes, in its own `config/cbox-cms.php`. The service providers merge their defaults under the application's file key by key, so every key the application leaves out keeps its default, and a table or check the application adds sits next to the core's.
+The kernel's settings live under the key `cbox-cms`. The core's defaults are in `packages/core/config/cbox-cms.php`, the identity module adds its own under `cbox-cms.identity` from `packages/identity/config/identity.php`, and the generators add theirs under `cbox-cms.generators` from `packages/generators/config/generators.php`. An application sets only the keys it changes, in its own `config/cbox-cms.php`. The service providers merge their defaults under the application's file key by key, so every key the application leaves out keeps its default, and a table or check the application adds sits next to the core's.
 
 A test that changes a setting sets the single key, such as `cbox-cms.contracts.<contract>`, in Testbench's `defineEnvironment()`, before anything resolves it. Setting a whole array there, such as `cbox-cms.contracts`, drops the other defaults.
 
@@ -143,12 +143,18 @@ The delivery API's `GET /v1/resolve` reads `cbox-cms.delivery` (PRD 8.10, 8.12);
 | `cbox-cms.doctor.vendor_manifest` | `null` | The file the registry cache must not be older than. `null` is `vendor/composer/installed.json` below the base path. |
 | `cbox-cms.doctor.project_path` | `null` | Where `--dev` looks for `node_modules`. `null` is the base path. |
 | `cbox-cms.doctor.node_minimum` | `22.13.0` | The oldest Node `dev.node` accepts. |
-| `cbox-cms.doctor.checks` | `[]` | Classes of checks to run after the core's runtime checks, in this order. See [Doctor checks](../addons/doctor-checks.md#adding-a-check). |
+| `cbox-cms.doctor.checks` | `[]` | Classes of checks to run after the core's runtime checks, in this order. See [Doctor checks](../addons/doctor-checks.md#adding-a-check). The identity module puts its three checks, `identity.connection`, `identity.credential_isolation` and `identity.argon2id`, in front of the ones the application names. |
 | `cbox-cms.doctor.dev_checks` | `[]` | Classes of checks to run with `--dev`, after the core's development checks, in this order. |
 
 The maintenance process declares itself with the environment variable `CBOX_CMS_MAINTENANCE_PROCESS=true`, never with a setting, because the processes may share their configuration. See [cms:doctor](doctor.md#processes-web-queue-and-maintenance).
 
 An invalid doctor setting makes `cms:doctor` run the single check `doctor.config`, which fails with the code `doctor_config_invalid` and names the setting.
+
+## Identity
+
+| Key | Default | What it does |
+|---|---|---|
+| `cbox-cms.identity.connection` | `pgsql_identity` | The database connection of the identity role, the only role that reaches the credential store of the local accounts in the schema `cms_identity`. It goes to the same database as the default connection with a role of its own. See [Credential store](../security/credential-store.md). |
 
 ## Generators
 

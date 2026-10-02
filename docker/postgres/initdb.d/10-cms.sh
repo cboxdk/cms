@@ -14,6 +14,7 @@ set -euo pipefail
 : "${CMS_DATABASES:?}" "${CMS_SCHEMA:?}"
 : "${CMS_OWNER_ROLE:?}" "${CMS_OWNER_PASSWORD:?}"
 : "${CMS_APP_ROLE:?}" "${CMS_APP_PASSWORD:?}" "${CMS_APP_TRANSACTION_TIMEOUT:?}"
+: "${CMS_IDENTITY_ROLE:?}" "${CMS_IDENTITY_PASSWORD:?}"
 
 sql_dir="${CMS_INIT_SQL_DIR:-/cms-init}"
 
@@ -28,6 +29,7 @@ run_psql() {
         --set=owner_role="$CMS_OWNER_ROLE" --set=owner_password="$CMS_OWNER_PASSWORD" \
         --set=app_role="$CMS_APP_ROLE" --set=app_password="$CMS_APP_PASSWORD" \
         --set=app_transaction_timeout="$CMS_APP_TRANSACTION_TIMEOUT" \
+        --set=identity_role="$CMS_IDENTITY_ROLE" --set=identity_password="$CMS_IDENTITY_PASSWORD" \
         "$@"
 }
 
@@ -37,4 +39,4 @@ for database in $CMS_DATABASES; do
     run_psql --set=db="$database" --file="$sql_dir/database.sql"
 done
 
-echo "cms: roles ${CMS_OWNER_ROLE} and ${CMS_APP_ROLE}, schema ${CMS_SCHEMA} in: ${CMS_DATABASES}"
+echo "cms: roles ${CMS_OWNER_ROLE}, ${CMS_APP_ROLE} and ${CMS_IDENTITY_ROLE}, schemas ${CMS_SCHEMA} and cms_identity in: ${CMS_DATABASES}"

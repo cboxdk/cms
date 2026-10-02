@@ -23,7 +23,7 @@ use PHPUnit\Framework\AssertionFailedError;
  * configured database, fails fast when the server does not answer or the owner role lacks
  * CREATEDB, creates the database when it is missing, owned by the owner role, sets it up as
  * docker/postgres/sql/database.sql does, with the role names and the schema of the connections it
- * is given, and records the checkout's real path and host in COMMENT ON DATABASE. Two processes
+ * is given (the owner role's, the app role's and the identity role's of the credential store), and records the checkout's real path and host in COMMENT ON DATABASE. Two processes
  * may provision the same database at once. The harness calls it through ensure() before the first
  * test of a process, and a child process can call it with the root of another checkout, through
  * bin/test-database.php (command()).
@@ -45,14 +45,15 @@ final class TestDatabase
 
     /**
      * Makes sure the test database of the checkout at $root, or of its parallel worker $worker
-     * when that is not null, exists and is set up, and returns its name. $owner and $app are the
-     * owner role's and the app role's connections, to the configured database or already to the
-     * checkout's or a worker's; the schema is the app connection's search path, which must name
-     * exactly one schema and is checked before anything connects.
+     * when that is not null, exists and is set up, and returns its name. $owner, $app and $identity
+     * are the owner role's, the app role's and the credential store's identity role's connections,
+     * to the configured database or already to the checkout's or a worker's; the schema is the app
+     * connection's search path, which must name exactly one schema and is checked before anything
+     * connects. Only the identity connection's role is read: the harness never logs in as it here.
      *
      * @throws TestDatabaseUnavailable with the database, the role and the fix in the message
      */
-    public static function provision(ConnectionSettings $owner, ConnectionSettings $app, string $root, ?int $worker = null): string
+    public static function provision(ConnectionSettings $owner, ConnectionSettings $app, ConnectionSettings $identity, string $root, ?int $worker = null): string
     {
         $schema = self::schema($app);
         $base = TestDatabaseName::base($owner->database, $root);
@@ -80,7 +81,7 @@ final class TestDatabase
             }
 
             $databases->provision(
-                new TestDatabaseSetup($name, $server->username, $app->username, $schema),
+                new TestDatabaseSetup($name, $server->username, $app->username, $schema, $identity->username),
                 TestDatabaseComment::of($root),
                 TestDatabaseName::for($base, $root),
             );
@@ -107,7 +108,7 @@ final class TestDatabase
      * @throws AssertionFailedError with the message of the failure
      * @throws InvalidArgumentException when the process is a parallel worker without a valid TEST_TOKEN
      */
-    public static function ensure(ConnectionSettings $owner, ConnectionSettings $app, ?string $root = null): string
+    public static function ensure(ConnectionSettings $owner, ConnectionSettings $app, ConnectionSettings $identity, ?string $root = null): string
     {
         $root ??= CheckoutRoot::current();
         $worker = TestWorker::current();
@@ -119,7 +120,7 @@ final class TestDatabase
 
         if (! isset(self::$provisioned[$name])) {
             try {
-                self::provision($owner, $app, $root, $worker);
+                self::provision($owner, $app, $identity, $root, $worker);
             } catch (TestDatabaseUnavailable $exception) {
                 self::$failures[$name] = $exception->getMessage();
 

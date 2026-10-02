@@ -43,6 +43,11 @@ function appAt(int $port): ConnectionSettings
     return new ConnectionSettings('pgsql', '127.0.0.1', $port, 'cms_test', 'cms_app', 'secret-password', 'cms');
 }
 
+function identityAt(int $port): ConnectionSettings
+{
+    return new ConnectionSettings('pgsql_identity', '127.0.0.1', $port, 'cms_test', 'cms_identity', 'secret-password', 'cms_identity');
+}
+
 /**
  * @param  array<string, mixed>  $connections
  */
@@ -150,9 +155,9 @@ it('refuses a comment that is not one', function (string $json, string $message)
 ]);
 
 it('carries both connections and the root to the provisioning child, and refuses anything else', function (): void {
-    $payload = new TestDatabasePayload(ownerAt(5432), appAt(5432), '/srv/checkout');
-    $worker = new TestDatabasePayload(ownerAt(5432), appAt(5432), '/srv/checkout', 3);
-    $first = new TestDatabasePayload(ownerAt(5432), appAt(5432), '/srv/checkout', 1);
+    $payload = new TestDatabasePayload(ownerAt(5432), appAt(5432), identityAt(5432), '/srv/checkout');
+    $worker = new TestDatabasePayload(ownerAt(5432), appAt(5432), identityAt(5432), '/srv/checkout', 3);
+    $first = new TestDatabasePayload(ownerAt(5432), appAt(5432), identityAt(5432), '/srv/checkout', 1);
 
     expect(TestDatabasePayload::decode($payload->encode()))->toEqual($payload)
         ->and($payload->encode())->toContain('"root":"/srv/checkout","worker":null}')
@@ -169,7 +174,7 @@ it('carries both connections and the root to the provisioning child, and refuses
 });
 
 it('reads a payload nested at most 8 levels deep, and says why it cannot read one', function (): void {
-    $payload = new TestDatabasePayload(ownerAt(5432), appAt(5432), '/srv/checkout');
+    $payload = new TestDatabasePayload(ownerAt(5432), appAt(5432), identityAt(5432), '/srv/checkout');
     $nested = static fn (int $levels): string => substr($payload->encode(), 0, -1).',"extra":'.str_repeat('[', $levels - 1).'1'.str_repeat(']', $levels - 1).'}';
 
     expect(TestDatabasePayload::decode($nested(7)))->toEqual($payload);
@@ -192,7 +197,7 @@ it('fails fast when the server does not answer, naming the checkout\'s database 
     $started = hrtime(true);
 
     try {
-        TestDatabase::provision(ownerAt(1), appAt(1), $root);
+        TestDatabase::provision(ownerAt(1), appAt(1), identityAt(1), $root);
     } catch (TestDatabaseUnavailable $exception) {
         $message = $exception->getMessage();
 
@@ -214,12 +219,12 @@ it('keeps a failure for the rest of the process, so every later test fails at on
     $root = ScratchDirectory::make('cbox-cms-checkout-test-');
     $name = TestDatabaseName::for('cms_test', $root, TestWorker::current());
 
-    expect(static fn (): string => TestDatabase::ensure(ownerAt(1), appAt(1), $root))
+    expect(static fn (): string => TestDatabase::ensure(ownerAt(1), appAt(1), identityAt(1), $root))
         ->toThrow(AssertionFailedError::class, 'run in the database '.$name);
 
     $started = hrtime(true);
 
-    expect(static fn (): string => TestDatabase::ensure(ownerAt(1), appAt(1), $root))
+    expect(static fn (): string => TestDatabase::ensure(ownerAt(1), appAt(1), identityAt(1), $root))
         ->toThrow(AssertionFailedError::class, 'run in the database '.$name)
         ->and((hrtime(true) - $started) / 1e9)->toBeLessThan(0.1);
 });
@@ -234,7 +239,7 @@ it('exits 2 from the provisioning child on an invalid payload and 1 with the rea
         ->and($out->text)->toBe('');
 
     $err = new CollectedOutput;
-    $payload = new TestDatabasePayload(ownerAt(1), appAt(1), $root);
+    $payload = new TestDatabasePayload(ownerAt(1), appAt(1), identityAt(1), $root);
 
     expect(TestDatabaseMain::run($payload->encode(), $out->writer(), $err->writer()))->toBe(TestDatabaseMain::FAILED)
         ->and($err->text)->toContain(TestDatabaseUnavailable::class.': The Postgres test service is not reachable')
@@ -245,7 +250,7 @@ it('refuses a search path that does not name exactly one schema before it connec
     $root = ScratchDirectory::make('cbox-cms-checkout-test-');
     $app = new ConnectionSettings('pgsql', '127.0.0.1', 1, 'cms_test', 'cms_app', 'secret-password', $searchPath);
 
-    expect(static fn (): string => TestDatabase::provision(ownerAt(1), $app, $root))
+    expect(static fn (): string => TestDatabase::provision(ownerAt(1), $app, identityAt(1), $root))
         ->toThrow(TestDatabaseUnavailable::class, sprintf('The search path of the connection [pgsql] is "%s". The harness sets up one schema, so the search path must name exactly one.', $searchPath));
 })->with([
     'two schemas' => ['cms, public'],
@@ -258,7 +263,7 @@ it('takes a search path of one schema with blanks around it, and then looks for 
     $root = ScratchDirectory::make('cbox-cms-checkout-test-');
     $app = new ConnectionSettings('pgsql', '127.0.0.1', 1, 'cms_test', 'cms_app', 'secret-password', ' cms ');
 
-    expect(static fn (): string => TestDatabase::provision(ownerAt(1), $app, $root))
+    expect(static fn (): string => TestDatabase::provision(ownerAt(1), $app, identityAt(1), $root))
         ->toThrow(TestDatabaseUnavailable::class, 'The Postgres test service is not reachable at 127.0.0.1:1');
 });
 

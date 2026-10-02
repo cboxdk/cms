@@ -15,7 +15,10 @@ use InvalidArgumentException;
  * default privileges, which give the app role DML on every table and sequence a migration creates.
  * Owning the database gives the owner role CREATE on it, which is all CREATE EXTENSION of a trusted
  * extension such as ltree needs, so the core's migrations create it without a superuser, in each
- * checkout's and each parallel worker's database alike.
+ * checkout's and each parallel worker's database alike. Last, the schema of the credential store,
+ * IDENTITY_SCHEMA, owned by the owner role, with CONNECT on the database, USAGE on the schema and,
+ * through the owner's default privileges there, DML on its tables for the identity role alone: the
+ * app role and PUBLIC get nothing on it (PRD 5.16, "Lokale konti").
  *
  * The testkit cannot read docker/ when it is installed on its own, so it keeps a copy;
  * tests/Feature/Tooling/TestDatabaseSetupTest.php holds the copy equal to the file, statement for
@@ -25,13 +28,17 @@ use InvalidArgumentException;
 #[Experimental]
 final readonly class TestDatabaseSetup
 {
+    /** The schema of the credential store of the local accounts, as database.sql names it. */
+    public const string IDENTITY_SCHEMA = 'cms_identity';
+
     public function __construct(
         public string $database,
         public string $ownerRole,
         public string $appRole,
         public string $schema,
+        public string $identityRole,
     ) {
-        foreach (['database' => $database, 'owner role' => $ownerRole, 'app role' => $appRole, 'schema' => $schema] as $what => $name) {
+        foreach (['database' => $database, 'owner role' => $ownerRole, 'app role' => $appRole, 'schema' => $schema, 'identity role' => $identityRole] as $what => $name) {
             if ($name === '' || str_contains($name, "\0")) {
                 throw new InvalidArgumentException(sprintf('The %s of the test database set-up has no valid name.', $what));
             }
@@ -57,6 +64,7 @@ final readonly class TestDatabaseSetup
             new SetupStatement(sprintf('ALTER DATABASE %s OWNER TO %s', $db, self::identifier($this->ownerRole))),
             new SetupStatement(sprintf('REVOKE ALL ON DATABASE %s FROM PUBLIC', $db)),
             new SetupStatement(sprintf('GRANT CONNECT ON DATABASE %s TO %s', $db, self::identifier($this->appRole))),
+            new SetupStatement(sprintf('GRANT CONNECT ON DATABASE %s TO %s', $db, self::identifier($this->identityRole))),
         ];
     }
 
@@ -70,6 +78,8 @@ final readonly class TestDatabaseSetup
         $schema = self::identifier($this->schema);
         $owner = self::identifier($this->ownerRole);
         $app = self::identifier($this->appRole);
+        $identity = self::identifier($this->identityRole);
+        $credentials = self::IDENTITY_SCHEMA;
 
         return [
             new SetupStatement(sprintf('CREATE SCHEMA IF NOT EXISTS %s AUTHORIZATION %s', $schema, $owner)),
@@ -79,6 +89,11 @@ final readonly class TestDatabaseSetup
             new SetupStatement('REVOKE CREATE ON SCHEMA public FROM PUBLIC'),
             new SetupStatement(sprintf('ALTER DEFAULT PRIVILEGES FOR ROLE %s IN SCHEMA %s GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO %s', $owner, $schema, $app)),
             new SetupStatement(sprintf('ALTER DEFAULT PRIVILEGES FOR ROLE %s IN SCHEMA %s GRANT USAGE, SELECT ON SEQUENCES TO %s', $owner, $schema, $app)),
+            new SetupStatement(sprintf('CREATE SCHEMA IF NOT EXISTS %s AUTHORIZATION %s', $credentials, $owner)),
+            new SetupStatement(sprintf('ALTER SCHEMA %s OWNER TO %s', $credentials, $owner)),
+            new SetupStatement(sprintf('REVOKE ALL ON SCHEMA %s FROM PUBLIC', $credentials)),
+            new SetupStatement(sprintf('GRANT USAGE ON SCHEMA %s TO %s', $credentials, $identity)),
+            new SetupStatement(sprintf('ALTER DEFAULT PRIVILEGES FOR ROLE %s IN SCHEMA %s GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO %s', $owner, $credentials, $identity)),
         ];
     }
 

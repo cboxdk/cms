@@ -199,9 +199,13 @@ it('wires the runtime checks in order and the dev checks after them', function (
             'events.lag',
             'events.parked',
             'postgres.owner_credentials',
+            // The identity module's, which its provider puts in cbox-cms.doctor.checks.
+            'identity.connection',
+            'identity.credential_isolation',
+            'identity.argon2id',
         ])
         ->and($ids(...$dev))->toBe(['dev.node', 'dev.playwright', 'dev.chromium'])
-        ->and(array_map(static fn (DoctorCheck $check): bool => $check->blocking(), $runtime))->toBe([true, true, true, true, true, true, true, true, true, true, true, true, true, false, true, false, true, false, false, false])
+        ->and(array_map(static fn (DoctorCheck $check): bool => $check->blocking(), $runtime))->toBe([true, true, true, true, true, true, true, true, true, true, true, true, true, false, true, false, true, false, false, false, true, true, true])
         ->and(array_map(static fn (DoctorCheck $check): bool => $check->blocking(), $dev))->toBe([false, false, false]);
 });
 
@@ -278,7 +282,8 @@ it('runs the checks of cbox-cms.doctor.checks after the core\'s runtime checks, 
     $core = configuredCheckIds(false);
     $coreDev = configuredCheckIds(true);
 
-    config(['cbox-cms.doctor.checks' => [AddonReadyCheck::class], 'cbox-cms.doctor.dev_checks' => [AddonToolCheck::class]]);
+    // An application's setting is merged behind the checks the identity module's provider put there.
+    config(['cbox-cms.doctor.checks' => [...(array) config('cbox-cms.doctor.checks'), AddonReadyCheck::class], 'cbox-cms.doctor.dev_checks' => [AddonToolCheck::class]]);
 
     $runtime = app(DoctorChecks::class)->for(new DoctorRunOptions);
 

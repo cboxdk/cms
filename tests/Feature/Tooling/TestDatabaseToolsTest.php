@@ -54,7 +54,7 @@ it('lets the environment win over phpunit.xml, unless the element is forced', fu
     $owner = PhpunitDatabase::owner($xml, ['DB_HOST' => 'postgres', 'DB_PORT' => '5432', 'DB_OWNER_USERNAME' => 'someone']);
 
     expect([$owner->host, $owner->port, $owner->database, $owner->username, $owner->password, $owner->searchPath])
-        ->toBe(['postgres', 5432, 'cms_test', 'cms_owner', 'cms_owner', 'cms']);
+        ->toBe(['postgres', 5432, 'cms_test', 'cms_owner', 'cms_owner', 'cms,cms_identity']);
 });
 
 it('refuses a phpunit.xml it cannot read, one without DB_DATABASE and a port that is not one', function (): void {

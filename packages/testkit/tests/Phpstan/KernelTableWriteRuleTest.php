@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Testkit\Tests\Phpstan;
 
+use Cbox\Cms\Identity\CredentialStore\Domain\CredentialStore;
+use Cbox\Cms\Testkit\Phpstan\CredentialTables;
 use Cbox\Cms\Testkit\Phpstan\KernelTables;
 use Cbox\Cms\Testkit\Phpstan\KernelTableWriteRule;
 use PhpParser\Node\Expr\CallLike;
@@ -24,6 +26,8 @@ final class KernelTableWriteRuleTest extends RuleTestCase
     use ReportedErrors;
 
     private ?string $coreDirectory = null;
+
+    private ?string $identityDirectory = null;
 
     public function test_it_reports_every_write_to_a_kernel_table_outside_the_kernel_as_non_ignorable(): void
     {
@@ -184,6 +188,84 @@ final class KernelTableWriteRuleTest extends RuleTestCase
         self::assertSame(['12 cboxCms.kernelTableWrite', '13 cboxCms.kernelTableWrite'], $reported);
     }
 
+    public function test_it_reports_every_write_to_the_credential_store_outside_the_identity_module(): void
+    {
+        // Not reported: reads and tables of the same name in other schemas (lines 36 to 40), the
+        // identity module (lines 64 and 65).
+        $this->analyse([self::fixture('CredentialTableWrites')], [
+            [$this->credentialMessage('cms_identity.local_accounts'), 20],
+            [$this->credentialMessage('cms_identity.local_accounts'), 21],
+            [$this->credentialMessage('cms_identity.password_reset_tokens'), 22],
+            [$this->credentialMessage('cms_identity.audit_copies'), 23],
+            [$this->credentialMessage('cms_identity.local_accounts'), 28],
+            [$this->credentialMessage('cms_identity.password_reset_tokens'), 29],
+            [$this->credentialMessage('cms_identity.password_reset_tokens'), 30],
+            [$this->message('actors'), 31],
+            [$this->credentialMessage('cms_identity.local_accounts'), 31],
+            [$this->credentialMessage('cms_identity.local_accounts'), 52],
+            [$this->credentialMessage('cms_identity.local_accounts'), 77],
+        ]);
+    }
+
+    public function test_it_reports_a_write_to_the_credential_store_as_non_ignorable(): void
+    {
+        self::assertSame([
+            '20 cboxCms.kernelTableWrite',
+            '21 cboxCms.kernelTableWrite',
+            '22 cboxCms.kernelTableWrite',
+            '23 cboxCms.kernelTableWrite',
+            '28 cboxCms.kernelTableWrite',
+            '29 cboxCms.kernelTableWrite',
+            '30 cboxCms.kernelTableWrite',
+            '31 cboxCms.kernelTableWrite',
+            '31 cboxCms.kernelTableWrite',
+            '52 cboxCms.kernelTableWrite',
+            '77 cboxCms.kernelTableWrite',
+        ], $this->reported('CredentialTableWrites'));
+    }
+
+    public function test_it_reads_the_credential_store_tables_a_statement_writes(): void
+    {
+        self::assertSame(['cms_identity.local_accounts'], KernelTableWriteRule::credentialTablesWrittenBy('UPDATE "cms_identity"."LOCAL_ACCOUNTS" SET version = 2'));
+        self::assertSame(['cms_identity.password_reset_tokens'], KernelTableWriteRule::credentialTablesWrittenBy('delete from password_reset_tokens'));
+        self::assertSame([], KernelTableWriteRule::credentialTablesWrittenBy('select * from cms_identity.local_accounts'));
+        self::assertSame([], KernelTableWriteRule::credentialTablesWrittenBy('insert into public.local_accounts values (1)'));
+        self::assertSame([], KernelTableWriteRule::tablesWrittenBy('insert into cms_identity.local_accounts values (1)'));
+        self::assertSame('cms_identity.sessions', CredentialTables::of(' cms_identity . sessions '));
+        self::assertNull(CredentialTables::of('sessions'));
+        self::assertNull(CredentialTables::of('cms_identity.'));
+        self::assertSame(CredentialStore::SCHEMA, CredentialTables::SCHEMA);
+        self::assertSame(CredentialStore::TABLES, CredentialTables::TABLES);
+    }
+
+    public function test_it_reports_a_migration_writing_the_credential_store_outside_the_identity_modules_directory(): void
+    {
+        self::assertSame(['12 cboxCms.kernelTableWrite', '13 cboxCms.kernelTableWrite'], $this->reported('CredentialTableWriteMigration'));
+    }
+
+    public function test_it_allows_a_migration_writing_the_credential_store_in_the_identity_modules_directory(): void
+    {
+        $this->identityDirectory = __DIR__.'/Fixtures';
+
+        self::assertSame([], $this->reported('CredentialTableWriteMigration'));
+    }
+
+    public function test_it_reports_the_identity_modules_migration_writing_a_kernel_table(): void
+    {
+        $this->identityDirectory = __DIR__.'/Fixtures';
+
+        self::assertSame(['12 cboxCms.kernelTableWrite', '13 cboxCms.kernelTableWrite'], $this->reported('KernelTableWriteMigration'));
+    }
+
+    private function credentialMessage(string $table): string
+    {
+        return sprintf(
+            'Write to the credential store table %s outside the identity module. Only %s writes the credentials of the local accounts, on the identity role\'s connection (PRD 5.16).',
+            $table,
+            KernelTableWriteRule::IDENTITY,
+        );
+    }
+
     private function message(string $table): string
     {
         return sprintf(
@@ -198,6 +280,6 @@ final class KernelTableWriteRuleTest extends RuleTestCase
      */
     protected function getRule(): Rule
     {
-        return new KernelTableWriteRule(self::createReflectionProvider(), $this->coreDirectory);
+        return new KernelTableWriteRule(self::createReflectionProvider(), $this->coreDirectory, $this->identityDirectory);
     }
 }

@@ -19,10 +19,13 @@ use Override;
  * package that discovery does not see, are cboxdk/cms's; so cboxdk/cms brings the core's
  * migrations and the partition command.
  *
- * The default connection `pgsql` is the app role and `pgsql_owner` the owner role, both on the
- * database and schema of the DB_* variables in phpunit.xml. The harness moves both to the
- * checkout's own test database, which it creates as the owner role. The Redis connections come
- * from the REDIS_* variables, as in any Laravel application.
+ * The default connection `pgsql` is the app role, `pgsql_owner` the owner role and `pgsql_identity`
+ * the identity role of the credential store of the local accounts, which cbox-cms.identity.connection
+ * names, all on the database of the DB_* variables in phpunit.xml. The owner's search path lists the
+ * credential store's schema cms_identity after the kernel's, and the identity role's search path is
+ * that schema. The harness moves all three to the checkout's own test database, which it creates
+ * as the owner role. The Redis connections come from the REDIS_* variables, as in any Laravel
+ * application.
  */
 abstract class AddonTestCase extends TestCase
 {
@@ -57,6 +60,13 @@ abstract class AddonTestCase extends TestCase
             ...$appRole,
             'username' => $this->env('DB_OWNER_USERNAME', 'cms_owner'),
             'password' => $this->env('DB_OWNER_PASSWORD', ''),
+            'search_path' => $appRole['search_path'].',cms_identity',
+        ]);
+        $config->set('database.connections.pgsql_identity', [
+            ...$appRole,
+            'username' => $this->env('DB_IDENTITY_USERNAME', 'cms_identity'),
+            'password' => $this->env('DB_IDENTITY_PASSWORD', ''),
+            'search_path' => 'cms_identity',
         ]);
     }
 

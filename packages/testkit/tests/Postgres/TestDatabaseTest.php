@@ -66,6 +66,11 @@ function baseApp(): ConnectionSettings
     return ConnectionSettings::of('pgsql', config())->withDatabase(baseDatabase());
 }
 
+function baseIdentity(): ConnectionSettings
+{
+    return ConnectionSettings::of('pgsql_identity', config())->withDatabase(baseDatabase());
+}
+
 /**
  * Starts bin/test-database.php for $root, or for its parallel worker $worker, with the owner and
  * app roles of the configured database.
@@ -77,7 +82,7 @@ function provisionInChild(string $root, ?int $worker = null): Process
     }
 
     $process = new Process(TestDatabase::command());
-    $process->setInput(new TestDatabasePayload(baseOwner(), baseApp(), $root, $worker)->encode());
+    $process->setInput(new TestDatabasePayload(baseOwner(), baseApp(), baseIdentity(), $root, $worker)->encode());
     $process->setTimeout(60);
     $process->start();
 
@@ -173,9 +178,9 @@ it('provisions the database of another checkout root in a child process, migrate
         ->and(checkoutDatabase())->toBe($before);
 });
 
-it('sets the database up as database.sql does: owned by the owner, CONNECT for the app role only, the schema and the default privileges', function (): void {
+it('sets the database up as database.sql does: owned by the owner, CONNECT for the app role and the identity role only, the schemas and the default privileges', function (): void {
     $root = ScratchCheckouts::make();
-    $name = TestDatabase::provision(baseOwner(), baseApp(), $root);
+    $name = TestDatabase::provision(baseOwner(), baseApp(), baseIdentity(), $root);
     $owner = connectionTo($name, 'pgsql_owner');
     $query = static fn (Connection $connection, string $sql): array => array_map(
         static fn (mixed $row): array => (array) $row,
@@ -184,16 +189,18 @@ it('sets the database up as database.sql does: owned by the owner, CONNECT for t
 
     expect($query($owner, 'select pg_get_userbyid(datdba) as owner, datacl::text as acl from pg_database where datname = current_database()'))
         ->toBe($query(DB::connection('pgsql_owner'), 'select pg_get_userbyid(datdba) as owner, datacl::text as acl from pg_database where datname = current_database()'))
-        ->toBe([['owner' => 'cms_owner', 'acl' => '{cms_owner=CTc/cms_owner,cms_app=c/cms_owner}']])
-        ->and($query($owner, "select nspname as schema, pg_get_userbyid(nspowner) as owner, nspacl::text as acl from pg_namespace where nspname in ('cms', 'public') order by 1"))
+        ->toBe([['owner' => 'cms_owner', 'acl' => '{cms_owner=CTc/cms_owner,cms_app=c/cms_owner,cms_identity=c/cms_owner}']])
+        ->and($query($owner, "select nspname as schema, pg_get_userbyid(nspowner) as owner, nspacl::text as acl from pg_namespace where nspname in ('cms', 'cms_identity', 'public') order by 1"))
         ->toBe([
             ['schema' => 'cms', 'owner' => 'cms_owner', 'acl' => '{cms_owner=UC/cms_owner,cms_app=U/cms_owner}'],
+            ['schema' => 'cms_identity', 'owner' => 'cms_owner', 'acl' => '{cms_owner=UC/cms_owner,cms_identity=U/cms_owner}'],
             ['schema' => 'public', 'owner' => 'pg_database_owner', 'acl' => '{pg_database_owner=UC/pg_database_owner,=U/pg_database_owner}'],
         ])
-        ->and($query($owner, 'select defaclrole::regrole::text as role, defaclnamespace::regnamespace::text as schema, defaclobjtype as type, defaclacl::text as acl from pg_default_acl order by 3'))
+        ->and($query($owner, 'select defaclrole::regrole::text as role, defaclnamespace::regnamespace::text as schema, defaclobjtype as type, defaclacl::text as acl from pg_default_acl order by 2, 3'))
         ->toBe([
             ['role' => 'cms_owner', 'schema' => 'cms', 'type' => 'S', 'acl' => '{cms_app=rU/cms_owner}'],
             ['role' => 'cms_owner', 'schema' => 'cms', 'type' => 'r', 'acl' => '{cms_app=arwd/cms_owner}'],
+            ['role' => 'cms_owner', 'schema' => 'cms_identity', 'type' => 'r', 'acl' => '{cms_identity=arwd/cms_owner}'],
         ]);
 
     DB::purge('pgsql_owner_scratch');
@@ -284,7 +291,7 @@ it('provisions under the advisory lock the caller names, and gives up when the l
     $checkout = TestDatabaseName::for(baseDatabase(), $root);
     $worker = TestDatabaseName::for(baseDatabase(), $root, 1);
     $app = baseApp();
-    $setup = new TestDatabaseSetup($worker, baseOwner()->username, $app->username, $app->searchPath);
+    $setup = new TestDatabaseSetup($worker, baseOwner()->username, $app->username, $app->searchPath, baseIdentity()->username);
     $databases = new PostgresTestDatabases(baseOwner(), 2, '200ms');
 
     // Hold the lock of the checkout's database, which the worker's set-up names.
@@ -319,7 +326,7 @@ it('fails fast when the role that provisions lacks CREATEDB, naming the role, CR
 
     // The app role connects to the configured database but has no CREATEDB, as an owner role
     // provisioned before CREATEDB was granted.
-    expect(static fn (): string => TestDatabase::provision($app, $app, $root))
+    expect(static fn (): string => TestDatabase::provision($app, $app, baseIdentity(), $root))
         ->toThrow(TestDatabaseUnavailable::class, "The owner role cms_app has no CREATEDB at {$app->host}:{$app->port}, so the harness cannot create this checkout's test database {$name}.\nRun `composer services:up`, which provisions the roles again and gives the owner role CREATEDB, and run the suite again.")
         ->and(databaseExists($name))->toBeFalse();
 });
@@ -329,7 +336,7 @@ it('refuses a search path that names more than one schema, before it creates any
     $app = baseApp();
     $several = new ConnectionSettings($app->name, $app->host, $app->port, $app->database, $app->username, $app->password, 'cms, public');
 
-    expect(static fn (): string => TestDatabase::provision(baseOwner(), $several, $root))
+    expect(static fn (): string => TestDatabase::provision(baseOwner(), $several, baseIdentity(), $root))
         ->toThrow(TestDatabaseUnavailable::class, 'The search path of the connection [pgsql] is "cms, public". The harness sets up one schema')
         ->and(databaseExists(TestDatabaseName::for(baseDatabase(), $root)))->toBeFalse();
 });
@@ -377,8 +384,8 @@ it('exits 0 with the database\'s name, 1 with the failure and 2 for a payload it
     $name = TestDatabaseName::for(baseDatabase(), $root);
     $unreachable = ConnectionSettings::fromPayload([...baseOwner()->toPayload(), 'port' => 1]);
 
-    [$okCode, $okOut, $okErr] = testDatabaseMain(new TestDatabasePayload(baseOwner(), baseApp(), $root)->encode());
-    [$failedCode, $failedOut, $failedErr] = testDatabaseMain(new TestDatabasePayload($unreachable, baseApp(), $root)->encode());
+    [$okCode, $okOut, $okErr] = testDatabaseMain(new TestDatabasePayload(baseOwner(), baseApp(), baseIdentity(), $root)->encode());
+    [$failedCode, $failedOut, $failedErr] = testDatabaseMain(new TestDatabasePayload($unreachable, baseApp(), baseIdentity(), $root)->encode());
     [$invalidCode, $invalidOut, $invalidErr] = testDatabaseMain('{');
 
     expect([$okCode, $okOut, $okErr])->toBe([0, $name."\n", ''])

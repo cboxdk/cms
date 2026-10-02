@@ -27,6 +27,8 @@
 # Roles follow the operating contract in PRD 4.2 and GUARDRAILS 6:
 #   cms_owner  owns the databases and the cms schema, runs migrations and partition maintenance
 #   cms_app    the application and the tests: no DDL, NOBYPASSRLS, transaction_timeout 5s
+#   cms_identity  the credential store of the local accounts, on a connection of its own: DML on
+#              the schema cms_identity only, which the app role cannot read (PRD 5.16)
 # The init script in docker/postgres is idempotent and runs on an empty data volume. The server
 # settings, max_prepared_transactions 0, are the drop-in docker/postgres/conf.d/cms.conf.
 #
@@ -108,6 +110,8 @@ services:
       CMS_OWNER_PASSWORD: cms_owner
       CMS_APP_ROLE: cms_app
       CMS_APP_PASSWORD: cms_app
+      CMS_IDENTITY_ROLE: cms_identity
+      CMS_IDENTITY_PASSWORD: cms_identity
       # The command budget in GUARDRAILS 4.1 and PRD 7.4.
       CMS_APP_TRANSACTION_TIMEOUT: 5s
       # Default database for psql inside the container, so `psql -U cms_owner` works without -d.

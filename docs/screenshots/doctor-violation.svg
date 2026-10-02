@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="968" height="906" viewBox="0 0 968 906" role="img" aria-label="php -d allow_url_fopen=1 vendor/bin/testbench cms:doctor">
+<svg xmlns="http://www.w3.org/2000/svg" width="968" height="1006" viewBox="0 0 968 1006" role="img" aria-label="php -d allow_url_fopen=1 vendor/bin/testbench cms:doctor">
 <title>php -d allow_url_fopen=1 vendor/bin/testbench cms:doctor</title>
 <style>text{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, &apos;DejaVu Sans Mono&apos;, &apos;Liberation Mono&apos;, monospace;font-size:13px;white-space:pre}.b{font-weight:700}.d{opacity:.66}.i{font-style:italic}.u{text-decoration:underline}</style>
-<rect x="0.5" y="0.5" width="967" height="905" rx="8" fill="#0d1117" stroke="#30363d"/>
+<rect x="0.5" y="0.5" width="967" height="1005" rx="8" fill="#0d1117" stroke="#30363d"/>
 <path d="M0.5 34V8.5a8 8 0 0 1 8-8H959.5a8 8 0 0 1 8 8V34Z" fill="#161b22" stroke="#30363d"/>
 <circle cx="20" cy="17" r="6" fill="#ff5f57"/>
 <circle cx="40" cy="17" r="6" fill="#febc2e"/>
@@ -68,6 +68,14 @@
 <text x="55" y="804" fill="#e6edf3" textLength="897">  postgres.owner_credentials            The owner connection pgsql_owner is configured in this process, which CBOX_</text>
 <text x="16" y="824" fill="#e6edf3" textLength="936">CMS_MAINTENANCE_PROCESS=true in its environment declares the maintenance process, and it serves no HTTP and runs no queu</text>
 <text x="16" y="844" fill="#e6edf3" textLength="62.4">ed jobs.</text>
-<rect x="16" y="870" width="452.4" height="20" fill="#cd3131"/>
-<text x="16" y="884" fill="#e5e5e5" textLength="452.4">cms:doctor: violation (exit 78). The kernel may not start.</text>
+<text x="23.8" y="864" fill="#0dbc79" textLength="31.2">pass</text>
+<text x="55" y="864" fill="#e6edf3" textLength="897">  identity.connection                   Connected to the credential store as cms_identity@fake:5432/cms (connection</text>
+<text x="16" y="884" fill="#e6edf3" textLength="280.8"> pgsql_identity), a role of its own.</text>
+<text x="23.8" y="904" fill="#0dbc79" textLength="31.2">pass</text>
+<text x="55" y="904" fill="#e6edf3" textLength="897">  identity.credential_isolation         The app role has no privilege on cms_identity, and the identity role cms_id</text>
+<text x="16" y="924" fill="#e6edf3" textLength="811.2">entity is not a superuser, has NOBYPASSRLS and NOCREATEROLE, and is a member of no role with more power.</text>
+<text x="23.8" y="944" fill="#0dbc79" textLength="31.2">pass</text>
+<text x="55" y="944" fill="#e6edf3" textLength="585">  identity.argon2id                     PHP hashes passwords with Argon2id.</text>
+<rect x="16" y="970" width="452.4" height="20" fill="#cd3131"/>
+<text x="16" y="984" fill="#e5e5e5" textLength="452.4">cms:doctor: violation (exit 78). The kernel may not start.</text>
 </svg>

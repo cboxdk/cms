@@ -52,15 +52,17 @@ function referenceConfigKeys(array $config, string $prefix): array
 it('names every key of the configuration files on docs/developers/configuration.md', function (): void {
     $core = require Phpstan::root().'/packages/core/config/cbox-cms.php';
     $generators = require Phpstan::root().'/packages/generators/config/generators.php';
+    $identity = require Phpstan::root().'/packages/identity/config/identity.php';
 
-    expect($core)->toBeArray()->and($generators)->toBeArray();
+    expect($core)->toBeArray()->and($generators)->toBeArray()->and($identity)->toBeArray();
 
     $keys = [
         ...referenceConfigKeys(is_array($core) ? $core : [], 'cbox-cms'),
         ...referenceConfigKeys(is_array($generators) ? $generators : [], 'cbox-cms.generators'),
+        ...referenceConfigKeys(is_array($identity) ? $identity : [], 'cbox-cms.identity'),
     ];
     $page = referenceRead('docs/developers/configuration.md');
 
-    expect($keys)->toContain('cbox-cms.contracts', 'cbox-cms.database.partitions.tables', 'cbox-cms.doctor.checks', 'cbox-cms.generators.php_namespace')
+    expect($keys)->toContain('cbox-cms.contracts', 'cbox-cms.database.partitions.tables', 'cbox-cms.doctor.checks', 'cbox-cms.generators.php_namespace', 'cbox-cms.identity.connection')
         ->and(array_values(array_filter($keys, static fn (string $key): bool => ! str_contains($page, '| `'.$key.'` |'))))->toBe([]);
 });

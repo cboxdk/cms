@@ -81,6 +81,8 @@ services:
       CMS_OWNER_PASSWORD: cms_owner
       CMS_APP_ROLE: cms_app
       CMS_APP_PASSWORD: cms_app
+      CMS_IDENTITY_ROLE: cms_identity
+      CMS_IDENTITY_PASSWORD: cms_identity
       CMS_APP_TRANSACTION_TIMEOUT: 5s
     depends_on:
       postgres:

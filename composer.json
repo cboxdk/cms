@@ -79,6 +79,7 @@
             "Cbox\\Cms\\Core\\": "packages/core/src/",
             "Cbox\\Cms\\Generators\\": "packages/generators/src/",
             "Cbox\\Cms\\Http\\": "packages/http/src/",
+            "Cbox\\Cms\\Identity\\": "packages/identity/src/",
             "Cbox\\Cms\\Mcp\\": "packages/mcp/src/",
             "Cbox\\Cms\\Testkit\\": "packages/testkit/src/"
         }
@@ -90,6 +91,7 @@
             "Cbox\\Cms\\Core\\Tests\\": "packages/core/tests/",
             "Cbox\\Cms\\Generators\\Tests\\": "packages/generators/tests/",
             "Cbox\\Cms\\Http\\Tests\\": "packages/http/tests/",
+            "Cbox\\Cms\\Identity\\Tests\\": "packages/identity/tests/",
             "Cbox\\Cms\\Mcp\\Tests\\": "packages/mcp/tests/",
             "Cbox\\Cms\\Testkit\\Tests\\": "packages/testkit/tests/",
             "Cbox\\Cms\\Tests\\": "tests/",
@@ -184,6 +186,7 @@
         "laravel": {
             "providers": [
                 "Cbox\\Cms\\Core\\CoreServiceProvider",
+                "Cbox\\Cms\\Identity\\IdentityServiceProvider",
                 "Cbox\\Cms\\Http\\HttpServiceProvider",
                 "Cbox\\Cms\\Mcp\\McpServiceProvider",
                 "Cbox\\Cms\\Cli\\CliServiceProvider",

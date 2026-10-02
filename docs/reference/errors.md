@@ -26,14 +26,21 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`doctor_app_role_has_ddl`](#doctor_app_role_has_ddl) | 500 | 78 | internal_error | no |
 | [`doctor_app_role_privileged_membership`](#doctor_app_role_privileged_membership) | 500 | 78 | internal_error | no |
 | [`doctor_app_role_superuser`](#doctor_app_role_superuser) | 500 | 78 | internal_error | no |
+| [`doctor_argon2id_unavailable`](#doctor_argon2id_unavailable) | 500 | 78 | internal_error | no |
 | [`doctor_check_crashed`](#doctor_check_crashed) | 500 | 78 | internal_error | no |
 | [`doctor_chromium_missing`](#doctor_chromium_missing) | 503 | 79 | internal_error | no |
 | [`doctor_config_invalid`](#doctor_config_invalid) | 500 | 78 | internal_error | no |
+| [`doctor_credential_store_missing`](#doctor_credential_store_missing) | 500 | 78 | internal_error | no |
+| [`doctor_credential_store_readable`](#doctor_credential_store_readable) | 500 | 78 | internal_error | no |
 | [`doctor_event_log_unreadable`](#doctor_event_log_unreadable) | 503 | 79 | internal_error | no |
 | [`doctor_events_lag`](#doctor_events_lag) | 503 | 79 | internal_error | no |
 | [`doctor_events_parked`](#doctor_events_parked) | 503 | 79 | internal_error | no |
 | [`doctor_extension_missing`](#doctor_extension_missing) | 500 | 78 | internal_error | no |
 | [`doctor_horizon_held`](#doctor_horizon_held) | 503 | 79 | internal_error | no |
+| [`doctor_identity_connection_refused`](#doctor_identity_connection_refused) | 500 | 78 | internal_error | no |
+| [`doctor_identity_connection_shared_role`](#doctor_identity_connection_shared_role) | 500 | 78 | internal_error | no |
+| [`doctor_identity_connection_unavailable`](#doctor_identity_connection_unavailable) | 503 | 75 | internal_error | yes |
+| [`doctor_identity_role_privileged`](#doctor_identity_role_privileged) | 500 | 78 | internal_error | no |
 | [`doctor_idle_in_transaction_timeout_missing`](#doctor_idle_in_transaction_timeout_missing) | 500 | 78 | internal_error | no |
 | [`doctor_laravel_version`](#doctor_laravel_version) | 500 | 78 | internal_error | no |
 | [`doctor_lc_messages_not_english`](#doctor_lc_messages_not_english) | 500 | 78 | internal_error | no |
@@ -280,6 +287,15 @@ The app role is a superuser, so no privilege and no row level security limits it
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
+### doctor_argon2id_unavailable
+
+This PHP has no Argon2id (PASSWORD_ARGON2ID), which the local accounts hash their passwords with (PRD 5.16). Install PHP with libargon2 or libsodium support, such as the php-baseimages images, then run cms:doctor again.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 78 (EX_CONFIG)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
 ### doctor_check_crashed
 
 A check of cms:doctor did not finish: it threw, answered for another check or returned a skip, so the doctor cannot say whether that part is in order. This is a bug in the check. Report it with the cause, and run cms:doctor again after updating.
@@ -301,6 +317,24 @@ The browser tests need the Chromium build that the installed Playwright was made
 ### doctor_config_invalid
 
 A setting under cbox-cms.doctor, or the environment variable CBOX_CMS_MAINTENANCE_PROCESS, is invalid, or a check it names cannot be used, so cms:doctor cannot run its checks. Correct the setting the cause names, then run cms:doctor again.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 78 (EX_CONFIG)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### doctor_credential_store_missing
+
+The schema cms_identity of the credential store does not exist in the database, so the local accounts have nowhere to keep their credentials (PRD 5.16). Create it as the owner role with the identity role's grants, as docs/security/credential-store.md says, run the migrations, then run cms:doctor again.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 78 (EX_CONFIG)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### doctor_credential_store_readable
+
+The app role has a privilege on the credential store, the schema cms_identity or one of its tables, so the web and queue processes could read or change credentials (PRD 5.16). As the owner role or a superuser, revoke what the cause names from the app role and from PUBLIC, then run cms:doctor again.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 78 (EX_CONFIG)
@@ -349,6 +383,42 @@ A transaction has held a transaction id for longer than the command budget, so t
 
 - HTTP status: 503 Service Unavailable
 - CLI exit code: 79 (NOT_READY)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### doctor_identity_connection_refused
+
+Postgres answered, but refused the login of the identity connection, which cbox-cms.identity.connection names, or the connection is not configured as Postgres. Correct the connection's settings and the identity role's password, then run cms:doctor again.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 78 (EX_CONFIG)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### doctor_identity_connection_shared_role
+
+The identity connection logs in as the app role or the owner role, so the credential store is not isolated from the processes that use that role (PRD 5.16). Give the identity connection a role of its own, as docs/security/credential-store.md says, then run cms:doctor again.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 78 (EX_CONFIG)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### doctor_identity_connection_unavailable
+
+The doctor could not reach Postgres in time on the identity connection, which cbox-cms.identity.connection names. Check that Postgres is running and that the host and port of the connection are right, then run cms:doctor again.
+
+- HTTP status: 503 Service Unavailable
+- CLI exit code: 75 (EX_TEMPFAIL)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: yes, the same call may succeed later
+
+### doctor_identity_role_privileged
+
+The identity role is a superuser, has BYPASSRLS or CREATEROLE, or is a member of a role with more power, so it reaches more than the credential store (PRD 5.16, 4.2). As a superuser, take the attribute or the membership the cause names away, then run cms:doctor again.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 78 (EX_CONFIG)
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 

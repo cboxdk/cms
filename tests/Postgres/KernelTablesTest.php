@@ -7,6 +7,7 @@ namespace Cbox\Cms\Tests\Postgres;
 use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Contracts\Schema\TypeName;
+use Cbox\Cms\Identity\CredentialStore\Domain\CredentialStore;
 use Cbox\Cms\Testkit\Phpstan\KernelTables;
 use Cbox\Cms\Testkit\Postgres\PartitionFixtures;
 use DateTimeImmutable;
@@ -20,7 +21,10 @@ use LogicException;
  * never left out of the rule. The partition manager's partitions, `<table>_p<digits>`, are covered
  * by the rule through their table. The workbench's generated type tables, `<owner>__<handle>`
  * (PRD 11.6), are the application's, not the kernel's: they are exactly the tables of the types
- * in the generated TypeCatalog, and no kernel table has a double underscore in its name.
+ * in the generated TypeCatalog, and no kernel table has a double underscore in its name. The
+ * kernel's tables are those of the kernel's schema, the first of the owner's search path: the
+ * credential store's schema, cms_identity, which the owner's search path lists after it, holds the
+ * identity module's tables, which KernelTableWriteRule guards with a rule of their own.
  */
 
 /**
@@ -37,7 +41,7 @@ it('lists every table and LIST partition the migrations built, and nothing else'
             select c.relname::text as name
             from pg_class c
             where c.relkind in ('r', 'p')
-              and c.relnamespace = any (select oid from pg_namespace where nspname = any (current_schemas(false)))
+              and c.relnamespace = current_schema()::regnamespace
               and c.relname !~ '_p[0-9]+$'
             order by 1
             SQL,
@@ -56,7 +60,9 @@ it('lists every table and LIST partition the migrations built, and nothing else'
         ->and(array_values(array_intersect(NOT_KERNEL_TABLES, $tables)))->toBe(NOT_KERNEL_TABLES)
         ->and(array_values(array_intersect($tables, $typeTables)))->toBe($typeTables)
         ->and($typeTables)->not->toBe([])
-        ->and(array_filter(KernelTables::NAMES, static fn (string $table): bool => str_contains($table, TypeName::TABLE_SEPARATOR)))->toBe([]);
+        ->and(array_filter(KernelTables::NAMES, static fn (string $table): bool => str_contains($table, TypeName::TABLE_SEPARATOR)))->toBe([])
+        ->and(DB::connection('pgsql_owner')->select('select current_schemas(false)::text as schemas'))->toEqual([(object) ['schemas' => '{cms,cms_identity}']])
+        ->and(array_values(array_intersect(CredentialStore::TABLES, KernelTables::NAMES)))->toBe([]);
 });
 
 it('names each managed partition by its table', function (): void {

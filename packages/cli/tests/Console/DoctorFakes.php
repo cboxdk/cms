@@ -24,12 +24,17 @@ use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeRegistryCacheProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeRuntimeProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeToolProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeValkeyProbe;
+use Cbox\Cms\Identity\Doctor\Domain\Probes\CredentialStoreProbe;
+use Cbox\Cms\Identity\Doctor\Domain\Probes\PasswordHashingProbe;
+use Cbox\Cms\Identity\Tests\Doctor\Fakes\FakeCredentialStoreProbe;
+use Cbox\Cms\Identity\Tests\Doctor\Fakes\FakePasswordHashingProbe;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use DateTimeImmutable;
 use Psr\Log\LoggerInterface;
 
 /**
- * The fake probes bound for one test, all healthy until the test changes one.
+ * The fake probes bound for one test, the core's and the identity module's, all healthy until the
+ * test changes one.
  */
 final class DoctorFakes
 {
@@ -51,6 +56,10 @@ final class DoctorFakes
 
     public FakeEventLogProbe $events;
 
+    public FakeCredentialStoreProbe $credentialStore;
+
+    public FakePasswordHashingProbe $passwordHashing;
+
     public FakeLogger $log;
 
     public function __construct()
@@ -66,6 +75,8 @@ final class DoctorFakes
         $this->registry = new FakeRegistryCacheProbe;
         $this->tools = new FakeToolProbe;
         $this->events = new FakeEventLogProbe;
+        $this->credentialStore = new FakeCredentialStoreProbe;
+        $this->passwordHashing = new FakePasswordHashingProbe;
 
         app()->instance(Clock::class, $clock);
         app()->instance(RuntimeProbe::class, $this->runtime);
@@ -77,6 +88,8 @@ final class DoctorFakes
         app()->instance(RegistryCacheProbe::class, $this->registry);
         app()->instance(ToolProbe::class, $this->tools);
         app()->instance(EventLogProbe::class, $this->events);
+        app()->instance(CredentialStoreProbe::class, $this->credentialStore);
+        app()->instance(PasswordHashingProbe::class, $this->passwordHashing);
 
         $this->log = new FakeLogger;
         app()->instance(LoggerInterface::class, $this->log);

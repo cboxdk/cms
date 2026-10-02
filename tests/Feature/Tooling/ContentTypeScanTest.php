@@ -183,6 +183,7 @@ it('scans the src directory of each core package and nothing else', function ():
             'packages/core/src/Domain/Type.php',
             'packages/generators/src/Domain/Type.php',
             'packages/http/src/Domain/Type.php',
+            'packages/identity/src/Domain/Type.php',
             'packages/mcp/src/Domain/Type.php',
             'packages/testkit/src/Domain/Type.php',
         ])

@@ -21,14 +21,21 @@ export type ErrorCode =
   | 'doctor_app_role_has_ddl'
   | 'doctor_app_role_privileged_membership'
   | 'doctor_app_role_superuser'
+  | 'doctor_argon2id_unavailable'
   | 'doctor_check_crashed'
   | 'doctor_chromium_missing'
   | 'doctor_config_invalid'
+  | 'doctor_credential_store_missing'
+  | 'doctor_credential_store_readable'
   | 'doctor_event_log_unreadable'
   | 'doctor_events_lag'
   | 'doctor_events_parked'
   | 'doctor_extension_missing'
   | 'doctor_horizon_held'
+  | 'doctor_identity_connection_refused'
+  | 'doctor_identity_connection_shared_role'
+  | 'doctor_identity_connection_unavailable'
+  | 'doctor_identity_role_privileged'
   | 'doctor_idle_in_transaction_timeout_missing'
   | 'doctor_laravel_version'
   | 'doctor_lc_messages_not_english'
@@ -240,14 +247,21 @@ const catalogErrorV1Rule: ObjectRule = {
           'doctor_app_role_has_ddl',
           'doctor_app_role_privileged_membership',
           'doctor_app_role_superuser',
+          'doctor_argon2id_unavailable',
           'doctor_check_crashed',
           'doctor_chromium_missing',
           'doctor_config_invalid',
+          'doctor_credential_store_missing',
+          'doctor_credential_store_readable',
           'doctor_event_log_unreadable',
           'doctor_events_lag',
           'doctor_events_parked',
           'doctor_extension_missing',
           'doctor_horizon_held',
+          'doctor_identity_connection_refused',
+          'doctor_identity_connection_shared_role',
+          'doctor_identity_connection_unavailable',
+          'doctor_identity_role_privileged',
           'doctor_idle_in_transaction_timeout_missing',
           'doctor_laravel_version',
           'doctor_lc_messages_not_english',
@@ -423,14 +437,21 @@ const problemV1Rule: ObjectRule = {
           'doctor_app_role_has_ddl',
           'doctor_app_role_privileged_membership',
           'doctor_app_role_superuser',
+          'doctor_argon2id_unavailable',
           'doctor_check_crashed',
           'doctor_chromium_missing',
           'doctor_config_invalid',
+          'doctor_credential_store_missing',
+          'doctor_credential_store_readable',
           'doctor_event_log_unreadable',
           'doctor_events_lag',
           'doctor_events_parked',
           'doctor_extension_missing',
           'doctor_horizon_held',
+          'doctor_identity_connection_refused',
+          'doctor_identity_connection_shared_role',
+          'doctor_identity_connection_unavailable',
+          'doctor_identity_role_privileged',
           'doctor_idle_in_transaction_timeout_missing',
           'doctor_laravel_version',
           'doctor_lc_messages_not_english',

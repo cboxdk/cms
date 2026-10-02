@@ -45,7 +45,7 @@ function dropScript(string $root): Process
 it('drops the test database of another checkout, and says so when there is none', function (): void {
     $root = ScratchDirectory::make('cbox-cms-drop-test-');
     $owner = ConnectionSettings::of('pgsql_owner', config())->withDatabase('cms_test');
-    $name = TestDatabase::provision($owner, ConnectionSettings::of('pgsql', config())->withDatabase('cms_test'), $root);
+    $name = TestDatabase::provision($owner, ConnectionSettings::of('pgsql', config())->withDatabase('cms_test'), ConnectionSettings::of('pgsql_identity', config())->withDatabase('cms_test'), $root);
     $exists = static fn (string $database): bool => DB::connection('pgsql_owner')->scalar('select exists (select from pg_database where datname = ?)', [$database]) === true;
 
     try {

@@ -367,6 +367,8 @@ it('creates the roles and databases over TCP as the superuser before installing,
         'CMS_APP_ROLE' => 'cms_app',
         'CMS_APP_PASSWORD' => 'cms_app',
         'CMS_APP_TRANSACTION_TIMEOUT' => '5s',
+        'CMS_IDENTITY_ROLE' => 'cms_identity',
+        'CMS_IDENTITY_PASSWORD' => 'cms_identity',
     ]);
     $calls = array_values(array_filter(
         file($scratch.'/calls.log', FILE_IGNORE_NEW_LINES) ?: [],
@@ -376,7 +378,7 @@ it('creates the roles and databases over TCP as the superuser before installing,
     expect($process->getExitCode())->toBe(0)
         ->and($calls)->toHaveCount(5)
         ->and($calls[0])->toStartWith('pg_isready --quiet --host=postgres --port=5432 |')
-        ->and($calls[1])->toContain('--username=super', '--file=docker/postgres/sql/roles.sql', '| PGHOST=postgres PGPORT=5432 PGPASSWORD=secret')
+        ->and($calls[1])->toContain('--username=super', '--file=docker/postgres/sql/roles.sql', '--set=identity_role=cms_identity', '| PGHOST=postgres PGPORT=5432 PGPASSWORD=secret')
         ->and($calls[2])->toContain('--set=db=cms --file=docker/postgres/sql/database.sql', 'PGHOST=postgres')
         ->and($calls[3])->toContain('--set=db=cms_test --file=docker/postgres/sql/database.sql', 'PGHOST=postgres')
         ->and($calls[4])->toStartWith('composer install');

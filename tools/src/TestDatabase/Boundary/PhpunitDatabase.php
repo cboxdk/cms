@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Tooling\TestDatabase\Boundary;
 
 use Cbox\Cms\Testkit\Postgres\Boundary\ConnectionSettings;
+use Cbox\Cms\Testkit\Postgres\Infrastructure\TestDatabaseSetup;
 use DOMDocument;
 use DOMElement;
 use UnexpectedValueException;
@@ -15,7 +16,8 @@ use UnexpectedValueException;
  *
  * The values are the `<env>` elements of phpunit.xml, where a variable that is already set in the
  * environment wins unless the element says force="true", as PHPUnit applies them, and the owner
- * connection is built from them as WorkbenchServiceProvider builds `pgsql_owner`.
+ * connection is built from them as WorkbenchServiceProvider builds `pgsql_owner`: the schema of
+ * DB_SCHEMA first in its search path, and the credential store's schema, cms_identity, after it.
  * tests/Feature/Tooling/TestDatabaseToolsTest.php holds the two equal.
  */
 final readonly class PhpunitDatabase
@@ -35,8 +37,18 @@ final readonly class PhpunitDatabase
             database: self::nonEmpty($variables, 'DB_DATABASE') ?? throw new UnexpectedValueException("{$phpunitXml} sets no DB_DATABASE."),
             username: self::nonEmpty($variables, 'DB_OWNER_USERNAME') ?? 'cms_owner',
             password: $variables['DB_OWNER_PASSWORD'] ?? '',
-            searchPath: self::nonEmpty($variables, 'DB_SCHEMA') ?? 'cms',
+            searchPath: self::schema($variables).','.TestDatabaseSetup::IDENTITY_SCHEMA,
         );
+    }
+
+    /**
+     * The kernel's schema of the suites' connections, DB_SCHEMA.
+     *
+     * @param  array<string, string>  $variables  what variables() returns
+     */
+    public static function schema(array $variables): string
+    {
+        return self::nonEmpty($variables, 'DB_SCHEMA') ?? 'cms';
     }
 
     /**

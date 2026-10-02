@@ -29,6 +29,10 @@ parameters:
         - packages/generators/tests
         - packages/http/src
         - packages/http/tests
+        - packages/identity/config
+        - packages/identity/database
+        - packages/identity/src
+        - packages/identity/tests
         - packages/mcp/src
         - packages/mcp/tests
         - packages/testkit/bin

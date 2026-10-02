@@ -102,7 +102,7 @@ try {
     }
 
     $databases->provision(
-        new TestDatabaseSetup($options->database, $owner->username, $variables['DB_USERNAME'] ?? 'cms_app', $owner->searchPath),
+        new TestDatabaseSetup($options->database, $owner->username, $variables['DB_USERNAME'] ?? 'cms_app', PhpunitDatabase::schema($variables), $variables['DB_IDENTITY_USERNAME'] ?? 'cms_identity'),
         TestDatabaseComment::of($root),
     );
 } catch (Throwable $failure) {

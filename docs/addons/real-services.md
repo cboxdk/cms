@@ -17,19 +17,20 @@ A fake is the first choice for code that takes a contract, such as the receipt s
 
 The harnesses start no service. The test run needs Postgres and Valkey running, and a test fails at once, with the reason and the fix, when one does not answer.
 
-- **Postgres 17 or later**, with two login roles (PRD 4.2), set up once per server by the test environment:
+- **Postgres 17 or later**, with three login roles (PRD 4.2, 5.16), set up once per server by the test environment:
   - The owner role runs the migrations and partition maintenance and owns the test databases. It needs `CREATEDB`, because the harness creates each checkout's test database as that role.
   - The app role owns nothing and has no DDL, no `CREATEDB` and no `BYPASSRLS`.
-  - Both roles can connect to the configured database (`DB_DATABASE`), and both have `lc_messages = 'C'`, because the kernel reads the text of some errors.
+  - The identity role of the credential store owns nothing either, and reaches only the schema `cms_identity` (see [Credential store](../security/credential-store.md)).
+  - The owner and app roles can connect to the configured database (`DB_DATABASE`), and both have `lc_messages = 'C'`, because the kernel reads the text of some errors.
 - **Valkey**, with database index 15 (`ValkeyRun::DATABASE`) set aside for tests.
 
-The harness sets up each test database itself, as the owner role: the schema of the app connection's `search_path`, owned by the owner role, `CONNECT` on the database and `USAGE` on the schema for the app role, and default privileges that give the app role `SELECT`, `INSERT`, `UPDATE` and `DELETE` on the tables the migrations create. In this repository `composer services:up` starts both services from `compose.yaml`, and `docker/postgres/sql/roles.sql` creates the roles.
+The harness sets up each test database itself, as the owner role: the schema of the app connection's `search_path`, owned by the owner role, `CONNECT` on the database and `USAGE` on the schema for the app role, and default privileges that give the app role `SELECT`, `INSERT`, `UPDATE` and `DELETE` on the tables the migrations create; and the schema `cms_identity`, owned by the owner role, with `CONNECT`, `USAGE` and the same default privileges for the identity role alone. In this repository `composer services:up` starts both services from `compose.yaml`, and `docker/postgres/sql/roles.sql` creates the roles.
 
 ## The test case
 
 The test case uses both traits. Testbench calls `setUpRealPostgres()` and `setUpRealValkey()` after the application has booted, and the tear-down methods before it is destroyed, so nothing else calls them. A PHPUnit test class extends the test case, as the example below does, and Pest gives it to a directory in `tests/Pest.php` with `pest()->extend(AddonTestCase::class)->in('Postgres')`.
 
-The application needs two pgsql connections to the same database and schema: the default connection as the app role, and `pgsql_owner` as the owner role. A test case that calls its owner connection something else overrides `postgresOwnerConnection()`, and one whose Redis connection for the service check is not `default` overrides `valkeyConnection()`. A test case must not use `DatabaseTransactions`, `RefreshDatabase` or `LazilyRefreshDatabase`; the harness fails a test that does.
+The application needs three pgsql connections to the same database: the default connection as the app role, `pgsql_owner` as the owner role with `cms_identity` after the app's schema in its search path, so `migrate:fresh` rebuilds the credential store and the harness empties it after each test, and the connection `cbox-cms.identity.connection` names, `pgsql_identity` by default, as the identity role with the search path `cms_identity`. The harness fails a test when the owner's search path does not reach `cms_identity` or the identity connection is not configured. A test case that calls its owner connection something else overrides `postgresOwnerConnection()`, and one whose Redis connection for the service check is not `default` overrides `valkeyConnection()`. A test case must not use `DatabaseTransactions`, `RefreshDatabase` or `LazilyRefreshDatabase`; the harness fails a test that does.
 
 <!-- example-file: examples/Postgres/Harness/AddonTestCase.php -->
 ```php
@@ -54,10 +55,13 @@ use Override;
  * package that discovery does not see, are cboxdk/cms's; so cboxdk/cms brings the core's
  * migrations and the partition command.
  *
- * The default connection `pgsql` is the app role and `pgsql_owner` the owner role, both on the
- * database and schema of the DB_* variables in phpunit.xml. The harness moves both to the
- * checkout's own test database, which it creates as the owner role. The Redis connections come
- * from the REDIS_* variables, as in any Laravel application.
+ * The default connection `pgsql` is the app role, `pgsql_owner` the owner role and `pgsql_identity`
+ * the identity role of the credential store of the local accounts, which cbox-cms.identity.connection
+ * names, all on the database of the DB_* variables in phpunit.xml. The owner's search path lists the
+ * credential store's schema cms_identity after the kernel's, and the identity role's search path is
+ * that schema. The harness moves all three to the checkout's own test database, which it creates
+ * as the owner role. The Redis connections come from the REDIS_* variables, as in any Laravel
+ * application.
  */
 abstract class AddonTestCase extends TestCase
 {
@@ -92,6 +96,13 @@ abstract class AddonTestCase extends TestCase
             ...$appRole,
             'username' => $this->env('DB_OWNER_USERNAME', 'cms_owner'),
             'password' => $this->env('DB_OWNER_PASSWORD', ''),
+            'search_path' => $appRole['search_path'].',cms_identity',
+        ]);
+        $config->set('database.connections.pgsql_identity', [
+            ...$appRole,
+            'username' => $this->env('DB_IDENTITY_USERNAME', 'cms_identity'),
+            'password' => $this->env('DB_IDENTITY_PASSWORD', ''),
+            'search_path' => 'cms_identity',
         ]);
     }
 

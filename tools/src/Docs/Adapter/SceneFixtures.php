@@ -24,6 +24,10 @@ use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeRegistryCacheProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeRuntimeProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeToolProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeValkeyProbe;
+use Cbox\Cms\Identity\Doctor\Domain\Probes\CredentialStoreProbe;
+use Cbox\Cms\Identity\Doctor\Domain\Probes\PasswordHashingProbe;
+use Cbox\Cms\Identity\Tests\Doctor\Fakes\FakeCredentialStoreProbe;
+use Cbox\Cms\Identity\Tests\Doctor\Fakes\FakePasswordHashingProbe;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Tooling\Docs\Domain\Scene;
 use DateTimeImmutable;
@@ -31,7 +35,7 @@ use Illuminate\Contracts\Foundation\Application;
 
 /**
  * Binds the fixtures of a scene into the workbench application: a FakeClock at FIXED_TIME and the
- * core's fake doctor probes, so the doctor runs its real checks, in its real order and with its
+ * fake doctor probes of the core and the identity module, so the doctor runs its real checks, in its real order and with its
  * real messages, on answers that never change. The probes name their targets `fake`, so an image
  * never passes for the output of a real server.
  */
@@ -66,5 +70,7 @@ final readonly class SceneFixtures
         $app->instance(RegistryCacheProbe::class, new FakeRegistryCacheProbe);
         $app->instance(EventLogProbe::class, new FakeEventLogProbe);
         $app->instance(ToolProbe::class, new FakeToolProbe);
+        $app->instance(CredentialStoreProbe::class, new FakeCredentialStoreProbe);
+        $app->instance(PasswordHashingProbe::class, new FakePasswordHashingProbe);
     }
 }

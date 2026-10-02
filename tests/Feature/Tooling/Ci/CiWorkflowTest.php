@@ -240,7 +240,7 @@ it('gives every job and the ci service the same environment, and the roles of co
     ksort($roles);
 
     expect($job)->toBe($service)
-        ->and($roles)->toHaveCount(7)
+        ->and($roles)->toHaveCount(9)
         ->and(array_intersect_key($job, $roles))->toBe($roles)
         ->and($job['CMS_CI_POSTGRES_SUPERUSER'] ?? null)->toBe($postgres['POSTGRES_USER'] ?? null)
         ->and($job['CMS_CI_POSTGRES_PASSWORD'] ?? null)->toBe($postgres['POSTGRES_PASSWORD'] ?? null)
@@ -249,6 +249,25 @@ it('gives every job and the ci service the same environment, and the roles of co
         ->and(CiFiles::strings(CiFiles::yaml(CiFiles::COMPOSE_CI), 'services', 'ci', 'environment')['CMS_CI_PART'] ?? null)->toBe('${CMS_CI_PART:-}')
         ->and(CiFiles::strings(CiFiles::yaml(CiFiles::COMPOSE_CI), 'services', 'ci', 'environment')['CMS_CI_MUTATION'] ?? null)->toBe('${CMS_CI_MUTATION:-}')
         ->and(workflowEnvironment()['CMS_CI_MUTATION'] ?? null)->toBe('${{ inputs.mutation && \'1\' || \'0\' }}');
+});
+
+it('gives the identity role of the credential store the same name and password in compose.yaml, compose.ci.yaml, ci.yml and phpunit.xml', function (): void {
+    $postgres = CiFiles::strings(CiFiles::yaml(CiFiles::COMPOSE), 'services', 'postgres', 'environment');
+    $service = CiFiles::strings(CiFiles::yaml(CiFiles::COMPOSE_CI), 'services', 'ci', 'environment');
+    $phpunit = simplexml_load_string(CiFiles::text('phpunit.xml'));
+    $variables = [];
+
+    foreach ($phpunit === false ? [] : $phpunit->xpath('/phpunit/php/env') ?? [] as $env) {
+        $variables[(string) $env['name']] = (string) $env['value'];
+    }
+
+    expect($postgres['CMS_IDENTITY_ROLE'] ?? null)->toBe('cms_identity')
+        ->and($postgres['CMS_IDENTITY_PASSWORD'] ?? null)->toBe('cms_identity')
+        ->and([$service['CMS_IDENTITY_ROLE'] ?? null, $service['CMS_IDENTITY_PASSWORD'] ?? null])->toBe([$postgres['CMS_IDENTITY_ROLE'], $postgres['CMS_IDENTITY_PASSWORD']])
+        ->and([workflowEnvironment()['CMS_IDENTITY_ROLE'] ?? null, workflowEnvironment()['CMS_IDENTITY_PASSWORD'] ?? null])->toBe([$postgres['CMS_IDENTITY_ROLE'], $postgres['CMS_IDENTITY_PASSWORD']])
+        ->and([$variables['DB_IDENTITY_USERNAME'] ?? null, $variables['DB_IDENTITY_PASSWORD'] ?? null])->toBe([$postgres['CMS_IDENTITY_ROLE'], $postgres['CMS_IDENTITY_PASSWORD']])
+        ->and([$variables['DB_USERNAME'] ?? null, $variables['DB_OWNER_USERNAME'] ?? null])->toBe([$postgres['CMS_APP_ROLE'] ?? null, $postgres['CMS_OWNER_ROLE'] ?? null])
+        ->and(CiFiles::text('docker/postgres/initdb.d/10-cms.sh'))->toContain(': "${CMS_IDENTITY_ROLE:?}" "${CMS_IDENTITY_PASSWORD:?}"', '--set=identity_role="$CMS_IDENTITY_ROLE" --set=identity_password="$CMS_IDENTITY_PASSWORD"');
 });
 
 it('gives mutation on changed files its base: the pull request\'s base commit in ci.yml with the whole history in every job, the host\'s CMS_CI_BASE_REF in compose.ci.yaml', function (string $name): void {

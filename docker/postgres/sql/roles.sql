@@ -14,9 +14,14 @@
 --   (GUARDRAILS 6), and every transaction is capped at the command budget (GUARDRAILS 4.1).
 --   idle_in_transaction_session_timeout at the same budget, so a session that begins a
 --   transaction and then waits is ended as well (PRD 7.4, postgres.idle_in_transaction_timeout).
--- Both: lc_messages = 'C', so their server messages are English whatever the server's default
---   (PRD 4.2); the kernel reads the text of some errors. lc_messages is superuser-only, so it
---   is set here, by the superuser that runs the script.
+-- identity: the credential store of the local accounts (PRD 5.16, "Lokale konti"), on a
+--   connection of its own. Owns nothing and has no DDL; it reads and writes the tables of the
+--   schema cms_identity only, which database.sql gives it and nobody else, so the app role cannot
+--   read a credential. Its search path is that schema, and its transactions have the app role's
+--   budget. A production installation creates the role itself (docs/security/credential-store.md).
+-- All three: lc_messages = 'C', so their server messages are English whatever the server's
+--   default (PRD 4.2); the kernel reads the text of some errors. lc_messages is superuser-only, so
+--   it is set here, by the superuser that runs the script.
 
 SELECT format('CREATE ROLE %I', :'owner_role')
 WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'owner_role')
@@ -39,3 +44,14 @@ ALTER ROLE :"app_role" SET search_path = :"schema";
 ALTER ROLE :"app_role" SET transaction_timeout = :'app_transaction_timeout';
 ALTER ROLE :"app_role" SET idle_in_transaction_session_timeout = :'app_transaction_timeout';
 ALTER ROLE :"app_role" SET lc_messages = 'C';
+
+SELECT format('CREATE ROLE %I', :'identity_role')
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'identity_role')
+\gexec
+
+ALTER ROLE :"identity_role" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
+    PASSWORD :'identity_password';
+ALTER ROLE :"identity_role" SET search_path = cms_identity;
+ALTER ROLE :"identity_role" SET transaction_timeout = :'app_transaction_timeout';
+ALTER ROLE :"identity_role" SET idle_in_transaction_session_timeout = :'app_transaction_timeout';
+ALTER ROLE :"identity_role" SET lc_messages = 'C';

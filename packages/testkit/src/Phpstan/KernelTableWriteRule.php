@@ -42,6 +42,11 @@ use PHPStan\Type\Type;
  *   table, given as a constant string to a method of a connection, the database manager, the DB
  *   facade, a query builder or PDO that takes SQL, or to new Illuminate\Database\Query\Expression.
  *
+ * The same writes to a table of the credential store of the local accounts (PRD 5.16, "Lokale
+ * konti"), CredentialTables, are reported outside the identity module (the namespace
+ * Cbox\Cms\Identity and the identity module's migrations), the core included: only the identity
+ * module writes credentials.
+ *
  * A table name held in a variable the chain does not show, or SQL that is not a constant string,
  * is not seen. Every namespace is checked, test code included, and the errors are non-ignorable.
  *
@@ -61,6 +66,9 @@ final readonly class KernelTableWriteRule implements Rule
      * uses this namespace; an Arch test in cboxdk/cms holds that.
      */
     public const string FIXTURE_WRITERS = 'Cbox\Cms\Testkit\FixtureWriters';
+
+    /** The identity module, which owns the credential store and writes its tables. */
+    public const string IDENTITY = 'Cbox\Cms\Identity';
 
     /**
      * The query builder's methods that write, lower case.
@@ -88,9 +96,13 @@ final readonly class KernelTableWriteRule implements Rule
     /** The core module's directory, packages/core, where files in the global namespace, its migrations, belong to the kernel. */
     private string $coreDirectory;
 
-    public function __construct(private ReflectionProvider $reflectionProvider, ?string $coreDirectory = null)
+    /** The identity module's directory, packages/identity, where files in the global namespace, its migrations, belong to it. */
+    private string $identityDirectory;
+
+    public function __construct(private ReflectionProvider $reflectionProvider, ?string $coreDirectory = null, ?string $identityDirectory = null)
     {
         $this->coreDirectory = $coreDirectory ?? dirname(__DIR__, 3).'/core';
+        $this->identityDirectory = $identityDirectory ?? dirname(__DIR__, 3).'/identity';
     }
 
     public function getNodeType(): string
@@ -103,39 +115,59 @@ final readonly class KernelTableWriteRule implements Rule
      */
     public function processNode(Node $node, Scope $scope): array
     {
-        if ($this->isKernel($scope)) {
-            return [];
-        }
-
-        $tables = match (true) {
+        $names = match (true) {
             $node instanceof MethodCall, $node instanceof NullsafeMethodCall => [...$this->builderWrite($node, $scope), ...$this->sqlWrite($node, $scope)],
             $node instanceof StaticCall => $this->sqlWrite($node, $scope),
             $node instanceof New_ => $this->expression($node, $scope),
             default => [],
         };
 
-        return array_map(static fn (string $table): IdentifierRuleError => RuleErrorBuilder::message(sprintf(
-            'Write to the kernel table %s outside the kernel. Only the kernel writes its tables, through its commands (PRD 6.5 invariants 1 and 13, 11.12); a test creates what it needs through the testkit\'s fixture writers in %s.',
-            $table,
-            self::FIXTURE_WRITERS,
-        ))
-            ->identifier(self::IDENTIFIER)
-            ->nonIgnorable()
-            ->build(), array_values(array_unique($tables)));
+        if ($names === []) {
+            return [];
+        }
+
+        $errors = [];
+
+        if (! $this->within($scope, $this->coreDirectory, [self::KERNEL, self::FIXTURE_WRITERS])) {
+            foreach (array_values(array_unique(array_filter(array_map(KernelTables::of(...), $names), is_string(...)))) as $table) {
+                $errors[] = RuleErrorBuilder::message(sprintf(
+                    'Write to the kernel table %s outside the kernel. Only the kernel writes its tables, through its commands (PRD 6.5 invariants 1 and 13, 11.12); a test creates what it needs through the testkit\'s fixture writers in %s.',
+                    $table,
+                    self::FIXTURE_WRITERS,
+                ))->identifier(self::IDENTIFIER)->nonIgnorable()->build();
+            }
+        }
+
+        if (! $this->within($scope, $this->identityDirectory, [self::IDENTITY])) {
+            foreach (array_values(array_unique(array_filter(array_map(CredentialTables::of(...), $names), is_string(...)))) as $table) {
+                $errors[] = RuleErrorBuilder::message(sprintf(
+                    'Write to the credential store table %s outside the identity module. Only %s writes the credentials of the local accounts, on the identity role\'s connection (PRD 5.16).',
+                    $table,
+                    self::IDENTITY,
+                ))->identifier(self::IDENTIFIER)->nonIgnorable()->build();
+            }
+        }
+
+        return $errors;
     }
 
-    private function isKernel(Scope $scope): bool
+    /**
+     * Whether the code lies in one of the namespaces, or, in the global namespace, in the directory.
+     *
+     * @param  list<string>  $namespaces
+     */
+    private function within(Scope $scope, string $directory, array $namespaces): bool
     {
         $namespace = $scope->getNamespace() ?? '';
 
         if ($namespace === '') {
             $file = realpath($scope->getFile());
-            $core = realpath($this->coreDirectory);
+            $root = realpath($directory);
 
-            return $file !== false && $core !== false && str_starts_with($file, $core.'/');
+            return $file !== false && $root !== false && str_starts_with($file, $root.'/');
         }
 
-        return $this->below($namespace, self::KERNEL) || $this->below($namespace, self::FIXTURE_WRITERS);
+        return array_any($namespaces, fn (string $root): bool => $this->below($namespace, $root));
     }
 
     private function below(string $namespace, string $root): bool
@@ -144,7 +176,7 @@ final readonly class KernelTableWriteRule implements Rule
     }
 
     /**
-     * The kernel tables a query builder write reaches: the table its chain names. The write counts
+     * The tables a query builder write reaches, as written: the table its chain names. The write counts
      * when it is called on a query builder, or when its chain starts at a connection, the database
      * manager, the DB facade or a query builder, as in DB::table('nodes')->where(...)->update(...).
      *
@@ -162,7 +194,7 @@ final readonly class KernelTableWriteRule implements Rule
         while ($link instanceof MethodCall || $link instanceof NullsafeMethodCall || $link instanceof StaticCall) {
             if ($tables === null && $link->name instanceof Identifier && in_array($link->name->toLowerString(), self::TABLE_METHODS, true) && ! $link->isFirstClassCallable()) {
                 $first = $link->getArgs()[0] ?? null;
-                $tables = $first === null ? [] : $this->tablesNamed($scope->getType($first->value));
+                $tables = $first === null ? [] : $this->namesOf($scope->getType($first->value));
             }
 
             if ($link instanceof StaticCall) {
@@ -204,26 +236,27 @@ final readonly class KernelTableWriteRule implements Rule
     }
 
     /**
+     * The table names constant strings give, without an alias.
+     *
      * @return list<string>
      */
-    private function tablesNamed(Type $type): array
+    private function namesOf(Type $type): array
     {
-        $tables = [];
+        $names = [];
 
         foreach ($type->getConstantStrings() as $string) {
             $name = preg_split('/\s+as\s+|\s+/i', trim($string->getValue()))[0] ?? '';
-            $table = KernelTables::of($name);
 
-            if ($table !== null) {
-                $tables[] = $table;
+            if ($name !== '') {
+                $names[] = $name;
             }
         }
 
-        return $tables;
+        return $names;
     }
 
     /**
-     * The kernel tables that SQL given to a method that takes SQL writes.
+     * The tables, as written, that SQL given to a method that takes SQL writes.
      *
      * @return list<string>
      */
@@ -280,13 +313,13 @@ final readonly class KernelTableWriteRule implements Rule
      */
     private function writtenBy(Expr $sql, Scope $scope): array
     {
-        $tables = [];
+        $names = [];
 
         foreach ($scope->getType($sql)->getConstantStrings() as $string) {
-            $tables = [...$tables, ...self::tablesWrittenBy($string->getValue())];
+            $names = [...$names, ...self::namesWrittenBy($string->getValue())];
         }
 
-        return $tables;
+        return $names;
     }
 
     /**
@@ -297,20 +330,37 @@ final readonly class KernelTableWriteRule implements Rule
      */
     public static function tablesWrittenBy(string $sql): array
     {
+        return array_values(array_filter(array_map(KernelTables::of(...), self::namesWrittenBy($sql)), is_string(...)));
+    }
+
+    /**
+     * The credential store tables a statement inserts into, updates, deletes from, truncates,
+     * merges into or copies into, as `cms_identity.<table>`.
+     *
+     * @return list<string>
+     */
+    public static function credentialTablesWrittenBy(string $sql): array
+    {
+        return array_values(array_filter(array_map(CredentialTables::of(...), self::namesWrittenBy($sql)), is_string(...)));
+    }
+
+    /**
+     * The names of the tables a statement writes, as written, without whitespace.
+     *
+     * @return list<string>
+     */
+    private static function namesWrittenBy(string $sql): array
+    {
         preg_match_all(self::WRITE_SQL, $sql, $matches);
-        $tables = [];
+        $names = [];
 
         foreach ($matches[1] as $list) {
             foreach (explode(',', $list) as $name) {
-                $table = KernelTables::of(preg_replace('/\s+/', '', $name) ?? $name);
-
-                if ($table !== null) {
-                    $tables[] = $table;
-                }
+                $names[] = preg_replace('/\s+/', '', $name) ?? $name;
             }
         }
 
-        return $tables;
+        return $names;
     }
 
     private function is(Type $type, string $class): bool

@@ -92,7 +92,10 @@ it('provisions the roles of the operating contract with the init script', functi
         ->and($roles)->toContain('GRANT pg_signal_backend TO :"owner_role";')
         ->and(substr_count($roles, 'GRANT '))->toBe(1)
         ->and($roles)->toContain('ALTER ROLE :"app_role" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS')
-        ->and($roles)->toContain('ALTER ROLE :"app_role" SET transaction_timeout = :\'app_transaction_timeout\';');
+        ->and($roles)->toContain('ALTER ROLE :"app_role" SET transaction_timeout = :\'app_transaction_timeout\';')
+        ->and($environment['CMS_IDENTITY_ROLE'] ?? null)->toBe('cms_identity')
+        ->and($roles)->toContain('ALTER ROLE :"identity_role" WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS')
+        ->and($roles)->toContain('ALTER ROLE :"identity_role" SET search_path = cms_identity;');
 });
 
 it('gives Valkey its data mount and the time cbox-init needs to save before it stops', function (): void {

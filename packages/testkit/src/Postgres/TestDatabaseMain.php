@@ -41,7 +41,7 @@ final class TestDatabaseMain
         }
 
         try {
-            $stdout(TestDatabase::provision($payload->owner, $payload->app, $payload->root, $payload->worker)."\n");
+            $stdout(TestDatabase::provision($payload->owner, $payload->app, $payload->identity, $payload->root, $payload->worker)."\n");
         } catch (Throwable $exception) {
             $stderr(sprintf("%s: %s\n", $exception::class, $exception->getMessage()));
 

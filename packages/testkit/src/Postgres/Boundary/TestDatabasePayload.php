@@ -10,7 +10,7 @@ use JsonException;
 
 /**
  * What a child process that provisions a checkout's test database reads on standard input
- * (bin/test-database.php): the owner role's and the app role's connections, the checkout root and
+ * (bin/test-database.php): the owner role's, the app role's and the identity role's connections, the checkout root and
  * the parallel worker whose database it is, or null for the checkout's own.
  * The passwords travel on standard input, never on the command line, where `ps` would show them.
  */
@@ -20,6 +20,7 @@ final readonly class TestDatabasePayload
     public function __construct(
         public ConnectionSettings $owner,
         public ConnectionSettings $app,
+        public ConnectionSettings $identity,
         public string $root,
         public ?int $worker = null,
     ) {}
@@ -29,6 +30,7 @@ final readonly class TestDatabasePayload
         return json_encode([
             'owner' => $this->owner->toPayload(),
             'app' => $this->app->toPayload(),
+            'identity' => $this->identity->toPayload(),
             'root' => $this->root,
             'worker' => $this->worker,
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
@@ -64,6 +66,7 @@ final readonly class TestDatabasePayload
         return new self(
             ConnectionSettings::fromPayload($payload['owner'] ?? null),
             ConnectionSettings::fromPayload($payload['app'] ?? null),
+            ConnectionSettings::fromPayload($payload['identity'] ?? null),
             $root,
             $worker,
         );

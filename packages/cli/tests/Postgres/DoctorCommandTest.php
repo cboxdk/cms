@@ -157,7 +157,7 @@ it('passes every runtime check against the services, in-process', function (): v
     expect($status)->toBe(0, (string) json_encode($document))
         ->and($document['status'])->toBe('ok')
         ->and(array_unique(doctorStatuses($document)))->toBe(['php.version' => 'pass'])
-        ->and(doctorStatuses($document))->toHaveCount(20)
+        ->and(doctorStatuses($document))->toHaveCount(23)
         ->and(doctorCheck($document, 'postgres.transaction_timeout')['explanation'])->toBe('transaction_timeout is 5000 ms on the app role cms_app.')
         ->and(doctorCheck($document, 'postgres.lc_messages')['explanation'])->toBe('Messages are English: lc_messages is C for the role cms_app and C for the role cms_owner, and LC_MESSAGES of the PHP process is C.')
         ->and(doctorCheck($document, 'postgres.ddl_privileges')['explanation'])->toBe('The app role cms_app owns nothing and cannot create objects in the database '.CheckoutDatabase::name().' or its schemas.');
@@ -182,7 +182,7 @@ it('fails transaction_timeout, DDL and the app role for a role without the timeo
         ->and($ddl['status'])->toBe('fail')
         ->and($ddl['cause'])->toContain('The role cms_owner: it owns ')
         ->and($ddl['cause'])->toContain('it has CREATE on the database '.CheckoutDatabase::name())
-        ->and($ddl['cause'])->toContain('it has CREATE on the schemas cms, public')
+        ->and($ddl['cause'])->toContain('it has CREATE on the schemas cms, cms_identity, public')
         // The owner role owns the database, which makes it a member of pg_database_owner, the
         // owner of the schema public, and roles.sql makes it a member of pg_signal_backend.
         ->and($appRole['status'])->toBe('fail')
@@ -400,7 +400,7 @@ it('exits 0 from the command line with --dev --json when the services, partition
     expect($status)->toBe(0, $errors.json_encode($document))
         ->and($document['status'])->toBe('ok')
         ->and($document['dev'])->toBeTrue()
-        ->and(doctorStatuses($document))->toHaveCount(23)
+        ->and(doctorStatuses($document))->toHaveCount(26)
         ->and(doctorStatuses($document)['postgres.lc_messages'])->toBe('pass')
         ->and(array_unique(doctorStatuses($document)))->toBe(['php.version' => 'pass'])
         ->and(array_slice(array_keys(doctorStatuses($document)), -3))->toBe(['dev.node', 'dev.playwright', 'dev.chromium']);

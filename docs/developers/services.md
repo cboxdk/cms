@@ -17,14 +17,16 @@ Both run the Postgres init script afterwards. It is idempotent, so an existing d
 
 ## The roles and databases
 
-The init script creates two login roles and two databases, `cms` for the workbench and `cms_test` as the base of the test databases:
+The init script creates three login roles and two databases, `cms` for the workbench and `cms_test` as the base of the test databases:
 
 | Role | What it does | What it may do |
 |---|---|---|
-| `cms_owner` | Owns the databases and the `cms` schema, runs the migrations and partition maintenance, creates the test databases. | `CREATEDB`; not a superuser, `NOCREATEROLE`, `NOBYPASSRLS`. |
+| `cms_owner` | Owns the databases and the `cms` and `cms_identity` schemas, runs the migrations and partition maintenance, creates the test databases. | `CREATEDB`; not a superuser, `NOCREATEROLE`, `NOBYPASSRLS`. |
 | `cms_app` | The application and the tests. | Not a superuser, `NOCREATEDB`, `NOCREATEROLE`, `NOBYPASSRLS`. It owns nothing and has no DDL, and a transaction ends after 5 seconds (`transaction_timeout`). |
 
-Both roles have `lc_messages = 'C'` and the search path `cms`. The server runs with `max_prepared_transactions = 0`. These are the development credentials; [Postgres roles](../security/postgres-roles.md) describes the contract they follow.
+| `cms_identity` | The credential store of the local accounts, on the connection `pgsql_identity`. | Not a superuser, `NOCREATEDB`, `NOCREATEROLE`, `NOBYPASSRLS`. It owns nothing, and reads and writes the tables of the schema `cms_identity` only, which no other role but the owner may touch (see [Credential store](../security/credential-store.md)). |
+
+The roles have `lc_messages = 'C'`. The owner and the app role have the search path `cms`, and the identity role `cms_identity`; the workbench's owner connection lists `cms_identity` after `cms`. The server runs with `max_prepared_transactions = 0`. These are the development credentials; [Postgres roles](../security/postgres-roles.md) describes the contract they follow.
 
 ## A test database per checkout
 

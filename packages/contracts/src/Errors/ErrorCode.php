@@ -38,14 +38,21 @@ enum ErrorCode: string
     case DoctorAppRoleHasDdl = 'doctor_app_role_has_ddl';
     case DoctorAppRolePrivilegedMembership = 'doctor_app_role_privileged_membership';
     case DoctorAppRoleSuperuser = 'doctor_app_role_superuser';
+    case DoctorArgon2idUnavailable = 'doctor_argon2id_unavailable';
     case DoctorCheckCrashed = 'doctor_check_crashed';
     case DoctorChromiumMissing = 'doctor_chromium_missing';
     case DoctorConfigInvalid = 'doctor_config_invalid';
+    case DoctorCredentialStoreMissing = 'doctor_credential_store_missing';
+    case DoctorCredentialStoreReadable = 'doctor_credential_store_readable';
     case DoctorEventLogUnreadable = 'doctor_event_log_unreadable';
     case DoctorEventsLag = 'doctor_events_lag';
     case DoctorEventsParked = 'doctor_events_parked';
     case DoctorExtensionMissing = 'doctor_extension_missing';
     case DoctorHorizonHeld = 'doctor_horizon_held';
+    case DoctorIdentityConnectionRefused = 'doctor_identity_connection_refused';
+    case DoctorIdentityConnectionSharedRole = 'doctor_identity_connection_shared_role';
+    case DoctorIdentityConnectionUnavailable = 'doctor_identity_connection_unavailable';
+    case DoctorIdentityRolePrivileged = 'doctor_identity_role_privileged';
     case DoctorIdleInTransactionTimeoutMissing = 'doctor_idle_in_transaction_timeout_missing';
     case DoctorLaravelVersion = 'doctor_laravel_version';
     case DoctorLcMessagesNotEnglish = 'doctor_lc_messages_not_english';
@@ -228,6 +235,9 @@ enum ErrorCode: string
             self::DoctorAppRoleSuperuser => $this->violation(
                 'The app role is a superuser, so no privilege and no row level security limits it (PRD 4.2). As a superuser, run ALTER ROLE <app role> NOSUPERUSER, then run cms:doctor again.',
             ),
+            self::DoctorArgon2idUnavailable => $this->violation(
+                'This PHP has no Argon2id (PASSWORD_ARGON2ID), which the local accounts hash their passwords with (PRD 5.16). Install PHP with libargon2 or libsodium support, such as the php-baseimages images, then run cms:doctor again.',
+            ),
             self::DoctorCheckCrashed => $this->violation(
                 'A check of cms:doctor did not finish: it threw, answered for another check or returned a skip, so the doctor cannot say whether that part is in order. This is a bug in the check. Report it with the cause, and run cms:doctor again after updating.',
             ),
@@ -236,6 +246,12 @@ enum ErrorCode: string
             ),
             self::DoctorConfigInvalid => $this->violation(
                 'A setting under cbox-cms.doctor, or the environment variable CBOX_CMS_MAINTENANCE_PROCESS, is invalid, or a check it names cannot be used, so cms:doctor cannot run its checks. Correct the setting the cause names, then run cms:doctor again.',
+            ),
+            self::DoctorCredentialStoreMissing => $this->violation(
+                'The schema cms_identity of the credential store does not exist in the database, so the local accounts have nowhere to keep their credentials (PRD 5.16). Create it as the owner role with the identity role\'s grants, as docs/security/credential-store.md says, run the migrations, then run cms:doctor again.',
+            ),
+            self::DoctorCredentialStoreReadable => $this->violation(
+                'The app role has a privilege on the credential store, the schema cms_identity or one of its tables, so the web and queue processes could read or change credentials (PRD 5.16). As the owner role or a superuser, revoke what the cause names from the app role and from PUBLIC, then run cms:doctor again.',
             ),
             self::DoctorEventLogUnreadable => $this->readiness(
                 'The doctor could not read the event log\'s cursors, events or parked aggregates, or the subscriptions of the registry cache, so it cannot say how far the subscribers are behind (PRD 7.12). Check that the core\'s migrations have run and that cms:build has written the registry cache, then run cms:doctor again.',
@@ -251,6 +267,18 @@ enum ErrorCode: string
             ),
             self::DoctorHorizonHeld => $this->readiness(
                 'A transaction has held a transaction id for longer than the command budget, so the transaction horizon, below which the event runners read, cannot pass it and no subscriber sees the events committed after it began (PRD 4.2, 7.4). End the transaction the cause names, with pg_terminate_backend(<pid>) as its role or a superuser if it hangs, and find what keeps it open.',
+            ),
+            self::DoctorIdentityConnectionRefused => $this->violation(
+                'Postgres answered, but refused the login of the identity connection, which cbox-cms.identity.connection names, or the connection is not configured as Postgres. Correct the connection\'s settings and the identity role\'s password, then run cms:doctor again.',
+            ),
+            self::DoctorIdentityConnectionSharedRole => $this->violation(
+                'The identity connection logs in as the app role or the owner role, so the credential store is not isolated from the processes that use that role (PRD 5.16). Give the identity connection a role of its own, as docs/security/credential-store.md says, then run cms:doctor again.',
+            ),
+            self::DoctorIdentityConnectionUnavailable => $this->dependency(
+                'The doctor could not reach Postgres in time on the identity connection, which cbox-cms.identity.connection names. Check that Postgres is running and that the host and port of the connection are right, then run cms:doctor again.',
+            ),
+            self::DoctorIdentityRolePrivileged => $this->violation(
+                'The identity role is a superuser, has BYPASSRLS or CREATEROLE, or is a member of a role with more power, so it reaches more than the credential store (PRD 5.16, 4.2). As a superuser, take the attribute or the membership the cause names away, then run cms:doctor again.',
             ),
             self::DoctorIdleInTransactionTimeoutMissing => $this->violation(
                 'The app role has no idle_in_transaction_session_timeout of its own, so a session that begins a transaction and then waits holds its locks, the event horizon and vacuum until something else ends it (PRD 7.4). As a superuser, run ALTER ROLE <app role> SET idle_in_transaction_session_timeout = \'5s\', then run cms:doctor again.',

@@ -1,6 +1,6 @@
 ---
 title: Egress
-weight: 52
+weight: 53
 description: The rule that every outbound request goes through one gateway with an SSRF guard, how the architecture tests hold it, and why PHP runs with allow_url_fopen off.
 ---
 

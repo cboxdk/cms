@@ -6,6 +6,7 @@ laravel: '@testbench'
 # the CLI and in every test case (tests/Arch/ModulesTest.php keeps the list equal to composer.json).
 providers:
   - Cbox\Cms\Core\CoreServiceProvider
+  - Cbox\Cms\Identity\IdentityServiceProvider
   - Cbox\Cms\Http\HttpServiceProvider
   - Cbox\Cms\Mcp\McpServiceProvider
   - Cbox\Cms\Cli\CliServiceProvider

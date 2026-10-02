@@ -124,7 +124,7 @@ it('prints the JSON document and nothing else with --json', function (): void {
         ->and($document['dev'])->toBeFalse()
         ->and($document['status'])->toBe('ok')
         ->and($document['exit_code'])->toBe(0)
-        ->and(checkStatuses($document))->toHaveCount(20)
+        ->and(checkStatuses($document))->toHaveCount(23)
         ->and(array_keys(checkOf($document, 'php.version')))->toBe(['blocking', 'cause', 'code', 'explanation', 'failure', 'fix', 'id', 'status']);
 });
 
@@ -228,6 +228,8 @@ it('exits 75 when Postgres cannot be reached, and skips the checks that need it'
             'partitions.runway' => 'skip',
             'events.lag' => 'skip',
             'events.parked' => 'skip',
+            'identity.connection' => 'skip',
+            'identity.credential_isolation' => 'skip',
         ]);
 });
 

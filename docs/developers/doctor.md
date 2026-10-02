@@ -52,6 +52,14 @@ The core's checks run in this order. The last three run only with `--dev`. A che
 | `dev.playwright` | no | `dev.node` | Playwright is installed in the project |
 | `dev.chromium` | no | `dev.playwright` | Playwright's Chromium is downloaded |
 
+The identity module adds three blocking checks in front of the ones an application names in `cbox-cms.doctor.checks`, so they run right after the core's runtime checks (see [Credential store](../security/credential-store.md)):
+
+| Id | Blocking | Requires | What it looks at |
+|---|---|---|---|
+| `identity.connection` | yes | `postgres.reachable` | the identity connection answers, and logs in neither as the app role nor as the owner role |
+| `identity.credential_isolation` | yes | `postgres.reachable`, `identity.connection` | the schema `cms_identity` exists, the app role has no privilege on it or its tables, and the identity role is not a superuser, has NOBYPASSRLS and NOCREATEROLE, and is not a member of a role with more power |
+| `identity.argon2id` | yes | | PHP can hash passwords with Argon2id |
+
 When the doctor's own settings, `cbox-cms.doctor`, are invalid, or a check added there cannot be used, the doctor runs none of these. It runs the single check `doctor.config` instead, which fails as a violation with the code `doctor_config_invalid` and names the setting in its cause, so the command still prints its document and exits with the violation code.
 
 ## Processes: web, queue and maintenance
