@@ -13,6 +13,7 @@ use Cbox\Cms\Tests\Support\Arch\Rules;
 use Closure;
 use Pest\Arch\SingleArchExpectation;
 use PHPUnit\Framework\AssertionFailedError;
+use ReflectionClass;
 
 /*
  * Rules::onlyUse() is the layer rules' toOnlyUse() with each layer made once (tests/Arch/LayersTest.php).
@@ -87,4 +88,12 @@ it('names every violation, not only the first', function (): void {
     expect($failure)->toContain(UsesSibling::class.' ('.UsesSibling::class.') uses '.Sibling::class.'.')
         ->toContain(UsesSibling::class.' ('.UsesSibling::class.') uses '.Permitted::class.'.')
         ->toContain(UsesStranger::class.' ('.UsesStranger::class.') uses '.Stranger::class.'.');
+});
+
+it('names the file of each class that breaks the rule', function (): void {
+    $failure = onlyUseFailure(static fn () => Rules::onlyUse([UsesStranger::class], [Permitted::class]));
+    $file = new ReflectionClass(UsesStranger::class)->getFileName();
+
+    expect($file)->toBeString()
+        ->and($failure)->toContain(UsesStranger::class.' ('.UsesStranger::class.') uses '.Stranger::class.'. In '.$file);
 });

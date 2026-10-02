@@ -25,7 +25,8 @@ final class Rules
      * Pest's toOnlyUse() makes the layer of every allowed entry again for every target, which for
      * the Domain rule, a thousand classes that may use a thousand classes, took more than two
      * minutes of gate 5 and of the mutation run's coverage. This makes each layer once and gives
-     * the same verdict, and it names every violation instead of the first.
+     * the same verdict, and it names every violation instead of the first, each with the file of
+     * the class that breaks the rule, as Pest's failure does, so the selftest finds its plant.
      *
      * @param  list<string>  $targets
      * @param  list<string>  $allowed
@@ -65,7 +66,8 @@ final class Rules
                 foreach ($layer($target) as $object) {
                     foreach ($object->uses as $use) {
                         if (! isset($permitted[$use]) && ! isset($own[$use])) {
-                            $violations[] = "{$object->name} ({$target}) uses {$use}.";
+                            $file = realpath($object->path);
+                            $violations[] = "{$object->name} ({$target}) uses {$use}. In ".($file === false ? $object->path : $file);
                         }
                     }
                 }
