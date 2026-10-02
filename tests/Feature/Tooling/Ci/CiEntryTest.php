@@ -66,12 +66,35 @@ function fakeTools(string $scratch): string
 }
 
 /**
+ * The variables ci.yml gives a job, which bin/ci reads. The suites run inside such a job on GitHub, and
+ * a process inherits them, so every run of bin/ci here unsets them unless a test sets one.
+ *
+ * @return array<string, false>
+ */
+function ciJobVariables(): array
+{
+    return [
+        'CMS_CI_PART' => false,
+        'CMS_CI_BASE_REF' => false,
+        'CMS_CI_GATES_RESULT' => false,
+        'CMS_CI_SHARDS_RESULT' => false,
+        'CMS_CI_ARTIFACTS' => false,
+        'CMS_CI_PROVISION_POSTGRES' => false,
+        'CMS_CI_POSTGRES_SUPERUSER' => false,
+        'CMS_CI_USER' => false,
+        'GITHUB_OUTPUT' => false,
+        'GITHUB_STEP_SUMMARY' => false,
+    ];
+}
+
+/**
  * @param  array<string, string|false>  $env  false unsets the variable
  * @return array{Process, list<string>}
  */
 function runBinCi(string $scratch, array $env = []): array
 {
     $process = new Process([Phpstan::root().'/bin/ci'], $scratch, [
+        ...ciJobVariables(),
         'PATH' => fakeTools($scratch).':/usr/bin:/bin',
         'FAKE_CALLS' => $scratch.'/calls.log',
         'CMS_CI_REPORT' => $scratch.'/build/check.json',
@@ -123,6 +146,29 @@ it('installs the locked dependencies and runs every part with the PR profile, no
         ->and((string) file_get_contents($scratch.'/build/check.log'))->toContain('Gate 1   pass')
         ->and((string) file_get_contents($artifacts.'/mutation-shard-2/check.log'))->toContain('Gate 1   pass')
         ->and((string) file_get_contents($artifacts.'/verdict.log'))->toContain('verdict: pass');
+});
+
+it('runs every part when the process that runs the suite is itself a job of ci.yml', function (): void {
+    $scratch = ScratchDirectory::make();
+    $inherited = ['CMS_CI_PART' => 'shard:1/1', 'CMS_CI_GATES_RESULT' => 'failure', 'CMS_CI_SHARDS_RESULT' => 'failure'];
+
+    foreach ($inherited as $name => $value) {
+        putenv("{$name}={$value}");
+        $_ENV[$name] = $value;
+    }
+
+    try {
+        [$process, $calls] = runBinCi($scratch, ['FAKE_SHARDS' => '1']);
+    } finally {
+        foreach (array_keys($inherited) as $name) {
+            putenv($name);
+            unset($_ENV[$name]);
+        }
+    }
+
+    expect($process->getExitCode())->toBe(0, $process->getErrorOutput())
+        ->and($process->getOutput())->toContain('part: all', 'verdict: pass')
+        ->and(array_last(ciWork($calls)))->toEndWith('--gates=success --shards=success');
 });
 
 it('hands the verdict a failed shard and a failed gate as failure, and exits 1', function (string $variable, string $gates, string $shards): void {
@@ -231,6 +277,7 @@ it('stops before the gates when an install fails', function (): void {
     chmod($scratch.'/bin/npm', 0o755);
 
     $process = new Process([Phpstan::root().'/bin/ci'], $scratch, [
+        ...ciJobVariables(),
         'PATH' => $scratch.'/bin:/usr/bin:/bin',
         'FAKE_CALLS' => $scratch.'/calls.log',
         'CMS_CI_REPORT' => $scratch.'/build/check.json',
