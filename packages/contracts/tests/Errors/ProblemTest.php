@@ -68,3 +68,10 @@ it('shows a long type cut and escaped in the message', function (): void {
     expect(static fn (): Problem => problemFor(ErrorCode::VersionConflict, type: str_repeat('a', 70)."\n"))
         ->toThrow(InvalidProblem::class, 'got "'.str_repeat('a', 64).'...".');
 });
+
+it('shows a refused type in full up to 64 bytes and cut after that', function (): void {
+    $full = str_repeat('t', 64);
+
+    expect(InvalidProblem::type(ErrorCode::JsonInvalid, $full)->getMessage())->toEndWith("got \"{$full}\".")
+        ->and(InvalidProblem::type(ErrorCode::JsonInvalid, $full.'u')->getMessage())->toEndWith("got \"{$full}...\".");
+});

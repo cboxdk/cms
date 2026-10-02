@@ -108,3 +108,10 @@ it('names the transaction level in the refusal to run inside a transaction', fun
     expect(OperationInsideTransaction::level(2)->getMessage())->toContain('transaction level 2')
         ->and(InvalidOperation::unreadable('op_1', 'a step has no name')->getMessage())->toBe('The stored operation "op_1" cannot be read: a step has no name.');
 });
+
+it('keeps the chunks of a plan as a list, also when they are given by name', function (): void {
+    $chunks = ['first' => new ChunkName('chunk-1'), 'second' => new ChunkName('chunk-2')];
+
+    expect(new ChunkPlan(...$chunks)->chunks)->toBe(array_values($chunks))
+        ->and(new ChunkPlan(...$chunks)->names())->toBe(['chunk-1', 'chunk-2']);
+});

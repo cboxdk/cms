@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\Tests\Pipeline;
 
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Core\Pipeline\Domain\AffectedProjections;
+use Cbox\Cms\Core\Tests\Pipeline\Probe\ProbeArchived;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\ProbeNoted;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\ProbePublished;
 use PHPUnit\Framework\Assert;
@@ -21,7 +22,8 @@ trait AffectedProjectionsBehaviour
     /**
      * The implementation under test, knowing these subscribers: one with the projection origin and
      * one with the projection search for ProbePublished, one with the projection origin again for
-     * ProbePublished, and one without a projection for ProbeNoted.
+     * ProbePublished, one with the projection origin for ProbeArchived, and one without a projection
+     * for ProbeNoted.
      */
     abstract protected function affectedProjections(): AffectedProjections;
 
@@ -49,6 +51,15 @@ trait AffectedProjectionsBehaviour
         Assert::assertSame(
             ['origin pending', 'search pending'],
             $this->describe($this->affectedProjections()->pendingFor([new ProbeNoted, new ProbePublished(1), new ProbePublished(2)])),
+        );
+    }
+
+    #[Test]
+    public function it_lists_the_projections_after_one_an_earlier_event_named(): void
+    {
+        Assert::assertSame(
+            ['origin pending', 'search pending'],
+            $this->describe($this->affectedProjections()->pendingFor([new ProbeArchived, new ProbePublished])),
         );
     }
 

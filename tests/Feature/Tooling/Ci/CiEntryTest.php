@@ -37,12 +37,26 @@ function fakeTools(string $scratch): string
         ScratchDirectory::write("{$bin}/{$tool}", $record."\necho 1.0.0\n");
     }
 
-    ScratchDirectory::write("{$bin}/composer", $record."\n".<<<'SH'
-        if [[ "$1" == check ]]; then
-            printf 'Gate 1  Pint and Prettier\n\nSummary\n  Gate 1   pass      Pint and Prettier\n'
-            exit "${FAKE_CHECK_EXIT:-0}"
-        fi
-        SH);
+    ScratchDirectory::write("{$bin}/composer", $record."\n".<<<'SH_WRAP'
+    if [[ "$1" == check ]]; then
+        printf 'Gate 1  Pint and Prettier\n\nSummary\n  Gate 1   pass      Pint and Prettier\n'
+        for argument in "$@"; do
+            [[ "$argument" == --shard=* ]] && exit "${FAKE_SHARD_EXIT:-${FAKE_CHECK_EXIT:-0}}"
+        done
+        exit "${FAKE_CHECK_EXIT:-0}"
+    fi
+    if [[ "$1" == mutation:plan ]]; then
+        for argument in "$@"; do
+            if [[ "$argument" == --github-output=* ]]; then
+                printf 'count=%s\nshards=[%s]\n' "${FAKE_SHARDS:-1}" "$(seq 1 "${FAKE_SHARDS:-1}" | paste -sd, -)" >> "${argument#--github-output=}"
+            fi
+        done
+    fi
+    if [[ "$1" == mutation:verdict ]]; then
+        printf 'mutation:verdict: the fake verdict\nverdict: %s\n' "$([[ "${FAKE_VERDICT_EXIT:-0}" == 0 ]] && echo pass || echo fail)"
+        exit "${FAKE_VERDICT_EXIT:-0}"
+    fi
+    SH_WRAP);
 
     foreach (glob($bin.'/*') ?: [] as $file) {
         chmod($file, 0o755);
@@ -73,19 +87,110 @@ function runBinCi(string $scratch, array $env = []): array
     return [$process, array_map(static fn (string $line): string => explode(' | ', $line)[0], $calls ?: [])];
 }
 
-it('installs the locked dependencies and runs composer check with the PR profile, nothing else', function (): void {
-    $scratch = ScratchDirectory::make();
-    [$process, $calls] = runBinCi($scratch);
+/**
+ * The calls of a run other than the version probes of the environment section.
+ *
+ * @param  list<string>  $calls
+ * @return list<string>
+ */
+function ciWork(array $calls): array
+{
+    return array_values(array_filter($calls, static fn (string $call): bool => ! str_contains($call, ' --version')));
+}
 
-    expect($process->getExitCode())->toBe(0)
-        ->and(array_values(array_filter($calls, static fn (string $call): bool => ! str_contains($call, ' --version'))))->toBe([
+it('installs the locked dependencies and runs every part with the PR profile, nothing else: the plan, the gates, each shard and the verdict', function (): void {
+    $scratch = ScratchDirectory::make();
+    [$process, $calls] = runBinCi($scratch, ['FAKE_SHARDS' => '2']);
+    $artifacts = $scratch.'/build/artifacts';
+
+    expect($process->getExitCode())->toBe(0, $process->getErrorOutput())
+        ->and(ciWork($calls))->toBe([
             'composer install --no-interaction --no-progress --prefer-dist',
             'npm ci --no-audit --no-fund',
-            "composer check -- --pr --report={$scratch}/build/check.json",
+            "composer mutation:plan -- --output={$artifacts}/mutation-plan/mutation-plan.json --github-output={$artifacts}/mutation-plan/plan.env",
+            "composer check -- --pr --report={$scratch}/build/check.json --only=gates",
+            "composer check -- --pr --report={$artifacts}/mutation-shard-1/check.json --shard=1/2 --mutation-report={$artifacts}/mutation-shard-1/mutation-shard.json",
+            "composer check -- --pr --report={$artifacts}/mutation-shard-2/check.json --shard=2/2 --mutation-report={$artifacts}/mutation-shard-2/mutation-shard.json",
+            "composer mutation:verdict -- --plan={$artifacts}/mutation-plan/mutation-plan.json --reports={$artifacts} --gates=success --shards=success",
         ])
-        ->and($process->getOutput())->toContain('runner: the test runner', 'Summary', 'wall time on the test runner; the GUARDRAILS 10 budget is 15 minutes')
-        ->and((string) file_get_contents($scratch.'/build/check.log'))->toContain('Gate 1   pass');
+        ->and($process->getOutput())->toContain('runner: the test runner', 'part: all', 'Summary', 'verdict: pass')
+        ->and($process->getOutput())->toMatch('/bin\/ci: plan: 0m \d\ds, pass\n/')
+        ->and($process->getOutput())->toMatch('/bin\/ci: gates: 0m \d\ds, pass\n/')
+        ->and($process->getOutput())->toMatch('/bin\/ci: shard:1\/2: 0m \d\ds, pass\n/')
+        ->and($process->getOutput())->toMatch('/bin\/ci: shard:2\/2: 0m \d\ds, pass\n/')
+        ->and($process->getOutput())->toMatch('/bin\/ci: verdict: 0m \d\ds, pass\n/')
+        ->and($process->getOutput())->toContain('wall time on the test runner for all; the GUARDRAILS 10 budget is 15 minutes for each part')
+        ->and((string) file_get_contents($scratch.'/build/check.log'))->toContain('Gate 1   pass')
+        ->and((string) file_get_contents($artifacts.'/mutation-shard-2/check.log'))->toContain('Gate 1   pass')
+        ->and((string) file_get_contents($artifacts.'/verdict.log'))->toContain('verdict: pass');
 });
+
+it('hands the verdict a failed shard and a failed gate as failure, and exits 1', function (string $variable, string $gates, string $shards): void {
+    $scratch = ScratchDirectory::make();
+    [$process, $calls] = runBinCi($scratch, [$variable => '1', 'FAKE_SHARDS' => '2', 'FAKE_VERDICT_EXIT' => '1']);
+
+    expect($process->getExitCode())->toBe(1)
+        ->and(array_last(ciWork($calls)))->toEndWith("--gates={$gates} --shards={$shards}")
+        ->and($process->getOutput())->toContain('verdict: fail');
+})->with([
+    'a shard' => ['FAKE_SHARD_EXIT', 'success', 'failure'],
+    'the gates and the shards' => ['FAKE_CHECK_EXIT', 'failure', 'failure'],
+]);
+
+it('runs one part of ci.yml\'s jobs when CMS_CI_PART names it', function (string $part, array $expected, array $env): void {
+    $scratch = ScratchDirectory::make();
+    $variables = ['CMS_CI_PART' => $part];
+
+    foreach ($env as $name => $value) {
+        if (is_string($name) && is_string($value)) {
+            $variables[$name] = str_replace('{scratch}', $scratch, $value);
+        }
+    }
+
+    [$process, $calls] = runBinCi($scratch, $variables);
+    $expected = array_map(static fn (string $call): string => str_replace('{scratch}', $scratch, $call), array_values(array_filter($expected, is_string(...))));
+
+    expect($process->getExitCode())->toBe(0, $process->getErrorOutput())
+        ->and(ciWork($calls))->toBe($expected)
+        ->and($process->getOutput())->toContain("part: {$part}");
+})->with([
+    'the plan, without npm' => ['plan', [
+        'composer install --no-interaction --no-progress --prefer-dist',
+        'composer mutation:plan -- --output={scratch}/build/mutation-plan.json --github-output={scratch}/build/plan.env',
+    ], []],
+    'the gates' => ['gates', [
+        'composer install --no-interaction --no-progress --prefer-dist',
+        'npm ci --no-audit --no-fund',
+        'composer check -- --pr --report={scratch}/build/check.json --only=gates',
+    ], []],
+    'a shard' => ['shard:3/12', [
+        'composer install --no-interaction --no-progress --prefer-dist',
+        'npm ci --no-audit --no-fund',
+        'composer check -- --pr --report={scratch}/build/check.json --shard=3/12 --mutation-report={scratch}/build/mutation-shard.json',
+    ], []],
+    'the verdict, without npm' => ['verdict', [
+        'composer install --no-interaction --no-progress --prefer-dist',
+        'composer mutation:verdict -- --plan={scratch}/downloaded/mutation-plan/mutation-plan.json --reports={scratch}/downloaded --gates=success --shards=cancelled',
+    ], ['CMS_CI_GATES_RESULT' => 'success', 'CMS_CI_SHARDS_RESULT' => 'cancelled', 'CMS_CI_ARTIFACTS' => '{scratch}/downloaded']],
+]);
+
+it('writes the plan\'s count and matrix to GitHub\'s step outputs in the part plan', function (): void {
+    $scratch = ScratchDirectory::make();
+    ScratchDirectory::write($scratch.'/github-output', "earlier=1\n");
+    [$process] = runBinCi($scratch, ['CMS_CI_PART' => 'plan', 'FAKE_SHARDS' => '3', 'GITHUB_OUTPUT' => $scratch.'/github-output']);
+
+    expect($process->getExitCode())->toBe(0, $process->getErrorOutput())
+        ->and((string) file_get_contents($scratch.'/github-output'))->toBe("earlier=1\ncount=3\nshards=[1,2,3]\n");
+});
+
+it('refuses a part it does not know, and a shard outside its count, before installing anything', function (string $part): void {
+    $scratch = ScratchDirectory::make();
+    [$process, $calls] = runBinCi($scratch, ['CMS_CI_PART' => $part]);
+
+    expect($process->getExitCode())->toBe(2)
+        ->and($process->getErrorOutput())->toContain("CMS_CI_PART={$part}")
+        ->and(ciWork($calls))->toBe([]);
+})->with(['mutation', 'shard:3/2', 'shard:0/2', 'shard:1', 'shard:a/b']);
 
 it('runs the gates without a base of the change, and says the base is derived, when CMS_CI_BASE_REF is unset, empty or 40 zeros', function (string|false $ref, string $shown): void {
     $scratch = ScratchDirectory::make();
@@ -93,7 +198,7 @@ it('runs the gates without a base of the change, and says the base is derived, w
 
     expect($process->getExitCode())->toBe(0, $process->getErrorOutput())
         ->and($process->getOutput())->toContain("base of the change: CMS_CI_BASE_REF={$shown} names none, so it is derived from the checkout: HEAD~1 on main, the merge base with origin/main on another branch, every file for a first commit")
-        ->and($calls)->toContain("composer check -- --pr --report={$scratch}/build/check.json");
+        ->and($calls)->toContain("composer check -- --pr --report={$scratch}/build/check.json --only=gates");
 })->with([
     'unset' => [false, '(not set)'],
     'empty' => ['', ''],
@@ -114,7 +219,8 @@ it('exits 1 when a gate fails, after writing the summary for GitHub', function (
     $summary = (string) file_get_contents($scratch.'/summary.md');
 
     expect($process->getExitCode())->toBe(1)
-        ->and($summary)->toContain("```text\nSummary\n  Gate 1   pass      Pint and Prettier\n```", 'the GUARDRAILS 10 budget is 15 minutes')
+        ->and($summary)->toContain("### PR profile (GUARDRAILS 10): all\n\n```text\nSummary\n  Gate 1   pass      Pint and Prettier\nmutation:verdict: the fake verdict\nverdict: pass\n", 'the GUARDRAILS 10 budget is 15 minutes')
+        ->and($summary)->toMatch('/gates: 0m \d\ds, fail\n/')
         ->and($summary)->not->toContain('Gate 1  Pint and Prettier');
 });
 

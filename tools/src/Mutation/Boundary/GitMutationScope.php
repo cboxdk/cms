@@ -6,6 +6,7 @@ namespace Cbox\Cms\Tooling\Mutation\Boundary;
 
 use Cbox\Cms\Tooling\Mutation\Domain\ChangedSource;
 use Cbox\Cms\Tooling\Mutation\Domain\MutationScope;
+use Cbox\Cms\Tooling\Mutation\Domain\SharedContractSuites;
 use PhpToken;
 use Symfony\Component\Process\Process;
 
@@ -13,7 +14,7 @@ use Symfony\Component\Process\Process;
  * Finds what mutation on changed files mutates in a git checkout: the PHP files below
  * packages/<package>/src that were added or changed since the base of the change, each with the
  * class, enum, interface or trait it declares, read from its tokens. A deleted file has nothing to
- * mutate.
+ * mutate, and the testkit's shared contract suites are left out (SharedContractSuites).
  *
  * The base is the merge base of CMS_CI_BASE_REF and HEAD. .github/workflows/ci.yml sets the
  * variable to the pull request's base commit or to the commit before a push, and
@@ -159,7 +160,7 @@ final readonly class GitMutationScope
         $sources = [];
 
         foreach (explode("\0", $diff->raw) as $path) {
-            if (preg_match(self::SOURCE, $path) !== 1) {
+            if (preg_match(self::SOURCE, $path) !== 1 || SharedContractSuites::leavesOut($path)) {
                 continue;
             }
 
@@ -169,7 +170,7 @@ final readonly class GitMutationScope
                 return MutationScope::unresolved("{$path} changed since {$base}, but it cannot be read in the checkout.");
             }
 
-            $sources[] = new ChangedSource($path, self::declaredName($code) ?? $path);
+            $sources[] = new ChangedSource($path, self::declaredName($code) ?? $path, strlen($code));
         }
 
         return MutationScope::changed($base, $sources);

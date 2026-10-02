@@ -14,11 +14,17 @@ use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationTarget;
 use Cbox\Cms\Contracts\Schema\Stages;
+use Cbox\Cms\Core\Pipeline\Domain\LockStrength;
+use Cbox\Cms\Core\Placements\Adapter\PostgresEntryReleaseLock;
 use Cbox\Cms\Core\Placements\Domain\CanonicalPlacementRef;
 use Cbox\Cms\Core\Placements\Domain\CanonicalRule;
 use Cbox\Cms\Core\Placements\Domain\Dto\EntryRelease;
 use Cbox\Cms\Core\Placements\Domain\Dto\PlacementState;
+use Cbox\Cms\Core\Placements\Domain\Dto\SetPlacementWindowAggregates;
+use Cbox\Cms\Core\Placements\Domain\Dto\StoredPlacement;
 use Cbox\Cms\Core\Placements\Domain\EntryReleaseRef;
 use Cbox\Cms\Core\Placements\Domain\Events\PlacementCreated;
 use Cbox\Cms\Core\Placements\Domain\Events\PlacementCreatedV1;
@@ -29,6 +35,8 @@ use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
 use Cbox\Cms\Core\Routing\Domain\ReleaseState;
 use DateTimeImmutable;
+use Illuminate\Database\ConnectionResolverInterface;
+use InvalidArgumentException;
 
 /*
  * The placement domain (PRD 5.7, 6.4, 6.7, invariant 14): the state a window gives at a time and
@@ -145,4 +153,25 @@ it('shows an entry only while it is active with a shared head that is released, 
         ->and($release(EntryLifecycle::Active, ReleaseState::Unreleased)->aggregateVersion())->toEqual(new AggregateVersion(4))
         ->and($release(EntryLifecycle::Merged, ReleaseState::Released)->aggregateVersion())->toBeNull()
         ->and(new EntryReleaseRef($entry)->aggregateKey())->toBe('entry_release:'.$entry->toString());
+});
+
+it('locks only the release of an entry with the entry release lock', function (): void {
+    $lock = new PostgresEntryReleaseLock(app(ConnectionResolverInterface::class));
+    $slug = new PlacementSlugRef(NodeId::fromString('01936f5e-8a2b-7c3d-9e4f-0000000007a1'), new Locale('da'), new Slug('harbour'));
+
+    expect($lock->kind())->toBe(EntryReleaseRef::KIND)
+        ->and(static fn (): ?AggregateVersion => $lock->lock($slug, LockStrength::Share))
+        ->toThrow(InvalidArgumentException::class, 'The entry release lock locks the release of an entry, not "'.$slug->aggregateKey().'".');
+});
+
+it('authorizes a window on the placement\'s node in the locale, or anywhere when the placement read as absent', function (): void {
+    $placement = PlacementId::fromString('0192a0c0-0000-7000-8000-00000000e0b1');
+    $node = NodeId::fromString('0192a0c0-0000-7000-8000-00000000e0a1');
+    $da = new Locale('da');
+    $at = new DateTimeImmutable('2026-10-01T12:00:00Z');
+    $stored = new StoredPlacement($placement, EntryId::fromString('0192a0c0-0000-7000-8000-00000000e0e1'), $node, new AggregateVersion(1), []);
+
+    expect(new SetPlacementWindowAggregates($placement, new AggregateVersion(1), $stored, $da, null, $at, null, null)->authorizationScope())
+        ->toEqual(AuthorizationScope::on(new AuthorizationTarget($node, $da)))
+        ->and(new SetPlacementWindowAggregates($placement, null, null, $da, null, $at, null, null)->authorizationScope()->isAnywhere())->toBeTrue();
 });

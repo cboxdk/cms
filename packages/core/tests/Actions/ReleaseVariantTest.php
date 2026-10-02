@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Actions;
 
+use Cbox\Cms\Contracts\Attributes\Action;
 use Cbox\Cms\Contracts\Attributes\Phase;
+use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Consistency\Outcome;
 use Cbox\Cms\Contracts\Content\RevisionNumber;
 use Cbox\Cms\Contracts\Content\VariantKey;
@@ -31,6 +33,7 @@ use Cbox\Cms\Contracts\Schema\Stages;
 use Cbox\Cms\Contracts\Schema\TypeCapabilities;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Contracts\Schema\TypeName;
+use Cbox\Cms\Core\Entries\Actions\ReleaseVariantAction;
 use Cbox\Cms\Core\Entries\Domain\Dto\StoredHead;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\BoundHook;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\StaleRead;
@@ -38,6 +41,8 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\VersionConflict;
 use Cbox\Cms\Core\Tests\Entries\EntryActionWorld;
 use Cbox\Cms\Core\Tests\Entries\NoteType;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\Hooks\CallbackValidate;
+use ReflectionAttribute;
+use ReflectionClass;
 
 /*
  * variant.release's action in the command pipeline with fakes (GUARDRAILS 9, PRD 5.6, 6.2, 6.4): a
@@ -262,4 +267,16 @@ it('is version_conflict when another call moved the variant before the commit', 
 
     expect(releaseVariantCodes($result))->toBe(['version_conflict'])
         ->and($result->errors[0]->message)->toContain('changed after it was read: expected version 6, found version 7');
+});
+
+it('is exposed on the REST, Inertia, MCP and CLI surfaces', function (): void {
+    $world = releaseVariantWorld();
+    $world->release(6, 4);
+    $surfaces = array_map(
+        static fn (ReflectionAttribute $attribute): array => $attribute->newInstance()->surfaces,
+        new ReflectionClass(ReleaseVariantAction::class)->getAttributes(Action::class),
+    );
+
+    expect($world->committed()->command->value)->toBe('variant.release')
+        ->and($surfaces)->toBe([[Surface::Rest, Surface::Inertia, Surface::Mcp, Surface::Cli]]);
 });

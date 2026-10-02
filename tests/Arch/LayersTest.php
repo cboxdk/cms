@@ -23,7 +23,7 @@ function surfaceClasses(): array
 }
 
 arch('layers: the domain uses only the domain and the contracts', function (): void {
-    expect(Codebase::classesIn(Layer::Domain))->toOnlyUse(Codebase::classesIn(Layer::Domain));
+    Rules::onlyUse(Codebase::classesIn(Layer::Domain), Codebase::classesIn(Layer::Domain));
 });
 
 arch('layers: the domain does not use Illuminate\Http, facades or Eloquent', function (): void {
@@ -35,7 +35,7 @@ arch('layers: the domain does not use Illuminate\Http, facades or Eloquent', fun
 });
 
 arch('layers: actions use only the domain, the contracts and the planners in Actions', function (): void {
-    expect(Codebase::classesIn(Layer::Actions))->toOnlyUse(Codebase::classesIn(Layer::Domain, Layer::Actions));
+    Rules::onlyUse(Codebase::classesIn(Layer::Actions), Codebase::classesIn(Layer::Domain, Layer::Actions));
 });
 
 arch('layers: surfaces do not use Infrastructure, Adapter or Eloquent', function (): void {
@@ -46,7 +46,7 @@ arch('layers: surfaces do not use Infrastructure, Adapter or Eloquent', function
 });
 
 arch('layers: infrastructure uses only the domain, the contracts, Illuminate\Database, Boundary and casts in Adapter', function (): void {
-    expect(Codebase::classesIn(Layer::Infrastructure))->toOnlyUse(Codebase::infrastructureMayUse());
+    Rules::onlyUse(Codebase::classesIn(Layer::Infrastructure), Codebase::infrastructureMayUse());
 });
 
 arch('layers: infrastructure does not use Illuminate\Http, facades, actions or surfaces', function (): void {

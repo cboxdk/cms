@@ -9,7 +9,9 @@ use Cbox\Cms\Tooling\Check\Domain\Step;
 /**
  * Mutation on changed files, the PR profile's part of GUARDRAILS 9 and 10: Pest's `--mutate` on
  * the sources below packages/<package>/src that changed since the base of the change
- * (GitMutationScope), each step failing below a score of 80 over the sources it judges.
+ * (GitMutationScope), each step failing when a source it judges is below a score of 80 over its
+ * mutations. CI splits the sources into shards (MutationShards) and runs these steps once per
+ * shard, in a job of its own.
  *
  * The flags, as Pest 5 and pest-plugin-mutate 5.0 read them: `--everything` lets the run mutate
  * without covers() or mutates() in a test, and makes sure neither narrows what is mutated;
@@ -22,16 +24,21 @@ use Cbox\Cms\Tooling\Check\Domain\Step;
  * off.
  *
  * The fast suites' step mutates every changed source against the fast suites with `--parallel`:
- * the tests and then the mutations run in parallel workers. It judges the sources outside Adapter
- * and Infrastructure and records every mutation's outcome in a MutationLedger. The step with
- * Postgres mutates the sources in Adapter and Infrastructure against the Postgres suite alone,
- * also with `--parallel`, which keeps the PR profile within the 15 minutes of GUARDRAILS 10: each
- * worker, and each run of a single mutation, has a TEST_TOKEN, and the RealPostgres harness gives
- * each token a test database of its own (TestDatabaseName), so the workers never share rows. It
- * counts a mutation as caught when either run caught it: what one run of all the suites would count, without a PHP process
- * that holds every suite's tests and their coverage at once, which ran out of memory. When the
- * fast suites caught every mutation of those sources, the Postgres suite cannot change the score,
- * and the step passes without running it (CaughtByFastSuites).
+ * the tests and then the mutations run in parallel workers. It records every mutation's outcome in
+ * a MutationLedger and judges nothing. The step with Postgres mutates every changed source again
+ * against the Postgres suite alone, also with `--parallel`, and runs only the mutations the fast
+ * suites did not catch (CaughtByFastSuites, SkipCaughtMutations): each worker, and each run of a
+ * single mutation, has a TEST_TOKEN, and the RealPostgres harness gives each token a test database
+ * of its own (TestDatabaseName), so the workers never share rows. It judges every changed source
+ * and counts a mutation as caught when either run caught it: what one run of all the suites would
+ * count, without a PHP process that holds every suite's tests and their coverage at once, which ran
+ * out of memory. A class of any layer can have its tests in the Postgres suite, such as an Artisan
+ * command or a DTO the Postgres adapters write, so every source is mutated against it (M1-T66;
+ * before, only Adapter and Infrastructure were, and such a class scored 0). When the fast suites
+ * caught every mutation, the Postgres suite cannot change the score, and the step passes without
+ * running it. The step with Postgres leaves the mutations on the list of equivalent mutations out
+ * of each source's score, and fails on an entry that no longer names a surviving mutation
+ * (EquivalentMutations).
  */
 final readonly class MutationSteps
 {
@@ -51,8 +58,8 @@ final readonly class MutationSteps
     public const array FAST_SUITES = ['Unit', 'Codecs', 'Contract', 'Actions', 'Arch'];
 
     /**
-     * The suite the step with Postgres runs, in parallel, for the sources in Adapter and
-     * Infrastructure, whose mutations the fast suites may kill as well.
+     * The suite the step with Postgres runs, in parallel, for the mutations the fast suites did not
+     * catch.
      */
     public const string POSTGRES_SUITE = 'Postgres';
 
@@ -77,12 +84,13 @@ final readonly class MutationSteps
     /**
      * The steps of mutation on changed files: a failing step when the base is missing, a passing
      * step when no source changed, and otherwise the fast suites' Pest run over every source, and
-     * the Postgres suite's over the sources in Adapter and Infrastructure when there are any.
+     * the Postgres suite's over the mutations it left.
      *
      * @param  string  $php  the PHP binary
+     * @param  MutationTally|null  $tally  where the steps add the count of each changed source
      * @return list<Step>
      */
-    public static function for(MutationScope $scope, string $php): array
+    public static function for(MutationScope $scope, string $php, ?MutationTally $tally = null): array
     {
         if ($scope->failure !== null) {
             return [Step::failed(self::NAME, $scope->failure)];
@@ -93,27 +101,19 @@ final readonly class MutationSteps
         }
 
         $ledger = new MutationLedger;
-        $postgres = $scope->sources(true);
-        $steps = [self::step(
-            self::FAST_NAME,
-            $php,
-            self::FAST_SUITES,
-            $scope->sources,
-            new MutationReportReader($scope->sources(false), self::MIN_SCORE, records: $ledger),
-        )];
+        $equivalents = EquivalentMutations::kernel();
 
-        if ($postgres !== []) {
-            $steps[] = self::step(
+        return [
+            self::step(self::FAST_NAME, $php, self::FAST_SUITES, $scope->sources, new MutationReportReader([], self::MIN_SCORE, records: $ledger)),
+            self::step(
                 self::POSTGRES_NAME,
                 $php,
                 [self::POSTGRES_SUITE],
-                $postgres,
-                new MutationReportReader($postgres, self::MIN_SCORE, counts: $ledger),
-                precheck: new CaughtByFastSuites($postgres, $ledger),
-            );
-        }
-
-        return $steps;
+                $scope->sources,
+                new MutationReportReader($scope->sources, self::MIN_SCORE, counts: $ledger, tally: $tally, equivalents: $equivalents),
+                precheck: new CaughtByFastSuites($scope->sources, $ledger, $tally, $equivalents),
+            ),
+        ];
     }
 
     /**

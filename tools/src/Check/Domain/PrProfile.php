@@ -6,6 +6,7 @@ namespace Cbox\Cms\Tooling\Check\Domain;
 
 use Cbox\Cms\Tooling\Mutation\Domain\MutationScope;
 use Cbox\Cms\Tooling\Mutation\Domain\MutationSteps;
+use Cbox\Cms\Tooling\Mutation\Domain\MutationTally;
 
 /**
  * The PR profile of GUARDRAILS 10 as CI runs it today, through `bin/ci`: the steps of gates 1 to
@@ -17,6 +18,10 @@ use Cbox\Cms\Tooling\Mutation\Domain\MutationSteps;
  * in CI moves out of NOT_RUN. The local profile leaves gate 10 out, as GUARDRAILS 10 says, but
  * gate 5 runs the same audit on the repository in tests/Feature/Tooling/Docs/RepositoryDocsTest.php,
  * so `composer check` fails on every finding of gate 10 as well (GUARDRAILS 7.3).
+ *
+ * CI runs it in parts (PrPart): the gates job runs every gate but mutation on changed files, which
+ * it reports as not run, and each shard job runs only its shard of mutation on changed files and
+ * reports the other gates as not run; the verdict job judges them together.
  */
 final readonly class PrProfile
 {
@@ -44,31 +49,58 @@ final readonly class PrProfile
     public const string BROWSER_SUITE = 'Browser';
 
     /**
+     * Why the gates job reports mutation on changed files as not run: its shards run it.
+     */
+    public const string MUTATION_IN_SHARDS = 'run in the shard jobs of mutation on changed files, which the verdict judges together (MutationVerdict)';
+
+    /**
+     * Why a shard job reports every gate but mutation on changed files as not run.
+     */
+    public const string GATE_IN_GATES_JOB = 'run in the gates job; a shard runs only its part of mutation on changed files';
+
+    /**
      * @param  string  $php  the PHP binary
      * @param  list<string>  $composer  the command that runs Composer
-     * @param  MutationScope  $mutation  what changed since the base of the change, for mutation on changed files
+     * @param  MutationScope  $mutation  what changed since the base of the change, for mutation on
+     *                                   changed files: the whole change, or one shard's part of it
+     * @param  PrPart|null  $part  the part of the profile to run; null for all of it
+     * @param  MutationTally|null  $tally  where mutation on changed files counts each changed class
      * @return list<Gate>
      */
-    public static function gates(string $php, array $composer, MutationScope $mutation): array
+    public static function gates(string $php, array $composer, MutationScope $mutation, ?PrPart $part = null, ?MutationTally $tally = null): array
     {
+        $part ??= PrPart::all();
         $gates = [];
 
         foreach (LocalProfile::gates($php, $composer) as $gate) {
-            $gates[] = match (true) {
+            $full = match (true) {
                 isset(self::NOT_RUN[$gate->number]) => new Gate($gate->number, $gate->title, [Step::notRun($gate->title, self::NOT_RUN[$gate->number])]),
-                $gate->number === 5 => new Gate(5, $gate->title, [
-                    ...$gate->steps,
-                    LocalProfile::suiteStep($php, self::MUTATION_SUITE, parallel: false),
-                    ...MutationSteps::for($mutation, $php),
-                ]),
+                $gate->number === 5 => self::pest($gate, $php, $mutation, $part, $tally),
                 $gate->number === 8 => self::browser($gate, $php),
                 $gate->number === 9 => self::audit($gate, $composer),
                 $gate->number === 10 => self::docs($gate, $composer),
                 default => $gate,
             };
+            $gates[] = $part->runsGates() || $full->number === 5 || isset(self::NOT_RUN[$full->number])
+                ? $full
+                : new Gate($full->number, $full->title, [Step::notRun($full->title, self::GATE_IN_GATES_JOB)]);
         }
 
         return $gates;
+    }
+
+    /**
+     * Gate 5: the local profile's steps and the Mutation suite, unless the part is a shard, and
+     * mutation on changed files, unless the part is the gates job, which reports it as not run.
+     */
+    private static function pest(Gate $gate, string $php, MutationScope $mutation, PrPart $part, ?MutationTally $tally): Gate
+    {
+        $steps = $part->runsGates() ? [...$gate->steps, LocalProfile::suiteStep($php, self::MUTATION_SUITE, parallel: false)] : [];
+
+        return new Gate(5, $gate->title, [
+            ...$steps,
+            ...($part->runsMutation() ? MutationSteps::for($mutation, $php, $tally) : [Step::notRun(MutationSteps::NAME, self::MUTATION_IN_SHARDS)]),
+        ]);
     }
 
     /**

@@ -162,18 +162,18 @@ function runMutation(ScratchRepository $repository, string $baseRef): ?StepResul
 }
 
 /**
- * Runs the fast suites' step of mutation on changed files since the given base in the
- * repository, whose changes are all outside Adapter and Infrastructure.
+ * Runs both steps of mutation on changed files since the given base in the repository, and gives
+ * the step with Postgres, which judges every class over both runs.
  */
 function runFastMutation(ScratchRepository $repository, string $baseRef): ?StepResult
 {
     $steps = MutationSteps::for(GitMutationScope::resolve($repository->root, $baseRef), PHP_BINARY);
 
-    expect(array_map(static fn (Step $step): string => $step->name, $steps))->toBe([MutationSteps::FAST_NAME]);
+    expect(array_map(static fn (Step $step): string => $step->name, $steps))->toBe([MutationSteps::FAST_NAME, MutationSteps::POSTGRES_NAME]);
 
     $report = new CheckRunner(new SymfonyProcessRunner(600.0), new SilentMutationListener)->run([new Gate(5, 'Pest', $steps)], $repository->root);
 
-    return $report->gate(5)?->step(MutationSteps::FAST_NAME);
+    return $report->gate(5)?->step(MutationSteps::POSTGRES_NAME);
 }
 
 it('fails the step below 80 and names the class when a test leaves a branch unasserted, and passes once it is asserted', function (): void {
@@ -219,7 +219,7 @@ it('fails the step below 80 and names the class when a test leaves a branch unas
     $unasserted = runMutation($repository, 'HEAD~1');
 
     expect($unasserted?->status)->toBe(StepStatus::Fail, $unasserted->output ?? '')
-        ->and($unasserted?->reason)->toMatch('/^mutation score \d+\.\d\d% is below 80%; below it: Acme\\\\Parity\\\\Adapter\\\\Parity \d+\.\d\d%$/')
+        ->and($unasserted?->reason)->toMatch('/^below 80% over its mutations: Acme\\\\Parity\\\\Adapter\\\\Parity \d+\.\d\d%$/')
         ->and($unasserted?->notes[0] ?? '')->toStartWith('Acme\Parity\Adapter\Parity: ')
         ->and($unasserted?->notes)->toContain('the fast suites\' run recorded no report, so only this run counts');
 
@@ -285,6 +285,8 @@ it('tests a class that more tests cover than one argument can name, as a service
 
     $step = runFastMutation($repository, 'HEAD~1');
 
+    // Every mutation of Greeting was caught by the fast suites, so the step with Postgres passed
+    // without running the Postgres suite.
     expect($step?->status)->toBe(StepStatus::Pass, $step->output ?? '')
-        ->and($step?->notes[0] ?? '')->toMatch('/^Acme\\\\Parity\\\\Greeting: 100\.00%, (\d+) of \1 mutations caught$/');
+        ->and($step?->notes[0] ?? '')->toMatch('/^the fast suites caught all \d+ mutations of the changed sources, so the Postgres suite cannot change the score and is not run$/');
 });

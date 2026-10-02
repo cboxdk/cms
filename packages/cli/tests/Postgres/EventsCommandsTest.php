@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Cli\Tests\Postgres;
 
+use Cbox\Cms\Cli\Boundary\SubscriptionArguments;
 use Cbox\Cms\Contracts\Events\EventStream;
 use Cbox\Cms\Contracts\Identity\ActorClass;
 use Cbox\Cms\Contracts\Identity\ActorState;
@@ -19,6 +20,7 @@ use Cbox\Cms\Testkit\Postgres\PartitionFixtures;
 use DateInterval;
 use DateTimeImmutable;
 use Illuminate\Contracts\Console\Kernel;
+use InvalidArgumentException;
 
 /*
  * The event runner's commands on real Postgres (PRD 7.6 to 7.8): cms:events:run runs the critical
@@ -88,7 +90,7 @@ it('parks, lists and releases an aggregate', function (): void {
     expect($ran)->toBe(0)
         ->and($runOutput)->toContain('parked test.counters counter:bad after 2 tries')
         ->and($listed)->toBe(0)
-        ->and($list)->toContain('test.counters counter:bad 2 tries, parked ')
+        ->and($list)->toMatch('/^test\.counters counter:bad 2 tries, parked \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/m')
         ->and($list)->toContain('1 parked.');
 
     $journal->fix('bad');
@@ -97,7 +99,7 @@ it('parks, lists and releases an aggregate', function (): void {
 
     expect($released)->toBe(0)
         ->and($releaseOutput)->toContain('Released counter:bad for test.counters, parked after 2 tries')
-        ->and($afterRelease)->toContain(', released ');
+        ->and($afterRelease)->toMatch('/^test\.counters counter:bad 2 tries, parked \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z, released \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/m');
 
     [$again] = eventsCommand('cms:events:run', ['--until-idle' => true]);
 
@@ -154,3 +156,21 @@ it('refuses a lane it does not run and invalid settings', function (string $lane
     'no lane' => ['urgent', null, '--lane must be one of critical, standard, external, revalidate, background'],
     'a batch size of 0' => ['critical', 0, 'cbox-cms.events.runner.batch_size must be a whole number from 1 to 10000'],
 ]);
+
+it('refuses to list the parkings of a subscription name that is not one, with the reason', function (): void {
+    eventsCommandsWorld();
+    $reason = null;
+
+    try {
+        SubscriptionArguments::subscription('Not A Name');
+    } catch (InvalidArgumentException $invalid) {
+        $reason = $invalid->getMessage();
+    }
+
+    [$exit, $output] = eventsCommand('cms:events:parked', ['subscription' => 'Not A Name']);
+
+    expect($exit)->toBe(64)
+        ->and($reason)->toBeString()
+        ->and($output)->toContain((string) $reason)
+        ->and($output)->not->toContain('parked.');
+});

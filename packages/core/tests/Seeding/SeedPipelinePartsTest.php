@@ -19,6 +19,9 @@ use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\TypeId;
+use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationTarget;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Seeding\Boundary\SeedContentHasher;
 use Cbox\Cms\Core\Seeding\Domain\Commands\SeedEntries;
@@ -100,4 +103,16 @@ it('holds at least one entry and each entry once', function (): void {
     expect(fn (): SeedEntries => new SeedEntries)->toThrow(InvalidArgumentException::class, 'at least one entry')
         ->and(fn (): SeedEntries => new SeedEntries(seedEntry('0192a0c0-0000-7000-8000-0000000047e1', 'A'), seedEntry('0192a0c0-0000-7000-8000-0000000047e1', 'B')))
         ->toThrow(InvalidArgumentException::class, 'given twice');
+});
+
+it('authorizes seed.entries on every home node that was read, in the order read, and anywhere when none was', function (): void {
+    $first = NodeId::fromString('0192a0c0-0000-7000-8000-00000000c0a1');
+    $second = NodeId::fromString('0192a0c0-0000-7000-8000-00000000c0a2');
+    $absent = NodeId::fromString('0192a0c0-0000-7000-8000-00000000c0a3');
+    $read = new SeedEntriesAggregates([], [$first->toString() => new AggregateVersion(2), $absent->toString() => null, $second->toString() => new AggregateVersion(1)]);
+
+    expect($read->authorizationScope())->toEqual(AuthorizationScope::on(new AuthorizationTarget($first), new AuthorizationTarget($second)))
+        ->and($read->authorizationScope()->isAnywhere())->toBeFalse()
+        ->and(new SeedEntriesAggregates([], [$absent->toString() => null])->authorizationScope()->isAnywhere())->toBeTrue()
+        ->and(new SeedEntriesAggregates([], [])->authorizationScope()->isAnywhere())->toBeTrue();
 });

@@ -12,6 +12,7 @@ use Cbox\Cms\Core\Pipeline\Domain\RegistryAffectedProjections;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscribedEvent;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
+use Cbox\Cms\Core\Tests\Pipeline\Probe\ProbeArchived;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\ProbeNoted;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\ProbePublished;
 use Override;
@@ -30,11 +31,13 @@ final class RegistryAffectedProjectionsBehaviourTest extends TestCase
     {
         $published = new SubscribedEvent(ProbePublished::class, ProbePublished::type());
         $noted = new SubscribedEvent(ProbeNoted::class, ProbeNoted::type());
+        $archived = new SubscribedEvent(ProbeArchived::class, ProbeArchived::type());
 
         return new RegistryAffectedProjections(new CompiledRegistry([], [], [], [
             new SubscriberEntry('App\Origin', 'cboxdk/cms', new SubscriptionName('probe.origin'), Lane::Critical, new ProjectionName('origin'), [$published]),
             new SubscriberEntry('App\Search', 'cboxdk/cms', new SubscriptionName('probe.search'), Lane::Standard, new ProjectionName('search'), [$published]),
             new SubscriberEntry('App\OriginAgain', 'cboxdk/cms', new SubscriptionName('probe.origin_again'), Lane::Revalidate, new ProjectionName('origin'), [$published]),
+            new SubscriberEntry('App\Archive', 'cboxdk/cms', new SubscriptionName('probe.archive'), Lane::Critical, new ProjectionName('origin'), [$archived]),
             new SubscriberEntry('App\Webhooks', 'cboxdk/cms', new SubscriptionName('probe.webhooks'), Lane::External, null, [$noted]),
         ]));
     }

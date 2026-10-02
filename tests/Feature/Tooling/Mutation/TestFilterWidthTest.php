@@ -167,3 +167,26 @@ it('leaves the coverage file as it is when no file needs widening, and does noth
         ->and(new CoverageFilterWidener(dirname($path).'/missing.php')->widen())->toBe([])
         ->and(new CoverageFilterWidener('')->widen())->toBe([]);
 });
+
+it('gives the declarations of the mutated sources the tests that read them, as the coverage names the files', function (): void {
+    $directory = ScratchDirectory::make();
+    ScratchDirectory::write($directory.'/src/Limits.php', "<?php\n\nnamespace Acme;\n\nfinal class Limits\n{\n    public const int MAX = 10;\n}\n");
+    ScratchDirectory::write($directory.'/src/Reader.php', "<?php\n\nnamespace Acme;\n\nfinal class Reader\n{\n    public function max(): int\n    {\n        return Limits::MAX;\n    }\n}\n");
+    $path = coverageFile(['src/Reader.php' => [9 => [0 => 1]]], ['P\Tests\Unit\ReaderTest::__pest_evaluable_it_reads']);
+    $previous = (string) getcwd();
+    $limits = realpath($directory.'/src/Limits.php');
+    expect($limits)->toBeString();
+    chdir($directory);
+
+    try {
+        $widened = new CoverageFilterWidener($path)->widen($limits === false ? [] : [$limits]);
+    } finally {
+        chdir($previous);
+    }
+
+    expect($widened)->toBe([])
+        ->and(new Unserializer()->unserialize($path)['codeCoverage']->lineCoverage())->toBe([
+            'src/Limits.php' => [7 => [0 => 1]],
+            'src/Reader.php' => [9 => [0 => 1]],
+        ]);
+});

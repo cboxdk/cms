@@ -433,3 +433,225 @@ it('refuses an addon\'s subscription whose service actor is unavailable, hands i
     'not a service actor' => ['staff', 'is a staff actor'],
     'not active' => ['deactivated', 'in the state deactivated'],
 ]);
+
+it('runs the subscriptions after a refused one in the same round', function (): void {
+    // Regression guard (M1-T66): a refused subscription is passed over, not the end of the round.
+    $world = new LaneWorld;
+    $addonJournal = new SubscriberJournal;
+    array_unshift($world->bindings, RecordingSubscriber::bound($addonJournal, 'reviews.counters', addon: new AddonNamespace('reviews')));
+    $world->raise('a@1');
+
+    $report = $world->untilIdle();
+
+    expect($addonJournal->calls())->toBe([])
+        ->and($world->journal->calls())->toBe(['a@1 try 1'])
+        ->and($report->refused)->toHaveCount(1);
+});
+
+it('goes on at once after a round in which it only handed a released aggregate', function (): void {
+    $world = new LaneWorld;
+    $world->journal->break('bad');
+    $world->raise('bad@1');
+    $world->untilIdle($world->settings(maxAttempts: 1));
+    $world->journal->fix('bad');
+    laneRelease($world, 'bad');
+    $sleeps = count($world->pacing->sleeps());
+
+    $world->runner($world->settings(maxAttempts: 1))->run(new LaneRun(Lane::Critical), new StopAfterRounds(2));
+
+    // The release round moved, so the runner went on without sleeping; the second round had
+    // nothing to do and slept once.
+    expect(array_slice($world->journal->calls(), -1))->toBe(['bad@1 try 1 release'])
+        ->and(array_slice($world->pacing->sleeps(), $sleeps))->toBe([200]);
+});
+
+it('keeps the streams apart: an event waiting for its backoff in one stream holds back none of the other', function (): void {
+    $world = new LaneWorld;
+    $world->journal->break('bad');
+    $world->raise('bad@1');
+    $world->log->record(EventStream::Bulk, [CounterRaised::of('import', 1)]);
+
+    $world->untilIdle($world->settings(maxAttempts: 2));
+
+    expect($world->journal->calls())->toBe(['bad@1 try 1', 'import@1 try 1', 'bad@1 try 2']);
+});
+
+it('counts the failed tries of each event of a transaction apart, so an event never inherits another\'s tries', function (): void {
+    $world = new LaneWorld;
+    $world->journal->break('bad');
+    $world->raise('bad@1', 'good@1');
+
+    $report = $world->untilIdle($world->settings(maxAttempts: 2));
+
+    expect($world->journal->calls())->toBe(['bad@1 try 1', 'bad@1 try 2', 'good@1 try 1'])
+        ->and(laneParked($world))->toBe(['bad 2'])
+        ->and($report->handled)->toBe(1);
+});
+
+it('sleeps until the earliest failed event is due, however short the wait', function (): void {
+    $world = new LaneWorld;
+    $other = new SubscriberJournal;
+    $world->bindings[] = RecordingSubscriber::bound($other, 'test.others');
+    $world->journal->break('bad');
+    // The other subscription takes 99 of the failed event's backoff of 100 ms, so 1 ms is left.
+    $other->each(static function () use ($world): void {
+        $world->pacing->advance(99);
+    });
+    $world->raise('bad@1');
+
+    $world->untilIdle($world->settings(maxAttempts: 2));
+
+    expect($world->journal->calls())->toBe(['bad@1 try 1', 'bad@1 try 2'])
+        ->and($world->pacing->sleeps())->toBe([1]);
+});
+
+it('ends a batch once the time it ran reaches the budget, also when it reaches it exactly, and hands at least one event per batch', function (int $step, array $batches): void {
+    $world = new LaneWorld;
+    $world->raise('a@1', 'a@2', 'a@3', 'a@4');
+    $cursors = [];
+    $world->journal->each(static function () use ($world, $step, &$cursors): void {
+        $cursors[] = $world->log->cursor(laneSubscription(), EventStream::Interactive)->eventId;
+        $world->pacing->advance($step);
+    });
+
+    $world->untilIdle($world->settings(batchBudgetMs: 50));
+
+    expect($cursors)->toBe($batches);
+})->with([
+    'the budget reached exactly after two events' => [25, [0, 0, 2, 2]],
+    'the budget passed by every event' => [100, [0, 1, 2, 3]],
+]);
+
+it('ends a batch of releases once the time it ran reaches the budget, also exactly, and hands at least one per batch', function (int $step, int $batches): void {
+    $world = new LaneWorld;
+    $world->journal->break('a');
+    $world->journal->break('b');
+    $world->raise('a@1', 'b@1');
+    $world->untilIdle($world->settings(maxAttempts: 1));
+    $world->journal->fix('a');
+    $world->journal->fix('b');
+    laneRelease($world, 'a');
+    laneRelease($world, 'b');
+    // The budget counts from the batch's start, not from the pacing's zero.
+    $world->pacing->advance(1_000);
+    $world->journal->each(static function () use ($world, $step): void {
+        $world->pacing->advance($step);
+    });
+
+    $report = $world->untilIdle($world->settings(maxAttempts: 1, batchBudgetMs: 50));
+
+    // Within the budget both releases come in one batch; once a release reaches the budget, the
+    // next comes in a batch of its own. Each round also runs a batch per stream.
+    expect(array_slice($world->journal->calls(), -2))->toBe(['a@1 try 1 release', 'b@1 try 1 release'])
+        ->and($report->batches)->toBe($batches)
+        ->and($report->released)->toBe(2);
+})->with([
+    'within the budget' => [25, 6],
+    'the budget reached exactly by the first' => [50, 9],
+    'the budget passed by the first' => [100, 9],
+]);
+
+it('goes on to the next round without sleeping only when a batch moved, so a failed event waits for its backoff', function (): void {
+    $world = new LaneWorld;
+    $world->journal->break('bad');
+    $world->raise('bad@1');
+
+    $world->runner($world->settings(maxAttempts: 3))->run(new LaneRun(Lane::Critical), new StopAfterRounds(1));
+
+    expect($world->journal->calls())->toBe(['bad@1 try 1'])
+        ->and($world->pacing->sleeps())->toBe([100]);
+});
+
+it('compiles the access context of each actor once a round, however many of its subscriptions run', function (): void {
+    $world = new LaneWorld;
+    $world->bindings[] = RecordingSubscriber::bound(new SubscriberJournal, 'test.others');
+    $world->bindings[] = RecordingSubscriber::bound(new SubscriberJournal, 'test.thirds');
+
+    $world->runner()->run(new LaneRun(Lane::Critical), new StopAfterRounds(2));
+
+    expect($world->contexts->asked)->toHaveCount(2);
+});
+
+it('hands every event a batch reads, past the passed, the parked and the newly parked ones, in one batch', function (): void {
+    $world = new LaneWorld;
+    $world->journal->break('bad');
+    $world->raise('bad@1');
+    $world->untilIdle($world->settings(maxAttempts: 1));
+    $world->journal->break('worse');
+    $world->log->record(EventStream::Interactive, [CounterReset::of('a', 1)]);
+    $world->raise('bad@2', 'worse@1', 'good@1');
+    $before = $world->log->transactions();
+
+    $report = $world->untilIdle($world->settings(maxAttempts: 1));
+
+    // The batch that parks worse@1 also passes the reset and the parked bad@2 and hands good@1:
+    // the transactions are those of the failed batch, that one, and each round's empty batches.
+    expect(array_slice($world->journal->calls(), -2))->toBe(['worse@1 try 1', 'good@1 try 1'])
+        ->and($world->log->transactions() - $before)->toBe(12)
+        ->and($report->passed)->toBe(2)
+        ->and($report->handled)->toBe(1);
+});
+
+it('reparks a released aggregate whose release failed and hands the next release in the same batch', function (): void {
+    $world = new LaneWorld;
+    $world->journal->break('a');
+    $world->journal->break('b');
+    $world->raise('a@1', 'b@1');
+    $world->untilIdle($world->settings(maxAttempts: 1));
+    $world->journal->fix('b');
+    laneRelease($world, 'a');
+    laneRelease($world, 'b');
+    $before = $world->log->transactions();
+
+    $report = $world->untilIdle($world->settings(maxAttempts: 1));
+
+    // a's release fails in a batch that rolls back; the next batch reparks a and hands b, with
+    // each round's empty batches of the streams.
+    expect(array_slice($world->journal->calls(), -2))->toBe(['a@1 try 1 release', 'b@1 try 1 release'])
+        ->and($report->released)->toBe(1)
+        ->and(laneParked($world))->toBe(['a 2'])
+        ->and($world->log->transactions() - $before)->toBe(9);
+});
+
+it('keeps the releases of two subscriptions apart: one waiting for its backoff holds back none of the other\'s, and they count their tries apart', function (): void {
+    $world = new LaneWorld;
+    $other = new SubscriberJournal;
+    $world->bindings[] = RecordingSubscriber::bound($other, 'test.others');
+    $world->journal->break('a');
+    $other->break('a');
+    $world->raise('a@1');
+    $world->untilIdle($world->settings(maxAttempts: 1));
+    $other->fix('a');
+    laneRelease($world, 'a');
+    new ReleaseParked($world->log, new FakeLaneSubscribers($world->bindings))->release(new ParkedRelease(new SubscriptionName('test.others'), laneAggregate('a')));
+    $order = [];
+    $world->journal->each(static function () use (&$order): void {
+        $order[] = 'counters';
+    });
+    $other->each(static function () use (&$order): void {
+        $order[] = 'others';
+    });
+
+    $world->untilIdle($world->settings(maxAttempts: 2));
+
+    expect(array_slice($world->journal->calls(), 1))->toBe(['a@1 try 1 release', 'a@1 try 2 release'])
+        ->and(array_slice($other->calls(), 1))->toBe(['a@1 try 1 release'])
+        ->and($order)->toBe(['counters', 'others', 'counters'])
+        ->and($world->pacing->sleeps())->toBe([100]);
+});
+
+it('does not sleep while a failed event is due but another runner holds its subscription', function (): void {
+    $world = new LaneWorld;
+    $world->journal->break('bad');
+    $world->journal->each(static function () use ($world): void {
+        $world->log->hold(laneSubscription());
+    });
+    $world->raise('bad@1');
+
+    $world->runner($world->settings(maxAttempts: 3))->run(new LaneRun(Lane::Critical), new StopAfterRounds(4));
+
+    // The first round fails bad@1 and sleeps out its backoff; from then on bad@1 is due, but the
+    // lock is held, so the runner tries again at once instead of sleeping.
+    expect($world->journal->calls())->toBe(['bad@1 try 1'])
+        ->and($world->pacing->sleeps())->toBe([100]);
+});

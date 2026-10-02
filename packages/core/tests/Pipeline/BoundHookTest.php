@@ -106,7 +106,9 @@ it('describes an overrun in milliseconds', function (): void {
     expect(new HookOverrun($command, 2, CallbackValidate::class, 'acme/slow', Phase::Transform, OverrunKind::Hook, 5, 5_123_456, 7_000_000)->describe())
         ->toBe('The transform hook '.CallbackValidate::class.' of acme/slow took 5.123 ms, over its budget of 5 ms.')
         ->and(new HookOverrun($command, 2, CallbackValidate::class, 'acme/last', Phase::Authorize, OverrunKind::Command, 20, 1_500_000, 100_250_000)->describe())
-        ->toBe('The hooks of note.publish version 2 took 100.250 ms together, over the budget of 100 ms all hooks of a command have; the last was the authorize hook '.CallbackValidate::class.' of acme/last, which took 1.500 ms.');
+        ->toBe('The hooks of note.publish version 2 took 100.250 ms together, over the budget of 100 ms all hooks of a command have; the last was the authorize hook '.CallbackValidate::class.' of acme/last, which took 1.500 ms.')
+        ->and(new HookOverrun($command, 2, CallbackValidate::class, 'acme/stuck', Phase::Validate, OverrunKind::Hook, 5, 1_234_567_890, 1_234_567_890)->describe())
+        ->toBe('The validate hook '.CallbackValidate::class.' of acme/stuck took 1234.568 ms, over its budget of 5 ms.');
 });
 
 it('refuses a registered hook that the container builds as no hook', function (): void {

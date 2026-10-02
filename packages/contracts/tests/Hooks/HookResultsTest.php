@@ -146,3 +146,16 @@ it('refuses a view of a command version below 1', function (int $version): void 
     expect(static fn (): PlanView => new PlanView(new CommandName('note.publish'), $version, new AnonymousPrincipal, ClassificationAccess::Public))
         ->toThrow(InvalidHookResult::class, 'A command version starts at 1, got '.$version.'.');
 })->with([0, -1]);
+
+it('keeps the changes of a hook as a list, also when they are given by name', function (): void {
+    $variant = new VariantRef(EntryId::fromString('01936f5e-8a2b-7c3d-9e4f-000000000901'), VariantKey::shared());
+    $changes = ['slug' => FieldChange::own($variant, new FieldHandle('slug'), new TextValue('a')), 'title' => FieldChange::own($variant, new FieldHandle('title'), new TextValue('b'))];
+
+    expect(new FieldChanges(...$changes)->changes)->toBe(array_values($changes));
+});
+
+it('keeps the errors of a hook as a list, also when they are given by name', function (): void {
+    $errors = ['first' => new HookError('A slug is required.'), 'second' => new HookError('A title is required.')];
+
+    expect(new HookErrors(...$errors)->errors)->toBe(array_values($errors));
+});

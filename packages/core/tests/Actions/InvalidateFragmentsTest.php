@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Actions;
 
+use Cbox\Cms\Contracts\Attributes\Subscription;
 use Cbox\Cms\Contracts\Cache\Fragment;
 use Cbox\Cms\Contracts\Cache\FragmentFenced;
 use Cbox\Cms\Contracts\Cache\FragmentKey;
@@ -16,11 +17,20 @@ use Cbox\Cms\Contracts\Consistency\ProjectionState;
 use Cbox\Cms\Contracts\Events\InvalidEvent;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
+use Cbox\Cms\Contracts\Subscribers\Lane;
+use Cbox\Cms\Core\Entries\Domain\Events\EntryCreated;
+use Cbox\Cms\Core\Entries\Domain\Events\VariantReleased;
+use Cbox\Cms\Core\Entries\Domain\Events\VariantRevised;
+use Cbox\Cms\Core\Entries\Domain\Events\VariantUnreleased;
+use Cbox\Cms\Core\Fragments\Actions\InvalidateFragments;
+use Cbox\Cms\Core\Placements\Domain\Events\PlacementCreated;
+use Cbox\Cms\Core\Placements\Domain\Events\PlacementVisibilityChanged;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Tests\Events\Fixtures\CounterRaised;
 use Cbox\Cms\Core\Tests\Fragments\InvalidationWorld;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
 use DateInterval;
+use ReflectionClass;
 
 /*
  * The invalidation subscriber, fragments.invalidate (PRD 7.6, 8.4, 8.12, 9.4), called directly
@@ -199,3 +209,13 @@ it('purges the entry and the node of placement.visibility_changed softly when th
     'scheduled for later' => [Visibility::Live, Visibility::Scheduled, PurgeMode::Hard],
     'expired' => [Visibility::Live, Visibility::Expired, PurgeMode::Hard],
 ]);
+
+it('subscribes on the critical lane to every event that changes what a fragment shows, and acknowledges origin', function (): void {
+    $world = new InvalidationWorld;
+    $world->handle($world->stored(InvalidationWorld::revised(2), $world->changeset('origin'), 100));
+    $subscription = new ReflectionClass(InvalidateFragments::class)->getAttributes(Subscription::class)[0]->newInstance();
+
+    expect($subscription->events)->toBe([EntryCreated::class, VariantReleased::class, VariantRevised::class, VariantUnreleased::class, PlacementCreated::class, PlacementVisibilityChanged::class])
+        ->and($subscription->lane)->toBe(Lane::Critical)
+        ->and($subscription->projection)->toBe(InvalidateFragments::PROJECTION);
+});

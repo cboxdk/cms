@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Tooling\Check\Boundary;
 
 use Cbox\Cms\Tooling\Check\Domain\Profile;
+use Cbox\Cms\Tooling\Check\Domain\PrPart;
 use InvalidArgumentException;
 
 /**
@@ -13,15 +14,21 @@ use InvalidArgumentException;
  *   --brief          leave the output of failed steps out of the console; the report keeps it
  *   --pr             the PR profile as CI runs it (bin/ci) instead of the local profile. Not
  *                    --profile, which is Composer's own option for timing and memory
+ *   --only=gates     with --pr: the gates without mutation on changed files, as CI's gates job
+ *   --shard=<i>/<n>  with --pr: only mutation on changed files, shard i of the n shards of the
+ *                    plan (MutationShards), as CI's shard job i
+ *   --mutation-report=<file>  with --shard: also write the shard's report for the verdict
  */
 final readonly class CheckOptions
 {
-    public const string USAGE = 'Usage: composer check [-- [--report=<file>] [--brief] [--pr]]';
+    public const string USAGE = 'Usage: composer check [-- [--report=<file>] [--brief] [--pr] [--only=gates | --shard=<i>/<n> [--mutation-report=<file>]]]';
 
     private function __construct(
         public ?string $reportFile,
         public bool $brief,
         public Profile $profile,
+        public PrPart $part,
+        public ?string $mutationReportFile,
     ) {}
 
     /**
@@ -30,21 +37,44 @@ final readonly class CheckOptions
     public static function parse(array $arguments): self
     {
         $reportFile = null;
+        $mutationReportFile = null;
         $brief = false;
         $profile = Profile::Local;
+        $part = PrPart::all();
+        $parts = 0;
 
         foreach ($arguments as $argument) {
             if ($argument === '--brief') {
                 $brief = true;
             } elseif (str_starts_with($argument, '--report=') && strlen($argument) > strlen('--report=')) {
                 $reportFile = substr($argument, strlen('--report='));
+            } elseif (str_starts_with($argument, '--mutation-report=') && strlen($argument) > strlen('--mutation-report=')) {
+                $mutationReportFile = substr($argument, strlen('--mutation-report='));
             } elseif ($argument === '--pr') {
                 $profile = Profile::Pr;
+            } elseif ($argument === '--only=gates') {
+                $part = PrPart::gates();
+                $parts++;
+            } elseif (preg_match('#^--shard=([1-9][0-9]{0,3})/([1-9][0-9]{0,3})$#', $argument, $shard) === 1) {
+                $part = PrPart::shard((int) $shard[1], (int) $shard[2]);
+                $parts++;
             } else {
                 throw new InvalidArgumentException("Unknown option {$argument}. ".self::USAGE);
             }
         }
 
-        return new self($reportFile, $brief, $profile);
+        if ($parts > 1) {
+            throw new InvalidArgumentException('Give --only=gates or one --shard, not both or twice. '.self::USAGE);
+        }
+
+        if ($parts === 1 && $profile !== Profile::Pr) {
+            throw new InvalidArgumentException('--only and --shard pick a part of the PR profile, so they need --pr. '.self::USAGE);
+        }
+
+        if ($mutationReportFile !== null && ! $part->isShard()) {
+            throw new InvalidArgumentException('--mutation-report writes the report of a shard, so it needs --shard. '.self::USAGE);
+        }
+
+        return new self($reportFile, $brief, $profile, $part, $mutationReportFile);
     }
 }

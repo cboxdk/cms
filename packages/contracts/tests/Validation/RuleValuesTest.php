@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Cbox\Cms\Contracts\Tests\Validation;
 
 use Cbox\Cms\Contracts\Validation\DecimalNumber;
+use Cbox\Cms\Contracts\Validation\InvalidRules;
+use Cbox\Cms\Contracts\Validation\RuleName;
 use Cbox\Cms\Contracts\Validation\RuleValues;
 
 /*
@@ -108,3 +110,11 @@ it('compares decimal numbers by value', function (string $a, string $b, int $exp
     ['1.05', '1.5', -1],
     ['-1.05', '-1.5', 1],
 ]);
+
+it('shows a refused argument in full up to 64 bytes, cut after that, and with control characters escaped', function (): void {
+    $full = str_repeat('a', 64);
+
+    expect(InvalidRules::argument(RuleName::MaxLength, 'an integer', $full)->getMessage())->toBe("The rule max_length takes an integer, got \"{$full}\".")
+        ->and(InvalidRules::argument(RuleName::MaxLength, 'an integer', $full.'b')->getMessage())->toBe("The rule max_length takes an integer, got \"{$full}...\".")
+        ->and(InvalidRules::argument(RuleName::MaxLength, 'an integer', "1\n")->getMessage())->toBe('The rule max_length takes an integer, got "1\n".');
+});

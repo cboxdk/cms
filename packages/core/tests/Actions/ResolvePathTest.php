@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Actions;
 
+use Cbox\Cms\Contracts\Attributes\Query as QueryAttribute;
 use Cbox\Cms\Contracts\Cache\DependencyKey;
 use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\Slug;
@@ -32,6 +33,7 @@ use Cbox\Cms\Core\Routing\Domain\SiteHandle;
 use Cbox\Cms\Core\Routing\Domain\VisibilityDecision;
 use Cbox\Cms\Core\Tests\Routing\ResolveWorld as World;
 use DateTimeImmutable;
+use ReflectionClass;
 
 /*
  * path.resolve's action with fakes (GUARDRAILS 5 and 9, PRD 5.8, 5.9, 6.6): it maps the host to a
@@ -266,4 +268,11 @@ it('costs at most one route, one placement, its released row and one canonical p
 
     expect(new World()->action()->cost($query)->units)->toBe(ResolvePathAction::COST)
         ->and(ResolvePathAction::COST)->toBe(4);
+});
+
+it('is version 1 of path.resolve', function (): void {
+    $query = new ResolvePath(new Host('north.example'), new Locale('da'), new RequestPath('/'));
+    $declared = new ReflectionClass($query)->getAttributes(QueryAttribute::class)[0]->newInstance();
+
+    expect([$declared->name, $declared->version])->toBe(['path.resolve', 1]);
 });

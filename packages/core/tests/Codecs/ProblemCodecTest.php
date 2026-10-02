@@ -10,6 +10,7 @@ use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ProblemCodecV1;
+use Throwable;
 
 /*
  * The problem details document (RFC 9457, PRD 8.8), problem.v1.json, through its generated codec
@@ -87,4 +88,35 @@ it('refuses a problem that does not answer its code as the catalog says, which t
     'another status' => ['"status":422', '"status":400', 'The status of a problem with the code validation_failed is 422, as the error catalog says, got 400.'],
     'another type' => ['errors.md#validation_failed', 'errors.md#version_conflict', 'The type of a problem with the code validation_failed is "docs/reference/errors.md#validation_failed", the section of the error reference for the code, got "docs/reference/errors.md#version_conflict".'],
     'retryable when the catalog says it is not' => ['"retryable":false', '"retryable":true', 'A problem with the code validation_failed is not retryable, as the error catalog says.'],
+]);
+
+/*
+ * Each bound of problem.v1.json, at it and past it: a value at a bound passes the schema's rule
+ * and, where the catalog decides the value, meets the catalog's refusal instead.
+ */
+it('reads the bounds of each rule of problem.v1.json as the schema does', function (string $from, string $to, ?array $refusal): void {
+    $json = (string) preg_replace($from, $to, problemJson(), 1);
+    $outcome = null;
+
+    try {
+        problemCodec()->decode($json, ClassificationAccess::Public);
+    } catch (Throwable) {
+        $outcome = Failures::described(static fn (): Problem => problemCodec()->decode($json, ClassificationAccess::Public));
+    }
+
+    expect($outcome)->toBe($refusal);
+})->with([
+    'a status below 100' => ['/"status":422/', '"status":99', ['json_invalid', 'status', 'is 99, less than the minimum 100']],
+    'the status 100' => ['/"status":422/', '"status":100', ['json_invalid', null, 'breaks a rule of the contract: The status of a problem with the code validation_failed is 422, as the error catalog says, got 100.']],
+    'the status 599' => ['/"status":422/', '"status":599', ['json_invalid', null, 'breaks a rule of the contract: The status of a problem with the code validation_failed is 422, as the error catalog says, got 599.']],
+    'a status above 599' => ['/"status":422/', '"status":600', ['json_invalid', 'status', 'is 600, more than the maximum 599']],
+    'an empty type' => ['/"type":"[^"]*"/', '"type":""', ['json_invalid', 'type', 'has 0 characters, fewer than the 1 the field requires']],
+    'a type of one character' => ['/"type":"[^"]*"/', '"type":"x"', ['json_invalid', null, 'breaks a rule of the contract: The type of a problem with the code validation_failed is "docs/reference/errors.md#validation_failed", the section of the error reference for the code, got "x".']],
+    'an empty title' => ['/"title":"[^"]*"/', '"title":""', ['json_invalid', 'title', 'has 0 characters, fewer than the 1 the field requires']],
+    'a title of one character' => ['/"title":"[^"]*"/', '"title":"x"', null],
+    'an empty instance' => ['/"instance":"[^"]*"/', '"instance":""', ['json_invalid', 'instance', 'has 0 characters, fewer than the 1 the field requires']],
+    'an instance of one character' => ['/"instance":"[^"]*"/', '"instance":"\/"', null],
+    'a detail of one character' => ['/"detail":"Two[^"]*"/', '"detail":"x"', null],
+    'an error detail of one character' => ['/"detail":"The text[^"]*"/', '"detail":"x"', null],
+    'an empty error detail' => ['/"detail":"The text[^"]*"/', '"detail":""', ['json_invalid', 'errors[0].detail', 'has 0 characters, fewer than the 1 the field requires']],
 ]);

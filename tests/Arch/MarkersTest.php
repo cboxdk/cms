@@ -14,7 +14,7 @@ use Cbox\Cms\Tests\Support\Arch\Rules;
  */
 
 arch('markers: no code or configuration file carries a marker word of GUARDRAILS 11', function (): void {
-    $scan = MarkerScan::of(Codebase::root());
+    $scan = MarkerScan::ofCheckout(Codebase::root());
 
     expect($scan->files)->toContain(
         'composer.json',

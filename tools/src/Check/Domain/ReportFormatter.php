@@ -13,9 +13,11 @@ final readonly class ReportFormatter
 {
     private const int STATUS_WIDTH = 9;
 
-    public static function header(string $directory, Profile $profile = Profile::Local): string
+    public static function header(string $directory, Profile $profile = Profile::Local, ?PrPart $part = null): string
     {
-        return "composer check: {$profile->description()}, in {$directory}\n";
+        $only = $profile === Profile::Pr && $part instanceof PrPart && ($part->isShard() || ! $part->runsMutation()) ? '; this run: '.$part->description() : '';
+
+        return "composer check: {$profile->description()}{$only}, in {$directory}\n";
     }
 
     public static function gateHeading(Gate $gate): string

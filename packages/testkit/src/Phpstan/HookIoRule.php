@@ -381,6 +381,11 @@ final readonly class HookIoRule implements Rule
      */
     private function serviceIds(FuncCall|MethodCall|NullsafeMethodCall $node, Scope $scope): array
     {
+        // A first-class callable, such as app(...), names no id, and has no arguments to ask for.
+        if ($node->isFirstClassCallable()) {
+            return [];
+        }
+
         $first = $node->getArgs()[0] ?? null;
 
         return $first instanceof Arg ? $this->serviceIdsOf($scope->getType($first->value)) : [];
@@ -409,7 +414,8 @@ final readonly class HookIoRule implements Rule
     {
         $uses = [];
 
-        foreach ($type->getObjectClassReflections() as $class) {
+        // A nullable type gives no class reflections while null is in it, so null goes first.
+        foreach (TypeCombinator::removeNull($type)->getObjectClassReflections() as $class) {
             if ($this->forbiddenReflection($class)) {
                 $uses[] = sprintf('the class %s', $class->getName());
             }

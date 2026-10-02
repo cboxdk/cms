@@ -112,3 +112,10 @@ it('names the key and both instants when a fragment or a fence has already ended
         ->toBe('The purge fence of "e-'.CACHE_UUID.'" ends at 2026-09-29T12:00:00.000000+00:00, which is not after the Clock\'s time 2026-09-29T12:00:00.000000+00:00.')
         ->and(InvalidCacheValue::fragmentKey(str_repeat('x', 70)."\n")->getMessage())->toContain(str_repeat('x', 64).'..."');
 });
+
+it('shows a refused value in full up to 64 bytes and cut after that', function (): void {
+    $full = str_repeat('e', 64);
+
+    expect(InvalidCacheValue::dependencyKey($full)->getMessage())->toEndWith("got \"{$full}\".")
+        ->and(InvalidCacheValue::dependencyKey($full.'x')->getMessage())->toEndWith("got \"{$full}...\".");
+});

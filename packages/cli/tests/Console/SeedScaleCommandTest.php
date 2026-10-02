@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace Cbox\Cms\Cli\Tests\Console;
 
 use Cbox\Cms\Core\Seeding\Actions\SeedDataset;
+use Cbox\Cms\Core\Tests\Seeding\DraftNoteType;
+use Cbox\Cms\Core\Tests\Seeding\LockedType;
 use Cbox\Cms\Core\Tests\Seeding\SeedActionWorld;
+use Cbox\Cms\Core\Tests\Seeding\SpreadType;
+use Cbox\Cms\Testkit\Schema\FakeTypeCatalog;
 use Illuminate\Support\Facades\Artisan;
 use Psr\Log\LoggerInterface;
 
@@ -63,4 +67,20 @@ it('exits with the refusal\'s code and logs it when the seeder refuses', functio
         ->and($lines[0])->toContain('reaches no node')
         ->and($logger->records[0][1])->toBe('The seeder refused to seed.')
         ->and($logger->records[0][2])->toBe(['profile' => 'small@1', 'seed' => 1, 'entries' => 10]);
+});
+
+it('warns about each type it leaves out and prints the wall time in seconds', function (): void {
+    $world = new SeedActionWorld;
+    app()->instance(SeedDataset::class, $world->dataset(types: new FakeTypeCatalog(LockedType::definition(), DraftNoteType::definition(), SpreadType::definition())));
+    $started = hrtime(true);
+
+    [$status, $lines] = runSeedScale(['--entries' => '10', '--seed' => '1']);
+
+    $elapsed = (hrtime(true) - $started) / 1e9;
+
+    expect($status)->toBe(0)
+        ->and($lines[0])->toBe('The type test:spread has no generated validator; run cms:generate.')
+        ->and($lines[1])->toStartWith('Seeded 10 entries of profile small@1 with seed 1')
+        ->and(preg_match('/\AWall time: ([0-9]+\.[0-9]) s\.\z/', $lines[2], $match))->toBe(1)
+        ->and((float) ($match[1] ?? 'NAN'))->toBeLessThanOrEqual(round($elapsed, 1) + 0.1);
 });

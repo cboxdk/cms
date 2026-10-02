@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Actions;
 
+use Cbox\Cms\Contracts\Attributes\Action;
+use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Consistency\Outcome;
 use Cbox\Cms\Contracts\Content\RevisionNumber;
 use Cbox\Cms\Contracts\Content\VariantKey;
@@ -14,12 +16,20 @@ use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Plans\Mutation;
 use Cbox\Cms\Contracts\Plans\Mutations\HeadMoved;
 use Cbox\Cms\Contracts\Plans\Mutations\RevisionCreated;
+use Cbox\Cms\Contracts\Plans\Plan;
 use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Contracts\Results\WriteResult;
+use Cbox\Cms\Core\Entries\Actions\ReviseEntryAction;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
+use Cbox\Cms\Core\Entries\Domain\Dto\ReviseEntryAggregates;
+use Cbox\Cms\Core\Entries\Domain\Dto\StoredEntry;
 use Cbox\Cms\Core\Entries\Domain\Dto\StoredHead;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\StaleRead;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\VersionConflict;
 use Cbox\Cms\Core\Tests\Entries\EntryActionWorld;
+use LogicException;
+use ReflectionAttribute;
+use ReflectionClass;
 
 /*
  * entry.revise's action in the command pipeline with fakes (GUARDRAILS 9, PRD 5.4, 6.2): a revise
@@ -131,4 +141,19 @@ it('is version_conflict when another call moved the variant before the commit', 
 
     expect(reviseEntryCodes($result))->toBe(['version_conflict'])
         ->and($result->errors[0]->message)->toContain('changed after it was read: expected version 6, found version 7');
+});
+
+it('refuses to plan a revision of an entry or a shared variant read as absent, which the kernel rejects before it plans, and is exposed on the REST, Inertia, MCP and CLI surfaces', function (): void {
+    $world = new EntryActionWorld;
+    $action = new ReviseEntryAction($world->entries);
+    $command = new ReviseEntry(EntryActionWorld::entry(), new AggregateVersion(1), EntryActionWorld::fields('A note'));
+    $headless = new StoredEntry(EntryActionWorld::entry(), EntryActionWorld::type(), EntryActionWorld::home(), new AggregateVersion(1), null);
+    $surfaces = array_map(
+        static fn (ReflectionAttribute $attribute): array => $attribute->newInstance()->surfaces,
+        new ReflectionClass($action)->getAttributes(Action::class),
+    );
+
+    expect(static fn (): Plan => $action->plan($command, new ReviseEntryAggregates(EntryActionWorld::entry(), null)))->toThrow(LogicException::class, 'whose shared variant was read as absent')
+        ->and(static fn (): Plan => $action->plan($command, new ReviseEntryAggregates(EntryActionWorld::entry(), $headless)))->toThrow(LogicException::class, 'whose shared variant was read as absent')
+        ->and($surfaces)->toBe([[Surface::Rest, Surface::Inertia, Surface::Mcp, Surface::Cli]]);
 });

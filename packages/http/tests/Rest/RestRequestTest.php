@@ -7,6 +7,7 @@ namespace Cbox\Cms\Http\Tests\Rest;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\EnvelopeCodecV1;
+use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\ExposedCall;
 use Cbox\Cms\Core\Registry\Boundary\OpenApiJson;
 use Cbox\Cms\Core\Tests\Pipeline\ExposedWorld;
@@ -127,3 +128,40 @@ it('refuses a route that was not registered with the name and version of its com
     'version 0' => [[RestRequest::NAME => 'probe.rename', RestRequest::VERSION => '0']],
     'a version that is not a number' => [[RestRequest::NAME => 'probe.rename', RestRequest::VERSION => 'one']],
 ]);
+
+it('refuses a request without a route as one that was not registered', function (): void {
+    $request = Request::create('/v1/commands/probe.rename/v1', 'POST', [], [], [], [], '{"a":1}');
+    $request->headers->set(OpenApiJson::IDEMPOTENCY_KEY, 'k');
+
+    expect(static fn (): ExposedCall => restReader()->command($request))
+        ->toThrow(LogicException::class, 'The REST route has no command or query in its defaults cbox_cms_name and cbox_cms_version');
+});
+
+it('names the header and the rule it breaks in one sentence', function (string $header, string $value, ErrorCode $code): void {
+    $headers = $header === OpenApiJson::IDEMPOTENCY_KEY ? [$header => [$value]] : [OpenApiJson::IDEMPOTENCY_KEY => ['k'], $header => [$value]];
+
+    $error = restRefusal(restRequest($headers));
+
+    expect($error->code)->toBe($code)
+        ->and($error->message)->toStartWith('The header '.$header.' ')
+        ->and($error->message)->toEndWith('.')
+        ->and($error->message)->not->toEndWith('..');
+})->with([
+    'the wait level' => [OpenApiJson::WAIT_LEVEL, 'soon', ErrorCode::RequestHeaderInvalid],
+    'the correlation id' => [OpenApiJson::CORRELATION_ID, str_repeat('x', 300), ErrorCode::RequestHeaderInvalid],
+    'the idempotency key' => [OpenApiJson::IDEMPOTENCY_KEY, str_repeat('k', 300), ErrorCode::IdempotencyKeyRequired],
+]);
+
+it('keeps the decoding failure as the previous exception and no code of its own', function (): void {
+    try {
+        restReader()->command(restRequest([OpenApiJson::IDEMPOTENCY_KEY => ['k'], OpenApiJson::WAIT_LEVEL => ['soon']]));
+    } catch (RestInputRefused $refused) {
+        expect($refused->getCode())->toBe(0)
+            ->and($refused->getMessage())->toBe($refused->error->message)
+            ->and($refused->getPrevious())->toBeInstanceOf(DecodingFailed::class);
+
+        return;
+    }
+
+    Assert::fail('The request was read.');
+});

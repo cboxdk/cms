@@ -20,11 +20,26 @@ use Symfony\Component\Yaml\Tag\TaggedValue;
 const DECLARED_RUNNER = 'Declared runner: GitHub-hosted ubuntu-latest, 4 vCPU and 16 GB RAM';
 
 /**
+ * The jobs of ci.yml, by name: plan, gates, one per shard of mutation on changed files, and the
+ * verdict over them (M1-T66).
+ *
+ * @var list<string>
+ */
+const WORKFLOW_JOBS = ['plan', 'gates', 'mutation', 'verdict'];
+
+/**
+ * The jobs that run the Pest suites against Postgres and Valkey, and so have the services.
+ *
+ * @var list<string>
+ */
+const SERVICE_JOBS = ['gates', 'mutation'];
+
+/**
  * @return array<array-key, mixed>
  */
-function workflowJob(): array
+function workflowJob(string $name = 'gates'): array
 {
-    $job = CiFiles::at(CiFiles::yaml(CiFiles::WORKFLOW), 'jobs', 'pr-profile');
+    $job = CiFiles::at(CiFiles::yaml(CiFiles::WORKFLOW), 'jobs', $name);
 
     expect($job)->toBeArray();
 
@@ -34,46 +49,67 @@ function workflowJob(): array
 /**
  * @return list<array<array-key, mixed>>
  */
-function workflowSteps(): array
+function workflowSteps(string $job = 'gates'): array
 {
-    $steps = CiFiles::at(workflowJob(), 'steps');
+    $steps = CiFiles::at(workflowJob($job), 'steps');
 
     expect($steps)->toBeArray()->toBeList();
 
     return is_array($steps) ? array_values(array_filter($steps, is_array(...))) : [];
 }
 
-it('runs on the declared runner, ubuntu-latest, with PHP 8.5 of the v1 channel and the services of compose.yaml', function (): void {
+/**
+ * The environment every job shares, at the top of ci.yml.
+ *
+ * @return array<string, string>
+ */
+function workflowEnvironment(): array
+{
+    return CiFiles::strings(CiFiles::yaml(CiFiles::WORKFLOW), 'env');
+}
+
+it('runs every job on the declared runner, ubuntu-latest, with PHP 8.5 of the v1 channel, and the jobs with Pest on the services of compose.yaml', function (string $name): void {
     $compose = CiFiles::yaml(CiFiles::COMPOSE);
-    $job = workflowJob();
+    $job = workflowJob($name);
 
     expect(CiFiles::at($job, 'runs-on'))->toBe('ubuntu-latest')
         ->and(CiFiles::at($job, 'container', 'image'))->toBe('ghcr.io/cboxdk/php-baseimages/php-cli:8.5-bookworm-dev-v1')
         ->and(CiFiles::at($job, 'container', 'image'))->toBe(CiFiles::at($compose, 'services', 'php', 'image'))
-        ->and(CiFiles::at($job, 'services', 'postgres', 'image'))->toBe('ghcr.io/cboxdk/postgres:18')
-        ->and(CiFiles::at($job, 'services', 'postgres', 'image'))->toBe(CiFiles::at($compose, 'services', 'postgres', 'image'))
-        ->and(CiFiles::at($job, 'services', 'valkey', 'image'))->toBe('ghcr.io/cboxdk/valkey:8')
-        ->and(CiFiles::at($job, 'services', 'valkey', 'image'))->toBe(CiFiles::at($compose, 'services', 'valkey', 'image'))
         ->and(CiFiles::at($job, 'timeout-minutes'))->toBeInt()
         ->and(CiFiles::text(CiFiles::WORKFLOW))->toContain(DECLARED_RUNNER);
+
+    if (in_array($name, SERVICE_JOBS, true)) {
+        expect(CiFiles::at($job, 'services', 'postgres', 'image'))->toBe('ghcr.io/cboxdk/postgres:18')
+            ->and(CiFiles::at($job, 'services', 'postgres', 'image'))->toBe(CiFiles::at($compose, 'services', 'postgres', 'image'))
+            ->and(CiFiles::at($job, 'services', 'valkey', 'image'))->toBe('ghcr.io/cboxdk/valkey:8')
+            ->and(CiFiles::at($job, 'services', 'valkey', 'image'))->toBe(CiFiles::at($compose, 'services', 'valkey', 'image'));
+    } else {
+        expect(array_keys($job))->not->toContain('services');
+    }
+})->with(WORKFLOW_JOBS);
+
+it('has exactly the jobs plan, gates, mutation and verdict', function (): void {
+    $jobs = CiFiles::at(CiFiles::yaml(CiFiles::WORKFLOW), 'jobs');
+
+    expect(is_array($jobs) ? array_keys($jobs) : null)->toBe(WORKFLOW_JOBS);
 });
 
-it('checks the health of the services as compose.yaml does, with the readiness file of cbox-init, and mounts nothing into them', function (string $name): void {
+it('checks the health of the services as compose.yaml does, with the readiness file of cbox-init, and mounts nothing into them', function (string $job, string $name): void {
     $test = CiFiles::at(CiFiles::yaml(CiFiles::COMPOSE), 'services', $name, 'healthcheck', 'test');
-    $service = CiFiles::at(workflowJob(), 'services', $name);
+    $service = CiFiles::at(workflowJob($job), 'services', $name);
 
     expect($test)->toBe(['CMD', 'test', '-f', '/tmp/cbox-ready'])
         ->and(CiFiles::at(is_array($service) ? $service : [], 'options'))->toBeString()
         ->toContain('--health-cmd "test -f /tmp/cbox-ready"')
         ->and(is_array($service) ? array_keys($service) : null)->not->toContain('volumes');
-})->with(['postgres', 'valkey']);
+})->with(SERVICE_JOBS)->with(['postgres', 'valkey']);
 
-it('runs every pull request and has only setup steps besides bin/ci', function (): void {
+it('runs every pull request, push to main and run started by hand, and each job has only setup steps besides bin/ci', function (string $name, array $actions): void {
     $workflow = CiFiles::yaml(CiFiles::WORKFLOW);
     $runs = [];
     $uses = [];
 
-    foreach (workflowSteps() as $step) {
+    foreach (workflowSteps($name) as $step) {
         $run = CiFiles::at($step, 'run');
         $action = CiFiles::at($step, 'uses');
 
@@ -89,10 +125,57 @@ it('runs every pull request and has only setup steps besides bin/ci', function (
     }
 
     // YAML 1.1 reads the key `on` as true.
-    expect(CiFiles::at($workflow, 'on') ?? CiFiles::at($workflow, '1'))->toBeArray()->toHaveKey('pull_request')
+    expect(CiFiles::at($workflow, 'on') ?? CiFiles::at($workflow, '1'))->toBeArray()->toHaveKey('pull_request')->toHaveKey('push')->toHaveKey('workflow_dispatch')
         ->and($runs)->toBe(['docker/ci-setup.sh', 'bin/ci'])
-        ->and($uses)->toBe(['actions/checkout', 'actions/upload-artifact'])
+        ->and($uses)->toBe($actions)
         ->and(CiFiles::at($workflow, 'permissions'))->toBe(['contents' => 'read']);
+})->with([
+    'plan' => ['plan', ['actions/checkout', 'actions/upload-artifact']],
+    'gates' => ['gates', ['actions/checkout', 'actions/upload-artifact']],
+    'mutation' => ['mutation', ['actions/checkout', 'actions/upload-artifact']],
+    'verdict' => ['verdict', ['actions/checkout', 'actions/download-artifact']],
+]);
+
+it('names each job\'s part of bin/ci in CMS_CI_PART, a shard of the plan\'s matrix for the mutation job', function (): void {
+    expect(CiFiles::strings(workflowJob('plan'), 'env'))->toBe(['CMS_CI_PART' => 'plan'])
+        ->and(CiFiles::strings(workflowJob('gates'), 'env'))->toBe(['CMS_CI_PART' => 'gates'])
+        ->and(CiFiles::strings(workflowJob('mutation'), 'env'))->toBe(['CMS_CI_PART' => 'shard:${{ matrix.shard }}/${{ needs.plan.outputs.count }}'])
+        ->and(CiFiles::strings(workflowJob('verdict'), 'env'))->toBe([
+            'CMS_CI_PART' => 'verdict',
+            'CMS_CI_ARTIFACTS' => 'build/ci/artifacts',
+            'CMS_CI_GATES_RESULT' => '${{ needs.gates.result }}',
+            'CMS_CI_SHARDS_RESULT' => '${{ needs.plan.result == \'success\' && needs.mutation.result || \'failure\' }}',
+        ]);
+});
+
+it('runs a mutation job per shard of the plan, each to its end, and the verdict after every job, whatever they did', function (): void {
+    $bin = CiFiles::stepWith(workflowSteps('plan'), 'run', 'bin/ci');
+    $download = CiFiles::stepWith(workflowSteps('verdict'), 'uses', 'actions/download-artifact');
+
+    expect(CiFiles::at(workflowJob('plan'), 'outputs'))->toBe(['count' => '${{ steps.ci.outputs.count }}', 'shards' => '${{ steps.ci.outputs.shards }}'])
+        ->and(CiFiles::at($bin, 'id'))->toBe('ci')
+        ->and(CiFiles::at(workflowJob('mutation'), 'needs'))->toBe('plan')
+        ->and(CiFiles::at(workflowJob('mutation'), 'strategy'))->toBe(['fail-fast' => false, 'matrix' => ['shard' => '${{ fromJSON(needs.plan.outputs.shards) }}']])
+        ->and(array_keys(workflowJob('gates')))->not->toContain('needs')
+        ->and(CiFiles::at(workflowJob('verdict'), 'needs'))->toBe(['plan', 'gates', 'mutation'])
+        ->and(CiFiles::at(workflowJob('verdict'), 'if'))->toBe('always()')
+        ->and(CiFiles::at($download, 'with'))->toBe(['pattern' => 'mutation-*', 'path' => 'build/ci/artifacts']);
+});
+
+it('keeps the plan and each shard\'s report as artifacts the verdict fetches, named after the files the verdict reads', function (): void {
+    $plan = CiFiles::stepWith(workflowSteps('plan'), 'uses', 'actions/upload-artifact');
+    $shard = CiFiles::stepWith(workflowSteps('mutation'), 'uses', 'actions/upload-artifact');
+    $gates = CiFiles::stepWith(workflowSteps('gates'), 'uses', 'actions/upload-artifact');
+
+    expect(CiFiles::at($plan, 'with'))->toBe(['name' => 'mutation-plan', 'path' => 'build/ci/', 'if-no-files-found' => 'error'])
+        ->and(CiFiles::at($shard, 'with'))->toBe(['name' => 'mutation-shard-${{ matrix.shard }}', 'path' => 'build/ci/', 'if-no-files-found' => 'warn'])
+        ->and(CiFiles::at($shard, 'if'))->toBe('always()')
+        ->and(CiFiles::at($gates, 'with', 'name'))->toBe('gate-report')
+        ->and(CiFiles::codeLines(CiFiles::ENTRY))->toContain(
+            'composer mutation:plan -- --output="$1/mutation-plan.json" --github-output="$outputs"',
+            'check "$3/check.json" --shard="$1/$2" --mutation-report="$3/mutation-shard.json"',
+            'composer mutation:verdict -- --plan="$1/mutation-plan/mutation-plan.json" --reports="$1" --gates="$2" --shards="$3" 2>&1 | tee "$1/verdict.log"',
+        );
 });
 
 it('names the scripts of the local profile in both bin/ci and ci.yml, and bin/ci runs them only through composer check', function (): void {
@@ -103,7 +186,7 @@ it('names the scripts of the local profile in both bin/ci and ci.yml, and bin/ci
         ->and(CiFiles::text(CiFiles::ENTRY))->toContain(...$scripts)
         ->and(CiFiles::text(CiFiles::WORKFLOW))->toContain(...$scripts)
         ->and(array_values(array_filter($code, static fn (string $line): bool => str_contains($line, 'composer check'))))
-        ->toBe(['composer check -- --pr --report="$report" 2>&1 | tee "$log"']);
+        ->toBe(['composer check -- --pr --report="$file" "$@" 2>&1 | tee "$(dirname "$file")/check.log"']);
 
     foreach ($code as $line) {
         expect($line)->not->toContain('vendor/bin/')
@@ -112,14 +195,15 @@ it('names the scripts of the local profile in both bin/ci and ci.yml, and bin/ci
     }
 });
 
-it('gives the job and the ci service the same environment, and the roles of compose.yaml', function (): void {
-    $job = CiFiles::strings(workflowJob(), 'env');
+it('gives every job and the ci service the same environment, and the roles of compose.yaml', function (): void {
+    $job = workflowEnvironment();
     $service = CiFiles::strings(CiFiles::yaml(CiFiles::COMPOSE_CI), 'services', 'ci', 'environment');
     $postgres = CiFiles::strings(CiFiles::yaml(CiFiles::COMPOSE), 'services', 'postgres', 'environment');
     $roles = array_filter($postgres, static fn (string $key): bool => str_starts_with($key, 'CMS_'), ARRAY_FILTER_USE_KEY);
 
-    // The runner and the base of the change differ by design; the next test pins the base.
-    unset($job['CMS_CI_RUNNER'], $service['CMS_CI_RUNNER'], $service['CI'], $job['CMS_CI_BASE_REF'], $service['CMS_CI_BASE_REF']);
+    // The runner and the base of the change differ by design; the next test pins the base. The
+    // part is each job's own, and the host's in compose.ci.yaml.
+    unset($job['CMS_CI_RUNNER'], $service['CMS_CI_RUNNER'], $service['CI'], $job['CMS_CI_BASE_REF'], $service['CMS_CI_BASE_REF'], $service['CMS_CI_PART']);
     ksort($job);
     ksort($service);
     ksort($roles);
@@ -130,13 +214,14 @@ it('gives the job and the ci service the same environment, and the roles of comp
         ->and($job['CMS_CI_POSTGRES_SUPERUSER'] ?? null)->toBe($postgres['POSTGRES_USER'] ?? null)
         ->and($job['CMS_CI_POSTGRES_PASSWORD'] ?? null)->toBe($postgres['POSTGRES_PASSWORD'] ?? null)
         ->and($job['CMS_CI_PROVISION_POSTGRES'] ?? null)->toBe('1')
-        ->and($job['XDEBUG_MODE'] ?? null)->toBe('off');
+        ->and($job['XDEBUG_MODE'] ?? null)->toBe('off')
+        ->and(CiFiles::strings(CiFiles::yaml(CiFiles::COMPOSE_CI), 'services', 'ci', 'environment')['CMS_CI_PART'] ?? null)->toBe('${CMS_CI_PART:-}');
 });
 
-it('gives mutation on changed files its base: the pull request\'s base commit in ci.yml with the whole history, the host\'s CMS_CI_BASE_REF in compose.ci.yaml', function (): void {
-    $checkout = array_values(array_filter(workflowSteps(), static fn (array $step): bool => is_string(CiFiles::at($step, 'uses')) && str_starts_with(CiFiles::at($step, 'uses'), 'actions/checkout@')));
+it('gives mutation on changed files its base: the pull request\'s base commit in ci.yml with the whole history in every job, the host\'s CMS_CI_BASE_REF in compose.ci.yaml', function (string $name): void {
+    $checkout = array_values(array_filter(workflowSteps($name), static fn (array $step): bool => is_string(CiFiles::at($step, 'uses')) && str_starts_with(CiFiles::at($step, 'uses'), 'actions/checkout@')));
 
-    expect(CiFiles::strings(workflowJob(), 'env')['CMS_CI_BASE_REF'] ?? null)->toBe('${{ github.event.pull_request.base.sha || github.event.before }}')
+    expect(workflowEnvironment()['CMS_CI_BASE_REF'] ?? null)->toBe('${{ inputs.base_ref || github.event.pull_request.base.sha || github.event.before }}')
         ->and(CiFiles::strings(CiFiles::yaml(CiFiles::COMPOSE_CI), 'services', 'ci', 'environment')['CMS_CI_BASE_REF'] ?? null)->toBe('${CMS_CI_BASE_REF:-}')
         ->and($checkout)->toHaveCount(1)
         ->and(CiFiles::at($checkout[0] ?? [], 'with', 'fetch-depth'))->toBe(0);
@@ -144,20 +229,37 @@ it('gives mutation on changed files its base: the pull request\'s base commit in
     foreach ([CiFiles::ENTRY, CiFiles::WORKFLOW, CiFiles::COMPOSE_CI, 'docker/ci-entry.sh', 'CLAUDE.md', 'AGENTS.md'] as $file) {
         expect(CiFiles::text($file))->toContain('CMS_CI_BASE_REF');
     }
+})->with(WORKFLOW_JOBS);
+
+it('takes the base of a run started by hand from its required input base_ref, in a concurrency group of its own', function (): void {
+    $workflow = CiFiles::yaml(CiFiles::WORKFLOW);
+    $on = CiFiles::at($workflow, 'on') ?? CiFiles::at($workflow, '1');
+    $inputs = is_array($on) ? CiFiles::at($on, 'workflow_dispatch', 'inputs') : null;
+
+    expect(is_array($inputs) ? array_keys($inputs) : null)->toBe(['base_ref'])
+        ->and(is_array($on) ? CiFiles::strings($on, 'workflow_dispatch', 'inputs', 'base_ref') : [])->toBe([
+            'description' => 'The base of the change that mutation on changed files mutates: a commit, or a ref of the checkout such as origin/main',
+            'required' => 'true',
+            'type' => 'string',
+        ])
+        ->and(workflowEnvironment()['CMS_CI_BASE_REF'] ?? '')->toStartWith('${{ inputs.base_ref || ')
+        ->and(CiFiles::at($workflow, 'concurrency', 'group'))->toBe('ci-${{ github.event_name }}-${{ github.ref }}')
+        ->and(preg_match('/run:.*inputs\\./', CiFiles::text(CiFiles::WORKFLOW)))->toBe(0);
 });
 
 it('names mutation on changed files as a step CI runs in gate 5, with a minimum score of 80, and never as not run', function (): void {
     expect(CiFiles::text(CiFiles::ENTRY))->toContain('vendor/bin/pest --mutate --everything --path=<files>, minimum score 80', 'gate 5  vendor/bin/pest --testsuite=Mutation')
-        ->and(CiFiles::text(CiFiles::WORKFLOW))->toContain('mutation on changed files: Pest\'s --mutate with PCOV and a minimum score of 80')
+        ->and(CiFiles::text(CiFiles::WORKFLOW))->toContain('mutation on changed files: Pest\'s --mutate with PCOV and a minimum score of 80 for each class')
         ->and(CiFiles::text(CiFiles::ENTRY))->not->toContain('and mutation on changed')
         ->and(CiFiles::text(CiFiles::WORKFLOW))->not->toContain('11 and mutation');
 });
 
 it('keeps POSTGRES_* out of the environment bin/ci runs in, because Testbench copies them into the pgsql connection', function (): void {
-    $job = CiFiles::strings(workflowJob(), 'env');
+    $job = workflowEnvironment();
     $service = CiFiles::strings(CiFiles::yaml(CiFiles::COMPOSE_CI), 'services', 'ci', 'environment');
+    $jobs = array_merge(...array_map(static fn (string $name): array => array_keys(CiFiles::strings(workflowJob($name), 'env')), WORKFLOW_JOBS));
 
-    foreach ([...array_keys($job), ...array_keys($service)] as $key) {
+    foreach ([...array_keys($job), ...array_keys($service), ...$jobs] as $key) {
         expect($key)->not->toStartWith('POSTGRES_');
     }
 });
@@ -174,8 +276,8 @@ it('builds the ci service from docker/ci.Dockerfile on the v1 PHP image, adding 
         ->and(CiFiles::text('docker/ci-setup.sh'))->toContain('required_node_major=22');
 });
 
-it('runs the same setup script in ci.yml and compose.ci.yaml: HEAD\'s docker/ci-setup.sh in the checkout, then bin/ci', function (): void {
-    $runs = array_values(array_filter(array_map(static fn (array $step): mixed => CiFiles::at($step, 'run'), workflowSteps()), is_string(...)));
+it('runs the same setup script in ci.yml and compose.ci.yaml: HEAD\'s docker/ci-setup.sh in the checkout, then bin/ci', function (string $name): void {
+    $runs = array_values(array_filter(array_map(static fn (array $step): mixed => CiFiles::at($step, 'run'), workflowSteps($name)), is_string(...)));
     $service = CiFiles::at(CiFiles::yaml(CiFiles::COMPOSE_CI), 'services', 'ci');
     $entry = CiFiles::codeLines('docker/ci-entry.sh');
     $default = array_search('if [[ $# -eq 0 ]]; then', $entry, true);
@@ -190,20 +292,23 @@ it('runs the same setup script in ci.yml and compose.ci.yaml: HEAD\'s docker/ci-
         ->and(array_slice($entry, is_int($default) ? $default : 0, 4))->toBe(['if [[ $# -eq 0 ]]; then', 'docker/ci-setup.sh', 'set -- bin/ci', 'fi'])
         ->and(array_search('cd "$work"', $entry, true))->toBeLessThan(is_int($default) ? $default : 0)
         ->and(array_slice($entry, -1))->toBe(['exec "$@"']);
-});
+})->with(WORKFLOW_JOBS);
 
 it('pins every action to the commit of a release tag, named in a comment', function (): void {
     $lines = array_values(array_filter(explode("\n", CiFiles::text(CiFiles::WORKFLOW)), static fn (string $line): bool => str_contains($line, 'uses:')));
 
-    expect($lines)->toHaveCount(2);
+    expect($lines)->toHaveCount(8);
 
     foreach ($lines as $line) {
         expect($line)->toMatch('/^\s+(- )?uses: [A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$/');
     }
 });
 
-it('stops the job after 20 minutes, above the PR profile\'s budget of 15', function (): void {
-    expect(CiFiles::at(workflowJob(), 'timeout-minutes'))->toBe(20);
+it('stops the jobs that run Pest after 20 minutes, above their budget of 15, and the plan and the verdict after 10', function (): void {
+    expect(CiFiles::at(workflowJob('gates'), 'timeout-minutes'))->toBe(20)
+        ->and(CiFiles::at(workflowJob('mutation'), 'timeout-minutes'))->toBe(20)
+        ->and(CiFiles::at(workflowJob('plan'), 'timeout-minutes'))->toBe(10)
+        ->and(CiFiles::at(workflowJob('verdict'), 'timeout-minutes'))->toBe(10);
 });
 
 it('names the gates CI runs outside the local profile in bin/ci and ci.yml', function (): void {
@@ -219,7 +324,7 @@ it('runs the gates as the user ci that the setup creates, never as root, whose t
     $setup = CiFiles::codeLines('docker/ci-setup.sh');
     $entry = CiFiles::codeLines(CiFiles::ENTRY);
 
-    expect(CiFiles::strings(workflowJob(), 'env')['CMS_CI_USER'] ?? null)->toBe('ci')
+    expect(workflowEnvironment()['CMS_CI_USER'] ?? null)->toBe('ci')
         ->and(CiFiles::strings(CiFiles::yaml(CiFiles::COMPOSE_CI), 'services', 'ci', 'environment')['CMS_CI_USER'] ?? null)->toBe('ci')
         ->and($setup)->toContain('useradd --uid 1001 --user-group --create-home --shell /bin/bash ci')
         ->and($entry)->toContain('if [[ $EUID -eq 0 ]]; then')

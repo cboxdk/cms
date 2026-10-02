@@ -303,3 +303,39 @@ it('refuses the explanation to the anonymous principal and to an actor whose acc
     'a member' => ['member', HttpStatus::Forbidden],
     'a malformed credential' => ['malformed', HttpStatus::Unauthorized],
 ]);
+
+it('keys the fragment of a resolution by a hash of its host, locale and path, the same in every release of this version of the key', function (): void {
+    $key = static fn (string $host, string $locale, string $path): string => DeliverPath::fragmentKey(new ResolvePath(new Host($host), new Locale($locale), new RequestPath($path)))->value;
+
+    // The key lives in the fragment store across deploys, so its form changes only with the
+    // version in its prefix.
+    expect($key('north.example', 'da', '/nyheder/harbour'))->toBe('delivery:resolve:v1:8ace99234260488206cfc3bf6f0017cb5b7d9bf0cd82e08a5e2c0668b992a2a5')
+        ->and($key('north.example', 'en', '/nyheder/harbour'))->not->toBe($key('north.example', 'da', '/nyheder/harbour'))
+        ->and($key('south.example', 'da', '/nyheder/harbour'))->not->toBe($key('north.example', 'da', '/nyheder/harbour'));
+});
+
+it('serves a fragment with exactly one second left for that second, and one with less than a second with no-store', function (string $at, bool $shared): void {
+    $world = new DeliveryWorld;
+    $world->resolve->place(ResolveWorld::PLACEMENT, ResolveWorld::SECTION, 'harbour');
+
+    $world->deliver('north.example', 'da', '/nyheder/harbour');
+    $world->resolve->clock->set(new DateTimeImmutable($at));
+    $delivery = $world->deliver('north.example', 'da', '/nyheder/harbour');
+
+    expect([$delivery->source, $delivery->cache->shared, $delivery->cache->maxAge])->toBe([DeliverySource::Fragment, $shared, $shared ? 1 : 0])
+        ->and($world->resolutions())->toBe(1);
+})->with([
+    'one second left' => ['2026-03-10T12:09:59.000000Z', true],
+    'a microsecond short of one second' => ['2026-03-10T12:09:59.000001Z', false],
+]);
+
+it('stores an answer that holds for exactly one second, for that second', function (): void {
+    $world = new DeliveryWorld;
+    $now = new DateTimeImmutable(ResolveWorld::NOW);
+    $world->resolve->place(ResolveWorld::PLACEMENT, ResolveWorld::SECTION, 'harbour', window: new TimeWindow($now->modify('-1 hour'), $now->modify('+1 second')));
+
+    $delivery = $world->deliver('north.example', 'da', '/nyheder/harbour');
+
+    expect([$delivery->status, $delivery->cache->shared, $delivery->cache->maxAge])->toBe([HttpStatus::Ok, true, 1])
+        ->and(deliveredFragment($world, 'north.example', '/nyheder/harbour'))->not->toBeNull();
+});

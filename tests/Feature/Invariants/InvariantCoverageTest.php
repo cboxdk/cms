@@ -16,7 +16,6 @@ use Cbox\Cms\Tooling\Docs\Boundary\PhpunitGateSuites;
 use Cbox\Cms\Tooling\Docs\Domain\GateSuites;
 use Cbox\Cms\Tooling\Docs\Domain\SuiteDirectory;
 use Cbox\Cms\Tooling\Docs\Domain\SuiteSelection;
-use InvalidArgumentException;
 
 /*
  * PRD 6.5's invariants have tests that try to break them through every issuer (GUARDRAILS 9 and

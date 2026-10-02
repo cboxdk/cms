@@ -42,3 +42,12 @@ it('says why the CDN did not take a purge and keeps the cause', function (): voi
     expect($unavailable->getMessage())->toBe('The CDN did not take the purge: the purge API answered 503.')
         ->and($unavailable->getPrevious())->toBe($cause);
 });
+
+it('says why the CDN did not take a purge, keeps the cause and has the exception code 0', function (): void {
+    $cause = new RuntimeException('503');
+    $unavailable = CdnUnavailable::because('the purge API answered 503', $cause);
+
+    expect($unavailable->getMessage())->toBe('The CDN did not take the purge: the purge API answered 503')
+        ->and($unavailable->getCode())->toBe(0)
+        ->and($unavailable->getPrevious())->toBe($cause);
+});

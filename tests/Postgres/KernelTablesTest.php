@@ -49,7 +49,10 @@ it('lists every table and LIST partition the migrations built, and nothing else'
     $typeTables = array_map(static fn (TypeDefinition $type): string => $type->name->table(), app(TypeCatalog::class)->all());
     sort($typeTables);
 
-    expect(array_values(array_diff($tables, NOT_KERNEL_TABLES, $typeTables)))->toBe(KernelTables::NAMES)
+    $kernelTables = array_values(array_diff($tables, NOT_KERNEL_TABLES, $typeTables));
+
+    expect($kernelTables)->toBe(KernelTables::NAMES)
+        ->and(array_map(static fn (string $table): ?string => KernelTables::of(sprintf(' public."%s" ', strtoupper($table))), $kernelTables))->toBe($kernelTables)
         ->and(array_values(array_intersect(NOT_KERNEL_TABLES, $tables)))->toBe(NOT_KERNEL_TABLES)
         ->and(array_values(array_intersect($tables, $typeTables)))->toBe($typeTables)
         ->and($typeTables)->not->toBe([])

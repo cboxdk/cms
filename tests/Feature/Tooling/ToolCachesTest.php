@@ -286,7 +286,7 @@ it('runs Pint through tools/bin/pint.php in the lint scripts', function (): void
     $scripts = is_array($composer) && is_array($composer['scripts'] ?? null) ? $composer['scripts'] : [];
 
     expect($scripts['lint'] ?? null)->toBe('@php tools/bin/pint.php')
-        ->and($scripts['lint:check'] ?? null)->toBe('@php tools/bin/pint.php --test')
+        ->and($scripts['lint:check'] ?? null)->toBe('@php tools/bin/pint.php --test --parallel')
         ->and(dirname(toolCacheRoot().'/'.PINT_TEMP))->toBe(dirname(pintCacheFile()));
 });
 

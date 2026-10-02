@@ -14,6 +14,7 @@ use Cbox\Cms\Testkit\Postgres\Infrastructure\PostgresTestDatabases;
 use Cbox\Cms\Testkit\Postgres\Infrastructure\SetupStatement;
 use Cbox\Cms\Testkit\Postgres\Infrastructure\TestDatabaseSetup;
 use Cbox\Cms\Testkit\Postgres\TestDatabase;
+use Cbox\Cms\Testkit\Postgres\TestDatabaseMain;
 use Cbox\Cms\Testkit\Postgres\TestDatabaseName;
 use Cbox\Cms\Testkit\Postgres\TestDatabaseUnavailable;
 use Cbox\Cms\Tests\Support\Tooling\ScratchDirectory;
@@ -350,4 +351,44 @@ it('leaves this checkout\'s database to the harness, which provisioned it with t
 
     expect(checkoutDatabase()['datname'] ?? null)->toBe(TestDatabaseName::for('cms_test', CheckoutRoot::current(), TestWorker::current()))
         ->and(TestDatabaseComment::decode(is_string($comment) ? $comment : ''))->toEqual(new TestDatabaseComment(CheckoutRoot::current(), (string) gethostname()));
+});
+
+/**
+ * Runs the child's body in this process, as bin/test-database.php runs it, and gives its exit code,
+ * standard output and standard error.
+ *
+ * @return array{int, string, string}
+ */
+function testDatabaseMain(string $input): array
+{
+    $out = '';
+    $err = '';
+    $code = TestDatabaseMain::run($input, static function (string $text) use (&$out): void {
+        $out .= $text;
+    }, static function (string $text) use (&$err): void {
+        $err .= $text;
+    });
+
+    return [$code, $out, $err];
+}
+
+it('exits 0 with the database\'s name, 1 with the failure and 2 for a payload it cannot read, as bin/test-database.php does', function (): void {
+    $root = ScratchCheckouts::make();
+    $name = TestDatabaseName::for(baseDatabase(), $root);
+    $unreachable = ConnectionSettings::fromPayload([...baseOwner()->toPayload(), 'port' => 1]);
+
+    [$okCode, $okOut, $okErr] = testDatabaseMain(new TestDatabasePayload(baseOwner(), baseApp(), $root)->encode());
+    [$failedCode, $failedOut, $failedErr] = testDatabaseMain(new TestDatabasePayload($unreachable, baseApp(), $root)->encode());
+    [$invalidCode, $invalidOut, $invalidErr] = testDatabaseMain('{');
+
+    expect([$okCode, $okOut, $okErr])->toBe([0, $name."\n", ''])
+        ->and([$okCode, $failedCode, $invalidCode])->toBe([TestDatabaseMain::OK, TestDatabaseMain::FAILED, TestDatabaseMain::INVALID])
+        ->and($failedCode)->toBe(1)
+        ->and($failedOut)->toBe('')
+        ->and($failedErr)->toStartWith(TestDatabaseUnavailable::class.': ')
+        ->and($failedErr)->toEndWith("\n")
+        ->and($invalidCode)->toBe(2)
+        ->and($invalidOut)->toBe('')
+        ->and($invalidErr)->toStartWith('The test database payload is not valid JSON: ')
+        ->and(TestDatabase::drop(baseOwner(), $root))->toBeTrue();
 });

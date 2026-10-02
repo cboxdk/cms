@@ -124,6 +124,20 @@ final readonly class CiFiles
     }
 
     /**
+     * The one step of a job whose key ($key, run or uses) starts with $prefix; an empty array
+     * when there is none.
+     *
+     * @param  list<array<array-key, mixed>>  $steps
+     * @return array<array-key, mixed>
+     */
+    public static function stepWith(array $steps, string $key, string $prefix): array
+    {
+        $found = array_values(array_filter($steps, static fn (array $step): bool => is_string($step[$key] ?? null) && str_starts_with($step[$key], $prefix)));
+
+        return count($found) === 1 ? $found[0] : [];
+    }
+
+    /**
      * The lines of a shell script without comments and blank lines.
      *
      * @return list<string>

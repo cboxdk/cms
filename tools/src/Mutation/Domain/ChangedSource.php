@@ -10,7 +10,8 @@ use InvalidArgumentException;
  * A PHP file below packages/<package>/src that changed since the base of the change, and the
  * class, enum, interface or trait it declares. Its layer, the innermost layer segment of the
  * namespace as in "Hvor ting bor", decides which tests can kill its mutations: a class in Adapter
- * or Infrastructure talks to Postgres, so the Postgres suite runs for it too.
+ * or Infrastructure talks to Postgres, so the Postgres suite runs for it too. Its size in bytes is
+ * the weight MutationShards balances the shards by: a longer file has more to mutate.
  */
 final readonly class ChangedSource
 {
@@ -32,10 +33,12 @@ final readonly class ChangedSource
      * @param  string  $path  the file, relative to the root of the checkout
      * @param  string  $name  the fully qualified name of what the file declares, or the path when
      *                        it declares no class, enum, interface or trait
+     * @param  int  $size  the file's size in bytes
      */
     public function __construct(
         public string $path,
         public string $name,
+        public int $size = 0,
     ) {
         if (preg_match('#^packages/[^/,]+/src/[^,]+\.php$#', $path) !== 1 || str_contains($path, '/../') || str_contains($path, '/./')) {
             throw new InvalidArgumentException("[{$path}] is not a PHP file below packages/<package>/src without a comma.");
@@ -43,6 +46,10 @@ final readonly class ChangedSource
 
         if ($name === '' || str_contains($name, "\n")) {
             throw new InvalidArgumentException("The source [{$path}] needs a one-line name.");
+        }
+
+        if ($size < 0) {
+            throw new InvalidArgumentException("The source [{$path}] cannot have {$size} bytes.");
         }
     }
 

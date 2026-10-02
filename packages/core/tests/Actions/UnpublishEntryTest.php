@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Actions;
 
+use Cbox\Cms\Contracts\Attributes\Action;
+use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Consistency\Outcome;
 use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\RevisionNumber;
@@ -22,7 +24,11 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\StaleRead;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\VersionConflict;
 use Cbox\Cms\Core\Placements\Domain\CanonicalPlacementRef;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
+use Cbox\Cms\Core\Publishing\Actions\PublishEntryAction;
+use Cbox\Cms\Core\Publishing\Actions\UnpublishEntryAction;
 use Cbox\Cms\Core\Tests\Publishing\PublishingActionWorld as World;
+use ReflectionAttribute;
+use ReflectionClass;
 
 /*
  * entry.unpublish's action in the command pipeline with fakes (GUARDRAILS 9, PRD 6.2, 6.4): it is
@@ -160,4 +166,17 @@ it('is version_conflict when a placement of the entry changed before the commit'
     expect($result->outcome())->toBe(Outcome::Rejected)
         ->and(unpublishErrors($result))->toBe(['version_conflict -'])
         ->and($result->errors[0]->message)->toContain('placement:'.World::FAR_PLACEMENT);
+});
+
+it('is exposed on the REST, Inertia, MCP and CLI surfaces, the surfaces entry.publish is on', function (): void {
+    $world = unpublishedWorld()->place(World::HOME_PLACEMENT, World::HOME, ['da' => [Visibility::Live, World::window(-2), true]]);
+    $world->unpublish();
+    $surfaces = static fn (object $action): array => array_map(
+        static fn (ReflectionAttribute $attribute): array => $attribute->newInstance()->surfaces,
+        new ReflectionClass($action)->getAttributes(Action::class),
+    );
+
+    expect($world->committed()->command->value)->toBe('entry.unpublish')
+        ->and($surfaces(new ReflectionClass(UnpublishEntryAction::class)->newInstanceWithoutConstructor()))->toBe([[Surface::Rest, Surface::Inertia, Surface::Mcp, Surface::Cli]])
+        ->and($surfaces(new ReflectionClass(UnpublishEntryAction::class)->newInstanceWithoutConstructor()))->toBe($surfaces(new ReflectionClass(PublishEntryAction::class)->newInstanceWithoutConstructor()));
 });

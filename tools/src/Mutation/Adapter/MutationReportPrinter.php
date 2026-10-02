@@ -15,7 +15,9 @@ use RuntimeException;
 /**
  * Prints the mutation report that MutationReportReader reads, when Pest's mutations are done: one
  * line, the marker and a JSON object with, for each file that has mutations, its path relative
- * to the directory Pest runs in and each mutation's id and whether a test caught it. Caught
+ * to the directory Pest runs in and each mutation's id, whether a test caught it, the line the
+ * mutated code starts on and the mutator's class, which name a mutation the same way in every
+ * checkout, as the list of equivalent mutations does (EquivalentMutations). Caught
  * counts as Pest's score does: the mutations that failed a test or timed out. The ids let the
  * step with Postgres count what the fast suites' run caught (MutationLedger). The line starts on
  * a line of its own, after the dots of a parallel run.
@@ -49,7 +51,7 @@ final readonly class MutationReportPrinter implements FinishMutationSuiteSubscri
     }
 
     /**
-     * @return array{mutations: list<array{caught: bool, id: string}>, path: string}
+     * @return array{mutations: list<array{caught: bool, id: string, line: int, mutator: string}>, path: string}
      */
     private function file(MutationTestCollection $collection, string $prefix): array
     {
@@ -57,6 +59,8 @@ final readonly class MutationReportPrinter implements FinishMutationSuiteSubscri
         $mutations = array_map(static fn (MutationTest $test): array => [
             'caught' => in_array($test->result(), [MutationTestResult::Tested, MutationTestResult::Timeout], true),
             'id' => $test->getId(),
+            'line' => $test->mutation->startLine,
+            'mutator' => $test->mutation->mutator,
         ], array_values($collection->tests()));
 
         usort($mutations, static fn (array $a, array $b): int => $a['id'] <=> $b['id']);

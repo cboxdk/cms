@@ -7,6 +7,7 @@ namespace Cbox\Cms\Core\Tests\Pipeline;
 use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Core\Pipeline\Domain\AffectedProjections;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeAffectedProjections;
+use Cbox\Cms\Core\Tests\Pipeline\Probe\ProbeArchived;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\ProbeNoted;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\ProbePublished;
 use Override;
@@ -24,6 +25,7 @@ final class FakeAffectedProjectionsBehaviourTest extends TestCase
     {
         return new FakeAffectedProjections([
             ProbePublished::class => [new ProjectionName('search'), new ProjectionName('origin'), new ProjectionName('origin')],
+            ProbeArchived::class => [new ProjectionName('origin')],
             ProbeNoted::class => [],
         ]);
     }

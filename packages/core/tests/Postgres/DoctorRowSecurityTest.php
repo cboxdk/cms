@@ -115,3 +115,25 @@ it('names an unforced partitioned table before its unforced partitions, and a pa
         ->and($result->cause)->toContain('such as '.rowSecurityName($partition).'.')
         ->and($result->cause)->not->toContain(rowSecurityName(ROW_SECURITY_SCRATCH).',');
 });
+
+it('names the first five unforced tables and counts all of them', function (): void {
+    rowSecurityOwner()->statement(sprintf('create table %s (at timestamptz not null) partition by range (at)', ROW_SECURITY_SCRATCH));
+    rowSecurityOwner()->statement(sprintf('alter table %s enable row level security', ROW_SECURITY_SCRATCH));
+
+    foreach (range(10, 15) as $day) {
+        $partition = sprintf('%s_p202603%d', ROW_SECURITY_SCRATCH, $day);
+        rowSecurityOwner()->statement(sprintf("create table %s partition of %s for values from ('2026-03-%d') to ('2026-03-%d')", $partition, ROW_SECURITY_SCRATCH, $day, $day + 1));
+        rowSecurityOwner()->statement(sprintf('alter table %s enable row level security', $partition));
+    }
+
+    $security = app(PostgresProbe::class)->rowSecurity();
+
+    expect($security->unforcedCount)->toBe(7)
+        ->and($security->unforcedTables)->toBe([
+            rowSecurityName(ROW_SECURITY_SCRATCH),
+            rowSecurityName(ROW_SECURITY_SCRATCH.'_p20260310'),
+            rowSecurityName(ROW_SECURITY_SCRATCH.'_p20260311'),
+            rowSecurityName(ROW_SECURITY_SCRATCH.'_p20260312'),
+            rowSecurityName(ROW_SECURITY_SCRATCH.'_p20260313'),
+        ]);
+});

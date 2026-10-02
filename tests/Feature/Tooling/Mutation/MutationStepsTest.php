@@ -8,6 +8,7 @@ use Cbox\Cms\Contracts\Ids\PrincipalId;
 use Cbox\Cms\Core\Doctor\Adapter\DoctorConnection;
 use Cbox\Cms\Core\Partitions\Infrastructure\PartitionCatalog;
 use Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore;
+use Cbox\Cms\Tests\Support\Tooling\ScratchDirectory;
 use Cbox\Cms\Tests\Support\Tooling\ScriptedProcessRunner;
 use Cbox\Cms\Tooling\Check\Domain\CheckRunner;
 use Cbox\Cms\Tooling\Check\Domain\Gate;
@@ -17,11 +18,15 @@ use Cbox\Cms\Tooling\Check\Domain\Step;
 use Cbox\Cms\Tooling\Check\Domain\StepStatus;
 use Cbox\Cms\Tooling\Mutation\Domain\CaughtByFastSuites;
 use Cbox\Cms\Tooling\Mutation\Domain\ChangedSource;
+use Cbox\Cms\Tooling\Mutation\Domain\ClassTally;
+use Cbox\Cms\Tooling\Mutation\Domain\EquivalentMutations;
 use Cbox\Cms\Tooling\Mutation\Domain\MutationLedger;
 use Cbox\Cms\Tooling\Mutation\Domain\MutationReportReader;
 use Cbox\Cms\Tooling\Mutation\Domain\MutationScope;
 use Cbox\Cms\Tooling\Mutation\Domain\MutationSteps;
+use Cbox\Cms\Tooling\Mutation\Domain\MutationTally;
 use InvalidArgumentException;
+use Pest\Mutate\Mutators\Logical\TrueToFalse;
 
 /*
  * The step builder of mutation on changed files (GUARDRAILS 9 and 10): which Pest runs the PR
@@ -29,9 +34,17 @@ use InvalidArgumentException;
  * GitMutationScopeTest finds the changes in git, and tests/Mutation runs the steps for real.
  */
 
+afterEach(function (): void {
+    ScratchDirectory::cleanUp();
+});
+
+/**
+ * Runs the steps in a scratch checkout, where the step with Postgres writes the mutations the fast
+ * suites caught when it runs.
+ */
 function runMutationSteps(MutationScope $scope, ScriptedProcessRunner $runner): GateResult
 {
-    $report = new CheckRunner($runner, new MutationListener)->run([new Gate(5, 'Pest', MutationSteps::for($scope, '/usr/bin/php'))], '/srv/checkout');
+    $report = new CheckRunner($runner, new MutationListener)->run([new Gate(5, 'Pest', MutationSteps::for($scope, '/usr/bin/php'))], ScratchDirectory::make());
 
     return $report->gate(5) ?? throw new InvalidArgumentException('No gate 5.');
 }
@@ -62,32 +75,35 @@ it('fails with the reason when the base of the change is missing, and runs nothi
         ->and($step?->notes)->toBe([]);
 });
 
-it('mutates every changed class against the fast suites in parallel, and a changed Adapter class also against the Postgres suite alone, in parallel, judged by the reader at 80', function (): void {
+it('mutates every changed class against the fast suites in parallel, and again against the Postgres suite alone, in parallel, which judges each class at 80 over both runs', function (): void {
     $adapter = new ChangedSource('packages/core/src/ReceiptStore/Adapter/PostgresReceiptStore.php', PostgresReceiptStore::class);
     $domain = new ChangedSource('packages/contracts/src/Ids/PrincipalId.php', PrincipalId::class);
-    $steps = MutationSteps::for(MutationScope::changed('abc123', [$adapter, $domain]), '/usr/bin/php');
+    $tally = new MutationTally;
+    $steps = MutationSteps::for(MutationScope::changed('abc123', [$adapter, $domain]), '/usr/bin/php', $tally);
     $ledger = new MutationLedger;
+    $paths = '--path=packages/contracts/src/Ids/PrincipalId.php,packages/core/src/ReceiptStore/Adapter/PostgresReceiptStore.php';
 
     expect(array_map(static fn (Step $step): string => $step->name, $steps))->toBe(['Mutation on changed files, fast suites', 'Mutation on changed files, with Postgres'])
         ->and($steps[0]->command)->toBe([
             '/usr/bin/php', 'vendor/bin/pest', '--testsuite=Unit,Codecs,Contract,Actions,Arch', '--fail-on-skipped', '--fail-on-incomplete',
-            '--mutate', '--parallel', '--everything', '--path=packages/contracts/src/Ids/PrincipalId.php,packages/core/src/ReceiptStore/Adapter/PostgresReceiptStore.php',
+            '--mutate', '--parallel', '--everything', $paths,
         ])
         ->and($steps[1]->command)->toBe([
             '/usr/bin/php', 'vendor/bin/pest', '--testsuite=Postgres', '--fail-on-skipped', '--fail-on-incomplete',
-            '--mutate', '--parallel', '--everything', '--path=packages/core/src/ReceiptStore/Adapter/PostgresReceiptStore.php',
+            '--mutate', '--parallel', '--everything', $paths,
         ])
-        ->and($steps[0]->reader)->toEqual(new MutationReportReader([$domain], 80, records: $ledger))
-        ->and($steps[1]->reader)->toEqual(new MutationReportReader([$adapter], 80, counts: $ledger))
+        ->and($steps[0]->reader)->toEqual(new MutationReportReader([], 80, records: $ledger))
+        ->and($steps[1]->reader)->toEqual(new MutationReportReader([$domain, $adapter], 80, counts: $ledger, tally: $tally, equivalents: EquivalentMutations::kernel()))
         ->and($steps[0]->precheck)->toBeNull()
-        ->and($steps[1]->precheck)->toEqual(new CaughtByFastSuites([$adapter], $ledger));
+        ->and($steps[1]->precheck)->toEqual(new CaughtByFastSuites([$domain, $adapter], $ledger, $tally, EquivalentMutations::kernel()));
 
     $fast = $steps[0]->reader instanceof MutationReportReader ? $steps[0]->reader->records : null;
     $postgres = $steps[1]->reader instanceof MutationReportReader ? $steps[1]->reader->counts : null;
 
     expect($fast)->toBeInstanceOf(MutationLedger::class)
         ->and($postgres)->toBe($fast)
-        ->and($steps[1]->precheck instanceof CaughtByFastSuites ? $steps[1]->precheck->ledger : null)->toBe($fast);
+        ->and($steps[1]->precheck instanceof CaughtByFastSuites ? $steps[1]->precheck->ledger : null)->toBe($fast)
+        ->and($steps[1]->reader instanceof MutationReportReader ? $steps[1]->reader->tally : null)->toBe($tally);
 
     foreach ($steps as $step) {
         expect($step->environment)->toBe(['PHP_INI_SCAN_DIR' => ':tools/mutation', 'CMS_MUTATION_REPORT' => '1'])
@@ -123,7 +139,9 @@ it('runs the step with Postgres with --parallel against the Postgres suite alone
         ->and(array_values(array_filter($postgres->command ?? [], static fn (string $argument): bool => str_starts_with($argument, '--testsuite='))))->toBe(['--testsuite=Postgres']);
 });
 
-it('names every changed file of a group in one --path, sorted, and makes the step with Postgres only when there are Adapter or Infrastructure files', function (): void {
+it('names every changed file in one --path, sorted, and mutates a class of any layer against the Postgres suite too', function (): void {
+    // Regression (M1-T66): only Adapter and Infrastructure were mutated against the Postgres
+    // suite, so a class whose tests are all there, such as an Artisan command, scored 0.
     $scope = MutationScope::changed('abc123', [
         new ChangedSource('packages/core/src/Partitions/Infrastructure/PartitionCatalog.php', PartitionCatalog::class),
         new ChangedSource('packages/core/src/Doctor/Adapter/DoctorConnection.php', DoctorConnection::class),
@@ -135,7 +153,8 @@ it('names every changed file of a group in one --path, sorted, and makes the ste
         ->and($steps[0]->command)->toContain('--path=packages/core/src/Doctor/Adapter/DoctorConnection.php,packages/core/src/Partitions/Infrastructure/PartitionCatalog.php')
         ->and($steps[1]->command)->toContain('--path=packages/core/src/Doctor/Adapter/DoctorConnection.php,packages/core/src/Partitions/Infrastructure/PartitionCatalog.php')
         ->and($steps[0]->reader)->toEqual(new MutationReportReader([], 80, records: new MutationLedger))
-        ->and(array_map(static fn (Step $step): string => $step->name, $domainOnly))->toBe([MutationSteps::FAST_NAME]);
+        ->and(array_map(static fn (Step $step): string => $step->name, $domainOnly))->toBe([MutationSteps::FAST_NAME, MutationSteps::POSTGRES_NAME])
+        ->and($domainOnly[1]->command)->toContain('--testsuite=Postgres', '--path=packages/contracts/src/Ids/PrincipalId.php');
 });
 
 /**
@@ -146,8 +165,8 @@ it('names every changed file of a group in one --path, sorted, and makes the ste
 function mutationStepReport(string $path, array $mutations): string
 {
     return "tests ...\n".MutationReportReader::MARKER.json_encode([
-        'files' => [['mutations' => array_map(static fn (string $id, bool $caught): array => ['caught' => $caught, 'id' => $id], array_keys($mutations), $mutations), 'path' => $path]],
-        'format' => 2,
+        'files' => [['mutations' => array_map(static fn (string $id, bool $caught): array => ['caught' => $caught, 'id' => $id, 'line' => 1, 'mutator' => TrueToFalse::class], array_keys($mutations), $mutations), 'path' => $path]],
+        'format' => 3,
     ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)."\n";
 }
 
@@ -167,9 +186,9 @@ it('passes a step whose report scores the changed classes at 80 or more, and fai
         new ChangedSource('packages/core/src/Doctor/Adapter/DoctorConnection.php', DoctorConnection::class),
     ]);
     $fast = "tests ...\n".MutationReportReader::MARKER.json_encode(['files' => [
-        ['mutations' => array_map(static fn (int $n): array => ['caught' => $n <= 9, 'id' => 'p'.$n], range(1, 10)), 'path' => 'packages/contracts/src/Ids/PrincipalId.php'],
-        ['mutations' => array_map(static fn (int $n): array => ['caught' => $n <= 2, 'id' => 'd'.$n], range(1, 10)), 'path' => 'packages/core/src/Doctor/Adapter/DoctorConnection.php'],
-    ], 'format' => 2], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)."\n";
+        ['mutations' => array_map(static fn (int $n): array => ['caught' => $n <= 9, 'id' => 'p'.$n, 'line' => 1, 'mutator' => TrueToFalse::class], range(1, 10)), 'path' => 'packages/contracts/src/Ids/PrincipalId.php'],
+        ['mutations' => array_map(static fn (int $n): array => ['caught' => $n <= 2, 'id' => 'd'.$n, 'line' => 1, 'mutator' => TrueToFalse::class], range(1, 10)), 'path' => 'packages/core/src/Doctor/Adapter/DoctorConnection.php'],
+    ], 'format' => 3], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)."\n";
     $postgres = mutationStepReport('packages/core/src/Doctor/Adapter/DoctorConnection.php', array_combine(
         array_map(static fn (int $n): string => 'd'.$n, range(1, 10)),
         array_map(static fn (int $n): bool => $n >= 7, range(1, 10)),
@@ -178,13 +197,14 @@ it('passes a step whose report scores the changed classes at 80 or more, and fai
     $gate = runMutationSteps($scope, scriptedMutationRuns($fast, $postgres));
 
     expect($gate->step(MutationSteps::FAST_NAME)?->status)->toBe(StepStatus::Pass)
-        ->and($gate->step(MutationSteps::FAST_NAME)?->notes)->toBe([
-            'Cbox\Cms\Contracts\Ids\PrincipalId: 90.00%, 9 of 10 mutations caught',
-            'score 90.00% of 10 mutations, minimum 80%',
-        ])
+        ->and($gate->step(MutationSteps::FAST_NAME)?->notes)->toBe(['recorded for the step with Postgres, which judges every changed source over both runs'])
         ->and($gate->step(MutationSteps::POSTGRES_NAME)?->status)->toBe(StepStatus::Fail)
-        ->and($gate->step(MutationSteps::POSTGRES_NAME)?->notes)->toContain('counted with the fast suites\' run, which caught 2 of them')
-        ->and($gate->step(MutationSteps::POSTGRES_NAME)?->reason)->toBe('mutation score 60.00% is below 80%; below it: Cbox\Cms\Core\Doctor\Adapter\DoctorConnection 60.00%');
+        ->and($gate->step(MutationSteps::POSTGRES_NAME)?->notes)->toContain(
+            'Cbox\Cms\Contracts\Ids\PrincipalId: 90.00%, 9 of 10 mutations caught',
+            'Cbox\Cms\Core\Doctor\Adapter\DoctorConnection: 60.00%, 6 of 10 mutations caught',
+            'counted with the fast suites\' run, which caught 11 of them',
+        )
+        ->and($gate->step(MutationSteps::POSTGRES_NAME)?->reason)->toBe('below 80% over its mutations: Cbox\Cms\Core\Doctor\Adapter\DoctorConnection 60.00%');
 });
 
 it('counts in the step with Postgres what the fast suites caught of an Adapter class, as one run of every suite would', function (): void {
@@ -198,12 +218,12 @@ it('counts in the step with Postgres what the fast suites caught of an Adapter c
 
     expect(count($runner->calls))->toBe(2)
         ->and($gate->step(MutationSteps::FAST_NAME)?->status)->toBe(StepStatus::Pass)
-        ->and($gate->step(MutationSteps::FAST_NAME)?->notes)->toBe(['recorded for the step with Postgres: every changed source is in Adapter or Infrastructure'])
+        ->and($gate->step(MutationSteps::FAST_NAME)?->notes)->toBe(['recorded for the step with Postgres, which judges every changed source over both runs'])
         ->and($gate->step(MutationSteps::POSTGRES_NAME)?->status)->toBe(StepStatus::Pass)
         ->and($gate->step(MutationSteps::POSTGRES_NAME)?->notes)->toBe([
             'Cbox\Cms\Core\Doctor\Adapter\DoctorConnection: 80.00%, 4 of 5 mutations caught',
             'counted with the fast suites\' run, which caught 2 of them',
-            'score 80.00% of 5 mutations, minimum 80%',
+            'score 80.00% of 5 mutations, minimum 80% for each class',
         ]);
 });
 
@@ -247,4 +267,48 @@ it('passes the step with Postgres without running it when the fast suites\' repo
 
     expect($before)->toBeNull()
         ->and($precheck->passedWithout())->toBe('no mutations in the changed sources, as the fast suites\' run showed, so the Postgres suite is not run');
+});
+
+/**
+ * Runs the steps with a tally, as a shard job does, and gives each counted class as path,
+ * mutations and caught.
+ *
+ * @return list<array{string, int, int}>
+ */
+function tallyOfMutationSteps(MutationScope $scope, ScriptedProcessRunner $runner): array
+{
+    $tally = new MutationTally;
+    new CheckRunner($runner, new MutationListener)->run([new Gate(5, 'Pest', MutationSteps::for($scope, '/usr/bin/php', $tally))], ScratchDirectory::make());
+
+    return array_map(static fn (ClassTally $class): array => [$class->path, $class->count->mutations, $class->count->caught], $tally->classes());
+}
+
+it('counts each changed class for the shard\'s report: the fast suites\' classes from their run, the Adapter classes over both runs', function (): void {
+    $domain = new ChangedSource('packages/contracts/src/Ids/PrincipalId.php', PrincipalId::class);
+    $adapter = new ChangedSource('packages/core/src/Doctor/Adapter/DoctorConnection.php', DoctorConnection::class);
+    $fast = "tests ...\n".MutationReportReader::MARKER.json_encode(['files' => [
+        ['mutations' => [['caught' => true, 'id' => 'p1', 'line' => 1, 'mutator' => TrueToFalse::class], ['caught' => false, 'id' => 'p2', 'line' => 1, 'mutator' => TrueToFalse::class]], 'path' => $domain->path],
+        ['mutations' => [['caught' => true, 'id' => 'd1', 'line' => 1, 'mutator' => TrueToFalse::class], ['caught' => false, 'id' => 'd2', 'line' => 1, 'mutator' => TrueToFalse::class], ['caught' => false, 'id' => 'd3', 'line' => 1, 'mutator' => TrueToFalse::class]], 'path' => $adapter->path],
+    ], 'format' => 3], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)."\n";
+
+    expect(tallyOfMutationSteps(MutationScope::changed('abc123', [$domain, $adapter]), scriptedMutationRuns($fast, mutationStepReport($adapter->path, ['d2' => true, 'd3' => false]))))->toBe([
+        ['packages/contracts/src/Ids/PrincipalId.php', 2, 1],
+        ['packages/core/src/Doctor/Adapter/DoctorConnection.php', 3, 2],
+    ]);
+});
+
+it('counts the Adapter classes with the fast suites\' run when they caught every mutation and the step with Postgres did not run', function (): void {
+    $adapter = new ChangedSource('packages/core/src/Doctor/Adapter/DoctorConnection.php', DoctorConnection::class);
+    $infrastructure = new ChangedSource('packages/core/src/Partitions/Infrastructure/PartitionCatalog.php', PartitionCatalog::class);
+
+    expect(tallyOfMutationSteps(MutationScope::changed('abc123', [$adapter, $infrastructure]), scriptedMutationRuns(mutationStepReport($adapter->path, ['a' => true, 'b' => true]), 'never run')))->toBe([
+        ['packages/core/src/Doctor/Adapter/DoctorConnection.php', 2, 2],
+        ['packages/core/src/Partitions/Infrastructure/PartitionCatalog.php', 0, 0],
+    ]);
+});
+
+it('counts no class whose run printed no report, so the verdict fails it', function (): void {
+    $domain = new ChangedSource('packages/contracts/src/Ids/PrincipalId.php', PrincipalId::class);
+
+    expect(tallyOfMutationSteps(MutationScope::changed('abc123', [$domain]), scriptedMutationRuns("  FAILED  Tests\\Unit\\ATest\n", 'never run')))->toBe([]);
 });

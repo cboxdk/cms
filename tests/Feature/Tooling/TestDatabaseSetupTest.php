@@ -8,6 +8,7 @@ use Cbox\Cms\Testkit\Postgres\Infrastructure\SetupStatement;
 use Cbox\Cms\Testkit\Postgres\Infrastructure\TestDatabaseSetup;
 use Cbox\Cms\Tests\Support\Phpstan;
 use Cbox\Cms\Tests\Support\Tooling\ScratchDirectory;
+use InvalidArgumentException;
 use UnexpectedValueException;
 
 /*
@@ -149,4 +150,17 @@ it('fails when one statement of a copy of database.sql changes', function (strin
     'an added statement' => ["GRANT CONNECT ON DATABASE :\"db\" TO :\"app_role\";\n", "GRANT CONNECT ON DATABASE :\"db\" TO :\"app_role\";\nGRANT TEMPORARY ON DATABASE :\"db\" TO :\"app_role\";\n"],
     'the connect' => ['\connect :"db"', '\connect postgres'],
     'the creation' => ["format('CREATE DATABASE %I OWNER %I'", "format('CREATE DATABASE %I'"],
+]);
+
+it('refuses a set-up whose database, owner role, app role or schema has no valid name', function (int $position, string $name, string $what): void {
+    $names = ['cms_test', 'cms_owner', 'cms_app', 'cms'];
+    $names[$position] = $name;
+
+    expect(static fn (): TestDatabaseSetup => new TestDatabaseSetup(...$names))->toThrow(InvalidArgumentException::class, "The {$what} of the test database set-up has no valid name.");
+})->with([
+    'an empty database' => [0, '', 'database'],
+    'a database with a NUL' => [0, "cms\0test", 'database'],
+    'an empty owner role' => [1, '', 'owner role'],
+    'an empty app role' => [2, '', 'app role'],
+    'a schema with a NUL' => [3, "cms\0", 'schema'],
 ]);

@@ -22,14 +22,20 @@ final readonly class RegistryAffectedProjections implements AffectedProjections
     #[Override]
     public function pendingFor(array $events): array
     {
+        $seen = [];
         $pending = [];
 
         foreach ($events as $event) {
             foreach ($this->registry->projectionsFor($event::class) as $projection) {
-                $pending[$projection->value] = ProjectionStatus::pending($projection);
+                if (isset($seen[$projection->value])) {
+                    continue;
+                }
+
+                $seen[$projection->value] = $projection;
+                $pending[] = ProjectionStatus::pending($projection);
             }
         }
 
-        return ProjectionStatus::listOf(array_values($pending));
+        return ProjectionStatus::listOf($pending);
     }
 }

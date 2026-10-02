@@ -14,7 +14,8 @@ use LogicException;
  * SHA-256 of a versioned JSON list of a fixed prefix and the subscription's name. The prefix
  * differs from those of the receipt and idempotency locks, so two kinds of lock share a key only by
  * a 64-bit collision, which only makes the two wait for each other. The encoding is fixed: a new one
- * needs a new prefix.
+ * needs a new prefix. A subscription name holds no slash and nothing beyond ASCII
+ * (SubscriptionName::PATTERN), so json_encode() needs no flag to write it as the key always was.
  */
 #[Internal]
 final readonly class SubscriptionLock
@@ -23,8 +24,7 @@ final readonly class SubscriptionLock
 
     public static function of(SubscriptionName $subscription): int
     {
-        $digest = hash('sha256', json_encode([self::VERSION, $subscription->value], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
-        $unpacked = unpack('J', (string) hex2bin(substr($digest, 0, 16)));
+        $unpacked = unpack('J', hash('sha256', json_encode([self::VERSION, $subscription->value], JSON_THROW_ON_ERROR), true));
         $key = is_array($unpacked) ? ($unpacked[1] ?? null) : null;
 
         return is_int($key) ? $key : throw new LogicException('Could not read the advisory lock key from the subscription digest.');

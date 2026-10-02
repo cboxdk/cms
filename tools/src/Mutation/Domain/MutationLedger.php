@@ -19,7 +19,7 @@ use InvalidArgumentException;
  */
 final class MutationLedger
 {
-    /** @var array<string, array<string, bool>>|null the caught state by mutation hash, by path */
+    /** @var array<string, array<string, MutationOutcome>>|null the outcomes by mutation hash, by path */
     private ?array $files = null;
 
     /**
@@ -37,7 +37,7 @@ final class MutationLedger
                     throw new InvalidArgumentException("The mutation {$outcome->hash} of {$path} is recorded twice.");
                 }
 
-                $recorded[$path][$outcome->hash] = $outcome->caught;
+                $recorded[$path][$outcome->hash] = $outcome;
             }
         }
 
@@ -59,6 +59,17 @@ final class MutationLedger
      * @return array<string, bool>
      */
     public function outcomes(string $path): array
+    {
+        return array_map(static fn (MutationOutcome $outcome): bool => $outcome->caught, $this->mutations($path));
+    }
+
+    /**
+     * The recorded mutations of a file, by hash; empty when nothing was recorded or the file had
+     * no mutations.
+     *
+     * @return array<string, MutationOutcome>
+     */
+    public function mutations(string $path): array
     {
         return $this->files[$path] ?? [];
     }

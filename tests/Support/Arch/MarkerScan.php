@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Tests\Support\Arch;
 
+use Cbox\Cms\Tests\Support\JsToolchainLock;
 use RuntimeException;
 use Symfony\Component\Process\Process;
 
@@ -67,6 +68,21 @@ final readonly class MarkerScan
         public array $files,
         public array $hits,
     ) {}
+
+    /**
+     * Scans this checkout, as the marker gate does, while holding the JsToolchainLock shared.
+     *
+     * The JS toolchain tests write probe files below Node::PROBE_DIRECTORY, untracked and not
+     * ignored, and delete them again, under the exclusive lock. A parallel Pest run, the mutation
+     * run of gate 5 among them, runs those tests next to the gate, which then listed another
+     * process's probe and failed with "Cannot read" when the probe was deleted before it was read.
+     * Holding the lock shared, the scan sees no probe: a probe exists only while its writer holds
+     * the lock exclusively.
+     */
+    public static function ofCheckout(string $root): self
+    {
+        return JsToolchainLock::shared(static fn (): self => self::of($root));
+    }
 
     /**
      * Selects the files of the checkout at the root and reads each one.

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Actions;
 
+use Cbox\Cms\Contracts\Attributes\Action;
+use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Consistency\Outcome;
 use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\RevisionNumber;
@@ -25,8 +27,11 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\StaleRead;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\VersionConflict;
 use Cbox\Cms\Core\Placements\Domain\CanonicalPlacementRef;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
+use Cbox\Cms\Core\Publishing\Actions\PublishEntryAction;
 use Cbox\Cms\Core\Tests\Entries\NoteType;
 use Cbox\Cms\Core\Tests\Publishing\PublishingActionWorld as World;
+use ReflectionAttribute;
+use ReflectionClass;
 
 /*
  * entry.publish's action in the command pipeline with fakes (GUARDRAILS 9, PRD 6.2, 6.4): it is
@@ -248,4 +253,16 @@ it('is version_conflict when another placement of the entry in the locale change
         ->and(publishErrors($result))->toBe(['version_conflict -'])
         ->and($result->errors[0]->message)->toContain('placement:'.World::AWAY_PLACEMENT)
         ->and($world->committed()->reads->of(World::placement(World::AWAY_PLACEMENT)))->toEqual(ReadVersion::at(World::placement(World::AWAY_PLACEMENT), new AggregateVersion(1)));
+});
+
+it('is exposed on the REST, Inertia, MCP and CLI surfaces', function (): void {
+    $world = new World()->place(World::HOME_PLACEMENT, World::HOME, ['da' => [Visibility::Hidden, null, false]]);
+    $world->publish();
+    $surfaces = array_map(
+        static fn (ReflectionAttribute $attribute): array => $attribute->newInstance()->surfaces,
+        new ReflectionClass(PublishEntryAction::class)->getAttributes(Action::class),
+    );
+
+    expect($world->committed()->command->value)->toBe('entry.publish')
+        ->and($surfaces)->toBe([[Surface::Rest, Surface::Inertia, Surface::Mcp, Surface::Cli]]);
 });

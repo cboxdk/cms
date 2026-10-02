@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Tests\Feature\Tooling;
 
+use Cbox\Cms\Tests\Support\Arch\MarkerScan;
 use Cbox\Cms\Tests\Support\JsToolchainLock;
 use Cbox\Cms\Tests\Support\Node;
 use Cbox\Cms\Tests\Support\Phpstan;
@@ -129,3 +130,18 @@ it('takes the lock once per process, so a tool run inside a probe does not wait 
 it('refuses to take the lock exclusively inside a shared hold', function (): void {
     JsToolchainLock::shared(static fn (): string => JsToolchainLock::exclusive(static fn (): string => 'exclusive'));
 })->throws(LogicException::class, 'held shared');
+
+it('scans the checkout for markers without the probe another process holds', function (): void {
+    $child = holdBrokenProbe();
+
+    try {
+        $scan = MarkerScan::ofCheckout(Phpstan::root());
+        $child->wait();
+    } finally {
+        $child->stop();
+    }
+
+    expect($child->getExitCode())->toBe(0, $child->getErrorOutput())
+        ->and($scan->files)->toContain('composer.json')
+        ->and($scan->files)->not->toContain(trim($child->getOutput()));
+});

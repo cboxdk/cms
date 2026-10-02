@@ -88,6 +88,7 @@ it('maps each configured host to its one site and refuses a host of two sites or
     $sites = new SiteHosts([$north, $south]);
 
     expect(array_map(static fn (Host $host): string => $host->value, $north->hosts))->toBe(['north.example', 'www.north.example'])
+        ->and($north->hosts[0])->toBe($north->origin->host)
         ->and($sites->serving(new Host('www.north.example')))->toBe($north)
         ->and($sites->serving(new Host('south.example')))->toBe($south)
         ->and($sites->serving(new Host('west.example')))->toBeNull()
@@ -166,4 +167,14 @@ it('holds at most one entry as its content and hands the same explanation back w
         ->and($held->contents())->toBe([$content])
         ->and($held->explanation)->toBe($explanation)
         ->and($held->withContents([])->content)->toBeNull();
+});
+
+it('takes a host name of exactly 253 characters and the port 65535, the largest of each', function (): void {
+    $name = implode('.', [str_repeat('a', 63), str_repeat('b', 63), str_repeat('c', 63), str_repeat('d', 61)]);
+
+    expect(strlen($name))->toBe(Host::MAX_NAME_LENGTH)
+        ->and(new Host($name)->value)->toBe($name)
+        ->and(new Host('example.dk:65535')->value)->toBe('example.dk:65535')
+        ->and(fn (): Host => new Host($name.'e'))->toThrow(InvalidRoutingValue::class)
+        ->and(fn (): Host => new Host('example.dk:65536'))->toThrow(InvalidRoutingValue::class);
 });

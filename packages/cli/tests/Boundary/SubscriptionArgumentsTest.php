@@ -24,7 +24,7 @@ it('runs the critical lane and refuses the others', function (): void {
 it('reads a subscription and an aggregate', function (): void {
     expect(SubscriptionArguments::subscription('fragments.invalidate')->value)->toBe('fragments.invalidate')
         ->and(SubscriptionArguments::aggregate('entry:0196')->toString())->toBe('entry:0196')
-        ->and(fn (): SubscriptionName => SubscriptionArguments::subscription(null))->toThrow(InvalidArgumentException::class)
+        ->and(fn (): SubscriptionName => SubscriptionArguments::subscription(null))->toThrow(InvalidArgumentException::class, 'The subscription name "" must be')
         ->and(fn (): AggregateKey => SubscriptionArguments::aggregate(['entry:1']))->toThrow(InvalidArgumentException::class, 'written <type>:<id>');
 });
 

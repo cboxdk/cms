@@ -300,6 +300,8 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Actions;
 
+use Cbox\Cms\Contracts\Attributes\Action;
+use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Consistency\Outcome;
 use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Content\VariantRef;
@@ -315,7 +317,10 @@ use Cbox\Cms\Contracts\Plans\Mutations\HeadMoved;
 use Cbox\Cms\Contracts\Plans\Mutations\RevisionCreated;
 use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Contracts\Results\WriteResult;
+use Cbox\Cms\Core\Entries\Actions\CreateEntryAction;
 use Cbox\Cms\Core\Tests\Entries\EntryActionWorld;
+use ReflectionAttribute;
+use ReflectionClass;
 
 /*
  * entry.create's action in the command pipeline with fakes (GUARDRAILS 9, PRD 5.4, 6.2): a create
@@ -423,6 +428,18 @@ it('is version_conflict when the entry was created by another call before the co
         ->and(createEntryCodes($result))->toBe(['version_conflict'])
         ->and($result->errors[0]->message)->toContain('changed after it was read')
         ->and($result->errors[0]->message)->toContain('entry:'.EntryActionWorld::ENTRY);
+});
+
+it('is exposed on the REST, Inertia, MCP and CLI surfaces', function (): void {
+    $world = new EntryActionWorld;
+    $world->create(EntryActionWorld::fields('Groceries'));
+    $surfaces = array_map(
+        static fn (ReflectionAttribute $attribute): array => $attribute->newInstance()->surfaces,
+        new ReflectionClass(new CreateEntryAction($world->entries))->getAttributes(Action::class),
+    );
+
+    expect($world->committed()->command->value)->toBe('entry.create')
+        ->and($surfaces)->toBe([[Surface::Rest, Surface::Inertia, Surface::Mcp, Surface::Cli]]);
 });
 ```
 

@@ -9,8 +9,11 @@ use Cbox\Cms\Contracts\Content\RevisionNumber;
 use Cbox\Cms\Contracts\Content\TimeWindow;
 use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Content\VariantRef;
+use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Contracts\Events\EventType;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
+use Cbox\Cms\Contracts\Pipeline\AuthorizationTarget;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Plans\Mutations\PlacementCanonicalSet;
 use Cbox\Cms\Contracts\Plans\Mutations\PlacementClosed;
@@ -18,6 +21,7 @@ use Cbox\Cms\Contracts\Plans\Mutations\PlacementWindowSet;
 use Cbox\Cms\Contracts\Plans\Mutations\VariantUnreleased;
 use Cbox\Cms\Contracts\Plans\Plan;
 use Cbox\Cms\Contracts\Results\BecomesVisible;
+use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Core\Entries\Actions\VariantReleasePlanner;
 use Cbox\Cms\Core\Entries\Domain\Dto\StoredEntry;
 use Cbox\Cms\Core\Entries\Domain\Dto\StoredHead;
@@ -27,6 +31,7 @@ use Cbox\Cms\Core\Placements\Actions\PlacementPlanner;
 use Cbox\Cms\Core\Placements\Domain\CanonicalPlacementRef;
 use Cbox\Cms\Core\Placements\Domain\Dto\LocalePlacements;
 use Cbox\Cms\Core\Placements\Domain\Dto\PlacementState;
+use Cbox\Cms\Core\Placements\Domain\Dto\StoredPlacement;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Publishing\Actions\PublishEntryAction;
 use Cbox\Cms\Core\Publishing\Actions\UnpublishEntryAction;
@@ -170,4 +175,34 @@ it('tells that a variant has no released revision any more, and which it had', f
         ->and(array_keys($data->fields()))->toBe(['entry', 'revision', 'variant'])
         ->and($data->get('revision')->asInteger())->toBe(4)
         ->and($data->get('entry')->asIdentifier()->value)->toBe(World::ENTRY);
+});
+
+it('reads the shared variant of an entry without a head as absent, and authorizes on what it read', function (): void {
+    $da = new Locale('da');
+    $entry = new StoredEntry(World::entry(), EntryActionWorld::type(), World::node(World::HOME), new AggregateVersion(3), null);
+    $placement = new StoredPlacement(World::placement(), World::entry(), World::node(World::AWAY), new AggregateVersion(2), []);
+    $both = new PublishEntryAggregates(World::entry(), $entry, null, World::placement(), new AggregateVersion(2), $placement, $da, [], World::at(0));
+    $entryOnly = new PublishEntryAggregates(World::entry(), $entry, null, World::placement(), null, null, $da, [], World::at(0));
+    $placementOnly = new PublishEntryAggregates(World::entry(), null, null, World::placement(), new AggregateVersion(2), $placement, $da, [], World::at(0));
+    $variant = new VariantRef(World::entry(), VariantKey::shared());
+
+    expect($both->versions()->of($variant))->toEqual(ReadVersion::absent($variant))
+        ->and($both->versions()->of(World::entry()))->toEqual(ReadVersion::at(World::entry(), new AggregateVersion(3)))
+        ->and($both->authorizationScope())->toEqual(AuthorizationScope::on(new AuthorizationTarget(World::node(World::HOME), $da), new AuthorizationTarget(World::node(World::AWAY), $da)))
+        ->and($entryOnly->authorizationScope())->toEqual(AuthorizationScope::on(new AuthorizationTarget(World::node(World::HOME), $da)))
+        ->and($placementOnly->authorizationScope())->toEqual(AuthorizationScope::on(new AuthorizationTarget(World::node(World::AWAY), $da)))
+        ->and(new PublishEntryAggregates(World::entry(), null, null, World::placement(), null, null, $da, [], World::at(0))->authorizationScope()->isAnywhere())->toBeTrue();
+});
+
+it('refuses to publish an entry whose type this installation does not have', function (): void {
+    $da = new Locale('da');
+    $action = new PublishEntryAction(new FakeEntryReader, new FakePlacementReader, new FakeTypeCatalog, new FakeClock(new DateTimeImmutable(World::NOW)));
+    $command = new PublishEntry(World::entry(), new AggregateVersion(1), new RevisionNumber(1), World::placement(), new AggregateVersion(1), $da);
+    $entry = new StoredEntry(World::entry(), EntryActionWorld::type(), World::node(World::HOME), new AggregateVersion(1), null);
+    $placement = new StoredPlacement(World::placement(), World::entry(), World::node(World::HOME), new AggregateVersion(1), []);
+
+    $refusals = $action->refusals($command, new PublishEntryAggregates(World::entry(), $entry, null, World::placement(), new AggregateVersion(1), $placement, $da, [], World::at(0)));
+
+    expect(array_map(static fn (CatalogError $error): array => [$error->code, $error->path?->toString(), $error->message], $refusals))
+        ->toBe([[ErrorCode::ValidationFailed, 'entry', sprintf('The entry %s has no type of this installation.', World::ENTRY)]]);
 });

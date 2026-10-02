@@ -37,7 +37,7 @@ final readonly class TypeRules
                 throw InvalidRules::repeatedNamespace($extension->namespace);
             }
 
-            $namespaces[$extension->namespace->value] = true;
+            $namespaces[$extension->namespace->value] = $extension->namespace;
         }
     }
 }

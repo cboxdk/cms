@@ -28,3 +28,8 @@ it('refuses an unknown profile, a missing option and a number that is not whole'
     'leading zero' => ['small', '01', '10', 'Give --seed'],
     'decimal' => ['small', '1', '1.5', 'Give --entries'],
 ]);
+
+it('names the profiles when no profile is given', function (): void {
+    expect(static fn (): SeedRequest => SeedScaleOptions::parse(null, '1', '10'))
+        ->toThrow(InvalidArgumentException::class, 'Give --profile as the name of a seed profile: scale, small.');
+});

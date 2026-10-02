@@ -18,6 +18,6 @@ final readonly class HrtimeStopwatch implements Stopwatch
     #[Override]
     public function nanoseconds(): int
     {
-        return (int) hrtime(true);
+        return hrtime(true);
     }
 }

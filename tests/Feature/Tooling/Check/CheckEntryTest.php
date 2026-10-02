@@ -10,6 +10,7 @@ use Cbox\Cms\Tooling\Check\Adapter\SymfonyProcessRunner;
 use Cbox\Cms\Tooling\Check\Boundary\CheckOptions;
 use Cbox\Cms\Tooling\Check\Boundary\ComposerCommand;
 use Cbox\Cms\Tooling\Check\Domain\Profile;
+use Cbox\Cms\Tooling\Check\Domain\PrPart;
 use InvalidArgumentException;
 use Symfony\Component\Process\Process;
 
@@ -56,6 +57,37 @@ it('runs the local profile unless --pr asks for the PR profile, and refuses --pr
         ->and(static fn (): CheckOptions => CheckOptions::parse(['--profile=pr']))->toThrow(InvalidArgumentException::class, 'Unknown option --profile=pr')
         ->and(CheckOptions::USAGE)->toContain('[--pr]');
 });
+
+it('picks a part of the PR profile with --only=gates or --shard=<i>/<n>, and a shard\'s report with --mutation-report', function (): void {
+    $all = CheckOptions::parse(['--pr']);
+    $gates = CheckOptions::parse(['--pr', '--only=gates']);
+    $shard = CheckOptions::parse(['--pr', '--shard=3/12', '--mutation-report=/tmp/shard.json']);
+
+    expect($all->part)->toEqual(PrPart::all())
+        ->and($all->mutationReportFile)->toBeNull()
+        ->and($gates->part)->toEqual(PrPart::gates())
+        ->and($gates->part->runsGates())->toBeTrue()
+        ->and($gates->part->runsMutation())->toBeFalse()
+        ->and($shard->part)->toEqual(PrPart::shard(3, 12))
+        ->and($shard->part->runsGates())->toBeFalse()
+        ->and($shard->part->runsMutation())->toBeTrue()
+        ->and($shard->mutationReportFile)->toBe('/tmp/shard.json')
+        ->and(CheckOptions::USAGE)->toContain('--only=gates', '--shard=<i>/<n>', '--mutation-report=<file>');
+});
+
+it('refuses a part without --pr, two parts, a shard outside its count and a shard report without a shard', function (array $arguments, string $message): void {
+    expect(static fn (): CheckOptions => CheckOptions::parse(array_values(array_filter($arguments, is_string(...)))))->toThrow(InvalidArgumentException::class, $message);
+})->with([
+    'a shard of the local profile' => [['--shard=1/2'], 'need --pr'],
+    'the gates of the local profile' => [['--only=gates'], 'need --pr'],
+    'gates and a shard' => [['--pr', '--only=gates', '--shard=1/2'], 'not both or twice'],
+    'two shards' => [['--pr', '--shard=1/2', '--shard=2/2'], 'not both or twice'],
+    'shard 3 of 2' => [['--pr', '--shard=3/2'], 'Shard 3 of 2 is not a shard'],
+    'shard 0' => [['--pr', '--shard=0/2'], 'Unknown option --shard=0/2'],
+    'a shard without a count' => [['--pr', '--shard=1'], 'Unknown option --shard=1'],
+    'only something else' => [['--pr', '--only=mutation'], 'Unknown option --only=mutation'],
+    'a report without a shard' => [['--pr', '--mutation-report=/tmp/r.json'], 'needs --shard'],
+]);
 
 it('exits 2 on an unknown option before running any gate', function (): void {
     $process = new Process([PHP_BINARY, 'tools/bin/check.php', '--bogus'], Phpstan::root());

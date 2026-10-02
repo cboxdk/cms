@@ -7,6 +7,7 @@ namespace Cbox\Cms\Testkit\Tests\Phpstan;
 use Cbox\Cms\Testkit\Phpstan\KernelTables;
 use Cbox\Cms\Testkit\Phpstan\KernelTableWriteRule;
 use PhpParser\Node\Expr\CallLike;
+use PHPStan\Analyser\Error;
 use PHPStan\Rules\Rule;
 use PHPStan\Testing\RuleTestCase;
 
@@ -95,6 +96,92 @@ final class KernelTableWriteRuleTest extends RuleTestCase
         self::assertSame('receipts_standard', KernelTables::of('RECEIPTS_STANDARD'));
         self::assertSame('receipts_standard', KernelTables::of('public."receipts_standard_p20260929"'));
         self::assertNull(KernelTables::of('receipts_px'));
+    }
+
+    public function test_it_reports_every_write_method_every_database_root_and_every_form_of_sql(): void
+    {
+        // Not reported: a root that is no database (lines 59 and 60), a later from() that names
+        // another table (line 61), names that are not identifiers (lines 62, 63, 77, 78 and 89),
+        // methods and classes that take no SQL (lines 79 to 88), a function call (line 102).
+        $this->analyse([self::fixture('KernelTableWriteCalls')], [
+            [$this->message('actors'), 40],
+            [$this->message('audit'), 41],
+            [$this->message('entries'), 42],
+            [$this->message('grants'), 43],
+            [$this->message('roles'), 44],
+            [$this->message('sites'), 45],
+            [$this->message('nodes'), 46],
+            [$this->message('events'), 47],
+            [$this->message('actors'), 57],
+            [$this->message('audit'), 58],
+            [$this->message('actors'), 73],
+            [$this->message('audit'), 74],
+            [$this->message('entries'), 74],
+            [$this->message('grants'), 75],
+            [$this->message('roles'), 75],
+            [$this->message('sites'), 76],
+            [$this->message('placements'), 99],
+            [$this->message('revisions'), 100],
+            [$this->message('variant_heads'), 101],
+        ]);
+    }
+
+    public function test_it_reports_each_table_a_call_writes_once_as_non_ignorable(): void
+    {
+        self::assertSame([
+            '40 cboxCms.kernelTableWrite',
+            '41 cboxCms.kernelTableWrite',
+            '42 cboxCms.kernelTableWrite',
+            '43 cboxCms.kernelTableWrite',
+            '44 cboxCms.kernelTableWrite',
+            '45 cboxCms.kernelTableWrite',
+            '46 cboxCms.kernelTableWrite',
+            '47 cboxCms.kernelTableWrite',
+            '57 cboxCms.kernelTableWrite',
+            '58 cboxCms.kernelTableWrite',
+            '73 cboxCms.kernelTableWrite',
+            '74 cboxCms.kernelTableWrite',
+            '74 cboxCms.kernelTableWrite',
+            '75 cboxCms.kernelTableWrite',
+            '75 cboxCms.kernelTableWrite',
+            '76 cboxCms.kernelTableWrite',
+            '99 cboxCms.kernelTableWrite',
+            '100 cboxCms.kernelTableWrite',
+            '101 cboxCms.kernelTableWrite',
+        ], $this->reported('KernelTableWriteCalls'));
+    }
+
+    public function test_it_allows_a_migration_in_the_global_namespace_below_the_core_module_by_default(): void
+    {
+        self::assertSame([], $this->gatherAnalyserErrors([dirname(__DIR__, 3).'/core/tests/Phpstan/Fixtures/KernelTableWriteMigration.php.inc']));
+    }
+
+    public function test_it_reports_a_migration_in_the_global_namespace_when_the_core_modules_directory_does_not_exist(): void
+    {
+        $this->coreDirectory = __DIR__.'/Fixtures/NoSuchDirectory';
+
+        self::assertSame(['12 cboxCms.kernelTableWrite', '13 cboxCms.kernelTableWrite'], $this->reported('KernelTableWriteMigration'));
+    }
+
+    public function test_it_reports_a_migration_in_a_directory_whose_name_only_starts_like_the_core_modules(): void
+    {
+        $root = sys_get_temp_dir().'/cms-kernel-table-write-'.bin2hex(random_bytes(4));
+        $migration = $root.'/core-extras/seed.php';
+
+        self::assertTrue(mkdir($root.'/core', 0o755, true) && mkdir($root.'/core-extras', 0o755));
+        self::assertTrue(copy(self::fixture('KernelTableWriteMigration'), $migration));
+        $this->coreDirectory = $root.'/core';
+
+        try {
+            $reported = array_map(static fn (Error $error): string => sprintf('%d %s', $error->getLine() ?? 0, $error->getIdentifier() ?? ''), $this->gatherAnalyserErrors([$migration]));
+        } finally {
+            unlink($migration);
+            rmdir($root.'/core-extras');
+            rmdir($root.'/core');
+            rmdir($root);
+        }
+
+        self::assertSame(['12 cboxCms.kernelTableWrite', '13 cboxCms.kernelTableWrite'], $reported);
     }
 
     private function message(string $table): string

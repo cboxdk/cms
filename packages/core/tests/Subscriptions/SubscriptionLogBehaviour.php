@@ -154,6 +154,29 @@ trait SubscriptionLogBehaviour
     }
 
     #[Test]
+    public function it_lists_the_parkings_of_one_subscription_or_of_every_subscription(): void
+    {
+        $log = $this->subscriptionLog(new FakeClock(new DateTimeImmutable('2026-04-01T08:00:00.250000Z')));
+        $first = new SubscriptionName('test.first');
+        $second = new SubscriptionName('test.second');
+        [$bad] = $this->commitEvents(EventStream::Interactive, [CounterRaised::of('bad', 1)]);
+
+        $this->inBatch($log, $first, static function () use ($log, $first, $bad): void {
+            $log->park($first, $bad, 1);
+        });
+        $this->inBatch($log, $second, static function () use ($log, $second, $bad): void {
+            $log->park($second, $bad, 2);
+        });
+
+        $all = self::parkedNames($log->parked(null));
+        sort($all);
+
+        Assert::assertSame(['test.first'], self::parkedNames($log->parked($first)));
+        Assert::assertSame(['test.second'], self::parkedNames($log->parked($second)));
+        Assert::assertSame(['test.first', 'test.second'], $all);
+    }
+
+    #[Test]
     public function it_releases_a_parked_aggregate_and_parks_it_again(): void
     {
         $clock = new FakeClock(new DateTimeImmutable('2026-04-01T08:00:00Z'));
@@ -289,6 +312,17 @@ trait SubscriptionLogBehaviour
         }
 
         Assert::assertEquals(new BatchProgress, $log->transaction($name, $this->batchContext(), static fn (): BatchProgress => new BatchProgress));
+    }
+
+    /**
+     * The subscription of each parking, in the order given.
+     *
+     * @param  list<ParkedAggregate>  $parked
+     * @return list<string>
+     */
+    private static function parkedNames(array $parked): array
+    {
+        return array_map(static fn (ParkedAggregate $parking): string => $parking->subscription->value, $parked);
     }
 
     /**

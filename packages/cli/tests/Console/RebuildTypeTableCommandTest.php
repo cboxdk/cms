@@ -90,7 +90,10 @@ it('rebuilds the type, prints each chunk and the operation, and logs it', functi
         ->and($store->rebuiltChunks())->toBe([rebuildCommandRange(1, 2), rebuildCommandRange(3, 3)])
         ->and($logger->records[0][1])->toBe('A type\'s read model was rebuilt.')
         ->and($logger->records[0][2]['key'] ?? null)->toBe('test:note@nightly')
-        ->and($logger->records[0][2]['entries'] ?? null)->toBe(3);
+        ->and($logger->records[0][2]['entries'] ?? null)->toBe(3)
+        ->and(array_keys($logger->records[0][2]))->toBe(['type', 'key', 'actor', 'state', 'entries', 'chunks', 'longest_ms'])
+        ->and([$logger->records[0][2]['type'], $logger->records[0][2]['state'], $logger->records[0][2]['chunks']])->toBe(['test:note', 'completed', 2])
+        ->and($lines[2])->toContain(' as '.(is_string($logger->records[0][2]['actor']) ? $logger->records[0][2]['actor'] : '').' is completed');
 });
 
 it('names the run by the Clock\'s time when --run is left out, and a second run with the name does nothing again', function (): void {
@@ -127,6 +130,9 @@ it('exits with the catalog\'s code when the rebuild is refused', function (?Acto
     expect($status)->toBe($exit)
         ->and(implode("\n", $lines))->toContain($message)
         ->and($logger->records[0][0])->toBe('error')
+        ->and($logger->records[0][1])->toBe('The rebuild of a type\'s read model stopped.')
+        ->and(array_keys($logger->records[0][2]))->toBe(['code', 'type', 'key'])
+        ->and([$logger->records[0][2]['type'], $logger->records[0][2]['key']])->toBe([$type, $type.'@nightly'])
         ->and($store->rebuilt)->toBe([]);
 })->with([
     'an unknown type' => [null, ActorState::Active, 'app:missing', 65, 'No type of this installation is named app:missing'],

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# The single CI entry script (GUARDRAILS 10). .github/workflows/ci.yml runs it on every pull
-# request, and compose.ci.yaml runs it in a container on a clean git archive of HEAD.
+# The single CI entry script (GUARDRAILS 10). .github/workflows/ci.yml runs it in each of its jobs,
+# with CMS_CI_PART naming the job's part, and compose.ci.yaml runs every part in one container on a
+# clean git archive of HEAD.
 #
 # It installs the locked dependencies and runs `composer check -- --pr`. That calls the
 # same Composer and npm scripts as `composer check`, in the same order:
@@ -13,11 +14,13 @@
 #   gate 6  composer check:generated
 # and what the PR profile adds that CI runs:
 #   gate 5  vendor/bin/pest --testsuite=Mutation, the tests that need PCOV, and mutation on
-#           changed files: vendor/bin/pest --mutate --everything --path=<files>, minimum score 80,
-#           on the files below packages/*/src changed since the merge base of CMS_CI_BASE_REF and
-#           HEAD, with PCOV from tools/mutation/pcov.ini. Every file runs with --parallel against
-#           the fast suites; Adapter and Infrastructure also serially against the Postgres suite,
-#           unless the fast suites caught all their mutations
+#           changed files: vendor/bin/pest --mutate --everything --path=<files>, minimum score 80
+#           for each class, on the files below packages/*/src changed since the merge base of
+#           CMS_CI_BASE_REF and HEAD, with PCOV from tools/mutation/pcov.ini. Every file runs with
+#           --parallel against the fast suites, then the mutations they left against the
+#           Postgres suite, unless the fast suites caught all of them. The files are split
+#           into shards by file (composer mutation:plan), each run in a job of its own, and
+#           composer mutation:verdict judges every class over all its mutations in all shards
 #   gate 8  vendor/bin/pest --testsuite=Browser, in a process group of its own that the runner
 #           kills when the step ends, so a Playwright server left by a dead Pest cannot hold the
 #           output open; docker/ci-setup.sh gives the image the pinned Playwright's Chromium
@@ -27,7 +30,20 @@
 # and reports what CI does not run yet as not run: gates 7 and 11. tests/Feature/Tooling/Ci
 # keeps this list and the one in ci.yml equal to the profiles.
 #
+# The parts (CMS_CI_PART), each a job of ci.yml, so the run takes as long as its slowest job:
+#   plan          composer mutation:plan: the shards of mutation on changed files, as a file for
+#                 the verdict and, on GitHub, the step outputs count and shards for the matrix
+#   gates         composer check -- --pr --only=gates: every gate but mutation on changed files
+#   shard:<i>/<n> composer check -- --pr --shard=<i>/<n>: shard i of the plan's n shards
+#   verdict       composer mutation:verdict over the plan and the shards' reports in
+#                 CMS_CI_ARTIFACTS, with how the gates and the shards ended in CMS_CI_GATES_RESULT
+#                 and CMS_CI_SHARDS_RESULT (success, failure, cancelled or skipped)
+#   all           the default: plan, gates, every shard one after the other, and the verdict, as
+#                 the containerized run does. Each part is timed against the budget on its own,
+#                 because CI runs them as parallel jobs.
+#
 # Environment:
+#   CMS_CI_PART                  the part to run, as above (default all)
 #   CMS_CI_BASE_REF              the base of the change for mutation on changed files: a commit
 #                                or ref, such as the pull request's base commit or the commit
 #                                before a push that ci.yml sets, or HEAD~1 that docker/ci-entry.sh
@@ -46,18 +62,25 @@
 #                                with CMS_CI_POSTGRES_PASSWORD, using the CMS_* variables and
 #                                docker/postgres/initdb.d/10-cms.sh. Not POSTGRES_USER and
 #                                POSTGRES_PASSWORD: Testbench copies POSTGRES_* variables into the
-#                                pgsql connection, so the tests would run as the superuser.
+#                                pgsql connection, so the tests would run as the superuser. The
+#                                parts plan and verdict use no database and skip it.
 #   CMS_CI_USER                  the user bin/ci runs as when it is started as root, such as ci
 #                                from docker/ci-setup.sh. It never runs the gates as root: root
 #                                ignores file permissions, so the tests of unwritable files skip,
 #                                and gate 5 fails a skipped test. Started as root, it hands the
 #                                checkout to that user and runs itself again as that user.
-#   CMS_CI_REPORT                the JSON report of the gates (default build/ci/check.json)
+#   CMS_CI_REPORT                the JSON report of the gates (default build/ci/check.json); a
+#                                shard's reports go next to it
+#   CMS_CI_ARTIFACTS             where the verdict finds the plan, in mutation-plan/, and the
+#                                shards' reports (default build/ci/artifacts); the part all writes
+#                                them there, ci.yml's verdict job downloads them there
 #   CMS_CI_RUNNER                the declared runner, printed with the wall time
-#   GITHUB_STEP_SUMMARY          set by GitHub Actions; the gate summary is appended to it
+#   GITHUB_OUTPUT                set by GitHub Actions; the part plan writes the matrix to it
+#   GITHUB_STEP_SUMMARY          set by GitHub Actions; each part's summary is appended to it
 #
-# Exit code: 0 when every gate that ran passed, 1 when a gate failed, and the failing command's
-# code when provisioning or installing fails.
+# Exit code: 0 when every part that ran passed, 1 when a gate, a shard or the verdict failed, 2 for
+# a CMS_CI_PART it does not know, and the failing command's code when provisioning or installing
+# fails.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -74,17 +97,102 @@ if [[ $EUID -eq 0 ]]; then
 fi
 
 readonly budget_minutes=15
+part="${CMS_CI_PART:-all}"
 report="${CMS_CI_REPORT:-build/ci/check.json}"
-log="$(dirname "$report")/check.log"
+out="$(dirname "$report")"
+artifacts="${CMS_CI_ARTIFACTS:-${out}/artifacts}"
 runner="${CMS_CI_RUNNER:-not declared}"
 started=$SECONDS
+# One line per part that ran: its name, wall time and outcome, for the end and the job summary.
+timings=()
+failed=0
+
+case "$part" in
+    all | plan | gates | verdict) ;;
+    shard:[1-9]*/[1-9]*)
+        if [[ ! "$part" =~ ^shard:([1-9][0-9]*)/([1-9][0-9]*)$ ]] || ((BASH_REMATCH[1] > BASH_REMATCH[2])); then
+            echo "bin/ci: CMS_CI_PART=${part} is not a shard i/n with i from 1 to n." >&2
+            exit 2
+        fi
+        ;;
+    *)
+        echo "bin/ci: CMS_CI_PART=${part} is not a part: all, plan, gates, shard:<i>/<n> or verdict." >&2
+        exit 2
+        ;;
+esac
 
 section() {
     printf '\n== bin/ci: %s\n' "$1"
 }
 
+# Records how a part ended and how long it took, and marks the run failed when it failed.
+# Arguments: the part's name, its start in seconds, its exit status.
+finish_part() {
+    local elapsed=$((SECONDS - $2)) line
+    line="$(printf '%s: %dm %02ds, %s' "$1" $((elapsed / 60)) $((elapsed % 60)) "$([[ $3 -eq 0 ]] && echo pass || echo fail)")"
+
+    if ((elapsed > budget_minutes * 60)); then
+        line+=" (over the budget of ${budget_minutes} minutes)"
+        echo "bin/ci: ${1} is over the budget. Add shards or parallelise the profile; never drop a gate (GUARDRAILS 10)." >&2
+    fi
+
+    timings+=("$line")
+    echo "bin/ci: ${line}"
+
+    if [[ $3 -ne 0 ]]; then
+        failed=1
+    fi
+}
+
+# Runs `composer check -- --pr` with a part's options, writes its log next to its report and sets
+# $status to its exit code. Arguments: the report file, then the part's options.
+check() {
+    local file="$1"
+    shift
+    mkdir -p "$(dirname "$file")"
+    set +e
+    composer check -- --pr --report="$file" "$@" 2>&1 | tee "$(dirname "$file")/check.log"
+    status=${PIPESTATUS[0]}
+    set -e
+}
+
+# Writes the plan to a directory and sets $shards to its number of shards; the plan's step outputs
+# also go to GitHub's when it is set. Argument: the directory.
+plan() {
+    local outputs="$1/plan.env"
+    mkdir -p "$1"
+    : >"$outputs"
+    composer mutation:plan -- --output="$1/mutation-plan.json" --github-output="$outputs"
+    shards="$(sed -n 's/^count=\([1-9][0-9]*\)$/\1/p' "$outputs")"
+
+    if [[ -z "$shards" ]]; then
+        echo "bin/ci: composer mutation:plan wrote no count of shards to ${outputs}." >&2
+        exit 1
+    fi
+
+    if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+        cat "$outputs" >>"$GITHUB_OUTPUT"
+    fi
+}
+
+# Runs one shard and keeps its reports in a directory. Arguments: i, n, the directory.
+shard() {
+    check "$3/check.json" --shard="$1/$2" --mutation-report="$3/mutation-shard.json"
+}
+
+# Judges the plan and the shards' reports below a directory, and sets $status. Arguments: the
+# directory, how the gates ended, how the shards ended.
+verdict() {
+    mkdir -p "$1"
+    set +e
+    composer mutation:verdict -- --plan="$1/mutation-plan/mutation-plan.json" --reports="$1" --gates="$2" --shards="$3" 2>&1 | tee "$1/verdict.log"
+    status=${PIPESTATUS[0]}
+    set -e
+}
+
 section 'environment'
 echo "runner: ${runner}"
+echo "part: ${part}"
 echo "commit: $(git rev-parse HEAD 2>/dev/null || echo 'not a git checkout')"
 base_ref="${CMS_CI_BASE_REF-}"
 if [[ -z "${CMS_CI_BASE_REF+set}" || -z "${base_ref//[[:space:]]/}" || "$base_ref" =~ ^[[:space:]]*0{40}[[:space:]]*$ ]]; then
@@ -96,7 +204,7 @@ php --version | head -n 1
 echo "node $(node --version), npm $(npm --version)"
 composer --version --no-interaction 2>/dev/null | head -n 1
 
-if [[ "${CMS_CI_PROVISION_POSTGRES:-0}" == 1 ]]; then
+if [[ "${CMS_CI_PROVISION_POSTGRES:-0}" == 1 && "$part" != plan && "$part" != verdict ]]; then
     : "${DB_HOST:?}" "${DB_PORT:?}" "${CMS_CI_POSTGRES_PASSWORD:?}"
     section "provision Postgres at ${DB_HOST}:${DB_PORT}"
 
@@ -114,35 +222,88 @@ fi
 
 section 'install'
 composer install --no-interaction --no-progress --prefer-dist
-npm ci --no-audit --no-fund
+if [[ "$part" != plan && "$part" != verdict ]]; then
+    npm ci --no-audit --no-fund
+fi
 
-section 'gates'
-mkdir -p "$(dirname "$report")"
-set +e
-composer check -- --pr --report="$report" 2>&1 | tee "$log"
-status=${PIPESTATUS[0]}
-set -e
+mkdir -p "$out"
+
+case "$part" in
+    plan)
+        section 'plan'
+        part_started=$SECONDS
+        plan "$out"
+        finish_part plan "$part_started" 0
+        ;;
+    gates)
+        section 'gates'
+        part_started=$SECONDS
+        check "$report" --only=gates
+        finish_part gates "$part_started" "$status"
+        ;;
+    shard:*)
+        section "mutation on changed files, ${part}"
+        part_started=$SECONDS
+        index="${part#shard:}"
+        shard "${index%/*}" "${index#*/}" "$out"
+        finish_part "$part" "$part_started" "$status"
+        ;;
+    verdict)
+        section 'verdict'
+        part_started=$SECONDS
+        verdict "$artifacts" "${CMS_CI_GATES_RESULT:?CMS_CI_GATES_RESULT says how the gates ended}" "${CMS_CI_SHARDS_RESULT:?CMS_CI_SHARDS_RESULT says how the shards ended}"
+        finish_part verdict "$part_started" "$status"
+        ;;
+    all)
+        section 'plan'
+        part_started=$SECONDS
+        plan "$artifacts/mutation-plan"
+        finish_part plan "$part_started" 0
+
+        section 'gates'
+        part_started=$SECONDS
+        check "$report" --only=gates
+        gates_result=$([[ $status -eq 0 ]] && echo success || echo failure)
+        finish_part gates "$part_started" "$status"
+
+        shards_result=success
+        for ((i = 1; i <= shards; i++)); do
+            section "mutation on changed files, shard ${i} of ${shards}"
+            part_started=$SECONDS
+            shard "$i" "$shards" "$artifacts/mutation-shard-${i}"
+            [[ $status -eq 0 ]] || shards_result=failure
+            finish_part "shard:${i}/${shards}" "$part_started" "$status"
+        done
+
+        section 'verdict'
+        part_started=$SECONDS
+        verdict "$artifacts" "$gates_result" "$shards_result"
+        finish_part verdict "$part_started" "$status"
+        ;;
+esac
 
 elapsed=$((SECONDS - started))
-timing="$(printf 'bin/ci: %dm %02ds wall time on %s; the GUARDRAILS 10 budget is %d minutes.' \
-    $((elapsed / 60)) $((elapsed % 60)) "$runner" "$budget_minutes")"
+timing="$(printf 'bin/ci: %dm %02ds wall time on %s for %s; the GUARDRAILS 10 budget is %d minutes for each part, which ci.yml runs as parallel jobs.' \
+    $((elapsed / 60)) $((elapsed % 60)) "$runner" "$part" "$budget_minutes")"
 section 'done'
+printf '%s\n' "${timings[@]}"
 echo "$timing"
-
-if ((elapsed > budget_minutes * 60)); then
-    echo "bin/ci: over the budget. Parallelise the profile; never drop a gate (GUARDRAILS 10)." >&2
-fi
 
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
     {
-        echo '### PR profile (GUARDRAILS 10)'
+        echo "### PR profile (GUARDRAILS 10): ${part}"
         echo
         echo '```text'
-        sed -n '/^Summary$/,$p' "$log"
+        for log in "$out/check.log" "$artifacts/verdict.log"; do
+            if [[ -f "$log" ]]; then
+                sed -n '/^Summary$/,$p;/^mutation:verdict:/,$p' "$log"
+            fi
+        done
+        printf '%s\n' "${timings[@]}"
         echo '```'
         echo
         echo "$timing"
     } >>"$GITHUB_STEP_SUMMARY" || echo 'bin/ci: cannot write the job summary.' >&2
 fi
 
-exit "$status"
+exit "$failed"

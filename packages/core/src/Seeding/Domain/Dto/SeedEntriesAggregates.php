@@ -66,7 +66,7 @@ final readonly class SeedEntriesAggregates implements Aggregates
 
         foreach ($this->nodes as $node => $version) {
             if ($version instanceof AggregateVersion) {
-                $targets[] = new AuthorizationTarget(NodeId::fromString((string) $node));
+                $targets[] = new AuthorizationTarget(NodeId::fromString($node));
             }
         }
 

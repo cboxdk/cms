@@ -86,9 +86,12 @@
             vendor's included, for the whole run, which passed 512M as the packages grew; its
             expectations over every namespace of the package, the tests included, grow with the
             code base, and at 512M Pest's test run history then failed the run (M1-T54); this
-            makes the suites run the same on the host, in the php container and in CI.
+            makes the suites run the same on the host, in the php container and in CI. The
+            fast suites' run of mutation on changed files collects coverage with PCOV in each
+            parallel worker as well, and at 1G a worker that ran the Arch suite and then more
+            files ran out of memory in Pest's test run history (M1-T66).
         -->
-        <ini name="memory_limit" value="1G"/>
+        <ini name="memory_limit" value="2G"/>
         <env name="APP_ENV" value="testing"/>
         <!-- A fixed key for the test application only; the web middleware encrypts cookies. -->
         <env name="APP_KEY" value="base64:mAfSx1dFf0ps0RjZgJUdiGI87gLFyYzz5H7IqMVPD0M="/>

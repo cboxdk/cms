@@ -1,19 +1,34 @@
 # CI for the laravel-cms monorepo: the PR profile of GUARDRAILS 10.
 #
-# Every step is setup, except bin/ci, the single CI entry script. bin/ci installs the locked
-# dependencies and runs `composer check -- --pr`, which calls the same Composer and npm
-# scripts as `composer check`: lint:check, format:check, rector:check, analyse, typecheck, lint,
-# install:check and check:generated, and the Pest suites of gate 5. Gate 5 adds the Mutation suite and
-# mutation on changed files: Pest's --mutate with PCOV and a minimum score of 80 on the files below
-# packages/*/src changed since the merge base of CMS_CI_BASE_REF and HEAD. It also runs
+# Every step is setup, except bin/ci, the single CI entry script, which each job runs with
+# CMS_CI_PART naming its part. bin/ci installs the locked dependencies and runs
+# `composer check -- --pr`, which calls the same Composer and npm scripts as `composer check`:
+# lint:check, format:check, rector:check, analyse, typecheck, lint, install:check and
+# check:generated, and the Pest suites of gate 5. Gate 5 adds the Mutation suite and
+# mutation on changed files: Pest's --mutate with PCOV and a minimum score of 80 for each class on
+# the files below packages/*/src changed since the merge base of CMS_CI_BASE_REF and HEAD. It also runs
 # gate 8, the Browser suite, gate 9, composer audit and npm audit, and
 # gate 10, composer docs:check. It reports what it did not run: gates 7 and 11, each with the
 # reason, in the log and the job summary.
+#
+# The jobs run in parallel, so the run takes as long as the slowest (Sylvester's decision of
+# 1 October): plan splits mutation on changed files into shards by file (composer mutation:plan;
+# one shard per 10 changed files, at most 100), gates runs every gate but mutation on changed
+# files, mutation runs one job per shard of the plan's matrix, and verdict, which runs whatever
+# the others did, fails unless the plan, the gates and every shard passed and every changed class
+# reaches 80 % over all its mutations in all shards (composer mutation:verdict). Each job's budget
+# is 15 minutes (GUARDRAILS 10).
 #
 # CMS_CI_BASE_REF is the pull request's base commit, or for a push to main the commit before the
 # push. The checkout fetches the whole history (fetch-depth: 0), so the merge base is there. A push
 # that creates the branch has 40 zeros as the commit before it; bin/ci then derives the base from
 # the checkout: HEAD~1 on main, and the merge base with origin/main on another branch.
+#
+# A run started by hand (workflow_dispatch) takes the base as its input base_ref, a commit or a ref
+# of the checkout such as origin/main, so a whole block's change, which main receives one task at a
+# time, can run as one matrix: Actions > CI > Run workflow, or
+# `gh workflow run ci.yml --ref main -f base_ref=<commit before the block>`. Its runs have a
+# concurrency group of their own, so the next push does not cancel one.
 #
 # Every action is pinned to the commit of its release tag, which the comment names; a tag can be
 # moved, a commit cannot. docker/ci-setup.sh is the setup compose.ci.yaml runs too: psql, git,
@@ -21,8 +36,9 @@
 #
 # Declared runner: GitHub-hosted ubuntu-latest, 4 vCPU and 16 GB RAM, the standard Linux runner
 # for public repositories. A private repository gets 2 vCPU on ubuntu-latest and needs a 4-core
-# larger runner for the same shape. The budget is 15 minutes (GUARDRAILS 10). compose.ci.yaml
-# runs the same bin/ci on the same image locally, and PROGRESS.md records its wall time as the proxy.
+# larger runner for the same shape. The budget is 15 minutes (GUARDRAILS 10) for each job.
+# compose.ci.yaml runs the same bin/ci on the same image locally, every part one after the other,
+# and PROGRESS.md records each part's wall time as the proxy.
 
 name: CI
 
@@ -30,20 +46,82 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: 'The base of the change that mutation on changed files mutates: a commit, or a ref of the checkout such as origin/main'
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
+# The environment of every job, the same as compose.ci.yaml's ci service.
+env:
+  CMS_CI_RUNNER: 'ubuntu-latest, 4 vCPU'
+  CMS_CI_BASE_REF: ${{ inputs.base_ref || github.event.pull_request.base.sha || github.event.before }}
+  CMS_CI_PROVISION_POSTGRES: '1'
+  CMS_CI_USER: ci
+  DB_HOST: postgres
+  DB_PORT: '5432'
+  REDIS_HOST: valkey
+  REDIS_PORT: '6379'
+  XDEBUG_MODE: 'off'
+  # The superuser and roles of compose.yaml. Never POSTGRES_* in the job's environment:
+  # Testbench copies those into the pgsql connection, and the tests would run as the superuser.
+  CMS_CI_POSTGRES_SUPERUSER: postgres
+  CMS_CI_POSTGRES_PASSWORD: postgres
+  CMS_DATABASES: cms cms_test
+  CMS_SCHEMA: cms
+  CMS_OWNER_ROLE: cms_owner
+  CMS_OWNER_PASSWORD: cms_owner
+  CMS_APP_ROLE: cms_app
+  CMS_APP_PASSWORD: cms_app
+  CMS_APP_TRANSACTION_TIMEOUT: 5s
+
 jobs:
-  pr-profile:
-    name: PR profile (GUARDRAILS 10)
+  plan:
+    name: Plan the shards of mutation on changed files
     runs-on: ubuntu-latest
-    # The PR profile's budget is 15 minutes (GUARDRAILS 10); the limit leaves room for the setup
-    # and stops a hung job long before GitHub's default of six hours.
+    timeout-minutes: 10
+    # PHP 8.5 of the v1 channel with Node 22, the base of docker/ci.Dockerfile.
+    container:
+      image: ghcr.io/cboxdk/php-baseimages/php-cli:8.5-bookworm-dev-v1
+    env:
+      CMS_CI_PART: plan
+    outputs:
+      count: ${{ steps.ci.outputs.count }}
+      shards: ${{ steps.ci.outputs.shards }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # The whole history, for the merge base of CMS_CI_BASE_REF and HEAD.
+          fetch-depth: 0
+
+      - name: Set up psql, git, the user ci and Chromium, and check PCOV, as compose.ci.yaml does
+        run: docker/ci-setup.sh
+
+      - name: bin/ci
+        id: ci
+        run: bin/ci
+
+      - name: Keep the plan
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mutation-plan
+          path: build/ci/
+          if-no-files-found: error
+
+  gates:
+    name: Gates of the PR profile (GUARDRAILS 10)
+    runs-on: ubuntu-latest
+    # The budget is 15 minutes (GUARDRAILS 10); the limit leaves room for the setup and stops a
+    # hung job long before GitHub's default of six hours.
     timeout-minutes: 20
     # PHP 8.5 of the v1 channel with Node 22, the base of docker/ci.Dockerfile.
     container:
@@ -74,26 +152,7 @@ jobs:
           --health-retries 30
           --health-start-period 30s
     env:
-      CMS_CI_RUNNER: 'ubuntu-latest, 4 vCPU'
-      CMS_CI_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
-      CMS_CI_PROVISION_POSTGRES: '1'
-      CMS_CI_USER: ci
-      DB_HOST: postgres
-      DB_PORT: '5432'
-      REDIS_HOST: valkey
-      REDIS_PORT: '6379'
-      XDEBUG_MODE: 'off'
-      # The superuser and roles of compose.yaml. Never POSTGRES_* in the job's environment:
-      # Testbench copies those into the pgsql connection, and the tests would run as the superuser.
-      CMS_CI_POSTGRES_SUPERUSER: postgres
-      CMS_CI_POSTGRES_PASSWORD: postgres
-      CMS_DATABASES: cms cms_test
-      CMS_SCHEMA: cms
-      CMS_OWNER_ROLE: cms_owner
-      CMS_OWNER_PASSWORD: cms_owner
-      CMS_APP_ROLE: cms_app
-      CMS_APP_PASSWORD: cms_app
-      CMS_APP_TRANSACTION_TIMEOUT: 5s
+      CMS_CI_PART: gates
     steps:
       - name: Check out
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -114,3 +173,99 @@ jobs:
           name: gate-report
           path: build/ci/
           if-no-files-found: warn
+
+  mutation:
+    name: Mutation shard ${{ matrix.shard }} of ${{ needs.plan.outputs.count }}
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      # Every shard runs to its end, so the verdict sees every class.
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.shards) }}
+    # PHP 8.5 of the v1 channel with Node 22, the base of docker/ci.Dockerfile.
+    container:
+      image: ghcr.io/cboxdk/php-baseimages/php-cli:8.5-bookworm-dev-v1
+    services:
+      # The images of compose.yaml: the cboxdk database images, with cbox-init as PID 1. Their
+      # readiness file is the health check, as in compose.yaml. A service starts before the
+      # checkout, so it mounts nothing: bin/ci creates the roles and databases over TCP, and
+      # max_prepared_transactions is Postgres' default, 0 (PRD 4.2), as in compose.ci.yaml.
+      postgres:
+        image: ghcr.io/cboxdk/postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "test -f /tmp/cbox-ready"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+          --health-start-period 60s
+      valkey:
+        image: ghcr.io/cboxdk/valkey:8
+        options: >-
+          --health-cmd "test -f /tmp/cbox-ready"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+          --health-start-period 30s
+    env:
+      CMS_CI_PART: shard:${{ matrix.shard }}/${{ needs.plan.outputs.count }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # The whole history, for the merge base of CMS_CI_BASE_REF and HEAD.
+          fetch-depth: 0
+
+      - name: Set up psql, git, the user ci and Chromium, and check PCOV, as compose.ci.yaml does
+        run: docker/ci-setup.sh
+
+      - name: bin/ci
+        run: bin/ci
+
+      - name: Keep the shard's report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mutation-shard-${{ matrix.shard }}
+          path: build/ci/
+          if-no-files-found: warn
+
+  verdict:
+    name: Verdict of the PR profile (GUARDRAILS 10)
+    needs: [plan, gates, mutation]
+    # Runs whatever the other jobs did, so a failed, cancelled or skipped job fails it.
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # PHP 8.5 of the v1 channel with Node 22, the base of docker/ci.Dockerfile.
+    container:
+      image: ghcr.io/cboxdk/php-baseimages/php-cli:8.5-bookworm-dev-v1
+    env:
+      CMS_CI_PART: verdict
+      CMS_CI_ARTIFACTS: build/ci/artifacts
+      CMS_CI_GATES_RESULT: ${{ needs.gates.result }}
+      # The matrix's result: success only when every shard succeeded.
+      CMS_CI_SHARDS_RESULT: ${{ needs.plan.result == 'success' && needs.mutation.result || 'failure' }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # The whole history, for the merge base of CMS_CI_BASE_REF and HEAD.
+          fetch-depth: 0
+
+      - name: Set up psql, git, the user ci and Chromium, and check PCOV, as compose.ci.yaml does
+        run: docker/ci-setup.sh
+
+      - name: Fetch the plan and the shards' reports
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: mutation-*
+          path: build/ci/artifacts
+
+      - name: bin/ci
+        run: bin/ci

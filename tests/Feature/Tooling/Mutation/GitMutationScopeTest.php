@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Tests\Feature\Tooling\Mutation;
 
+use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Tests\Support\Tooling\RecordedCommand;
 use Cbox\Cms\Tests\Support\Tooling\ScratchDirectory;
 use Cbox\Cms\Tests\Support\Tooling\ScratchRepository;
@@ -64,7 +65,8 @@ function missingBases(): array
 }
 
 /**
- * The changed sources, in the Pest runs the steps of mutation on changed files make of them.
+ * The changed sources, in the Pest runs the steps of mutation on changed files make of them; both
+ * runs name the same files, so each is listed once.
  *
  * @return list<string>
  */
@@ -80,7 +82,7 @@ function mutatedPaths(MutationScope $scope): array
         }
     }
 
-    return $paths;
+    return array_values(array_unique($paths));
 }
 
 it('derives HEAD~1 as the base on main when CMS_CI_BASE_REF is unset, empty or 40 zeros, and mutates the classes the last commit changed', function (?string $ref, string $reason): void {
@@ -149,7 +151,7 @@ it('counts every file as changed in a repository with one commit, on main or ano
             ['packages/demo/src/Domain/Kept.php', 'Acme\Demo\Domain\Kept'],
             ['packages/demo/src/Store/Adapter/PostgresStore.php', 'Acme\Demo\Store\Adapter\PostgresStore'],
         ])
-        ->and(mutatedPaths($scope))->toBe(['packages/demo/src/Domain/Kept.php,packages/demo/src/Store/Adapter/PostgresStore.php', 'packages/demo/src/Store/Adapter/PostgresStore.php']);
+        ->and(mutatedPaths($scope))->toBe(['packages/demo/src/Domain/Kept.php,packages/demo/src/Store/Adapter/PostgresStore.php']);
 })->with([
     'main, unset' => ['main', null, 'CMS_CI_BASE_REF is not set'],
     'main, 40 zeros' => ['main', str_repeat('0', 40), 'CMS_CI_BASE_REF is 40 zeros, the commit before a push that created the branch'],
@@ -300,4 +302,16 @@ it('gives 0 changed classes when only files outside packages/*/src changed, and 
         ->and($steps)->toHaveCount(1)
         ->and($steps[0]->decided)->toBe(StepStatus::Pass)
         ->and($steps[0]->decision)->toBe("0 changed classes since {$base}, the merge base of CMS_CI_BASE_REF=HEAD~1 and HEAD");
+});
+
+it('leaves the testkit\'s shared contract suites out and mutates every other changed class of the testkit', function (): void {
+    $repository = baseRepository();
+    $repository->commit('base');
+    $repository->write('packages/testkit/src/Clock/ClockContract.php', "<?php\n\nnamespace Cbox\\Cms\\Testkit\\Clock;\n\ntrait ClockContract {}\n")
+        ->write('packages/testkit/src/Clock/FakeClock.php', "<?php\n\nnamespace Cbox\\Cms\\Testkit\\Clock;\n\nfinal class FakeClock {}\n")
+        ->commit('a suite and a fake');
+
+    $scope = GitMutationScope::resolve($repository->root, 'HEAD~1');
+
+    expect(pathsAndNames($scope))->toBe([['packages/testkit/src/Clock/FakeClock.php', FakeClock::class]]);
 });

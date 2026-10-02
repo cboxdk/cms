@@ -8,7 +8,10 @@ declare(strict_types=1);
  * 1 when a gate fails. Options: --report=<file> writes the report as JSON, --brief leaves the
  * output of failed steps out of the console, --pr runs the PR profile as CI runs it
  * (bin/ci): the same steps, mutation on changed files in gate 5, gates 8, 9 and 10, and the gates
- * CI does not run yet reported as not run. Mutation on changed files mutates what changed since the
+ * CI does not run yet reported as not run. With --pr, --only=gates runs the gates without mutation
+ * on changed files and --shard=<i>/<n> only shard i of the plan's n shards of it (MutationShards),
+ * as CI's jobs run them; --mutation-report=<file> writes the shard's report for the verdict
+ * (composer mutation:verdict). Mutation on changed files mutates what changed since the
  * merge base of CMS_CI_BASE_REF and HEAD; when the variable is unset, empty or 40 zeros, it derives
  * the base from the checkout (GitMutationScope).
  *
@@ -31,6 +34,13 @@ use Cbox\Cms\Tooling\Check\Domain\ReportFormatter;
 use Cbox\Cms\Tooling\DevImage\Adapter\DockerDevImage;
 use Cbox\Cms\Tooling\DevImage\Domain\DevImage;
 use Cbox\Cms\Tooling\Mutation\Boundary\GitMutationScope;
+use Cbox\Cms\Tooling\Mutation\Boundary\MutationShardReportJson;
+use Cbox\Cms\Tooling\Mutation\Domain\ClassTally;
+use Cbox\Cms\Tooling\Mutation\Domain\MutationPlan;
+use Cbox\Cms\Tooling\Mutation\Domain\MutationScope;
+use Cbox\Cms\Tooling\Mutation\Domain\MutationShardReport;
+use Cbox\Cms\Tooling\Mutation\Domain\MutationShards;
+use Cbox\Cms\Tooling\Mutation\Domain\MutationTally;
 
 $root = (string) realpath(dirname(__DIR__, 2));
 
@@ -46,24 +56,43 @@ try {
 }
 
 if (! DevImage::runsIn(getenv(DevImage::TIER_VARIABLE))) {
-    // The report is written in the container: an absolute path through the real directory,
-    // which is mounted at the same path when it lies outside the checkout.
-    $report = $options->reportFile;
-    $reportDirectory = $report === null ? false : realpath(dirname(str_starts_with($report, '/') ? $report : getcwd().'/'.$report));
-    $arguments = array_map(
-        static fn (string $argument): string => str_starts_with($argument, '--report=') && is_string($reportDirectory) ? '--report='.$reportDirectory.'/'.basename((string) $report) : $argument,
-        $arguments,
-    );
+    // The reports are written in the container: each an absolute path through the real
+    // directory, which is mounted at the same path when it lies outside the checkout.
+    $mounts = [];
 
-    exit(new DockerDevImage()->run($root, ['php', 'tools/bin/check.php', ...$arguments], is_string($reportDirectory) ? [$reportDirectory] : []));
+    foreach (['--report=' => $options->reportFile, '--mutation-report=' => $options->mutationReportFile] as $option => $file) {
+        $directory = $file === null ? false : realpath(dirname(str_starts_with($file, '/') ? $file : getcwd().'/'.$file));
+
+        if (is_string($directory)) {
+            $mounts[] = $directory;
+            $arguments = array_map(
+                static fn (string $argument): string => str_starts_with($argument, $option) ? $option.$directory.'/'.basename((string) $file) : $argument,
+                $arguments,
+            );
+        }
+    }
+
+    exit(new DockerDevImage()->run($root, ['php', 'tools/bin/check.php', ...$arguments], array_values(array_unique($mounts))));
 }
 
 $listener = new ConsoleListener(STDOUT, $options->brief);
-$listener->write(ReportFormatter::header($root, $options->profile));
+$listener->write(ReportFormatter::header($root, $options->profile, $options->part));
 
 $baseRef = getenv(GitMutationScope::VARIABLE);
 $mutation = $options->profile->mutates() ? GitMutationScope::resolve($root, $baseRef === false ? null : $baseRef) : null;
-$gates = $options->profile->gates(PHP_BINARY, ComposerCommand::resolve(PHP_BINARY), $mutation);
+$plan = $mutation instanceof MutationScope ? MutationShards::plan($mutation) : null;
+$part = $options->part;
+
+if ($plan instanceof MutationPlan && $part->isShard()) {
+    // Shard i of n of the plan this checkout makes; a job given another count than the plan's
+    // fails its mutation step, so no source is left out or mutated twice.
+    $mutation = $part->shards === $plan->count()
+        ? $plan->scope((int) $part->shard)
+        : MutationScope::unresolved(sprintf('the job was given %d shards, but the plan of this checkout has %d (MutationShards)', (int) $part->shards, $plan->count()));
+}
+
+$tally = new MutationTally;
+$gates = $options->profile->gates(PHP_BINARY, ComposerCommand::resolve(PHP_BINARY), $mutation, $part, $tally);
 $report = new CheckRunner(new SymfonyProcessRunner, $listener)->run($gates, $root);
 
 $listener->write(ReportFormatter::summary($report));
@@ -71,6 +100,19 @@ $listener->write(ReportFormatter::summary($report));
 if ($options->reportFile !== null && file_put_contents($options->reportFile, CheckReportJson::encode($report)) === false) {
     fwrite(STDERR, "Cannot write the report to {$options->reportFile}.\n");
     exit(1);
+}
+
+if ($options->mutationReportFile !== null) {
+    $shard = $plan instanceof MutationPlan && $part->shards === $plan->count() ? $plan->shard((int) $part->shard)->paths() : [];
+    $shardReport = new MutationShardReport((int) $part->shard, (int) $part->shards, $shard, $report->passed(), array_values(array_filter(
+        $tally->classes(),
+        static fn (ClassTally $class): bool => in_array($class->path, $shard, true),
+    )));
+
+    if (file_put_contents($options->mutationReportFile, MutationShardReportJson::encode($shardReport)) === false) {
+        fwrite(STDERR, "Cannot write the shard's report to {$options->mutationReportFile}.\n");
+        exit(1);
+    }
 }
 
 exit($report->passed() ? 0 : 1);

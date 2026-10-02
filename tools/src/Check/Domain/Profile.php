@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Tooling\Check\Domain;
 
 use Cbox\Cms\Tooling\Mutation\Domain\MutationScope;
+use Cbox\Cms\Tooling\Mutation\Domain\MutationTally;
 use InvalidArgumentException;
 
 /**
@@ -22,13 +23,15 @@ enum Profile: string
      * @param  MutationScope|null  $mutation  what changed since the base of the change; the PR
      *                                        profile needs it for mutation on changed files, the
      *                                        local profile has no such step
+     * @param  PrPart|null  $part  the part of the PR profile to run; null for all of it
+     * @param  MutationTally|null  $tally  where mutation on changed files counts each class
      * @return list<Gate>
      */
-    public function gates(string $php, array $composer, ?MutationScope $mutation = null): array
+    public function gates(string $php, array $composer, ?MutationScope $mutation = null, ?PrPart $part = null, ?MutationTally $tally = null): array
     {
         return match ($this) {
             self::Local => LocalProfile::gates($php, $composer),
-            self::Pr => PrProfile::gates($php, $composer, $mutation ?? throw new InvalidArgumentException('The PR profile needs the scope of mutation on changed files.')),
+            self::Pr => PrProfile::gates($php, $composer, $mutation ?? throw new InvalidArgumentException('The PR profile needs the scope of mutation on changed files.'), $part, $tally),
         };
     }
 

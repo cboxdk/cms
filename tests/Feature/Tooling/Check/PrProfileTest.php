@@ -16,14 +16,17 @@ use Cbox\Cms\Tooling\Check\Domain\Gate;
 use Cbox\Cms\Tooling\Check\Domain\LocalProfile;
 use Cbox\Cms\Tooling\Check\Domain\ProcessOutcome;
 use Cbox\Cms\Tooling\Check\Domain\Profile;
+use Cbox\Cms\Tooling\Check\Domain\PrPart;
 use Cbox\Cms\Tooling\Check\Domain\PrProfile;
 use Cbox\Cms\Tooling\Check\Domain\ReportFormatter;
 use Cbox\Cms\Tooling\Check\Domain\Step;
 use Cbox\Cms\Tooling\Check\Domain\StepResult;
 use Cbox\Cms\Tooling\Check\Domain\StepStatus;
 use Cbox\Cms\Tooling\Mutation\Domain\ChangedSource;
+use Cbox\Cms\Tooling\Mutation\Domain\MutationReportReader;
 use Cbox\Cms\Tooling\Mutation\Domain\MutationScope;
 use Cbox\Cms\Tooling\Mutation\Domain\MutationSteps;
+use Cbox\Cms\Tooling\Mutation\Domain\MutationTally;
 use InvalidArgumentException;
 
 /*
@@ -293,4 +296,45 @@ it('picks the gates by profile and names the profile in the header', function ()
         ->and(Profile::Local->mutates())->toBeFalse()
         ->and(ReportFormatter::header('/repo'))->toBe("composer check: the local profile of GUARDRAILS 10, gates 1 to 6, in /repo\n")
         ->and(ReportFormatter::header('/repo', Profile::Pr))->toBe("composer check: the PR profile of GUARDRAILS 10 as CI runs it today, gates 1 to 6 with mutation on changed files, 8, 9 and 10, with 7 and 11 reported as not run, in /repo\n");
+});
+
+it('runs every gate but mutation on changed files in the gates job, and reports that step as run in the shards', function (): void {
+    $scope = MutationScope::changed('abc123', [new ChangedSource('packages/contracts/src/Ids/PrincipalId.php', PrincipalId::class)]);
+    $full = PrProfile::gates('/usr/bin/php', PR_COMPOSER, $scope);
+    $gates = PrProfile::gates('/usr/bin/php', PR_COMPOSER, $scope, PrPart::gates());
+    $mutationSteps = count(MutationSteps::for($scope, '/usr/bin/php'));
+
+    foreach ([1, 2, 3, 4, 6, 7, 8, 9, 10, 11] as $number) {
+        expect($gates[$number - 1])->toEqual($full[$number - 1]);
+    }
+
+    expect(array_slice($gates[4]->steps, 0, -1))->toEqual(array_slice($full[4]->steps, 0, -$mutationSteps))
+        ->and(array_last($gates[4]->steps)?->name)->toBe(MutationSteps::NAME)
+        ->and(array_last($gates[4]->steps)?->notRunReason)->toBe(PrProfile::MUTATION_IN_SHARDS);
+});
+
+it('runs only its shard of mutation on changed files in a shard job, with the tally, and reports every other gate as run in the gates job', function (): void {
+    $scope = MutationScope::changed('abc123 (shard 2 of 3)', [new ChangedSource('packages/contracts/src/Ids/PrincipalId.php', PrincipalId::class)]);
+    $tally = new MutationTally;
+    $shard = PrProfile::gates('/usr/bin/php', PR_COMPOSER, $scope, PrPart::shard(2, 3), $tally);
+
+    expect(array_map(static fn (Gate $gate): int => $gate->number, $shard))->toBe(range(1, 11))
+        ->and($shard[4]->steps)->toEqual(MutationSteps::for($scope, '/usr/bin/php', $tally))
+        ->and($shard[4]->steps[1]->reader instanceof MutationReportReader ? $shard[4]->steps[1]->reader->tally : null)->toBe($tally);
+
+    foreach ($shard as $gate) {
+        if ($gate->number === 5) {
+            continue;
+        }
+
+        expect($gate->steps)->toHaveCount(1)
+            ->and($gate->steps[0]->notRunReason)->toBe(PrProfile::NOT_RUN[$gate->number] ?? PrProfile::GATE_IN_GATES_JOB);
+    }
+});
+
+it('names the part in the header of a run that is not the whole profile', function (): void {
+    expect(ReportFormatter::header('/srv/checkout', Profile::Pr, PrPart::shard(2, 3)))->toContain('; this run: mutation on changed files, shard 2 of 3, in /srv/checkout')
+        ->and(ReportFormatter::header('/srv/checkout', Profile::Pr, PrPart::gates()))->toContain('; this run: the gates, with mutation on changed files run in its shards')
+        ->and(ReportFormatter::header('/srv/checkout', Profile::Pr, PrPart::all()))->not->toContain('this run')
+        ->and(ReportFormatter::header('/srv/checkout', Profile::Pr))->not->toContain('this run');
 });

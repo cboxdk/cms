@@ -45,3 +45,19 @@ it('binds the service actors from the configuration', function (): void {
 
     expect(app(ServiceActors::class)->of(new AddonNamespace('reviews')))->toEqual(ActorId::fromString('01936f5e-8a2b-7c3d-9e4f-00000000a001'));
 });
+
+it('keeps the cause of a refused namespace or id, with the exception code 0', function (array $value): void {
+    $refusal = null;
+
+    try {
+        AddonConfig::read(new Repository(['cbox-cms' => ['addons' => ['service_actors' => $value]]]));
+    } catch (InvalidArgumentException $refused) {
+        $refusal = $refused;
+    }
+
+    expect($refusal?->getCode())->toBe(0)
+        ->and($refusal?->getPrevious())->not->toBeNull();
+})->with([
+    'a reserved namespace' => [['app' => '01936f5e-8a2b-7c3d-9e4f-00000000a001']],
+    'an id that is not a UUIDv7' => [['reviews' => 'reviewer']],
+]);

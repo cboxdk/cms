@@ -103,6 +103,7 @@ it('passes without subscriptions, and fails with the probe\'s kind when the even
         $result = $check->run();
 
         expect($result->status)->toBe(CheckStatus::Fail)
+            ->and($result->blocking)->toBeFalse()
             ->and($result->failure)->toBe(FailureKind::Unavailable)
             ->and($result->code)->toBe(EventLagCheck::CODE_UNREADABLE)
             ->and($result->cause)->toBe('The server closed the connection.');
@@ -119,9 +120,9 @@ it('fails events.parked with the count per subscription', function (): void {
     expect(new ParkedAggregatesCheck(new FakeEventLogProbe)->run()->explanation)->toBe('No subscription has parked an aggregate.')
         ->and($one->code)->toBe(ParkedAggregatesCheck::CODE)
         ->and($one->blocking)->toBeFalse()
-        ->and($one->explanation)->toStartWith('1 aggregate is parked: its event failed')
+        ->and($one->explanation)->toBe('1 aggregate is parked: its event failed as often as the runner tries, and its later events wait until it is released.')
         ->and($one->cause)->toBe('fixture.purge has 1 parked.')
-        ->and($many->explanation)->toStartWith('3 aggregates are parked: their events failed')
+        ->and($many->explanation)->toBe('3 aggregates are parked: their events failed as often as the runner tries, and their later events wait until they are released.')
         ->and($many->cause)->toBe('fixture.index has 2 parked, fixture.purge has 1 parked.')
         ->and($many->fix)->toContain('cms:events:parked', 'cms:events:release');
 });
@@ -188,6 +189,7 @@ it('passes an idle_in_transaction_session_timeout above zero that comes from the
     }
 })->with([
     'set on the role' => [5000, SettingSource::User, true, ''],
+    'one millisecond on the role' => [1, SettingSource::User, true, ''],
     'set on the role in the database' => [2000, SettingSource::DatabaseUser, true, ''],
     'reset on the role' => [0, SettingSource::Default, false, 'is 0 (off) for the role cms_app; Postgres took the value from "default"'],
     'set for the whole server' => [5000, SettingSource::ConfigurationFile, false, 'took it from "configuration file", not from the role'],
@@ -201,4 +203,26 @@ it('gives each new code a catalog entry with the exit code of its check', functi
         ->and(ErrorCode::from(OldestTransactionCheck::CODE_HORIZON)->entry()->exit->value)->toBe(79)
         ->and(ErrorCode::from(OldestTransactionCheck::CODE_SNAPSHOT)->entry()->exit->value)->toBe(79)
         ->and(ErrorCode::from(IdleInTransactionTimeoutCheck::CODE)->entry()->exit->value)->toBe(78);
+});
+
+it('fails idle_in_transaction_session_timeout as a blocking check when Postgres cannot be asked', function (): void {
+    $postgres = new FakePostgresProbe;
+    $postgres->queryFailure = ProbeFailed::unavailable('The server went away.');
+    $failed = new IdleInTransactionTimeoutCheck($postgres)->run();
+
+    expect($failed->code)->toBe(PostgresQueryFailure::CODE)
+        ->and($failed->blocking)->toBeTrue()
+        ->and($failed->failure)->toBe(FailureKind::Unavailable);
+});
+
+it('counts no unmeasured session and names no role when the probe gives only the measured ones', function (): void {
+    $open = new OpenTransactions(null, null);
+
+    expect([$open->oldestXid, $open->oldestSnapshot, $open->unmeasured, $open->unmeasuredRoles])->toBe([null, null, 0, []]);
+});
+
+it('counts no unmeasured session and names no role unless the probe gives them', function (): void {
+    $open = new OpenTransactions(null, null);
+
+    expect([$open->unmeasured, $open->unmeasuredRoles])->toBe([0, []]);
 });
