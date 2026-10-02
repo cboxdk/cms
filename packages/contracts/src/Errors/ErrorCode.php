@@ -120,6 +120,7 @@ enum ErrorCode: string
     case GenerateTypeRemoved = 'generate_type_removed';
     case GenerateUnknownExtendsTarget = 'generate_unknown_extends_target';
     case GenerateUnknownFieldType = 'generate_unknown_field_type';
+    case GrantEscalationRefused = 'grant_escalation_refused';
     case HookBudgetExceeded = 'hook_budget_exceeded';
     case HookChangeRefused = 'hook_change_refused';
     case HostNotConfigured = 'host_not_configured';
@@ -198,6 +199,7 @@ enum ErrorCode: string
     case SignalReplayed = 'signal_replayed';
     case SignalSubjectMissing = 'signal_subject_missing';
     case SignalSubjectUnsupported = 'signal_subject_unsupported';
+    case StepUpRequired = 'step_up_required';
     case SubscriptionIdentityInvalid = 'subscription_identity_invalid';
     case SubscriptionNotParked = 'subscription_not_parked';
     case SubscriptionUnknown = 'subscription_unknown';
@@ -532,6 +534,11 @@ enum ErrorCode: string
             ),
             self::GenerateUnknownFieldType => $this->refusedInput(
                 'A field\'s type is a <namespace>:<handle> that no installed module or addon registers. Correct the type, or install the addon that provides it.',
+            ),
+            self::GrantEscalationRefused => $this->caller(
+                HttpStatus::Forbidden,
+                ExitCode::NoPerm,
+                'An actor can only give the roles and grants it holds itself, on the nodes where it holds them (PRD 5.10, invariant 31): the grant would give a permission of the role that the issuing actor does not hold on the node in the grant\'s locales, or a classification access above its own there, so nothing was committed. Ask an actor who holds the role\'s permissions on the node to grant it, or grant a role within your own rights.',
             ),
             self::HookBudgetExceeded => new ErrorEntry(
                 $this,
@@ -869,6 +876,11 @@ enum ErrorCode: string
                 HttpStatus::BadRequest,
                 ExitCode::DataErr,
                 'The security event was refused: it does not name its subject as an iss_sub of the connection\'s issuer (RFC 9493, PRD 5.16). The core finds an actor only by its IdP identity, the connection, the issuer and the subject, never by an email address or a phone number alone. Nothing was ended or changed. Configure the transmitter to send iss_sub subjects.',
+            ),
+            self::StepUpRequired => $this->caller(
+                HttpStatus::Forbidden,
+                ExitCode::NoPerm,
+                'The command needs step-up, a fresh authentication of a person in an interactive session (PRD 5.16), such as a grant of an administrative role, one whose permissions include grant.*, role.* or actor.deactivate. Nothing was committed. Step-up is not built yet, so such a grant is refused on every surface; the first administrator gets the role from the one-time access bootstrap in the maintenance process.',
             ),
             self::SubscriptionIdentityInvalid => $this->violation(
                 'The event runner runs its subscribers as a service actor, never as the system (PRD 6.5 invariant 21), and cbox-cms.events.runner.service_actor names none, an actor that does not exist or one that is not of class service. No event was handled. Create a service actor and name its id there.',

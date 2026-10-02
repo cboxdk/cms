@@ -1,0 +1,186 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Cbox\Cms\Core\Access\Domain;
+
+use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Errors\ErrorCode;
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Contracts\Identity\NodePath;
+use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Core\Access\Domain\Dto\Grant;
+use Cbox\Cms\Core\Access\Domain\Dto\HeldGrant;
+use Cbox\Cms\Core\Access\Domain\Dto\RoleGrant;
+use Cbox\Cms\Core\Pipeline\Domain\Dto\Authorization;
+
+/**
+ * No escalation (PRD 5.10, invariant 31): an actor can only give the roles it holds itself, on the
+ * nodes where it holds them. The authorize step of a command that gives a role asks it after the
+ * command's own permission, with the issuing actor's grants and their roles' permissions, and the
+ * same for each actor the issuer acts on behalf of.
+ *
+ * The issuer must itself hold every permission of the role on the node, in each of the grant's
+ * locales, or in every locale for a grant without a locale set, as the PermissionRule reaches it:
+ * through a role whose permissions name it, whose nearest grant above the node, or on it, allows.
+ * Its classification access on the node must not be below the role's ceiling: on the node, in each
+ * of those locales, the highest ceiling among its roles that reach it, capped by the credential's
+ * ceiling. Otherwise the grant is refused with grant_escalation_refused.
+ *
+ * A role is administrative when its permissions include a grant.*, a role.* or actor.deactivate:
+ * whoever holds it can change roles, grants or who is active. PRD 5.16 requires step-up for a grant
+ * of one, and step-up is not built yet, so such a grant is refused with step_up_required whoever
+ * gives it; the one-time access bootstrap, in the maintenance process, does not come through here.
+ */
+#[Internal]
+final readonly class EscalationGuard
+{
+    /**
+     * The prefixes of the permissions that make a role administrative.
+     *
+     * @var list<string>
+     */
+    public const array ADMINISTRATIVE_PREFIXES = ['grant.', 'role.'];
+
+    /**
+     * The permissions that make a role administrative by themselves.
+     *
+     * @var list<string>
+     */
+    public const array ADMINISTRATIVE_PERMISSIONS = ['actor.deactivate'];
+
+    public function __construct(private PermissionRule $rule = new PermissionRule) {}
+
+    /**
+     * Whether the issuer, with the grants it holds, may give the role on the node, whose path is
+     * given.
+     *
+     * @param  list<HeldGrant>  $held  every grant the issuer holds that has not ended
+     * @param  ClassificationAccess  $credentialCeiling  the ceiling of the credential the issuer acts with
+     * @param  string  $whose  who the issuer is, for the reason: "the actor", or the actor it acts on behalf of
+     */
+    public function decide(RoleGrant $grant, NodePath $node, array $held, ClassificationAccess $credentialCeiling, string $whose = 'the actor'): Authorization
+    {
+        $locales = $grant->locales ?? [null];
+
+        foreach ($grant->permissions as $permission) {
+            $permitted = $this->permitted($held, $permission);
+
+            foreach ($locales as $locale) {
+                if (! $this->rule->reaches($permitted, $node, $locale)) {
+                    return Authorization::refuse(sprintf(
+                        'The role %s may run %s, and %s does not hold it on the node %s %s, so it may not give the role there (invariant 31).',
+                        $grant->role->toString(),
+                        $permission->value,
+                        $whose,
+                        $grant->node->toString(),
+                        $this->where($locale),
+                    ), ErrorCode::GrantEscalationRefused);
+                }
+            }
+        }
+
+        $access = $this->access($held, $node, $locales)->atMost($credentialCeiling);
+
+        if (! $access->allows($grant->ceiling)) {
+            return Authorization::refuse(sprintf(
+                'The role %s reads up to %s, above the %s classification access %s has on the node %s, so it may not give the role there (invariant 31).',
+                $grant->role->toString(),
+                $grant->ceiling->value,
+                $access->value,
+                $whose,
+                $grant->node->toString(),
+            ), ErrorCode::GrantEscalationRefused);
+        }
+
+        if (self::administrative($grant->permissions)) {
+            return Authorization::refuse(sprintf(
+                'The role %s is administrative, because it may change roles, grants or who is active, and a grant of it needs step-up (PRD 5.16), which is not built yet; the first administrator gets one from the access bootstrap.',
+                $grant->role->toString(),
+            ), ErrorCode::StepUpRequired);
+        }
+
+        return Authorization::allow();
+    }
+
+    /**
+     * Whether a role with these permissions is administrative: it may change roles, grants or who
+     * is active.
+     *
+     * @param  list<CommandName>  $permissions
+     */
+    public static function administrative(array $permissions): bool
+    {
+        foreach ($permissions as $permission) {
+            if (in_array($permission->value, self::ADMINISTRATIVE_PERMISSIONS, true)) {
+                return true;
+            }
+
+            foreach (self::ADMINISTRATIVE_PREFIXES as $prefix) {
+                if (str_starts_with($permission->value, $prefix)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * The grants of the roles whose permissions name the permission.
+     *
+     * @param  list<HeldGrant>  $held
+     * @return list<Grant>
+     */
+    private function permitted(array $held, CommandName $permission): array
+    {
+        $grants = [];
+
+        foreach ($held as $grant) {
+            if ($grant->permits($permission)) {
+                $grants[] = $grant->grant;
+            }
+        }
+
+        return $grants;
+    }
+
+    /**
+     * The issuer's classification access on the node: in each locale, the highest ceiling among
+     * its roles that reach the node there, and the lowest of those over the locales; public when a
+     * locale has none.
+     *
+     * @param  list<HeldGrant>  $held
+     * @param  list<Locale|null>  $locales
+     */
+    private function access(array $held, NodePath $node, array $locales): ClassificationAccess
+    {
+        $byRole = [];
+
+        foreach ($held as $grant) {
+            $byRole[$grant->grant->role->toString()][] = $grant->grant;
+        }
+
+        $lowest = null;
+
+        foreach ($locales as $locale) {
+            $highest = ClassificationAccess::Public;
+
+            foreach ($byRole as $grants) {
+                if ($grants[0]->roleCeiling->rank() > $highest->rank() && $this->rule->reaches($grants, $node, $locale)) {
+                    $highest = $grants[0]->roleCeiling;
+                }
+            }
+
+            $lowest = $lowest === null ? $highest : $lowest->atMost($highest);
+        }
+
+        return $lowest ?? ClassificationAccess::Public;
+    }
+
+    private function where(?Locale $locale): string
+    {
+        return $locale instanceof Locale ? 'in the locale '.$locale->value : 'in every locale';
+    }
+}

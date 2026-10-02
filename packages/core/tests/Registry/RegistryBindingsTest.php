@@ -7,6 +7,10 @@ namespace Cbox\Cms\Core\Tests\Registry;
 use Cbox\Cms\Cli\CliServiceProvider;
 use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Build\ScanRoot;
+use Cbox\Cms\Core\Access\Actions\AssignGrantAction;
+use Cbox\Cms\Core\Access\Actions\RevokeGrantAction;
+use Cbox\Cms\Core\Access\Domain\Commands\AssignGrant;
+use Cbox\Cms\Core\Access\Domain\Commands\RevokeGrant;
 use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Core\Entries\Actions\CreateEntryAction;
 use Cbox\Cms\Core\Entries\Actions\ReleaseVariantAction;
@@ -117,6 +121,8 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'entry.publish@1 '.PublishEntry::class,
             'entry.revise@1 '.ReviseEntry::class,
             'entry.unpublish@1 '.UnpublishEntry::class,
+            'grant.assign@1 '.AssignGrant::class,
+            'grant.revoke@1 '.RevokeGrant::class,
             'placement.create@1 '.CreatePlacement::class,
             'placement.set_window@1 '.SetPlacementWindow::class,
             'seed.entries@1 '.SeedEntries::class,
@@ -131,6 +137,8 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'entry.publish@1 '.PublishEntryAction::class.' write',
             'entry.revise@1 '.ReviseEntryAction::class.' write',
             'entry.unpublish@1 '.UnpublishEntryAction::class.' write',
+            'grant.assign@1 '.AssignGrantAction::class.' write',
+            'grant.revoke@1 '.RevokeGrantAction::class.' write',
             'path.resolve@1 '.ResolvePathAction::class.' query',
             'placement.create@1 '.CreatePlacementAction::class.' write',
             'placement.set_window@1 '.SetPlacementWindowAction::class.' write',
@@ -140,9 +148,11 @@ it('scans the packages\' own classes without a problem and registers the kernel\
         ->and($registry->actionFor(DeactivateActor::class)?->surfaces)->toBe([])
         ->and($registry->actionFor(ActivateActor::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia, Surface::Cli])
         ->and($registry->actionFor(RegisterActor::class)?->surfaces)->toBe([Surface::Cli])
+        ->and($registry->actionFor(AssignGrant::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia, Surface::Cli])
+        ->and($registry->actionFor(RevokeGrant::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia, Surface::Cli])
         ->and($registry->actionFor(CreateEntry::class)?->class)->toBe(CreateEntryAction::class)
         ->and($registry->actionFor(ReviseEntry::class)?->class)->toBe(ReviseEntryAction::class)
-        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([12, 11, 0, 8, 0, 1])
+        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([14, 13, 0, 10, 0, 1])
         ->and($registry->hooks)->toBe([])
         ->and(array_map(static fn (SubscriberEntry $entry): string => $entry->name->value.' '.$entry->class.' '.$entry->lane->value.' '.$entry->projection?->value, $registry->subscribers))
         ->toBe(['fragments.invalidate '.InvalidateFragments::class.' critical origin'])

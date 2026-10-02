@@ -15,6 +15,9 @@ use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
 use Cbox\Cms\Contracts\Pipeline\AuthorizationTarget;
 use Cbox\Cms\Contracts\Pipeline\Command;
 use Cbox\Cms\Core\Access\Domain\Dto\Grant;
+use Cbox\Cms\Core\Access\Domain\Dto\RoleGrant;
+use Cbox\Cms\Core\Access\Domain\EscalationGuard;
+use Cbox\Cms\Core\Access\Domain\GuardedGrant;
 use Cbox\Cms\Core\Access\Domain\PermissionRule;
 use Cbox\Cms\Core\Pipeline\Domain\CommandAuthorizer;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\Authorization;
@@ -30,6 +33,12 @@ use Override;
  * actor that acts on behalf of others gets the intersection of its rights and theirs (PRD 5.16):
  * the actor and every actor of its chain must each pass the rule with their own grants.
  *
+ * A command whose aggregates give a role (GuardedGrant) is then held to the EscalationGuard
+ * (invariant 31): the actor, and each actor of its chain, must itself hold every permission of the
+ * role on the node in the grant's locales, with a classification access there not below the role's
+ * ceiling, or the command is refused with grant_escalation_refused; an administrative role needs
+ * step-up, step_up_required.
+ *
  * It reads the actor's grants of those roles and the paths of the target nodes on the default
  * connection, or the one named, inside the command transaction and under its actor context, so a
  * node the context may not read is not reached. Row level security stays the backstop for every
@@ -44,6 +53,7 @@ final readonly class PostgresCommandAuthorizer implements CommandAuthorizer
     public function __construct(
         private ConnectionResolverInterface $connections,
         private PermissionRule $rule,
+        private EscalationGuard $guard = new EscalationGuard,
         private ?string $connection = null,
     ) {}
 
@@ -67,6 +77,39 @@ final readonly class PostgresCommandAuthorizer implements CommandAuthorizer
             }
 
             $authorization = $this->decide($command, $scope, $grants->ofDelegator($delegator, $command), $paths, sprintf('the actor %s it acts on behalf of', $delegator->toString()));
+        }
+
+        $escalation = $aggregates instanceof GuardedGrant ? $aggregates->escalation() : null;
+
+        if (! $authorization->allowed() || ! $escalation instanceof RoleGrant) {
+            return $authorization;
+        }
+
+        return $this->guarded($principal, $escalation, $paths, $grants);
+    }
+
+    /**
+     * The escalation guard on a command that gives a role (invariant 31), for the actor and for
+     * each actor it acts on behalf of, each with every grant it holds.
+     *
+     * @param  array<string, NodePath>  $paths
+     */
+    private function guarded(ActorPrincipal $principal, RoleGrant $escalation, array $paths, PostgresGrants $grants): Authorization
+    {
+        $node = $paths[$escalation->node->toString()] ?? null;
+
+        if (! $node instanceof NodePath) {
+            return Authorization::refuse(sprintf('The actor reaches no node %s to give a role on.', $escalation->node->toString()));
+        }
+
+        $authorization = $this->guard->decide($escalation, $node, $grants->held($principal->actor), $principal->classificationCeiling());
+
+        foreach ($principal->onBehalfOf as $delegator) {
+            if (! $authorization->allowed()) {
+                break;
+            }
+
+            $authorization = $this->guard->decide($escalation, $node, $grants->heldByDelegator($delegator), $principal->classificationCeiling(), sprintf('the actor %s it acts on behalf of', $delegator->toString()));
         }
 
         return $authorization;

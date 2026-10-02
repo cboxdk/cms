@@ -103,6 +103,7 @@ export type ErrorCode =
   | 'generate_type_removed'
   | 'generate_unknown_extends_target'
   | 'generate_unknown_field_type'
+  | 'grant_escalation_refused'
   | 'hook_budget_exceeded'
   | 'hook_change_refused'
   | 'host_not_configured'
@@ -181,6 +182,7 @@ export type ErrorCode =
   | 'signal_replayed'
   | 'signal_subject_missing'
   | 'signal_subject_unsupported'
+  | 'step_up_required'
   | 'subscription_identity_invalid'
   | 'subscription_not_parked'
   | 'subscription_unknown'
@@ -362,6 +364,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'generate_type_removed',
           'generate_unknown_extends_target',
           'generate_unknown_field_type',
+          'grant_escalation_refused',
           'hook_budget_exceeded',
           'hook_change_refused',
           'host_not_configured',
@@ -440,6 +443,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'signal_replayed',
           'signal_subject_missing',
           'signal_subject_unsupported',
+          'step_up_required',
           'subscription_identity_invalid',
           'subscription_not_parked',
           'subscription_unknown',
@@ -585,6 +589,7 @@ const problemV1Rule: ObjectRule = {
           'generate_type_removed',
           'generate_unknown_extends_target',
           'generate_unknown_field_type',
+          'grant_escalation_refused',
           'hook_budget_exceeded',
           'hook_change_refused',
           'host_not_configured',
@@ -663,6 +668,7 @@ const problemV1Rule: ObjectRule = {
           'signal_replayed',
           'signal_subject_missing',
           'signal_subject_unsupported',
+          'step_up_required',
           'subscription_identity_invalid',
           'subscription_not_parked',
           'subscription_unknown',

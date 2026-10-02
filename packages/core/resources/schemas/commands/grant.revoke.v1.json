@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "grant.revoke, contract version 1",
+  "description": "Ends a grant (PRD 5.10, 6.4) in one changeset, as a deactivation ends an actor's grants: from the commit on it gives nothing, and it stays, ended by the changeset. The issuing actor needs grant.revoke on the grant's node in its locales; ending a deny gives back what it kept out, so it is held to the escalation guard as a grant of the role would be (invariant 31). A grant at another version than the caller read, or one outside the issuing actor's regions, is version_conflict, and a grant that has ended is validation_failed. The PHP form is Cbox\\Cms\\Core\\Access\\Domain\\Commands\\RevokeGrant, and the generated codec RevokeGrantCodecV1 reads it and writes its canonical JSON: every key, sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "grant",
+    "version"
+  ],
+  "properties": {
+    "grant": {
+      "description": "The id of the grant to end.",
+      "$ref": "#/$defs/id"
+    },
+    "version": {
+      "description": "The version of the grant the caller read.",
+      "$ref": "#/$defs/version"
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "version": {
+      "description": "The version of an aggregate that the caller read, an integer of 1 or more; the command is version_conflict when the aggregate is at another version when it commits.",
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

@@ -14,6 +14,7 @@ use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\RoleId;
 use Cbox\Cms\Core\Access\Domain\Dto\Grant;
+use Cbox\Cms\Core\Access\Domain\Dto\HeldGrant;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\ConnectionResolverInterface;
 use Illuminate\Database\Query\Builder;
@@ -95,6 +96,28 @@ final readonly class PostgresGrants
     }
 
     /**
+     * The grants of() gives without a permission, each with its role's permissions, for the
+     * escalation guard.
+     *
+     * @return list<HeldGrant>
+     */
+    public function held(ActorId $actor): array
+    {
+        return $this->withPermissions($this->of($actor));
+    }
+
+    /**
+     * The grants ofDelegator() gives without a permission, each with its role's permissions, for
+     * the escalation guard.
+     *
+     * @return list<HeldGrant>
+     */
+    public function heldByDelegator(ActorId $actor): array
+    {
+        return $this->withPermissions($this->ofDelegator($actor));
+    }
+
+    /**
      * The path of each node the context may read, by its id; a node it may not read, or that does
      * not exist, is left out.
      *
@@ -117,6 +140,32 @@ final readonly class PostgresGrants
         }
 
         return $paths;
+    }
+
+    /**
+     * Each grant with the permissions of its role, read in one statement; every actor reads the
+     * roles' permissions.
+     *
+     * @param  list<Grant>  $grants
+     * @return list<HeldGrant>
+     */
+    private function withPermissions(array $grants): array
+    {
+        if ($grants === []) {
+            return [];
+        }
+
+        $permissions = [];
+
+        foreach ($this->db()->table('role_permissions')
+            ->useWritePdo()
+            ->whereIn('role_id', array_values(array_unique(array_map(static fn (Grant $grant): string => $grant->role->toString(), $grants))))
+            ->orderBy('command')
+            ->get(['role_id', 'command']) as $row) {
+            $permissions[$this->text($row, 'role_id')][] = new CommandName($this->text($row, 'command'));
+        }
+
+        return array_map(static fn (Grant $grant): HeldGrant => new HeldGrant($grant, $permissions[$grant->role->toString()] ?? []), $grants);
     }
 
     private function grant(mixed $row): Grant

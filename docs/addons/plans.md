@@ -36,12 +36,14 @@ A mutation implements `Cbox\Cms\Contracts\Plans\Mutation`: a final readonly clas
 | `ActorDeactivated(actor, source)` | the actor | the actor is deactivated (PRD 5.16), by the `DeactivationSource` given, `local` by default |
 | `ActorRegistered(actor, class, profile, responsible)` | the actor | the actor is created pending (PRD 5.16), with its `ActorClass`, its `ActorProfile` and, for a service actor, the `ActorId` of the person responsible for it |
 | `ActorActivated(actor)` | the actor | the pending actor becomes active |
+| `GrantAssigned(grant, actor, role, node, effect, locales)` | the grant | the actor gets the role on the node (PRD 5.10), allowing or denying, in the `Locale`s given or in every locale for null |
+| `GrantRevoked(grant)` | the grant | the grant ends with the changeset and stays |
 
 A mutation that can make content public implements `Cbox\Cms\Contracts\Plans\ChangesPublicVisibility`, whose `makesPublic()` says whether it does, now or later, such as a `PlacementWindowSet` with a window, or a `VariantReleased`, which always does. The kernel refuses a plan with one that does from an agent or a token with `agent_visibility_forbidden` (invariant 18): the envelope's issuer is an agent, or the credential was issued for one.
 
 A mutation that carries values classified above public implements `Cbox\Cms\Contracts\Plans\ClassifiedMutation`: `classification()` gives the highest classification of its values, and `withoutClassified()` the same mutation without them, such as an `ActorRegistered` without the actor's profile, which is personal. A hook sees the plan through a view filtered to the classification access it gets (see [hooks](hooks.md)); the view holds `withoutClassified()` of each such mutation that access does not allow. The kernel writes the mutation as planned.
 
-The ids are value objects over a UUIDv7: `EntryId`, `NodeId`, `PlacementId`, `SiteId`, `ActorId` and `TypeId`. A variant is a `VariantKey`, `shared` or a `Locale` such as `en-GB`; a revision is a `RevisionNumber` from 1. The kernel knows no content type (GUARDRAILS 2.4): an entry's type is the `TypeId` of its blueprint.
+The ids are value objects over a UUIDv7: `EntryId`, `NodeId`, `PlacementId`, `SiteId`, `ActorId`, `TypeId`, `RoleId` and `GrantId`. A variant is a `VariantKey`, `shared` or a `Locale` such as `en-GB`; a revision is a `RevisionNumber` from 1. The kernel knows no content type (GUARDRAILS 2.4): an entry's type is the `TypeId` of its blueprint.
 
 ## Field values
 

@@ -36,11 +36,14 @@ use Cbox\Cms\Contracts\Identity\ActorClass;
 use Cbox\Cms\Contracts\Identity\DeactivationSource;
 use Cbox\Cms\Contracts\Identity\DisplayName;
 use Cbox\Cms\Contracts\Identity\EmailAddress;
+use Cbox\Cms\Contracts\Identity\GrantEffect;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\Ids\GrantId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
+use Cbox\Cms\Contracts\Ids\RoleId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
@@ -50,6 +53,8 @@ use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Contracts\Results\ReadContent;
 use Cbox\Cms\Contracts\Schema\TypeName;
+use Cbox\Cms\Core\Access\Domain\Commands\AssignGrant;
+use Cbox\Cms\Core\Access\Domain\Commands\RevokeGrant;
 use Cbox\Cms\Core\Delivery\Domain\AnswerFormat;
 use Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryDocument;
 use Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryExplanation;
@@ -400,6 +405,18 @@ final readonly class ProtocolSchemas
             ]),
             self::command('entry.unpublish.v1.json', 'UnpublishEntryCodecV1', UnpublishEntry::class, [
                 '#/properties/entry' => $id(EntryId::class),
+                '#/properties/version' => $version,
+            ]),
+            self::command('grant.assign.v1.json', 'AssignGrantCodecV1', AssignGrant::class, [
+                '#/properties/actor' => $id(ActorId::class),
+                '#/properties/effect' => ValueBinding::enum(GrantEffect::class),
+                '#/properties/grant' => $id(GrantId::class),
+                '#/properties/locales/items' => ValueBinding::value(Locale::class),
+                '#/properties/node' => $id(NodeId::class),
+                '#/properties/role' => $id(RoleId::class),
+            ]),
+            self::command('grant.revoke.v1.json', 'RevokeGrantCodecV1', RevokeGrant::class, [
+                '#/properties/grant' => $id(GrantId::class),
                 '#/properties/version' => $version,
             ]),
             self::command('placement.create.v1.json', 'CreatePlacementCodecV1', CreatePlacement::class, [

@@ -31,6 +31,8 @@ final readonly class KernelCommandCodecs
             PublishEntryCodecV1::commandCodec(),
             ReviseEntryCodecV1::commandCodec(),
             UnpublishEntryCodecV1::commandCodec(),
+            AssignGrantCodecV1::commandCodec(),
+            RevokeGrantCodecV1::commandCodec(),
             CreatePlacementCodecV1::commandCodec(),
             SetPlacementWindowCodecV1::commandCodec(),
             ReleaseVariantCodecV1::commandCodec(),

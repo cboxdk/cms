@@ -7,6 +7,8 @@ namespace Cbox\Cms\Core\Tests\Codecs;
 use Cbox\Cms\Contracts\Attributes\Command as CommandAttribute;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Pipeline\Command;
+use Cbox\Cms\Core\Access\Domain\Commands\AssignGrant;
+use Cbox\Cms\Core\Access\Domain\Commands\RevokeGrant;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\KernelCommandCodecs;
 use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
 use Cbox\Cms\Core\Codecs\Domain\EncodingFailed;
@@ -47,6 +49,8 @@ function kernelCommandClasses(): array
         'entry.publish' => PublishEntry::class,
         'entry.revise' => ReviseEntry::class,
         'entry.unpublish' => UnpublishEntry::class,
+        'grant.assign' => AssignGrant::class,
+        'grant.revoke' => RevokeGrant::class,
         'placement.create' => CreatePlacement::class,
         'placement.set_window' => SetPlacementWindow::class,
         'variant.release' => ReleaseVariant::class,

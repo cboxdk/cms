@@ -108,6 +108,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`generate_type_removed`](#generate_type_removed) | 500 | 65 | internal_error | no |
 | [`generate_unknown_extends_target`](#generate_unknown_extends_target) | 500 | 65 | internal_error | no |
 | [`generate_unknown_field_type`](#generate_unknown_field_type) | 500 | 65 | internal_error | no |
+| [`grant_escalation_refused`](#grant_escalation_refused) | 403 | 77 | tool_error | no |
 | [`hook_budget_exceeded`](#hook_budget_exceeded) | 503 | 75 | internal_error | yes |
 | [`hook_change_refused`](#hook_change_refused) | 500 | 70 | internal_error | no |
 | [`host_not_configured`](#host_not_configured) | 421 | 68 | tool_error | no |
@@ -186,6 +187,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`signal_replayed`](#signal_replayed) | 400 | 65 | tool_error | no |
 | [`signal_subject_missing`](#signal_subject_missing) | 400 | 65 | tool_error | no |
 | [`signal_subject_unsupported`](#signal_subject_unsupported) | 400 | 65 | tool_error | no |
+| [`step_up_required`](#step_up_required) | 403 | 77 | tool_error | no |
 | [`subscription_identity_invalid`](#subscription_identity_invalid) | 500 | 78 | internal_error | no |
 | [`subscription_not_parked`](#subscription_not_parked) | 422 | 65 | tool_error | no |
 | [`subscription_unknown`](#subscription_unknown) | 422 | 65 | tool_error | no |
@@ -1058,6 +1060,15 @@ A field's type is a <namespace>:<handle> that no installed module or addon regis
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
+### grant_escalation_refused
+
+An actor can only give the roles and grants it holds itself, on the nodes where it holds them (PRD 5.10, invariant 31): the grant would give a permission of the role that the issuing actor does not hold on the node in the grant's locales, or a classification access above its own there, so nothing was committed. Ask an actor who holds the role's permissions on the node to grant it, or grant a role within your own rights.
+
+- HTTP status: 403 Forbidden
+- CLI exit code: 77 (EX_NOPERM)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
 ### hook_budget_exceeded
 
 A hook of an installed module or addon took longer than its time budget, or the hooks of the command together took longer than 100 ms (PRD 6.3, 13.6), so the command was rejected and nothing was committed. The overrun is recorded with the hook, its package and the time it took. Try again; when it keeps failing, the package that owns the hook has to make it faster or move its work to a subscriber.
@@ -1757,6 +1768,15 @@ The security event was refused: it does not name its subject as an iss_sub of th
 
 - HTTP status: 400 Bad Request
 - CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### step_up_required
+
+The command needs step-up, a fresh authentication of a person in an interactive session (PRD 5.16), such as a grant of an administrative role, one whose permissions include grant.*, role.* or actor.deactivate. Nothing was committed. Step-up is not built yet, so such a grant is refused on every surface; the first administrator gets the role from the one-time access bootstrap in the maintenance process.
+
+- HTTP status: 403 Forbidden
+- CLI exit code: 77 (EX_NOPERM)
 - MCP: a tool result with isError set
 - Retry: no, the same call gives the same answer until something changes
 

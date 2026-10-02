@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Cbox\Cms\Cli\Tests\Console;
 
 use Cbox\Cms\Cli\Console\BuildCommand;
+use Cbox\Cms\Core\Access\Domain\Commands\AssignGrant;
+use Cbox\Cms\Core\Access\Domain\Commands\RevokeGrant;
 use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
@@ -65,12 +67,12 @@ it('writes the six registries to the application\'s bootstrap/cache/cms, and rem
 
     expect($status)->toBe(0)
         ->and($output)->toBe([
-            'actions: 12',
-            'commands: 11',
+            'actions: 14',
+            'commands: 13',
             // The workbench's fixture addon, which package discovery registers: its two hooks and
             // its extension of app:fixture_article.
             'hooks: 2',
-            'rest: 8',
+            'rest: 10',
             'schema: 1',
             'subscribers: 1',
             sprintf('Registry written to %s.', $directory),
@@ -87,7 +89,7 @@ it('adds what an addon provider\'s scan root declares', function (): void {
     [$status, $output] = buildCommand();
 
     expect($status)->toBe(0)
-        ->and(array_slice($output, 0, 4))->toBe(['actions: 14', 'commands: 12', 'hooks: 3', 'rest: 9'])
+        ->and(array_slice($output, 0, 4))->toBe(['actions: 16', 'commands: 14', 'hooks: 3', 'rest: 11'])
         ->and(RegistryFixtures::load($directory.'/commands.php'))->toMatchArray(['entries' => [[
             'class' => ActivateActor::class,
             'name' => 'actor.activate',
@@ -127,6 +129,16 @@ it('adds what an addon provider\'s scan root declares', function (): void {
             'class' => CreateNote::class,
             'name' => 'fixture.note.create',
             'package' => RegistryFixtures::PACKAGE,
+            'version' => 1,
+        ], [
+            'class' => AssignGrant::class,
+            'name' => 'grant.assign',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 1,
+        ], [
+            'class' => RevokeGrant::class,
+            'name' => 'grant.revoke',
+            'package' => CoreServiceProvider::PACKAGE,
             'version' => 1,
         ], [
             'class' => CreatePlacement::class,

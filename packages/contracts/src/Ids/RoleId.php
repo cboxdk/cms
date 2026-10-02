@@ -13,7 +13,7 @@ use Override;
  * ceiling (PRD 5.10, 12.2). It is a UUIDv7, made by the IdGenerator contract.
  */
 #[Experimental]
-final readonly class RoleId implements AggregateRef
+final readonly class RoleId implements AggregateRef, Identifier
 {
     public function __construct(public Uuid7 $value) {}
 
@@ -25,6 +25,7 @@ final readonly class RoleId implements AggregateRef
         return new self(new Uuid7($value));
     }
 
+    #[Override]
     public function toString(): string
     {
         return $this->value->value;

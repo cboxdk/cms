@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Core\Access\Domain\Dto\Grant;
+use Cbox\Cms\Core\Access\Domain\Dto\HeldGrant;
 use LogicException;
 
 /**
@@ -54,6 +55,19 @@ final class FakePermissions
         }
 
         return $grants;
+    }
+
+    /**
+     * Every grant of the actor, with its role's permissions, as the escalation guard reads them.
+     *
+     * @return list<HeldGrant>
+     */
+    public function held(ActorId $actor): array
+    {
+        return array_map(
+            static fn (array $held): HeldGrant => new HeldGrant($held[0], array_map(static fn (string $name): CommandName => new CommandName($name), $held[1])),
+            $this->grants[$actor->toString()] ?? [],
+        );
     }
 
     /**

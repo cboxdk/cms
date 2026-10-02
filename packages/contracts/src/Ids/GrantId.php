@@ -13,7 +13,7 @@ use Override;
  * is a UUIDv7, made by the IdGenerator contract.
  */
 #[Experimental]
-final readonly class GrantId implements AggregateRef
+final readonly class GrantId implements AggregateRef, Identifier
 {
     public function __construct(public Uuid7 $value) {}
 
@@ -25,6 +25,7 @@ final readonly class GrantId implements AggregateRef
         return new self(new Uuid7($value));
     }
 
+    #[Override]
     public function toString(): string
     {
         return $this->value->value;

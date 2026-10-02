@@ -112,6 +112,8 @@ it('writes the runtime module unchanged, a module per record and a module per ke
         $directory.'/protocol/PublishEntryV1.ts',
         $directory.'/protocol/ReviseEntryV1.ts',
         $directory.'/protocol/UnpublishEntryV1.ts',
+        $directory.'/protocol/AssignGrantV1.ts',
+        $directory.'/protocol/RevokeGrantV1.ts',
         $directory.'/protocol/CreatePlacementV1.ts',
         $directory.'/protocol/SetPlacementWindowV1.ts',
         $directory.'/protocol/ReleaseVariantV1.ts',
@@ -150,6 +152,8 @@ it('reads the kernel\'s contracts in the order of their schemas, and names every
         'PublishEntryCodecV1',
         'ReviseEntryCodecV1',
         'UnpublishEntryCodecV1',
+        'AssignGrantCodecV1',
+        'RevokeGrantCodecV1',
         'CreatePlacementCodecV1',
         'SetPlacementWindowCodecV1',
         'ReleaseVariantCodecV1',
@@ -164,14 +168,14 @@ it('reads the kernel\'s contracts in the order of their schemas, and names every
         $problems = $failed->problems;
     }
 
-    expect(count($problems))->toBe(20)
+    expect(count($problems))->toBe(22)
         ->and($problems[0]->code)->toBe(GenerateErrorCode::SchemaMissing)
         ->and($problems[2]->message)->toContain('packages/contracts/resources/schemas/envelope.v1.json')
         ->and($problems[6]->message)->toContain('receipt.v1.json')
         ->and($problems[10]->message)->toContain('packages/core/resources/schemas/commands/entry.create.v1.json')
-        ->and($problems[17]->message)->toContain('packages/core/resources/schemas/delivery-fragment.v1.json')
-        ->and($problems[18]->message)->toContain('packages/core/resources/schemas/queries/path.resolve.result.v1.json')
-        ->and($problems[19]->message)->toContain('packages/core/resources/schemas/queries/path.resolve.v1.json');
+        ->and($problems[19]->message)->toContain('packages/core/resources/schemas/delivery-fragment.v1.json')
+        ->and($problems[20]->message)->toContain('packages/core/resources/schemas/queries/path.resolve.result.v1.json')
+        ->and($problems[21]->message)->toContain('packages/core/resources/schemas/queries/path.resolve.v1.json');
 });
 
 it('refuses a kernel schema that is not valid with generate_schema_invalid', function (): void {

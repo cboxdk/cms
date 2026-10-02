@@ -60,4 +60,4 @@ it('registers the codec of each of the kernel\'s commands under its name and ver
 
     expect($codec?->command->value)->toBe($name)
         ->and($codec?->version)->toBe(1);
-})->with(['entry.create', 'entry.revise', 'variant.release', 'entry.publish', 'entry.unpublish', 'placement.create', 'placement.set_window', 'actor.deactivate', 'actor.register', 'actor.activate']);
+})->with(['entry.create', 'entry.revise', 'variant.release', 'entry.publish', 'entry.unpublish', 'placement.create', 'placement.set_window', 'actor.deactivate', 'actor.register', 'actor.activate', 'grant.assign', 'grant.revoke']);

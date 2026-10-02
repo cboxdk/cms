@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "grant.assign, contract version 1",
+  "description": "Grants an actor a role on a node (PRD 5.10, 6.4) in one changeset: the grant allows or denies the role's permissions on the node and the subtree below it, in the locales given or in every locale. The issuing actor needs grant.assign on the node; for an allow it must itself hold every permission of the role there, in the grant's locales, with a classification access not below the role's ceiling, or the grant is refused with grant_escalation_refused (invariant 31). A grant of an administrative role, one whose permissions include grant.*, role.* or actor.deactivate, needs step-up and is refused with step_up_required. Only an active staff or service actor gets a grant, and an actor holds a role on a node once; anything else is validation_failed. A grant whose id exists is version_conflict. The PHP form is Cbox\\Cms\\Core\\Access\\Domain\\Commands\\AssignGrant, and the generated codec AssignGrantCodecV1 reads it and writes its canonical JSON: every key, sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "grant",
+    "actor",
+    "role",
+    "node",
+    "effect"
+  ],
+  "properties": {
+    "grant": {
+      "description": "The new grant's id, which the caller makes.",
+      "$ref": "#/$defs/id"
+    },
+    "actor": {
+      "description": "The id of the actor to get the grant, an active staff or service actor.",
+      "$ref": "#/$defs/id"
+    },
+    "role": {
+      "description": "The id of the role to grant.",
+      "$ref": "#/$defs/id"
+    },
+    "node": {
+      "description": "The id of the node the grant holds on, with the subtree below it.",
+      "$ref": "#/$defs/id"
+    },
+    "effect": {
+      "description": "allow gives the role's permissions on the node, deny keeps them from it; the grant nearest above a node decides, and a deny wins over an allow on the same node.",
+      "enum": [
+        "allow",
+        "deny"
+      ]
+    },
+    "locales": {
+      "description": "The locales the grant holds in, each once, or null for every locale. Missing is null.",
+      "type": [
+        "array",
+        "null"
+      ],
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/locale"
+      },
+      "default": null
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "locale": {
+      "description": "A language tag of a language, an optional script and an optional region, such as da, en-GB or sr-Latn-RS; the kernel writes the language in lowercase, the script in title case and the region in uppercase.",
+      "type": "string",
+      "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$"
+    }
+  }
+}

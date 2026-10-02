@@ -27,15 +27,21 @@ use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\DeactivationSource;
 use Cbox\Cms\Contracts\Identity\DisplayName;
 use Cbox\Cms\Contracts\Identity\EmailAddress;
+use Cbox\Cms\Contracts\Identity\GrantEffect;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\Ids\GrantId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
+use Cbox\Cms\Contracts\Ids\RoleId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Pipeline\Command;
+use Cbox\Cms\Core\Access\Domain\Commands\AssignGrant;
+use Cbox\Cms\Core\Access\Domain\Commands\RevokeGrant;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ActivateActorCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\AssignGrantCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\CreateEntryCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\CreatePlacementCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\DeactivateActorCodecV1;
@@ -43,6 +49,7 @@ use Cbox\Cms\Core\Codecs\Boundary\Generated\PublishEntryCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\RegisterActorCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ReleaseVariantCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ReviseEntryCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\RevokeGrantCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\SetPlacementWindowCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\UnpublishEntryCodecV1;
 use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
@@ -375,6 +382,9 @@ it('decodes every command it encodes into an equal command', function (JsonCodec
     'actor.register of staff' => [new RegisterActorCodecV1, new RegisterActor(ActorId::fromString(COMMAND_ACTOR), ActorClass::Staff, new DisplayName('Mette Holm ✓'), new EmailAddress('mette@example.com'))],
     'actor.register of a service' => [new RegisterActorCodecV1, new RegisterActor(ActorId::fromString(COMMAND_ACTOR), ActorClass::Service, new DisplayName('Nightly import'), new EmailAddress('ops+import@example.co.uk'), ActorId::fromString(COMMAND_ENTRY))],
     'actor.activate' => [new ActivateActorCodecV1, new ActivateActor(ActorId::fromString(COMMAND_ACTOR), new AggregateVersion(1))],
+    'grant.assign in every locale' => [new AssignGrantCodecV1, new AssignGrant(GrantId::fromString(COMMAND_PLACEMENT), ActorId::fromString(COMMAND_ACTOR), RoleId::fromString(COMMAND_TYPE), NodeId::fromString(COMMAND_NODE), GrantEffect::Allow)],
+    'grant.assign of a deny in two locales' => [new AssignGrantCodecV1, new AssignGrant(GrantId::fromString(COMMAND_PLACEMENT), ActorId::fromString(COMMAND_ACTOR), RoleId::fromString(COMMAND_TYPE), NodeId::fromString(COMMAND_NODE), GrantEffect::Deny, [new Locale('da'), new Locale('en-GB')])],
+    'grant.revoke' => [new RevokeGrantCodecV1, new RevokeGrant(GrantId::fromString(COMMAND_PLACEMENT), new AggregateVersion(2))],
 ]);
 
 it('reads the fields of entry.create as JSON gives them, and writes them back in the same form', function (): void {
@@ -546,5 +556,35 @@ it('refuses every rule of actor.register and actor.activate that their JSON Sche
         'an unknown key' => [commandJson($activate, ['source' => 'local']), ''],
         ...idFixtures($activate, 'actor'),
         ...versionFixtures($activate, 'version'),
+    ]);
+});
+
+it('refuses every rule of grant.assign and grant.revoke that their JSON Schemas state, as the TypeScript validators and the schemas do', function (): void {
+    $assign = ['grant' => COMMAND_PLACEMENT, 'actor' => COMMAND_ACTOR, 'role' => COMMAND_TYPE, 'node' => COMMAND_NODE, 'effect' => 'allow'];
+    $revoke = ['grant' => COMMAND_PLACEMENT, 'version' => 1];
+
+    commandCrossCheck(new AssignGrantCodecV1, 'grant.assign.v1.json', [
+        'an allow in every locale' => [commandJson($assign), null],
+        'a deny in two locales' => [commandJson($assign, ['effect' => 'deny', 'locales' => ['da', 'en-GB']]), null],
+        'locales of null' => [commandJson($assign, ['locales' => null]), null],
+        'a locale named twice, which the action refuses' => [commandJson($assign, ['locales' => ['da', 'da']]), null],
+        'an unknown key' => [commandJson($assign, ['version' => 1]), ''],
+        ...idFixtures($assign, 'grant'),
+        ...idFixtures($assign, 'actor'),
+        ...idFixtures($assign, 'role'),
+        ...idFixtures($assign, 'node'),
+        'an effect that is not one' => [commandJson($assign, ['effect' => 'grant']), 'effect'],
+        'the effect missing' => [commandJson($assign, omit: ['effect']), 'effect'],
+        'no locale' => [commandJson($assign, ['locales' => []]), 'locales'],
+        'locales that are a string' => [commandJson($assign, ['locales' => 'da']), 'locales'],
+        'a locale of one letter' => [commandJson($assign, ['locales' => ['da', 'd']]), 'locales[1]'],
+        'a locale that is a number' => [commandJson($assign, ['locales' => [7]]), 'locales[0]'],
+    ]);
+
+    commandCrossCheck(new RevokeGrantCodecV1, 'grant.revoke.v1.json', [
+        'a revocation' => [commandJson($revoke), null],
+        'an unknown key' => [commandJson($revoke, ['actor' => COMMAND_ACTOR]), ''],
+        ...idFixtures($revoke, 'grant'),
+        ...versionFixtures($revoke, 'version'),
     ]);
 });

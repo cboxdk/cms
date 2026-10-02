@@ -51,9 +51,15 @@ final class SurfaceContractTest extends TestCase
 
     /**
      * The kernel's commands exposed on some surfaces, by name, with those surfaces (B1 point 4):
-     * actor.activate on every surface but MCP, and actor.register on the CLI alone.
+     * actor.activate, grant.assign and grant.revoke on every surface but MCP, and actor.register
+     * on the CLI alone.
      */
-    private const array SOME_SURFACES = ['actor.activate' => ['rest', 'inertia', 'cli'], 'actor.register' => ['cli']];
+    private const array SOME_SURFACES = [
+        'actor.activate' => ['rest', 'inertia', 'cli'],
+        'actor.register' => ['cli'],
+        'grant.assign' => ['rest', 'inertia', 'cli'],
+        'grant.revoke' => ['rest', 'inertia', 'cli'],
+    ];
 
     /** The command of M1 point 3 that is exposed on no surface: its surfaces come with B1 and B6. */
     private const string UNEXPOSED = 'actor.deactivate';
@@ -81,16 +87,12 @@ final class SurfaceContractTest extends TestCase
     {
         $registry = SurfaceContractCases::installation(app());
         $expected = [];
+        $commands = [...self::SOME_SURFACES, ...array_fill_keys(self::EXPOSED, array_map(static fn (Surface $surface): string => $surface->value, Surface::cases()))];
+        ksort($commands);
 
-        foreach (self::SOME_SURFACES as $command => $surfaces) {
+        foreach ($commands as $command => $surfaces) {
             foreach ($surfaces as $surface) {
                 $expected[] = sprintf('%s v1 on %s', $command, $surface);
-            }
-        }
-
-        foreach (self::EXPOSED as $command) {
-            foreach (Surface::cases() as $surface) {
-                $expected[] = sprintf('%s v1 on %s', $command, $surface->value);
             }
         }
 

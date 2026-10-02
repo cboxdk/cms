@@ -95,8 +95,9 @@ use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
  *    version its caller saw (invariant 11), and so is a call whose two reads of one aggregate
  *    differ.
  * 2. Authorize, through the CommandAuthorizer with the call's AccessContext; a refusal is
- *    unauthorized. Then an action that RefusesCommand says whether what it read refuses the
- *    command, such as a slug another placement has, and the call is rejected with its errors.
+ *    unauthorized, or the code it names, such as grant_escalation_refused. Then an action that
+ *    RefusesCommand says whether what it read refuses the command, such as a slug another
+ *    placement has, and the call is rejected with its errors.
  * 3. Plan: the action's plan() from the command and the aggregates. The kernel checks its shape
  *    at once: every aggregate a mutation changes was read, every revision's and release's type is
  *    a type of the TypeCatalog, and an entry's home node, when the action read it, exists, so the
@@ -310,7 +311,7 @@ final readonly class CommandPipeline
         $authorization = $this->authorizer->authorize($call->access, $binding->command, $call->command, $aggregates);
 
         if (! $authorization->allowed()) {
-            return $this->rejected($call, new CatalogError(ErrorCode::Unauthorized, null, (string) $authorization->reason));
+            return $this->rejected($call, new CatalogError($authorization->code, null, (string) $authorization->reason));
         }
 
         if ($action instanceof RefusesCommand) {
