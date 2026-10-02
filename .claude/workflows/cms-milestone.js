@@ -362,7 +362,7 @@ Never push. Change PROGRESS.md and CHECKS-LOG.md only as step 3 says.`,
   return { merged: false, failures: lastFailures, checksRun: [] }
 }
 
-async function buildTask(task, phaseName) {
+async function buildTask(task, phaseName, onQueued = () => {}) {
   const PH = phaseName || 'Build'
   const earlier = Object.values(taskResults).map(r => ({ id: r.id, status: r.status, summary: r.summary }))
   const result = await agent(
@@ -440,6 +440,8 @@ ${WORKTREE_RULES}`,
     }
   }
 
+  // A verified task waits for the merge queue without holding a build slot.
+  onQueued()
   const merged = await integrateSerially(task, verdict.head || null, result)
   return {
     id: task.id,
@@ -461,6 +463,12 @@ async function runTasks(tasks, phaseName) {
   const depsIn = t => (t.dependsOn || []).filter(d => ids.has(d))
   tasks.forEach(t => { state[t.id] = 'pending' })
   const running = new Map()
+  // building holds the tasks that occupy a build slot: from the start of their build until they are
+  // verified and enter the merge queue, so a queued task never keeps the next one from starting.
+  const building = new Set()
+  let wake = () => {}
+  let woken = new Promise(r => { wake = r })
+  const slotFreed = () => { wake(); woken = new Promise(r => { wake = r }) }
   while (true) {
     // A task whose dependency failed or was blocked cannot be built.
     let changed = true
@@ -478,18 +486,21 @@ async function runTasks(tasks, phaseName) {
       }
     }
     const ready = tasks.filter(t => state[t.id] === 'pending' && depsIn(t).every(d => state[d] === 'done'))
-    while (running.size < MAX_PARALLEL && ready.length) {
+    while (building.size < MAX_PARALLEL && ready.length) {
       const t = ready.shift()
       state[t.id] = 'running'
-      running.set(t.id, buildTask(t, phaseName).catch(e => ({ id: t.id, status: 'failed', summary: 'crashed', failures: [String(e)] })).then(r => {
+      building.add(t.id)
+      const queued = () => { if (building.delete(t.id)) slotFreed() }
+      running.set(t.id, buildTask(t, phaseName, queued).catch(e => ({ id: t.id, status: 'failed', summary: 'crashed', failures: [String(e)] })).then(r => {
         state[t.id] = r.status
         taskResults[t.id] = r
+        building.delete(t.id)
         running.delete(t.id)
         log(`${t.id}: ${r.status}`)
       }))
     }
     if (!running.size) break
-    await Promise.race(running.values())
+    await Promise.race([...running.values(), woken])
   }
   for (const t of tasks) {
     if (state[t.id] === 'pending') {
