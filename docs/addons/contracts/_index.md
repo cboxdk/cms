@@ -20,6 +20,8 @@ Every contract has two things in the testkit, `Cbox\Cms\Testkit`: a fake for tes
 | [`CredentialVerifier`](credential-verifier.md) | `PostgresCredentialVerifier` | `FakeIdentity` | `CredentialVerifierContract` |
 | [`FragmentStore`](fragment-store.md) | `ValkeyFragmentStore` | `FakeFragmentStore` | `FragmentStoreContract` |
 | [`CdnDriver`](cdn-driver.md) | none until full-scale invalidation | `FakeCdnDriver` | `CdnDriverContract` |
+| [`LoginConnection`](login-connection.md) | none until the identity module's connections | `FakeLoginConnection` | `LoginConnectionContract` |
+| [`IssuerResolver`](issuer-resolver.md) | none until the OpenID Connect implementation | `FakeIssuerResolver` | `IssuerResolverContract` |
 | [`TypeTableReader`](type-table-reader.md) | `PostgresTypeTableReader` | `FakeTypeTableReader` | `TypeTableReaderContract` |
 | [`Telemetry`](telemetry.md) | `LogTelemetry` | `FakeTelemetry` | `TelemetryContract` |
 | [`TypeCatalog`](type-catalog.md) | the generated `GeneratedTypeCatalog` | `FakeTypeCatalog` | `TypeCatalogContract` |

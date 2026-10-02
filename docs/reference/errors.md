@@ -101,6 +101,11 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`idempotency_key_required`](#idempotency_key_required) | 400 | 64 | tool_error | no |
 | [`json_invalid`](#json_invalid) | 422 | 65 | tool_error | no |
 | [`json_malformed`](#json_malformed) | 400 | 65 | tool_error | no |
+| [`login_issuer_mismatch`](#login_issuer_mismatch) | 401 | 77 | tool_error | no |
+| [`login_rejected`](#login_rejected) | 401 | 77 | tool_error | no |
+| [`login_state_mismatch`](#login_state_mismatch) | 401 | 77 | tool_error | no |
+| [`login_tenant_claim_missing`](#login_tenant_claim_missing) | 401 | 77 | tool_error | no |
+| [`login_tenant_mismatch`](#login_tenant_mismatch) | 401 | 77 | tool_error | no |
 | [`owner_credentials_exposed`](#owner_credentials_exposed) | 500 | 78 | internal_error | no |
 | [`partition_lock_timeout`](#partition_lock_timeout) | 503 | 75 | internal_error | yes |
 | [`partition_missing`](#partition_missing) | 503 | 75 | internal_error | yes |
@@ -947,6 +952,51 @@ The document is not a well-formed JSON object, or an object in it has the same k
 
 - HTTP status: 400 Bad Request
 - CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### login_issuer_mismatch
+
+The login was refused: the token came from another issuer than the one its login connection is pinned to (PRD 5.16), so no session was issued and no actor was found or created. A token is trusted only from the issuer its connection names. Log in again through the connection of your organisation; if the issuer of the connection has changed, correct the connection's configuration.
+
+- HTTP status: 401 Unauthorized
+- CLI exit code: 77 (EX_NOPERM)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### login_rejected
+
+The login was refused: the identity provider or the credential check did not accept it, such as a wrong password, an unknown account or an error the provider sent back (PRD 5.16). No session was issued. Check the credentials and log in again; the person is only told that the login failed.
+
+- HTTP status: 401 Unauthorized
+- CLI exit code: 77 (EX_NOPERM)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### login_state_mismatch
+
+The login was refused: what came back does not belong to the login this browser started, by its state, its connection or its flow (PRD 5.16). It may be a planted or replayed response, or the session that held the pending login has expired. Nothing was checked further and no session was issued. Start the login again from the login page.
+
+- HTTP status: 401 Unauthorized
+- CLI exit code: 77 (EX_NOPERM)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### login_tenant_claim_missing
+
+The login was refused: the login connection is pinned to a tenant of its issuer, and the token does not carry the claim that names the tenant, such as tid for Microsoft Entra ID or hd for Google (PRD 5.16). The tenant is read only from the token, never from the request, so the login cannot be admitted. Log in with an account of the pinned tenant, such as a Workspace account rather than a personal one.
+
+- HTTP status: 401 Unauthorized
+- CLI exit code: 77 (EX_NOPERM)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### login_tenant_mismatch
+
+The login was refused: the token's tenant claim names another tenant than the one the login connection is pinned to (PRD 5.16), so no session was issued. An issuer with several tenants is trusted only for the pinned tenant. Log in with an account of the organisation the connection is for.
+
+- HTTP status: 401 Unauthorized
+- CLI exit code: 77 (EX_NOPERM)
 - MCP: a tool result with isError set
 - Retry: no, the same call gives the same answer until something changes
 

@@ -96,6 +96,11 @@ export type ErrorCode =
   | 'idempotency_key_required'
   | 'json_invalid'
   | 'json_malformed'
+  | 'login_issuer_mismatch'
+  | 'login_rejected'
+  | 'login_state_mismatch'
+  | 'login_tenant_claim_missing'
+  | 'login_tenant_mismatch'
   | 'owner_credentials_exposed'
   | 'partition_lock_timeout'
   | 'partition_missing'
@@ -310,6 +315,11 @@ const catalogErrorV1Rule: ObjectRule = {
           'idempotency_key_required',
           'json_invalid',
           'json_malformed',
+          'login_issuer_mismatch',
+          'login_rejected',
+          'login_state_mismatch',
+          'login_tenant_claim_missing',
+          'login_tenant_mismatch',
           'owner_credentials_exposed',
           'partition_lock_timeout',
           'partition_missing',
@@ -488,6 +498,11 @@ const problemV1Rule: ObjectRule = {
           'idempotency_key_required',
           'json_invalid',
           'json_malformed',
+          'login_issuer_mismatch',
+          'login_rejected',
+          'login_state_mismatch',
+          'login_tenant_claim_missing',
+          'login_tenant_mismatch',
           'owner_credentials_exposed',
           'partition_lock_timeout',
           'partition_missing',

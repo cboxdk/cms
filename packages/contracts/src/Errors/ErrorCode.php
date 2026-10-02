@@ -113,6 +113,11 @@ enum ErrorCode: string
     case IdempotencyKeyRequired = 'idempotency_key_required';
     case JsonInvalid = 'json_invalid';
     case JsonMalformed = 'json_malformed';
+    case LoginIssuerMismatch = 'login_issuer_mismatch';
+    case LoginRejected = 'login_rejected';
+    case LoginStateMismatch = 'login_state_mismatch';
+    case LoginTenantClaimMissing = 'login_tenant_claim_missing';
+    case LoginTenantMismatch = 'login_tenant_mismatch';
     case OwnerCredentialsExposed = 'owner_credentials_exposed';
     case PartitionLockTimeout = 'partition_lock_timeout';
     case PartitionMissing = 'partition_missing';
@@ -490,6 +495,21 @@ enum ErrorCode: string
                 McpResponse::ToolError,
                 false,
                 'The document is not a well-formed JSON object, or an object in it has the same key twice, so none of it was read (GUARDRAILS 2.2). Send one JSON object, encoded as UTF-8, with every key once in each object.',
+            ),
+            self::LoginIssuerMismatch => $this->credential(
+                'The login was refused: the token came from another issuer than the one its login connection is pinned to (PRD 5.16), so no session was issued and no actor was found or created. A token is trusted only from the issuer its connection names. Log in again through the connection of your organisation; if the issuer of the connection has changed, correct the connection\'s configuration.',
+            ),
+            self::LoginRejected => $this->credential(
+                'The login was refused: the identity provider or the credential check did not accept it, such as a wrong password, an unknown account or an error the provider sent back (PRD 5.16). No session was issued. Check the credentials and log in again; the person is only told that the login failed.',
+            ),
+            self::LoginStateMismatch => $this->credential(
+                'The login was refused: what came back does not belong to the login this browser started, by its state, its connection or its flow (PRD 5.16). It may be a planted or replayed response, or the session that held the pending login has expired. Nothing was checked further and no session was issued. Start the login again from the login page.',
+            ),
+            self::LoginTenantClaimMissing => $this->credential(
+                'The login was refused: the login connection is pinned to a tenant of its issuer, and the token does not carry the claim that names the tenant, such as tid for Microsoft Entra ID or hd for Google (PRD 5.16). The tenant is read only from the token, never from the request, so the login cannot be admitted. Log in with an account of the pinned tenant, such as a Workspace account rather than a personal one.',
+            ),
+            self::LoginTenantMismatch => $this->credential(
+                'The login was refused: the token\'s tenant claim names another tenant than the one the login connection is pinned to (PRD 5.16), so no session was issued. An issuer with several tenants is trusted only for the pinned tenant. Log in with an account of the organisation the connection is for.',
             ),
             self::OwnerCredentialsExposed => $this->violation(
                 'The core refused to boot a process that serves HTTP or runs queued jobs, because the owner connection is configured in it (PRD 4.2). Give the owner connection to the maintenance process alone, which runs the migrations and cms:partitions:maintain.',

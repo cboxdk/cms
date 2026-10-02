@@ -11,8 +11,9 @@ use InvalidArgumentException;
 
 /**
  * An identity value that breaks its rules: a version or generation below 1, a chain that holds an
- * actor twice, a classification ceiling above what the issuer kind permits, or a credential that
- * cannot be issued.
+ * actor twice, a classification ceiling above what the issuer kind permits, a credential that
+ * cannot be issued, or a value of a login (Login\VerifiedAssertion and the values it holds) that is
+ * not in its form or contradicts itself. The messages never repeat the refused value.
  */
 #[Experimental]
 final class InvalidIdentity extends InvalidArgumentException
@@ -94,5 +95,21 @@ final class InvalidIdentity extends InvalidArgumentException
     public static function mismatch(string $what): self
     {
         return new self(sprintf('The actors given for the credential do not match its %s.', $what));
+    }
+
+    /**
+     * A value of a login that is not in its form, such as an issuer or a subject.
+     */
+    public static function loginValue(string $what, string $form): self
+    {
+        return new self(sprintf('The %s must be %s (PRD 5.16).', $what, $form));
+    }
+
+    /**
+     * A list of a verified assertion that gives a value twice.
+     */
+    public static function duplicate(string $what): self
+    {
+        return new self(sprintf('A verified assertion gives each %s once, but gives one twice (PRD 5.16).', $what));
     }
 }
