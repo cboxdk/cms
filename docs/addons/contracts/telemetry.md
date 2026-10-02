@@ -46,6 +46,8 @@ The command pipeline and the query pipeline export one span and its metrics for 
 
 The metrics are the histograms `cms.command.duration` and `cms.query.duration` in milliseconds, one value per call, and the counters `cms.command.errors` and `cms.query.errors`, incremented once for each call that was rejected or threw. Metrics carry no ids, so their cardinality stays that of the actions and the error codes. No field value, error message or exception message reaches an attribute, and no actor id does.
 
+The identity module's login policy adds the counter `cms.login.decisions`, incremented once for each decision, with `cms.outcome` `allowed` or `refused` and, for a refusal, `cms.error.code`, the catalog code of the rule that refused it (see [Login policy](../../security/login-policy.md)). It carries no actor id, login identifier or e-mail address.
+
 ## The log exporter: LogTelemetry
 
 `LogTelemetry` writes each record as one log entry whose message names its kind and whose context holds the record, so a log pipeline reads it as structured data:

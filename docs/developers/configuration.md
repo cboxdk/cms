@@ -155,6 +155,37 @@ An invalid doctor setting makes `cms:doctor` run the single check `doctor.config
 | Key | Default | What it does |
 |---|---|---|
 | `cbox-cms.identity.connection` | `pgsql_identity` | The database connection of the identity role, the only role that reaches the credential store of the local accounts in the schema `cms_identity`. It goes to the same database as the default connection with a role of its own. See [Credential store](../security/credential-store.md). |
+| `cbox-cms.identity.policy.authoritative_connections` | `[]` | The federated connections marked authoritative: their identity provider owns the access of the actors linked to them, so such an actor has no local login (invariant 38). Never `local`. See [Login policy](../security/login-policy.md). |
+| `cbox-cms.identity.policy.staff.connections.local` | `true` | Whether members of staff may log in through the local connection, the local accounts of the identity module. Add a federated connection by its name, such as `cbox-cms.identity.policy.staff.connections.entra`, set to `true`. |
+| `cbox-cms.identity.policy.staff.methods.password` | `true` | Whether members of staff may log in with the method `password`. A method the map does not name is not allowed. |
+| `cbox-cms.identity.policy.staff.methods.passkey` | `true` | Whether members of staff may log in with the method `passkey`. A method the map does not name is not allowed. |
+| `cbox-cms.identity.policy.staff.methods.magic_link` | `false` | Whether members of staff may log in with the method `magic_link`. A method the map does not name is not allowed. |
+| `cbox-cms.identity.policy.staff.methods.social` | `false` | Whether members of staff may log in with the method `social`. A method the map does not name is not allowed. |
+| `cbox-cms.identity.policy.staff.methods.invitation` | `true` | Whether members of staff may log in with the method `invitation`. A method the map does not name is not allowed. |
+| `cbox-cms.identity.policy.staff.methods.password_reset` | `true` | Whether members of staff may log in with the method `password_reset`. A method the map does not name is not allowed. |
+| `cbox-cms.identity.policy.staff.methods.federated` | `true` | Whether members of staff may log in with the method `federated`. A method the map does not name is not allowed. |
+| `cbox-cms.identity.policy.staff.local_login` | `true` | Whether local login is switched on for members of staff. Off, only federated connections give them a session ([`login_local_disabled`](../reference/errors.md#login_local_disabled)). |
+| `cbox-cms.identity.policy.staff.local_factors` | `passkey_or_two_factors` | The factors a local login of members of staff needs: `password`, or `passkey_or_two_factors`, a passkey or two factors in the amr claim ([`login_factors_unavailable`](../reference/errors.md#login_factors_unavailable)). The workbench sets `password`, because B1 part 1 offers no passkey or second factor. |
+| `cbox-cms.identity.policy.staff.federated_amr` | `[]` | amr values of which a federated login of members of staff must show one, such as `mfa`. Empty with `federated_acr` empty requires none. |
+| `cbox-cms.identity.policy.staff.federated_acr` | `[]` | acr values of which a federated login of members of staff may show one instead of an amr value. |
+| `cbox-cms.identity.policy.staff.inactivity_minutes` | `60` | Minutes without a request after which a session of members of staff ends. |
+| `cbox-cms.identity.policy.staff.absolute_minutes` | `720` | Minutes after the login after which a session of members of staff ends, whatever happens; at least `inactivity_minutes`. |
+| `cbox-cms.identity.policy.end_user.connections.local` | `true` | Whether end users may log in through the local connection, the local accounts of the identity module. Add a federated connection by its name, such as `cbox-cms.identity.policy.end_user.connections.entra`, set to `true`. |
+| `cbox-cms.identity.policy.end_user.methods.password` | `true` | Whether end users may log in with the method `password`. A method the map does not name is not allowed. |
+| `cbox-cms.identity.policy.end_user.methods.passkey` | `true` | Whether end users may log in with the method `passkey`. A method the map does not name is not allowed. |
+| `cbox-cms.identity.policy.end_user.methods.magic_link` | `true` | Whether end users may log in with the method `magic_link`. A method the map does not name is not allowed. |
+| `cbox-cms.identity.policy.end_user.methods.social` | `true` | Whether end users may log in with the method `social`. A method the map does not name is not allowed. |
+| `cbox-cms.identity.policy.end_user.methods.invitation` | `true` | Whether end users may log in with the method `invitation`. A method the map does not name is not allowed. |
+| `cbox-cms.identity.policy.end_user.methods.password_reset` | `true` | Whether end users may log in with the method `password_reset`. A method the map does not name is not allowed. |
+| `cbox-cms.identity.policy.end_user.methods.federated` | `true` | Whether end users may log in with the method `federated`. A method the map does not name is not allowed. |
+| `cbox-cms.identity.policy.end_user.local_login` | `true` | Whether local login is switched on for end users. Off, only federated connections give them a session ([`login_local_disabled`](../reference/errors.md#login_local_disabled)). |
+| `cbox-cms.identity.policy.end_user.local_factors` | `password` | The factors a local login of end users needs: `password`, or `passkey_or_two_factors`, a passkey or two factors in the amr claim ([`login_factors_unavailable`](../reference/errors.md#login_factors_unavailable)). |
+| `cbox-cms.identity.policy.end_user.federated_amr` | `[]` | amr values of which a federated login of end users must show one, such as `mfa`. Empty with `federated_acr` empty requires none. |
+| `cbox-cms.identity.policy.end_user.federated_acr` | `[]` | acr values of which a federated login of end users may show one instead of an amr value. |
+| `cbox-cms.identity.policy.end_user.inactivity_minutes` | `43200` (30 days) | Minutes without a request after which a session of end users ends. |
+| `cbox-cms.identity.policy.end_user.absolute_minutes` | `129600` (90 days) | Minutes after the login after which a session of end users ends, whatever happens; at least `inactivity_minutes`. |
+
+The login policy is read the first time a login asks it; a policy out of form throws `InvalidLoginPolicy` with [`login_policy_invalid`](../reference/errors.md#login_policy_invalid), naming the key.
 
 ## Generators
 

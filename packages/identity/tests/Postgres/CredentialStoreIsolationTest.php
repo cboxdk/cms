@@ -72,6 +72,7 @@ it('refuses the app role every read and write of the credential store with SQLST
 })->with([
     'a read of the local accounts' => ['select * from cms_identity.local_accounts'],
     'a read of the reset tokens' => ['select * from cms_identity.password_reset_tokens'],
+    'a read of the IdP links' => ['select * from cms_identity.idp_links'],
     'a write of the local accounts' => ["insert into cms_identity.local_accounts (actor_id) values ('0199c1f0-0000-7000-8000-000000000000') returning 1"],
 ]);
 
@@ -211,6 +212,10 @@ it('gives the schema to the owner role, USAGE to the identity role alone, and th
             where n.nspname = 'cms_identity' and c.relkind = 'r' and a.grantee <> c.relowner
             order by 1
             SQL))->toBe([
+            'idp_links cms_identity DELETE',
+            'idp_links cms_identity INSERT',
+            'idp_links cms_identity SELECT',
+            'idp_links cms_identity UPDATE',
             'local_accounts cms_identity DELETE',
             'local_accounts cms_identity INSERT',
             'local_accounts cms_identity SELECT',
@@ -221,7 +226,7 @@ it('gives the schema to the owner role, USAGE to the identity role alone, and th
             'password_reset_tokens cms_identity UPDATE',
         ])
         ->and($acl("select c.relname || ' ' || c.relrowsecurity::text as value from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'cms_identity' and c.relkind = 'r' order by 1"))
-        ->toBe(['local_accounts false', 'password_reset_tokens false']);
+        ->toBe(['idp_links false', 'local_accounts false', 'password_reset_tokens false']);
 });
 
 it('creates exactly the tables the module names, with an index on every foreign key', function (): void {
@@ -229,6 +234,8 @@ it('creates exactly the tables the module names, with an index on every foreign 
 
     expect($texts("select c.relname::text as value from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'cms_identity' and c.relkind in ('r', 'p') order by 1"))->toBe(CredentialStore::TABLES)
         ->and($texts("select indexname::text as value from pg_indexes where schemaname = 'cms_identity' order by 1"))->toBe([
+            'idp_links_actor_id',
+            'idp_links_pkey',
             'local_accounts_login_key',
             'local_accounts_pkey',
             'password_reset_tokens_actor_id',
@@ -240,6 +247,6 @@ it('creates exactly the tables the module names, with an index on every foreign 
 it('points the identity connection at this checkout\'s database, and the harness empties the store after each test', function (): void {
     expect(identityConnection()->getDatabaseName())->toBe(DB::connection()->getDatabaseName())
         ->and(DB::connection()->getDatabaseName())->toStartWith('cms_test_')
-        ->and(new OwnerTruncation(DB::connection('pgsql_owner'))->tables())->toContain('cms_identity.local_accounts', 'cms_identity.password_reset_tokens')
+        ->and(new OwnerTruncation(DB::connection('pgsql_owner'))->tables())->toContain('cms_identity.idp_links', 'cms_identity.local_accounts', 'cms_identity.password_reset_tokens')
         ->and(identityConnection()->table(CredentialStore::table('local_accounts'))->count())->toBe(0);
 });

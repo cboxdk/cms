@@ -24,7 +24,7 @@ final class CredentialTables
      *
      * @var list<string>
      */
-    public const array TABLES = ['local_accounts', 'password_reset_tokens'];
+    public const array TABLES = ['idp_links', 'local_accounts', 'password_reset_tokens'];
 
     /**
      * The credential store table a name refers to, as `cms_identity.<table>`, read without case,

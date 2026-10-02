@@ -11,7 +11,8 @@ use Cbox\Cms\Contracts\Attributes\Internal;
  * reached by its own role on its own connection. The app role has no privilege on the schema or
  * its tables, so isolation is by privilege, and the tables have no row level security. Credentials
  * are bound to the actor register, `actors`, so there is one list of people; the store is not
- * content state and lies outside invariant 1.
+ * content state and lies outside invariant 1. The schema also holds the links of actors to IdP
+ * identities, idp_links (PRD 5.16, "Koblinger"), which the login policy reads (invariant 38).
  *
  * Only this module and its migrations write the tables (the testkit's KernelTableWriteRule).
  */
@@ -26,7 +27,7 @@ final readonly class CredentialStore
      *
      * @var list<string>
      */
-    public const array TABLES = ['local_accounts', 'password_reset_tokens'];
+    public const array TABLES = ['idp_links', 'local_accounts', 'password_reset_tokens'];
 
     /**
      * A table of the store, qualified by its schema, so a query reaches it whatever the

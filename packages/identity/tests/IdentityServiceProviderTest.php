@@ -25,8 +25,9 @@ use Illuminate\Database\Migrations\Migrator;
  * and its classes as a scan root of cms:build.
  */
 
-it('merges cbox-cms.identity with the identity role\'s connection', function (): void {
-    expect(config('cbox-cms.identity'))->toBe(['connection' => 'pgsql_identity'])
+it('merges cbox-cms.identity with the identity role\'s connection and the login policy', function (): void {
+    expect(config('cbox-cms.identity'))->toHaveKeys(['connection', 'policy'])
+        ->and(config('cbox-cms.identity.connection'))->toBe('pgsql_identity')
         ->and(IdentityConfig::connection(app('config')))->toBe('pgsql_identity')
         ->and(IdentityConfig::connection(new Repository(['cbox-cms' => ['identity' => ['connection' => 7]]])))->toBeNull();
 });

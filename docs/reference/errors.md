@@ -108,7 +108,14 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`idempotency_key_required`](#idempotency_key_required) | 400 | 64 | tool_error | no |
 | [`json_invalid`](#json_invalid) | 422 | 65 | tool_error | no |
 | [`json_malformed`](#json_malformed) | 400 | 65 | tool_error | no |
+| [`login_authoritative_link`](#login_authoritative_link) | 403 | 77 | tool_error | no |
+| [`login_class_not_allowed`](#login_class_not_allowed) | 403 | 77 | tool_error | no |
+| [`login_connection_not_allowed`](#login_connection_not_allowed) | 403 | 77 | tool_error | no |
+| [`login_factors_unavailable`](#login_factors_unavailable) | 403 | 77 | tool_error | no |
 | [`login_issuer_mismatch`](#login_issuer_mismatch) | 401 | 77 | tool_error | no |
+| [`login_local_disabled`](#login_local_disabled) | 403 | 77 | tool_error | no |
+| [`login_method_not_allowed`](#login_method_not_allowed) | 403 | 77 | tool_error | no |
+| [`login_policy_invalid`](#login_policy_invalid) | 500 | 78 | internal_error | no |
 | [`login_rejected`](#login_rejected) | 401 | 77 | tool_error | no |
 | [`login_state_mismatch`](#login_state_mismatch) | 401 | 77 | tool_error | no |
 | [`login_tenant_claim_missing`](#login_tenant_claim_missing) | 401 | 77 | tool_error | no |
@@ -1025,6 +1032,42 @@ The document is not a well-formed JSON object, or an object in it has the same k
 - MCP: a tool result with isError set
 - Retry: no, the same call gives the same answer until something changes
 
+### login_authoritative_link
+
+The login was refused by the login policy: it came through the local connection, and the actor is linked to a connection marked authoritative, whose identity provider owns the actor's access, so the actor has no local login methods (PRD 5.16, invariant 38). No session was issued. Log in through the authoritative connection; the person is only told that the login failed.
+
+- HTTP status: 403 Forbidden
+- CLI exit code: 77 (EX_NOPERM)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### login_class_not_allowed
+
+The login was refused by the login policy: the actor is a service actor, and a service actor never logs in; it only holds service credentials (PRD 5.16). No session was issued. Use the service actor's credential, or log in as a person.
+
+- HTTP status: 403 Forbidden
+- CLI exit code: 77 (EX_NOPERM)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### login_connection_not_allowed
+
+The login was refused by the login policy: the login policy of the actor's class does not list the connection it came through (PRD 5.16, cbox-cms.identity.policy.<class>.connections). No session was issued. Log in through a connection the policy lists, or add the connection to the policy.
+
+- HTTP status: 403 Forbidden
+- CLI exit code: 77 (EX_NOPERM)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### login_factors_unavailable
+
+The login was refused by the login policy: the policy of the actor's class requires factors the login did not give, such as a passkey or two factors for a local staff login, or MFA shown in amr or acr for a federated one (PRD 5.16, cbox-cms.identity.policy.<class>.local_factors, federated_amr and federated_acr). No session was issued. Log in with the factors the policy requires; where the installation does not offer them yet, the environment's policy has to allow a password.
+
+- HTTP status: 403 Forbidden
+- CLI exit code: 77 (EX_NOPERM)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
 ### login_issuer_mismatch
 
 The login was refused: the token came from another issuer than the one its login connection is pinned to (PRD 5.16), so no session was issued and no actor was found or created. A token is trusted only from the issuer its connection names. Log in again through the connection of your organisation; if the issuer of the connection has changed, correct the connection's configuration.
@@ -1032,6 +1075,33 @@ The login was refused: the token came from another issuer than the one its login
 - HTTP status: 401 Unauthorized
 - CLI exit code: 77 (EX_NOPERM)
 - MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### login_local_disabled
+
+The login was refused by the login policy: local login is switched off for the actor's class in this environment, so only federated connections give a session (PRD 5.16, cbox-cms.identity.policy.<class>.local_login). No session was issued. Log in through the federated connection of your organisation.
+
+- HTTP status: 403 Forbidden
+- CLI exit code: 77 (EX_NOPERM)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### login_method_not_allowed
+
+The login was refused by the login policy: the policy of the actor's class does not allow the login method, or the method does not belong to the connection it came through, such as a password on a federated connection (PRD 5.16, cbox-cms.identity.policy.<class>.methods). No session was issued. Log in with a method the policy allows.
+
+- HTTP status: 403 Forbidden
+- CLI exit code: 77 (EX_NOPERM)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### login_policy_invalid
+
+The login policy in cbox-cms.identity.policy is invalid: a key is missing or has a value of another form, such as an unknown method, a lifetime below one minute or an inactivity timeout longer than the absolute lifetime (PRD 5.16). No login is decided while it is invalid. Correct the policy as docs/security/login-policy.md describes it.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 78 (EX_CONFIG)
+- MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
 ### login_rejected

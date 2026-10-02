@@ -102,7 +102,7 @@ function expectReadableStore(array $given, string $grantee, array $listed): void
 it('fails identity.credential_isolation with its catalog code once the app role is granted the store', function (array $grants, string $grantee, array $privileges): void {
     expectReadableStore($grants, $grantee, $privileges);
 })->with([
-    'SELECT on the schema\'s tables' => [['select on all tables in schema cms_identity'], 'cms_app', ['SELECT on cms_identity.local_accounts', 'SELECT on cms_identity.password_reset_tokens']],
+    'SELECT on the schema\'s tables' => [['select on all tables in schema cms_identity'], 'cms_app', ['SELECT on cms_identity.idp_links', 'SELECT on cms_identity.local_accounts', 'SELECT on cms_identity.password_reset_tokens']],
     'USAGE on the schema' => [['usage on schema cms_identity'], 'cms_app', ['USAGE on schema cms_identity']],
     'one column, to PUBLIC' => [['select (login) on cms_identity.local_accounts'], 'public', ['SELECT on cms_identity.local_accounts']],
 ]);

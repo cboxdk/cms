@@ -83,6 +83,11 @@ final class WorkbenchServiceProvider extends ServiceProvider
 
         $this->configureEventRunner($config);
 
+        // The workbench is a development environment, and B1 part 1 offers no passkey or second
+        // factor, so its login policy lets a member of staff log in locally with a password alone
+        // (PRD 5.16). Every other environment keeps the default, passkey_or_two_factors.
+        $config->set('cbox-cms.identity.policy.staff.local_factors', 'password');
+
         $app = $config->get('database.connections.pgsql');
 
         if (! is_array($app)) {

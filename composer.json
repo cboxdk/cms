@@ -104,7 +104,8 @@
             "packages/testkit/tests/Phpstan/Fixtures/"
         ],
         "exclude-from-classmap": [
-            "packages/core/tests/Registry/Fixtures/Unloadable/"
+            "packages/core/tests/Registry/Fixtures/Unloadable/",
+            "packages/identity/tests/Phpstan/Fixtures/"
         ]
     },
     "scripts": {

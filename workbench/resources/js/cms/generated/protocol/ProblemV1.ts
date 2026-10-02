@@ -103,7 +103,14 @@ export type ErrorCode =
   | 'idempotency_key_required'
   | 'json_invalid'
   | 'json_malformed'
+  | 'login_authoritative_link'
+  | 'login_class_not_allowed'
+  | 'login_connection_not_allowed'
+  | 'login_factors_unavailable'
   | 'login_issuer_mismatch'
+  | 'login_local_disabled'
+  | 'login_method_not_allowed'
+  | 'login_policy_invalid'
   | 'login_rejected'
   | 'login_state_mismatch'
   | 'login_tenant_claim_missing'
@@ -329,7 +336,14 @@ const catalogErrorV1Rule: ObjectRule = {
           'idempotency_key_required',
           'json_invalid',
           'json_malformed',
+          'login_authoritative_link',
+          'login_class_not_allowed',
+          'login_connection_not_allowed',
+          'login_factors_unavailable',
           'login_issuer_mismatch',
+          'login_local_disabled',
+          'login_method_not_allowed',
+          'login_policy_invalid',
           'login_rejected',
           'login_state_mismatch',
           'login_tenant_claim_missing',
@@ -519,7 +533,14 @@ const problemV1Rule: ObjectRule = {
           'idempotency_key_required',
           'json_invalid',
           'json_malformed',
+          'login_authoritative_link',
+          'login_class_not_allowed',
+          'login_connection_not_allowed',
+          'login_factors_unavailable',
           'login_issuer_mismatch',
+          'login_local_disabled',
+          'login_method_not_allowed',
+          'login_policy_invalid',
           'login_rejected',
           'login_state_mismatch',
           'login_tenant_claim_missing',

@@ -120,7 +120,14 @@ enum ErrorCode: string
     case IdempotencyKeyRequired = 'idempotency_key_required';
     case JsonInvalid = 'json_invalid';
     case JsonMalformed = 'json_malformed';
+    case LoginAuthoritativeLink = 'login_authoritative_link';
+    case LoginClassNotAllowed = 'login_class_not_allowed';
+    case LoginConnectionNotAllowed = 'login_connection_not_allowed';
+    case LoginFactorsUnavailable = 'login_factors_unavailable';
     case LoginIssuerMismatch = 'login_issuer_mismatch';
+    case LoginLocalDisabled = 'login_local_disabled';
+    case LoginMethodNotAllowed = 'login_method_not_allowed';
+    case LoginPolicyInvalid = 'login_policy_invalid';
     case LoginRejected = 'login_rejected';
     case LoginStateMismatch = 'login_state_mismatch';
     case LoginTenantClaimMissing = 'login_tenant_claim_missing';
@@ -524,8 +531,41 @@ enum ErrorCode: string
                 false,
                 'The document is not a well-formed JSON object, or an object in it has the same key twice, so none of it was read (GUARDRAILS 2.2). Send one JSON object, encoded as UTF-8, with every key once in each object.',
             ),
+            self::LoginAuthoritativeLink => $this->caller(
+                HttpStatus::Forbidden,
+                ExitCode::NoPerm,
+                'The login was refused by the login policy: it came through the local connection, and the actor is linked to a connection marked authoritative, whose identity provider owns the actor\'s access, so the actor has no local login methods (PRD 5.16, invariant 38). No session was issued. Log in through the authoritative connection; the person is only told that the login failed.',
+            ),
+            self::LoginClassNotAllowed => $this->caller(
+                HttpStatus::Forbidden,
+                ExitCode::NoPerm,
+                'The login was refused by the login policy: the actor is a service actor, and a service actor never logs in; it only holds service credentials (PRD 5.16). No session was issued. Use the service actor\'s credential, or log in as a person.',
+            ),
+            self::LoginConnectionNotAllowed => $this->caller(
+                HttpStatus::Forbidden,
+                ExitCode::NoPerm,
+                'The login was refused by the login policy: the login policy of the actor\'s class does not list the connection it came through (PRD 5.16, cbox-cms.identity.policy.<class>.connections). No session was issued. Log in through a connection the policy lists, or add the connection to the policy.',
+            ),
+            self::LoginFactorsUnavailable => $this->caller(
+                HttpStatus::Forbidden,
+                ExitCode::NoPerm,
+                'The login was refused by the login policy: the policy of the actor\'s class requires factors the login did not give, such as a passkey or two factors for a local staff login, or MFA shown in amr or acr for a federated one (PRD 5.16, cbox-cms.identity.policy.<class>.local_factors, federated_amr and federated_acr). No session was issued. Log in with the factors the policy requires; where the installation does not offer them yet, the environment\'s policy has to allow a password.',
+            ),
             self::LoginIssuerMismatch => $this->credential(
                 'The login was refused: the token came from another issuer than the one its login connection is pinned to (PRD 5.16), so no session was issued and no actor was found or created. A token is trusted only from the issuer its connection names. Log in again through the connection of your organisation; if the issuer of the connection has changed, correct the connection\'s configuration.',
+            ),
+            self::LoginLocalDisabled => $this->caller(
+                HttpStatus::Forbidden,
+                ExitCode::NoPerm,
+                'The login was refused by the login policy: local login is switched off for the actor\'s class in this environment, so only federated connections give a session (PRD 5.16, cbox-cms.identity.policy.<class>.local_login). No session was issued. Log in through the federated connection of your organisation.',
+            ),
+            self::LoginMethodNotAllowed => $this->caller(
+                HttpStatus::Forbidden,
+                ExitCode::NoPerm,
+                'The login was refused by the login policy: the policy of the actor\'s class does not allow the login method, or the method does not belong to the connection it came through, such as a password on a federated connection (PRD 5.16, cbox-cms.identity.policy.<class>.methods). No session was issued. Log in with a method the policy allows.',
+            ),
+            self::LoginPolicyInvalid => $this->violation(
+                'The login policy in cbox-cms.identity.policy is invalid: a key is missing or has a value of another form, such as an unknown method, a lifetime below one minute or an inactivity timeout longer than the absolute lifetime (PRD 5.16). No login is decided while it is invalid. Correct the policy as docs/security/login-policy.md describes it.',
             ),
             self::LoginRejected => $this->credential(
                 'The login was refused: the identity provider or the credential check did not accept it, such as a wrong password, an unknown account or an error the provider sent back (PRD 5.16). No session was issued. Check the credentials and log in again; the person is only told that the login failed.',

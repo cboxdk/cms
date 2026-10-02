@@ -15,4 +15,60 @@ return [
     // The database connection of the identity role, in config/database.php: the same server and
     // database as the default connection, with the identity role's username and password.
     'connection' => 'pgsql_identity',
+
+    // The login policy of this environment (PRD 5.16, docs/security/login-policy.md), per actor
+    // class: every login path asks it, and a session is issued only with its decision. A service
+    // actor never logs in and has no policy. `connections` and `methods` map a name to whether the
+    // class may use it. The defaults are the PRD's proposed ones.
+    'policy' => [
+        // Federated connections whose identity provider owns the access of the actors linked to
+        // them: such an actor has no local login (invariant 38). Never `local`.
+        'authoritative_connections' => [],
+
+        'staff' => [
+            // `local` is the local accounts of this module; every other name is a federated
+            // connection.
+            'connections' => ['local' => true],
+            'methods' => [
+                'password' => true,
+                'passkey' => true,
+                'magic_link' => false,
+                'social' => false,
+                'invitation' => true,
+                'password_reset' => true,
+                'federated' => true,
+            ],
+            // On until a federated connection and two emergency accounts exist; switch it off then.
+            'local_login' => true,
+            // A local staff login needs a passkey or two factors (PRD 5.16). Set `password` only in
+            // an environment that does not offer them, such as development.
+            'local_factors' => 'passkey_or_two_factors',
+            // The MFA a federated login must show: one of these amr or acr values. Empty requires
+            // none; set them once the identity provider is shown to send them.
+            'federated_amr' => [],
+            'federated_acr' => [],
+            'inactivity_minutes' => 60,
+            'absolute_minutes' => 720,
+        ],
+
+        'end_user' => [
+            'connections' => ['local' => true],
+            'methods' => [
+                'password' => true,
+                'passkey' => true,
+                'magic_link' => true,
+                'social' => true,
+                'invitation' => true,
+                'password_reset' => true,
+                'federated' => true,
+            ],
+            'local_login' => true,
+            'local_factors' => 'password',
+            'federated_amr' => [],
+            'federated_acr' => [],
+            // 30 days and 90 days.
+            'inactivity_minutes' => 43200,
+            'absolute_minutes' => 129600,
+        ],
+    ],
 ];

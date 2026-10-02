@@ -19,6 +19,10 @@ use Cbox\Cms\Identity\Doctor\Domain\Checks\CredentialIsolationCheck;
 use Cbox\Cms\Identity\Doctor\Domain\Checks\IdentityConnectionCheck;
 use Cbox\Cms\Identity\Doctor\Domain\Probes\CredentialStoreProbe;
 use Cbox\Cms\Identity\Doctor\Domain\Probes\PasswordHashingProbe;
+use Cbox\Cms\Identity\LoginPolicy\Adapter\PostgresIdpLinks;
+use Cbox\Cms\Identity\LoginPolicy\Boundary\LoginPolicyConfig;
+use Cbox\Cms\Identity\LoginPolicy\Domain\Dto\LoginPolicy;
+use Cbox\Cms\Identity\LoginPolicy\Domain\IdpLinks;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Database\DatabaseManager;
@@ -33,7 +37,8 @@ use Override;
  * Merges `cbox-cms.identity` and loads the migrations of the credential store, which run as the
  * owner role. Adds its checks to cms:doctor as an application adds its own, in front of those
  * `cbox-cms.doctor.checks` names: identity.connection, identity.credential_isolation and
- * identity.argon2id, with their probes. Declares the module's classes as a scan root for
+ * identity.argon2id, with their probes. Binds the login policy of `cbox-cms.identity.policy`, read
+ * when it is first asked for, and the IdP links it reads (PRD 5.16, invariant 38). Declares the module's classes as a scan root for
  * cms:build (PRD 13.2).
  */
 #[Internal]
@@ -62,6 +67,11 @@ final class IdentityServiceProvider extends ServiceProvider implements DeclaresS
             $config->set($key, array_values(array_unique([...self::DOCTOR_CHECKS, ...$added], SORT_REGULAR)));
         }
 
+        $this->app->singleton(LoginPolicy::class, static fn (Application $app): LoginPolicy => LoginPolicyConfig::read($app->make(Repository::class)));
+        $this->app->singleton(IdpLinks::class, static fn (Application $app): IdpLinks => new PostgresIdpLinks(
+            $app->make(DatabaseManager::class),
+            IdentityConfig::connection($app->make(Repository::class)),
+        ));
         $this->app->bind(PasswordHashingProbe::class, PhpPasswordHashingProbe::class);
         $this->app->bind(
             static function (Application $app): CredentialStoreProbe {
