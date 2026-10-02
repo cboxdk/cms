@@ -11,18 +11,20 @@ use Cbox\Cms\Generators\GeneratorsServiceProvider;
 use Cbox\Cms\Http\HttpServiceProvider;
 use Cbox\Cms\Identity\IdentityServiceProvider;
 use Cbox\Cms\Mcp\McpServiceProvider;
+use Cbox\Cms\Panel\PanelServiceProvider;
 use Illuminate\Config\Repository;
 use Illuminate\Container\Container;
 use Illuminate\Foundation\Application;
 use Workbench\App\Providers\WorkbenchServiceProvider;
 
-it('loads the service providers of core, identity, http, mcp, cli and generators through package discovery', function (): void {
+it('loads the service providers of core, identity, http, mcp, cli, panel and generators through package discovery', function (): void {
     expect(app()->getLoadedProviders())->toHaveKeys([
         CoreServiceProvider::class,
         IdentityServiceProvider::class,
         HttpServiceProvider::class,
         McpServiceProvider::class,
         CliServiceProvider::class,
+        PanelServiceProvider::class,
         GeneratorsServiceProvider::class,
     ]);
 });

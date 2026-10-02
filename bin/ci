@@ -13,9 +13,12 @@
 #           the local profile
 #   gate 6  composer check:generated
 # and what the PR profile adds that CI runs:
-#   gate 8  vendor/bin/pest --testsuite=Browser, in a process group of its own that the runner
-#           kills when the step ends, so a Playwright server left by a dead Pest cannot hold the
-#           output open; docker/ci-setup.sh gives the image the pinned Playwright's Chromium
+#   gate 8  vendor/bin/pest --testsuite=Browser, after composer panel:build has built js/panel
+#           into packages/panel/dist in place, as the run is in the dev image already; the suite
+#           runs in a process group of its own that the runner kills when the step ends, so a
+#           Playwright server left by a dead Pest cannot hold the output open, on the same
+#           Postgres and Valkey as gate 5, and docker/ci-setup.sh gives the image the pinned
+#           Playwright's Chromium
 #   gate 9  composer audit --locked --abandoned=report, npm audit
 #   gate 10 composer docs:check, documentation with running examples for every public extension
 #           point; gate 5 runs the same audit in tests/Feature/Tooling/Docs/RepositoryDocsTest.php

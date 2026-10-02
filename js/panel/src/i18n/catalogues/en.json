@@ -1,5 +1,9 @@
 {
   "panel.name": "Cbox CMS",
   "panel.page_missing.title": "This page is not part of the panel",
-  "panel.page_missing.body": "The server asked for the page \"{page}\", which this build of the panel does not have. Reload the panel; if the page is still missing, the panel and the server are of different versions."
+  "panel.page_missing.body": "The server asked for the page \"{page}\", which this build of the panel does not have. Reload the panel; if the page is still missing, the panel and the server are of different versions.",
+  "panel.title": "{page} · {name}",
+  "panel.not_found.title": "Page not found",
+  "panel.not_found.body": "The panel has no page at this address. The page may have moved, or the link that brought you here may be out of date.",
+  "panel.not_found.home": "Go to the start of the panel"
 }

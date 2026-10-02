@@ -5,6 +5,7 @@
 # `composer check -- --pr`, which calls the same Composer and npm scripts as `composer check`:
 # lint:check, format:check, rector:check, analyse, typecheck, lint, install:check and
 # check:generated, and the Pest suites of gate 5. It also runs gate 8, the Browser suite,
+# after composer panel:build and on the gates job's Postgres and Valkey services,
 # gate 9, composer audit and npm audit, and gate 10, composer docs:check. It reports what it did
 # not run: gates 7 and 11, each with the reason, in the log and the job summary.
 #

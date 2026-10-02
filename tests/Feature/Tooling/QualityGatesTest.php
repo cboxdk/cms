@@ -62,7 +62,7 @@ it('analyses every package, the tests, the tooling, the workbench and the exampl
         glob($root.'/packages/*/database', GLOB_ONLYDIR) ?: [],
     );
 
-    expect($packageDirectories)->toHaveCount(16)
+    expect($packageDirectories)->toHaveCount(18)
         ->and($supportDirectories)->toContain($root.'/packages/core/config', $root.'/packages/core/database', $root.'/packages/testkit/bin')
         ->and($parameters->value('level'))->toBe(10)
         ->and($parameters->value('ignoreErrors'))->toBe([])

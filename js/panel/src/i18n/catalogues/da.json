@@ -1,5 +1,9 @@
 {
   "panel.name": "Cbox CMS",
   "panel.page_missing.title": "Denne side findes ikke i panelet",
-  "panel.page_missing.body": "Serveren bad om siden \"{page}\", som denne udgave af panelet ikke har. Genindlæs panelet; mangler siden stadig, har panelet og serveren forskellige versioner."
+  "panel.page_missing.body": "Serveren bad om siden \"{page}\", som denne udgave af panelet ikke har. Genindlæs panelet; mangler siden stadig, har panelet og serveren forskellige versioner.",
+  "panel.title": "{page} · {name}",
+  "panel.not_found.title": "Siden findes ikke",
+  "panel.not_found.body": "Panelet har ingen side på denne adresse. Siden kan være flyttet, eller linket, der førte dig hertil, kan være forældet.",
+  "panel.not_found.home": "Gå til panelets forside"
 }

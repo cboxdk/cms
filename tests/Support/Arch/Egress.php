@@ -19,6 +19,8 @@ use Cbox\Cms\Generators\Migrations\Boundary\LockFiles;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintFiles;
 use Cbox\Cms\Generators\Schema\Boundary\LocalFile;
 use Cbox\Cms\Mcp\Boundary\KernelSchemas;
+use Cbox\Cms\Panel\Boundary\PanelAssetResponse;
+use Cbox\Cms\Panel\Boundary\ViteManifest;
 use Cbox\Cms\Testkit\Phpstan\EgressNames;
 use Cbox\Cms\Testkit\Phpstan\LaravelBootLock;
 use Cbox\Cms\Testkit\Phpstan\PhpstanIgnoreCollector;
@@ -97,6 +99,14 @@ final class Egress
         // from a path fixed below the mcp module's directory in the same package, and refuses a
         // path that names a stream wrapper before it touches it.
         KernelSchemas::class => ['SplFileObject'],
+        // Reads the panel's Vite manifest, .vite/manifest.json below the build directory that
+        // PanelServiceProvider gives it, an absolute path below the panel module's directory; it
+        // refuses a directory that names a stream wrapper before it touches it.
+        ViteManifest::class => ['SplFileObject'],
+        // Reads a file of the panel's build that the build's manifest names, below the build's
+        // directory, which PanelBuild requires to be an absolute local path, and refuses a path
+        // that names a stream wrapper before it touches it.
+        PanelAssetResponse::class => ['SplFileObject'],
         // Lists a scan root with a RecursiveDirectoryIterator and reads the .php files it finds
         // there; ScanRoot requires the directory to be an absolute path, and the scanner lists its
         // realpath(), which resolves no stream wrapper.
@@ -150,6 +160,9 @@ final class Egress
         // "Wrote the editor line to 1 file" and "... to 2 files", the noun in the report of
         // cms:schema:editor.
         SchemaEditorCommand::class => ['file', 'files'],
+        // The member "file" of a chunk in Vite's manifest, the chunk's output file, which it reads
+        // from the decoded JSON, never a function it calls.
+        ViteManifest::class => ['file'],
         // PDO::exec(), one of the PDO methods that take SQL, which the rule compares a method
         // call's name with.
         RawSqlRule::class => ['exec'],

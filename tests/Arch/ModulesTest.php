@@ -11,6 +11,8 @@ use Cbox\Cms\Http\HttpServiceProvider;
 use Cbox\Cms\Identity\CredentialStore\Domain\CredentialStore;
 use Cbox\Cms\Identity\IdentityServiceProvider;
 use Cbox\Cms\Mcp\McpServiceProvider;
+use Cbox\Cms\Panel\PanelRoutes;
+use Cbox\Cms\Panel\PanelServiceProvider;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Tests\Support\Arch\Codebase;
 use Cbox\Cms\Tests\Support\Arch\ModuleDependencies;
@@ -29,7 +31,8 @@ use Workbench\App\Providers\WorkbenchServiceProvider;
  * kernel's modules are namespaces with their code in packages/<module>/src, and no package
  * boundary keeps them apart, so these rules do: contracts depends only on PHP, core, http, cli and mcp
  * never use the testkit, the generators or identity, identity never uses the testkit or the
- * generators, and no production module uses a package that
+ * generators, the panel may use core, http and identity but never cli, mcp, the testkit or the
+ * generators, no module uses the panel, and no production module uses a package that
  * composer.json only suggests (ModuleDependencies). The last tests plant each kind of violation in
  * a scratch directory and check that the rule reports it.
  */
@@ -150,6 +153,7 @@ arch('modules: the service providers of the modules are listed in extra.laravel.
         HttpServiceProvider::class,
         McpServiceProvider::class,
         CliServiceProvider::class,
+        PanelServiceProvider::class,
         GeneratorsServiceProvider::class,
     ]);
 
@@ -162,8 +166,8 @@ arch('modules: the workbench registers the providers of extra.laravel.providers 
     $testbench = Yaml::parseFile(Codebase::root().'/testbench.yaml');
     $providers = is_array($testbench) && is_array($testbench['providers'] ?? null) ? $testbench['providers'] : [];
 
-    expect(array_slice($providers, 0, 6))->toBe(modulesSection('extra', 'laravel', 'providers'))
-        ->and(array_slice($providers, 6))->toBe([WorkbenchServiceProvider::class]);
+    expect(array_slice($providers, 0, 7))->toBe(modulesSection('extra', 'laravel', 'providers'))
+        ->and(array_slice($providers, 7))->toBe([WorkbenchServiceProvider::class]);
 });
 
 arch('modules: the heavy development tools are suggested and required for development, never in require', function (): void {
@@ -185,14 +189,14 @@ arch('modules: the generators use symfony/yaml, opis/json-schema and the Compose
 
 arch('modules: the rules report contracts using another module or any package', function (): void {
     expect(modulesViolationsOf('contracts', 'final class Planted { public function of(\Cbox\Cms\Core\CoreServiceProvider $core): void {} }'))
-        ->toBe(['<plant>/Planted.php: Cbox\Cms\Core\CoreServiceProvider (module core): contracts may not use cli, core, generators, http, identity, mcp, testkit.'])
+        ->toBe(['<plant>/Planted.php: Cbox\Cms\Core\CoreServiceProvider (module core): contracts may not use cli, core, generators, http, identity, mcp, panel, testkit.'])
         ->and(modulesViolationsOf('contracts', 'final class Planted { public function of(\Illuminate\Support\Collection $items): void {} }'))
         ->toBe(['<plant>/Planted.php: Illuminate\Support\Collection (package illuminate/support): contracts depends only on PHP.']);
 });
 
-arch('modules: the rules report core, http, cli and mcp using the testkit, the generators or identity', function (string $module, string $class, string $owner): void {
+arch('modules: the rules report core, http, cli and mcp using the testkit, the generators, identity or the panel', function (string $module, string $class, string $owner): void {
     expect(modulesViolationsOf($module, "final class Planted { public function of(\\{$class} \$used): void {} }"))
-        ->toBe(["<plant>/Planted.php: {$class} (module {$owner}): {$module} may not use generators, identity, testkit."]);
+        ->toBe(["<plant>/Planted.php: {$class} (module {$owner}): {$module} may not use generators, identity, panel, testkit."]);
 })->with([
     'core using the testkit' => ['core', FakeClock::class, 'testkit'],
     'core using the generators' => ['core', GeneratorsServiceProvider::class, 'generators'],
@@ -204,15 +208,39 @@ arch('modules: the rules report core, http, cli and mcp using the testkit, the g
     'mcp using the testkit' => ['mcp', FakeClock::class, 'testkit'],
     'mcp using the generators' => ['mcp', GeneratorsServiceProvider::class, 'generators'],
     'mcp using identity' => ['mcp', CredentialStore::class, 'identity'],
+    'core using the panel' => ['core', PanelServiceProvider::class, 'panel'],
+    'http using the panel' => ['http', PanelRoutes::class, 'panel'],
+    'cli using the panel' => ['cli', PanelRoutes::class, 'panel'],
+    'mcp using the panel' => ['mcp', PanelServiceProvider::class, 'panel'],
 ]);
 
-arch('modules: the rules report identity using the testkit or the generators', function (string $class, string $owner): void {
+arch('modules: the rules report identity using the testkit, the generators or the panel', function (string $class, string $owner): void {
     expect(modulesViolationsOf('identity', "final class Planted { public function of(\\{$class} \$used): void {} }"))
-        ->toBe(["<plant>/Planted.php: {$class} (module {$owner}): identity may not use generators, testkit."]);
+        ->toBe(["<plant>/Planted.php: {$class} (module {$owner}): identity may not use generators, panel, testkit."]);
 })->with([
     'identity using the testkit' => [FakeClock::class, 'testkit'],
     'identity using the generators' => [GeneratorsServiceProvider::class, 'generators'],
+    'identity using the panel' => [PanelRoutes::class, 'panel'],
 ]);
+
+arch('modules: the rules report the generators using the panel', function (): void {
+    expect(modulesViolationsOf('generators', 'final class Planted { public function of(\Cbox\Cms\Panel\PanelRoutes $panel): void {} }'))
+        ->toBe(['<plant>/Planted.php: Cbox\Cms\Panel\PanelRoutes (module panel): generators may not use panel, testkit.']);
+});
+
+arch('modules: the rules report the panel using cli, mcp, the testkit or the generators', function (string $class, string $owner): void {
+    expect(modulesViolationsOf('panel', "final class Planted { public function of(\\{$class} \$used): void {} }"))
+        ->toBe(["<plant>/Planted.php: {$class} (module {$owner}): panel may not use cli, generators, mcp, testkit."]);
+})->with([
+    'panel using cli' => [CliServiceProvider::class, 'cli'],
+    'panel using mcp' => [McpServiceProvider::class, 'mcp'],
+    'panel using the testkit' => [FakeClock::class, 'testkit'],
+    'panel using the generators' => [GeneratorsServiceProvider::class, 'generators'],
+]);
+
+arch('modules: the rules let the panel use core, http, identity and the contracts', function (): void {
+    expect(modulesViolationsOf('panel', 'final class Planted { public function of(\Cbox\Cms\Core\CoreServiceProvider $core, \Cbox\Cms\Http\Inertia\InertiaRoutes $http, \Cbox\Cms\Identity\IdentityServiceProvider $identity, \Cbox\Cms\Contracts\Identity\ActorDirectory $actors): void {} }'))->toBe([]);
+});
 
 arch('modules: the rules let identity use the core and the contracts', function (): void {
     expect(modulesViolationsOf('identity', 'final class Planted { public function of(\Cbox\Cms\Core\CoreServiceProvider $core, \Cbox\Cms\Contracts\Identity\ActorDirectory $actors): void {} }'))->toBe([]);
@@ -228,6 +256,7 @@ arch('modules: the rules report a production module using a package composer.jso
     'http using PHPUnit' => ['http', Assert::class, 'phpunit/phpunit'],
     'mcp using opis/json-schema' => ['mcp', CompliantValidator::class, 'opis/json-schema'],
     'identity using symfony/yaml' => ['identity', Yaml::class, 'symfony/yaml'],
+    'panel using symfony/yaml' => ['panel', Yaml::class, 'symfony/yaml'],
 ]);
 
 arch('modules: the rules report a module using the tests, the tooling, the workbench or the examples', function (): void {

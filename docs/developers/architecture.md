@@ -8,7 +8,7 @@ description: The package cboxdk/cms, its modules and where they live, the bounda
 
 ## The package and its modules
 
-Cbox CMS is one Composer package, `cboxdk/cms`, a library, with one `composer.json` at the root of the repository. The kernel is eight modules in `packages/`, each a namespace with its code in `packages/<module>/src` and its tests in `packages/<module>/tests`:
+Cbox CMS is one Composer package, `cboxdk/cms`, a library, with one `composer.json` at the root of the repository. The kernel is nine modules in `packages/`, each a namespace with its code in `packages/<module>/src` and its tests in `packages/<module>/tests`:
 
 | Module | Namespace | What it holds |
 |---|---|---|
@@ -19,6 +19,7 @@ Cbox CMS is one Composer package, `cboxdk/cms`, a library, with one `composer.js
 | `http` | `Cbox\Cms\Http` | The HTTP surface. Today it holds only its service provider. |
 | `mcp` | `Cbox\Cms\Mcp` | The MCP surface: one tool per action exposed on MCP, for agents, served by `laravel/mcp` behind the module's adapter. |
 | `identity` | `Cbox\Cms\Identity` | Login: the local accounts and their credential store, in the schema `cms_identity` on a connection and a role of its own (see [Credential store](../security/credential-store.md)). The actor aggregate and the actor commands stay in the core, in `Cbox\Cms\Core\Identity`. |
+| `panel` | `Cbox\Cms\Panel` | The PHP side of the control panel: its routes, its root view, the strict Content-Security-Policy of its pages and the files of its build (see [The panel module](panel.md)). Its React code is `js/panel`. |
 | `testkit` | `Cbox\Cms\Testkit` | The fakes, the shared suites, the Postgres and Valkey harnesses and the PHPStan rules. |
 
 A module's service provider sits at the root of its namespace, such as `Cbox\Cms\Core\CoreServiceProvider`, and is listed in `extra.laravel.providers`, so an application discovers it. Its other files sit beside `src` and `tests`: `config/`, `database/migrations/`, `resources/schemas/` and `bin/`.
@@ -34,8 +35,9 @@ No package boundary keeps the modules apart, so the Arch suite does, in `tests/A
 - The repository is the one library `cboxdk/cms`, with no `composer.json` per module, and every directory below `packages/` is a module, autoloaded from its `src` and its tests from its `tests`.
 - Contracts uses no other module and no package, only PHP.
 - Core, http, cli and mcp never use the testkit, the generators or identity, identity never uses the testkit or the generators, and the generators never use the testkit. The testkit uses no module but contracts.
+- The panel may use core, http and identity, never cli, mcp, the testkit or the generators, and no module uses the panel.
 - No module uses the repository's tests, tooling, workbench or examples.
-- Every package a module uses is in `require` or `suggest`, and the modules an application runs in production, contracts, core, http, cli, mcp and identity, use none that is only suggested.
+- Every package a module uses is in `require` or `suggest`, and the modules an application runs in production, contracts, core, http, cli, mcp, identity and panel, use none that is only suggested.
 
 The last tests of the file plant each kind of violation in a scratch directory and check that the rule reports it. The layers below and the rule that the kernel names no content type hold in every module.
 
@@ -45,7 +47,7 @@ The last tests of the file plant each kind of violation in a scratch directory a
 
 ### Modules to come
 
-A first-party module is a new namespace in the same package, never a package of its own, as MCP is `Cbox\Cms\Mcp` in `packages/mcp`. The panel's PHP side comes as `Cbox\Cms\Panel` in `packages/panel`, with its React code in `js/panel`, and a module that owns content types, such as end-user accounts with the member profile, as `Cbox\Cms\Members` in `packages/members`, with its types in its own schema files. A new module gets its autoload entries, its provider in `extra.laravel.providers` and `testbench.yaml`, and its place in the module rules of the Arch suite. E-commerce is an addon, a package of its own that requires `cboxdk/cms` and uses only its `#[Stable]` and `#[Experimental]` API.
+A first-party module is a new namespace in the same package, never a package of its own, as MCP is `Cbox\Cms\Mcp` in `packages/mcp` and the panel's PHP side `Cbox\Cms\Panel` in `packages/panel`, with its React code in `js/panel`. A module that owns content types, such as end-user accounts with the member profile, as `Cbox\Cms\Members` in `packages/members`, with its types in its own schema files. A new module gets its autoload entries, its provider in `extra.laravel.providers` and `testbench.yaml`, and its place in the module rules of the Arch suite. E-commerce is an addon, a package of its own that requires `cboxdk/cms` and uses only its `#[Stable]` and `#[Experimental]` API.
 
 The rest of the repository is tooling: `workbench/` is the application the commands run in, `tools/` holds the gate runner and the other scripts behind the Composer scripts, `examples/` holds the running examples of these pages, and `js/` the shared JavaScript configuration.
 
@@ -60,7 +62,7 @@ Code sits in a feature namespace below its module, and the layer is a namespace 
 | `Boundary` | Parsers and readers of what comes from outside: HTTP input, configuration, JSON, queue payloads. | The domain, the contracts and the framework, with `mixed` and untyped arrays. |
 | `Adapter` | Implementations of contracts that need the framework or Postgres, such as the stores. | The domain, the contracts and the framework, with `mixed` and untyped arrays. |
 | `Infrastructure` | Eloquent models, migration support and the partition manager. | The domain, the contracts, `Illuminate\Database` and Boundary. |
-| `Jobs`, `Http`, `Cli`, `Mcp` | The surfaces: queue jobs, the http module, the cli module and the mcp module. Artisan commands live in `Cli\Console`. `laravel/mcp` is used only in `Mcp\Adapter`, whose server reaches the surface through the port `Mcp\Domain\McpEndpoint`. | Actions, DTOs and Boundary; not Infrastructure, Adapter or Eloquent. |
+| `Jobs`, `Http`, `Cli`, `Mcp`, `Panel` | The surfaces: queue jobs, the http module, the cli module, the mcp module and the panel module. Artisan commands live in `Cli\Console`. `laravel/mcp` is used only in `Mcp\Adapter`, whose server reaches the surface through the port `Mcp\Domain\McpEndpoint`. The panel's controllers hold no logic. | Actions, DTOs and Boundary; not Infrastructure, Adapter or Eloquent. |
 
 A module's service provider sits at the root of its namespace, with no layer, and binds contracts to adapters.
 

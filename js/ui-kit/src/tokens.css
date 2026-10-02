@@ -22,20 +22,29 @@
   --cms-font-size-sm: 0.8125rem;
   --cms-font-size-md: 0.875rem;
   --cms-font-size-lg: 1rem;
+  --cms-font-size-xl: 1.375rem;
   --cms-font-weight-regular: 400;
   --cms-font-weight-medium: 500;
+  --cms-font-weight-semibold: 600;
   --cms-line-height: 1.5;
+  --cms-line-height-tight: 1.25;
 
   --cms-space-1: 0.25rem;
   --cms-space-2: 0.5rem;
   --cms-space-3: 0.75rem;
   --cms-space-4: 1rem;
   --cms-space-6: 1.5rem;
+  --cms-space-8: 2rem;
 
   --cms-radius-sm: 4px;
   --cms-radius-md: 6px;
+  --cms-radius-lg: 10px;
   --cms-focus-ring: 0 0 0 2px var(--cms-color-surface), 0 0 0 4px var(--cms-color-focus);
   --cms-duration-fast: 120ms;
+  --cms-target-size: 1.5rem;
+  --cms-measure: 32rem;
+
+  color-scheme: light dark;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -53,7 +62,12 @@
   }
 }
 
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
 :root[data-theme='dark'] {
+  color-scheme: dark;
   --cms-color-surface: #121418;
   --cms-color-surface-raised: #1b1e24;
   --cms-color-text: #e8eaee;

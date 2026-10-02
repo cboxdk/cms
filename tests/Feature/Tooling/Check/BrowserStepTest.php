@@ -15,6 +15,7 @@ use Cbox\Cms\Tooling\Check\Domain\PrProfile;
 use Cbox\Cms\Tooling\Check\Domain\Step;
 use Cbox\Cms\Tooling\Check\Domain\StepStatus;
 use Cbox\Cms\Tooling\Mutation\Domain\MutationScope;
+use RuntimeException;
 
 /*
  * Gate 8 for real (M0-T20, M0-T46): the Browser step's Pest process starts the browser plugin's
@@ -30,7 +31,11 @@ afterEach(function (): void {
 
 it('fails a Browser step whose Pest dies, within 60 seconds, and leaves no Playwright process running', function (string $how): void {
     $pids = ScratchDirectory::make().'/playwright.pids';
-    $browser = PrProfile::gates(PHP_BINARY, ['composer'], MutationScope::changed('the base', []))[7]->steps[0];
+    // Gate 8 builds the panel first; the Browser suite is the step named after it.
+    $browser = array_first(array_filter(
+        PrProfile::gates(PHP_BINARY, ['composer'], MutationScope::changed('the base', []))[7]->steps,
+        static fn (Step $step): bool => $step->name === PrProfile::BROWSER_SUITE,
+    )) ?? throw new RuntimeException('Gate 8 has no Browser step.');
     // The Browser step of the PR profile, with the fixture in place of the suite, run as its own
     // Pest run also when this test runs in a parallel worker.
     $step = Step::run('Browser', [

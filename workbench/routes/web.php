@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Cbox\Cms\Http\Inertia\Adapter\InertiaMiddleware;
 use Cbox\Cms\Http\Inertia\InertiaRoutes;
+use Cbox\Cms\Panel\PanelRoutes;
 use Illuminate\Contracts\Routing\Registrar;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -18,6 +19,8 @@ use Inertia\Response;
  * B1: the page Workbench/Commands at /workbench/inertia, rendered by the root view `app`, and the
  * profile's command route at /workbench/inertia/commands/{command}/v{version}, both behind the
  * profile's middleware, so a rejected call's errors and problem reach the page as props.
+ *
+ * Last, the control panel at /cms (PRD 13.4), as an application mounts it in its web routes.
  */
 
 Route::get('/', static fn (): string => <<<'HTML'
@@ -39,3 +42,5 @@ Route::middleware(InertiaMiddleware::class)->prefix('workbench/inertia')->group(
 
     InertiaRoutes::register($router);
 });
+
+PanelRoutes::register(app(Registrar::class));

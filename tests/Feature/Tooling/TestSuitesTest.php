@@ -11,7 +11,8 @@ use Symfony\Component\Process\Process;
  * the Browser suite of gate 8 and the Mutation suite of the PR profile. These tests guard the
  * layout itself (GUARDRAILS 7.3): every test file is in exactly one suite, the Postgres and Actions
  * suites hold the tests below a Postgres or Actions directory and nothing else does, and the
- * harness trait is applied to the Postgres directories.
+ * harness traits are applied to the Postgres directories and to the Browser suite, whose pages the
+ * browser plugin serves from the same process.
  */
 
 /**
@@ -156,7 +157,7 @@ it('puts every test in exactly one suite, only Postgres tests in the Postgres su
             'P\Packages\core\tests\Actions\RunDoctorTest',
             'P\Packages\generators\tests\Actions\GenerateCodeTest',
         )
-        ->and($bySuite['Browser'])->toBe(['P\Tests\Browser\WorkbenchPageTest']);
+        ->and($bySuite['Browser'])->toBe(['P\Tests\Browser\HarnessTest', 'P\Tests\Browser\Panel\PublicPageTest', 'P\Tests\Browser\WorkbenchPageTest']);
 });
 
 it('boots the workbench application for the browser tests', function (): void {
@@ -165,14 +166,14 @@ it('boots the workbench application for the browser tests', function (): void {
     expect($pest)->toContain("pest()->extend(TestCase::class)->in('Feature', 'Codecs', 'Contract', 'Postgres', 'Actions', 'Browser', '../packages/*/tests', '../examples');");
 });
 
-it('applies the real-Postgres harness to the Postgres directories', function (): void {
+it('applies the real-Postgres harness to the Postgres directories and the Browser suite', function (): void {
     $pest = (string) file_get_contents(Phpstan::root().'/tests/Pest.php');
 
-    expect($pest)->toContain("pest()->use(RealPostgres::class)->in('Postgres', '../packages/*/tests/Postgres', '../examples/Postgres');");
+    expect($pest)->toContain("pest()->use(RealPostgres::class)->in('Postgres', 'Browser', '../packages/*/tests/Postgres', '../examples/Postgres');");
 });
 
-it('applies the real-Valkey harness to the Postgres directories', function (): void {
+it('applies the real-Valkey harness to the Postgres directories and the Browser suite', function (): void {
     $pest = (string) file_get_contents(Phpstan::root().'/tests/Pest.php');
 
-    expect($pest)->toContain("pest()->use(RealValkey::class)->in('Postgres', '../packages/*/tests/Postgres', '../examples/Postgres');");
+    expect($pest)->toContain("pest()->use(RealValkey::class)->in('Postgres', 'Browser', '../packages/*/tests/Postgres', '../examples/Postgres');");
 });

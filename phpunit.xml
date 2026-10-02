@@ -24,7 +24,9 @@
           Arch      the architecture rules
           Actions   each action called directly with its DTOs and the fakes of its ports (GUARDRAILS 9)
           Browser   Chromium through the Pest browser plugin and Playwright, against the workbench
-                    application served in-process; run `npm ci` and `npx playwright install chromium` first
+                    application served in-process on real Postgres and Valkey, as the Postgres
+                    suite; run `composer services:up` and `composer panel:build` first, and the
+                    suite through `composer image:run` in the dev image
           Mutation  the tests that need a coverage driver: mutation on changed files for real, on a
                     scratch repository. PCOV is in the php container and the CI image, not on the
                     host; the PR profile runs it in gate 5

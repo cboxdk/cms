@@ -17,7 +17,7 @@ Every change passes the same gates, in the same order. Each gate runs a Composer
 | 5 | The installation, then the Pest suites `Unit`, `Codecs`, `Contract`, `Postgres`, `Arch` and `Actions` | `composer install:check`, `vendor/bin/pest --testsuite=<suite> --parallel` | yes | yes, with the `Mutation` suite and mutation testing on the changed files |
 | 6 | Generated code is the committed code | `composer check:generated` | yes | yes |
 | 7 | Storybook, visual regression and axe | | no | not run until the panel has a UI |
-| 8 | The `Browser` suite | `vendor/bin/pest --testsuite=Browser`, locally `composer image:run -- vendor/bin/pest --testsuite=Browser` | no | yes |
+| 8 | The panel's build, then the `Browser` suite | `composer panel:build`, `vendor/bin/pest --testsuite=Browser`, locally `composer image:run -- vendor/bin/pest --testsuite=Browser` | no | yes |
 | 9 | Known vulnerabilities in the dependencies | `composer audit --locked --abandoned=report`, `npm audit` | no | yes |
 | 10 | Documentation | `composer docs:check` | no | yes |
 | 11 | Review of changed checks by someone other than the author | | no | not run until branch protection on main requires review by someone other than the author, a repository setting of github.com/cboxdk/cms |
@@ -53,7 +53,7 @@ The analysis takes Pest files only and stops at a PHPUnit test class, so the com
 
 ## The panel and the component kit
 
-The panel's React code is the npm workspace `js/panel` and its components are the workspace `js/ui-kit`; both are private, with working names, and gate 4 type checks and lints them with the shared configuration of `js/tooling`. A component lives only in the kit, and the kit reads its colours, type, spacing and radii from the design tokens in `js/ui-kit/src/tokens.css`, CSS custom properties named `--cms-*`. `npm run build -w @cboxdk/cms-panel` builds the panel with Vite into `js/panel/dist`, which git ignores.
+The panel's React code is the npm workspace `js/panel` and its components are the workspace `js/ui-kit`; both are private, with working names, and gate 4 type checks and lints them with the shared configuration of `js/tooling`. A component lives only in the kit, and the kit reads its colours, type, spacing and radii from the design tokens in `js/ui-kit/src/tokens.css`, CSS custom properties named `--cms-*`; a page imports those and the document styles of `js/ui-kit/src/base.css` once. `composer panel:build` builds the panel with Vite into `packages/panel/dist`, which git ignores, in the dev image with the checkout's own `node_modules` volume, never the host's; the panel module serves it (see [The panel module](panel.md)).
 
 Every text of the panel comes from the translations, in Danish and English (GUARDRAILS 8): the catalogues `js/panel/src/i18n/catalogues/da.json` and `en.json`, flat objects from a dotted key to its text, read in a component with `t()` from `useTranslation()`. Two checks hold this:
 
@@ -61,6 +61,14 @@ Every text of the panel comes from the translations, in Danish and English (GUAR
 - `npm run lint:translations` fails when the catalogues do not have the same keys, when a text is empty or not a string, or when a catalogue is missing or another lies beside them. The Unit suite of gate 5 runs it, so `composer check` fails on it.
 
 Storybook, visual regression per component and axe, gate 7, come in the second part of the panel skeleton; until then gate 7 is not run.
+
+## The browser tests
+
+Gate 8 first runs `composer panel:build`, so the browser tests open the panel as this checkout builds it, and then the `Browser` suite in `tests/Browser`. The browser plugin serves the workbench application in the test's own process, and the suite runs on the testkit's harnesses as the `Postgres` suite does: the checkout's own migrated test database, or a worker's own in a parallel run, as the app role, and Valkey under the run's key prefix. So it needs `composer services:up`, and `tests/Browser/HarnessTest.php` proves it through a page the browser loads.
+
+Every test of a panel page makes the assertions of `Cbox\Cms\Tests\Support\Browser\PanelPage::assertPage()`: the page shows each text it names by its translation key, read from the English catalogue; nothing was written to the console and no script threw; axe finds no issue of any impact with its default rules, nor with every rule of WCAG 2.2 at levels A and AA (GUARDRAILS 8); and the browser reported no violation of the page's Content-Security-Policy. `tests/Browser/Panel/PublicPageTest.php` shows them on the panel's page for an address it does not have, in the light and the dark theme, on a phone and with the keyboard, and checks that the policy's nonce is the one on the page's script; the same file plants a page that breaks each assertion and checks that it fails.
+
+Run the suite with `composer panel:build` and then `composer image:run -- vendor/bin/pest --testsuite=Browser`, or one file of it, such as `composer image:run -- vendor/bin/pest tests/Browser/Panel/PublicPageTest.php`.
 
 ## The documentation gate
 

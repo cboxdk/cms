@@ -35,6 +35,8 @@ parameters:
         - packages/identity/tests
         - packages/mcp/src
         - packages/mcp/tests
+        - packages/panel/src
+        - packages/panel/tests
         - packages/testkit/bin
         - packages/testkit/config
         - packages/testkit/src

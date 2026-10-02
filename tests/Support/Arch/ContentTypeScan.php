@@ -31,7 +31,7 @@ final readonly class ContentTypeScan
      *
      * @var list<string>
      */
-    public const array PACKAGES = ['contracts', 'core', 'testkit', 'generators', 'http', 'cli', 'mcp', 'identity'];
+    public const array PACKAGES = ['contracts', 'core', 'testkit', 'generators', 'http', 'cli', 'mcp', 'identity', 'panel'];
 
     public const string SCHEMA = 'workbench/schema';
 

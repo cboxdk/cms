@@ -26,6 +26,7 @@
         "psr/clock": "^1.0",
         "psr/log": "^3.0",
         "symfony/console": "^7.4 || ^8.0",
+        "symfony/http-foundation": "^7.4 || ^8.0",
         "symfony/http-kernel": "^7.4 || ^8.0",
         "symfony/process": "^7.4.5 || ^8.0.5"
     },
@@ -82,6 +83,7 @@
             "Cbox\\Cms\\Http\\": "packages/http/src/",
             "Cbox\\Cms\\Identity\\": "packages/identity/src/",
             "Cbox\\Cms\\Mcp\\": "packages/mcp/src/",
+            "Cbox\\Cms\\Panel\\": "packages/panel/src/",
             "Cbox\\Cms\\Testkit\\": "packages/testkit/src/"
         }
     },
@@ -94,6 +96,7 @@
             "Cbox\\Cms\\Http\\Tests\\": "packages/http/tests/",
             "Cbox\\Cms\\Identity\\Tests\\": "packages/identity/tests/",
             "Cbox\\Cms\\Mcp\\Tests\\": "packages/mcp/tests/",
+            "Cbox\\Cms\\Panel\\Tests\\": "packages/panel/tests/",
             "Cbox\\Cms\\Testkit\\Tests\\": "packages/testkit/tests/",
             "Cbox\\Cms\\Tests\\": "tests/",
             "Cbox\\Cms\\Tooling\\": "tools/src/",
@@ -167,6 +170,10 @@
             "@php tools/bin/dev-image.php --"
         ],
         "image:prune": "@php tools/bin/prune-image-volumes.php",
+        "panel:build": [
+            "Composer\\Config::disableProcessTimeout",
+            "@php tools/bin/dev-image.php -- npm run build --workspace=@cboxdk/cms-panel"
+        ],
         "check:selftest": [
             "Composer\\Config::disableProcessTimeout",
             "@php tools/bin/check-selftest.php"
@@ -193,6 +200,7 @@
                 "Cbox\\Cms\\Http\\HttpServiceProvider",
                 "Cbox\\Cms\\Mcp\\McpServiceProvider",
                 "Cbox\\Cms\\Cli\\CliServiceProvider",
+                "Cbox\\Cms\\Panel\\PanelServiceProvider",
                 "Cbox\\Cms\\Generators\\GeneratorsServiceProvider"
             ]
         },

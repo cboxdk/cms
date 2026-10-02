@@ -30,9 +30,12 @@ use SplFileInfo;
  * - identity, the login (PRD 5.16), never uses the testkit or the generators, and core, http, cli
  *   and mcp never use identity: the actor aggregate and the actor commands are the core's, and
  *   identity builds on them, never the other way;
+ * - panel, the PHP side of the control panel (PRD 13.4), may use core, http and identity besides the
+ *   contracts, never cli, mcp, the testkit or the generators, and no module uses panel: the panel
+ *   is a surface on top of the kernel, never something the kernel or another surface builds on;
  * - the testkit uses no module but contracts;
  * - every package a module uses is in composer.json's require or suggest, and the production
- *   modules (contracts, core, http, cli, mcp, identity) use none that composer.json only suggests, because those
+ *   modules (contracts, core, http, cli, mcp, identity, panel) use none that composer.json only suggests, because those
  *   are installed for development only and never reach production. The testkit is left out of
  *   this rule: it runs only in development, and its PHPStan rules name the classes of PHPStan, of
  *   nikic/php-parser inside PHPStan and of the clock and id libraries they report, not packages
@@ -64,6 +67,7 @@ final readonly class ModuleDependencies
         'http' => 'Cbox\Cms\Http',
         'identity' => 'Cbox\Cms\Identity',
         'mcp' => 'Cbox\Cms\Mcp',
+        'panel' => 'Cbox\Cms\Panel',
         'testkit' => 'Cbox\Cms\Testkit',
     ];
 
@@ -72,7 +76,7 @@ final readonly class ModuleDependencies
      *
      * @var list<string>
      */
-    public const array PRODUCTION = ['cli', 'contracts', 'core', 'http', 'identity', 'mcp'];
+    public const array PRODUCTION = ['cli', 'contracts', 'core', 'http', 'identity', 'mcp', 'panel'];
 
     /**
      * The modules each module may not use.
@@ -80,14 +84,15 @@ final readonly class ModuleDependencies
      * @var array<string, list<string>>
      */
     public const array FORBIDDEN_MODULES = [
-        'cli' => ['generators', 'identity', 'testkit'],
-        'contracts' => ['cli', 'core', 'generators', 'http', 'identity', 'mcp', 'testkit'],
-        'core' => ['generators', 'identity', 'testkit'],
-        'generators' => ['testkit'],
-        'http' => ['generators', 'identity', 'testkit'],
-        'identity' => ['generators', 'testkit'],
-        'mcp' => ['generators', 'identity', 'testkit'],
-        'testkit' => ['cli', 'core', 'generators', 'http', 'identity', 'mcp'],
+        'cli' => ['generators', 'identity', 'panel', 'testkit'],
+        'contracts' => ['cli', 'core', 'generators', 'http', 'identity', 'mcp', 'panel', 'testkit'],
+        'core' => ['generators', 'identity', 'panel', 'testkit'],
+        'generators' => ['panel', 'testkit'],
+        'http' => ['generators', 'identity', 'panel', 'testkit'],
+        'identity' => ['generators', 'panel', 'testkit'],
+        'mcp' => ['generators', 'identity', 'panel', 'testkit'],
+        'panel' => ['cli', 'generators', 'mcp', 'testkit'],
+        'testkit' => ['cli', 'core', 'generators', 'http', 'identity', 'mcp', 'panel'],
     ];
 
     /**

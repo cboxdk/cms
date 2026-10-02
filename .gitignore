@@ -9,3 +9,4 @@ node_modules/
 /tests/Browser/Screenshots/
 /build/
 /js/*/dist/
+/packages/panel/dist/

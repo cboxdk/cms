@@ -10,6 +10,7 @@ providers:
   - Cbox\Cms\Http\HttpServiceProvider
   - Cbox\Cms\Mcp\McpServiceProvider
   - Cbox\Cms\Cli\CliServiceProvider
+  - Cbox\Cms\Panel\PanelServiceProvider
   - Cbox\Cms\Generators\GeneratorsServiceProvider
   - Workbench\App\Providers\WorkbenchServiceProvider
 

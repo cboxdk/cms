@@ -55,6 +55,7 @@ use Cbox\Cms\Core\Tests\Registry\Providers\FixtureRootProvider;
 use Cbox\Cms\Generators\GeneratorsServiceProvider;
 use Cbox\Cms\Http\HttpServiceProvider;
 use Cbox\Cms\Identity\IdentityServiceProvider;
+use Cbox\Cms\Panel\PanelServiceProvider;
 use Workbench\FixtureAddon\FixtureAddonServiceProvider;
 
 afterEach(function (): void {
@@ -76,6 +77,7 @@ function packageScanRoots(): ScanRoots
         new ScanRoot('cboxdk/cms', $packages.'/generators/src'),
         new ScanRoot('cboxdk/cms', $packages.'/mcp/src'),
         new ScanRoot('cboxdk/cms', $packages.'/identity/src'),
+        new ScanRoot('cboxdk/cms', $packages.'/panel/src'),
     );
 }
 
@@ -86,7 +88,8 @@ it('lets each package provider declare its own src directory as a scan root', fu
         ->and(new HttpServiceProvider(app())->scanRoots())->toEqual([new ScanRoot(HttpServiceProvider::PACKAGE, $packages.'/http/src')])
         ->and(new CliServiceProvider(app())->scanRoots())->toEqual([new ScanRoot(CliServiceProvider::PACKAGE, $packages.'/cli/src')])
         ->and(new GeneratorsServiceProvider(app())->scanRoots())->toEqual([new ScanRoot(GeneratorsServiceProvider::PACKAGE, $packages.'/generators/src')])
-        ->and(new IdentityServiceProvider(app())->scanRoots())->toEqual([new ScanRoot(IdentityServiceProvider::PACKAGE, $packages.'/identity/src')]);
+        ->and(new IdentityServiceProvider(app())->scanRoots())->toEqual([new ScanRoot(IdentityServiceProvider::PACKAGE, $packages.'/identity/src')])
+        ->and(new PanelServiceProvider(app())->scanRoots())->toEqual([new ScanRoot(PanelServiceProvider::PACKAGE, $packages.'/panel/src')]);
 });
 
 it('collects the scan roots of every registered provider that declares them', function (): void {
@@ -94,12 +97,12 @@ it('collects the scan roots of every registered provider that declares them', fu
 
     // The module providers of cboxdk/cms, and the workbench's fixture addon, which package
     // discovery registers.
-    expect($roots)->toHaveCount(7)
+    expect($roots)->toHaveCount(8)
         ->and($roots)->toEqualCanonicalizing([...packageScanRoots()->roots, new ScanRoot(FixtureAddonServiceProvider::PACKAGE, dirname(__DIR__, 4).'/workbench/addons/fixtureaddon/src')]);
 
     app()->register(FixtureRootProvider::class);
 
-    expect(ProviderScanRoots::of(app())->roots)->toHaveCount(8)->toContainEqual(RegistryFixtures::root('Valid'));
+    expect(ProviderScanRoots::of(app())->roots)->toHaveCount(9)->toContainEqual(RegistryFixtures::root('Valid'));
 });
 
 it('registers deferred providers first, so their scan roots are not missed', function (): void {

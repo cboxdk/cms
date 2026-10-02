@@ -11,7 +11,8 @@ use InvalidArgumentException;
 
 /**
  * The PR profile of GUARDRAILS 10 as CI runs it today, through `bin/ci`: the steps of gates 1 to
- * 6 from the local profile, unchanged, gate 8 (the Browser suite), gate 9 (composer audit and npm
+ * 6 from the local profile, unchanged, gate 8 (`composer panel:build`, then the Browser suite),
+ * gate 9 (composer audit and npm
  * audit) and gate 10 (`composer docs:check`, documentation with running examples for every
  * public extension point), and gates 7 and 11 reported as not run, each with the reason.
  *
@@ -56,6 +57,12 @@ final readonly class PrProfile
     public const string BROWSER_SUITE = 'Browser';
 
     /**
+     * The Composer script that builds the panel from js/panel into packages/panel/dist in the dev
+     * image, which the Browser suite's panel pages load.
+     */
+    public const string PANEL_BUILD = 'panel:build';
+
+    /**
      * Why the gates job reports mutation on changed files as not run: its shards run it.
      */
     public const string MUTATION_IN_SHARDS = 'run in the shard jobs of mutation on changed files, which the verdict judges together (MutationVerdict)';
@@ -95,7 +102,7 @@ final readonly class PrProfile
             $full = match (true) {
                 isset(self::NOT_RUN[$gate->number]) => new Gate($gate->number, $gate->title, [Step::notRun($gate->title, self::NOT_RUN[$gate->number])]),
                 $gate->number === 5 => self::pest($gate, $php, $mutation, $part, $tally),
-                $gate->number === 8 => self::browser($gate, $php),
+                $gate->number === 8 => self::browser($gate, $php, $composer),
                 $gate->number === 9 => self::audit($gate, $composer),
                 $gate->number === 10 => self::docs($gate, $composer),
                 default => $gate,
@@ -130,14 +137,19 @@ final readonly class PrProfile
     }
 
     /**
-     * Gate 8: the Browser suite, with skipped and incomplete tests failing it as in gate 5. The
-     * browser plugin starts `playwright run-server`, which outlives a Pest process that dies of a
-     * fatal error and keeps its output open, so the step runs in a process group of its own that
-     * the runner kills when the step ends.
+     * Gate 8: `composer panel:build`, which builds the panel the browser tests open (PRD 13.4)
+     * through the dev image, in place when the run is in the image already, as in CI; then the
+     * Browser suite, with skipped and incomplete tests failing it as in gate 5. The browser plugin
+     * starts `playwright run-server`, which outlives a Pest process that dies of a fatal error and
+     * keeps its output open, so the suite runs in a process group of its own that the runner kills
+     * when the step ends.
+     *
+     * @param  list<string>  $composer
      */
-    private static function browser(Gate $gate, string $php): Gate
+    private static function browser(Gate $gate, string $php, array $composer): Gate
     {
         return new Gate($gate->number, $gate->title, [
+            Step::run(self::PANEL_BUILD, [...$composer, self::PANEL_BUILD]),
             Step::run(
                 self::BROWSER_SUITE,
                 [$php, 'vendor/bin/pest', '--testsuite='.self::BROWSER_SUITE, ...LocalProfile::FAIL_FLAGS],

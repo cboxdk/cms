@@ -42,6 +42,7 @@ It requires these packages directly:
 | `psr/clock` | `^1.0` |
 | `psr/log` | `^3.0` |
 | `symfony/console` | `^7.4 \|\| ^8.0` |
+| `symfony/http-foundation` | `^7.4 \|\| ^8.0` |
 | `symfony/http-kernel` | `^7.4 \|\| ^8.0` |
 | `symfony/process` | `^7.4.5 \|\| ^8.0.5` |
 

@@ -229,14 +229,18 @@ it('fails gate 10 when composer docs:check has a finding', function (): void {
         ->and(ReportFormatter::summary($report))->toContain('composer check failed: gate 10 failed.');
 });
 
-it('runs the Browser suite as gate 8, in a process group of its own, failing skipped and incomplete tests as gate 5 does', function (): void {
+it('builds the panel and runs the Browser suite as gate 8, in a process group of its own, failing skipped and incomplete tests as gate 5 does', function (): void {
     $gate = prGates()[7];
-    $step = $gate->steps[0] ?? null;
+    $build = $gate->steps[0] ?? null;
+    $step = $gate->steps[1] ?? null;
     $unit = array_first(array_filter(prGates()[4]->steps, static fn (Step $step): bool => $step->name === 'Unit'));
     $gate5Flags = array_slice($unit->command ?? [], 3, 2);
 
     expect($gate->number)->toBe(8)
-        ->and($gate->steps)->toHaveCount(1)
+        ->and($gate->steps)->toHaveCount(2)
+        ->and($build?->name)->toBe('panel:build')
+        ->and($build?->command)->toBe([...PR_COMPOSER, 'panel:build'])
+        ->and($build?->ownProcessGroup)->toBeFalse()
         ->and($step?->name)->toBe('Browser')
         ->and($gate5Flags)->toBe(['--fail-on-skipped', '--fail-on-incomplete'])
         ->and(array_slice($unit->command ?? [], 5))->toBe(['--parallel'])
@@ -287,6 +291,19 @@ it('fails gate 8 when the Browser suite fails, and runs it in its own process gr
         ->and($browser[0]->ownProcessGroup ?? null)->toBeTrue()
         ->and(array_filter($runner->calls, static fn (RecordedCommand $call): bool => $call->ownProcessGroup))->toHaveCount(1)
         ->and(ReportFormatter::summary($report))->toContain('composer check failed: gate 8 failed.');
+});
+
+it('fails gate 8 when the panel cannot be built, and still runs the Browser suite', function (): void {
+    $runner = new ScriptedProcessRunner(static fn (array $command): ProcessOutcome => in_array('panel:build', $command, true)
+        ? new ProcessOutcome(1, "vite: build failed\n", 1.0)
+        : new ProcessOutcome(0, composerAuditJson(), 0.1));
+
+    $report = new CheckRunner($runner, new SilentListener)->run(prGates(), '/srv/checkout');
+    $browser = array_values(array_filter($runner->calls, static fn (RecordedCommand $call): bool => in_array('--testsuite=Browser', $call->command, true)));
+
+    expect($report->failedGates())->toBe([8])
+        ->and($report->gate(8)?->step('panel:build')?->status)->toBe(StepStatus::Fail)
+        ->and($browser)->toHaveCount(1);
 });
 
 it('fails gate 9 on one security advisory from composer audit and names it', function (int $exitCode): void {

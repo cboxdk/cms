@@ -31,7 +31,10 @@ ExcludeList::addDirectory($browserPlugin.'/src');
 pest()->extend(TestCase::class)->in('Feature', 'Codecs', 'Contract', 'Postgres', 'Actions', 'Browser', '../packages/*/tests', '../examples');
 
 // Real Postgres as the app role, schema built by the owner role, no wrapping transaction (GUARDRAILS 9).
-pest()->use(RealPostgres::class)->in('Postgres', '../packages/*/tests/Postgres', '../examples/Postgres');
+// The Browser suite of gate 8 runs on it too: the browser plugin serves the workbench application
+// in this process, so a page the browser loads reads and writes this checkout's (or this worker's)
+// own migrated test database, as the app role.
+pest()->use(RealPostgres::class)->in('Postgres', 'Browser', '../packages/*/tests/Postgres', '../examples/Postgres');
 
 // Real Valkey on the test database index, with a key prefix per run that is cleaned after each test.
-pest()->use(RealValkey::class)->in('Postgres', '../packages/*/tests/Postgres', '../examples/Postgres');
+pest()->use(RealValkey::class)->in('Postgres', 'Browser', '../packages/*/tests/Postgres', '../examples/Postgres');

@@ -167,7 +167,7 @@ it('fails the rule for each handle of the workbench schema written into the src 
 it('scans the src directory of each core package and nothing else', function (): void {
     $root = ScratchDirectory::make();
 
-    foreach ([...ContentTypeScan::PACKAGES, 'panel'] as $package) {
+    foreach ([...ContentTypeScan::PACKAGES, 'members'] as $package) {
         mkdir("{$root}/packages/{$package}/src/Domain", 0o777, true);
         mkdir("{$root}/packages/{$package}/tests", 0o777, true);
         file_put_contents("{$root}/packages/{$package}/src/Domain/Type.php", "<?php\n\nreturn 'fixture_article';\n");
@@ -185,6 +185,7 @@ it('scans the src directory of each core package and nothing else', function ():
             'packages/http/src/Domain/Type.php',
             'packages/identity/src/Domain/Type.php',
             'packages/mcp/src/Domain/Type.php',
+            'packages/panel/src/Domain/Type.php',
             'packages/testkit/src/Domain/Type.php',
         ])
         ->and($scan->hits)->toBe(array_map(static fn (string $file): string => $file.':3: fixture_article', $scan->files));
