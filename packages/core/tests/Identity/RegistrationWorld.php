@@ -15,9 +15,11 @@ use Cbox\Cms\Contracts\Identity\ActorPrincipal;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\IssuerKind;
 use Cbox\Cms\Contracts\Ids\ActorId;
+use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Pipeline\WriteAction;
 use Cbox\Cms\Contracts\Results\WriteResult;
+use Cbox\Cms\Core\Access\Domain\AccessContexts;
 use Cbox\Cms\Core\IdempotencyStore\Adapter\PostgresIdempotencyStore;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
 use Cbox\Cms\Core\Identity\Actions\ActivateActorAction;
@@ -28,12 +30,18 @@ use Cbox\Cms\Core\Identity\Adapter\PostgresActorDirectory;
 use Cbox\Cms\Core\Identity\Adapter\PostgresActorVersionLock;
 use Cbox\Cms\Core\Identity\Domain\Commands\ActivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\RegisterActor;
+use Cbox\Cms\Core\Maintenance\Actions\RunMaintenanceCommand;
+use Cbox\Cms\Core\Maintenance\Adapter\PostgresInstallationOperator;
+use Cbox\Cms\Core\Maintenance\Adapter\PostgresOperatorGenesis;
+use Cbox\Cms\Core\Maintenance\Domain\Dto\Genesis;
+use Cbox\Cms\Core\Maintenance\Domain\MaintenanceAuthorizer;
 use Cbox\Cms\Core\Pipeline\Actions\AwaitWaitLevel;
 use Cbox\Cms\Core\Pipeline\Actions\CommandPipeline;
 use Cbox\Cms\Core\Pipeline\Actions\HookRunner;
 use Cbox\Cms\Core\Pipeline\Adapter\ConnectionCommandTransaction;
 use Cbox\Cms\Core\Pipeline\Adapter\PostgresChangesetCommitter;
 use Cbox\Cms\Core\Pipeline\Adapter\SavepointRefusal;
+use Cbox\Cms\Core\Pipeline\Domain\CommandAuthorizer;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\ActionBinding;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCall;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\WaitSettings;
@@ -87,9 +95,10 @@ final readonly class RegistrationWorld
     }
 
     /**
-     * Runs the command on the CLI as the actor $by, with the key given.
+     * Runs the command on the CLI as the actor $by, with the key given, through the pipeline with
+     * the authorizer given or one that allows.
      */
-    public function run(ActorId $by, RegisterActor|ActivateActor $command, string $key): WriteResult
+    public function run(ActorId $by, RegisterActor|ActivateActor $command, string $key, CommandAuthorizer $authorizer = new FakeCommandAuthorizer): WriteResult
     {
         $envelope = Envelope::external(
             IssuingSurface::Cli,
@@ -99,14 +108,38 @@ final readonly class RegistrationWorld
             new CorrelationId('registration-correlation'),
         );
 
-        return $this->pipeline()->run(new CommandCall($command, $envelope, new AccessContext(
+        return $this->pipeline($authorizer)->run(new CommandCall($command, $envelope, new AccessContext(
             new ActorPrincipal($by, [], IssuerKind::Service, ClassificationAccess::Sensitive),
             [],
             ClassificationAccess::Personal,
         )));
     }
 
-    private function pipeline(): CommandPipeline
+    /**
+     * The installation operator, written by the genesis on the owner connection at NOW.
+     */
+    public function install(): ActorId
+    {
+        return new PostgresOperatorGenesis($this->connections, $this->clock, config()->string('cbox-cms.database.owner_connection'))
+            ->install(new Genesis(new ActorId($this->ids->next()), new ChangesetId($this->ids->next()), $this->clock->now(), new CorrelationId('genesis')))
+            ->operator;
+    }
+
+    /**
+     * RunMaintenanceCommand over this world's pipeline with the MaintenanceAuthorizer, the operator
+     * read from Postgres and the container's access contexts.
+     */
+    public function maintenance(): RunMaintenanceCommand
+    {
+        $installation = new PostgresInstallationOperator($this->connections);
+
+        return new RunMaintenanceCommand($installation, app(AccessContexts::class), $this->ids, $this->pipeline(new MaintenanceAuthorizer($installation)));
+    }
+
+    /**
+     * The real pipeline over this world's ports, with the authorizer given or one that allows.
+     */
+    public function pipeline(CommandAuthorizer $authorizer = new FakeCommandAuthorizer): CommandPipeline
     {
         $types = new FakeTypeCatalog;
         $directory = new PostgresActorDirectory($this->connections);
@@ -118,7 +151,7 @@ final readonly class RegistrationWorld
                 ActivateActor::class => $this->binding('actor.activate', new ActivateActorAction($directory)),
             ]),
             $directory,
-            new FakeCommandAuthorizer,
+            $authorizer,
             $types,
             new FakeFieldValidation(new FakeTypeValidators),
             new FakeRevisionContents,

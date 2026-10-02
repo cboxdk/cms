@@ -48,6 +48,7 @@ The core's checks run in this order. The last three run only with `--dev`. A che
 | `events.lag` | no | `postgres.reachable`, `registry.cache` | no subscription has an unhandled event older than the lag target of its lane |
 | `events.parked` | no | `postgres.reachable` | no subscription has parked aggregates |
 | `postgres.owner_credentials` | no | | only the maintenance process holds the owner role's credentials |
+| `identity.operator_actor` | no | `postgres.reachable` | the installation operator exists, is of class service and is active (see [Maintenance commands](maintenance-commands.md)) |
 | `dev.node` | no | | Node on the PATH, at least the configured minimum |
 | `dev.playwright` | no | `dev.node` | Playwright is installed in the project |
 | `dev.chromium` | no | `dev.playwright` | Playwright's Chromium is downloaded |

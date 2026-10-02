@@ -232,7 +232,7 @@ it('has an issuer for every issuer of an envelope, and names the issuers an inva
 
     expect(array_map(static fn (Issuer $issuer): ?IssuingSurface => $issuer->issuingSurface(), Issuer::envelopeIssuers()))->toBe(IssuingSurface::cases())
         ->and(Issuer::Kernel->issuingSurface())->toBeNull()
-        ->and($entry->envelopeIssuersMissing())->toBe([Issuer::Inertia, Issuer::Mcp, Issuer::Job, Issuer::Scheduler, Issuer::Subscriber, Issuer::Sidecar]);
+        ->and($entry->envelopeIssuersMissing())->toBe([Issuer::Inertia, Issuer::Mcp, Issuer::Job, Issuer::Scheduler, Issuer::Subscriber, Issuer::Sidecar, Issuer::Maintenance]);
 });
 
 it('refuses a test id that is not a path and a name', function (string $id): void {

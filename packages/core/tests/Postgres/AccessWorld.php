@@ -109,7 +109,7 @@ final class AccessWorld
      */
     public const array TABLES = [
         'actor_profiles', 'actors', 'audit', 'changeset_principals', 'changeset_reason_texts', 'changeset_register', 'changesets', 'entries',
-        'grants', 'head_snapshots', 'mount_overrides', 'node_routes', 'nodes', 'placement_generations', 'placement_locales',
+        'grants', 'head_snapshots', 'installation', 'mount_overrides', 'node_routes', 'nodes', 'placement_generations', 'placement_locales',
         'placements', 'read_audit', 'release_log', 'revision_payloads', 'revisions', 'role_permissions', 'roles',
         'service_credential_delegations', 'service_credentials', 'site_locales', 'sites', 'variant_heads',
     ];
@@ -229,6 +229,10 @@ final class AccessWorld
                 'created_at' => self::CREATED_AT,
             ]);
         }
+
+        // The installation names an operator, written by its genesis in production; here a service
+        // actor of the world, with one of the world's changesets.
+        $superuser->table('installation')->insert(['operator_actor_id' => self::SERVICE, 'changeset_id' => self::CHANGESET_BOB, 'installed_at' => self::CREATED_AT]);
 
         $superuser->table('read_audit')->insert([
             'read_id' => self::READ_ALICE,

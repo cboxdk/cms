@@ -308,7 +308,7 @@ final readonly class CommandPipeline
             return $this->rejected($call, ...$conflicts);
         }
 
-        $authorization = $this->authorizer->authorize($call->access, $binding->command, $call->command, $aggregates);
+        $authorization = $this->authorizer->authorize($call->access, $binding->command, $call->command, $aggregates, $call->envelope);
 
         if (! $authorization->allowed()) {
             return $this->rejected($call, new CatalogError($authorization->code, null, (string) $authorization->reason));

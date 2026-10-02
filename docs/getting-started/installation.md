@@ -36,7 +36,8 @@ The workbench's database is `cms` on the shared Postgres. `composer dev:prepare`
 
 1. the migrations, as the owner role on the connection `pgsql_owner`;
 2. `cms:partitions:maintain`, which creates the partitions from now to 14 days ahead;
-3. `cms:build`, the registry cache.
+3. `cms:build`, the registry cache;
+4. `cms:install`, which creates the installation operator once, the service actor the maintenance commands run as (see [Maintenance commands](../developers/maintenance-commands.md)).
 
 Every step is idempotent, and the script stops at the first step that fails. The workbench reads its settings from `workbench/.env`; Testbench copies `workbench/.env.example` there when the file is missing.
 
@@ -48,6 +49,7 @@ Every step is idempotent, and the script stops at the first step that fails. The
 |---|---|
 | `cms:build` | Compiles the registries of actions, commands, hooks, schema contributions and subscribers to `bootstrap/cache/cms`, from the scan roots and addon manifests. See [Build declarations](../addons/build-declarations.md). |
 | `cms:doctor` | Checks the installation and the runtime contract. See [cms:doctor](../developers/doctor.md). |
+| `cms:install` | Creates the installation operator once, the service actor the maintenance commands run as, as the owner role in the maintenance process. A second run changes nothing. See [Maintenance commands](../developers/maintenance-commands.md). |
 | `cms:generate` | Generates the typed PHP and TypeScript code and the migrations of the type tables from the blueprint files. See [Blueprint schema v1](../addons/blueprint-v1.md). |
 | `cms:partitions:maintain` | Creates partitions ahead of the clock and removes partitions past retention, as the owner role. See [Partitions](../developers/partitions.md). |
 | `cms:schema:editor` | Writes the line that points editors at the blueprint schema into every blueprint file. |

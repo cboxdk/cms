@@ -60,6 +60,9 @@ enum ErrorCode: string
     case DoctorLcMessagesNotEnglish = 'doctor_lc_messages_not_english';
     case DoctorNodeMissing = 'doctor_node_missing';
     case DoctorNodeVersion = 'doctor_node_version';
+    case DoctorOperatorInvalid = 'doctor_operator_invalid';
+    case DoctorOperatorMissing = 'doctor_operator_missing';
+    case DoctorOperatorUnreadable = 'doctor_operator_unreadable';
     case DoctorOwnerCredentialsExposed = 'doctor_owner_credentials_exposed';
     case DoctorPartitionRunwayShort = 'doctor_partition_runway_short';
     case DoctorPartitionTableUnmanageable = 'doctor_partition_table_unmanageable';
@@ -127,6 +130,8 @@ enum ErrorCode: string
     case IdempotencyConflict = 'idempotency_conflict';
     case IdempotencyInFlight = 'idempotency_in_flight';
     case IdempotencyKeyRequired = 'idempotency_key_required';
+    case InstallOwnerConnectionRequired = 'install_owner_connection_required';
+    case InstallationOperatorMissing = 'installation_operator_missing';
     case JsonInvalid = 'json_invalid';
     case JsonMalformed = 'json_malformed';
     case LoginAuthoritativeLink = 'login_authoritative_link';
@@ -335,6 +340,15 @@ enum ErrorCode: string
             ),
             self::DoctorNodeVersion => $this->readiness(
                 'The installed Node is older than cbox-cms.doctor.node_minimum, which the development tools need (cms:doctor --dev). Install a newer Node.',
+            ),
+            self::DoctorOperatorInvalid => $this->readiness(
+                'The installation operator, the service actor the maintenance commands run as, is not an active service actor (PRD 5.16), so no maintenance command can run. Find out who changed it from the audit; an operator is created once, by cms:install.',
+            ),
+            self::DoctorOperatorMissing => $this->readiness(
+                'The installation has no operator yet, the service actor the maintenance commands run as (PRD 5.16). Run cms:install in the maintenance process, after the migrations and cms:partitions:maintain.',
+            ),
+            self::DoctorOperatorUnreadable => $this->readiness(
+                'The doctor could not read the installation operator, usually because the core\'s migrations have not run. Run them as the owner role in the maintenance process, then run cms:doctor again.',
             ),
             self::DoctorOwnerCredentialsExposed => $this->readiness(
                 'The owner connection, which may change the schema and passes the row level security, is configured in a process that serves HTTP, runs queued jobs, or is not declared the maintenance process (PRD 4.2). Remove the owner connection from that process\'s configuration, or declare the maintenance process with CBOX_CMS_MAINTENANCE_PROCESS=true.',
@@ -581,6 +595,12 @@ enum ErrorCode: string
                 McpResponse::ToolError,
                 false,
                 'A command through REST needs an idempotency key (PRD 6.1), and the request has no Idempotency-Key header, or one that is not 1 to 255 visible ASCII characters. Nothing ran and nothing was committed. Send the command again with a key of your own in Idempotency-Key, and the same key when you repeat it.',
+            ),
+            self::InstallOwnerConnectionRequired => $this->violation(
+                'cms:install creates the installation operator as the owner role, and this process has no owner connection, or the connection it names is not the owner role\'s (PRD 4.2). Run cms:install in the maintenance process, with cbox-cms.database.owner_connection naming the owner role\'s connection.',
+            ),
+            self::InstallationOperatorMissing => $this->violation(
+                'A maintenance command runs as the installation operator, and the installation has none yet (PRD 5.16). Run cms:install in the maintenance process first.',
             ),
             self::JsonInvalid => $this->caller(
                 HttpStatus::UnprocessableContent,

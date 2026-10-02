@@ -37,6 +37,21 @@ enum IssuingSurface: string
     /** A seed that loads content. */
     case Seed = 'seed';
 
+    /**
+     * A maintenance command an operator runs in the maintenance process, such as cms:install and the
+     * commands that register the first site or staff member (PRD 5.16, 3.3). It runs as the
+     * installation operator, a service actor, and always with the issuer kind system.
+     */
+    case Maintenance = 'maintenance';
+
+    /**
+     * The one issuer kind an envelope from this issuer may carry, or null when it may carry any.
+     */
+    public function requiredIssuerKind(): ?IssuerKind
+    {
+        return $this === self::Maintenance ? IssuerKind::System : null;
+    }
+
     public static function of(Surface $surface): self
     {
         return self::from($surface->value);

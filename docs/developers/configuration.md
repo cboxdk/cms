@@ -37,7 +37,7 @@ For example, `'contracts' => [Clock::class => StagingClock::class]` replaces the
 
 | Key | Default | What it does |
 |---|---|---|
-| `cbox-cms.database.owner_connection` | `pgsql_owner` | The connection of the owner role, which owns the schema and runs the migrations and partition maintenance. Only the maintenance process has it. A process that serves HTTP or runs queued jobs with this connection configured stops while it boots, and the core schedules `cms:partitions:maintain` only in a process that has it. See [Postgres roles](../security/postgres-roles.md). |
+| `cbox-cms.database.owner_connection` | `pgsql_owner` | The connection of the owner role, which owns the schema and runs the migrations, partition maintenance and `cms:install`. Only the maintenance process has it. A process that serves HTTP or runs queued jobs with this connection configured stops while it boots, and the core schedules `cms:partitions:maintain` only in a process that has it. See [Postgres roles](../security/postgres-roles.md). |
 | `cbox-cms.database.partitions.runway_days` | `14` | How many days ahead of now `cms:partitions:maintain` creates partitions. |
 | `cbox-cms.database.partitions.runway_partitions` | `2` | How many empty partitions ahead of its sequence's current value `cms:partitions:maintain` keeps for a table with the key `bigint`, from 1 to 100. |
 | `cbox-cms.database.partitions.lock_timeout_ms` | `2000` | The `lock_timeout` of every DDL statement of the partition manager, in milliseconds. |
@@ -205,6 +205,10 @@ An invalid doctor setting makes `cms:doctor` run the single check `doctor.config
 | `cbox-cms.identity.session.cookie.testing.same_site` | `lax` | The SameSite of the session cookie in `testing`. |
 
 The login policy is read the first time a login asks it; a policy out of form throws `InvalidLoginPolicy` with [`login_policy_invalid`](../reference/errors.md#login_policy_invalid), naming the key.
+
+## The installation operator
+
+The installation operator, the service actor the maintenance commands run as, has no key. `cms:install` creates it once, and the kernel keeps its id in the table `installation`, never in `.env` or the configuration, so every process and every deploy of an installation finds the same one, and no deploy can name another. The operator is created on `cbox-cms.database.owner_connection`, in the maintenance process. See [Maintenance commands](maintenance-commands.md).
 
 ## Generators
 

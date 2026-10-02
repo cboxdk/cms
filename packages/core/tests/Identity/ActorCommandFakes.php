@@ -24,12 +24,15 @@ use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Contracts\Results\WriteResult;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
 use Cbox\Cms\Core\Identity\Actions\ActivateActorAction;
+use Cbox\Cms\Core\Identity\Actions\DeactivateActorAction;
 use Cbox\Cms\Core\Identity\Actions\RegisterActorAction;
 use Cbox\Cms\Core\Identity\Domain\Commands\ActivateActor;
+use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\RegisterActor;
 use Cbox\Cms\Core\Pipeline\Actions\AwaitWaitLevel;
 use Cbox\Cms\Core\Pipeline\Actions\CommandPipeline;
 use Cbox\Cms\Core\Pipeline\Actions\HookRunner;
+use Cbox\Cms\Core\Pipeline\Domain\CommandAuthorizer;
 use Cbox\Cms\Core\Pipeline\Domain\CommitOutcome;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\ActionBinding;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCall;
@@ -48,8 +51,10 @@ use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeStopwatch;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeWriteActions;
 use Cbox\Cms\Core\Tests\Subscriptions\Fakes\FakePacing;
 use Cbox\Cms\Testkit\Clock\FakeClock;
+use Cbox\Cms\Testkit\Idempotency\FakeIdempotencySession;
 use Cbox\Cms\Testkit\Idempotency\FakeIdempotencyStore;
 use Cbox\Cms\Testkit\Identity\FakeIdentity;
+use Cbox\Cms\Testkit\ReceiptStore\FakeReceiptSession;
 use Cbox\Cms\Testkit\ReceiptStore\FakeReceiptStore;
 use Cbox\Cms\Testkit\Schema\FakeTypeCatalog;
 use Cbox\Cms\Testkit\Telemetry\FakeTelemetry;
@@ -57,7 +62,7 @@ use Cbox\Cms\Testkit\Validation\FakeTypeValidators;
 use LogicException;
 
 /**
- * actor.register and actor.activate through the command pipeline with the fakes of the ports and
+ * actor.register, actor.activate and actor.deactivate through the command pipeline with the fakes of the ports and
  * contracts they read (GUARDRAILS 9): the identity with an active staff member as the caller, the
  * authorizer and the committer a test chooses, and the fake idempotency and receipt stores. Each
  * run has an idempotency key of its own. Nothing touches a database.
@@ -70,7 +75,7 @@ final class ActorCommandFakes
 
     public FakeChangesetCommitter $committer;
 
-    public FakeCommandAuthorizer $authorizer;
+    public CommandAuthorizer $authorizer;
 
     private int $calls = 0;
 
@@ -82,16 +87,43 @@ final class ActorCommandFakes
         $this->authorizer = new FakeCommandAuthorizer;
     }
 
-    public function run(RegisterActor|ActivateActor $command, bool $dryRun = false): WriteResult
+    /**
+     * Runs the command as the staff member $admin through an external envelope, or with the envelope
+     * and access context a test gives.
+     */
+    public function run(RegisterActor|ActivateActor|DeactivateActor $command, bool $dryRun = false, ?Envelope $envelope = null, ?AccessContext $access = null): WriteResult
     {
         $clock = new FakeClock;
-        $keys = new FakeIdempotencyStore($clock)->session();
-        $receipts = new FakeReceiptStore($clock)->session();
+        $pipeline = $this->pipeline(new FakeIdempotencyStore($clock)->session(), new FakeReceiptStore($clock)->session());
+        $envelope ??= Envelope::external(
+            IssuingSurface::Cli,
+            EnvelopeIssuer::Human,
+            $this->admin,
+            new IdempotencyKey('actor-command-'.++$this->calls),
+            new CorrelationId('actor-command-correlation'),
+            dryRun: $dryRun,
+        );
+
+        return $pipeline->run(new CommandCall($command, $envelope, $access ?? new AccessContext(
+            new ActorPrincipal($this->admin, [], IssuerKind::Service, ClassificationAccess::Sensitive),
+            [],
+            ClassificationAccess::Personal,
+        )));
+    }
+
+    /**
+     * The command pipeline over these fakes with the idempotency and receipt stores given, so a test
+     * that runs it more than once can keep them, and see a replay.
+     */
+    public function pipeline(FakeIdempotencySession $keys, FakeReceiptSession $receipts): CommandPipeline
+    {
         $types = new FakeTypeCatalog;
-        $pipeline = new CommandPipeline(
+
+        return new CommandPipeline(
             new FakeWriteActions([
                 RegisterActor::class => $this->binding('actor.register', new RegisterActorAction($this->identity)),
                 ActivateActor::class => $this->binding('actor.activate', new ActivateActorAction($this->identity)),
+                DeactivateActor::class => $this->binding('actor.deactivate', new DeactivateActorAction($this->identity)),
             ]),
             $this->identity,
             $this->authorizer,
@@ -108,20 +140,6 @@ final class ActorCommandFakes
             new PipelineTelemetry(new FakeTelemetry, new FakeClock, new FakeStopwatch),
             new AwaitWaitLevel($receipts, new FakePacing, new WaitSettings(0)),
         );
-        $envelope = Envelope::external(
-            IssuingSurface::Cli,
-            EnvelopeIssuer::Human,
-            $this->admin,
-            new IdempotencyKey('actor-command-'.++$this->calls),
-            new CorrelationId('actor-command-correlation'),
-            dryRun: $dryRun,
-        );
-
-        return $pipeline->run(new CommandCall($command, $envelope, new AccessContext(
-            new ActorPrincipal($this->admin, [], IssuerKind::Service, ClassificationAccess::Sensitive),
-            [],
-            ClassificationAccess::Personal,
-        )));
     }
 
     /**

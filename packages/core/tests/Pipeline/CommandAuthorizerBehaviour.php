@@ -5,14 +5,20 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Pipeline;
 
 use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Envelope\CorrelationId;
+use Cbox\Cms\Contracts\Envelope\Envelope;
+use Cbox\Cms\Contracts\Envelope\IssuerKind as EnvelopeIssuer;
+use Cbox\Cms\Contracts\Envelope\IssuingSurface;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Contracts\Fields\FieldValues;
+use Cbox\Cms\Contracts\Idempotency\IdempotencyKey;
 use Cbox\Cms\Contracts\Identity\AccessContext;
 use Cbox\Cms\Contracts\Identity\ActorPrincipal;
 use Cbox\Cms\Contracts\Identity\AnonymousPrincipal;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\GrantEffect;
 use Cbox\Cms\Contracts\Identity\Principal;
+use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
@@ -298,7 +304,19 @@ trait CommandAuthorizerBehaviour
             new CommandName($command),
             $input,
             new ScopedAggregates($scope),
+            $this->envelopeOf($principal),
         ));
+    }
+
+    private function envelopeOf(Principal $principal): Envelope
+    {
+        return Envelope::external(
+            IssuingSurface::Rest,
+            EnvelopeIssuer::Human,
+            $principal instanceof ActorPrincipal ? $principal->actor : ActorId::fromString('0192a0c0-0000-7000-8000-0000000000e1'),
+            new IdempotencyKey('authorizer-behaviour'),
+            new CorrelationId('authorizer-behaviour'),
+        );
     }
 
     /**
@@ -329,6 +347,7 @@ trait CommandAuthorizerBehaviour
             new CommandName('grant.assign'),
             $input,
             new GrantingAggregates($grant),
+            $this->envelopeOf($principal),
         ));
     }
 

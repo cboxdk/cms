@@ -30,6 +30,16 @@ final class InvalidEnvelope extends InvalidArgumentException
         ));
     }
 
+    public static function issuerKind(IssuingSurface $surface, IssuerKind $required, IssuerKind $given): self
+    {
+        return new self(sprintf(
+            'The internal issuer %s runs with the issuer kind %s, not %s.',
+            $surface->value,
+            $required->value,
+            $given->value,
+        ));
+    }
+
     public static function actorInOwnChain(ActorId $actor): self
     {
         return new self(sprintf('The actor %s cannot act on behalf of itself.', $actor->toString()));

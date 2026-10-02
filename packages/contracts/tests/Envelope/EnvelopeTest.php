@@ -129,7 +129,7 @@ it('requires the caller\'s key on an external surface and never derives one for 
 it('refuses a caller\'s key from an internal issuer', function (IssuingSurface $surface): void {
     expect(static fn (): Envelope => Envelope::external($surface, IssuerKind::System, envelopeActor(1), new IdempotencyKey('key-7'), envelopeCorrelation()))
         ->toThrow(InvalidEnvelope::class, sprintf('The internal issuer %s has no caller to send an idempotency key', $surface->value));
-})->with([IssuingSurface::Job, IssuingSurface::Scheduler, IssuingSurface::Subscriber, IssuingSurface::Sidecar, IssuingSurface::Seed]);
+})->with([IssuingSurface::Job, IssuingSurface::Scheduler, IssuingSurface::Subscriber, IssuingSurface::Sidecar, IssuingSurface::Seed, IssuingSurface::Maintenance]);
 
 it('derives an internal issuer\'s key from its unit of work, the same for the same unit', function (): void {
     $unit = new UnitOfWork('event:01936f5e-8a2b-7c3d-9e4f-5a6b7c8d9e0f:purge');
@@ -147,6 +147,18 @@ it('derives an internal issuer\'s key from its unit of work, the same for the sa
         expect(Envelope::deriveKey($surface, $unit)->value)->toStartWith($surface->value.':');
     }
 });
+
+it('builds a maintenance envelope only with the issuer kind system, keyed by its unit of work', function (IssuerKind $kind): void {
+    $unit = new UnitOfWork('install:operator');
+    $maintenance = Envelope::internal(IssuingSurface::Maintenance, IssuerKind::System, envelopeActor(1), $unit, envelopeCorrelation());
+
+    expect($maintenance->idempotencyKey->value)->toBe('maintenance:'.hash('sha256', 'install:operator'))
+        ->and($maintenance->surface->surface())->toBeNull()
+        ->and(IssuingSurface::Maintenance->requiredIssuerKind())->toBe(IssuerKind::System)
+        ->and(IssuingSurface::Seed->requiredIssuerKind())->toBeNull()
+        ->and(static fn (): Envelope => Envelope::internal(IssuingSurface::Maintenance, $kind, envelopeActor(1), $unit, envelopeCorrelation()))
+        ->toThrow(InvalidEnvelope::class, sprintf('The internal issuer maintenance runs with the issuer kind system, not %s.', $kind->value));
+})->with([IssuerKind::Human, IssuerKind::Agent, IssuerKind::Seed, IssuerKind::Migration, IssuerKind::Scheduler, IssuerKind::Sync]);
 
 it('waits for commit unless the caller asks for more, and is no dry run unless asked', function (): void {
     $external = externalEnvelope();

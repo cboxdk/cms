@@ -7,6 +7,7 @@ namespace Cbox\Cms\Cli\Tests\Postgres;
 use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\Events\EventPosition;
 use Cbox\Cms\Contracts\Events\EventStream;
+use Cbox\Cms\Contracts\Events\StoredEvent;
 use Cbox\Cms\Contracts\Subscribers\SubscriptionName;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PhpSettingsProbe;
 use Cbox\Cms\Core\Events\Infrastructure\EventReader;
@@ -141,11 +142,17 @@ function doctorStatuses(array $document): array
 }
 
 /**
- * Builds the application's registry cache, which the testbench processes read.
+ * Builds the application's registry cache, which the testbench processes read, and installs the
+ * operator, which identity.operator_actor reads, at the application's Clock, whose day it covers
+ * with partitions first. A second call changes nothing.
  */
 function buildRegistry(): void
 {
     expect(app(Kernel::class)->call('cms:build'))->toBe(0);
+
+    app(PartitionFixtures::class)->coverClock(app(Clock::class), new DateInterval('PT1H'));
+
+    expect(app(Kernel::class)->call('cms:install'))->toBe(0, app(Kernel::class)->output());
 }
 
 it('passes every runtime check against the services, in-process', function (): void {
@@ -157,10 +164,31 @@ it('passes every runtime check against the services, in-process', function (): v
     expect($status)->toBe(0, (string) json_encode($document))
         ->and($document['status'])->toBe('ok')
         ->and(array_unique(doctorStatuses($document)))->toBe(['php.version' => 'pass'])
-        ->and(doctorStatuses($document))->toHaveCount(24)
+        ->and(doctorStatuses($document))->toHaveCount(25)
         ->and(doctorCheck($document, 'postgres.transaction_timeout')['explanation'])->toBe('transaction_timeout is 5000 ms on the app role cms_app.')
         ->and(doctorCheck($document, 'postgres.lc_messages')['explanation'])->toBe('Messages are English: lc_messages is C for the role cms_app and C for the role cms_owner, and LC_MESSAGES of the PHP process is C.')
         ->and(doctorCheck($document, 'postgres.ddl_privileges')['explanation'])->toBe('The app role cms_app owns nothing and cannot create objects in the database '.CheckoutDatabase::name().' or its schemas.');
+});
+
+it('fails identity.operator_actor with 79 before cms:install, and passes it after', function (): void {
+    doctorClock('2047-06-12T09:00:00Z');
+    expect(app(Kernel::class)->call('cms:build'))->toBe(0);
+
+    [$status, $document] = inProcessDoctor();
+    $operator = doctorCheck($document, 'identity.operator_actor');
+
+    expect($status)->toBe(79)
+        ->and($document['status'])->toBe('not_ready')
+        ->and(array_filter(doctorStatuses($document), static fn (string $status): bool => $status !== 'pass'))->toBe(['identity.operator_actor' => 'fail'])
+        ->and($operator['blocking'])->toBeFalse()
+        ->and($operator['code'])->toBe('doctor_operator_missing');
+
+    expect(app(Kernel::class)->call('cms:install'))->toBe(0);
+
+    [$installed, $after] = inProcessDoctor();
+
+    expect($installed)->toBe(0)
+        ->and(doctorCheck($after, 'identity.operator_actor')['status'])->toBe('pass');
 });
 
 it('fails transaction_timeout, DDL and the app role for a role without the timeout that owns the database and the schema, with 78', function (): void {
@@ -202,7 +230,10 @@ it('exits 79 with events.lag failing while an open transaction holds the horizon
         $holder->selectOne('select pg_current_xact_id()');
         [$position] = new CommittedEvents($clock)->write(EventStream::Interactive, [InvalidationWorld::created()]);
 
-        expect(new EventReader(app('db'))->after(EventStream::Interactive, EventPosition::start(), 10))->toBe([]);
+        // The genesis events cms:install wrote before the holder began may be readable; the new one is not.
+        $readable = array_map(static fn (StoredEvent $event): bool => $event->position->equals($position), new EventReader(app('db'))->after(EventStream::Interactive, EventPosition::start(), 10));
+
+        expect($readable)->not->toContain(true);
 
         $clock->advance(new DateInterval('PT2S'));
         [$status, $document] = inProcessDoctor();
@@ -400,7 +431,7 @@ it('exits 0 from the command line with --dev --json when the services, partition
     expect($status)->toBe(0, $errors.json_encode($document))
         ->and($document['status'])->toBe('ok')
         ->and($document['dev'])->toBeTrue()
-        ->and(doctorStatuses($document))->toHaveCount(27)
+        ->and(doctorStatuses($document))->toHaveCount(28)
         ->and(doctorStatuses($document)['postgres.lc_messages'])->toBe('pass')
         ->and(array_unique(doctorStatuses($document)))->toBe(['php.version' => 'pass'])
         ->and(array_slice(array_keys(doctorStatuses($document)), -3))->toBe(['dev.node', 'dev.playwright', 'dev.chromium']);

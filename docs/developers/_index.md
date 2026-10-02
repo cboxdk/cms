@@ -1,7 +1,7 @@
 ---
 title: Developers
 weight: 20
-description: How the kernel's code is organised and checked, how cms:doctor, the partition manager, operations, the seeder and the delivery API work, how the services and tests are kept apart, the configuration reference, the strictness of Eloquent models, and the commands that inspect the actions, hooks and page resolution.
+description: How the kernel's code is organised and checked, how cms:doctor, the partition manager, operations, the seeder and the delivery API work, how the services and tests are kept apart, the configuration reference, cms:install and the maintenance commands, the strictness of Eloquent models, and the commands that inspect the actions, hooks and page resolution.
 ---
 
 # Developers
@@ -17,5 +17,6 @@ This section is for people who work on the kernel itself.
 - [The delivery API](delivery.md): `GET /v1/resolve`, its answers, its cache headers and fragments, and the explanation.
 - [Services and isolation](services.md): the shared Docker services and how each checkout gets its own test database and Valkey prefix.
 - [Configuration](configuration.md): every key of `config/cbox-cms.php`.
+- [Maintenance commands](maintenance-commands.md): `cms:install`, the installation operator and the commands that run as it.
 - [Infrastructure models](models.md): Eloquent models and the strictness the kernel sets for every model.
 - [Inspecting the installation](inspecting.md): `cms:actions`, `cms:hooks` and `cms:explain`.

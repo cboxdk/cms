@@ -36,6 +36,7 @@ final class KernelTables
         'grants',
         'head_snapshots',
         'idempotency_keys',
+        'installation',
         'mount_overrides',
         'node_routes',
         'nodes',

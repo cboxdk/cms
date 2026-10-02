@@ -48,6 +48,9 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`doctor_lc_messages_not_english`](#doctor_lc_messages_not_english) | 500 | 78 | internal_error | no |
 | [`doctor_node_missing`](#doctor_node_missing) | 503 | 79 | internal_error | no |
 | [`doctor_node_version`](#doctor_node_version) | 503 | 79 | internal_error | no |
+| [`doctor_operator_invalid`](#doctor_operator_invalid) | 503 | 79 | internal_error | no |
+| [`doctor_operator_missing`](#doctor_operator_missing) | 503 | 79 | internal_error | no |
+| [`doctor_operator_unreadable`](#doctor_operator_unreadable) | 503 | 79 | internal_error | no |
 | [`doctor_owner_credentials_exposed`](#doctor_owner_credentials_exposed) | 503 | 79 | internal_error | no |
 | [`doctor_partition_runway_short`](#doctor_partition_runway_short) | 503 | 79 | internal_error | no |
 | [`doctor_partition_table_unmanageable`](#doctor_partition_table_unmanageable) | 503 | 79 | internal_error | no |
@@ -115,6 +118,8 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`idempotency_conflict`](#idempotency_conflict) | 409 | 65 | tool_error | no |
 | [`idempotency_in_flight`](#idempotency_in_flight) | 409 | 75 | tool_error | yes |
 | [`idempotency_key_required`](#idempotency_key_required) | 400 | 64 | tool_error | no |
+| [`install_owner_connection_required`](#install_owner_connection_required) | 500 | 78 | internal_error | no |
+| [`installation_operator_missing`](#installation_operator_missing) | 500 | 78 | internal_error | no |
 | [`json_invalid`](#json_invalid) | 422 | 65 | tool_error | no |
 | [`json_malformed`](#json_malformed) | 400 | 65 | tool_error | no |
 | [`login_authoritative_link`](#login_authoritative_link) | 403 | 77 | tool_error | no |
@@ -514,6 +519,33 @@ Node is not installed, or not on the PATH, and the development tools need it (cm
 ### doctor_node_version
 
 The installed Node is older than cbox-cms.doctor.node_minimum, which the development tools need (cms:doctor --dev). Install a newer Node.
+
+- HTTP status: 503 Service Unavailable
+- CLI exit code: 79 (NOT_READY)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### doctor_operator_invalid
+
+The installation operator, the service actor the maintenance commands run as, is not an active service actor (PRD 5.16), so no maintenance command can run. Find out who changed it from the audit; an operator is created once, by cms:install.
+
+- HTTP status: 503 Service Unavailable
+- CLI exit code: 79 (NOT_READY)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### doctor_operator_missing
+
+The installation has no operator yet, the service actor the maintenance commands run as (PRD 5.16). Run cms:install in the maintenance process, after the migrations and cms:partitions:maintain.
+
+- HTTP status: 503 Service Unavailable
+- CLI exit code: 79 (NOT_READY)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### doctor_operator_unreadable
+
+The doctor could not read the installation operator, usually because the core's migrations have not run. Run them as the owner role in the maintenance process, then run cms:doctor again.
 
 - HTTP status: 503 Service Unavailable
 - CLI exit code: 79 (NOT_READY)
@@ -1121,6 +1153,24 @@ A command through REST needs an idempotency key (PRD 6.1), and the request has n
 - HTTP status: 400 Bad Request
 - CLI exit code: 64 (EX_USAGE)
 - MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### install_owner_connection_required
+
+cms:install creates the installation operator as the owner role, and this process has no owner connection, or the connection it names is not the owner role's (PRD 4.2). Run cms:install in the maintenance process, with cbox-cms.database.owner_connection naming the owner role's connection.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 78 (EX_CONFIG)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### installation_operator_missing
+
+A maintenance command runs as the installation operator, and the installation has none yet (PRD 5.16). Run cms:install in the maintenance process first.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 78 (EX_CONFIG)
+- MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
 ### json_invalid

@@ -48,6 +48,7 @@ use Cbox\Cms\Core\Delivery\Domain\Dto\DeliverySettings;
 use Cbox\Cms\Core\Doctor\Adapter\CatalogPartitionRunwayProbe;
 use Cbox\Cms\Core\Doctor\Adapter\ConnectionEventLogProbe;
 use Cbox\Cms\Core\Doctor\Adapter\ConnectionLcMessagesProbe;
+use Cbox\Cms\Core\Doctor\Adapter\ConnectionOperatorProbe;
 use Cbox\Cms\Core\Doctor\Adapter\ConnectionPostgresProbe;
 use Cbox\Cms\Core\Doctor\Adapter\ContainerDoctorChecks;
 use Cbox\Cms\Core\Doctor\Adapter\DoctorConnection;
@@ -70,6 +71,7 @@ use Cbox\Cms\Core\Doctor\Domain\Checks\LaravelVersionCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\LcMessagesCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\NodeCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\OldestTransactionCheck;
+use Cbox\Cms\Core\Doctor\Domain\Checks\OperatorActorCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\OwnerCredentialsCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\ParkedAggregatesCheck;
 use Cbox\Cms\Core\Doctor\Domain\Checks\PartitionRunwayCheck;
@@ -88,6 +90,7 @@ use Cbox\Cms\Core\Doctor\Domain\InvalidDoctorConfig;
 use Cbox\Cms\Core\Doctor\Domain\OrderedDoctorChecks;
 use Cbox\Cms\Core\Doctor\Domain\Probes\EventLogProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\LcMessagesProbe;
+use Cbox\Cms\Core\Doctor\Domain\Probes\OperatorProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PartitionRunwayProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PhpSettingsProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PostgresProbe;
@@ -118,6 +121,12 @@ use Cbox\Cms\Core\Identity\Adapter\ActorActivatedWriter;
 use Cbox\Cms\Core\Identity\Adapter\ActorDeactivatedWriter;
 use Cbox\Cms\Core\Identity\Adapter\ActorRegisteredWriter;
 use Cbox\Cms\Core\Identity\Adapter\PostgresActorVersionLock;
+use Cbox\Cms\Core\Maintenance\Actions\RunMaintenanceCommand;
+use Cbox\Cms\Core\Maintenance\Adapter\PostgresInstallationOperator;
+use Cbox\Cms\Core\Maintenance\Adapter\PostgresOperatorGenesis;
+use Cbox\Cms\Core\Maintenance\Domain\InstallationOperator;
+use Cbox\Cms\Core\Maintenance\Domain\MaintenanceAuthorizer;
+use Cbox\Cms\Core\Maintenance\Domain\OperatorGenesis;
 use Cbox\Cms\Core\Operations\Adapter\PackageOperationRunner;
 use Cbox\Cms\Core\Operations\Domain\OperationRunner;
 use Cbox\Cms\Core\Partitions\Boundary\PartitionConfig;
@@ -592,6 +601,41 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
                 $app->make(AwaitWaitLevel::class),
             ));
 
+        // The installation and its maintenance commands (PRD 5.16, 3.3, invariant 37): the operator
+        // is read from the kernel table installation; the genesis writes it as the owner role, on the
+        // owner connection, which only the maintenance process has. RunMaintenanceCommand runs its
+        // commands through a pipeline of its own: the kernel's, but with the MaintenanceAuthorizer,
+        // which allows only its named commands, to the operator, on an envelope of the maintenance
+        // issuer.
+        $this->app->bind(InstallationOperator::class, PostgresInstallationOperator::class);
+        $this->app->bind(
+            OperatorGenesis::class,
+            static fn (Application $app): OperatorGenesis => new PostgresOperatorGenesis(
+                $app->make(ConnectionResolverInterface::class),
+                $app->make(Clock::class),
+                self::ownerConnection($app->make(Repository::class)),
+            ),
+        );
+        $this->app->when(RunMaintenanceCommand::class)
+            ->needs(CommandPipeline::class)
+            ->give(static fn (Application $app): CommandPipeline => new CommandPipeline(
+                $app->make(WriteActions::class),
+                $app->make(ActorDirectory::class),
+                new MaintenanceAuthorizer($app->make(InstallationOperator::class)),
+                $app->make(TypeCatalog::class),
+                $app->make(FieldValidation::class),
+                $app->make(RevisionContents::class),
+                $app->make(ChangesetCommitter::class),
+                $app->make(IdempotencyStore::class),
+                $app->make(ReceiptStore::class),
+                $app->make(CommandContentHasher::class),
+                $app->make(IdempotencySettings::class),
+                $app->make(CommandTransaction::class),
+                $app->make(HookRunner::class),
+                $app->make(PipelineTelemetry::class),
+                $app->make(AwaitWaitLevel::class),
+            ));
+
         // The delivery API's resolve (PRD 8.9, 8.10, 8.12): its documents as canonical JSON, its
         // settings, built on each resolution, and a query pipeline of its own: the kernel's, but with
         // the DeliveryAuthorizer, which runs path.resolve for anyone and no other read.
@@ -708,6 +752,16 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
     /**
      * Whether this process has the owner role's connection, the one cbox-cms.database.owner_connection names.
      */
+    /**
+     * The owner connection's name, when this process has it configured; null otherwise.
+     */
+    public static function ownerConnection(Repository $config): ?string
+    {
+        $owner = $config->get('cbox-cms.database.owner_connection');
+
+        return self::ownerConnectionConfigured($config) && is_string($owner) ? $owner : null;
+    }
+
     public static function ownerConnectionConfigured(Repository $config): bool
     {
         $owner = $config->get('cbox-cms.database.owner_connection');
@@ -793,6 +847,7 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->bind(PartitionRunwayProbe::class, CatalogPartitionRunwayProbe::class);
         $this->app->bind(ValkeyProbe::class, RedisValkeyProbe::class);
         $this->app->bind(EventLogProbe::class, ConnectionEventLogProbe::class);
+        $this->app->bind(OperatorProbe::class, ConnectionOperatorProbe::class);
         $this->app->bind(ProcessProbe::class, FrameworkProcessProbe::class);
         // The owner role's lc_messages is read from the catalog on the app role's connection; the
         // doctor never logs in as the owner role (PRD 4.2).
@@ -850,6 +905,7 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
                     new EventLagCheck($app->make(EventLogProbe::class), $app->make(Clock::class)),
                     new ParkedAggregatesCheck($app->make(EventLogProbe::class)),
                     new OwnerCredentialsCheck($app->make(ProcessProbe::class), $settings->ownerConnection, $settings->maintenanceProcess),
+                    new OperatorActorCheck($app->make(OperatorProbe::class)),
                 ],
                 dev: [
                     new NodeCheck($tools, $settings->nodeMinimum),

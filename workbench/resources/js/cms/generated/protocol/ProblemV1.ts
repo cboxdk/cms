@@ -43,6 +43,9 @@ export type ErrorCode =
   | 'doctor_lc_messages_not_english'
   | 'doctor_node_missing'
   | 'doctor_node_version'
+  | 'doctor_operator_invalid'
+  | 'doctor_operator_missing'
+  | 'doctor_operator_unreadable'
   | 'doctor_owner_credentials_exposed'
   | 'doctor_partition_runway_short'
   | 'doctor_partition_table_unmanageable'
@@ -110,6 +113,8 @@ export type ErrorCode =
   | 'idempotency_conflict'
   | 'idempotency_in_flight'
   | 'idempotency_key_required'
+  | 'install_owner_connection_required'
+  | 'installation_operator_missing'
   | 'json_invalid'
   | 'json_malformed'
   | 'login_authoritative_link'
@@ -304,6 +309,9 @@ const catalogErrorV1Rule: ObjectRule = {
           'doctor_lc_messages_not_english',
           'doctor_node_missing',
           'doctor_node_version',
+          'doctor_operator_invalid',
+          'doctor_operator_missing',
+          'doctor_operator_unreadable',
           'doctor_owner_credentials_exposed',
           'doctor_partition_runway_short',
           'doctor_partition_table_unmanageable',
@@ -371,6 +379,8 @@ const catalogErrorV1Rule: ObjectRule = {
           'idempotency_conflict',
           'idempotency_in_flight',
           'idempotency_key_required',
+          'install_owner_connection_required',
+          'installation_operator_missing',
           'json_invalid',
           'json_malformed',
           'login_authoritative_link',
@@ -529,6 +539,9 @@ const problemV1Rule: ObjectRule = {
           'doctor_lc_messages_not_english',
           'doctor_node_missing',
           'doctor_node_version',
+          'doctor_operator_invalid',
+          'doctor_operator_missing',
+          'doctor_operator_unreadable',
           'doctor_owner_credentials_exposed',
           'doctor_partition_runway_short',
           'doctor_partition_table_unmanageable',
@@ -596,6 +609,8 @@ const problemV1Rule: ObjectRule = {
           'idempotency_conflict',
           'idempotency_in_flight',
           'idempotency_key_required',
+          'install_owner_connection_required',
+          'installation_operator_missing',
           'json_invalid',
           'json_malformed',
           'login_authoritative_link',

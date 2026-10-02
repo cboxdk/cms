@@ -90,6 +90,12 @@ final readonly class Envelope
             throw InvalidEnvelope::missingIdempotencyKey($surface);
         }
 
+        $required = $surface->requiredIssuerKind();
+
+        if ($required instanceof IssuerKind && $issuerKind !== $required) {
+            throw InvalidEnvelope::issuerKind($surface, $required, $issuerKind);
+        }
+
         return new self($surface, $issuerKind, $actor, $onBehalfOf, self::deriveKey($surface, $unitOfWork), $unitOfWork, $correlationId, $provenance, $reason, $dryRun, $waitLevel);
     }
 

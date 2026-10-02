@@ -10,7 +10,7 @@ use Cbox\Cms\Contracts\Envelope\IssuingSurface;
  * The way a covering test reaches an invariant (PRD 6.5: every invariant has tests that try to
  * break it through every command issuer).
  *
- * The first nine cases are the issuers of an envelope, IssuingSurface, by the same value: a test
+ * The first ten cases are the issuers of an envelope, IssuingSurface, by the same value: a test
  * names Rest, Inertia, Mcp or Cli when it goes through that surface's own transport, and an
  * internal issuer when it runs the kernel with that issuer's envelope. The other cases are where a
  * test holds the invariant below or beside the issuers: Delivery is GET /v1/resolve, Kernel the
@@ -30,6 +30,7 @@ enum Issuer: string
     case Subscriber = 'subscriber';
     case Sidecar = 'sidecar';
     case Seed = 'seed';
+    case Maintenance = 'maintenance';
     case Delivery = 'delivery';
     case Kernel = 'kernel';
     case Database = 'database';

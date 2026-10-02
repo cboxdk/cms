@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Seeding\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Envelope\Envelope;
 use Cbox\Cms\Contracts\Fields\FieldMap;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Fields\NullValue;
@@ -36,7 +37,7 @@ final readonly class SeedAuthorizer implements CommandAuthorizer
     public function __construct(private TypeCatalog $types) {}
 
     #[Override]
-    public function authorize(AccessContext $access, CommandName $command, Command $input, Aggregates $aggregates): Authorization
+    public function authorize(AccessContext $access, CommandName $command, Command $input, Aggregates $aggregates, Envelope $envelope): Authorization
     {
         if (! $input instanceof SeedEntries || $command->value !== self::COMMAND) {
             return Authorization::refuse(sprintf('The seeder runs only %s, not %s.', self::COMMAND, $command->value));

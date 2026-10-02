@@ -169,9 +169,9 @@ it('refuses another command than seed.entries, also one that carries a seed chun
     $chunk = new SeedEntries(spreadEntry(new FieldValues(new FieldMap)));
     $create = new CreateEntry(EntryId::fromString('0192a0c0-0000-7000-8000-0000000047e1'), TypeId::fromString(SpreadType::ID), NodeId::fromString('0192a0c0-0000-7000-8000-0000000047a2'), new FieldValues);
 
-    expect($authorizer->authorize(catalogAccess(ClassificationAccess::Sensitive), new CommandName('entry.create'), $chunk, new SeedEntriesAggregates([], [])))
+    expect($authorizer->authorize(catalogAccess(ClassificationAccess::Sensitive), new CommandName('entry.create'), $chunk, new SeedEntriesAggregates([], []), SeedEnvelope::of()))
         ->toEqual(Authorization::refuse('The seeder runs only seed.entries, not entry.create.'))
-        ->and($authorizer->authorize(catalogAccess(ClassificationAccess::Sensitive), new CommandName('seed.entries'), $create, new SeedEntriesAggregates([], [])))
+        ->and($authorizer->authorize(catalogAccess(ClassificationAccess::Sensitive), new CommandName('seed.entries'), $create, new SeedEntriesAggregates([], []), SeedEnvelope::of()))
         ->toEqual(Authorization::refuse('The seeder runs only seed.entries, not seed.entries.'));
 });
 
@@ -187,6 +187,7 @@ it('checks every entry of a chunk, past one of a type it does not know, and the 
         new CommandName('seed.entries'),
         new SeedEntries($unknown, spreadEntry($fields)),
         new SeedEntriesAggregates([], []),
+        SeedEnvelope::of(),
     );
 
     expect($ask($extension, ClassificationAccess::Public))->toEqual(Authorization::allow())
@@ -208,7 +209,7 @@ it('refuses an extension field above the actor\'s access, by its address', funct
     $authorizer = new SeedAuthorizer(new FakeTypeCatalog(new TypeDefinition($definition->id, $definition->name, 1, $definition->capabilities, $definition->extensions, $fields)));
     $extension = new FieldValues(new FieldMap, new ExtensionFields(new FieldNamespace(SpreadType::NAMESPACE), new FieldMap(new NamedValue(new FieldHandle('extra'), new IntegerValue(3)))));
 
-    expect($authorizer->authorize(catalogAccess(ClassificationAccess::Internal), new CommandName('seed.entries'), new SeedEntries(spreadEntry($extension)), new SeedEntriesAggregates([], [])))
+    expect($authorizer->authorize(catalogAccess(ClassificationAccess::Internal), new CommandName('seed.entries'), new SeedEntries(spreadEntry($extension)), new SeedEntriesAggregates([], []), SeedEnvelope::of()))
         ->toEqual(Authorization::refuse('The seed entry 0192a0c0-0000-7000-8000-0000000047e4 writes the field "ext.acme.extra" of test:spread, classified personal, which the actor may not write at its classification access internal.'));
 });
 

@@ -77,10 +77,10 @@ it('allows seed.entries within the actor\'s classification access and refuses th
     $aggregates = new SeedEntriesAggregates([], []);
     $create = new CreateEntry(EntryId::fromString('0192a0c0-0000-7000-8000-0000000047e1'), TypeId::fromString(LockedType::ID), NodeId::fromString('0192a0c0-0000-7000-8000-0000000047a2'), new FieldValues);
 
-    expect($authorizer->authorize(seedAccess(ClassificationAccess::Internal), new CommandName('seed.entries'), $chunk, $aggregates)->allowed())->toBeTrue()
-        ->and($authorizer->authorize(seedAccess(ClassificationAccess::Public), new CommandName('seed.entries'), $chunk, $aggregates)->reason)
+    expect($authorizer->authorize(seedAccess(ClassificationAccess::Internal), new CommandName('seed.entries'), $chunk, $aggregates, SeedEnvelope::of())->allowed())->toBeTrue()
+        ->and($authorizer->authorize(seedAccess(ClassificationAccess::Public), new CommandName('seed.entries'), $chunk, $aggregates, SeedEnvelope::of())->reason)
         ->toContain('writes the field "code" of test:locked, classified internal')
-        ->and($authorizer->authorize(seedAccess(ClassificationAccess::Internal), new CommandName('entry.create'), $create, $aggregates)->reason)
+        ->and($authorizer->authorize(seedAccess(ClassificationAccess::Internal), new CommandName('entry.create'), $create, $aggregates, SeedEnvelope::of())->reason)
         ->toBe('The seeder runs only seed.entries, not entry.create.');
 });
 

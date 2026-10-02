@@ -8,6 +8,7 @@ use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Core\Doctor\Domain\Dto\PartitionCoverage;
 use Cbox\Cms\Core\Doctor\Domain\Probes\EventLogProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\LcMessagesProbe;
+use Cbox\Cms\Core\Doctor\Domain\Probes\OperatorProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PartitionRunwayProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PhpSettingsProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\PostgresProbe;
@@ -17,6 +18,7 @@ use Cbox\Cms\Core\Doctor\Domain\Probes\ToolProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\ValkeyProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeEventLogProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeLcMessagesProbe;
+use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeOperatorProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePartitionRunwayProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePhpSettingsProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakePostgresProbe;
@@ -56,6 +58,8 @@ final class DoctorFakes
 
     public FakeEventLogProbe $events;
 
+    public FakeOperatorProbe $operator;
+
     public FakeCredentialStoreProbe $credentialStore;
 
     public FakePasswordHashingProbe $passwordHashing;
@@ -75,6 +79,7 @@ final class DoctorFakes
         $this->registry = new FakeRegistryCacheProbe;
         $this->tools = new FakeToolProbe;
         $this->events = new FakeEventLogProbe;
+        $this->operator = new FakeOperatorProbe;
         $this->credentialStore = new FakeCredentialStoreProbe;
         $this->passwordHashing = new FakePasswordHashingProbe;
 
@@ -88,6 +93,7 @@ final class DoctorFakes
         app()->instance(RegistryCacheProbe::class, $this->registry);
         app()->instance(ToolProbe::class, $this->tools);
         app()->instance(EventLogProbe::class, $this->events);
+        app()->instance(OperatorProbe::class, $this->operator);
         app()->instance(CredentialStoreProbe::class, $this->credentialStore);
         app()->instance(PasswordHashingProbe::class, $this->passwordHashing);
 

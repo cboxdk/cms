@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Pipeline\Fakes;
 
+use Cbox\Cms\Contracts\Envelope\Envelope;
 use Cbox\Cms\Contracts\Identity\AccessContext;
 use Cbox\Cms\Contracts\Identity\ActorPrincipal;
 use Cbox\Cms\Contracts\Identity\NodePath;
@@ -45,7 +46,7 @@ final class FakeCommandAuthorizer implements CommandAuthorizer
     }
 
     #[Override]
-    public function authorize(AccessContext $access, CommandName $command, Command $input, Aggregates $aggregates): Authorization
+    public function authorize(AccessContext $access, CommandName $command, Command $input, Aggregates $aggregates, Envelope $envelope): Authorization
     {
         $this->asked[] = [$access, $command, $input, $aggregates];
 
