@@ -133,7 +133,7 @@ The plan of `grant.assign` is one `GrantAssigned` mutation, and of `grant.revoke
 | the changeset, its audit row with the grant's key, and its receipt | the changeset tables, `audit`, `receipts` |
 | `grant.changed`: the actor, the role and the node, ids alone | `events` |
 
-Whatever caches an actor's compiled access, or the credentials that act for it, drops it on `grant.changed`. The next command or read of the actor compiles its access from its grants as they are.
+Whatever caches an actor's compiled access, or the credentials that act for it, drops it on `grant.changed`. A change of a role's permissions gives `grant.changed` for every grant of the role too (see [role commands](role-commands.md)). The next command or read of the actor compiles its access from its grants as they are.
 
 ## Rejections
 

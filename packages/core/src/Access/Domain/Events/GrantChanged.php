@@ -13,10 +13,11 @@ use Cbox\Cms\Contracts\Ids\GrantId;
 use Override;
 
 /**
- * A grant was given or ended, grant.changed version 1 (PRD 5.10, 7.2): the grant at the version
- * the change left it at, with the actor, the role and the node. Whatever caches an actor's
- * compiled access, or the credentials that act for it, drops it on this event. It carries ids
- * alone, never text (invariant 10).
+ * A grant was given or ended, or its role's permissions changed, grant.changed version 1 (PRD
+ * 5.10, 7.2): the grant at the version the change left it at, with the actor, the role and the
+ * node; a change of a role's permissions gives one for every grant of the role that has not
+ * ended. Whatever caches an actor's compiled access, or the credentials that act for it, drops it
+ * on this event. It carries ids alone, never text (invariant 10).
  */
 #[Experimental]
 final readonly class GrantChanged implements Event

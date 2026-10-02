@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "role.set_permissions, contract version 1",
+  "description": "Replaces a role's permissions (PRD 5.10, 6.4) in one changeset with the full new list of the command and query names of the registry it may run. The issuing actor needs role.set_permissions on some node, and must itself hold each permission the list adds on every node where the role is granted, in the grant's locales, or the change is refused with grant_escalation_refused (invariant 31). A change that makes a granted role administrative, so that it may change roles, grants or who is active, needs step-up and is refused with step_up_required. A name the registry does not know and a name given twice are validation_failed, a list equal to the role's changes nothing and is validation_failed, and a role at another version than the caller read is version_conflict. Every grant of the role moves to its next version with grant.changed. The PHP form is Cbox\\Cms\\Core\\Access\\Domain\\Commands\\SetRolePermissions, and the generated codec SetRolePermissionsCodecV1 reads it and writes its canonical JSON: every key, sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "role",
+    "version",
+    "permissions"
+  ],
+  "properties": {
+    "role": {
+      "description": "The id of the role to change.",
+      "$ref": "#/$defs/id"
+    },
+    "version": {
+      "description": "The version of the role the caller read.",
+      "$ref": "#/$defs/version"
+    },
+    "permissions": {
+      "description": "The role's new permissions in full, the command and query names of the registry it may run, each once; cms:actions lists them.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/permission"
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "version": {
+      "description": "The version of an aggregate that the caller read, an integer of 1 or more; the command is version_conflict when the aggregate is at another version when it commits.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "permission": {
+      "description": "The name of a command or query without its version, such as entry.create: lowercase segments in snake_case joined by dots, at least two.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+      "minLength": 3,
+      "maxLength": 255
+    }
+  }
+}

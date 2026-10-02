@@ -176,4 +176,15 @@ final class InvalidIdentity extends InvalidArgumentException
             EmailAddress::MAX_LENGTH,
         ));
     }
+
+    /**
+     * A role handle that breaks its rules. The message does not repeat the value given.
+     */
+    public static function roleHandle(): self
+    {
+        return new self(sprintf(
+            'A role handle is a lowercase letter followed by up to %d lowercase letters, digits and underscores.',
+            RoleHandle::MAX_LENGTH - 1,
+        ));
+    }
 }

@@ -21,16 +21,21 @@ use Cbox\Cms\Contracts\Identity\Principal;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\Ids\GrantId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\RoleId;
 use Cbox\Cms\Contracts\Ids\TypeId;
+use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
 use Cbox\Cms\Contracts\Pipeline\AuthorizationTarget;
+use Cbox\Cms\Core\Access\Domain\Dto\RoleContentChange;
 use Cbox\Cms\Core\Access\Domain\Dto\RoleGrant;
+use Cbox\Cms\Core\Access\Domain\Dto\StoredGrant;
 use Cbox\Cms\Core\Pipeline\Domain\CommandAuthorizer;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\Authorization;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\GrantingAggregates;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\RenameProbe;
+use Cbox\Cms\Core\Tests\Pipeline\Probe\RoleContentAggregates;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\ScopedAggregates;
 use Cbox\Cms\Core\Tests\Postgres\AccessWorld;
 use Closure;
@@ -48,7 +53,11 @@ use PHPUnit\Framework\Attributes\Test;
  * A command that gives a role is held to the escalation guard (invariant 31): the actor, and the
  * person it acts for, must hold each of the role's permissions on the node in the grant's locales
  * and a classification access there not below the role's ceiling, and an administrative role is
- * refused for want of step-up.
+ * refused for want of step-up. A command that creates a role or changes its permissions is held
+ * to the guard on the role's content: a ceiling not above the context's classification access,
+ * and each added permission held by the actor, and the person it acts for, on every node where an
+ * allow of the role has not ended, in that grant's locales; a change that makes a granted role
+ * administrative is refused for want of step-up.
  *
  * The tree is AccessWorld's: ROOT, with NEWS, SPORT below it and FOOTBALL below that, and CULTURE.
  * The actor of each test holds only the grants the test gives it.
@@ -282,6 +291,79 @@ trait CommandAuthorizerBehaviour
     }
 
     #[Test]
+    public function it_lets_an_actor_add_to_a_role_the_permissions_it_holds_on_every_node_where_the_role_is_granted(): void
+    {
+        $actor = $this->grantedActor([
+            ['roles', ['role.set_permissions'], AccessWorld::ROOT, GrantEffect::Allow, null],
+            ['writer', ['entry.create', 'entry.revise'], AccessWorld::NEWS, GrantEffect::Allow, null],
+            ['danish', ['entry.publish'], AccessWorld::SPORT, GrantEffect::Allow, ['da']],
+        ]);
+
+        Assert::assertTrue($this->changing($actor, ['entry.create'], [[AccessWorld::NEWS, GrantEffect::Allow, null], [AccessWorld::SPORT, GrantEffect::Allow, ['da']]])->allowed());
+        Assert::assertTrue($this->changing($actor, ['entry.publish'], [[AccessWorld::FOOTBALL, GrantEffect::Allow, ['da']]])->allowed());
+        Assert::assertTrue($this->changing($actor, ['entry.create'], [[AccessWorld::CULTURE, GrantEffect::Deny, null]])->allowed());
+        Assert::assertTrue($this->changing($actor, [], [[AccessWorld::CULTURE, GrantEffect::Allow, null]])->allowed());
+        Assert::assertTrue($this->changing($actor, ['entry.publish'], [])->allowed());
+    }
+
+    #[Test]
+    public function it_refuses_to_add_a_permission_the_actor_lacks_on_a_node_where_the_role_is_granted_as_an_escalation(): void
+    {
+        $actor = $this->grantedActor([
+            ['roles', ['role.set_permissions'], AccessWorld::ROOT, GrantEffect::Allow, null],
+            ['writer', ['entry.create'], AccessWorld::NEWS, GrantEffect::Allow, null],
+            ['danish', ['entry.publish'], AccessWorld::SPORT, GrantEffect::Allow, ['da']],
+        ]);
+
+        $lacking = $this->changing($actor, ['entry.create'], [[AccessWorld::NEWS, GrantEffect::Allow, null], [AccessWorld::CULTURE, GrantEffect::Allow, null]]);
+
+        Assert::assertSame(ErrorCode::GrantEscalationRefused, $lacking->code);
+        Assert::assertStringContainsString('entry.create', (string) $lacking->reason);
+        Assert::assertSame(ErrorCode::GrantEscalationRefused, $this->changing($actor, ['entry.publish'], [[AccessWorld::SPORT, GrantEffect::Allow, null]])->code);
+        Assert::assertSame(ErrorCode::GrantEscalationRefused, $this->changing($actor, ['entry.publish'], [[AccessWorld::SPORT, GrantEffect::Allow, ['da', 'en']]])->code);
+        Assert::assertSame(ErrorCode::GrantEscalationRefused, $this->changing($actor, ['entry.create', 'entry.revise'], [[AccessWorld::NEWS, GrantEffect::Allow, null]])->code);
+    }
+
+    #[Test]
+    public function it_refuses_a_change_that_makes_a_granted_role_administrative_for_want_of_step_up(): void
+    {
+        $actor = $this->grantedActor([
+            ['roles', ['role.set_permissions', 'grant.assign', 'actor.deactivate'], AccessWorld::ROOT, GrantEffect::Allow, null],
+        ]);
+
+        Assert::assertSame(ErrorCode::StepUpRequired, $this->changing($actor, ['grant.assign'], [[AccessWorld::NEWS, GrantEffect::Allow, null]], administrative: true)->code);
+        Assert::assertSame(ErrorCode::StepUpRequired, $this->changing($actor, [], [[AccessWorld::NEWS, GrantEffect::Allow, null]], administrative: true)->code);
+        Assert::assertTrue($this->changing($actor, ['actor.deactivate'], [], administrative: true)->allowed());
+        Assert::assertTrue($this->changing($actor, ['actor.deactivate'], [[AccessWorld::NEWS, GrantEffect::Deny, null]], administrative: true)->allowed());
+    }
+
+    #[Test]
+    public function it_refuses_a_new_role_that_reads_above_the_actor_s_classification_access(): void
+    {
+        $actor = $this->grantedActor([['roles', ['role.create'], AccessWorld::ROOT, GrantEffect::Allow, null]]);
+
+        $refusal = $this->changing($actor, ['entry.create'], [], ceiling: ClassificationAccess::Confidential, command: 'role.create');
+
+        Assert::assertSame(ErrorCode::GrantEscalationRefused, $refusal->code);
+        Assert::assertStringContainsString('confidential', (string) $refusal->reason);
+        Assert::assertTrue($this->changing($actor, ['entry.create', 'grant.assign'], [], ceiling: ClassificationAccess::Public, command: 'role.create')->allowed());
+        Assert::assertSame(ErrorCode::Unauthorized, $this->changing($actor, ['entry.create'], [[AccessWorld::NEWS, GrantEffect::Allow, null]])->code);
+    }
+
+    #[Test]
+    public function it_holds_a_change_by_an_actor_on_behalf_of_a_person_to_the_person_s_permissions_too(): void
+    {
+        $person = $this->grantedActor([
+            ['roles', ['role.set_permissions'], AccessWorld::ROOT, GrantEffect::Allow, null],
+            ['writer', ['entry.create'], AccessWorld::NEWS, GrantEffect::Allow, null],
+        ]);
+        $delegate = $this->delegateOf($person, [['agent', ['role.set_permissions', 'entry.create', 'entry.publish'], AccessWorld::ROOT, GrantEffect::Allow, null]]);
+
+        Assert::assertTrue($this->changing($delegate, ['entry.create'], [[AccessWorld::NEWS, GrantEffect::Allow, null]])->allowed());
+        Assert::assertSame(ErrorCode::GrantEscalationRefused, $this->changing($delegate, ['entry.publish'], [[AccessWorld::NEWS, GrantEffect::Allow, null]])->code);
+    }
+
+    #[Test]
     public function it_refuses_the_anonymous_principal(): void
     {
         $refusal = $this->authorized(new AnonymousPrincipal, 'entry.create', AuthorizationScope::anywhere());
@@ -347,6 +429,48 @@ trait CommandAuthorizerBehaviour
             new CommandName('grant.assign'),
             $input,
             new GrantingAggregates($grant),
+            $this->envelopeOf($principal),
+        ));
+    }
+
+    /**
+     * role.set_permissions, or the command given, of a role whose change adds the permissions,
+     * with its grants, each on a node with an effect and locales, or every locale for null.
+     *
+     * @param  list<string>  $added
+     * @param  list<array{string, GrantEffect, list<string>|null}>  $grants
+     */
+    private function changing(Principal $principal, array $added, array $grants, bool $administrative = false, ?ClassificationAccess $ceiling = null, string $command = 'role.set_permissions'): Authorization
+    {
+        $role = RoleId::fromString('0192a0c0-0000-7000-8000-000000000998');
+        $stored = [];
+
+        foreach ($grants as $index => [$node, $effect, $locales]) {
+            $stored[] = new StoredGrant(
+                GrantId::fromString(sprintf('0192a0c0-0000-7000-8000-%012d', 990 + $index)),
+                ActorId::fromString('0192a0c0-0000-7000-8000-000000000997'),
+                $role,
+                NodeId::fromString($node),
+                $effect,
+                $locales === null ? null : array_map(static fn (string $locale): Locale => new Locale($locale), $locales),
+                AggregateVersion::first(),
+                false,
+            );
+        }
+
+        $change = new RoleContentChange($role, $ceiling, array_map(static fn (string $name): CommandName => new CommandName($name), $added), $stored, $administrative);
+        $input = new RenameProbe(
+            EntryId::fromString('0192a0c0-0000-7000-8000-0000000000d1'),
+            TypeId::fromString(AccessWorld::TYPE),
+            NodeId::fromString(AccessWorld::NEWS),
+            new FieldValues,
+        );
+
+        return $this->within($principal, fn (AccessContext $access): Authorization => $this->commandAuthorizer()->authorize(
+            $access,
+            new CommandName($command),
+            $input,
+            new RoleContentAggregates($change),
             $this->envelopeOf($principal),
         ));
     }

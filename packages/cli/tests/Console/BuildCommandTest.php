@@ -6,7 +6,9 @@ namespace Cbox\Cms\Cli\Tests\Console;
 
 use Cbox\Cms\Cli\Console\BuildCommand;
 use Cbox\Cms\Core\Access\Domain\Commands\AssignGrant;
+use Cbox\Cms\Core\Access\Domain\Commands\CreateRole;
 use Cbox\Cms\Core\Access\Domain\Commands\RevokeGrant;
+use Cbox\Cms\Core\Access\Domain\Commands\SetRolePermissions;
 use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
@@ -67,12 +69,12 @@ it('writes the six registries to the application\'s bootstrap/cache/cms, and rem
 
     expect($status)->toBe(0)
         ->and($output)->toBe([
-            'actions: 14',
-            'commands: 13',
+            'actions: 16',
+            'commands: 15',
             // The workbench's fixture addon, which package discovery registers: its two hooks and
             // its extension of app:fixture_article.
             'hooks: 2',
-            'rest: 10',
+            'rest: 12',
             'schema: 1',
             'subscribers: 1',
             sprintf('Registry written to %s.', $directory),
@@ -89,7 +91,7 @@ it('adds what an addon provider\'s scan root declares', function (): void {
     [$status, $output] = buildCommand();
 
     expect($status)->toBe(0)
-        ->and(array_slice($output, 0, 4))->toBe(['actions: 16', 'commands: 14', 'hooks: 3', 'rest: 11'])
+        ->and(array_slice($output, 0, 4))->toBe(['actions: 18', 'commands: 16', 'hooks: 3', 'rest: 13'])
         ->and(RegistryFixtures::load($directory.'/commands.php'))->toMatchArray(['entries' => [[
             'class' => ActivateActor::class,
             'name' => 'actor.activate',
@@ -148,6 +150,16 @@ it('adds what an addon provider\'s scan root declares', function (): void {
         ], [
             'class' => SetPlacementWindow::class,
             'name' => 'placement.set_window',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 1,
+        ], [
+            'class' => CreateRole::class,
+            'name' => 'role.create',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 1,
+        ], [
+            'class' => SetRolePermissions::class,
+            'name' => 'role.set_permissions',
             'package' => CoreServiceProvider::PACKAGE,
             'version' => 1,
         ], [

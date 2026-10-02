@@ -29,6 +29,7 @@ const PROTOCOL_CODECS = [
     'AssignGrantCodecV1.php',
     'CreateEntryCodecV1.php',
     'CreatePlacementCodecV1.php',
+    'CreateRoleCodecV1.php',
     'DeactivateActorCodecV1.php',
     'DeliveryCodecV1.php',
     'DeliveryExplanationCodecV1.php',
@@ -48,6 +49,7 @@ const PROTOCOL_CODECS = [
     'ReviseEntryCodecV1.php',
     'RevokeGrantCodecV1.php',
     'SetPlacementWindowCodecV1.php',
+    'SetRolePermissionsCodecV1.php',
     'UnpublishEntryCodecV1.php',
 ];
 

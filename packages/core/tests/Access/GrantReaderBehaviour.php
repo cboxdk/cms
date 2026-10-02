@@ -7,6 +7,7 @@ namespace Cbox\Cms\Core\Tests\Access;
 use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\GrantEffect;
+use Cbox\Cms\Contracts\Identity\RoleHandle;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\GrantId;
@@ -26,8 +27,10 @@ use PHPUnit\Framework\Attributes\Test;
  * What every GrantReader of the kernel does (PRD 5.10), held against the fake the action tests use
  * and PostgresGrantReader: as ALICE of AccessWorld, whose regions reach NEWS less SPORT but
  * FOOTBALL, and CULTURE, it reads a grant of another actor on a node she reaches, ended or not, and
- * no grant on a node she does not reach; it reads every role with its permissions, sorted; and it
- * says whether a slot holds a grant that has not ended.
+ * no grant on a node she does not reach; it reads every role with its permissions, sorted; it
+ * says whether a slot holds a grant that has not ended; it reads every grant of a role that has not
+ * ended, wherever it is, with the version of the role's set of grants; and it says whether a role
+ * has a handle.
  */
 trait GrantReaderBehaviour
 {
@@ -40,9 +43,9 @@ trait GrantReaderBehaviour
     public const string GRANT_ENDED = '0192a0c0-0000-7000-8000-000000000e54';
 
     /**
-     * Writes the role, a role of BOB's on NEWS in da and en at version 2, one on SPORT, and one on
-     * CULTURE that has ended, and gives a reader as ALICE. A role's permissions may come in any
-     * order.
+     * Writes the role, with the handle reader_role, a role of BOB's on NEWS in da and en at
+     * version 2, one on SPORT, and one on CULTURE that has ended, and gives a reader as ALICE. A
+     * role's permissions may come in any order.
      *
      * @param  list<StoredRole>  $roles
      * @param  list<StoredGrant>  $grants
@@ -102,6 +105,32 @@ trait GrantReaderBehaviour
             Assert::assertTrue($reader->held(new GrantSlotRef($bob, $role, NodeId::fromString(AccessWorld::SPORT))));
             Assert::assertFalse($reader->held(new GrantSlotRef($bob, $role, NodeId::fromString(AccessWorld::CULTURE))));
             Assert::assertFalse($reader->held(new GrantSlotRef(ActorId::fromString(AccessWorld::ALICE), $role, NodeId::fromString(AccessWorld::NEWS))));
+        }));
+    }
+
+    #[Test]
+    public function it_reads_every_grant_of_a_role_that_has_not_ended_wherever_it_is_with_the_version_of_its_set(): void
+    {
+        $this->readAsAlice(...$this->world(static function (GrantReader $reader): void {
+            $grants = $reader->roleGrants(RoleId::fromString(self::GRANT_ROLE));
+            $none = $reader->roleGrants(RoleId::fromString('0192a0c0-0000-7000-8000-000000000e5e'));
+
+            Assert::assertEquals([
+                self::storedGrant(self::GRANT_NEWS, AccessWorld::NEWS, GrantEffect::Allow, [new Locale('da'), new Locale('en')], 2, false),
+                self::storedGrant(self::GRANT_SPORT, AccessWorld::SPORT, GrantEffect::Deny, null, 1, false),
+            ], $grants->grants);
+            Assert::assertSame(4, $grants->version->value);
+            Assert::assertSame([], $none->grants);
+            Assert::assertSame(1, $none->version->value);
+        }));
+    }
+
+    #[Test]
+    public function it_says_whether_a_role_has_the_handle(): void
+    {
+        $this->readAsAlice(...$this->world(static function (GrantReader $reader): void {
+            Assert::assertTrue($reader->handleTaken(new RoleHandle('reader_role')));
+            Assert::assertFalse($reader->handleTaken(new RoleHandle('reader')));
         }));
     }
 

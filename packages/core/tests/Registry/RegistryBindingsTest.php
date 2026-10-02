@@ -8,9 +8,13 @@ use Cbox\Cms\Cli\CliServiceProvider;
 use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Build\ScanRoot;
 use Cbox\Cms\Core\Access\Actions\AssignGrantAction;
+use Cbox\Cms\Core\Access\Actions\CreateRoleAction;
 use Cbox\Cms\Core\Access\Actions\RevokeGrantAction;
+use Cbox\Cms\Core\Access\Actions\SetRolePermissionsAction;
 use Cbox\Cms\Core\Access\Domain\Commands\AssignGrant;
+use Cbox\Cms\Core\Access\Domain\Commands\CreateRole;
 use Cbox\Cms\Core\Access\Domain\Commands\RevokeGrant;
+use Cbox\Cms\Core\Access\Domain\Commands\SetRolePermissions;
 use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Core\Entries\Actions\CreateEntryAction;
 use Cbox\Cms\Core\Entries\Actions\ReleaseVariantAction;
@@ -128,6 +132,8 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'grant.revoke@1 '.RevokeGrant::class,
             'placement.create@1 '.CreatePlacement::class,
             'placement.set_window@1 '.SetPlacementWindow::class,
+            'role.create@1 '.CreateRole::class,
+            'role.set_permissions@1 '.SetRolePermissions::class,
             'seed.entries@1 '.SeedEntries::class,
             'variant.release@1 '.ReleaseVariant::class,
         ])
@@ -145,6 +151,8 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'path.resolve@1 '.ResolvePathAction::class.' query',
             'placement.create@1 '.CreatePlacementAction::class.' write',
             'placement.set_window@1 '.SetPlacementWindowAction::class.' write',
+            'role.create@1 '.CreateRoleAction::class.' write',
+            'role.set_permissions@1 '.SetRolePermissionsAction::class.' write',
             'seed.entries@1 '.SeedEntriesAction::class.' write',
             'variant.release@1 '.ReleaseVariantAction::class.' write',
         ])
@@ -153,9 +161,11 @@ it('scans the packages\' own classes without a problem and registers the kernel\
         ->and($registry->actionFor(RegisterActor::class)?->surfaces)->toBe([Surface::Cli])
         ->and($registry->actionFor(AssignGrant::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia, Surface::Cli])
         ->and($registry->actionFor(RevokeGrant::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia, Surface::Cli])
+        ->and($registry->actionFor(CreateRole::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia, Surface::Cli])
+        ->and($registry->actionFor(SetRolePermissions::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia, Surface::Cli])
         ->and($registry->actionFor(CreateEntry::class)?->class)->toBe(CreateEntryAction::class)
         ->and($registry->actionFor(ReviseEntry::class)?->class)->toBe(ReviseEntryAction::class)
-        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([14, 13, 0, 10, 0, 1])
+        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([16, 15, 0, 12, 0, 1])
         ->and($registry->hooks)->toBe([])
         ->and(array_map(static fn (SubscriberEntry $entry): string => $entry->name->value.' '.$entry->class.' '.$entry->lane->value.' '.$entry->projection?->value, $registry->subscribers))
         ->toBe(['fragments.invalidate '.InvalidateFragments::class.' critical origin'])

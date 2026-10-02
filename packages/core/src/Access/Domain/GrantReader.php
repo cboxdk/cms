@@ -5,15 +5,18 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Access\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Identity\RoleHandle;
 use Cbox\Cms\Contracts\Ids\GrantId;
 use Cbox\Cms\Contracts\Ids\RoleId;
+use Cbox\Cms\Core\Access\Domain\Dto\RoleGrants;
 use Cbox\Cms\Core\Access\Domain\Dto\StoredGrant;
 use Cbox\Cms\Core\Access\Domain\Dto\StoredRole;
 
 /**
- * What the grant commands read (PRD 5.10, 6.2 phase 1), under the actor context of the command
- * transaction. A grant is read only when the context's regions reach its node, so an actor learns
- * nothing of grants outside its part of the tree; every actor reads the roles.
+ * What the grant and role commands read (PRD 5.10, 6.2 phase 1), under the actor context of the
+ * command transaction. A grant is read only when the context's regions reach its node, so an actor
+ * learns nothing of grants outside its part of the tree, except that a role command reads every
+ * grant of its role; every actor reads the roles.
  */
 #[Internal]
 interface GrantReader
@@ -33,4 +36,16 @@ interface GrantReader
      * Whether the actor holds the role on the node with a grant that has not ended.
      */
     public function held(GrantSlotRef $slot): bool;
+
+    /**
+     * Every grant of the role that has not ended, whoever holds it and wherever it is, sorted by
+     * id, with the version of the role's set of grants; the role commands must see them all, also
+     * those outside the context's regions, because a change of the role reaches every holder.
+     */
+    public function roleGrants(RoleId $role): RoleGrants;
+
+    /**
+     * Whether a role has the handle.
+     */
+    public function handleTaken(RoleHandle $handle): bool;
 }

@@ -33,12 +33,15 @@ use Cbox\Cms\Contracts\Errors\Problem;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Idempotency\IdempotencyKey;
 use Cbox\Cms\Contracts\Identity\ActorClass;
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\DeactivationSource;
 use Cbox\Cms\Contracts\Identity\DisplayName;
 use Cbox\Cms\Contracts\Identity\EmailAddress;
 use Cbox\Cms\Contracts\Identity\GrantEffect;
+use Cbox\Cms\Contracts\Identity\RoleHandle;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
+use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\GrantId;
 use Cbox\Cms\Contracts\Ids\NodeId;
@@ -54,7 +57,9 @@ use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Contracts\Results\ReadContent;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Core\Access\Domain\Commands\AssignGrant;
+use Cbox\Cms\Core\Access\Domain\Commands\CreateRole;
 use Cbox\Cms\Core\Access\Domain\Commands\RevokeGrant;
+use Cbox\Cms\Core\Access\Domain\Commands\SetRolePermissions;
 use Cbox\Cms\Core\Delivery\Domain\AnswerFormat;
 use Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryDocument;
 use Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryExplanation;
@@ -432,6 +437,17 @@ final readonly class ProtocolSchemas
                 '#/properties/placement' => $id(PlacementId::class),
                 '#/properties/version' => $version,
             ], ['#/$defs/time_window' => TimeWindow::class], self::WINDOW_NAMES),
+            self::command('role.create.v1.json', 'CreateRoleCodecV1', CreateRole::class, [
+                '#/properties/ceiling' => ValueBinding::enum(ClassificationAccess::class),
+                '#/properties/handle' => ValueBinding::value(RoleHandle::class),
+                '#/properties/permissions/items' => ValueBinding::value(CommandName::class),
+                '#/properties/role' => $id(RoleId::class),
+            ]),
+            self::command('role.set_permissions.v1.json', 'SetRolePermissionsCodecV1', SetRolePermissions::class, [
+                '#/properties/permissions/items' => ValueBinding::value(CommandName::class),
+                '#/properties/role' => $id(RoleId::class),
+                '#/properties/version' => $version,
+            ]),
             self::command('variant.release.v1.json', 'ReleaseVariantCodecV1', ReleaseVariant::class, [
                 '#/properties/entry' => $id(EntryId::class),
                 '#/properties/revision' => ValueBinding::value(RevisionNumber::class),

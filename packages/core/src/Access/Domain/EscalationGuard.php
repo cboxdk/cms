@@ -12,6 +12,7 @@ use Cbox\Cms\Contracts\Identity\NodePath;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Core\Access\Domain\Dto\Grant;
 use Cbox\Cms\Core\Access\Domain\Dto\HeldGrant;
+use Cbox\Cms\Core\Access\Domain\Dto\RoleContentChange;
 use Cbox\Cms\Core\Access\Domain\Dto\RoleGrant;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\Authorization;
 
@@ -32,6 +33,12 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\Authorization;
  * whoever holds it can change roles, grants or who is active. PRD 5.16 requires step-up for a grant
  * of one, and step-up is not built yet, so such a grant is refused with step_up_required whoever
  * gives it; the one-time access bootstrap, in the maintenance process, does not come through here.
+ *
+ * A command that creates a role or changes its permissions is held to the same rule on the role's
+ * content (content() and ceiling()): a role the issuer creates may not read above its own
+ * classification access, and each permission a change adds must be the issuer's own on every node
+ * where the role is granted, because every holder gets it there. A change that makes a granted
+ * role administrative needs step-up too.
  */
 #[Internal]
 final readonly class EscalationGuard
@@ -98,6 +105,80 @@ final readonly class EscalationGuard
             return Authorization::refuse(sprintf(
                 'The role %s is administrative, because it may change roles, grants or who is active, and a grant of it needs step-up (PRD 5.16), which is not built yet; the first administrator gets one from the access bootstrap.',
                 $grant->role->toString(),
+            ), ErrorCode::StepUpRequired);
+        }
+
+        return Authorization::allow();
+    }
+
+    /**
+     * Whether the issuer, with its classification access, may create a role with the ceiling of
+     * the change (PRD 5.10, 12.2): a role it creates may not read above what the issuer reads.
+     */
+    public function ceiling(RoleContentChange $change, ClassificationAccess $access): Authorization
+    {
+        if (! $change->ceiling instanceof ClassificationAccess || $access->allows($change->ceiling)) {
+            return Authorization::allow();
+        }
+
+        return Authorization::refuse(sprintf(
+            'The role %s would read up to %s, above the %s classification access of the actor, so it may not create it (invariant 31).',
+            $change->role->toString(),
+            $change->ceiling->value,
+            $access->value,
+        ), ErrorCode::GrantEscalationRefused);
+    }
+
+    /**
+     * Whether the issuer, with the grants it holds, may change what the role gives (PRD 5.10,
+     * invariant 31): it must itself hold each permission the change adds on every node where an
+     * allow of the role has not ended, in that grant's locales, or in every locale for a grant
+     * without a locale set. A node whose path the issuer may not read is one where it holds
+     * nothing. A change that makes a granted role administrative needs step-up, which is not built
+     * yet, so it is refused with step_up_required.
+     *
+     * @param  array<string, NodePath>  $paths  the path of each node of the role's grants the issuer may read, by its id
+     * @param  list<HeldGrant>  $held  every grant the issuer holds that has not ended
+     * @param  string  $whose  who the issuer is, for the reason
+     */
+    public function content(RoleContentChange $change, array $paths, array $held, string $whose = 'the actor'): Authorization
+    {
+        $allows = $change->allows();
+
+        foreach ($allows as $grant) {
+            $node = $paths[$grant->node->toString()] ?? null;
+
+            foreach ($change->added as $permission) {
+                if (! $node instanceof NodePath) {
+                    return Authorization::refuse(sprintf(
+                        'The role %s is granted on a node %s does not reach, so it may not add %s to the role (invariant 31).',
+                        $change->role->toString(),
+                        $whose,
+                        $permission->value,
+                    ), ErrorCode::GrantEscalationRefused);
+                }
+
+                $permitted = $this->permitted($held, $permission);
+
+                foreach ($grant->locales ?? [null] as $locale) {
+                    if (! $this->rule->reaches($permitted, $node, $locale)) {
+                        return Authorization::refuse(sprintf(
+                            'The role %s is granted on the node %s, and %s does not hold %s there %s, so it may not add it to the role (invariant 31).',
+                            $change->role->toString(),
+                            $grant->node->toString(),
+                            $whose,
+                            $permission->value,
+                            $this->where($locale),
+                        ), ErrorCode::GrantEscalationRefused);
+                    }
+                }
+            }
+        }
+
+        if ($change->becomesAdministrative && $allows !== []) {
+            return Authorization::refuse(sprintf(
+                'The change makes the granted role %s administrative, because it could then change roles, grants or who is active, and that needs step-up (PRD 5.16), which is not built yet.',
+                $change->role->toString(),
             ), ErrorCode::StepUpRequired);
         }
 

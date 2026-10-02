@@ -29,9 +29,13 @@ use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\WriteAction;
 use Cbox\Cms\Contracts\Results\WriteResult;
 use Cbox\Cms\Core\Access\Actions\AssignGrantAction;
+use Cbox\Cms\Core\Access\Actions\CreateRoleAction;
 use Cbox\Cms\Core\Access\Actions\RevokeGrantAction;
+use Cbox\Cms\Core\Access\Actions\SetRolePermissionsAction;
 use Cbox\Cms\Core\Access\Domain\Commands\AssignGrant;
+use Cbox\Cms\Core\Access\Domain\Commands\CreateRole;
 use Cbox\Cms\Core\Access\Domain\Commands\RevokeGrant;
+use Cbox\Cms\Core\Access\Domain\Commands\SetRolePermissions;
 use Cbox\Cms\Core\Access\Domain\Dto\Grant;
 use Cbox\Cms\Core\Access\Domain\Dto\StoredGrant;
 use Cbox\Cms\Core\Access\Domain\Dto\StoredRole;
@@ -46,6 +50,7 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\WaitSettings;
 use Cbox\Cms\Core\Pipeline\Domain\HookPlans;
 use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\Tests\Access\Fakes\FakeGrantReader;
+use Cbox\Cms\Core\Tests\Access\Fakes\FakePermissionCatalog;
 use Cbox\Cms\Core\Tests\Access\Fakes\FakePermissions;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeChangesetCommitter;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandAuthorizer;
@@ -69,17 +74,35 @@ use Cbox\Cms\Testkit\Validation\FakeTypeValidators;
 use LogicException;
 
 /**
- * grant.assign and grant.revoke through the command pipeline with fakes (GUARDRAILS 9), over the
- * tree of AccessWorld: ROOT, with NEWS, SPORT below it and FOOTBALL below that, and CULTURE. The
- * issuer is a staff actor holding the grants a test gives it, decided by FakeCommandAuthorizer as
- * the kernel's authorizer decides, the escalation guard included; the GrantReader reaches every
- * node unless a test says otherwise. The roles a test grants are added to the reader.
+ * grant.assign, grant.revoke, role.create and role.set_permissions through the command pipeline
+ * with fakes (GUARDRAILS 9), over the tree of AccessWorld: ROOT, with NEWS, SPORT below it and
+ * FOOTBALL below that, and CULTURE. The issuer is a staff actor holding the grants a test gives
+ * it, decided by FakeCommandAuthorizer as the kernel's authorizer decides, the escalation guard
+ * included; the GrantReader reaches every node unless a test says otherwise. The roles a test grants are added to the reader. The
+ * PermissionCatalog knows the names of NAMES.
  */
 final class GrantActionWorld
 {
     public const string GRANT = '01936f5e-8a2b-7c3d-9e4f-000000000601';
 
     public const string ROLE = '01936f5e-8a2b-7c3d-9e4f-000000000602';
+
+    /**
+     * The command and query names the world's PermissionCatalog knows.
+     *
+     * @var list<string>
+     */
+    public const array NAMES = [
+        'actor.deactivate',
+        'entry.create',
+        'entry.publish',
+        'entry.revise',
+        'grant.assign',
+        'grant.revoke',
+        'path.resolve',
+        'role.create',
+        'role.set_permissions',
+    ];
 
     public readonly FakeIdentity $identity;
 
@@ -92,6 +115,8 @@ final class GrantActionWorld
     public FakeChangesetCommitter $committer;
 
     public FakeCommandAuthorizer $authorizer;
+
+    public FakePermissionCatalog $catalog;
 
     private int $calls = 0;
 
@@ -111,6 +136,7 @@ final class GrantActionWorld
         $this->reader = new FakeGrantReader(array_map(NodeId::fromString(...), [AccessWorld::ROOT, AccessWorld::NEWS, AccessWorld::SPORT, AccessWorld::FOOTBALL, AccessWorld::CULTURE]));
         $this->committer = new FakeChangesetCommitter;
         $this->authorizer = FakeCommandAuthorizer::granting($this->permissions);
+        $this->catalog = new FakePermissionCatalog(self::NAMES);
     }
 
     /**
@@ -173,7 +199,7 @@ final class GrantActionWorld
         return new AssignGrant(GrantId::fromString(self::GRANT), $actor, RoleId::fromString(self::ROLE), NodeId::fromString($node), $effect, $this->locales($locales));
     }
 
-    public function run(AssignGrant|RevokeGrant $command): WriteResult
+    public function run(AssignGrant|RevokeGrant|CreateRole|SetRolePermissions $command): WriteResult
     {
         $clock = new FakeClock;
         $keys = new FakeIdempotencyStore($clock)->session();
@@ -183,6 +209,8 @@ final class GrantActionWorld
             new FakeWriteActions([
                 AssignGrant::class => $this->binding('grant.assign', new AssignGrantAction($this->identity, $this->reader)),
                 RevokeGrant::class => $this->binding('grant.revoke', new RevokeGrantAction($this->reader)),
+                CreateRole::class => $this->binding('role.create', new CreateRoleAction($this->reader, $this->catalog)),
+                SetRolePermissions::class => $this->binding('role.set_permissions', new SetRolePermissionsAction($this->reader, $this->catalog)),
             ]),
             $this->identity,
             $this->authorizer,

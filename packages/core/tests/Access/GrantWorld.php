@@ -15,16 +15,25 @@ use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Pipeline\WriteAction;
 use Cbox\Cms\Contracts\Results\WriteResult;
 use Cbox\Cms\Core\Access\Actions\AssignGrantAction;
+use Cbox\Cms\Core\Access\Actions\CreateRoleAction;
 use Cbox\Cms\Core\Access\Actions\RevokeGrantAction;
+use Cbox\Cms\Core\Access\Actions\SetRolePermissionsAction;
 use Cbox\Cms\Core\Access\Adapter\GrantAssignedWriter;
 use Cbox\Cms\Core\Access\Adapter\GrantRevokedWriter;
+use Cbox\Cms\Core\Access\Adapter\GrantRoleContentChangedWriter;
 use Cbox\Cms\Core\Access\Adapter\PostgresGrantReader;
 use Cbox\Cms\Core\Access\Adapter\PostgresGrantSlotLock;
 use Cbox\Cms\Core\Access\Adapter\PostgresGrantVersionLock;
+use Cbox\Cms\Core\Access\Adapter\PostgresRoleGrantsLock;
+use Cbox\Cms\Core\Access\Adapter\PostgresRoleHandleLock;
 use Cbox\Cms\Core\Access\Adapter\PostgresRoleVersionLock;
+use Cbox\Cms\Core\Access\Adapter\RoleCreatedWriter;
+use Cbox\Cms\Core\Access\Adapter\RolePermissionsSetWriter;
 use Cbox\Cms\Core\Access\Domain\AccessContexts;
 use Cbox\Cms\Core\Access\Domain\Commands\AssignGrant;
+use Cbox\Cms\Core\Access\Domain\Commands\CreateRole;
 use Cbox\Cms\Core\Access\Domain\Commands\RevokeGrant;
+use Cbox\Cms\Core\Access\Domain\Commands\SetRolePermissions;
 use Cbox\Cms\Core\IdempotencyStore\Adapter\PostgresIdempotencyStore;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
 use Cbox\Cms\Core\Identity\Adapter\PostgresActorDirectory;
@@ -45,6 +54,7 @@ use Cbox\Cms\Core\Pipeline\Domain\VersionLocks;
 use Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore;
 use Cbox\Cms\Core\Subscriptions\Adapter\SystemPacing;
 use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
+use Cbox\Cms\Core\Tests\Access\Fakes\FakePermissionCatalog;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeAffectedProjections;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandContentHasher;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandHooks;
@@ -63,9 +73,11 @@ use Illuminate\Database\ConnectionResolverInterface;
 use LogicException;
 
 /**
- * grant.assign and grant.revoke on Postgres (PRD 5.10, 6.4): the real command pipeline as the app
- * role, with the kernel's command authorizer and escalation guard, the grant reader, the commit
- * with the locks of an actor, a grant, a role and a grant's slot, and the writers. A call runs with
+ * grant.assign, grant.revoke, role.create and role.set_permissions on Postgres (PRD 5.10, 6.4): the
+ * real command pipeline as the app role, with the kernel's command authorizer and escalation
+ * guard, the grant reader, the commit with the locks of an actor, a grant, a role, a grant's slot,
+ * a role's handle and a role's set of grants, and the writers. The PermissionCatalog knows the
+ * names of GrantActionWorld::NAMES. A call runs with
  * the access context the kernel compiles for the principal from its grants.
  */
 final readonly class GrantWorld
@@ -88,7 +100,7 @@ final readonly class GrantWorld
     /**
      * Runs the command in the panel as the principal, with the key given.
      */
-    public function run(ActorPrincipal $by, AssignGrant|RevokeGrant $command, string $key): WriteResult
+    public function run(ActorPrincipal $by, AssignGrant|RevokeGrant|CreateRole|SetRolePermissions $command, string $key): WriteResult
     {
         $envelope = Envelope::external(
             IssuingSurface::Inertia,
@@ -107,11 +119,14 @@ final readonly class GrantWorld
         $directory = new PostgresActorDirectory($this->connections);
         $receipts = new PostgresReceiptStore($this->connections, $this->clock);
         $reader = new PostgresGrantReader($this->connections);
+        $catalog = new FakePermissionCatalog(GrantActionWorld::NAMES);
 
         return new CommandPipeline(
             new FakeWriteActions([
                 AssignGrant::class => $this->binding('grant.assign', new AssignGrantAction($directory, $reader)),
                 RevokeGrant::class => $this->binding('grant.revoke', new RevokeGrantAction($reader)),
+                CreateRole::class => $this->binding('role.create', new CreateRoleAction($reader, $catalog)),
+                SetRolePermissions::class => $this->binding('role.set_permissions', new SetRolePermissionsAction($reader, $catalog)),
             ]),
             $directory,
             app(CommandAuthorizer::class),
@@ -127,8 +142,16 @@ final readonly class GrantWorld
                     new PostgresGrantVersionLock($this->connections),
                     new PostgresRoleVersionLock($this->connections),
                     new PostgresGrantSlotLock($this->connections),
+                    new PostgresRoleHandleLock($this->connections),
+                    new PostgresRoleGrantsLock($this->connections),
                 ),
-                new MutationWriters(new GrantAssignedWriter($this->connections), new GrantRevokedWriter($this->connections)),
+                new MutationWriters(
+                    new GrantAssignedWriter($this->connections),
+                    new GrantRevokedWriter($this->connections),
+                    new RoleCreatedWriter($this->connections),
+                    new RolePermissionsSetWriter($this->connections),
+                    new GrantRoleContentChangedWriter($this->connections),
+                ),
                 new FakeAffectedProjections,
                 $receipts,
             ),

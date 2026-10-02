@@ -15,9 +15,12 @@ use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
 use Cbox\Cms\Contracts\Pipeline\AuthorizationTarget;
 use Cbox\Cms\Contracts\Pipeline\Command;
 use Cbox\Cms\Core\Access\Domain\Dto\Grant;
+use Cbox\Cms\Core\Access\Domain\Dto\RoleContentChange;
 use Cbox\Cms\Core\Access\Domain\Dto\RoleGrant;
+use Cbox\Cms\Core\Access\Domain\Dto\StoredGrant;
 use Cbox\Cms\Core\Access\Domain\EscalationGuard;
 use Cbox\Cms\Core\Access\Domain\GuardedGrant;
+use Cbox\Cms\Core\Access\Domain\GuardedRoleContent;
 use Cbox\Cms\Core\Access\Domain\PermissionRule;
 use Cbox\Cms\Core\Pipeline\Domain\CommandAuthorizer;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\Authorization;
@@ -27,8 +30,8 @@ use Override;
 /**
  * Allows every command, or refuses every one with the reason given, and records what it was asked.
  * granting() decides as the kernel's PostgresCommandAuthorizer does, from grants and permissions
- * held in memory, the escalation guard on a command that gives a role included
- * (CommandAuthorizerBehaviour holds the two together).
+ * held in memory, the escalation guard on a command that gives a role or changes what one gives
+ * included (CommandAuthorizerBehaviour holds the two together).
  */
 final class FakeCommandAuthorizer implements CommandAuthorizer
 {
@@ -72,9 +75,19 @@ final class FakeCommandAuthorizer implements CommandAuthorizer
             $authorization = $this->decide($command, $scope, $this->permissions->of($delegator, $command), $paths, sprintf('the actor %s it acts on behalf of', $delegator->toString()));
         }
 
+        if (! $authorization->allowed()) {
+            return $authorization;
+        }
+
+        $content = $aggregates instanceof GuardedRoleContent ? $aggregates->roleContent() : null;
+
+        if ($content instanceof RoleContentChange) {
+            return $this->contentGuarded($access, $principal, $content, $this->permissions);
+        }
+
         $escalation = $aggregates instanceof GuardedGrant ? $aggregates->escalation() : null;
 
-        if (! $authorization->allowed() || ! $escalation instanceof RoleGrant) {
+        if (! $escalation instanceof RoleGrant) {
             return $authorization;
         }
 
@@ -93,6 +106,32 @@ final class FakeCommandAuthorizer implements CommandAuthorizer
             }
 
             $authorization = $guard->decide($escalation, $node, $this->permissions->held($delegator), $principal->classificationCeiling(), sprintf('the actor %s it acts on behalf of', $delegator->toString()));
+        }
+
+        return $authorization;
+    }
+
+    /**
+     * The guard on a role's content, as PostgresCommandAuthorizer holds it.
+     */
+    private function contentGuarded(AccessContext $access, ActorPrincipal $principal, RoleContentChange $content, FakePermissions $permissions): Authorization
+    {
+        $guard = new EscalationGuard;
+        $authorization = $guard->ceiling($content, $access->classificationAccess);
+
+        if (! $authorization->allowed() || $content->added === [] && ! $content->becomesAdministrative) {
+            return $authorization;
+        }
+
+        $paths = $permissions->paths(array_map(static fn (StoredGrant $grant): NodeId => $grant->node, $content->allows()));
+        $authorization = $guard->content($content, $paths, $permissions->held($principal->actor));
+
+        foreach ($principal->onBehalfOf as $delegator) {
+            if (! $authorization->allowed()) {
+                break;
+            }
+
+            $authorization = $guard->content($content, $paths, $permissions->held($delegator), sprintf('the actor %s it acts on behalf of', $delegator->toString()));
         }
 
         return $authorization;

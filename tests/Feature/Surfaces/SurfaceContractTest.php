@@ -51,14 +51,16 @@ final class SurfaceContractTest extends TestCase
 
     /**
      * The kernel's commands exposed on some surfaces, by name, with those surfaces (B1 point 4):
-     * actor.activate, grant.assign and grant.revoke on every surface but MCP, and actor.register
-     * on the CLI alone.
+     * actor.activate, grant.assign, grant.revoke, role.create and role.set_permissions on every
+     * surface but MCP, and actor.register on the CLI alone.
      */
     private const array SOME_SURFACES = [
         'actor.activate' => ['rest', 'inertia', 'cli'],
         'actor.register' => ['cli'],
         'grant.assign' => ['rest', 'inertia', 'cli'],
         'grant.revoke' => ['rest', 'inertia', 'cli'],
+        'role.create' => ['rest', 'inertia', 'cli'],
+        'role.set_permissions' => ['rest', 'inertia', 'cli'],
     ];
 
     /** The command of M1 point 3 that is exposed on no surface: its surfaces come with B1 and B6. */

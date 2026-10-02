@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "role.create, contract version 1",
+  "description": "Creates a role (PRD 5.10, 6.4) in one changeset: a handle, the highest classification its holders read through it, and the command and query names of the registry it may run. The issuing actor needs role.create on some node, and the ceiling may not be above its own classification access, or the role is refused with grant_escalation_refused (invariant 31). A handle another role has, a name the registry does not know and a name given twice are validation_failed, and a role whose id exists is version_conflict. The new role is granted to nobody. The PHP form is Cbox\\Cms\\Core\\Access\\Domain\\Commands\\CreateRole, and the generated codec CreateRoleCodecV1 reads it and writes its canonical JSON: every key, sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "role",
+    "handle",
+    "ceiling",
+    "permissions"
+  ],
+  "properties": {
+    "role": {
+      "description": "The new role's id, which the caller makes.",
+      "$ref": "#/$defs/id"
+    },
+    "handle": {
+      "description": "The role's handle, unique among the roles: a lowercase letter followed by up to 62 lowercase letters, digits and underscores.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,62}$",
+      "minLength": 1,
+      "maxLength": 63
+    },
+    "ceiling": {
+      "description": "The highest classification the role's holders read through it, from public to sensitive.",
+      "enum": [
+        "public",
+        "internal",
+        "confidential",
+        "personal",
+        "sensitive"
+      ]
+    },
+    "permissions": {
+      "description": "The command and query names of the registry the role may run, each once; cms:actions lists them.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/permission"
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "permission": {
+      "description": "The name of a command or query without its version, such as entry.create: lowercase segments in snake_case joined by dots, at least two.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+      "minLength": 3,
+      "maxLength": 255
+    }
+  }
+}

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Access;
 
+use Cbox\Cms\Contracts\Identity\RoleHandle;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Core\Tests\Access\Fakes\FakeGrantReader;
 use Cbox\Cms\Core\Tests\Postgres\AccessWorld;
@@ -25,7 +26,7 @@ final class FakeGrantReaderBehaviourTest extends TestCase
         $reader = new FakeGrantReader(array_map(NodeId::fromString(...), [AccessWorld::NEWS, AccessWorld::FOOTBALL, AccessWorld::CULTURE]));
 
         foreach ($roles as $role) {
-            $reader->addRole($role);
+            $reader->addRole($role, new RoleHandle('reader_role'));
         }
 
         foreach ($grants as $grant) {

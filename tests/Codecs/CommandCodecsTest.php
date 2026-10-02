@@ -28,7 +28,9 @@ use Cbox\Cms\Contracts\Identity\DeactivationSource;
 use Cbox\Cms\Contracts\Identity\DisplayName;
 use Cbox\Cms\Contracts\Identity\EmailAddress;
 use Cbox\Cms\Contracts\Identity\GrantEffect;
+use Cbox\Cms\Contracts\Identity\RoleHandle;
 use Cbox\Cms\Contracts\Ids\ActorId;
+use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\GrantId;
 use Cbox\Cms\Contracts\Ids\NodeId;
@@ -39,11 +41,14 @@ use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Pipeline\Command;
 use Cbox\Cms\Core\Access\Domain\Commands\AssignGrant;
+use Cbox\Cms\Core\Access\Domain\Commands\CreateRole;
 use Cbox\Cms\Core\Access\Domain\Commands\RevokeGrant;
+use Cbox\Cms\Core\Access\Domain\Commands\SetRolePermissions;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ActivateActorCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\AssignGrantCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\CreateEntryCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\CreatePlacementCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\CreateRoleCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\DeactivateActorCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\PublishEntryCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\RegisterActorCodecV1;
@@ -51,6 +56,7 @@ use Cbox\Cms\Core\Codecs\Boundary\Generated\ReleaseVariantCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ReviseEntryCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\RevokeGrantCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\SetPlacementWindowCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\SetRolePermissionsCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\UnpublishEntryCodecV1;
 use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
@@ -385,6 +391,9 @@ it('decodes every command it encodes into an equal command', function (JsonCodec
     'grant.assign in every locale' => [new AssignGrantCodecV1, new AssignGrant(GrantId::fromString(COMMAND_PLACEMENT), ActorId::fromString(COMMAND_ACTOR), RoleId::fromString(COMMAND_TYPE), NodeId::fromString(COMMAND_NODE), GrantEffect::Allow)],
     'grant.assign of a deny in two locales' => [new AssignGrantCodecV1, new AssignGrant(GrantId::fromString(COMMAND_PLACEMENT), ActorId::fromString(COMMAND_ACTOR), RoleId::fromString(COMMAND_TYPE), NodeId::fromString(COMMAND_NODE), GrantEffect::Deny, [new Locale('da'), new Locale('en-GB')])],
     'grant.revoke' => [new RevokeGrantCodecV1, new RevokeGrant(GrantId::fromString(COMMAND_PLACEMENT), new AggregateVersion(2))],
+    'role.create with permissions' => [new CreateRoleCodecV1, new CreateRole(RoleId::fromString(COMMAND_TYPE), new RoleHandle('news_desk'), ClassificationAccess::Confidential, [new CommandName('entry.create'), new CommandName('path.resolve')])],
+    'role.create without permissions' => [new CreateRoleCodecV1, new CreateRole(RoleId::fromString(COMMAND_TYPE), new RoleHandle('r'), ClassificationAccess::Public, [])],
+    'role.set_permissions' => [new SetRolePermissionsCodecV1, new SetRolePermissions(RoleId::fromString(COMMAND_TYPE), new AggregateVersion(3), [new CommandName('placement.set_window')])],
 ]);
 
 it('reads the fields of entry.create as JSON gives them, and writes them back in the same form', function (): void {
@@ -586,5 +595,39 @@ it('refuses every rule of grant.assign and grant.revoke that their JSON Schemas 
         'an unknown key' => [commandJson($revoke, ['actor' => COMMAND_ACTOR]), ''],
         ...idFixtures($revoke, 'grant'),
         ...versionFixtures($revoke, 'version'),
+    ]);
+});
+
+it('refuses every rule of role.create and role.set_permissions that their JSON Schemas state, as the TypeScript validators and the schemas do', function (): void {
+    $create = ['role' => COMMAND_TYPE, 'handle' => 'news_desk', 'ceiling' => 'internal', 'permissions' => ['entry.create', 'path.resolve']];
+    $set = ['role' => COMMAND_TYPE, 'version' => 1, 'permissions' => ['entry.create']];
+
+    commandCrossCheck(new CreateRoleCodecV1, 'role.create.v1.json', [
+        'a role with two permissions' => [commandJson($create), null],
+        'a role without permissions' => [commandJson($create, ['permissions' => []]), null],
+        'a name the registry does not know, which the action refuses' => [commandJson($create, ['permissions' => ['entry.nothing']]), null],
+        'a name given twice, which the action refuses' => [commandJson($create, ['permissions' => ['entry.create', 'entry.create']]), null],
+        'an unknown key' => [commandJson($create, ['version' => 1]), ''],
+        ...idFixtures($create, 'role'),
+        'a handle with a capital letter' => [commandJson($create, ['handle' => 'News']), 'handle'],
+        'a handle that starts with a digit' => [commandJson($create, ['handle' => '1desk']), 'handle'],
+        'a handle of 64 characters' => [commandJson($create, ['handle' => 'd'.str_repeat('a', 63)]), 'handle'],
+        'the handle missing' => [commandJson($create, omit: ['handle']), 'handle'],
+        'a ceiling that is not one' => [commandJson($create, ['ceiling' => 'secret']), 'ceiling'],
+        'the permissions missing' => [commandJson($create, omit: ['permissions']), 'permissions'],
+        'permissions that are a string' => [commandJson($create, ['permissions' => 'entry.create']), 'permissions'],
+        'a permission without a dot' => [commandJson($create, ['permissions' => ['entry.create', 'entry']]), 'permissions[1]'],
+        'a permission with a version' => [commandJson($create, ['permissions' => ['entry.create@1']]), 'permissions[0]'],
+        'a permission that is a number' => [commandJson($create, ['permissions' => [7]]), 'permissions[0]'],
+    ]);
+
+    commandCrossCheck(new SetRolePermissionsCodecV1, 'role.set_permissions.v1.json', [
+        'a new list' => [commandJson($set), null],
+        'an empty list' => [commandJson($set, ['permissions' => []]), null],
+        'an unknown key' => [commandJson($set, ['handle' => 'desk']), ''],
+        ...idFixtures($set, 'role'),
+        ...versionFixtures($set, 'version'),
+        'the permissions missing' => [commandJson($set, omit: ['permissions']), 'permissions'],
+        'a permission in capitals' => [commandJson($set, ['permissions' => ['Entry.Create']]), 'permissions[0]'],
     ]);
 });

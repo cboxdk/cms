@@ -7,7 +7,9 @@ namespace Cbox\Cms\Contracts\Plans;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\RevisionNumber;
+use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\GrantId;
+use Cbox\Cms\Contracts\Ids\RoleId;
 use InvalidArgumentException;
 
 /**
@@ -29,5 +31,10 @@ final class InvalidMutation extends InvalidArgumentException
     public static function repeatedLocale(GrantId $grant, Locale $locale): self
     {
         return new self(sprintf('The grant %s names the locale %s twice.', $grant->toString(), $locale->value));
+    }
+
+    public static function repeatedPermission(RoleId $role, CommandName $permission): self
+    {
+        return new self(sprintf('The role %s names the permission %s twice.', $role->toString(), $permission->value));
     }
 }

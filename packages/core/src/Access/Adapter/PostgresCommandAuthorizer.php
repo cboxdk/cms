@@ -16,9 +16,12 @@ use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
 use Cbox\Cms\Contracts\Pipeline\AuthorizationTarget;
 use Cbox\Cms\Contracts\Pipeline\Command;
 use Cbox\Cms\Core\Access\Domain\Dto\Grant;
+use Cbox\Cms\Core\Access\Domain\Dto\RoleContentChange;
 use Cbox\Cms\Core\Access\Domain\Dto\RoleGrant;
+use Cbox\Cms\Core\Access\Domain\Dto\StoredGrant;
 use Cbox\Cms\Core\Access\Domain\EscalationGuard;
 use Cbox\Cms\Core\Access\Domain\GuardedGrant;
+use Cbox\Cms\Core\Access\Domain\GuardedRoleContent;
 use Cbox\Cms\Core\Access\Domain\PermissionRule;
 use Cbox\Cms\Core\Pipeline\Domain\CommandAuthorizer;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\Authorization;
@@ -38,7 +41,11 @@ use Override;
  * (invariant 31): the actor, and each actor of its chain, must itself hold every permission of the
  * role on the node in the grant's locales, with a classification access there not below the role's
  * ceiling, or the command is refused with grant_escalation_refused; an administrative role needs
- * step-up, step_up_required.
+ * step-up, step_up_required. A command that creates a role or changes its permissions
+ * (GuardedRoleContent) is held to the guard on the role's content: a ceiling not above the
+ * context's classification access, and each added permission held by the actor, and each actor of
+ * its chain, on every node where the role is granted; a change that makes a granted role
+ * administrative needs step-up.
  *
  * It reads the actor's grants of those roles and the paths of the target nodes on the default
  * connection, or the one named, inside the command transaction and under its actor context, so a
@@ -80,13 +87,51 @@ final readonly class PostgresCommandAuthorizer implements CommandAuthorizer
             $authorization = $this->decide($command, $scope, $grants->ofDelegator($delegator, $command), $paths, sprintf('the actor %s it acts on behalf of', $delegator->toString()));
         }
 
+        if (! $authorization->allowed()) {
+            return $authorization;
+        }
+
+        $content = $aggregates instanceof GuardedRoleContent ? $aggregates->roleContent() : null;
+
+        if ($content instanceof RoleContentChange) {
+            return $this->contentGuarded($access, $principal, $content, $grants);
+        }
+
         $escalation = $aggregates instanceof GuardedGrant ? $aggregates->escalation() : null;
 
-        if (! $authorization->allowed() || ! $escalation instanceof RoleGrant) {
+        if (! $escalation instanceof RoleGrant) {
             return $authorization;
         }
 
         return $this->guarded($principal, $escalation, $paths, $grants);
+    }
+
+    /**
+     * The escalation guard on a command that creates a role or changes its permissions (invariant
+     * 31): the role's ceiling against the context's classification access, then each added
+     * permission on every node where the role is granted, for the actor and for each actor it acts
+     * on behalf of, each with every grant it holds.
+     */
+    private function contentGuarded(AccessContext $access, ActorPrincipal $principal, RoleContentChange $content, PostgresGrants $grants): Authorization
+    {
+        $authorization = $this->guard->ceiling($content, $access->classificationAccess);
+
+        if (! $authorization->allowed() || $content->added === [] && ! $content->becomesAdministrative) {
+            return $authorization;
+        }
+
+        $paths = $grants->paths(array_map(static fn (StoredGrant $grant): NodeId => $grant->node, $content->allows()));
+        $authorization = $this->guard->content($content, $paths, $grants->held($principal->actor));
+
+        foreach ($principal->onBehalfOf as $delegator) {
+            if (! $authorization->allowed()) {
+                break;
+            }
+
+            $authorization = $this->guard->content($content, $paths, $grants->heldByDelegator($delegator), sprintf('the actor %s it acts on behalf of', $delegator->toString()));
+        }
+
+        return $authorization;
     }
 
     /**

@@ -38,6 +38,9 @@ A mutation implements `Cbox\Cms\Contracts\Plans\Mutation`: a final readonly clas
 | `ActorActivated(actor)` | the actor | the pending actor becomes active |
 | `GrantAssigned(grant, actor, role, node, effect, locales)` | the grant | the actor gets the role on the node (PRD 5.10), allowing or denying, in the `Locale`s given or in every locale for null |
 | `GrantRevoked(grant)` | the grant | the grant ends with the changeset and stays |
+| `RoleCreated(role, handle, ceiling, permissions)` | the role | the role is created (PRD 5.10) with its `RoleHandle`, its `ClassificationAccess` ceiling and its permissions, each a `CommandName` once |
+| `RolePermissionsSet(role, permissions)` | the role | the role's permissions become the list given, each once |
+| `GrantRoleContentChanged(grant)` | the grant | the grant's role changed what it gives; the grant moves to its next version and keeps everything else |
 
 A mutation that can make content public implements `Cbox\Cms\Contracts\Plans\ChangesPublicVisibility`, whose `makesPublic()` says whether it does, now or later, such as a `PlacementWindowSet` with a window, or a `VariantReleased`, which always does. The kernel refuses a plan with one that does from an agent or a token with `agent_visibility_forbidden` (invariant 18): the envelope's issuer is an agent, or the credential was issued for one.
 

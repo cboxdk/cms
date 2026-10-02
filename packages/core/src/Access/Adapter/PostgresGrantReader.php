@@ -7,12 +7,14 @@ namespace Cbox\Cms\Core\Access\Adapter;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\GrantEffect;
+use Cbox\Cms\Contracts\Identity\RoleHandle;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\GrantId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\RoleId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Core\Access\Domain\Dto\RoleGrants;
 use Cbox\Cms\Core\Access\Domain\Dto\StoredGrant;
 use Cbox\Cms\Core\Access\Domain\Dto\StoredRole;
 use Cbox\Cms\Core\Access\Domain\GrantReader;
@@ -25,14 +27,22 @@ use Override;
  * The GrantReader on Postgres (PRD 5.10), on the default connection, or the one named, inside the
  * command transaction and under its actor context. The app role reads only its own actor's grants,
  * so a grant and a grant's slot are read through the owner functions cms_access_grant (only where
- * the context's regions reach the grant's node) and cms_access_grant_held; every actor reads the
- * roles and their permissions itself. Each read is one statement, on the write PDO.
+ * the context's regions reach the grant's node) and cms_access_grant_held, and a role's grants
+ * through cms_access_role_grants and cms_access_role_grants_version; every actor reads the roles,
+ * their handles and their permissions itself. Each read is one statement, roleGrants() two, on the
+ * write PDO.
  */
 #[Internal]
 final readonly class PostgresGrantReader implements GrantReader
 {
     /** One grant the context reaches, as the owner role. */
     public const string GRANT = 'select actor_id::text as actor_id, role_id::text as role_id, node_id::text as node_id, effect, locales::text as locales, version, ended from cms_access_grant(?::uuid)';
+
+    /** Every grant of a role that has not ended, as the owner role. */
+    public const string ROLE_GRANTS = 'select id::text as id, actor_id::text as actor_id, node_id::text as node_id, effect, locales::text as locales, version from cms_access_role_grants(?::uuid) order by id';
+
+    /** The version of a role's set of grants, as the owner role. */
+    public const string ROLE_GRANTS_VERSION = 'select cms_access_role_grants_version(?::uuid) as version';
 
     /** Whether the slot holds a grant that has not ended, as the owner role. */
     public const string HELD = 'select cms_access_grant_held(?::uuid, ?::uuid, ?::uuid) as held';
@@ -107,6 +117,36 @@ final readonly class PostgresGrantReader implements GrantReader
         $row = GrantRows::row($this->db()->selectOne(self::HELD, [$slot->actor->toString(), $slot->role->toString(), $slot->node->toString()], false));
 
         return GrantRows::boolean($row, 'held');
+    }
+
+    #[Override]
+    public function roleGrants(RoleId $role): RoleGrants
+    {
+        $grants = [];
+
+        foreach ($this->db()->select(self::ROLE_GRANTS, [$role->toString()], false) as $row) {
+            $row = GrantRows::row($row);
+            $grants[] = new StoredGrant(
+                GrantId::fromString(GrantRows::text($row, 'id')),
+                ActorId::fromString(GrantRows::text($row, 'actor_id')),
+                $role,
+                NodeId::fromString(GrantRows::text($row, 'node_id')),
+                GrantEffect::from(GrantRows::text($row, 'effect')),
+                GrantRows::locales($row, 'locales'),
+                new AggregateVersion(GrantRows::integer($row, 'version')),
+                false,
+            );
+        }
+
+        $version = GrantRows::row($this->db()->selectOne(self::ROLE_GRANTS_VERSION, [$role->toString()], false));
+
+        return new RoleGrants($grants, new AggregateVersion(GrantRows::integer($version, 'version')));
+    }
+
+    #[Override]
+    public function handleTaken(RoleHandle $handle): bool
+    {
+        return $this->db()->table('roles')->useWritePdo()->where('handle', $handle->value)->exists();
     }
 
     private function db(): ConnectionInterface

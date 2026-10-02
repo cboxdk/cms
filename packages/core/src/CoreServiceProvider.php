@@ -21,18 +21,25 @@ use Cbox\Cms\Contracts\Telemetry\Telemetry;
 use Cbox\Cms\Contracts\TypeTables\TypeTableReader;
 use Cbox\Cms\Core\Access\Adapter\GrantAssignedWriter;
 use Cbox\Cms\Core\Access\Adapter\GrantRevokedWriter;
+use Cbox\Cms\Core\Access\Adapter\GrantRoleContentChangedWriter;
 use Cbox\Cms\Core\Access\Adapter\PostgresAccessResolver;
 use Cbox\Cms\Core\Access\Adapter\PostgresCommandAuthorizer;
 use Cbox\Cms\Core\Access\Adapter\PostgresGrantReader;
 use Cbox\Cms\Core\Access\Adapter\PostgresGrantSlotLock;
 use Cbox\Cms\Core\Access\Adapter\PostgresGrantVersionLock;
 use Cbox\Cms\Core\Access\Adapter\PostgresQueryAuthorizer;
+use Cbox\Cms\Core\Access\Adapter\PostgresRoleGrantsLock;
+use Cbox\Cms\Core\Access\Adapter\PostgresRoleHandleLock;
 use Cbox\Cms\Core\Access\Adapter\PostgresRoleVersionLock;
+use Cbox\Cms\Core\Access\Adapter\RegistryPermissionCatalog;
+use Cbox\Cms\Core\Access\Adapter\RoleCreatedWriter;
+use Cbox\Cms\Core\Access\Adapter\RolePermissionsSetWriter;
 use Cbox\Cms\Core\Access\Adapter\TransactionalAccessContexts;
 use Cbox\Cms\Core\Access\Domain\AccessCompiler;
 use Cbox\Cms\Core\Access\Domain\AccessContexts;
 use Cbox\Cms\Core\Access\Domain\AccessResolver;
 use Cbox\Cms\Core\Access\Domain\GrantReader;
+use Cbox\Cms\Core\Access\Domain\PermissionCatalog;
 use Cbox\Cms\Core\Access\Domain\PermissionRule;
 use Cbox\Cms\Core\Addons\Boundary\AddonConfig;
 use Cbox\Cms\Core\Addons\Domain\Dto\ServiceActors;
@@ -485,6 +492,13 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->bind(GrantReader::class, PostgresGrantReader::class);
         $this->app->tag([PostgresGrantVersionLock::class, PostgresRoleVersionLock::class, PostgresGrantSlotLock::class], VersionLocks::TAG);
         $this->app->tag([GrantAssignedWriter::class, GrantRevokedWriter::class], MutationWriters::TAG);
+
+        // role.create and role.set_permissions (PRD 5.10, invariant 31): the names the registry
+        // knows, the locks of a role's handle and of its set of grants, and the writers, which
+        // create a role, set its permissions and move each of its grants.
+        $this->app->bind(PermissionCatalog::class, RegistryPermissionCatalog::class);
+        $this->app->tag([PostgresRoleHandleLock::class, PostgresRoleGrantsLock::class], VersionLocks::TAG);
+        $this->app->tag([RoleCreatedWriter::class, RolePermissionsSetWriter::class, GrantRoleContentChangedWriter::class], MutationWriters::TAG);
         $this->app->bind(
             VersionLocks::class,
             static fn (Application $app): VersionLocks => new VersionLocks(...self::tagged($app, VersionLocks::TAG, VersionLock::class)),

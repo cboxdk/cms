@@ -8,7 +8,9 @@ use Cbox\Cms\Contracts\Attributes\Command as CommandAttribute;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Pipeline\Command;
 use Cbox\Cms\Core\Access\Domain\Commands\AssignGrant;
+use Cbox\Cms\Core\Access\Domain\Commands\CreateRole;
 use Cbox\Cms\Core\Access\Domain\Commands\RevokeGrant;
+use Cbox\Cms\Core\Access\Domain\Commands\SetRolePermissions;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\KernelCommandCodecs;
 use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
 use Cbox\Cms\Core\Codecs\Domain\EncodingFailed;
@@ -53,6 +55,8 @@ function kernelCommandClasses(): array
         'grant.revoke' => RevokeGrant::class,
         'placement.create' => CreatePlacement::class,
         'placement.set_window' => SetPlacementWindow::class,
+        'role.create' => CreateRole::class,
+        'role.set_permissions' => SetRolePermissions::class,
         'variant.release' => ReleaseVariant::class,
     ];
 }
