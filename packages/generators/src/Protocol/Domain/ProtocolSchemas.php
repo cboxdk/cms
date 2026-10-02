@@ -48,6 +48,7 @@ use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Receipts\Receipt;
 use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Contracts\Results\FieldPath;
+use Cbox\Cms\Contracts\Results\ReadContent;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Core\Delivery\Domain\AnswerFormat;
 use Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryDocument;
@@ -67,18 +68,21 @@ use Cbox\Cms\Core\Placements\Domain\Dto\LocaleSlug;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry;
 use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
+use Cbox\Cms\Core\Reads\Domain\Dto\QueryCodec;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\ExplainedPath;
 use Cbox\Cms\Core\Routing\Domain\Dto\MountStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\NodeStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation;
 use Cbox\Cms\Core\Routing\Domain\Dto\PlacementStep;
+use Cbox\Cms\Core\Routing\Domain\Dto\ResolvedPath;
 use Cbox\Cms\Core\Routing\Domain\Dto\RouteStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\SiteStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\VisibilityStep;
 use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
 use Cbox\Cms\Core\Routing\Domain\Host;
 use Cbox\Cms\Core\Routing\Domain\NodeKind;
+use Cbox\Cms\Core\Routing\Domain\Queries\ResolvePath;
 use Cbox\Cms\Core\Routing\Domain\ReleaseState;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Routing\Domain\ResolveOutcome;
@@ -86,6 +90,8 @@ use Cbox\Cms\Core\Routing\Domain\SiteHandle;
 use Cbox\Cms\Core\Routing\Domain\VisibilityDecision;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecCommand;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecContract;
+use Cbox\Cms\Generators\Codec\Domain\Dto\CodecQuery;
+use Cbox\Cms\Generators\Codec\Domain\Dto\CodecQueryResult;
 use Cbox\Cms\Generators\Codec\Domain\Dto\PhpLocation;
 use Cbox\Cms\Generators\Codec\Domain\PhpCodecEmitter;
 use Cbox\Cms\Generators\Codec\Domain\PhpSource;
@@ -108,6 +114,11 @@ use Cbox\Cms\Generators\Protocol\Domain\Dto\ValueBinding;
  * under CommandCodecs::TAG so every exposed surface reads the command (GUARDRAILS 2.1). The kernel
  * knows no content type (GUARDRAILS 2.4), so a command's fields are the generic fields of
  * FieldValuesSchema.
+ *
+ * A query has two schemas per contract version (PRD 6.2, 8.8): its document's and its result's.
+ * The codec of the query's document carries both its schema and the codec of its result and
+ * builds its QueryCodec, and QUERY_CODECS lists every one, which the core registers under
+ * QueryCodecs::TAG so every exposed surface reads the query and writes its result.
  */
 #[Internal]
 final readonly class ProtocolSchemas
@@ -127,6 +138,15 @@ final readonly class ProtocolSchemas
     public const string COMMAND_CODECS = 'KernelCommandCodecs';
 
     /**
+     * Where the schemas of the kernel's queries and their results are, relative to the root of
+     * cboxdk/cms: `<query>.v<version>.json` and `<query>.result.v<version>.json`.
+     */
+    public const string QUERY_SCHEMA_DIRECTORY = 'packages/core/resources/schemas/queries';
+
+    /** The generated class that lists the QueryCodec of every query's contract version. */
+    public const string QUERY_CODECS = 'KernelQueryCodecs';
+
+    /**
      * The PHP names of a time window's keys, live_from and live_until, which TimeWindow calls from
      * and until.
      *
@@ -139,6 +159,9 @@ final readonly class ProtocolSchemas
 
     /** The class of the CommandCodecs the list holds; the generator only writes its name. */
     private const string COMMAND_CODEC = CommandCodec::class;
+
+    /** The class of the QueryCodecs the list holds; the generator only writes its name. */
+    private const string QUERY_CODEC = QueryCodec::class;
 
     /** The stability of the generated codecs: the classes they read and write are Experimental. */
     public const string ATTRIBUTE = Experimental::class;
@@ -226,39 +249,8 @@ final readonly class ProtocolSchemas
                 schema: 'path-explanation.v1.json',
                 codecClass: 'PathExplanationCodecV1',
                 version: 1,
-                objects: [
-                    '#' => PathExplanation::class,
-                    '#/$defs/canonical_step' => CanonicalStep::class,
-                    '#/$defs/mount_step' => MountStep::class,
-                    '#/$defs/node_step' => NodeStep::class,
-                    '#/$defs/placement_step' => PlacementStep::class,
-                    '#/$defs/route_step' => RouteStep::class,
-                    '#/$defs/site_step' => SiteStep::class,
-                    '#/$defs/time_window' => TimeWindow::class,
-                    '#/$defs/visibility_step' => VisibilityStep::class,
-                ],
-                values: [
-                    '#/properties/outcome' => ValueBinding::enum(ResolveOutcome::class),
-                    '#/$defs/canonical_step/properties/placement' => $id(PlacementId::class),
-                    '#/$defs/mount_step/properties/mount' => $id(NodeId::class),
-                    '#/$defs/mount_step/properties/source' => $id(NodeId::class),
-                    '#/$defs/node_step/properties/kind' => ValueBinding::enum(NodeKind::class),
-                    '#/$defs/node_step/properties/node' => $id(NodeId::class),
-                    '#/$defs/placement_step/properties/entry' => $id(EntryId::class),
-                    '#/$defs/placement_step/properties/looked_under' => $id(NodeId::class),
-                    '#/$defs/placement_step/properties/placement' => $id(PlacementId::class),
-                    '#/$defs/placement_step/properties/slug' => ValueBinding::value(Slug::class),
-                    '#/$defs/placement_step/properties/type' => $id(TypeId::class),
-                    '#/$defs/route_step/properties/path' => ValueBinding::value(RequestPath::class),
-                    '#/$defs/site_step/properties/handle' => ValueBinding::value(SiteHandle::class),
-                    '#/$defs/site_step/properties/host' => ValueBinding::value(Host::class),
-                    '#/$defs/site_step/properties/locale' => ValueBinding::value(Locale::class),
-                    '#/$defs/site_step/properties/site' => $id(SiteId::class),
-                    '#/$defs/visibility_step/properties/decision' => ValueBinding::enum(VisibilityDecision::class),
-                    '#/$defs/visibility_step/properties/lifecycle' => ValueBinding::enum(EntryLifecycle::class),
-                    '#/$defs/visibility_step/properties/release' => ValueBinding::enum(ReleaseState::class),
-                    '#/$defs/visibility_step/properties/stored' => ValueBinding::enum(Visibility::class),
-                ],
+                objects: self::pathExplanationObjects('#', '#/$defs/'),
+                values: self::pathExplanationValues('#', '#/$defs/'),
             ),
             new SchemaBinding(
                 schema: 'problem.v1.json',
@@ -313,14 +305,51 @@ final readonly class ProtocolSchemas
     }
 
     /**
-     * Every binding composer generate:protocol writes a codec for: the kernel's contracts and its
-     * commands.
+     * Every binding composer generate:protocol writes a codec for: the kernel's contracts, its
+     * commands and its queries.
      *
      * @return list<SchemaBinding>
      */
     public static function all(): array
     {
-        return [...self::kernel(), ...self::commands()];
+        return [...self::kernel(), ...self::commands(), ...self::queries()];
+    }
+
+    /**
+     * The bindings of the schemas of the kernel's queries, each at its version, sorted by file: the
+     * query's document, then its result. path.resolve is public and answers with the entry the
+     * placement places and the explanation of the resolution (PRD 5.9), whose objects are those of
+     * path-explanation.v1.json below `#/$defs/path_explanation`.
+     *
+     * @return list<SchemaBinding>
+     */
+    public static function queries(): array
+    {
+        $id = static fn (string $class): ValueBinding => ValueBinding::id($class);
+
+        return self::query(
+            'path.resolve',
+            ResolvePath::class,
+            'ResolvePathCodecV1',
+            [
+                '#/properties/host' => ValueBinding::value(Host::class),
+                '#/properties/locale' => ValueBinding::value(Locale::class),
+                '#/properties/path' => ValueBinding::value(RequestPath::class),
+            ],
+            'ResolvedPathCodecV1',
+            [
+                '#' => ResolvedPath::class,
+                '#/$defs/read_content' => ReadContent::class,
+                ...self::pathExplanationObjects('#/$defs/path_explanation', '#/$defs/'),
+            ],
+            [
+                '#/$defs/read_content/properties/entry' => $id(EntryId::class),
+                '#/$defs/read_content/properties/fields' => ValueBinding::fields(FieldValues::class),
+                '#/$defs/read_content/properties/node' => $id(NodeId::class),
+                '#/$defs/read_content/properties/type' => $id(TypeId::class),
+                ...self::pathExplanationValues('#/$defs/path_explanation', '#/$defs/'),
+            ],
+        );
     }
 
     /**
@@ -423,9 +452,181 @@ final readonly class ProtocolSchemas
             $files[$list->path] = $list;
         }
 
+        $queries = array_values(array_filter($contracts, static fn (CodecContract $contract): bool => $contract->query instanceof CodecQuery));
+
+        if ($queries !== []) {
+            self::assertResults($queries, $contracts);
+            $list = self::queryCodecs($queries, $location);
+            $files[$list->path] = $list;
+        }
+
         ksort($files, SORT_STRING);
 
         return new GenerationResult(array_values($files), [$location->directory]);
+    }
+
+    /**
+     * The objects of a path explanation whose document is at $root and whose definitions are below
+     * $defs, as path-explanation.v1.json has them and as a document that holds one has them.
+     *
+     * @return array<string, string>
+     */
+    private static function pathExplanationObjects(string $root, string $defs): array
+    {
+        return [
+            $root => PathExplanation::class,
+            $defs.'canonical_step' => CanonicalStep::class,
+            $defs.'mount_step' => MountStep::class,
+            $defs.'node_step' => NodeStep::class,
+            $defs.'placement_step' => PlacementStep::class,
+            $defs.'route_step' => RouteStep::class,
+            $defs.'site_step' => SiteStep::class,
+            $defs.'time_window' => TimeWindow::class,
+            $defs.'visibility_step' => VisibilityStep::class,
+        ];
+    }
+
+    /**
+     * The bound values of a path explanation whose document is at $root and whose definitions are
+     * below $defs.
+     *
+     * @return array<string, ValueBinding>
+     */
+    private static function pathExplanationValues(string $root, string $defs): array
+    {
+        $id = static fn (string $class): ValueBinding => ValueBinding::id($class);
+
+        return [
+            $root.'/properties/outcome' => ValueBinding::enum(ResolveOutcome::class),
+            $defs.'canonical_step/properties/placement' => $id(PlacementId::class),
+            $defs.'mount_step/properties/mount' => $id(NodeId::class),
+            $defs.'mount_step/properties/source' => $id(NodeId::class),
+            $defs.'node_step/properties/kind' => ValueBinding::enum(NodeKind::class),
+            $defs.'node_step/properties/node' => $id(NodeId::class),
+            $defs.'placement_step/properties/entry' => $id(EntryId::class),
+            $defs.'placement_step/properties/looked_under' => $id(NodeId::class),
+            $defs.'placement_step/properties/placement' => $id(PlacementId::class),
+            $defs.'placement_step/properties/slug' => ValueBinding::value(Slug::class),
+            $defs.'placement_step/properties/type' => $id(TypeId::class),
+            $defs.'route_step/properties/path' => ValueBinding::value(RequestPath::class),
+            $defs.'site_step/properties/handle' => ValueBinding::value(SiteHandle::class),
+            $defs.'site_step/properties/host' => ValueBinding::value(Host::class),
+            $defs.'site_step/properties/locale' => ValueBinding::value(Locale::class),
+            $defs.'site_step/properties/site' => $id(SiteId::class),
+            $defs.'visibility_step/properties/decision' => ValueBinding::enum(VisibilityDecision::class),
+            $defs.'visibility_step/properties/lifecycle' => ValueBinding::enum(EntryLifecycle::class),
+            $defs.'visibility_step/properties/release' => ValueBinding::enum(ReleaseState::class),
+            $defs.'visibility_step/properties/stored' => ValueBinding::enum(Visibility::class),
+        ];
+    }
+
+    /**
+     * The bindings of version 1 of a query: its document's schema `<name>.v1.json`, bound to the
+     * query's class, and its result's `<name>.result.v1.json`, whose objects and values are given
+     * in full.
+     *
+     * @param  class-string  $query
+     * @param  array<string, ValueBinding>  $values  the bound values of the query's document
+     * @param  array<string, string>  $resultObjects  the objects of the result, its document at `#` included
+     * @param  array<string, ValueBinding>  $resultValues
+     * @return list<SchemaBinding>
+     */
+    private static function query(string $name, string $query, string $codecClass, array $values, string $resultCodec, array $resultObjects, array $resultValues): array
+    {
+        return [
+            new SchemaBinding(
+                schema: $name.'.v1.json',
+                codecClass: $codecClass,
+                version: 1,
+                objects: ['#' => $query],
+                values: $values,
+                directory: self::QUERY_SCHEMA_DIRECTORY,
+                query: $query,
+                resultCodec: $resultCodec,
+            ),
+            new SchemaBinding(
+                schema: $name.'.result.v1.json',
+                codecClass: $resultCodec,
+                version: 1,
+                objects: $resultObjects,
+                values: $resultValues,
+                directory: self::QUERY_SCHEMA_DIRECTORY,
+                resultOf: $query,
+            ),
+        ];
+    }
+
+    /**
+     * Refuses a query whose result codec is not the codec of a result of that query among the
+     * contracts.
+     *
+     * @param  list<CodecContract>  $queries
+     * @param  list<CodecContract>  $contracts
+     *
+     * @throws GenerationFailed with GenerateErrorCode::InvalidOutput
+     */
+    private static function assertResults(array $queries, array $contracts): void
+    {
+        foreach ($queries as $query) {
+            $name = $query->query?->name;
+            $codec = $query->query?->resultCodec;
+            $results = array_filter(
+                $contracts,
+                static fn (CodecContract $contract): bool => $contract->codecClass === $codec
+                    && $contract->result instanceof CodecQueryResult
+                    && $contract->result->query === $name
+                    && $contract->version === $query->version,
+            );
+
+            if ($results === []) {
+                throw GenerationFailed::because(GenerateErrorCode::InvalidOutput, sprintf('The query %s version %d names the codec %s of its result, which is not the codec of a schema of its result at that version.', (string) $name, $query->version, (string) $codec));
+            }
+        }
+    }
+
+    /**
+     * The class QUERY_CODECS: the QueryCodec of each query's contract version, sorted by the query's
+     * name and version, which the core registers under QueryCodecs::TAG.
+     *
+     * @param  non-empty-list<CodecContract>  $queries
+     */
+    private static function queryCodecs(array $queries, PhpLocation $location): GeneratedFile
+    {
+        usort($queries, static fn (CodecContract $a, CodecContract $b): int => [$a->query?->name, $a->version] <=> [$b->query?->name, $b->version]);
+
+        $lines = [
+            '<?php',
+            '',
+            'declare(strict_types=1);',
+            '',
+            'namespace '.$location->namespace.';',
+            '',
+            ...PhpSource::uses([self::ATTRIBUTE, self::QUERY_CODEC], $location->namespace),
+            '',
+            '/**',
+            ' * The QueryCodec of each version of each of the kernel\'s queries (GUARDRAILS 2.1, 2.2), which the',
+            ' * core registers under the container tag QueryCodecs::TAG, so every exposed surface reads the',
+            ' * query, writes its result and describes both with their JSON Schemas.',
+            ' *',
+            ' * Generated by composer generate:protocol from the schemas in '.self::QUERY_SCHEMA_DIRECTORY.'.',
+            ' * Do not edit this file: change the schemas and run composer generate:protocol.',
+            ' */',
+            '#['.PhpSource::shortName(self::ATTRIBUTE).']',
+            'final readonly class '.self::QUERY_CODECS,
+            '{',
+            '    /**',
+            '     * @return list<QueryCodec>',
+            '     */',
+            '    public static function all(): array',
+            '    {',
+            '        return [',
+            ...array_map(static fn (CodecContract $contract): string => '            '.$contract->codecClass.'::queryCodec(),', $queries),
+            '        ];',
+            '    }',
+            '}',
+        ];
+
+        return new GeneratedFile($location->directory.'/'.self::QUERY_CODECS.'.php', implode("\n", $lines)."\n");
     }
 
     /**

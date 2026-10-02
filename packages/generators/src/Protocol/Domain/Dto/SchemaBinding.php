@@ -22,7 +22,12 @@ use Cbox\Cms\Generators\Protocol\Domain\ProtocolSchemas;
  * The schema is in $directory, below the root of cboxdk/cms. A schema of a command's contract
  * version names the command's class in $command: the class the document is bound to, whose
  * #[Command] gives the name and must give the version, and the codec carries the schema and builds
- * the command's CommandCodec.
+ * the command's CommandCodec. A schema of a query's contract version names the query's class in
+ * $query, the class the document is bound to, whose #[Query] gives the name and must give the
+ * version, and the class name of the codec of the query's result in $resultCodec; the codec carries
+ * the schema and builds the query's QueryCodec with the result's codec. The schema of a query's
+ * result names the query's class in $resultOf, whose #[Query] must give the version, and its codec
+ * carries the schema.
  */
 #[Internal]
 final readonly class SchemaBinding
@@ -36,6 +41,9 @@ final readonly class SchemaBinding
      * @param  array<string, string>  $names  a property's PHP name, by the pointer of the property, where it is not the key in camelCase
      * @param  string  $directory  the schema's directory, relative to the root of cboxdk/cms
      * @param  ?string  $command  the command's class, the object at `#`, when the schema is a command's contract version
+     * @param  ?string  $query  the query's class, the object at `#`, when the schema is a query's contract version
+     * @param  ?string  $resultCodec  the class name of the codec of the query's result, without its namespace, with $query
+     * @param  ?string  $resultOf  the query's class, when the schema is the result of a query's contract version
      */
     public function __construct(
         public string $schema,
@@ -46,6 +54,9 @@ final readonly class SchemaBinding
         public array $names = [],
         public string $directory = ProtocolSchemas::SCHEMA_DIRECTORY,
         public ?string $command = null,
+        public ?string $query = null,
+        public ?string $resultCodec = null,
+        public ?string $resultOf = null,
     ) {}
 
     /**

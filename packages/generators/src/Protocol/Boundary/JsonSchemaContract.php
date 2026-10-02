@@ -7,12 +7,16 @@ namespace Cbox\Cms\Generators\Protocol\Boundary;
 use BackedEnum;
 use Cbox\Cms\Contracts\Attributes\Command;
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Attributes\Query;
 use Cbox\Cms\Contracts\Fields\FieldValues;
+use Cbox\Cms\Contracts\Pipeline\Result;
 use Cbox\Cms\Generators\Codec\Domain\CodecKind;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecCommand;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecContract;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecObject;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecProperty;
+use Cbox\Cms\Generators\Codec\Domain\Dto\CodecQuery;
+use Cbox\Cms\Generators\Codec\Domain\Dto\CodecQueryResult;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecValue;
 use Cbox\Cms\Generators\Codec\Domain\Dto\StringForm;
 use Cbox\Cms\Generators\Codec\Domain\PhpSource;
@@ -120,6 +124,8 @@ final readonly class JsonSchemaContract
             summary: self::summary($document, $binding, $root),
             attribute: $attribute,
             command: $binding->command === null ? null : $reader->command($binding->command),
+            query: $binding->query === null ? null : $reader->query($binding->query, $binding->resultCodec),
+            result: $binding->resultOf === null ? null : $reader->result($binding->resultOf),
         );
     }
 
@@ -148,6 +154,73 @@ final readonly class JsonSchemaContract
         }
 
         return new CodecCommand($command->name, (string) json_encode($this->document, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+    }
+
+    /**
+     * The query a query's schema is bound to: the class of the document, whose #[Query] gives the
+     * name and must give the binding's version, with the schema as pretty-printed JSON and the codec
+     * of the query's result.
+     *
+     * @throws GenerationFailed
+     */
+    private function query(string $class, ?string $resultCodec): CodecQuery
+    {
+        if (($this->binding->objects['#'] ?? null) !== $class || ! class_exists($class)) {
+            throw $this->problem('#', sprintf('is the schema of the query %s, which is not a class or not the class the document is bound to', $class));
+        }
+
+        if ($resultCodec === null || preg_match('/\A[A-Z][A-Za-z0-9]*\z/', $resultCodec) !== 1) {
+            throw $this->problem('#', sprintf('is the schema of the query %s, and its binding names no codec of its result', $class));
+        }
+
+        return new CodecQuery($this->queryAttribute($class, 'query')->name, $this->pretty(), $resultCodec);
+    }
+
+    /**
+     * The query whose result a result's schema is: the query's #[Query] gives the name and must give
+     * the binding's version, and the class of the document is a Result.
+     *
+     * @throws GenerationFailed
+     */
+    private function result(string $query): CodecQueryResult
+    {
+        $class = $this->binding->objects['#'] ?? null;
+
+        if ($class === null || ! is_a($class, Result::class, true)) {
+            throw $this->problem('#', sprintf('is the schema of the result of the query %s, and its document is not bound to a class that implements %s', $query, Result::class));
+        }
+
+        return new CodecQueryResult($this->queryAttribute($query, 'result of the query')->name, $this->pretty());
+    }
+
+    /**
+     * The #[Query] of $class, which must give the binding's version.
+     *
+     * @throws GenerationFailed
+     */
+    private function queryAttribute(string $class, string $what): Query
+    {
+        $attributes = class_exists($class) ? new ReflectionClass($class)->getAttributes(Query::class) : [];
+
+        if (count($attributes) !== 1) {
+            throw $this->problem('#', sprintf('is the schema of the %s %s, which is not a class with #[Query]', $what, $class));
+        }
+
+        $query = $attributes[0]->newInstance();
+
+        if ($query->version !== $this->binding->version) {
+            throw $this->problem('#', sprintf('is version %d of the %s %s, but its #[Query] gives version %d', $this->binding->version, $what, $class, $query->version));
+        }
+
+        return $query;
+    }
+
+    /**
+     * The schema as pretty-printed JSON, as a codec carries it.
+     */
+    private function pretty(): string
+    {
+        return (string) json_encode($this->document, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
 
     /**

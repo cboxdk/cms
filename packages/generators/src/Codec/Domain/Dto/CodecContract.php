@@ -11,7 +11,9 @@ use Cbox\Cms\Contracts\Attributes\Internal;
  * holds, the class name of the codec, the version, and the lines of the codec's PHPDoc. A codec in
  * a module's source carries a stability attribute, such as #[Experimental], named in $attribute.
  * The codec of a command's contract version names the command and carries its JSON Schema in
- * $command.
+ * $command, the codec of a query's contract version names the query, its JSON Schema and the codec
+ * of its result in $query, and the codec of a query's result carries the result's JSON Schema in
+ * $result.
  */
 #[Internal]
 final readonly class CodecContract
@@ -28,5 +30,7 @@ final readonly class CodecContract
         public array $summary,
         public ?string $attribute = null,
         public ?CodecCommand $command = null,
+        public ?CodecQuery $query = null,
+        public ?CodecQueryResult $result = null,
     ) {}
 }

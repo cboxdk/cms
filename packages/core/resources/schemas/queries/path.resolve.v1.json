@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "path.resolve, contract version 1",
+  "description": "Resolves a URL to the placement it shows (PRD 5.9): the host the request names, which the configuration maps to a site, the locale and the path. path.resolve is a public query, which every principal may read. The PHP form is Cbox\\Cms\\Core\\Routing\\Domain\\Queries\\ResolvePath, and the generated codec ResolvePathCodecV1 reads it and writes its canonical JSON: every key, sorted, no whitespace. Its result is path.resolve.result.v1.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "host",
+    "locale",
+    "path"
+  ],
+  "properties": {
+    "host": {
+      "description": "The host of the URL: a DNS name with an optional port, written back in lowercase.",
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(:[1-9][0-9]{0,4})?$"
+    },
+    "locale": {
+      "description": "The locale, a language tag such as da, en-GB or sr-Latn-RS, written back with the language in lowercase, the script in title case and the region in uppercase.",
+      "type": "string",
+      "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$"
+    },
+    "path": {
+      "description": "The path of the URL, which starts with a slash: / or segments of no slash and no white space, at most 32 segments and 2048 bytes, without . or .. segments.",
+      "type": "string",
+      "pattern": "^(/|(/[^/\\s]+)+)$"
+    }
+  }
+}

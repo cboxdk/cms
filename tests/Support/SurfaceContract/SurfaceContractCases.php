@@ -16,28 +16,29 @@ use Illuminate\Support\Facades\Facade;
 
 /**
  * The dataset of the surface contract tests (GUARDRAILS 9: one per action and surface): a
- * SurfaceContractCase for every surface each write action of the registry lists, so a new action
- * gets its surface tests from its #[Action] alone.
+ * SurfaceContractCase for every surface each write action of the registry lists, and a
+ * QueryContractCase for every surface each query action lists, so a new action gets its surface
+ * tests from its #[Action] alone.
  */
 final readonly class SurfaceContractCases
 {
     /**
      * The cases of the registry with the profiles given, by name, in the order of the registry's
-     * actions and of the surfaces each lists.
+     * actions and of the surfaces each lists: the writes' with the surface profiles, the queries'
+     * with the query profiles, QuerySurfaceProfiles::all() unless others are given.
      *
-     * @return array<string, array{SurfaceContractCase}>
+     * @return array<string, array{SurfaceContractCase|QueryContractCase}>
      */
-    public static function of(CompiledRegistry $registry, SurfaceProfiles $profiles): array
+    public static function of(CompiledRegistry $registry, SurfaceProfiles $profiles, ?QuerySurfaceProfiles $queries = null): array
     {
+        $queries ??= QuerySurfaceProfiles::all();
         $cases = [];
 
         foreach ($registry->actions as $action) {
-            if ($action->kind !== ActionKind::Write) {
-                continue;
-            }
-
             foreach ($action->surfaces as $surface) {
-                $case = new SurfaceContractCase($registry, $action, $surface, $profiles->for($surface));
+                $case = $action->kind === ActionKind::Write
+                    ? new SurfaceContractCase($registry, $action, $surface, $profiles->for($surface))
+                    : new QueryContractCase($registry, $action, $surface, $queries->for($surface));
                 $cases[$case->name()] = [$case];
             }
         }

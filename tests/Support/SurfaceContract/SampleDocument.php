@@ -9,7 +9,7 @@ use LogicException;
 use stdClass;
 
 /**
- * The smallest document a command's JSON Schema accepts, made from the schema alone, so a new
+ * The smallest document a command's or a query's JSON Schema accepts, made from the schema alone, so a new
  * command gets its surface contract tests without a hand-written fixture. It holds every required
  * property and no other: null where the schema allows null, the minimum of an integer (or 1), the
  * first value of an enum, false, minItems items of a list, and for a string a date-time, or the
@@ -33,6 +33,7 @@ final class SampleDocument
         'da',
         'fixture%d',
         'fixture%d@example.com',
+        '/fixture%d',
     ];
 
     private const string DATE_TIME = '2026-03-09T10:00:00+00:00';

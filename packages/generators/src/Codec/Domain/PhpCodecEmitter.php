@@ -13,10 +13,13 @@ use Cbox\Cms\Contracts\Pipeline\Command;
 use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Core\Pipeline\Domain\CommandEncoder;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCodec;
+use Cbox\Cms\Core\Reads\Domain\Dto\QueryCodec;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecCommand;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecContract;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecObject;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecProperty;
+use Cbox\Cms\Generators\Codec\Domain\Dto\CodecQuery;
+use Cbox\Cms\Generators\Codec\Domain\Dto\CodecQueryResult;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecValue;
 use Cbox\Cms\Generators\Codec\Domain\Dto\PhpLocation;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\ValidationRule;
@@ -70,6 +73,9 @@ final readonly class PhpCodecEmitter
 
     private const string COMMAND_INTERFACE = Command::class;
 
+    /** The class the codec of a query's contract version builds its QueryCodec with. */
+    private const string QUERY_CODEC = QueryCodec::class;
+
     /**
      * The delimiter of the nowdoc that holds a command's JSON Schema, which the schema's text never
      * contains, so Rector's SensitiveHereNowDocRector leaves the nowdoc as it is.
@@ -116,6 +122,12 @@ final readonly class PhpCodecEmitter
             $classes[] = self::COMMAND_INTERFACE;
         }
 
+        if ($contract->query instanceof CodecQuery) {
+            $classes[] = self::QUERY_CODEC;
+            $classes[] = self::COMMAND_NAME;
+            $classes[] = self::JSON_SCHEMA;
+        }
+
         foreach ($objects as $object) {
             $classes[] = $object->class ?? $dtos->className($object->className);
 
@@ -153,6 +165,8 @@ final readonly class PhpCodecEmitter
             '    public const int VERSION = '.$contract->version.';',
             '',
             ...($contract->command instanceof CodecCommand ? self::command($contract->command, $root) : []),
+            ...($contract->query instanceof CodecQuery ? self::query($contract->query) : []),
+            ...($contract->result instanceof CodecQueryResult ? self::result($contract->result) : []),
             '    /**',
             '     * The canonical JSON of $dto as a caller with $access may see it: sorted keys, no',
             '     * whitespace, and without every field classified above the access (PRD 12.2) or held as',
@@ -204,24 +218,14 @@ final readonly class PhpCodecEmitter
      */
     private static function command(CodecCommand $command, CodecObject $root): array
     {
-        $schema = explode("\n", rtrim($command->schema, "\n"));
-
-        if (str_contains($command->schema, self::SCHEMA_DELIMITER)) {
-            throw GenerationFailed::because(GenerateErrorCode::InvalidOutput, sprintf('The JSON Schema of %s contains %s, the delimiter of the nowdoc it is written in.', $command->name, self::SCHEMA_DELIMITER));
-        }
-
         return [
             '    /** The name of the command this codec reads, with the version VERSION. */',
             '    public const string COMMAND = '.PhpSource::string($command->name).';',
             '',
-            '    /**',
-            '     * The JSON Schema of the command\'s document, which this codec reads and writes, as cms:build',
-            '     * describes the command on REST and MCP (PRD 8.8, 14.5).',
-            '     */',
-            '    public const string SCHEMA = <<<\''.self::SCHEMA_DELIMITER.'\'',
-            ...array_map(static fn (string $line): string => rtrim('        '.$line), $schema),
-            '        '.self::SCHEMA_DELIMITER.';',
-            '',
+            ...self::schema($command->name, $command->schema, [
+                'The JSON Schema of the command\'s document, which this codec reads and writes, as cms:build',
+                'describes the command on REST and MCP (PRD 8.8, 14.5).',
+            ]),
             '    /**',
             '     * This codec with the command\'s name, its version and its JSON Schema, which the core',
             '     * registers under the container tag CommandCodecs::TAG, so every exposed surface reads the',
@@ -247,6 +251,87 @@ final readonly class PhpCodecEmitter
             '',
             '        return $this->encode($command, ClassificationAccess::Sensitive);',
             '    }',
+            '',
+        ];
+    }
+
+    /**
+     * The members of the codec of a query's contract version: the query's name, the JSON Schema of
+     * its document in a nowdoc, and the QueryCodec the core registers under QueryCodecs::TAG, with
+     * the codec of the query's result and its JSON Schema.
+     *
+     * @return list<string>
+     *
+     * @throws GenerationFailed with GenerateErrorCode::InvalidOutput
+     */
+    private static function query(CodecQuery $query): array
+    {
+        return [
+            '    /** The name of the query this codec reads, with the version VERSION. */',
+            '    public const string QUERY = '.PhpSource::string($query->name).';',
+            '',
+            ...self::schema($query->name, $query->schema, [
+                'The JSON Schema of the query\'s document, which this codec reads and writes, as cms:build',
+                'describes the query on REST and MCP (PRD 8.8, 14.5).',
+            ]),
+            '    /**',
+            '     * This codec and the codec of the query\'s result, '.$query->resultCodec.', with the query\'s',
+            '     * name, its version and the JSON Schema of each, which the core registers under the',
+            '     * container tag QueryCodecs::TAG, so every exposed surface reads the query and writes its',
+            '     * result with them (GUARDRAILS 2.1).',
+            '     */',
+            '    public static function queryCodec(): QueryCodec',
+            '    {',
+            '        return new QueryCodec(',
+            '            new CommandName(self::QUERY),',
+            '            self::VERSION,',
+            '            new self,',
+            '            new JsonSchema(self::SCHEMA),',
+            '            new '.$query->resultCodec.',',
+            '            new JsonSchema('.$query->resultCodec.'::SCHEMA),',
+            '        );',
+            '    }',
+            '',
+        ];
+    }
+
+    /**
+     * The members of the codec of a query's result: the JSON Schema of the result's document in a
+     * nowdoc, which the codec of the query builds its QueryCodec with.
+     *
+     * @return list<string>
+     *
+     * @throws GenerationFailed with GenerateErrorCode::InvalidOutput
+     */
+    private static function result(CodecQueryResult $result): array
+    {
+        return self::schema($result->query, $result->schema, [
+            'The JSON Schema of the result of '.$result->query.', which this codec writes and reads, as',
+            'cms:build describes the answer of the query on REST and MCP (PRD 8.8, 14.5).',
+        ]);
+    }
+
+    /**
+     * The constant SCHEMA: a JSON Schema in a nowdoc, with the lines of its PHPDoc.
+     *
+     * @param  list<string>  $doc
+     * @return list<string>
+     *
+     * @throws GenerationFailed with GenerateErrorCode::InvalidOutput when the schema holds the nowdoc's delimiter
+     */
+    private static function schema(string $name, string $text, array $doc): array
+    {
+        if (str_contains($text, self::SCHEMA_DELIMITER)) {
+            throw GenerationFailed::because(GenerateErrorCode::InvalidOutput, sprintf('The JSON Schema of %s contains %s, the delimiter of the nowdoc it is written in.', $name, self::SCHEMA_DELIMITER));
+        }
+
+        return [
+            '    /**',
+            ...array_map(static fn (string $line): string => '     * '.$line, $doc),
+            '     */',
+            '    public const string SCHEMA = <<<\''.self::SCHEMA_DELIMITER.'\'',
+            ...array_map(static fn (string $line): string => rtrim('        '.$line), explode("\n", rtrim($text, "\n"))),
+            '        '.self::SCHEMA_DELIMITER.';',
             '',
         ];
     }

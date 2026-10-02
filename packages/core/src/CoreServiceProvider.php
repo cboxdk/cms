@@ -31,6 +31,7 @@ use Cbox\Cms\Core\Addons\Boundary\AddonConfig;
 use Cbox\Cms\Core\Addons\Domain\Dto\ServiceActors;
 use Cbox\Cms\Core\Bindings\Boundary\ContractBindings;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\KernelCommandCodecs;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\KernelQueryCodecs;
 use Cbox\Cms\Core\Delivery\Actions\DeliverPath;
 use Cbox\Cms\Core\Delivery\Adapter\JsonDeliveryDocuments;
 use Cbox\Cms\Core\Delivery\Boundary\DeliveryConfig;
@@ -418,10 +419,14 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
 
         $this->app->bind(CommandContentHasher::class, CodecCommandContentHasher::class);
 
-        $this->app->bind(
-            QueryCodecs::class,
-            static fn (Application $app): QueryCodecs => new QueryCodecs(...self::tagged($app, QueryCodecs::TAG, QueryCodec::class)),
-        );
+        // The kernel's own queries (PRD 6.2) are read, and their results written, with the codecs
+        // composer generate:protocol writes from their JSON Schemas (GUARDRAILS 2.2), each at its
+        // version.
+        foreach (KernelQueryCodecs::all() as $codec) {
+            $id = QueryCodecs::TAG.'.'.$codec->name->value.'.v'.$codec->version;
+            $this->app->instance($id, $codec);
+            $this->app->tag($id, QueryCodecs::TAG);
+        }
 
         // The commit (PRD 6.2 phase 7) on the default connection, the command transaction's, with
         // the version lock of each kind of aggregate and the writer of each mutation class that
