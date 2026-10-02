@@ -14,7 +14,7 @@ A test that changes a setting sets the single key, such as `cbox-cms.contracts.<
 
 | Key | Default | What it does |
 |---|---|---|
-| `cbox-cms.contracts` | the nine entries below | Maps each contract to the class the container builds for it, as a singleton, the first time something resolves the contract. The class must implement the contract. |
+| `cbox-cms.contracts` | the ten entries below | Maps each contract to the class the container builds for it, as a singleton, the first time something resolves the contract. The class must implement the contract. |
 
 | Contract | Default class |
 |---|---|
@@ -27,10 +27,11 @@ A test that changes a setting sets the single key, such as `cbox-cms.contracts.<
 | `Cbox\Cms\Contracts\Cache\FragmentStore` | `Cbox\Cms\Core\Cache\Adapter\ValkeyFragmentStore` |
 | `Cbox\Cms\Contracts\TypeTables\TypeTableReader` | `Cbox\Cms\Core\TypeTables\Adapter\PostgresTypeTableReader` |
 | `Cbox\Cms\Contracts\Telemetry\Telemetry` | `Cbox\Cms\Core\Telemetry\Adapter\LogTelemetry` |
+| `Cbox\Cms\Contracts\Identity\BreachedPasswords` | `Cbox\Cms\Identity\BreachedPasswords\Adapter\HibpBreachedPasswords`, set by the identity module's provider when the application names none |
 
 `Cbox\Cms\Contracts\Cdn\CdnDriver` has no default: the real drivers come with full-scale invalidation, and until an application sets `cbox-cms.contracts.Cbox\Cms\Contracts\Cdn\CdnDriver`, resolving it throws `InvalidContractBinding` with the key to set. The invalidation subscriber on the critical lane purges through it, so `cms:events:run` needs one. Tests use the testkit's `FakeCdnDriver`, and the workbench binds it when its environment has `CBOX_CMS_CDN_DRIVER=fake`; see [CDN driver](../addons/contracts/cdn-driver.md).
 
-For example, `'contracts' => [Clock::class => StagingClock::class]` replaces the clock and keeps the other eight. See [Contracts](../addons/contracts/_index.md).
+For example, `'contracts' => [Clock::class => StagingClock::class]` replaces the clock and keeps the other nine. See [Contracts](../addons/contracts/_index.md).
 
 ## Database
 
@@ -79,6 +80,15 @@ A command waits after its commit for the wait level its envelope asks for (PRD 8
 | Key | Default | What it does |
 |---|---|---|
 | `cbox-cms.receipts.wait_budget_ms` | `5000` | How long a committed command waits, in milliseconds of real time, for its wait level, such as `origin`, which the invalidation subscriber reaches once it has purged the server fragments. When the budget runs out, the command returns `committed_wait_timeout`: committed, but not waited out. The wait runs after the transaction has committed, so it holds no lock. It is `0` to `30000`, and `0` means never wait past commit. A value outside that range fails when the kernel reads it. |
+
+## Egress
+
+| Key | Default | What it does |
+|---|---|---|
+| `cbox-cms.egress.connect_timeout_ms` | `2000` | How long the egress gateway waits for a connection, in milliseconds, before the request fails with [`egress_unavailable`](../reference/errors.md#egress_unavailable). It is `1` to `30000`. |
+| `cbox-cms.egress.timeout_ms` | `10000` | How long a request through the egress gateway may take in all, in milliseconds. It is from the connect timeout to `60000`. A value outside either range, or one that is not a whole number, fails when the kernel reads it. |
+
+Which destinations the gateway refuses is the policy of cboxdk/laravel-ssrf, `ssrf` in the configuration, which keeps its own keys; its `enforce` and `pin_dns` must stay on, or the gateway sends nothing. See [Egress](../security/egress.md).
 
 ## Event runner
 

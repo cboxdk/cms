@@ -6,6 +6,7 @@ namespace Cbox\Cms\Tests\Support\Arch;
 
 use Cbox\Cms\Contracts\Envelope\IssuerKind;
 use Cbox\Cms\Core\Doctor\Adapter\ProcessToolProbe;
+use Cbox\Cms\Core\Egress\Adapter\SsrfEgressGateway;
 use Cbox\Cms\Core\Registry\Adapter\FileOpenApiDocuments;
 use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
 use Cbox\Cms\Core\Registry\Boundary\OpenApiJson;
@@ -27,7 +28,8 @@ use Cbox\Cms\Testkit\Postgres\ChildProcesses;
 
 /**
  * What only the egress gateway may call (GUARDRAILS 3): everything outbound goes through the SSRF
- * guard in Codebase::GATEWAY.
+ * guard in Codebase::GATEWAY. The gateway is not exempt as a namespace: its adapter is allowed
+ * exactly the names it uses, as every other class with an allowance is.
  *
  * That is more than the HTTP clients. PHP's URL wrappers make every function that opens a file
  * name fetch http://, https:// and ftp:// URLs: fopen, file, readfile, copy, SplFileObject,
@@ -81,6 +83,12 @@ final class Egress
      * @var array<class-string, list<string>>
      */
     public const array ALLOWED = [
+        // The egress gateway itself (GUARDRAILS 3, PRD 7.14): Laravel's HTTP client, its Factory and
+        // its ConnectionException, with cboxdk/laravel-ssrf's GuardRequestMiddleware on every request,
+        // which checks the URL the request is sent to and pins its connection, redirects off. The
+        // gateway is held to exactly these names like any other class; nothing else in its
+        // namespace may use a name from the lists.
+        SsrfEgressGateway::class => ['Illuminate\Http\Client\\'],
         // Reads local files: it refuses a path that names a stream wrapper
         // (LocalPath::namesStreamWrapper()) before it touches it, and the generators read every
         // schema and generated file through it.
@@ -171,7 +179,7 @@ final class Egress
             foreach ($file->references as $reference) {
                 $forbidden = self::forbidden($reference);
 
-                if ($forbidden === null || self::inGateway($reference->namespace) || self::allowed($file, $reference, $forbidden)) {
+                if ($forbidden === null || self::allowed($file, $reference, $forbidden)) {
                     continue;
                 }
 
@@ -301,11 +309,6 @@ final class Egress
         }
 
         return null;
-    }
-
-    private static function inGateway(string $namespace): bool
-    {
-        return $namespace === Codebase::GATEWAY || str_starts_with($namespace, Codebase::GATEWAY.'\\');
     }
 
     private static function allowed(SourceFile $file, Reference $reference, string $forbidden): bool

@@ -186,6 +186,17 @@ return [
     ],
 
     /*
+     * The egress gateway (GUARDRAILS 3, PRD 7.14), Cbox\Cms\Core\Egress, the one way out for HTTP.
+     * It waits at most connect_timeout_ms for a connection (1 to 30000) and timeout_ms for the whole
+     * request (the connect timeout to 60000). Which destinations it refuses is the policy of
+     * cboxdk/laravel-ssrf, `ssrf` in the configuration, whose enforce and pin_dns must stay on.
+     */
+    'egress' => [
+        'connect_timeout_ms' => 2000,
+        'timeout_ms' => 10000,
+    ],
+
+    /*
      * The event runner (PRD 7.4 to 7.8), `cms:events:run`, one process per lane. It runs the
      * subscribers as the service actor service_actor names, the UUIDv7 of an active actor of class
      * service; without one it refuses to run. A batch reads at most batch_size events after the

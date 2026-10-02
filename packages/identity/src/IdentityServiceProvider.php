@@ -8,9 +8,12 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Build\DeclaresScanRoots;
 use Cbox\Cms\Contracts\Build\ScanRoot;
 use Cbox\Cms\Contracts\Doctor\DoctorCheck;
+use Cbox\Cms\Contracts\Identity\BreachedPasswords;
+use Cbox\Cms\Core\Bindings\Boundary\ContractBindings;
 use Cbox\Cms\Core\Doctor\Adapter\DoctorConnection;
 use Cbox\Cms\Core\Doctor\Boundary\DoctorConfig;
 use Cbox\Cms\Core\Doctor\Domain\Dto\DoctorSettings;
+use Cbox\Cms\Identity\BreachedPasswords\Adapter\HibpBreachedPasswords;
 use Cbox\Cms\Identity\CredentialStore\Boundary\IdentityConfig;
 use Cbox\Cms\Identity\Doctor\Adapter\ConnectionCredentialStoreProbe;
 use Cbox\Cms\Identity\Doctor\Adapter\PhpPasswordHashingProbe;
@@ -38,8 +41,10 @@ use Override;
  * owner role. Adds its checks to cms:doctor as an application adds its own, in front of those
  * `cbox-cms.doctor.checks` names: identity.connection, identity.credential_isolation and
  * identity.argon2id, with their probes. Binds the login policy of `cbox-cms.identity.policy`, read
- * when it is first asked for, and the IdP links it reads (PRD 5.16, invariant 38). Declares the module's classes as a scan root for
- * cms:build (PRD 13.2).
+ * when it is first asked for, and the IdP links it reads (PRD 5.16, invariant 38). Binds
+ * BreachedPasswords to the class `cbox-cms.contracts` names for it, HibpBreachedPasswords unless
+ * the application names another. Declares the module's classes as a scan root for cms:build
+ * (PRD 13.2).
  */
 #[Internal]
 final class IdentityServiceProvider extends ServiceProvider implements DeclaresScanRoots
@@ -72,6 +77,20 @@ final class IdentityServiceProvider extends ServiceProvider implements DeclaresS
             $app->make(DatabaseManager::class),
             IdentityConfig::connection($app->make(Repository::class)),
         ));
+
+        // The default BreachedPasswords is the module's, on the Have I Been Pwned range API through
+        // the egress gateway. An application replaces it in cbox-cms.contracts, as any contract.
+        $contract = ContractBindings::CONFIG_KEY.'.'.BreachedPasswords::class;
+
+        if ($config->get($contract) === null) {
+            $config->set($contract, HibpBreachedPasswords::class);
+        }
+
+        $this->app->singleton(
+            BreachedPasswords::class,
+            static fn (Application $app): BreachedPasswords => $app->make(ContractBindings::class)->resolve($app, BreachedPasswords::class),
+        );
+
         $this->app->bind(PasswordHashingProbe::class, PhpPasswordHashingProbe::class);
         $this->app->bind(
             static function (Application $app): CredentialStoreProbe {

@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "8b95fe8f82c8236bcb006cfb46338037",
+    "content-hash": "8d9401c27efb3be81d86f85b53804523",
     "packages": [
         {
             "name": "brick/math",
@@ -207,6 +207,86 @@
                 "source": "https://github.com/cboxdk/laravel-operations/tree/v0.1.0"
             },
             "time": "2026-07-15T14:21:21+00:00"
+        },
+        {
+            "name": "cboxdk/laravel-ssrf",
+            "version": "v1.5.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/cboxdk/laravel-ssrf.git",
+                "reference": "680b9a8d232ac8c258517b5a3c1d940bb14e37ca"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/cboxdk/laravel-ssrf/zipball/680b9a8d232ac8c258517b5a3c1d940bb14e37ca",
+                "reference": "680b9a8d232ac8c258517b5a3c1d940bb14e37ca",
+                "shasum": ""
+            },
+            "require": {
+                "guzzlehttp/guzzle": "^7.8.2 || ^8.0",
+                "guzzlehttp/promises": "^2.0 || ^3.0",
+                "illuminate/contracts": "^12.0 || ^13.0",
+                "illuminate/http": "^12.0 || ^13.0",
+                "illuminate/support": "^12.0 || ^13.0",
+                "php": "^8.4",
+                "psr/http-message": "^1.1 || ^2.0",
+                "symfony/http-foundation": "^7.0 || ^8.0"
+            },
+            "require-dev": {
+                "guzzlehttp/psr7": "^2.9 || ^3.0",
+                "larastan/larastan": "^3.0",
+                "laravel/pint": "^1.18",
+                "orchestra/testbench": "^10.0 || ^11.0",
+                "pestphp/pest": "^4.0 || ^5.0"
+            },
+            "suggest": {
+                "ext-curl": "Required for DNS pinning (CURLOPT_RESOLVE); without it the guard validates but cannot pin the connection.",
+                "ext-intl": "Required to accept internationalized (non-ASCII) hostnames; without it they are refused."
+            },
+            "bin": [
+                "bin/check-licenses.php",
+                "bin/generate-sbom.php"
+            ],
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Cbox\\Ssrf\\SsrfServiceProvider"
+                    ]
+                },
+                "branch-alias": {
+                    "dev-main": "1.5.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Cbox\\Ssrf\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Cbox",
+                    "homepage": "https://cboxdk.com"
+                }
+            ],
+            "description": "Cbox SSRF — a hardened, config-driven guard against server-side request forgery for outbound URLs in Laravel. Blocks private/reserved/cloud-metadata targets, pins DNS, and refuses redirects.",
+            "keywords": [
+                "http",
+                "laravel",
+                "security",
+                "ssrf",
+                "url"
+            ],
+            "support": {
+                "issues": "https://github.com/cboxdk/laravel-ssrf/issues",
+                "security": "https://github.com/cboxdk/laravel-ssrf/security/policy",
+                "source": "https://github.com/cboxdk/laravel-ssrf"
+            },
+            "time": "2026-09-29T18:34:35+00:00"
         },
         {
             "name": "dflydev/dot-access-data",

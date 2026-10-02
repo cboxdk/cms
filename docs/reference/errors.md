@@ -17,6 +17,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`actor_not_active`](#actor_not_active) | 403 | 77 | tool_error | no |
 | [`addon_service_actor_unavailable`](#addon_service_actor_unavailable) | 500 | 78 | internal_error | no |
 | [`agent_visibility_forbidden`](#agent_visibility_forbidden) | 403 | 77 | tool_error | no |
+| [`breached_passwords_unavailable`](#breached_passwords_unavailable) | 503 | 75 | internal_error | yes |
 | [`credential_expired`](#credential_expired) | 401 | 77 | tool_error | no |
 | [`credential_malformed`](#credential_malformed) | 401 | 77 | tool_error | no |
 | [`credential_revoked`](#credential_revoked) | 401 | 77 | tool_error | no |
@@ -67,6 +68,10 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`doctor_valkey_unavailable`](#doctor_valkey_unavailable) | 503 | 75 | internal_error | yes |
 | [`doctor_vendor_manifest_missing`](#doctor_vendor_manifest_missing) | 500 | 78 | internal_error | no |
 | [`dry_run`](#dry_run) | 200 | 0 | result | no |
+| [`egress_blocked`](#egress_blocked) | 422 | 65 | tool_error | no |
+| [`egress_guard_disabled`](#egress_guard_disabled) | 500 | 78 | internal_error | no |
+| [`egress_redirect_refused`](#egress_redirect_refused) | 503 | 69 | internal_error | no |
+| [`egress_unavailable`](#egress_unavailable) | 503 | 75 | internal_error | yes |
 | [`fake_check_failed`](#fake_check_failed) | 500 | 78 | internal_error | no |
 | [`field_encryption_unavailable`](#field_encryption_unavailable) | 422 | 65 | tool_error | no |
 | [`generate_column_name_too_long`](#generate_column_name_too_long) | 500 | 65 | internal_error | no |
@@ -212,6 +217,15 @@ An agent or a token may not make content public (invariant 18): the command woul
 - CLI exit code: 77 (EX_NOPERM)
 - MCP: a tool result with isError set
 - Retry: no, the same call gives the same answer until something changes
+
+### breached_passwords_unavailable
+
+Whether the password is known from data breaches could not be checked, because the service the check asks did not answer or answered something it could not read (PRD 5.16). The check fails closed, so the password was neither accepted nor refused as breached, and nothing was committed. Try again in a moment; if it keeps failing, check the counters cms.egress.failures and cms.identity.breached_passwords.checks.
+
+- HTTP status: 503 Service Unavailable
+- CLI exit code: 75 (EX_TEMPFAIL)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: yes, the same call may succeed later
 
 ### credential_expired
 
@@ -662,6 +676,42 @@ The command ran as a dry run: the kernel computed the plan and the receipt and c
 - CLI exit code: 0 (EX_OK)
 - MCP: a tool result
 - Retry: no, the same call gives the same answer until something changes
+
+### egress_blocked
+
+The egress gateway refused to send the outbound request (GUARDRAILS 3, PRD 7.14): the SSRF guard found that its URL points at a private, reserved or cloud metadata address or a blocked host, uses another scheme than https, or carries credentials. Nothing was sent. Use a public https URL.
+
+- HTTP status: 422 Unprocessable Content
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### egress_guard_disabled
+
+The egress gateway sent nothing, because the policy of its SSRF guard is switched off: ssrf.enforce or ssrf.pin_dns of cboxdk/laravel-ssrf is false (GUARDRAILS 3). Without them the gateway cannot promise that a request never reaches a private address. Turn both on in config/ssrf.php or the environment (SSRF_ENFORCE).
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 78 (EX_CONFIG)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### egress_redirect_refused
+
+The destination of an outbound request answered with a redirect, which the egress gateway never follows, because a redirect can point at an address the SSRF guard would refuse (PRD 7.14). The request counts as failed. Use the URL the destination redirects to, if it is a public https URL.
+
+- HTTP status: 503 Service Unavailable
+- CLI exit code: 69 (EX_UNAVAILABLE)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### egress_unavailable
+
+The destination of an outbound request did not answer within the egress gateway's timeouts, cbox-cms.egress.connect_timeout_ms and timeout_ms, or the connection failed (PRD 7.14). Try again later; if it keeps failing, check that the destination is up and reachable from the server.
+
+- HTTP status: 503 Service Unavailable
+- CLI exit code: 75 (EX_TEMPFAIL)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: yes, the same call may succeed later
 
 ### fake_check_failed
 

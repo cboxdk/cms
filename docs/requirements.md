@@ -29,6 +29,7 @@ It requires these packages directly:
 | Package | Constraint |
 |---|---|
 | `cboxdk/laravel-operations` | `0.1.0` |
+| `cboxdk/laravel-ssrf` | `~1.5.0` |
 | `illuminate/console` | `^13.0` |
 | `illuminate/contracts` | `^13.0` |
 | `illuminate/database` | `^13.0` |

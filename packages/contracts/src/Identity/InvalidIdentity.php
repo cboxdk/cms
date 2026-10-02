@@ -114,6 +114,14 @@ final class InvalidIdentity extends InvalidArgumentException
     }
 
     /**
+     * An empty password. The message never repeats a password (GUARDRAILS 6).
+     */
+    public static function password(): self
+    {
+        return new self('A password is not empty.');
+    }
+
+    /**
      * A display name that breaks its rules. The message never repeats the value, which is
      * personal data (PRD 12.2, invariant 10).
      */

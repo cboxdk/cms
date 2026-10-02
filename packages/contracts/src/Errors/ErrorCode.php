@@ -29,6 +29,7 @@ enum ErrorCode: string
     case ActorNotActive = 'actor_not_active';
     case AddonServiceActorUnavailable = 'addon_service_actor_unavailable';
     case AgentVisibilityForbidden = 'agent_visibility_forbidden';
+    case BreachedPasswordsUnavailable = 'breached_passwords_unavailable';
     case CredentialExpired = 'credential_expired';
     case CredentialMalformed = 'credential_malformed';
     case CredentialRevoked = 'credential_revoked';
@@ -79,6 +80,10 @@ enum ErrorCode: string
     case DoctorValkeyUnavailable = 'doctor_valkey_unavailable';
     case DoctorVendorManifestMissing = 'doctor_vendor_manifest_missing';
     case DryRun = 'dry_run';
+    case EgressBlocked = 'egress_blocked';
+    case EgressGuardDisabled = 'egress_guard_disabled';
+    case EgressRedirectRefused = 'egress_redirect_refused';
+    case EgressUnavailable = 'egress_unavailable';
     case FakeCheckFailed = 'fake_check_failed';
     case FieldEncryptionUnavailable = 'field_encryption_unavailable';
     case GenerateColumnNameTooLong = 'generate_column_name_too_long';
@@ -214,6 +219,9 @@ enum ErrorCode: string
                 HttpStatus::Forbidden,
                 ExitCode::NoPerm,
                 'An agent or a token may not make content public (invariant 18): the command would release a revision, open a placement\'s window or otherwise change what the public sees, so nothing was committed. An agent can prepare the change, such as a hidden placement or a draft; a person makes it public.',
+            ),
+            self::BreachedPasswordsUnavailable => $this->dependency(
+                'Whether the password is known from data breaches could not be checked, because the service the check asks did not answer or answered something it could not read (PRD 5.16). The check fails closed, so the password was neither accepted nor refused as breached, and nothing was committed. Try again in a moment; if it keeps failing, check the counters cms.egress.failures and cms.identity.breached_passwords.checks.',
             ),
             self::CredentialExpired => $this->credential(
                 'The credential\'s expiry has passed, so it was refused and nothing was read or committed (PRD 5.16). Every credential has an expiry. Call again with a credential that is still valid.',
@@ -369,6 +377,25 @@ enum ErrorCode: string
                 McpResponse::Result,
                 false,
                 'The command ran as a dry run: the kernel computed the plan and the receipt and committed nothing (PRD 6.1). This is no failure. Send the command again without dry_run to commit it.',
+            ),
+            self::EgressBlocked => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'The egress gateway refused to send the outbound request (GUARDRAILS 3, PRD 7.14): the SSRF guard found that its URL points at a private, reserved or cloud metadata address or a blocked host, uses another scheme than https, or carries credentials. Nothing was sent. Use a public https URL.',
+            ),
+            self::EgressGuardDisabled => $this->violation(
+                'The egress gateway sent nothing, because the policy of its SSRF guard is switched off: ssrf.enforce or ssrf.pin_dns of cboxdk/laravel-ssrf is false (GUARDRAILS 3). Without them the gateway cannot promise that a request never reaches a private address. Turn both on in config/ssrf.php or the environment (SSRF_ENFORCE).',
+            ),
+            self::EgressRedirectRefused => new ErrorEntry(
+                $this,
+                HttpStatus::ServiceUnavailable,
+                ExitCode::Unavailable,
+                McpResponse::InternalError,
+                false,
+                'The destination of an outbound request answered with a redirect, which the egress gateway never follows, because a redirect can point at an address the SSRF guard would refuse (PRD 7.14). The request counts as failed. Use the URL the destination redirects to, if it is a public https URL.',
+            ),
+            self::EgressUnavailable => $this->dependency(
+                'The destination of an outbound request did not answer within the egress gateway\'s timeouts, cbox-cms.egress.connect_timeout_ms and timeout_ms, or the connection failed (PRD 7.14). Try again later; if it keeps failing, check that the destination is up and reachable from the server.',
             ),
             self::FakeCheckFailed => $this->violation(
                 'A FakeDoctorCheck of the testkit failed, because a test told it to. Only tests see this code.',

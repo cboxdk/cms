@@ -12,6 +12,7 @@ export type ErrorCode =
   | 'actor_not_active'
   | 'addon_service_actor_unavailable'
   | 'agent_visibility_forbidden'
+  | 'breached_passwords_unavailable'
   | 'credential_expired'
   | 'credential_malformed'
   | 'credential_revoked'
@@ -62,6 +63,10 @@ export type ErrorCode =
   | 'doctor_valkey_unavailable'
   | 'doctor_vendor_manifest_missing'
   | 'dry_run'
+  | 'egress_blocked'
+  | 'egress_guard_disabled'
+  | 'egress_redirect_refused'
+  | 'egress_unavailable'
   | 'fake_check_failed'
   | 'field_encryption_unavailable'
   | 'generate_column_name_too_long'
@@ -245,6 +250,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'actor_not_active',
           'addon_service_actor_unavailable',
           'agent_visibility_forbidden',
+          'breached_passwords_unavailable',
           'credential_expired',
           'credential_malformed',
           'credential_revoked',
@@ -295,6 +301,10 @@ const catalogErrorV1Rule: ObjectRule = {
           'doctor_valkey_unavailable',
           'doctor_vendor_manifest_missing',
           'dry_run',
+          'egress_blocked',
+          'egress_guard_disabled',
+          'egress_redirect_refused',
+          'egress_unavailable',
           'fake_check_failed',
           'field_encryption_unavailable',
           'generate_column_name_too_long',
@@ -442,6 +452,7 @@ const problemV1Rule: ObjectRule = {
           'actor_not_active',
           'addon_service_actor_unavailable',
           'agent_visibility_forbidden',
+          'breached_passwords_unavailable',
           'credential_expired',
           'credential_malformed',
           'credential_revoked',
@@ -492,6 +503,10 @@ const problemV1Rule: ObjectRule = {
           'doctor_valkey_unavailable',
           'doctor_vendor_manifest_missing',
           'dry_run',
+          'egress_blocked',
+          'egress_guard_disabled',
+          'egress_redirect_refused',
+          'egress_unavailable',
           'fake_check_failed',
           'field_encryption_unavailable',
           'generate_column_name_too_long',

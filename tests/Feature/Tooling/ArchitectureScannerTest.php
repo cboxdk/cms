@@ -660,7 +660,29 @@ it('allows the local writers the file functions they call, and the other names s
 });
 
 it('lets the gateway and the allowed local uses through, and only the names they are allowed', function (): void {
-    $gateway = SourceFile::parse('Gateway.php', "<?php\n\nnamespace ".Codebase::GATEWAY."\\Adapter;\n\nfinal class Client\n{\n    public function get(string \$url): void\n    {\n        fopen(\$url, 'r');\n    }\n}\n");
+    $gateway = SourceFile::parse('SsrfEgressGateway.php', <<<'PHP'
+        <?php
+
+        namespace Cbox\Cms\Core\Egress\Adapter;
+
+        use Illuminate\Http\Client\ConnectionException;
+        use Illuminate\Http\Client\Factory;
+
+        final readonly class SsrfEgressGateway
+        {
+            public function __construct(private Factory $http) {}
+
+            public function get(string $url): void
+            {
+                try {
+                    $this->http->get($url);
+                } catch (ConnectionException) {
+                    fopen($url, 'r');
+                }
+            }
+        }
+        PHP);
+    $other = SourceFile::parse('Client.php', "<?php\n\nnamespace ".Codebase::GATEWAY."\\Adapter;\n\nfinal class Client\n{\n    public function get(string \$url): void\n    {\n        fopen(\$url, 'r');\n    }\n}\n");
     $localFile = SourceFile::parse('LocalFile.php', <<<'PHP'
         <?php
 
@@ -678,7 +700,34 @@ it('lets the gateway and the allowed local uses through, and only the names they
         }
         PHP);
 
-    expect(Egress::violations([$gateway, $localFile]))->toBe(['LocalFile.php:12: function fopen']);
+    expect(Egress::violations([$gateway, $other, $localFile]))->toBe([
+        'SsrfEgressGateway.php:17: function fopen',
+        'Client.php:9: function fopen',
+        'LocalFile.php:12: function fopen',
+    ]);
+});
+
+it('reports a planted use of the Http facade outside the gateway, and inside it outside the gateway\'s allowance', function (): void {
+    $planted = static fn (string $namespace): SourceFile => SourceFile::parse('Planted.php', <<<PHP
+        <?php
+
+        namespace {$namespace};
+
+        use Illuminate\Support\Facades\Http;
+
+        final readonly class Planted
+        {
+            public function fetch(string \$url): string
+            {
+                return Http::get(\$url)->body();
+            }
+        }
+        PHP);
+
+    expect(Egress::violations([$planted('Cbox\Cms\Identity\BreachedPasswords\Adapter')]))->toBe([
+        'Planted.php:5: class Illuminate\Support\Facades\Http',
+    ])
+        ->and(Egress::violations([$planted(Codebase::GATEWAY.'\Adapter')]))->toBe(['Planted.php:5: class Illuminate\Support\Facades\Http']);
 });
 
 it('lets a word through only as the string it is allowed as, and the function it spells stays forbidden', function (): void {
