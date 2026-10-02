@@ -16,6 +16,7 @@ use Cbox\Cms\Contracts\Identity\CredentialRejected;
 use Cbox\Cms\Contracts\Identity\CredentialVerifier;
 use Cbox\Cms\Contracts\Identity\IssuerKind;
 use Cbox\Cms\Contracts\Identity\ServiceCredentialToken;
+use Cbox\Cms\Contracts\Identity\SessionToken;
 use Cbox\Cms\Contracts\Identity\TransportCredential;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Testkit\Clock\FakeClock;
@@ -45,7 +46,10 @@ use PHPUnit\Framework\Attributes\Test;
  * The cases cover the anonymous principal, the principal of a service and an agent credential with
  * its chain, and every refusal of CredentialVerifier in its order: a malformed token or a wrong
  * checksum, an unknown token, an expired one, an actor or an actor of the chain that is not active,
- * and a generation below the actor's after a revocation or a reactivation.
+ * and a generation below the actor's after a revocation or a reactivation. They also cover the
+ * session form every verifier reads, whether it holds sessions or not: a session id out of its
+ * form is malformed, one no session has is unknown, and a service token in the session form is
+ * never taken for one. A verifier that holds sessions runs SessionCredentialContract too.
  */
 #[Experimental]
 trait CredentialVerifierContract
@@ -232,6 +236,41 @@ trait CredentialVerifierContract
 
         $clock->advance(new DateInterval('PT2H'));
         $this->assertRefused(CredentialErrorCode::Expired, $identity->verifier(), $credential);
+    }
+
+    #[Test]
+    public function it_refuses_a_session_id_out_of_its_form_without_a_lookup(): void
+    {
+        $identity = $this->identity(new FakeClock);
+        $valid = SessionToken::fromSecret(str_repeat("\x2b", SessionToken::SECRET_BYTES))->credential()->reveal();
+        $last = $valid[strlen($valid) - 1];
+        $wrongChecksum = substr($valid, 0, -1).($last === '0' ? '1' : '0');
+
+        foreach (['', 'cms_ss_', strtoupper($valid), $valid.'0', substr($valid, 0, -1), ' '.$valid, $wrongChecksum] as $id) {
+            $this->assertRefused(CredentialErrorCode::Malformed, $identity->verifier(), TransportCredential::session($id));
+        }
+    }
+
+    #[Test]
+    public function it_refuses_a_well_formed_session_id_that_no_session_has(): void
+    {
+        $identity = $this->identity(new FakeClock);
+        $identity->addActor(ActorClass::Staff);
+        $unknown = SessionToken::fromSecret(str_repeat("\x2b", SessionToken::SECRET_BYTES))->credential();
+
+        $this->assertRefused(CredentialErrorCode::Unknown, $identity->verifier(), $unknown);
+    }
+
+    #[Test]
+    public function it_never_takes_a_service_token_in_the_session_form_for_a_credential(): void
+    {
+        $clock = new FakeClock;
+        $identity = $this->identity($clock);
+        $actor = $identity->addActor(ActorClass::Service);
+        $token = $identity->issue(new ServiceCredentialSpec($actor->id, IssuerKind::Service, ClassificationAccess::Public, $this->later($clock, 'P1D')))->reveal();
+
+        $this->assertRefused(CredentialErrorCode::Malformed, $identity->verifier(), TransportCredential::session($token));
+        $this->verified($identity->verifier(), new TransportCredential($token));
     }
 
     private function later(Clock $clock, string $interval): DateTimeImmutable

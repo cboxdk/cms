@@ -1,7 +1,7 @@
 ---
 title: Credential verifier
 weight: 37
-description: "The CredentialVerifier contract: turn a transport credential into a Principal, the anonymous principal, service credentials with a checksum, issuer kinds and classification ceilings, the AccessContext, the Postgres verifier and the shared suite CredentialVerifierContract."
+description: "The CredentialVerifier contract: turn a transport credential into a Principal, the anonymous principal, service credentials and sessions with a checksum, issuer kinds and classification ceilings, the AccessContext, the Postgres verifier, the session verifier and the shared suites CredentialVerifierContract and SessionCredentialContract."
 ---
 
 # Credential verifier
@@ -9,12 +9,14 @@ description: "The CredentialVerifier contract: turn a transport credential into 
 <!-- extension-point: Cbox\Cms\Contracts\Identity\CredentialVerifier -->
 <!-- extension-point: Cbox\Cms\Contracts\Identity\Principal -->
 <!-- extension-point: Cbox\Cms\Testkit\Identity\CredentialVerifierContract -->
+<!-- extension-point: Cbox\Cms\Testkit\Identity\SessionCredentialContract -->
+<!-- extension-point: Cbox\Cms\Testkit\Identity\SessionIdentityHarness -->
 
-Every command and every read starts by finding out who it runs as (PRD 5.16, 6.2). `Cbox\Cms\Contracts\Identity\CredentialVerifier` turns the credential the transport carried, such as the bearer token of an `Authorization` header, into a `Principal`. The actors themselves are read through the [actor directory](actor-directory.md).
+Every command and every read starts by finding out who it runs as (PRD 5.16, 6.2). `Cbox\Cms\Contracts\Identity\CredentialVerifier` turns the credential the transport carried, such as the bearer token of an `Authorization` header or the session id of the session cookie, into a `Principal`. The actors themselves are read through the [actor directory](actor-directory.md).
 
 ## The contract
 
-The verifier has one method, `verify(?TransportCredential $credential): Principal`. A `TransportCredential` holds the credential as it arrived; it is a secret, kept out of stack traces and dumps, and read only with `reveal()`.
+The verifier has one method, `verify(?TransportCredential $credential): Principal`. A `TransportCredential` holds the credential as it arrived; it is a secret, kept out of stack traces and dumps, and read only with `reveal()`. Its `form`, a `CredentialForm`, says how it arrived: `Bearer`, the default, for a token such as the one of an `Authorization` header, or `Session`, made with `TransportCredential::session()`, for the id of the session cookie. A verifier reads each form only as itself, so a session id sent as a bearer token, or a token sent as the session cookie, is malformed.
 
 A `Principal` is one of two final readonly classes, and nothing else implements the interface:
 
@@ -32,6 +34,7 @@ A credential that is given is verified, and never falls back to anonymous. A ver
 | `Expired` | `credential_expired` | its expiry is not after the `Clock`'s time |
 | `ActorNotActive` | `actor_not_active` | its actor, or any actor in its on-behalf-of chain, is not active |
 | `Revoked` | `credential_revoked` | its generation is lower than its actor's |
+| `NotAllowed` | `credential_not_allowed` | a session only: the login policy no longer allows its connection or login method |
 
 Each code is in the [error reference](../../reference/errors.md). A deactivation, a deprovisioning and `actor.credentials_revoke` count the actor's credential generation up, so everything it holds is refused at once, without a clock that could differ between pods. A verifier reads the current state from the primary, so a change that committed is seen by the next verification.
 
@@ -41,9 +44,17 @@ A service credential belongs to a service actor. On the wire it is `ServiceCrede
 
 What a store keeps is an `IssuedCredential`: the actor, the chain, the issuer kind, the ceiling, the actor's generation when it was issued, and the expiry. `IssuedCredential::principal($actor, $chain, $now)` decides a verification from the current state of those actors. Every verifier decides through it, so the fake and a store on a database cannot differ in the rules.
 
+### Sessions
+
+A session is the credential of a person who logged in (see [Sessions](../../security/sessions.md)). On the wire it is `SessionToken`: the prefix `cms_ss_`, 256 random bits as 64 hex digits, and a CRC-32 checksum, carried in the session form. `SessionToken::parse()` refuses an id whose checksum does not match before anything is looked up, and a store keeps a session only under `hash()`, the SHA-256 of the id.
+
+What a verifier decides a session's principal from is an `IssuedSession`: the actor and the actor's credential generation when it was issued. `IssuedSession::principal($actor)` gives an `ActorPrincipal` of the kind `Human` on behalf of no one, or refuses with `actor_not_active` or `credential_revoked`. A session's expiry and the login policy it was issued under belong to its store, which checks them before it asks.
+
+A verifier that holds no sessions refuses a session id in its form as `credential_unknown`. The default verifier holds none: the identity module puts its session verifier in front of whatever `CredentialVerifier` is bound, with the container's `extend()`, so a replacement verifier gets sessions too, and the core never names the identity module. The session verifier reads the session from Valkey and the actor from the bound `ActorDirectory`, and hands every other credential to the verifier it decorates.
+
 ### Issuer kinds and classification ceilings
 
-`IssuerKind` says what a credential was issued for: `Agent` for an agent, and `Service` for an integration, a sidecar, an addon or an IdP connection. The kind travels with the principal, so the kernel can refuse what an agent may not do (invariant 18). `ClassificationAccess` is the highest data classification a principal may read, ordered `Public`, `Internal`, `Confidential`, `Personal` and `Sensitive` (PRD 12.2). A credential's ceiling never exceeds `IssuerKind::maximumCeiling()`: `Confidential` for an agent, so personal data never reaches an agent (PRD 2.31), and `Sensitive` for a service. `ActorPrincipal`, `IssuedCredential` and the testkit's `ServiceCredentialSpec` throw `InvalidIdentity` for a higher ceiling, and the table's check refuses one too.
+`IssuerKind` says what a credential was issued for: `Human` for the session of a person who logged in, `Agent` for an agent, and `Service` for an integration, a sidecar, an addon or an IdP connection. The kind travels with the principal, so the kernel can refuse what an agent may not do (invariant 18), and `envelopeIssuer()` gives the issuer kind a changeset records: `human`, `agent` and `system`. The REST, Inertia, MCP and CLI surfaces build the envelope with it, and the query pipeline answers a read with it in `QueryResult::$issuer`. `ClassificationAccess` is the highest data classification a principal may read, ordered `Public`, `Internal`, `Confidential`, `Personal` and `Sensitive` (PRD 12.2). A credential's ceiling never exceeds `IssuerKind::maximumCeiling()`: `Confidential` for an agent, so personal data never reaches an agent (PRD 2.31), and `Sensitive` for a person and a service, whose grants decide what they read. `ActorPrincipal`, `IssuedCredential` and the testkit's `ServiceCredentialSpec` throw `InvalidIdentity` for a higher ceiling, and the table's check refuses one too.
 
 ### The access context
 
@@ -55,7 +66,7 @@ What a store keeps is an `IssuedCredential`: the actor, the chain, the issuer ki
 
 ## The fake and the seeder
 
-`Cbox\Cms\Testkit\Identity\FakeIdentity` is the fake; the [actor directory](actor-directory.md) page describes it and its seeder. `IdentitySeeder::issue(ServiceCredentialSpec $spec)` issues a service credential and returns it as a `TransportCredential`. The spec names the service actor, the issuer kind, the ceiling, the expiry and the chain. The seeder refuses an actor that is unknown or not active, an actor that is not of the class service, a chain actor that is not active, and an expiry that is not after the clock's time. `FakeIdentity::lookups()` counts the verifications that looked a credential up. This example verifies an agent's credential on the fake. It is in the `Unit` suite:
+`Cbox\Cms\Testkit\Identity\FakeIdentity` is the fake; the [actor directory](actor-directory.md) page describes it and its seeder. `IdentitySeeder::issue(ServiceCredentialSpec $spec)` issues a service credential and returns it as a `TransportCredential`. The spec names the service actor, the issuer kind, the ceiling, the expiry and the chain. The seeder refuses an actor that is unknown or not active, an actor that is not of the class service, a chain actor that is not active, and an expiry that is not after the clock's time. `FakeIdentity::lookups()` counts the verifications that looked a credential up. The fake holds sessions too: `startSession($actor)` starts one for an active member of staff or end user, as a login the policy allowed would, and returns its id in the session form; it has no expiry and no login policy, which the identity module's own tests cover. This example verifies an agent's credential on the fake. It is in the `Unit` suite:
 
 <!-- example: examples/Unit/Identity/ServiceCredentialTest.php -->
 ```php
@@ -140,6 +151,64 @@ it('refuses an agent credential that could read personal data', function (): voi
 ## Running the shared suite against a replacement
 
 Every implementation runs the testkit's shared suite, the trait `Cbox\Cms\Testkit\Identity\CredentialVerifierContract`, in a PHPUnit test class in its `tests/Contract` directory. Like `ActorDirectoryContract`, it has one abstract method, `identity(Clock $clock): IdentityHarness`, which returns a harness for a new, empty verifier whose parts read the time from `$clock`. The cases move that clock past a credential's expiry. They cover the anonymous principal, the principal of a service and an agent credential with its chain, and every refusal in its order: a malformed token or a wrong checksum, an unknown token, an expired one, an actor or a chain actor that is not active, and a generation below the actor's after a revocation or a reactivation.
+
+The suite also covers the session form every verifier reads, whether it holds sessions or not: a session id out of its form is malformed, one no session has is unknown, and a service token in the session form is never taken for one.
+
+A verifier that holds sessions also runs `Cbox\Cms\Testkit\Identity\SessionCredentialContract`. Its abstract method, `sessionIdentity(Clock $clock): SessionIdentityHarness`, returns a harness whose `startSession(ActorId $actor)` starts a session as a login the policy allowed would, and refuses a service actor or an actor that is not active with `InvalidIdentity`. The cases cover the principal of a session, a person of the kind `Human` on behalf of no one with the ceiling `Sensitive`, a new id for each session, a session id read only in the session form, and the refusals in their order: an actor that is not active, then a generation below the actor's after a revocation or a reactivation. The testkit runs both suites against `FakeIdentity`, the core against `PostgresCredentialVerifier`, and the identity module against its session verifier. This example verifies a session on the fake. It is in the `Unit` suite:
+
+<!-- example: examples/Unit/Identity/SessionCredentialTest.php -->
+```php
+<?php
+
+declare(strict_types=1);
+
+use Cbox\Cms\Contracts\Envelope\IssuerKind as EnvelopeIssuer;
+use Cbox\Cms\Contracts\Identity\ActorClass;
+use Cbox\Cms\Contracts\Identity\ActorPrincipal;
+use Cbox\Cms\Contracts\Identity\ActorState;
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Contracts\Identity\CredentialErrorCode;
+use Cbox\Cms\Contracts\Identity\CredentialRejected;
+use Cbox\Cms\Contracts\Identity\IssuerKind;
+use Cbox\Cms\Contracts\Identity\TransportCredential;
+use Cbox\Cms\Testkit\Identity\FakeIdentity;
+
+// A person's session on the testkit's fake: it verifies to the person as the issuer kind human,
+// which a changeset records as human, a bearer token is never read as one, and it is refused once
+// the person is deactivated.
+
+it('verifies a session to the person who logged in until the person is deactivated', function (): void {
+    $identity = new FakeIdentity;
+    $editor = $identity->addActor(ActorClass::Staff);
+
+    $session = $identity->startSession($editor->id);
+    $principal = $identity->verifier()->verify($session);
+
+    expect($principal)->toBeInstanceOf(ActorPrincipal::class)
+        ->and($principal instanceof ActorPrincipal ? $principal->issuerKind : null)->toBe(IssuerKind::Human)
+        ->and(IssuerKind::Human->envelopeIssuer())->toBe(EnvelopeIssuer::Human)
+        ->and($principal->classificationCeiling())->toBe(ClassificationAccess::Sensitive);
+
+    try {
+        $identity->verifier()->verify(new TransportCredential($session->reveal()));
+        $asBearer = null;
+    } catch (CredentialRejected $rejected) {
+        $asBearer = $rejected->reason;
+    }
+
+    $identity->changeState($editor->id, ActorState::Deactivated);
+
+    try {
+        $identity->verifier()->verify($session);
+        $refused = null;
+    } catch (CredentialRejected $rejected) {
+        $refused = $rejected->reason;
+    }
+
+    expect($asBearer)->toBe(CredentialErrorCode::Malformed)
+        ->and($refused)->toBe(CredentialErrorCode::ActorNotActive);
+});
+```
 
 The example decorates a verifier and counts its refusals by reason. The decorator passes every call through:
 

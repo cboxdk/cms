@@ -26,7 +26,8 @@ final readonly class ServiceCredentialSpec
     /**
      * @param  list<ActorId>  $onBehalfOf
      *
-     * @throws InvalidIdentity when the ceiling is above what the issuer kind permits
+     * @throws InvalidIdentity when the issuer kind is human, which only a session has, or the
+     *                         ceiling is above what the issuer kind permits
      */
     public function __construct(
         public ActorId $actor,
@@ -35,6 +36,10 @@ final readonly class ServiceCredentialSpec
         public DateTimeImmutable $expiresAt,
         public array $onBehalfOf = [],
     ) {
+        if ($issuerKind === IssuerKind::Human) {
+            throw InvalidIdentity::humanServiceCredential();
+        }
+
         if (! $issuerKind->permits($ceiling)) {
             throw InvalidIdentity::ceiling($issuerKind, $ceiling);
         }

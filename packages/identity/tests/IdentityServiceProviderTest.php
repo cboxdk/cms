@@ -8,13 +8,16 @@ use Cbox\Cms\Contracts\Doctor\DoctorCheck;
 use Cbox\Cms\Core\Doctor\Domain\DoctorChecks;
 use Cbox\Cms\Core\Doctor\Domain\Dto\DoctorRunOptions;
 use Cbox\Cms\Identity\CredentialStore\Boundary\IdentityConfig;
+use Cbox\Cms\Identity\Doctor\Adapter\ConfigSessionCookieProbe;
 use Cbox\Cms\Identity\Doctor\Adapter\ConnectionCredentialStoreProbe;
 use Cbox\Cms\Identity\Doctor\Adapter\PhpPasswordHashingProbe;
 use Cbox\Cms\Identity\Doctor\Domain\Checks\Argon2idCheck;
 use Cbox\Cms\Identity\Doctor\Domain\Checks\CredentialIsolationCheck;
 use Cbox\Cms\Identity\Doctor\Domain\Checks\IdentityConnectionCheck;
+use Cbox\Cms\Identity\Doctor\Domain\Checks\SessionCookieCheck;
 use Cbox\Cms\Identity\Doctor\Domain\Probes\CredentialStoreProbe;
 use Cbox\Cms\Identity\Doctor\Domain\Probes\PasswordHashingProbe;
+use Cbox\Cms\Identity\Doctor\Domain\Probes\SessionCookieProbe;
 use Cbox\Cms\Identity\IdentityServiceProvider;
 use Illuminate\Config\Repository;
 use Illuminate\Database\Migrations\Migrator;
@@ -25,8 +28,8 @@ use Illuminate\Database\Migrations\Migrator;
  * and its classes as a scan root of cms:build.
  */
 
-it('merges cbox-cms.identity with the identity role\'s connection and the login policy', function (): void {
-    expect(config('cbox-cms.identity'))->toHaveKeys(['connection', 'policy'])
+it('merges cbox-cms.identity with the identity role\'s connection, the login policy and the session cookie', function (): void {
+    expect(config('cbox-cms.identity'))->toHaveKeys(['connection', 'policy', 'session'])
         ->and(config('cbox-cms.identity.connection'))->toBe('pgsql_identity')
         ->and(IdentityConfig::connection(app('config')))->toBe('pgsql_identity')
         ->and(IdentityConfig::connection(new Repository(['cbox-cms' => ['identity' => ['connection' => 7]]])))->toBeNull();
@@ -36,15 +39,16 @@ it('loads the migrations of the credential store', function (): void {
     expect(array_map(realpath(...), app(Migrator::class)->paths()))->toContain(realpath(__DIR__.'/../database/migrations'));
 });
 
-it('adds its three checks to cms:doctor in front of the ones the application names, and runs them after the core\'s', function (): void {
+it('adds its four checks to cms:doctor in front of the ones the application names, and runs them after the core\'s', function (): void {
     $ids = array_map(static fn (DoctorCheck $check): string => $check->id()->value, app(DoctorChecks::class)->for(new DoctorRunOptions(dev: false)));
 
     expect(config('cbox-cms.doctor.checks'))->toBe(IdentityServiceProvider::DOCTOR_CHECKS)
-        ->and(IdentityServiceProvider::DOCTOR_CHECKS)->toBe([IdentityConnectionCheck::class, CredentialIsolationCheck::class, Argon2idCheck::class])
-        ->and(array_slice($ids, -3))->toBe([IdentityConnectionCheck::ID, CredentialIsolationCheck::ID, Argon2idCheck::ID])
+        ->and(IdentityServiceProvider::DOCTOR_CHECKS)->toBe([IdentityConnectionCheck::class, CredentialIsolationCheck::class, Argon2idCheck::class, SessionCookieCheck::class])
+        ->and(array_slice($ids, -4))->toBe([IdentityConnectionCheck::ID, CredentialIsolationCheck::ID, Argon2idCheck::ID, SessionCookieCheck::ID])
         ->and($ids)->toContain('postgres.reachable')
         ->and(app(CredentialStoreProbe::class))->toBeInstanceOf(ConnectionCredentialStoreProbe::class)
-        ->and(app(PasswordHashingProbe::class))->toBeInstanceOf(PhpPasswordHashingProbe::class);
+        ->and(app(PasswordHashingProbe::class))->toBeInstanceOf(PhpPasswordHashingProbe::class)
+        ->and(app(SessionCookieProbe::class))->toBeInstanceOf(ConfigSessionCookieProbe::class);
 });
 
 it('keeps the checks an application adds after its own, each once, and leaves a setting that is not a list to the doctor', function (): void {

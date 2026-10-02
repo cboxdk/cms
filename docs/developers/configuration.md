@@ -153,7 +153,7 @@ The delivery API's `GET /v1/resolve` reads `cbox-cms.delivery` (PRD 8.10, 8.12);
 | `cbox-cms.doctor.vendor_manifest` | `null` | The file the registry cache must not be older than. `null` is `vendor/composer/installed.json` below the base path. |
 | `cbox-cms.doctor.project_path` | `null` | Where `--dev` looks for `node_modules`. `null` is the base path. |
 | `cbox-cms.doctor.node_minimum` | `22.13.0` | The oldest Node `dev.node` accepts. |
-| `cbox-cms.doctor.checks` | `[]` | Classes of checks to run after the core's runtime checks, in this order. See [Doctor checks](../addons/doctor-checks.md#adding-a-check). The identity module puts its three checks, `identity.connection`, `identity.credential_isolation` and `identity.argon2id`, in front of the ones the application names. |
+| `cbox-cms.doctor.checks` | `[]` | Classes of checks to run after the core's runtime checks, in this order. See [Doctor checks](../addons/doctor-checks.md#adding-a-check). The identity module puts its four checks, `identity.connection`, `identity.credential_isolation`, `identity.argon2id` and `identity.session_cookie`, in front of the ones the application names. |
 | `cbox-cms.doctor.dev_checks` | `[]` | Classes of checks to run with `--dev`, after the core's development checks, in this order. |
 
 The maintenance process declares itself with the environment variable `CBOX_CMS_MAINTENANCE_PROCESS=true`, never with a setting, because the processes may share their configuration. See [cms:doctor](doctor.md#processes-web-queue-and-maintenance).
@@ -194,6 +194,15 @@ An invalid doctor setting makes `cms:doctor` run the single check `doctor.config
 | `cbox-cms.identity.policy.end_user.federated_acr` | `[]` | acr values of which a federated login of end users may show one instead of an amr value. |
 | `cbox-cms.identity.policy.end_user.inactivity_minutes` | `43200` (30 days) | Minutes without a request after which a session of end users ends. |
 | `cbox-cms.identity.policy.end_user.absolute_minutes` | `129600` (90 days) | Minutes after the login after which a session of end users ends, whatever happens; at least `inactivity_minutes`. |
+| `cbox-cms.identity.session.cookie.production.name` | `__Host-cms_session` | The name of the session cookie in production, and in every environment the map does not name. Outside local and testing it must start with `__Host-`, or a process that serves HTTP refuses to boot ([`session_cookie_insecure`](../reference/errors.md#session_cookie_insecure)). See [Sessions](../security/sessions.md). |
+| `cbox-cms.identity.session.cookie.production.secure` | `true` | Whether the session cookie in production is Secure. Outside local and testing it must be. |
+| `cbox-cms.identity.session.cookie.production.same_site` | `lax` | The SameSite of the session cookie in production: `lax`, `strict` or `none`. Outside local and testing it must not be `none`. |
+| `cbox-cms.identity.session.cookie.local.name` | `cms_session` | The name of the session cookie in the environment `local`, which the workbench serves over plain HTTP. |
+| `cbox-cms.identity.session.cookie.local.secure` | `false` | Whether the session cookie in `local` is Secure. |
+| `cbox-cms.identity.session.cookie.local.same_site` | `lax` | The SameSite of the session cookie in `local`. |
+| `cbox-cms.identity.session.cookie.testing.name` | `cms_session` | The name of the session cookie in the environment `testing`, which the browser tests serve over plain HTTP. |
+| `cbox-cms.identity.session.cookie.testing.secure` | `false` | Whether the session cookie in `testing` is Secure. |
+| `cbox-cms.identity.session.cookie.testing.same_site` | `lax` | The SameSite of the session cookie in `testing`. |
 
 The login policy is read the first time a login asks it; a policy out of form throws `InvalidLoginPolicy` with [`login_policy_invalid`](../reference/errors.md#login_policy_invalid), naming the key.
 

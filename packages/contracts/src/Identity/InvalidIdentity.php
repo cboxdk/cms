@@ -70,6 +70,28 @@ final class InvalidIdentity extends InvalidArgumentException
         return new self(sprintf('No actor has the id %s.', $actor->toString()));
     }
 
+    public static function sessionSecret(int $length): self
+    {
+        return new self(sprintf(
+            'The secret of a session id is %d random bytes, got %d.',
+            SessionToken::SECRET_BYTES,
+            $length,
+        ));
+    }
+
+    public static function humanServiceCredential(): self
+    {
+        return new self('A service credential is issued for an agent or a service; a person gets a session, the only credential of the issuer kind human (PRD 5.16).');
+    }
+
+    public static function serviceActorSession(ActorId $actor): self
+    {
+        return new self(sprintf(
+            'A session is issued only for a person who logged in, but %s is of the class service, which never logs in (PRD 5.16).',
+            $actor->toString(),
+        ));
+    }
+
     public static function notServiceActor(ActorId $actor, ActorClass $class): self
     {
         return new self(sprintf(

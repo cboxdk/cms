@@ -20,6 +20,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`breached_passwords_unavailable`](#breached_passwords_unavailable) | 503 | 75 | internal_error | yes |
 | [`credential_expired`](#credential_expired) | 401 | 77 | tool_error | no |
 | [`credential_malformed`](#credential_malformed) | 401 | 77 | tool_error | no |
+| [`credential_not_allowed`](#credential_not_allowed) | 401 | 77 | tool_error | no |
 | [`credential_revoked`](#credential_revoked) | 401 | 77 | tool_error | no |
 | [`credential_unknown`](#credential_unknown) | 401 | 77 | tool_error | no |
 | [`doctor_app_role_bypassrls`](#doctor_app_role_bypassrls) | 500 | 78 | internal_error | no |
@@ -62,6 +63,8 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`doctor_registry_cache_missing`](#doctor_registry_cache_missing) | 500 | 78 | internal_error | no |
 | [`doctor_registry_cache_stale`](#doctor_registry_cache_stale) | 500 | 78 | internal_error | no |
 | [`doctor_row_security_not_forced`](#doctor_row_security_not_forced) | 500 | 78 | internal_error | no |
+| [`doctor_session_cookie_insecure`](#doctor_session_cookie_insecure) | 500 | 78 | internal_error | no |
+| [`doctor_session_cookie_invalid`](#doctor_session_cookie_invalid) | 500 | 78 | internal_error | no |
 | [`doctor_snapshot_held`](#doctor_snapshot_held) | 503 | 79 | internal_error | no |
 | [`doctor_transaction_timeout_missing`](#doctor_transaction_timeout_missing) | 500 | 78 | internal_error | no |
 | [`doctor_valkey_refused`](#doctor_valkey_refused) | 500 | 78 | internal_error | no |
@@ -171,6 +174,8 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`scim_resource_not_found`](#scim_resource_not_found) | 404 | 65 | tool_error | no |
 | [`scim_uniqueness`](#scim_uniqueness) | 409 | 65 | tool_error | no |
 | [`scim_version_mismatch`](#scim_version_mismatch) | 412 | 65 | tool_error | no |
+| [`session_cookie_insecure`](#session_cookie_insecure) | 500 | 78 | internal_error | no |
+| [`session_cookie_invalid`](#session_cookie_invalid) | 500 | 78 | internal_error | no |
 | [`signal_audience_mismatch`](#signal_audience_mismatch) | 400 | 65 | tool_error | no |
 | [`signal_event_unsupported`](#signal_event_unsupported) | 400 | 65 | tool_error | no |
 | [`signal_expired`](#signal_expired) | 400 | 65 | tool_error | no |
@@ -255,6 +260,15 @@ The credential's expiry has passed, so it was refused and nothing was read or co
 ### credential_malformed
 
 The credential is not in the form of a credential, or its checksum does not match, so it was refused without a lookup (PRD 5.16). Check that the whole token was sent, without spaces or a missing part.
+
+- HTTP status: 401 Unauthorized
+- CLI exit code: 77 (EX_NOPERM)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### credential_not_allowed
+
+The session was refused because the login policy of this environment no longer allows how it was obtained: its actor class, its login connection or its login method is no longer allowed, or local login was switched off (PRD 5.16). Nothing was read or committed. Log in again through a way the policy allows.
 
 - HTTP status: 401 Unauthorized
 - CLI exit code: 77 (EX_NOPERM)
@@ -633,6 +647,24 @@ The registry cache is older than Composer's last change to vendor/, so it may mi
 ### doctor_row_security_not_forced
 
 A table has row level security enabled but not forced, so its policies do not hold for the table's owner (PRD 4.2). Run ALTER TABLE <table> FORCE ROW LEVEL SECURITY as the owner role, then run cms:doctor again.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 78 (EX_CONFIG)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### doctor_session_cookie_insecure
+
+The session cookie of this environment is not safe for an environment other than local and testing (PRD 5.16): it is not Secure, its name lacks the __Host- prefix, or it allows SameSite=None. The web processes refuse to boot with it. Set cbox-cms.identity.session.cookie for the environment to the name __Host-cms_session with secure true and same_site lax or strict, or remove the entry so the default applies, then run cms:doctor again.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 78 (EX_CONFIG)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### doctor_session_cookie_invalid
+
+The setting cbox-cms.identity.session.cookie is invalid for this environment, so no session cookie can be set: a name that is not a cookie token, a __Host- name without secure, a same_site other than lax, strict or none, or a value of the wrong type (PRD 5.16). Correct the key the cause names, then run cms:doctor again.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 78 (EX_CONFIG)
@@ -1618,6 +1650,24 @@ The SCIM call was refused: its If-Match names another version than the resource'
 - HTTP status: 412 Precondition Failed
 - CLI exit code: 65 (EX_DATAERR)
 - MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### session_cookie_insecure
+
+The identity module refused to boot a process that serves HTTP, because the session cookie of this environment is not safe outside local and testing (PRD 5.16): it is not Secure, its name lacks the __Host- prefix, or it allows SameSite=None. Run cms:doctor, whose identity.session_cookie says which, and set cbox-cms.identity.session.cookie for the environment to __Host-cms_session with secure true.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 78 (EX_CONFIG)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### session_cookie_invalid
+
+The setting cbox-cms.identity.session.cookie is invalid for this environment, so the identity module cannot set a session cookie (PRD 5.16). Correct the key the message names; cms:doctor's identity.session_cookie says the same.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 78 (EX_CONFIG)
+- MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
 ### signal_audience_mismatch

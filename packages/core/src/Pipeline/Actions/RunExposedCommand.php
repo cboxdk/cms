@@ -7,7 +7,6 @@ namespace Cbox\Cms\Core\Pipeline\Actions;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
 use Cbox\Cms\Contracts\Envelope\CorrelationId;
-use Cbox\Cms\Contracts\Envelope\IssuerKind as EnvelopeIssuer;
 use Cbox\Cms\Contracts\Envelope\IssuingSurface;
 use Cbox\Cms\Contracts\Envelope\RequestEnvelope;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
@@ -44,7 +43,8 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\ExposedCall;
  *    codec refuses rejects the call with json_malformed or json_invalid at the path of the value,
  *    relative to the command's document.
  * 6. The Envelope is built from the caller's fields with the surface, the actor, the issuer kind of
- *    the credential (an agent's as agent, a service's as system) and the caller's correlation id,
+ *    the credential (IssuerKind::envelopeIssuer(): a person's session as human, an agent's
+ *    credential as agent, a service's as system) and the caller's correlation id,
  *    or one from the IdGenerator when the caller sent none, and the command pipeline runs the call.
  *
  * A call rejected here commits nothing and claims no idempotency key; its receipt is rejected at
@@ -99,7 +99,7 @@ final readonly class RunExposedCommand
             provenance: $request->provenance,
         )->envelope(
             IssuingSurface::of($call->surface),
-            $principal->issuerKind === IssuerKind::Agent ? EnvelopeIssuer::Agent : EnvelopeIssuer::System,
+            $principal->issuerKind->envelopeIssuer(),
             $principal->actor,
             new CorrelationId($this->ids->next()->value),
         );

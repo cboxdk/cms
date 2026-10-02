@@ -28,4 +28,10 @@ enum CredentialErrorCode: string
 
     /** Its generation is lower than its actor's: it was revoked with everything else the actor held. */
     case Revoked = 'credential_revoked';
+
+    /**
+     * A session the login policy no longer allows: its actor class, its connection or its login
+     * method is no longer allowed, or local login was switched off (PRD 5.16, "Loginpolitik").
+     */
+    case NotAllowed = 'credential_not_allowed';
 }

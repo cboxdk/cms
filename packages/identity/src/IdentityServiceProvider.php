@@ -7,27 +7,44 @@ namespace Cbox\Cms\Identity;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Build\DeclaresScanRoots;
 use Cbox\Cms\Contracts\Build\ScanRoot;
+use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\Doctor\DoctorCheck;
+use Cbox\Cms\Contracts\Identity\ActorDirectory;
 use Cbox\Cms\Contracts\Identity\BreachedPasswords;
+use Cbox\Cms\Contracts\Identity\CredentialVerifier;
 use Cbox\Cms\Core\Bindings\Boundary\ContractBindings;
 use Cbox\Cms\Core\Doctor\Adapter\DoctorConnection;
 use Cbox\Cms\Core\Doctor\Boundary\DoctorConfig;
 use Cbox\Cms\Core\Doctor\Domain\Dto\DoctorSettings;
+use Cbox\Cms\Core\Process\Boundary\ProcessWorkload;
+use Cbox\Cms\Core\Process\Domain\Workload;
 use Cbox\Cms\Identity\BreachedPasswords\Adapter\HibpBreachedPasswords;
 use Cbox\Cms\Identity\CredentialStore\Boundary\IdentityConfig;
+use Cbox\Cms\Identity\Doctor\Adapter\ConfigSessionCookieProbe;
 use Cbox\Cms\Identity\Doctor\Adapter\ConnectionCredentialStoreProbe;
 use Cbox\Cms\Identity\Doctor\Adapter\PhpPasswordHashingProbe;
 use Cbox\Cms\Identity\Doctor\Domain\Checks\Argon2idCheck;
 use Cbox\Cms\Identity\Doctor\Domain\Checks\CredentialIsolationCheck;
 use Cbox\Cms\Identity\Doctor\Domain\Checks\IdentityConnectionCheck;
+use Cbox\Cms\Identity\Doctor\Domain\Checks\SessionCookieCheck;
 use Cbox\Cms\Identity\Doctor\Domain\Probes\CredentialStoreProbe;
 use Cbox\Cms\Identity\Doctor\Domain\Probes\PasswordHashingProbe;
+use Cbox\Cms\Identity\Doctor\Domain\Probes\SessionCookieProbe;
 use Cbox\Cms\Identity\LoginPolicy\Adapter\PostgresIdpLinks;
 use Cbox\Cms\Identity\LoginPolicy\Boundary\LoginPolicyConfig;
 use Cbox\Cms\Identity\LoginPolicy\Domain\Dto\LoginPolicy;
 use Cbox\Cms\Identity\LoginPolicy\Domain\IdpLinks;
+use Cbox\Cms\Identity\Sessions\Adapter\SessionCredentialVerifier;
+use Cbox\Cms\Identity\Sessions\Adapter\ValkeySessionStore;
+use Cbox\Cms\Identity\Sessions\Boundary\SessionCookieConfig;
+use Cbox\Cms\Identity\Sessions\Domain\Dto\SessionCookie;
+use Cbox\Cms\Identity\Sessions\Domain\InsecureSessionCookie;
+use Cbox\Cms\Identity\Sessions\Domain\InvalidSessionCookie;
+use Cbox\Cms\Identity\Sessions\Domain\SessionCounters;
+use Cbox\Cms\Identity\Sessions\Domain\SessionStore;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Contracts\Redis\Factory;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Support\ServiceProvider;
 use Override;
@@ -40,11 +57,15 @@ use Override;
  * Merges `cbox-cms.identity` and loads the migrations of the credential store, which run as the
  * owner role. Adds its checks to cms:doctor as an application adds its own, in front of those
  * `cbox-cms.doctor.checks` names: identity.connection, identity.credential_isolation and
- * identity.argon2id, with their probes. Binds the login policy of `cbox-cms.identity.policy`, read
- * when it is first asked for, and the IdP links it reads (PRD 5.16, invariant 38). Binds
- * BreachedPasswords to the class `cbox-cms.contracts` names for it, HibpBreachedPasswords unless
- * the application names another. Declares the module's classes as a scan root for cms:build
- * (PRD 13.2).
+ * identity.argon2id and identity.session_cookie, with their probes. Binds the login policy of
+ * `cbox-cms.identity.policy`, read when it is first asked for, and the IdP links it reads (PRD
+ * 5.16, invariant 38). Binds BreachedPasswords to the class `cbox-cms.contracts` names for it,
+ * HibpBreachedPasswords unless the application names another. Binds the session cookie of the
+ * environment, the session store in Valkey, and puts the session verifier in front of the bound
+ * CredentialVerifier with the container's extend(), so a session is a credential of every surface
+ * and the core never names this module. Refuses to boot a process that serves HTTP when the
+ * session cookie of its environment is invalid or not safe there (PRD 5.16). Declares the module's
+ * classes as a scan root for cms:build (PRD 13.2).
  */
 #[Internal]
 final class IdentityServiceProvider extends ServiceProvider implements DeclaresScanRoots
@@ -56,7 +77,7 @@ final class IdentityServiceProvider extends ServiceProvider implements DeclaresS
      *
      * @var list<class-string<DoctorCheck>>
      */
-    public const array DOCTOR_CHECKS = [IdentityConnectionCheck::class, CredentialIsolationCheck::class, Argon2idCheck::class];
+    public const array DOCTOR_CHECKS = [IdentityConnectionCheck::class, CredentialIsolationCheck::class, Argon2idCheck::class, SessionCookieCheck::class];
 
     #[Override]
     public function register(): void
@@ -92,6 +113,20 @@ final class IdentityServiceProvider extends ServiceProvider implements DeclaresS
         );
 
         $this->app->bind(PasswordHashingProbe::class, PhpPasswordHashingProbe::class);
+        $this->app->bind(SessionCookieProbe::class, ConfigSessionCookieProbe::class);
+        $this->app->singleton(SessionCookie::class, static fn (Application $app): SessionCookie => SessionCookieConfig::read($app->make(Repository::class), $app->environment()));
+        $this->app->singleton(SessionStore::class, static fn (Application $app): SessionStore => new ValkeySessionStore(
+            $app->make(Factory::class),
+            $app->make(Clock::class),
+        ));
+        $this->app->extend(CredentialVerifier::class, static fn (CredentialVerifier $verifier, Application $app): CredentialVerifier => new SessionCredentialVerifier(
+            $verifier,
+            $app->make(SessionStore::class),
+            $app->make(ActorDirectory::class),
+            $app->make(LoginPolicy::class),
+            $app->make(Clock::class),
+            $app->make(SessionCounters::class),
+        ));
         $this->app->bind(
             static function (Application $app): CredentialStoreProbe {
                 $connection = IdentityConfig::connection($app->make(Repository::class));
@@ -110,9 +145,37 @@ final class IdentityServiceProvider extends ServiceProvider implements DeclaresS
         );
     }
 
+    /**
+     * @throws InvalidSessionCookie when a process that serves HTTP has no valid session cookie
+     * @throws InsecureSessionCookie when a process that serves HTTP has a session cookie that is not safe in its environment
+     */
     public function boot(): void
     {
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
+        $this->refuseAnUnsafeSessionCookie();
+    }
+
+    /**
+     * The session cookie is the credential of a person (PRD 5.16). A process that serves HTTP
+     * stops here, before it sets one, when the cookie of its environment is invalid or, outside
+     * local and testing, not Secure, not named with the __Host- prefix or SameSite=None. Console
+     * processes boot, so cms:doctor can say why with identity.session_cookie.
+     *
+     * @throws InvalidSessionCookie
+     * @throws InsecureSessionCookie
+     */
+    private function refuseAnUnsafeSessionCookie(): void
+    {
+        if (ProcessWorkload::of($this->app) !== Workload::Http) {
+            return;
+        }
+
+        $environment = $this->app->environment();
+        $cookie = $this->app->make(SessionCookie::class);
+
+        if (! $cookie->safeIn($environment)) {
+            throw InsecureSessionCookie::in($environment, $cookie);
+        }
     }
 
     public function scanRoots(): array

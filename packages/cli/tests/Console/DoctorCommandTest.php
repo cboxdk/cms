@@ -124,7 +124,7 @@ it('prints the JSON document and nothing else with --json', function (): void {
         ->and($document['dev'])->toBeFalse()
         ->and($document['status'])->toBe('ok')
         ->and($document['exit_code'])->toBe(0)
-        ->and(checkStatuses($document))->toHaveCount(23)
+        ->and(checkStatuses($document))->toHaveCount(24)
         ->and(array_keys(checkOf($document, 'php.version')))->toBe(['blocking', 'cause', 'code', 'explanation', 'failure', 'fix', 'id', 'status']);
 });
 

@@ -19,7 +19,13 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
  * 2. no credential has it (credential_unknown);
  * 3. its expiry is not after the Clock's time (credential_expired);
  * 4. its actor, or any actor in its on-behalf-of chain, is not active (actor_not_active);
- * 5. its generation is lower than its actor's (credential_revoked).
+ * 5. its generation is lower than its actor's (credential_revoked);
+ * 6. for a session, the login policy no longer allows how it was obtained (credential_not_allowed).
+ *
+ * A bearer token is a ServiceCredentialToken, and the session form a SessionToken; each form is read
+ * only as itself. A session verifies to an ActorPrincipal of issuer kind Human, decided through
+ * IssuedSession::principal(). A verifier that holds no sessions refuses a well-formed session id as
+ * credential_unknown, as it would any credential it does not have.
  *
  * A verifier reads the current state from the primary, so a deactivation or a revocation that
  * committed is seen by the next verification.

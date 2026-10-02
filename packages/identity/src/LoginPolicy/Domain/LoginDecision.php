@@ -17,6 +17,7 @@ use Cbox\Cms\Identity\LoginPolicy\Domain\Dto\ClassPolicy;
 use Cbox\Cms\Identity\LoginPolicy\Domain\Dto\LoginAttempt;
 use Cbox\Cms\Identity\LoginPolicy\Domain\Dto\LoginPolicy;
 use Cbox\Cms\Identity\LoginPolicy\Domain\Dto\SessionLifetimes;
+use Cbox\Cms\Identity\Sessions\Domain\IdpSessionId;
 use DateTimeImmutable;
 
 /**
@@ -26,8 +27,9 @@ use DateTimeImmutable;
  * packages/identity/tests/Phpstan).
  *
  * The decision carries what the session stores: the actor, its class and its credential
- * generation, the connection, the login method, when the person authenticated, and the session's
- * lifetimes from the policy of the actor's class.
+ * generation, the connection, the login method, when the person authenticated, the identity
+ * provider's session id of the login or null, and the session's lifetimes from the policy of the
+ * actor's class.
  */
 #[Internal]
 final readonly class LoginDecision
@@ -40,6 +42,7 @@ final readonly class LoginDecision
         public LoginMethod $method,
         public DateTimeImmutable $authTime,
         public SessionLifetimes $lifetimes,
+        public ?IdpSessionId $idpSession = null,
     ) {}
 
     /**
@@ -107,6 +110,7 @@ final readonly class LoginDecision
             $attempt->method,
             $attempt->assertion->authTime,
             $class->lifetimes,
+            $attempt->idpSession,
         );
     }
 

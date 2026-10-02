@@ -15,6 +15,7 @@ export type ErrorCode =
   | 'breached_passwords_unavailable'
   | 'credential_expired'
   | 'credential_malformed'
+  | 'credential_not_allowed'
   | 'credential_revoked'
   | 'credential_unknown'
   | 'doctor_app_role_bypassrls'
@@ -57,6 +58,8 @@ export type ErrorCode =
   | 'doctor_registry_cache_missing'
   | 'doctor_registry_cache_stale'
   | 'doctor_row_security_not_forced'
+  | 'doctor_session_cookie_insecure'
+  | 'doctor_session_cookie_invalid'
   | 'doctor_snapshot_held'
   | 'doctor_transaction_timeout_missing'
   | 'doctor_valkey_refused'
@@ -166,6 +169,8 @@ export type ErrorCode =
   | 'scim_resource_not_found'
   | 'scim_uniqueness'
   | 'scim_version_mismatch'
+  | 'session_cookie_insecure'
+  | 'session_cookie_invalid'
   | 'signal_audience_mismatch'
   | 'signal_event_unsupported'
   | 'signal_expired'
@@ -269,6 +274,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'breached_passwords_unavailable',
           'credential_expired',
           'credential_malformed',
+          'credential_not_allowed',
           'credential_revoked',
           'credential_unknown',
           'doctor_app_role_bypassrls',
@@ -311,6 +317,8 @@ const catalogErrorV1Rule: ObjectRule = {
           'doctor_registry_cache_missing',
           'doctor_registry_cache_stale',
           'doctor_row_security_not_forced',
+          'doctor_session_cookie_insecure',
+          'doctor_session_cookie_invalid',
           'doctor_snapshot_held',
           'doctor_transaction_timeout_missing',
           'doctor_valkey_refused',
@@ -420,6 +428,8 @@ const catalogErrorV1Rule: ObjectRule = {
           'scim_resource_not_found',
           'scim_uniqueness',
           'scim_version_mismatch',
+          'session_cookie_insecure',
+          'session_cookie_invalid',
           'signal_audience_mismatch',
           'signal_event_unsupported',
           'signal_expired',
@@ -487,6 +497,7 @@ const problemV1Rule: ObjectRule = {
           'breached_passwords_unavailable',
           'credential_expired',
           'credential_malformed',
+          'credential_not_allowed',
           'credential_revoked',
           'credential_unknown',
           'doctor_app_role_bypassrls',
@@ -529,6 +540,8 @@ const problemV1Rule: ObjectRule = {
           'doctor_registry_cache_missing',
           'doctor_registry_cache_stale',
           'doctor_row_security_not_forced',
+          'doctor_session_cookie_insecure',
+          'doctor_session_cookie_invalid',
           'doctor_snapshot_held',
           'doctor_transaction_timeout_missing',
           'doctor_valkey_refused',
@@ -638,6 +651,8 @@ const problemV1Rule: ObjectRule = {
           'scim_resource_not_found',
           'scim_uniqueness',
           'scim_version_mismatch',
+          'session_cookie_insecure',
+          'session_cookie_invalid',
           'signal_audience_mismatch',
           'signal_event_unsupported',
           'signal_expired',

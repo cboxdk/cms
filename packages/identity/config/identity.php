@@ -16,6 +16,21 @@ return [
     // database as the default connection, with the identity role's username and password.
     'connection' => 'pgsql_identity',
 
+    'session' => [
+        // The cookie that carries the session id (PRD 5.16, docs/security/sessions.md), per
+        // environment. An environment without an entry takes the entry of `production`. The cookie
+        // is always HttpOnly, with path / and no Domain. Outside local and testing it must be
+        // Secure, named with the __Host- prefix and not SameSite=None: a process that serves HTTP
+        // refuses to boot otherwise, and cms:doctor's identity.session_cookie says why. Local and
+        // testing go without Secure and the prefix, because the workbench and the browser tests
+        // serve plain HTTP on 127.0.0.1.
+        'cookie' => [
+            'production' => ['name' => '__Host-cms_session', 'secure' => true, 'same_site' => 'lax'],
+            'local' => ['name' => 'cms_session', 'secure' => false, 'same_site' => 'lax'],
+            'testing' => ['name' => 'cms_session', 'secure' => false, 'same_site' => 'lax'],
+        ],
+    ],
+
     // The login policy of this environment (PRD 5.16, docs/security/login-policy.md), per actor
     // class: every login path asks it, and a session is issued only with its decision. A service
     // actor never logs in and has no policy. `connections` and `methods` map a name to whether the

@@ -9,10 +9,12 @@ use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\Identity\Actor;
 use Cbox\Cms\Contracts\Identity\AnonymousPrincipal;
 use Cbox\Cms\Contracts\Identity\CredentialErrorCode;
+use Cbox\Cms\Contracts\Identity\CredentialForm;
 use Cbox\Cms\Contracts\Identity\CredentialRejected;
 use Cbox\Cms\Contracts\Identity\CredentialVerifier;
 use Cbox\Cms\Contracts\Identity\Principal;
 use Cbox\Cms\Contracts\Identity\ServiceCredentialToken;
+use Cbox\Cms\Contracts\Identity\SessionToken;
 use Cbox\Cms\Contracts\Identity\TransportCredential;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Illuminate\Database\ConnectionInterface;
@@ -22,7 +24,9 @@ use Illuminate\Database\ConnectionResolverInterface;
  * The credential verifier on Postgres (PRD 5.16, 6.2), as the app role.
  *
  * A token is parsed first: one that is not in the form of ServiceCredentialToken, or whose checksum
- * does not match, is refused before any statement runs. Then it reads the credential by the
+ * does not match, is refused before any statement runs. It holds no sessions: a session id in the
+ * form of SessionToken is credential_unknown here, and the identity module decorates the bound
+ * verifier with the one that holds them. Then it reads the credential by the
  * SHA-256 of the token together with its actor, and the actors of its on-behalf-of chain in order,
  * both through the lookup functions `cms_identity_credential`, `cms_identity_delegations` and
  * `cms_identity_actor` on the write PDO, so a read host that lags never hides a deactivation or a
@@ -57,6 +61,14 @@ final readonly class PostgresCredentialVerifier implements CredentialVerifier
     {
         if (! $credential instanceof TransportCredential) {
             return new AnonymousPrincipal;
+        }
+
+        if ($credential->form === CredentialForm::Session) {
+            // The core holds no sessions: the identity module decorates this verifier with the
+            // session store. A session id in its form is one this verifier does not have.
+            SessionToken::parse($credential);
+
+            throw CredentialRejected::because(CredentialErrorCode::Unknown);
         }
 
         $token = ServiceCredentialToken::parse($credential);

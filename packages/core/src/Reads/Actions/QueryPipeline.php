@@ -61,8 +61,10 @@ use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
  *    through the ReadAudit in the same transaction, with the read's position, so the audit commits
  *    with the answer.
  * 8. Content keys and position. The answer carries the content keys of the entries, `e-{entry}` and
- *    `n-{node}` (PRD 9.4), the read's position, the xmin of its snapshot (PRD 8.4), and the
- *    context's classification access, which a surface encodes the result with.
+ *    `n-{node}` (PRD 9.4), the read's position, the xmin of its snapshot (PRD 8.4), the
+ *    context's classification access, which a surface encodes the result with, and the issuer
+ *    kind of the principal as a changeset records it: a person's session as human, an agent's
+ *    credential as agent and a service's as system (IssuerKind::envelopeIssuer()).
  *
  * Every call gets a span named after its query and the metrics for its duration and its errors
  * through PipelineTelemetry, which runs the call, its transaction included (GUARDRAILS 5).
@@ -139,7 +141,13 @@ final readonly class QueryPipeline
         $position = $this->transaction->position();
         $this->audit($principal, $binding, $contents, $position);
 
-        return QueryResult::answered($result, $this->contentKeys($contents), $position, $access->classificationAccess);
+        return QueryResult::answered(
+            $result,
+            $this->contentKeys($contents),
+            $position,
+            $access->classificationAccess,
+            $principal instanceof ActorPrincipal ? $principal->issuerKind->envelopeIssuer() : null,
+        );
     }
 
     /**

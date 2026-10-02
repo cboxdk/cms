@@ -7,6 +7,7 @@ namespace Cbox\Cms\Contracts\Results;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Cache\DependencyKey;
 use Cbox\Cms\Contracts\Consistency\CommitPosition;
+use Cbox\Cms\Contracts\Envelope\IssuerKind;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Pipeline\Result;
 
@@ -17,7 +18,9 @@ use Cbox\Cms\Contracts\Pipeline\Result;
  *   removed, and that classification access, which a surface encodes the result with, so a field
  *   above it never leaves the server even when the result reads no content; the content keys of the entries it read, `e-{entry}` and `n-{node}` (PRD 9.4), each
  *   once and sorted; and the read's position, the xmin of its snapshot (PRD 8.4, 8.12): it saw
- *   every changeset whose position is below it.
+ *   every changeset whose position is below it; and the issuer kind of its principal as a
+ *   changeset would record it (Identity\IssuerKind::envelopeIssuer()), or null for the anonymous
+ *   principal.
  * - rejected: at least one catalog error, and nothing else. Nothing was read; its classification
  *   access is public.
  *
@@ -39,6 +42,7 @@ final readonly class QueryResult
         public ?CommitPosition $position,
         public array $errors,
         public ClassificationAccess $access,
+        public ?IssuerKind $issuer = null,
     ) {
         $byKey = [];
 
@@ -53,10 +57,11 @@ final readonly class QueryResult
     /**
      * @param  list<DependencyKey>  $contentKeys
      * @param  ClassificationAccess  $access  the classification access of the read's principal
+     * @param  IssuerKind|null  $issuer  the issuer kind of the read's principal, null for the anonymous principal
      */
-    public static function answered(Result $result, array $contentKeys, CommitPosition $position, ClassificationAccess $access = ClassificationAccess::Public): self
+    public static function answered(Result $result, array $contentKeys, CommitPosition $position, ClassificationAccess $access = ClassificationAccess::Public, ?IssuerKind $issuer = null): self
     {
-        return new self($result, $contentKeys, $position, [], $access);
+        return new self($result, $contentKeys, $position, [], $access, $issuer);
     }
 
     public static function rejected(CatalogError $error, CatalogError ...$more): self

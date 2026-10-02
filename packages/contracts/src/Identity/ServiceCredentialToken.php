@@ -43,8 +43,9 @@ final readonly class ServiceCredentialToken
     }
 
     /**
-     * Reads a token from the transport. Anything that is not in the form, or whose checksum does
-     * not match, is refused with credential_malformed before any lookup.
+     * Reads a token from the transport. A credential not in the bearer form, anything that is not
+     * in the form of a token, and a token whose checksum does not match are refused with
+     * credential_malformed before any lookup.
      *
      * @throws CredentialRejected
      */
@@ -52,7 +53,8 @@ final readonly class ServiceCredentialToken
     {
         $value = $credential->reveal();
 
-        if (preg_match(self::PATTERN, $value, $parts) !== 1
+        if ($credential->form !== CredentialForm::Bearer
+            || preg_match(self::PATTERN, $value, $parts) !== 1
             || ! hash_equals(self::checksum(self::PREFIX.$parts[1]), $parts[2])) {
             throw CredentialRejected::because(CredentialErrorCode::Malformed);
         }

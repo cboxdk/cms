@@ -27,6 +27,7 @@ final class CredentialRejected extends RuntimeException
             CredentialErrorCode::Expired => 'it has expired',
             CredentialErrorCode::ActorNotActive => 'its actor, or an actor it acts on behalf of, is not active',
             CredentialErrorCode::Revoked => 'it was revoked when its actor\'s credential generation was counted up',
+            CredentialErrorCode::NotAllowed => 'the login policy no longer allows how it was obtained',
         }));
     }
 }

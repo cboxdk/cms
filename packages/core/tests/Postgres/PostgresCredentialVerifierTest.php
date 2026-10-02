@@ -44,8 +44,11 @@ function refusedAs(CredentialVerifier $verifier, TransportCredential $credential
 }
 
 it('binds the Postgres directory and verifier by default', function (): void {
+    // The identity module decorates the bound verifier with its session verifier (container
+    // extend), so the default is read from cbox-cms.contracts, the binding the decorator wraps.
     expect(app(ActorDirectory::class))->toBeInstanceOf(PostgresActorDirectory::class)
-        ->and(app(CredentialVerifier::class))->toBeInstanceOf(PostgresCredentialVerifier::class);
+        ->and(config('cbox-cms.contracts.'.CredentialVerifier::class))->toBe(PostgresCredentialVerifier::class)
+        ->and(app(CredentialVerifier::class))->toBeInstanceOf(CredentialVerifier::class);
 });
 
 it('refuses a credential after its actor\'s generation is increased', function (): void {

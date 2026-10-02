@@ -32,6 +32,7 @@ enum ErrorCode: string
     case BreachedPasswordsUnavailable = 'breached_passwords_unavailable';
     case CredentialExpired = 'credential_expired';
     case CredentialMalformed = 'credential_malformed';
+    case CredentialNotAllowed = 'credential_not_allowed';
     case CredentialRevoked = 'credential_revoked';
     case CredentialUnknown = 'credential_unknown';
     case DoctorAppRoleBypassrls = 'doctor_app_role_bypassrls';
@@ -74,6 +75,8 @@ enum ErrorCode: string
     case DoctorRegistryCacheMissing = 'doctor_registry_cache_missing';
     case DoctorRegistryCacheStale = 'doctor_registry_cache_stale';
     case DoctorRowSecurityNotForced = 'doctor_row_security_not_forced';
+    case DoctorSessionCookieInsecure = 'doctor_session_cookie_insecure';
+    case DoctorSessionCookieInvalid = 'doctor_session_cookie_invalid';
     case DoctorSnapshotHeld = 'doctor_snapshot_held';
     case DoctorTransactionTimeoutMissing = 'doctor_transaction_timeout_missing';
     case DoctorValkeyRefused = 'doctor_valkey_refused';
@@ -183,6 +186,8 @@ enum ErrorCode: string
     case ScimResourceNotFound = 'scim_resource_not_found';
     case ScimUniqueness = 'scim_uniqueness';
     case ScimVersionMismatch = 'scim_version_mismatch';
+    case SessionCookieInsecure = 'session_cookie_insecure';
+    case SessionCookieInvalid = 'session_cookie_invalid';
     case SignalAudienceMismatch = 'signal_audience_mismatch';
     case SignalEventUnsupported = 'signal_event_unsupported';
     case SignalExpired = 'signal_expired';
@@ -244,6 +249,9 @@ enum ErrorCode: string
             ),
             self::CredentialMalformed => $this->credential(
                 'The credential is not in the form of a credential, or its checksum does not match, so it was refused without a lookup (PRD 5.16). Check that the whole token was sent, without spaces or a missing part.',
+            ),
+            self::CredentialNotAllowed => $this->credential(
+                'The session was refused because the login policy of this environment no longer allows how it was obtained: its actor class, its login connection or its login method is no longer allowed, or local login was switched off (PRD 5.16). Nothing was read or committed. Log in again through a way the policy allows.',
             ),
             self::CredentialRevoked => $this->credential(
                 'The credential was revoked: its actor\'s credential generation was counted up after it was issued, by a deactivation or a revocation of everything the actor held (PRD 5.16). Nothing was read or committed. Call again with a credential issued after that.',
@@ -370,6 +378,12 @@ enum ErrorCode: string
             ),
             self::DoctorRowSecurityNotForced => $this->violation(
                 'A table has row level security enabled but not forced, so its policies do not hold for the table\'s owner (PRD 4.2). Run ALTER TABLE <table> FORCE ROW LEVEL SECURITY as the owner role, then run cms:doctor again.',
+            ),
+            self::DoctorSessionCookieInsecure => $this->violation(
+                'The session cookie of this environment is not safe for an environment other than local and testing (PRD 5.16): it is not Secure, its name lacks the __Host- prefix, or it allows SameSite=None. The web processes refuse to boot with it. Set cbox-cms.identity.session.cookie for the environment to the name __Host-cms_session with secure true and same_site lax or strict, or remove the entry so the default applies, then run cms:doctor again.',
+            ),
+            self::DoctorSessionCookieInvalid => $this->violation(
+                'The setting cbox-cms.identity.session.cookie is invalid for this environment, so no session cookie can be set: a name that is not a cookie token, a __Host- name without secure, a same_site other than lax, strict or none, or a value of the wrong type (PRD 5.16). Correct the key the cause names, then run cms:doctor again.',
             ),
             self::DoctorSnapshotHeld => $this->readiness(
                 'A session of this database has held a snapshot for longer than the command budget, so vacuum cannot remove the rows that changed after it was taken, and the tables and their indexes grow (PRD 4.2). End the transaction the cause names, and run long reads on a replica, never on the primary.',
@@ -761,6 +775,12 @@ enum ErrorCode: string
             ),
             self::RegistryUnknownSurface => $this->refusedInput(
                 'An #[Action] lists a surface that is not a case of the Surface enum. List only Surface::Rest, Surface::Inertia, Surface::Mcp and Surface::Cli.',
+            ),
+            self::SessionCookieInsecure => $this->violation(
+                'The identity module refused to boot a process that serves HTTP, because the session cookie of this environment is not safe outside local and testing (PRD 5.16): it is not Secure, its name lacks the __Host- prefix, or it allows SameSite=None. Run cms:doctor, whose identity.session_cookie says which, and set cbox-cms.identity.session.cookie for the environment to __Host-cms_session with secure true.',
+            ),
+            self::SessionCookieInvalid => $this->violation(
+                'The setting cbox-cms.identity.session.cookie is invalid for this environment, so the identity module cannot set a session cookie (PRD 5.16). Correct the key the message names; cms:doctor\'s identity.session_cookie says the same.',
             ),
             self::RequestHeaderInvalid => new ErrorEntry(
                 $this,
