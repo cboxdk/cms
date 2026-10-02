@@ -43,6 +43,9 @@ enum HttpStatus: int
     /** The request was understood, but its content is invalid. */
     case UnprocessableContent = 422;
 
+    /** The caller sent too many requests of a kind in a window, such as logins that failed (RFC 6585). */
+    case TooManyRequests = 429;
+
     /** The installation is misconfigured or broken, and the caller can do nothing about it. */
     case InternalServerError = 500;
 
@@ -65,6 +68,7 @@ enum HttpStatus: int
             self::PreconditionFailed => 'Precondition Failed',
             self::MisdirectedRequest => 'Misdirected Request',
             self::UnprocessableContent => 'Unprocessable Content',
+            self::TooManyRequests => 'Too Many Requests',
             self::InternalServerError => 'Internal Server Error',
             self::ServiceUnavailable => 'Service Unavailable',
         };

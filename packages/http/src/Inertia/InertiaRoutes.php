@@ -11,12 +11,13 @@ use Illuminate\Routing\Route;
 /**
  * The routes of the Inertia profile (GUARDRAILS 2.1), which an application registers inside the
  * route group of its panel, which gives them the web middleware, InertiaMiddleware and the panel's
- * prefix; the credential is the request's Bearer token.
+ * prefix; the credential is the session the panel authenticated, or else the request's Bearer
+ * token (RequestCredential).
  *
  * register() adds `POST <prefix>/{command}/v{version}`, such as POST commands/entry.create/v1,
- * named NAME, for every write action the registry exposes on Inertia. The body is a JSON object
- * with the envelope fields under `envelope` (envelope.v1.json) and the command's document under
- * `command`.
+ * named NAME unless the caller names it otherwise, as the panel does for its own, for every write
+ * action the registry exposes on Inertia. The body is a JSON object with the envelope fields under
+ * `envelope` (envelope.v1.json) and the command's document under `command`.
  *
  * queries() adds `GET <prefix>/{query}/v{version}`, such as GET queries/role.list/v1, named
  * QUERY_NAME, for every query action the registry exposes on Inertia: a page visit that renders the
@@ -39,11 +40,11 @@ final readonly class InertiaRoutes
     /** A version: 1 or more, without leading zeros. */
     public const string VERSION = '[1-9][0-9]{0,8}';
 
-    public static function register(Registrar $router, string $prefix = 'commands'): Route
+    public static function register(Registrar $router, string $prefix = 'commands', string $name = self::NAME): Route
     {
         return $router->post(trim($prefix, '/').'/{command}/v{version}', InertiaCommandController::class)
             ->where(['command' => self::COMMAND, 'version' => self::VERSION])
-            ->name(self::NAME);
+            ->name($name);
     }
 
     /**

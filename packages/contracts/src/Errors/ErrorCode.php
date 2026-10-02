@@ -147,6 +147,7 @@ enum ErrorCode: string
     case LoginLocalDisabled = 'login_local_disabled';
     case LoginMethodNotAllowed = 'login_method_not_allowed';
     case LoginPolicyInvalid = 'login_policy_invalid';
+    case LoginRateLimited = 'login_rate_limited';
     case LoginRejected = 'login_rejected';
     case LoginStateMismatch = 'login_state_mismatch';
     case LoginTenantClaimMissing = 'login_tenant_claim_missing';
@@ -686,6 +687,14 @@ enum ErrorCode: string
             ),
             self::LoginPolicyInvalid => $this->violation(
                 'The login policy in cbox-cms.identity.policy is invalid: a key is missing or has a value of another form, such as an unknown method, a lifetime below one minute or an inactivity timeout longer than the absolute lifetime (PRD 5.16). No login is decided while it is invalid. Correct the policy as docs/security/login-policy.md describes it.',
+            ),
+            self::LoginRateLimited => new ErrorEntry(
+                $this,
+                HttpStatus::TooManyRequests,
+                ExitCode::TempFail,
+                McpResponse::ToolError,
+                true,
+                'The login was refused before any password was checked: too many logins that did not succeed came for the same email address, or from the same IP address, within the window of cbox-cms.identity.login.throttle (PRD 5.16). No session was issued. Wait until the window has passed and log in again; the person is told to wait, never whether the account exists.',
             ),
             self::LoginRejected => $this->credential(
                 'The login was refused: the identity provider or the credential check did not accept it, such as a wrong password, an unknown account or an error the provider sent back (PRD 5.16). No session was issued. Check the credentials and log in again; the person is only told that the login failed.',

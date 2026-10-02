@@ -8,7 +8,8 @@
 import { validate, type ObjectRule, type JsonObject, type Validation } from '../validation';
 
 /** The values of HttpStatus. */
-export type HttpStatus = 200 | 400 | 401 | 403 | 404 | 409 | 410 | 412 | 421 | 422 | 500 | 503;
+export type HttpStatus =
+  200 | 400 | 401 | 403 | 404 | 409 | 410 | 412 | 421 | 422 | 429 | 500 | 503;
 
 /**
  * The body of an answer of the delivery API's GET /v1/resolve with debug=1 (PRD 8.9, GUARDRAILS 5),
@@ -90,7 +91,10 @@ const deliveryExplanationV1Rule: ObjectRule = {
     {
       key: 'status',
       presence: 'required',
-      value: { kind: 'enum', values: [200, 400, 401, 403, 404, 409, 410, 412, 421, 422, 500, 503] },
+      value: {
+        kind: 'enum',
+        values: [200, 400, 401, 403, 404, 409, 410, 412, 421, 422, 429, 500, 503],
+      },
     },
   ],
 };

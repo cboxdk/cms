@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Panel\Views;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Panel\Boundary\HandlePanelRequests;
 use Cbox\Cms\Panel\Domain\Dto\PanelBuild;
 use Cbox\Cms\Panel\Middleware\SendContentSecurityPolicy;
 use Cbox\Cms\Panel\PanelRoutes;
@@ -24,7 +25,7 @@ use Illuminate\Http\Request;
 #[Internal]
 final readonly class PanelRootView
 {
-    public const string VIEW = 'cms-panel::app';
+    public const string VIEW = HandlePanelRequests::ROOT_VIEW;
 
     public function __construct(
         private Request $request,

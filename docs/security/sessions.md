@@ -37,6 +37,23 @@ The lifetimes are those of the login policy now, so a shorter lifetime applies t
 
 The actor's state and generation are read from Postgres at each request. A deactivation or a revocation counts the generation up, so every session of the actor is refused at its next request. A copy of the actor's state in Valkey is not built yet.
 
+## Logging in with a password
+
+The panel's login form logs a member of staff in through the local connection (`LogInLocally`). The form posts the email and the password; the local connection verifies the password exactly once, against the account's hash or a dummy hash, and the login policy decides. An unknown email, a wrong password and an actor that may not log in are all refused with [`login_rejected`](../reference/errors.md#login_rejected), and the page shows one message for all of them, so it never tells whether an account exists. A login that succeeds ends the session the browser still carried, if any, and issues a new one.
+
+Logins are rate limited in Valkey before any password is checked. Every attempt is counted under the SHA-256 of the email, in lower case, and under the SHA-256 of the client's IP address, each for a window from its first attempt: by default 5 attempts per email and 50 per address in 15 minutes, set under `cbox-cms.identity.login.throttle` (see [Configuration](../developers/configuration.md#identity)). The attempt after them is refused with [`login_rate_limited`](../reference/errors.md#login_rate_limited) and adds 1 to the counter `cms.login.rate_limited` with `cms.limit`, `identifier` or `ip`. A login that succeeds clears its email's count and takes itself off its address's. Neither the throttle nor the counter holds an email or an address.
+
+## The panel and Laravel's session
+
+In the panel the CMS session is the only credential. Laravel's session, with its own cookie, carries only Inertia's flash data, the errors prop, the CSRF token and a binding: the SHA-256 of the CMS session's id, never the id. An application should keep Laravel's session in Valkey too (`SESSION_DRIVER=redis`), as the workbench's `.env.example` does.
+
+- At a login both get new ids: the CMS session is a new one, and Laravel's session is emptied and given a new id, a new CSRF token and the binding to it.
+- At every other panel request the CMS session is verified and renewed. A Laravel session bound to another CMS session, or to none, is emptied and given a new id and CSRF token before it is bound, so a Laravel session planted in the browser never brings its CSRF token into a person's session.
+- A request without a session, or with one the verifier refuses, goes to the login page with the reason: `required`, `expired`, `ended` or `revoked`. A refused session's cookie is cleared and Laravel's session emptied.
+- At a logout both are ended and both cookies are cleared, and the login page says `signed_out`.
+
+Every state-changing panel request must carry the CSRF token of Laravel's session, which the panel's pages send as Inertia does, in the header `X-XSRF-TOKEN` from the `XSRF-TOKEN` cookie; any other is refused with 419. The panel checks it itself, whatever the application's own CSRF middleware excludes. The Inertia command profile below the panel, `POST <prefix>/commands/{command}/v{version}`, takes the session as its credential, so a form in the panel runs a command as the person, with the envelope's issuer kind `human`. The REST surface takes only a Bearer credential and never reads a cookie, so it has no CSRF exposure.
+
 ## Ending sessions
 
 `EndSessions` ends one session at a logout, every session of an actor, or every session from an IdP session. Ending a session deletes it from the store; it is not a command, so logouts never become changesets.
@@ -47,7 +64,7 @@ Each session issued adds 1 to the counter `cms.session.issued` with `cms.login.m
 
 ## The cookie
 
-The session id travels in a cookie that is always HttpOnly, with the path `/` and no Domain. Its name, Secure and SameSite are set per environment under `cbox-cms.identity.session.cookie` (see [Configuration](../developers/configuration.md#identity)); an environment the map does not name takes the entry of `production`.
+The session id travels in a cookie that is always HttpOnly, with the path `/` and no Domain. It has no expiry of its own, so it lives as long as the browser, while the store holds the session's lifetimes, and Laravel does not encrypt it, because the id is random and only the store can use it. Its name, Secure and SameSite are set per environment under `cbox-cms.identity.session.cookie` (see [Configuration](../developers/configuration.md#identity)); an environment the map does not name takes the entry of `production`.
 
 | Environment | Name | Secure | SameSite |
 |---|---|---|---|

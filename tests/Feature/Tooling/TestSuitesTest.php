@@ -157,7 +157,7 @@ it('puts every test in exactly one suite, only Postgres tests in the Postgres su
             'P\Packages\core\tests\Actions\RunDoctorTest',
             'P\Packages\generators\tests\Actions\GenerateCodeTest',
         )
-        ->and($bySuite['Browser'])->toBe(['P\Tests\Browser\HarnessTest', 'P\Tests\Browser\Panel\PublicPageTest', 'P\Tests\Browser\WorkbenchPageTest']);
+        ->and($bySuite['Browser'])->toBe(['P\Tests\Browser\HarnessTest', 'P\Tests\Browser\Panel\LoginTest', 'P\Tests\Browser\Panel\PublicPageTest', 'P\Tests\Browser\WorkbenchPageTest']);
 });
 
 it('boots the workbench application for the browser tests', function (): void {

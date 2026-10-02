@@ -5,5 +5,21 @@
   "panel.title": "{page} · {name}",
   "panel.not_found.title": "Siden findes ikke",
   "panel.not_found.body": "Panelet har ingen side på denne adresse. Siden kan være flyttet, eller linket, der førte dig hertil, kan være forældet.",
-  "panel.not_found.home": "Gå til panelets forside"
+  "panel.not_found.home": "Gå til panelets forside",
+  "panel.login.title": "Log ind",
+  "panel.login.description": "Log ind i panelet med e-mail og adgangskode til din konto.",
+  "panel.login.email": "E-mail",
+  "panel.login.password": "Adgangskode",
+  "panel.login.submit": "Log ind",
+  "panel.login.failed": "E-mailen eller adgangskoden er ikke rigtig. Tjek dem, og prøv igen.",
+  "panel.login.rate_limited": "Der har været for mange forsøg på at logge ind. Vent et par minutter, og prøv igen.",
+  "panel.login.required": "Udfyld feltet.",
+  "panel.login.reason.required": "Log ind for at bruge panelet.",
+  "panel.login.reason.expired": "Din session er udløbet. Log ind igen.",
+  "panel.login.reason.ended": "Din session er slut. Log ind igen.",
+  "panel.login.reason.revoked": "Din adgang er ændret, siden du loggede ind. Log ind igen.",
+  "panel.login.reason.signed_out": "Du er logget ud.",
+  "panel.home.title": "Start",
+  "panel.home.body": "Du er logget ind i panelet.",
+  "panel.home.sign_out": "Log ud"
 }

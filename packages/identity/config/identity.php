@@ -22,6 +22,18 @@ return [
         'issuer' => null,
     ],
 
+    'login' => [
+        // The rate limit of local logins (PRD 5.16), counted in Valkey on the default Redis
+        // connection: at most `attempts` attempts that do not log in within `window_seconds` of the
+        // first, per login identifier and per IP address. The attempt after them is refused with
+        // login_rate_limited until the window ends. A login that succeeds clears its identifier's
+        // count and takes itself off the address's.
+        'throttle' => [
+            'identifier' => ['attempts' => 5, 'window_seconds' => 900],
+            'ip' => ['attempts' => 50, 'window_seconds' => 900],
+        ],
+    ],
+
     'passwords' => [
         // The Argon2id parameters the local accounts hash their passwords with (PRD 5.16): memory
         // in KiB, 1024 to 4194304, and passes, 1 to 64, with one thread. PHP's defaults, 64 MiB and

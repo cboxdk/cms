@@ -37,6 +37,10 @@ use Cbox\Cms\Identity\LocalAccounts\Adapter\Argon2idPasswordHasher;
 use Cbox\Cms\Identity\LocalAccounts\Boundary\LocalAccountsConfig;
 use Cbox\Cms\Identity\LocalAccounts\Domain\LocalConnection;
 use Cbox\Cms\Identity\LocalAccounts\Domain\PasswordHasher;
+use Cbox\Cms\Identity\Login\Adapter\ValkeyLoginThrottle;
+use Cbox\Cms\Identity\Login\Boundary\LoginThrottleConfig;
+use Cbox\Cms\Identity\Login\Domain\Dto\LoginThrottleSettings;
+use Cbox\Cms\Identity\Login\Domain\LoginThrottle;
 use Cbox\Cms\Identity\LoginPolicy\Adapter\PostgresIdpLinks;
 use Cbox\Cms\Identity\LoginPolicy\Boundary\LoginPolicyConfig;
 use Cbox\Cms\Identity\LoginPolicy\Domain\Dto\LoginPolicy;
@@ -72,9 +76,9 @@ use Override;
  * unless the application names another. Binds the Argon2id PasswordHasher at
  * `cbox-cms.identity.passwords.argon2id` and the LocalConnection with the installation's local
  * issuer, and registers cms:staff:create in the console. Binds the session cookie of the
- * environment, the session store in Valkey, and puts the session verifier in front of the bound
- * CredentialVerifier with the container's extend(), so a session is a credential of every surface
- * and the core never names this module. Refuses to boot a process that serves HTTP when the
+ * environment, the session store and the login throttle in Valkey (`cbox-cms.identity.login`), and
+ * puts the session verifier in front of the bound CredentialVerifier with the container's extend(),
+ * so a session is a credential of every surface and the core never names this module. Refuses to boot a process that serves HTTP when the
  * session cookie of its environment is invalid or not safe there (PRD 5.16). Declares the module's
  * classes as a scan root for cms:build (PRD 13.2).
  */
@@ -155,6 +159,11 @@ final class IdentityServiceProvider extends ServiceProvider implements DeclaresS
         $this->app->singleton(SessionStore::class, static fn (Application $app): SessionStore => new ValkeySessionStore(
             $app->make(Factory::class),
             $app->make(Clock::class),
+        ));
+        $this->app->singleton(LoginThrottleSettings::class, static fn (Application $app): LoginThrottleSettings => LoginThrottleConfig::read($app->make(Repository::class)));
+        $this->app->singleton(LoginThrottle::class, static fn (Application $app): LoginThrottle => new ValkeyLoginThrottle(
+            $app->make(Factory::class),
+            $app->make(LoginThrottleSettings::class),
         ));
         $this->app->extend(CredentialVerifier::class, static fn (CredentialVerifier $verifier, Application $app): CredentialVerifier => new SessionCredentialVerifier(
             $verifier,

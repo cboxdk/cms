@@ -130,6 +130,7 @@ export type ErrorCode =
   | 'login_local_disabled'
   | 'login_method_not_allowed'
   | 'login_policy_invalid'
+  | 'login_rate_limited'
   | 'login_rejected'
   | 'login_state_mismatch'
   | 'login_tenant_claim_missing'
@@ -407,6 +408,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'login_local_disabled',
           'login_method_not_allowed',
           'login_policy_invalid',
+          'login_rate_limited',
           'login_rejected',
           'login_state_mismatch',
           'login_tenant_claim_missing',
@@ -648,6 +650,7 @@ const problemV1Rule: ObjectRule = {
           'login_local_disabled',
           'login_method_not_allowed',
           'login_policy_invalid',
+          'login_rate_limited',
           'login_rejected',
           'login_state_mismatch',
           'login_tenant_claim_missing',

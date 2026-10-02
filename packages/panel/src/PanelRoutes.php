@@ -5,10 +5,18 @@ declare(strict_types=1);
 namespace Cbox\Cms\Panel;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Http\Inertia\InertiaRoutes;
 use Cbox\Cms\Panel\Assets\AssetController;
+use Cbox\Cms\Panel\Boundary\HandlePanelRequests;
 use Cbox\Cms\Panel\Domain\Dto\PanelBuild;
-use Cbox\Cms\Panel\Middleware\HandlePanelRequests;
+use Cbox\Cms\Panel\Domain\PanelRoute;
+use Cbox\Cms\Panel\Middleware\AuthenticatePanelSession;
 use Cbox\Cms\Panel\Middleware\SendContentSecurityPolicy;
+use Cbox\Cms\Panel\Middleware\VerifyPanelCsrfToken;
+use Cbox\Cms\Panel\Pages\HomeController;
+use Cbox\Cms\Panel\Pages\LoginController;
+use Cbox\Cms\Panel\Pages\LoginPageController;
+use Cbox\Cms\Panel\Pages\LogoutController;
 use Cbox\Cms\Panel\Pages\NotFoundController;
 use Illuminate\Contracts\Routing\Registrar;
 
@@ -18,12 +26,22 @@ use Illuminate\Contracts\Routing\Registrar;
  * - `GET <prefix>/build/{path}`, named ASSET: a file of the panel's build, such as its script.
  * - every panel page, behind SendContentSecurityPolicy, which gives the response a strict
  *   Content-Security-Policy with a nonce of its own (GUARDRAILS 6), and HandlePanelRequests,
- *   Inertia's middleware with the panel's root view and the build's version;
- * - last, `GET <prefix>/{path?}` for any other path below the prefix, named NOT_FOUND: the panel's
- *   page for a path it does not have, with 404.
+ *   Inertia's middleware with the panel's root view and the build's version:
+ *   - the login (PRD 5.16), behind VerifyPanelCsrfToken: `GET <prefix>/login`, the login page,
+ *     and `POST <prefix>/login`, a local login from its form (PanelRoute::Login, LoginSubmit);
+ *   - the pages and actions of a person who logged in, behind AuthenticatePanelSession, which
+ *     takes only a request whose session cookie verifies and sends any other to the login page,
+ *     and VerifyPanelCsrfToken: `GET <prefix>`, the start page, `POST <prefix>/logout`, and the
+ *     Inertia profile's `POST <prefix>/commands/{command}/v{version}`, which runs a command as the
+ *     person (PanelRoute::Home, Logout, Command);
+ *   - last, `GET <prefix>/{path?}` for any other path below the prefix, named NOT_FOUND: the
+ *     panel's page for a path it does not have, with 404, which shows nothing of the installation
+ *     and so needs no session.
  *
- * An application registers it inside its web middleware group, which gives the panel its session
- * and CSRF protection, such as in routes/web.php: PanelRoutes::register(app(Registrar::class)).
+ * An application registers it inside its web middleware group, which gives the panel Laravel's
+ * session, its cookies and its own CSRF protection, such as in routes/web.php:
+ * PanelRoutes::register(app(Registrar::class)). Laravel's session should be in Valkey, as
+ * docs/security/sessions.md says; the panel keeps its credential, the CMS session, apart from it.
  */
 #[Experimental]
 final readonly class PanelRoutes
@@ -44,6 +62,17 @@ final readonly class PanelRoutes
                 ->name(self::ASSET);
 
             $router->group(['middleware' => [SendContentSecurityPolicy::class, HandlePanelRequests::class]], static function (Registrar $router): void {
+                $router->group(['middleware' => [VerifyPanelCsrfToken::class]], static function (Registrar $router): void {
+                    $router->get('login', LoginPageController::class)->name(PanelRoute::Login->value);
+                    $router->post('login', LoginController::class)->name(PanelRoute::LoginSubmit->value);
+                });
+
+                $router->group(['middleware' => [AuthenticatePanelSession::class, VerifyPanelCsrfToken::class]], static function (Registrar $router): void {
+                    $router->get('', HomeController::class)->name(PanelRoute::Home->value);
+                    $router->post('logout', LogoutController::class)->name(PanelRoute::Logout->value);
+                    InertiaRoutes::register($router, 'commands', PanelRoute::Command->value);
+                });
+
                 $router->get('{path?}', NotFoundController::class)
                     ->where('path', '.*')
                     ->name(self::NOT_FOUND);

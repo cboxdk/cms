@@ -11,6 +11,7 @@
   --cms-color-text: #16181d;
   --cms-color-text-muted: #5b6270;
   --cms-color-border: #d9dde3;
+  --cms-color-border-strong: #8a919e;
   --cms-color-accent: #2f5bd3;
   --cms-color-accent-hover: #2349b0;
   --cms-color-on-accent: #ffffff;
@@ -54,6 +55,7 @@
     --cms-color-text: #e8eaee;
     --cms-color-text-muted: #9aa1ad;
     --cms-color-border: #2e333c;
+    --cms-color-border-strong: #6b7280;
     --cms-color-accent: #6b8ff0;
     --cms-color-accent-hover: #87a4f4;
     --cms-color-on-accent: #0c0e12;
@@ -73,6 +75,7 @@
   --cms-color-text: #e8eaee;
   --cms-color-text-muted: #9aa1ad;
   --cms-color-border: #2e333c;
+  --cms-color-border-strong: #6b7280;
   --cms-color-accent: #6b8ff0;
   --cms-color-accent-hover: #87a4f4;
   --cms-color-on-accent: #0c0e12;

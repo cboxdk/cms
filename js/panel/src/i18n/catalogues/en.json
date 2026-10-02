@@ -5,5 +5,21 @@
   "panel.title": "{page} · {name}",
   "panel.not_found.title": "Page not found",
   "panel.not_found.body": "The panel has no page at this address. The page may have moved, or the link that brought you here may be out of date.",
-  "panel.not_found.home": "Go to the start of the panel"
+  "panel.not_found.home": "Go to the start of the panel",
+  "panel.login.title": "Sign in",
+  "panel.login.description": "Sign in to the panel with the email and password of your account.",
+  "panel.login.email": "Email",
+  "panel.login.password": "Password",
+  "panel.login.submit": "Sign in",
+  "panel.login.failed": "The email or the password is not right. Check them and try again.",
+  "panel.login.rate_limited": "There have been too many attempts to sign in. Wait a few minutes and try again.",
+  "panel.login.required": "Fill in this field.",
+  "panel.login.reason.required": "Sign in to use the panel.",
+  "panel.login.reason.expired": "Your session has expired. Sign in again.",
+  "panel.login.reason.ended": "Your session has ended. Sign in again.",
+  "panel.login.reason.revoked": "Your access has changed since you signed in. Sign in again.",
+  "panel.login.reason.signed_out": "You have signed out.",
+  "panel.home.title": "Start",
+  "panel.home.body": "You are signed in to the panel.",
+  "panel.home.sign_out": "Sign out"
 }

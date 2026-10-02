@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Cbox\Cms\Panel\Boundary;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Panel\Domain\PanelRoute;
+use Cbox\Cms\Panel\Domain\SignInReason;
+use Illuminate\Contracts\Routing\UrlGenerator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -13,9 +16,13 @@ use Inertia\ResponseFactory;
 use LogicException;
 
 /**
- * Renders the panel's pages that need no action: the Inertia page the panel shows for a path it
- * does not have. The page gets the address of the panel's start, the prefix of the route that
- * matched, so it can link back.
+ * Renders the panel's pages that need no action (PRD 13.4, 5.16):
+ *
+ * - the page for a path the panel does not have, with the address of the panel's start, the
+ *   prefix of the route that matched, so it can link back;
+ * - the login page, with the address its form posts to and the reason the panel sent the browser
+ *   there, a SignInReason the address names, or null;
+ * - the start page of a person who logged in, with the address of the logout.
  */
 #[Internal]
 final readonly class PanelPages
@@ -23,17 +30,50 @@ final readonly class PanelPages
     /** The Inertia page for a path the panel does not have, in js/panel/src/pages. */
     public const string NOT_FOUND = 'Errors/NotFound';
 
-    public function __construct(private ResponseFactory $inertia) {}
+    /** The login page, in js/panel/src/pages. */
+    public const string LOGIN = 'Auth/Login';
+
+    /** The start page, in js/panel/src/pages. */
+    public const string HOME = 'Home';
+
+    public function __construct(
+        private ResponseFactory $inertia,
+        private UrlGenerator $urls,
+    ) {}
+
+    public function login(Request $request): Response|JsonResponse
+    {
+        $reason = $request->query(SignInReason::PARAMETER);
+
+        return $this->render($request, self::LOGIN, [
+            'action' => $this->urls->route(PanelRoute::LoginSubmit->value, [], false),
+            'reason' => is_string($reason) ? SignInReason::tryFrom($reason)?->value : null,
+        ]);
+    }
+
+    public function home(Request $request): Response|JsonResponse
+    {
+        return $this->render($request, self::HOME, ['logout' => $this->urls->route(PanelRoute::Logout->value, [], false)]);
+    }
 
     public function notFound(Request $request): Response|JsonResponse
     {
-        $response = $this->inertia->render(self::NOT_FOUND, ['home' => $this->home($request)])->toResponse($request);
+        $response = $this->render($request, self::NOT_FOUND, ['home' => $this->start($request)]);
+        $response->setStatusCode(404);
+
+        return $response;
+    }
+
+    /**
+     * @param  array<string, string|null>  $props
+     */
+    private function render(Request $request, string $page, array $props): Response|JsonResponse
+    {
+        $response = $this->inertia->render($page, $props)->toResponse($request);
 
         if (! $response instanceof Response && ! $response instanceof JsonResponse) {
             throw new LogicException('Inertia answered the panel page with a response of another kind.');
         }
-
-        $response->setStatusCode(404);
 
         return $response;
     }
@@ -41,7 +81,7 @@ final readonly class PanelPages
     /**
      * The panel's start: the root of the prefix the matched route was registered with.
      */
-    private function home(Request $request): string
+    private function start(Request $request): string
     {
         $route = $request->route();
         $prefix = $route instanceof Route ? $route->getPrefix() : null;

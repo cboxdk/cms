@@ -135,6 +135,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`login_local_disabled`](#login_local_disabled) | 403 | 77 | tool_error | no |
 | [`login_method_not_allowed`](#login_method_not_allowed) | 403 | 77 | tool_error | no |
 | [`login_policy_invalid`](#login_policy_invalid) | 500 | 78 | internal_error | no |
+| [`login_rate_limited`](#login_rate_limited) | 429 | 75 | tool_error | yes |
 | [`login_rejected`](#login_rejected) | 401 | 77 | tool_error | no |
 | [`login_state_mismatch`](#login_state_mismatch) | 401 | 77 | tool_error | no |
 | [`login_tenant_claim_missing`](#login_tenant_claim_missing) | 401 | 77 | tool_error | no |
@@ -1318,6 +1319,15 @@ The login policy in cbox-cms.identity.policy is invalid: a key is missing or has
 - CLI exit code: 78 (EX_CONFIG)
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
+
+### login_rate_limited
+
+The login was refused before any password was checked: too many logins that did not succeed came for the same email address, or from the same IP address, within the window of cbox-cms.identity.login.throttle (PRD 5.16). No session was issued. Wait until the window has passed and log in again; the person is told to wait, never whether the account exists.
+
+- HTTP status: 429 Too Many Requests
+- CLI exit code: 75 (EX_TEMPFAIL)
+- MCP: a tool result with isError set
+- Retry: yes, the same call may succeed later
 
 ### login_rejected
 

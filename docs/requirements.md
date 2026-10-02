@@ -32,12 +32,14 @@ It requires these packages directly:
 | `cboxdk/laravel-ssrf` | `~1.5.0` |
 | `illuminate/console` | `^13.0` |
 | `illuminate/contracts` | `^13.0` |
+| `illuminate/cookie` | `^13.0` |
 | `illuminate/database` | `^13.0` |
 | `illuminate/http` | `^13.0` |
 | `illuminate/redis` | `^13.0` |
 | `illuminate/routing` | `^13.0` |
 | `illuminate/support` | `^13.0` |
 | `inertiajs/inertia-laravel` | `^3.4` |
+| `laravel/framework` | `^13.0` |
 | `laravel/mcp` | `~1.0.1` |
 | `psr/clock` | `^1.0` |
 | `psr/log` | `^3.0` |

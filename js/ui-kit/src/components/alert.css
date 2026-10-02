@@ -1,0 +1,14 @@
+.cms-alert {
+  width: 100%;
+  padding: var(--cms-space-3) var(--cms-space-4);
+  border: 1px solid var(--cms-color-border);
+  border-left: 4px solid var(--cms-color-accent);
+  border-radius: var(--cms-radius-md);
+  background: var(--cms-color-surface);
+  color: var(--cms-color-text);
+  font-size: var(--cms-font-size-md);
+}
+
+.cms-alert[data-tone='danger'] {
+  border-left-color: var(--cms-color-danger);
+}
