@@ -17,6 +17,7 @@ use Cbox\Cms\Core\Reads\Domain\QueryAuthorizer;
 use Cbox\Cms\Core\Routing\Domain\Host;
 use Cbox\Cms\Core\Routing\Domain\Queries\ResolvePath;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
+use Cbox\Cms\Core\Structure\Domain\Queries\ListNodes;
 use Cbox\Cms\Core\Tests\Postgres\AccessWorld;
 use Cbox\Cms\Core\Tests\Reads\Probe\ReadProbe;
 use Closure;
@@ -26,8 +27,9 @@ use PHPUnit\Framework\Attributes\Test;
 /**
  * What every QueryAuthorizer of the kernel does (PRD 5.10, 6.2, invariant 25), held against the
  * fake the query pipeline's tests use and the PostgresQueryAuthorizer: a public read, path.resolve,
- * is allowed for anyone, the anonymous principal included; any other read only for an actor with a
- * role whose permissions name it and that reaches some node.
+ * is allowed for anyone, the anonymous principal included; a read every actor may run, node.list,
+ * for every actor and not the anonymous principal; any other read only for an actor with a role
+ * whose permissions name it and that reaches some node.
  */
 trait QueryAuthorizerBehaviour
 {
@@ -63,6 +65,19 @@ trait QueryAuthorizerBehaviour
 
         Assert::assertTrue($this->authorized(new AnonymousPrincipal, 'path.resolve', $this->resolve())->allowed());
         Assert::assertTrue($this->authorized($actor, 'path.resolve', $this->resolve())->allowed());
+    }
+
+    #[Test]
+    public function it_allows_a_read_every_actor_may_run_for_an_actor_without_grants_and_refuses_it_to_the_anonymous_principal(): void
+    {
+        $actor = $this->grantedActor([]);
+        $delegate = $this->delegateOf($actor, []);
+        $refusal = $this->authorized(new AnonymousPrincipal, 'node.list', new ListNodes);
+
+        Assert::assertTrue($this->authorized($actor, 'node.list', new ListNodes)->allowed());
+        Assert::assertTrue($this->authorized($delegate, 'node.list', new ListNodes)->allowed());
+        Assert::assertFalse($refusal->allowed());
+        Assert::assertStringContainsString('node.list', (string) $refusal->reason);
     }
 
     #[Test]

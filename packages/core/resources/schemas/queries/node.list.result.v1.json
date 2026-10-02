@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "node.list result, contract version 1",
+  "description": "The result of node.list (PRD 5.8, 5.10): a page of the nodes the reader's regions reach, each with its parent, kind, site and path label. The PHP form is Cbox\\Cms\\Core\\Structure\\Domain\\Dto\\NodeList, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "nodes",
+    "next"
+  ],
+  "properties": {
+    "nodes": {
+      "description": "The page, in order.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/listed_node"
+      }
+    },
+    "next": {
+      "description": "The id to read the next page after, or null when this page is the last.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/id"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "listed_node": {
+      "description": "A node (PRD 5.8).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "label",
+        "parent",
+        "site",
+        "site_handle"
+      ],
+      "properties": {
+        "id": {
+          "description": "The node.",
+          "$ref": "#/$defs/id"
+        },
+        "kind": {
+          "description": "The node's kind.",
+          "enum": [
+            "site",
+            "section",
+            "page",
+            "list",
+            "storage",
+            "mount"
+          ]
+        },
+        "label": {
+          "description": "The node's path label: one segment per node from the root of its tree down to it, joined by /, the site's handle for the root of a site's tree, and below it the last segment of the node's route or the node's kind, such as north/news/section.",
+          "type": "string",
+          "minLength": 1
+        },
+        "parent": {
+          "description": "The node's parent, or null for the root of a tree.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "site": {
+          "description": "The site whose tree the node is in, or null for a tree that is no site's.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "site_handle": {
+          "description": "The handle of the site whose tree the node is in, or null for a tree that is no site's.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        }
+      }
+    }
+  }
+}

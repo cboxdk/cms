@@ -39,5 +39,5 @@ it('reads and writes the result of path.resolve, and lists the codecs of each ke
         ->and($result->outcome())->toBe(ResolveOutcome::UnknownHost)
         ->and($codec->encode($result, ClassificationAccess::Public))->toBe($json)
         ->and($queries)->toContain('path.resolve v1')
-        ->and(KernelQueryCodecs::all()[0]->result)->toBeInstanceOf(ResolvedPathCodecV1::class);
+        ->and(array_first(array_filter(KernelQueryCodecs::all(), static fn (QueryCodec $each): bool => $each->name->value === 'path.resolve'))?->result)->toBeInstanceOf(ResolvedPathCodecV1::class);
 });

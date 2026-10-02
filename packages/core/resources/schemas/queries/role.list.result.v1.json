@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "role.list result, contract version 1",
+  "description": "The result of role.list (PRD 5.10): a page of roles, each with its handle, classification ceiling, permissions and version. The PHP form is Cbox\\Cms\\Core\\Access\\Domain\\Dto\\RoleList, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "roles",
+    "next"
+  ],
+  "properties": {
+    "roles": {
+      "description": "The page, in order.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/listed_role"
+      }
+    },
+    "next": {
+      "description": "The id to read the next page after, or null when this page is the last.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/id"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "listed_role": {
+      "description": "A role (PRD 5.10).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ceiling",
+        "handle",
+        "id",
+        "permissions",
+        "version"
+      ],
+      "properties": {
+        "ceiling": {
+          "description": "The highest classification the role lets its holders read (PRD 12.2).",
+          "enum": [
+            "public",
+            "internal",
+            "confidential",
+            "personal",
+            "sensitive"
+          ]
+        },
+        "handle": {
+          "description": "The role's handle: a lowercase letter, then at most 62 lowercase letters, digits and underscores.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "id": {
+          "description": "The role.",
+          "$ref": "#/$defs/id"
+        },
+        "permissions": {
+          "description": "The names of the commands and queries the role may run, sorted.",
+          "type": "array",
+          "items": {
+            "description": "A command or query name, such as entry.create.",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"
+          }
+        },
+        "version": {
+          "description": "The role's version, from 1.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

@@ -8,9 +8,9 @@ use Cbox\Cms\Contracts\Attributes\Surface;
 use LogicException;
 
 /**
- * The profile of each surface that serves reads (GUARDRAILS 2.1), at most one per surface: REST
- * and MCP. Inertia gets its profile with the panel's query pages, and the CLI runs no reads
- * (cms:run runs writes), so a query exposed on either has no profile and fails its test.
+ * The profile of each surface that serves reads (GUARDRAILS 2.1), at most one per surface: REST,
+ * Inertia and MCP. The CLI runs no reads (cms:run runs writes), so a query exposed on it has no
+ * profile and fails its test.
  */
 final readonly class QuerySurfaceProfiles
 {
@@ -33,7 +33,7 @@ final readonly class QuerySurfaceProfiles
 
     public static function all(): self
     {
-        return new self(new RestQueryProfile, new McpQueryProfile);
+        return new self(new RestQueryProfile, new InertiaQueryProfile, new McpQueryProfile);
     }
 
     public function for(Surface $surface): ?QuerySurfaceProfile

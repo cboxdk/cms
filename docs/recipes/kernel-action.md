@@ -695,6 +695,14 @@ final class SurfaceContractTest extends TestCase
         'role.set_permissions' => ['rest', 'inertia', 'cli'],
     ];
 
+    /** The kernel's access queries of B1, each on REST and Inertia, by name. */
+    private const array ACCESS_QUERIES = [
+        'actor.list' => ['rest', 'inertia'],
+        'grant.list' => ['rest', 'inertia'],
+        'node.list' => ['rest', 'inertia'],
+        'role.list' => ['rest', 'inertia'],
+    ];
+
     /** The command of M1 point 3 that is exposed on no surface: its surfaces come with B1 and B6. */
     private const string UNEXPOSED = 'actor.deactivate';
 
@@ -717,11 +725,11 @@ final class SurfaceContractTest extends TestCase
     }
 
     #[Test]
-    public function it_has_one_case_per_surface_for_each_exposed_m1_command_and_none_for_the_command_exposed_on_no_surface(): void
+    public function it_has_one_case_per_surface_for_each_exposed_command_and_query_and_none_for_the_command_exposed_on_no_surface(): void
     {
         $registry = SurfaceContractCases::installation(app());
         $expected = [];
-        $commands = [...self::SOME_SURFACES, ...array_fill_keys(self::EXPOSED, array_map(static fn (Surface $surface): string => $surface->value, Surface::cases()))];
+        $commands = [...self::SOME_SURFACES, ...self::ACCESS_QUERIES, ...array_fill_keys(self::EXPOSED, array_map(static fn (Surface $surface): string => $surface->value, Surface::cases()))];
         ksort($commands);
 
         foreach ($commands as $command => $surfaces) {
@@ -774,7 +782,10 @@ final class SurfaceContractTest extends TestCase
         $installation = SurfaceContractCases::installation(app());
         $registry = $this->planted($installation, $this->exposed($this->kernelQuery($installation), [Surface::Rest, Surface::Mcp]));
         $cases = SurfaceContractCases::of($registry, SurfaceProfiles::all());
-        $queries = array_values(array_filter(array_map(static fn (array $case): SurfaceContractCase|QueryContractCase => $case[0], $cases), static fn (SurfaceContractCase|QueryContractCase $case): bool => $case instanceof QueryContractCase));
+        $queries = array_values(array_filter(
+            array_map(static fn (array $case): SurfaceContractCase|QueryContractCase => $case[0], $cases),
+            static fn (SurfaceContractCase|QueryContractCase $case): bool => $case instanceof QueryContractCase && $case->action->command->value === self::KERNEL_QUERY,
+        ));
 
         self::assertSame(['path.resolve v1 on rest', 'path.resolve v1 on mcp'], array_map(static fn (QueryContractCase $case): string => $case->name(), $queries));
         self::assertSame([], array_values(array_filter(array_keys(SurfaceContractCases::of($installation, SurfaceProfiles::all())), static fn (string $name): bool => str_starts_with($name, self::KERNEL_QUERY.' '))));
@@ -813,12 +824,12 @@ final class SurfaceContractTest extends TestCase
     }
 
     #[Test]
-    public function it_has_a_query_profile_for_rest_and_mcp_and_none_for_the_surfaces_that_serve_no_reads_yet(): void
+    public function it_has_a_query_profile_for_rest_inertia_and_mcp_and_none_for_the_cli_which_serves_no_reads(): void
     {
         $profiles = QuerySurfaceProfiles::all();
 
         self::assertSame(
-            [Surface::Rest, null, Surface::Mcp, null],
+            [Surface::Rest, Surface::Inertia, Surface::Mcp, null],
             array_map(static fn (Surface $surface): ?Surface => $profiles->for($surface)?->surface(), Surface::cases()),
         );
     }

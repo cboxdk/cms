@@ -24,7 +24,11 @@ final readonly class KernelQueryCodecs
     public static function all(): array
     {
         return [
+            ListActorsCodecV1::queryCodec(),
+            ListGrantsCodecV1::queryCodec(),
+            ListNodesCodecV1::queryCodec(),
             ResolvePathCodecV1::queryCodec(),
+            ListRolesCodecV1::queryCodec(),
         ];
     }
 }

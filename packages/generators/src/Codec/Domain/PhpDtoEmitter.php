@@ -9,8 +9,10 @@ use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecContract;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecObject;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecProperty;
+use Cbox\Cms\Generators\Codec\Domain\Dto\CodecValue;
 use Cbox\Cms\Generators\Codec\Domain\Dto\PhpLocation;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GeneratedFile;
+use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 
 /**
@@ -100,6 +102,8 @@ final readonly class PhpDtoEmitter
 
     /**
      * @return list<string>
+     *
+     * @throws GenerationFailed with GenerateErrorCode::InvalidOutput
      */
     private static function visibleTo(CodecObject $object): array
     {
@@ -120,10 +124,25 @@ final readonly class PhpDtoEmitter
         ];
     }
 
+    /**
+     * @throws GenerationFailed with GenerateErrorCode::InvalidOutput for a list of lists of classified objects
+     */
     private static function visible(CodecProperty $property): string
     {
         $value = '$this->'.$property->name;
         $nested = $property->value->object;
+        $item = $property->value->item;
+
+        if ($item instanceof CodecValue && $item->item instanceof CodecValue && $property->value->kind === CodecKind::List && self::innermost($item)?->classified() === true) {
+            throw GenerationFailed::because(GenerateErrorCode::InvalidOutput, sprintf('The property %s is a list of lists of classified objects, which a generated DTO cannot show to a caller.', $property->name));
+        }
+
+        if ($item instanceof CodecValue && $item->object instanceof CodecObject && $item->object->classified()) {
+            $list = sprintf('array_map(static fn (%1$s $item): %1$s => $item->visibleTo($access), %2$s)', $item->object->className, $value);
+            $value = $property->omittable() || $property->mayBeNull()
+                ? sprintf('is_array(%s) ? %s : %s', $value, $list, $value)
+                : $list;
+        }
 
         if ($nested instanceof CodecObject && $nested->classified()) {
             $value = $property->omittable()
@@ -140,5 +159,14 @@ final readonly class PhpDtoEmitter
             $property->classification->name,
             str_contains($value, ' ? ') ? '('.$value.')' : $value,
         );
+    }
+
+    private static function innermost(CodecValue $value): ?CodecObject
+    {
+        while ($value->item instanceof CodecValue) {
+            $value = $value->item;
+        }
+
+        return $value->object;
     }
 }

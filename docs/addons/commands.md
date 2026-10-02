@@ -537,3 +537,14 @@ The surface reads each command and query with its codecs, so a command or query 
 An action on REST whose command or query has no codec fails `cms:build` with `registry_surface_without_codec`, and nothing is written. Every JSON Schema gets an `$id` of its own in `openapi.json` when it has none, `urn:cbox-cms:<component>`, so its references to its own `$defs` resolve inside it.
 
 An application registers the routes in its API routes with the registry the container reads from the cache, `Cbox\Cms\Http\Rest\RestRoutes::register($router, app(CompiledRegistry::class))`. A route needs no session, cookies or CSRF token. Its controllers hold no logic: `RestRequest` reads the request, the core's shared action for exposed writes or the query pipeline runs the call, and `RestResponse` translates the typed result.
+
+## The Inertia surface
+
+The panel's Inertia pages reach the actions whose `#[Action]` lists `Surface::Inertia` through two routes, which an application registers inside the route group of its panel, behind `Cbox\Cms\Http\Inertia\Adapter\InertiaMiddleware`, with `Cbox\Cms\Http\Inertia\InertiaRoutes`:
+
+| Action | Route | Request | Answer |
+|---|---|---|---|
+| write action | `InertiaRoutes::register($router)`: `POST <prefix>/{command}/v{version}` | a JSON body with the envelope fields under `envelope` and the command's document under `command`; a Bearer credential | a 303 redirect back to the page, with the receipt in the flash data and, for a rejection, the field errors in the `errors` prop and the problem details in the `problem` prop |
+| query action | `InertiaRoutes::queries($router, $component)`: `GET <prefix>/{query}/v{version}` | the query's JSON document in the query parameter `query`, as REST reads it; a Bearer credential | the page component given, with the result in the `result` prop, the same document REST answers with, or the problem details in the `problem` prop |
+
+The panel and REST stay in parity: an action on Inertia that is not on REST stops the profile from serving anything, and the surface contract tests fail.

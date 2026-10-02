@@ -18,7 +18,9 @@ use Inertia\Response;
  * Below it, the Inertia profile's test page and route (GUARDRAILS 2.1), until the panel comes with
  * B1: the page Workbench/Commands at /workbench/inertia, rendered by the root view `app`, and the
  * profile's command route at /workbench/inertia/commands/{command}/v{version}, both behind the
- * profile's middleware, so a rejected call's errors and problem reach the page as props.
+ * profile's middleware, so a rejected call's errors and problem reach the page as props. The
+ * profile's reads are visits of /workbench/inertia/queries/{query}/v{version}, which render the
+ * page Workbench/Query with the read's result or problem in its props.
  *
  * Last, the control panel at /cms (PRD 13.4), as an application mounts it in its web routes.
  */
@@ -41,6 +43,7 @@ Route::middleware(InertiaMiddleware::class)->prefix('workbench/inertia')->group(
     $router->get('/', static fn (): Response => Inertia::render('Workbench/Commands'))->name('workbench.inertia');
 
     InertiaRoutes::register($router);
+    InertiaRoutes::queries($router, 'Workbench/Query');
 });
 
 PanelRoutes::register(app(Registrar::class));

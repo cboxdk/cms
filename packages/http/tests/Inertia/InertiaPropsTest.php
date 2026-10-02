@@ -10,7 +10,7 @@ use UnexpectedValueException;
 
 /*
  * The JSON a codec wrote, read back for Inertia's props: an object as deep as json_decode's depth
- * of 512 allows, and nothing else.
+ * of 512 allows, and nothing else, whose objects Inertia writes as objects again.
  */
 
 it('reads a codec\'s document as deep as json_decode\'s depth of 512 allows and refuses a deeper one, and text that is not JSON with the parser\'s reason', function (): void {
@@ -29,4 +29,11 @@ it('keeps the parser\'s exception as the cause, with the exception code 0', func
         expect($refused->getCode())->toBe(0)
             ->and($refused->getPrevious())->toBeInstanceOf(JsonException::class);
     }
+});
+
+it('keeps every object of the document an object, so Inertia writes an empty one as {} and never as []', function (): void {
+    $document = '{"grants":[{"locales":null,"profile":{}}],"next":null,"meta":{}}';
+
+    expect(json_encode(InertiaProps::document($document), JSON_THROW_ON_ERROR))->toBe($document)
+        ->and(json_encode(['props' => InertiaProps::document($document)], JSON_THROW_ON_ERROR))->toBe('{"props":'.$document.'}');
 });

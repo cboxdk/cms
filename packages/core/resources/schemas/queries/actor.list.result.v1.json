@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "actor.list result, contract version 1",
+  "description": "The result of actor.list (PRD 5.16, 12.2): a page of staff actors, each with its state, version and profile. A profile is null where the reader may not read it, and its values are personal data, left out for a reader whose classification access does not allow personal. The PHP form is Cbox\\Cms\\Core\\Identity\\Domain\\Dto\\ActorList, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "actors",
+    "next"
+  ],
+  "properties": {
+    "actors": {
+      "description": "The page, in order.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/listed_actor"
+      }
+    },
+    "next": {
+      "description": "The id to read the next page after, or null when this page is the last.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/id"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "listed_actor": {
+      "description": "A staff actor (PRD 5.16).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "profile",
+        "state",
+        "version"
+      ],
+      "properties": {
+        "id": {
+          "description": "The actor.",
+          "$ref": "#/$defs/id"
+        },
+        "profile": {
+          "description": "The actor's profile, or null when the reader may not read it.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/profile"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "description": "The actor's state.",
+          "enum": [
+            "pending",
+            "active",
+            "deactivated",
+            "deprovisioned"
+          ]
+        },
+        "version": {
+          "description": "The actor's version, from 1.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "profile": {
+      "description": "An actor's profile (PRD 5.16, 12.2). Both values are personal data, classified personal: a reader whose classification access does not allow personal gets the profile without them.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "display_name": {
+          "description": "The name the actor's profile shows, 1 to 200 characters without control characters, that starts and ends with a character that is not white space. Personal data, left out below personal access.",
+          "type": "string",
+          "pattern": "^[^\\s\\x00-\\x1F\\x7F]([^\\x00-\\x1F\\x7F]*[^\\s\\x00-\\x1F\\x7F])?$",
+          "minLength": 1,
+          "maxLength": 200,
+          "x-cms-classification": "personal"
+        },
+        "email": {
+          "description": "The contact email address of the actor's profile, at most 254 characters. Personal data, left out below personal access.",
+          "type": "string",
+          "pattern": "^[^\\s@\\x00-\\x1F\\x7F]+@[^\\s@\\x00-\\x1F\\x7F]+\\.[^\\s@\\x00-\\x1F\\x7F]+$",
+          "minLength": 5,
+          "maxLength": 254,
+          "x-cms-classification": "personal"
+        }
+      }
+    }
+  }
+}

@@ -22,6 +22,7 @@ use Cbox\Cms\Contracts\TypeTables\TypeTableReader;
 use Cbox\Cms\Core\Access\Adapter\GrantAssignedWriter;
 use Cbox\Cms\Core\Access\Adapter\GrantRevokedWriter;
 use Cbox\Cms\Core\Access\Adapter\GrantRoleContentChangedWriter;
+use Cbox\Cms\Core\Access\Adapter\PostgresAccessListings;
 use Cbox\Cms\Core\Access\Adapter\PostgresAccessResolver;
 use Cbox\Cms\Core\Access\Adapter\PostgresCommandAuthorizer;
 use Cbox\Cms\Core\Access\Adapter\PostgresGrantReader;
@@ -37,6 +38,7 @@ use Cbox\Cms\Core\Access\Adapter\RolePermissionsSetWriter;
 use Cbox\Cms\Core\Access\Adapter\TransactionalAccessContexts;
 use Cbox\Cms\Core\Access\Domain\AccessCompiler;
 use Cbox\Cms\Core\Access\Domain\AccessContexts;
+use Cbox\Cms\Core\Access\Domain\AccessListings;
 use Cbox\Cms\Core\Access\Domain\AccessResolver;
 use Cbox\Cms\Core\Access\Domain\GrantReader;
 use Cbox\Cms\Core\Access\Domain\PermissionCatalog;
@@ -127,7 +129,9 @@ use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
 use Cbox\Cms\Core\Identity\Adapter\ActorActivatedWriter;
 use Cbox\Cms\Core\Identity\Adapter\ActorDeactivatedWriter;
 use Cbox\Cms\Core\Identity\Adapter\ActorRegisteredWriter;
+use Cbox\Cms\Core\Identity\Adapter\PostgresActorListing;
 use Cbox\Cms\Core\Identity\Adapter\PostgresActorVersionLock;
+use Cbox\Cms\Core\Identity\Domain\ActorListing;
 use Cbox\Cms\Core\Maintenance\Actions\RunMaintenanceCommand;
 use Cbox\Cms\Core\Maintenance\Adapter\PostgresInstallationOperator;
 use Cbox\Cms\Core\Maintenance\Adapter\PostgresOperatorGenesis;
@@ -222,8 +226,10 @@ use Cbox\Cms\Core\Seeding\Domain\Dto\SeedSettings;
 use Cbox\Cms\Core\Seeding\Domain\SeedAuthorizer;
 use Cbox\Cms\Core\Seeding\Domain\SeedReader;
 use Cbox\Cms\Core\Seeding\Domain\SeedTargets;
+use Cbox\Cms\Core\Structure\Adapter\PostgresNodeListing;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeVersionLock;
 use Cbox\Cms\Core\Structure\Adapter\PostgresSiteVersionLock;
+use Cbox\Cms\Core\Structure\Domain\NodeListing;
 use Cbox\Cms\Core\Subscriptions\Adapter\PostgresSubscriptionLog;
 use Cbox\Cms\Core\Subscriptions\Adapter\RegistryLaneSubscribers;
 use Cbox\Cms\Core\Subscriptions\Adapter\SystemPacing;
@@ -499,6 +505,12 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->bind(PermissionCatalog::class, RegistryPermissionCatalog::class);
         $this->app->tag([PostgresRoleHandleLock::class, PostgresRoleGrantsLock::class], VersionLocks::TAG);
         $this->app->tag([RoleCreatedWriter::class, RolePermissionsSetWriter::class, GrantRoleContentChangedWriter::class], MutationWriters::TAG);
+
+        // role.list, grant.list, actor.list and node.list (PRD 5.8, 5.10, 5.16): what the
+        // listing queries read, under the read's actor context.
+        $this->app->bind(AccessListings::class, PostgresAccessListings::class);
+        $this->app->bind(ActorListing::class, PostgresActorListing::class);
+        $this->app->bind(NodeListing::class, PostgresNodeListing::class);
         $this->app->bind(
             VersionLocks::class,
             static fn (Application $app): VersionLocks => new VersionLocks(...self::tagged($app, VersionLocks::TAG, VersionLock::class)),

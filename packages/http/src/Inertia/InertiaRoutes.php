@@ -9,18 +9,29 @@ use Illuminate\Contracts\Routing\Registrar;
 use Illuminate\Routing\Route;
 
 /**
- * The route of the Inertia profile (GUARDRAILS 2.1): `POST <prefix>/{command}/v{version}`, such as
- * POST commands/entry.create/v1, named NAME, for every write action the registry exposes on
- * Inertia. An application registers it inside the route group of its panel, which gives it the
- * web middleware, InertiaMiddleware and the panel's prefix.
+ * The routes of the Inertia profile (GUARDRAILS 2.1), which an application registers inside the
+ * route group of its panel, which gives them the web middleware, InertiaMiddleware and the panel's
+ * prefix; the credential is the request's Bearer token.
  *
- * The body is a JSON object with the envelope fields under `envelope` (envelope.v1.json) and the
- * command's document under `command`; the credential is the request's Bearer token.
+ * register() adds `POST <prefix>/{command}/v{version}`, such as POST commands/entry.create/v1,
+ * named NAME, for every write action the registry exposes on Inertia. The body is a JSON object
+ * with the envelope fields under `envelope` (envelope.v1.json) and the command's document under
+ * `command`.
+ *
+ * queries() adds `GET <prefix>/{query}/v{version}`, such as GET queries/role.list/v1, named
+ * QUERY_NAME, for every query action the registry exposes on Inertia: a page visit that renders the
+ * page component given, with the query's document in the query parameter `query`, as REST reads it,
+ * and the result, or the problem, in the page's props.
  */
 #[Experimental]
 final readonly class InertiaRoutes
 {
     public const string NAME = 'cbox-cms.inertia.command';
+
+    public const string QUERY_NAME = 'cbox-cms.inertia.query';
+
+    /** The route default that names the page component a read renders. */
+    public const string COMPONENT = 'cbox-cms.inertia.component';
 
     /** A command name, as #[Command] declares it. */
     public const string COMMAND = '[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+';
@@ -33,5 +44,16 @@ final readonly class InertiaRoutes
         return $router->post(trim($prefix, '/').'/{command}/v{version}', InertiaCommandController::class)
             ->where(['command' => self::COMMAND, 'version' => self::VERSION])
             ->name(self::NAME);
+    }
+
+    /**
+     * @param  string  $component  the Inertia page component every read through the route renders
+     */
+    public static function queries(Registrar $router, string $component, string $prefix = 'queries'): Route
+    {
+        return $router->get(trim($prefix, '/').'/{query}/v{version}', InertiaQueryController::class)
+            ->where(['query' => self::COMMAND, 'version' => self::VERSION])
+            ->defaults(self::COMPONENT, $component)
+            ->name(self::QUERY_NAME);
     }
 }

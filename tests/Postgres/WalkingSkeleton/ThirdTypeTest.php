@@ -440,4 +440,7 @@ it('keeps the surface contract of every write action the registry exposes with t
 
     $test = TestSuite::getInstance()->test;
     $case->verify($test instanceof TestCase ? $test : throw new AssertionFailedError('The surface contract runs in the workbench\'s test case.'));
-})->with(static fn (): array => SurfaceContractCases::of(SurfaceContractCases::booted(), SurfaceProfiles::all()));
+})->with(static fn (): array => array_filter(
+    SurfaceContractCases::of(SurfaceContractCases::booted(), SurfaceProfiles::all()),
+    static fn (array $case): bool => $case[0] instanceof SurfaceContractCase,
+));

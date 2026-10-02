@@ -33,6 +33,7 @@ use Cbox\Cms\Contracts\Errors\Problem;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Idempotency\IdempotencyKey;
 use Cbox\Cms\Contracts\Identity\ActorClass;
+use Cbox\Cms\Contracts\Identity\ActorState;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\DeactivationSource;
 use Cbox\Cms\Contracts\Identity\DisplayName;
@@ -60,6 +61,12 @@ use Cbox\Cms\Core\Access\Domain\Commands\AssignGrant;
 use Cbox\Cms\Core\Access\Domain\Commands\CreateRole;
 use Cbox\Cms\Core\Access\Domain\Commands\RevokeGrant;
 use Cbox\Cms\Core\Access\Domain\Commands\SetRolePermissions;
+use Cbox\Cms\Core\Access\Domain\Dto\GrantList;
+use Cbox\Cms\Core\Access\Domain\Dto\ListedGrant;
+use Cbox\Cms\Core\Access\Domain\Dto\ListedRole;
+use Cbox\Cms\Core\Access\Domain\Dto\RoleList;
+use Cbox\Cms\Core\Access\Domain\Queries\ListGrants;
+use Cbox\Cms\Core\Access\Domain\Queries\ListRoles;
 use Cbox\Cms\Core\Delivery\Domain\AnswerFormat;
 use Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryDocument;
 use Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryExplanation;
@@ -71,6 +78,10 @@ use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
 use Cbox\Cms\Core\Identity\Domain\Commands\ActivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\RegisterActor;
+use Cbox\Cms\Core\Identity\Domain\Dto\ActorList;
+use Cbox\Cms\Core\Identity\Domain\Dto\ListedActor;
+use Cbox\Cms\Core\Identity\Domain\Dto\ListedProfile;
+use Cbox\Cms\Core\Identity\Domain\Queries\ListActors;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCodec;
 use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
@@ -98,6 +109,9 @@ use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Routing\Domain\ResolveOutcome;
 use Cbox\Cms\Core\Routing\Domain\SiteHandle;
 use Cbox\Cms\Core\Routing\Domain\VisibilityDecision;
+use Cbox\Cms\Core\Structure\Domain\Dto\ListedNode;
+use Cbox\Cms\Core\Structure\Domain\Dto\NodeList;
+use Cbox\Cms\Core\Structure\Domain\Queries\ListNodes;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecCommand;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecContract;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecQuery;
@@ -336,30 +350,104 @@ final readonly class ProtocolSchemas
     public static function queries(): array
     {
         $id = static fn (string $class): ValueBinding => ValueBinding::id($class);
+        $version = ValueBinding::value(AggregateVersion::class);
+        $profile = [
+            '#/$defs/profile/properties/display_name' => ValueBinding::value(DisplayName::class),
+            '#/$defs/profile/properties/email' => ValueBinding::value(EmailAddress::class),
+        ];
 
-        return self::query(
-            'path.resolve',
-            ResolvePath::class,
-            'ResolvePathCodecV1',
-            [
-                '#/properties/host' => ValueBinding::value(Host::class),
-                '#/properties/locale' => ValueBinding::value(Locale::class),
-                '#/properties/path' => ValueBinding::value(RequestPath::class),
-            ],
-            'ResolvedPathCodecV1',
-            [
-                '#' => ResolvedPath::class,
-                '#/$defs/read_content' => ReadContent::class,
-                ...self::pathExplanationObjects('#/$defs/path_explanation', '#/$defs/'),
-            ],
-            [
-                '#/$defs/read_content/properties/entry' => $id(EntryId::class),
-                '#/$defs/read_content/properties/fields' => ValueBinding::fields(FieldValues::class),
-                '#/$defs/read_content/properties/node' => $id(NodeId::class),
-                '#/$defs/read_content/properties/type' => $id(TypeId::class),
-                ...self::pathExplanationValues('#/$defs/path_explanation', '#/$defs/'),
-            ],
-        );
+        return [
+            ...self::query(
+                'actor.list',
+                ListActors::class,
+                'ListActorsCodecV1',
+                ['#/properties/after' => $id(ActorId::class)],
+                'ActorListCodecV1',
+                ['#' => ActorList::class, '#/$defs/listed_actor' => ListedActor::class, '#/$defs/profile' => ListedProfile::class],
+                [
+                    '#/properties/next' => $id(ActorId::class),
+                    '#/$defs/listed_actor/properties/id' => $id(ActorId::class),
+                    '#/$defs/listed_actor/properties/state' => ValueBinding::enum(ActorState::class),
+                    '#/$defs/listed_actor/properties/version' => $version,
+                    ...$profile,
+                ],
+            ),
+            ...self::query(
+                'grant.list',
+                ListGrants::class,
+                'ListGrantsCodecV1',
+                ['#/properties/after' => $id(GrantId::class)],
+                'GrantListCodecV1',
+                ['#' => GrantList::class, '#/$defs/listed_grant' => ListedGrant::class, '#/$defs/profile' => ListedProfile::class],
+                [
+                    '#/properties/next' => $id(GrantId::class),
+                    '#/$defs/listed_grant/properties/actor' => $id(ActorId::class),
+                    '#/$defs/listed_grant/properties/effect' => ValueBinding::enum(GrantEffect::class),
+                    '#/$defs/listed_grant/properties/id' => $id(GrantId::class),
+                    '#/$defs/listed_grant/properties/locales/items' => ValueBinding::value(Locale::class),
+                    '#/$defs/listed_grant/properties/node' => $id(NodeId::class),
+                    '#/$defs/listed_grant/properties/role' => $id(RoleId::class),
+                    '#/$defs/listed_grant/properties/role_handle' => ValueBinding::value(RoleHandle::class),
+                    '#/$defs/listed_grant/properties/version' => $version,
+                    ...$profile,
+                ],
+            ),
+            ...self::query(
+                'node.list',
+                ListNodes::class,
+                'ListNodesCodecV1',
+                ['#/properties/after' => $id(NodeId::class)],
+                'NodeListCodecV1',
+                ['#' => NodeList::class, '#/$defs/listed_node' => ListedNode::class],
+                [
+                    '#/properties/next' => $id(NodeId::class),
+                    '#/$defs/listed_node/properties/id' => $id(NodeId::class),
+                    '#/$defs/listed_node/properties/kind' => ValueBinding::enum(NodeKind::class),
+                    '#/$defs/listed_node/properties/parent' => $id(NodeId::class),
+                    '#/$defs/listed_node/properties/site' => $id(SiteId::class),
+                    '#/$defs/listed_node/properties/site_handle' => ValueBinding::value(SiteHandle::class),
+                ],
+            ),
+            ...self::query(
+                'path.resolve',
+                ResolvePath::class,
+                'ResolvePathCodecV1',
+                [
+                    '#/properties/host' => ValueBinding::value(Host::class),
+                    '#/properties/locale' => ValueBinding::value(Locale::class),
+                    '#/properties/path' => ValueBinding::value(RequestPath::class),
+                ],
+                'ResolvedPathCodecV1',
+                [
+                    '#' => ResolvedPath::class,
+                    '#/$defs/read_content' => ReadContent::class,
+                    ...self::pathExplanationObjects('#/$defs/path_explanation', '#/$defs/'),
+                ],
+                [
+                    '#/$defs/read_content/properties/entry' => $id(EntryId::class),
+                    '#/$defs/read_content/properties/fields' => ValueBinding::fields(FieldValues::class),
+                    '#/$defs/read_content/properties/node' => $id(NodeId::class),
+                    '#/$defs/read_content/properties/type' => $id(TypeId::class),
+                    ...self::pathExplanationValues('#/$defs/path_explanation', '#/$defs/'),
+                ],
+            ),
+            ...self::query(
+                'role.list',
+                ListRoles::class,
+                'ListRolesCodecV1',
+                ['#/properties/after' => $id(RoleId::class)],
+                'RoleListCodecV1',
+                ['#' => RoleList::class, '#/$defs/listed_role' => ListedRole::class],
+                [
+                    '#/properties/next' => $id(RoleId::class),
+                    '#/$defs/listed_role/properties/ceiling' => ValueBinding::enum(ClassificationAccess::class),
+                    '#/$defs/listed_role/properties/handle' => ValueBinding::value(RoleHandle::class),
+                    '#/$defs/listed_role/properties/id' => $id(RoleId::class),
+                    '#/$defs/listed_role/properties/permissions/items' => ValueBinding::value(CommandName::class),
+                    '#/$defs/listed_role/properties/version' => $version,
+                ],
+            ),
+        ];
     }
 
     /**

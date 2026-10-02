@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "grant.list result, contract version 1",
+  "description": "The result of grant.list (PRD 5.10, 12.2): a page of grants, each with its actor and the actor's profile, its role, its node, its effect and its locales. A profile is null where the reader may not read it, and its values are personal data, left out for a reader whose classification access does not allow personal. The PHP form is Cbox\\Cms\\Core\\Access\\Domain\\Dto\\GrantList, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "grants",
+    "next"
+  ],
+  "properties": {
+    "grants": {
+      "description": "The page, in order.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/listed_grant"
+      }
+    },
+    "next": {
+      "description": "The id to read the next page after, or null when this page is the last.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/id"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "listed_grant": {
+      "description": "A grant that has not ended (PRD 5.10).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actor",
+        "effect",
+        "id",
+        "locales",
+        "node",
+        "node_label",
+        "profile",
+        "role",
+        "role_handle",
+        "version"
+      ],
+      "properties": {
+        "actor": {
+          "description": "The actor the grant is granted to.",
+          "$ref": "#/$defs/id"
+        },
+        "effect": {
+          "description": "allow gives the role's permissions on the node and the subtree below it, deny keeps them from it.",
+          "enum": [
+            "allow",
+            "deny"
+          ]
+        },
+        "id": {
+          "description": "The grant.",
+          "$ref": "#/$defs/id"
+        },
+        "locales": {
+          "description": "The locales the grant holds in, or null for every locale.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/locale"
+          }
+        },
+        "node": {
+          "description": "The node the grant holds on.",
+          "$ref": "#/$defs/id"
+        },
+        "node_label": {
+          "description": "The node's path label: one segment per node from the root of its tree down to it, joined by /, the site's handle for the root of a site's tree, and below it the last segment of the node's route or the node's kind.",
+          "type": "string",
+          "minLength": 1
+        },
+        "profile": {
+          "description": "The actor's profile, or null when the reader may not read it.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/profile"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "role": {
+          "description": "The role granted.",
+          "$ref": "#/$defs/id"
+        },
+        "role_handle": {
+          "description": "The role's handle.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "version": {
+          "description": "The grant's version, from 1.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "locale": {
+      "description": "A language tag of a language, an optional script and an optional region, such as da, en-GB or sr-Latn-RS; the kernel writes the language in lowercase, the script in title case and the region in uppercase.",
+      "type": "string",
+      "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$"
+    },
+    "profile": {
+      "description": "An actor's profile (PRD 5.16, 12.2). Both values are personal data, classified personal: a reader whose classification access does not allow personal gets the profile without them.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "display_name": {
+          "description": "The name the actor's profile shows, 1 to 200 characters without control characters, that starts and ends with a character that is not white space. Personal data, left out below personal access.",
+          "type": "string",
+          "pattern": "^[^\\s\\x00-\\x1F\\x7F]([^\\x00-\\x1F\\x7F]*[^\\s\\x00-\\x1F\\x7F])?$",
+          "minLength": 1,
+          "maxLength": 200,
+          "x-cms-classification": "personal"
+        },
+        "email": {
+          "description": "The contact email address of the actor's profile, at most 254 characters. Personal data, left out below personal access.",
+          "type": "string",
+          "pattern": "^[^\\s@\\x00-\\x1F\\x7F]+@[^\\s@\\x00-\\x1F\\x7F]+\\.[^\\s@\\x00-\\x1F\\x7F]+$",
+          "minLength": 5,
+          "maxLength": 254,
+          "x-cms-classification": "personal"
+        }
+      }
+    }
+  }
+}

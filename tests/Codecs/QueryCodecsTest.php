@@ -7,14 +7,37 @@ namespace Cbox\Cms\Tests\Codecs\Queries;
 use Cbox\Cms\Contracts\Codecs\JsonCodec;
 use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Contracts\Ids\ActorId;
+use Cbox\Cms\Contracts\Ids\GrantId;
+use Cbox\Cms\Contracts\Ids\NodeId;
+use Cbox\Cms\Contracts\Ids\RoleId;
+use Cbox\Cms\Core\Access\Domain\Dto\GrantList;
+use Cbox\Cms\Core\Access\Domain\Dto\ListedGrant;
+use Cbox\Cms\Core\Access\Domain\Dto\RoleList;
+use Cbox\Cms\Core\Access\Domain\Queries\ListGrants;
+use Cbox\Cms\Core\Access\Domain\Queries\ListRoles;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\ActorListCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\GrantListCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\KernelQueryCodecs;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\ListActorsCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\ListGrantsCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\ListNodesCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\ListRolesCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\NodeListCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ResolvedPathCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ResolvePathCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\RoleListCodecV1;
 use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
+use Cbox\Cms\Core\Identity\Domain\Dto\ActorList;
+use Cbox\Cms\Core\Identity\Domain\Dto\ListedActor;
+use Cbox\Cms\Core\Identity\Domain\Queries\ListActors;
 use Cbox\Cms\Core\Reads\Domain\Dto\QueryCodec;
 use Cbox\Cms\Core\Routing\Domain\Host;
 use Cbox\Cms\Core\Routing\Domain\Queries\ResolvePath;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
+use Cbox\Cms\Core\Structure\Domain\Dto\NodeList;
+use Cbox\Cms\Core\Structure\Domain\Queries\ListNodes;
+use Cbox\Cms\Core\Tests\Access\ListingWorld;
 use Cbox\Cms\Core\Tests\Routing\ResolveWorld;
 use Cbox\Cms\Generators\Protocol\Domain\Dto\SchemaBinding;
 use Cbox\Cms\Generators\Protocol\Domain\ProtocolSchemas;
@@ -32,7 +55,9 @@ use RuntimeException;
  * query's document and the codec of its result, as KernelQueryCodecs lists them. Every query and
  * result built in PHP gives an equal one after its codec encodes and decodes it, and what the codec
  * writes is valid against the committed JSON Schema, by opis. On hand-written documents of a query,
- * the PHP codec, the generated TypeScript validator and opis agree. Every codec KernelQueryCodecs
+ * the PHP codec, the generated TypeScript validator and opis agree. The results of the access
+ * queries are also written for a reader below personal access, without their profiles' values
+ * (PRD 12.2). Every codec KernelQueryCodecs
  * lists has fixtures here, so a new kernel query fails this test until it is given some.
  */
 
@@ -51,6 +76,48 @@ const QUERY_OFFSET = '/(?:Z|[+-][0-9]{2}:[0-9]{2})\z/i';
 function queryFixtures(): array
 {
     return [
+        'actor.list v1' => static function (QueryCodec $codec): void {
+            expect($codec->query)->toBeInstanceOf(ListActorsCodecV1::class)
+                ->and($codec->result)->toBeInstanceOf(ActorListCodecV1::class);
+
+            foreach ([new ListActors, new ListActors(ActorId::fromString(ListingWorld::ADMIN), 1)] as $index => $query) {
+                queryRoundTrip(new ListActorsCodecV1, $query, 'actor.list.v1.json', 'query '.$index);
+            }
+
+            $actors = array_map(static fn (array $actor): ListedActor => $actor[0], ListingWorld::actors());
+
+            foreach ([new ActorList($actors, null), new ActorList([], null), new ActorList([$actors[0]], ActorId::fromString(ListingWorld::ADMIN))] as $index => $result) {
+                queryRoundTrip(new ActorListCodecV1, $result, 'actor.list.result.v1.json', 'result '.$index);
+                queryWithheld(new ActorListCodecV1, $result, 'actor.list.result.v1.json', 'result '.$index);
+            }
+        },
+        'grant.list v1' => static function (QueryCodec $codec): void {
+            expect($codec->query)->toBeInstanceOf(ListGrantsCodecV1::class)
+                ->and($codec->result)->toBeInstanceOf(GrantListCodecV1::class);
+
+            foreach ([new ListGrants, new ListGrants(GrantId::fromString(ListingWorld::GRANT_BOB), 100)] as $index => $query) {
+                queryRoundTrip(new ListGrantsCodecV1, $query, 'grant.list.v1.json', 'query '.$index);
+            }
+
+            $grants = array_map(static fn (array $grant): ListedGrant => $grant[0], ListingWorld::grants());
+
+            foreach ([new GrantList($grants, GrantId::fromString(ListingWorld::GRANT_ENDED)), new GrantList([], null)] as $index => $result) {
+                queryRoundTrip(new GrantListCodecV1, $result, 'grant.list.result.v1.json', 'result '.$index);
+                queryWithheld(new GrantListCodecV1, $result, 'grant.list.result.v1.json', 'result '.$index);
+            }
+        },
+        'node.list v1' => static function (QueryCodec $codec): void {
+            expect($codec->query)->toBeInstanceOf(ListNodesCodecV1::class)
+                ->and($codec->result)->toBeInstanceOf(NodeListCodecV1::class);
+
+            foreach ([new ListNodes, new ListNodes(NodeId::fromString(ListingWorld::NEWS), 1)] as $index => $query) {
+                queryRoundTrip(new ListNodesCodecV1, $query, 'node.list.v1.json', 'query '.$index);
+            }
+
+            foreach ([new NodeList(ListingWorld::nodes(), NodeId::fromString(ListingWorld::CULTURE)), new NodeList([], null)] as $index => $result) {
+                queryRoundTrip(new NodeListCodecV1, $result, 'node.list.result.v1.json', 'result '.$index);
+            }
+        },
         'path.resolve v1' => static function (QueryCodec $codec): void {
             $world = new ResolveWorld()->place(ResolveWorld::PLACEMENT, ResolveWorld::SECTION, 'harbour', window: ResolveWorld::window(-1, 5));
             $closed = new ResolveWorld()->place(ResolveWorld::PLACEMENT, ResolveWorld::SECTION, 'harbour', window: ResolveWorld::window(-5, -1));
@@ -73,6 +140,18 @@ function queryFixtures(): array
                 new ResolveWorld()->resolve('nowhere.example', '/nyheder/harbour'),
             ] as $index => $result) {
                 queryRoundTrip(new ResolvedPathCodecV1, $result, 'path.resolve.result.v1.json', 'result '.$index);
+            }
+        },
+        'role.list v1' => static function (QueryCodec $codec): void {
+            expect($codec->query)->toBeInstanceOf(ListRolesCodecV1::class)
+                ->and($codec->result)->toBeInstanceOf(RoleListCodecV1::class);
+
+            foreach ([new ListRoles, new ListRoles(RoleId::fromString(ListingWorld::ADMIN_ROLE), 2)] as $index => $query) {
+                queryRoundTrip(new ListRolesCodecV1, $query, 'role.list.v1.json', 'query '.$index);
+            }
+
+            foreach ([new RoleList(ListingWorld::roles(), null), new RoleList([], RoleId::fromString(ListingWorld::DESK))] as $index => $result) {
+                queryRoundTrip(new RoleListCodecV1, $result, 'role.list.result.v1.json', 'result '.$index);
             }
         },
     ];
@@ -161,6 +240,27 @@ function queryRoundTrip(JsonCodec $codec, object $dto, string $schema, string $a
     expect($decoded)->toEqual($dto, $at.': the DTO read back')
         ->and($codec->encode($decoded, ClassificationAccess::Sensitive))->toBe($json, $at.': what it writes again')
         ->and(querySchemaAccepts($schema, $json))->toBeTrue($at.': the JSON Schema on '.$json);
+}
+
+/**
+ * Encodes the DTO for a reader below personal access and checks that the profiles' values are left
+ * out, that the codec reads back the DTO as that reader sees it, that it refuses the document a
+ * personal reader gets, and that the schema accepts what it wrote (PRD 12.2).
+ *
+ * @template TDto of object
+ *
+ * @param  JsonCodec<TDto>  $codec
+ * @param  TDto  $dto
+ */
+function queryWithheld(JsonCodec $codec, object $dto, string $schema, string $at): void
+{
+    $json = $codec->encode($dto, ClassificationAccess::Confidential);
+    $full = $codec->encode($dto, ClassificationAccess::Personal);
+
+    expect($json)->not->toContain('@', $at.': no email below personal')
+        ->and($codec->encode($codec->decode($json, ClassificationAccess::Confidential), ClassificationAccess::Personal))->toBe($json, $at.': what a reader below personal reads back')
+        ->and(querySchemaAccepts($schema, $json))->toBeTrue($at.': the JSON Schema on '.$json)
+        ->and($full === $json || queryRefusedAt($codec, $full) !== null)->toBeTrue($at.': the document of a personal reader is refused below personal');
 }
 
 /**

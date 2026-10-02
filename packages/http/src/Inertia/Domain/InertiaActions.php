@@ -15,8 +15,9 @@ use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
  * The actions of the compiled registry that the Inertia profile exposes (GUARDRAILS 2.1): those
  * whose #[Action] lists Surface::Inertia. The panel and REST stay in parity, so building it from a
  * registry with an action on Inertia that is not on REST throws SurfaceParityBroken, naming every
- * such action, and the profile then serves nothing. The profile runs writes; find() gives the
- * write action of a version of a command, or null when the profile does not expose one.
+ * such action, and the profile then serves nothing. find() gives the write action of a version of
+ * a command and query() the query action of a version of a query, or null when the profile does
+ * not expose one.
  */
 #[Internal]
 final readonly class InertiaActions
@@ -24,12 +25,16 @@ final readonly class InertiaActions
     /** @var array<string, ActionEntry> by name and version */
     private array $writes;
 
+    /** @var array<string, ActionEntry> by name and version */
+    private array $queries;
+
     /**
      * @throws SurfaceParityBroken when an action is exposed on Inertia and not on REST
      */
     public function __construct(CompiledRegistry $registry)
     {
         $writes = [];
+        $queries = [];
         $broken = [];
 
         foreach ($registry->actions as $entry) {
@@ -43,6 +48,8 @@ final readonly class InertiaActions
 
             if ($entry->kind === ActionKind::Write) {
                 $writes[$this->key($entry->command, $entry->commandVersion)] = $entry;
+            } else {
+                $queries[$this->key($entry->command, $entry->commandVersion)] = $entry;
             }
         }
 
@@ -51,11 +58,20 @@ final readonly class InertiaActions
         }
 
         $this->writes = $writes;
+        $this->queries = $queries;
     }
 
     public function find(CommandName $command, int $version): ?ActionEntry
     {
         return $this->writes[$this->key($command, $version)] ?? null;
+    }
+
+    /**
+     * The query action of a version of a query, or null when the profile does not expose one.
+     */
+    public function query(CommandName $query, int $version): ?ActionEntry
+    {
+        return $this->queries[$this->key($query, $version)] ?? null;
     }
 
     private function key(CommandName $command, int $version): string

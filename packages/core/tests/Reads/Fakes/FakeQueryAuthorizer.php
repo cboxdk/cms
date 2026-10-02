@@ -7,6 +7,7 @@ namespace Cbox\Cms\Core\Tests\Reads\Fakes;
 use Cbox\Cms\Contracts\Identity\AccessContext;
 use Cbox\Cms\Contracts\Identity\ActorPrincipal;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Pipeline\ActorQuery;
 use Cbox\Cms\Contracts\Pipeline\PublicQuery;
 use Cbox\Cms\Contracts\Pipeline\Query;
 use Cbox\Cms\Core\Access\Domain\PermissionRule;
@@ -52,6 +53,10 @@ final class FakeQueryAuthorizer implements QueryAuthorizer
 
         if (! $principal instanceof ActorPrincipal) {
             return Authorization::refuse(sprintf('The anonymous principal may run only public reads, and %s is not one.', $query->value));
+        }
+
+        if ($input instanceof ActorQuery) {
+            return Authorization::allow();
         }
 
         $authorization = new PermissionRule()->query($query, $this->permissions->of($principal->actor, $query));

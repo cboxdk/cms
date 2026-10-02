@@ -14,12 +14,18 @@ A caller sends a query to a surface as a JSON document: the query parameter `que
 | Query | Schemas | Codecs | PHP form |
 |---|---|---|---|
 | `path.resolve` | `path.resolve.v1.json`, `path.resolve.result.v1.json` | `ResolvePathCodecV1`, `ResolvedPathCodecV1` | `ResolvePath` and `ResolvedPath` |
+| `role.list` | `role.list.v1.json`, `role.list.result.v1.json` | `ListRolesCodecV1`, `RoleListCodecV1` | `ListRoles` and `RoleList` |
+| `grant.list` | `grant.list.v1.json`, `grant.list.result.v1.json` | `ListGrantsCodecV1`, `GrantListCodecV1` | `ListGrants` and `GrantList` |
+| `actor.list` | `actor.list.v1.json`, `actor.list.result.v1.json` | `ListActorsCodecV1`, `ActorListCodecV1` | `ListActors` and `ActorList` |
+| `node.list` | `node.list.v1.json`, `node.list.result.v1.json` | `ListNodesCodecV1`, `NodeListCodecV1` | `ListNodes` and `NodeList` |
 
-`path.resolve` is the public query that resolves a URL to the placement it shows (PRD 5.9). It is exposed on no surface: the delivery API serves it as `GET /v1/resolve` (see [delivery JSON](delivery-json.md)), and `cms:explain` prints its explanation. Its result holds the entry the placement places, with its node, its type and the fields of its released revision in the input form of [command JSON](command-json.md), or `null`, and the explanation of the resolution as `path-explanation.v1.json` describes it. The query pipeline leaves out every field above the reader's classification access before the codec writes the result.
+`path.resolve` is the public query that resolves a URL to the placement it shows (PRD 5.9). It is exposed on no surface: the delivery API serves it as `GET /v1/resolve` (see [delivery JSON](delivery-json.md)), and `cms:explain` prints its explanation. Its result holds the entry the placement places, with its node, its type and the fields of its released revision in the input form of [command JSON](command-json.md), or `null`, and the explanation of the resolution as `path-explanation.v1.json` describes it. The query pipeline leaves out every field above the reader's classification access before the codec writes the result. The four listing queries are described in [access queries](access-queries.md).
 
 ## The documents
 
-A document is an object of the query's keys in snake_case and no other key. Every key is required unless its schema gives it a default. A host is a DNS name with an optional port, written back in lowercase; a locale is a language tag, written back as a command's is; a path starts with a slash. A result is written with keys sorted and no whitespace, and every key of its schema is present, `null` where there is no value.
+A document is an object of the query's keys in snake_case and no other key. Every key is required unless its schema gives it a default. A host is a DNS name with an optional port, written back in lowercase; a locale is a language tag, written back as a command's is; a path starts with a slash. A result is written with keys sorted and no whitespace, and every key of its schema is present, `null` where there is no value, except a value classified above public.
+
+A property of a result whose schema has `"x-cms-classification"`, a class above `public` such as `personal`, is withheld from a reader whose classification access does not allow that class (PRD 12.2): it is not in the object's `required` and has no default, and it is never null. The codec writes it at the reader's access, through the result's `visibleTo()`, and leaves it out below it; it reads it as required where the reader's access allows the class and refuses it in a document for any other reader. The result's class holds `Cbox\Cms\Contracts\Fields\Omitted` for a withheld value, so the constructor argument is the value's type or `Omitted`. The profiles of [access queries](access-queries.md) are personal this way.
 
 ## The codecs are generated
 
@@ -72,6 +78,6 @@ it('reads and writes the result of path.resolve, and lists the codecs of each ke
         ->and($result->outcome())->toBe(ResolveOutcome::UnknownHost)
         ->and($codec->encode($result, ClassificationAccess::Public))->toBe($json)
         ->and($queries)->toContain('path.resolve v1')
-        ->and(KernelQueryCodecs::all()[0]->result)->toBeInstanceOf(ResolvedPathCodecV1::class);
+        ->and(array_first(array_filter(KernelQueryCodecs::all(), static fn (QueryCodec $each): bool => $each->name->value === 'path.resolve'))?->result)->toBeInstanceOf(ResolvedPathCodecV1::class);
 });
 ```

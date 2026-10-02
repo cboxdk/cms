@@ -119,8 +119,16 @@ it('writes the runtime module unchanged, a module per record and a module per ke
         $directory.'/protocol/CreateRoleV1.ts',
         $directory.'/protocol/SetRolePermissionsV1.ts',
         $directory.'/protocol/ReleaseVariantV1.ts',
+        $directory.'/protocol/ListActorsV1.ts',
+        $directory.'/protocol/ActorListV1.ts',
+        $directory.'/protocol/ListGrantsV1.ts',
+        $directory.'/protocol/GrantListV1.ts',
+        $directory.'/protocol/ListNodesV1.ts',
+        $directory.'/protocol/NodeListV1.ts',
         $directory.'/protocol/ResolvePathV1.ts',
         $directory.'/protocol/ResolvedPathV1.ts',
+        $directory.'/protocol/ListRolesV1.ts',
+        $directory.'/protocol/RoleListV1.ts',
     ])
         ->and($files[0]->contents)->toBe(new TypeScriptRuntime()->source())
         ->and($files[1]->contents)->toContain("export function validateAppArticleV1(value: unknown): Validation<AppArticleV1> {\n")
@@ -161,8 +169,16 @@ it('reads the kernel\'s contracts in the order of their schemas, and names every
         'CreateRoleCodecV1',
         'SetRolePermissionsCodecV1',
         'ReleaseVariantCodecV1',
+        'ListActorsCodecV1',
+        'ActorListCodecV1',
+        'ListGrantsCodecV1',
+        'GrantListCodecV1',
+        'ListNodesCodecV1',
+        'NodeListCodecV1',
         'ResolvePathCodecV1',
         'ResolvedPathCodecV1',
+        'ListRolesCodecV1',
+        'RoleListCodecV1',
     ]);
 
     try {
@@ -172,14 +188,16 @@ it('reads the kernel\'s contracts in the order of their schemas, and names every
         $problems = $failed->problems;
     }
 
-    expect(count($problems))->toBe(24)
+    expect(count($problems))->toBe(32)
         ->and($problems[0]->code)->toBe(GenerateErrorCode::SchemaMissing)
         ->and($problems[2]->message)->toContain('packages/contracts/resources/schemas/envelope.v1.json')
         ->and($problems[6]->message)->toContain('receipt.v1.json')
         ->and($problems[10]->message)->toContain('packages/core/resources/schemas/commands/entry.create.v1.json')
         ->and($problems[21]->message)->toContain('packages/core/resources/schemas/delivery-fragment.v1.json')
-        ->and($problems[22]->message)->toContain('packages/core/resources/schemas/queries/path.resolve.result.v1.json')
-        ->and($problems[23]->message)->toContain('packages/core/resources/schemas/queries/path.resolve.v1.json');
+        ->and($problems[22]->message)->toContain('packages/core/resources/schemas/queries/actor.list.result.v1.json')
+        ->and($problems[28]->message)->toContain('packages/core/resources/schemas/queries/path.resolve.result.v1.json')
+        ->and($problems[29]->message)->toContain('packages/core/resources/schemas/queries/path.resolve.v1.json')
+        ->and($problems[31]->message)->toContain('packages/core/resources/schemas/queries/role.list.v1.json');
 });
 
 it('refuses a kernel schema that is not valid with generate_schema_invalid', function (): void {

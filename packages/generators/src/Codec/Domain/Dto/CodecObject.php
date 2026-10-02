@@ -41,12 +41,24 @@ final readonly class CodecObject
     }
 
     /**
-     * Whether a property of this object, or of an object it holds once, is withheld above some
-     * classification access, so the class has visibleTo().
+     * Whether a property of this object, or of an object it holds once or in a list, is withheld
+     * above some classification access, so the class has visibleTo().
      */
     public function classified(): bool
     {
-        return array_any($this->properties, fn (CodecProperty $property): bool => $property->withheld() || ($property->value->object instanceof self && $property->value->object->classified()));
+        return array_any($this->properties, static fn (CodecProperty $property): bool => $property->withheld() || self::holdsClassified($property->value));
+    }
+
+    /**
+     * Whether the value is an object that is classified, or a list of such values.
+     */
+    private static function holdsClassified(CodecValue $value): bool
+    {
+        while ($value->item instanceof CodecValue) {
+            $value = $value->item;
+        }
+
+        return $value->object instanceof self && $value->object->classified();
     }
 
     /**

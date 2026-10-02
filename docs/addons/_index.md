@@ -32,6 +32,7 @@ An extension point is `#[Stable]` or `#[Experimental]`. Every extension point do
 - [Role commands](role-commands.md): `role.create` and `role.set_permissions`, the escalation guard on a role's content, step-up for a role that becomes administrative, `grant.changed` for every holder and their rejections.
 - [Plans and mutations](plans.md): the `Plan` a write action returns, the typed mutations and the kernel-generic field values of a revision.
 - [Queries and query actions](queries.md): `Query`, `QueryAction` and the typed `Result` of a read.
+- [Access queries](access-queries.md): `role.list`, `grant.list`, `actor.list` and `node.list`, the pages they read, who may run them, and the profiles they leave out below personal access.
 - [Records and JSON codecs](codecs.md): the record DTO and the JSON codec `cms:generate` writes for every type, the JSON form of each kind of value, classification access and `Omitted`, and the `JsonCodec` contract.
 - [Runtime validators](validation.md): the validator `cms:generate` writes per type, its rules, and the kernel's `InputValidator`, which checks input from outside against them.
 - [Receipt JSON](receipt-json.md): the JSON form of the receipt a write returns, `receipt.v1.json`, and its generated codec.

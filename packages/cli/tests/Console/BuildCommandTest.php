@@ -69,12 +69,12 @@ it('writes the six registries to the application\'s bootstrap/cache/cms, and rem
 
     expect($status)->toBe(0)
         ->and($output)->toBe([
-            'actions: 16',
+            'actions: 20',
             'commands: 15',
             // The workbench's fixture addon, which package discovery registers: its two hooks and
             // its extension of app:fixture_article.
             'hooks: 2',
-            'rest: 12',
+            'rest: 16',
             'schema: 1',
             'subscribers: 1',
             sprintf('Registry written to %s.', $directory),
@@ -91,7 +91,7 @@ it('adds what an addon provider\'s scan root declares', function (): void {
     [$status, $output] = buildCommand();
 
     expect($status)->toBe(0)
-        ->and(array_slice($output, 0, 4))->toBe(['actions: 18', 'commands: 16', 'hooks: 3', 'rest: 13'])
+        ->and(array_slice($output, 0, 4))->toBe(['actions: 22', 'commands: 16', 'hooks: 3', 'rest: 17'])
         ->and(RegistryFixtures::load($directory.'/commands.php'))->toMatchArray(['entries' => [[
             'class' => ActivateActor::class,
             'name' => 'actor.activate',

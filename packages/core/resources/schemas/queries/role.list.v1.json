@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "role.list, contract version 1",
+  "description": "Lists the roles with their classification ceilings and permissions (PRD 5.10, 12.2): a page of roles in the order of their ids. It needs a role whose permissions name role.list. The PHP form is Cbox\\Cms\\Core\\Access\\Domain\\Queries\\ListRoles, and the generated codec reads it and writes its canonical JSON: every key, sorted, no whitespace. Its result is role.list.result.v1.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [],
+  "properties": {
+    "after": {
+      "description": "The id of the last role the caller has; the page starts after it. Null, or missing, starts at the first role.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/id"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "limit": {
+      "description": "The most roles the page holds, from 1 to 100. Missing is 50.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 50
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    }
+  }
+}

@@ -9,6 +9,8 @@ use Cbox\Cms\Contracts\Attributes\Command;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Attributes\Query;
 use Cbox\Cms\Contracts\Fields\FieldValues;
+use Cbox\Cms\Contracts\Fields\Omitted;
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Pipeline\Result;
 use Cbox\Cms\Generators\Codec\Domain\CodecKind;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecCommand;
@@ -33,6 +35,8 @@ use ReflectionClass;
 use ReflectionMethod;
 use ReflectionNamedType;
 use ReflectionParameter;
+use ReflectionType;
+use ReflectionUnionType;
 use stdClass;
 use Throwable;
 
@@ -56,7 +60,13 @@ use Throwable;
  * - a property bound with ValueBinding::fields() is the fields of a revision of any type: a
  *   `$ref` to `#/$defs/fields`, with the definitions of FieldValuesSchema exactly as they are there;
  * - a property bound with ValueBinding::document() is a JSON object of another contract, `"type":
- *   "object"` (or it and null) without keys of its own, which its own contract's codec reads.
+ *   "object"` (or it and null) without keys of its own, which its own contract's codec reads;
+ * - a property with `x-cms-classification` (CLASSIFICATION), a class above public such as
+ *   `personal`, is withheld from a reader whose classification access does not allow it (PRD 12.2):
+ *   it is not in `required` and has no default, because a document for such a reader leaves it
+ *   out, and it is never null. The codec reads it as required when the reader's access allows the
+ *   class and refuses it otherwise, and the bound class holds Omitted for it, so its constructor
+ *   argument is the property's type or Omitted, and the class has visibleTo().
  *
  * `pattern`, and minLength and maxLength of a bound value, describe what the bound class's
  * constructor checks, for the other readers of the schema; the codec leaves the check to the class.
@@ -81,6 +91,9 @@ final readonly class JsonSchemaContract
         'maxItems', 'maxLength', 'maximum', 'minItems', 'minLength', 'minimum', 'pattern', 'properties',
         'required', 'type',
     ];
+
+    /** The keyword of a property that is withheld above a classification (PRD 12.2). */
+    public const string CLASSIFICATION = 'x-cms-classification';
 
     /** The prefix of a reference the reader resolves. */
     private const string DEFS = '#/$defs/';
@@ -281,6 +294,10 @@ final readonly class JsonSchemaContract
      */
     private function property(string $key, stdClass $node, string $pointer, bool $required): CodecProperty
     {
+        if (property_exists($node, self::CLASSIFICATION)) {
+            return $this->classified($key, $node, $pointer, $required);
+        }
+
         [$value, $nullable] = $this->value($node, $pointer);
         $hasDefault = property_exists($node, 'default');
 
@@ -301,6 +318,48 @@ final readonly class JsonSchemaContract
             description: self::text($node->description ?? ''),
             nullable: $nullable,
             default: $hasDefault ? $this->defaultExpression($node->default, $value, $nullable, $pointer) : null,
+        );
+    }
+
+    /**
+     * A property withheld above the classification its CLASSIFICATION keyword names: not in
+     * `required`, without a default and never null, read as required where the reader's access
+     * allows the class.
+     *
+     * @throws GenerationFailed
+     */
+    private function classified(string $key, stdClass $node, string $pointer, bool $required): CodecProperty
+    {
+        $name = $node->{self::CLASSIFICATION};
+        $classification = is_string($name) ? ClassificationAccess::tryFrom($name) : null;
+
+        if (! $classification instanceof ClassificationAccess || $classification === ClassificationAccess::Public) {
+            throw $this->problem($pointer, sprintf('has a "%s" that is not a classification above public', self::CLASSIFICATION));
+        }
+
+        if ($required) {
+            throw $this->problem($pointer, sprintf('is required and has a "%s"; a classified key is left out for a reader whose access does not allow it, so it is not in "required"', self::CLASSIFICATION));
+        }
+
+        if (property_exists($node, 'default')) {
+            throw $this->problem($pointer, sprintf('has a default and a "%s"; a classified key has no default', self::CLASSIFICATION));
+        }
+
+        $plain = clone $node;
+        unset($plain->{self::CLASSIFICATION});
+        [$value, $nullable] = $this->value($plain, $pointer);
+
+        if ($nullable) {
+            throw $this->problem($pointer, sprintf('may be null and has a "%s"; a classified value is never null', self::CLASSIFICATION));
+        }
+
+        return new CodecProperty(
+            key: $key,
+            name: $this->binding->names[$pointer] ?? lcfirst(str_replace('_', '', ucwords($key, '_'))),
+            value: $value,
+            required: true,
+            classification: $classification,
+            description: self::text($node->description ?? ''),
         );
     }
 
@@ -919,7 +978,11 @@ final readonly class JsonSchemaContract
         $expected = $this->phpType($property->value);
         $type = $parameter->getType();
 
-        if ($parameter->isVariadic() || ! $type instanceof ReflectionNamedType || $type->getName() !== $expected) {
+        if ($property->withheld()) {
+            if ($parameter->isVariadic() || ! $this->isWithheldType($type, $expected)) {
+                throw $this->problem($pointer, sprintf('is the key "%s", withheld above a classification, but %s is not of the type %s|%s', $property->key, $where, $expected, Omitted::class));
+            }
+        } elseif ($parameter->isVariadic() || ! $type instanceof ReflectionNamedType || $type->getName() !== $expected) {
             throw $this->problem($pointer, sprintf('is the key "%s", but %s is not of the type %s', $property->key, $where, $expected));
         }
 
@@ -954,6 +1017,26 @@ final readonly class JsonSchemaContract
         if ($written !== $property->default) {
             throw $this->problem($pointer, sprintf('has the default %s, but the default of %s is %s', $property->default, $where, $written ?? 'another value'));
         }
+    }
+
+    /**
+     * Whether the type is exactly $expected or Omitted, without null, as the constructor argument of
+     * a withheld property must be.
+     *
+     * @phpstan-assert-if-true ReflectionUnionType $type
+     */
+    private function isWithheldType(?ReflectionType $type, string $expected): bool
+    {
+        if (! $type instanceof ReflectionUnionType || $type->allowsNull()) {
+            return false;
+        }
+
+        $names = array_map(static fn (ReflectionType $member): string => $member instanceof ReflectionNamedType ? $member->getName() : '', $type->getTypes());
+        sort($names);
+        $wanted = [$expected, Omitted::class];
+        sort($wanted);
+
+        return $names === $wanted;
     }
 
     /**
