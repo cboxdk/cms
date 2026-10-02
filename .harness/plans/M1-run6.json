@@ -1,0 +1,119 @@
+{
+ "block": "M1",
+ "summary": "M1 sixth run: T66 finished on its branch (8b05bf4) with Sylvester's decision of 2 October on equivalent mutations, integrated with a one-task CI run, then the exit criteria. E11 is proven on GitHub by a workflow_dispatch run of the whole block after the push.",
+ "tasks": [
+  {
+   "id": "T66",
+   "title": "Finish and integrate the CI mutation matrix, with the equivalent mutations settled",
+   "goal": "Branch wip/M1-T66 (8b05bf4, worktree ~/Projects/Cbox/cms-worktrees/M1-T66, one commit on main 7c62d92) holds the finished CI mutation matrix: bin/ci parts plan, gates, shard:i/n and verdict, ci.yml jobs, MutationShards, the per-class 80 % verdict, SharedContractSuites (Sylvester, 1 October), MutatedSourcePreload, CheckoutGuard and the new tests; composer check passes on it. Rebase it on main and finish it with Sylvester's decision of 2 October on the six classes whose surviving mutations are equivalent: (1) remove the equivalent construct where that is simple and a test pins the behaviour: TypeRules (the `= true` read with isset), HrtimeStopwatch (the (int) cast of hrtime(true), keeping PHPStan level 10 green) and RegistryAffectedProjections (the array_values before ProjectionStatus::listOf); (2) for the rest (SystemPacing, InertiaRequest line 41, OwnerMigrations, and the passing TransactionPosition and PostgresCanonicalPlacementLock survivors if listed), a named list of equivalent mutations in the mutation tooling, each entry the class, Pest's mutation id or the mutator with its line, and the reason; the verdict counts a listed mutation as not applicable, never as caught, and a test fails when an entry no longer matches a surviving mutation (it was killed or the code moved) or names a class outside packages/*/src. The 80 % threshold stays. Also add a workflow_dispatch trigger to ci.yml with an input for the base ref, so the whole block can be run on GitHub as one matrix run (Sylvester decided on 1 October that main is pushed after every task, so pushes usually carry one task). For the integration's containerized CI run use CMS_CI_BASE_REF set to main before this task (a one-task diff), not the whole block, which would run the 98 shards one after another for hours. Record the shard times of the earlier full scan and the new run in PROGRESS.md, and move M0-T47 to \"Beslutninger fra Sylvester\" (shared contract suites excluded, 1 October) and the six classes' decision (2 October).",
+   "prdRefs": [
+    "GUARDRAILS 10",
+    "GUARDRAILS 7.3"
+   ],
+   "acceptance": [
+    "composer check, composer check:selftest and the containerized CI run with a one-task base pass on the rebased branch",
+    "The equivalent-mutation list exists with a reason per entry, and its staleness test fails on a planted entry that matches no surviving mutation",
+    "TypeRules, HrtimeStopwatch and RegistryAffectedProjections reach 80 % without being on the list",
+    "ci.yml has workflow_dispatch with a base ref input that feeds CMS_CI_BASE_REF, covered by the CI workflow tests"
+   ],
+   "dependsOn": [],
+   "touches": [
+    "bin/ci",
+    ".github/workflows/ci.yml",
+    "compose.ci.yaml",
+    "tools/src/Mutation",
+    "tests",
+    "packages"
+   ]
+  }
+ ],
+ "exitCriteria": [
+  {
+   "id": "E1",
+   "description": "udgiv, opløs sti, server fra fragment, revidér, og fragmentet er invalideret, med en kvittering der viser origin",
+   "command": "composer services:up && vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/PublishResolveReviseTest.php"
+  },
+  {
+   "id": "E2",
+   "description": "to samtidige gem på separate forbindelser giver én commit og én konflikt",
+   "command": "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/ConcurrentSavesTest.php"
+  },
+  {
+   "id": "E3",
+   "description": "fem gentagelser med samme idempotensnøgle giver ét changeset, og samme nøgle med andet indhold afvises",
+   "command": "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/IdempotentRepeatsTest.php"
+  },
+  {
+   "id": "E4",
+   "description": "en genstart efter commit fører stadig til invalidering",
+   "command": "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/RestartAfterCommitTest.php"
+  },
+  {
+   "id": "E5",
+   "description": "begge typers læsemodeller kan genopbygges med identiske værdier, fra revisioner og fra hovedsnapshot",
+   "command": "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/RebuildReadModelsTest.php"
+  },
+  {
+   "id": "E6",
+   "description": "en læsning som app-rollen uden aktørkontekst giver nul rækker",
+   "command": "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/RlsWithoutActorContextTest.php"
+  },
+  {
+   "id": "E7",
+   "description": "`cms:seed-scale` med 1 million entries giver en listning under 20 ms i databasen",
+   "command": "composer services:up && composer scale:check -- --entries=1000000 (exit 0 and a printed median EXPLAIN ANALYZE execution time under 20 ms; the machine and wall time recorded in PROGRESS.md)"
+  },
+  {
+   "id": "E8",
+   "description": "en tredje type, tilføjet kun som schema-fil i `workbench/` med andre felter, andre kapabiliteter og routebar, virker gennem generator, kommandoer, levering og alle overflader uden en ændring i `packages/`",
+   "command": "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/ThirdTypeTest.php && composer check:generated; then procedure: git show --stat <M1-T50 commit> lists only files under workbench/ and tests/, none under packages/"
+  },
+  {
+   "id": "E9",
+   "description": "fixture-addonets udvidelsesfelt findes i typetabellen, recorden, DTO'en og TypeScript under addonets navnerum, og en ny version af fixture-typen med et felt med samme handle genererer og består portene uden kollision",
+   "command": "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/AddonExtensionTest.php && composer check:generated && composer check"
+  },
+  {
+   "id": "E10",
+   "description": "en kommando som en deaktiveret aktør, eller på vegne af en, afvises; en deaktivering der committer mens en kommando fra aktøren er i gang, får kommandoen til at fejle med en konflikt; og en læsning som aktøren afvises",
+   "command": "vendor/bin/pest --testsuite=Postgres tests/Postgres/WalkingSkeleton/DeactivatedActorTest.php"
+  },
+  {
+   "id": "E11",
+   "description": "alt går gennem portene 1 til 6 med mutation på ændrede filer",
+   "command": "composer check (gates 1 to 6 pass) && CMS_CI_BASE_REF=59f0d88 docker compose -f compose.ci.yaml run --rm ci (exits 0: PR profile with mutation on changed files at 80 or more per class); docker compose -f compose.ci.yaml down. The run spans the whole block, not one PR, so its wall time is recorded in PROGRESS.md and compared with the 15-minute PR budget as information; a wall time over budget is recorded for review and does not fail E11"
+  },
+  {
+   "id": "E12",
+   "description": "Carry-over: Cbox CMS is one Composer package cboxdk/cms (GUARDRAILS 1.10), with the module boundaries held by Arch tests",
+   "command": "! ls packages/*/composer.json 2>/dev/null && composer validate --strict && test \"$(composer show --self --name-only)\" = cboxdk/cms && vendor/bin/pest --testsuite=Arch"
+  },
+  {
+   "id": "E13",
+   "description": "Carry-over: docs hygiene (H3 to H6): one docs/ tree in the cboxdk layout, README, LICENSE, SECURITY and CONTRIBUTING, a screenshot, a generated requirements.md, no competitor names",
+   "command": "composer docs:check && composer docs:requirements && git diff --exit-code docs/requirements.md && test -f README.md -a -f LICENSE -a -f SECURITY.md -a -f CONTRIBUTING.md && ! grep -rniwE 'statamic|contentful|storyblok|directus|supabase|wordpress|strapi|craft cms|payload cms|sanity\\.io|sanity studio' README.md SECURITY.md CONTRIBUTING.md docs"
+  },
+  {
+   "id": "E14",
+   "description": "Carry-over: M0-R1-12 is on main (column grants on receipt_projections and final acknowledgements), gate 11's reason no longer claims there is no remote, and the mutation gate accepts duplicate identical mutations and runs Postgres mutation in parallel",
+   "command": "vendor/bin/pest --testsuite=Postgres --filter='ReceiptSchema|TablePrivileges' && vendor/bin/pest --filter='MutationReportReader|MutationSteps' && ! git grep -n -i 'there is no remote' -- . ':!PROGRESS.md' ':!CHECKS-LOG.md' ':!.harness'"
+  },
+  {
+   "id": "E15",
+   "description": "Carry-over: actions.php is back in the registry and named in CLAUDE.md and AGENTS.md, the recipes interpretation is recorded, and recipes exist for the common M1 tasks",
+   "command": "vendor/bin/testbench cms:build && test -f bootstrap/cache/cms/actions.php && grep -q 'actions.php' CLAUDE.md && grep -q 'actions.php' AGENTS.md && test -f docs/recipes/_index.md && composer docs:check; then procedure: PROGRESS.md has an entry about recipes (docs/recipes) under \"Tolkninger\""
+  },
+  {
+   "id": "E16",
+   "description": "Every invariant M1 touches has named covering tests, and the rest are recorded as (review)",
+   "command": "vendor/bin/pest --filter=InvariantCoverage"
+  }
+ ],
+ "blockers": [
+  "M0-T47 (open under 'Til review af Sylvester'): whether the testkit's shared contract suites are left out of mutation on changed files. They live in src and get mutated, although no test can catch a mutated assertion. M1 adds several new shared suites (identity, type catalog, fragment store, CDN driver, telemetry), so E11 may fail only on them. The plan keeps them in scope as today. If E11 fails only on shared-suite assertions, the main session records it for Sylvester and does not weaken the gate.",
+  "Outward-facing names that M1 introduces beyond what the PRD fixes. These are error codes beyond the PRD's (T10), REST paths other than /v1/resolve (T38), CLI command names and the configuration key for the CLI's service credential (T39), MCP tool names (T41), the addon manifest's file name and keys (T44), the fixture addon's namespace (T45), and the exact holder line in LICENSE (T7; MIT itself is fixed by the PRD). The tasks name them after the PRD's wording and list them under 'Til review af Sylvester'. This does not block M1.",
+  "Gate 11 (review by someone other than the author) needs branch protection with required reviews on main in github.com/cboxdk/cms. That is a repository setting for Sylvester. T2 only corrects the reason; the gate stays reported as not run.",
+  "Possible: cboxdk/laravel-operations may not install on PHP 8.5 and Laravel 13. T57 checks it without changing the package. If it fails, the need goes under 'Til review af Sylvester' (GUARDRAILS 3), and T46 and T47 run their chunk actions from a console command under a recorded interpretation, so E5 and E7 do not depend on it.",
+  "Not blocking, for awareness: in M1, service credentials, actors, grants, roles, sites, nodes and routes are created only by testkit fixtures, because token issuance, login, grant commands and node commands are B1 and B2 by the build order. Real CDN drivers are B4, replica routing by consistency token is B4 and B5, planned transitions are B3, and upcasters are B3. The tasks record these as interpretations, not as decisions for Sylvester."
+ ]
+}
