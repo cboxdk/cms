@@ -50,6 +50,7 @@ const PROTOCOL_CODECS = [
     'PublishEntryCodecV1.php',
     'ReceiptCodecV1.php',
     'RegisterActorCodecV1.php',
+    'RegisterSiteCodecV1.php',
     'ReleaseVariantCodecV1.php',
     'ResolvePathCodecV1.php',
     'ResolvedPathCodecV1.php',

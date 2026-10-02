@@ -192,6 +192,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`signal_replayed`](#signal_replayed) | 400 | 65 | tool_error | no |
 | [`signal_subject_missing`](#signal_subject_missing) | 400 | 65 | tool_error | no |
 | [`signal_subject_unsupported`](#signal_subject_unsupported) | 400 | 65 | tool_error | no |
+| [`site_locales_drift`](#site_locales_drift) | 409 | 65 | tool_error | no |
 | [`step_up_required`](#step_up_required) | 403 | 77 | tool_error | no |
 | [`subscription_identity_invalid`](#subscription_identity_invalid) | 500 | 78 | internal_error | no |
 | [`subscription_not_parked`](#subscription_not_parked) | 422 | 65 | tool_error | no |
@@ -1817,6 +1818,15 @@ The back-channel logout was refused: the logout token names neither a subject (s
 The security event was refused: it does not name its subject as an iss_sub of the connection's issuer (RFC 9493, PRD 5.16). The core finds an actor only by its IdP identity, the connection, the issuer and the subject, never by an email address or a phone number alone. Nothing was ended or changed. Configure the transmitter to send iss_sub subjects.
 
 - HTTP status: 400 Bad Request
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### site_locales_drift
+
+The site is registered already, and the locales cbox-cms.sites configures for it are not the locales it publishes in (PRD 11.14). cms:sites:sync registers sites the database lacks and never rewrites one that exists, so nothing of this site was changed; the other configured sites were still synced. Revert the site's locales in the configuration to the ones the error lists, or wait for the locale commands of a later block, which add and remove a site's locales through the pipeline.
+
+- HTTP status: 409 Conflict
 - CLI exit code: 65 (EX_DATAERR)
 - MCP: a tool result with isError set
 - Retry: no, the same call gives the same answer until something changes

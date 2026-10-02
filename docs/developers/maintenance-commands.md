@@ -63,7 +63,7 @@ The operator holds no grant, so the kernel's own authorizer refuses it every com
 |---|---|---|
 | `actor.register` | block B1, task 4 | a staff or service actor, pending |
 | `actor.activate` | block B1, task 4 | a pending actor, active |
-| `site.register` | block B1, task 6 | a site with its locales |
+| `site.register` | block B1, task 6 | a site with its root node and locales, from `cbox-cms.sites`, through `cms:sites:sync` ([site commands](../addons/site-commands.md)) |
 | `role.create` | block B1, task 8 | a role with its permissions |
 | `grant.assign` | block B1, task 8 | a grant of a role on a node |
 

@@ -83,8 +83,8 @@ it('takes a site handle as the sites table holds it and an origin of a scheme an
 });
 
 it('maps each configured host to its one site and refuses a host of two sites or a site configured twice', function (): void {
-    $north = new ConfiguredSite(new SiteHandle('north'), new SiteOrigin('https://north.example'), [new Host('www.north.example'), new Host('north.example')]);
-    $south = new ConfiguredSite(new SiteHandle('south'), new SiteOrigin('https://south.example'));
+    $north = new ConfiguredSite(new SiteHandle('north'), new SiteOrigin('https://north.example'), [new Locale('da')], [new Host('www.north.example'), new Host('north.example')]);
+    $south = new ConfiguredSite(new SiteHandle('south'), new SiteOrigin('https://south.example'), [new Locale('da')]);
     $sites = new SiteHosts([$north, $south]);
 
     expect(array_map(static fn (Host $host): string => $host->value, $north->hosts))->toBe(['north.example', 'www.north.example'])
@@ -95,7 +95,7 @@ it('maps each configured host to its one site and refuses a host of two sites or
         ->and($sites->named(new SiteHandle('south')))->toBe($south)
         ->and($sites->named(new SiteHandle('west')))->toBeNull()
         ->and(new SiteHosts()->sites)->toBe([])
-        ->and(static fn (): SiteHosts => new SiteHosts([$north, new ConfiguredSite(new SiteHandle('west'), new SiteOrigin('https://west.example'), [new Host('www.north.example')])]))
+        ->and(static fn (): SiteHosts => new SiteHosts([$north, new ConfiguredSite(new SiteHandle('west'), new SiteOrigin('https://west.example'), [new Locale('da')], [new Host('www.north.example')])]))
         ->toThrow(InvalidRoutingValue::class, 'The host "www.north.example" is configured for both the sites "north" and "west"')
         ->and(static fn (): SiteHosts => new SiteHosts([$south, $south]))->toThrow(InvalidRoutingValue::class, 'The site "south" is configured twice.');
 });

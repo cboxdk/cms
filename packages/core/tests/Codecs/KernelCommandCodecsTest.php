@@ -26,6 +26,7 @@ use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
 use Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry;
 use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
+use Cbox\Cms\Core\Structure\Domain\Commands\RegisterSite;
 use Cbox\Cms\Tests\Support\SurfaceContract\SampleDocument;
 use ReflectionClass;
 use stdClass;
@@ -57,6 +58,7 @@ function kernelCommandClasses(): array
         'placement.set_window' => SetPlacementWindow::class,
         'role.create' => CreateRole::class,
         'role.set_permissions' => SetRolePermissions::class,
+        'site.register' => RegisterSite::class,
         'variant.release' => ReleaseVariant::class,
     ];
 }

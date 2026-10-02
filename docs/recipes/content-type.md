@@ -394,6 +394,7 @@ it('generates exactly these files from the workbench\'s schema', function (): vo
         'workbench/resources/js/cms/generated/protocol/PublishEntryV1.ts',
         'workbench/resources/js/cms/generated/protocol/ReceiptV1.ts',
         'workbench/resources/js/cms/generated/protocol/RegisterActorV1.ts',
+        'workbench/resources/js/cms/generated/protocol/RegisterSiteV1.ts',
         'workbench/resources/js/cms/generated/protocol/ReleaseVariantV1.ts',
         'workbench/resources/js/cms/generated/protocol/ResolvePathV1.ts',
         'workbench/resources/js/cms/generated/protocol/ResolvedPathV1.ts',

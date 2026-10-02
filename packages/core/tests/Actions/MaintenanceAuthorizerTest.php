@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Actions;
 
 use Cbox\Cms\Contracts\Consistency\Outcome;
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Envelope\CorrelationId;
 use Cbox\Cms\Contracts\Envelope\Envelope;
 use Cbox\Cms\Contracts\Envelope\IssuerKind as EnvelopeIssuer;
@@ -21,12 +22,18 @@ use Cbox\Cms\Contracts\Identity\EmailAddress;
 use Cbox\Cms\Contracts\Identity\IssuerKind;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Ids\NodeId;
+use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Core\Identity\Domain\Commands\ActivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\RegisterActor;
 use Cbox\Cms\Core\Identity\Domain\Dto\RegisterActorAggregates;
 use Cbox\Cms\Core\Maintenance\Domain\MaintenanceAuthorizer;
+use Cbox\Cms\Core\Routing\Domain\SiteHandle;
+use Cbox\Cms\Core\Structure\Domain\Commands\RegisterSite;
+use Cbox\Cms\Core\Structure\Domain\Dto\RegisterSiteAggregates;
+use Cbox\Cms\Core\Structure\Domain\SiteHandleRef;
 use Cbox\Cms\Core\Tests\Identity\ActorCommandFakes;
 use Cbox\Cms\Core\Tests\Maintenance\Fakes\FakeInstallationOperator;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandAuthorizer;
@@ -82,6 +89,20 @@ it('allows a listed command by the operator on an envelope of the maintenance is
         ->and($world->committer->pending[0]->envelope->surface)->toBe(IssuingSurface::Maintenance)
         ->and($world->committer->pending[0]->envelope->issuerKind)->toBe(EnvelopeIssuer::System)
         ->and($world->committer->pending[0]->envelope->actor->equals($operator))->toBeTrue();
+});
+
+it('allows site.register to the operator on an envelope of the maintenance issuer, and to no one else', function (): void {
+    [$world, $operator] = maintenanceWorld();
+    $authorizer = new MaintenanceAuthorizer(new FakeInstallationOperator($operator));
+    $site = SiteId::fromString('01936f5e-8a2b-7c3d-9e4f-000000000521');
+    $register = new RegisterSite($site, new SiteHandle('north'), NodeId::fromString('01936f5e-8a2b-7c3d-9e4f-000000000522'), [new Locale('da'), new Locale('en')]);
+    $aggregates = new RegisterSiteAggregates($site, null, new SiteHandleRef(new SiteHandle('north')), null);
+
+    $allowed = $authorizer->authorize(maintenanceAccess($operator), new CommandName('site.register'), $register, $aggregates, maintenanceEnvelope($operator, 'sites:north'));
+    $asAdmin = $authorizer->authorize(maintenanceAccess($world->admin), new CommandName('site.register'), $register, $aggregates, maintenanceEnvelope($world->admin, 'sites:north'));
+
+    expect($allowed->allowed())->toBeTrue()
+        ->and($asAdmin->allowed())->toBeFalse();
 });
 
 it('refuses a command that is not on its list, also by the operator on a maintenance envelope', function (): void {

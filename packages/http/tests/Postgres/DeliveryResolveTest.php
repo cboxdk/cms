@@ -70,8 +70,8 @@ final class DeliveryResolveTest extends TestCase
         parent::setUp();
 
         config()->set('cbox-cms.sites', [
-            'north' => ['origin' => 'https://north.example'],
-            'south' => ['origin' => 'https://south.example'],
+            'north' => ['origin' => 'https://north.example', 'locales' => ['da', 'en']],
+            'south' => ['origin' => 'https://south.example', 'locales' => ['da']],
         ]);
         config()->set('cbox-cms.delivery.max_age_seconds', 300);
     }

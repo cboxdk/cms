@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Routing\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\Content\Locale;
 use InvalidArgumentException;
 
 /**
@@ -62,6 +63,16 @@ final class InvalidRoutingValue extends InvalidArgumentException
     public static function duplicateSite(SiteHandle $site): self
     {
         return new self(sprintf('The site "%s" is configured twice.', $site->value));
+    }
+
+    public static function siteWithoutLocales(SiteHandle $site): self
+    {
+        return new self(sprintf('The site "%s" names no locale; a site publishes in at least one.', $site->value));
+    }
+
+    public static function repeatedSiteLocale(SiteHandle $site, Locale $locale): self
+    {
+        return new self(sprintf('The site "%s" names the locale %s twice.', $site->value, $locale->value));
     }
 
     /**

@@ -109,6 +109,7 @@ use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Routing\Domain\ResolveOutcome;
 use Cbox\Cms\Core\Routing\Domain\SiteHandle;
 use Cbox\Cms\Core\Routing\Domain\VisibilityDecision;
+use Cbox\Cms\Core\Structure\Domain\Commands\RegisterSite;
 use Cbox\Cms\Core\Structure\Domain\Dto\ListedNode;
 use Cbox\Cms\Core\Structure\Domain\Dto\NodeList;
 use Cbox\Cms\Core\Structure\Domain\Queries\ListNodes;
@@ -535,6 +536,12 @@ final readonly class ProtocolSchemas
                 '#/properties/permissions/items' => ValueBinding::value(CommandName::class),
                 '#/properties/role' => $id(RoleId::class),
                 '#/properties/version' => $version,
+            ]),
+            self::command('site.register.v1.json', 'RegisterSiteCodecV1', RegisterSite::class, [
+                '#/properties/handle' => ValueBinding::value(SiteHandle::class),
+                '#/properties/locales/items' => ValueBinding::value(Locale::class),
+                '#/properties/root' => $id(NodeId::class),
+                '#/properties/site' => $id(SiteId::class),
             ]),
             self::command('variant.release.v1.json', 'ReleaseVariantCodecV1', ReleaseVariant::class, [
                 '#/properties/entry' => $id(EntryId::class),

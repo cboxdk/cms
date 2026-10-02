@@ -43,7 +43,7 @@ use Workbench\App\Cms\Generated\GeneratedTypesServiceProvider;
  * workbench's Inertia test page (boot()).
  *
  * It configures the event runner and the seeder's service actor from the environment
- * (configureEventRunner()).
+ * (configureEventRunner()), and the workbench's site, SITE, in cbox-cms.sites.
  *
  * It registers the service provider that cms:generate writes from the workbench's schema, which
  * binds the TypeCatalog contract to the generated catalog and each fixture type's record factory,
@@ -59,6 +59,9 @@ final class WorkbenchServiceProvider extends ServiceProvider
 
     /** The schema of the credential store of the local accounts, as docs/security/credential-store.md names it. */
     public const string CREDENTIAL_STORE = 'cms_identity';
+
+    /** The handle of the workbench's site. */
+    public const string SITE = 'workbench';
 
     /** The environment variable that picks the CDN driver; only fake is known. */
     public const string CDN_DRIVER = 'CBOX_CMS_CDN_DRIVER';
@@ -82,6 +85,13 @@ final class WorkbenchServiceProvider extends ServiceProvider
         $config->set('cbox-cms.doctor.vendor_manifest', dirname(__DIR__, 3).'/vendor/composer/installed.json');
 
         $this->configureEventRunner($config);
+
+        // The workbench's one site (PRD 11.14), served by vendor/bin/testbench serve at its default
+        // address, in Danish and English. cms:sites:sync, the last step of composer dev:prepare,
+        // registers it with its root node, so a grant has a node to hold on.
+        $config->set('cbox-cms.sites', [
+            self::SITE => ['origin' => 'http://localhost:8000', 'locales' => ['da', 'en'], 'hosts' => ['127.0.0.1:8000']],
+        ]);
 
         // The workbench is a development environment, and B1 part 1 offers no passkey or second
         // factor, so its login policy lets a member of staff log in locally with a password alone

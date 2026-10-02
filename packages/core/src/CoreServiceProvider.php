@@ -228,8 +228,12 @@ use Cbox\Cms\Core\Seeding\Domain\SeedReader;
 use Cbox\Cms\Core\Seeding\Domain\SeedTargets;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeListing;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeVersionLock;
+use Cbox\Cms\Core\Structure\Adapter\PostgresSiteDirectory;
+use Cbox\Cms\Core\Structure\Adapter\PostgresSiteHandleLock;
 use Cbox\Cms\Core\Structure\Adapter\PostgresSiteVersionLock;
+use Cbox\Cms\Core\Structure\Adapter\SiteRegisteredWriter;
 use Cbox\Cms\Core\Structure\Domain\NodeListing;
+use Cbox\Cms\Core\Structure\Domain\SiteDirectory;
 use Cbox\Cms\Core\Subscriptions\Adapter\PostgresSubscriptionLog;
 use Cbox\Cms\Core\Subscriptions\Adapter\RegistryLaneSubscribers;
 use Cbox\Cms\Core\Subscriptions\Adapter\SystemPacing;
@@ -511,6 +515,12 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->bind(AccessListings::class, PostgresAccessListings::class);
         $this->app->bind(ActorListing::class, PostgresActorListing::class);
         $this->app->bind(NodeListing::class, PostgresNodeListing::class);
+        // site.register (PRD 5.9, 11.14): the reads of a site by id and handle, the lock of a
+        // handle, and the writer of the registration, which creates the root node, the site, its
+        // locales and its root routes.
+        $this->app->bind(SiteDirectory::class, PostgresSiteDirectory::class);
+        $this->app->tag([PostgresSiteHandleLock::class], VersionLocks::TAG);
+        $this->app->tag([SiteRegisteredWriter::class], MutationWriters::TAG);
         $this->app->bind(
             VersionLocks::class,
             static fn (Application $app): VersionLocks => new VersionLocks(...self::tagged($app, VersionLocks::TAG, VersionLock::class)),

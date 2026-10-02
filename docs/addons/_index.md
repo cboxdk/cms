@@ -30,6 +30,7 @@ An extension point is `#[Stable]` or `#[Experimental]`. Every extension point do
 - [Actor commands](actor-commands.md): `actor.register`, `actor.activate` and `actor.deactivate`, the order of a registration, the actor's profile as personal data, their events, and how a deactivation stops every command and read of the actor.
 - [Grant commands](grant-commands.md): `grant.assign` and `grant.revoke`, the escalation guard that keeps an actor from giving more than it holds, step-up for administrative roles, `grant.changed` and their rejections.
 - [Role commands](role-commands.md): `role.create` and `role.set_permissions`, the escalation guard on a role's content, step-up for a role that becomes administrative, `grant.changed` for every holder and their rejections.
+- [Site commands](site-commands.md): `cms:sites:sync` and `site.register`, which put the sites of `cbox-cms.sites` in the database with their root nodes and locales, why a drift of a site's locales is reported and not rewritten, and their rejections.
 - [Plans and mutations](plans.md): the `Plan` a write action returns, the typed mutations and the kernel-generic field values of a revision.
 - [Queries and query actions](queries.md): `Query`, `QueryAction` and the typed `Result` of a read.
 - [Access queries](access-queries.md): `role.list`, `grant.list`, `actor.list` and `node.list`, the pages they read, who may run them, and the profiles they leave out below personal access.

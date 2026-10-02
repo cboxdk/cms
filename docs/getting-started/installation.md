@@ -37,7 +37,8 @@ The workbench's database is `cms` on the shared Postgres. `composer dev:prepare`
 1. the migrations, as the owner role on the connection `pgsql_owner`;
 2. `cms:partitions:maintain`, which creates the partitions from now to 14 days ahead;
 3. `cms:build`, the registry cache;
-4. `cms:install`, which creates the installation operator once, the service actor the maintenance commands run as (see [Maintenance commands](../developers/maintenance-commands.md)).
+4. `cms:install`, which creates the installation operator once, the service actor the maintenance commands run as (see [Maintenance commands](../developers/maintenance-commands.md));
+5. `cms:sites:sync`, which registers the workbench's site, `workbench` in Danish and English at `http://localhost:8000`, with its root node, as that operator (see [Site commands](../addons/site-commands.md)).
 
 Every step is idempotent, and the script stops at the first step that fails. The workbench reads its settings from `workbench/.env`; Testbench copies `workbench/.env.example` there when the file is missing.
 
@@ -53,6 +54,7 @@ Every step is idempotent, and the script stops at the first step that fails. The
 | `cms:generate` | Generates the typed PHP and TypeScript code and the migrations of the type tables from the blueprint files. See [Blueprint schema v1](../addons/blueprint-v1.md). |
 | `cms:partitions:maintain` | Creates partitions ahead of the clock and removes partitions past retention, as the owner role. See [Partitions](../developers/partitions.md). |
 | `cms:schema:editor` | Writes the line that points editors at the blueprint schema into every blueprint file. |
+| `cms:sites:sync` | Registers each site of `cbox-cms.sites` the database lacks, with its root node and locales, as the installation operator, and reports a site whose configured locales drifted. See [Site commands](../addons/site-commands.md). |
 
 On the host, PHP usually has `allow_url_fopen` on, and `cms:doctor` then fails `php.allow_url_fopen`. Run it in the php container, or on the host as `php -d allow_url_fopen=0 vendor/bin/testbench cms:doctor`.
 

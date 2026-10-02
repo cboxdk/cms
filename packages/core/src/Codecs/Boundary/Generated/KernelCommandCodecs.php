@@ -37,6 +37,7 @@ final readonly class KernelCommandCodecs
             SetPlacementWindowCodecV1::commandCodec(),
             CreateRoleCodecV1::commandCodec(),
             SetRolePermissionsCodecV1::commandCodec(),
+            RegisterSiteCodecV1::commandCodec(),
             ReleaseVariantCodecV1::commandCodec(),
         ];
     }

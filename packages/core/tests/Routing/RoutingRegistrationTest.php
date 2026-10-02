@@ -31,7 +31,7 @@ it('registers path.resolve version 1 as a query action on no surface', function 
 });
 
 it('gives the query pipeline the action, with its reads on Postgres and the configured sites', function (): void {
-    config(['cbox-cms.sites' => ['north' => ['origin' => 'https://north.example']]]);
+    config(['cbox-cms.sites' => ['north' => ['origin' => 'https://north.example', 'locales' => ['da', 'en']]]]);
     $binding = app(QueryActions::class)->for(new ResolvePath(new Host('north.example'), new Locale('da'), new RequestPath('/')));
 
     expect([$binding->query->value, $binding->version])->toBe(['path.resolve', 1])

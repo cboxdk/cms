@@ -703,8 +703,11 @@ final class SurfaceContractTest extends TestCase
         'role.list' => ['rest', 'inertia'],
     ];
 
-    /** The command of M1 point 3 that is exposed on no surface: its surfaces come with B1 and B6. */
-    private const string UNEXPOSED = 'actor.deactivate';
+    /**
+     * The kernel's commands exposed on no surface: actor.deactivate, whose surfaces come with B1 and
+     * B6, and site.register, which only cms:sites:sync runs (PRD 11.14).
+     */
+    private const array UNEXPOSED = ['actor.deactivate', 'site.register'];
 
     /** The kernel's query, exposed on no surface, which the query cases' own tests plant on some. */
     private const string KERNEL_QUERY = 'path.resolve';
@@ -740,12 +743,12 @@ final class SurfaceContractTest extends TestCase
 
         $unexposed = array_values(array_filter(
             $registry->actions,
-            static fn (ActionEntry $action): bool => $action->kind === ActionKind::Write && $action->command->value === self::UNEXPOSED,
+            static fn (ActionEntry $action): bool => $action->kind === ActionKind::Write && in_array($action->command->value, self::UNEXPOSED, true),
         ));
 
         self::assertSame($expected, array_keys(SurfaceContractCases::of($registry, SurfaceProfiles::all())));
-        self::assertCount(1, $unexposed);
-        self::assertSame([], $unexposed[0]->surfaces);
+        self::assertSame(self::UNEXPOSED, array_map(static fn (ActionEntry $action): string => $action->command->value, $unexposed));
+        self::assertSame([[], []], array_map(static fn (ActionEntry $action): array => $action->surfaces, $unexposed));
     }
 
     #[Test]

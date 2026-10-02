@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Routing\Boundary;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Content\InvalidContentValue;
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Core\Routing\Domain\Dto\ConfiguredSite;
 use Cbox\Cms\Core\Routing\Domain\Host;
 use Cbox\Cms\Core\Routing\Domain\InvalidRoutingValue;
@@ -15,18 +17,21 @@ use Illuminate\Contracts\Config\Repository;
 use InvalidArgumentException;
 
 /**
- * Reads the configured sites from `cbox-cms.sites` (PRD 5.9 step 1, 8.10 point 7, 17): a map from
- * a site's handle, as the sites table holds it, to where it is served:
+ * Reads the configured sites from `cbox-cms.sites` (PRD 5.9 step 1, 8.10 point 7, 11.14, 17): a map
+ * from a site's handle, as the sites table holds it, to where it is served and the locales it
+ * publishes in:
  *
  *     'sites' => [
  *         'north' => [
  *             'origin' => 'https://north.example',   // the scheme and host of its canonical URLs
+ *             'locales' => ['da', 'en'],             // the locales it publishes in, at least one
  *             'hosts' => ['www.north.example'],      // other hosts that resolve to it, default []
  *         ],
  *     ],
  *
  * The origin's host resolves to the site too. A host belongs to one site. Only a configured host
  * resolves, and a canonical URL is built from its site's origin, never from a request's host.
+ * cms:sites:sync registers each configured site the database lacks with its locales.
  */
 #[Internal]
 final readonly class SitesConfig
@@ -34,8 +39,9 @@ final readonly class SitesConfig
     public const string CONFIG_KEY = 'cbox-cms.sites';
 
     /**
-     * @throws InvalidArgumentException when the setting is not a map of handles to an origin and a
-     *                                  list of hosts, or a host is configured for two sites
+     * @throws InvalidArgumentException when the setting is not a map of handles to an origin, a list
+     *                                  of locales and a list of hosts, or a host is configured for two
+     *                                  sites
      */
     public static function read(Repository $config): SiteHosts
     {
@@ -67,10 +73,21 @@ final readonly class SitesConfig
         }
 
         $origin = $site['origin'] ?? null;
+        $locales = $site['locales'] ?? null;
         $hosts = $site['hosts'] ?? [];
 
         if (! is_string($origin)) {
             throw self::invalid($key.'.origin', 'a string such as "https://example.dk"', $origin);
+        }
+
+        if (! is_array($locales) || ! array_is_list($locales) || $locales === []) {
+            throw self::invalid($key.'.locales', 'a list of at least one locale such as ["da", "en"]', $locales);
+        }
+
+        $tags = [];
+
+        foreach ($locales as $locale) {
+            $tags[] = is_string($locale) ? $locale : throw self::invalid($key.'.locales', 'a list of at least one locale such as ["da", "en"]', $locale);
         }
 
         if (! is_array($hosts) || ! array_is_list($hosts)) {
@@ -87,9 +104,10 @@ final readonly class SitesConfig
             return new ConfiguredSite(
                 new SiteHandle($handle),
                 new SiteOrigin($origin),
+                array_map(static fn (string $tag): Locale => new Locale($tag), $tags),
                 array_map(static fn (string $host): Host => new Host($host), $names),
             );
-        } catch (InvalidRoutingValue $invalid) {
+        } catch (InvalidRoutingValue|InvalidContentValue $invalid) {
             throw new InvalidArgumentException(sprintf('The setting %s is invalid: %s', $key, $invalid->getMessage()), $invalid->getCode(), previous: $invalid);
         }
     }

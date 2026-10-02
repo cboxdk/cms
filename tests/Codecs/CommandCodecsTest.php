@@ -52,6 +52,7 @@ use Cbox\Cms\Core\Codecs\Boundary\Generated\CreateRoleCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\DeactivateActorCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\PublishEntryCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\RegisterActorCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\RegisterSiteCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ReleaseVariantCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ReviseEntryCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\RevokeGrantCodecV1;
@@ -70,6 +71,8 @@ use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
 use Cbox\Cms\Core\Placements\Domain\Dto\LocaleSlug;
 use Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry;
 use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
+use Cbox\Cms\Core\Routing\Domain\SiteHandle;
+use Cbox\Cms\Core\Structure\Domain\Commands\RegisterSite;
 use Cbox\Cms\Generators\Protocol\Domain\ProtocolSchemas;
 use Cbox\Cms\Tests\Support\Phpstan;
 use Cbox\Cms\Tests\Support\TypeScript\TypeScriptValidators;
@@ -394,6 +397,8 @@ it('decodes every command it encodes into an equal command', function (JsonCodec
     'role.create with permissions' => [new CreateRoleCodecV1, new CreateRole(RoleId::fromString(COMMAND_TYPE), new RoleHandle('news_desk'), ClassificationAccess::Confidential, [new CommandName('entry.create'), new CommandName('path.resolve')])],
     'role.create without permissions' => [new CreateRoleCodecV1, new CreateRole(RoleId::fromString(COMMAND_TYPE), new RoleHandle('r'), ClassificationAccess::Public, [])],
     'role.set_permissions' => [new SetRolePermissionsCodecV1, new SetRolePermissions(RoleId::fromString(COMMAND_TYPE), new AggregateVersion(3), [new CommandName('placement.set_window')])],
+    'site.register in one locale' => [new RegisterSiteCodecV1, new RegisterSite(SiteId::fromString(COMMAND_SITE), new SiteHandle('north'), NodeId::fromString(COMMAND_NODE), [new Locale('da')])],
+    'site.register in three locales' => [new RegisterSiteCodecV1, new RegisterSite(SiteId::fromString(COMMAND_SITE), new SiteHandle('north_2'), NodeId::fromString(COMMAND_NODE), [new Locale('en-GB'), new Locale('da'), new Locale('sr-Latn-RS')])],
 ]);
 
 it('reads the fields of entry.create as JSON gives them, and writes them back in the same form', function (): void {
@@ -629,5 +634,32 @@ it('refuses every rule of role.create and role.set_permissions that their JSON S
         ...versionFixtures($set, 'version'),
         'the permissions missing' => [commandJson($set, omit: ['permissions']), 'permissions'],
         'a permission in capitals' => [commandJson($set, ['permissions' => ['Entry.Create']]), 'permissions[0]'],
+    ]);
+});
+
+it('refuses every rule of site.register that its JSON Schema states, as the TypeScript validator and the schema do', function (): void {
+    $register = ['site' => COMMAND_SITE, 'handle' => 'north', 'root' => COMMAND_NODE, 'locales' => ['da', 'en']];
+
+    commandCrossCheck(new RegisterSiteCodecV1, 'site.register.v1.json', [
+        'a site in two locales' => [commandJson($register), null],
+        'a handle of 63 characters' => [commandJson($register, ['handle' => 'n'.str_repeat('a', 62)]), null],
+        'a handle with digits and underscores' => [commandJson($register, ['handle' => 'north_2']), null],
+        'a locale named twice, which the action refuses' => [commandJson($register, ['locales' => ['da', 'da']]), null],
+        'an unknown key' => [commandJson($register, ['version' => 1]), ''],
+        ...idFixtures($register, 'site'),
+        ...idFixtures($register, 'root'),
+        'the handle missing' => [commandJson($register, omit: ['handle']), 'handle'],
+        'a handle with a capital letter' => [commandJson($register, ['handle' => 'North']), 'handle'],
+        'a handle that starts with a digit' => [commandJson($register, ['handle' => '2north']), 'handle'],
+        'a handle with a hyphen' => [commandJson($register, ['handle' => 'north-west']), 'handle'],
+        'a handle of 64 characters' => [commandJson($register, ['handle' => 'n'.str_repeat('a', 63)]), 'handle'],
+        'an empty handle' => [commandJson($register, ['handle' => '']), 'handle'],
+        'a handle that is a number' => [commandJson($register, ['handle' => 7]), 'handle'],
+        'the locales missing' => [commandJson($register, omit: ['locales']), 'locales'],
+        'no locale' => [commandJson($register, ['locales' => []]), 'locales'],
+        'locales of null' => [commandJson($register, ['locales' => null]), 'locales'],
+        'locales that are a string' => [commandJson($register, ['locales' => 'da']), 'locales'],
+        'a locale of one letter' => [commandJson($register, ['locales' => ['da', 'd']]), 'locales[1]'],
+        'a locale that is a number' => [commandJson($register, ['locales' => [7]]), 'locales[0]'],
     ]);
 });

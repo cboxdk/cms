@@ -16,7 +16,8 @@ use Symfony\Component\Console\Input\StringInput;
  * migrations as the owner role, then the partition runway, which cms:partitions:maintain creates
  * on the owner connection and which the doctor's partitions.runway check reads, then the registry
  * cache, then the installation operator, which cms:install creates once on the owner connection and
- * the doctor's identity.operator_actor check reads. A migration adds the tables that maintenance
+ * the doctor's identity.operator_actor check reads, then the configured sites, which cms:sites:sync
+ * registers as that operator, so a grant has a node to hold on. A migration adds the tables that maintenance
  * partitions, and the operator's genesis writes into those partitions, so the order matters.
  * Composer runs the steps one by one and stops at the first that fails, with its exit code.
  */
@@ -50,17 +51,18 @@ function testbenchStep(string $step): array
     return [$command, $input];
 }
 
-it('migrates, then maintains the partitions, then builds the registry, then installs the operator, in that order', function (): void {
+it('migrates, then maintains the partitions, then builds the registry, then installs the operator, then syncs the sites, in that order', function (): void {
     expect(ComposerScripts::steps('dev:prepare'))->toBe([
         TESTBENCH.'migrate --database=pgsql_owner --ansi',
         TESTBENCH.'cms:partitions:maintain --ansi',
         TESTBENCH.'cms:build --ansi',
         TESTBENCH.'cms:install --ansi',
+        TESTBENCH.'cms:sites:sync --ansi',
     ]);
 
     $names = array_map(static fn (string $step): ?string => testbenchStep($step)[0]->getName(), ComposerScripts::steps('dev:prepare'));
 
-    expect($names)->toBe(['migrate', 'cms:partitions:maintain', 'cms:build', 'cms:install']);
+    expect($names)->toBe(['migrate', 'cms:partitions:maintain', 'cms:build', 'cms:install', 'cms:sites:sync']);
 });
 
 it('runs the migrations on the owner connection, the owner role and not the app role', function (): void {

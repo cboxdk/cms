@@ -11,7 +11,7 @@ This is the contributor's path from a clone to a working checkout. It needs Git,
 1. Install the dependencies: `composer install`, then `npm ci`. Composer's `post-autoload-dump` script runs `cms:build`, so the registry cache is there from the start.
 2. Download the browser for the browser tests on the host once per machine: `npx playwright install chromium`. The gates and `composer image:run` use the Chromium of the dev image, so they do not need it.
 3. Start the services: `composer services:up`. It starts PHP 8.5, Postgres 18 and Valkey 8 in Docker, waits until they are healthy and sets up the roles and databases.
-4. Prepare the dev database: `composer dev:prepare`. It runs the migrations as the owner role, creates the partitions ahead of the clock, builds the registry cache and creates the installation operator. Run it from the main checkout.
+4. Prepare the dev database: `composer dev:prepare`. It runs the migrations as the owner role, creates the partitions ahead of the clock, builds the registry cache, creates the installation operator and registers the workbench's site. Run it from the main checkout.
 5. Run the gates: `composer check`. It runs gates 1 to 6 and exits 1 when one fails.
 6. Check the installation: `docker compose exec php vendor/bin/testbench cms:doctor`, from the main checkout.
 

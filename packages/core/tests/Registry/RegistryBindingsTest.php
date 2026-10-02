@@ -58,6 +58,8 @@ use Cbox\Cms\Core\Routing\Actions\ResolvePathAction;
 use Cbox\Cms\Core\Seeding\Actions\SeedEntriesAction;
 use Cbox\Cms\Core\Seeding\Domain\Commands\SeedEntries;
 use Cbox\Cms\Core\Structure\Actions\ListNodesAction;
+use Cbox\Cms\Core\Structure\Actions\RegisterSiteAction;
+use Cbox\Cms\Core\Structure\Domain\Commands\RegisterSite;
 use Cbox\Cms\Core\Structure\Domain\Queries\ListNodes;
 use Cbox\Cms\Core\Tests\Registry\Providers\DeferredRootProvider;
 use Cbox\Cms\Core\Tests\Registry\Providers\FixtureRootProvider;
@@ -140,6 +142,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'role.create@1 '.CreateRole::class,
             'role.set_permissions@1 '.SetRolePermissions::class,
             'seed.entries@1 '.SeedEntries::class,
+            'site.register@1 '.RegisterSite::class,
             'variant.release@1 '.ReleaseVariant::class,
         ])
         ->and(array_map(static fn (ActionEntry $entry): string => $entry->command->value.'@'.$entry->commandVersion.' '.$entry->class.' '.$entry->kind->value, $registry->actions))
@@ -163,6 +166,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'role.list@1 '.ListRolesAction::class.' query',
             'role.set_permissions@1 '.SetRolePermissionsAction::class.' write',
             'seed.entries@1 '.SeedEntriesAction::class.' write',
+            'site.register@1 '.RegisterSiteAction::class.' write',
             'variant.release@1 '.ReleaseVariantAction::class.' write',
         ])
         ->and($registry->actionFor(DeactivateActor::class)?->surfaces)->toBe([])
@@ -172,10 +176,11 @@ it('scans the packages\' own classes without a problem and registers the kernel\
         ->and($registry->actionFor(RevokeGrant::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia, Surface::Cli])
         ->and($registry->actionFor(CreateRole::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia, Surface::Cli])
         ->and($registry->actionFor(SetRolePermissions::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia, Surface::Cli])
+        ->and($registry->actionFor(RegisterSite::class)?->surfaces)->toBe([])
         ->and($registry->actionFor(CreateEntry::class)?->class)->toBe(CreateEntryAction::class)
         ->and($registry->actionFor(ReviseEntry::class)?->class)->toBe(ReviseEntryAction::class)
         ->and($registry->actionFor(ListNodes::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia])
-        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([20, 15, 0, 16, 0, 1])
+        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([21, 16, 0, 16, 0, 1])
         ->and($registry->hooks)->toBe([])
         ->and(array_map(static fn (SubscriberEntry $entry): string => $entry->name->value.' '.$entry->class.' '.$entry->lane->value.' '.$entry->projection?->value, $registry->subscribers))
         ->toBe(['fragments.invalidate '.InvalidateFragments::class.' critical origin'])

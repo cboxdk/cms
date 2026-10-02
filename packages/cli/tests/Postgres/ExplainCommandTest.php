@@ -86,8 +86,8 @@ function explainedWorld(?TimeWindow $window = null): PlacementStructure
     WorkbenchRegistry::bind();
     app()->instance(Clock::class, new FakeClock(new DateTimeImmutable(EntryWorld::NOW)->modify('+1 hour')));
     config()->set(SitesConfig::CONFIG_KEY, [
-        'north' => ['origin' => 'https://north.example'],
-        'south' => ['origin' => 'https://south.example'],
+        'north' => ['origin' => 'https://north.example', 'locales' => ['da', 'en']],
+        'south' => ['origin' => 'https://south.example', 'locales' => ['da']],
     ]);
 
     return $structure;

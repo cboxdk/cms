@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "site.register, contract version 1",
+  "description": "Registers a site (PRD 5.8, 5.9, 11.14) in one changeset: its root node, a node of kind site at the top of the tree, the site with its handle, the locales it publishes in, and in each locale the route / to the root node. Sites are configuration in git, so the kernel runs the command itself: cms:sites:sync registers each configured site the database lacks as the installation operator, and no surface exposes it. A locale named twice is validation_failed; a site with the id or the handle, read or committed meanwhile, is version_conflict. The PHP form is Cbox\\Cms\\Core\\Structure\\Domain\\Commands\\RegisterSite, and the generated codec RegisterSiteCodecV1 reads it and writes its canonical JSON: every key, sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "site",
+    "handle",
+    "root",
+    "locales"
+  ],
+  "properties": {
+    "site": {
+      "description": "The new site's id, which the caller makes.",
+      "$ref": "#/$defs/id"
+    },
+    "handle": {
+      "description": "The site's handle, as cbox-cms.sites names it: a lower-case letter followed by at most 62 lower-case letters, digits or underscores.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,62}$"
+    },
+    "root": {
+      "description": "The id of the site's root node, which the caller makes.",
+      "$ref": "#/$defs/id"
+    },
+    "locales": {
+      "description": "The locales the site publishes in, at least one, each once.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/locale"
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "locale": {
+      "description": "A language tag of a language, an optional script and an optional region, such as da, en-GB or sr-Latn-RS; the kernel writes the language in lowercase, the script in title case and the region in uppercase.",
+      "type": "string",
+      "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$"
+    }
+  }
+}

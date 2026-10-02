@@ -130,8 +130,8 @@ function resolvePipeline(): QueryPipeline
     $action = new ResolvePathAction(
         new PostgresRouteReader($connections),
         new SiteHosts([
-            new ConfiguredSite(new SiteHandle('north'), new SiteOrigin('https://north.example')),
-            new ConfiguredSite(new SiteHandle('south'), new SiteOrigin('https://south.example')),
+            new ConfiguredSite(new SiteHandle('north'), new SiteOrigin('https://north.example'), [new Locale('da')]),
+            new ConfiguredSite(new SiteHandle('south'), new SiteOrigin('https://south.example'), [new Locale('da')]),
         ]),
         app(TypeCatalog::class),
         new FakeClock(new DateTimeImmutable(EntryWorld::NOW)->modify('+1 hour')),

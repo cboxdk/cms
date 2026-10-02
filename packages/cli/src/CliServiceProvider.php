@@ -17,6 +17,7 @@ use Cbox\Cms\Cli\Console\ReleaseParkedCommand;
 use Cbox\Cms\Cli\Console\RunCommand;
 use Cbox\Cms\Cli\Console\RunEventsCommand;
 use Cbox\Cms\Cli\Console\SeedScaleCommand;
+use Cbox\Cms\Cli\Console\SitesSyncCommand;
 use Cbox\Cms\Cli\Domain\CliActions;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Build\DeclaresScanRoots;
@@ -64,6 +65,7 @@ final class CliServiceProvider extends ServiceProvider implements DeclaresScanRo
                 RunCommand::class,
                 RunEventsCommand::class,
                 SeedScaleCommand::class,
+                SitesSyncCommand::class,
             ]);
         }
     }

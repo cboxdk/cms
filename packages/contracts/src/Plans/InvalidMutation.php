@@ -10,6 +10,7 @@ use Cbox\Cms\Contracts\Content\RevisionNumber;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\GrantId;
 use Cbox\Cms\Contracts\Ids\RoleId;
+use Cbox\Cms\Contracts\Ids\SiteId;
 use InvalidArgumentException;
 
 /**
@@ -36,5 +37,24 @@ final class InvalidMutation extends InvalidArgumentException
     public static function repeatedPermission(RoleId $role, CommandName $permission): self
     {
         return new self(sprintf('The role %s names the permission %s twice.', $role->toString(), $permission->value));
+    }
+
+    public static function siteHandle(SiteId $site, string $handle): self
+    {
+        return new self(sprintf(
+            'The site %s has the handle "%s"; a site\'s handle is a lower-case letter followed by at most 62 lower-case letters, digits or underscores.',
+            $site->toString(),
+            mb_substr($handle, 0, 80),
+        ));
+    }
+
+    public static function siteWithoutLocales(SiteId $site): self
+    {
+        return new self(sprintf('The site %s is registered with no locale; a site publishes in at least one.', $site->toString()));
+    }
+
+    public static function repeatedSiteLocale(SiteId $site, Locale $locale): self
+    {
+        return new self(sprintf('The site %s names the locale %s twice.', $site->toString(), $locale->value));
     }
 }

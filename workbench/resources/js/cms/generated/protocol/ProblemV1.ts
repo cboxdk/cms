@@ -187,6 +187,7 @@ export type ErrorCode =
   | 'signal_replayed'
   | 'signal_subject_missing'
   | 'signal_subject_unsupported'
+  | 'site_locales_drift'
   | 'step_up_required'
   | 'subscription_identity_invalid'
   | 'subscription_not_parked'
@@ -453,6 +454,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'signal_replayed',
           'signal_subject_missing',
           'signal_subject_unsupported',
+          'site_locales_drift',
           'step_up_required',
           'subscription_identity_invalid',
           'subscription_not_parked',
@@ -683,6 +685,7 @@ const problemV1Rule: ObjectRule = {
           'signal_replayed',
           'signal_subject_missing',
           'signal_subject_unsupported',
+          'site_locales_drift',
           'step_up_required',
           'subscription_identity_invalid',
           'subscription_not_parked',

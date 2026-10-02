@@ -191,9 +191,9 @@ final readonly class ResolveWorld
     public function sites(): SiteHosts
     {
         return new SiteHosts([
-            new ConfiguredSite(new SiteHandle('north'), new SiteOrigin('https://north.example'), [new Host('www.north.example')]),
-            new ConfiguredSite(new SiteHandle('south'), new SiteOrigin('https://south.example')),
-            new ConfiguredSite(new SiteHandle('west'), new SiteOrigin('https://west.example')),
+            new ConfiguredSite(new SiteHandle('north'), new SiteOrigin('https://north.example'), [new Locale('da')], [new Host('www.north.example')]),
+            new ConfiguredSite(new SiteHandle('south'), new SiteOrigin('https://south.example'), [new Locale('da')]),
+            new ConfiguredSite(new SiteHandle('west'), new SiteOrigin('https://west.example'), [new Locale('da')]),
         ]);
     }
 
