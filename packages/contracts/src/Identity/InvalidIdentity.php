@@ -12,8 +12,9 @@ use InvalidArgumentException;
 /**
  * An identity value that breaks its rules: a version or generation below 1, a chain that holds an
  * actor twice, a classification ceiling above what the issuer kind permits, a credential that
- * cannot be issued, or a value of a login (Login\VerifiedAssertion and the values it holds) that is
- * not in its form or contradicts itself. The messages never repeat the refused value.
+ * cannot be issued, or a value of a login (Login\VerifiedAssertion and the values it holds), of a
+ * lifecycle signal (Signals) or of SCIM provisioning (Provisioning) that is not in its form or
+ * contradicts itself. The messages never repeat the refused value.
  */
 #[Experimental]
 final class InvalidIdentity extends InvalidArgumentException
@@ -103,6 +104,15 @@ final class InvalidIdentity extends InvalidArgumentException
     public static function loginValue(string $what, string $form): self
     {
         return new self(sprintf('The %s must be %s (PRD 5.16).', $what, $form));
+    }
+
+    /**
+     * A value of a lifecycle signal (Signals) or of SCIM provisioning (Provisioning) that is not in
+     * its form or contradicts itself, such as a logout token that expires before it was issued.
+     */
+    public static function signalValue(string $what, string $form): self
+    {
+        return new self(sprintf('The %s must be %s (PRD 5.16, "Signaler fra IdP\'en").', $what, $form));
     }
 
     /**

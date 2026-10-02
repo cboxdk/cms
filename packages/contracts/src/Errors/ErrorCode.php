@@ -177,6 +177,22 @@ enum ErrorCode: string
     case RegistryUnknownLane = 'registry_unknown_lane';
     case RegistryUnknownSurface = 'registry_unknown_surface';
     case RequestHeaderInvalid = 'request_header_invalid';
+    case ScimInvalidValue = 'scim_invalid_value';
+    case ScimMutability = 'scim_mutability';
+    case ScimReactivationRefused = 'scim_reactivation_refused';
+    case ScimResourceNotFound = 'scim_resource_not_found';
+    case ScimUniqueness = 'scim_uniqueness';
+    case ScimVersionMismatch = 'scim_version_mismatch';
+    case SignalAudienceMismatch = 'signal_audience_mismatch';
+    case SignalEventUnsupported = 'signal_event_unsupported';
+    case SignalExpired = 'signal_expired';
+    case SignalIssuedInFuture = 'signal_issued_in_future';
+    case SignalIssuerMismatch = 'signal_issuer_mismatch';
+    case SignalLogoutEventMissing = 'signal_logout_event_missing';
+    case SignalNoncePresent = 'signal_nonce_present';
+    case SignalReplayed = 'signal_replayed';
+    case SignalSubjectMissing = 'signal_subject_missing';
+    case SignalSubjectUnsupported = 'signal_subject_unsupported';
     case SubscriptionIdentityInvalid = 'subscription_identity_invalid';
     case SubscriptionNotParked = 'subscription_not_parked';
     case SubscriptionUnknown = 'subscription_unknown';
@@ -753,6 +769,86 @@ enum ErrorCode: string
                 McpResponse::ToolError,
                 false,
                 'A header of the envelope of a REST command, Cbox-Wait-Level, Cbox-Dry-Run or Cbox-Correlation-Id, does not hold what the envelope allows (PRD 6.1): a wait level other than commit, origin, edge, verified or propagated, a dry run other than true or false, or a correlation id that is not 1 to 128 visible ASCII characters. Nothing ran. Correct the header the error names, or leave it out for its default.',
+            ),
+            self::ScimInvalidValue => $this->caller(
+                HttpStatus::BadRequest,
+                ExitCode::DataErr,
+                'The SCIM call was refused: a member of the group is not a user of the connection whose token made the call (PRD 5.16, RFC 7644 scimType invalidValue). A connection\'s token reaches only its own users and groups, so a user of another connection, a local account or an unknown id cannot be a member. Nothing was committed. Provision the user through the same connection first.',
+            ),
+            self::ScimMutability => $this->caller(
+                HttpStatus::BadRequest,
+                ExitCode::DataErr,
+                'The SCIM call was refused: it would change the externalId of a user or group (PRD 5.16, RFC 7644 scimType mutability). A user\'s externalId carries the same immutable value as the connection\'s declared claim of the ID token, sub by default, so it is the key of the IdP identity and never changes. Nothing was committed. Send the externalId the resource has, or delete the resource and create it again.',
+            ),
+            self::ScimReactivationRefused => $this->caller(
+                HttpStatus::Conflict,
+                ExitCode::DataErr,
+                'The SCIM call was refused: it sets active=true for an actor that another source than this connection deactivated, such as a security event, a local command or the inactivity rule (PRD 5.16). Only the source that deactivated an actor may reactivate it, so the actor stays deactivated and nothing was committed. A person reactivates it with actor.reactivate, with four eyes and step-up.',
+            ),
+            self::ScimResourceNotFound => $this->caller(
+                HttpStatus::NotFound,
+                ExitCode::DataErr,
+                'The SCIM call was refused: the connection whose token made it has no user or group with the id (PRD 5.16, RFC 7644 3.12). The resource never existed, was deleted, which a repeated DELETE meets, or belongs to another connection, whose resources a token never reaches. Nothing was committed. Look the resource up through the same connection.',
+            ),
+            self::ScimUniqueness => $this->caller(
+                HttpStatus::Conflict,
+                ExitCode::DataErr,
+                'The SCIM call was refused: another resource of the connection already has the externalId or the userName of the user, or the displayName of the group, compared without regard to case where RFC 7643 says so (PRD 5.16, RFC 7644 scimType uniqueness). A create that repeats the state of the existing resource is not refused; it changes nothing. Nothing was committed. Use the existing resource, or give the new one another value.',
+            ),
+            self::ScimVersionMismatch => $this->caller(
+                HttpStatus::PreconditionFailed,
+                ExitCode::DataErr,
+                'The SCIM call was refused: its If-Match names another version than the resource\'s current one in the CMS (PRD 5.16, RFC 7644 3.14), because something changed the resource since the identity provider read it. Nothing was committed. Read the resource again and send the change with its current version.',
+            ),
+            self::SignalAudienceMismatch => $this->caller(
+                HttpStatus::BadRequest,
+                ExitCode::DataErr,
+                'The signal was refused: the token\'s aud claim does not list the audience the connection is pinned to, the CMS\'s client id at the identity provider for a logout token or the stream\'s audience for a security event (PRD 5.16). Nothing was ended or changed. Check the client id or the stream configured at the identity provider.',
+            ),
+            self::SignalEventUnsupported => $this->caller(
+                HttpStatus::BadRequest,
+                ExitCode::DataErr,
+                'The security event was refused: its event type is not one the core acts on, CAEP session-revoked or credential-change, or RISC account-disabled, account-enabled, account-purged or credential-compromise (PRD 5.16). Nothing was ended or changed. Configure the stream at the transmitter to send only those events.',
+            ),
+            self::SignalExpired => $this->caller(
+                HttpStatus::BadRequest,
+                ExitCode::DataErr,
+                'The back-channel logout was refused: the logout token\'s exp has passed, beyond the 60 seconds the clocks may differ (PRD 5.16). Nothing was ended. The identity provider sends a new logout token; if it keeps happening, check the clocks of the identity provider and the CMS.',
+            ),
+            self::SignalIssuedInFuture => $this->caller(
+                HttpStatus::BadRequest,
+                ExitCode::DataErr,
+                'The signal was refused: the token\'s iat is more than 60 seconds after the receiver\'s time (PRD 5.16). Nothing was ended or changed. Check the clocks of the identity provider and the CMS.',
+            ),
+            self::SignalIssuerMismatch => $this->caller(
+                HttpStatus::BadRequest,
+                ExitCode::DataErr,
+                'The signal was refused: the token\'s iss is not the issuer the connection is pinned to (PRD 5.16), compared exactly, so a back-channel logout or a security event from another issuer ends and changes nothing. Configure the identity provider to send the connection\'s signals, or correct the connection\'s issuer.',
+            ),
+            self::SignalLogoutEventMissing => $this->caller(
+                HttpStatus::BadRequest,
+                ExitCode::DataErr,
+                'The back-channel logout was refused: the logout token\'s events claim does not hold the event http://schemas.openid.net/event/backchannel-logout, so it is not a logout token (OpenID Connect Back-Channel Logout 1.0, PRD 5.16). Nothing was ended.',
+            ),
+            self::SignalNoncePresent => $this->caller(
+                HttpStatus::BadRequest,
+                ExitCode::DataErr,
+                'The back-channel logout was refused: the logout token carries a nonce claim, which a logout token never does, so it may be an ID token sent in its place (OpenID Connect Back-Channel Logout 1.0, PRD 5.16). Nothing was ended.',
+            ),
+            self::SignalReplayed => $this->caller(
+                HttpStatus::BadRequest,
+                ExitCode::DataErr,
+                'The back-channel logout was refused: its logout token\'s jti was received before from the same issuer (PRD 5.16), so the logout has had its effect and a replay ends nothing more. The next login goes to the identity provider in any case.',
+            ),
+            self::SignalSubjectMissing => $this->caller(
+                HttpStatus::BadRequest,
+                ExitCode::DataErr,
+                'The back-channel logout was refused: the logout token names neither a subject (sub) nor an IdP session (sid), so it says nothing about whose sessions end (OpenID Connect Back-Channel Logout 1.0, PRD 5.16). Nothing was ended.',
+            ),
+            self::SignalSubjectUnsupported => $this->caller(
+                HttpStatus::BadRequest,
+                ExitCode::DataErr,
+                'The security event was refused: it does not name its subject as an iss_sub of the connection\'s issuer (RFC 9493, PRD 5.16). The core finds an actor only by its IdP identity, the connection, the issuer and the subject, never by an email address or a phone number alone. Nothing was ended or changed. Configure the transmitter to send iss_sub subjects.',
             ),
             self::SubscriptionIdentityInvalid => $this->violation(
                 'The event runner runs its subscribers as a service actor, never as the system (PRD 6.5 invariant 21), and cbox-cms.events.runner.service_actor names none, an actor that does not exist or one that is not of class service. No event was handled. Create a service actor and name its id there.',

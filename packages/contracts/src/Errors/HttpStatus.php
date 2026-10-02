@@ -34,6 +34,9 @@ enum HttpStatus: int
     /** What the path showed was taken down, and only a reinstatement shows it again. */
     case Gone = 410;
 
+    /** The request names a version of the resource, and the resource is at another (RFC 9110 13.1.1). */
+    case PreconditionFailed = 412;
+
     /** The request names a host this installation does not serve (PRD 8.10 point 7). */
     case MisdirectedRequest = 421;
 
@@ -59,6 +62,7 @@ enum HttpStatus: int
             self::NotFound => 'Not Found',
             self::Conflict => 'Conflict',
             self::Gone => 'Gone',
+            self::PreconditionFailed => 'Precondition Failed',
             self::MisdirectedRequest => 'Misdirected Request',
             self::UnprocessableContent => 'Unprocessable Content',
             self::InternalServerError => 'Internal Server Error',

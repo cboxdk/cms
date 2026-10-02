@@ -165,6 +165,22 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`registry_unknown_lane`](#registry_unknown_lane) | 500 | 65 | internal_error | no |
 | [`registry_unknown_surface`](#registry_unknown_surface) | 500 | 65 | internal_error | no |
 | [`request_header_invalid`](#request_header_invalid) | 400 | 64 | tool_error | no |
+| [`scim_invalid_value`](#scim_invalid_value) | 400 | 65 | tool_error | no |
+| [`scim_mutability`](#scim_mutability) | 400 | 65 | tool_error | no |
+| [`scim_reactivation_refused`](#scim_reactivation_refused) | 409 | 65 | tool_error | no |
+| [`scim_resource_not_found`](#scim_resource_not_found) | 404 | 65 | tool_error | no |
+| [`scim_uniqueness`](#scim_uniqueness) | 409 | 65 | tool_error | no |
+| [`scim_version_mismatch`](#scim_version_mismatch) | 412 | 65 | tool_error | no |
+| [`signal_audience_mismatch`](#signal_audience_mismatch) | 400 | 65 | tool_error | no |
+| [`signal_event_unsupported`](#signal_event_unsupported) | 400 | 65 | tool_error | no |
+| [`signal_expired`](#signal_expired) | 400 | 65 | tool_error | no |
+| [`signal_issued_in_future`](#signal_issued_in_future) | 400 | 65 | tool_error | no |
+| [`signal_issuer_mismatch`](#signal_issuer_mismatch) | 400 | 65 | tool_error | no |
+| [`signal_logout_event_missing`](#signal_logout_event_missing) | 400 | 65 | tool_error | no |
+| [`signal_nonce_present`](#signal_nonce_present) | 400 | 65 | tool_error | no |
+| [`signal_replayed`](#signal_replayed) | 400 | 65 | tool_error | no |
+| [`signal_subject_missing`](#signal_subject_missing) | 400 | 65 | tool_error | no |
+| [`signal_subject_unsupported`](#signal_subject_unsupported) | 400 | 65 | tool_error | no |
 | [`subscription_identity_invalid`](#subscription_identity_invalid) | 500 | 78 | internal_error | no |
 | [`subscription_not_parked`](#subscription_not_parked) | 422 | 65 | tool_error | no |
 | [`subscription_unknown`](#subscription_unknown) | 422 | 65 | tool_error | no |
@@ -1547,6 +1563,150 @@ A header of the envelope of a REST command, Cbox-Wait-Level, Cbox-Dry-Run or Cbo
 
 - HTTP status: 400 Bad Request
 - CLI exit code: 64 (EX_USAGE)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### scim_invalid_value
+
+The SCIM call was refused: a member of the group is not a user of the connection whose token made the call (PRD 5.16, RFC 7644 scimType invalidValue). A connection's token reaches only its own users and groups, so a user of another connection, a local account or an unknown id cannot be a member. Nothing was committed. Provision the user through the same connection first.
+
+- HTTP status: 400 Bad Request
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### scim_mutability
+
+The SCIM call was refused: it would change the externalId of a user or group (PRD 5.16, RFC 7644 scimType mutability). A user's externalId carries the same immutable value as the connection's declared claim of the ID token, sub by default, so it is the key of the IdP identity and never changes. Nothing was committed. Send the externalId the resource has, or delete the resource and create it again.
+
+- HTTP status: 400 Bad Request
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### scim_reactivation_refused
+
+The SCIM call was refused: it sets active=true for an actor that another source than this connection deactivated, such as a security event, a local command or the inactivity rule (PRD 5.16). Only the source that deactivated an actor may reactivate it, so the actor stays deactivated and nothing was committed. A person reactivates it with actor.reactivate, with four eyes and step-up.
+
+- HTTP status: 409 Conflict
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### scim_resource_not_found
+
+The SCIM call was refused: the connection whose token made it has no user or group with the id (PRD 5.16, RFC 7644 3.12). The resource never existed, was deleted, which a repeated DELETE meets, or belongs to another connection, whose resources a token never reaches. Nothing was committed. Look the resource up through the same connection.
+
+- HTTP status: 404 Not Found
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### scim_uniqueness
+
+The SCIM call was refused: another resource of the connection already has the externalId or the userName of the user, or the displayName of the group, compared without regard to case where RFC 7643 says so (PRD 5.16, RFC 7644 scimType uniqueness). A create that repeats the state of the existing resource is not refused; it changes nothing. Nothing was committed. Use the existing resource, or give the new one another value.
+
+- HTTP status: 409 Conflict
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### scim_version_mismatch
+
+The SCIM call was refused: its If-Match names another version than the resource's current one in the CMS (PRD 5.16, RFC 7644 3.14), because something changed the resource since the identity provider read it. Nothing was committed. Read the resource again and send the change with its current version.
+
+- HTTP status: 412 Precondition Failed
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### signal_audience_mismatch
+
+The signal was refused: the token's aud claim does not list the audience the connection is pinned to, the CMS's client id at the identity provider for a logout token or the stream's audience for a security event (PRD 5.16). Nothing was ended or changed. Check the client id or the stream configured at the identity provider.
+
+- HTTP status: 400 Bad Request
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### signal_event_unsupported
+
+The security event was refused: its event type is not one the core acts on, CAEP session-revoked or credential-change, or RISC account-disabled, account-enabled, account-purged or credential-compromise (PRD 5.16). Nothing was ended or changed. Configure the stream at the transmitter to send only those events.
+
+- HTTP status: 400 Bad Request
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### signal_expired
+
+The back-channel logout was refused: the logout token's exp has passed, beyond the 60 seconds the clocks may differ (PRD 5.16). Nothing was ended. The identity provider sends a new logout token; if it keeps happening, check the clocks of the identity provider and the CMS.
+
+- HTTP status: 400 Bad Request
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### signal_issued_in_future
+
+The signal was refused: the token's iat is more than 60 seconds after the receiver's time (PRD 5.16). Nothing was ended or changed. Check the clocks of the identity provider and the CMS.
+
+- HTTP status: 400 Bad Request
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### signal_issuer_mismatch
+
+The signal was refused: the token's iss is not the issuer the connection is pinned to (PRD 5.16), compared exactly, so a back-channel logout or a security event from another issuer ends and changes nothing. Configure the identity provider to send the connection's signals, or correct the connection's issuer.
+
+- HTTP status: 400 Bad Request
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### signal_logout_event_missing
+
+The back-channel logout was refused: the logout token's events claim does not hold the event http://schemas.openid.net/event/backchannel-logout, so it is not a logout token (OpenID Connect Back-Channel Logout 1.0, PRD 5.16). Nothing was ended.
+
+- HTTP status: 400 Bad Request
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### signal_nonce_present
+
+The back-channel logout was refused: the logout token carries a nonce claim, which a logout token never does, so it may be an ID token sent in its place (OpenID Connect Back-Channel Logout 1.0, PRD 5.16). Nothing was ended.
+
+- HTTP status: 400 Bad Request
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### signal_replayed
+
+The back-channel logout was refused: its logout token's jti was received before from the same issuer (PRD 5.16), so the logout has had its effect and a replay ends nothing more. The next login goes to the identity provider in any case.
+
+- HTTP status: 400 Bad Request
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### signal_subject_missing
+
+The back-channel logout was refused: the logout token names neither a subject (sub) nor an IdP session (sid), so it says nothing about whose sessions end (OpenID Connect Back-Channel Logout 1.0, PRD 5.16). Nothing was ended.
+
+- HTTP status: 400 Bad Request
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### signal_subject_unsupported
+
+The security event was refused: it does not name its subject as an iss_sub of the connection's issuer (RFC 9493, PRD 5.16). The core finds an actor only by its IdP identity, the connection, the issuer and the subject, never by an email address or a phone number alone. Nothing was ended or changed. Configure the transmitter to send iss_sub subjects.
+
+- HTTP status: 400 Bad Request
+- CLI exit code: 65 (EX_DATAERR)
 - MCP: a tool result with isError set
 - Retry: no, the same call gives the same answer until something changes
 

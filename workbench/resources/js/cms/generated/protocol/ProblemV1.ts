@@ -160,6 +160,22 @@ export type ErrorCode =
   | 'registry_unknown_lane'
   | 'registry_unknown_surface'
   | 'request_header_invalid'
+  | 'scim_invalid_value'
+  | 'scim_mutability'
+  | 'scim_reactivation_refused'
+  | 'scim_resource_not_found'
+  | 'scim_uniqueness'
+  | 'scim_version_mismatch'
+  | 'signal_audience_mismatch'
+  | 'signal_event_unsupported'
+  | 'signal_expired'
+  | 'signal_issued_in_future'
+  | 'signal_issuer_mismatch'
+  | 'signal_logout_event_missing'
+  | 'signal_nonce_present'
+  | 'signal_replayed'
+  | 'signal_subject_missing'
+  | 'signal_subject_unsupported'
   | 'subscription_identity_invalid'
   | 'subscription_not_parked'
   | 'subscription_unknown'
@@ -398,6 +414,22 @@ const catalogErrorV1Rule: ObjectRule = {
           'registry_unknown_lane',
           'registry_unknown_surface',
           'request_header_invalid',
+          'scim_invalid_value',
+          'scim_mutability',
+          'scim_reactivation_refused',
+          'scim_resource_not_found',
+          'scim_uniqueness',
+          'scim_version_mismatch',
+          'signal_audience_mismatch',
+          'signal_event_unsupported',
+          'signal_expired',
+          'signal_issued_in_future',
+          'signal_issuer_mismatch',
+          'signal_logout_event_missing',
+          'signal_nonce_present',
+          'signal_replayed',
+          'signal_subject_missing',
+          'signal_subject_unsupported',
           'subscription_identity_invalid',
           'subscription_not_parked',
           'subscription_unknown',
@@ -600,6 +632,22 @@ const problemV1Rule: ObjectRule = {
           'registry_unknown_lane',
           'registry_unknown_surface',
           'request_header_invalid',
+          'scim_invalid_value',
+          'scim_mutability',
+          'scim_reactivation_refused',
+          'scim_resource_not_found',
+          'scim_uniqueness',
+          'scim_version_mismatch',
+          'signal_audience_mismatch',
+          'signal_event_unsupported',
+          'signal_expired',
+          'signal_issued_in_future',
+          'signal_issuer_mismatch',
+          'signal_logout_event_missing',
+          'signal_nonce_present',
+          'signal_replayed',
+          'signal_subject_missing',
+          'signal_subject_unsupported',
           'subscription_identity_invalid',
           'subscription_not_parked',
           'subscription_unknown',

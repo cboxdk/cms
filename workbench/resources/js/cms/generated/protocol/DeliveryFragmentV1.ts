@@ -11,7 +11,7 @@ import { validate, type ObjectRule, type Validation } from '../validation';
 export type AnswerFormat = 'record' | 'problem' | 'explanation';
 
 /** The values of HttpStatus. */
-export type HttpStatus = 200 | 400 | 401 | 403 | 404 | 409 | 410 | 421 | 422 | 500 | 503;
+export type HttpStatus = 200 | 400 | 401 | 403 | 404 | 409 | 410 | 412 | 421 | 422 | 500 | 503;
 
 /**
  * What a fragment of the delivery API holds of an answer (PRD 8.12, 9.3): its HTTP status, the form
@@ -44,7 +44,7 @@ const deliveryFragmentV1Rule: ObjectRule = {
     {
       key: 'status',
       presence: 'required',
-      value: { kind: 'enum', values: [200, 400, 401, 403, 404, 409, 410, 421, 422, 500, 503] },
+      value: { kind: 'enum', values: [200, 400, 401, 403, 404, 409, 410, 412, 421, 422, 500, 503] },
     },
     {
       key: 'format',
