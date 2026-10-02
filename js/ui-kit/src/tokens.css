@@ -1,0 +1,67 @@
+/*
+ * The design tokens of the Cbox CMS component kit, as CSS custom properties. Components read
+ * these and nothing else, so a theme or a host changes the panel by redefining them. The kit has
+ * its own tokens until the decision on the cbox-ui licence and registry (PROGRESS.md, Tolkninger).
+ * Dark mode follows the operating system unless the root sets data-theme.
+ */
+
+:root {
+  --cms-color-surface: #ffffff;
+  --cms-color-surface-raised: #f6f7f9;
+  --cms-color-text: #16181d;
+  --cms-color-text-muted: #5b6270;
+  --cms-color-border: #d9dde3;
+  --cms-color-accent: #2f5bd3;
+  --cms-color-accent-hover: #2349b0;
+  --cms-color-on-accent: #ffffff;
+  --cms-color-danger: #c4302b;
+  --cms-color-focus: #2f5bd3;
+
+  --cms-font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --cms-font-family-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --cms-font-size-sm: 0.8125rem;
+  --cms-font-size-md: 0.875rem;
+  --cms-font-size-lg: 1rem;
+  --cms-font-weight-regular: 400;
+  --cms-font-weight-medium: 500;
+  --cms-line-height: 1.5;
+
+  --cms-space-1: 0.25rem;
+  --cms-space-2: 0.5rem;
+  --cms-space-3: 0.75rem;
+  --cms-space-4: 1rem;
+  --cms-space-6: 1.5rem;
+
+  --cms-radius-sm: 4px;
+  --cms-radius-md: 6px;
+  --cms-focus-ring: 0 0 0 2px var(--cms-color-surface), 0 0 0 4px var(--cms-color-focus);
+  --cms-duration-fast: 120ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --cms-color-surface: #121418;
+    --cms-color-surface-raised: #1b1e24;
+    --cms-color-text: #e8eaee;
+    --cms-color-text-muted: #9aa1ad;
+    --cms-color-border: #2e333c;
+    --cms-color-accent: #6b8ff0;
+    --cms-color-accent-hover: #87a4f4;
+    --cms-color-on-accent: #0c0e12;
+    --cms-color-danger: #ef6b66;
+    --cms-color-focus: #6b8ff0;
+  }
+}
+
+:root[data-theme='dark'] {
+  --cms-color-surface: #121418;
+  --cms-color-surface-raised: #1b1e24;
+  --cms-color-text: #e8eaee;
+  --cms-color-text-muted: #9aa1ad;
+  --cms-color-border: #2e333c;
+  --cms-color-accent: #6b8ff0;
+  --cms-color-accent-hover: #87a4f4;
+  --cms-color-on-accent: #0c0e12;
+  --cms-color-danger: #ef6b66;
+  --cms-color-focus: #6b8ff0;
+}

@@ -1,0 +1,24 @@
+{
+  "name": "@cboxdk/cms-ui-kit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The component kit of the Cbox CMS panel (working name, GUARDRAILS 8: one kit, no stand-alone components). Design tokens are CSS custom properties in src/tokens.css.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tokens.css": "./src/tokens.css"
+  },
+  "files": [
+    "src"
+  ],
+  "engines": {
+    "node": "^22.13.0 || >=24"
+  },
+  "peerDependencies": {
+    "react": "19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0"
+  }
+}

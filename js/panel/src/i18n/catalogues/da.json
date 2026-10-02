@@ -1,0 +1,5 @@
+{
+  "panel.name": "Cbox CMS",
+  "panel.page_missing.title": "Denne side findes ikke i panelet",
+  "panel.page_missing.body": "Serveren bad om siden \"{page}\", som denne udgave af panelet ikke har. Genindlæs panelet; mangler siden stadig, har panelet og serveren forskellige versioner."
+}

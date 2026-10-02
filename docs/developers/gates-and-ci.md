@@ -51,6 +51,17 @@ A process that already runs in the image, where the image sets `CBOX_IMAGE_TIER=
 
 The analysis takes Pest files only and stops at a PHPUnit test class, so the command runs twice: first the Pest files with the analysis, then every PHPUnit test class, such as the classes of the contract suites, in full. Both configurations are `phpunit.xml` with the other kind of file left out.
 
+## The panel and the component kit
+
+The panel's React code is the npm workspace `js/panel` and its components are the workspace `js/ui-kit`; both are private, with working names, and gate 4 type checks and lints them with the shared configuration of `js/tooling`. A component lives only in the kit, and the kit reads its colours, type, spacing and radii from the design tokens in `js/ui-kit/src/tokens.css`, CSS custom properties named `--cms-*`. `npm run build -w @cboxdk/cms-panel` builds the panel with Vite into `js/panel/dist`, which git ignores.
+
+Every text of the panel comes from the translations, in Danish and English (GUARDRAILS 8): the catalogues `js/panel/src/i18n/catalogues/da.json` and `en.json`, flat objects from a dotted key to its text, read in a component with `t()` from `useTranslation()`. Two checks hold this:
+
+- The ESLint rule `cms/no-literal-ui-text` of `js/tooling` fails `npm run lint` on letters written straight into JSX in a `.tsx` file: text between tags, a string or template literal as a child, and a string given to an attribute a person reads or hears, such as `aria-label`, `title`, `alt` or the input hint of a form control. Attributes only code reads, such as `className` or `role`, and text without letters are left alone.
+- `npm run lint:translations` fails when the catalogues do not have the same keys, when a text is empty or not a string, or when a catalogue is missing or another lies beside them. The Unit suite of gate 5 runs it, so `composer check` fails on it.
+
+Storybook, visual regression per component and axe, gate 7, come in the second part of the panel skeleton; until then gate 7 is not run.
+
 ## The documentation gate
 
 `composer docs:check` fails when:

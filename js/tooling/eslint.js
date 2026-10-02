@@ -1,12 +1,14 @@
-// The shared ESLint configuration for Cbox CMS (GUARDRAILS 1 and 10, gate 4): typescript-eslint
+// The shared ESLint configuration for Cbox CMS (GUARDRAILS 1, 8 and 10, gate 4): typescript-eslint
 // strictTypeChecked with type information from the TypeScript project service, no explicit any,
-// the no-unsafe-* rules and the React Hooks rules. A repository imports it from its own
+// the no-unsafe-* rules, the React Hooks rules and, in JSX, the rule against literal UI text. A repository imports it from its own
 // eslint.config.js and passes its root, so the project service finds its tsconfig.json.
 
 import js from '@eslint/js';
 import { defineConfig, globalIgnores } from 'eslint/config';
 import reactHooks from 'eslint-plugin-react-hooks';
 import tseslint from 'typescript-eslint';
+
+import { noLiteralUiText } from './no-literal-ui-text.js';
 
 /**
  * @typedef {object} CmsEslintOptions
@@ -44,6 +46,18 @@ export const reactHooksRules = Object.fromEntries(
 );
 
 /**
+ * A rule written with typescript-eslint's RuleCreator, as ESLint's own types name a rule. The two
+ * describe the same runtime object, but typescript-eslint types the rule context with its own,
+ * wider interface that ESLint's declarations lack, so the rule is cast through unknown here, once.
+ *
+ * @param {import('@typescript-eslint/utils').TSESLint.RuleModule<string, unknown[]>} rule
+ * @returns {import('eslint').Rule.RuleModule}
+ */
+function eslintRule(rule) {
+  return /** @type {import('eslint').Rule.RuleModule} */ (/** @type {unknown} */ (rule));
+}
+
+/**
  * @param {CmsEslintOptions} options
  * @returns {import('eslint').Linter.Config[]}
  */
@@ -75,6 +89,15 @@ export default function cmsEslintConfig(options) {
       files: ['**/*.{ts,mts,cts,tsx}'],
       extends: [reactHooks.configs.flat.recommended],
       rules: reactHooksRules,
+    },
+    {
+      files: ['**/*.tsx'],
+      plugins: {
+        cms: { rules: { 'no-literal-ui-text': eslintRule(noLiteralUiText) } },
+      },
+      rules: {
+        'cms/no-literal-ui-text': 'error',
+      },
     },
   ]);
 }

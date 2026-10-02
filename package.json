@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint --max-warnings=0 .",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "lint:translations": "node js/tooling/translation-parity.js js/panel/src/i18n/catalogues"
   },
   "devDependencies": {
     "@cboxdk/cms-tooling": "0.1.0",

@@ -1,0 +1,5 @@
+{
+  "panel.name": "Cbox CMS",
+  "panel.page_missing.title": "This page is not part of the panel",
+  "panel.page_missing.body": "The server asked for the page \"{page}\", which this build of the panel does not have. Reload the panel; if the page is still missing, the panel and the server are of different versions."
+}
