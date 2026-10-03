@@ -71,6 +71,7 @@ use Cbox\Cms\Core\Placements\Adapter\PostgresEntryReleaseLock;
 use Cbox\Cms\Core\Placements\Adapter\PostgresPlacementReader;
 use Cbox\Cms\Core\Placements\Adapter\PostgresPlacementSlugLock;
 use Cbox\Cms\Core\Placements\Adapter\PostgresPlacementVersionLock;
+use Cbox\Cms\Core\Placements\Adapter\ReaderPublicPlacements;
 use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
 use Cbox\Cms\Core\Placements\Domain\Dto\LocaleSlug;
@@ -241,6 +242,7 @@ final class PlacementWorld
             $types,
             app(FieldValidation::class),
             new PostgresRevisionContents($connections, $this->connection),
+            new ReaderPublicPlacements(new PostgresPlacementReader($connections, $this->connection), $this->clock),
             new PostgresChangesetCommitter(
                 $connections,
                 $this->clock,

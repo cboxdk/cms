@@ -65,6 +65,8 @@ use Cbox\Cms\Core\Pipeline\Domain\FieldValidation;
 use Cbox\Cms\Core\Pipeline\Domain\HookPlans;
 use Cbox\Cms\Core\Pipeline\Domain\MutationWriters;
 use Cbox\Cms\Core\Pipeline\Domain\VersionLocks;
+use Cbox\Cms\Core\Placements\Adapter\PostgresPlacementReader;
+use Cbox\Cms\Core\Placements\Adapter\ReaderPublicPlacements;
 use Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeVersionLock;
 use Cbox\Cms\Core\Subscriptions\Adapter\SystemPacing;
@@ -235,6 +237,7 @@ final class EntryWorld
             $types,
             app(FieldValidation::class),
             new PostgresRevisionContents($connections, $this->connection),
+            new ReaderPublicPlacements(new PostgresPlacementReader($connections, $this->connection), $this->clock),
             new PostgresChangesetCommitter(
                 $connections,
                 $this->clock,

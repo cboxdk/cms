@@ -153,6 +153,9 @@ final readonly class M1InvariantMap
                 TestReference::of('packages/core/tests/Actions/SetPlacementWindowTest.php', 'rejects a window from an agent, now or later, and lets an agent hide a placement', $kernel),
                 TestReference::of('packages/core/tests/Actions/PublishEntryTest.php', 'rejects an agent, which may not make content public', $kernel),
                 TestReference::of('packages/core/tests/Actions/CreatePlacementTest.php', 'lets an agent create a placement, which is hidden', $kernel),
+                TestReference::of('packages/core/tests/Actions/AgentUnstagedSaveTest.php', 'rejects an agent\'s revise of a stages-none entry a placement shows now or later as agent_visibility_forbidden, and commits nothing', $kernel),
+                TestReference::of('packages/core/tests/Actions/AgentUnstagedSaveTest.php', 'rejects an agent\'s revise as version_conflict when a person opened a window on a placement of the entry before it committed', $kernel),
+                TestReference::of('packages/core/tests/Postgres/AgentUnstagedSaveTest.php', 'refuses an agent\'s revise of a live stages-none entry with agent_visibility_forbidden and writes nothing, and lets a person revise it', $kernel),
             ]),
             new InvariantCoverage(21, 'The kernel hands an addon only what its capabilities allow, and its subscribers run as its own service identity.', [
                 TestReference::of(self::HOOKS, 'gives an addon\'s hook without the capability for an aggregate\'s fields a view without them, and one with it a view with them (invariant 21)', $kernel),

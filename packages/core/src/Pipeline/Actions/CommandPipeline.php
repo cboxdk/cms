@@ -24,6 +24,8 @@ use Cbox\Cms\Contracts\IdempotencyStore;
 use Cbox\Cms\Contracts\Identity\Actor;
 use Cbox\Cms\Contracts\Identity\ActorDirectory;
 use Cbox\Cms\Contracts\Ids\ActorId;
+use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Pipeline\ExpectsVersions;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
@@ -67,6 +69,7 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\VersionConflict;
 use Cbox\Cms\Core\Pipeline\Domain\FieldValidation;
 use Cbox\Cms\Core\Pipeline\Domain\InvalidCommandCall;
 use Cbox\Cms\Core\Pipeline\Domain\MissingReplayReceipt;
+use Cbox\Cms\Core\Pipeline\Domain\PublicPlacements;
 use Cbox\Cms\Core\Pipeline\Domain\ReplayReceipt;
 use Cbox\Cms\Core\Pipeline\Domain\RevisionContents;
 use Cbox\Cms\Core\Pipeline\Domain\WritableFields;
@@ -114,8 +117,12 @@ use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
  *    an error at each such field's path below fields. A plan with a mutation that makes content
  *    public (ChangesPublicVisibility), such as a release or a window, is rejected with
  *    agent_visibility_forbidden when the envelope's issuer or the credential's issuer is an agent
- *    (invariant 18). A release of a type that has no revision to release, one with stages none or
- *    with a history that keeps no revisions, is type_not_releasable. The kernel reads the revision
+ *    (invariant 18). So is a revision an agent saves of a type with stages none, which has no draft
+ *    and writes what the public reads, when a placement of its entry is visible now or later
+ *    (PublicPlacements); otherwise every placement of the entry joins the call's reads, so a window
+ *    opened meanwhile makes the call version_conflict. A release of a type that has no revision to
+ *    release, one with stages none or with a history that keeps no revisions, is
+ *    type_not_releasable. The kernel reads the revision
  *    each release names once, through RevisionContents, so the hooks see its fields (PlanView
  *    releases(), invariant 36) and phase 5 validates the same read; a revision the plan itself
  *    creates is not stored yet and is not read. Then the authorize
@@ -188,6 +195,7 @@ final readonly class CommandPipeline
         private TypeCatalog $types,
         private FieldValidation $fields,
         private RevisionContents $revisions,
+        private PublicPlacements $placements,
         private ChangesetCommitter $committer,
         private IdempotencyStore $keys,
         private ReceiptStore $receipts,
@@ -379,6 +387,16 @@ final readonly class CommandPipeline
                 $public::class,
                 $public->aggregate()->aggregateKey(),
             )));
+        }
+
+        if ($call->issuedByAgent()) {
+            $shown = $this->unstagedShown($binding, $plan, $reads);
+
+            if ($shown instanceof CatalogError) {
+                return $this->rejected($call, $shown);
+            }
+
+            $reads = $shown;
         }
 
         $unreleasable = $this->unreleasable($plan);
@@ -628,6 +646,53 @@ final readonly class CommandPipeline
         }
 
         return null;
+    }
+
+    /**
+     * The reads with every placement of each entry the plan saves a revision of for a type with
+     * stages none, or agent_visibility_forbidden when a placement of one is visible now or later
+     * (invariant 18): such a type has no draft, a save writes the released row, and the public
+     * reads it wherever a placement is open, so an agent saves only an entry no placement shows.
+     * The placements join the reads, so a window a person opens on one before this call commits
+     * makes it version_conflict.
+     */
+    private function unstagedShown(ActionBinding $binding, Plan $plan, ReadVersions $reads): ReadVersions|CatalogError
+    {
+        $entries = [];
+
+        foreach ($plan->mutations() as $mutation) {
+            if ($mutation instanceof RevisionCreated && $this->types->find($mutation->type)?->capabilities->stages === Stages::None) {
+                $entries[$mutation->entry->toString()] = $mutation->entry;
+            }
+        }
+
+        foreach ($entries as $entry) {
+            $placements = $this->placements->of($entry);
+
+            if ($placements->shown instanceof PlacementId) {
+                return $this->shownToAgent($binding, $entry, $placements->shown);
+            }
+
+            $relied = $this->relied($reads, $placements->reads);
+
+            if ($relied instanceof CatalogError) {
+                return $relied;
+            }
+
+            $reads = $relied;
+        }
+
+        return $reads;
+    }
+
+    private function shownToAgent(ActionBinding $binding, EntryId $entry, PlacementId $shown): CatalogError
+    {
+        return new CatalogError(ErrorCode::AgentVisibilityForbidden, null, sprintf(
+            'The command %s is issued by an agent and saves entry %s, whose type has stages none, so the save changes what the public reads through placement %s, which is visible now or later; only a person may change public content (invariant 18).',
+            $binding->command->value,
+            $entry->toString(),
+            $shown->toString(),
+        ));
     }
 
     /**

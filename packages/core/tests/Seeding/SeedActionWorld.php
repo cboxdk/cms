@@ -55,6 +55,7 @@ use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandHooks;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandTransaction;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeFieldValidation;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeHookOverruns;
+use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakePublicPlacements;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeRevisionContents;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeStopwatch;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeWriteActions;
@@ -210,6 +211,7 @@ final class SeedActionWorld
             $types,
             new FakeFieldValidation(self::validators()),
             $this->revisions,
+            new FakePublicPlacements,
             $this->committer,
             $this->keys,
             $this->receipts,

@@ -79,6 +79,7 @@ use Cbox\Cms\Core\Placements\Adapter\PostgresEntryReleaseLock;
 use Cbox\Cms\Core\Placements\Adapter\PostgresPlacementReader;
 use Cbox\Cms\Core\Placements\Adapter\PostgresPlacementSlugLock;
 use Cbox\Cms\Core\Placements\Adapter\PostgresPlacementVersionLock;
+use Cbox\Cms\Core\Placements\Adapter\ReaderPublicPlacements;
 use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
 use Cbox\Cms\Core\Placements\Domain\Dto\LocaleSlug;
@@ -213,11 +214,13 @@ final readonly class PublishingWorld
     }
 
     /**
-     * entry.revise of the entry's shared variant at the version, at the wait level given.
+     * entry.revise of the entry's shared variant at the version, at the wait level given, by the
+     * world's actor as a person or, with $agent, through an agent's credential and an envelope that
+     * records an agent.
      */
-    public function revise(EntryId $entry, int $version, FieldValues $fields, string $key, WaitLevel $waitLevel = WaitLevel::Commit): WriteResult
+    public function revise(EntryId $entry, int $version, FieldValues $fields, string $key, WaitLevel $waitLevel = WaitLevel::Commit, bool $agent = false): WriteResult
     {
-        return $this->run(new ReviseEntry($entry, new AggregateVersion($version), $fields), $key, waitLevel: $waitLevel);
+        return $this->run(new ReviseEntry($entry, new AggregateVersion($version), $fields), $key, waitLevel: $waitLevel, agent: $agent);
     }
 
     public function unpublish(EntryId $entry, int $version, string $key): WriteResult
@@ -225,11 +228,17 @@ final readonly class PublishingWorld
         return $this->run(new UnpublishEntry($entry, new AggregateVersion($version)), $key);
     }
 
-    public function run(Command $command, string $key, bool $dryRun = false, WaitLevel $waitLevel = WaitLevel::Commit): WriteResult
+    /**
+     * The command by the world's actor as a person, through a service credential, or with $agent
+     * through an agent's credential, whose ceiling is confidential, and an envelope that records an
+     * agent.
+     */
+    public function run(Command $command, string $key, bool $dryRun = false, WaitLevel $waitLevel = WaitLevel::Commit, bool $agent = false): WriteResult
     {
+        $credential = $agent ? IssuerKind::Agent : IssuerKind::Service;
         $envelope = Envelope::external(
-            IssuingSurface::Rest,
-            EnvelopeIssuer::Human,
+            $agent ? IssuingSurface::Mcp : IssuingSurface::Rest,
+            $agent ? EnvelopeIssuer::Agent : EnvelopeIssuer::Human,
             $this->actor,
             new IdempotencyKey($key),
             new CorrelationId('publishing-correlation'),
@@ -238,7 +247,7 @@ final readonly class PublishingWorld
         );
 
         return $this->pipeline()->run(new CommandCall($command, $envelope, new AccessContext(
-            new ActorPrincipal($this->actor, [], IssuerKind::Service, ClassificationAccess::Sensitive),
+            new ActorPrincipal($this->actor, [], $credential, $credential->maximumCeiling()),
             array_map(static fn (StructureNode $root): AccessRegion => new AccessRegion($root->path), $this->regions),
             ClassificationAccess::Internal,
         )));
@@ -266,6 +275,7 @@ final readonly class PublishingWorld
             $types,
             app(FieldValidation::class),
             new PostgresRevisionContents($connections),
+            new ReaderPublicPlacements(new PostgresPlacementReader($connections), $this->clock),
             new PostgresChangesetCommitter(
                 $connections,
                 $this->clock,

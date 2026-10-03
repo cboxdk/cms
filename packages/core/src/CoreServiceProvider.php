@@ -177,6 +177,7 @@ use Cbox\Cms\Core\Pipeline\Domain\FieldValidation;
 use Cbox\Cms\Core\Pipeline\Domain\HookOverruns;
 use Cbox\Cms\Core\Pipeline\Domain\MutationWriter;
 use Cbox\Cms\Core\Pipeline\Domain\MutationWriters;
+use Cbox\Cms\Core\Pipeline\Domain\PublicPlacements;
 use Cbox\Cms\Core\Pipeline\Domain\RegistryAffectedProjections;
 use Cbox\Cms\Core\Pipeline\Domain\RevisionContents;
 use Cbox\Cms\Core\Pipeline\Domain\Stopwatch;
@@ -193,6 +194,7 @@ use Cbox\Cms\Core\Placements\Adapter\PostgresEntryReleaseLock;
 use Cbox\Cms\Core\Placements\Adapter\PostgresPlacementReader;
 use Cbox\Cms\Core\Placements\Adapter\PostgresPlacementSlugLock;
 use Cbox\Cms\Core\Placements\Adapter\PostgresPlacementVersionLock;
+use Cbox\Cms\Core\Placements\Adapter\ReaderPublicPlacements;
 use Cbox\Cms\Core\Placements\Domain\PlacementReader;
 use Cbox\Cms\Core\Process\Boundary\ProcessWorkload;
 use Cbox\Cms\Core\Process\Domain\OwnerCredentialsExposed;
@@ -491,6 +493,7 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         // published revision, the release log and the type table's rows (PRD 4.1, 11.6).
         $this->app->bind(EntryReader::class, PostgresEntryReader::class);
         $this->app->bind(RevisionContents::class, PostgresRevisionContents::class);
+        $this->app->bind(PublicPlacements::class, ReaderPublicPlacements::class);
         $this->app->tag([EntryCreatedWriter::class, RevisionCreatedWriter::class, HeadMovedWriter::class, VariantReleasedWriter::class], MutationWriters::TAG);
 
         // The placement commands, placement.create and placement.set_window (PRD 5.7, 5.9, 6.4): their
@@ -652,6 +655,7 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
                 $app->make(TypeCatalog::class),
                 $app->make(FieldValidation::class),
                 $app->make(RevisionContents::class),
+                $app->make(PublicPlacements::class),
                 $app->make(ChangesetCommitter::class),
                 $app->make(IdempotencyStore::class),
                 $app->make(ReceiptStore::class),
@@ -836,6 +840,7 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
             $app->make(TypeCatalog::class),
             $app->make(FieldValidation::class),
             $app->make(RevisionContents::class),
+            $app->make(PublicPlacements::class),
             $app->make(ChangesetCommitter::class),
             $app->make(IdempotencyStore::class),
             $app->make(ReceiptStore::class),

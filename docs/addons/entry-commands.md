@@ -25,6 +25,12 @@ A caller sets only the fields it may read (PRD 2.31, 12.2), by the rule every re
 - A null, or no value, sets nothing. `entry.revise` replaces every field, so before validation each closed field takes the value of the revision the head moves from: the stored revision for a type with full history, the head snapshot for a type whose history is audit-only or none. A revise never erases what its caller cannot see. For an agent, a nested field closed to agents takes the value of the same group, item by item by position in a repeated group.
 - A head written under another schema version than the type's cannot be read with the type's definitions, so a revise by a caller with closed fields is `validation_failed` until a caller who may read every field saves it under the current version.
 
+## Agents and types with stages none
+
+An agent prepares content and a person makes it public (invariant 18). A type with `stages: none` has no draft: a save writes the row the public reads wherever a placement of the entry is visible. So the command pipeline refuses a revision an agent saves of such a type, by the agent's credential or by an envelope that records an agent, with `agent_visibility_forbidden` while a placement of the entry is live or scheduled to open, in any locale on any site. Nothing is committed. A person may save it.
+
+An agent may save an entry of such a type that no placement shows, such as a new entry or one whose placements are hidden, withdrawn or expired. Every placement of the entry then joins the call's reads, so a window a person opens on one of them before the save commits makes the save `version_conflict`. A type with stages keeps an agent's save as a draft, which the public does not read until a person releases it.
+
 <!-- example: examples/Unit/Entries/EntryCommandsTest.php -->
 ```php
 <?php
