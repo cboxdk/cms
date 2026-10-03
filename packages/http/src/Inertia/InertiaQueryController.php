@@ -16,8 +16,8 @@ use Cbox\Cms\Http\Inertia\Boundary\InertiaQueryRequest;
 use Cbox\Cms\Http\Inertia\Domain\InertiaActions;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
-use Inertia\Response;
 use LogicException;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
@@ -48,10 +48,10 @@ final readonly class InertiaQueryController
         try {
             $input = $this->requests->read($request, $codec);
         } catch (InertiaQueryRefused $refused) {
-            return $this->outcomes->refused($component, $refused);
+            return $this->outcomes->refused($request, $component, $refused);
         }
 
-        return $this->outcomes->read($component, $this->pipeline->run(new QueryCall($input->query, $input->credential, Surface::Inertia)), $codec);
+        return $this->outcomes->read($request, $component, $this->pipeline->run(new QueryCall($input->query, $input->credential, Surface::Inertia)), $codec);
     }
 
     private function component(Request $request): string

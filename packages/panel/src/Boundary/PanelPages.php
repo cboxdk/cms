@@ -55,7 +55,10 @@ use LogicException;
  * - the page a reset link opens, with the address its form posts to, the token of the link, or
  *   null when the address holds no text in the form of a token, and the addresses of the other two
  *   pages. Its answer is never cached and sends no Referer, because its address holds the token;
- * - the start page of a person who logged in, with the address of the logout.
+ * - the start page of a person who logged in, with the address of the logout. Like every page
+ *   behind the login, its answer is never cached (PRIVATE_CACHE_CONTROL), because the props of a
+ *   page behind the login can hold personal fields (PRD 12.2) that no browser cache, back/forward
+ *   cache after logout or shared proxy may keep.
  */
 #[Internal]
 final readonly class PanelPages
@@ -74,6 +77,9 @@ final readonly class PanelPages
 
     /** The page a password reset link opens, in js/panel/src/pages. */
     public const string RESET_PASSWORD = 'Auth/ResetPassword';
+
+    /** The Cache-Control of the pages behind the login and of the page a reset link opens. */
+    public const string PRIVATE_CACHE_CONTROL = 'no-store, private';
 
     public function __construct(
         private ResponseFactory $inertia,
@@ -127,17 +133,16 @@ final readonly class PanelPages
             token: PasswordResetToken::parse($token)?->reveal(),
         ), ClassificationAccess::Public));
         $response->headers->set('Referrer-Policy', 'no-referrer');
-        $response->headers->set('Cache-Control', 'no-store, private');
 
-        return $response;
+        return $this->unstored($response);
     }
 
     public function home(Request $request): Response|JsonResponse
     {
-        return $this->render($request, self::HOME, $this->homePage->encode(
+        return $this->unstored($this->render($request, self::HOME, $this->homePage->encode(
             new HomePage($this->urls->route(PanelRoute::Logout->value, [], false)),
             ClassificationAccess::Public,
-        ));
+        )));
     }
 
     public function notFound(Request $request): Response|JsonResponse
@@ -169,6 +174,13 @@ final readonly class PanelPages
         if (! $response instanceof Response && ! $response instanceof JsonResponse) {
             throw new LogicException('Inertia answered the panel page with a response of another kind.');
         }
+
+        return $response;
+    }
+
+    private function unstored(Response|JsonResponse $response): Response|JsonResponse
+    {
+        $response->headers->set('Cache-Control', self::PRIVATE_CACHE_CONTROL);
 
         return $response;
     }

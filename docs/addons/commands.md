@@ -545,6 +545,6 @@ The panel's Inertia pages reach the actions whose `#[Action]` lists `Surface::In
 | Action | Route | Request | Answer |
 |---|---|---|---|
 | write action | `InertiaRoutes::register($router)`: `POST <prefix>/{command}/v{version}` | a JSON body with the envelope fields under `envelope` and the command's document under `command`; a Bearer credential | a 303 redirect back to the page, with the receipt in the flash data and, for a rejection, the field errors in the `errors` prop and the problem details in the `problem` prop |
-| query action | `InertiaRoutes::queries($router, $component)`: `GET <prefix>/{query}/v{version}` | the query's JSON document in the query parameter `query`, as REST reads it; a Bearer credential | the page component given, with the result in the `result` prop, the same document REST answers with, or the problem details in the `problem` prop |
+| query action | `InertiaRoutes::queries($router, $component)`: `GET <prefix>/{query}/v{version}` | the query's JSON document in the query parameter `query`, as REST reads it; a Bearer credential | the page component given, with the result in the `result` prop, the same document REST answers with, or the problem details in the `problem` prop; the page and its Inertia JSON are sent with `Cache-Control: no-store, private`, as REST's answers are, because the props can hold personal fields |
 
 The panel and REST stay in parity: an action on Inertia that is not on REST stops the profile from serving anything, and the surface contract tests fail.

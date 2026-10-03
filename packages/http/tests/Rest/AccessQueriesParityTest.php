@@ -13,6 +13,7 @@ use Cbox\Cms\Core\Tests\Access\ListingActionWorld;
 use Cbox\Cms\Http\Inertia\Boundary\InertiaOutcome;
 use Cbox\Cms\Http\Inertia\Boundary\InertiaQueryOutcome;
 use Cbox\Cms\Http\Inertia\Domain\InertiaActions;
+use Cbox\Cms\Http\Rest\Boundary\RestResponse;
 use Cbox\Cms\Http\Rest\RestRoutes;
 use Cbox\Cms\Tests\Support\SurfaceContract\SurfaceContractCases;
 use Cbox\Cms\Tests\TestCase;
@@ -104,6 +105,31 @@ final class AccessQueriesParityTest extends TestCase
         self::assertSame($body, $this->written($props->{InertiaOutcome::PROBLEM_PROP} ?? null));
         self::assertNull($props->{InertiaQueryOutcome::RESULT} ?? null);
         self::assertStringContainsString('"code":"unauthorized"', $body);
+    }
+
+    #[Test]
+    public function every_inertia_read_answer_with_personal_fields_or_a_problem_is_never_stored_as_rest_answers_are(): void
+    {
+        $world = new ListingActionWorld;
+        app()->instance(QueryPipeline::class, $world->pipeline());
+        $reader = $world->reader(['actor.list', 'grant.list', 'role.list'], ClassificationAccess::Personal);
+        $refused = $world->reader(['role.list'], ClassificationAccess::Personal);
+        $url = sprintf('%s/actor.list/v1?%s', self::INERTIA, http_build_query([RestRoute::QUERY_PARAMETER => '{}']));
+        $invalid = sprintf('%s/actor.list/v1?%s', self::INERTIA, http_build_query([RestRoute::QUERY_PARAMETER => '{"limit":0}']));
+
+        foreach ([[], ['X-Inertia' => 'true']] as $headers) {
+            $answered = $this->withHeaders([...$headers, 'Authorization' => 'Bearer '.$reader->reveal()])->get($url);
+            $rejected = $this->withHeaders([...$headers, 'Authorization' => 'Bearer '.$refused->reveal()])->get($url);
+            $unread = $this->withHeaders([...$headers, 'Authorization' => 'Bearer '.$reader->reveal()])->get($invalid);
+
+            $answered->assertOk();
+            $rejected->assertOk();
+            self::assertStringContainsString('eve@example.com', (string) $answered->getContent());
+
+            foreach ([$answered, $rejected, $unread] as $response) {
+                self::assertSame(RestResponse::CACHE_CONTROL, $response->headers->get('Cache-Control'));
+            }
+        }
     }
 
     /**

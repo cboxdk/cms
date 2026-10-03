@@ -15,6 +15,7 @@ use Cbox\Cms\Identity\Sessions\Boundary\SessionCookieConfig;
 use Cbox\Cms\Identity\Sessions\Domain\Dto\SessionCookie;
 use Cbox\Cms\Identity\Sessions\Domain\SessionKey;
 use Cbox\Cms\Identity\Tests\Login\LocalLoginWorld;
+use Cbox\Cms\Panel\Boundary\PanelPages;
 use Cbox\Cms\Panel\Boundary\PanelSessions;
 use Cbox\Cms\Panel\Tests\PanelLogins;
 use Cbox\Cms\Tests\TestCase;
@@ -111,6 +112,23 @@ final class SessionCookieTest extends TestCase
         self::assertNull($laravel->getHandler()->read($laravel->getId()) ?: null, 'The empty session started after the logout is destroyed too.');
 
         $this->get('/cms')->assertStatus(PanelSessions::REDIRECT)->assertHeader('Location', '/cms/login?reason=ended');
+    }
+
+    #[Test]
+    public function the_start_page_behind_the_login_is_never_stored_as_a_page_or_as_inertia_json(): void
+    {
+        $this->visitLogin();
+        $cookie = $this->sessionCookie($this->logIn(self::EMAIL, $this->password())) ?? self::fail('The login set no session cookie.');
+        $this->withUnencryptedCookie($this->cookieName(), (string) $cookie->getValue());
+
+        $html = $this->get('/cms')->assertOk();
+        $page = $html->viewData('page');
+        $version = is_array($page) && is_string($page['version'] ?? null) ? $page['version'] : self::fail('The start page rendered no Inertia page.');
+        $json = $this->withHeaders(['X-Inertia' => 'true', 'X-Inertia-Version' => $version])->get('/cms')->assertOk();
+
+        self::assertSame(PanelPages::PRIVATE_CACHE_CONTROL, $html->headers->get('Cache-Control'));
+        self::assertSame(PanelPages::PRIVATE_CACHE_CONTROL, $json->headers->get('Cache-Control'));
+        self::assertSame('true', $json->headers->get('X-Inertia'));
     }
 
     #[Test]
