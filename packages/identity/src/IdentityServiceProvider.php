@@ -26,14 +26,17 @@ use Cbox\Cms\Identity\Cli\Console\StaffCreateCommand;
 use Cbox\Cms\Identity\Cli\Console\StaffResetLinkCommand;
 use Cbox\Cms\Identity\CredentialStore\Adapter\PostgresLocalCredentialStore;
 use Cbox\Cms\Identity\CredentialStore\Boundary\IdentityConfig;
+use Cbox\Cms\Identity\Doctor\Adapter\ConfigLoginPolicyProbe;
 use Cbox\Cms\Identity\Doctor\Adapter\ConfigSessionCookieProbe;
 use Cbox\Cms\Identity\Doctor\Adapter\ConnectionCredentialStoreProbe;
 use Cbox\Cms\Identity\Doctor\Adapter\PhpPasswordHashingProbe;
 use Cbox\Cms\Identity\Doctor\Domain\Checks\Argon2idCheck;
 use Cbox\Cms\Identity\Doctor\Domain\Checks\CredentialIsolationCheck;
 use Cbox\Cms\Identity\Doctor\Domain\Checks\IdentityConnectionCheck;
+use Cbox\Cms\Identity\Doctor\Domain\Checks\LoginPolicyCheck;
 use Cbox\Cms\Identity\Doctor\Domain\Checks\SessionCookieCheck;
 use Cbox\Cms\Identity\Doctor\Domain\Probes\CredentialStoreProbe;
+use Cbox\Cms\Identity\Doctor\Domain\Probes\LoginPolicyProbe;
 use Cbox\Cms\Identity\Doctor\Domain\Probes\PasswordHashingProbe;
 use Cbox\Cms\Identity\Doctor\Domain\Probes\SessionCookieProbe;
 use Cbox\Cms\Identity\LocalAccounts\Adapter\Argon2idPasswordHasher;
@@ -48,6 +51,7 @@ use Cbox\Cms\Identity\LoginPolicy\Adapter\PostgresIdpLinks;
 use Cbox\Cms\Identity\LoginPolicy\Boundary\LoginPolicyConfig;
 use Cbox\Cms\Identity\LoginPolicy\Domain\Dto\LoginPolicy;
 use Cbox\Cms\Identity\LoginPolicy\Domain\IdpLinks;
+use Cbox\Cms\Identity\LoginPolicy\Domain\InvalidLoginPolicy;
 use Cbox\Cms\Identity\PasswordReset\Actions\RequestPasswordReset;
 use Cbox\Cms\Identity\PasswordReset\Boundary\PasswordResetConfig;
 use Cbox\Cms\Identity\PasswordReset\Domain\Dto\ResetSettings;
@@ -75,8 +79,9 @@ use Override;
  * Merges `cbox-cms.identity` and loads the migrations of the credential store, which run as the
  * owner role. Adds its checks to cms:doctor as an application adds its own, in front of those
  * `cbox-cms.doctor.checks` names: identity.connection, identity.credential_isolation and
- * identity.argon2id and identity.session_cookie, with their probes. Binds the login policy of
- * `cbox-cms.identity.policy`, read when it is first asked for, and the IdP links it reads (PRD
+ * identity.argon2id, identity.session_cookie and identity.login_policy, with their probes. Binds
+ * the login policy of `cbox-cms.identity.policy` for the application's environment, read when it is
+ * first asked for, and the IdP links it reads (PRD
  * 5.16, invariant 38). Binds BreachedPasswords to the class `cbox-cms.contracts` names for it,
  * HibpBreachedPasswords unless the application names another, and LocalCredentialStore to the
  * class `cbox-cms.contracts` names for it, PostgresLocalCredentialStore on the identity connection
@@ -88,8 +93,10 @@ use Override;
  * cms:staff:reset-link and cms:identity:prune and schedules the prune every hour in the maintenance
  * process, and
  * puts the session verifier in front of the bound CredentialVerifier with the container's extend(),
- * so a session is a credential of every surface and the core never names this module. Refuses to boot a process that serves HTTP when the
- * session cookie of its environment is invalid or not safe there (PRD 5.16). Declares the module's
+ * so a session is a credential of every surface and the core never names this module. Refuses to
+ * boot a process that serves HTTP when the session cookie of its environment is invalid or not safe
+ * there, or when its login policy is invalid or lets staff log in locally with a password alone
+ * outside local and testing (PRD 5.16). Declares the module's
  * classes as a scan root for cms:build (PRD 13.2).
  */
 #[Internal]
@@ -102,7 +109,7 @@ final class IdentityServiceProvider extends ServiceProvider implements DeclaresS
      *
      * @var list<class-string<DoctorCheck>>
      */
-    public const array DOCTOR_CHECKS = [IdentityConnectionCheck::class, CredentialIsolationCheck::class, Argon2idCheck::class, SessionCookieCheck::class];
+    public const array DOCTOR_CHECKS = [IdentityConnectionCheck::class, CredentialIsolationCheck::class, Argon2idCheck::class, SessionCookieCheck::class, LoginPolicyCheck::class];
 
     #[Override]
     public function register(): void
@@ -118,7 +125,7 @@ final class IdentityServiceProvider extends ServiceProvider implements DeclaresS
             $config->set($key, array_values(array_unique([...self::DOCTOR_CHECKS, ...$added], SORT_REGULAR)));
         }
 
-        $this->app->singleton(LoginPolicy::class, static fn (Application $app): LoginPolicy => LoginPolicyConfig::read($app->make(Repository::class)));
+        $this->app->singleton(LoginPolicy::class, static fn (Application $app): LoginPolicy => LoginPolicyConfig::read($app->make(Repository::class), $app->environment()));
         $this->app->singleton(IdpLinks::class, static fn (Application $app): IdpLinks => new PostgresIdpLinks(
             $app->make(DatabaseManager::class),
             IdentityConfig::connection($app->make(Repository::class)),
@@ -165,6 +172,7 @@ final class IdentityServiceProvider extends ServiceProvider implements DeclaresS
 
         $this->app->bind(PasswordHashingProbe::class, PhpPasswordHashingProbe::class);
         $this->app->bind(SessionCookieProbe::class, ConfigSessionCookieProbe::class);
+        $this->app->bind(LoginPolicyProbe::class, ConfigLoginPolicyProbe::class);
         $this->app->singleton(SessionCookie::class, static fn (Application $app): SessionCookie => SessionCookieConfig::read($app->make(Repository::class), $app->environment()));
         $this->app->singleton(SessionStore::class, static fn (Application $app): SessionStore => new ValkeySessionStore(
             $app->make(Factory::class),
@@ -214,6 +222,7 @@ final class IdentityServiceProvider extends ServiceProvider implements DeclaresS
     /**
      * @throws InvalidSessionCookie when a process that serves HTTP has no valid session cookie
      * @throws InsecureSessionCookie when a process that serves HTTP has a session cookie that is not safe in its environment
+     * @throws InvalidLoginPolicy when a process that serves HTTP has a login policy that is invalid or may not hold in its environment
      */
     public function boot(): void
     {
@@ -231,6 +240,24 @@ final class IdentityServiceProvider extends ServiceProvider implements DeclaresS
             }
         });
         $this->refuseAnUnsafeSessionCookie();
+        $this->refuseAnUnsafeLoginPolicy();
+    }
+
+    /**
+     * A process that serves HTTP decides logins (PRD 5.16), so it stops here, before the first one,
+     * when the login policy of its environment is invalid or, outside local and testing, lets staff
+     * log in locally with a password alone. Console processes boot, so cms:doctor can say why with
+     * identity.login_policy.
+     *
+     * @throws InvalidLoginPolicy
+     */
+    private function refuseAnUnsafeLoginPolicy(): void
+    {
+        if (ProcessWorkload::of($this->app) !== Workload::Http) {
+            return;
+        }
+
+        $this->app->make(LoginPolicy::class);
     }
 
     /**

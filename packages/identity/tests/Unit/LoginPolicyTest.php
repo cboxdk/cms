@@ -49,12 +49,22 @@ const LOGIN_NOW = LoginWorld::NOW;
  *
  * @param  array<array-key, mixed>  $changes
  */
-function defaultPolicy(array $changes = []): LoginPolicy
+function defaultPolicy(array $changes = [], string $environment = 'testing'): LoginPolicy
+{
+    return LoginPolicyConfig::read(policyConfig($changes), $environment);
+}
+
+/**
+ * The module's configuration with $changes merged over its login policy.
+ *
+ * @param  array<array-key, mixed>  $changes
+ */
+function policyConfig(array $changes = []): Repository
 {
     /** @var array<string, mixed> $module */
     $module = require __DIR__.'/../../config/identity.php';
 
-    return LoginPolicyConfig::read(new Repository(['cbox-cms' => ['identity' => array_replace_recursive($module, ['policy' => $changes])]]));
+    return new Repository(['cbox-cms' => ['identity' => array_replace_recursive($module, ['policy' => $changes])]]);
 }
 
 /**
@@ -283,7 +293,7 @@ it('refuses a policy out of form and names the key, never its value', function (
 ]);
 
 it('refuses a policy that is not a map', function (): void {
-    expect(static fn (): LoginPolicy => LoginPolicyConfig::read(new Repository(['cbox-cms' => ['identity' => ['policy' => 'strict']]])))
+    expect(static fn (): LoginPolicy => LoginPolicyConfig::read(new Repository(['cbox-cms' => ['identity' => ['policy' => 'strict']]]), 'testing'))
         ->toThrow(InvalidLoginPolicy::class, 'cbox-cms.identity.policy must be');
 });
 

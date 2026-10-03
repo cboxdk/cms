@@ -49,6 +49,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`doctor_idle_in_transaction_timeout_missing`](#doctor_idle_in_transaction_timeout_missing) | 500 | 78 | internal_error | no |
 | [`doctor_laravel_version`](#doctor_laravel_version) | 500 | 78 | internal_error | no |
 | [`doctor_lc_messages_not_english`](#doctor_lc_messages_not_english) | 500 | 78 | internal_error | no |
+| [`doctor_login_policy_invalid`](#doctor_login_policy_invalid) | 500 | 78 | internal_error | no |
 | [`doctor_node_missing`](#doctor_node_missing) | 503 | 79 | internal_error | no |
 | [`doctor_node_version`](#doctor_node_version) | 503 | 79 | internal_error | no |
 | [`doctor_operator_invalid`](#doctor_operator_invalid) | 503 | 79 | internal_error | no |
@@ -541,6 +542,15 @@ The installed Laravel is not the major version this cboxdk/cms is built for. Ins
 ### doctor_lc_messages_not_english
 
 Postgres or the PHP process writes its messages in another language than English, and the kernel recognises some errors of Postgres by their English text, such as a missing partition. Set lc_messages to C for the app role and the owner role and as the server default, and give PHP an English message locale, then run cms:doctor again.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 78 (EX_CONFIG)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### doctor_login_policy_invalid
+
+The login policy of this environment, cbox-cms.identity.policy, cannot be used: a key is missing or has a value of another form, or the policy lets members of staff log in locally with a password alone in an environment other than local and testing, where PRD 5.16 requires a passkey or two factors. The web processes refuse to boot with it. Correct the key the cause names, as docs/security/login-policy.md describes it, then run cms:doctor again.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 78 (EX_CONFIG)
@@ -1287,7 +1297,7 @@ The login was refused by the login policy: the login policy of the actor's class
 
 ### login_factors_unavailable
 
-The login was refused by the login policy: the policy of the actor's class requires factors the login did not give, such as a passkey or two factors for a local staff login, or MFA shown in amr or acr for a federated one (PRD 5.16, cbox-cms.identity.policy.<class>.local_factors, federated_amr and federated_acr). No session was issued. Log in with the factors the policy requires; where the installation does not offer them yet, the environment's policy has to allow a password.
+The login was refused by the login policy: the policy of the actor's class requires factors the login did not give, such as a passkey or two factors for a local staff login, or MFA shown in amr or acr for a federated one (PRD 5.16, cbox-cms.identity.policy.<class>.local_factors, federated_amr and federated_acr). No session was issued. Log in with the factors the policy requires. Only in local and testing may the environment's policy allow a password alone for staff.
 
 - HTTP status: 403 Forbidden
 - CLI exit code: 77 (EX_NOPERM)
@@ -1323,7 +1333,7 @@ The login was refused by the login policy: the policy of the actor's class does 
 
 ### login_policy_invalid
 
-The login policy in cbox-cms.identity.policy is invalid: a key is missing or has a value of another form, such as an unknown method, a lifetime below one minute or an inactivity timeout longer than the absolute lifetime (PRD 5.16). No login is decided while it is invalid. Correct the policy as docs/security/login-policy.md describes it.
+The login policy in cbox-cms.identity.policy is invalid: a key is missing or has a value of another form, such as an unknown method, a lifetime below one minute or an inactivity timeout longer than the absolute lifetime, or it lets members of staff log in locally with a password alone in an environment other than local and testing, where PRD 5.16 requires a passkey or two factors. No login is decided while it is invalid, and a process that serves HTTP refuses to boot with it; cms:doctor's identity.login_policy says the same. Correct the policy as docs/security/login-policy.md describes it.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 78 (EX_CONFIG)

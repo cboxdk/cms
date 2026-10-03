@@ -78,7 +78,7 @@ final class SessionWorld
         $module = require __DIR__.'/../../config/identity.php';
         $policy = array_replace_recursive(['staff' => ['local_factors' => 'password']], $changes);
 
-        return LoginPolicyConfig::read(new Repository(['cbox-cms' => ['identity' => array_replace_recursive($module, ['policy' => $policy])]]));
+        return LoginPolicyConfig::read(new Repository(['cbox-cms' => ['identity' => array_replace_recursive($module, ['policy' => $policy])]]), 'testing');
     }
 
     public function actor(ActorClass $class = ActorClass::Staff, ActorState $state = ActorState::Active): Actor

@@ -103,8 +103,8 @@ return [
             ],
             // On until a federated connection and two emergency accounts exist; switch it off then.
             'local_login' => true,
-            // A local staff login needs a passkey or two factors (PRD 5.16). Set `password` only in
-            // an environment that does not offer them, such as development.
+            // A local staff login needs a passkey or two factors (PRD 5.16). Only the environments
+            // local and testing may set `password`; any other environment refuses the policy.
             'local_factors' => 'passkey_or_two_factors',
             // The MFA a federated login must show: one of these amr or acr values. Empty requires
             // none; set them once the identity provider is shown to send them.

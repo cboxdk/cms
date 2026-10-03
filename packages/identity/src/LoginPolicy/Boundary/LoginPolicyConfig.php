@@ -32,9 +32,9 @@ final readonly class LoginPolicyConfig
     public const string KEY = 'cbox-cms.identity.policy';
 
     /**
-     * @throws InvalidLoginPolicy
+     * @throws InvalidLoginPolicy when a key is not in its form, or the policy may not hold in the environment
      */
-    public static function read(Repository $config): LoginPolicy
+    public static function read(Repository $config, string $environment): LoginPolicy
     {
         $policy = $config->get(self::KEY);
 
@@ -42,11 +42,14 @@ final readonly class LoginPolicyConfig
             throw InvalidLoginPolicy::key(self::KEY, 'a map with authoritative_connections, staff and end_user');
         }
 
-        return new LoginPolicy(
+        $read = new LoginPolicy(
             self::classPolicy($policy, 'staff'),
             self::classPolicy($policy, 'end_user'),
             self::connections(self::list($policy, 'authoritative_connections', self::KEY), self::KEY.'.authoritative_connections'),
         );
+        $read->assertAllowedIn($environment);
+
+        return $read;
     }
 
     /**

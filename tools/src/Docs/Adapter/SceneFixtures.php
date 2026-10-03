@@ -27,8 +27,10 @@ use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeRuntimeProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeToolProbe;
 use Cbox\Cms\Core\Tests\Doctor\Fakes\FakeValkeyProbe;
 use Cbox\Cms\Identity\Doctor\Domain\Probes\CredentialStoreProbe;
+use Cbox\Cms\Identity\Doctor\Domain\Probes\LoginPolicyProbe;
 use Cbox\Cms\Identity\Doctor\Domain\Probes\PasswordHashingProbe;
 use Cbox\Cms\Identity\Tests\Doctor\Fakes\FakeCredentialStoreProbe;
+use Cbox\Cms\Identity\Tests\Doctor\Fakes\FakeLoginPolicyProbe;
 use Cbox\Cms\Identity\Tests\Doctor\Fakes\FakePasswordHashingProbe;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Tooling\Docs\Domain\Scene;
@@ -75,5 +77,6 @@ final readonly class SceneFixtures
         $app->instance(ToolProbe::class, new FakeToolProbe);
         $app->instance(CredentialStoreProbe::class, new FakeCredentialStoreProbe);
         $app->instance(PasswordHashingProbe::class, new FakePasswordHashingProbe);
+        $app->instance(LoginPolicyProbe::class, new FakeLoginPolicyProbe('local', ['staff' => ['local_factors' => 'password']]));
     }
 }

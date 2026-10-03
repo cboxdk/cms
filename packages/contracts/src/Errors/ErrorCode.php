@@ -61,6 +61,7 @@ enum ErrorCode: string
     case DoctorIdleInTransactionTimeoutMissing = 'doctor_idle_in_transaction_timeout_missing';
     case DoctorLaravelVersion = 'doctor_laravel_version';
     case DoctorLcMessagesNotEnglish = 'doctor_lc_messages_not_english';
+    case DoctorLoginPolicyInvalid = 'doctor_login_policy_invalid';
     case DoctorNodeMissing = 'doctor_node_missing';
     case DoctorNodeVersion = 'doctor_node_version';
     case DoctorOperatorInvalid = 'doctor_operator_invalid';
@@ -362,6 +363,9 @@ enum ErrorCode: string
             ),
             self::DoctorLcMessagesNotEnglish => $this->violation(
                 'Postgres or the PHP process writes its messages in another language than English, and the kernel recognises some errors of Postgres by their English text, such as a missing partition. Set lc_messages to C for the app role and the owner role and as the server default, and give PHP an English message locale, then run cms:doctor again.',
+            ),
+            self::DoctorLoginPolicyInvalid => $this->violation(
+                'The login policy of this environment, cbox-cms.identity.policy, cannot be used: a key is missing or has a value of another form, or the policy lets members of staff log in locally with a password alone in an environment other than local and testing, where PRD 5.16 requires a passkey or two factors. The web processes refuse to boot with it. Correct the key the cause names, as docs/security/login-policy.md describes it, then run cms:doctor again.',
             ),
             self::DoctorNodeMissing => $this->readiness(
                 'Node is not installed, or not on the PATH, and the development tools need it (cms:doctor --dev). Install Node in the version cbox-cms.doctor.node_minimum names or newer.',
@@ -674,7 +678,7 @@ enum ErrorCode: string
             self::LoginFactorsUnavailable => $this->caller(
                 HttpStatus::Forbidden,
                 ExitCode::NoPerm,
-                'The login was refused by the login policy: the policy of the actor\'s class requires factors the login did not give, such as a passkey or two factors for a local staff login, or MFA shown in amr or acr for a federated one (PRD 5.16, cbox-cms.identity.policy.<class>.local_factors, federated_amr and federated_acr). No session was issued. Log in with the factors the policy requires; where the installation does not offer them yet, the environment\'s policy has to allow a password.',
+                'The login was refused by the login policy: the policy of the actor\'s class requires factors the login did not give, such as a passkey or two factors for a local staff login, or MFA shown in amr or acr for a federated one (PRD 5.16, cbox-cms.identity.policy.<class>.local_factors, federated_amr and federated_acr). No session was issued. Log in with the factors the policy requires. Only in local and testing may the environment\'s policy allow a password alone for staff.',
             ),
             self::LoginIssuerMismatch => $this->credential(
                 'The login was refused: the token came from another issuer than the one its login connection is pinned to (PRD 5.16), so no session was issued and no actor was found or created. A token is trusted only from the issuer its connection names. Log in again through the connection of your organisation; if the issuer of the connection has changed, correct the connection\'s configuration.',
@@ -690,7 +694,7 @@ enum ErrorCode: string
                 'The login was refused by the login policy: the policy of the actor\'s class does not allow the login method, or the method does not belong to the connection it came through, such as a password on a federated connection (PRD 5.16, cbox-cms.identity.policy.<class>.methods). No session was issued. Log in with a method the policy allows.',
             ),
             self::LoginPolicyInvalid => $this->violation(
-                'The login policy in cbox-cms.identity.policy is invalid: a key is missing or has a value of another form, such as an unknown method, a lifetime below one minute or an inactivity timeout longer than the absolute lifetime (PRD 5.16). No login is decided while it is invalid. Correct the policy as docs/security/login-policy.md describes it.',
+                'The login policy in cbox-cms.identity.policy is invalid: a key is missing or has a value of another form, such as an unknown method, a lifetime below one minute or an inactivity timeout longer than the absolute lifetime, or it lets members of staff log in locally with a password alone in an environment other than local and testing, where PRD 5.16 requires a passkey or two factors. No login is decided while it is invalid, and a process that serves HTTP refuses to boot with it; cms:doctor\'s identity.login_policy says the same. Correct the policy as docs/security/login-policy.md describes it.',
             ),
             self::LoginRateLimited => new ErrorEntry(
                 $this,

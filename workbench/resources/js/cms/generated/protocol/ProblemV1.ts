@@ -44,6 +44,7 @@ export type ErrorCode =
   | 'doctor_idle_in_transaction_timeout_missing'
   | 'doctor_laravel_version'
   | 'doctor_lc_messages_not_english'
+  | 'doctor_login_policy_invalid'
   | 'doctor_node_missing'
   | 'doctor_node_version'
   | 'doctor_operator_invalid'
@@ -323,6 +324,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'doctor_idle_in_transaction_timeout_missing',
           'doctor_laravel_version',
           'doctor_lc_messages_not_english',
+          'doctor_login_policy_invalid',
           'doctor_node_missing',
           'doctor_node_version',
           'doctor_operator_invalid',
@@ -566,6 +568,7 @@ const problemV1Rule: ObjectRule = {
           'doctor_idle_in_transaction_timeout_missing',
           'doctor_laravel_version',
           'doctor_lc_messages_not_english',
+          'doctor_login_policy_invalid',
           'doctor_node_missing',
           'doctor_node_version',
           'doctor_operator_invalid',
