@@ -21,9 +21,9 @@ use Override;
  * created at the changeset's time. It returns grant.changed.
  *
  * The app role writes no grant itself, so the writer calls ASSIGN, which runs as the owner role and
- * only in the transaction of a grant.assign changeset by the context's actor (see the migration
- * that adds it). It runs on the default connection, or the one named, inside the command
- * transaction, after the commit has locked the grant's id, its slot, the actor and the role.
+ * only in the transaction of a grant.assign or access.bootstrap changeset by the context's actor
+ * (see the migrations that add it and allow access.bootstrap). It runs on the default connection,
+ * or the one named, inside the command transaction, after the commit has locked the grant's id, its slot, the actor and the role.
  */
 #[Internal]
 final readonly class GrantAssignedWriter implements MutationWriter

@@ -383,6 +383,7 @@ it('generates exactly these files from the workbench\'s schema', function (): vo
         'workbench/resources/js/cms/generated/protocol/DeliveryV1.ts',
         'workbench/resources/js/cms/generated/protocol/EnvelopeV1.ts',
         'workbench/resources/js/cms/generated/protocol/ExplainedPathV1.ts',
+        'workbench/resources/js/cms/generated/protocol/GrantBootstrapRoleV1.ts',
         'workbench/resources/js/cms/generated/protocol/GrantListV1.ts',
         'workbench/resources/js/cms/generated/protocol/ListActorsV1.ts',
         'workbench/resources/js/cms/generated/protocol/ListGrantsV1.ts',

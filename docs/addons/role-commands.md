@@ -8,6 +8,7 @@ description: "The kernel's commands role.create and role.set_permissions: what a
 
 <!-- extension-point: Cbox\Cms\Core\Access\Domain\Commands\CreateRole -->
 <!-- extension-point: Cbox\Cms\Core\Access\Domain\Commands\SetRolePermissions -->
+<!-- extension-point: Cbox\Cms\Core\Maintenance\Domain\Commands\GrantBootstrapRole -->
 
 A role is a set of permissions with a classification ceiling (PRD 5.10, 12.2): the command and query names its holders may run, and the highest classification they read through it. A [grant](grant-commands.md) gives a role to an actor on a node. Two kernel commands, each version 1, change roles through the [command pipeline](commands.md) like every other write:
 
@@ -111,6 +112,10 @@ The plan of `role.create` is one `RoleCreated` mutation, and of `role.set_permis
 | `grant.changed` for each grant of the role: the holder, the role and the node, ids alone | `events` |
 
 A new role has no holder, so role.create writes no event. Whatever caches an actor's compiled access drops it on `grant.changed`, so every holder of a changed role gets its new permissions from its next command or read.
+
+## The access bootstrap's command
+
+`access.bootstrap`, version 1, is the command `GrantBootstrapRole` of the one-time [access bootstrap](../developers/maintenance-commands.md#the-access-bootstrap). It carries a `role.create` and a `grant.assign` of the new role to a staff actor on a node, allowing in every locale, and its write action, `GrantBootstrapRoleAction`, composes the two plans into one: the role's creation, when no role has its id, then the grant. The role and its grant are therefore one changeset (GUARDRAILS 2.1), so a grant that cannot commit leaves no role behind. A role with the id is used as it is when it has the command's ceiling and every one of its permissions, and refused with `validation_failed` otherwise. It is on no surface: only `cms:access:bootstrap` runs it, as the installation operator in the maintenance process. Its writes run through the same owner functions as `role.create` and `grant.assign`, which accept a changeset of `access.bootstrap` too.
 
 ## Rejections
 

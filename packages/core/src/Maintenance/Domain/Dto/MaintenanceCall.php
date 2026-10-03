@@ -11,8 +11,8 @@ use Cbox\Cms\Contracts\Pipeline\Command;
 /**
  * A maintenance command to run as the installation operator: the command and the unit of work its
  * idempotency key is derived from. A maintenance command names a stable unit, such as
- * `sites:<handle>:<hash of the configured locales>` or `staff:<sha256 of the lowercased email>`,
- * so a rerun of the same work replays the first run's receipt.
+ * `sites:<handle>:<hash of the configured locales>` or `staff:<actor id>` of a registration's
+ * operation, so a rerun of the same work replays the first run's receipt.
  */
 #[Internal]
 final readonly class MaintenanceCall

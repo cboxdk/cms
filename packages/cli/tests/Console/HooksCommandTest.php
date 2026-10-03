@@ -99,7 +99,7 @@ it('exits 64 for a name no command of the workbench has, a query\'s and one that
         ->and($jsonStatus)->toBe(64)
         ->and($json)->toBe($output);
 })->with([
-    'unknown' => ['entry.delete', 'No registered command is named entry.delete. The registered commands are actor.activate, actor.deactivate, actor.register, entry.create,'],
+    'unknown' => ['entry.delete', 'No registered command is named entry.delete. The registered commands are access.bootstrap, actor.activate, actor.deactivate, actor.register, entry.create,'],
     'query' => ['path.resolve', 'path.resolve is a query. Hooks run for commands alone'],
     'not a name' => ['Entry Create', 'Entry Create'],
 ]);

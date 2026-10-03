@@ -47,11 +47,11 @@ use Illuminate\Support\Facades\DB;
 /*
  * cms:access:bootstrap on this checkout's test database (PRD 5.10, 5.16), as the maintenance
  * process runs it after cms:install: the operator creates the bootstrap role and grants it to an
- * active staff actor on a node, each in a changeset of the maintenance issuer by the operator. A
- * second run is refused with access_bootstrap_done, and a run in the production environment with
- * access_bootstrap_production, both with their exit codes and without writing anything. After the
- * bootstrap the kernel's own pipeline, with PostgresCommandAuthorizer, lets the bootstrapped actor
- * assign a role on the node, which a staff member without a grant may not.
+ * active staff actor on a node, in one access.bootstrap changeset of the maintenance issuer by the
+ * operator. A second run is refused with access_bootstrap_done, and a run in the production
+ * environment with access_bootstrap_production, both with their exit codes and without writing
+ * anything. After the bootstrap the kernel's own pipeline, with PostgresCommandAuthorizer, lets the
+ * bootstrapped actor assign a role on the node, which a staff member without a grant may not.
  */
 
 const BOOTSTRAP_NOW = '2026-03-10T12:00:00Z';
@@ -136,7 +136,7 @@ function bootstrapErrors(WriteResult $result): array
     return array_map(static fn (CatalogError $error): string => $error->code->value, $result->errors);
 }
 
-it('creates the bootstrap role and its grant in changesets by the operator, and refuses a second run with access_bootstrap_done', function (): void {
+it('creates the bootstrap role and its grant in one changeset by the operator, and refuses a second run with access_bootstrap_done', function (): void {
     [$staff, $node] = bootstrapWorld();
     $superuser = StorageTables::superuser();
     $operator = $superuser->table('installation')->value('operator_actor_id');
@@ -160,10 +160,9 @@ it('creates the bootstrap role and its grant in changesets by the operator, and 
         ->toBe([$staff->toString(), $role['id'] ?? null, $node->toString(), 'allow', null])
         ->and($changesets)->toBe([
             "installation.genesis {$operator} maintenance system",
-            "role.create {$operator} maintenance system",
-            "grant.assign {$operator} maintenance system",
+            "access.bootstrap {$operator} maintenance system",
         ])
-        ->and($superuser->table('audit')->where('actor_id', $operator)->count())->toBe(3);
+        ->and($superuser->table('audit')->where('actor_id', $operator)->count())->toBe(2);
 
     [$again, $againOutput] = bootstrap($staff, $node);
 

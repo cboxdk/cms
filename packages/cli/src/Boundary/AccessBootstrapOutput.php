@@ -56,20 +56,21 @@ final readonly class AccessBootstrapOutput
             return $this->refusals->errors(false, ...$errors);
         }
 
-        if (! $outcome->done() || ! $outcome->granted instanceof WriteResult) {
-            throw new LogicException('A bootstrap without errors has committed its grant.');
+        if (! $outcome->done() || ! $outcome->result instanceof WriteResult) {
+            throw new LogicException('A bootstrap without errors has committed its changeset.');
         }
 
         $role = $outcome->role?->toString() ?? '';
-        $lines = [$outcome->roleCreated instanceof WriteResult
-            ? sprintf('Created the bootstrap role %s (%s) with every command and query of the registry and the ceiling sensitive, in changeset %s.', $outcome->handle->value, $role, $outcome->roleCreated->receipt->changesetId?->toString() ?? '')
+        $changeset = $outcome->result->receipt->changesetId?->toString() ?? '';
+        $lines = [$outcome->createsRole
+            ? sprintf('Created the bootstrap role %s (%s) with every command and query of the registry and the ceiling sensitive, in changeset %s.', $outcome->handle->value, $role, $changeset)
             : sprintf('The bootstrap role %s (%s) exists already, with every command and query of the registry and the ceiling sensitive.', $outcome->handle->value, $role)];
         $lines[] = sprintf(
             'Granted the bootstrap role to the staff actor %s on the node %s, grant %s, in changeset %s.',
             $outcome->actor?->toString() ?? '',
             $outcome->node?->toString() ?? '',
             $outcome->grant?->toString() ?? '',
-            $outcome->granted->receipt->changesetId?->toString() ?? '',
+            $changeset,
         );
 
         return new CliAnswer(ExitCode::Ok, $lines);

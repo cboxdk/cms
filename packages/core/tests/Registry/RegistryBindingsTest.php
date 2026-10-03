@@ -32,6 +32,8 @@ use Cbox\Cms\Core\Identity\Actions\RegisterActorAction;
 use Cbox\Cms\Core\Identity\Domain\Commands\ActivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\RegisterActor;
+use Cbox\Cms\Core\Maintenance\Actions\GrantBootstrapRoleAction;
+use Cbox\Cms\Core\Maintenance\Domain\Commands\GrantBootstrapRole;
 use Cbox\Cms\Core\Placements\Actions\CreatePlacementAction;
 use Cbox\Cms\Core\Placements\Actions\SetPlacementWindowAction;
 use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
@@ -128,6 +130,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
 
     expect(array_map(static fn (CommandEntry $entry): string => $entry->name->value.'@'.$entry->version.' '.$entry->class, $registry->commands))
         ->toBe([
+            'access.bootstrap@1 '.GrantBootstrapRole::class,
             'actor.activate@1 '.ActivateActor::class,
             'actor.deactivate@1 '.DeactivateActor::class,
             'actor.register@1 '.RegisterActor::class,
@@ -147,6 +150,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
         ])
         ->and(array_map(static fn (ActionEntry $entry): string => $entry->command->value.'@'.$entry->commandVersion.' '.$entry->class.' '.$entry->kind->value, $registry->actions))
         ->toBe([
+            'access.bootstrap@1 '.GrantBootstrapRoleAction::class.' write',
             'actor.activate@1 '.ActivateActorAction::class.' write',
             'actor.deactivate@1 '.DeactivateActorAction::class.' write',
             'actor.list@1 '.ListActorsAction::class.' query',
@@ -177,10 +181,11 @@ it('scans the packages\' own classes without a problem and registers the kernel\
         ->and($registry->actionFor(CreateRole::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia, Surface::Cli])
         ->and($registry->actionFor(SetRolePermissions::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia, Surface::Cli])
         ->and($registry->actionFor(RegisterSite::class)?->surfaces)->toBe([])
+        ->and($registry->actionFor(GrantBootstrapRole::class)?->surfaces)->toBe([])
         ->and($registry->actionFor(CreateEntry::class)?->class)->toBe(CreateEntryAction::class)
         ->and($registry->actionFor(ReviseEntry::class)?->class)->toBe(ReviseEntryAction::class)
         ->and($registry->actionFor(ListNodes::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia])
-        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([21, 16, 0, 16, 0, 1])
+        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([22, 17, 0, 16, 0, 1])
         ->and($registry->hooks)->toBe([])
         ->and(array_map(static fn (SubscriberEntry $entry): string => $entry->name->value.' '.$entry->class.' '.$entry->lane->value.' '.$entry->projection?->value, $registry->subscribers))
         ->toBe(['fragments.invalidate '.InvalidateFragments::class.' critical origin'])

@@ -20,8 +20,8 @@ use Override;
  * time. The role is granted to nobody yet, so no actor's access changes and it returns no event.
  *
  * The app role writes no role itself, so the writer calls CREATE, which runs as the owner role and
- * only in the transaction of a role.create changeset by the context's actor (see the migration that
- * adds it). It runs on the default connection, or the one named, inside the command transaction,
+ * only in the transaction of a role.create or access.bootstrap changeset by the context's actor (see
+ * the migrations that add it and allow access.bootstrap). It runs on the default connection, or the one named, inside the command transaction,
  * after the commit has locked the role's id and handle.
  */
 #[Internal]

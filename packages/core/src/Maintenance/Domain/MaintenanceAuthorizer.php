@@ -45,13 +45,14 @@ final readonly class MaintenanceAuthorizer implements CommandAuthorizer
     public const array COMMANDS = ['actor.activate', 'actor.register', 'site.register'];
 
     /**
-     * The commands the operator may run in the one-time access bootstrap alone (PRD 5.10): the
-     * bootstrap role and its grant to the first staff member. No other maintenance command gives
-     * access, which belongs to staff members with roles.
+     * The commands the operator may run in the one-time access bootstrap alone (PRD 5.10):
+     * access.bootstrap, the bootstrap role and its grant to the first staff member in one
+     * changeset. No other maintenance command gives access, which belongs to staff members with
+     * roles.
      *
      * @var list<string>
      */
-    public const array BOOTSTRAP_COMMANDS = ['grant.assign', 'role.create'];
+    public const array BOOTSTRAP_COMMANDS = ['access.bootstrap'];
 
     /**
      * @param  list<string>  $commands  the commands it allows, COMMANDS unless built for the bootstrap

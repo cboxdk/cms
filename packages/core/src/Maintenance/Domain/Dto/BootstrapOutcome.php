@@ -15,9 +15,9 @@ use Cbox\Cms\Contracts\Results\WriteResult;
 
 /**
  * What a run of the one-time access bootstrap did (PRD 5.10): refused before any command ran, with
- * the refusal; or the bootstrap role, with the result of role.create when it created it (null when
- * the role with the handle existed), and the result of grant.assign when it ran. The run is done
- * when the grant committed.
+ * the refusal; or the bootstrap role, whether the run's changeset creates it ($createsRole; false
+ * when the role with the handle existed), the grant, and the result of access.bootstrap, the one
+ * changeset that creates the role and grants it. The run is done when that changeset committed.
  */
 #[Internal]
 final readonly class BootstrapOutcome
@@ -28,9 +28,9 @@ final readonly class BootstrapOutcome
         public ?ActorId $actor = null,
         public ?NodeId $node = null,
         public ?RoleId $role = null,
-        public ?WriteResult $roleCreated = null,
+        public bool $createsRole = false,
         public ?GrantId $grant = null,
-        public ?WriteResult $granted = null,
+        public ?WriteResult $result = null,
     ) {}
 
     public static function refused(RoleHandle $handle, CatalogError $refusal): self
@@ -39,12 +39,12 @@ final readonly class BootstrapOutcome
     }
 
     /**
-     * The role is in place, created now or found, and the grant ran with the result given, or did
-     * not run because role.create was rejected.
+     * access.bootstrap ran with the result given: committed, with the role created when
+     * $createsRole and the grant, or rejected, with neither.
      */
-    public static function ran(BootstrapRequest $request, RoleHandle $handle, RoleId $role, ?WriteResult $roleCreated, ?GrantId $grant, ?WriteResult $granted): self
+    public static function ran(BootstrapRequest $request, RoleHandle $handle, RoleId $role, bool $createsRole, GrantId $grant, WriteResult $result): self
     {
-        return new self(null, $handle, $request->actor, $request->node, $role, $roleCreated, $grant, $granted);
+        return new self(null, $handle, $request->actor, $request->node, $role, $createsRole, $grant, $result);
     }
 
     /**
@@ -52,12 +52,12 @@ final readonly class BootstrapOutcome
      */
     public function done(): bool
     {
-        return $this->granted instanceof WriteResult && $this->granted->outcome()->isCommitted();
+        return $this->result instanceof WriteResult && $this->result->outcome()->isCommitted();
     }
 
     /**
-     * The errors that stopped the run: the refusal, or the errors of the command that was rejected;
-     * none when it is done.
+     * The errors that stopped the run: the refusal, or the errors of the rejected changeset; none
+     * when it is done.
      *
      * @return list<CatalogError>
      */
@@ -67,10 +67,6 @@ final readonly class BootstrapOutcome
             return [$this->refusal];
         }
 
-        if ($this->roleCreated instanceof WriteResult && ! $this->roleCreated->outcome()->isCommitted()) {
-            return $this->roleCreated->errors;
-        }
-
-        return $this->granted instanceof WriteResult && ! $this->granted->outcome()->isCommitted() ? $this->granted->errors : [];
+        return $this->result instanceof WriteResult && ! $this->result->outcome()->isCommitted() ? $this->result->errors : [];
     }
 }

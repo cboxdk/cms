@@ -22,7 +22,7 @@ The registration runs in a fixed order:
 4. The credential is bound to the actor's id in the credential store.
 5. `actor.activate` makes the actor active.
 
-Both commands run through the maintenance pipeline as the operator, with the unit of work `staff:<actor id>`, so they are two changesets with their audit, `actor.register` then `actor.activate`. A failure after step 3 leaves the actor pending and no active login: a pending actor never logs in, and the kernel's job deprovisions actors that stay pending for 24 hours.
+Both commands run through the maintenance pipeline as the operator, with the unit of work `staff:<actor id>`, so they are two changesets with their audit, `actor.register` then `actor.activate`. Steps 3 to 5 are an operation (GUARDRAILS 4.2), keyed by the SHA-256 of the login, with one chunk per step that names the actor. A failure after step 3 leaves the actor pending, with no active login, and the operation running: a pending actor never logs in. Run the same `cms:staff:create` again for the same email address and it resumes that operation with the same actor at the step that did not complete, so one login never gets a second actor.
 
 A member of staff has no grant yet; access is given with roles and grants.
 

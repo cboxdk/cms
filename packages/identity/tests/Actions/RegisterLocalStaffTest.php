@@ -14,6 +14,7 @@ use Cbox\Cms\Contracts\Identity\LocalAccount;
 use Cbox\Cms\Contracts\Identity\LoginIdentifier;
 use Cbox\Cms\Contracts\Identity\Password;
 use Cbox\Cms\Contracts\Ids\ActorId;
+use Cbox\Cms\Core\Pipeline\Domain\Dto\PendingChangeset;
 use Cbox\Cms\Identity\Staff\Domain\Dto\RegisteredStaff;
 use Cbox\Cms\Identity\Staff\Domain\Dto\StaffRegistration;
 use Cbox\Cms\Identity\Staff\Domain\StaffRegistrationRefused;
@@ -29,7 +30,8 @@ use RuntimeException;
  * (GUARDRAILS 9): the fixed order actor.register (pending), the credential bound to the actor's id,
  * actor.activate, both commands as the installation operator; a login that has an account and a
  * password the policy refuses stop it before anything is written; a failing credential write after
- * actor.register leaves the actor pending, with no account and no activation.
+ * actor.register leaves the actor pending, with no account and no activation, and a rerun for the
+ * same login resumes the registration's operation with that actor instead of registering another.
  */
 
 const STAFF_EMAIL = 'Mette.Holm@example.com';
@@ -149,4 +151,42 @@ it('refuses with installation_operator_missing before cms:install, and writes no
     expect($refused->reason)->toBe(ErrorCode::InstallationOperatorMissing)
         ->and($refused->pending)->toBeNull()
         ->and($world->committed())->toBe([]);
+});
+
+it('resumes a registration that stopped after actor.register with the same actor, and registers no second one', function (): void {
+    $world = new StaffWorld;
+
+    try {
+        $world->action(new FailingCredentialWrites($world->accounts))->register(staffRegistration());
+        Assert::fail('The registration went on after the credential write failed.');
+    } catch (RuntimeException) {
+    }
+
+    $pending = $world->committer->pending[0]->plan->mutations()[0]->aggregate();
+    $staff = $world->action()->register(staffRegistration());
+    $registered = array_values(array_filter(
+        $world->committer->pending,
+        static fn (PendingChangeset $changeset): bool => $changeset->command->value === 'actor.register',
+    ));
+
+    expect($pending)->toBeInstanceOf(ActorId::class)
+        ->and($pending instanceof ActorId && $staff->actor->equals($pending))->toBeTrue()
+        ->and($world->committed())->toBe(['actor.register', 'actor.activate'])
+        ->and($registered)->toHaveCount(1)
+        ->and($world->find($staff->actor)?->state)->toBe(ActorState::Active)
+        ->and($world->accounts->ofActor($staff->actor)?->login->value)->toBe('mette.holm@example.com');
+});
+
+it('resumes a registration whose activation was rejected after the bind, without refusing the login it bound', function (): void {
+    $world = new StaffWorld;
+    $world->failActivations = true;
+
+    $refused = staffRefusal(static fn (): RegisteredStaff => $world->action()->register(staffRegistration()));
+    $world->failActivations = false;
+    $staff = $world->action()->register(staffRegistration());
+
+    expect($refused->pending)->toBeInstanceOf(ActorId::class)
+        ->and($refused->pending instanceof ActorId && $staff->actor->equals($refused->pending))->toBeTrue()
+        ->and($world->committed())->toBe(['actor.register', 'actor.activate'])
+        ->and($world->find($staff->actor)?->state)->toBe(ActorState::Active);
 });

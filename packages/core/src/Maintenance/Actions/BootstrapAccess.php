@@ -11,7 +11,6 @@ use Cbox\Cms\Contracts\Identity\Actor;
 use Cbox\Cms\Contracts\Identity\ActorClass;
 use Cbox\Cms\Contracts\Identity\ActorDirectory;
 use Cbox\Cms\Contracts\Identity\ActorPrincipal;
-use Cbox\Cms\Contracts\Identity\GrantEffect;
 use Cbox\Cms\Contracts\Identity\IssuerKind;
 use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Contracts\Ids\ActorId;
@@ -20,10 +19,9 @@ use Cbox\Cms\Contracts\Ids\RoleId;
 use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Core\Access\Domain\AccessContexts;
-use Cbox\Cms\Core\Access\Domain\Commands\AssignGrant;
-use Cbox\Cms\Core\Access\Domain\Commands\CreateRole;
 use Cbox\Cms\Core\Maintenance\Domain\AccessBootstrapState;
 use Cbox\Cms\Core\Maintenance\Domain\BootstrapRole;
+use Cbox\Cms\Core\Maintenance\Domain\Commands\GrantBootstrapRole;
 use Cbox\Cms\Core\Maintenance\Domain\Dto\BootstrapOutcome;
 use Cbox\Cms\Core\Maintenance\Domain\Dto\BootstrapRequest;
 use Cbox\Cms\Core\Maintenance\Domain\Dto\BootstrapSettings;
@@ -49,27 +47,25 @@ use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
  * - when a role has the handle of cbox-cms.access.bootstrap_role and is not the bootstrap role,
  *   with access_bootstrap_role_conflict.
  *
- * Otherwise it creates the bootstrap role with role.create, unless the role with the handle is it
- * already, and grants it to the actor on the node with grant.assign, allowing in every locale. Both
- * run as the operator through RunMaintenanceCommand, whose pipeline (CoreServiceProvider) has the
- * MaintenanceAuthorizer built forAccessBootstrap(): it allows role.create and grant.assign, which
- * no other maintenance command may run, and nothing else. That authorizer replaces the kernel's, so
- * the escalation guard and the step-up refusal of an administrative role do not apply: the operator
+ * Otherwise it runs access.bootstrap, one command whose plan creates the bootstrap role with
+ * role.create's plan, unless the role with the handle is it already, and grants it to the actor on
+ * the node with grant.assign's plan, allowing in every locale (GrantBootstrapRoleAction). The role
+ * and its grant are one changeset, so a run that stops leaves neither (GUARDRAILS 2.1). It runs as
+ * the operator through RunMaintenanceCommand, whose pipeline (CoreServiceProvider) has the
+ * MaintenanceAuthorizer built forAccessBootstrap(): it allows access.bootstrap, which no other
+ * maintenance command may run, and nothing else. That authorizer replaces the kernel's, so the
+ * escalation guard and the step-up refusal of an administrative role do not apply: the operator
  * holds nothing, and the bootstrap runs only in the maintenance process.
  *
- * role.create's unit of work names the new role's id, and grant.assign's is the same for every run,
- * so two bootstraps that run at once commit at most one grant: the second claims the same
- * idempotency key, waits for the first and ends in idempotency_conflict, or idempotency_in_flight
- * while the first still runs.
+ * The unit of work is the same for every run, so two bootstraps that run at once commit at most
+ * one: the second claims the same idempotency key, waits for the first and ends in
+ * idempotency_conflict, or idempotency_in_flight while the first still runs.
  */
 #[Internal]
 final readonly class BootstrapAccess
 {
-    /** The unit of work of the bootstrap's grant, the same for every run. */
-    public const string GRANT_UNIT = 'access-bootstrap:grant';
-
-    /** The unit of work of the bootstrap role's creation, followed by the role's id. */
-    public const string ROLE_UNIT = 'access-bootstrap:role:';
+    /** The unit of work of the bootstrap's changeset, the same for every run. */
+    public const string UNIT = 'access-bootstrap';
 
     public function __construct(
         private BootstrapSettings $settings,
@@ -135,28 +131,14 @@ final readonly class BootstrapAccess
             ));
         }
 
-        $role = $existing?->id;
-        $created = null;
-
-        if (! $role instanceof RoleId) {
-            $role = new RoleId($this->ids->next());
-            $created = $this->maintenance->run(new MaintenanceCall(
-                new CreateRole($role, $handle, BootstrapRole::CEILING, $permissions),
-                new UnitOfWork(self::ROLE_UNIT.$role->toString()),
-            ));
-
-            if (! $created->outcome()->isCommitted()) {
-                return BootstrapOutcome::ran($request, $handle, $role, $created, null, null);
-            }
-        }
-
+        $role = $existing->id ?? new RoleId($this->ids->next());
         $grant = new GrantId($this->ids->next());
-        $granted = $this->maintenance->run(new MaintenanceCall(
-            new AssignGrant($grant, $request->actor, $role, $request->node, GrantEffect::Allow),
-            new UnitOfWork(self::GRANT_UNIT),
+        $result = $this->maintenance->run(new MaintenanceCall(
+            new GrantBootstrapRole($grant, $request->actor, $request->node, $role, $handle, BootstrapRole::CEILING, $permissions),
+            new UnitOfWork(self::UNIT),
         ));
 
-        return BootstrapOutcome::ran($request, $handle, $role, $created, $grant, $granted);
+        return BootstrapOutcome::ran($request, $handle, $role, ! $existing instanceof ExistingRole, $grant, $result);
     }
 
     /**

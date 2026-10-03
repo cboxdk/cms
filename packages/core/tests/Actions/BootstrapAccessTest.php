@@ -14,11 +14,13 @@ use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\RoleId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Contracts\Plans\Mutation;
+use Cbox\Cms\Contracts\Plans\Mutations\GrantAssigned;
+use Cbox\Cms\Contracts\Plans\Mutations\RoleCreated;
 use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Contracts\Results\FieldPath;
-use Cbox\Cms\Core\Access\Domain\Commands\AssignGrant;
-use Cbox\Cms\Core\Access\Domain\Commands\CreateRole;
 use Cbox\Cms\Core\Access\Domain\Dto\StoredRole;
+use Cbox\Cms\Core\Maintenance\Domain\Commands\GrantBootstrapRole;
 use Cbox\Cms\Core\Maintenance\Domain\Dto\BootstrapOutcome;
 use Cbox\Cms\Core\Maintenance\Domain\Dto\BootstrapRequest;
 use Cbox\Cms\Core\Maintenance\Domain\Dto\BootstrapSettings;
@@ -29,10 +31,11 @@ use Cbox\Cms\Core\Tests\Maintenance\BootstrapActionWorld;
  * The one-time access bootstrap (PRD 5.10, 5.16) called directly with its DTO and the fakes of the
  * ports it reads (GUARDRAILS 9). It creates the bootstrap role with every command and query of the
  * registry and the ceiling sensitive, and grants it to the staff actor on the node, both as the
- * installation operator through the maintenance pipeline. It is refused in production, without an
+ * installation operator through the maintenance pipeline, as one access.bootstrap changeset, so a
+ * grant that cannot commit leaves no role. It is refused in production, without an
  * operator, once a staff member holds a grant, for a node that does not exist, an actor that is
  * not an active staff actor and a role with the handle that is not the bootstrap role; it uses the
- * bootstrap role when it exists, and stops at a role.create the pipeline rejects.
+ * bootstrap role when it exists, and commits nothing when the role's creation is refused.
  */
 
 function bootstrapRun(BootstrapActionWorld $world, ?BootstrapRequest $request = null): BootstrapOutcome
@@ -51,24 +54,23 @@ function bootstrapRefusals(BootstrapOutcome $outcome): array
     );
 }
 
-it('creates the bootstrap role and grants it to the staff actor on the node, as the operator in two changesets', function (): void {
+it('creates the bootstrap role and grants it to the staff actor on the node, as the operator in one changeset', function (): void {
     $world = new BootstrapActionWorld;
 
     $outcome = bootstrapRun($world);
-    $create = $world->committer->pending[0]->input;
-    $assign = $world->committer->pending[1]->input;
+    $command = $world->committer->pending[0]->input;
+    $mutations = $world->committer->pending[0]->plan->mutations();
 
     expect($outcome->done())->toBeTrue()
         ->and($outcome->errors())->toBe([])
-        ->and($world->changesets())->toBe([
-            'role.create '.$world->operator->toString(),
-            'grant.assign '.$world->operator->toString(),
-        ])
+        ->and($outcome->createsRole)->toBeTrue()
+        ->and($world->changesets())->toBe(['access.bootstrap '.$world->operator->toString()])
         ->and($world->committer->pending[0]->envelope->surface)->toBe(IssuingSurface::Maintenance)
-        ->and($create)->toBeInstanceOf(CreateRole::class)
-        ->and($assign)->toBeInstanceOf(AssignGrant::class);
+        ->and($command)->toBeInstanceOf(GrantBootstrapRole::class)
+        ->and(array_map(static fn (Mutation $mutation): string => $mutation::class, $mutations))->toBe([RoleCreated::class, GrantAssigned::class]);
 
-    assert($create instanceof CreateRole && $assign instanceof AssignGrant);
+    assert($command instanceof GrantBootstrapRole && $mutations[0] instanceof RoleCreated && $mutations[1] instanceof GrantAssigned);
+    [$create, $assign] = $mutations;
 
     expect([$create->handle->value, $create->ceiling])->toBe(['administrator', ClassificationAccess::Sensitive])
         ->and(array_map(static fn (CommandName $name): string => $name->value, $create->permissions))->toBe(['entry.create', 'grant.assign', 'path.resolve', 'role.create'])
@@ -77,7 +79,21 @@ it('creates the bootstrap role and grants it to the staff actor on the node, as 
         ->and($assign->node->equals($world->node))->toBeTrue()
         ->and([$assign->effect, $assign->locales])->toBe([GrantEffect::Allow, null])
         ->and($outcome->role?->equals($create->role))->toBeTrue()
-        ->and($outcome->grant?->equals($assign->grant))->toBeTrue();
+        ->and($outcome->grant?->equals($assign->grant))->toBeTrue()
+        ->and($command->grant->equals($assign->grant))->toBeTrue();
+});
+
+it('leaves no role when the grant cannot commit, because the role and its grant are one changeset', function (): void {
+    $world = new BootstrapActionWorld;
+    $world->committer->at($world->staff, new AggregateVersion(9));
+
+    $outcome = bootstrapRun($world);
+    $mutations = $world->committer->pending[0]->plan->mutations();
+
+    expect($outcome->done())->toBeFalse()
+        ->and(bootstrapRefusals($outcome))->toBe(['version_conflict'])
+        ->and($world->changesets())->toBe(['access.bootstrap '.$world->operator->toString()])
+        ->and(array_map(static fn (Mutation $mutation): string => $mutation::class, $mutations))->toBe([RoleCreated::class, GrantAssigned::class]);
 });
 
 it('refuses in the production environment before it reads anything', function (): void {
@@ -132,8 +148,9 @@ it('uses the bootstrap role when a role with the handle is it, and grants it wit
     $outcome = bootstrapRun($world);
 
     expect($outcome->done())->toBeTrue()
-        ->and($outcome->roleCreated)->toBeNull()
-        ->and($world->changesets())->toBe(['grant.assign '.$world->operator->toString()])
+        ->and($outcome->createsRole)->toBeFalse()
+        ->and($world->changesets())->toBe(['access.bootstrap '.$world->operator->toString()])
+        ->and(array_map(static fn (Mutation $mutation): string => $mutation::class, $world->committer->pending[0]->plan->mutations()))->toBe([GrantAssigned::class])
         ->and($outcome->role?->equals($role))->toBeTrue();
 });
 
@@ -162,7 +179,7 @@ it('refuses a role with the handle that is not the bootstrap role', function (Cl
     'a permission missing' => [ClassificationAccess::Sensitive, ['entry.create', 'grant.assign', 'role.create']],
 ]);
 
-it('stops at a role.create the pipeline rejects and assigns nothing', function (): void {
+it('commits neither the role nor the grant when the role\'s creation is refused', function (): void {
     $world = new BootstrapActionWorld;
     $world->reader->addRole(new StoredRole(RoleId::fromString('01936f5e-8a2b-7c3d-9e4f-0000000024f4'), ClassificationAccess::Public, [], AggregateVersion::first()), new RoleHandle('administrator'));
 
@@ -170,6 +187,6 @@ it('stops at a role.create the pipeline rejects and assigns nothing', function (
 
     expect($outcome->done())->toBeFalse()
         ->and(bootstrapRefusals($outcome))->toBe(['validation_failed handle'])
-        ->and($outcome->granted)->toBeNull()
+        ->and($outcome->result?->outcome()->isCommitted())->toBeFalse()
         ->and($world->committer->pending)->toBe([]);
 });

@@ -50,6 +50,7 @@ use Cbox\Cms\Core\Codecs\Boundary\Generated\CreateEntryCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\CreatePlacementCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\CreateRoleCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\DeactivateActorCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\GrantBootstrapRoleCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\PublishEntryCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\RegisterActorCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\RegisterSiteCodecV1;
@@ -66,6 +67,7 @@ use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
 use Cbox\Cms\Core\Identity\Domain\Commands\ActivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\RegisterActor;
+use Cbox\Cms\Core\Maintenance\Domain\Commands\GrantBootstrapRole;
 use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
 use Cbox\Cms\Core\Placements\Domain\Dto\LocaleSlug;
@@ -398,6 +400,7 @@ it('decodes every command it encodes into an equal command', function (JsonCodec
     'role.create without permissions' => [new CreateRoleCodecV1, new CreateRole(RoleId::fromString(COMMAND_TYPE), new RoleHandle('r'), ClassificationAccess::Public, [])],
     'role.set_permissions' => [new SetRolePermissionsCodecV1, new SetRolePermissions(RoleId::fromString(COMMAND_TYPE), new AggregateVersion(3), [new CommandName('placement.set_window')])],
     'site.register in one locale' => [new RegisterSiteCodecV1, new RegisterSite(SiteId::fromString(COMMAND_SITE), new SiteHandle('north'), NodeId::fromString(COMMAND_NODE), [new Locale('da')])],
+    'access.bootstrap' => [new GrantBootstrapRoleCodecV1, new GrantBootstrapRole(GrantId::fromString(COMMAND_PLACEMENT), ActorId::fromString(COMMAND_ACTOR), NodeId::fromString(COMMAND_NODE), RoleId::fromString(COMMAND_TYPE), new RoleHandle('administrator'), ClassificationAccess::Sensitive, [new CommandName('entry.create'), new CommandName('grant.assign')])],
     'site.register in three locales' => [new RegisterSiteCodecV1, new RegisterSite(SiteId::fromString(COMMAND_SITE), new SiteHandle('north_2'), NodeId::fromString(COMMAND_NODE), [new Locale('en-GB'), new Locale('da'), new Locale('sr-Latn-RS')])],
 ]);
 
@@ -661,5 +664,24 @@ it('refuses every rule of site.register that its JSON Schema states, as the Type
         'locales that are a string' => [commandJson($register, ['locales' => 'da']), 'locales'],
         'a locale of one letter' => [commandJson($register, ['locales' => ['da', 'd']]), 'locales[1]'],
         'a locale that is a number' => [commandJson($register, ['locales' => [7]]), 'locales[0]'],
+    ]);
+});
+
+it('refuses every rule of access.bootstrap that its JSON Schema states, as the TypeScript validator and the schema do', function (): void {
+    $bootstrap = ['grant' => COMMAND_PLACEMENT, 'actor' => COMMAND_ACTOR, 'node' => COMMAND_NODE, 'role' => COMMAND_TYPE, 'handle' => 'administrator', 'ceiling' => 'sensitive', 'permissions' => ['entry.create', 'grant.assign']];
+
+    commandCrossCheck(new GrantBootstrapRoleCodecV1, 'access.bootstrap.v1.json', [
+        'a bootstrap with two permissions' => [commandJson($bootstrap), null],
+        'a bootstrap without permissions' => [commandJson($bootstrap, ['permissions' => []]), null],
+        'an unknown key' => [commandJson($bootstrap, ['effect' => 'allow']), ''],
+        ...idFixtures($bootstrap, 'grant'),
+        ...idFixtures($bootstrap, 'actor'),
+        ...idFixtures($bootstrap, 'node'),
+        ...idFixtures($bootstrap, 'role'),
+        'a handle with a capital letter' => [commandJson($bootstrap, ['handle' => 'Admin']), 'handle'],
+        'the handle missing' => [commandJson($bootstrap, omit: ['handle']), 'handle'],
+        'a ceiling that is not one' => [commandJson($bootstrap, ['ceiling' => 'secret']), 'ceiling'],
+        'the permissions missing' => [commandJson($bootstrap, omit: ['permissions']), 'permissions'],
+        'a permission without a dot' => [commandJson($bootstrap, ['permissions' => ['entry']]), 'permissions[0]'],
     ]);
 });

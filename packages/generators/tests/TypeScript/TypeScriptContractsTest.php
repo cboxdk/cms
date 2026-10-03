@@ -105,6 +105,7 @@ it('writes the runtime module unchanged, a module per record and a module per ke
         $directory.'/protocol/ProblemV1.ts',
         $directory.'/protocol/ReceiptV1.ts',
         $directory.'/protocol/DeliveryFragmentV1.ts',
+        $directory.'/protocol/GrantBootstrapRoleV1.ts',
         $directory.'/protocol/ActivateActorV1.ts',
         $directory.'/protocol/DeactivateActorV1.ts',
         $directory.'/protocol/RegisterActorV1.ts',
@@ -135,9 +136,9 @@ it('writes the runtime module unchanged, a module per record and a module per ke
         ->and($files[1]->contents)->toContain("export function validateAppArticleV1(value: unknown): Validation<AppArticleV1> {\n")
         ->and($files[1]->contents)->toContain("import { validate, type ObjectRule, type Validation } from '../validation';\n")
         ->and($files[9]->contents)->toContain("export function validateReceiptV1(value: unknown): Validation<ReceiptV1> {\n")
-        ->and($files[14]->contents)->toContain("export function validateCreateEntryV1(value: unknown): Validation<CreateEntryV1> {\n")
-        ->and($files[14]->contents)->toContain("import { validate, type ObjectRule, type FieldValues, type Validation } from '../validation';\n")
-        ->and($files[14]->contents)->toContain("  fields: FieldValues;\n")
+        ->and($files[15]->contents)->toContain("export function validateCreateEntryV1(value: unknown): Validation<CreateEntryV1> {\n")
+        ->and($files[15]->contents)->toContain("import { validate, type ObjectRule, type FieldValues, type Validation } from '../validation';\n")
+        ->and($files[15]->contents)->toContain("  fields: FieldValues;\n")
         ->and($files[4]->contents)->toContain("import { validate, type ObjectRule, type JsonObject, type Validation } from '../validation';\n")
         ->and($files[4]->contents)->toContain("  data: JsonObject;\n")
         ->and(new TypeScriptContracts(new TypeScriptRuntime()->source(...), static fn (): array => [])->directory($target))->toBe($directory);
@@ -156,6 +157,7 @@ it('reads the kernel\'s contracts in the order of their schemas, and names every
         'ProblemCodecV1',
         'ReceiptCodecV1',
         'DeliveryFragmentCodecV1',
+        'GrantBootstrapRoleCodecV1',
         'ActivateActorCodecV1',
         'DeactivateActorCodecV1',
         'RegisterActorCodecV1',
@@ -190,16 +192,16 @@ it('reads the kernel\'s contracts in the order of their schemas, and names every
         $problems = $failed->problems;
     }
 
-    expect(count($problems))->toBe(33)
+    expect(count($problems))->toBe(34)
         ->and($problems[0]->code)->toBe(GenerateErrorCode::SchemaMissing)
         ->and($problems[2]->message)->toContain('packages/contracts/resources/schemas/envelope.v1.json')
         ->and($problems[6]->message)->toContain('receipt.v1.json')
-        ->and($problems[10]->message)->toContain('packages/core/resources/schemas/commands/entry.create.v1.json')
-        ->and($problems[22]->message)->toContain('packages/core/resources/schemas/delivery-fragment.v1.json')
-        ->and($problems[23]->message)->toContain('packages/core/resources/schemas/queries/actor.list.result.v1.json')
-        ->and($problems[29]->message)->toContain('packages/core/resources/schemas/queries/path.resolve.result.v1.json')
-        ->and($problems[30]->message)->toContain('packages/core/resources/schemas/queries/path.resolve.v1.json')
-        ->and($problems[32]->message)->toContain('packages/core/resources/schemas/queries/role.list.v1.json');
+        ->and($problems[11]->message)->toContain('packages/core/resources/schemas/commands/entry.create.v1.json')
+        ->and($problems[23]->message)->toContain('packages/core/resources/schemas/delivery-fragment.v1.json')
+        ->and($problems[24]->message)->toContain('packages/core/resources/schemas/queries/actor.list.result.v1.json')
+        ->and($problems[30]->message)->toContain('packages/core/resources/schemas/queries/path.resolve.result.v1.json')
+        ->and($problems[31]->message)->toContain('packages/core/resources/schemas/queries/path.resolve.v1.json')
+        ->and($problems[33]->message)->toContain('packages/core/resources/schemas/queries/role.list.v1.json');
 });
 
 it('refuses a kernel schema that is not valid with generate_schema_invalid', function (): void {

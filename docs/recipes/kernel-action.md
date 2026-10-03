@@ -704,10 +704,11 @@ final class SurfaceContractTest extends TestCase
     ];
 
     /**
-     * The kernel's commands exposed on no surface: actor.deactivate, whose surfaces come with B1 and
-     * B6, and site.register, which only cms:sites:sync runs (PRD 11.14).
+     * The kernel's commands exposed on no surface: access.bootstrap, which only cms:access:bootstrap
+     * runs (PRD 5.10), actor.deactivate, whose surfaces come with B1 and B6, and site.register,
+     * which only cms:sites:sync runs (PRD 11.14).
      */
-    private const array UNEXPOSED = ['actor.deactivate', 'site.register'];
+    private const array UNEXPOSED = ['access.bootstrap', 'actor.deactivate', 'site.register'];
 
     /** The kernel's query, exposed on no surface, which the query cases' own tests plant on some. */
     private const string KERNEL_QUERY = 'path.resolve';
@@ -748,7 +749,7 @@ final class SurfaceContractTest extends TestCase
 
         self::assertSame($expected, array_keys(SurfaceContractCases::of($registry, SurfaceProfiles::all())));
         self::assertSame(self::UNEXPOSED, array_map(static fn (ActionEntry $action): string => $action->command->value, $unexposed));
-        self::assertSame([[], []], array_map(static fn (ActionEntry $action): array => $action->surfaces, $unexposed));
+        self::assertSame([[], [], []], array_map(static fn (ActionEntry $action): array => $action->surfaces, $unexposed));
     }
 
     #[Test]

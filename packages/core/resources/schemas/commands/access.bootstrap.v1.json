@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "access.bootstrap, contract version 1",
+  "description": "The one-time access bootstrap (PRD 5.10, 5.16) in one changeset: the bootstrap role, created with role.create's plan unless a role has its id, and its grant to a staff actor on a node, allowing in every locale, with grant.assign's plan. It is a maintenance command on no surface: cms:access:bootstrap runs it as the installation operator. A handle another role has, a role with the id whose ceiling or permissions are not these, and an actor that is not an active staff or service actor are validation_failed, and a grant whose id exists is version_conflict. The PHP form is Cbox\\Cms\\Core\\Maintenance\\Domain\\Commands\\GrantBootstrapRole, and the generated codec GrantBootstrapRoleCodecV1 reads it and writes its canonical JSON: every key, sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "grant",
+    "actor",
+    "node",
+    "role",
+    "handle",
+    "ceiling",
+    "permissions"
+  ],
+  "properties": {
+    "grant": {
+      "description": "The new grant's id, which the caller makes.",
+      "$ref": "#/$defs/id"
+    },
+    "actor": {
+      "description": "The id of the staff actor to get the bootstrap role.",
+      "$ref": "#/$defs/id"
+    },
+    "node": {
+      "description": "The id of the node the grant holds on, with the subtree below it.",
+      "$ref": "#/$defs/id"
+    },
+    "role": {
+      "description": "The bootstrap role's id: a new id, which the caller makes, or the id of the role with the handle that is the bootstrap role already.",
+      "$ref": "#/$defs/id"
+    },
+    "handle": {
+      "description": "The bootstrap role's handle, cbox-cms.access.bootstrap_role: a lowercase letter followed by up to 62 lowercase letters, digits and underscores.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,62}$",
+      "minLength": 1,
+      "maxLength": 63
+    },
+    "ceiling": {
+      "description": "The highest classification the role's holders read through it, from public to sensitive.",
+      "enum": [
+        "public",
+        "internal",
+        "confidential",
+        "personal",
+        "sensitive"
+      ]
+    },
+    "permissions": {
+      "description": "The command and query names of the registry the role may run, each once; cms:actions lists them.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/permission"
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "permission": {
+      "description": "The name of a command or query without its version, such as entry.create: lowercase segments in snake_case joined by dots, at least two.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+      "minLength": 3,
+      "maxLength": 255
+    }
+  }
+}

@@ -13,12 +13,12 @@ use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Pipeline\WriteAction;
 use Cbox\Cms\Core\Access\Actions\AssignGrantAction;
 use Cbox\Cms\Core\Access\Actions\CreateRoleAction;
-use Cbox\Cms\Core\Access\Domain\Commands\AssignGrant;
-use Cbox\Cms\Core\Access\Domain\Commands\CreateRole;
 use Cbox\Cms\Core\Access\Domain\GrantReader;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
 use Cbox\Cms\Core\Maintenance\Actions\BootstrapAccess;
+use Cbox\Cms\Core\Maintenance\Actions\GrantBootstrapRoleAction;
 use Cbox\Cms\Core\Maintenance\Actions\RunMaintenanceCommand;
+use Cbox\Cms\Core\Maintenance\Domain\Commands\GrantBootstrapRole;
 use Cbox\Cms\Core\Maintenance\Domain\Dto\BootstrapSettings;
 use Cbox\Cms\Core\Maintenance\Domain\MaintenanceAuthorizer;
 use Cbox\Cms\Core\Pipeline\Actions\AwaitWaitLevel;
@@ -64,11 +64,11 @@ use LogicException;
 /**
  * The one-time access bootstrap with the fakes of the ports it reads (GUARDRAILS 9): an installed
  * service operator, an active staff member, a node, and a registry of COMMANDS and QUERIES. Its
- * commands run through the real RunMaintenanceCommand and the kernel's command pipeline with the
- * bootstrap's MaintenanceAuthorizer, the real role.create and grant.assign actions, the fake
- * committer, and one idempotency and receipt store for every run, so a rerun can replay. The
- * GrantReader the actions read also knows the roles the committer has committed, as the database
- * would.
+ * command runs through the real RunMaintenanceCommand and the kernel's command pipeline with the
+ * bootstrap's MaintenanceAuthorizer, the real access.bootstrap action over the real role.create and
+ * grant.assign actions, the fake committer, and one idempotency and receipt store for every run,
+ * so a rerun can replay. The GrantReader the actions read also knows the roles the committer has
+ * committed, as the database would.
  */
 final class BootstrapActionWorld
 {
@@ -164,8 +164,11 @@ final class BootstrapActionWorld
 
         return new CommandPipeline(
             new FakeWriteActions([
-                CreateRole::class => $this->binding('role.create', new CreateRoleAction($reader, new FakePermissionCatalog(self::COMMANDS, self::QUERIES))),
-                AssignGrant::class => $this->binding('grant.assign', new AssignGrantAction($this->identity, $reader)),
+                GrantBootstrapRole::class => $this->binding('access.bootstrap', new GrantBootstrapRoleAction(
+                    $reader,
+                    new CreateRoleAction($reader, new FakePermissionCatalog(self::COMMANDS, self::QUERIES)),
+                    new AssignGrantAction($this->identity, $reader),
+                )),
             ]),
             $this->identity,
             MaintenanceAuthorizer::forAccessBootstrap($this->installation),

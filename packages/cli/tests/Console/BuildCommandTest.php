@@ -16,6 +16,7 @@ use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
 use Cbox\Cms\Core\Identity\Domain\Commands\ActivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\RegisterActor;
+use Cbox\Cms\Core\Maintenance\Domain\Commands\GrantBootstrapRole;
 use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
 use Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry;
@@ -70,8 +71,8 @@ it('writes the six registries to the application\'s bootstrap/cache/cms, and rem
 
     expect($status)->toBe(0)
         ->and($output)->toBe([
-            'actions: 21',
-            'commands: 16',
+            'actions: 22',
+            'commands: 17',
             // The workbench's fixture addon, which package discovery registers: its two hooks and
             // its extension of app:fixture_article.
             'hooks: 2',
@@ -92,8 +93,13 @@ it('adds what an addon provider\'s scan root declares', function (): void {
     [$status, $output] = buildCommand();
 
     expect($status)->toBe(0)
-        ->and(array_slice($output, 0, 4))->toBe(['actions: 23', 'commands: 17', 'hooks: 3', 'rest: 17'])
+        ->and(array_slice($output, 0, 4))->toBe(['actions: 24', 'commands: 18', 'hooks: 3', 'rest: 17'])
         ->and(RegistryFixtures::load($directory.'/commands.php'))->toMatchArray(['entries' => [[
+            'class' => GrantBootstrapRole::class,
+            'name' => 'access.bootstrap',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 1,
+        ], [
             'class' => ActivateActor::class,
             'name' => 'actor.activate',
             'package' => CoreServiceProvider::PACKAGE,

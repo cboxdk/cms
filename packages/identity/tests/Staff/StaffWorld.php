@@ -14,6 +14,7 @@ use Cbox\Cms\Contracts\Identity\LocalCredentialStore;
 use Cbox\Cms\Contracts\Identity\Password;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Pipeline\WriteAction;
 use Cbox\Cms\Contracts\Plans\Mutations\ActorActivated;
 use Cbox\Cms\Contracts\Plans\Mutations\ActorRegistered;
@@ -32,11 +33,14 @@ use Cbox\Cms\Core\Pipeline\Domain\CommitOutcome;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\ActionBinding;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\Committed;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\PendingChangeset;
+use Cbox\Cms\Core\Pipeline\Domain\Dto\StaleRead;
+use Cbox\Cms\Core\Pipeline\Domain\Dto\VersionConflict;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\WaitSettings;
 use Cbox\Cms\Core\Pipeline\Domain\HookPlans;
 use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\Tests\Access\Fakes\FakeAccessContexts;
 use Cbox\Cms\Core\Tests\Maintenance\Fakes\FakeInstallationOperator;
+use Cbox\Cms\Core\Tests\Operations\Fakes\FakeOperationRunner;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeChangesetCommitter;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandContentHasher;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandHooks;
@@ -68,7 +72,9 @@ use Override;
  * an actor register that the commits change as the Postgres writers do (actor.register adds the
  * actor pending at version 1, actor.activate makes it active at version 2), the testkit's
  * FakeLocalCredentialStore bound to that register, the real password policy over
- * FakeBreachedPasswords and the real hasher at cheap parameters. Nothing touches a database.
+ * FakeBreachedPasswords, the real hasher at cheap parameters, and one FakeOperationRunner and one
+ * idempotency and receipt store for every action() it makes, so a rerun resumes a registration
+ * that stopped. Nothing touches a database.
  */
 final class StaffWorld implements ActorDirectory, ChangesetCommitter
 {
@@ -86,6 +92,17 @@ final class StaffWorld implements ActorDirectory, ChangesetCommitter
 
     public readonly FakeChangesetCommitter $committer;
 
+    public readonly FakeOperationRunner $operations;
+
+    /** Whether the commit answers an actor.activate with a version conflict, as a deactivation meanwhile would. */
+    public bool $failActivations = false;
+
+    private readonly FakeIdempotencyStore $keys;
+
+    private readonly FakeReceiptStore $receipts;
+
+    private readonly FakeIdGenerator $ids;
+
     /** @var array<string, Actor> by actor id */
     private array $actors = [];
 
@@ -99,6 +116,10 @@ final class StaffWorld implements ActorDirectory, ChangesetCommitter
         $this->breached = new FakeBreachedPasswords(new Password(self::BREACHED));
         $this->telemetry = new FakeTelemetry;
         $this->committer = new FakeChangesetCommitter(ids: new FakeIdGenerator(clock: $this->clock));
+        $this->operations = new FakeOperationRunner;
+        $this->keys = new FakeIdempotencyStore($this->clock);
+        $this->receipts = new FakeReceiptStore($this->clock);
+        $this->ids = new FakeIdGenerator(seed: 7, clock: $this->clock);
     }
 
     /**
@@ -107,8 +128,8 @@ final class StaffWorld implements ActorDirectory, ChangesetCommitter
     public function action(?LocalCredentialStore $store = null): RegisterLocalStaff
     {
         $installation = new FakeInstallationOperator($this->installed ? $this->operator : null);
-        $keys = new FakeIdempotencyStore($this->clock)->session();
-        $receipts = new FakeReceiptStore($this->clock)->session();
+        $keys = $this->keys->session();
+        $receipts = $this->receipts->session();
         $types = new FakeTypeCatalog;
         $pipeline = new CommandPipeline(
             new FakeWriteActions([
@@ -136,7 +157,8 @@ final class StaffWorld implements ActorDirectory, ChangesetCommitter
             new CountingPasswordHasher,
             $store ?? $this->accounts,
             new RunMaintenanceCommand($installation, new FakeAccessContexts, new FakeIdGenerator(clock: $this->clock), $pipeline),
-            new FakeIdGenerator(seed: 7, clock: $this->clock),
+            $this->ids,
+            $this->operations,
         );
     }
 
@@ -159,6 +181,12 @@ final class StaffWorld implements ActorDirectory, ChangesetCommitter
     #[Override]
     public function commit(PendingChangeset $changeset): CommitOutcome
     {
+        foreach ($changeset->plan->mutations() as $mutation) {
+            if ($this->failActivations && $mutation instanceof ActorActivated) {
+                return new VersionConflict(new StaleRead($mutation->actor, AggregateVersion::first(), new AggregateVersion(2)));
+            }
+        }
+
         $outcome = $this->committer->commit($changeset);
 
         if (! $outcome instanceof Committed) {

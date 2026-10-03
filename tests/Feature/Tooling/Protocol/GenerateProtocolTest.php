@@ -39,6 +39,7 @@ const PROTOCOL_CODECS = [
     'DeliveryFragmentCodecV1.php',
     'EnvelopeCodecV1.php',
     'ExplainedPathCodecV1.php',
+    'GrantBootstrapRoleCodecV1.php',
     'GrantListCodecV1.php',
     'KernelCommandCodecs.php',
     'KernelQueryCodecs.php',

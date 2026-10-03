@@ -82,6 +82,7 @@ use Cbox\Cms\Core\Identity\Domain\Dto\ActorList;
 use Cbox\Cms\Core\Identity\Domain\Dto\ListedActor;
 use Cbox\Cms\Core\Identity\Domain\Dto\ListedProfile;
 use Cbox\Cms\Core\Identity\Domain\Queries\ListActors;
+use Cbox\Cms\Core\Maintenance\Domain\Commands\GrantBootstrapRole;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCodec;
 use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
@@ -463,6 +464,15 @@ final readonly class ProtocolSchemas
         $version = ValueBinding::value(AggregateVersion::class);
 
         return [
+            self::command('access.bootstrap.v1.json', 'GrantBootstrapRoleCodecV1', GrantBootstrapRole::class, [
+                '#/properties/actor' => $id(ActorId::class),
+                '#/properties/ceiling' => ValueBinding::enum(ClassificationAccess::class),
+                '#/properties/grant' => $id(GrantId::class),
+                '#/properties/handle' => ValueBinding::value(RoleHandle::class),
+                '#/properties/node' => $id(NodeId::class),
+                '#/properties/permissions/items' => ValueBinding::value(CommandName::class),
+                '#/properties/role' => $id(RoleId::class),
+            ]),
             self::command('actor.activate.v1.json', 'ActivateActorCodecV1', ActivateActor::class, [
                 '#/properties/actor' => $id(ActorId::class),
                 '#/properties/version' => $version,

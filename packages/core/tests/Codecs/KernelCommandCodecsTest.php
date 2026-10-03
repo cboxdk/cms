@@ -20,6 +20,7 @@ use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
 use Cbox\Cms\Core\Identity\Domain\Commands\ActivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\RegisterActor;
+use Cbox\Cms\Core\Maintenance\Domain\Commands\GrantBootstrapRole;
 use Cbox\Cms\Core\Pipeline\Domain\CommandEncoder;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCodec;
 use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
@@ -45,6 +46,7 @@ use stdClass;
 function kernelCommandClasses(): array
 {
     return [
+        'access.bootstrap' => GrantBootstrapRole::class,
         'actor.activate' => ActivateActor::class,
         'actor.deactivate' => DeactivateActor::class,
         'actor.register' => RegisterActor::class,
