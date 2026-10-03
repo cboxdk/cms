@@ -17,14 +17,24 @@
     "format:check": "prettier --check .",
     "lint:translations": "node js/tooling/translation-parity.js js/panel/src/i18n/catalogues && node js/tooling/translation-parity.js js/ui-kit/src/i18n/catalogues",
     "generate:tokens": "node js/ui-kit/scripts/generate-tokens.js",
-    "test:kit": "node js/ui-kit/tests/run.js"
+    "test:kit": "node js/ui-kit/tests/run.js",
+    "test:js": "vitest run --project=unit --reporter=default --reporter=./js/tooling/vitest-no-skipped.js",
+    "storybook": "storybook dev --config-dir js/ui-kit/.storybook --port 6006 --no-open --disable-telemetry",
+    "storybook:build": "storybook build --config-dir js/ui-kit/.storybook --output-dir .cache/storybook/static --disable-telemetry --quiet",
+    "storybook:exports": "node js/ui-kit/scripts/story-exports.js",
+    "storybook:stories": "node js/ui-kit/scripts/story-tests.js",
+    "storybook:baselines": "node js/ui-kit/scripts/story-tests.js --update",
+    "storybook:test": "npm run storybook:exports && npm run storybook:stories"
   },
   "devDependencies": {
     "@cboxdk/cms-tooling": "0.1.0",
     "@types/node": "22.20.4",
+    "@vitest/browser": "4.1.11",
+    "@vitest/browser-playwright": "4.1.11",
     "eslint": "10.11.0",
     "playwright": "1.63.0",
     "prettier": "3.9.9",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "vitest": "4.1.11"
   }
 }

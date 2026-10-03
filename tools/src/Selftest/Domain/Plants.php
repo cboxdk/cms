@@ -6,8 +6,9 @@ namespace Cbox\Cms\Tooling\Selftest\Domain;
 
 /**
  * The violations `composer check:selftest` plants: at least one per gate of the local profile,
- * and one per tool where a gate has two. Each file is otherwise clean for its own gate, so the
- * gate fails because of the plant. The PHP plants live in the feature Selftest of the core
+ * one per tool where a gate has two, and one for each gate of PR_GATES, the gates of the PR profile
+ * the selftest runs as well. Each file is otherwise clean for its own gate, so the gate fails
+ * because of the plant. The PHP plants live in the feature Selftest of the core
  * module, which does not exist in the repository, and the one that must lie outside the kernel,
  * a write to a kernel table, in workbench/app/Selftest, which does not exist either.
  */
@@ -17,6 +18,15 @@ final readonly class Plants
 
     /** Outside the kernel, where an application's code lives: the workbench's application. */
     public const string WORKBENCH = 'workbench/app/Selftest';
+
+    /**
+     * The gates of the PR profile, outside the local profile, that the selftest runs with
+     * `composer check -- --pr --gate=<n>` after `composer check`, and judges their plants by:
+     * gate 7, the component kit's Storybook, which needs no service and no network.
+     *
+     * @var list<int>
+     */
+    public const array PR_GATES = [7];
 
     /**
      * @return list<Plant>
@@ -263,6 +273,22 @@ final readonly class Plants
                 // Edited by hand.
 
                 PHP, true, ['not the committed code']),
+            new Plant(5, 'Vitest', 'a failing test of the JS unit suite', 'js/ui-kit/tests/selftest-failure.test.ts', <<<'TS'
+                import { expect, test } from 'vitest';
+
+                test('a failure planted by composer check:selftest', () => {
+                  expect(1 + 1).toBe(3);
+                });
+
+                TS, false, ['expected 2 to be 3']),
+            new Plant(7, 'Story exports', 'a component the kit exports without a story', 'js/ui-kit/src/index.ts', <<<'TS'
+
+                /** A component without a story, planted by composer check:selftest. */
+                export function SelftestBadge(): null {
+                  return null;
+                }
+
+                TS, true, ['the kit exports the component SelftestBadge without a story']),
         ];
     }
 }

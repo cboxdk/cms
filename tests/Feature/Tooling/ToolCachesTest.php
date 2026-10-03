@@ -113,7 +113,22 @@ function toolCacheLocations(): array
         'Rector container' => $rector['container'],
         'Pint' => dirname(pintCacheFile()),
         'PHPUnit' => phpunitCacheDirectory(),
+        'Vitest' => vitestCacheDirectory(),
     ];
+}
+
+/**
+ * The cacheDir vitest.config.ts sets, where Vitest keeps the results of the JS suites.
+ */
+function vitestCacheDirectory(): string
+{
+    $config = (string) file_get_contents(toolCacheRoot().'/vitest.config.ts');
+
+    if (preg_match_all("/cacheDir: join\\(ROOT, '([^']+)'\\)/", $config, $matches) !== 1) {
+        throw new UnexpectedValueException('vitest.config.ts does not set one cacheDir below the root.');
+    }
+
+    return toolCacheRoot().'/'.$matches[1][0];
 }
 
 /**
@@ -212,7 +227,7 @@ function toolCacheProbe(): string
         PHP);
 }
 
-it('keeps PHPStan, Rector and Pint state in a directory of its own below .cache/ in the repository root', function (): void {
+it('keeps PHPStan, Rector, Pint and Vitest state in a directory of its own below .cache/ in the repository root', function (): void {
     $root = toolCacheRoot();
     $rector = rectorCacheDirectories();
     $phpstan = Phpstan::parameters('phpstan.neon');
@@ -221,7 +236,8 @@ it('keeps PHPStan, Rector and Pint state in a directory of its own below .cache/
         ->and($phpstan->value('resultCachePath'))->toBe($root.'/'.TOOL_CACHE.'/phpstan/resultCache.php')
         ->and($rector['files'])->toBe($root.'/'.TOOL_CACHE.'/rector/files')
         ->and($rector['container'])->toBe($root.'/'.TOOL_CACHE.'/rector/container')
-        ->and(pintCacheFile())->toBe($root.'/'.TOOL_CACHE.'/pint/pint.cache');
+        ->and(pintCacheFile())->toBe($root.'/'.TOOL_CACHE.'/pint/pint.cache')
+        ->and(vitestCacheDirectory())->toBe($root.'/'.TOOL_CACHE.'/vitest');
 });
 
 it('keeps PHPUnit\'s cache directory in the repository root', function (): void {
@@ -251,7 +267,7 @@ it('keeps every cache directory out of git', function (string $tool): void {
     $ignored->run();
 
     expect($ignored->getExitCode())->toBe(0, "git does not ignore {$relative}.");
-})->with(['PHPStan', 'Rector files', 'Rector container', 'Pint', 'PHPUnit']);
+})->with(['PHPStan', 'Rector files', 'Rector container', 'Pint', 'PHPUnit', 'Vitest']);
 
 it('leaves nothing but the checkout\'s boot lock in the system temp directory when PHPStan runs', function (): void {
     $left = leftInSystemTemp([PHP_BINARY, 'vendor/bin/phpstan', 'analyse', '--no-progress', toolCacheProbe()]);

@@ -8,8 +8,10 @@ use Cbox\Cms\Tests\Support\Tooling\ScratchDirectory;
 use Cbox\Cms\Tooling\Check\Boundary\CheckReportJson;
 use Cbox\Cms\Tooling\Check\Domain\CheckReport;
 use Cbox\Cms\Tooling\Check\Domain\GateResult;
+use Cbox\Cms\Tooling\Check\Domain\GateSelection;
 use Cbox\Cms\Tooling\Check\Domain\LocalProfile;
 use Cbox\Cms\Tooling\Check\Domain\ProcessOutcome;
+use Cbox\Cms\Tooling\Check\Domain\PrProfile;
 use Cbox\Cms\Tooling\Check\Domain\StepResult;
 use Cbox\Cms\Tooling\Selftest\Adapter\GateSelftest;
 use Cbox\Cms\Tooling\Selftest\Domain\Plant;
@@ -26,6 +28,9 @@ final class FakeSelftestWorld
     public array $missedSteps = [];
 
     public int $checkExitCode = 1;
+
+    /** The exit code of `composer check -- --pr --gate=...`; null for checkExitCode. */
+    public ?int $prCheckExitCode = null;
 
     public bool $stillListed = false;
 
@@ -55,6 +60,7 @@ final class FakeSelftestWorld
     private function addWorktree(string $path): ProcessOutcome
     {
         ScratchDirectory::write($path.'/workbench/app/Cms/Generated/TypeHandle.php', "<?php\n");
+        ScratchDirectory::write($path.'/js/ui-kit/src/index.ts', "export { Alert } from './components/Alert';\n");
         mkdir($path.'/packages/core/src', 0o777, true);
         $target = $this->coreTarget === null ? "\$baseDir . '/packages/core/src'" : var_export($this->coreTarget, true);
         ScratchDirectory::write($path.'/vendor/composer/autoload_psr4.php', "<?php\n\n\$vendorDir = dirname(__DIR__);\n\$baseDir = dirname(\$vendorDir);\n\nreturn [\n    'Cbox\\\\Cms\\\\Core\\\\' => [{$target}],\n    'Psr\\\\Log\\\\' => [\$vendorDir . '/psr/log/src'],\n];\n");
@@ -69,10 +75,22 @@ final class FakeSelftestWorld
     private function check(array $command, string $directory): ProcessOutcome
     {
         $this->checkRanInWorktree = $directory === realpath((string) $this->worktree);
-        $reportFile = substr($command[3], strlen('--report='));
+        $options = array_slice($command, 3);
+        $reportFile = '';
+        $selected = [];
+
+        foreach ($options as $option) {
+            if (str_starts_with($option, '--report=')) {
+                $reportFile = substr($option, strlen('--report='));
+            } elseif (str_starts_with($option, '--gate=')) {
+                $selected[] = (int) substr($option, strlen('--gate='));
+            }
+        }
+
+        $profile = in_array('--pr', $options, true) ? PrProfile::gates('php', ['composer']) : LocalProfile::gates('php', ['composer']);
         $gates = [];
 
-        foreach (LocalProfile::gates('php', ['composer']) as $gate) {
+        foreach (GateSelection::only($profile, $selected) as $gate) {
             $steps = [];
 
             foreach ($gate->steps as $step) {
@@ -92,7 +110,9 @@ final class FakeSelftestWorld
 
         file_put_contents($reportFile, CheckReportJson::encode(new CheckReport($directory, $gates)));
 
-        return new ProcessOutcome($this->checkExitCode, "Gate 1  Pint and Prettier\n", 1.0);
+        $exitCode = in_array('--pr', $options, true) ? ($this->prCheckExitCode ?? $this->checkExitCode) : $this->checkExitCode;
+
+        return new ProcessOutcome($exitCode, "Gate 1  Pint and Prettier\n", 1.0);
     }
 
     private function drop(string $worktree): ProcessOutcome

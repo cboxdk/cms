@@ -5,17 +5,17 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, test } from 'node:test';
+import { describe, test } from 'vitest';
 
 import { translationParityProblems } from '../../tooling/translation-parity.js';
 import { CATALOGUES_DIRECTORY, kitFiles, read } from './kit.js';
 
-void describe("the kit's catalogues", () => {
-  void test('pass the translation parity check in da and en', () => {
+describe("the kit's catalogues", () => {
+  test('pass the translation parity check in da and en', () => {
     assert.deepEqual(translationParityProblems(CATALOGUES_DIRECTORY, ['da', 'en']), []);
   });
 
-  void test('have only keys the kit uses, under kit.', () => {
+  test('have only keys the kit uses, under kit.', () => {
     /** @type {unknown} */
     const english = JSON.parse(readFileSync(join(CATALOGUES_DIRECTORY, 'en.json'), 'utf8'));
     const keys = Object.keys(/** @type {Record<string, string>} */ (english));

@@ -9,8 +9,11 @@
   },
   "include": [
     "*.js",
+    "*.ts",
     "js/*/*.js",
     "js/*/src/**/*",
+    "js/*/stories/**/*",
+    "js/*/.storybook/**/*",
     "js/*/scripts/**/*",
     "js/*/tests/**/*",
     "js/*/vite.config.ts",

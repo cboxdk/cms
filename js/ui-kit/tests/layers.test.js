@@ -5,7 +5,7 @@
 // primitive one. `npm run test:kit -- layers` runs this file.
 
 import assert from 'node:assert/strict';
-import { describe, test } from 'node:test';
+import { describe, test } from 'vitest';
 
 import { LAYERS, PREFIX } from '../scripts/tokens.js';
 import { catalogue, kitFiles, read } from './kit.js';
@@ -77,8 +77,8 @@ function layerOf(path) {
 
 const stylesheets = kitFiles('.css').filter((path) => path !== 'js/ui-kit/src/layers.css');
 
-void describe('the cascade layers', () => {
-  void test('are declared once, in order, by layers.css and nothing else there', () => {
+describe('the cascade layers', () => {
+  test('are declared once, in order, by layers.css and nothing else there', () => {
     assert.deepEqual(topLevel(read('js/ui-kit/src/layers.css')), [
       { prelude: `@layer ${LAYERS.join(', ')}`, block: null },
     ]);
@@ -92,14 +92,14 @@ void describe('the cascade layers', () => {
     ]);
   });
 
-  void test('cover every stylesheet of the kit', () => {
+  test('cover every stylesheet of the kit', () => {
     assert.ok(stylesheets.includes('js/ui-kit/src/tokens.css'));
     assert.ok(stylesheets.includes('js/ui-kit/src/base.css'));
     assert.ok(stylesheets.some((path) => path.startsWith('js/ui-kit/src/components/')));
   });
 
   for (const path of stylesheets) {
-    void test(`hold every rule of ${path} in ${layerOf(path)}, without !important`, () => {
+    test(`hold every rule of ${path} in ${layerOf(path)}, without !important`, () => {
       const css = read(path);
 
       for (const statement of topLevel(css)) {
@@ -111,7 +111,7 @@ void describe('the cascade layers', () => {
     });
   }
 
-  void test('are declared before any other stylesheet the panel imports', () => {
+  test('are declared before any other stylesheet the panel imports', () => {
     const imports = [...read('js/panel/src/app.tsx').matchAll(/^import '([^']+\.css)';$/gm)].map(
       (match) => match[1],
     );
@@ -123,7 +123,7 @@ void describe('the cascade layers', () => {
     ]);
   });
 
-  void test('refuse an unlayered rule and a second order statement', () => {
+  test('refuse an unlayered rule and a second order statement', () => {
     assert.deepEqual(topLevel('@layer cms.kit { .a { color: red; } }\n.b { color: red; }'), [
       { prelude: '@layer cms.kit', block: ' .a { color: red; } ' },
       { prelude: '.b', block: ' color: red; ' },
@@ -132,13 +132,13 @@ void describe('the cascade layers', () => {
   });
 });
 
-void describe('the tokens the kit reads', () => {
+describe('the tokens the kit reads', () => {
   const { catalogue: tokens } = catalogue();
   const byName = new Map(tokens.tokens.map((token) => [token.name, token]));
   const readers = stylesheets.filter((path) => path !== 'js/ui-kit/src/tokens.css');
 
   for (const path of readers) {
-    void test(`exist and are not primitives in ${path}`, () => {
+    test(`exist and are not primitives in ${path}`, () => {
       for (const match of read(path).matchAll(/var\((--cms-[a-z0-9-]+)/g)) {
         const name = (match[1] ?? '').slice(PREFIX.length);
         const token = byName.get(name);

@@ -27,8 +27,10 @@ use UnexpectedValueException;
  * It adds a git worktree of HEAD in the system's temporary directory, runs `composer install`
  * and `npm ci` there (vendor/ is installed, never symlinked), and asserts that the autoloader
  * Composer dumped there maps every namespace of cboxdk/cms, the root package, inside the worktree. It
- * plants the violations from Plants, runs `composer check` in the worktree with a report file,
- * and asserts that each violation made the right step fail with a path inside the worktree.
+ * plants the violations from Plants, runs `composer check` in the worktree with a report file, and
+ * then `composer check -- --pr --gate=<n>` for the gates of the PR profile in Plants::PR_GATES
+ * with a report of its own, and asserts that each violation made the right step fail with a path
+ * inside the worktree.
  * `composer check` runs its gates in the dev image, which mounts the worktree and the report's
  * directory at their own paths. Finally it drops the worktree's own Postgres test database, which
  * the Postgres suite in the worktree created (cms_test_<hash of the worktree's path>), removes the
@@ -112,9 +114,13 @@ final readonly class GateSelftest
         }
 
         $this->write(sprintf("Planted %d violations. Running composer check in the worktree; this takes a few minutes.\n\n", count(Plants::all())));
-        $report = $this->check($worktree, $base.'/check-report.json');
+        $report = $this->check($worktree, $base.'/check-report.json', []);
 
-        return $this->verdicts($report, $worktree);
+        $gates = array_map(static fn (int $gate): string => '--gate='.$gate, Plants::PR_GATES);
+        $this->write(sprintf("\nRunning composer check -- --pr %s in the worktree for the gates of the PR profile the selftest plants in.\n\n", implode(' ', $gates)));
+        $pr = $this->check($worktree, $base.'/check-report-pr.json', ['--pr', ...$gates]);
+
+        return $this->verdicts($report, $pr, $worktree);
     }
 
     /**
@@ -156,17 +162,20 @@ final readonly class GateSelftest
         }
     }
 
-    private function check(string $worktree, string $reportFile): CheckReport
+    /**
+     * @param  list<string>  $options  the options of `composer check` besides the report
+     */
+    private function check(string $worktree, string $reportFile, array $options): CheckReport
     {
         $outcome = $this->processes->run(
-            [...$this->composer, 'check', '--', '--report='.$reportFile, '--brief'],
+            [...$this->composer, 'check', '--', ...$options, '--report='.$reportFile, '--brief'],
             $worktree,
             CheckRunner::ENVIRONMENT,
             $this->write(...),
         );
 
         if ($outcome->exitCode === 0) {
-            throw new SelftestFailed('composer check passed with the violations planted.');
+            throw new SelftestFailed(trim('composer check '.implode(' ', $options)).' passed with the violations planted.');
         }
 
         $json = is_file($reportFile) ? file_get_contents($reportFile) : false;
@@ -188,12 +197,17 @@ final readonly class GateSelftest
         return $report;
     }
 
-    private function verdicts(CheckReport $report, string $worktree): bool
+    /**
+     * Judges each plant by the report of the run that has its gate: the PR run for a gate of
+     * Plants::PR_GATES, the local run otherwise.
+     */
+    private function verdicts(CheckReport $local, CheckReport $pr, string $worktree): bool
     {
         $this->write("\nPlanted violations\n");
         $caught = true;
 
         foreach (Plants::all() as $plant) {
+            $report = in_array($plant->gate, Plants::PR_GATES, true) ? $pr : $local;
             $verdict = PlantVerdict::of($plant, $report, $worktree);
             $caught = $caught && $verdict->caught();
             $this->write(sprintf(

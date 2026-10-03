@@ -14,9 +14,9 @@ Every change passes the same gates, in the same order. Each gate runs a Composer
 | 2 | Rector | `composer rector:check` | yes | yes |
 | 3 | PHPStan at level 10 with the testkit's rules | `composer analyse` | yes | yes |
 | 4 | tsc and ESLint | `npm run typecheck`, `npm run lint` | yes | yes |
-| 5 | The installation, then the Pest suites `Unit`, `Codecs`, `Contract`, `Postgres`, `Arch` and `Actions` | `composer install:check`, `vendor/bin/pest --testsuite=<suite> --parallel` | yes | yes, with the `Mutation` suite and mutation testing on the changed files |
+| 5 | The installation, the JS unit suite, then the Pest suites `Unit`, `Codecs`, `Contract`, `Postgres`, `Arch` and `Actions` | `composer install:check`, `npm run test:js`, `vendor/bin/pest --testsuite=<suite> --parallel` | yes | yes, with the `Mutation` suite and mutation testing on the changed files |
 | 6 | Generated code is the committed code | `composer check:generated` | yes | yes |
-| 7 | Storybook, visual regression and axe | | no | not run until the panel has a UI |
+| 7 | The component kit's Storybook: its build, a story for every component the kit exports, and every story as a test with its play function, axe and its visual baseline | `npm run storybook:build`, `npm run storybook:exports`, `npm run storybook:stories`, locally `composer image:run -- npm run storybook:test` | no | yes |
 | 8 | The panel's build, then the `Browser` suite | `composer panel:build`, `vendor/bin/pest --testsuite=Browser`, locally `composer image:run -- vendor/bin/pest --testsuite=Browser` | no | yes |
 | 9 | Known vulnerabilities in the dependencies | `composer audit --locked --abandoned=report`, `npm audit` | no | yes |
 | 10 | Documentation | `composer docs:check` | no | yes |
@@ -26,9 +26,9 @@ Every change passes the same gates, in the same order. Each gate runs a Composer
 
 `composer check` runs the local profile, gates 1 to 6. It runs every gate also after one has failed, marks each gate and each step pass, fail or not run, prints a summary, and exits 1 when a gate failed. It needs the services, `composer services:up`: with Postgres or Valkey down, gate 5 fails, it does not skip.
 
-Options go after `--`: `composer check -- --report=<file>` also writes a JSON report, and `--brief` leaves the output of failed steps out of the console.
+Options go after `--`: `composer check -- --report=<file>` also writes a JSON report, `--brief` leaves the output of failed steps out of the console, and `--gate=<n>`, repeated for more than one, runs only those gates and reports the others as not run, such as `composer check -- --pr --gate=7` for the kit's Storybook alone.
 
-Gate 5 starts with `composer install:check`, which fails when `vendor/` is not the installation `composer.lock` describes, so a checkout that moved without `composer install` fails with the fix instead of a missing class. Each suite then runs on its own with `--fail-on-skipped --fail-on-incomplete --parallel`: the same tests, spread over one worker process per CPU. Each worker of the `Postgres` suite gets a test database of its own, so the workers never share rows. A suite added to `phpunit.xml` must also be added to the profile; a test fails until it is.
+Gate 5 starts with `composer install:check`, which fails when `vendor/` is not the installation `composer.lock` describes, so a checkout that moved without `composer install` fails with the fix instead of a missing class. Then `npm run test:js` runs the JS unit suite, the `unit` project of `vitest.config.ts`: every `js/<workspace>/tests/**/*.test.js` and `*.test.ts`, in Node. A skipped test fails it, as it fails a Pest suite, through the reporter `js/tooling/vitest-no-skipped.js`. Each Pest suite then runs on its own with `--fail-on-skipped --fail-on-incomplete --parallel`: the same tests, spread over one worker process per CPU. Each worker of the `Postgres` suite gets a test database of its own, so the workers never share rows. A suite added to `phpunit.xml` must also be added to the profile; a test fails until it is.
 
 Gate 10 is not in the local profile, but the `Unit` suite runs the same documentation audit on the repository, so `composer check` fails on everything `composer docs:check` would find.
 
@@ -65,9 +65,17 @@ The kit has rules of its own, which `eslint.config.js` turns on by naming the ki
 - `cms-kit/no-style-props` fails `npm run lint` on an exported component of the kit whose props have a `className` or a `style` property, also through a props type that extends the HTML attributes without leaving them out. A component's appearance comes from props such as `variant` and `tone`, and from the tokens.
 - The kit imports React Aria, the headless primitives it builds on, one component module at a time, such as `react-aria-components/Dialog`, never from the package root, and the panel and the workbench may not import React Aria at all.
 
-`npm run test:kit` runs the kit's own tests on Node's test runner, and `npm run test:kit -- <name>` one file of them, such as `tokens`: every contrast pair `tokens.json` lists meets WCAG 2.2 AA in the light and the dark mode, every stylesheet of the kit keeps its rules in its cascade layer, the kit renders exactly the part hooks `tokens.json` lists, and its catalogues have the same keys in both languages. The Unit suite of gate 5 runs them too.
+`npm run test:kit` runs the kit's own tests, which are part of the JS unit suite, and `npm run test:kit -- <name>` one file of them, such as `tokens`: every contrast pair `tokens.json` lists meets WCAG 2.2 AA in the light and the dark mode, every stylesheet of the kit keeps its rules in its cascade layer, the kit renders exactly the part hooks `tokens.json` lists, and its catalogues have the same keys in both languages. The Unit suite of gate 5 runs them too.
 
-Storybook, visual regression per component and axe, gate 7, come in the second part of the panel skeleton; until then gate 7 is not run.
+## Storybook and gate 7
+
+The kit's Storybook lives in `js/ui-kit/.storybook`, and its stories in `js/ui-kit/stories`, one file per component, written against the kit's public entry `@cboxdk/cms-ui-kit` as a page uses it (GUARDRAILS 8: every component has a story and a visual regression test). Each story takes its texts from `js/ui-kit/stories/texts.ts` in the locale of the toolbar, so no text is written into its markup. `npm run storybook` serves it on port 6006 while you work. Gate 7 runs three steps:
+
+- `npm run storybook:build` builds it into `.cache/storybook/static`.
+- `npm run storybook:exports` fails when a component the kit's entry exports, a value named in PascalCase, is the `component` of no story file's meta (`js/ui-kit/scripts/story-exports.js`). It names the export's line in `js/ui-kit/src/index.ts`.
+- `npm run storybook:stories` runs every story as a test in Chromium through Vitest, the `storybook` project of `vitest.config.ts`: the story renders, its play function runs, axe finds no violation (the accessibility addon with `a11y.test` set to `error`), and a screenshot of the page matches the story's baseline, `js/ui-kit/visual-baselines/<story id>.png`. A skipped story fails it.
+
+The baselines are rendered in the dev image (decision D10), whose Chromium and fonts are the same on every machine, so the story tests run there and refuse to run anywhere else: `composer image:run -- npm run storybook:test` runs the export check and the story tests. After a change that is meant to change how the kit looks, `composer image:run -- npm run storybook:baselines` writes every baseline anew, and the new images are reviewed in the diff like any other change. A failed comparison writes what it saw and the difference to `.cache/storybook/differences`. Storybook's telemetry is off in its configuration and in each command, so neither a build nor a test run reaches the network.
 
 ## The browser tests
 
@@ -96,7 +104,7 @@ Run the suite with `composer panel:build` and then `composer image:run -- vendor
 
 ## CI
 
-CI is one entry script, `bin/ci`. `.github/workflows/ci.yml` runs it on every pull request, every push to `main` and every run started by hand, on the PHP image and the Postgres and Valkey images of `compose.yaml`. It installs the locked dependencies and runs `composer check -- --pr`, the PR profile: the same steps as the local profile for gates 1 to 6, and gates 8, 9 and 10. Gates 7 and 11 are reported as not run, each with its reason.
+CI is one entry script, `bin/ci`. `.github/workflows/ci.yml` runs it on every pull request, every push to `main` and every run started by hand, on the PHP image and the Postgres and Valkey images of `compose.yaml`. It installs the locked dependencies and runs `composer check -- --pr`, the PR profile: the same steps as the local profile for gates 1 to 6, and gates 7 to 10. Gate 11 is reported as not run, with its reason.
 
 Mutation testing, the `Mutation` suite and mutation testing on the classes changed since the base of the change, is deferred until after v1 (Sylvester, 2 October 2026): it made every merge take far longer, and the architecture will change before v1, so tests of tests are not worth the time now. The ordinary tests stay required. A pull request and a push to `main` run only the gates job, whose gate 5 reports both mutation steps as not run with that reason; the gates job is the run's result and the status check a pull request requires. Mutation testing runs only on demand: `composer check -- --pr --mutation`, `CMS_CI_MUTATION=1` for `bin/ci`, or a run started by hand with the input `mutation`, from Actions or with `gh workflow run ci.yml --ref main -f mutation=true`.
 
@@ -115,7 +123,7 @@ To run CI locally in a container on a clean archive of `HEAD`, commit first and 
 
 ## The selftest
 
-`composer check:selftest` proves that each gate catches what it is there to catch. It makes a git worktree of `HEAD` in the system's temporary directory, installs the dependencies there, plants one known violation per gate, and passes only when each gate fails with a path inside that worktree. Then it drops the worktree's test database and removes the worktree. It checks `HEAD`, so commit first. Run it after changing a gate, the configuration of a tool, or the check itself.
+`composer check:selftest` proves that each gate catches what it is there to catch. It makes a git worktree of `HEAD` in the system's temporary directory, installs the dependencies there, plants one known violation per gate, runs `composer check` and then `composer check -- --pr --gate=7` there, and passes only when each gate fails with a path inside that worktree: gates 1 to 6, including the JS unit suite of gate 5, and gate 7, whose plant is a component the kit exports without a story. Then it drops the worktree's test database and removes the worktree. It checks `HEAD`, so commit first. Run it after changing a gate, the configuration of a tool, or the check itself.
 
 ## Changing a check
 

@@ -11,11 +11,12 @@ use InvalidArgumentException;
 
 /**
  * The PR profile of GUARDRAILS 10 as CI runs it today, through `bin/ci`: the steps of gates 1 to
- * 6 from the local profile, unchanged, gate 8 (`composer panel:build`, then the Browser suite in
- * Chromium and its group browser-matrix in Firefox and WebKit),
- * gate 9 (composer audit and npm
- * audit) and gate 10 (`composer docs:check`, documentation with running examples for every
- * public extension point), and gates 7 and 11 reported as not run, each with the reason.
+ * 6 from the local profile, unchanged, gate 7 (the component kit's Storybook: its build, a story
+ * for every component the kit exports, and every story as a test with its play function, axe and
+ * its visual baseline), gate 8 (`composer panel:build`, then the Browser suite in Chromium and its
+ * group browser-matrix in Firefox and WebKit), gate 9 (composer audit and npm audit) and gate 10
+ * (`composer docs:check`, documentation with running examples for every public extension point),
+ * and gate 11 reported as not run, with the reason.
  *
  * Mutation testing is deferred until after v1 (Sylvester, 2 October 2026), so by default gate 5
  * reports the Mutation suite and mutation on changed files (MutationSteps) as not run, with
@@ -40,7 +41,6 @@ final readonly class PrProfile
      * @var array<int, string>
      */
     public const array NOT_RUN = [
-        7 => 'not run in CI yet: there is no panel UI or Storybook before the panel skeleton (B1)',
         11 => 'not a command: review by someone other than the author needs branch protection on main that requires it, a repository setting on github.com/cboxdk/cms that Sylvester makes',
     ];
 
@@ -51,6 +51,20 @@ final readonly class PrProfile
      * uses every CPU.
      */
     public const string MUTATION_SUITE = 'Mutation';
+
+    /**
+     * The steps of gate 7, by name, with the npm script each runs (the panel extension
+     * architecture of 2 October 2026, section 2.7, and decision D10): the build of the kit's
+     * Storybook, the check that every component the kit exports has a story, and the story tests
+     * in Chromium, which compare each story with its baseline rendered in the dev image.
+     *
+     * @var array<string, string>
+     */
+    public const array STORYBOOK_STEPS = [
+        'Storybook build' => 'storybook:build',
+        'Story exports' => 'storybook:exports',
+        'Story tests' => 'storybook:stories',
+    ];
 
     /**
      * The Pest suite of gate 8, one of LocalProfile::OTHER_SUITES.
@@ -122,6 +136,7 @@ final readonly class PrProfile
             $full = match (true) {
                 isset(self::NOT_RUN[$gate->number]) => new Gate($gate->number, $gate->title, [Step::notRun($gate->title, self::NOT_RUN[$gate->number])]),
                 $gate->number === 5 => self::pest($gate, $php, $mutation, $part, $tally),
+                $gate->number === 7 => self::storybook($gate),
                 $gate->number === 8 => self::browser($gate, $php, $composer),
                 $gate->number === 9 => self::audit($gate, $composer),
                 $gate->number === 10 => self::docs($gate, $composer),
@@ -154,6 +169,22 @@ final readonly class PrProfile
                 ? MutationSteps::for($mutation, $php, $tally)
                 : [Step::notRun(MutationSteps::NAME, $part->mutationTesting ? self::MUTATION_IN_SHARDS : self::MUTATION_DEFERRED)]),
         ]);
+    }
+
+    /**
+     * Gate 7: the steps of STORYBOOK_STEPS, each its npm script, in order. Every step runs also
+     * after one fails, as every gate's steps do, so a missing story and a changed screenshot are
+     * reported in one run.
+     */
+    private static function storybook(Gate $gate): Gate
+    {
+        $steps = [];
+
+        foreach (self::STORYBOOK_STEPS as $name => $script) {
+            $steps[] = Step::run($name, ['npm', 'run', $script]);
+        }
+
+        return new Gate($gate->number, $gate->title, $steps);
     }
 
     /**

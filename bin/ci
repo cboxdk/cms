@@ -9,10 +9,14 @@
 #   gate 2  composer rector:check
 #   gate 3  composer analyse
 #   gate 4  npm run typecheck, npm run lint
-#   gate 5  composer install:check, then vendor/bin/pest --testsuite=<suite> for each suite of
-#           the local profile
+#   gate 5  composer install:check, npm run test:js (Vitest's unit project), then
+#           vendor/bin/pest --testsuite=<suite> for each suite of the local profile
 #   gate 6  composer check:generated
 # and what the PR profile adds that CI runs:
+#   gate 7  npm run storybook:build, npm run storybook:exports and npm run storybook:stories: the
+#           component kit's Storybook built, a story for every component the kit exports, and
+#           every story as a test in Chromium with its play function, axe and its visual
+#           baseline, which is rendered in this image
 #   gate 8  vendor/bin/pest --testsuite=Browser, after composer panel:build has built js/panel
 #           into packages/panel/dist in place, as the run is in the dev image already; the suite
 #           runs in a process group of its own that the runner kills when the step ends, so a
@@ -22,8 +26,8 @@
 #   gate 9  composer audit --locked --abandoned=report, npm audit
 #   gate 10 composer docs:check, documentation with running examples for every public extension
 #           point; gate 5 runs the same audit in tests/Feature/Tooling/Docs/RepositoryDocsTest.php
-# and reports what CI does not run yet as not run: gates 7 and 11. tests/Feature/Tooling/Ci
-# keeps this list and the one in ci.yml equal to the profiles.
+# and reports what CI does not run as not run: gate 11. tests/Feature/Tooling/Ci keeps this list
+# and the one in ci.yml equal to the profiles.
 #
 # Mutation testing is deferred until after v1 (Sylvester, 2 October 2026): it made every merge
 # take far longer, and the architecture will change before v1. By default gate 5 reports it as not

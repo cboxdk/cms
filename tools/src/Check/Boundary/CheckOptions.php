@@ -23,17 +23,24 @@ use InvalidArgumentException;
  *   --shard=<i>/<n>  with --pr --mutation: only mutation on changed files, shard i of the n
  *                    shards of the plan (MutationShards), as CI's shard job i
  *   --mutation-report=<file>  with --shard: also write the shard's report for the verdict
+ *   --gate=<n>       run only gate n of the profile, and report the other gates as not run
+ *                    (GateSelection); repeat it for more than one gate, such as
+ *                    `--pr --gate=7` for the component kit's Storybook alone
  */
 final readonly class CheckOptions
 {
-    public const string USAGE = 'Usage: composer check [-- [--report=<file>] [--brief] [--pr [--mutation [--only=gates | --shard=<i>/<n> [--mutation-report=<file>]]]]]';
+    public const string USAGE = 'Usage: composer check [-- [--report=<file>] [--brief] [--gate=<n>]... [--pr [--mutation [--only=gates | --shard=<i>/<n> [--mutation-report=<file>]]]]]';
 
+    /**
+     * @param  list<int>  $gates  the gates to run, from --gate; empty for every gate
+     */
     private function __construct(
         public ?string $reportFile,
         public bool $brief,
         public Profile $profile,
         public PrPart $part,
         public ?string $mutationReportFile,
+        public array $gates = [],
     ) {}
 
     /**
@@ -48,6 +55,7 @@ final readonly class CheckOptions
         $mutation = false;
         $part = PrPart::all();
         $parts = 0;
+        $gates = [];
 
         foreach ($arguments as $argument) {
             if ($argument === '--brief') {
@@ -60,6 +68,8 @@ final readonly class CheckOptions
                 $profile = Profile::Pr;
             } elseif ($argument === '--mutation') {
                 $mutation = true;
+            } elseif (preg_match('#^--gate=([1-9][0-9]?)$#', $argument, $gate) === 1) {
+                $gates[] = (int) $gate[1];
             } elseif ($argument === '--only=gates') {
                 $part = PrPart::gates();
                 $parts++;
@@ -95,6 +105,6 @@ final readonly class CheckOptions
             throw new InvalidArgumentException('--mutation-report writes the report of a shard, so it needs --shard. '.self::USAGE);
         }
 
-        return new self($reportFile, $brief, $profile, $part, $mutationReportFile);
+        return new self($reportFile, $brief, $profile, $part, $mutationReportFile, array_values(array_unique($gates)));
     }
 }

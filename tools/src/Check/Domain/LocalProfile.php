@@ -12,7 +12,9 @@ namespace Cbox\Cms\Tooling\Check\Domain;
  * is defined once. Gate 5 first checks that vendor/ is the installation composer.lock and
  * composer.json describe (`composer install:check`), so a checkout that moved without
  * `composer install` fails with the fix instead of failing a suite at load with "Class not
- * found". It then runs each Pest suite on its own and fails a suite with a skipped or incomplete
+ * found". It then runs the JS unit suite, Vitest's unit project (`npm run test:js`, decision D11
+ * of the panel extension architecture, 2 October 2026), and each Pest suite on its own, failing a
+ * Pest suite with a skipped or incomplete
  * test, so a missing service fails the gate instead of skipping it. Each suite runs with Pest's
  * `--parallel`, one worker process per CPU (GUARDRAILS 10: parallelize, never cut): the same
  * tests with the same flags, only spread over workers. ParaTest gives each worker a TEST_TOKEN,
@@ -42,6 +44,12 @@ final readonly class LocalProfile
      */
     public const string INSTALLATION = 'Installation';
 
+    /**
+     * The step of gate 5 that runs the JS unit suite, after the installation check and before the
+     * Pest suites: `npm run test:js`, the unit project of vitest.config.ts.
+     */
+    public const string VITEST = 'Vitest';
+
     public const string OUTSIDE_PROFILE = 'not in the local profile; the PR profile runs it (GUARDRAILS 10)';
 
     /**
@@ -68,8 +76,9 @@ final readonly class LocalProfile
                 Step::run('tsc', ['npm', 'run', 'typecheck']),
                 Step::run('ESLint', ['npm', 'run', 'lint']),
             ]),
-            new Gate(5, 'Pest', [
+            new Gate(5, 'Pest and Vitest', [
                 Step::run(self::INSTALLATION, [...$composer, 'install:check']),
+                Step::run(self::VITEST, ['npm', 'run', 'test:js']),
                 ...array_map($pest, self::SUITES),
             ]),
             new Gate(6, 'Generated code', [

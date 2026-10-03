@@ -71,7 +71,9 @@ it('installs a worktree of HEAD in the temporary directory, runs composer check 
         ->and($commands[2])->toBe('composer install --no-interaction --no-progress')
         ->and($commands[3])->toBe('npm ci --no-audit --no-fund')
         ->and($commands[4])->toBe("composer check -- --report={$base}/check-report.json --brief")
-        ->and(array_slice($commands, 5))->toBe([
+        ->and($commands[5])->toBe("composer check -- --pr --gate=7 --report={$base}/check-report-pr.json --brief")
+        ->and($runner->calls[5]->directory)->toBe($worktree)
+        ->and(array_slice($commands, 6))->toBe([
             'php /srv/main/tools/bin/drop-test-database.php '.$worktree,
             "git worktree remove --force {$worktree}",
             'docker volume rm --force '.implode(' ', array_map(static fn (CheckoutVolume $volume): string => $volume->name, CheckoutVolume::all($worktree))),
@@ -79,7 +81,7 @@ it('installs a worktree of HEAD in the temporary directory, runs composer check 
             'git worktree list --porcelain',
         ])
         ->and($output)->toContain('Removed the dev image volumes of the worktree: '.CheckoutVolume::for(VolumeKind::NodeModules, $worktree)->name.', ')
-        ->and($runner->calls[5]->directory)->toBe('/srv/main')
+        ->and($runner->calls[6]->directory)->toBe('/srv/main')
         ->and($world->droppedWhileExisting)->toBe([$worktree])
         ->and($output)->toContain("Dropped the test database cms_test_0123456789ab of {$worktree}.")
         ->and($runner->calls[2]->directory)->toBe($worktree)
@@ -115,6 +117,32 @@ it('fails when a gate misses its planted violation, and prints that step\'s outp
         ->and($output)->toMatch('/MISSED  gate 2 Rector/')
         ->and($output)->toContain('Rector did not fail, its status is pass', 'Selftest failed.')
         ->and(substr_count($output, '  caught '))->toBe(count(Plants::all()) - 1)
+        ->and(file_exists(selftestBase($world)))->toBeFalse();
+});
+
+it('judges the plants of the JS unit suite and of gate 7, whose run is composer check -- --pr --gate=7, and fails when either is missed', function (string $step, int $gate): void {
+    $world = new FakeSelftestWorld;
+    $world->missedSteps = [$step];
+
+    ['exitCode' => $exitCode, 'output' => $output] = runSelftest($world);
+
+    expect($exitCode)->toBe(1)
+        ->and($output)->toMatch('/MISSED  gate '.$gate.' '.preg_quote($step, '/').'/')
+        ->and($output)->toContain("{$step} did not fail, its status is pass", 'Selftest failed.')
+        ->and(substr_count($output, '  caught '))->toBe(count(Plants::all()) - 1);
+})->with([
+    'the Vitest step of gate 5' => ['Vitest', 5],
+    'the story-per-export check of gate 7' => ['Story exports', 7],
+]);
+
+it('fails when the run of the PR profile\'s gates passes with the violations planted', function (): void {
+    $world = new FakeSelftestWorld;
+    $world->prCheckExitCode = 0;
+
+    ['exitCode' => $exitCode, 'output' => $output] = runSelftest($world);
+
+    expect($exitCode)->toBe(1)
+        ->and($output)->toContain('composer check --pr --gate=7 passed with the violations planted.', 'Selftest failed.')
         ->and(file_exists(selftestBase($world)))->toBeFalse();
 });
 

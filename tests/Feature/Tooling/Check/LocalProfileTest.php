@@ -103,16 +103,25 @@ it('uses scripts that exist and run the gate commands in composer.json and packa
         ]);
 });
 
-it('runs each Pest suite on its own in gate 5, after the installation check, in parallel workers, and fails a suite with a skipped or incomplete test', function (): void {
+it('runs each Pest suite on its own in gate 5, after the installation check and the JS unit suite, in parallel workers, and fails a suite with a skipped or incomplete test', function (): void {
     $commands = stepCommands(localGate(5));
 
-    expect(array_keys($commands))->toBe([LocalProfile::INSTALLATION, 'Unit', 'Codecs', 'Contract', 'Postgres', 'Arch', 'Actions'])
+    expect(array_keys($commands))->toBe([LocalProfile::INSTALLATION, LocalProfile::VITEST, 'Unit', 'Codecs', 'Contract', 'Postgres', 'Arch', 'Actions'])
         ->and(LocalProfile::FAIL_FLAGS)->toBe(['--fail-on-skipped', '--fail-on-incomplete'])
         ->and(LocalProfile::PARALLEL)->toBe('--parallel');
 
     foreach (LocalProfile::SUITES as $suite) {
         expect($commands[$suite])->toBe(['/usr/bin/php', 'vendor/bin/pest', '--testsuite='.$suite, '--fail-on-skipped', '--fail-on-incomplete', '--parallel']);
     }
+});
+
+it('runs the JS unit suite in gate 5 as Vitest\'s unit project through npm run test:js, failing a skipped test as the Pest suites do', function (): void {
+    $scripts = Node::jsonFile('package.json')['scripts'] ?? [];
+
+    expect(LocalProfile::VITEST)->toBe('Vitest')
+        ->and(localGate(5)->title)->toBe('Pest and Vitest')
+        ->and(stepCommands(localGate(5))[LocalProfile::VITEST])->toBe(['npm', 'run', 'test:js'])
+        ->and(is_array($scripts) ? ($scripts['test:js'] ?? null) : null)->toBe('vitest run --project=unit --reporter=default --reporter=./js/tooling/vitest-no-skipped.js');
 });
 
 it('runs a suite in one process only when asked, with the same flags otherwise', function (): void {

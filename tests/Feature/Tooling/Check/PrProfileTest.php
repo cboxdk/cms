@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Tests\Feature\Tooling\Check;
 
 use Cbox\Cms\Contracts\Ids\PrincipalId;
+use Cbox\Cms\Tests\Support\Node;
 use Cbox\Cms\Tests\Support\Phpstan;
 use Cbox\Cms\Tests\Support\Tooling\RecordedCommand;
 use Cbox\Cms\Tests\Support\Tooling\ScriptedProcessRunner;
@@ -34,7 +35,8 @@ use InvalidArgumentException;
  * 6 are the local profile's, so CI and a developer run the same commands. Mutation testing is
  * deferred until after v1 (Sylvester, 2 October 2026): by default gate 5 reports the Mutation
  * suite and mutation on changed files as not run with that reason, and with --mutation
- * (PrPart::all() and its parts) gate 5 adds both, as before the decision; gate 8 runs the Browser suite in a process group
+ * (PrPart::all() and its parts) gate 5 adds both, as before the decision; gate 7 runs the
+ * component kit's Storybook; gate 8 runs the Browser suite in a process group
  * of its own, gate 9 runs composer audit and npm audit and gate 10 runs composer docs:check;
  * everything else of the PR profile in GUARDRAILS 10 is reported as not run with a reason. The runs here use the scripted process
  * runner; BrowserStepTest runs a Browser step for real, tests/Mutation a mutation step.
@@ -173,8 +175,8 @@ it('runs mutation on changed files in gate 5 with --mutation and never reports i
         ->and(array_last($unchanged->steps)?->decision)->toBe('0 changed classes since abc123');
 });
 
-it('reports gates 7 and 11 as not run, each with its own reason and never the local profile\'s', function (): void {
-    expect(array_keys(PrProfile::NOT_RUN))->toBe([7, 11]);
+it('reports gate 11 as not run, with its own reason and never the local profile\'s', function (): void {
+    expect(array_keys(PrProfile::NOT_RUN))->toBe([11]);
 
     foreach (prGates() as $gate) {
         if (! isset(PrProfile::NOT_RUN[$gate->number])) {
@@ -190,9 +192,42 @@ it('reports gates 7 and 11 as not run, each with its own reason and never the lo
     expect(PrProfile::NOT_RUN[11])->toBe('not a command: review by someone other than the author needs branch protection on main that requires it, a repository setting on github.com/cboxdk/cms that Sylvester makes');
 
     // By default gate 5 has the steps of mutation testing not run as well (Sylvester, 2 October 2026).
-    expect(array_unique(PrProfile::NOT_RUN))->toHaveCount(2)
-        ->and(gatesWithNotRunSteps(prGates(part: PrPart::all())))->toBe([7, 11])
-        ->and(gatesWithNotRunSteps(prGates()))->toBe([5, 7, 11]);
+    expect(array_unique(PrProfile::NOT_RUN))->toHaveCount(1)
+        ->and(gatesWithNotRunSteps(prGates(part: PrPart::all())))->toBe([11])
+        ->and(gatesWithNotRunSteps(prGates()))->toBe([5, 11]);
+});
+
+it('runs gate 7, the component kit\'s Storybook, through its npm scripts: the build, a story for every exported component, and the story tests with axe and the visual baselines', function (): void {
+    $gate = prGates()[6];
+    $scripts = Node::jsonFile('package.json')['scripts'] ?? [];
+
+    expect($gate->number)->toBe(7)
+        ->and($gate->title)->toBe(LocalProfile::gates('/usr/bin/php', PR_COMPOSER)[6]->title)
+        ->and(stepTriples($gate->steps))->toBe([
+            ['Storybook build', ['npm', 'run', 'storybook:build'], null],
+            ['Story exports', ['npm', 'run', 'storybook:exports'], null],
+            ['Story tests', ['npm', 'run', 'storybook:stories'], null],
+        ])
+        ->and(array_map(static fn (Step $step): bool => $step->ownProcessGroup, $gate->steps))->toBe([false, false, false])
+        ->and(LocalProfile::gates('/usr/bin/php', PR_COMPOSER)[6]->steps[0]->notRunReason)->toBe(LocalProfile::OUTSIDE_PROFILE)
+        ->and(is_array($scripts) ? array_intersect_key($scripts, array_flip(array_values(PrProfile::STORYBOOK_STEPS))) : [])->toBe([
+            'storybook:build' => 'storybook build --config-dir js/ui-kit/.storybook --output-dir .cache/storybook/static --disable-telemetry --quiet',
+            'storybook:exports' => 'node js/ui-kit/scripts/story-exports.js',
+            'storybook:stories' => 'node js/ui-kit/scripts/story-tests.js',
+        ]);
+});
+
+it('fails gate 7 when the story-per-export check finds a kit export without a story, and still runs the story tests', function (): void {
+    $runner = new ScriptedProcessRunner(static fn (array $command): ProcessOutcome => $command === ['npm', 'run', 'storybook:exports']
+        ? new ProcessOutcome(1, "js/ui-kit/src/index.ts:30: the kit exports the component Badge without a story\n", 0.2)
+        : new ProcessOutcome(0, composerAuditJson(), 0.1));
+
+    $report = new CheckRunner($runner, new SilentListener)->run(prGates(), '/srv/checkout');
+
+    expect($report->failedGates())->toBe([7])
+        ->and($report->gate(7)?->step('Story exports')?->status)->toBe(StepStatus::Fail)
+        ->and($report->gate(7)?->step('Story tests')?->status)->toBe(StepStatus::Pass)
+        ->and(ReportFormatter::summary($report))->toContain('composer check failed: gate 7 failed.');
 });
 
 it('runs composer docs:check as gate 10, the single step, under the local profile\'s title', function (): void {
@@ -394,7 +429,9 @@ it('picks the gates by profile and names the profile in the header', function ()
         ->and(Profile::Pr->mutates())->toBeTrue()
         ->and(Profile::Local->mutates())->toBeFalse()
         ->and(ReportFormatter::header('/repo'))->toBe("composer check: the local profile of GUARDRAILS 10, gates 1 to 6, in /repo\n")
-        ->and(ReportFormatter::header('/repo', Profile::Pr))->toBe("composer check: the PR profile of GUARDRAILS 10 as CI runs it today, gates 1 to 6, 8, 9 and 10, with 7 and 11 reported as not run, in /repo\n");
+        ->and(ReportFormatter::header('/repo', Profile::Pr))->toBe("composer check: the PR profile of GUARDRAILS 10 as CI runs it today, gates 1 to 10, with 11 reported as not run, in /repo\n")
+        ->and(ReportFormatter::header('/repo', Profile::Pr, null, [7]))->toBe("composer check: the PR profile of GUARDRAILS 10 as CI runs it today, gates 1 to 10, with 11 reported as not run; limited to gate 7 with --gate, in /repo\n")
+        ->and(ReportFormatter::header('/repo', Profile::Local, null, [5, 3]))->toBe("composer check: the local profile of GUARDRAILS 10, gates 1 to 6; limited to gates 3, 5 with --gate, in /repo\n");
 });
 
 it('runs every gate but mutation on changed files in the gates job, and reports that step as run in the shards', function (): void {

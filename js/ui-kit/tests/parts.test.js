@@ -4,13 +4,13 @@
 // `npm run test:kit -- parts` runs this file.
 
 import assert from 'node:assert/strict';
-import { describe, test } from 'node:test';
+import { describe, test } from 'vitest';
 
 import { catalogue, kitFiles, read } from './kit.js';
 
 const ATTRIBUTE = /data-cms-part(\s*=\s*(\{?\s*["'][^"']*["']\s*\}?|\{[^}]*\}))?/g;
 
-void describe('the part hooks', () => {
+describe('the part hooks', () => {
   const { catalogue: tokens } = catalogue();
   /** @type {Map<string, string[]>} */
   const rendered = new Map();
@@ -30,18 +30,18 @@ void describe('the part hooks', () => {
     }
   }
 
-  void test('are written as literals', () => {
+  test('are written as literals', () => {
     assert.deepEqual(dynamic, []);
   });
 
-  void test('are exactly the parts of tokens.json', () => {
+  test('are exactly the parts of tokens.json', () => {
     assert.deepEqual(
       [...rendered.keys()].sort(),
       tokens.parts.map((part) => part.name),
     );
   });
 
-  void test('each sit on one element of the kit', () => {
+  test('each sit on one element of the kit', () => {
     for (const [name, paths] of rendered) {
       assert.equal(paths.length, 1, `the part ${name} is rendered in ${paths.join(', ')}`);
     }

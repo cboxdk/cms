@@ -212,7 +212,7 @@ it('names the scripts of the local profile in both bin/ci and ci.yml, and bin/ci
     $scripts = CiFiles::profileScripts();
     $code = CiFiles::codeLines(CiFiles::ENTRY);
 
-    expect($scripts)->toBe(['lint:check', 'format:check', 'rector:check', 'analyse', 'typecheck', 'lint', 'install:check', 'check:generated'])
+    expect($scripts)->toBe(['lint:check', 'format:check', 'rector:check', 'analyse', 'typecheck', 'lint', 'install:check', 'test:js', 'check:generated'])
         ->and(CiFiles::text(CiFiles::ENTRY))->toContain(...$scripts)
         ->and(CiFiles::text(CiFiles::WORKFLOW))->toContain(...$scripts)
         ->and(array_values(array_filter($code, static fn (string $line): bool => str_contains($line, 'composer check'))))
@@ -375,10 +375,10 @@ it('stops the jobs that run Pest after 20 minutes, above their budget of 15, and
 it('names the gates CI runs outside the local profile in bin/ci and ci.yml', function (): void {
     $bin = CiFiles::text(CiFiles::ENTRY);
 
-    expect($bin)->toContain('gate 8  vendor/bin/pest --testsuite=Browser', 'gate 9  composer audit --locked --abandoned=report, npm audit', 'gate 10 composer docs:check', 'gates 7 and 11')
-        ->and(CiFiles::text(CiFiles::WORKFLOW))->toContain('gate 8, the Browser suite', 'gate 9, composer audit and npm audit', 'gate 10, composer docs:check', 'gates 7 and 11')
-        ->and($bin)->not->toContain('gates 7, 10 and 11')
-        ->and(CiFiles::text(CiFiles::WORKFLOW))->not->toContain('gates 7, 10 and 11');
+    expect($bin)->toContain('gate 7  npm run storybook:build, npm run storybook:exports and npm run storybook:stories', 'gate 8  vendor/bin/pest --testsuite=Browser', 'gate 9  composer audit --locked --abandoned=report, npm audit', 'gate 10 composer docs:check', 'as not run: gate 11.')
+        ->and(CiFiles::text(CiFiles::WORKFLOW))->toContain('the component kit\'s Storybook with its story tests, axe and visual baselines', 'Browser suite, after composer panel:build', 'gate 9, composer audit and npm audit', 'gate 10, composer docs:check', 'not run: gate 11, with the reason')
+        ->and($bin)->not->toContain('gates 7 and 11')
+        ->and(CiFiles::text(CiFiles::WORKFLOW))->not->toContain('gates 7 and 11');
 });
 
 it('runs the gates as the user ci that the setup creates, never as root, whose tests of file permissions skip', function (): void {

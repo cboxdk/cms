@@ -47,7 +47,17 @@ it('parses --report and --brief and refuses anything else', function (): void {
         ->and(CheckOptions::parse([])->reportFile)->toBeNull()
         ->and(CheckOptions::parse([])->brief)->toBeFalse()
         ->and(static fn (): CheckOptions => CheckOptions::parse(['--report=']))->toThrow(InvalidArgumentException::class)
-        ->and(static fn (): CheckOptions => CheckOptions::parse(['--gate=3']))->toThrow(InvalidArgumentException::class, 'Unknown option --gate=3');
+        ->and(static fn (): CheckOptions => CheckOptions::parse(['--step=3']))->toThrow(InvalidArgumentException::class, 'Unknown option --step=3');
+});
+
+it('limits a run to the gates named with --gate, once each, and refuses a gate that is not a number from 1 to 99', function (): void {
+    expect(CheckOptions::parse([])->gates)->toBe([])
+        ->and(CheckOptions::parse(['--pr', '--gate=7'])->gates)->toBe([7])
+        ->and(CheckOptions::parse(['--gate=5', '--gate=3', '--gate=5'])->gates)->toBe([5, 3])
+        ->and(CheckOptions::USAGE)->toContain('[--gate=<n>]...')
+        ->and(static fn (): CheckOptions => CheckOptions::parse(['--gate=0']))->toThrow(InvalidArgumentException::class, 'Unknown option --gate=0')
+        ->and(static fn (): CheckOptions => CheckOptions::parse(['--gate=seven']))->toThrow(InvalidArgumentException::class, 'Unknown option --gate=seven')
+        ->and(static fn (): CheckOptions => CheckOptions::parse(['--gate=']))->toThrow(InvalidArgumentException::class);
 });
 
 it('runs the local profile unless --pr asks for the PR profile, and refuses --profile, which is Composer\'s', function (): void {

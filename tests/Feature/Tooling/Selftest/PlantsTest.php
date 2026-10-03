@@ -6,6 +6,7 @@ namespace Cbox\Cms\Tests\Feature\Tooling\Selftest;
 
 use Cbox\Cms\Tests\Support\Arch\ContentTypeScan;
 use Cbox\Cms\Tests\Support\Arch\MarkerScan;
+use Cbox\Cms\Tests\Support\Node;
 use Cbox\Cms\Tests\Support\Phpstan;
 use Cbox\Cms\Tests\Support\Tooling\ScratchDirectory;
 use Cbox\Cms\Tests\Support\Tooling\ScratchRepository;
@@ -13,6 +14,7 @@ use Cbox\Cms\Tooling\Check\Domain\CheckReport;
 use Cbox\Cms\Tooling\Check\Domain\GateResult;
 use Cbox\Cms\Tooling\Check\Domain\LocalProfile;
 use Cbox\Cms\Tooling\Check\Domain\ProcessOutcome;
+use Cbox\Cms\Tooling\Check\Domain\PrProfile;
 use Cbox\Cms\Tooling\Check\Domain\StepResult;
 use Cbox\Cms\Tooling\Selftest\Domain\Plant;
 use Cbox\Cms\Tooling\Selftest\Domain\Plants;
@@ -31,13 +33,14 @@ afterEach(function (): void {
     ScratchDirectory::cleanUp();
 });
 
-it('plants at least one violation for each gate from 1 to 6 and one for each tool of gates 1 and 4', function (): void {
+it('plants at least one violation for each gate from 1 to 7, one for each tool of gates 1 and 4, and one for the JS unit suite of gate 5', function (): void {
     $plants = Plants::all();
     $gates = array_map(static fn (Plant $plant): int => $plant->gate, $plants);
     $steps = array_map(static fn (Plant $plant): string => "{$plant->gate} {$plant->step}", $plants);
 
-    expect(array_values(array_unique($gates)))->toBe(range(1, 6))
-        ->and($steps)->toContain('1 Pint', '1 Prettier', '2 Rector', '3 PHPStan', '4 tsc', '4 ESLint', '5 Arch', '6 check:generated');
+    expect(array_values(array_unique($gates)))->toBe(range(1, 7))
+        ->and(Plants::PR_GATES)->toBe([7])
+        ->and($steps)->toContain('1 Pint', '1 Prettier', '2 Rector', '3 PHPStan', '4 tsc', '4 ESLint', '5 Arch', '5 Vitest', '6 check:generated', '7 Story exports');
 });
 
 it('plants what the task names: mixed, both kinds of phpstan-ignore, a transaction in Actions, any, a layer violation and a generated edit', function (): void {
@@ -94,12 +97,20 @@ it('plants a handle of the fixture schema that the content type rule reports at 
         ->and(ContentTypeScan::of($worktree, ContentTypeScan::handlesBelow(Phpstan::root().'/'.ContentTypeScan::SCHEMA))->hits)->toBe($plants[0]->markers);
 });
 
-it('aims every violation at a step the local profile runs', function (): void {
+it('aims every violation at a step the local profile runs, or one of a gate of the PR profile the selftest runs as well', function (): void {
     $running = [];
 
     foreach (LocalProfile::gates('php', ['composer']) as $gate) {
         foreach ($gate->steps as $step) {
             if ($step->runs()) {
+                $running[] = "{$gate->number} {$step->name}";
+            }
+        }
+    }
+
+    foreach (PrProfile::gates('php', ['composer']) as $gate) {
+        foreach ($gate->steps as $step) {
+            if ($step->runs() && in_array($gate->number, Plants::PR_GATES, true)) {
                 $running[] = "{$gate->number} {$step->name}";
             }
         }
@@ -203,4 +214,30 @@ it('does not count a violation named in another checkout as well', function (): 
 
     expect($verdict->caught())->toBeFalse()
         ->and($verdict->problems)->toBe(["the output of PHPStan names {$other}/src/Domain/MixedValue.php, outside the worktree"]);
+});
+
+it('plants a kit component without a story that the story-per-export check of gate 7 reports in the kit\'s entry', function (): void {
+    $plants = array_values(array_filter(Plants::all(), static fn (Plant $plant): bool => $plant->gate === 7));
+    $root = Phpstan::root();
+    $copy = ScratchDirectory::make();
+
+    $stories = glob($root.'/js/ui-kit/stories/*') ?: [];
+
+    foreach (['js/ui-kit/src/index.ts', ...array_map(static fn (string $file): string => 'js/ui-kit/stories/'.basename($file), $stories)] as $path) {
+        ScratchDirectory::write($copy.'/'.$path, (string) file_get_contents($root.'/'.$path));
+    }
+
+    $before = Node::run(['node', 'js/ui-kit/scripts/story-exports.js', '--root='.$copy]);
+
+    expect($plants)->toHaveCount(1)
+        ->and($plants[0]->step)->toBe('Story exports')
+        ->and($plants[0]->path)->toBe('js/ui-kit/src/index.ts')
+        ->and($before->getExitCode())->toBe(0, $before->getErrorOutput());
+
+    $plants[0]->plantIn($copy);
+    $after = Node::run(['node', 'js/ui-kit/scripts/story-exports.js', '--root='.$copy]);
+    $line = count(file($copy.'/js/ui-kit/src/index.ts') ?: []) - 2;
+
+    expect($after->getExitCode())->toBe(1)
+        ->and($after->getErrorOutput())->toContain("js/ui-kit/src/index.ts:{$line}: ".$plants[0]->markers[0]);
 });

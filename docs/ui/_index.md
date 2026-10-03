@@ -37,3 +37,8 @@ The kit builds on React Aria, which gives it keyboard and focus behaviour and lo
 - It reads only semantic and component tokens, never a primitive `--cms-ref-*` one.
 - Its markup, class names and attributes are internal. The only exception is a part hook, a `data-cms-part` attribute from the curated list in `tokens.json`.
 - Its texts come from the caller's translations or from the kit's catalogues, never from literal text.
+- It has a story: a file in `js/ui-kit/stories` whose default export names it as its `component`, with a story for each of its states and a play function for its keyboard contract. Gate 7 fails on a component the kit exports without one, and compares each story with its visual baseline.
+
+## Storybook
+
+The kit's Storybook shows every component in its stories, in the locale and the theme of the toolbar. `npm run storybook` serves it on port 6006. Each story is also a test of gate 7: it renders, its play function runs, axe finds no violation, and a screenshot matches the story's baseline in `js/ui-kit/visual-baselines`, rendered in the dev image. Run them with `composer image:run -- npm run storybook:test`, and after a change meant to change how the kit looks, write the baselines again with `composer image:run -- npm run storybook:baselines`. [Gates and CI](../developers/gates-and-ci.md#storybook-and-gate-7) has the details.

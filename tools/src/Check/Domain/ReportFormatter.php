@@ -13,11 +13,15 @@ final readonly class ReportFormatter
 {
     private const int STATUS_WIDTH = 9;
 
-    public static function header(string $directory, Profile $profile = Profile::Local, ?PrPart $part = null): string
+    /**
+     * @param  list<int>  $gates  the gates the run is limited to with --gate; empty for every gate
+     */
+    public static function header(string $directory, Profile $profile = Profile::Local, ?PrPart $part = null, array $gates = []): string
     {
         $only = $profile === Profile::Pr && $part instanceof PrPart ? '; this run: '.$part->description() : '';
+        $selected = GateSelection::description($gates);
 
-        return "composer check: {$profile->description()}{$only}, in {$directory}\n";
+        return "composer check: {$profile->description()}{$only}{$selected}, in {$directory}\n";
     }
 
     public static function gateHeading(Gate $gate): string
