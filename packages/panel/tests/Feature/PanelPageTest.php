@@ -68,7 +68,7 @@ final class PanelPageTest extends TestCase
     }
 
     #[Test]
-    public function it_sends_a_strict_policy_whose_nonce_is_on_the_script_the_stylesheets_the_preloads_and_the_meta_element_and_on_nothing_else(): void
+    public function it_sends_a_strict_policy_whose_nonce_is_on_the_import_map_the_script_the_stylesheets_the_preloads_and_the_meta_element_and_on_nothing_else(): void
     {
         $response = $this->get('/cms/anywhere');
         $nonce = $this->nonce($response);
@@ -80,8 +80,36 @@ final class PanelPageTest extends TestCase
         self::assertStringContainsString('<link rel="stylesheet" href="/cms/build/assets/shared-3c4d5e.css" nonce="'.$nonce.'">', $html);
         self::assertStringContainsString('<link rel="stylesheet" href="/cms/build/assets/app-7a8b9c.css" nonce="'.$nonce.'">', $html);
         self::assertStringContainsString('<link rel="modulepreload" href="/cms/build/assets/shared-4d5e6f.js" nonce="'.$nonce.'">', $html);
-        self::assertSame(5, substr_count($html, 'nonce="'.$nonce.'"'));
-        self::assertSame(0, preg_match_all('/<script(?![^>]*type="(?:module|application\/json)")/', $html));
+        self::assertStringContainsString('<script type="importmap" nonce="'.$nonce.'">', $html);
+        self::assertSame(6, substr_count($html, 'nonce="'.$nonce.'"'));
+        self::assertSame(0, preg_match_all('/<script(?![^>]*type="(?:module|application\/json|importmap)")/', $html));
+    }
+
+    #[Test]
+    public function it_writes_the_import_map_with_the_shared_modules_and_the_integrity_of_every_script_before_any_module_is_loaded(): void
+    {
+        $html = (string) $this->get('/cms/anywhere')->getContent();
+        $integrity = 'sha384-'.base64_encode(hash('sha384', FixtureBuild::SCRIPT, true));
+
+        self::assertSame(1, preg_match('~<script type="importmap" nonce="[^"]+">(.*?)</script>~s', $html, $match));
+        self::assertLessThan(strpos($html, '<link rel="modulepreload"'), strpos($html, '<script type="importmap"'));
+        self::assertLessThan(strpos($html, '<script type="module"'), strpos($html, '<script type="importmap"'));
+
+        $map = json_decode($match[1] ?? '', true, 8, JSON_THROW_ON_ERROR);
+
+        self::assertSame([
+            'imports' => [
+                'react' => '/cms/build/assets/shared-react-0a0a0a.js',
+                'react-dom' => '/cms/build/assets/shared-react-dom-0c0c0c.js',
+                'react-dom/client' => '/cms/build/assets/shared-react-dom-client-0d0d0d.js',
+                'react/jsx-runtime' => '/cms/build/assets/shared-react-jsx-runtime-0b0b0b.js',
+            ],
+            'scopes' => [],
+            'integrity' => array_fill_keys(array_map(
+                static fn (string $file): string => '/cms/build/'.$file,
+                array_values(array_filter($this->build()->files, static fn (string $file): bool => str_ends_with($file, '.js'))),
+            ), $integrity),
+        ], $map);
     }
 
     #[Test]

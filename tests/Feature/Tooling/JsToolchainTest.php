@@ -61,7 +61,9 @@ it('declares a private root package with npm workspaces for js/* and the gate sc
     expect($package['private'] ?? null)->toBeTrue()
         ->and($package['workspaces'] ?? null)->toBe(['js/*'])
         ->and($package['scripts'] ?? null)->toBeArray()->toMatchArray([
-            'typecheck' => 'tsc --noEmit',
+            // The Browser suite's test modules have a project of their own (B1-X1): React Aria's
+            // declarations do not compile with exactOptionalPropertyTypes, which only it turns off.
+            'typecheck' => 'tsc --noEmit && tsc --noEmit -p tests/Browser/Fixtures/PanelModules',
             'lint' => 'eslint --max-warnings=0 .',
             'format:check' => 'prettier --check .',
         ]);

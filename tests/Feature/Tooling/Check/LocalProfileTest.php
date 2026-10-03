@@ -97,7 +97,7 @@ it('uses scripts that exist and run the gate commands in composer.json and packa
         ->and($scripts['analyse'] ?? null)->toBe('@php vendor/bin/phpstan analyse --no-progress')
         ->and($npmScripts)->toBeArray()
         ->and(is_array($npmScripts) ? array_intersect_key($npmScripts, array_flip(['format:check', 'typecheck', 'lint'])) : [])->toBe([
-            'typecheck' => 'tsc --noEmit',
+            'typecheck' => 'tsc --noEmit && tsc --noEmit -p tests/Browser/Fixtures/PanelModules',
             'lint' => 'eslint --max-warnings=0 .',
             'format:check' => 'prettier --check .',
         ]);

@@ -92,7 +92,7 @@ A test that must see what Postgres or Valkey really does, such as locks, grants,
 | `Postgres` | Tests on the real Postgres and Valkey, through `RealPostgres` and `RealValkey`. | `composer services:up` |
 | `Arch` | The architecture tests that hold the layers. | nothing |
 | `Actions` | The tests of the actions, with hand-written fakes of their ports. | nothing |
-| `Browser` | Pest browser tests of the workbench in Chromium. Gate 8, run by CI. | Playwright and Chromium |
+| `Browser` | Pest browser tests of the workbench in Chromium, and its group `browser-matrix` in Firefox and WebKit too. Gate 8, run by CI. | Playwright and the browsers |
 | `Mutation` | The tests that need a coverage driver. Run next to mutation testing, which is deferred until after v1 and runs only on demand (`composer check -- --pr --mutation`). | PCOV |
 
 Run one suite in the dev image, where the gates run, with `composer image:run -- vendor/bin/pest --testsuite=Unit`, and one test file with `composer image:run -- vendor/bin/pest <path>`; the `Browser` suite gets the image's Chromium and the `Mutation` suite its PCOV. While you work, `composer test:affected` reruns only the tests that depend on what changed; [Gates and CI](../developers/gates-and-ci.md#composer-testaffected) explains it. `composer check` runs the suites of gate 5 one after another and fails a suite with a skipped or incomplete test, so a missing service fails the gate instead of skipping tests.

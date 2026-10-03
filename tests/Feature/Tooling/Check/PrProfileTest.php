@@ -229,7 +229,7 @@ it('fails gate 10 when composer docs:check has a finding', function (): void {
         ->and(ReportFormatter::summary($report))->toContain('composer check failed: gate 10 failed.');
 });
 
-it('builds the panel and runs the Browser suite as gate 8, in a process group of its own, failing skipped and incomplete tests as gate 5 does', function (): void {
+it('builds the panel and runs the Browser suite as gate 8, in a process group of its own, failing skipped and incomplete tests as gate 5 does, and its browser matrix in Firefox and WebKit', function (): void {
     $gate = prGates()[7];
     $build = $gate->steps[0] ?? null;
     $step = $gate->steps[1] ?? null;
@@ -237,7 +237,7 @@ it('builds the panel and runs the Browser suite as gate 8, in a process group of
     $gate5Flags = array_slice($unit->command ?? [], 3, 2);
 
     expect($gate->number)->toBe(8)
-        ->and($gate->steps)->toHaveCount(2)
+        ->and($gate->steps)->toHaveCount(4)
         ->and($build?->name)->toBe('panel:build')
         ->and($build?->command)->toBe([...PR_COMPOSER, 'panel:build'])
         ->and($build?->ownProcessGroup)->toBeFalse()
@@ -248,7 +248,12 @@ it('builds the panel and runs the Browser suite as gate 8, in a process group of
         ->and($step?->command)->toBe(['/usr/bin/php', 'vendor/bin/pest', '--testsuite=Browser', '--fail-on-skipped', '--fail-on-incomplete'])
         ->and(array_slice($step->command ?? [], 3))->toBe($gate5Flags)
         ->and($step?->ownProcessGroup)->toBeTrue()
-        ->and($step?->reader)->toBeNull();
+        ->and($step?->reader)->toBeNull()
+        ->and(stepTriples(array_slice($gate->steps, 2)))->toBe([
+            ['Browser in Firefox', ['/usr/bin/php', 'vendor/bin/pest', '--testsuite=Browser', '--group=browser-matrix', '--browser', 'firefox', ...$gate5Flags], null],
+            ['Browser in WebKit', ['/usr/bin/php', 'vendor/bin/pest', '--testsuite=Browser', '--group=browser-matrix', '--browser', 'safari', ...$gate5Flags], null],
+        ])
+        ->and(array_map(static fn (Step $matrix): bool => $matrix->ownProcessGroup, array_slice($gate->steps, 2)))->toBe([true, true]);
 });
 
 it('runs composer audit of the lock file and npm audit as gate 9, reading composer audit\'s JSON report', function (): void {
@@ -263,7 +268,7 @@ it('runs composer audit of the lock file and npm audit as gate 9, reading compos
         ->and($gate->steps[1]->reader)->toBeNull();
 });
 
-it('runs only the Browser step in a process group of its own', function (): void {
+it('runs only the Browser steps in process groups of their own', function (): void {
     $grouped = [];
 
     foreach (prGates() as $gate) {
@@ -274,7 +279,7 @@ it('runs only the Browser step in a process group of its own', function (): void
         }
     }
 
-    expect($grouped)->toBe(['8 Browser']);
+    expect($grouped)->toBe(['8 Browser', '8 Browser in Firefox', '8 Browser in WebKit']);
 });
 
 it('fails gate 8 when the Browser suite fails, and runs it in its own process group', function (): void {
@@ -287,9 +292,11 @@ it('fails gate 8 when the Browser suite fails, and runs it in its own process gr
 
     expect($report->failedGates())->toBe([8])
         ->and($report->gate(8)?->step('Browser')?->status)->toBe(StepStatus::Fail)
-        ->and($browser)->toHaveCount(1)
-        ->and($browser[0]->ownProcessGroup ?? null)->toBeTrue()
-        ->and(array_filter($runner->calls, static fn (RecordedCommand $call): bool => $call->ownProcessGroup))->toHaveCount(1)
+        ->and($report->gate(8)?->step('Browser in Firefox')?->status)->toBe(StepStatus::Fail)
+        ->and($report->gate(8)?->step('Browser in WebKit')?->status)->toBe(StepStatus::Fail)
+        ->and($browser)->toHaveCount(3)
+        ->and(array_map(static fn (RecordedCommand $call): bool => $call->ownProcessGroup, $browser))->toBe([true, true, true])
+        ->and(array_filter($runner->calls, static fn (RecordedCommand $call): bool => $call->ownProcessGroup))->toHaveCount(3)
         ->and(ReportFormatter::summary($report))->toContain('composer check failed: gate 8 failed.');
 });
 
@@ -303,7 +310,20 @@ it('fails gate 8 when the panel cannot be built, and still runs the Browser suit
 
     expect($report->failedGates())->toBe([8])
         ->and($report->gate(8)?->step('panel:build')?->status)->toBe(StepStatus::Fail)
-        ->and($browser)->toHaveCount(1);
+        ->and($browser)->toHaveCount(3);
+});
+
+it('fails gate 8 when only the browser matrix fails in WebKit, and names the step', function (): void {
+    $runner = new ScriptedProcessRunner(static fn (array $command): ProcessOutcome => in_array('safari', $command, true)
+        ? new ProcessOutcome(1, "FAILED  Tests\\Browser\\Panel\\SharedExternalsTest\n", 2.0)
+        : new ProcessOutcome(0, composerAuditJson(), 0.1));
+
+    $report = new CheckRunner($runner, new SilentListener)->run(prGates(), '/srv/checkout');
+
+    expect($report->failedGates())->toBe([8])
+        ->and($report->gate(8)?->step('Browser')?->status)->toBe(StepStatus::Pass)
+        ->and($report->gate(8)?->step('Browser in Firefox')?->status)->toBe(StepStatus::Pass)
+        ->and($report->gate(8)?->step('Browser in WebKit')?->status)->toBe(StepStatus::Fail);
 });
 
 it('fails gate 9 on one security advisory from composer audit and names it', function (int $exitCode): void {

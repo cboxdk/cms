@@ -29,7 +29,7 @@ The login page links to the page that asks for a password reset link, which answ
 
 ## The Content-Security-Policy
 
-Every panel page has a strict policy with a nonce of its own (GUARDRAILS 6). The middleware `SendContentSecurityPolicy` makes 16 random bytes for each response, and the root view `cms-panel::app` puts that nonce on the build's script, its stylesheets and module preloads, and on a `<meta property="csp-nonce">` element, where Inertia and Vite find it for the style and preload elements they add later. The policy is:
+Every panel page has a strict policy with a nonce of its own (GUARDRAILS 6). The middleware `SendContentSecurityPolicy` makes 16 random bytes for each response, and the root view `cms-panel::app` puts that nonce on the page's import map, the build's script, its stylesheets and module preloads, and on a `<meta property="csp-nonce">` element, where Inertia and Vite find it for the style and preload elements they add later. The policy is:
 
 | Directive | Sources | What it means |
 |---|---|---|
@@ -43,6 +43,27 @@ Every panel page has a strict policy with a nonce of its own (GUARDRAILS 6). The
 | `frame-ancestors` | `'none'` | No other site may frame the panel. |
 
 There is no `'unsafe-inline'` and no `'unsafe-eval'`.
+
+Under `'strict-dynamic'` a script the nonce allows may `import()` a module from any origin, because the browser hands the importing script's nonce on to what it imports. The browser tests show it in Chromium, Firefox and WebKit, and show that Trusted Types do not close the gap and that `'self'` with the nonce does not either; only a `script-src` without a nonce, `'self'` with the hashes of the page's inline scripts, keeps `import()` on the panel's origin. How the panel closes the gap comes with the serving of addon files.
+
+## Shared modules
+
+An addon's code runs on the panel's own React, never a copy of its own, so its hooks and the panel's work together. The panel's build therefore has an ES module entry for each module the panel shares, and the page's import map hands an addon those entries:
+
+| Module | What an addon gets |
+|---|---|
+| `react` | the panel's React |
+| `react/jsx-runtime` | its JSX runtime |
+| `react-dom` | the panel's React DOM |
+| `react-dom/client` | its `createRoot` and `hydrateRoot` |
+
+React 19 ships as CommonJS, so each entry names every export of React's production build itself and re-exports it from the module the panel's own code imports; the panel and the entry share one chunk, so there is one React. `js/panel/shared-modules.json` lists the modules with the name of each entry, and the panel module's `ViteManifest` finds the entries in Vite's manifest by those names; a build without one of them is refused.
+
+Some modules of the panel are not for addons: its router and page state, `@inertiajs/react` and `@inertiajs/core`. Below each addon's prefix, the import map maps them to an entry that throws before the addon runs, so the addon fails at once with an error named `PanelImportRefused` whose message names the module and points here: `Cbox CMS panel: an addon may not import @inertiajs/react. The panel's router, page state and UI primitives are not addon API; an addon shares only the modules of the panel's import map (docs/developers/panel.md#shared-modules).`
+
+Outside an addon's prefix nothing maps them, so a bare import of them fails to resolve. An addon reaches the panel only through the shared modules.
+
+The import map is the page's only one, as Firefox takes one map per document. The root view writes it, with the nonce, before any stylesheet, preload or module: `imports` for the shared modules, `scopes` for each addon's prefix and `integrity` with the SHA-384 of every script of the build, which the browser checks before it runs a module, so a file whose bytes changed after the build does not run. `tests/Browser/Panel/SharedExternalsTest.php` and `PanelCspAddonModulesTest.php` load a test addon's module lazily through the map on a panel page, in Chromium, Firefox and WebKit, and check that its hooks run on the panel's React, that `@inertiajs/react` is refused with the error above and that the browser reports no violation of the policy.
 
 ## The build and its files
 

@@ -21,6 +21,11 @@ use SplFileObject;
  * imports at once, depth first, each once; its preloads are those chunks' files. The files the
  * build serves are every chunk's file, stylesheets and assets.
  *
+ * The build also has an entry for each of the panel's shared modules and for each module an addon
+ * may not import, named in js/panel/shared-modules.json and in SHARED and REFUSED here (the panel's
+ * tests hold the two equal), and found by the `name` of their entry chunk. Every script of the
+ * build, a `.js` file, gets the SHA-384 of its bytes, for the import map's integrity.
+ *
  * It reads a local file and never a URL: the directory must be an absolute path, and one that
  * names a stream wrapper is refused before any file function sees it. The Arch suite allows
  * SplFileObject here because of that (Egress).
@@ -35,6 +40,30 @@ final readonly class ViteManifest
     public const string FILE = '.vite/manifest.json';
 
     /**
+     * The panel's shared modules, by specifier, with the name of their entry chunk, as
+     * js/panel/shared-modules.json lists them under `shared`.
+     *
+     * @var array<string, string>
+     */
+    public const array SHARED = [
+        'react' => 'shared-react',
+        'react/jsx-runtime' => 'shared-react-jsx-runtime',
+        'react-dom' => 'shared-react-dom',
+        'react-dom/client' => 'shared-react-dom-client',
+    ];
+
+    /**
+     * The modules an addon may not import, by specifier, with the name of their entry chunk, as
+     * js/panel/shared-modules.json lists them under `refused`.
+     *
+     * @var array<string, string>
+     */
+    public const array REFUSED = [
+        '@inertiajs/core' => 'refused-inertiajs-core',
+        '@inertiajs/react' => 'refused-inertiajs-react',
+    ];
+
+    /**
      * @throws PanelBuildUnavailable when the manifest is missing, unreadable or not the panel's
      */
     public static function read(string $directory): PanelBuild
@@ -45,7 +74,7 @@ final readonly class ViteManifest
             throw PanelBuildUnavailable::malformed($manifest, 'the build directory is not an absolute local path.');
         }
 
-        $json = self::contents($manifest);
+        $json = self::contents($manifest, $manifest);
 
         try {
             $chunks = json_decode($json, true, 16, JSON_THROW_ON_ERROR);
@@ -77,6 +106,18 @@ final readonly class ViteManifest
         }
 
         sort($files, SORT_STRING);
+        $integrity = [];
+
+        foreach ($files as $file) {
+            // Checked before any file is read, so no name in the manifest reaches outside the build.
+            if (! PanelBuild::isFile($file)) {
+                throw PanelBuildUnavailable::malformed($manifest, "The panel's build names {$file}, which is not a relative path inside the build.");
+            }
+
+            if (str_ends_with($file, '.js')) {
+                $integrity[$file] = 'sha384-'.base64_encode(hash('sha384', self::contents(rtrim($directory, '/').'/'.$file, $manifest), true));
+            }
+        }
 
         try {
             return new PanelBuild(
@@ -86,6 +127,9 @@ final readonly class ViteManifest
                 array_values(array_diff($preloads, [self::string($manifest, $entry, 'file')])),
                 $files,
                 hash('sha256', $json),
+                self::entries($manifest, $chunks, self::SHARED),
+                self::entries($manifest, $chunks, self::REFUSED),
+                $integrity,
             );
         } catch (InvalidArgumentException $invalid) {
             throw PanelBuildUnavailable::malformed($manifest, $invalid->getMessage(), $invalid);
@@ -168,18 +212,51 @@ final readonly class ViteManifest
         return $strings;
     }
 
-    private static function contents(string $manifest): string
+    /**
+     * The file of the entry chunk of each module, by specifier.
+     *
+     * @param  array<mixed>  $chunks
+     * @param  array<string, string>  $modules  the name of each module's entry chunk, by specifier
+     * @return array<string, string>
+     */
+    private static function entries(string $manifest, array $chunks, array $modules): array
     {
-        if (! is_file($manifest) || ! is_readable($manifest)) {
-            throw PanelBuildUnavailable::missing($manifest);
+        $entries = [];
+
+        foreach ($modules as $specifier => $name) {
+            foreach ($chunks as $chunk) {
+                if (is_array($chunk) && ($chunk['name'] ?? null) === $name && ($chunk['isEntry'] ?? false) === true) {
+                    $entries[$specifier] = self::string($manifest, $chunk, 'file');
+
+                    continue 2;
+                }
+            }
+
+            throw PanelBuildUnavailable::malformed($manifest, "it has no entry chunk {$name} for the module {$specifier}.");
+        }
+
+        return $entries;
+    }
+
+    /**
+     * The bytes of a file of the build: the manifest, or a file it names.
+     */
+    private static function contents(string $path, string $manifest): string
+    {
+        if (! is_file($path) || ! is_readable($path)) {
+            throw $path === $manifest ? PanelBuildUnavailable::missing($manifest) : PanelBuildUnavailable::malformed($manifest, "it names {$path}, which does not exist or cannot be read.");
         }
 
         try {
-            $file = new SplFileObject($manifest, 'rb');
+            $file = new SplFileObject($path, 'rb');
             $size = $file->getSize();
             $contents = $size === 0 || $size === false ? '' : $file->fread($size);
         } catch (RuntimeException $failed) {
-            throw PanelBuildUnavailable::malformed($manifest, 'it cannot be read.', $failed);
+            throw PanelBuildUnavailable::malformed($manifest, $path === $manifest ? 'it cannot be read.' : "{$path} cannot be read.", $failed);
+        }
+
+        if ($path !== $manifest) {
+            return is_string($contents) ? $contents : throw PanelBuildUnavailable::malformed($manifest, "{$path} cannot be read.");
         }
 
         return is_string($contents) && $contents !== '' ? $contents : throw PanelBuildUnavailable::malformed($manifest, 'it is empty.');

@@ -14,11 +14,22 @@ use InvalidArgumentException;
  * may serve, and a version that changes with every build, so Inertia reloads a page whose assets
  * are out of date. A file is a path relative to the directory, such as `assets/app-1a2b3c.js`;
  * only the files the manifest names are ever served, so a request can never reach another file.
+ *
+ * It also has the entry of each of the panel's shared modules, by specifier, which the import map
+ * hands an addon so it runs on the panel's own React, the entry of each module an addon may not
+ * import, which throws instead (ImportMap), and the SHA-384 of every script of the build, which
+ * the import map gives the browser to check each module it loads against.
  */
 #[Internal]
 final readonly class PanelBuild
 {
     /** A file of the build: relative path segments of letters, digits, dots, `_` and `-`. */
+    /** The integrity of a script: `sha384-` and the 48 bytes of its SHA-384 in base64. */
+    public const string INTEGRITY_PATTERN = '~\Asha384-[A-Za-z0-9+/]{64}\z~';
+
+    /** A bare module specifier of a package, such as `react/jsx-runtime` or `@inertiajs/react`. */
+    public const string SPECIFIER_PATTERN = '~\A(?:@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*(?:/[a-z0-9][a-z0-9._-]*)*\z~';
+
     public const string FILE_PATTERN = '[A-Za-z0-9_-][A-Za-z0-9._-]*(?:/[A-Za-z0-9_-][A-Za-z0-9._-]*)*';
 
     /**
@@ -28,8 +39,11 @@ final readonly class PanelBuild
      * @param  list<string>  $preloads  the chunks the entry imports, in order
      * @param  list<string>  $files  every file of the build, sorted
      * @param  string  $version  the SHA-256 of the manifest
+     * @param  array<string, string>  $shared  the entry of each shared module, by specifier
+     * @param  array<string, string>  $refused  the entry of each module an addon may not import, by specifier
+     * @param  array<string, string>  $integrity  the SHA-384 of each script, `sha384-<base64>`, by file
      *
-     * @throws InvalidArgumentException when a file is not a file of the build or the directory is not absolute
+     * @throws InvalidArgumentException when a file is not a file of the build, the directory is not absolute or an integrity is not a SHA-384
      */
     public function __construct(
         public string $directory,
@@ -38,6 +52,9 @@ final readonly class PanelBuild
         public array $preloads,
         public array $files,
         public string $version,
+        public array $shared = [],
+        public array $refused = [],
+        public array $integrity = [],
     ) {
         if (! str_starts_with($directory, '/') || LocalPath::namesStreamWrapper($directory)) {
             throw new InvalidArgumentException("The panel's build directory {$directory} is not an absolute local path.");
@@ -49,9 +66,21 @@ final readonly class PanelBuild
             }
         }
 
-        foreach ([$entry, ...$styles, ...$preloads] as $file) {
+        foreach ([$entry, ...$styles, ...$preloads, ...array_values($shared), ...array_values($refused), ...array_keys($integrity)] as $file) {
             if (! in_array($file, $files, true)) {
                 throw new InvalidArgumentException("The panel's build loads {$file}, which is not one of its files.");
+            }
+        }
+
+        foreach ([...array_keys($shared), ...array_keys($refused)] as $specifier) {
+            if (preg_match(self::SPECIFIER_PATTERN, $specifier) !== 1) {
+                throw new InvalidArgumentException("The panel's build names a module {$specifier}, which is not a bare module specifier.");
+            }
+        }
+
+        foreach ($integrity as $file => $hash) {
+            if (preg_match(self::INTEGRITY_PATTERN, $hash) !== 1) {
+                throw new InvalidArgumentException("The integrity {$hash} of the panel's file {$file} is not a SHA-384.");
             }
         }
 

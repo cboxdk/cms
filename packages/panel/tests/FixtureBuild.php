@@ -17,8 +17,21 @@ use RuntimeException;
  */
 final readonly class FixtureBuild
 {
-    /** The manifest of a build with an entry that imports a shared chunk, lazily loads a page and has a font. */
-    public const array MANIFEST = [
+    /**
+     * The entries of the panel's shared and refused modules, as the build names them
+     * (ViteManifest::SHARED and REFUSED), each importing the chunk it re-exports.
+     */
+    public const array MODULES = [
+        'cms-panel-module:react' => ['file' => 'assets/shared-react-0a0a0a.js', 'name' => 'shared-react', 'src' => 'cms-panel-module:react', 'isEntry' => true, 'imports' => ['_shared-4d5e6f.js']],
+        'cms-panel-module:react/jsx-runtime' => ['file' => 'assets/shared-react-jsx-runtime-0b0b0b.js', 'name' => 'shared-react-jsx-runtime', 'src' => 'cms-panel-module:react/jsx-runtime', 'isEntry' => true, 'imports' => ['_shared-4d5e6f.js']],
+        'cms-panel-module:react-dom' => ['file' => 'assets/shared-react-dom-0c0c0c.js', 'name' => 'shared-react-dom', 'src' => 'cms-panel-module:react-dom', 'isEntry' => true, 'imports' => ['_shared-4d5e6f.js']],
+        'cms-panel-module:react-dom/client' => ['file' => 'assets/shared-react-dom-client-0d0d0d.js', 'name' => 'shared-react-dom-client', 'src' => 'cms-panel-module:react-dom/client', 'isEntry' => true, 'imports' => ['_shared-4d5e6f.js']],
+        'cms-panel-module:@inertiajs/core' => ['file' => 'assets/refused-inertiajs-core-0e0e0e.js', 'name' => 'refused-inertiajs-core', 'src' => 'cms-panel-module:@inertiajs/core', 'isEntry' => true, 'imports' => ['_shared-4d5e6f.js']],
+        'cms-panel-module:@inertiajs/react' => ['file' => 'assets/refused-inertiajs-react-0f0f0f.js', 'name' => 'refused-inertiajs-react', 'src' => 'cms-panel-module:@inertiajs/react', 'isEntry' => true, 'imports' => ['_shared-4d5e6f.js']],
+    ];
+
+    /** The manifest of a build with an entry that imports a shared chunk, lazily loads a page and has a font, and the module entries. */
+    public const array MANIFEST = self::MODULES + [
         'src/app.tsx' => [
             'file' => 'assets/app-1a2b3c.js',
             'name' => 'app',
@@ -50,6 +63,24 @@ final readonly class FixtureBuild
     public const string STYLE = "body { margin: 0; }\n";
 
     private function __construct(public string $directory) {}
+
+    /**
+     * A manifest with the entries of the shared and refused modules added, which every build the
+     * panel reads has.
+     *
+     * @param  array<string, array<string, mixed>>  $manifest
+     * @return array<string, array<string, mixed>>
+     */
+    public static function withModules(array $manifest): array
+    {
+        $modules = self::MODULES;
+
+        foreach ($modules as $key => $module) {
+            $modules[$key]['imports'] = [];
+        }
+
+        return $modules + $manifest;
+    }
 
     /**
      * Writes the manifest, as JSON or as the raw text given, and a file for every name in it that

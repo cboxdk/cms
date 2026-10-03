@@ -18,12 +18,15 @@
 # - PCOV: mutation on changed files in gate 5 needs a coverage driver. The image loads the
 #   extension and leaves it off; tools/mutation/pcov.ini turns it on for the mutation step. The
 #   script fails when the extension is not loaded, so the step never runs without coverage.
-# - Chromium for the Playwright that package-lock.json pins, for the Browser suite of gate 8. The
-#   image keeps its browsers in PLAYWRIGHT_BROWSERS_PATH (/ms-playwright), where the user ci
-#   finds them too. The pinned Playwright names the builds it needs, Chromium and its headless
-#   shell, each in a directory named after its revision. A build the image has is used as it is;
-#   a missing one is installed with the pinned Playwright, and the script fails when a build is
-#   still missing afterwards, so gate 8 never runs a Chromium that Playwright was not built for.
+# - Chromium, Firefox and WebKit for the Playwright that package-lock.json pins, for the Browser
+#   suite of gate 8, which runs in Chromium and runs its group browser-matrix in Firefox and WebKit
+#   too. The image keeps its browsers in PLAYWRIGHT_BROWSERS_PATH (/ms-playwright), where the user
+#   ci finds them too. The pinned Playwright names the builds it needs, Chromium and its headless
+#   shell, Firefox and WebKit, each in a directory named after its revision. A build the image has
+#   is used as it is; the missing ones are installed with the pinned Playwright, with the system
+#   libraries they need (the image ships Chromium only, and WebKit needs GTK and GStreamer), and
+#   the script fails when a build is still missing afterwards, so gate 8 never runs a browser that
+#   Playwright was not built for.
 set -euo pipefail
 
 required_node_major=22
@@ -80,17 +83,20 @@ npm install --prefix "$playwright_dir" --cache "$playwright_dir/.npm" --no-save 
     --no-update-notifier --ignore-scripts --loglevel=error "playwright@${playwright_version}" >/dev/null
 playwright="$playwright_dir/node_modules/.bin/playwright"
 
-# The install directories of the builds `playwright install chromium` needs, from its dry run.
-chromium_builds() {
-    (cd "$playwright_dir" && "$playwright" install --dry-run chromium) |
-        sed -n -E 's/^[[:space:]]*Install location:[[:space:]]+(.*(chromium|chromium_headless_shell)-[0-9]+)[[:space:]]*$/\1/p'
+# The browsers gate 8 runs in, as Playwright names them.
+browsers=(chromium firefox webkit)
+
+# The install directories of the builds `playwright install` needs for them, from its dry run.
+browser_builds() {
+    (cd "$playwright_dir" && "$playwright" install --dry-run "${browsers[@]}") |
+        sed -n -E 's/^[[:space:]]*Install location:[[:space:]]+(.*(chromium|chromium_headless_shell|firefox|webkit)-[0-9]+)[[:space:]]*$/\1/p'
 }
 
 missing_builds() {
     local builds
 
-    if ! builds="$(chromium_builds)" || [[ -z "$builds" ]]; then
-        echo "ci-setup: Playwright ${playwright_version} names no Chromium build to install." >&2
+    if ! builds="$(browser_builds)" || [[ -z "$builds" ]]; then
+        echo "ci-setup: Playwright ${playwright_version} names no browser build to install." >&2
         return 2
     fi
 
@@ -102,16 +108,16 @@ missing_builds() {
 missing="$(missing_builds)"
 
 if [[ -n "$missing" ]]; then
-    echo "ci-setup: the image lacks the Chromium builds of Playwright ${playwright_version}: ${missing//$'\n'/ }"
-    (cd "$playwright_dir" && "$playwright" install --with-deps chromium)
+    echo "ci-setup: the image lacks the browser builds of Playwright ${playwright_version}: ${missing//$'\n'/ }"
+    (cd "$playwright_dir" && "$playwright" install --with-deps "${browsers[@]}")
     missing="$(missing_builds)"
 
     if [[ -n "$missing" ]]; then
-        echo "ci-setup: Playwright ${playwright_version} needs Chromium builds that are still missing after the install: ${missing//$'\n'/ }" >&2
+        echo "ci-setup: Playwright ${playwright_version} needs browser builds that are still missing after the install: ${missing//$'\n'/ }" >&2
         exit 1
     fi
 fi
 
 echo "ci-setup: PHP $(php -r 'echo PHP_VERSION;') with pcov, Node $(node --version), $(psql --version), $(git --version)"
-builds="$(chromium_builds)"
-echo "ci-setup: Playwright ${playwright_version} with Chromium in ${builds//$'\n'/ }"
+builds="$(browser_builds)"
+echo "ci-setup: Playwright ${playwright_version} with Chromium, Firefox and WebKit in ${builds//$'\n'/ }"

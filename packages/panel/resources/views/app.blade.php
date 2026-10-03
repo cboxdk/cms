@@ -9,6 +9,7 @@
     <meta property="csp-nonce" nonce="{{ $cspNonce }}">
     <title inertia>Cbox CMS</title>
     <link rel="icon" href="data:,">
+    <script type="importmap" nonce="{{ $cspNonce }}">{!! $panelImportMap !!}</script>
 @foreach ($panelStyles as $panelStyle)
     <link rel="stylesheet" href="{{ $panelStyle }}" nonce="{{ $cspNonce }}">
 @endforeach

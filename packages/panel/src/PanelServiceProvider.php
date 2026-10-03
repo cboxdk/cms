@@ -10,9 +10,12 @@ use Cbox\Cms\Contracts\Build\ScanRoot;
 use Cbox\Cms\Identity\Sessions\Domain\Dto\SessionCookie;
 use Cbox\Cms\Panel\Boundary\PanelSessions;
 use Cbox\Cms\Panel\Boundary\ViteManifest;
+use Cbox\Cms\Panel\Domain\Dto\ImportMap;
 use Cbox\Cms\Panel\Domain\Dto\PanelBuild;
 use Cbox\Cms\Panel\Views\PanelRootView;
 use Illuminate\Contracts\Events\Dispatcher;
+use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Contracts\Routing\UrlGenerator;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Events\RequestHandled;
@@ -43,6 +46,7 @@ final class PanelServiceProvider extends ServiceProvider implements DeclaresScan
     public function register(): void
     {
         $this->app->singleton(PanelBuild::class, static fn (): PanelBuild => ViteManifest::read(self::buildDirectory()));
+        $this->app->bind(ImportMap::class, static fn (Application $app): ImportMap => PanelRootView::importMap($app->make(PanelBuild::class), $app->make(UrlGenerator::class)));
     }
 
     public function boot(): void

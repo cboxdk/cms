@@ -7,6 +7,7 @@ namespace Cbox\Cms\Panel\Tests\Boundary;
 use Cbox\Cms\Panel\Boundary\ViteManifest;
 use Cbox\Cms\Panel\Domain\PanelBuildUnavailable;
 use Cbox\Cms\Panel\Tests\FixtureBuild;
+use Cbox\Cms\Tests\Support\Arch\Codebase;
 
 /*
  * The panel's build as Vite's manifest describes it (PRD 13.4): the entry, the stylesheets and
@@ -29,8 +30,14 @@ it('reads the entry, its stylesheets and preloads, every file and the version fr
                 'assets/app-1a2b3c.js',
                 'assets/app-7a8b9c.css',
                 'assets/font-0a1b2c.woff2',
+                'assets/refused-inertiajs-core-0e0e0e.js',
+                'assets/refused-inertiajs-react-0f0f0f.js',
                 'assets/shared-3c4d5e.css',
                 'assets/shared-4d5e6f.js',
+                'assets/shared-react-0a0a0a.js',
+                'assets/shared-react-dom-0c0c0c.js',
+                'assets/shared-react-dom-client-0d0d0d.js',
+                'assets/shared-react-jsx-runtime-0b0b0b.js',
             ])
             ->and($build->version)->toBe(hash('sha256', (string) file_get_contents($fixture->directory.'/'.ViteManifest::FILE)));
     } finally {
@@ -89,11 +96,11 @@ it('refuses a build directory that is relative or names a stream wrapper before 
 ]);
 
 it('follows an import cycle without looping and names each chunk once', function (): void {
-    $fixture = FixtureBuild::write([
+    $fixture = FixtureBuild::write(FixtureBuild::withModules([
         'src/app.tsx' => ['file' => 'assets/app.js', 'isEntry' => true, 'imports' => ['_a.js']],
         '_a.js' => ['file' => 'assets/a.js', 'imports' => ['_b.js'], 'css' => ['assets/a.css']],
         '_b.js' => ['file' => 'assets/b.js', 'imports' => ['_a.js', 'src/app.tsx'], 'css' => ['assets/a.css']],
-    ]);
+    ]));
 
     try {
         $build = $fixture->read();
@@ -103,4 +110,68 @@ it('follows an import cycle without looping and names each chunk once', function
     } finally {
         $fixture->remove();
     }
+});
+
+it('reads the entry of each shared and refused module by its name, and the SHA-384 of every script', function (): void {
+    $fixture = FixtureBuild::write();
+
+    try {
+        $build = $fixture->read();
+        $integrity = 'sha384-'.base64_encode(hash('sha384', FixtureBuild::SCRIPT, true));
+
+        expect($build->shared)->toBe([
+            'react' => 'assets/shared-react-0a0a0a.js',
+            'react/jsx-runtime' => 'assets/shared-react-jsx-runtime-0b0b0b.js',
+            'react-dom' => 'assets/shared-react-dom-0c0c0c.js',
+            'react-dom/client' => 'assets/shared-react-dom-client-0d0d0d.js',
+        ])
+            ->and($build->refused)->toBe([
+                '@inertiajs/core' => 'assets/refused-inertiajs-core-0e0e0e.js',
+                '@inertiajs/react' => 'assets/refused-inertiajs-react-0f0f0f.js',
+            ])
+            ->and($build->integrity)->toBe(array_fill_keys(array_values(array_filter($build->files, static fn (string $file): bool => str_ends_with($file, '.js'))), $integrity));
+    } finally {
+        $fixture->remove();
+    }
+});
+
+it('refuses a build that lacks the entry of a shared or refused module, or one marked as no entry', function (string $key, bool $remove): void {
+    $manifest = FixtureBuild::MANIFEST;
+
+    if ($remove) {
+        unset($manifest[$key]);
+    } else {
+        $manifest[$key]['isEntry'] = false;
+    }
+
+    $fixture = FixtureBuild::write($manifest);
+    $chunk = FixtureBuild::MODULES[$key];
+
+    try {
+        expect($fixture->read(...))->toThrow(PanelBuildUnavailable::class, "it has no entry chunk {$chunk['name']} for the module ".substr($key, strlen('cms-panel-module:')).'.');
+    } finally {
+        $fixture->remove();
+    }
+})->with([
+    'react missing' => ['cms-panel-module:react', true],
+    'react/jsx-runtime marked as no entry' => ['cms-panel-module:react/jsx-runtime', false],
+    '@inertiajs/react missing' => ['cms-panel-module:@inertiajs/react', true],
+]);
+
+it('refuses a build whose script it names cannot be read', function (): void {
+    $fixture = FixtureBuild::write();
+
+    try {
+        unlink($fixture->directory.'/assets/app-1a2b3c.js');
+
+        expect($fixture->read(...))->toThrow(PanelBuildUnavailable::class, "it names {$fixture->directory}/assets/app-1a2b3c.js, which does not exist or cannot be read.");
+    } finally {
+        $fixture->remove();
+    }
+});
+
+it('names the same shared and refused modules as the panel\'s build, js/panel/shared-modules.json', function (): void {
+    $modules = json_decode((string) file_get_contents(Codebase::root().'/js/panel/shared-modules.json'), true, 4, JSON_THROW_ON_ERROR);
+
+    expect($modules)->toBe(['shared' => ViteManifest::SHARED, 'refused' => ViteManifest::REFUSED]);
 });

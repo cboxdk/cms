@@ -1,0 +1,12 @@
+{
+  "shared": {
+    "react": "shared-react",
+    "react/jsx-runtime": "shared-react-jsx-runtime",
+    "react-dom": "shared-react-dom",
+    "react-dom/client": "shared-react-dom-client"
+  },
+  "refused": {
+    "@inertiajs/core": "refused-inertiajs-core",
+    "@inertiajs/react": "refused-inertiajs-react"
+  }
+}

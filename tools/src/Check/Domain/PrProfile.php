@@ -11,7 +11,8 @@ use InvalidArgumentException;
 
 /**
  * The PR profile of GUARDRAILS 10 as CI runs it today, through `bin/ci`: the steps of gates 1 to
- * 6 from the local profile, unchanged, gate 8 (`composer panel:build`, then the Browser suite),
+ * 6 from the local profile, unchanged, gate 8 (`composer panel:build`, then the Browser suite in
+ * Chromium and its group browser-matrix in Firefox and WebKit),
  * gate 9 (composer audit and npm
  * audit) and gate 10 (`composer docs:check`, documentation with running examples for every
  * public extension point), and gates 7 and 11 reported as not run, each with the reason.
@@ -55,6 +56,25 @@ final readonly class PrProfile
      * The Pest suite of gate 8, one of LocalProfile::OTHER_SUITES.
      */
     public const string BROWSER_SUITE = 'Browser';
+
+    /**
+     * The group of Browser tests gate 8 also runs in Firefox and WebKit: what the panel promises
+     * every browser, such as its shared modules and import map under its Content-Security-Policy
+     * (PRD 13.4).
+     */
+    public const string BROWSER_MATRIX_GROUP = 'browser-matrix';
+
+    /**
+     * The browsers gate 8 runs the group BROWSER_MATRIX_GROUP in besides Chromium, by the name of
+     * their step, with the name the browser plugin's --browser option takes. docker/ci-setup.sh
+     * installs them.
+     *
+     * @var array<string, string>
+     */
+    public const array MATRIX_BROWSERS = [
+        'Browser in Firefox' => 'firefox',
+        'Browser in WebKit' => 'safari',
+    ];
 
     /**
      * The Composer script that builds the panel from js/panel into packages/panel/dist in the dev
@@ -139,15 +159,26 @@ final readonly class PrProfile
     /**
      * Gate 8: `composer panel:build`, which builds the panel the browser tests open (PRD 13.4)
      * through the dev image, in place when the run is in the image already, as in CI; then the
-     * Browser suite, with skipped and incomplete tests failing it as in gate 5. The browser plugin
-     * starts `playwright run-server`, which outlives a Pest process that dies of a fatal error and
-     * keeps its output open, so the suite runs in a process group of its own that the runner kills
-     * when the step ends.
+     * Browser suite in Chromium, and its group BROWSER_MATRIX_GROUP in each of MATRIX_BROWSERS,
+     * with skipped and incomplete tests failing each as in gate 5. The browser plugin starts
+     * `playwright run-server`, which outlives a Pest process that dies of a fatal error and keeps
+     * its output open, so each run is in a process group of its own that the runner kills when
+     * the step ends.
      *
      * @param  list<string>  $composer
      */
     private static function browser(Gate $gate, string $php, array $composer): Gate
     {
+        $matrix = [];
+
+        foreach (self::MATRIX_BROWSERS as $name => $browser) {
+            $matrix[] = Step::run(
+                $name,
+                [$php, 'vendor/bin/pest', '--testsuite='.self::BROWSER_SUITE, '--group='.self::BROWSER_MATRIX_GROUP, '--browser', $browser, ...LocalProfile::FAIL_FLAGS],
+                ownProcessGroup: true,
+            );
+        }
+
         return new Gate($gate->number, $gate->title, [
             Step::run(self::PANEL_BUILD, [...$composer, self::PANEL_BUILD]),
             Step::run(
@@ -155,6 +186,7 @@ final readonly class PrProfile
                 [$php, 'vendor/bin/pest', '--testsuite='.self::BROWSER_SUITE, ...LocalProfile::FAIL_FLAGS],
                 ownProcessGroup: true,
             ),
+            ...$matrix,
         ]);
     }
 

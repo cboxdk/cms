@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "@cboxdk/cms-tooling/tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "exactOptionalPropertyTypes": false,
+    "types": ["node"]
+  },
+  "include": ["*.ts", "addons/**/*.ts"]
+}
