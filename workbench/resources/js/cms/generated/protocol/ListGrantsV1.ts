@@ -8,10 +8,11 @@
 import { validate, type ObjectRule, type Validation } from '../validation';
 
 /**
- * Lists the grants that have not ended on the nodes the actor's regions reach (PRD 5.10): a page of
- * grants in the order of their ids. It needs a role whose permissions name grant.list. The PHP form
- * is Cbox\Cms\Core\Access\Domain\Queries\ListGrants, and the generated codec reads it and writes
- * its canonical JSON: every key, sorted, no whitespace. Its result is grant.list.result.v1.json.
+ * Lists the grants that have not ended on the nodes the actor's regions reach where a role of it
+ * whose permissions name grant.list reaches them (PRD 5.10): a page of grants in the order of their
+ * ids. It needs a role whose permissions name grant.list. The PHP form is
+ * Cbox\Cms\Core\Access\Domain\Queries\ListGrants, and the generated codec reads it and writes its
+ * canonical JSON: every key, sorted, no whitespace. Its result is grant.list.result.v1.json.
  */
 export interface ListGrantsV1 {
   /**

@@ -89,7 +89,9 @@ final class ListingWorld
 
     /**
      * What each reader's context gives: the nodes its regions reach, in tree order, whether its
-     * classification access allows personal, and whether it holds grant.list and actor.list.
+     * classification access allows personal, and whether it holds grant.list and actor.list. Every
+     * role of the world may run grant.list, so a reader that holds it may run it on every node it
+     * reaches; GrantListPermissionTest covers a reader with a role that may not.
      *
      * @var array<string, array{list<string>, bool, bool}>
      */
@@ -188,7 +190,7 @@ final class ListingWorld
     public static function accessListings(string $reader): FakeAccessListings
     {
         [$reached, $personal, $holds] = self::reader($reader);
-        $listings = new FakeAccessListings(ActorId::fromString($reader), array_map(NodeId::fromString(...), $reached), $personal, $holds);
+        $listings = new FakeAccessListings(ActorId::fromString($reader), $holds ? array_map(NodeId::fromString(...), $reached) : [], $personal);
 
         foreach (self::roles() as $role) {
             $listings->addRole($role);

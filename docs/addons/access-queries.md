@@ -20,7 +20,7 @@ The panel manages who may do what with four queries of the kernel, version 1 of 
 | Query | What it gives | Who may run it |
 |---|---|---|
 | `role.list` | the roles, each with its handle, classification ceiling, permissions (sorted) and version | an actor with a role whose permissions name `role.list` |
-| `grant.list` | the grants that have not ended on the nodes the actor's regions reach, each with its actor and the actor's profile, its role and the role's handle, its node and the node's path label, its effect, its locales (null for every locale) and its version | an actor with a role whose permissions name `grant.list` |
+| `grant.list` | the grants that have not ended on the nodes where a role of the actor whose permissions name `grant.list` reaches them, by the same nearest-grant rule as a command, each with its actor and the actor's profile, its role and the role's handle, its node and the node's path label, its effect, its locales (null for every locale) and its version | an actor with a role whose permissions name `grant.list` |
 | `actor.list` | the staff actors, each with its state, version and profile | an actor with a role whose permissions name `actor.list` |
 | `node.list` | the nodes the actor's regions reach, in tree order, each with its parent, kind, site, site handle and path label | every actor; the anonymous principal may not |
 

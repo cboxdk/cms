@@ -17,8 +17,9 @@ use Override;
 
 /**
  * grant.list (PRD 5.10, 12.2): a page of the grants that have not ended on the nodes the actor's
- * regions reach, each with its actor's profile where the reader may read it, its role's handle,
- * its node's path label and its locales, read through AccessListings. The profile is personal
+ * regions reach where a role of it whose permissions name grant.list reaches them, each with its
+ * actor's profile where the reader may read it, its role's handle, its node's path label and its
+ * locales, read through AccessListings. The profile is personal
  * data, so the result's codec leaves its values out for a reader whose classification access does
  * not allow personal. It reads one row more than the page holds, to know whether a next page
  * follows, and costs the rows it may return.

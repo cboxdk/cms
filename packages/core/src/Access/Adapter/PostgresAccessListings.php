@@ -30,7 +30,8 @@ use Override;
  * role itself, which every actor context may (`roles_read`, `role_permissions_read`), in two
  * statements: the page of roles, then their permissions. The grants are read in one statement
  * through the owner function cms_access_grant_list, because the app role reads only its own
- * actor's grants and a path label names nodes above the ones the context reaches.
+ * actor's grants and a path label names nodes above the ones the context reaches; it lists a grant
+ * only on a node where cms_access_permits gives grant.list, the PermissionRule on the owner side.
  */
 #[Internal]
 final readonly class PostgresAccessListings implements AccessListings

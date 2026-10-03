@@ -12,10 +12,12 @@ use Cbox\Cms\Core\Access\Domain\Dto\ListedRole;
 
 /**
  * What role.list and grant.list read (PRD 5.10), in the read transaction under its actor context.
- * Every actor reads the roles. A grant is read only when it has not ended and the context's
- * regions reach its node, so an actor learns nothing of the grants outside its part of the tree,
- * and its actor's profile only when the context's classification access allows personal and the
- * actor holds a role whose permissions name grant.list; otherwise the profile is null.
+ * Every actor reads the roles. A grant is read only when it has not ended, the context's regions
+ * reach its node and a role of the actor whose permissions name grant.list reaches that node, as
+ * PermissionRule decides it (PRD 5.10: a right is decided on the node), so an actor learns nothing
+ * of the grants outside the part of the tree where it may list them, and its actor's profile only
+ * when the context's classification access allows personal or it is the reader's own actor;
+ * otherwise the profile is null.
  */
 #[Internal]
 interface AccessListings
