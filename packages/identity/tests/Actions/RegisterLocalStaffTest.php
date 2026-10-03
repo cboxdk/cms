@@ -31,7 +31,9 @@ use RuntimeException;
  * actor.activate, both commands as the installation operator; a login that has an account and a
  * password the policy refuses stop it before anything is written; a failing credential write after
  * actor.register leaves the actor pending, with no account and no activation, and a rerun for the
- * same login resumes the registration's operation with that actor instead of registering another.
+ * same login resumes the registration's operation with that actor instead of registering another;
+ * a rerun after an activation that did not commit activates the pending actor with the rerun's
+ * password.
  */
 
 const STAFF_EMAIL = 'Mette.Holm@example.com';
@@ -189,4 +191,50 @@ it('resumes a registration whose activation was rejected after the bind, without
         ->and($refused->pending instanceof ActorId && $staff->actor->equals($refused->pending))->toBeTrue()
         ->and($world->committed())->toBe(['actor.register', 'actor.activate'])
         ->and($world->find($staff->actor)?->state)->toBe(ActorState::Active);
+});
+
+it('resumes a registration whose actor.activate was rejected, so a rerun with the same email gives an active actor', function (): void {
+    $world = new StaffWorld;
+    $world->failingActivations = 1;
+
+    $refused = staffRefusal(static fn (): RegisteredStaff => $world->action()->register(staffRegistration()));
+    $stopped = $refused->pending;
+
+    expect($refused->reason)->toBe(ErrorCode::VersionConflict)
+        ->and($stopped instanceof ActorId ? $world->find($stopped)?->state : null)->toBe(ActorState::Pending);
+
+    $staff = $world->action()->register(staffRegistration('mette.holm@example.com', 'another long and unusual sentence'));
+    $account = $world->accounts->ofActor($staff->actor);
+
+    expect($stopped instanceof ActorId && $staff->actor->equals($stopped))->toBeTrue()
+        ->and($world->find($staff->actor)?->state)->toBe(ActorState::Active)
+        ->and($world->committed())->toBe(['actor.register', 'actor.activate'])
+        ->and($account instanceof LocalAccount && password_verify('another long and unusual sentence', $account->hash->value))->toBeTrue()
+        ->and($world->committer->pending[1]->envelope->actor->equals($world->operator))->toBeTrue();
+});
+
+it('refuses a rerun with a password the policy refuses, and leaves the pending actor and its hash as they were', function (): void {
+    $world = new StaffWorld;
+    $world->failingActivations = 1;
+    $stopped = staffRefusal(static fn (): RegisteredStaff => $world->action()->register(staffRegistration()))->pending;
+    $before = $stopped instanceof ActorId ? $world->accounts->ofActor($stopped) : null;
+
+    $refused = staffRefusal(static fn (): RegisteredStaff => $world->action()->register(staffRegistration(STAFF_EMAIL, 'elevenchars')));
+
+    expect($refused->reason)->toBe(ErrorCode::PasswordTooShort)
+        ->and($stopped instanceof ActorId ? $world->find($stopped)?->state : null)->toBe(ActorState::Pending)
+        ->and($stopped instanceof ActorId ? $world->accounts->ofActor($stopped)?->version : null)->toBe($before?->version)
+        ->and($world->committed())->toBe(['actor.register']);
+});
+
+it('refuses an email whose account is bound to an actor that is not pending, as local_account_exists', function (): void {
+    $world = new StaffWorld;
+    $staff = $world->action()->register(staffRegistration());
+
+    $refused = staffRefusal(static fn (): RegisteredStaff => $world->action()->register(staffRegistration()));
+
+    expect($refused->reason)->toBe(ErrorCode::LocalAccountExists)
+        ->and($refused->pending)->toBeNull()
+        ->and($world->accounts->ofActor($staff->actor)?->version)->toBe(LocalAccount::FIRST_VERSION)
+        ->and($world->committed())->toBe(['actor.register', 'actor.activate']);
 });

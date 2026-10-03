@@ -16,13 +16,15 @@ The password is never an argument or an option, so it never reaches the shell's 
 
 The registration runs in a fixed order:
 
-1. Before anything is written, it refuses an email address whose login, the address in lower case, has a local account, and a password the policy below refuses.
+1. Before anything is written, it refuses an email address whose login, the address in lower case, has a local account of an actor that is not a pending member of staff, and a password the policy below refuses.
 2. It hashes the password.
 3. `actor.register` makes the actor, of class staff, pending, with the display name and the email address in its profile.
 4. The credential is bound to the actor's id in the credential store.
 5. `actor.activate` makes the actor active.
 
 Both commands run through the maintenance pipeline as the operator, with the unit of work `staff:<actor id>`, so they are two changesets with their audit, `actor.register` then `actor.activate`. Steps 3 to 5 are an operation (GUARDRAILS 4.2), keyed by the SHA-256 of the login, with one chunk per step that names the actor. A failure after step 3 leaves the actor pending, with no active login, and the operation running: a pending actor never logs in. Run the same `cms:staff:create` again for the same email address and it resumes that operation with the same actor at the step that did not complete, so one login never gets a second actor.
+
+When the login's account belongs to a member of staff who is still pending, the rerun checks the new password against the policy and sets it on that account, so the account ends with the password of the rerun. When no registration of that actor is running, as one made before registrations were operations leaves it, the rerun then runs `actor.activate` for that actor with its unit of work `staff:<actor id>` and prints that actor's id. The display name of the rerun is not used once step 3 committed, because the actor already has its profile.
 
 A member of staff has no grant yet; access is given with roles and grants.
 

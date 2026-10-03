@@ -103,6 +103,13 @@ final class StaffWorld implements ActorDirectory, ChangesetCommitter
 
     private readonly FakeIdGenerator $ids;
 
+    /**
+     * How many of the next commits of actor.activate end in a version conflict instead, as a
+     * concurrent change of the actor would make them: a registration that stops after its
+     * credential was bound.
+     */
+    public int $failingActivations = 0;
+
     /** @var array<string, Actor> by actor id */
     private array $actors = [];
 
@@ -159,6 +166,7 @@ final class StaffWorld implements ActorDirectory, ChangesetCommitter
             new RunMaintenanceCommand($installation, new FakeAccessContexts, new FakeIdGenerator(clock: $this->clock), $pipeline),
             $this->ids,
             $this->operations,
+            $this,
         );
     }
 
@@ -181,6 +189,13 @@ final class StaffWorld implements ActorDirectory, ChangesetCommitter
     #[Override]
     public function commit(PendingChangeset $changeset): CommitOutcome
     {
+        if ($changeset->command->value === 'actor.activate' && $this->failingActivations > 0) {
+            $this->failingActivations--;
+            $actor = $this->activated($changeset);
+
+            return new VersionConflict(new StaleRead($actor, new AggregateVersion(Actor::FIRST_VERSION), new AggregateVersion(Actor::FIRST_VERSION + 1)));
+        }
+
         foreach ($changeset->plan->mutations() as $mutation) {
             if ($this->failActivations && $mutation instanceof ActorActivated) {
                 return new VersionConflict(new StaleRead($mutation->actor, AggregateVersion::first(), new AggregateVersion(2)));
@@ -204,6 +219,20 @@ final class StaffWorld implements ActorDirectory, ChangesetCommitter
         }
 
         return $outcome;
+    }
+
+    /**
+     * The actor an actor.activate changeset activates.
+     */
+    private function activated(PendingChangeset $changeset): ActorId
+    {
+        foreach ($changeset->plan->mutations() as $mutation) {
+            if ($mutation instanceof ActorActivated) {
+                return $mutation->actor;
+            }
+        }
+
+        throw new LogicException('The actor.activate changeset activates no actor.');
     }
 
     /**
