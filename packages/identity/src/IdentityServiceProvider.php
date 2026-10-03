@@ -45,7 +45,9 @@ use Cbox\Cms\Identity\LocalAccounts\Domain\LocalConnection;
 use Cbox\Cms\Identity\LocalAccounts\Domain\PasswordHasher;
 use Cbox\Cms\Identity\Login\Adapter\ValkeyLoginThrottle;
 use Cbox\Cms\Identity\Login\Boundary\LoginThrottleConfig;
+use Cbox\Cms\Identity\Login\Boundary\ThrottleSecretConfig;
 use Cbox\Cms\Identity\Login\Domain\Dto\LoginThrottleSettings;
+use Cbox\Cms\Identity\Login\Domain\Dto\ThrottleSecret;
 use Cbox\Cms\Identity\Login\Domain\LoginThrottle;
 use Cbox\Cms\Identity\LoginPolicy\Adapter\PostgresIdpLinks;
 use Cbox\Cms\Identity\LoginPolicy\Boundary\LoginPolicyConfig;
@@ -178,6 +180,9 @@ final class IdentityServiceProvider extends ServiceProvider implements DeclaresS
             $app->make(Factory::class),
             $app->make(Clock::class),
         ));
+        // The key the login and reset throttles hash identifiers and IP addresses with, derived from
+        // the application key when first asked for (PRD 12.2).
+        $this->app->singleton(ThrottleSecret::class, static fn (Application $app): ThrottleSecret => ThrottleSecretConfig::read($app->make(Repository::class)));
         $this->app->singleton(LoginThrottleSettings::class, static fn (Application $app): LoginThrottleSettings => LoginThrottleConfig::read($app->make(Repository::class)));
         $this->app->singleton(LoginThrottle::class, static fn (Application $app): LoginThrottle => new ValkeyLoginThrottle(
             $app->make(Factory::class),

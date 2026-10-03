@@ -18,6 +18,7 @@ use Cbox\Cms\Identity\LocalAccounts\Domain\LocalConnection;
 use Cbox\Cms\Identity\Login\Actions\LogInLocally;
 use Cbox\Cms\Identity\Login\Domain\Dto\LoginThrottleSettings;
 use Cbox\Cms\Identity\Login\Domain\Dto\ThrottleLimit;
+use Cbox\Cms\Identity\Login\Domain\Dto\ThrottleSecret;
 use Cbox\Cms\Identity\Login\Domain\LoginThrottle;
 use Cbox\Cms\Identity\LoginPolicy\Actions\CheckLoginPolicy;
 use Cbox\Cms\Identity\LoginPolicy\Domain\Dto\LoginPolicy;
@@ -113,6 +114,7 @@ final class LocalLoginWorld
             $this->connection,
             new CheckLoginPolicy($this->policy, $this->identity, new FakeIdpLinks, $this->telemetry),
             $this->throttle,
+            ThrottleSecrets::fixed(),
             new IssueSession($this->sessions, $this->clock, $counters),
             new EndSessions($this->sessions, $counters),
             $this->telemetry,
@@ -136,6 +138,7 @@ final class LocalLoginWorld
         $container->instance(IdpLinks::class, new FakeIdpLinks);
         $container->instance(SessionStore::class, $this->sessions);
         $container->instance(LoginThrottle::class, $this->throttle);
+        $container->instance(ThrottleSecret::class, ThrottleSecrets::fixed());
         $container->instance(LocalConnection::class, $this->connection);
         $container->instance(CredentialVerifier::class, $this->verifier());
     }

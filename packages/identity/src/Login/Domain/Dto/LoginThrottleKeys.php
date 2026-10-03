@@ -11,10 +11,11 @@ use Cbox\Cms\Identity\Login\Domain\ThrottleScope;
 use SensitiveParameter;
 
 /**
- * What one login attempt is counted under (PRD 5.16): the SHA-256 of the login identifier, in lower
- * case as LoginIdentifier holds it, and the SHA-256 of the client's address in its canonical text
- * (ClientAddress), each as 64 lowercase hex digits. The throttle never holds an identifier or an
- * address, which are personal data (PRD 12.2), only their hashes.
+ * What one login attempt is counted under (PRD 5.16): the HMAC-SHA-256 under the ThrottleSecret of
+ * the login identifier, in lower case as LoginIdentifier holds it, and of the client's address in
+ * its canonical text (ClientAddress), each as 64 lowercase hex digits. The throttle never holds an
+ * identifier or an address, which are personal data (PRD 12.2), only their keyed hashes, which
+ * cannot be reversed by hashing every address or a list of emails without the secret.
  */
 #[Internal]
 final readonly class LoginThrottleKeys
@@ -24,9 +25,9 @@ final readonly class LoginThrottleKeys
         public string $ip,
     ) {}
 
-    public static function of(#[SensitiveParameter] LoginIdentifier $identifier, #[SensitiveParameter] ClientAddress $address): self
+    public static function of(ThrottleSecret $secret, #[SensitiveParameter] LoginIdentifier $identifier, #[SensitiveParameter] ClientAddress $address): self
     {
-        return new self(hash('sha256', $identifier->value), hash('sha256', $address->value));
+        return new self($secret->hash($identifier->value), $secret->hash($address->value));
     }
 
     public function key(ThrottleScope $scope): string

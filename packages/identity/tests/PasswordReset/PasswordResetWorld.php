@@ -22,6 +22,7 @@ use Cbox\Cms\Identity\Sessions\Actions\IssueSession;
 use Cbox\Cms\Identity\Sessions\Domain\SessionCounters;
 use Cbox\Cms\Identity\Tests\Login\Fakes\FakeLoginThrottle;
 use Cbox\Cms\Identity\Tests\Login\LocalLoginWorld;
+use Cbox\Cms\Identity\Tests\Login\ThrottleSecrets;
 use Cbox\Cms\Identity\Tests\LoginPolicy\Fakes\FakeIdpLinks;
 use Cbox\Cms\Testkit\Egress\FakeMailGateway;
 use Cbox\Cms\Testkit\Identity\FakeBreachedPasswords;
@@ -71,7 +72,7 @@ final class PasswordResetWorld
 
     public function request(): RequestPasswordReset
     {
-        return new RequestPasswordReset($this->links(), $this->throttle, $this->mail, $this->settings, $this->login->telemetry);
+        return new RequestPasswordReset($this->links(), $this->throttle, ThrottleSecrets::fixed(), $this->mail, $this->settings, $this->login->telemetry);
     }
 
     public function reset(): ResetPassword

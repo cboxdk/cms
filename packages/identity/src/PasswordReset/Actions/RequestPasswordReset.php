@@ -17,6 +17,7 @@ use Cbox\Cms\Contracts\Telemetry\Telemetry;
 use Cbox\Cms\Contracts\Telemetry\TelemetryName;
 use Cbox\Cms\Identity\Login\Domain\ClientAddress;
 use Cbox\Cms\Identity\Login\Domain\Dto\LoginThrottleKeys;
+use Cbox\Cms\Identity\Login\Domain\Dto\ThrottleSecret;
 use Cbox\Cms\Identity\Login\Domain\LoginThrottle;
 use Cbox\Cms\Identity\Login\Domain\ThrottleScope;
 use Cbox\Cms\Identity\PasswordReset\Domain\Dto\IssuedResetLink;
@@ -66,6 +67,7 @@ final readonly class RequestPasswordReset
     public function __construct(
         private IssueResetLink $links,
         private LoginThrottle $throttle,
+        private ThrottleSecret $secret,
         private MailGateway $mail,
         private ResetSettings $settings,
         private Telemetry $telemetry,
@@ -92,7 +94,7 @@ final readonly class RequestPasswordReset
             return self::NO_ACCOUNT;
         }
 
-        return $this->throttle->hit(LoginThrottleKeys::of($login, $address)) instanceof ThrottleScope ? self::RATE_LIMITED : $this->send($login);
+        return $this->throttle->hit(LoginThrottleKeys::of($this->secret, $login, $address)) instanceof ThrottleScope ? self::RATE_LIMITED : $this->send($login);
     }
 
     private function send(LoginIdentifier $login): string

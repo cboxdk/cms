@@ -10,6 +10,7 @@ use Cbox\Cms\Identity\Login\Boundary\LoginInput;
 use Cbox\Cms\Identity\Login\Domain\ClientAddress;
 use Cbox\Cms\Identity\Login\Domain\Dto\LoginThrottleKeys;
 use Cbox\Cms\Identity\Login\Domain\InvalidClientAddress;
+use Cbox\Cms\Identity\Tests\Login\ThrottleSecrets;
 
 // What a login or reset form posted, read into the domain's values before an action sees it (PRD
 // 5.16, GUARDRAILS 2.2): the client's IP address as a ClientAddress in its canonical text, which
@@ -24,8 +25,8 @@ it('holds an IP address in its canonical text, so two spellings of one address a
     expect($short->value)->toBe('2001:db8::1')
         ->and($short->equals($long))->toBeTrue()
         ->and(new ClientAddress('192.0.2.1')->value)->toBe('192.0.2.1')
-        ->and(LoginThrottleKeys::of($login, $short)->ip)->toBe(LoginThrottleKeys::of($login, $long)->ip)
-        ->and(LoginThrottleKeys::of($login, $short)->ip)->toBe(hash('sha256', '2001:db8::1'))
+        ->and(LoginThrottleKeys::of(ThrottleSecrets::fixed(), $login, $short)->ip)->toBe(LoginThrottleKeys::of(ThrottleSecrets::fixed(), $login, $long)->ip)
+        ->and(LoginThrottleKeys::of(ThrottleSecrets::fixed(), $login, $short)->ip)->toBe(ThrottleSecrets::fixed()->hash('2001:db8::1'))
         ->and(print_r($short, true))->not->toContain('2001');
 });
 

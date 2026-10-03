@@ -11,6 +11,8 @@ use Cbox\Cms\Contracts\Identity\PasswordHash;
 use Cbox\Cms\Identity\Login\Adapter\ValkeyLoginThrottle;
 use Cbox\Cms\Identity\Login\Boundary\LoginInput;
 use Cbox\Cms\Identity\Login\Domain\ClientAddress;
+use Cbox\Cms\Identity\Login\Domain\Dto\LoginThrottleKeys;
+use Cbox\Cms\Identity\Login\Domain\Dto\ThrottleSecret;
 use Cbox\Cms\Identity\PasswordReset\Actions\RequestPasswordReset;
 use Cbox\Cms\Identity\PasswordReset\Domain\Dto\ResetRequest;
 use Cbox\Cms\Identity\Tests\LocalAccounts\PostgresLocalAccounts;
@@ -25,7 +27,8 @@ use Illuminate\Mail\Transport\ArrayTransport;
  * test database, real Valkey and the workbench's array mailer: its throttle is the login throttle's
  * script under a prefix of its own with the limits of cbox-cms.identity.password_reset.throttle, so
  * the fourth request for one email within the hour mails nothing, and a reset request never counts
- * against the login throttle. No key holds the email.
+ * against the login throttle. No key holds the email, or its or the address's plain SHA-256: the
+ * keys are keyed hashes under the application's throttle secret.
  */
 
 it('mails at most three links an hour for one email and counts apart from the logins', function (): void {
@@ -45,7 +48,9 @@ it('mails at most three links an hour for one email and counts apart from the lo
 
     expect($transport)->toBeInstanceOf(ArrayTransport::class)
         ->and($transport instanceof ArrayTransport ? $transport->messages()->count() : null)->toBe(3)
-        ->and($keys)->toContain(ValkeyLoginThrottle::RESET_KEY.'identifier:'.hash('sha256', 'mette.holm@example.com'))
+        ->and($keys)->toContain(ValkeyLoginThrottle::RESET_KEY.'identifier:'.LoginThrottleKeys::of(app(ThrottleSecret::class), new LoginIdentifier('mette.holm@example.com'), new ClientAddress('192.0.2.30'))->identifier)
+        ->and($keys)->not->toContain(hash('sha256', 'mette.holm@example.com'))
+        ->and($keys)->not->toContain(hash('sha256', '192.0.2.30'))
         ->and($keys)->not->toContain(ValkeyLoginThrottle::KEY)
         ->and($keys)->not->toContain('mette.holm');
 });

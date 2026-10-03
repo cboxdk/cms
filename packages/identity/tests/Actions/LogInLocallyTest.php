@@ -22,6 +22,7 @@ use Cbox\Cms\Identity\Login\Domain\ThrottleScope;
 use Cbox\Cms\Identity\Sessions\Domain\Dto\NewSession;
 use Cbox\Cms\Identity\Sessions\Domain\SessionKey;
 use Cbox\Cms\Identity\Tests\Login\LocalLoginWorld;
+use Cbox\Cms\Identity\Tests\Login\ThrottleSecrets;
 use Closure;
 use RuntimeException;
 
@@ -62,7 +63,7 @@ it('logs a member of staff in with the right password and issues a new session t
         ->and($principal instanceof ActorPrincipal ? $principal->issuerKind : null)->toBe(IssuerKind::Human)
         ->and($world->hasher->verified)->toHaveCount(1)
         ->and($world->telemetry->counted('cms.session.issued'))->toBe(1)
-        ->and($world->throttle->count(ThrottleScope::Identifier, LoginThrottleKeys::of(new LoginIdentifier(LOGIN_EMAIL), new ClientAddress(LOGIN_IP))))->toBe(0);
+        ->and($world->throttle->count(ThrottleScope::Identifier, LoginThrottleKeys::of(ThrottleSecrets::fixed(), new LoginIdentifier(LOGIN_EMAIL), new ClientAddress(LOGIN_IP))))->toBe(0);
 });
 
 it('refuses an unknown email, a wrong password and an actor that is not active alike, with login_rejected', function (Closure $refused): void {
@@ -80,7 +81,7 @@ it('refuses an unknown email, a wrong password and an actor that is not active a
         ->and($outcome->fields)->toBe([])
         ->and($world->hasher->verified)->toHaveCount(1)
         ->and($world->sessions->count())->toBe(0)
-        ->and($world->throttle->count(ThrottleScope::Identifier, LoginThrottleKeys::of($request->login->identifier ?? throw new RuntimeException('The identifier is unreadable.'), new ClientAddress(LOGIN_IP))))->toBe(1);
+        ->and($world->throttle->count(ThrottleScope::Identifier, LoginThrottleKeys::of(ThrottleSecrets::fixed(), $request->login->identifier ?? throw new RuntimeException('The identifier is unreadable.'), new ClientAddress(LOGIN_IP))))->toBe(1);
 })->with([
     'an unknown email' => [fn (): LocalLoginRequest => localLogin('nobody@example.com')],
     'a wrong password' => [fn (): LocalLoginRequest => localLogin(password: 'not the password at all')],
@@ -99,7 +100,7 @@ it('refuses empty fields with validation_required on each, without counting an a
         ->and($both->fields)->toBe([LoginField::Identifier, LoginField::Password])
         ->and($password->fields)->toBe([LoginField::Password])
         ->and($world->hasher->verified)->toBe([])
-        ->and($world->throttle->count(ThrottleScope::Ip, LoginThrottleKeys::of(new LoginIdentifier(LOGIN_EMAIL), new ClientAddress(LOGIN_IP))))->toBe(0);
+        ->and($world->throttle->count(ThrottleScope::Ip, LoginThrottleKeys::of(ThrottleSecrets::fixed(), new LoginIdentifier(LOGIN_EMAIL), new ClientAddress(LOGIN_IP))))->toBe(0);
 });
 
 it('refuses an identifier that names no account and a request without a client address with login_rejected, uncounted and unchecked', function (LocalLoginRequest $request): void {
@@ -113,7 +114,7 @@ it('refuses an identifier that names no account and a request without a client a
         ->and($outcome->fields)->toBe([])
         ->and($world->hasher->verified)->toBe([])
         ->and($world->sessions->count())->toBe(0)
-        ->and($world->throttle->count(ThrottleScope::Ip, LoginThrottleKeys::of(new LoginIdentifier(LOGIN_EMAIL), new ClientAddress(LOGIN_IP))))->toBe(0);
+        ->and($world->throttle->count(ThrottleScope::Ip, LoginThrottleKeys::of(ThrottleSecrets::fixed(), new LoginIdentifier(LOGIN_EMAIL), new ClientAddress(LOGIN_IP))))->toBe(0);
 })->with([
     'an unreadable identifier' => [fn (): LocalLoginRequest => localLogin('mette holm@example.com')],
     'no client address' => [fn (): LocalLoginRequest => new LocalLoginRequest(LoginInput::login(LOGIN_EMAIL), LoginInput::password(LocalLoginWorld::PASSWORD), null)],
@@ -150,8 +151,8 @@ it('clears the identifier\'s count when the login succeeds', function (): void {
 
     loggedIn($login->login(localLogin()));
 
-    expect($world->throttle->count(ThrottleScope::Identifier, LoginThrottleKeys::of(new LoginIdentifier(LOGIN_EMAIL), new ClientAddress(LOGIN_IP))))->toBe(0)
-        ->and($world->throttle->count(ThrottleScope::Ip, LoginThrottleKeys::of(new LoginIdentifier(LOGIN_EMAIL), new ClientAddress(LOGIN_IP))))->toBe(4);
+    expect($world->throttle->count(ThrottleScope::Identifier, LoginThrottleKeys::of(ThrottleSecrets::fixed(), new LoginIdentifier(LOGIN_EMAIL), new ClientAddress(LOGIN_IP))))->toBe(0)
+        ->and($world->throttle->count(ThrottleScope::Ip, LoginThrottleKeys::of(ThrottleSecrets::fixed(), new LoginIdentifier(LOGIN_EMAIL), new ClientAddress(LOGIN_IP))))->toBe(4);
 });
 
 it('ends the session the browser still carried and ignores a value that is no session id', function (): void {

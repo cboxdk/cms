@@ -25,6 +25,7 @@ use Cbox\Cms\Identity\Login\Domain\ClientAddress;
 use Cbox\Cms\Identity\Login\Domain\Dto\LocalLoginRequest;
 use Cbox\Cms\Identity\Login\Domain\Dto\LoginOutcome;
 use Cbox\Cms\Identity\Login\Domain\Dto\LoginThrottleKeys;
+use Cbox\Cms\Identity\Login\Domain\Dto\ThrottleSecret;
 use Cbox\Cms\Identity\Login\Domain\LoginField;
 use Cbox\Cms\Identity\Login\Domain\LoginThrottle;
 use Cbox\Cms\Identity\Login\Domain\ThrottleScope;
@@ -44,9 +45,10 @@ use Cbox\Cms\Identity\Sessions\Actions\IssueSession;
  * 2. an identifier the form could not read as one (TypedLogin::unreadable()), which names no
  *    account, and a request without a client address, which the throttle could not count, are
  *    refused with login_rejected, count as no attempt and check no password;
- * 3. the attempt is counted by the LoginThrottle under the identifier and the IP address; one
- *    above the limit of either is refused with login_rate_limited, adds 1 to the counter
- *    `cms.login.rate_limited` with `cms.limit`, the ThrottleScope, and checks no password;
+ * 3. the attempt is counted by the LoginThrottle under the identifier and the IP address, each
+ *    hashed with the ThrottleSecret; one above the limit of either is refused with
+ *    login_rate_limited, adds 1 to the counter `cms.login.rate_limited` with `cms.limit`, the
+ *    ThrottleScope, and checks no password;
  * 4. the local connection starts and completes the login with the identifier and the password in
  *    one go: its flow is Direct, so the pending login never leaves the request, and the form's
  *    protection against forgery is the CSRF token of the request that carries it. The connection
@@ -75,6 +77,7 @@ final readonly class LogInLocally
         private LocalConnection $connection,
         private CheckLoginPolicy $policy,
         private LoginThrottle $throttle,
+        private ThrottleSecret $secret,
         private IssueSession $sessions,
         private EndSessions $ends,
         private Telemetry $telemetry,
@@ -98,7 +101,7 @@ final readonly class LogInLocally
             return LoginOutcome::refused(ErrorCode::LoginRejected);
         }
 
-        $keys = LoginThrottleKeys::of($identifier, $request->address);
+        $keys = LoginThrottleKeys::of($this->secret, $identifier, $request->address);
         $exceeded = $this->throttle->hit($keys);
 
         if ($exceeded instanceof ThrottleScope) {

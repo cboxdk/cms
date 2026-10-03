@@ -32,6 +32,7 @@ use Cbox\Cms\Identity\PasswordReset\Domain\Dto\ResetRequest;
 use Cbox\Cms\Identity\PasswordReset\Domain\Dto\ResetRequestOutcome;
 use Cbox\Cms\Identity\PasswordReset\Domain\ResetMail;
 use Cbox\Cms\Identity\Tests\Login\LocalLoginWorld;
+use Cbox\Cms\Identity\Tests\Login\ThrottleSecrets;
 use Cbox\Cms\Identity\Tests\PasswordReset\PasswordResetWorld;
 use Cbox\Cms\Identity\Tests\Sessions\SessionWorld;
 use DateInterval;
@@ -110,7 +111,7 @@ it('sends nothing for a request without a client address, counts no throttle att
 
     expect($outcome->taken)->toBeTrue()
         ->and($world->mail->sent())->toBe([])
-        ->and($world->throttle->count(ThrottleScope::Identifier, LoginThrottleKeys::of(new LoginIdentifier(RESET_EMAIL), new ClientAddress(RESET_IP))))->toBe(0)
+        ->and($world->throttle->count(ThrottleScope::Identifier, LoginThrottleKeys::of(ThrottleSecrets::fixed(), new LoginIdentifier(RESET_EMAIL), new ClientAddress(RESET_IP))))->toBe(0)
         ->and($world->login->telemetry->counted(RequestPasswordReset::REQUESTS))->toBe(1);
 });
 

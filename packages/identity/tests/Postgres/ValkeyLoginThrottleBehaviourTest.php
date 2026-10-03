@@ -12,6 +12,7 @@ use Cbox\Cms\Identity\Login\Domain\Dto\LoginThrottleSettings;
 use Cbox\Cms\Identity\Login\Domain\LoginThrottle;
 use Cbox\Cms\Identity\Login\Domain\ThrottleScope;
 use Cbox\Cms\Identity\Tests\Login\LoginThrottleBehaviour;
+use Cbox\Cms\Identity\Tests\Login\ThrottleSecrets;
 use Cbox\Cms\Testkit\Valkey\RealValkey;
 use Cbox\Cms\Testkit\Valkey\ValkeyRun;
 use Cbox\Cms\Tests\TestCase;
@@ -47,7 +48,7 @@ final class ValkeyLoginThrottleBehaviourTest extends TestCase
     public function test_a_count_expires_its_window_after_its_first_attempt_and_holds_no_identifier_or_address(): void
     {
         $throttle = $this->loginThrottle(self::settings(identifier: 5, ip: 50, window: 600));
-        $keys = LoginThrottleKeys::of(new LoginIdentifier('ada@example.org'), new ClientAddress('192.0.2.1'));
+        $keys = LoginThrottleKeys::of(ThrottleSecrets::fixed(), new LoginIdentifier('ada@example.org'), new ClientAddress('192.0.2.1'));
 
         $throttle->hit($keys);
         $throttle->hit($keys);
@@ -66,6 +67,8 @@ final class ValkeyLoginThrottleBehaviourTest extends TestCase
         self::assertStringContainsString(ValkeyLoginThrottle::KEY.'identifier:'.$keys->identifier, $stored);
         self::assertStringNotContainsString('ada', $stored);
         self::assertStringNotContainsString('192.0.2.1', $stored);
+        self::assertStringNotContainsString(hash('sha256', 'ada@example.org'), $stored);
+        self::assertStringNotContainsString(hash('sha256', '192.0.2.1'), $stored);
     }
 
     private function redis(): PhpRedisConnection

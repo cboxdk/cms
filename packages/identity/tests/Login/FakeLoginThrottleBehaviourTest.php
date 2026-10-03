@@ -37,7 +37,7 @@ final class FakeLoginThrottleBehaviourTest extends TestCase
     public function test_a_count_lives_for_its_window_from_its_first_attempt(): void
     {
         $throttle = new FakeLoginThrottle(self::settings(identifier: 2, ip: 100, window: 600), $this->clock());
-        $keys = LoginThrottleKeys::of(new LoginIdentifier('ada@example.org'), new ClientAddress('192.0.2.1'));
+        $keys = LoginThrottleKeys::of(ThrottleSecrets::fixed(), new LoginIdentifier('ada@example.org'), new ClientAddress('192.0.2.1'));
 
         self::assertNull($throttle->hit($keys));
         $this->clock()->advance(new DateInterval('PT9M'));
