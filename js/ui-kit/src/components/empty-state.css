@@ -1,0 +1,29 @@
+@layer cms.kit {
+  .cms-empty-state {
+    display: grid;
+    justify-items: center;
+    gap: var(--cms-space-2);
+    padding: var(--cms-space-8) var(--cms-space-4);
+    border: 1px dashed var(--cms-color-border-strong);
+    border-radius: var(--cms-radius-lg);
+    text-align: center;
+  }
+
+  .cms-empty-state__title {
+    margin: 0;
+    font-size: var(--cms-font-size-lg);
+    font-weight: var(--cms-font-weight-semibold);
+    line-height: var(--cms-line-height-tight);
+  }
+
+  .cms-empty-state__description {
+    max-inline-size: var(--cms-measure);
+    margin: 0;
+    color: var(--cms-color-text-muted);
+    font-size: var(--cms-font-size-md);
+  }
+
+  .cms-empty-state__action {
+    padding-block-start: var(--cms-space-2);
+  }
+}

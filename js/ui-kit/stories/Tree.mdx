@@ -1,0 +1,26 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as TreeStories from './Tree.stories';
+
+<Meta of={TreeStories} />
+
+# Tree
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={TreeStories} />
+
+<Canvas of={TreeStories.Default} />
+
+## Do and don't
+
+- Do pass an EmptyState, a loading text and an ErrorState.
+- Don't use a tree for a flat list; use a DataTable or a list.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={TreeStories} />

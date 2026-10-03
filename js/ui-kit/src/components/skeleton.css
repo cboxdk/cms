@@ -1,0 +1,34 @@
+@layer cms.kit {
+  .cms-skeleton {
+    display: grid;
+    gap: var(--cms-space-2);
+    inline-size: 100%;
+  }
+
+  .cms-skeleton__line,
+  .cms-skeleton__block {
+    display: block;
+    border-radius: var(--cms-radius-sm);
+    background: var(--cms-color-border);
+  }
+
+  .cms-skeleton__line {
+    block-size: 0.875rem;
+  }
+
+  .cms-skeleton__line:last-child:not(:first-child) {
+    inline-size: 60%;
+  }
+
+  .cms-skeleton__block {
+    block-size: 8rem;
+    border-radius: var(--cms-radius-md);
+  }
+
+  @media (forced-colors: active) {
+    .cms-skeleton__line,
+    .cms-skeleton__block {
+      border: 1px solid GrayText;
+    }
+  }
+}

@@ -1,4 +1,4 @@
-import { Alert, Brand, Button, Form, TaskScreen, TextField, TextLink } from '@cboxdk/cms-ui-kit';
+import { Brand, Button, Callout, Form, TaskScreen, TextInput, TextLink } from '@cboxdk/cms-ui-kit';
 import { Head, useForm } from '@inertiajs/react';
 import type { SubmitEvent } from 'react';
 
@@ -45,9 +45,9 @@ export default function ForgotPassword({
         description={t('panel.forgot.description')}
         footer={<TextLink href={login}>{t('panel.forgot.back')}</TextLink>}
       >
-        {requested ? <Alert>{t('panel.forgot.requested', { minutes })}</Alert> : null}
+        {requested ? <Callout>{t('panel.forgot.requested', { minutes })}</Callout> : null}
         <Form method="post" action={action} onSubmit={submit}>
-          <TextField
+          <TextInput
             label={t('panel.forgot.email')}
             type="email"
             name="email"

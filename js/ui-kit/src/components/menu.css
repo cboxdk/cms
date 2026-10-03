@@ -1,0 +1,5 @@
+@layer cms.kit {
+  .cms-option-list[role='menu'] {
+    min-inline-size: 10rem;
+  }
+}

@@ -1,6 +1,6 @@
 import {
   KitI18nProvider,
-  TextField,
+  TextInput,
   type KitI18nProviderProps,
   type KitLocale,
 } from '@cboxdk/cms-ui-kit';
@@ -18,7 +18,7 @@ export default meta;
 function requiredField(locale: KitLocale) {
   return (
     <KitI18nProvider locale={locale}>
-      <TextField name="email" type="email" required label={STORY_TEXTS[locale].email} />
+      <TextInput name="email" type="email" required label={STORY_TEXTS[locale].email} />
     </KitI18nProvider>
   );
 }
@@ -27,7 +27,7 @@ function requiredField(locale: KitLocale) {
 export const Danish: Story = {
   render: () => requiredField('da'),
   play: ({ canvasElement }) => {
-    const mark = single(canvasElement, '.cms-text-field__required', HTMLSpanElement);
+    const mark = single(canvasElement, '.cms-field__required', HTMLSpanElement);
 
     check(mark.textContent === 'Påkrævet', 'the kit marks a required field in Danish');
   },
@@ -37,7 +37,7 @@ export const Danish: Story = {
 export const English: Story = {
   render: () => requiredField('en'),
   play: ({ canvasElement }) => {
-    const mark = single(canvasElement, '.cms-text-field__required', HTMLSpanElement);
+    const mark = single(canvasElement, '.cms-field__required', HTMLSpanElement);
 
     check(mark.textContent === 'Required', 'the kit marks a required field in English');
   },

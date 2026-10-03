@@ -2,9 +2,11 @@
   .cms-button {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: var(--cms-space-2);
-    padding: var(--cms-space-2) var(--cms-space-4);
-    border: 1px solid var(--cms-color-border);
+    min-block-size: calc(var(--cms-target-size) + var(--cms-space-3));
+    padding: var(--cms-space-1) var(--cms-space-4);
+    border: 1px solid var(--cms-color-border-strong);
     border-radius: var(--cms-button-radius);
     background: var(--cms-color-surface-raised);
     color: var(--cms-color-text);
@@ -12,18 +14,24 @@
     font-size: var(--cms-font-size-md);
     font-weight: var(--cms-font-weight-medium);
     line-height: var(--cms-line-height);
+    text-decoration: none;
+    white-space: nowrap;
     cursor: pointer;
     transition: background-color var(--cms-duration-fast) ease-out;
   }
 
   .cms-button:focus-visible {
-    outline: none;
+    outline: 2px solid transparent;
     box-shadow: var(--cms-focus-ring);
   }
 
   .cms-button:disabled {
     cursor: not-allowed;
     opacity: 0.6;
+  }
+
+  .cms-button:hover:not(:disabled) {
+    border-color: var(--cms-color-text-muted);
   }
 
   .cms-button[data-variant='primary'] {
@@ -33,11 +41,28 @@
   }
 
   .cms-button[data-variant='primary']:hover:not(:disabled) {
+    border-color: var(--cms-color-accent-hover);
     background: var(--cms-color-accent-hover);
   }
 
   .cms-button[data-variant='danger'] {
     border-color: var(--cms-color-danger);
     color: var(--cms-color-danger);
+  }
+
+  .cms-button[data-variant='quiet'] {
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .cms-button[data-variant='quiet']:hover:not(:disabled) {
+    border-color: var(--cms-color-border);
+    background: var(--cms-color-surface-raised);
+  }
+
+  @media (forced-colors: active) {
+    .cms-button[data-variant='primary'] {
+      border-width: 2px;
+    }
   }
 }

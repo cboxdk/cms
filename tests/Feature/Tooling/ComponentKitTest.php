@@ -223,7 +223,8 @@ it('fails the kit\'s catalogue test on a key present only in da', function (): v
     mkdir($directory);
     $catalogues = Phpstan::root().'/js/ui-kit/src/i18n/catalogues';
     file_put_contents($directory.'/en.json', (string) file_get_contents($catalogues.'/en.json'));
-    file_put_contents($directory.'/da.json', str_replace('{', "{\n  \"kit.only_danish\": \"Kun dansk\",", (string) file_get_contents($catalogues.'/da.json')));
+    // Only the catalogue's opening brace: a text may name a value in braces, such as {count}.
+    file_put_contents($directory.'/da.json', (string) preg_replace('/^\{/', "{\n  \"kit.only_danish\": \"Kun dansk\",", (string) file_get_contents($catalogues.'/da.json'), 1));
 
     try {
         $process = kitProcess(['node', 'js/ui-kit/tests/run.js', 'i18n'], ['CMS_KIT_CATALOGUES' => $directory]);

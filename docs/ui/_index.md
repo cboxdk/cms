@@ -8,6 +8,7 @@ description: The component kit of the panel, js/ui-kit, with its design tokens, 
 
 Every component of the panel lives in one kit, the npm workspace `js/ui-kit`. The panel and, later, an addon's panel code use its components and never style the panel's markup themselves.
 
+- [Components](components.md): every component of the kit, by group, with what it is for.
 - [Design tokens](tokens.md): every token with its tier and values, the contrast pairs the kit checks, and the curated part hooks.
 
 ## Cascade layers
@@ -29,7 +30,11 @@ The kit has a few texts of its own, such as the mark of a required field. They l
 
 ## Primitives
 
-The kit builds on React Aria, which gives it keyboard and focus behaviour and locale-aware formatting (decision D2). React Aria stays inside the kit: no component's props expose it, the kit exports none of it, and the lint refuses an import of it from the panel. The kit imports each React Aria component from its own module, such as `react-aria-components/Dialog`, because the type declarations of a few modules (`Group`, `Popover`, `Tooltip`, `NumberField`, `DatePicker` and `DateRangePicker`) do not compile under the repository's strict TypeScript settings; for those, the kit uses the hooks of `react-aria` instead.
+The kit builds on React Aria, which gives it keyboard and focus behaviour and locale-aware formatting (decision D2). React Aria stays inside the kit: no component's props expose it, the kit exports none of it, and the lint refuses an import of it from the panel. The kit imports each React Aria component from its own module, such as `react-aria-components/Dialog`, because the type declarations of a few modules (`Group`, `Popover`, `Tooltip`, `NumberField`, `DatePicker` and `DateRangePicker`) do not compile under the repository's strict TypeScript settings; for those, the kit uses the hooks of `react-aria` and the state of `react-stately` instead. So the overlays that hang from a control (the lists of `Select`, `Combobox` and `MultiSelect`, `Menu` and `Tooltip`) and `NumberInput` are built on the hooks, in a popover of the kit's own, and the dialogs, tabs, tables, trees, check boxes and the command palette on the components.
+
+## Stability and the API report
+
+Every export of the kit carries one stability tag in its TSDoc, `@stable` or `@experimental`. The components of block B1 are experimental (decision D4): their props may change in a minor release. The API report, `js/ui-kit/api/cms-ui-kit.api.md`, lists every export with its declaration and its tag; a test of gate 5 fails when the report differs from what the kit exports, and `npm run api:report` writes it anew after an intended change, which is then reviewed in the diff.
 
 ## Rules for a component
 
@@ -37,7 +42,10 @@ The kit builds on React Aria, which gives it keyboard and focus behaviour and lo
 - It reads only semantic and component tokens, never a primitive `--cms-ref-*` one.
 - Its markup, class names and attributes are internal. The only exception is a part hook, a `data-cms-part` attribute from the curated list in `tokens.json`.
 - Its texts come from the caller's translations or from the kit's catalogues, never from literal text.
-- It has a story: a file in `js/ui-kit/stories` whose default export names it as its `component`, with a story for each of its states and a play function for its keyboard contract. Gate 7 fails on a component the kit exports without one, and compares each story with its visual baseline.
+- It carries a stability tag, and its TSDoc says what it is for and its keyboard contract.
+- A component that shows data has an empty, a loading and a failed state, each with a story: what it waits for is said in a `ProgressLabel`, and a failure and an empty list say what to do next.
+- It has a story: a file in `js/ui-kit/stories` whose default export names it as its `component`, with a story for each of its states and a play function for its keyboard contract, and the stories `Dark`, `ForcedColors` and `Danish`. Gate 7 fails on a component the kit exports without one, and compares each story with its visual baseline.
+- It has an MDX page beside its stories, `js/ui-kit/stories/<Name>.mdx`: its stability and since, its description from its TSDoc, do and don't, and its props.
 
 ## Storybook
 

@@ -1,0 +1,26 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as FormActionsStories from './FormActions.stories';
+
+<Meta of={FormActionsStories} />
+
+# FormActions
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={FormActionsStories} />
+
+<Canvas of={FormActionsStories.Default} />
+
+## Do and don't
+
+- Do put the cancelling action first and the primary one last.
+- Don't put more than one primary button in a form.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={FormActionsStories} />

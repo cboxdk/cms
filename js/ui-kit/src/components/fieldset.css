@@ -1,0 +1,32 @@
+@layer cms.kit {
+  .cms-fieldset {
+    display: grid;
+    gap: var(--cms-space-3);
+    min-inline-size: 0;
+    margin: 0;
+    padding: var(--cms-space-4);
+    border: 1px solid var(--cms-color-border);
+    border-radius: var(--cms-radius-md);
+  }
+
+  .cms-fieldset[aria-invalid='true'] {
+    border-color: var(--cms-color-danger);
+  }
+
+  .cms-fieldset__legend {
+    padding-inline: var(--cms-space-1);
+    font-size: var(--cms-font-size-md);
+    font-weight: var(--cms-font-weight-semibold);
+  }
+
+  .cms-fieldset__description {
+    margin: 0;
+    color: var(--cms-color-text-muted);
+    font-size: var(--cms-font-size-md);
+  }
+
+  .cms-fieldset__fields {
+    display: grid;
+    gap: var(--cms-space-4);
+  }
+}

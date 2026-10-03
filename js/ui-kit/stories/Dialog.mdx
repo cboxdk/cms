@@ -1,0 +1,27 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as DialogStories from './Dialog.stories';
+
+<Meta of={DialogStories} />
+
+# Dialog
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={DialogStories} />
+
+<Canvas of={DialogStories.Keyboard} />
+
+## Do and don't
+
+- Do give the dialog a title that says what it is for.
+- Do put the cancelling button before the primary one in the footer.
+- Don't open a dialog from a dialog; use a Wizard for work in steps.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={DialogStories} />

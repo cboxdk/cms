@@ -1,0 +1,20 @@
+@layer cms.kit {
+  .cms-icon {
+    display: inline-block;
+    flex: none;
+    inline-size: 1.25em;
+    block-size: 1.25em;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    vertical-align: -0.25em;
+  }
+
+  .cms-icon[data-size='sm'] {
+    inline-size: 1em;
+    block-size: 1em;
+    vertical-align: -0.125em;
+  }
+}

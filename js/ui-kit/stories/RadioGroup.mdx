@@ -1,0 +1,26 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as RadioGroupStories from './RadioGroup.stories';
+
+<Meta of={RadioGroupStories} />
+
+# RadioGroup
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={RadioGroupStories} />
+
+<Canvas of={RadioGroupStories.Default} />
+
+## Do and don't
+
+- Do use it for a choice of one of a few options the reader should see at once.
+- Don't use it for more than about six options; use a Select.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={RadioGroupStories} />

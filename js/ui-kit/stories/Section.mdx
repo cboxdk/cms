@@ -1,0 +1,26 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as SectionStories from './Section.stories';
+
+<Meta of={SectionStories} />
+
+# Section
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={SectionStories} />
+
+<Canvas of={SectionStories.Default} />
+
+## Do and don't
+
+- Do give every part of a page a section with a heading.
+- Don't skip heading levels; pass the level that fits the page's outline.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={SectionStories} />

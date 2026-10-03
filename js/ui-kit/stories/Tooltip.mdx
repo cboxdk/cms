@@ -1,0 +1,26 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as TooltipStories from './Tooltip.stories';
+
+<Meta of={TooltipStories} />
+
+# Tooltip
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={TooltipStories} />
+
+<Canvas of={TooltipStories.Default} />
+
+## Do and don't
+
+- Do use a tooltip for a short hint about a control, such as the label of an icon button.
+- Don't put information in a tooltip that is not also on the page.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={TooltipStories} />

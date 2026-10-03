@@ -1,0 +1,27 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as BadgeStories from './Badge.stories';
+
+<Meta of={BadgeStories} />
+
+# Badge
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={BadgeStories} />
+
+<Canvas of={BadgeStories.Tones} />
+
+## Do and don't
+
+- Do let the text say the state; the tone only adds to it.
+- Do keep the text to one or two words.
+- Don't use a badge for an action; use a Button.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={BadgeStories} />

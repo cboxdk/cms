@@ -18,18 +18,26 @@
     "node": "^22.13.0 || >=24"
   },
   "dependencies": {
-    "react-aria-components": "1.21.1"
+    "react-aria": "3.52.1",
+    "react-aria-components": "1.21.1",
+    "react-stately": "3.50.0"
   },
   "peerDependencies": {
     "react": "19.3.0"
   },
   "devDependencies": {
+    "@microsoft/api-extractor": "7.59.3",
     "@storybook/addon-a11y": "10.6.1",
+    "@storybook/addon-docs": "10.6.1",
     "@storybook/addon-vitest": "10.6.1",
     "@storybook/react-vite": "10.6.1",
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.7",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.1",
+    "jsdom": "29.1.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "storybook": "10.6.1",

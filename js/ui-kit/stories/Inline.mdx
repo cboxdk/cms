@@ -1,0 +1,26 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as InlineStories from './Inline.stories';
+
+<Meta of={InlineStories} />
+
+# Inline
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={InlineStories} />
+
+<Canvas of={InlineStories.Default} />
+
+## Do and don't
+
+- Do use it for short things side by side, such as a chip and a badge.
+- Don't use it to lay out a form; use a Stack.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={InlineStories} />

@@ -1,0 +1,26 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as EmptyStateStories from './EmptyState.stories';
+
+<Meta of={EmptyStateStories} />
+
+# EmptyState
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={EmptyStateStories} />
+
+<Canvas of={EmptyStateStories.Default} />
+
+## Do and don't
+
+- Do say why it is empty and offer the first thing to do.
+- Don't leave an empty list without an empty state; an empty page is a dead end.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={EmptyStateStories} />

@@ -2,16 +2,25 @@ import {
   Button,
   Form,
   TaskScreen,
-  TextField,
+  TextInput,
   TextLink,
   type TaskScreenProps,
 } from '@cboxdk/cms-ui-kit';
 
-import { check, single, storyLocale, type Story, type StoryMeta } from './csf';
+import {
+  check,
+  single,
+  storyLocale,
+  type Story,
+  type StoryMeta,
+  inDanish,
+  inDark,
+  inForcedColours,
+} from './csf';
 import { STORY_TEXTS } from './texts';
 
 const meta: StoryMeta<TaskScreenProps> = {
-  title: 'Components/TaskScreen',
+  title: 'Components/Feedback/TaskScreen',
   component: TaskScreen,
 };
 
@@ -29,8 +38,8 @@ export const SignIn: Story = {
         footer={<TextLink href="#password-reset">{texts.forgotPassword}</TextLink>}
       >
         <Form>
-          <TextField name="email" type="email" required label={texts.email} />
-          <TextField name="password" type="password" required label={texts.password} />
+          <TextInput name="email" type="email" required label={texts.email} />
+          <TextInput name="password" type="password" required label={texts.password} />
           <Button type="submit" variant="primary">
             {texts.signIn}
           </Button>
@@ -45,3 +54,7 @@ export const SignIn: Story = {
     check(heading.textContent !== '', 'the page has a heading');
   },
 };
+
+export const Dark: Story = inDark(SignIn);
+export const ForcedColors: Story = inForcedColours(SignIn);
+export const Danish: Story = inDanish(SignIn);

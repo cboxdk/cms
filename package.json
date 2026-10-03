@@ -19,6 +19,8 @@
     "generate:tokens": "node js/ui-kit/scripts/generate-tokens.js",
     "test:kit": "node js/ui-kit/tests/run.js",
     "test:js": "vitest run --project=unit --reporter=default --reporter=./js/tooling/vitest-no-skipped.js",
+    "api:report": "node js/ui-kit/scripts/api-report.js --update",
+    "api:check": "node js/ui-kit/scripts/api-report.js",
     "storybook": "storybook dev --config-dir js/ui-kit/.storybook --port 6006 --no-open --disable-telemetry",
     "storybook:build": "storybook build --config-dir js/ui-kit/.storybook --output-dir .cache/storybook/static --disable-telemetry --quiet",
     "storybook:exports": "node js/ui-kit/scripts/story-exports.js",

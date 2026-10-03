@@ -1,0 +1,158 @@
+/* The check box, the switch and the radio buttons share the frame of a choice. */
+
+@layer cms.kit {
+  .cms-choice {
+    display: grid;
+    gap: var(--cms-space-1);
+  }
+
+  .cms-choice__control {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--cms-space-2);
+    min-block-size: var(--cms-target-size);
+    font-size: var(--cms-font-size-md);
+    cursor: pointer;
+  }
+
+  .cms-choice__control[data-disabled] {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  .cms-choice__label {
+    font-weight: var(--cms-font-weight-medium);
+  }
+
+  .cms-choice__description {
+    margin: 0;
+    padding-inline-start: calc(1.25rem + var(--cms-space-2));
+    color: var(--cms-color-text-muted);
+    font-size: var(--cms-font-size-md);
+  }
+
+  .cms-choice > .cms-field__error {
+    padding-inline-start: calc(1.25rem + var(--cms-space-2));
+  }
+
+  .cms-checkbox__box {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    inline-size: 1.25rem;
+    block-size: 1.25rem;
+    border: 1px solid var(--cms-color-border-strong);
+    border-radius: var(--cms-radius-sm);
+    background: var(--cms-color-surface);
+    color: var(--cms-color-on-accent);
+  }
+
+  .cms-choice__control[data-selected] .cms-checkbox__box,
+  .cms-choice__control[data-indeterminate] .cms-checkbox__box {
+    border-color: var(--cms-color-accent);
+    background: var(--cms-color-accent);
+  }
+
+  .cms-choice__control[data-invalid] .cms-checkbox__box {
+    border-color: var(--cms-color-danger);
+  }
+
+  .cms-choice__control[data-focus-visible] .cms-checkbox__box,
+  .cms-choice__control[data-focus-visible] .cms-switch__track,
+  .cms-choice__control[data-focus-visible] .cms-radio__dot {
+    box-shadow: var(--cms-focus-ring);
+  }
+
+  .cms-switch__track {
+    position: relative;
+    display: inline-block;
+    flex: none;
+    inline-size: 2.25rem;
+    block-size: 1.25rem;
+    border: 1px solid var(--cms-color-border-strong);
+    border-radius: 999px;
+    background: var(--cms-color-surface);
+    transition: background-color var(--cms-duration-fast) ease-out;
+  }
+
+  .cms-switch__thumb {
+    position: absolute;
+    inset-block-start: 0.125rem;
+    inset-inline-start: 0.125rem;
+    inline-size: 0.875rem;
+    block-size: 0.875rem;
+    border-radius: 50%;
+    background: var(--cms-color-text-muted);
+    transition: inset-inline-start var(--cms-duration-fast) ease-out;
+  }
+
+  .cms-choice__control[data-selected] .cms-switch__track {
+    border-color: var(--cms-color-accent);
+    background: var(--cms-color-accent);
+  }
+
+  .cms-choice__control[data-selected] .cms-switch__thumb {
+    inset-inline-start: calc(100% - 1rem);
+    background: var(--cms-color-on-accent);
+  }
+
+  .cms-radio-group {
+    display: grid;
+    gap: var(--cms-space-2);
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .cms-radio-group__options {
+    display: grid;
+    gap: var(--cms-space-2);
+  }
+
+  .cms-radio-group[data-orientation='horizontal'] .cms-radio-group__options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--cms-space-4);
+  }
+
+  .cms-radio__dot {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    inline-size: 1.25rem;
+    block-size: 1.25rem;
+    border: 1px solid var(--cms-color-border-strong);
+    border-radius: 50%;
+    background: var(--cms-color-surface);
+  }
+
+  .cms-choice__control[data-selected] .cms-radio__dot {
+    border: 6px solid var(--cms-color-accent);
+  }
+
+  .cms-choice__control[data-invalid] .cms-radio__dot {
+    border-color: var(--cms-color-danger);
+  }
+
+  @media (forced-colors: active) {
+    .cms-choice__control[data-selected] .cms-checkbox__box,
+    .cms-choice__control[data-selected] .cms-switch__track {
+      background: Highlight;
+      color: HighlightText;
+    }
+
+    .cms-choice__control[data-selected] .cms-switch__thumb {
+      background: HighlightText;
+    }
+
+    .cms-choice__control[data-selected] .cms-radio__dot {
+      border-color: Highlight;
+    }
+
+    .cms-switch__thumb {
+      background: CanvasText;
+    }
+  }
+}

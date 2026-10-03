@@ -1,10 +1,19 @@
 import { TextLink, type TextLinkProps } from '@cboxdk/cms-ui-kit';
 
-import { check, single, storyLocale, type Story, type StoryMeta } from './csf';
+import {
+  check,
+  single,
+  storyLocale,
+  type Story,
+  type StoryMeta,
+  inDanish,
+  inDark,
+  inForcedColours,
+} from './csf';
 import { STORY_TEXTS } from './texts';
 
 const meta: StoryMeta<TextLinkProps> = {
-  title: 'Components/TextLink',
+  title: 'Components/Navigation/TextLink',
   component: TextLink,
 };
 
@@ -23,3 +32,7 @@ export const Default: Story = {
     check(link.getBoundingClientRect().height >= 24, 'the link is at least 24 pixels high');
   },
 };
+
+export const Dark: Story = inDark(Default);
+export const ForcedColors: Story = inForcedColours(Default);
+export const Danish: Story = inDanish(Default);

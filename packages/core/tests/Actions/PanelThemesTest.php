@@ -77,7 +77,7 @@ it('fails with registry_panel_theme_contrast on a composed theme below AA, namin
 });
 
 it('checks the contrast after composition, so two themes that pass alone can fail together', function (): void {
-    $surface = '{"tokens":{"color-surface":{"light":"#1a1a1a","dark":"#121418"},"color-surface-raised":{"light":"#1a1a1a","dark":"#1b1e24"},"color-text":{"light":"#f5f5f5","dark":"#e8eaee"},"color-text-muted":{"light":"#c8c8c8","dark":"#9aa1ad"},"color-accent":{"light":"#8ab4ff","dark":"#6b8ff0"},"color-accent-hover":{"light":"#a8c6ff","dark":"#87a4f4"},"color-on-accent":{"light":"#0c0e12","dark":"#0c0e12"},"color-danger":{"light":"#ff8a85","dark":"#ef6b66"},"color-border-strong":{"light":"#8a919e","dark":"#6b7280"}}}';
+    $surface = '{"tokens":{"color-surface":{"light":"#1a1a1a","dark":"#121418"},"color-surface-raised":{"light":"#1a1a1a","dark":"#1b1e24"},"color-text":{"light":"#f5f5f5","dark":"#e8eaee"},"color-text-muted":{"light":"#c8c8c8","dark":"#9aa1ad"},"color-accent":{"light":"#8ab4ff","dark":"#6b8ff0"},"color-accent-hover":{"light":"#a8c6ff","dark":"#87a4f4"},"color-on-accent":{"light":"#0c0e12","dark":"#0c0e12"},"color-danger":{"light":"#ff8a85","dark":"#ef6b66"},"color-border-strong":{"light":"#8a919e","dark":"#6b7280"},"color-success":{"light":"#4ade80","dark":"#4ade80"},"color-warning":{"light":"#fbbf24","dark":"#fbbf24"},"color-accent-subtle":{"light":"#1e2a44","dark":"#1e2a44"}}}';
     $accent = '{"tokens":{"color-accent":{"light":"#2f5bd3","dark":"#6b8ff0"}}}';
     $sources = [ThemeWorld::BRAND => $surface, ThemeWorld::APP => $accent];
     $check = new CheckPanelTheme(ThemeWorld::sources($sources));

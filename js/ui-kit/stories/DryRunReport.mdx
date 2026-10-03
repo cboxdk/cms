@@ -1,0 +1,27 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as DryRunReportStories from './DryRunReport.stories';
+
+<Meta of={DryRunReportStories} />
+
+# DryRunReport
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={DryRunReportStories} />
+
+<Canvas of={DryRunReportStories.Publish} />
+
+## Do and don't
+
+- Do show the report of a dry run before the reader saves the change.
+- Do pass the time zone the reader works in.
+- Don't show it for a committed change; use a ReceiptStatus.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={DryRunReportStories} />

@@ -1,0 +1,27 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as TextInputStories from './TextInput.stories';
+
+<Meta of={TextInputStories} />
+
+# TextInput
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={TextInputStories} />
+
+<Canvas of={TextInputStories.Default} />
+
+## Do and don't
+
+- Do give every input a label, and say in the description what the value must be.
+- Do set autoComplete where the browser can fill the value.
+- Don't put instructions only inside the input; they disappear when the reader types.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={TextInputStories} />

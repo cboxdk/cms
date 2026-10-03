@@ -1,0 +1,31 @@
+@layer cms.kit {
+  .cms-progress-label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--cms-space-2);
+    color: var(--cms-color-text-muted);
+    font-size: var(--cms-font-size-md);
+  }
+
+  .cms-progress-label__spinner {
+    flex: none;
+    inline-size: 1rem;
+    block-size: 1rem;
+    border: 2px solid var(--cms-color-border-strong);
+    border-block-start-color: var(--cms-color-accent);
+    border-radius: 50%;
+    animation: cms-progress-label-turn calc(var(--cms-duration-fast) * 8) linear infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cms-progress-label__spinner {
+      animation: none;
+    }
+  }
+
+  @keyframes cms-progress-label-turn {
+    to {
+      transform: rotate(1turn);
+    }
+  }
+}

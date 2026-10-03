@@ -1,0 +1,38 @@
+@layer cms.kit {
+  .cms-icon-button {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    min-inline-size: calc(var(--cms-target-size) + var(--cms-space-3));
+    min-block-size: calc(var(--cms-target-size) + var(--cms-space-3));
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--cms-button-radius);
+    background: transparent;
+    color: var(--cms-color-text);
+    cursor: pointer;
+    transition: background-color var(--cms-duration-fast) ease-out;
+  }
+
+  .cms-icon-button[data-variant='secondary'] {
+    border-color: var(--cms-color-border-strong);
+    background: var(--cms-color-surface-raised);
+  }
+
+  .cms-icon-button:hover:not(:disabled) {
+    border-color: var(--cms-color-border-strong);
+    background: var(--cms-color-surface-raised);
+  }
+
+  .cms-icon-button:focus-visible,
+  .cms-icon-button[data-focus-visible='true'] {
+    outline: 2px solid transparent;
+    box-shadow: var(--cms-focus-ring);
+  }
+
+  .cms-icon-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+}

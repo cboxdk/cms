@@ -1,0 +1,27 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as ComboboxStories from './Combobox.stories';
+
+<Meta of={ComboboxStories} />
+
+# Combobox
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={ComboboxStories} />
+
+<Canvas of={ComboboxStories.Default} />
+
+## Do and don't
+
+- Do let the combobox filter a short list itself, and filter a long one on the server through onInputChange.
+- Do say what the list waits for while options load, and what failed when they do not.
+- Don't use a combobox for a few options the reader should see at once; use a RadioGroup or a Select.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={ComboboxStories} />

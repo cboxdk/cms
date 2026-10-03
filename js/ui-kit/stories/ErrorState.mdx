@@ -1,0 +1,27 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as ErrorStateStories from './ErrorState.stories';
+
+<Meta of={ErrorStateStories} />
+
+# ErrorState
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={ErrorStateStories} />
+
+<Canvas of={ErrorStateStories.Default} />
+
+## Do and don't
+
+- Do pass the catalog's explanation of the code and the code itself.
+- Do offer a way on, such as a button that tries again.
+- Don't use it for a refusal of a form; use a Callout and the fields' errors.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={ErrorStateStories} />

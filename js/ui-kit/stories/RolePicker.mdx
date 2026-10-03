@@ -1,0 +1,26 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as RolePickerStories from './RolePicker.stories';
+
+<Meta of={RolePickerStories} />
+
+# RolePicker
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={RolePickerStories} />
+
+<Canvas of={RolePickerStories.Default} />
+
+## Do and don't
+
+- Do pass what each role may do as its description.
+- Don't let the reader type a role's handle by hand.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={RolePickerStories} />

@@ -1,0 +1,92 @@
+@layer cms.kit {
+  .cms-tree {
+    display: grid;
+    gap: 1px;
+    padding: var(--cms-space-1);
+    border: 1px solid var(--cms-color-border);
+    border-radius: var(--cms-radius-md);
+    outline: none;
+  }
+
+  .cms-tree[data-focus-visible] {
+    box-shadow: var(--cms-focus-ring);
+  }
+
+  .cms-tree__item {
+    border-radius: var(--cms-radius-sm);
+    font-size: var(--cms-font-size-md);
+    cursor: default;
+    outline: none;
+  }
+
+  .cms-tree__item[data-hovered] {
+    background: var(--cms-color-surface-raised);
+  }
+
+  .cms-tree__item[data-selected] {
+    background: var(--cms-color-accent-subtle);
+    color: var(--cms-color-accent);
+    font-weight: var(--cms-font-weight-medium);
+  }
+
+  .cms-tree__item[data-focus-visible] {
+    box-shadow: inset 0 0 0 2px var(--cms-color-focus);
+  }
+
+  .cms-tree__item[data-disabled] {
+    color: var(--cms-color-text-muted);
+  }
+
+  .cms-tree__row {
+    display: flex;
+    align-items: center;
+    gap: var(--cms-space-1);
+    min-block-size: calc(var(--cms-target-size) + var(--cms-space-3));
+    padding-inline-start: calc(
+      (var(--tree-item-level, 1) - 1) * var(--cms-space-4) + var(--cms-space-1)
+    );
+    padding-inline-end: var(--cms-space-2);
+  }
+
+  .cms-tree__chevron,
+  .cms-tree__spacer {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--cms-target-size);
+    block-size: var(--cms-target-size);
+  }
+
+  .cms-tree__chevron {
+    padding: 0;
+    border: 0;
+    border-radius: var(--cms-radius-sm);
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .cms-tree__label {
+    flex: 1;
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .cms-tree__check {
+    display: inline-flex;
+  }
+
+  .cms-tree__empty {
+    padding: var(--cms-space-2);
+  }
+
+  @media (forced-colors: active) {
+    .cms-tree__item[data-selected] {
+      outline: 2px solid Highlight;
+      outline-offset: -2px;
+    }
+  }
+}

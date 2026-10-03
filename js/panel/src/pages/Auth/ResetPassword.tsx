@@ -1,4 +1,4 @@
-import { Alert, Brand, Button, Form, TaskScreen, TextField, TextLink } from '@cboxdk/cms-ui-kit';
+import { Brand, Button, Callout, Form, TaskScreen, TextInput, TextLink } from '@cboxdk/cms-ui-kit';
 import { Head, useForm } from '@inertiajs/react';
 import type { SubmitEvent } from 'react';
 
@@ -63,15 +63,17 @@ export default function ResetPassword({
         }
       >
         {invalid ? (
-          <Alert tone="danger">{t('panel.reset.invalid')}</Alert>
+          <Callout tone="danger">{t('panel.reset.invalid')}</Callout>
         ) : (
           <>
-            {unchecked ? <Alert tone="danger">{t('panel.reset.check_unavailable')}</Alert> : null}
+            {unchecked ? (
+              <Callout tone="danger">{t('panel.reset.check_unavailable')}</Callout>
+            ) : null}
             <Form method="post" action={action} onSubmit={submit}>
               <input type="hidden" name="token" value={form.data.token} />
-              <TextField
+              <TextInput
                 label={t('panel.reset.password')}
-                hint={t('panel.reset.hint')}
+                description={t('panel.reset.hint')}
                 type="password"
                 name="password"
                 autoComplete="new-password"

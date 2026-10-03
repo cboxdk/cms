@@ -1,0 +1,27 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as CommandPaletteStories from './CommandPalette.stories';
+
+<Meta of={CommandPaletteStories} />
+
+# CommandPalette
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={CommandPaletteStories} />
+
+<Canvas of={CommandPaletteStories.Keyboard} />
+
+## Do and don't
+
+- Do give every page and command the reader may open an entry, with keywords such as the command's name.
+- Do render one palette per page, in the AppShell.
+- Don't list a command the reader may not run; the server leaves it out.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={CommandPaletteStories} />

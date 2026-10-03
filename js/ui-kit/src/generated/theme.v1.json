@@ -211,6 +211,26 @@
           "description": "The colour of the focus ring.",
           "$ref": "#/$defs/color"
         },
+        "color-accent-subtle": {
+          "description": "The background of a selected item, such as the current entry of the navigation.",
+          "$ref": "#/$defs/color"
+        },
+        "color-success": {
+          "description": "Success, such as a committed change.",
+          "$ref": "#/$defs/color"
+        },
+        "color-warning": {
+          "description": "A warning, such as a change that waits for a projection.",
+          "$ref": "#/$defs/color"
+        },
+        "color-backdrop": {
+          "description": "The colour of the backdrop behind a dialog, shown partly transparent.",
+          "$ref": "#/$defs/color"
+        },
+        "shadow-overlay": {
+          "description": "The shadow of an overlay, such as a menu or a dialog.",
+          "$ref": "#/$defs/shadow"
+        },
         "font-family": {
           "description": "The typeface of all text.",
           "$ref": "#/$defs/font-family"
@@ -313,6 +333,26 @@
         },
         "brand-logo-height": {
           "description": "The height of the installation's logo next to its name, in the shell's header and on the login page.",
+          "$ref": "#/$defs/length"
+        },
+        "nav-width": {
+          "description": "The width of the side navigation of the panel on a wide screen.",
+          "$ref": "#/$defs/length"
+        },
+        "table-row-height": {
+          "description": "The smallest height of a row of a data table.",
+          "$ref": "#/$defs/length"
+        },
+        "dialog-width": {
+          "description": "The widest a dialog grows.",
+          "$ref": "#/$defs/length"
+        },
+        "drawer-width": {
+          "description": "The widest a drawer grows.",
+          "$ref": "#/$defs/length"
+        },
+        "palette-width": {
+          "description": "The widest the command palette grows.",
           "$ref": "#/$defs/length"
         }
       }

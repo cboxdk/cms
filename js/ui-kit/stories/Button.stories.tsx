@@ -1,10 +1,19 @@
 import { Button, type ButtonProps } from '@cboxdk/cms-ui-kit';
 
-import { check, single, storyLocale, type Story, type StoryMeta } from './csf';
+import {
+  check,
+  inDanish,
+  inDark,
+  inForcedColours,
+  single,
+  storyLocale,
+  type Story,
+  type StoryMeta,
+} from './csf';
 import { STORY_TEXTS } from './texts';
 
 const meta: StoryMeta<ButtonProps> = {
-  title: 'Components/Button',
+  title: 'Components/Actions/Button',
   component: Button,
 };
 
@@ -50,3 +59,23 @@ export const Danger: Story = {
     <Button variant="danger">{STORY_TEXTS[storyLocale(globals)].delete}</Button>
   ),
 };
+
+/** A quiet button, and a button with an icon before its text. */
+export const QuietAndIcon: Story = {
+  render: (_args, { globals }) => {
+    const texts = STORY_TEXTS[storyLocale(globals)];
+
+    return (
+      <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <Button variant="quiet">{texts.cancel}</Button>
+        <Button icon="plus" variant="primary">
+          {texts.save}
+        </Button>
+      </div>
+    );
+  },
+};
+
+export const Dark: Story = inDark(Primary);
+export const ForcedColors: Story = inForcedColours(Primary);
+export const Danish: Story = inDanish(Primary);

@@ -1,0 +1,27 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as CalloutStories from './Callout.stories';
+
+<Meta of={CalloutStories} />
+
+# Callout
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={CalloutStories} />
+
+<Canvas of={CalloutStories.Tones} />
+
+## Do and don't
+
+- Do say what happened and what to do next, with an action when there is one.
+- Do use danger for a refusal and success for a saved change.
+- Don't use a callout for an error at one field; the field shows it, and an ErrorSummary lists them.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={CalloutStories} />

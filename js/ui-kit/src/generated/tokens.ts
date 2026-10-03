@@ -25,6 +25,14 @@ export type TokenName =
   | 'ref-blue-700'
   | 'ref-red-400'
   | 'ref-red-600'
+  | 'ref-black'
+  | 'ref-gray-300'
+  | 'ref-blue-50'
+  | 'ref-blue-900'
+  | 'ref-green-400'
+  | 'ref-green-600'
+  | 'ref-amber-400'
+  | 'ref-amber-700'
   | 'color-surface'
   | 'color-surface-raised'
   | 'color-text'
@@ -36,6 +44,11 @@ export type TokenName =
   | 'color-on-accent'
   | 'color-danger'
   | 'color-focus'
+  | 'color-accent-subtle'
+  | 'color-success'
+  | 'color-warning'
+  | 'color-backdrop'
+  | 'shadow-overlay'
   | 'font-family'
   | 'font-family-mono'
   | 'font-size-sm'
@@ -61,7 +74,12 @@ export type TokenName =
   | 'target-size'
   | 'measure'
   | 'button-radius'
-  | 'brand-logo-height';
+  | 'brand-logo-height'
+  | 'nav-width'
+  | 'table-row-height'
+  | 'dialog-width'
+  | 'drawer-width'
+  | 'palette-width';
 
 /**
  * A token a theme may set: the semantic and the component tiers, never a primitive.
@@ -80,6 +98,11 @@ export type ThemeTokenName =
   | 'color-on-accent'
   | 'color-danger'
   | 'color-focus'
+  | 'color-accent-subtle'
+  | 'color-success'
+  | 'color-warning'
+  | 'color-backdrop'
+  | 'shadow-overlay'
   | 'font-family'
   | 'font-family-mono'
   | 'font-size-sm'
@@ -105,7 +128,12 @@ export type ThemeTokenName =
   | 'target-size'
   | 'measure'
   | 'button-radius'
-  | 'brand-logo-height';
+  | 'brand-logo-height'
+  | 'nav-width'
+  | 'table-row-height'
+  | 'dialog-width'
+  | 'drawer-width'
+  | 'palette-width';
 
 /**
  * A curated part hook, the value of a `data-cms-part` attribute, which only the theme layer

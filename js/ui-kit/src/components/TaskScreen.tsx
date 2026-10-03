@@ -2,6 +2,11 @@ import type { ReactNode } from 'react';
 
 import './task-screen.css';
 
+/**
+ * The props of TaskScreen.
+ *
+ * @experimental
+ */
 export interface TaskScreenProps {
   /** The page's heading, from the caller's translations. */
   readonly title: string;
@@ -20,6 +25,8 @@ export interface TaskScreenProps {
  * with one centred panel holding the installation's brand, the heading, the explanation, the task
  * and the links away from it.
  * It fills the viewport on a phone and stays at a readable width on a desktop.
+ *
+ * @experimental
  */
 export function TaskScreen({ title, description, children, footer, brand }: TaskScreenProps) {
   return (

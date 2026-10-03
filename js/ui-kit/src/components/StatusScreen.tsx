@@ -2,6 +2,11 @@ import type { ReactNode } from 'react';
 
 import './status-screen.css';
 
+/**
+ * The props of StatusScreen.
+ *
+ * @experimental
+ */
 export interface StatusScreenProps {
   /** A short code that names the status, such as an HTTP status; shown above the title. */
   readonly code?: string;
@@ -17,6 +22,8 @@ export interface StatusScreenProps {
  * A page that only says something about the panel's state, such as an address it does not have:
  * the page's main landmark with one centred panel holding the heading, the explanation and the
  * actions. It fills the viewport on a phone and stays at a readable width on a desktop.
+ *
+ * @experimental
  */
 export function StatusScreen({ code, title, description, children }: StatusScreenProps) {
   return (

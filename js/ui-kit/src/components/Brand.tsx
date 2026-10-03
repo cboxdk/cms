@@ -1,6 +1,10 @@
 import './brand.css';
 
-/** An image of a brand in a light and a dark version, and the text that stands for it. */
+/**
+ * An image of a brand in a light and a dark version, and the text that stands for it.
+ *
+ * @experimental
+ */
 export interface BrandLogo {
   /** The address of the version shown in the light mode. */
   readonly light: string;
@@ -10,6 +14,11 @@ export interface BrandLogo {
   readonly alt: string;
 }
 
+/**
+ * The props of Brand.
+ *
+ * @experimental
+ */
 export interface BrandProps {
   /** The product name, shown as text beside the logo. */
   readonly name: string;
@@ -22,6 +31,8 @@ export interface BrandProps {
  * its product name. The installation sets both, never an addon; without them the caller passes the
  * panel's own name. Only the logo of the current mode is shown, so a screen reader announces one
  * alternative text.
+ *
+ * @experimental
  */
 export function Brand({ name, logo = null }: BrandProps) {
   return (

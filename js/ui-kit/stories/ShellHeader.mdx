@@ -1,0 +1,26 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as ShellHeaderStories from './ShellHeader.stories';
+
+<Meta of={ShellHeaderStories} />
+
+# ShellHeader
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={ShellHeaderStories} />
+
+<Canvas of={ShellHeaderStories.WithAction} />
+
+## Do and don't
+
+- Do put the installation's Brand at the start and the shell's few actions, such as signing out, at the end.
+- Don't put navigation or page actions in the shell's header; they belong in the side navigation and the PageHeader.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={ShellHeaderStories} />

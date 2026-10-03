@@ -1,0 +1,27 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as FormStories from './Form.stories';
+
+<Meta of={FormStories} />
+
+# Form
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={FormStories} />
+
+<Canvas of={FormStories.SignIn} />
+
+## Do and don't
+
+- Do put a FormActions with the buttons last.
+- Do let Enter submit the form.
+- Don't disable the submit button until the form is valid; let the reader submit and show what is wrong.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={FormStories} />

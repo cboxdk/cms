@@ -21,6 +21,14 @@
     --cms-ref-blue-700: #2349b0;
     --cms-ref-red-400: #ef6b66;
     --cms-ref-red-600: #c4302b;
+    --cms-ref-black: #000000;
+    --cms-ref-gray-300: #c3c9d2;
+    --cms-ref-blue-50: #e9effc;
+    --cms-ref-blue-900: #1d2a4a;
+    --cms-ref-green-400: #4cc07c;
+    --cms-ref-green-600: #1d7a43;
+    --cms-ref-amber-400: #e8a53b;
+    --cms-ref-amber-700: #a15c00;
     --cms-color-surface: var(--cms-ref-white);
     --cms-color-surface-raised: var(--cms-ref-gray-50);
     --cms-color-text: var(--cms-ref-gray-900);
@@ -32,8 +40,13 @@
     --cms-color-on-accent: var(--cms-ref-white);
     --cms-color-danger: var(--cms-ref-red-600);
     --cms-color-focus: var(--cms-color-accent);
+    --cms-color-accent-subtle: var(--cms-ref-blue-50);
+    --cms-color-success: var(--cms-ref-green-600);
+    --cms-color-warning: var(--cms-ref-amber-700);
+    --cms-color-backdrop: var(--cms-ref-black);
+    --cms-shadow-overlay: 0 4px 16px var(--cms-ref-gray-300);
     --cms-font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-    --cms-font-family-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    --cms-font-family-mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
     --cms-font-size-sm: 0.8125rem;
     --cms-font-size-md: 0.875rem;
     --cms-font-size-lg: 1rem;
@@ -58,6 +71,11 @@
     --cms-measure: 32rem;
     --cms-button-radius: var(--cms-radius-md);
     --cms-brand-logo-height: 2rem;
+    --cms-nav-width: 16rem;
+    --cms-table-row-height: 2.75rem;
+    --cms-dialog-width: 32rem;
+    --cms-drawer-width: 28rem;
+    --cms-palette-width: 40rem;
     color-scheme: light dark;
   }
 
@@ -73,6 +91,10 @@
       --cms-color-accent-hover: var(--cms-ref-blue-300);
       --cms-color-on-accent: var(--cms-ref-gray-1000);
       --cms-color-danger: var(--cms-ref-red-400);
+      --cms-color-accent-subtle: var(--cms-ref-blue-900);
+      --cms-color-success: var(--cms-ref-green-400);
+      --cms-color-warning: var(--cms-ref-amber-400);
+      --cms-shadow-overlay: 0 4px 16px var(--cms-ref-black);
     }
   }
 
@@ -92,6 +114,10 @@
     --cms-color-accent-hover: var(--cms-ref-blue-300);
     --cms-color-on-accent: var(--cms-ref-gray-1000);
     --cms-color-danger: var(--cms-ref-red-400);
+    --cms-color-accent-subtle: var(--cms-ref-blue-900);
+    --cms-color-success: var(--cms-ref-green-400);
+    --cms-color-warning: var(--cms-ref-amber-400);
+    --cms-shadow-overlay: 0 4px 16px var(--cms-ref-black);
   }
 
   @media (prefers-reduced-motion: reduce) {

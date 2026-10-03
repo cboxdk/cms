@@ -1,0 +1,86 @@
+@layer cms.kit {
+  .cms-app-shell {
+    container-type: inline-size;
+    min-block-size: 100vh;
+    min-block-size: 100dvh;
+  }
+
+  .cms-app-shell__frame {
+    display: grid;
+    grid-template-areas:
+      'bar'
+      'main';
+    grid-template-rows: auto 1fr;
+    min-block-size: inherit;
+  }
+
+  .cms-app-shell__bar {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 10;
+    display: flex;
+    grid-area: bar;
+    align-items: center;
+    gap: var(--cms-space-3);
+    min-block-size: 3.5rem;
+    padding: var(--cms-space-2) var(--cms-space-4);
+    border-block-end: 1px solid var(--cms-color-border);
+    background: var(--cms-color-surface);
+  }
+
+  .cms-app-shell__brand {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: var(--cms-space-2);
+    min-inline-size: 0;
+    font-weight: var(--cms-font-weight-semibold);
+  }
+
+  .cms-app-shell__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--cms-space-2);
+  }
+
+  .cms-app-shell__navigation {
+    display: none;
+    grid-area: main;
+    z-index: 5;
+    overflow-y: auto;
+    border-inline-end: 1px solid var(--cms-color-border);
+    background: var(--cms-color-surface);
+  }
+
+  .cms-app-shell__frame[data-navigation-open='true'] .cms-app-shell__navigation {
+    display: block;
+  }
+
+  .cms-app-shell__main {
+    grid-area: main;
+    min-inline-size: 0;
+    outline: none;
+  }
+
+  @container (min-width: 64rem) {
+    .cms-app-shell__frame {
+      grid-template-areas:
+        'bar bar'
+        'navigation main';
+      grid-template-columns: var(--cms-nav-width) 1fr;
+    }
+
+    .cms-app-shell__bar > .cms-app-shell__toggle {
+      display: none;
+    }
+
+    .cms-app-shell__navigation,
+    .cms-app-shell__frame[data-navigation-open='true'] .cms-app-shell__navigation {
+      position: sticky;
+      inset-block-start: 3.5rem;
+      display: block;
+      grid-area: navigation;
+      block-size: calc(100dvh - 3.5rem);
+    }
+  }
+}

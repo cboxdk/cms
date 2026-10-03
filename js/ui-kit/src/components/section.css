@@ -1,0 +1,42 @@
+@layer cms.kit {
+  .cms-section {
+    display: grid;
+    gap: var(--cms-space-3);
+    min-inline-size: 0;
+  }
+
+  .cms-section__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--cms-space-2);
+  }
+
+  .cms-section__heading {
+    display: grid;
+    gap: var(--cms-space-1);
+  }
+
+  .cms-section__title {
+    margin: 0;
+    font-size: var(--cms-font-size-lg);
+    font-weight: var(--cms-font-weight-semibold);
+    line-height: var(--cms-line-height-tight);
+  }
+
+  .cms-section__description {
+    margin: 0;
+    color: var(--cms-color-text-muted);
+    font-size: var(--cms-font-size-md);
+  }
+
+  .cms-section__actions {
+    display: flex;
+    gap: var(--cms-space-2);
+  }
+
+  .cms-section__body {
+    min-inline-size: 0;
+  }
+}

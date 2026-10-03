@@ -1,0 +1,27 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as ToastRegionStories from './ToastRegion.stories';
+
+<Meta of={ToastRegionStories} />
+
+# ToastRegion
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={ToastRegionStories} />
+
+<Canvas of={ToastRegionStories.Default} />
+
+## Do and don't
+
+- Do render one region per page, and add a toast for something that happened elsewhere, such as a saved change.
+- Do keep a toast that asks the reader to act until it is closed.
+- Don't put the only copy of an error in a toast; show it where it happened.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={ToastRegionStories} />

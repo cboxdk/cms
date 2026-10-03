@@ -1,0 +1,26 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as DescriptionListStories from './DescriptionList.stories';
+
+<Meta of={DescriptionListStories} />
+
+# DescriptionList
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={DescriptionListStories} />
+
+<Canvas of={DescriptionListStories.Default} />
+
+## Do and don't
+
+- Do use it for facts about one thing, such as an actor's profile.
+- Don't use it for rows of many things; use a DataTable.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={DescriptionListStories} />

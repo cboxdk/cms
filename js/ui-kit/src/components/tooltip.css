@@ -1,0 +1,12 @@
+@layer cms.kit {
+  .cms-tooltip {
+    max-inline-size: 20rem;
+    padding: var(--cms-space-1) var(--cms-space-2);
+    border: 1px solid var(--cms-color-border-strong);
+    border-radius: var(--cms-radius-sm);
+    background: var(--cms-color-text);
+    color: var(--cms-color-surface);
+    font-size: var(--cms-font-size-sm);
+    line-height: var(--cms-line-height);
+  }
+}

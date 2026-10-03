@@ -1,0 +1,26 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as TabsStories from './Tabs.stories';
+
+<Meta of={TabsStories} />
+
+# Tabs
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={TabsStories} />
+
+<Canvas of={TabsStories.Default} />
+
+## Do and don't
+
+- Do use tabs for views of one thing.
+- Don't use tabs as navigation between pages; use SideNav.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={TabsStories} />

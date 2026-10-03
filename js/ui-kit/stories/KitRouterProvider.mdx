@@ -1,0 +1,26 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as KitRouterProviderStories from './KitRouterProvider.stories';
+
+<Meta of={KitRouterProviderStories} />
+
+# KitRouterProvider
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={KitRouterProviderStories} />
+
+<Canvas of={KitRouterProviderStories.ClientRouting} />
+
+## Do and don't
+
+- Do render it once around the page with the application's router, such as Inertia's router.visit.
+- Don't give the kit's links an onClick of their own to route them.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={KitRouterProviderStories} />

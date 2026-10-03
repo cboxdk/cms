@@ -1,0 +1,26 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as StackStories from './Stack.stories';
+
+<Meta of={StackStories} />
+
+# Stack
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={StackStories} />
+
+<Canvas of={StackStories.Gaps} />
+
+## Do and don't
+
+- Do use the gap that fits the parts: md between a form's fields, lg between a page's parts.
+- Don't add margins of your own between the parts.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={StackStories} />

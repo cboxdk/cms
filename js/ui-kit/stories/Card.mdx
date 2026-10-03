@@ -1,0 +1,27 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as CardStories from './Card.stories';
+
+<Meta of={CardStories} />
+
+# Card
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={CardStories} />
+
+<Canvas of={CardStories.Default} />
+
+## Do and don't
+
+- Do give a card a title when it holds one thing of its own, so it is a named region.
+- Do keep a card's actions to those that act on what it holds.
+- Don't nest cards in cards.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={CardStories} />

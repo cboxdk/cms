@@ -1,0 +1,27 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as ConfirmDialogStories from './ConfirmDialog.stories';
+
+<Meta of={ConfirmDialogStories} />
+
+# ConfirmDialog
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={ConfirmDialogStories} />
+
+<Canvas of={ConfirmDialogStories.Keyboard} />
+
+## Do and don't
+
+- Do ask before an action that cannot simply be undone, such as revoking a grant.
+- Do name the confirming button after the action, such as "Revoke".
+- Don't ask before an action that can be undone in a click; it trains readers to confirm without reading.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={ConfirmDialogStories} />

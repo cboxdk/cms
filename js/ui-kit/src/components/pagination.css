@@ -1,0 +1,15 @@
+@layer cms.kit {
+  .cms-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--cms-space-2);
+  }
+
+  .cms-pagination__status {
+    margin: 0;
+    color: var(--cms-color-text-muted);
+    font-size: var(--cms-font-size-md);
+  }
+}

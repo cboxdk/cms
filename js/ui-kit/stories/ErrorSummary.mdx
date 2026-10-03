@@ -1,0 +1,27 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as ErrorSummaryStories from './ErrorSummary.stories';
+
+<Meta of={ErrorSummaryStories} />
+
+# ErrorSummary
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={ErrorSummaryStories} />
+
+<Canvas of={ErrorSummaryStories.Default} />
+
+## Do and don't
+
+- Do show it above a refused form, with each error at the same words as at its field.
+- Do give the fields ids the summary can link to.
+- Don't use it for a refusal no field is about; use a Callout.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={ErrorSummaryStories} />

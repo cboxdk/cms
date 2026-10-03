@@ -1,0 +1,97 @@
+@layer cms.kit {
+  .cms-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--cms-space-4);
+    background: color-mix(in srgb, var(--cms-color-backdrop) 50%, transparent);
+  }
+
+  .cms-modal-overlay--drawer {
+    justify-content: flex-end;
+    padding: 0;
+  }
+
+  .cms-modal-overlay--palette {
+    align-items: flex-start;
+    padding-block-start: 12vh;
+  }
+
+  .cms-modal {
+    display: flex;
+    inline-size: 100%;
+    max-inline-size: var(--cms-dialog-width);
+    max-block-size: calc(100dvh - 2 * var(--cms-space-4));
+    border: 1px solid var(--cms-color-border-strong);
+    border-radius: var(--cms-radius-lg);
+    background: var(--cms-color-surface);
+    color: var(--cms-color-text);
+    box-shadow: var(--cms-shadow-overlay);
+  }
+
+  .cms-modal--drawer {
+    max-inline-size: var(--cms-drawer-width);
+    block-size: 100dvh;
+    max-block-size: none;
+    border-block: 0;
+    border-inline-end: 0;
+    border-radius: 0;
+  }
+
+  .cms-modal--palette {
+    max-inline-size: var(--cms-palette-width);
+    max-block-size: 70vh;
+  }
+
+  .cms-dialog {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-inline-size: 0;
+    outline: none;
+  }
+
+  .cms-dialog__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--cms-space-2);
+    padding: var(--cms-space-4) var(--cms-space-4) 0 var(--cms-space-6);
+  }
+
+  .cms-dialog__title {
+    margin: 0;
+    font-size: var(--cms-font-size-lg);
+    font-weight: var(--cms-font-weight-semibold);
+    line-height: var(--cms-line-height-tight);
+  }
+
+  .cms-dialog__body {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--cms-space-4) var(--cms-space-6);
+  }
+
+  .cms-dialog__message {
+    margin: 0;
+    font-size: var(--cms-font-size-md);
+  }
+
+  .cms-dialog__footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--cms-space-2);
+    padding: var(--cms-space-3) var(--cms-space-6) var(--cms-space-4);
+    border-block-start: 1px solid var(--cms-color-border);
+  }
+
+  @media (forced-colors: active) {
+    .cms-modal {
+      border: 2px solid CanvasText;
+    }
+  }
+}

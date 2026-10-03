@@ -1,0 +1,22 @@
+@layer cms.kit {
+  .cms-keyboard-shortcut {
+    display: inline-flex;
+    gap: var(--cms-space-1);
+    font-family: var(--cms-font-family);
+  }
+
+  .cms-keyboard-shortcut__key {
+    display: inline-block;
+    min-inline-size: 1.5em;
+    padding: 0 var(--cms-space-1);
+    border: 1px solid var(--cms-color-border-strong);
+    border-block-end-width: 2px;
+    border-radius: var(--cms-radius-sm);
+    background: var(--cms-color-surface-raised);
+    color: var(--cms-color-text);
+    font-family: var(--cms-font-family-mono);
+    font-size: var(--cms-font-size-sm);
+    line-height: var(--cms-line-height);
+    text-align: center;
+  }
+}

@@ -1,10 +1,19 @@
 import { Brand, type BrandProps } from '@cboxdk/cms-ui-kit';
 
-import { check, single, storyLocale, type Story, type StoryMeta } from './csf';
+import {
+  check,
+  inDanish,
+  inDark,
+  inForcedColours,
+  single,
+  storyLocale,
+  type Story,
+  type StoryMeta,
+} from './csf';
 import { STORY_TEXTS } from './texts';
 
 const meta: StoryMeta<BrandProps> = {
-  title: 'Components/Brand',
+  title: 'Components/Layout/Brand',
   component: Brand,
 };
 
@@ -45,3 +54,7 @@ export const WithLogo: Story = {
     single(canvasElement, '.cms-brand__name', HTMLSpanElement);
   },
 };
+
+export const Dark: Story = inDark(WithLogo);
+export const ForcedColors: Story = inForcedColours(WithLogo);
+export const Danish: Story = inDanish(WithLogo);

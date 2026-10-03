@@ -1,0 +1,45 @@
+@layer cms.kit {
+  .cms-actor-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--cms-space-2);
+    max-inline-size: 100%;
+  }
+
+  .cms-actor-chip__avatar {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    inline-size: 2rem;
+    block-size: 2rem;
+    border: 1px solid var(--cms-color-border-strong);
+    border-radius: 50%;
+    background: var(--cms-color-accent-subtle);
+    color: var(--cms-color-accent);
+    font-size: var(--cms-font-size-sm);
+    font-weight: var(--cms-font-weight-semibold);
+  }
+
+  .cms-actor-chip__text {
+    display: grid;
+    min-inline-size: 0;
+  }
+
+  .cms-actor-chip__name {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--cms-space-2);
+    font-size: var(--cms-font-size-md);
+    font-weight: var(--cms-font-weight-medium);
+  }
+
+  .cms-actor-chip__facts {
+    overflow: hidden;
+    color: var(--cms-color-text-muted);
+    font-size: var(--cms-font-size-sm);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

@@ -1,0 +1,26 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as TagStories from './Tag.stories';
+
+<Meta of={TagStories} />
+
+# Tag
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={TagStories} />
+
+<Canvas of={TagStories.Default} />
+
+## Do and don't
+
+- Do keep the label short, such as a locale.
+- Don't use a tag for a state; use a Badge.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={TagStories} />

@@ -1,0 +1,32 @@
+@layer cms.kit {
+  .cms-description-list {
+    display: grid;
+    gap: var(--cms-space-3);
+    margin: 0;
+  }
+
+  .cms-description-list__item {
+    display: grid;
+    gap: var(--cms-space-1);
+    min-inline-size: 0;
+  }
+
+  .cms-description-list__term {
+    color: var(--cms-color-text-muted);
+    font-size: var(--cms-font-size-md);
+    font-weight: var(--cms-font-weight-medium);
+  }
+
+  .cms-description-list__description {
+    min-inline-size: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  @media (min-width: 40rem) {
+    .cms-description-list[data-layout='columns'] .cms-description-list__item {
+      grid-template-columns: minmax(8rem, 1fr) 3fr;
+      gap: var(--cms-space-4);
+    }
+  }
+}

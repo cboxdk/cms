@@ -18,6 +18,8 @@ export type StoryTheme = 'light' | 'dark';
 /** The part of Storybook's userEvent (Testing Library's user-event) that the play functions use. */
 export interface StoryUserEvent {
   click(element: Element): Promise<void>;
+  hover(element: Element): Promise<void>;
+  clear(element: Element): Promise<void>;
   keyboard(text: string): Promise<void>;
   type(element: Element, text: string): Promise<void>;
   tab(options?: { readonly shift?: boolean }): Promise<void>;
@@ -33,6 +35,8 @@ export interface StoryContext {
 /** One story: what it renders, and the interactions its test performs on it. */
 export interface Story {
   readonly name?: string;
+  /** The globals the story is shown in, over the toolbar's: its locale and its theme. */
+  readonly globals?: StoryGlobals;
   readonly render: (args: Readonly<Record<string, never>>, context: StoryContext) => ReactNode;
   readonly play?: (context: StoryContext) => Promise<void> | void;
 }
@@ -59,6 +63,45 @@ export function storyTheme(globals: StoryGlobals): StoryTheme {
   return globals['theme'] === 'dark' ? 'dark' : 'light';
 }
 
+/** A text of a story in each locale of the kit; the stories are callers of the kit's components. */
+export type Localized<Texts> = Readonly<Record<KitLocale, Texts>>;
+
+/** The texts of a story in the locale it is shown in. */
+export function textsOf<Texts>(texts: Localized<Texts>, globals: StoryGlobals): Texts {
+  return texts[storyLocale(globals)];
+}
+
+/**
+ * The story in the dark theme. Every component has one, so its baseline shows the dark tokens.
+ */
+export function inDark(story: Story): Story {
+  return { ...story, globals: { ...story.globals, theme: 'dark' } };
+}
+
+/**
+ * The story in Danish. Every component has one, so its baseline shows the kit's and the caller's
+ * Danish texts, which are often longer than the English ones.
+ */
+export function inDanish(story: Story): Story {
+  return { ...story, globals: { ...story.globals, locale: 'da' } };
+}
+
+/**
+ * The name Storybook gives the story exported as ForcedColors, which the story tests look for.
+ */
+export const FORCED_COLOURS = 'Forced Colors';
+
+/**
+ * The story in forced colours, as Windows' high contrast themes show a page. Every component has
+ * one, exported as ForcedColors: the story tests emulate forced-colors: active for the story named
+ * FORCED_COLOURS (.storybook/vitest.setup.ts), so its baseline shows that the component keeps its
+ * borders, focus ring and states when the browser replaces its colours. In Storybook itself,
+ * emulate it in the browser's developer tools. The globals are the story's own.
+ */
+export function inForcedColours(story: Story): Story {
+  return { ...story, globals: { ...story.globals, colours: 'forced' } };
+}
+
 /** Fails the story's test with the message unless the condition holds. */
 export function check(condition: boolean, message: string): asserts condition {
   if (!condition) {
@@ -77,6 +120,33 @@ export function single<T extends Element>(
 
   check(found.length === 1, `${selector} matches ${String(found.length)} elements, not one`);
   check(element instanceof type, `${selector} is not a ${type.name}`);
+
+  return element;
+}
+
+/**
+ * Waits until the condition holds, as after an interaction React renders in a later task, and
+ * fails the test with the message when it does not within a second.
+ */
+export async function waitFor(condition: () => boolean, message: string): Promise<void> {
+  const deadline = performance.now() + 1000;
+
+  while (!condition()) {
+    if (performance.now() > deadline) {
+      throw new Error(message);
+    }
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 10);
+    });
+  }
+}
+
+/** The element that has focus, as an element of the type; fails the test otherwise. */
+export function focused<T extends Element>(type: abstract new () => T): T {
+  const element = document.activeElement;
+
+  check(element instanceof type, `the element in focus is not a ${type.name}`);
 
   return element;
 }

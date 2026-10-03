@@ -1,0 +1,27 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as AppShellStories from './AppShell.stories';
+
+<Meta of={AppShellStories} />
+
+# AppShell
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={AppShellStories} />
+
+<Canvas of={AppShellStories.Wide} />
+
+## Do and don't
+
+- Do render one shell per page, around a Page.
+- Do put the command palette's button and the account in the actions.
+- Don't put a page's own actions in the shell's top bar; they belong in its PageHeader.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={AppShellStories} />

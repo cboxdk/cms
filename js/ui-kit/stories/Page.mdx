@@ -1,0 +1,27 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as PageStories from './Page.stories';
+
+<Meta of={PageStories} />
+
+# Page
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={PageStories} />
+
+<Canvas of={PageStories.Default} />
+
+## Do and don't
+
+- Do give each page one PageHeader with its h1.
+- Do use the narrow width for a page that is one form.
+- Don't put a page's content outside a Section or a Card when it has several parts.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={PageStories} />

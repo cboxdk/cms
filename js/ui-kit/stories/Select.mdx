@@ -1,0 +1,26 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as SelectStories from './Select.stories';
+
+<Meta of={SelectStories} />
+
+# Select
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={SelectStories} />
+
+<Canvas of={SelectStories.Default} />
+
+## Do and don't
+
+- Do use it for a choice of one from more options than a RadioGroup shows.
+- Don't use it when the reader must find the option by typing; use a Combobox.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={SelectStories} />

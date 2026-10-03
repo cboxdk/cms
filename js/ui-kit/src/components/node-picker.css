@@ -1,0 +1,22 @@
+@layer cms.kit {
+  .cms-node-picker {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--cms-space-2);
+    min-block-size: calc(var(--cms-target-size) + var(--cms-space-4));
+    padding: var(--cms-space-1) var(--cms-space-1) var(--cms-space-1) var(--cms-space-3);
+    border: 1px solid var(--cms-color-border-strong);
+    border-radius: var(--cms-radius-md);
+  }
+
+  .cms-node-picker__value {
+    min-inline-size: 0;
+  }
+
+  .cms-node-picker__value[data-empty='true'] {
+    color: var(--cms-color-text-muted);
+    font-size: var(--cms-font-size-md);
+  }
+}

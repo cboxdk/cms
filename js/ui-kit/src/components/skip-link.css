@@ -1,0 +1,22 @@
+@layer cms.kit {
+  .cms-skip-link {
+    position: absolute;
+    inset-block-start: var(--cms-space-2);
+    inset-inline-start: var(--cms-space-2);
+    z-index: 200;
+    padding: var(--cms-space-2) var(--cms-space-4);
+    border-radius: var(--cms-radius-md);
+    background: var(--cms-color-accent);
+    color: var(--cms-color-on-accent);
+    font-size: var(--cms-font-size-md);
+    font-weight: var(--cms-font-weight-medium);
+    text-decoration: underline;
+    transform: translateY(-200%);
+  }
+
+  .cms-skip-link:focus {
+    outline: 2px solid transparent;
+    box-shadow: var(--cms-focus-ring);
+    transform: none;
+  }
+}

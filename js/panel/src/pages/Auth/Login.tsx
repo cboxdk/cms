@@ -1,4 +1,4 @@
-import { Alert, Brand, Button, Form, TaskScreen, TextField, TextLink } from '@cboxdk/cms-ui-kit';
+import { Brand, Button, Callout, Form, TaskScreen, TextInput, TextLink } from '@cboxdk/cms-ui-kit';
 import { Head, useForm } from '@inertiajs/react';
 import type { SubmitEvent } from 'react';
 
@@ -65,10 +65,10 @@ export default function Login({ action, forgot, reason, refusals }: LoginPageV1)
         description={t('panel.login.description')}
         footer={<TextLink href={forgot}>{t('panel.login.forgot')}</TextLink>}
       >
-        {reason === null || failed !== undefined ? null : <Alert>{t(REASONS[reason])}</Alert>}
-        {failed === undefined ? null : <Alert tone="danger">{t(failed)}</Alert>}
+        {reason === null || failed !== undefined ? null : <Callout>{t(REASONS[reason])}</Callout>}
+        {failed === undefined ? null : <Callout tone="danger">{t(failed)}</Callout>}
         <Form method="post" action={action} onSubmit={submit}>
-          <TextField
+          <TextInput
             label={t('panel.login.email')}
             type="email"
             name="email"
@@ -80,7 +80,7 @@ export default function Login({ action, forgot, reason, refusals }: LoginPageV1)
             }}
             error={emailError === undefined ? undefined : t(emailError)}
           />
-          <TextField
+          <TextInput
             label={t('panel.login.password')}
             type="password"
             name="password"

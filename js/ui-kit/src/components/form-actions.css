@@ -1,0 +1,16 @@
+@layer cms.kit {
+  .cms-form-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cms-space-2);
+    padding-block-start: var(--cms-space-2);
+  }
+
+  @media (min-width: 30rem) {
+    .cms-form-actions {
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+  }
+}

@@ -1,0 +1,61 @@
+@layer cms.kit {
+  .cms-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--cms-space-1);
+    padding: 0 var(--cms-space-2);
+    border: 1px solid var(--cms-color-border-strong);
+    border-radius: 999px;
+    background: var(--cms-color-surface);
+    color: var(--cms-color-text);
+    font-size: var(--cms-font-size-sm);
+    font-weight: var(--cms-font-weight-medium);
+    line-height: var(--cms-line-height);
+    white-space: nowrap;
+  }
+
+  .cms-badge__dot {
+    inline-size: 0.5rem;
+    block-size: 0.5rem;
+    border-radius: 50%;
+    background: var(--cms-color-text-muted);
+  }
+
+  .cms-badge[data-tone='info'] {
+    border-color: var(--cms-color-accent);
+  }
+
+  .cms-badge[data-tone='info'] .cms-badge__dot {
+    background: var(--cms-color-accent);
+  }
+
+  .cms-badge[data-tone='success'] {
+    border-color: var(--cms-color-success);
+  }
+
+  .cms-badge[data-tone='success'] .cms-badge__dot {
+    background: var(--cms-color-success);
+  }
+
+  .cms-badge[data-tone='warning'] {
+    border-color: var(--cms-color-warning);
+  }
+
+  .cms-badge[data-tone='warning'] .cms-badge__dot {
+    background: var(--cms-color-warning);
+  }
+
+  .cms-badge[data-tone='danger'] {
+    border-color: var(--cms-color-danger);
+  }
+
+  .cms-badge[data-tone='danger'] .cms-badge__dot {
+    background: var(--cms-color-danger);
+  }
+
+  @media (forced-colors: active) {
+    .cms-badge__dot {
+      background: CanvasText;
+    }
+  }
+}

@@ -1,0 +1,26 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as PaginationStories from './Pagination.stories';
+
+<Meta of={PaginationStories} />
+
+# Pagination
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={PaginationStories} />
+
+<Canvas of={PaginationStories.Middle} />
+
+## Do and don't
+
+- Do say where the reader is in the status, such as "Rows 21 to 40".
+- Don't show page numbers for keyset pages, which have none.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={PaginationStories} />

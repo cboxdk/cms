@@ -1,10 +1,18 @@
 import { Brand, Button, ShellHeader, type ShellHeaderProps } from '@cboxdk/cms-ui-kit';
 
-import { single, storyLocale, type Story, type StoryMeta } from './csf';
+import {
+  inDanish,
+  inDark,
+  inForcedColours,
+  single,
+  storyLocale,
+  type Story,
+  type StoryMeta,
+} from './csf';
 import { STORY_TEXTS } from './texts';
 
 const meta: StoryMeta<ShellHeaderProps> = {
-  title: 'Components/ShellHeader',
+  title: 'Components/Layout/ShellHeader',
   component: ShellHeader,
 };
 
@@ -26,3 +34,7 @@ export const WithAction: Story = {
     single(canvasElement, 'button', HTMLButtonElement);
   },
 };
+
+export const Dark: Story = inDark(WithAction);
+export const ForcedColors: Story = inForcedColours(WithAction);
+export const Danish: Story = inDanish(WithAction);

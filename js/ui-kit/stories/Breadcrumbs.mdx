@@ -1,0 +1,27 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as BreadcrumbsStories from './Breadcrumbs.stories';
+
+<Meta of={BreadcrumbsStories} />
+
+# Breadcrumbs
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={BreadcrumbsStories} />
+
+<Canvas of={BreadcrumbsStories.Default} />
+
+## Do and don't
+
+- Do give every page above the current one with its address.
+- Do pass the trail to PageHeader's breadcrumbs.
+- Don't show breadcrumbs on a page that is at the top of the navigation.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={BreadcrumbsStories} />

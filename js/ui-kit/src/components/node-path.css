@@ -1,0 +1,30 @@
+@layer cms.kit {
+  .cms-node-path {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--cms-space-1);
+    min-inline-size: 0;
+    font-size: var(--cms-font-size-md);
+  }
+
+  .cms-node-path__segment {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--cms-space-1);
+  }
+
+  .cms-node-path__separator {
+    display: inline-flex;
+    color: var(--cms-color-text-muted);
+  }
+
+  .cms-node-path__name {
+    color: var(--cms-color-text-muted);
+  }
+
+  .cms-node-path__name[data-last='true'] {
+    color: var(--cms-color-text);
+    font-weight: var(--cms-font-weight-medium);
+  }
+}

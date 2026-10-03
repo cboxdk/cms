@@ -1,0 +1,26 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as SkipLinkStories from './SkipLink.stories';
+
+<Meta of={SkipLinkStories} />
+
+# SkipLink
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={SkipLinkStories} />
+
+<Canvas of={SkipLinkStories.Focused} />
+
+## Do and don't
+
+- Do render it first on a page outside AppShell, which has its own.
+- Don't point it at an element that cannot take focus.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={SkipLinkStories} />

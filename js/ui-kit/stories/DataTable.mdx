@@ -1,0 +1,28 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as DataTableStories from './DataTable.stories';
+
+<Meta of={DataTableStories} />
+
+# DataTable
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={DataTableStories} />
+
+<Canvas of={DataTableStories.Default} />
+
+## Do and don't
+
+- Do give one column rowHeader, so a screen reader reads the row by it.
+- Do pass an EmptyState with the first action, a loading text and an ErrorState with what to do.
+- Do read the rows a keyset page at a time and pass a Pagination.
+- Don't sort the rows in the browser when the server pages them; ask for them in the new order.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={DataTableStories} />

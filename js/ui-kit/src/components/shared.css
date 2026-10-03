@@ -1,0 +1,102 @@
+/*
+ * What several components of the kit share: text that only a screen reader reads, and the
+ * surface of an overlay, such as a menu or a list of choices, with its items.
+ */
+
+@layer cms.kit {
+  .cms-visually-hidden {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .cms-popover {
+    min-inline-size: 12rem;
+    max-inline-size: min(32rem, calc(100vw - 2 * var(--cms-space-4)));
+    padding: var(--cms-space-1);
+    overflow: auto;
+    border: 1px solid var(--cms-color-border-strong);
+    border-radius: var(--cms-radius-md);
+    background: var(--cms-color-surface);
+    color: var(--cms-color-text);
+    box-shadow: var(--cms-shadow-overlay);
+  }
+
+  .cms-popover-underlay {
+    position: fixed;
+    inset: 0;
+  }
+
+  .cms-option-list {
+    display: grid;
+    gap: 1px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    outline: none;
+  }
+
+  .cms-option {
+    display: flex;
+    align-items: center;
+    gap: var(--cms-space-2);
+    min-block-size: calc(var(--cms-target-size) + var(--cms-space-3));
+    padding: var(--cms-space-1) var(--cms-space-3);
+    border-radius: var(--cms-radius-sm);
+    font-size: var(--cms-font-size-md);
+    cursor: default;
+    outline: none;
+  }
+
+  .cms-option__text {
+    display: grid;
+    flex: 1;
+    min-inline-size: 0;
+  }
+
+  .cms-option__description {
+    color: var(--cms-color-text-muted);
+    font-size: var(--cms-font-size-sm);
+  }
+
+  .cms-option[data-focused='true'] {
+    background: var(--cms-color-accent-subtle);
+    outline: 2px solid transparent;
+  }
+
+  .cms-option[data-selected='true'] {
+    font-weight: var(--cms-font-weight-medium);
+  }
+
+  .cms-option[data-disabled='true'] {
+    color: var(--cms-color-text-muted);
+  }
+
+  .cms-option[data-tone='danger'] {
+    color: var(--cms-color-danger);
+  }
+
+  .cms-option__check {
+    margin-inline-start: auto;
+    color: var(--cms-color-accent);
+  }
+
+  .cms-option-list__message {
+    margin: 0;
+    padding: var(--cms-space-2) var(--cms-space-3);
+    color: var(--cms-color-text-muted);
+    font-size: var(--cms-font-size-md);
+  }
+
+  @media (forced-colors: active) {
+    .cms-option[data-focused='true'] {
+      outline-color: Highlight;
+    }
+  }
+}

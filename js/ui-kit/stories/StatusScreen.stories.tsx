@@ -1,10 +1,18 @@
 import { StatusScreen, TextLink, type StatusScreenProps } from '@cboxdk/cms-ui-kit';
 
-import { single, storyLocale, type Story, type StoryMeta } from './csf';
+import {
+  single,
+  storyLocale,
+  type Story,
+  type StoryMeta,
+  inDanish,
+  inDark,
+  inForcedColours,
+} from './csf';
 import { STORY_TEXTS } from './texts';
 
 const meta: StoryMeta<StatusScreenProps> = {
-  title: 'Components/StatusScreen',
+  title: 'Components/Feedback/StatusScreen',
   component: StatusScreen,
 };
 
@@ -30,3 +38,7 @@ export const NotFound: Story = {
     single(canvasElement, 'h1', HTMLHeadingElement);
   },
 };
+
+export const Dark: Story = inDark(NotFound);
+export const ForcedColors: Story = inForcedColours(NotFound);
+export const Danish: Story = inDanish(NotFound);

@@ -1,0 +1,101 @@
+@layer cms.kit {
+  .cms-toast-region {
+    position: fixed;
+    inset-block-end: var(--cms-space-4);
+    inset-inline-end: var(--cms-space-4);
+    z-index: 100;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: var(--cms-space-2);
+    inline-size: min(24rem, calc(100vw - 2 * var(--cms-space-4)));
+    outline: none;
+  }
+
+  .cms-toast-region[data-focus-visible] {
+    border-radius: var(--cms-radius-md);
+    box-shadow: var(--cms-focus-ring);
+  }
+
+  .cms-toast {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--cms-space-3);
+    padding: var(--cms-space-3) var(--cms-space-3) var(--cms-space-3) var(--cms-space-4);
+    border: 1px solid var(--cms-color-border-strong);
+    border-inline-start: 4px solid var(--cms-color-accent);
+    border-radius: var(--cms-radius-md);
+    background: var(--cms-color-surface);
+    color: var(--cms-color-text);
+    box-shadow: var(--cms-shadow-overlay);
+    outline: none;
+  }
+
+  .cms-toast[data-focus-visible] {
+    box-shadow: var(--cms-focus-ring);
+  }
+
+  .cms-toast__icon {
+    flex: none;
+    color: var(--cms-color-accent);
+  }
+
+  .cms-toast--success {
+    border-inline-start-color: var(--cms-color-success);
+  }
+
+  .cms-toast--success .cms-toast__icon {
+    color: var(--cms-color-success);
+  }
+
+  .cms-toast--warning {
+    border-inline-start-color: var(--cms-color-warning);
+  }
+
+  .cms-toast--warning .cms-toast__icon {
+    color: var(--cms-color-warning);
+  }
+
+  .cms-toast--danger {
+    border-inline-start-color: var(--cms-color-danger);
+  }
+
+  .cms-toast--danger .cms-toast__icon {
+    color: var(--cms-color-danger);
+  }
+
+  .cms-toast__content {
+    display: grid;
+    flex: 1;
+    gap: var(--cms-space-1);
+    min-inline-size: 0;
+    font-size: var(--cms-font-size-md);
+  }
+
+  .cms-toast__title {
+    font-weight: var(--cms-font-weight-semibold);
+  }
+
+  .cms-toast__description {
+    color: var(--cms-color-text-muted);
+  }
+
+  .cms-toast__close {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    min-inline-size: calc(var(--cms-target-size) + var(--cms-space-2));
+    min-block-size: calc(var(--cms-target-size) + var(--cms-space-2));
+    padding: 0;
+    border: 0;
+    border-radius: var(--cms-radius-sm);
+    background: transparent;
+    color: var(--cms-color-text-muted);
+    cursor: pointer;
+  }
+
+  .cms-toast__close[data-focus-visible] {
+    outline: none;
+    box-shadow: var(--cms-focus-ring);
+  }
+}

@@ -39,6 +39,14 @@ Each custom property is set on the root in the cascade layer `cms.tokens`. A tok
 | `--cms-ref-blue-700` | primitive | color | `#2349b0` | `#2349b0` | internal | 1.0 | A dark blue, for the hovered accent in the light mode. |
 | `--cms-ref-red-400` | primitive | color | `#ef6b66` | `#ef6b66` | internal | 1.0 | A light red, for danger in the dark mode. |
 | `--cms-ref-red-600` | primitive | color | `#c4302b` | `#c4302b` | internal | 1.0 | A red, for danger in the light mode. |
+| `--cms-ref-black` | primitive | color | `#000000` | `#000000` | internal | 1.0 | Black, for the backdrop behind a dialog. |
+| `--cms-ref-gray-300` | primitive | color | `#c3c9d2` | `#c3c9d2` | internal | 1.0 | A light grey, for the shadow of an overlay in the light mode. |
+| `--cms-ref-blue-50` | primitive | color | `#e9effc` | `#e9effc` | internal | 1.0 | The palest blue, for a selected item in the light mode. |
+| `--cms-ref-blue-900` | primitive | color | `#1d2a4a` | `#1d2a4a` | internal | 1.0 | A dark blue, for a selected item in the dark mode. |
+| `--cms-ref-green-400` | primitive | color | `#4cc07c` | `#4cc07c` | internal | 1.0 | A light green, for success in the dark mode. |
+| `--cms-ref-green-600` | primitive | color | `#1d7a43` | `#1d7a43` | internal | 1.0 | A green, for success in the light mode. |
+| `--cms-ref-amber-400` | primitive | color | `#e8a53b` | `#e8a53b` | internal | 1.0 | A light amber, for warnings in the dark mode. |
+| `--cms-ref-amber-700` | primitive | color | `#a15c00` | `#a15c00` | internal | 1.0 | A dark amber, for warnings in the light mode. |
 | `--cms-color-surface` | semantic | color | `#ffffff` (`var(--cms-ref-white)`) | `#121418` (`var(--cms-ref-gray-950)`) | stable | 1.0 | The background of the page and of controls. |
 | `--cms-color-surface-raised` | semantic | color | `#f6f7f9` (`var(--cms-ref-gray-50)`) | `#1b1e24` (`var(--cms-ref-gray-925)`) | stable | 1.0 | The background of a panel or a button that sits on the surface. |
 | `--cms-color-text` | semantic | color | `#16181d` (`var(--cms-ref-gray-900)`) | `#e8eaee` (`var(--cms-ref-gray-100)`) | stable | 1.0 | Body text and headings. |
@@ -50,8 +58,13 @@ Each custom property is set on the root in the cascade layer `cms.tokens`. A tok
 | `--cms-color-on-accent` | semantic | color | `#ffffff` (`var(--cms-ref-white)`) | `#0c0e12` (`var(--cms-ref-gray-1000)`) | stable | 1.0 | Text on the accent, such as the label of a primary button. |
 | `--cms-color-danger` | semantic | color | `#c4302b` (`var(--cms-ref-red-600)`) | `#ef6b66` (`var(--cms-ref-red-400)`) | stable | 1.0 | Errors and destructive actions. |
 | `--cms-color-focus` | semantic | color | `#2f5bd3` (`var(--cms-color-accent)`) | `#6b8ff0` (`var(--cms-color-accent)`) | stable | 1.0 | The colour of the focus ring. |
+| `--cms-color-accent-subtle` | semantic | color | `#e9effc` (`var(--cms-ref-blue-50)`) | `#1d2a4a` (`var(--cms-ref-blue-900)`) | stable | 1.0 | The background of a selected item, such as the current entry of the navigation. |
+| `--cms-color-success` | semantic | color | `#1d7a43` (`var(--cms-ref-green-600)`) | `#4cc07c` (`var(--cms-ref-green-400)`) | stable | 1.0 | Success, such as a committed change. |
+| `--cms-color-warning` | semantic | color | `#a15c00` (`var(--cms-ref-amber-700)`) | `#e8a53b` (`var(--cms-ref-amber-400)`) | stable | 1.0 | A warning, such as a change that waits for a projection. |
+| `--cms-color-backdrop` | semantic | color | `#000000` (`var(--cms-ref-black)`) | `#000000` (`var(--cms-ref-black)`) | stable | 1.0 | The colour of the backdrop behind a dialog, shown partly transparent. |
+| `--cms-shadow-overlay` | semantic | shadow | `0 4px 16px #c3c9d2` (`0 4px 16px var(--cms-ref-gray-300)`) | `0 4px 16px #000000` (`0 4px 16px var(--cms-ref-black)`) | stable | 1.0 | The shadow of an overlay, such as a menu or a dialog. |
 | `--cms-font-family` | semantic | font-family | `system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif` | `system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif` | stable | 1.0 | The typeface of all text. |
-| `--cms-font-family-mono` | semantic | font-family | `ui-monospace, 'SF Mono', Menlo, Consolas, monospace` | `ui-monospace, 'SF Mono', Menlo, Consolas, monospace` | stable | 1.0 | The typeface of codes and identifiers. |
+| `--cms-font-family-mono` | semantic | font-family | `ui-monospace, 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace` | `ui-monospace, 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace` | stable | 1.0 | The typeface of codes and identifiers. |
 | `--cms-font-size-sm` | semantic | length | `0.8125rem` | `0.8125rem` | stable | 1.0 | Small text, such as a status code. |
 | `--cms-font-size-md` | semantic | length | `0.875rem` | `0.875rem` | stable | 1.0 | The text of controls, labels and hints. |
 | `--cms-font-size-lg` | semantic | length | `1rem` | `1rem` | stable | 1.0 | Body text and the value of an input. |
@@ -76,6 +89,11 @@ Each custom property is set on the root in the cascade layer `cms.tokens`. A tok
 | `--cms-measure` | semantic | length | `32rem` | `32rem` | stable | 1.0 | The widest a panel of running text grows. |
 | `--cms-button-radius` | component | length | `6px` (`var(--cms-radius-md)`) | `6px` (`var(--cms-radius-md)`) | experimental | 1.0 | The rounding of a button. |
 | `--cms-brand-logo-height` | component | length | `2rem` | `2rem` | experimental | 1.0 | The height of the installation's logo next to its name, in the shell's header and on the login page. |
+| `--cms-nav-width` | component | length | `16rem` | `16rem` | experimental | 1.0 | The width of the side navigation of the panel on a wide screen. |
+| `--cms-table-row-height` | component | length | `2.75rem` | `2.75rem` | experimental | 1.0 | The smallest height of a row of a data table. |
+| `--cms-dialog-width` | component | length | `32rem` | `32rem` | experimental | 1.0 | The widest a dialog grows. |
+| `--cms-drawer-width` | component | length | `28rem` | `28rem` | experimental | 1.0 | The widest a drawer grows. |
+| `--cms-palette-width` | component | length | `40rem` | `40rem` | experimental | 1.0 | The widest the command palette grows. |
 
 ## Contrast pairs
 
@@ -98,6 +116,13 @@ Every pair of a foreground and a background the kit draws is listed here. A text
 | `--cms-color-border-strong` | `--cms-color-surface` | ui | 3.00:1 | 3.17:1 | 3.81:1 |
 | `--cms-color-focus` | `--cms-color-surface` | ui | 3.00:1 | 5.90:1 | 5.98:1 |
 | `--cms-color-focus` | `--cms-color-surface-raised` | ui | 3.00:1 | 5.50:1 | 5.41:1 |
+| `--cms-color-success` | `--cms-color-surface` | text | 4.50:1 | 5.36:1 | 8.02:1 |
+| `--cms-color-success` | `--cms-color-surface-raised` | text | 4.50:1 | 5.00:1 | 7.26:1 |
+| `--cms-color-warning` | `--cms-color-surface` | text | 4.50:1 | 5.18:1 | 8.67:1 |
+| `--cms-color-warning` | `--cms-color-surface-raised` | text | 4.50:1 | 4.84:1 | 7.85:1 |
+| `--cms-color-accent` | `--cms-color-accent-subtle` | text | 4.50:1 | 5.12:1 | 4.59:1 |
+| `--cms-color-text` | `--cms-color-accent-subtle` | text | 4.50:1 | 15.40:1 | 11.76:1 |
+| `--cms-color-text-muted` | `--cms-color-accent-subtle` | text | 4.50:1 | 5.31:1 | 5.44:1 |
 
 ## Part hooks
 

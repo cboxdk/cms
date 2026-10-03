@@ -1,0 +1,28 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as ButtonStories from './Button.stories';
+
+<Meta of={ButtonStories} />
+
+# Button
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={ButtonStories} />
+
+<Canvas of={ButtonStories.Primary} />
+
+## Do and don't
+
+- Do give the one main action of a form or a page the primary variant.
+- Do say what the button does in its text, such as "Assign a grant".
+- Don't use a button to go to another page; use a TextLink.
+- Don't put two primary buttons side by side.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={ButtonStories} />

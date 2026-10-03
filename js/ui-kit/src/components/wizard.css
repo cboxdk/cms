@@ -1,0 +1,92 @@
+@layer cms.kit {
+  .cms-wizard {
+    display: grid;
+    gap: var(--cms-space-4);
+  }
+
+  .cms-wizard__label {
+    margin: 0;
+    color: var(--cms-color-text-muted);
+    font-size: var(--cms-font-size-md);
+    font-weight: var(--cms-font-weight-medium);
+  }
+
+  .cms-wizard__steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--cms-space-2) var(--cms-space-6);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .cms-wizard__step {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--cms-space-2);
+    color: var(--cms-color-text-muted);
+    font-size: var(--cms-font-size-md);
+  }
+
+  .cms-wizard__step[data-state='current'] {
+    color: var(--cms-color-text);
+    font-weight: var(--cms-font-weight-semibold);
+  }
+
+  .cms-wizard__marker {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    inline-size: 1.5rem;
+    block-size: 1.5rem;
+    border: 1px solid var(--cms-color-border-strong);
+    border-radius: 50%;
+    font-size: var(--cms-font-size-sm);
+  }
+
+  .cms-wizard__step[data-state='current'] .cms-wizard__marker {
+    border: 2px solid var(--cms-color-accent);
+    color: var(--cms-color-accent);
+  }
+
+  .cms-wizard__step[data-state='done'] .cms-wizard__marker {
+    border-color: var(--cms-color-success);
+    color: var(--cms-color-success);
+  }
+
+  .cms-wizard__panel {
+    display: grid;
+    gap: var(--cms-space-4);
+  }
+
+  .cms-wizard__title {
+    display: grid;
+    gap: var(--cms-space-1);
+    margin: 0;
+    font-size: var(--cms-font-size-lg);
+    font-weight: var(--cms-font-weight-semibold);
+    line-height: var(--cms-line-height-tight);
+    outline: none;
+  }
+
+  .cms-wizard__title:focus-visible {
+    border-radius: var(--cms-radius-sm);
+    box-shadow: var(--cms-focus-ring);
+  }
+
+  .cms-wizard__count {
+    color: var(--cms-color-text-muted);
+    font-size: var(--cms-font-size-sm);
+    font-weight: var(--cms-font-weight-medium);
+  }
+
+  .cms-wizard__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--cms-space-2);
+    padding-block-start: var(--cms-space-2);
+    border-block-start: 1px solid var(--cms-color-border);
+  }
+}

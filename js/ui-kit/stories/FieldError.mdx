@@ -1,0 +1,26 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as FieldErrorStories from './FieldError.stories';
+
+<Meta of={FieldErrorStories} />
+
+# FieldError
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={FieldErrorStories} />
+
+<Canvas of={FieldErrorStories.Default} />
+
+## Do and don't
+
+- Do name its id in the control's aria-describedby and set aria-invalid on the control.
+- Don't use it beside a field of the kit, which shows its own error.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={FieldErrorStories} />

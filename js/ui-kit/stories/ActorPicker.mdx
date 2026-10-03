@@ -1,0 +1,27 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as ActorPickerStories from './ActorPicker.stories';
+
+<Meta of={ActorPickerStories} />
+
+# ActorPicker
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={ActorPickerStories} />
+
+<Canvas of={ActorPickerStories.Default} />
+
+## Do and don't
+
+- Do find the actors as the reader types, such as with the query actor.list, and pass what was found.
+- Do pass the email, which tells actors of the same name apart.
+- Don't load every actor of the installation up front.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={ActorPickerStories} />

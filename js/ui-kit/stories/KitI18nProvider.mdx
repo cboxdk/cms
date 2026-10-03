@@ -1,0 +1,23 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as KitI18nProviderStories from './KitI18nProvider.stories';
+
+<Meta of={KitI18nProviderStories} />
+
+# KitI18nProvider
+
+Stability: **stable**. Since: **1.0**.
+
+<Description of={KitI18nProviderStories} />
+
+<Canvas of={KitI18nProviderStories.Danish} />
+
+## Do and don't
+
+- Do render it once around the page with the page's locale, da or en.
+- Do pass the same locale as the panel's own translations.
+- Don't nest providers with other locales inside a page.
+
+## Props
+
+<ArgTypes of={KitI18nProviderStories} />

@@ -1,0 +1,20 @@
+@layer cms.kit {
+  .cms-select__button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--cms-space-2);
+    text-align: start;
+    cursor: pointer;
+  }
+
+  .cms-select__value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .cms-select__value[data-empty='true'] {
+    color: var(--cms-color-text-muted);
+  }
+}

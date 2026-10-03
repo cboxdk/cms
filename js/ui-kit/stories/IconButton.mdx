@@ -1,0 +1,27 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as IconButtonStories from './IconButton.stories';
+
+<Meta of={IconButtonStories} />
+
+# IconButton
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={IconButtonStories} />
+
+<Canvas of={IconButtonStories.Default} />
+
+## Do and don't
+
+- Do give every icon button a label; it is the button's name.
+- Do wrap it in a Tooltip when the icon is not obvious.
+- Don't use an icon button for the main action of a page; use a Button with text.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={IconButtonStories} />
