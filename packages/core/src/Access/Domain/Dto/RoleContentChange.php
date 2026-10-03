@@ -14,9 +14,10 @@ use Cbox\Cms\Contracts\Ids\RoleId;
  * What a command that creates a role or changes its permissions gives that the escalation guard
  * holds against the issuing actor (PRD 5.10, invariant 31): the ceiling of a role it creates, or
  * null when the ceiling stays; the permissions it adds that the registry knows; the grants of the
- * role that have not ended, on whose nodes the issuer must hold each added permission; and the
+ * role that have not ended, on whose nodes the issuer must hold each added permission; the
  * permissions the role held before, from which the guard decides whether the change makes it
- * administrative.
+ * administrative; and the permissions it takes away, for which the issuer must hold the command
+ * itself on every node where the role is granted, because every holder loses them there.
  */
 #[Internal]
 final readonly class RoleContentChange
@@ -25,6 +26,7 @@ final readonly class RoleContentChange
      * @param  list<CommandName>  $added
      * @param  list<StoredGrant>  $grants
      * @param  list<CommandName>  $previous  the role's permissions before the change; none for a role it creates
+     * @param  list<CommandName>  $removed
      */
     public function __construct(
         public RoleId $role,
@@ -32,6 +34,7 @@ final readonly class RoleContentChange
         public array $added,
         public array $grants,
         public array $previous,
+        public array $removed = [],
     ) {}
 
     /**

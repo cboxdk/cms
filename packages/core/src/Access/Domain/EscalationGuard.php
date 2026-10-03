@@ -43,8 +43,9 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\Authorization;
  * A command that creates a role or changes its permissions is held to the same rule on the role's
  * content (content() and ceiling()): a role the issuer creates may not read above its own
  * classification access, and each permission a change adds must be the issuer's own on every node
- * where the role is granted, because every holder gets it there. A change that makes a granted
- * role administrative needs step-up too.
+ * where the role is granted, because every holder gets it there. A change that takes permissions
+ * away needs the command itself on every node where the role is granted, because every holder
+ * loses them there. A change that makes a granted role administrative needs step-up too.
  */
 #[Internal]
 final readonly class EscalationGuard
@@ -130,20 +131,53 @@ final readonly class EscalationGuard
      * Whether the issuer, with the grants it holds, may change what the role gives (PRD 5.10,
      * invariant 31): it must itself hold each permission the change adds on every node where an
      * allow of the role has not ended, and on every node below it, in that grant's locales, or in
-     * every locale for a grant without a locale set. A node whose path the issuer may not read is one where it holds
-     * nothing. A change that makes a granted role administrative needs step-up, which is not built
-     * yet, so it is refused with step_up_required.
+     * every locale for a grant without a locale set. A change that takes permissions away is held
+     * the same way to the command itself: the issuer must hold it on every such node and every node
+     * below it, in those locales, because every holder loses the permissions there, so it never
+     * takes rights from holders where it has no authority. A node whose path the issuer may not
+     * read is one where it holds nothing. A change that makes a granted role administrative needs
+     * step-up, which is not built yet, so it is refused with step_up_required.
      *
+     * @param  CommandName  $command  the command that changes the role, role.set_permissions
      * @param  array<string, NodePath>  $paths  the path of each node of the role's grants the issuer may read, by its id
      * @param  list<HeldGrant>  $held  every grant the issuer holds that has not ended
      * @param  string  $whose  who the issuer is, for the reason
      */
-    public function content(RoleContentChange $change, array $paths, array $held, string $whose = 'the actor'): Authorization
+    public function content(RoleContentChange $change, CommandName $command, array $paths, array $held, string $whose = 'the actor'): Authorization
     {
         $allows = $change->allows();
+        $changing = $this->permitted($held, $command);
 
         foreach ($allows as $grant) {
             $node = $paths[$grant->node->toString()] ?? null;
+
+            if ($change->removed !== []) {
+                if (! $node instanceof NodePath) {
+                    return Authorization::refuse(sprintf(
+                        'The role %s is granted on a node %s does not reach, so it may not take %s away from the role (invariant 31).',
+                        $change->role->toString(),
+                        $whose,
+                        $change->removed[0]->value,
+                    ), ErrorCode::GrantEscalationRefused);
+                }
+
+                foreach ($grant->locales ?? [null] as $locale) {
+                    $missing = $this->unreached($changing, $node, $locale);
+
+                    if ($missing instanceof NodePath) {
+                        return Authorization::refuse(sprintf(
+                            'The role %s is granted on the node %s, and %s may not run %s %s %s, so it may not take %s away from the role (invariant 31).',
+                            $change->role->toString(),
+                            $grant->node->toString(),
+                            $whose,
+                            $command->value,
+                            $this->on($grant->node->toString(), $node, $missing),
+                            $this->where($locale),
+                            $change->removed[0]->value,
+                        ), ErrorCode::GrantEscalationRefused);
+                    }
+                }
+            }
 
             foreach ($change->added as $permission) {
                 if (! $node instanceof NodePath) {

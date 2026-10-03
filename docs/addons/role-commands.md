@@ -86,19 +86,20 @@ The action reads the role with its permissions and every grant of the role that 
 
 ## No escalation
 
-A change of a role's content requires that the issuing actor itself holds each added permission on the nodes the change touches (PRD 5.10, invariant 31). The kernel's authorize step holds both commands to that:
+A change of a role's content requires that the issuing actor itself holds each added permission on the nodes the change touches, and may change roles on every node where a permission it takes away is lost (PRD 5.10, invariant 31). The kernel's authorize step holds both commands to that:
 
 1. The issuing actor needs `role.create`, or `role.set_permissions`, on some node. Without it the command is `unauthorized`.
 2. A new role's ceiling may not be above the issuing actor's classification access.
 3. For each permission role.set_permissions adds, the issuing actor must itself hold it on every node where an allow of the role has not ended and on every node below it, in each of that grant's locales, or in every locale for a grant without a locale set, through a role of its own whose nearest grant above the node, or on it, allows. A node the issuing actor does not reach is one where it holds nothing.
+4. When role.set_permissions takes a permission away, the issuing actor must hold `role.set_permissions` itself on every node where an allow of the role has not ended and on every node below it, in each of that grant's locales, as in 3. Every holder loses the permission there, so an actor that may change roles in one subtree cannot empty a role that is granted elsewhere.
 
-A command that breaks 2 or 3 is refused with `grant_escalation_refused`. Taking permissions away is not held to 3, and neither is a deny of the role, which gives nothing. An actor that acts on behalf of a person is held to the rules with its own grants and with the person's.
+A command that breaks 2, 3 or 4 is refused with `grant_escalation_refused`. A deny of the role gives nothing, so 3 and 4 do not look at it. An actor that acts on behalf of a person is held to the rules with its own grants and with the person's.
 
-Rule 3 is decided from the grants the issuing actor, and each actor it acts on behalf of, holds when the command is authorized. The commit holds each one's set of grants, `actor_grants:<actor>`, to the version the guard read, so a change of those grants that commits meanwhile makes the command `version_conflict`. role.set_permissions reads the set of every holder of the role too, because it changes what each holds.
+Rules 3 and 4 are decided from the grants the issuing actor, and each actor it acts on behalf of, holds when the command is authorized. The commit holds each one's set of grants, `actor_grants:<actor>`, to the version the guard read, so a change of those grants that commits meanwhile makes the command `version_conflict`. role.set_permissions reads the set of every holder of the role too, because it changes what each holds.
 
 ## Step-up for a role that becomes administrative
 
-A role is administrative when one of its permissions is a command that changes roles, grants, the identity mapping, connections or who is active; queries such as `role.list` and `grant.list` do not count (see [grant commands](grant-commands.md)). A change that makes a granted role administrative needs step-up, which is not built yet, so it is refused with `step_up_required`, after rules 1 to 3. A role that is granted nowhere may become administrative; a grant of it then needs step-up.
+A role is administrative when one of its permissions is a command that changes roles, grants, the identity mapping, connections or who is active; queries such as `role.list` and `grant.list` do not count (see [grant commands](grant-commands.md)). A change that makes a granted role administrative needs step-up, which is not built yet, so it is refused with `step_up_required`, after rules 1 to 4. A role that is granted nowhere may become administrative; a grant of it then needs step-up.
 
 ## What a command writes
 

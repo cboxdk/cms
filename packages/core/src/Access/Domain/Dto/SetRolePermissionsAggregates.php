@@ -26,8 +26,10 @@ use Override;
  * their locks, so a grant of the role given, ended or changed meanwhile is version_conflict.
  *
  * The command is authorized anywhere, so the issuing actor needs role.set_permissions on some
- * node, and what the change adds is held to the escalation guard on every node where the role is
- * granted.
+ * node, and the change is held to the escalation guard on every node where the role is granted:
+ * each permission it adds must be the issuer's own there, and when it takes a permission away the
+ * issuer must hold role.set_permissions there, so a change never takes rights from holders on
+ * nodes the issuer has no authority over.
  */
 #[Internal]
 final readonly class SetRolePermissionsAggregates implements GuardedRoleContent
@@ -72,9 +74,9 @@ final readonly class SetRolePermissionsAggregates implements GuardedRoleContent
     }
 
     /**
-     * The permissions the change adds, the role's grants, and the permissions it held, from which
-     * the guard decides whether the change makes it administrative; null for a role that was not
-     * read.
+     * The permissions the change adds, the role's grants, the permissions it held, from which the
+     * guard decides whether the change makes it administrative, and the permissions it takes away;
+     * null for a role that was not read.
      */
     #[Override]
     public function roleContent(): ?RoleContentChange
@@ -89,6 +91,7 @@ final readonly class SetRolePermissionsAggregates implements GuardedRoleContent
             $this->added(),
             $this->grants->grants,
             $this->stored->permissions,
+            $this->removed(),
         );
     }
 
@@ -115,6 +118,35 @@ final readonly class SetRolePermissionsAggregates implements GuardedRoleContent
         }
 
         return $added;
+    }
+
+    /**
+     * The role's permissions the new list does not name, each once, in the role's order.
+     *
+     * @return list<CommandName>
+     */
+    public function removed(): array
+    {
+        $kept = [];
+
+        foreach ($this->permissions as $permission) {
+            $kept[$permission->value] = true;
+        }
+
+        foreach ($this->unknown as $permission) {
+            $kept[$permission->value] = true;
+        }
+
+        $removed = [];
+
+        foreach ($this->stored->permissions ?? [] as $permission) {
+            if (! isset($kept[$permission->value])) {
+                $kept[$permission->value] = true;
+                $removed[] = $permission;
+            }
+        }
+
+        return $removed;
     }
 
     /**

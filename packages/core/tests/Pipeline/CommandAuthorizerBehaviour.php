@@ -365,6 +365,35 @@ trait CommandAuthorizerBehaviour
     }
 
     #[Test]
+    public function it_refuses_to_take_permissions_away_from_a_role_granted_where_the_actor_may_not_change_roles_as_an_escalation(): void
+    {
+        $actor = $this->grantedActor([
+            ['roles', ['role.set_permissions'], AccessWorld::NEWS, GrantEffect::Allow, ['da']],
+        ]);
+
+        $outside = $this->changing($actor, [], [[AccessWorld::NEWS, GrantEffect::Allow, null], [AccessWorld::CULTURE, GrantEffect::Allow, null]], removed: ['entry.create']);
+
+        Assert::assertSame(ErrorCode::GrantEscalationRefused, $outside->code);
+        Assert::assertStringContainsString('entry.create', (string) $outside->reason);
+        Assert::assertSame(ErrorCode::GrantEscalationRefused, $this->changing($actor, [], [[AccessWorld::SPORT, GrantEffect::Allow, null]], removed: ['entry.create'])->code);
+        Assert::assertSame(ErrorCode::GrantEscalationRefused, $this->changing($actor, [], [[AccessWorld::SPORT, GrantEffect::Allow, ['da', 'en']]], removed: ['entry.create'])->code);
+        Assert::assertSame(ErrorCode::GrantEscalationRefused, $this->changing($actor, ['entry.create'], [[AccessWorld::CULTURE, GrantEffect::Allow, null]], removed: ['entry.publish'])->code);
+        Assert::assertTrue($this->changing($actor, [], [[AccessWorld::NEWS, GrantEffect::Allow, ['da']], [AccessWorld::FOOTBALL, GrantEffect::Allow, ['da']]], removed: ['entry.create'])->allowed());
+        Assert::assertTrue($this->changing($actor, [], [[AccessWorld::CULTURE, GrantEffect::Deny, null]], removed: ['entry.create'])->allowed());
+        Assert::assertTrue($this->changing($actor, [], [], removed: ['entry.create'])->allowed());
+    }
+
+    #[Test]
+    public function it_holds_a_removal_by_an_actor_on_behalf_of_a_person_to_the_person_s_reach_too(): void
+    {
+        $person = $this->grantedActor([['roles', ['role.set_permissions'], AccessWorld::NEWS, GrantEffect::Allow, null]]);
+        $delegate = $this->delegateOf($person, [['agent', ['role.set_permissions'], AccessWorld::ROOT, GrantEffect::Allow, null]]);
+
+        Assert::assertTrue($this->changing($delegate, [], [[AccessWorld::NEWS, GrantEffect::Allow, null]], removed: ['entry.create'])->allowed());
+        Assert::assertSame(ErrorCode::GrantEscalationRefused, $this->changing($delegate, [], [[AccessWorld::CULTURE, GrantEffect::Allow, null]], removed: ['entry.create'])->code);
+    }
+
+    #[Test]
     public function it_refuses_a_change_that_makes_a_granted_role_administrative_for_want_of_step_up(): void
     {
         $actor = $this->grantedActor([
@@ -489,14 +518,16 @@ trait CommandAuthorizerBehaviour
     }
 
     /**
-     * role.set_permissions, or the command given, of a role whose change adds the permissions,
-     * with its grants, each on a node with an effect and locales, or every locale for null.
+     * role.set_permissions, or the command given, of a role whose change adds the permissions and
+     * takes the removed ones away, with its grants, each on a node with an effect and locales, or
+     * every locale for null.
      *
      * @param  list<string>  $added
+     * @param  list<string>  $removed
      * @param  list<array{string, GrantEffect, list<string>|null}>  $grants
      * @param  list<string>  $previous  the role's permissions before the change
      */
-    private function changing(Principal $principal, array $added, array $grants, ?ClassificationAccess $ceiling = null, string $command = 'role.set_permissions', array $previous = []): Authorization
+    private function changing(Principal $principal, array $added, array $grants, ?ClassificationAccess $ceiling = null, string $command = 'role.set_permissions', array $previous = [], array $removed = []): Authorization
     {
         $role = RoleId::fromString('0192a0c0-0000-7000-8000-000000000998');
         $stored = [];
@@ -514,7 +545,7 @@ trait CommandAuthorizerBehaviour
             );
         }
 
-        $change = new RoleContentChange($role, $ceiling, array_map(static fn (string $name): CommandName => new CommandName($name), $added), $stored, array_map(static fn (string $name): CommandName => new CommandName($name), $previous));
+        $change = new RoleContentChange($role, $ceiling, array_map(static fn (string $name): CommandName => new CommandName($name), $added), $stored, array_map(static fn (string $name): CommandName => new CommandName($name), $previous), array_map(static fn (string $name): CommandName => new CommandName($name), $removed));
         $input = new RenameProbe(
             EntryId::fromString('0192a0c0-0000-7000-8000-0000000000d1'),
             TypeId::fromString(AccessWorld::TYPE),

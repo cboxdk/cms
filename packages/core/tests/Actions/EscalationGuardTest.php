@@ -198,7 +198,7 @@ it('refuses an issuer that gives itself, or anyone, a new role on a node above i
     $created = new RoleContentChange(RoleId::fromString(GUARD_ROLE), ClassificationAccess::Internal, [new CommandName('entry.create')], [], []);
 
     expect(new EscalationGuard(guardAdministrative())->ceiling($created, ClassificationAccess::Internal)->allowed())->toBeTrue()
-        ->and(new EscalationGuard(guardAdministrative())->content($created, [], $held)->allowed())->toBeTrue()
+        ->and(new EscalationGuard(guardAdministrative())->content($created, new CommandName('role.set_permissions'), [], $held)->allowed())->toBeTrue()
         ->and(guardDecision($held, ['entry.create'], 'root.news')->code)->toBe(ErrorCode::GrantEscalationRefused);
 });
 
@@ -224,9 +224,9 @@ it('refuses to add a permission to a role granted on a node where the issuer hol
         [new StoredGrant(GrantId::fromString('01936f5e-8a2b-7c3d-9e4f-000000000803'), ActorId::fromString('01936f5e-8a2b-7c3d-9e4f-000000000804'), RoleId::fromString(GUARD_ROLE), $node, GrantEffect::Allow, null, AggregateVersion::first(), false)],
         [new CommandName('entry.create')],
     );
-    $refusal = new EscalationGuard(guardAdministrative())->content($change, [GUARD_NODE => new NodePath('root.news')], $held);
+    $refusal = new EscalationGuard(guardAdministrative())->content($change, new CommandName('role.set_permissions'), [GUARD_NODE => new NodePath('root.news')], $held);
 
     expect($refusal->code)->toBe(ErrorCode::GrantEscalationRefused)
         ->and($refusal->reason)->toContain('below the node')
-        ->and(new EscalationGuard(guardAdministrative())->content($change, [GUARD_NODE => new NodePath('root.news.culture')], $held)->allowed())->toBeTrue();
+        ->and(new EscalationGuard(guardAdministrative())->content($change, new CommandName('role.set_permissions'), [GUARD_NODE => new NodePath('root.news.culture')], $held)->allowed())->toBeTrue();
 });

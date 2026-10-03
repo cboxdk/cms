@@ -90,7 +90,7 @@ final class FakeCommandAuthorizer implements CommandAuthorizer
         $content = $aggregates instanceof GuardedRoleContent ? $aggregates->roleContent() : null;
 
         if ($content instanceof RoleContentChange) {
-            return $this->contentGuarded($access, $principal, $content, $this->permissions);
+            return $this->contentGuarded($access, $principal, $command, $content, $this->permissions);
         }
 
         $escalation = $aggregates instanceof GuardedGrant ? $aggregates->escalation() : null;
@@ -122,24 +122,24 @@ final class FakeCommandAuthorizer implements CommandAuthorizer
     /**
      * The guard on a role's content, as PostgresCommandAuthorizer holds it.
      */
-    private function contentGuarded(AccessContext $access, ActorPrincipal $principal, RoleContentChange $content, FakePermissions $permissions): Authorization
+    private function contentGuarded(AccessContext $access, ActorPrincipal $principal, CommandName $command, RoleContentChange $content, FakePermissions $permissions): Authorization
     {
         $guard = $this->guard();
         $authorization = $guard->ceiling($content, $access->classificationAccess);
 
-        if (! $authorization->allowed() || $content->added === [] || $content->allows() === []) {
+        if (! $authorization->allowed() || ($content->added === [] && $content->removed === []) || $content->allows() === []) {
             return $authorization;
         }
 
         $paths = $permissions->paths(array_map(static fn (StoredGrant $grant): NodeId => $grant->node, $content->allows()));
-        $authorization = $guard->content($content, $paths, $permissions->held($principal->actor));
+        $authorization = $guard->content($content, $command, $paths, $permissions->held($principal->actor));
 
         foreach ($principal->onBehalfOf as $delegator) {
             if (! $authorization->allowed()) {
                 break;
             }
 
-            $authorization = $guard->content($content, $paths, $permissions->held($delegator), sprintf('the actor %s it acts on behalf of', $delegator->toString()));
+            $authorization = $guard->content($content, $command, $paths, $permissions->held($delegator), sprintf('the actor %s it acts on behalf of', $delegator->toString()));
         }
 
         return $authorization->relyingOn(...$permissions->sets([$principal->actor, ...$principal->onBehalfOf]));

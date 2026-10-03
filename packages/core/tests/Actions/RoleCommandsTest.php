@@ -35,7 +35,8 @@ use Cbox\Cms\Core\Tests\Postgres\AccessWorld;
  * (GUARDRAILS 9). The issuer holds the role commands on ROOT and the permissions a test gives it.
  * ROLE is the role a test changes, with the grants a test gives it. It covers a new role, the
  * escalation guard on a role's content (a permission the issuer lacks on one of the nodes where
- * the role is granted, and a ceiling above its access), a change that makes a granted role
+ * the role is granted, a permission taken away from a role granted in a subtree where the issuer
+ * may not change roles, and a ceiling above its access), a change that makes a granted role
  * administrative, the names the registry does not know, and the conflicts.
  */
 
@@ -184,11 +185,33 @@ it('sets a role\'s permissions and moves each of its grants, when the issuer hol
         ]);
 });
 
-it('takes permissions away from a granted role without the guard', function (): void {
+it('takes permissions away from a granted role when the issuer may run role.set_permissions on every node where it is granted', function (): void {
     $world = roleWorld();
     grantedRole($world, ['entry.create', 'entry.publish'], [ROLE_GRANT_CULTURE => AccessWorld::CULTURE]);
 
     expect($world->run(setPermissions(['entry.publish']))->outcome())->toBe(Outcome::Committed);
+});
+
+it('refuses to take permissions away from a role granted in a subtree where the issuer may not run role.set_permissions as an escalation', function (): void {
+    $issuer = static fn (): GrantActionWorld => new GrantActionWorld()->hold(['role.set_permissions'], AccessWorld::NEWS);
+    $both = $issuer();
+    grantedRole($both, ['entry.create', 'entry.publish'], [ROLE_GRANT_NEWS => AccessWorld::NEWS, ROLE_GRANT_CULTURE => AccessWorld::CULTURE]);
+    $own = $issuer();
+    grantedRole($own, ['entry.create', 'entry.publish'], [ROLE_GRANT_NEWS => AccessWorld::NEWS]);
+    $denied = $issuer();
+    grantedRole($denied, ['entry.create', 'entry.publish'], [ROLE_GRANT_NEWS => AccessWorld::NEWS]);
+    grantedRole($denied, ['entry.create', 'entry.publish'], [ROLE_GRANT_CULTURE => AccessWorld::CULTURE], GrantEffect::Deny);
+
+    $refused = $both->run(setPermissions(['entry.publish']));
+    $emptied = $both->run(setPermissions([]));
+
+    expect(ActorCommandFakes::errors($refused))->toBe(['grant_escalation_refused'])
+        ->and($refused->errors[0]->message)->toContain('entry.create')
+        ->and($refused->errors[0]->message)->toContain(AccessWorld::CULTURE)
+        ->and(ActorCommandFakes::errors($emptied))->toBe(['grant_escalation_refused'])
+        ->and($both->committer->pending)->toBe([])
+        ->and($own->run(setPermissions(['entry.publish']))->outcome())->toBe(Outcome::Committed)
+        ->and($denied->run(setPermissions(['entry.publish']))->outcome())->toBe(Outcome::Committed);
 });
 
 it('refuses to add a permission the issuer lacks on one of the nodes where the role is granted as an escalation', function (): void {

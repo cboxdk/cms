@@ -44,8 +44,9 @@ use Override;
  * step-up, step_up_required. A command that creates a role or changes its permissions
  * (GuardedRoleContent) is held to the guard on the role's content: a ceiling not above the
  * context's classification access, and each added permission held by the actor, and each actor of
- * its chain, on every node where the role is granted; a change that makes a granted role
- * administrative needs step-up.
+ * its chain, on every node where the role is granted, and for a change that takes permissions
+ * away the command itself held by each of them on every such node; a change that makes a granted
+ * role administrative needs step-up.
  *
  * The guard decides from the grants the actor, and each actor of its chain, holds, so an allowing
  * decision relies on each one's set of grants (ActorGrantsRef), read before those grants: the
@@ -99,7 +100,7 @@ final readonly class PostgresCommandAuthorizer implements CommandAuthorizer
         $content = $aggregates instanceof GuardedRoleContent ? $aggregates->roleContent() : null;
 
         if ($content instanceof RoleContentChange) {
-            return $this->contentGuarded($access, $principal, $content, $grants);
+            return $this->contentGuarded($access, $principal, $command, $content, $grants);
         }
 
         $escalation = $aggregates instanceof GuardedGrant ? $aggregates->escalation() : null;
@@ -114,28 +115,29 @@ final readonly class PostgresCommandAuthorizer implements CommandAuthorizer
     /**
      * The escalation guard on a command that creates a role or changes its permissions (invariant
      * 31): the role's ceiling against the context's classification access, then each added
-     * permission on every node where the role is granted, for the actor and for each actor it acts
-     * on behalf of, each with every grant it holds. A role granted nowhere, such as a new one, gives
-     * nothing through its permissions, so only its ceiling is held to the guard.
+     * permission, and the command itself when the change takes permissions away, on every node
+     * where the role is granted, for the actor and for each actor it acts on behalf of, each with
+     * every grant it holds. A role granted nowhere, such as a new one, gives nothing through its
+     * permissions, so only its ceiling is held to the guard.
      */
-    private function contentGuarded(AccessContext $access, ActorPrincipal $principal, RoleContentChange $content, PostgresGrants $grants): Authorization
+    private function contentGuarded(AccessContext $access, ActorPrincipal $principal, CommandName $command, RoleContentChange $content, PostgresGrants $grants): Authorization
     {
         $authorization = $this->guard->ceiling($content, $access->classificationAccess);
 
-        if (! $authorization->allowed() || $content->added === [] || $content->allows() === []) {
+        if (! $authorization->allowed() || ($content->added === [] && $content->removed === []) || $content->allows() === []) {
             return $authorization;
         }
 
         $sets = $grants->sets([$principal->actor, ...$principal->onBehalfOf]);
         $paths = $grants->paths(array_map(static fn (StoredGrant $grant): NodeId => $grant->node, $content->allows()));
-        $authorization = $this->guard->content($content, $paths, $grants->held($principal->actor));
+        $authorization = $this->guard->content($content, $command, $paths, $grants->held($principal->actor));
 
         foreach ($principal->onBehalfOf as $delegator) {
             if (! $authorization->allowed()) {
                 break;
             }
 
-            $authorization = $this->guard->content($content, $paths, $grants->heldByDelegator($delegator), sprintf('the actor %s it acts on behalf of', $delegator->toString()));
+            $authorization = $this->guard->content($content, $command, $paths, $grants->heldByDelegator($delegator), sprintf('the actor %s it acts on behalf of', $delegator->toString()));
         }
 
         return $authorization->relyingOn(...$sets);
