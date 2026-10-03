@@ -13,7 +13,9 @@ use Cbox\Cms\Contracts\Identity\PasswordHash;
 use Cbox\Cms\Contracts\Identity\PasswordResetToken;
 use Cbox\Cms\Identity\CredentialStore\Adapter\PostgresLocalCredentialStore;
 use Cbox\Cms\Identity\CredentialStore\Domain\CredentialStore;
+use Cbox\Cms\Identity\LoginPolicy\Domain\Dto\LoginPolicy;
 use Cbox\Cms\Identity\Tests\LocalAccounts\PostgresLocalAccounts;
+use Cbox\Cms\Identity\Tests\Sessions\SessionWorld;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\FixtureWriters\Identity\Adapter\PostgresIdentitySeeder;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
@@ -28,8 +30,8 @@ use Illuminate\Support\Facades\DB;
  * cms:staff:reset-link on this checkout's test database (PRD 5.16), as an operator runs it in the
  * maintenance process: it prints a link to the reset page of cbox-cms.identity.password_reset.url
  * with a token that the credential store keeps only as its SHA-256, expiring 60 minutes after the
- * Clock's time, and sends no mail. A login without a local account, an actor that is not active, a
- * text that is not an email and a process without the owner connection are refused with the
+ * Clock's time, and sends no mail. A login without a local account, an actor that is not active, an
+ * actor the login policy keeps from a local login, a text that is not an email and a process without the owner connection are refused with the
  * catalog's exit codes and write nothing.
  */
 
@@ -90,6 +92,16 @@ it('refuses a login without a local account, an actor that is not active and a t
     'pending actor' => ['pending@example.com', 77, '[actor_not_active]'],
     'not a login' => ['not an email', 64, 'needs the email address'],
 ]);
+
+it('refuses an actor the login policy keeps from logging in locally', function (): void {
+    linkAccount('mette.holm@example.com');
+    app()->instance(LoginPolicy::class, SessionWorld::policy(['staff' => ['local_login' => false]]));
+
+    expect(app(Kernel::class)->call('cms:staff:reset-link', ['email' => 'mette.holm@example.com']))->toBe(77)
+        ->and(app(Kernel::class)->output())->toContain('[login_local_disabled]')
+        ->and(app(Kernel::class)->output())->not->toContain('@example.com')
+        ->and(linkTokens())->toBe(0);
+});
 
 it('runs only in the maintenance process', function (): void {
     linkAccount('mette.holm@example.com');

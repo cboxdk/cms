@@ -166,9 +166,9 @@ final class PasswordResetPagesTest extends TestCase
     public function a_reset_the_login_policy_does_not_log_in_sends_the_browser_to_the_login_page(): void
     {
         $world = $this->world();
-        $world->login->policy = SessionWorld::policy(['staff' => ['methods' => ['password_reset' => false]]]);
-        $world->into($this->app ?? self::fail('No application.'));
         $token = $this->mailedToken();
+        $world->login->policy = SessionWorld::policy(['staff' => ['local_factors' => 'passkey_or_two_factors']]);
+        $world->into($this->app ?? self::fail('No application.'));
 
         $this->post('/cms/reset-password', [PasswordResetForms::TOKEN => $token, PasswordResetForms::PASSWORD => PasswordResetWorld::NEW_PASSWORD, '_token' => $this->csrf()])
             ->assertStatus(PanelSessions::REDIRECT)

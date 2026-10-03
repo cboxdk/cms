@@ -75,6 +75,11 @@ final readonly class PasswordResetCommandOutput
 
         return match ($outcome->refusal) {
             ErrorCode::ActorNotActive => self::refusal(ErrorCode::ActorNotActive, 'The actor of the account is not active, so its password cannot be reset.'),
+            ErrorCode::LoginClassNotAllowed,
+            ErrorCode::LoginConnectionNotAllowed,
+            ErrorCode::LoginMethodNotAllowed,
+            ErrorCode::LoginLocalDisabled,
+            ErrorCode::LoginAuthoritativeLink => self::refusal($outcome->refusal, 'The login policy does not let the actor of the account log in by password reset, so its password cannot be reset.'),
             default => self::refusal(ErrorCode::LocalAccountMissing, 'No local account has this email as its login.'),
         };
     }

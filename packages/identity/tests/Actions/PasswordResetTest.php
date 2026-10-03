@@ -8,10 +8,15 @@ use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Contracts\Identity\ActorPrincipal;
 use Cbox\Cms\Contracts\Identity\ActorState;
 use Cbox\Cms\Contracts\Identity\CredentialRejected;
+use Cbox\Cms\Contracts\Identity\Login\ConnectionId;
+use Cbox\Cms\Contracts\Identity\Login\IdpIdentity;
+use Cbox\Cms\Contracts\Identity\Login\Issuer;
+use Cbox\Cms\Contracts\Identity\Login\Subject;
 use Cbox\Cms\Contracts\Identity\LoginIdentifier;
 use Cbox\Cms\Contracts\Identity\Password;
 use Cbox\Cms\Contracts\Identity\Principal;
 use Cbox\Cms\Contracts\Identity\TransportCredential;
+use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Identity\Login\Domain\Dto\LocalLoginRequest;
 use Cbox\Cms\Identity\LoginPolicy\Domain\LoginMethod;
 use Cbox\Cms\Identity\PasswordReset\Actions\RequestPasswordReset;
@@ -33,7 +38,10 @@ use RuntimeException;
  * request is answered the same; a token sets a password once and not after it expires; the new
  * password is held to the 12-character and breached rules, which leave the token usable; a reset
  * ends every session of the actor and logs in through the login policy with the method
- * password_reset, or, when the policy refuses that, sets the password and logs no one in.
+ * password_reset, or, when the policy refuses the factors, sets the password and logs no one in;
+ * an actor the policy keeps from a local login by reset (linked to an authoritative connection,
+ * password_reset or local login off, not active since the link was issued) gets no link and no
+ * password, and its token is refused as invalid.
  */
 
 const RESET_EMAIL = 'mette.holm@example.com';
@@ -43,6 +51,14 @@ const RESET_IP = '192.0.2.20';
 function resetRequest(string $email = RESET_EMAIL): ResetRequest
 {
     return new ResetRequest($email, RESET_IP);
+}
+
+/**
+ * Whether the actor's local password is still $password.
+ */
+function passwordIs(PasswordResetWorld $world, ActorId $actor, string $password): bool
+{
+    return $world->login->hasher->verify(new Password($password), ($world->login->accounts->ofActor($actor) ?? throw new RuntimeException('No account.'))->hash);
 }
 
 function newPassword(string $token, string $password = PasswordResetWorld::NEW_PASSWORD, ?TransportCredential $previous = null): PasswordResetSubmission
@@ -183,18 +199,65 @@ it('refuses with breached_passwords_unavailable when the breach check cannot be 
         ->and($world->reset()->reset(newPassword($token))->session)->not->toBeNull();
 });
 
-it('sets the password but logs no one in when the login policy does not allow a login by reset', function (): void {
+it('sets the password but logs no one in when the login policy refuses the factors a reset gives', function (): void {
     $world = new PasswordResetWorld;
-    $world->login->policy = SessionWorld::policy(['staff' => ['methods' => ['password_reset' => false]]]);
     $world->login->person(RESET_EMAIL);
     $first = $world->login->action()->login(new LocalLoginRequest(RESET_EMAIL, LocalLoginWorld::PASSWORD, RESET_IP))->session;
     $world->request()->request(resetRequest());
+    $world->login->policy = SessionWorld::policy(['staff' => ['local_factors' => 'passkey_or_two_factors']]);
 
     $outcome = $world->reset()->reset(newPassword($world->mailedToken(), previous: $first?->token->credential()));
 
     expect($outcome)->toEqual(PasswordResetOutcome::changed())
+        ->and($world->login->sessions->count())->toBe(0);
+});
+
+it('mails no link and sets no password for an actor linked to an authoritative connection (invariant 38)', function (): void {
+    $world = new PasswordResetWorld;
+    $world->login->policy = SessionWorld::policy(['authoritative_connections' => ['entra'], 'staff' => ['connections' => ['entra' => true]]]);
+    $actor = $world->login->person(RESET_EMAIL);
+    $world->request()->request(resetRequest());
+    $token = $world->mailedToken();
+    $world->links->link($actor->id, new IdpIdentity(new ConnectionId('entra'), new Issuer('https://login.example.test'), new Subject('s-1')));
+
+    $answer = $world->request()->request(resetRequest());
+
+    expect($answer)->toEqual($world->request()->request(resetRequest('nobody@example.com')))
+        ->and($world->mail->sent())->toHaveCount(1)
+        ->and($world->links()->issue(new LoginIdentifier(RESET_EMAIL))->refusal)->toBe(ErrorCode::LoginAuthoritativeLink)
+        ->and($world->reset()->reset(newPassword($token)))->toEqual(PasswordResetOutcome::refused(ErrorCode::PasswordResetTokenInvalid))
         ->and($world->login->sessions->count())->toBe(0)
-        ->and($world->login->action()->login(new LocalLoginRequest(RESET_EMAIL, PasswordResetWorld::NEW_PASSWORD, RESET_IP))->session)->not->toBeNull();
+        ->and(passwordIs($world, $actor->id, LocalLoginWorld::PASSWORD))->toBeTrue();
+});
+
+it('mails no link and sets no password when the policy has password reset or local login off', function (array $policy, ErrorCode $code): void {
+    $world = new PasswordResetWorld;
+    $actor = $world->login->person(RESET_EMAIL);
+    $world->request()->request(resetRequest());
+    $token = $world->mailedToken();
+    $world->login->policy = SessionWorld::policy($policy);
+
+    $world->request()->request(resetRequest());
+
+    expect($world->mail->sent())->toHaveCount(1)
+        ->and($world->links()->issue(new LoginIdentifier(RESET_EMAIL))->refusal)->toBe($code)
+        ->and($world->reset()->reset(newPassword($token)))->toEqual(PasswordResetOutcome::refused(ErrorCode::PasswordResetTokenInvalid))
+        ->and(passwordIs($world, $actor->id, LocalLoginWorld::PASSWORD))->toBeTrue();
+})->with([
+    'password reset off' => [['staff' => ['methods' => ['password_reset' => false]]], ErrorCode::LoginMethodNotAllowed],
+    'local login off' => [['staff' => ['local_login' => false]], ErrorCode::LoginLocalDisabled],
+]);
+
+it('sets no password for an actor deactivated after the link was issued', function (): void {
+    $world = new PasswordResetWorld;
+    $actor = $world->login->person(RESET_EMAIL);
+    $world->request()->request(resetRequest());
+    $token = $world->mailedToken();
+    $world->login->identity->changeState($actor->id, ActorState::Deactivated);
+
+    expect($world->reset()->reset(newPassword($token)))->toEqual(PasswordResetOutcome::refused(ErrorCode::PasswordResetTokenInvalid))
+        ->and($world->login->sessions->count())->toBe(0)
+        ->and(passwordIs($world, $actor->id, LocalLoginWorld::PASSWORD))->toBeTrue();
 });
 
 it('issues no link for an account whose actor is not active or for no account, and says which', function (): void {

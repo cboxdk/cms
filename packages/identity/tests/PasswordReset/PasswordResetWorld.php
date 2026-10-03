@@ -30,7 +30,7 @@ use RuntimeException;
 
 /**
  * A password reset over fakes (GUARDRAILS 9): LocalLoginWorld's actors, local accounts, Argon2id
- * hasher, sessions, login policy, local connection, telemetry and clock, with FakeBreachedPasswords
+ * hasher, sessions, login policy, FakeIdpLinks, local connection, telemetry and clock, with FakeBreachedPasswords
  * that knows BREACHED, FakeMailGateway, a throttle of the requests at the module's default reset
  * limits, and the reset page at PAGE with links that work the module's default 60 minutes.
  */
@@ -52,18 +52,21 @@ final class PasswordResetWorld
 
     public ResetSettings $settings;
 
+    public FakeIdpLinks $links;
+
     public function __construct()
     {
         $this->login = new LocalLoginWorld;
         $this->breached = new FakeBreachedPasswords(new Password(self::BREACHED));
         $this->mail = new FakeMailGateway($this->login->telemetry);
         $this->throttle = new FakeLoginThrottle(new LoginThrottleSettings(new ThrottleLimit(3, 3600), new ThrottleLimit(20, 3600)), $this->login->clock);
+        $this->links = new FakeIdpLinks;
         $this->settings = new ResetSettings(ResetSettings::DEFAULT_MINUTES, new ResetPage(self::PAGE));
     }
 
     public function links(): IssueResetLink
     {
-        return new IssueResetLink($this->login->accounts, $this->login->identity, $this->settings, $this->login->clock);
+        return new IssueResetLink($this->login->accounts, $this->policy(), $this->settings, $this->login->clock);
     }
 
     public function request(): RequestPasswordReset
@@ -80,11 +83,19 @@ final class PasswordResetWorld
             new PasswordPolicy($this->breached),
             $this->login->hasher,
             $this->login->connection,
-            new CheckLoginPolicy($this->login->policy, $this->login->identity, new FakeIdpLinks, $this->login->telemetry),
+            $this->policy(),
             new EndSessions($this->login->sessions, $counters),
             new IssueSession($this->login->sessions, $this->login->clock, $counters),
             $this->login->telemetry,
         );
+    }
+
+    /**
+     * The login policy over the world's policy, actors and IdP links.
+     */
+    public function policy(): CheckLoginPolicy
+    {
+        return new CheckLoginPolicy($this->login->policy, $this->login->identity, $this->links, $this->login->telemetry);
     }
 
     public function prune(): PruneResetTokens

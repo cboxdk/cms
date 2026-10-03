@@ -65,38 +65,13 @@ final readonly class LoginDecision
      */
     public static function decide(LoginPolicy $policy, ?Actor $actor, LoginAttempt $attempt, IdpLinks $links): self
     {
-        if (! $actor instanceof Actor || ! $actor->id->equals($attempt->actor)) {
-            throw LoginPolicyRefused::because(LoginPolicyErrorCode::ActorNotActive);
-        }
-
-        $class = $policy->of($actor->class);
-
-        if (! $class instanceof ClassPolicy) {
-            throw LoginPolicyRefused::because(LoginPolicyErrorCode::ClassNotAllowed);
-        }
-
-        if (! $actor->isActive()) {
+        if (! $actor instanceof Actor) {
             throw LoginPolicyRefused::because(LoginPolicyErrorCode::ActorNotActive);
         }
 
         $connection = $attempt->assertion->connection;
+        $class = self::admit($policy, $actor, $attempt->actor, $connection, $attempt->method, $links);
         $local = LoginPolicy::isLocal($connection);
-
-        if (! $class->allowsConnection($connection)) {
-            throw LoginPolicyRefused::because(LoginPolicyErrorCode::ConnectionNotAllowed);
-        }
-
-        if (! $class->allowsMethod($attempt->method) || $attempt->method->isLocal() !== $local) {
-            throw LoginPolicyRefused::because(LoginPolicyErrorCode::MethodNotAllowed);
-        }
-
-        if ($local && ! $class->localLogin) {
-            throw LoginPolicyRefused::because(LoginPolicyErrorCode::LocalDisabled);
-        }
-
-        if ($local && array_any($links->connectionsOf($actor->id), $policy->isAuthoritative(...))) {
-            throw LoginPolicyRefused::because(LoginPolicyErrorCode::AuthoritativeLink);
-        }
 
         if (! ($local ? self::localFactorsGiven($class, $attempt) : self::federatedFactorsGiven($class, $attempt->assertion))) {
             throw LoginPolicyRefused::because(LoginPolicyErrorCode::FactorsUnavailable);
@@ -112,6 +87,65 @@ final readonly class LoginDecision
             $class->lifetimes,
             $attempt->idpSession,
         );
+    }
+
+    /**
+     * Rules 1 to 6 of decide() for a login by $method on the local connection, asked before a
+     * local login path changes anything for the actor, such as a password reset, which sets a
+     * password before it can assert a login (PRD 5.16, invariant 38). It makes no decision, so
+     * rule 7, the factors, which only the login itself gives, is left to decide().
+     *
+     * @throws LoginPolicyRefused
+     */
+    public static function admitsLocal(LoginPolicy $policy, ?Actor $actor, ActorId $id, LoginMethod $method, IdpLinks $links): void
+    {
+        if (! $actor instanceof Actor) {
+            throw LoginPolicyRefused::because(LoginPolicyErrorCode::ActorNotActive);
+        }
+
+        self::admit($policy, $actor, $id, new ConnectionId(LoginPolicy::LOCAL_CONNECTION), $method, $links);
+    }
+
+    /**
+     * Rules 1 to 6 of decide(), and the policy of the actor's class they found.
+     *
+     * @throws LoginPolicyRefused
+     */
+    private static function admit(LoginPolicy $policy, Actor $actor, ActorId $id, ConnectionId $connection, LoginMethod $method, IdpLinks $links): ClassPolicy
+    {
+        if (! $actor->id->equals($id)) {
+            throw LoginPolicyRefused::because(LoginPolicyErrorCode::ActorNotActive);
+        }
+
+        $class = $policy->of($actor->class);
+
+        if (! $class instanceof ClassPolicy) {
+            throw LoginPolicyRefused::because(LoginPolicyErrorCode::ClassNotAllowed);
+        }
+
+        if (! $actor->isActive()) {
+            throw LoginPolicyRefused::because(LoginPolicyErrorCode::ActorNotActive);
+        }
+
+        $local = LoginPolicy::isLocal($connection);
+
+        if (! $class->allowsConnection($connection)) {
+            throw LoginPolicyRefused::because(LoginPolicyErrorCode::ConnectionNotAllowed);
+        }
+
+        if (! $class->allowsMethod($method) || $method->isLocal() !== $local) {
+            throw LoginPolicyRefused::because(LoginPolicyErrorCode::MethodNotAllowed);
+        }
+
+        if ($local && ! $class->localLogin) {
+            throw LoginPolicyRefused::because(LoginPolicyErrorCode::LocalDisabled);
+        }
+
+        if ($local && array_any($links->connectionsOf($actor->id), $policy->isAuthoritative(...))) {
+            throw LoginPolicyRefused::because(LoginPolicyErrorCode::AuthoritativeLink);
+        }
+
+        return $class;
     }
 
     /**

@@ -6,6 +6,7 @@ namespace Cbox\Cms\Identity\LoginPolicy\Actions;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Identity\ActorDirectory;
+use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Telemetry\Attribute;
 use Cbox\Cms\Contracts\Telemetry\Attributes;
 use Cbox\Cms\Contracts\Telemetry\CounterRecord;
@@ -15,6 +16,7 @@ use Cbox\Cms\Identity\LoginPolicy\Domain\Dto\LoginAttempt;
 use Cbox\Cms\Identity\LoginPolicy\Domain\Dto\LoginPolicy;
 use Cbox\Cms\Identity\LoginPolicy\Domain\IdpLinks;
 use Cbox\Cms\Identity\LoginPolicy\Domain\LoginDecision;
+use Cbox\Cms\Identity\LoginPolicy\Domain\LoginMethod;
 use Cbox\Cms\Identity\LoginPolicy\Domain\LoginPolicyRefused;
 
 /**
@@ -64,6 +66,20 @@ final readonly class CheckLoginPolicy
         $this->count(Attribute::of(self::OUTCOME, self::ALLOWED));
 
         return $decision;
+    }
+
+    /**
+     * Whether the policy would let the actor log in by $method on the local connection, asked by a
+     * local login path before it changes anything for the actor (LoginDecision::admitsLocal()): a
+     * password reset asks it before it issues a link and again before it sets the password, so an
+     * actor the policy keeps from logging in locally never gets a local password that way. It is
+     * no decision, so it issues nothing and counts nothing.
+     *
+     * @throws LoginPolicyRefused
+     */
+    public function admitLocal(ActorId $actor, LoginMethod $method): void
+    {
+        LoginDecision::admitsLocal($this->policy, $this->actors->find($actor), $actor, $method, $this->links);
     }
 
     private function count(Attribute ...$attributes): void
