@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "the panel's start page, contract version 1",
+  "description": "The props of the start page of a person who signed in (PRD 13.4), Home in js/panel. The PHP form is Cbox\\Cms\\Panel\\Domain\\Dto\\HomePage, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "logout"
+  ],
+  "properties": {
+    "logout": {
+      "description": "The address the logout posts to.",
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

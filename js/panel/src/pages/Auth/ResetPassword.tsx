@@ -1,50 +1,40 @@
 import { Alert, Button, Form, TaskScreen, TextField, TextLink } from '@cboxdk/cms-ui-kit';
-import { Head, useForm, usePage } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
 import type { SubmitEvent } from 'react';
 
+import type {
+  ResetPasswordPageV1,
+  ResetPasswordRefusal,
+} from '../../generated/pages/ResetPasswordPageV1';
 import { useTranslation, type TranslationKey } from '../../i18n/translations';
 
-export interface ResetPasswordProps {
-  /** The address the form posts to. */
-  readonly action: string;
-  /** The token of the link that opened the page, or null when its address holds none. */
-  readonly token: string | null;
-  /** The address of the page that asks for a new link. */
-  readonly forgot: string;
-  /** The address of the login page. */
-  readonly login: string;
-}
-
-/** The text of a catalog code the server put under the password field. */
-function passwordError(code: string | undefined): TranslationKey | undefined {
-  switch (code) {
-    case undefined:
-      return undefined;
-    case 'validation_required':
-      return 'panel.reset.required';
-    case 'password_too_short':
-      return 'panel.reset.too_short';
-    case 'password_too_long':
-      return 'panel.reset.too_long';
-    default:
-      return 'panel.reset.breached';
-  }
-}
+/** The text of each catalog code the server puts under the password field. */
+const PASSWORD_REFUSALS: Readonly<Record<ResetPasswordRefusal, TranslationKey>> = {
+  validation_required: 'panel.reset.required',
+  password_too_short: 'panel.reset.too_short',
+  password_too_long: 'panel.reset.too_long',
+  password_breached: 'panel.reset.breached',
+};
 
 /**
  * The page a password reset link opens (PRD 5.16): the person chooses a new password, which the
  * server holds to the password policy, and is signed in with it. A link that is unknown, used or
  * expired is one refusal, password_reset_token_invalid, and the page then offers a new link
- * instead of the form.
+ * instead of the form. The props are ResetPasswordPageV1, generated from the page's JSON Schema.
  */
-export default function ResetPassword({ action, token, forgot, login }: ResetPasswordProps) {
+export default function ResetPassword({
+  action,
+  token,
+  forgot,
+  login,
+  refusals,
+}: ResetPasswordPageV1) {
   const { t } = useTranslation();
-  const { errors } = usePage().props;
   const form = useForm({ token: token ?? '', password: '' });
 
-  const invalid = token === null || errors['form'] === 'password_reset_token_invalid';
-  const unchecked = errors['form'] === 'breached_passwords_unavailable';
-  const fieldError = passwordError(errors['password']);
+  const invalid = token === null || refusals.form === 'password_reset_token_invalid';
+  const unchecked = refusals.form === 'breached_passwords_unavailable';
+  const fieldError = refusals.password === null ? undefined : PASSWORD_REFUSALS[refusals.password];
 
   function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();

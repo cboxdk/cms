@@ -18,6 +18,8 @@ use Cbox\Cms\Core\Routing\Domain\Dto\ExplainedPath;
 use Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation;
 use Cbox\Cms\Generators\Protocol\Domain\Dto\SchemaBinding;
 use Cbox\Cms\Generators\Protocol\Domain\ProtocolSchemas;
+use Cbox\Cms\Panel\Domain\Dto\LoginPage;
+use Cbox\Cms\Panel\Domain\Dto\ResetPasswordPage;
 use Cbox\Cms\Tests\Support\Arch\Codebase;
 use Cbox\Cms\Tests\Support\Arch\DeclaredType;
 use Cbox\Cms\Tests\Support\Arch\HandWrittenCodecScan;
@@ -25,11 +27,12 @@ use Cbox\Cms\Tests\Support\Arch\Layer;
 use Cbox\Cms\Tests\Support\Arch\ReferenceKind;
 use Cbox\Cms\Tests\Support\Arch\Rules;
 use Cbox\Cms\Tests\Support\Arch\SourceFile;
+use Cbox\Cms\Tooling\Protocol\Domain\PanelPageSchemas;
 
 /*
  * Serialisation is generated (GUARDRAILS 2.2): the JSON form of the receipt, the problem details
  * document, the envelope, the delivery API's documents and fragment, the path explanation and
- * cms:explain's document, and each of the kernel's commands is fixed by their JSON Schemas and
+ * cms:explain's document, each of the kernel's commands and the props of the panel's pages is fixed by their JSON Schemas and
  * written and read only by the codecs composer generate:protocol writes into a Generated directory.
  * No code in packages/*\/src or workbench/app serialises a class the contracts' schemas bind, or a
  * command a command's schema is bound to, by hand, no class outside a Generated directory
@@ -46,10 +49,14 @@ arch('generated codecs: no hand-written encoder of a class the kernel schemas bi
             ProtocolSchemas::kernel(),
         )),
         ...array_map(static fn (SchemaBinding $binding): string => $binding->objects['#'], ProtocolSchemas::commands()),
+        ...array_merge(...array_map(
+            static fn (SchemaBinding $binding): array => array_values($binding->objects),
+            PanelPageSchemas::all(),
+        )),
     ]));
     sort($bound);
 
-    expect($bound)->toContain(Receipt::class, Problem::class, RequestEnvelope::class, CreateEntry::class, ReviseEntry::class, DeliveryDocument::class, DeliveryExplanation::class, StoredAnswer::class, PathExplanation::class, ExplainedPath::class)
+    expect($bound)->toContain(Receipt::class, Problem::class, RequestEnvelope::class, CreateEntry::class, ReviseEntry::class, DeliveryDocument::class, DeliveryExplanation::class, StoredAnswer::class, PathExplanation::class, ExplainedPath::class, LoginPage::class, ResetPasswordPage::class)
         ->and(ProtocolSchemas::commands())->toHaveCount(15);
 
     Rules::none(

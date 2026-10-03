@@ -1,18 +1,15 @@
 import { StatusScreen, TextLink } from '@cboxdk/cms-ui-kit';
 import { Head } from '@inertiajs/react';
 
+import type { NotFoundPageV1 } from '../../generated/pages/NotFoundPageV1';
 import { useTranslation } from '../../i18n/translations';
-
-export interface NotFoundProps {
-  /** The address of the panel's start, below the prefix the panel is mounted at. */
-  readonly home: string;
-}
 
 /**
  * The page for an address below the panel that it has no page for. The server answers it with
- * 404; the page says so and links back to the start of the panel.
+ * 404; the page says so and links back to the start of the panel. The props are NotFoundPageV1,
+ * generated from the page's JSON Schema.
  */
-export default function NotFound({ home }: NotFoundProps) {
+export default function NotFound({ home }: NotFoundPageV1) {
   const { t } = useTranslation();
 
   return (

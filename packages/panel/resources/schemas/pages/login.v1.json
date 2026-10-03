@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "the panel's login page, contract version 1",
+  "description": "The props of the panel's login page (PRD 5.16, 13.4), Auth/Login in js/panel. The PHP form is Cbox\\Cms\\Panel\\Domain\\Dto\\LoginPage, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "action",
+    "forgot",
+    "reason",
+    "refusals"
+  ],
+  "properties": {
+    "action": {
+      "description": "The address the form posts to.",
+      "type": "string",
+      "minLength": 1
+    },
+    "forgot": {
+      "description": "The address of the page that asks for a password reset link.",
+      "type": "string",
+      "minLength": 1
+    },
+    "reason": {
+      "description": "Why the panel sent the browser to this page, or null when it did not: required (the request carried no session), expired, ended, revoked, signed_out or password_changed.",
+      "anyOf": [
+        {
+          "enum": [
+            "required",
+            "expired",
+            "ended",
+            "revoked",
+            "signed_out",
+            "password_changed"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "refusals": {
+      "description": "The catalog code of the refusal of the login just posted, under the field it is about, or under form for the login as a whole; null where there is none.",
+      "$ref": "#/$defs/refusals"
+    }
+  },
+  "$defs": {
+    "refusal": {
+      "description": "A catalog code a login is refused with: validation_required for a field left empty, login_rejected for an unknown email, a wrong password and a login the policy refused alike, and login_rate_limited.",
+      "enum": [
+        "validation_required",
+        "login_rejected",
+        "login_rate_limited"
+      ]
+    },
+    "refusals": {
+      "description": "The refusals of a login, by the field they are about.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "email",
+        "form",
+        "password"
+      ],
+      "properties": {
+        "email": {
+          "description": "The refusal about the email, or null.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/refusal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "form": {
+          "description": "The refusal about the login as a whole, or null.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/refusal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "password": {
+          "description": "The refusal about the password, or null.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/refusal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

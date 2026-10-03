@@ -19,6 +19,7 @@ use Cbox\Cms\Tests\Support\Node;
 use Cbox\Cms\Tests\Support\Phpstan;
 use Cbox\Cms\Tests\Support\Tooling\ComposerScripts;
 use Cbox\Cms\Tooling\Protocol\Adapter\ProtocolGeneration;
+use Cbox\Cms\Tooling\Protocol\Domain\PanelPageSchemas;
 use Illuminate\Contracts\Console\Kernel;
 use RuntimeException;
 use Symfony\Component\Process\Process;
@@ -38,6 +39,9 @@ use Symfony\Component\Process\Process;
 const GENERATED_PATHS = ['workbench/app/Cms/Generated', 'workbench/resources/js/cms/generated', 'workbench/database/migrations/cms'];
 
 const PROTOCOL_PATH = ProtocolSchemas::PHP_DIRECTORY;
+
+/** What generate:protocol writes for the panel's pages: their codecs and their TypeScript. */
+const PANEL_PAGE_PATHS = [PanelPageSchemas::PHP_DIRECTORY, PanelPageSchemas::TYPESCRIPT_DIRECTORY];
 
 afterEach(function (): void {
     SchemaFixtures::cleanUp();
@@ -81,7 +85,7 @@ function gateRepository(): string
     $root = SchemaFixtures::scratch();
     $files = [];
 
-    foreach (['workbench/schema', 'workbench/addons/fixtureaddon/schema', ProtocolSchemas::SCHEMA_DIRECTORY, ProtocolSchemas::CORE_SCHEMA_DIRECTORY, ProtocolSchemas::COMMAND_SCHEMA_DIRECTORY, ...GENERATED_PATHS, PROTOCOL_PATH] as $directory) {
+    foreach (['workbench/schema', 'workbench/addons/fixtureaddon/schema', ProtocolSchemas::SCHEMA_DIRECTORY, ProtocolSchemas::CORE_SCHEMA_DIRECTORY, ProtocolSchemas::COMMAND_SCHEMA_DIRECTORY, PanelPageSchemas::SCHEMA_DIRECTORY, ...GENERATED_PATHS, PROTOCOL_PATH, ...PANEL_PAGE_PATHS] as $directory) {
         foreach (SchemaFixtures::files(Phpstan::root().'/'.$directory) as $file) {
             $files[] = $directory.'/'.$file;
         }
@@ -153,7 +157,7 @@ function appendTo(string $path, string $text): void
 }
 
 it('regenerates, then fails on a diff or an untracked file under the generated paths, checked before and after', function (): void {
-    $paths = implode(' ', [...GENERATED_PATHS, PROTOCOL_PATH]);
+    $paths = implode(' ', [...GENERATED_PATHS, PROTOCOL_PATH, ...PANEL_PAGE_PATHS]);
 
     expect(ComposerScripts::steps('check:generated'))->toHaveCount(6)
         ->and(ComposerScripts::steps('check:generated')[2])->toBe('@php vendor/bin/testbench cms:generate --ansi')
@@ -297,6 +301,31 @@ it('fails on an untracked file in the kernel codecs\' directory', function (): v
 
     expect($status)->not->toBe(0)
         ->and($output)->toContain('Untracked generated file: '.PROTOCOL_PATH.'/HandWrittenCodec.php');
+});
+
+it('fails after a page schema of the panel changes without regenerating its codec and TypeScript, and passes once they are staged', function (): void {
+    $root = gateRepository();
+    $schema = $root.'/'.PanelPageSchemas::SCHEMA_DIRECTORY.'/home.v1.json';
+    SchemaFixtures::write($schema, str_replace('"The address the logout posts to."', '"Where the logout posts."', (string) file_get_contents($schema)));
+    git($root, 'add', '--all');
+
+    [$changed, $output] = runGate($root);
+    git($root, 'add', '--all');
+    [$staged, $stagedOutput] = runGate($root);
+
+    expect($changed)->not->toBe(0)
+        ->and($output)->toContain(PanelPageSchemas::TYPESCRIPT_DIRECTORY.'/pages/HomePageV1.ts', 'Where the logout posts.')
+        ->and($staged)->toBe(0, $stagedOutput);
+});
+
+it('fails after a manual edit to the panel\'s generated TypeScript', function (): void {
+    $root = gateRepository();
+    appendTo($root.'/'.PanelPageSchemas::TYPESCRIPT_DIRECTORY.'/pages/LoginPageV1.ts', "// edited by hand\n");
+
+    [$status, $output] = runGate($root);
+
+    expect($status)->not->toBe(0)
+        ->and($output)->toContain('The generated code above is not the committed code.', 'edited by hand');
 });
 
 it('fails on an untracked file in a generated directory', function (): void {

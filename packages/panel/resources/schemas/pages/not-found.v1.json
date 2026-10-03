@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "the panel's page for a path it does not have, contract version 1",
+  "description": "The props of the page for an address below the panel that it has no page for (PRD 13.4), Errors/NotFound in js/panel. The PHP form is Cbox\\Cms\\Panel\\Domain\\Dto\\NotFoundPage, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "home"
+  ],
+  "properties": {
+    "home": {
+      "description": "The address of the panel's start, the root of the prefix the panel is mounted at.",
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

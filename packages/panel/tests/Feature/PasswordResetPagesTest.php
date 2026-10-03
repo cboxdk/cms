@@ -77,7 +77,7 @@ final class PasswordResetPagesTest extends TestCase
                 ->assertSessionHas(PasswordResetForms::REQUESTED, true)
                 ->assertSessionHasNoErrors();
 
-            self::assertSame(['action' => '/cms/forgot-password', 'login' => '/cms/login', 'requested' => true, 'minutes' => 60], $this->props($this->get('/cms/forgot-password')));
+            self::assertSame(['action' => '/cms/forgot-password', 'login' => '/cms/login', 'minutes' => 60, 'refusals' => ['email' => null], 'requested' => true], $this->props($this->get('/cms/forgot-password')));
         }
 
         $world = $this->world();
@@ -112,6 +112,8 @@ final class PasswordResetPagesTest extends TestCase
             ->assertSessionHasErrors([PasswordResetForms::EMAIL => 'validation_required'])
             ->assertSessionMissing(PasswordResetForms::REQUESTED);
 
+        self::assertSame(['email' => 'validation_required'], $this->props($this->get('/cms/forgot-password'))['refusals'] ?? null);
+
         self::assertSame([], $this->world()->mail->sent());
     }
 
@@ -125,7 +127,7 @@ final class PasswordResetPagesTest extends TestCase
             ->assertHeader('Referrer-Policy', 'no-referrer');
 
         self::assertStringContainsString('no-store', (string) $page->headers->get('Cache-Control'));
-        self::assertSame(['action' => '/cms/reset-password', 'token' => $token, 'forgot' => '/cms/forgot-password', 'login' => '/cms/login'], $this->props($page));
+        self::assertSame(['action' => '/cms/reset-password', 'forgot' => '/cms/forgot-password', 'login' => '/cms/login', 'refusals' => ['form' => null, 'password' => null], 'token' => $token], $this->props($page));
         $invalid = $this->props($this->get('/cms/reset-password/not-a-token'));
 
         self::assertArrayHasKey('token', $invalid);
@@ -165,12 +167,14 @@ final class PasswordResetPagesTest extends TestCase
             ->assertStatus(PanelSessions::REDIRECT)
             ->assertHeader('Location', '/cms/reset-password/'.$token)
             ->assertSessionHasErrors([PasswordResetForms::PASSWORD => 'password_too_short']);
+        self::assertSame(['form' => null, 'password' => 'password_too_short'], $this->props($this->get('/cms/reset-password/'.$token))['refusals'] ?? null);
         $this->post('/cms/reset-password', [PasswordResetForms::TOKEN => 'cms_pr_'.str_repeat('0', 72), PasswordResetForms::PASSWORD => PasswordResetWorld::NEW_PASSWORD, '_token' => $this->csrf()])
             ->assertHeader('Location', '/cms/reset-password/cms_pr_'.str_repeat('0', 72))
             ->assertSessionHasErrors([PasswordResetForms::FORM => 'password_reset_token_invalid']);
         $this->post('/cms/reset-password', [PasswordResetForms::TOKEN => '../../login?x=1', PasswordResetForms::PASSWORD => PasswordResetWorld::NEW_PASSWORD, '_token' => $this->csrf()])
             ->assertHeader('Location', '/cms/reset-password/'.PasswordResetForms::NO_TOKEN)
             ->assertSessionHasErrors([PasswordResetForms::FORM => 'password_reset_token_invalid']);
+        self::assertSame(['form' => 'password_reset_token_invalid', 'password' => null], $this->props($this->get('/cms/reset-password/'.PasswordResetForms::NO_TOKEN))['refusals'] ?? null);
         $this->post('/cms/reset-password', [PasswordResetForms::TOKEN => $token, PasswordResetForms::PASSWORD => PasswordResetWorld::NEW_PASSWORD])->assertStatus(419);
 
         self::assertSame(0, $this->world()->login->sessions->count());
@@ -200,6 +204,8 @@ final class PasswordResetPagesTest extends TestCase
     }
 
     /**
+     * The page's own props, as the browser reads their JSON, without the props every page shares.
+     *
      * @param  TestResponse<Response>  $response
      * @return array<array-key, mixed>
      */
@@ -213,8 +219,9 @@ final class PasswordResetPagesTest extends TestCase
         }
 
         unset($props['errors'], $props['problem']);
+        $json = json_decode(json_encode($props, JSON_THROW_ON_ERROR), true, 16, JSON_THROW_ON_ERROR);
 
-        return $props;
+        return is_array($json) ? $json : self::fail('The props are not an object.');
     }
 
     private function world(): PasswordResetWorld

@@ -5,21 +5,29 @@ declare(strict_types=1);
 namespace Cbox\Cms\Tooling\Protocol\Adapter;
 
 use Cbox\Cms\Generators\Cli\Console\GenerateCommand;
+use Cbox\Cms\Generators\Codec\Domain\Dto\CodecContract;
 use Cbox\Cms\Generators\Codec\Domain\Dto\PhpLocation;
 use Cbox\Cms\Generators\Generation\Adapter\FilesystemGeneratedOutput;
+use Cbox\Cms\Generators\Generation\Boundary\TypeScriptRuntime;
+use Cbox\Cms\Generators\Generation\Domain\Dto\GeneratedFile;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationProblem;
+use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationResult;
 use Cbox\Cms\Generators\Generation\Domain\Dto\WriteReport;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Protocol\Boundary\JsonSchemaContract;
+use Cbox\Cms\Generators\Protocol\Domain\Dto\SchemaBinding;
 use Cbox\Cms\Generators\Protocol\Domain\ProtocolSchemas;
 use Cbox\Cms\Generators\Schema\Boundary\LocalFile;
+use Cbox\Cms\Tooling\Protocol\Domain\PanelPageSchemas;
 
 /**
  * `composer generate:protocol` (GUARDRAILS 2.2): reads each kernel JSON Schema of
  * ProtocolSchemas::all() below a root, reads it into its codec contract with its binding, emits
- * the codecs and writes them into the core's codecs, removing every other file there. Nothing is
- * written unless every schema is valid; the problems of all schemas are reported together.
+ * the codecs and writes them into the core's codecs, removing every other file there. It does the
+ * same for the schemas of the panel's pages (PanelPageSchemas), whose codecs go into the panel and
+ * whose TypeScript, with the validators' runtime module, goes into js/panel. Nothing is written
+ * unless every schema is valid; the problems of all schemas are reported together.
  */
 final readonly class ProtocolGeneration
 {
@@ -61,10 +69,38 @@ final readonly class ProtocolGeneration
     public static function run(string $root): WriteReport
     {
         $root = rtrim($root, '/');
-        $contracts = [];
         $problems = [];
+        $contracts = self::contracts($root, ProtocolSchemas::all(), ProtocolSchemas::ATTRIBUTE, $problems);
+        $pages = self::contracts($root, PanelPageSchemas::all(), PanelPageSchemas::ATTRIBUTE, $problems);
 
-        foreach (ProtocolSchemas::all() as $binding) {
+        if ($problems !== []) {
+            throw GenerationFailed::with($problems);
+        }
+
+        $kernel = ProtocolSchemas::result($contracts, new PhpLocation(ProtocolSchemas::PHP_DIRECTORY, ProtocolSchemas::PHP_NAMESPACE));
+        $panel = PanelPageSchemas::result($pages, new TypeScriptRuntime()->source());
+        $files = [...$kernel->files, ...$panel->files];
+        usort($files, static fn (GeneratedFile $a, GeneratedFile $b): int => strcmp($a->path, $b->path));
+        $directories = [...$kernel->directories, ...$panel->directories];
+        sort($directories, SORT_STRING);
+
+        return new FilesystemGeneratedOutput()->write($root, new GenerationResult($files, $directories));
+    }
+
+    /**
+     * The contract of each schema below $root that a binding names, in order; a missing or invalid
+     * schema adds its problems to $problems instead.
+     *
+     * @param  list<SchemaBinding>  $bindings
+     * @param  class-string  $attribute
+     * @param  list<GenerationProblem>  $problems
+     * @return list<CodecContract>
+     */
+    private static function contracts(string $root, array $bindings, string $attribute, array &$problems): array
+    {
+        $contracts = [];
+
+        foreach ($bindings as $binding) {
             $path = $binding->path();
             $json = LocalFile::contents($root.'/'.$path);
 
@@ -75,18 +111,12 @@ final readonly class ProtocolGeneration
             }
 
             try {
-                $contracts[] = JsonSchemaContract::read($json, $binding, ProtocolSchemas::ATTRIBUTE);
+                $contracts[] = JsonSchemaContract::read($json, $binding, $attribute);
             } catch (GenerationFailed $failed) {
                 array_push($problems, ...$failed->problems);
             }
         }
 
-        if ($problems !== []) {
-            throw GenerationFailed::with($problems);
-        }
-
-        $result = ProtocolSchemas::result($contracts, new PhpLocation(ProtocolSchemas::PHP_DIRECTORY, ProtocolSchemas::PHP_NAMESPACE));
-
-        return new FilesystemGeneratedOutput()->write($root, $result);
+        return $contracts;
     }
 }

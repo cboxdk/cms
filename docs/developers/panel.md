@@ -51,3 +51,72 @@ PRD 13.4 has the panel ship prebuilt, so an application's deploy needs no Node f
 The module reads the build from the manifest Vite writes, `packages/panel/dist/.vite/manifest.json`, when a panel page or file is first asked for, so a process without the build boots and runs everything but the panel. A panel page without the build fails with an error that names the manifest and says to run `composer panel:build`. Each build has a version, the SHA-256 of its manifest, which Inertia compares on every visit, so a browser that holds a page of an older build loads the new one in full.
 
 `GET <prefix>/build/{path}` serves only the files the manifest names, with their content type, `Cache-Control: public, max-age=31536000, immutable`, because their names carry a hash of their content, and `X-Content-Type-Options: nosniff`. Any other path, the manifest itself included, is 404, so no request reaches another file.
+
+## Page props
+
+<!-- extension-point: packages/panel/resources/schemas/pages/forgot-password.v1.json -->
+<!-- extension-point: packages/panel/resources/schemas/pages/home.v1.json -->
+<!-- extension-point: packages/panel/resources/schemas/pages/login.v1.json -->
+<!-- extension-point: packages/panel/resources/schemas/pages/not-found.v1.json -->
+<!-- extension-point: packages/panel/resources/schemas/pages/reset-password.v1.json -->
+
+The props of each panel page are written from PHP and typed from PHP, never by hand on either side (GUARDRAILS 2.2, 2.4). Each page has a JSON Schema in `packages/panel/resources/schemas/pages`, one file per page and contract version, bound to a DTO in `Cbox\Cms\Panel\Domain\Dto`:
+
+| Page | Schema | DTO | TypeScript |
+|---|---|---|---|
+| `Auth/Login` | `login.v1.json` | `LoginPage` | `LoginPageV1` |
+| `Auth/ForgotPassword` | `forgot-password.v1.json` | `ForgotPasswordPage` | `ForgotPasswordPageV1` |
+| `Auth/ResetPassword` | `reset-password.v1.json` | `ResetPasswordPage` | `ResetPasswordPageV1` |
+| `Home` | `home.v1.json` | `HomePage` | `HomePageV1` |
+| `Errors/NotFound` | `not-found.v1.json` | `NotFoundPage` | `NotFoundPageV1` |
+
+`composer generate:protocol` writes, from the schemas, a codec per page into `packages/panel/src/Boundary/Generated` and, into `js/panel/src/generated`, a module per page in `pages/` with the props' TypeScript types and a validator, next to the validators' runtime module. `PanelPages` renders each page with the props its codec writes, and each page in `js/panel` takes the generated type as its props. Gate 6 fails when the committed files differ from what the schemas give.
+
+The reason the panel sent a browser to the login page is the enum `SignInReason`, and the refusal of a form just posted is a typed member of the props, `refusals`, with the refusal under the field it is about, or under `form` for the form as a whole. Each refusal is an enum of the panel's Domain whose values are the catalog codes the form is refused with (`LoginRefusal`, `ForgotPasswordRefusal`, `ResetFormRefusal` and `ResetPasswordRefusal`), so the TypeScript type holds exactly those codes and a page that does not give each one a text fails tsc. A new prop, reason or code therefore starts in the schema; `tests/Codecs/PanelPageValidatorsTest.php` runs the generated validators against what every page renders in each of its states.
+
+This example checks props against the schemas. It is in the `Codecs` suite:
+
+<!-- example: examples/Codecs/Panel/PagePropsTest.php -->
+```php
+<?php
+
+declare(strict_types=1);
+
+use Opis\JsonSchema\CompliantValidator;
+use Opis\JsonSchema\Errors\ErrorFormatter;
+use Opis\JsonSchema\Errors\ValidationError;
+
+// The props of each panel page are a document of the page's JSON Schema in
+// packages/panel/resources/schemas/pages. A refusal is one of the catalog codes the schema lists
+// for its field, and anything else, such as a code the page does not know, is not a valid document.
+
+/**
+ * The errors of a document against a page's schema, none when it is valid.
+ *
+ * @return array<array-key, mixed>
+ */
+function pagePropsErrors(string $schema, string $document): array
+{
+    $json = file_get_contents(dirname(__DIR__, 3).'/packages/panel/resources/schemas/pages/'.$schema)
+        ?: throw new RuntimeException("Cannot read {$schema}.");
+    $error = new CompliantValidator()->validate(json_decode($document), $json)->error();
+
+    return $error instanceof ValidationError ? new ErrorFormatter()->format($error) : [];
+}
+
+it('accepts the props of a page', function (string $schema, string $document): void {
+    expect(pagePropsErrors($schema, $document))->toBe([]);
+})->with([
+    'the login page after a wrong password' => ['login.v1.json', '{"action":"/cms/login","forgot":"/cms/forgot-password","reason":null,"refusals":{"email":null,"form":"login_rejected","password":null}}'],
+    'the login page after a session expired' => ['login.v1.json', '{"action":"/cms/login","forgot":"/cms/forgot-password","reason":"expired","refusals":{"email":null,"form":null,"password":null}}'],
+    'the page that asks for a link, just asked' => ['forgot-password.v1.json', '{"action":"/cms/forgot-password","login":"/cms/login","minutes":60,"refusals":{"email":null},"requested":true}'],
+    'the reset page after a short password' => ['reset-password.v1.json', '{"action":"/cms/reset-password","forgot":"/cms/forgot-password","login":"/cms/login","refusals":{"form":null,"password":"password_too_short"},"token":null}'],
+    'the start page' => ['home.v1.json', '{"logout":"/cms/logout"}'],
+    'the page for a path the panel does not have' => ['not-found.v1.json', '{"home":"/cms"}'],
+]);
+
+it('refuses a refusal code the page does not know', function (): void {
+    expect(pagePropsErrors('login.v1.json', '{"action":"/cms/login","forgot":"/cms/forgot-password","reason":null,"refusals":{"email":null,"form":"password_too_short","password":null}}'))
+        ->not->toBe([]);
+});
+```
