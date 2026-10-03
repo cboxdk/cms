@@ -11,7 +11,7 @@ description: "Declare commands, queries, actions, hooks and subscribers with att
 <!-- extension-point: Cbox\Cms\Contracts\Attributes\Query -->
 <!-- extension-point: Cbox\Cms\Contracts\Attributes\Hook -->
 
-A package tells the CMS about its commands, queries, actions, hooks and subscribers with attributes on its classes, and tells `cms:build` where those classes are with its service provider. `cms:build` reads the attributes with reflection and compiles them, with the [addon manifests](manifest.md), into five registries in `bootstrap/cache/cms/` (PRD 13.2). Reflection runs only there, at build time; at run time the CMS reads the compiled files (GUARDRAILS 2.2).
+A package tells the CMS about its commands, queries, actions, hooks and subscribers with attributes on its classes, and tells `cms:build` where those classes are with its service provider. `cms:build` reads the attributes with reflection and compiles them, with the [addon manifests](manifest.md), into seven registries in `bootstrap/cache/cms/` (PRD 13.2): `actions.php`, `commands.php`, `hooks.php`, `panel.php`, `rest.php`, `schema.php` and `subscribers.php`. Reflection runs only there, at build time; at run time the CMS reads the compiled files (GUARDRAILS 2.2).
 
 Run `cms:build` from Composer's `post-autoload-dump` script, so it follows every `composer install`, `composer update` and `composer dump-autoload`, and in every deploy. The files are not committed. `cms:doctor` fails its check `registry.cache` when the files are missing, damaged or older than `vendor/composer/installed.json`, so a registry that misses a newly installed package does not go unnoticed.
 
@@ -26,7 +26,7 @@ A package's service provider implements `Cbox\Cms\Contracts\Build\DeclaresScanRo
 | `package` | The Composer package name, such as `acme/cms-notes`. It names the package in the registry and in build errors, and it orders hooks with the same priority. |
 | `directory` | An absolute path. Use `__DIR__`, the directory of the provider, usually the package's `src`. |
 
-`cms:build` scans every `.php` file below the directory, in sorted order, and loads each class it declares through the autoloader, so every class there must be autoloadable: the namespace and path follow the package's PSR-4 mapping. A class without one of the attributes `#[Action]`, `#[Command]`, `#[Query]`, `#[Hook]` and `#[Subscription]` is left out.
+`cms:build` scans every `.php` file below the directory, in sorted order, and loads each class it declares through the autoloader, so every class there must be autoloadable: the namespace and path follow the package's PSR-4 mapping. A class without one of the attributes `#[Action]`, `#[Command]`, `#[Query]`, `#[Hook]`, `#[Subscription]` and `#[PanelPoint]` is left out; [panel points](panel-points.md) describes the last.
 
 `cms:build` asks every registered provider that implements the interface. It registers the deferred providers first, so a deferred provider is asked too. A package whose provider declares no scan root has nothing in the registry, even when its classes carry the attributes. A directory that is not readable, or a class that is in the scan roots of two packages, stops the build.
 

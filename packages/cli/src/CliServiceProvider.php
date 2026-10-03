@@ -13,6 +13,8 @@ use Cbox\Cms\Cli\Console\HooksCommand;
 use Cbox\Cms\Cli\Console\InstallCommand;
 use Cbox\Cms\Cli\Console\ListParkedCommand;
 use Cbox\Cms\Cli\Console\MaintainPartitionsCommand;
+use Cbox\Cms\Cli\Console\PanelFillsCommand;
+use Cbox\Cms\Cli\Console\PanelPointsCommand;
 use Cbox\Cms\Cli\Console\RebuildTypeTableCommand;
 use Cbox\Cms\Cli\Console\ReleaseParkedCommand;
 use Cbox\Cms\Cli\Console\RunCommand;
@@ -62,6 +64,8 @@ final class CliServiceProvider extends ServiceProvider implements DeclaresScanRo
                 InstallCommand::class,
                 ListParkedCommand::class,
                 MaintainPartitionsCommand::class,
+                PanelFillsCommand::class,
+                PanelPointsCommand::class,
                 RebuildTypeTableCommand::class,
                 ReleaseParkedCommand::class,
                 RunCommand::class,

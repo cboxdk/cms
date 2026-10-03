@@ -121,7 +121,7 @@ it('lets one write run at a time, so a build that finishes while another renames
 
     expect($child->getExitCode())->toBe(0, $child->getErrorOutput().$child->getOutput())
         ->and(RegistryFixtures::cache($directory)->read())->toEqual($second)
-        ->and(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'rest.php', 'schema.php', 'subscribers.php'])
+        ->and(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php'])
         ->and($waited)->toBeTrue();
 });
 
@@ -146,7 +146,7 @@ it('writes nothing while another write holds the lock, and says so when the wait
 
     expect(intdiv(hrtime(true) - $started, 1_000_000))->toBeGreaterThanOrEqual(50)
         ->and(RegistryFixtures::hashes($directory))->toBe($before)
-        ->and(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'rest.php', 'schema.php', 'subscribers.php'])
+        ->and(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php'])
         ->and(RegistryFixtures::cache($directory)->read())->toEqual(registryOfPackage('acme/first-build'));
 });
 
@@ -208,7 +208,7 @@ it('keeps its lock file when it removes the files it does not write, so a waitin
 
     RegistryFixtures::cache($directory)->write(registryOfPackage('acme/after'));
 
-    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'rest.php', 'schema.php', 'subscribers.php'])
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php'])
         ->and(fileinode($directory.'/'.FileRegistryCache::LOCK_FILE))->toBe($inode);
 });
 

@@ -58,7 +58,7 @@ it('is registered', function (): void {
         ->and(app(Kernel::class)->all()['cms:build'])->toBeInstanceOf(BuildCommand::class);
 });
 
-it('writes the six registries to the application\'s bootstrap/cache/cms, and removes the files it no longer writes', function (): void {
+it('writes the seven registries to the application\'s bootstrap/cache/cms, and removes the files it no longer writes', function (): void {
     $directory = app()->bootstrapPath('cache/cms');
 
     if (! is_dir($directory)) {
@@ -76,12 +76,13 @@ it('writes the six registries to the application\'s bootstrap/cache/cms, and rem
             // The workbench's fixture addon, which package discovery registers: its two hooks and
             // its extension of app:fixture_article.
             'hooks: 2',
+            'panel: 0',
             'rest: 16',
             'schema: 1',
             'subscribers: 1',
             sprintf('Registry written to %s.', $directory),
         ])
-        ->and(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'openapi.json', 'rest.php', 'schema.php', 'subscribers.php']);
+        ->and(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'openapi.json', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php']);
 });
 
 it('adds what an addon provider\'s scan root declares', function (): void {
@@ -93,7 +94,7 @@ it('adds what an addon provider\'s scan root declares', function (): void {
     [$status, $output] = buildCommand();
 
     expect($status)->toBe(0)
-        ->and(array_slice($output, 0, 4))->toBe(['actions: 24', 'commands: 18', 'hooks: 3', 'rest: 17'])
+        ->and(array_slice($output, 0, 5))->toBe(['actions: 24', 'commands: 18', 'hooks: 3', 'panel: 1', 'rest: 17'])
         ->and(RegistryFixtures::load($directory.'/commands.php'))->toMatchArray(['entries' => [[
             'class' => GrantBootstrapRole::class,
             'name' => 'access.bootstrap',

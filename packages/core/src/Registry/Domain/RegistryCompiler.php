@@ -16,6 +16,7 @@ use Cbox\Cms\Core\Registry\Domain\Dto\DeclaredAddons;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredAction;
 use Cbox\Cms\Core\Registry\Domain\Dto\Discovery;
 use Cbox\Cms\Core\Registry\Domain\Dto\HookEntry;
+use Cbox\Cms\Core\Registry\Domain\Dto\PanelPointEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\RestRoute;
 use Cbox\Cms\Core\Registry\Domain\Dto\SchemaEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscribedEvent;
@@ -36,6 +37,10 @@ use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
  *
  * The routes of the REST surface follow from the actions exposed on it (RestRoute::of()), one per
  * action, in the order of the actions.
+ *
+ * The panel points come from #[PanelPoint]: a point's name and version belong to one class, and
+ * the points are sorted by name, then version. The registry holds no contribution to a point until
+ * the addon manifests declare panel contributions.
  */
 #[Experimental]
 final readonly class RegistryCompiler
@@ -172,7 +177,12 @@ final readonly class RegistryCompiler
             $subscribers[] = new SubscriberEntry($subscriber->class, $subscriber->package, $subscriber->name, $subscriber->lane, $subscriber->projection, $subscriber->events, $manifest->namespace);
         }
 
-        $problems = [...$problems, ...$this->duplicateActions($actions), ...$this->duplicateSubscriptions($discovery->subscribers)];
+        $problems = [
+            ...$problems,
+            ...$this->duplicateActions($actions),
+            ...$this->duplicateSubscriptions($discovery->subscribers),
+            ...$this->duplicatePanelPoints($discovery->panelPoints),
+        ];
 
         if ($problems !== []) {
             throw RegistryBuildFailed::with($problems);
@@ -201,7 +211,11 @@ final readonly class RegistryCompiler
 
         $rest = array_values(array_filter(array_map(RestRoute::of(...), $actions), static fn (?RestRoute $route): bool => $route instanceof RestRoute));
 
-        return new CompiledRegistry($commands, $hooks, $actions, $subscribers, $schema, $rest);
+        $panel = $discovery->panelPoints;
+
+        usort($panel, static fn (PanelPointEntry $a, PanelPointEntry $b): int => [$a->declaration->name, $a->declaration->version] <=> [$b->declaration->name, $b->declaration->version]);
+
+        return new CompiledRegistry($commands, $hooks, $actions, $subscribers, $schema, $rest, $panel);
     }
 
     /**
@@ -378,6 +392,39 @@ final readonly class RegistryCompiler
             $problems[] = new BuildProblem(BuildErrorCode::DuplicateSubscription, sprintf(
                 'Subscription "%s" is declared by %s. The event log keeps a subscription\'s cursor under its name, so a name belongs to one subscriber: rename one of the subscriptions.',
                 $name,
+                implode(' and ', $classes),
+            ));
+        }
+
+        return $problems;
+    }
+
+    /**
+     * One problem per panel point name and version that more than one class declares.
+     *
+     * @param  list<PanelPointEntry>  $points
+     * @return list<BuildProblem>
+     */
+    private function duplicatePanelPoints(array $points): array
+    {
+        $declared = [];
+
+        foreach ($points as $point) {
+            $declared[$point->id()->toString()][] = sprintf('%s (%s)', $point->class, $point->package);
+        }
+
+        $problems = [];
+
+        foreach ($declared as $id => $classes) {
+            if (count($classes) < 2) {
+                continue;
+            }
+
+            sort($classes, SORT_STRING);
+
+            $problems[] = new BuildProblem(BuildErrorCode::DuplicatePanelPoint, sprintf(
+                'The panel point %s is declared by %s. A point\'s name and version belong to one props class: give the new props the next version, or rename one of the points.',
+                $id,
                 implode(' and ', $classes),
             ));
         }

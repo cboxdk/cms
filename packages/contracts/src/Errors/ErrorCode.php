@@ -179,6 +179,7 @@ enum ErrorCode: string
     case RegistryDuplicateAction = 'registry_duplicate_action';
     case RegistryDuplicateCommand = 'registry_duplicate_command';
     case RegistryDuplicateNamespace = 'registry_duplicate_namespace';
+    case RegistryDuplicatePanelPoint = 'registry_duplicate_panel_point';
     case RegistryDuplicateSubscription = 'registry_duplicate_subscription';
     case RegistryIncompatibleCoreApi = 'registry_incompatible_core_api';
     case RegistryInvalidAttribute = 'registry_invalid_attribute';
@@ -189,6 +190,7 @@ enum ErrorCode: string
     case RegistryNotASubscriber = 'registry_not_a_subscriber';
     case RegistryNotAnAction = 'registry_not_an_action';
     case RegistryNotFinalReadonly = 'registry_not_final_readonly';
+    case RegistryPanelPointWithoutStability = 'registry_panel_point_without_stability';
     case RegistryReservedNamespace = 'registry_reserved_namespace';
     case RegistrySurfaceWithoutCodec = 'registry_surface_without_codec';
     case RegistryUndeclaredHook = 'registry_undeclared_hook';
@@ -822,6 +824,9 @@ enum ErrorCode: string
             self::RegistryDuplicateNamespace => $this->refusedInput(
                 'Two addon manifests name the same namespace. A namespace belongs to one addon in the installation, because it holds the addon\'s extension fields, field types and types (PRD 13.1, 13.3). Remove one of the addons.',
             ),
+            self::RegistryDuplicatePanelPoint => $this->refusedInput(
+                'Two classes declare the same panel point name and version with #[PanelPoint]. A point\'s name and version belong to one props class: give the new props the next version, or rename one of the points.',
+            ),
             self::RegistryDuplicateSubscription => $this->refusedInput(
                 'Two subscribers declare the same subscription name with #[Subscription]. The event log keeps a subscription\'s cursor under its name, so rename one of them.',
             ),
@@ -829,7 +834,7 @@ enum ErrorCode: string
                 'An addon manifest needs a version of the kernel\'s API that this kernel does not satisfy: another major version, or a later minor version (PRD 13.1, 13.5). Install a version of the addon made for this kernel\'s API, or a kernel with the API it needs.',
             ),
             self::RegistryInvalidAttribute => $this->refusedInput(
-                'The arguments of an #[Action], #[Command], #[Query], #[Hook] or #[Subscription] attribute are invalid, so it cannot be built. Correct the attribute as the cause says.',
+                'The arguments of an #[Action], #[Command], #[Query], #[Hook], #[Subscription] or #[PanelPoint] attribute are invalid, so it cannot be built. Correct the attribute as the cause says.',
             ),
             self::RegistryInvalidManifest => $this->refusedInput(
                 'An addon manifest cannot be built, its documentation or schema directory is not a readable directory, or two manifests name one package (PRD 13.1). Correct the manifest the service provider returns from addonManifest(), as the cause says.',
@@ -838,7 +843,7 @@ enum ErrorCode: string
                 'A scan root that a service provider declares is not a readable directory. Correct the directory the provider returns from scanRoots().',
             ),
             self::RegistryNotAConcreteClass => $this->refusedInput(
-                'An #[Action], #[Command], #[Query], #[Hook] or #[Subscription] attribute sits on an interface, a trait, an enum or an abstract class. Put it on a concrete class.',
+                'An #[Action], #[Command], #[Query], #[Hook], #[Subscription] or #[PanelPoint] attribute sits on an interface, a trait, an enum or an abstract class. Put it on a concrete class.',
             ),
             self::RegistryNotASubscriber => $this->refusedInput(
                 'A #[Subscription] sits on a class that does not implement Subscriber. Implement Cbox\\Cms\\Contracts\\Subscribers\\Subscriber, or remove the attribute.',
@@ -850,7 +855,10 @@ enum ErrorCode: string
                 'An #[Action] sits on a class that implements neither WriteAction nor QueryAction, or both (GUARDRAILS 2.1). Implement exactly one of them.',
             ),
             self::RegistryNotFinalReadonly => $this->refusedInput(
-                'A #[Command], #[Query], #[Action] or #[Subscription] sits on a class that is not a final readonly class (GUARDRAILS 2.1). Make the class final readonly.',
+                'A #[Command], #[Query], #[Action], #[Subscription] or #[PanelPoint] sits on a class that is not a final readonly class (GUARDRAILS 2.1). Make the class final readonly.',
+            ),
+            self::RegistryPanelPointWithoutStability => $this->refusedInput(
+                'A #[PanelPoint] class carries none, or more than one, of #[Stable], #[Experimental] and #[Internal]. The attribute on the props class is the point\'s stability (GUARDRAILS 2.3), so give it exactly one.',
             ),
             self::RegistryReservedNamespace => $this->refusedInput(
                 'An addon manifest names the namespace app or ext. The application\'s own fields live under app, and ext holds every extender\'s namespace (PRD 11.12), so neither can be an addon\'s. Give the addon a name of its own.',

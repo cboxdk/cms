@@ -12,6 +12,16 @@ use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Events\EventType;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\PanelPoints\CommandRef;
+use Cbox\Cms\Contracts\PanelPoints\ContributionId;
+use Cbox\Cms\Contracts\PanelPoints\Multiplicity;
+use Cbox\Cms\Contracts\PanelPoints\Ownership;
+use Cbox\Cms\Contracts\PanelPoints\PageName;
+use Cbox\Cms\Contracts\PanelPoints\PanelPoint;
+use Cbox\Cms\Contracts\PanelPoints\PointKind;
+use Cbox\Cms\Contracts\PanelPoints\Region;
+use Cbox\Cms\Contracts\PanelPoints\ReplacementKey;
+use Cbox\Cms\Contracts\PanelPoints\Scope;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Contracts\Subscribers\Lane;
 use Cbox\Cms\Contracts\Subscribers\SubscriptionName;
@@ -21,11 +31,14 @@ use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Dto\HookEntry;
+use Cbox\Cms\Core\Registry\Domain\Dto\PanelFill;
+use Cbox\Cms\Core\Registry\Domain\Dto\PanelPointEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\RestRoute;
 use Cbox\Cms\Core\Registry\Domain\Dto\SchemaEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscribedEvent;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
 use Cbox\Cms\Core\Registry\Domain\MalformedRegistryCache;
+use Cbox\Cms\Core\Registry\Domain\PointStability;
 use Cbox\Cms\Core\Registry\Domain\RegistryName;
 use PHPUnit\Framework\Assert;
 
@@ -51,7 +64,36 @@ function codecRegistry(): CompiledRegistry
             new SchemaEntry(new AddonNamespace('reviews'), 'acme/cms-reviews', [new ContributedFieldType('reviews:stars')], [new TypeName('reviews:review')], [new TypeName('app:note'), new TypeName('shop:product')], 'Acme\\Reviews\\ReviewsFieldTypes'),
         ],
         [new RestRoute(ActionKind::Write, new CommandName('note.create'), 1)],
+        codecPanel(),
     );
+}
+
+/**
+ * The panel points of codecRegistry(): a slot in the sections of account.me with two fills, the
+ * later one first by priority, and a replacement of command.form keyed by field type.
+ *
+ * @return list<PanelPointEntry>
+ */
+function codecPanel(): array
+{
+    return [
+        new PanelPointEntry(
+            new PanelPoint('account.me.sections', 1, PointKind::Slot, 'account.me', '1.0', 'panel.points.account_me_sections', Region::Sections),
+            'App\Panel\AccountMeSectionsV1',
+            'acme/notes',
+            PointStability::Experimental,
+            [
+                new PanelFill(new ContributionId('reviews.badge'), 'acme/cms-reviews', 1000, new Scope([new PageName('account.me')], [new CommandRef(new CommandName('note.create'), 1)], [new TypeName('app:note')], ['reviews:stars', 'text'], new CommandName('note.find'))),
+                new PanelFill(new ContributionId('cms.profile'), 'cboxdk/cms', 100, Scope::everywhere()),
+            ],
+        ),
+        new PanelPointEntry(
+            new PanelPoint('command.form.field', 1, PointKind::Replacement, 'command.form', '1.0', 'panel.points.command_form_field', multiplicity: Multiplicity::Exclusive, ownership: Ownership::Own, keyedBy: ReplacementKey::FieldType),
+            'App\Panel\FieldInputPropsV1',
+            'acme/notes',
+            PointStability::Internal,
+        ),
+    ];
 }
 
 /**
@@ -114,14 +156,14 @@ function codecFailure(mixed $damaged): MalformedRegistryCache
     Assert::fail('The codec read a malformed cache.');
 }
 
-it('writes the exact bytes of format 8', function (): void {
+it('writes the exact bytes of format 9', function (): void {
     $files = new RegistryCacheCodec()->encode(codecRegistry());
     $header = "<?php\n\ndeclare(strict_types=1);\n\n// Written by php artisan cms:build from the declared scan roots and addon manifests (PRD 13.2).\n// Do not edit and do not commit; run cms:build again instead.\n\n";
 
-    expect(array_keys($files))->toBe(['actions', 'commands', 'hooks', 'rest', 'schema', 'subscribers'])
+    expect(array_keys($files))->toBe(['actions', 'commands', 'hooks', 'panel', 'rest', 'schema', 'subscribers'])
         ->and($files['actions'])->toBe($header.<<<'PHP'
             return [
-                'build' => 'af102374086939e786ad7edc2afa783561a1e28a64f92805c096b5c7ffe92a98',
+                'build' => 'dd481fb1fbbe82b108ae193fdbf9afdf386e4601489ac26f36e05641bff49853',
                 'entries' => [
                     [
                         'class' => 'App\\Actions\\CreateNoteAction',
@@ -136,14 +178,14 @@ it('writes the exact bytes of format 8', function (): void {
                         ],
                     ],
                 ],
-                'format' => 8,
+                'format' => 9,
                 'registry' => 'actions',
             ];
 
             PHP)
         ->and($files['commands'])->toBe($header.<<<'PHP'
             return [
-                'build' => 'af102374086939e786ad7edc2afa783561a1e28a64f92805c096b5c7ffe92a98',
+                'build' => 'dd481fb1fbbe82b108ae193fdbf9afdf386e4601489ac26f36e05641bff49853',
                 'entries' => [
                     [
                         'class' => 'App\\Commands\\CreateNote',
@@ -152,14 +194,14 @@ it('writes the exact bytes of format 8', function (): void {
                         'version' => 1,
                     ],
                 ],
-                'format' => 8,
+                'format' => 9,
                 'registry' => 'commands',
             ];
 
             PHP)
         ->and($files['hooks'])->toBe($header.<<<'PHP'
             return [
-                'build' => 'af102374086939e786ad7edc2afa783561a1e28a64f92805c096b5c7ffe92a98',
+                'build' => 'dd481fb1fbbe82b108ae193fdbf9afdf386e4601489ac26f36e05641bff49853',
                 'entries' => [
                     [
                         'addon' => null,
@@ -186,14 +228,92 @@ it('writes the exact bytes of format 8', function (): void {
                         'reads' => 'internal',
                     ],
                 ],
-                'format' => 8,
+                'format' => 9,
                 'registry' => 'hooks',
+            ];
+
+            PHP)
+        ->and($files['panel'])->toBe($header.<<<'PHP'
+            return [
+                'build' => 'dd481fb1fbbe82b108ae193fdbf9afdf386e4601489ac26f36e05641bff49853',
+                'entries' => [
+                    [
+                        'class' => 'App\\Panel\\AccountMeSectionsV1',
+                        'fills' => [
+                            [
+                                'contribution' => 'cms.profile',
+                                'package' => 'cboxdk/cms',
+                                'priority' => 100,
+                                'scope' => [
+                                    'commands' => [],
+                                    'field_types' => [],
+                                    'pages' => [],
+                                    'requires' => null,
+                                    'types' => [],
+                                ],
+                            ],
+                            [
+                                'contribution' => 'reviews.badge',
+                                'package' => 'acme/cms-reviews',
+                                'priority' => 1000,
+                                'scope' => [
+                                    'commands' => [
+                                        'note.create@1',
+                                    ],
+                                    'field_types' => [
+                                        'reviews:stars',
+                                        'text',
+                                    ],
+                                    'pages' => [
+                                        'account.me',
+                                    ],
+                                    'requires' => 'note.find',
+                                    'types' => [
+                                        'app:note',
+                                    ],
+                                ],
+                            ],
+                        ],
+                        'id' => 'account.me.sections@1',
+                        'keyed_by' => null,
+                        'kind' => 'slot',
+                        'label' => 'panel.points.account_me_sections',
+                        'max' => null,
+                        'multiplicity' => 'many',
+                        'ownership' => null,
+                        'package' => 'acme/notes',
+                        'page' => 'account.me',
+                        'region' => 'sections',
+                        'since' => '1.0',
+                        'stability' => 'experimental',
+                        'tightens' => [],
+                    ],
+                    [
+                        'class' => 'App\\Panel\\FieldInputPropsV1',
+                        'fills' => [],
+                        'id' => 'command.form.field@1',
+                        'keyed_by' => 'field_type',
+                        'kind' => 'replacement',
+                        'label' => 'panel.points.command_form_field',
+                        'max' => null,
+                        'multiplicity' => 'exclusive',
+                        'ownership' => 'own',
+                        'package' => 'acme/notes',
+                        'page' => 'command.form',
+                        'region' => null,
+                        'since' => '1.0',
+                        'stability' => 'internal',
+                        'tightens' => [],
+                    ],
+                ],
+                'format' => 9,
+                'registry' => 'panel',
             ];
 
             PHP)
         ->and($files['rest'])->toBe($header.<<<'PHP'
             return [
-                'build' => 'af102374086939e786ad7edc2afa783561a1e28a64f92805c096b5c7ffe92a98',
+                'build' => 'dd481fb1fbbe82b108ae193fdbf9afdf386e4601489ac26f36e05641bff49853',
                 'entries' => [
                     [
                         'kind' => 'write',
@@ -203,14 +323,14 @@ it('writes the exact bytes of format 8', function (): void {
                         'version' => 1,
                     ],
                 ],
-                'format' => 8,
+                'format' => 9,
                 'registry' => 'rest',
             ];
 
             PHP)
         ->and($files['schema'])->toBe($header.<<<'PHP'
             return [
-                'build' => 'af102374086939e786ad7edc2afa783561a1e28a64f92805c096b5c7ffe92a98',
+                'build' => 'dd481fb1fbbe82b108ae193fdbf9afdf386e4601489ac26f36e05641bff49853',
                 'entries' => [
                     [
                         'extends' => [
@@ -228,14 +348,14 @@ it('writes the exact bytes of format 8', function (): void {
                         ],
                     ],
                 ],
-                'format' => 8,
+                'format' => 9,
                 'registry' => 'schema',
             ];
 
             PHP)
         ->and($files['subscribers'])->toBe($header.<<<'PHP'
             return [
-                'build' => 'af102374086939e786ad7edc2afa783561a1e28a64f92805c096b5c7ffe92a98',
+                'build' => 'dd481fb1fbbe82b108ae193fdbf9afdf386e4601489ac26f36e05641bff49853',
                 'entries' => [
                     [
                         'addon' => null,
@@ -273,12 +393,12 @@ it('writes the exact bytes of format 8', function (): void {
                         'projection' => null,
                     ],
                 ],
-                'format' => 8,
+                'format' => 9,
                 'registry' => 'subscribers',
             ];
 
             PHP)
-        ->and(new RegistryCacheCodec()->encode(CompiledRegistry::empty())['commands'])->toBe($header."return [\n    'build' => '".hash('sha256', "actions => [];\ncommands => [];\nhooks => [];\nrest => [];\nschema => [];\nsubscribers => [];\n")."',\n    'entries' => [],\n    'format' => 8,\n    'registry' => 'commands',\n];\n");
+        ->and(new RegistryCacheCodec()->encode(CompiledRegistry::empty())['commands'])->toBe($header."return [\n    'build' => '".hash('sha256', "actions => [];\ncommands => [];\nhooks => [];\npanel => [];\nrest => [];\nschema => [];\nsubscribers => [];\n")."',\n    'entries' => [],\n    'format' => 9,\n    'registry' => 'commands',\n];\n");
 });
 
 it('reads back what it writes', function (): void {
@@ -316,37 +436,122 @@ it('refuses a malformed cache with the file and the place in it', function (call
         $files['commands'] = ['entries' => [], 'format' => 1, 'registry' => 'commands'];
 
         return $files;
-    }, 'commands.php', 'at format: format 1 is not format 8, which this version of the core reads'],
+    }, 'commands.php', 'at format: format 1 is not format 9, which this version of the core reads'],
     'a file of format 2, whose actions had no command' => [static function (array $files): array {
         $files['actions'] = [...codecFile($files, 'actions'), 'format' => 2];
 
         return $files;
-    }, 'actions.php', 'at format: format 2 is not format 8, which this version of the core reads'],
+    }, 'actions.php', 'at format: format 2 is not format 9, which this version of the core reads'],
     'a file of format 3, whose cache had no actions.php' => [static function (array $files): array {
         $files['commands'] = [...codecFile($files, 'commands'), 'format' => 3];
 
         return $files;
-    }, 'commands.php', 'at format: format 3 is not format 8, which this version of the core reads'],
+    }, 'commands.php', 'at format: format 3 is not format 9, which this version of the core reads'],
     'a file of format 4, whose cache had no subscribers.php' => [static function (array $files): array {
         $files['hooks'] = [...codecFile($files, 'hooks'), 'format' => 4];
 
         return $files;
-    }, 'hooks.php', 'at format: format 4 is not format 8, which this version of the core reads'],
+    }, 'hooks.php', 'at format: format 4 is not format 9, which this version of the core reads'],
     'a file of format 5, whose cache had no schema.php' => [static function (array $files): array {
         $files['subscribers'] = [...codecFile($files, 'subscribers'), 'format' => 5];
 
         return $files;
-    }, 'subscribers.php', 'at format: format 5 is not format 8, which this version of the core reads'],
+    }, 'subscribers.php', 'at format: format 5 is not format 9, which this version of the core reads'],
     'a file of format 6, whose schema.php named no field type contributor' => [static function (array $files): array {
         $files['schema'] = [...codecFile($files, 'schema'), 'format' => 6];
 
         return $files;
-    }, 'schema.php', 'at format: format 6 is not format 8, which this version of the core reads'],
+    }, 'schema.php', 'at format: format 6 is not format 9, which this version of the core reads'],
     'a file of format 7, whose cache had no rest.php' => [static function (array $files): array {
         $files['actions'] = [...codecFile($files, 'actions'), 'format' => 7];
 
         return $files;
-    }, 'actions.php', 'at format: format 7 is not format 8, which this version of the core reads'],
+    }, 'actions.php', 'at format: format 7 is not format 9, which this version of the core reads'],
+    'a file of format 8, whose cache had no panel.php' => [static function (array $files): array {
+        $files['hooks'] = [...codecFile($files, 'hooks'), 'format' => 8];
+
+        return $files;
+    }, 'hooks.php', 'at format: format 8 is not format 9, which this version of the core reads'],
+    'a missing panel.php' => [static function (array $files): array {
+        unset($files['panel']);
+
+        return $files;
+    }, 'panel.php', 'expected an array with the keys build, entries, format, registry, got null'],
+    'a panel point missing a key' => [static function (array $files): array {
+        $files['panel'] = [...codecFile($files, 'panel'), 'entries' => [codecPoint(['tightens' => null])]];
+
+        return $files;
+    }, 'panel.php', 'at entries[0]: expected the keys class, fills, id, keyed_by, kind, label, max, multiplicity, ownership, package, page, region, since, stability, tightens, got class, fills, id, keyed_by, kind, label, max, multiplicity, ownership, package, page, region, since, stability'],
+    'a panel point id without a version' => [static function (array $files): array {
+        $files['panel'] = [...codecFile($files, 'panel'), 'entries' => [codecPoint(['id' => 'account.me.sections'])]];
+
+        return $files;
+    }, 'panel.php', 'at entries[0].id: "account.me.sections" is not a panel point id'],
+    'an unknown panel point kind' => [static function (array $files): array {
+        $files['panel'] = [...codecFile($files, 'panel'), 'entries' => [codecPoint(['kind' => 'widget'])]];
+
+        return $files;
+    }, 'panel.php', 'at entries[0].kind: "widget" is not a panel point kind'],
+    'an unknown region' => [static function (array $files): array {
+        $files['panel'] = [...codecFile($files, 'panel'), 'entries' => [codecPoint(['region' => 'footer'])]];
+
+        return $files;
+    }, 'panel.php', 'at entries[0].region: "footer" is not a region'],
+    'a slot without a region' => [static function (array $files): array {
+        $files['panel'] = [...codecFile($files, 'panel'), 'entries' => [[...codecPoint([]), 'region' => null]]];
+
+        return $files;
+    }, 'panel.php', 'at entries[0]: The slot account.me.sections@1 has no region'],
+    'an unknown stability' => [static function (array $files): array {
+        $files['panel'] = [...codecFile($files, 'panel'), 'entries' => [codecPoint(['stability' => 'beta'])]];
+
+        return $files;
+    }, 'panel.php', 'at entries[0].stability: "beta" is not a stability'],
+    'a tightening prop on a slot' => [static function (array $files): array {
+        $files['panel'] = [...codecFile($files, 'panel'), 'entries' => [codecPoint(['tightens' => ['description']])]];
+
+        return $files;
+    }, 'panel.php', 'at entries[0]: The panel point account.me.sections@1 is of kind slot and lists props a decorator may tighten'],
+    'an unknown tightening prop' => [static function (array $files): array {
+        $files['panel'] = [...codecFile($files, 'panel'), 'entries' => [codecPoint(['tightens' => ['hidden']])]];
+
+        return $files;
+    }, 'panel.php', 'at entries[0].tightens[0]: "hidden" is not a tightening prop'],
+    'a panel point of a package that is not one' => [static function (array $files): array {
+        $files['panel'] = [...codecFile($files, 'panel'), 'entries' => [codecPoint(['package' => 'notes'])]];
+
+        return $files;
+    }, 'panel.php', 'at entries[0]: The package "notes" is not a Composer package name.'],
+    'a fill whose contribution is not an id' => [static function (array $files): array {
+        $files['panel'] = [...codecFile($files, 'panel'), 'entries' => [codecPoint(['fills' => [codecFill(['contribution' => 'Reviews'])]])]];
+
+        return $files;
+    }, 'panel.php', 'at entries[0].fills[0].contribution: The contribution id "Reviews" is not'],
+    'a fill listed twice' => [static function (array $files): array {
+        $files['panel'] = [...codecFile($files, 'panel'), 'entries' => [codecPoint(['fills' => [codecFill([]), codecFill(['priority' => 5])]])]];
+
+        return $files;
+    }, 'panel.php', 'at entries[0]: The panel point account.me.sections@1 lists the contribution reviews.badge twice.'],
+    'a fill whose scope names a page twice' => [static function (array $files): array {
+        $files['panel'] = [...codecFile($files, 'panel'), 'entries' => [codecPoint(['fills' => [codecFill(['scope' => codecScope(['pages' => ['shell', 'shell']])])]])]];
+
+        return $files;
+    }, 'panel.php', 'at entries[0].fills[0].scope: The scope names the page "shell" twice'],
+    'a fill whose scope names a command without a version' => [static function (array $files): array {
+        $files['panel'] = [...codecFile($files, 'panel'), 'entries' => [codecPoint(['fills' => [codecFill(['scope' => codecScope(['commands' => ['note.create']])])]])]];
+
+        return $files;
+    }, 'panel.php', 'at entries[0].fills[0].scope.commands[0]: "note.create" is not a command and version'],
+    'a fill whose scope requires a name that is not a command\'s' => [static function (array $files): array {
+        $files['panel'] = [...codecFile($files, 'panel'), 'entries' => [codecPoint(['fills' => [codecFill(['scope' => codecScope(['requires' => 'Notes'])])]])]];
+
+        return $files;
+    }, 'panel.php', 'at entries[0].fills[0].scope.requires: A command name is dot-separated snake_case segments'],
+    'a fill whose scope is missing a key' => [static function (array $files): array {
+        $files['panel'] = [...codecFile($files, 'panel'), 'entries' => [codecPoint(['fills' => [codecFill(['scope' => codecScope(['types' => null])])]])]];
+
+        return $files;
+    }, 'panel.php', 'at entries[0].fills[0].scope: expected the keys commands, field_types, pages, requires, types, got commands, field_types, pages, requires'],
     'a missing rest.php' => [static function (array $files): array {
         unset($files['rest']);
 
@@ -778,6 +983,66 @@ function codecRoute(array $changes): array
 }
 
 /**
+ * An entry of panel.php, the slot account.me.sections@1 without fills, with the given keys
+ * changed; a key set to null is left out.
+ *
+ * @param  array<string, mixed>  $changes
+ * @return array<string, mixed>
+ */
+function codecPoint(array $changes): array
+{
+    return codecChanged([
+        'class' => 'App\Panel\AccountMeSectionsV1',
+        'fills' => [],
+        'id' => 'account.me.sections@1',
+        'keyed_by' => null,
+        'kind' => 'slot',
+        'label' => 'panel.points.account_me_sections',
+        'max' => null,
+        'multiplicity' => 'many',
+        'ownership' => null,
+        'package' => 'acme/notes',
+        'page' => 'account.me',
+        'region' => 'sections',
+        'since' => '1.0',
+        'stability' => 'experimental',
+        'tightens' => [],
+    ], $changes);
+}
+
+/**
+ * A fill of panel.php with the given keys changed; a key set to null is left out.
+ *
+ * @param  array<string, mixed>  $changes
+ * @return array<string, mixed>
+ */
+function codecFill(array $changes): array
+{
+    return codecChanged(['contribution' => 'reviews.badge', 'package' => 'acme/cms-reviews', 'priority' => 1000, 'scope' => codecScope([])], $changes);
+}
+
+/**
+ * The scope of a fill of panel.php with the given keys changed; a key set to null is left out.
+ *
+ * @param  array<string, mixed>  $changes
+ * @return array<string, mixed>
+ */
+function codecScope(array $changes): array
+{
+    $scope = ['commands' => [], 'field_types' => [], 'pages' => [], 'requires' => null, 'types' => []];
+
+    foreach ($changes as $key => $value) {
+        if ($value === null && $key !== 'requires') {
+            unset($scope[$key]);
+        } else {
+            $scope[$key] = $value;
+        }
+    }
+
+    return $scope;
+}
+
+/**
  * An entry of actions.php with the given keys changed; a key set to null is left out.
  *
  * @param  array<string, mixed>  $changes
@@ -811,7 +1076,7 @@ it('tells files of different builds from files of one build', function (): void 
 it('knows how many entries each registry holds', function (): void {
     $registry = codecRegistry();
 
-    expect(array_map($registry->count(...), RegistryName::cases()))->toBe([1, 1, 2, 1, 1, 2]);
+    expect(array_map($registry->count(...), RegistryName::cases()))->toBe([1, 1, 2, 2, 1, 1, 2]);
 });
 
 it('gives the kernel the action of a command by its name and version, and by its class', function (): void {
@@ -842,6 +1107,8 @@ it('reads back a subscriber without a projection as null, and one with a project
         ->and($read->hooks[1]->addon)->toEqual(new AddonNamespace('reviews'))
         ->and($read->hooks[1]->reads)->toBe(ClassificationAccess::Internal)
         ->and($read->schema)->toEqual(codecRegistry()->schema)
+        ->and($read->panel)->toEqual(codecPanel())
+        ->and(array_map(static fn (PanelFill $fill): string => $fill->contribution->value, $read->panel[0]->fills))->toBe(['cms.profile', 'reviews.badge'])
         ->and($read->subscribers[1]->projection)->toBeNull()
         ->and($read->subscribers[0]->lane)->toBe(Lane::Critical)
         ->and($read->subscribers[0]->events[1]->type)->toEqual(new EventType('note.created', 1));

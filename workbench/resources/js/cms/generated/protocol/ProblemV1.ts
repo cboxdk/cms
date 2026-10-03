@@ -162,6 +162,7 @@ export type ErrorCode =
   | 'registry_duplicate_action'
   | 'registry_duplicate_command'
   | 'registry_duplicate_namespace'
+  | 'registry_duplicate_panel_point'
   | 'registry_duplicate_subscription'
   | 'registry_incompatible_core_api'
   | 'registry_invalid_attribute'
@@ -172,6 +173,7 @@ export type ErrorCode =
   | 'registry_not_a_subscriber'
   | 'registry_not_an_action'
   | 'registry_not_final_readonly'
+  | 'registry_panel_point_without_stability'
   | 'registry_reserved_namespace'
   | 'registry_surface_without_codec'
   | 'registry_undeclared_hook'
@@ -442,6 +444,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'registry_duplicate_action',
           'registry_duplicate_command',
           'registry_duplicate_namespace',
+          'registry_duplicate_panel_point',
           'registry_duplicate_subscription',
           'registry_incompatible_core_api',
           'registry_invalid_attribute',
@@ -452,6 +455,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'registry_not_a_subscriber',
           'registry_not_an_action',
           'registry_not_final_readonly',
+          'registry_panel_point_without_stability',
           'registry_reserved_namespace',
           'registry_surface_without_codec',
           'registry_undeclared_hook',
@@ -686,6 +690,7 @@ const problemV1Rule: ObjectRule = {
           'registry_duplicate_action',
           'registry_duplicate_command',
           'registry_duplicate_namespace',
+          'registry_duplicate_panel_point',
           'registry_duplicate_subscription',
           'registry_incompatible_core_api',
           'registry_invalid_attribute',
@@ -696,6 +701,7 @@ const problemV1Rule: ObjectRule = {
           'registry_not_a_subscriber',
           'registry_not_an_action',
           'registry_not_final_readonly',
+          'registry_panel_point_without_stability',
           'registry_reserved_namespace',
           'registry_surface_without_codec',
           'registry_undeclared_hook',

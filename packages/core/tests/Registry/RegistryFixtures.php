@@ -19,6 +19,9 @@ use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Events\EventType;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\PanelPoints\PanelPoint;
+use Cbox\Cms\Contracts\PanelPoints\PointKind;
+use Cbox\Cms\Contracts\PanelPoints\Region;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Contracts\Subscribers\Lane;
 use Cbox\Cms\Contracts\Subscribers\SubscriptionName;
@@ -33,9 +36,11 @@ use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredAction;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredHook;
 use Cbox\Cms\Core\Registry\Domain\Dto\Discovery;
+use Cbox\Cms\Core\Registry\Domain\Dto\PanelPointEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\QueryEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscribedEvent;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
+use Cbox\Cms\Core\Registry\Domain\PointStability;
 use Cbox\Cms\Core\Registry\Domain\RegistryCompiler;
 use Cbox\Cms\Core\Registry\Domain\RegistryName;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
@@ -46,6 +51,7 @@ use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\FindNoteAction;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\IndexNote;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\InvalidateNoteFragments;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\NoteArchived;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\NoteCardV1;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\NoteCreated;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\NoteRenamed;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\NotifyNoteWebhooks;
@@ -77,8 +83,8 @@ final class RegistryFixtures
     /**
      * What the scan of the Valid fixture finds through a root of the given package: the command
      * CreateNote, the hook TrimNoteTitle, the query FindNote, the actions CreateNoteAction and
-     * FindNoteAction, and the subscribers IndexNote, InvalidateNoteFragments and NotifyNoteWebhooks,
-     * in the order the scanner finds them: by file name.
+     * FindNoteAction, the subscribers IndexNote, InvalidateNoteFragments and NotifyNoteWebhooks, and
+     * the panel point NoteCardV1, in the order the scanner finds them: by file name.
      */
     public static function validDiscovery(string $package = self::PACKAGE): Discovery
     {
@@ -92,6 +98,12 @@ final class RegistryFixtures
                 new DiscoveredAction(FindNoteAction::class, $package, ActionKind::Query, FindNote::class, []),
             ],
             self::validSubscribers($package),
+            [new PanelPointEntry(
+                new PanelPoint('fixture.note.aside', 1, PointKind::Slot, 'fixture.note', '1.0', 'fixture.points.note_aside', Region::Aside),
+                NoteCardV1::class,
+                $package,
+                PointStability::Experimental,
+            )],
         );
     }
 

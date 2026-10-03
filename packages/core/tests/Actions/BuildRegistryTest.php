@@ -17,6 +17,10 @@ use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Events\EventType;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\PanelPoints\PageName;
+use Cbox\Cms\Contracts\PanelPoints\PointId;
+use Cbox\Cms\Contracts\PanelPoints\PointKind;
+use Cbox\Cms\Contracts\PanelPoints\Region;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Contracts\Subscribers\Lane;
 use Cbox\Cms\Contracts\Subscribers\SubscriptionName;
@@ -31,11 +35,13 @@ use Cbox\Cms\Core\Registry\Domain\Dto\DeclaredAddons;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredAction;
 use Cbox\Cms\Core\Registry\Domain\Dto\Discovery;
 use Cbox\Cms\Core\Registry\Domain\Dto\HookEntry;
+use Cbox\Cms\Core\Registry\Domain\Dto\PanelPointEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\QueryEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\ScanRoots;
 use Cbox\Cms\Core\Registry\Domain\Dto\SchemaEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscribedEvent;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
+use Cbox\Cms\Core\Registry\Domain\PointStability;
 use Cbox\Cms\Core\Registry\Domain\RegistryBuildFailed;
 use Cbox\Cms\Core\Registry\Domain\RegistryCacheUnwritable;
 use Cbox\Cms\Core\Registry\Domain\RegistryCompiler;
@@ -48,9 +54,13 @@ use Cbox\Cms\Core\Tests\Registry\Fixtures\Addon\IndexReviewedNote;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Addon\RequireNoteStars;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\DuplicateAction\FirstPinner;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\DuplicateAction\SecondPinner;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\DuplicatePanelPoint\FirstSections;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\DuplicatePanelPoint\SecondSections;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\DuplicateSubscription\FirstIndexer;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\DuplicateSubscription\SecondIndexer;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Elsewhere\Misplaced;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\InvalidPanelPoint\OpenProps;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\InvalidPanelPoint\SlotWithoutRegion;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\NeitherFinalNorReadonly\PlainCommand;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\NotAHook\MisphasedStamper;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\NotAHook\PlainStamper;
@@ -62,6 +72,13 @@ use Cbox\Cms\Core\Tests\Registry\Fixtures\NotFinalReadonly\MutableQuery;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\NotFinalReadonly\OpenAction;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\NotFinalSubscriber\MutableSubscriber;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\NotFinalSubscriber\OpenSubscriber;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Panel\NoteFieldInputV1;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Panel\NoteSectionsV1;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Panel\NotesToolbarV1;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Panel\NoteSubmitV1;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Panel\NoteSubmitV2;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\PanelPointWithoutStability\TwiceMarked;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\PanelPointWithoutStability\Unmarked;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\UnknownActionCommand\LabelWriter;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\UnknownActionCommand\MissingWriter;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\UnknownActionCommand\NoteLabel;
@@ -271,11 +288,11 @@ it('keeps the command name as the CommandName value that the hooks and the idemp
         ->and($read->commands[0]->name->equals($read->hooks[0]->command))->toBeTrue();
 });
 
-it('writes the six files, and reading them back gives the registry that was built', function (): void {
+it('writes the seven files, and reading them back gives the registry that was built', function (): void {
     $directory = RegistryFixtures::scratch();
     $built = RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
-    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'openapi.json', 'rest.php', 'schema.php', 'subscribers.php'])
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'openapi.json', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php'])
         ->and(RegistryFixtures::cache($directory)->read())->toEqual($built);
 
     $actions = RegistryFixtures::load($directory.'/actions.php');
@@ -292,7 +309,7 @@ it('writes the six files, and reading them back gives the registry that was buil
         'entries' => [
             ['class' => CreateNote::class, 'name' => 'fixture.note.create', 'package' => RegistryFixtures::PACKAGE, 'version' => 1],
         ],
-        'format' => 8,
+        'format' => 9,
         'registry' => 'commands',
     ])
         ->and($actions)->toBe([
@@ -317,7 +334,7 @@ it('writes the six files, and reading them back gives the registry that was buil
                     'surfaces' => [],
                 ],
             ],
-            'format' => 8,
+            'format' => 9,
             'registry' => 'actions',
         ])
         ->and($subscribers)->toBe([
@@ -359,7 +376,7 @@ it('writes the six files, and reading them back gives the registry that was buil
                     'projection' => null,
                 ],
             ],
-            'format' => 8,
+            'format' => 9,
             'registry' => 'subscribers',
         ])
         ->and($commands['build'])->toMatch('/\A[0-9a-f]{64}\z/');
@@ -372,13 +389,13 @@ it('replaces the actions.php of format 2, which listed actions without the comma
 
     $built = RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
-    expect(array_map(static fn (RegistryName $name): string => $name->fileName(), RegistryName::cases()))->toBe(['actions.php', 'commands.php', 'hooks.php', 'rest.php', 'schema.php', 'subscribers.php'])
-        ->and(RegistryFixtures::load($directory.'/actions.php'))->toMatchArray(['format' => 8, 'registry' => 'actions'])
-        ->and(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'openapi.json', 'rest.php', 'schema.php', 'subscribers.php'])
+    expect(array_map(static fn (RegistryName $name): string => $name->fileName(), RegistryName::cases()))->toBe(['actions.php', 'commands.php', 'hooks.php', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php'])
+        ->and(RegistryFixtures::load($directory.'/actions.php'))->toMatchArray(['format' => 9, 'registry' => 'actions'])
+        ->and(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'openapi.json', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php'])
         ->and(RegistryFixtures::cache($directory)->read())->toEqual($built);
 });
 
-it('writes six empty registries when there are no scan roots', function (): void {
+it('writes seven empty registries when there are no scan roots', function (): void {
     $directory = RegistryFixtures::scratch();
     $registry = RegistryFixtures::builder($directory)->build(new ScanRoots);
 
@@ -388,11 +405,11 @@ it('writes six empty registries when there are no scan roots', function (): void
         ->and($registry->subscribers)->toBe([])
         ->and($registry->schema)->toBe([]);
 
-    $build = hash('sha256', "actions => [];\ncommands => [];\nhooks => [];\nrest => [];\nschema => [];\nsubscribers => [];\n");
+    $build = hash('sha256', "actions => [];\ncommands => [];\nhooks => [];\npanel => [];\nrest => [];\nschema => [];\nsubscribers => [];\n");
 
     foreach (RegistryName::cases() as $name) {
         expect(RegistryFixtures::load($directory.'/'.$name->fileName()))
-            ->toBe(['build' => $build, 'entries' => [], 'format' => 8, 'registry' => $name->value]);
+            ->toBe(['build' => $build, 'entries' => [], 'format' => 9, 'registry' => $name->value]);
     }
 });
 
@@ -406,9 +423,9 @@ it('removes the slot file an earlier version wrote, and replaces its schema.php 
 
     $built = RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
-    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'openapi.json', 'rest.php', 'schema.php', 'subscribers.php'])
-        ->and(RegistryFixtures::load($directory.'/subscribers.php'))->toMatchArray(['format' => 8, 'registry' => 'subscribers'])
-        ->and(RegistryFixtures::load($directory.'/schema.php'))->toMatchArray(['entries' => [], 'format' => 8, 'registry' => 'schema'])
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'openapi.json', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php'])
+        ->and(RegistryFixtures::load($directory.'/subscribers.php'))->toMatchArray(['format' => 9, 'registry' => 'subscribers'])
+        ->and(RegistryFixtures::load($directory.'/schema.php'))->toMatchArray(['entries' => [], 'format' => 9, 'registry' => 'schema'])
         ->and(RegistryFixtures::cache($directory)->read())->toEqual($built);
 });
 
@@ -424,7 +441,7 @@ it('gives byte-identical files when it builds twice, into the same or another di
     RegistryFixtures::builder($other)->build(new ScanRoots(...array_reverse([...$roots->roots, RegistryFixtures::root('Valid')])));
     $elsewhere = RegistryFixtures::hashes($other);
 
-    expect($first)->toHaveCount(6)
+    expect($first)->toHaveCount(7)
         ->and($second)->toBe($first)
         ->and($elsewhere)->toBe($first);
 });
@@ -434,7 +451,7 @@ it('keeps no temporary files next to the cache', function (): void {
     RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
     RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
-    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'openapi.json', 'rest.php', 'schema.php', 'subscribers.php']);
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'openapi.json', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php']);
 });
 
 it('refuses two classes with the same command name and version, and writes nothing', function (): void {
@@ -506,7 +523,7 @@ it('refuses a command, a query and an action that are not final readonly classes
         ->and($failed->getMessage())->toContain('[registry_not_final_readonly]')
         ->toContain('#[Command] on '.MutableCommand::class.' ('.RegistryFixtures::PACKAGE.') is not readonly')
         ->toContain('#[Query] on '.MutableQuery::class.' ('.RegistryFixtures::PACKAGE.') is not readonly')
-        ->toContain('#[Action] on '.OpenAction::class.' ('.RegistryFixtures::PACKAGE.') is not final. A command, query, action or subscriber is a final readonly class (GUARDRAILS 2.1).')
+        ->toContain('#[Action] on '.OpenAction::class.' ('.RegistryFixtures::PACKAGE.') is not final. A command, query, action, subscriber or panel point props class is a final readonly class (GUARDRAILS 2.1).')
         ->toContain('final readonly class')
         ->and(is_dir($directory))->toBeFalse();
 });
@@ -532,7 +549,7 @@ it('refuses a directory that two packages declare', function (): void {
     $failed = failedRegistryBuild($directory, new ScanRoots(RegistryFixtures::root('Valid'), RegistryFixtures::root('Valid', 'acme/copy')));
 
     expect(array_unique(array_map(static fn (BuildErrorCode $code): string => $code->value, $failed->codes())))->toBe(['registry_class_in_two_roots'])
-        ->and($failed->problems)->toHaveCount(12);
+        ->and($failed->problems)->toHaveCount(13);
 });
 
 it('refuses a scan root that is not a directory', function (): void {
@@ -658,7 +675,7 @@ it('refuses a subscriber that is not a final readonly class, and writes nothing'
 
     expect($failed->codes())->toBe([BuildErrorCode::NotFinalReadonly, BuildErrorCode::NotFinalReadonly])
         ->and($failed->getMessage())
-        ->toContain('[registry_not_final_readonly] #[Subscription] on '.MutableSubscriber::class.' ('.RegistryFixtures::PACKAGE.') is not readonly. A command, query, action or subscriber is a final readonly class (GUARDRAILS 2.1). Declare it as final readonly class MutableSubscriber.')
+        ->toContain('[registry_not_final_readonly] #[Subscription] on '.MutableSubscriber::class.' ('.RegistryFixtures::PACKAGE.') is not readonly. A command, query, action, subscriber or panel point props class is a final readonly class (GUARDRAILS 2.1). Declare it as final readonly class MutableSubscriber.')
         ->toContain('[registry_not_final_readonly] #[Subscription] on '.OpenSubscriber::class.' ('.RegistryFixtures::PACKAGE.') is not final.')
         ->and(is_dir($directory))->toBeFalse();
 });
@@ -816,7 +833,7 @@ it('writes schema.php with each addon\'s contributions, byte for byte the same w
                     'types' => ['reviews:review'],
                 ],
             ],
-            'format' => 8,
+            'format' => 9,
             'registry' => 'schema',
         ]);
 });
@@ -891,4 +908,133 @@ it('passes on the problems of manifests that could not be read, with its own', f
     } catch (RegistryBuildFailed $failed) {
         expect($failed->codes())->toBe([BuildErrorCode::ReservedNamespace, BuildErrorCode::UndeclaredHook]);
     }
+});
+
+/*
+ * The panel registry (PRD 13.4): #[PanelPoint] on a props class becomes an entry of panel.php under
+ * its id <name>@<version>, with its declaration, its class, package and stability, and the
+ * contributions to it, of which the scan finds none.
+ */
+
+/**
+ * An entry of panel.php as cms:build writes it, for a point of the Panel fixture.
+ *
+ * @param  array<string, mixed>  $changes
+ * @return array<string, mixed>
+ */
+function builtPanelPoint(string $class, string $id, string $kind, string $page, string $since, string $label, string $stability, array $changes = []): array
+{
+    return [
+        'class' => $class,
+        'fills' => [],
+        'id' => $id,
+        'keyed_by' => null,
+        'kind' => $kind,
+        'label' => $label,
+        'max' => null,
+        'multiplicity' => 'many',
+        'ownership' => null,
+        'package' => RegistryFixtures::PACKAGE,
+        'page' => $page,
+        'region' => null,
+        'since' => $since,
+        'stability' => $stability,
+        'tightens' => [],
+        ...$changes,
+    ];
+}
+
+it('writes panel.php with each panel point under its id, sorted by name and version, byte for byte the same each build', function (): void {
+    $directory = RegistryFixtures::scratch();
+    $roots = new ScanRoots(RegistryFixtures::root('Panel'));
+    $built = RegistryFixtures::builder($directory)->build($roots);
+    $panel = RegistryFixtures::load($directory.'/panel.php');
+    $hooks = RegistryFixtures::load($directory.'/hooks.php');
+    Assert::assertIsArray($panel);
+    Assert::assertIsArray($hooks);
+    $first = RegistryFixtures::hashes($directory);
+    RegistryFixtures::builder($directory)->build($roots);
+
+    expect($panel)->toBe([
+        'build' => $hooks['build'],
+        'entries' => [
+            builtPanelPoint(NoteSectionsV1::class, 'notes.detail.sections@1', 'slot', 'notes.detail', '1.0', 'fixture.points.note_sections', 'experimental', ['region' => 'sections']),
+            builtPanelPoint(NoteFieldInputV1::class, 'notes.form.field@1', 'replacement', 'notes.form', '1.0', 'fixture.points.note_field', 'experimental', ['keyed_by' => 'field_type', 'multiplicity' => 'exclusive', 'ownership' => 'own']),
+            builtPanelPoint(NoteSubmitV1::class, 'notes.form.submit@1', 'decorator', 'notes.form', '1.0', 'fixture.points.note_submit', 'stable', ['tightens' => ['disabled_reason', 'description']]),
+            builtPanelPoint(NoteSubmitV2::class, 'notes.form.submit@2', 'decorator', 'notes.form', '1.2', 'fixture.points.note_submit', 'internal', ['tightens' => ['tone_towards_danger']]),
+            builtPanelPoint(NotesToolbarV1::class, 'notes.list.toolbar@1', 'slot', 'notes.list', '1.1', 'fixture.points.notes_toolbar', 'experimental', ['max' => 3, 'multiplicity' => 'max', 'region' => 'toolbar']),
+        ],
+        'format' => 9,
+        'registry' => 'panel',
+    ])
+        ->and($built->count(RegistryName::Panel))->toBe(5)
+        ->and(RegistryFixtures::hashes($directory))->toBe($first);
+});
+
+it('reads panel.php back through its codec into the registry that was built, and finds a point by its id and its page', function (): void {
+    $directory = RegistryFixtures::scratch();
+    $built = RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Panel')));
+    $read = RegistryFixtures::cache($directory)->read();
+
+    expect($read)->toEqual($built)
+        ->and($read->panelPoint(PointId::fromString('notes.form.submit@2'))?->stability)->toBe(PointStability::Internal)
+        ->and($read->panelPoint(PointId::fromString('notes.form.submit@2'))?->class)->toBe(NoteSubmitV2::class)
+        ->and($read->panelPoint(PointId::fromString('notes.form.submit@3')))->toBeNull()
+        ->and(array_map(static fn (PanelPointEntry $point): string => $point->id()->toString(), $read->panelPointsOf(new PageName('notes.form'))))
+        ->toBe(['notes.form.field@1', 'notes.form.submit@1', 'notes.form.submit@2'])
+        ->and($read->panelPointsOf(new PageName('shell')))->toBe([]);
+});
+
+it('refuses two props classes that declare one panel point and version, and writes nothing', function (): void {
+    $directory = RegistryFixtures::scratch();
+    $failed = failedRegistryBuild($directory, new ScanRoots(RegistryFixtures::root('DuplicatePanelPoint')));
+
+    expect($failed->codes())->toBe([BuildErrorCode::DuplicatePanelPoint])
+        ->and($failed->getMessage())->toContain(sprintf(
+            '[registry_duplicate_panel_point] The panel point notes.detail.sections@1 is declared by %s (%s) and %s (%s).',
+            FirstSections::class,
+            RegistryFixtures::PACKAGE,
+            SecondSections::class,
+            RegistryFixtures::PACKAGE,
+        ))
+        ->and(is_dir($directory))->toBeFalse();
+});
+
+it('refuses a panel point whose props class declares no stability, or two', function (): void {
+    $directory = RegistryFixtures::scratch();
+    $failed = failedRegistryBuild($directory, new ScanRoots(RegistryFixtures::root('PanelPointWithoutStability')));
+
+    expect($failed->codes())->toBe([BuildErrorCode::PanelPointWithoutStability, BuildErrorCode::PanelPointWithoutStability])
+        ->and($failed->getMessage())
+        ->toContain(sprintf('[registry_panel_point_without_stability] The panel point notes.detail.tabs@1 on %s (%s) declares stable and experimental.', TwiceMarked::class, RegistryFixtures::PACKAGE))
+        ->toContain(sprintf('[registry_panel_point_without_stability] The panel point notes.detail.aside@1 on %s (%s) declares no stability.', Unmarked::class, RegistryFixtures::PACKAGE))
+        ->and(is_dir($directory))->toBeFalse();
+});
+
+it('refuses a #[PanelPoint] whose arguments break the rules of its kind, and one on a props class that is not final readonly', function (): void {
+    $directory = RegistryFixtures::scratch();
+    $failed = failedRegistryBuild($directory, new ScanRoots(RegistryFixtures::root('InvalidPanelPoint')));
+
+    expect($failed->codes())->toBe([BuildErrorCode::InvalidAttribute, BuildErrorCode::NotFinalReadonly])
+        ->and($failed->getMessage())
+        ->toContain(sprintf('[registry_not_final_readonly] #[PanelPoint] on %s (%s) is not final and not readonly.', OpenProps::class, RegistryFixtures::PACKAGE))
+        ->toContain(sprintf('[registry_invalid_attribute] #[PanelPoint] on %s (%s) is invalid: The slot notes.detail.footer@1 has no region.', SlotWithoutRegion::class, RegistryFixtures::PACKAGE))
+        ->and(is_dir($directory))->toBeFalse();
+});
+
+it('refuses the same panel point from two packages through the fake scanner too', function (): void {
+    $point = static fn (string $class, string $package): PanelPointEntry => new PanelPointEntry(
+        new \Cbox\Cms\Contracts\PanelPoints\PanelPoint('shell.banner', 1, PointKind::Slot, 'shell', '1.0', 'panel.points.shell_banner', Region::Sections),
+        $class,
+        $package,
+        PointStability::Experimental,
+    );
+    $scanner = new FakeDeclarationScanner([
+        '/srv/one/src' => new Discovery([], [], [], panelPoints: [$point('Acme\One\BannerV1', 'acme/one')]),
+        '/srv/two/src' => new Discovery([], [], [], panelPoints: [$point('Acme\Two\BannerV1', 'acme/two')]),
+    ]);
+    $build = new BuildRegistry($scanner, new RegistryCompiler, new FakeRegistryCache, new FakeOpenApiDocuments('fixture.note.create@1'));
+
+    expect(static fn (): CompiledRegistry => $build->build(new ScanRoots(new ScanRoot('acme/one', '/srv/one/src'), new ScanRoot('acme/two', '/srv/two/src'))))
+        ->toThrow(RegistryBuildFailed::class, '[registry_duplicate_panel_point] The panel point shell.banner@1 is declared by Acme\One\BannerV1 (acme/one) and Acme\Two\BannerV1 (acme/two).');
 });

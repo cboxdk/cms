@@ -167,6 +167,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`registry_duplicate_action`](#registry_duplicate_action) | 500 | 65 | internal_error | no |
 | [`registry_duplicate_command`](#registry_duplicate_command) | 500 | 65 | internal_error | no |
 | [`registry_duplicate_namespace`](#registry_duplicate_namespace) | 500 | 65 | internal_error | no |
+| [`registry_duplicate_panel_point`](#registry_duplicate_panel_point) | 500 | 65 | internal_error | no |
 | [`registry_duplicate_subscription`](#registry_duplicate_subscription) | 500 | 65 | internal_error | no |
 | [`registry_incompatible_core_api`](#registry_incompatible_core_api) | 500 | 65 | internal_error | no |
 | [`registry_invalid_attribute`](#registry_invalid_attribute) | 500 | 65 | internal_error | no |
@@ -177,6 +178,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`registry_not_a_subscriber`](#registry_not_a_subscriber) | 500 | 65 | internal_error | no |
 | [`registry_not_an_action`](#registry_not_an_action) | 500 | 65 | internal_error | no |
 | [`registry_not_final_readonly`](#registry_not_final_readonly) | 500 | 65 | internal_error | no |
+| [`registry_panel_point_without_stability`](#registry_panel_point_without_stability) | 500 | 65 | internal_error | no |
 | [`registry_reserved_namespace`](#registry_reserved_namespace) | 500 | 65 | internal_error | no |
 | [`registry_surface_without_codec`](#registry_surface_without_codec) | 500 | 65 | internal_error | no |
 | [`registry_undeclared_hook`](#registry_undeclared_hook) | 500 | 65 | internal_error | no |
@@ -1610,6 +1612,15 @@ Two addon manifests name the same namespace. A namespace belongs to one addon in
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
+### registry_duplicate_panel_point
+
+Two classes declare the same panel point name and version with #[PanelPoint]. A point's name and version belong to one props class: give the new props the next version, or rename one of the points.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
 ### registry_duplicate_subscription
 
 Two subscribers declare the same subscription name with #[Subscription]. The event log keeps a subscription's cursor under its name, so rename one of them.
@@ -1630,7 +1641,7 @@ An addon manifest needs a version of the kernel's API that this kernel does not 
 
 ### registry_invalid_attribute
 
-The arguments of an #[Action], #[Command], #[Query], #[Hook] or #[Subscription] attribute are invalid, so it cannot be built. Correct the attribute as the cause says.
+The arguments of an #[Action], #[Command], #[Query], #[Hook], #[Subscription] or #[PanelPoint] attribute are invalid, so it cannot be built. Correct the attribute as the cause says.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)
@@ -1657,7 +1668,7 @@ A scan root that a service provider declares is not a readable directory. Correc
 
 ### registry_not_a_concrete_class
 
-An #[Action], #[Command], #[Query], #[Hook] or #[Subscription] attribute sits on an interface, a trait, an enum or an abstract class. Put it on a concrete class.
+An #[Action], #[Command], #[Query], #[Hook], #[Subscription] or #[PanelPoint] attribute sits on an interface, a trait, an enum or an abstract class. Put it on a concrete class.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)
@@ -1693,7 +1704,16 @@ An #[Action] sits on a class that implements neither WriteAction nor QueryAction
 
 ### registry_not_final_readonly
 
-A #[Command], #[Query], #[Action] or #[Subscription] sits on a class that is not a final readonly class (GUARDRAILS 2.1). Make the class final readonly.
+A #[Command], #[Query], #[Action], #[Subscription] or #[PanelPoint] sits on a class that is not a final readonly class (GUARDRAILS 2.1). Make the class final readonly.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_panel_point_without_stability
+
+A #[PanelPoint] class carries none, or more than one, of #[Stable], #[Experimental] and #[Internal]. The attribute on the props class is the point's stability (GUARDRAILS 2.3), so give it exactly one.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)

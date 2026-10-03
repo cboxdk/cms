@@ -27,7 +27,7 @@ enum BuildErrorCode: string
     /** A #[Hook] sits on a class that does not implement the interface of its phase. */
     case NotAHook = 'registry_not_a_hook';
 
-    /** A #[Command], #[Query], #[Action] or #[Subscription] sits on a class that is not a final readonly class (GUARDRAILS 2.1). */
+    /** A #[Command], #[Query], #[Action], #[Subscription] or #[PanelPoint] sits on a class that is not a final readonly class (GUARDRAILS 2.1). */
     case NotFinalReadonly = 'registry_not_final_readonly';
 
     /** Two different scan roots contain the same class. */
@@ -86,4 +86,10 @@ enum BuildErrorCode: string
 
     /** A #[Subscription] of an addon's package receives an event on a lane its manifest does not allow. */
     case UndeclaredSubscriber = 'registry_undeclared_subscriber';
+
+    /** Two classes declare the same panel point name and version. */
+    case DuplicatePanelPoint = 'registry_duplicate_panel_point';
+
+    /** A #[PanelPoint] class carries none, or more than one, of #[Stable], #[Experimental] and #[Internal] (GUARDRAILS 2.3). */
+    case PanelPointWithoutStability = 'registry_panel_point_without_stability';
 }

@@ -14,5 +14,6 @@ enum ExtensionPointKind: string
     case Trait = 'trait';
     case Command = '#[Command] class';
     case Hook = '#[Hook] class';
+    case PanelPoint = '#[PanelPoint] class';
     case Schema = 'JSON schema';
 }

@@ -8,6 +8,7 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredAction;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredHook;
+use Cbox\Cms\Core\Registry\Domain\Dto\PanelPointEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\QueryEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
 
@@ -32,4 +33,7 @@ final class ScanFindings
 
     /** @var list<SubscriberEntry> */
     public array $subscribers = [];
+
+    /** @var list<PanelPointEntry> */
+    public array $panelPoints = [];
 }

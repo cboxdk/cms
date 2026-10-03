@@ -7,6 +7,7 @@ namespace Cbox\Cms\Tooling\Docs\Domain;
 use Cbox\Cms\Contracts\Attributes\Command;
 use Cbox\Cms\Contracts\Attributes\Hook;
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\PanelPoints\PanelPoint;
 
 /**
  * The inventory rule: which public extension points the kernel packages have (GUARDRAILS 2.4, PRD
@@ -16,6 +17,8 @@ use Cbox\Cms\Contracts\Attributes\Internal;
  *   #[Internal];
  * - every class there that carries #[Command] or #[Hook], #[Internal] or not: a command and its
  *   hook points are public by what they are;
+ * - every class there that carries #[PanelPoint] and is not #[Internal]: an internal panel point is
+ *   the core's own wiring, never contributable, so it is no extension point;
  * - every *.json schema below packages/<package>/resources/schemas;
  * - minus the exclusions that have a reason.
  *
@@ -31,6 +34,8 @@ final readonly class Inventory
     public const string COMMAND = Command::class;
 
     public const string HOOK = Hook::class;
+
+    public const string PANEL_POINT = PanelPoint::class;
 
     /**
      * @param  array<string, ExtensionPoint>  $points  by name, sorted
@@ -72,7 +77,7 @@ final readonly class Inventory
 
         foreach ($exclusions as $exclusion) {
             if (! array_key_exists($exclusion->name, $found)) {
-                $findings[] = Finding::about($exclusion->name, 'excluded from the inventory of extension points, but packages/*/src and packages/*/resources/schemas have no such interface, attribute class, trait, #[Command] or #[Hook] class or schema that is not #[Internal]; remove the stale exclusion');
+                $findings[] = Finding::about($exclusion->name, 'excluded from the inventory of extension points, but packages/*/src and packages/*/resources/schemas have no such interface, attribute class, trait, #[Command], #[Hook] or #[PanelPoint] class or schema that is not #[Internal]; remove the stale exclusion');
             }
 
             if (! $exclusion->hasReason()) {
@@ -115,6 +120,10 @@ final readonly class Inventory
 
         if ($type->has(self::INTERNAL)) {
             return null;
+        }
+
+        if ($type->kind === TypeKind::Class_ && $type->has(self::PANEL_POINT)) {
+            return ExtensionPointKind::PanelPoint;
         }
 
         return match (true) {

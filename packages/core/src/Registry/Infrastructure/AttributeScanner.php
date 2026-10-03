@@ -17,6 +17,7 @@ use Cbox\Cms\Contracts\Attributes\UnknownSurface;
 use Cbox\Cms\Contracts\Build\ScanRoot;
 use Cbox\Cms\Contracts\Events\Event;
 use Cbox\Cms\Contracts\Events\EventType;
+use Cbox\Cms\Contracts\PanelPoints\PanelPoint;
 use Cbox\Cms\Contracts\Pipeline\QueryAction;
 use Cbox\Cms\Contracts\Pipeline\WriteAction;
 use Cbox\Cms\Contracts\Subscribers\Lane;
@@ -29,10 +30,12 @@ use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredAction;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredHook;
 use Cbox\Cms\Core\Registry\Domain\Dto\Discovery;
+use Cbox\Cms\Core\Registry\Domain\Dto\PanelPointEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\QueryEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\ScanRoots;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscribedEvent;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
+use Cbox\Cms\Core\Registry\Domain\PointStability;
 use Error;
 use FilesystemIterator;
 use RecursiveDirectoryIterator;
@@ -44,8 +47,8 @@ use SplFileInfo;
 use Throwable;
 
 /**
- * Finds #[Action], #[Command], #[Query], #[Hook] and #[Subscription] in the scan roots with
- * reflection, at build time only (GUARDRAILS 2.2).
+ * Finds #[Action], #[Command], #[Query], #[Hook], #[Subscription] and #[PanelPoint] in the scan
+ * roots with reflection, at build time only (GUARDRAILS 2.2).
  *
  * Every .php file below a root is read for the classes it declares, and each class is loaded
  * through the autoloader, as the application loads it at run time. Roots and files are visited in
@@ -103,7 +106,7 @@ final readonly class AttributeScanner implements DeclarationScanner
             }
         }
 
-        return new Discovery($found->commands, $found->hooks, $problems, $found->queries, $found->actions, $found->subscribers);
+        return new Discovery($found->commands, $found->hooks, $problems, $found->queries, $found->actions, $found->subscribers, $found->panelPoints);
     }
 
     /**
@@ -220,6 +223,7 @@ final readonly class AttributeScanner implements DeclarationScanner
             ...$class->getAttributes(Query::class),
             ...$class->getAttributes(Hook::class),
             ...$class->getAttributes(Subscription::class),
+            ...$class->getAttributes(PanelPoint::class),
         ];
 
         if ($attributes === []) {
@@ -254,6 +258,8 @@ final readonly class AttributeScanner implements DeclarationScanner
                     $this->readSubscription($class, $root, $declaration, $found, $problems);
                 } elseif ($declaration instanceof Hook) {
                     $this->readHook($class, $root, $declaration, $found, $problems);
+                } elseif ($declaration instanceof PanelPoint) {
+                    $this->readPanelPoint($class, $root, $declaration, $found, $problems);
                 }
             } catch (UnknownSurface $unknown) {
                 $problems[] = $this->unknownSurface($class, $root, $unknown->getMessage());
@@ -302,6 +308,36 @@ final readonly class AttributeScanner implements DeclarationScanner
             $declaration->priority,
             $declaration->budgetMs,
         );
+    }
+
+    /**
+     * Reads a #[PanelPoint]: its class declares exactly one stability, #[Stable], #[Experimental]
+     * or #[Internal], which is the point's (GUARDRAILS 2.3). The contributions to the point come
+     * from the addon manifests, not from the scan.
+     *
+     * @param  ReflectionClass<object>  $class
+     * @param  list<BuildProblem>  $problems
+     */
+    private function readPanelPoint(ReflectionClass $class, ScanRoot $root, PanelPoint $declaration, ScanFindings $found, array &$problems): void
+    {
+        $declared = array_values(array_filter(
+            PointStability::cases(),
+            static fn (PointStability $stability): bool => $class->getAttributes($stability->attribute()) !== [],
+        ));
+
+        if (count($declared) !== 1) {
+            $problems[] = new BuildProblem(BuildErrorCode::PanelPointWithoutStability, sprintf(
+                'The panel point %s on %s (%s) declares %s. Its class carries exactly one of #[Stable], #[Experimental] and #[Internal], which is the point\'s stability (GUARDRAILS 2.3).',
+                $declaration->id()->toString(),
+                $class->getName(),
+                $root->package,
+                $declared === [] ? 'no stability' : implode(' and ', array_map(static fn (PointStability $stability): string => $stability->value, $declared)),
+            ));
+
+            return;
+        }
+
+        $found->panelPoints[] = new PanelPointEntry($declaration, $class->getName(), $root->package, $declared[0]);
     }
 
     /**
@@ -456,9 +492,10 @@ final readonly class AttributeScanner implements DeclarationScanner
     }
 
     /**
-     * Reports a #[Command], #[Query], #[Action] or #[Subscription] class that is not a final
-     * readonly class (GUARDRAILS 2.1): a command or query must not change after the pipeline has
-     * authorized and validated it, and an action or a subscriber holds no state between calls. The class's entries are still read,
+     * Reports a #[Command], #[Query], #[Action], #[Subscription] or #[PanelPoint] class that is not
+     * a final readonly class (GUARDRAILS 2.1): a command or query must not change after the
+     * pipeline has authorized and validated it, an action or a subscriber holds no state between
+     * calls, and a panel point's props are frozen once the host hands them out. The class's entries are still read,
      * so a hook or an action for the command does not also fail as one for an unknown command.
      *
      * @param  ReflectionClass<object>  $class
@@ -471,6 +508,7 @@ final readonly class AttributeScanner implements DeclarationScanner
             ...$class->getAttributes(Query::class),
             ...$class->getAttributes(Action::class),
             ...$class->getAttributes(Subscription::class),
+            ...$class->getAttributes(PanelPoint::class),
         ];
 
         if ($shaped === [] || ($class->isFinal() && $class->isReadOnly())) {
@@ -482,7 +520,7 @@ final readonly class AttributeScanner implements DeclarationScanner
         )));
 
         $problems[] = new BuildProblem(BuildErrorCode::NotFinalReadonly, sprintf(
-            '#[%s] on %s (%s) is %s. A command, query, action or subscriber is a final readonly class (GUARDRAILS 2.1). Declare it as final readonly class %s.',
+            '#[%s] on %s (%s) is %s. A command, query, action, subscriber or panel point props class is a final readonly class (GUARDRAILS 2.1). Declare it as final readonly class %s.',
             $this->shortName($shaped[0]),
             $class->getName(),
             $root->package,

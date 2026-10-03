@@ -218,6 +218,19 @@ it('reports an undocumented #[Command] class, #[Internal] or not, and an undocum
     ]);
 });
 
+it('reports an undocumented #[PanelPoint] class, and leaves an #[Internal] one out', function (): void {
+    $root = docsTree();
+    $imports = "use Cbox\\Cms\\Contracts\\Attributes\\{Experimental, Internal};\nuse Cbox\\Cms\\Contracts\\PanelPoints\\PanelPoint;\nuse Cbox\\Cms\\Contracts\\PanelPoints as Panel;\n\n";
+    docsWrite($root, 'packages/panel/src/Points/GreetingSectionsV1.php', docsPhp('Cbox\Cms\Panel\Points', "#[Experimental]\n#[PanelPoint(name: 'greeting.sections', version: 1, kind: Panel\\PointKind::Slot, page: 'greeting', since: '1.0', label: 'panel.points.greeting', region: Panel\\Region::Sections)]\nfinal readonly class GreetingSectionsV1 {}", $imports));
+    docsWrite($root, 'packages/panel/src/Points/GreetingToolbarV1.php', docsPhp('Cbox\Cms\Panel\Points', "#[Panel\\PanelPoint(name: 'greeting.toolbar', version: 1, kind: Panel\\PointKind::Slot, page: 'greeting', since: '1.0', label: 'panel.points.toolbar', region: Panel\\Region::Toolbar)]\n#[Experimental]\nfinal readonly class GreetingToolbarV1 {}", $imports));
+    docsWrite($root, 'packages/panel/src/Points/GreetingWiringV1.php', docsPhp('Cbox\Cms\Panel\Points', "#[Internal]\n#[PanelPoint(name: 'greeting.wiring', version: 1, kind: Panel\\PointKind::Observer, page: 'greeting', since: '1.0', label: 'panel.points.wiring')]\nfinal readonly class GreetingWiringV1 {}", $imports));
+
+    expect(docsFindings($root))->toBe([
+        'Cbox\Cms\Panel\Points\GreetingSectionsV1: undocumented',
+        'Cbox\Cms\Panel\Points\GreetingToolbarV1: undocumented',
+    ]);
+});
+
 it('reports an undocumented schema', function (): void {
     $root = docsTree();
     docsWrite($root, 'packages/contracts/resources/schemas/greeting.v1.json', "{}\n");
@@ -241,7 +254,7 @@ it('reports a page that names an unknown extension point, and one that names an 
     docsWrite($root, DOCS_GREETER_PAGE, docsPage('Cbox\Cms\Contracts\Greeter', "<!-- extension-point: Cbox\\Cms\\Contracts\\Gone -->\n<!-- extension-point: Cbox\\Cms\\Core\\Greeting\\Domain\\Salute -->\n", docsEmbed('example', DOCS_GREETER_EXAMPLE, DOCS_GREETER_TEST)));
 
     expect(docsFindings($root, [new Exclusion('Cbox\Cms\Core\Greeting\Domain\Salute', 'a union that nothing implements')]))->toBe([
-        'docs/addons/greeter.md:13: names Cbox\Cms\Contracts\Gone as an extension point, but the inventory has no such interface, attribute class, trait, #[Command] or #[Hook] class or schema that is not #[Internal]',
+        'docs/addons/greeter.md:13: names Cbox\Cms\Contracts\Gone as an extension point, but the inventory has no such interface, attribute class, trait, #[Command], #[Hook] or #[PanelPoint] class or schema that is not #[Internal]',
         'docs/addons/greeter.md:14: names Cbox\Cms\Core\Greeting\Domain\Salute as an extension point, but the inventory excludes it: a union that nothing implements',
     ]);
 });
@@ -426,7 +439,7 @@ it('reports an exclusion without a reason, which excludes nothing', function ():
 
 it('reports a stale exclusion', function (): void {
     expect(docsFindings(docsTree(), [new Exclusion('Cbox\Cms\Contracts\Gone', 'a union that nothing implements')]))->toBe([
-        'Cbox\Cms\Contracts\Gone: excluded from the inventory of extension points, but packages/*/src and packages/*/resources/schemas have no such interface, attribute class, trait, #[Command] or #[Hook] class or schema that is not #[Internal]; remove the stale exclusion',
+        'Cbox\Cms\Contracts\Gone: excluded from the inventory of extension points, but packages/*/src and packages/*/resources/schemas have no such interface, attribute class, trait, #[Command], #[Hook] or #[PanelPoint] class or schema that is not #[Internal]; remove the stale exclusion',
     ]);
 });
 

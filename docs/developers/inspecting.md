@@ -1,12 +1,12 @@
 ---
 title: Inspecting the installation
 weight: 29
-description: List every action with cms:actions, print the hooks that run for a command in their order with cms:hooks, and see why a page looks as it does with cms:explain.
+description: List every action with cms:actions, print the hooks that run for a command in their order with cms:hooks, see why a page looks as it does with cms:explain, and list the panel's extension points and their contributions with cms:panel:points and cms:panel:fills.
 ---
 
 # Inspecting the installation
 
-Three commands answer the questions a developer asks first when something does not behave as expected. Each reads what the kernel itself runs, so what they print is what happens: the actions and hooks come from the registry `cms:build` compiled to `bootstrap/cache/cms/`, and the explanation of a page is the one `path.resolve` returns when it resolves the page. Each takes `--json` and prints one JSON document instead of lines.
+These commands answer the questions a developer asks first when something does not behave as expected. Each reads what the kernel itself runs, so what they print is what happens: the actions, hooks and panel points come from the registry `cms:build` compiled to `bootstrap/cache/cms/`, and the explanation of a page is the one `path.resolve` returns when it resolves the page. Each takes `--json` and prints one JSON document instead of lines.
 
 In the development environment, run them in the php container, such as `docker compose exec php vendor/bin/testbench cms:actions`, after `composer dev:prepare`.
 
@@ -48,12 +48,30 @@ An answered read exits 0, whether the page resolves or not, because the explanat
 
 A read the pipeline rejects exits with the error catalog's exit code of its first error, such as 77 for `unauthorized`, and prints the problem details with `--json`.
 
+## cms:panel:points
+
+`cms:panel:points [selector]` lists the panel's extension points (PRD 13.4), each declared with [`#[PanelPoint]`](../addons/panel-points.md), sorted by name and then version. Without a selector it lists every point. A selector with a version, such as `account.me.sections@1`, selects that point; one without, such as `account.me`, selects the versions of the point with that name and every point the page with that name renders. For each point it prints:
+
+- its id, kind, region, how many contributions the panel renders, and for a replacement whose keys an addon may replace and what a key is, and for a decorator the props it may tighten;
+- the page that renders it, its stability, the panel API release it arrived in and the number of contributions to it;
+- its props class with its package, and the translation key of its label.
+
+With `--json`, the document is `{"points": [...], "version": 1}`, with keys sorted. Each point has `id`, `kind`, `page`, `region`, `multiplicity`, `max`, `ownership`, `keyed_by`, `tightens`, `stability`, `since`, `label`, `class`, `package` and `fills`, the number of contributions; a key that does not apply to the point's kind is null, or an empty list for `tightens`.
+
+## cms:panel:fills
+
+`cms:panel:fills <point>`, such as `cms:panel:fills account.me.sections@1`, lists the contributions to a point in the order the panel renders them: priority with the lowest first, then the addon's namespace, then the contribution's id. Each line gives the contribution's id, its priority, its package and addon, and the scope it is narrowed to: pages, command forms, types, field types and the permission a viewer must hold. Contributions come from the addon manifests.
+
+With `--json`, the document is `{"fills": [...], "point": "<id>", "version": 1}`, each contribution with `contribution`, `addon`, `package`, `priority` and `scope`, which has `pages`, `commands`, `types`, `field_types` and `requires`.
+
+A selector or id that names no point of the registry exits 64 and names the registered points.
+
 ## Exit codes
 
 | Code | When |
 |---|---|
 | 0 | the command printed what it was asked for |
-| 64 | wrong arguments: a name that is not a registered command's, a URL or locale `path.resolve` does not take |
+| 64 | wrong arguments: a name that is not a registered command's, a URL or locale `path.resolve` does not take, a panel point or page the registry does not hold |
 | 78 | the registry cache is missing or damaged (`registry_cache_missing`, `registry_cache_malformed`); run `cms:build` |
 
 A read that `cms:explain` makes and the pipeline rejects exits with the catalog's code for its error, as listed in the [error reference](../reference/errors.md).

@@ -12,6 +12,7 @@ use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredAction;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredHook;
 use Cbox\Cms\Core\Registry\Domain\Dto\Discovery;
+use Cbox\Cms\Core\Registry\Domain\Dto\PanelPointEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\QueryEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\ScanRoots;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
@@ -48,6 +49,7 @@ final class FakeDeclarationScanner implements DeclarationScanner
         $queries = [];
         $actions = [];
         $subscribers = [];
+        $panelPoints = [];
         $problems = [];
 
         /** @var array<string, ScanRoot> $unique */
@@ -123,10 +125,16 @@ final class FakeDeclarationScanner implements DeclarationScanner
                 }
             }
 
+            foreach ($found->panelPoints as $point) {
+                if ($owners[strtolower($point->class)] === $root) {
+                    $panelPoints[] = new PanelPointEntry($point->declaration, $point->class, $package, $point->stability, $point->fills);
+                }
+            }
+
             array_push($problems, ...$found->problems);
         }
 
-        return new Discovery($commands, $hooks, $problems, $queries, $actions, $subscribers);
+        return new Discovery($commands, $hooks, $problems, $queries, $actions, $subscribers, $panelPoints);
     }
 
     /**
@@ -142,6 +150,7 @@ final class FakeDeclarationScanner implements DeclarationScanner
             ...array_map(static fn (QueryEntry $query): string => $query->class, $found->queries),
             ...array_map(static fn (DiscoveredAction $action): string => $action->class, $found->actions),
             ...array_map(static fn (SubscriberEntry $subscriber): string => $subscriber->class, $found->subscribers),
+            ...array_map(static fn (PanelPointEntry $point): string => $point->class, $found->panelPoints),
         ];
 
         return array_values(array_unique($classes));

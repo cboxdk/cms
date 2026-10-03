@@ -76,7 +76,7 @@ final readonly class DocsAudit
                 } elseif (array_key_exists($marker->target, $inventory->excluded)) {
                     $findings[] = Finding::at($page->path, $marker->line, "names {$marker->target} as an extension point, but the inventory excludes it: {$inventory->excluded[$marker->target]}");
                 } else {
-                    $findings[] = Finding::at($page->path, $marker->line, "names {$marker->target} as an extension point, but the inventory has no such interface, attribute class, trait, #[Command] or #[Hook] class or schema that is not #[Internal]");
+                    $findings[] = Finding::at($page->path, $marker->line, "names {$marker->target} as an extension point, but the inventory has no such interface, attribute class, trait, #[Command], #[Hook] or #[PanelPoint] class or schema that is not #[Internal]");
                 }
             }
 

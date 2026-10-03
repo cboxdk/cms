@@ -18,6 +18,19 @@ use Cbox\Cms\Contracts\Events\InvalidEvent;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\InvalidCommandName;
+use Cbox\Cms\Contracts\PanelPoints\CommandRef;
+use Cbox\Cms\Contracts\PanelPoints\ContributionId;
+use Cbox\Cms\Contracts\PanelPoints\InvalidPanelPoint;
+use Cbox\Cms\Contracts\PanelPoints\Multiplicity;
+use Cbox\Cms\Contracts\PanelPoints\Ownership;
+use Cbox\Cms\Contracts\PanelPoints\PageName;
+use Cbox\Cms\Contracts\PanelPoints\PanelPoint;
+use Cbox\Cms\Contracts\PanelPoints\PointId;
+use Cbox\Cms\Contracts\PanelPoints\PointKind;
+use Cbox\Cms\Contracts\PanelPoints\Region;
+use Cbox\Cms\Contracts\PanelPoints\ReplacementKey;
+use Cbox\Cms\Contracts\PanelPoints\Scope;
+use Cbox\Cms\Contracts\PanelPoints\Tighten;
 use Cbox\Cms\Contracts\Schema\InvalidTypeDefinition;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Contracts\Subscribers\InvalidSubscriptionName;
@@ -28,19 +41,22 @@ use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Dto\HookEntry;
+use Cbox\Cms\Core\Registry\Domain\Dto\PanelFill;
+use Cbox\Cms\Core\Registry\Domain\Dto\PanelPointEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\RestRoute;
 use Cbox\Cms\Core\Registry\Domain\Dto\SchemaEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscribedEvent;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
 use Cbox\Cms\Core\Registry\Domain\InvalidRegistryEntry;
 use Cbox\Cms\Core\Registry\Domain\MalformedRegistryCache;
+use Cbox\Cms\Core\Registry\Domain\PointStability;
 use Cbox\Cms\Core\Registry\Domain\RegistryName;
 use LogicException;
 
 /**
- * The registry cache files of format 8, in both directions (PRD 13.2).
+ * The registry cache files of format 9, in both directions (PRD 13.2).
  *
- * A file is PHP that returns ['build' => '<sha256>', 'entries' => [...], 'format' => 8,
+ * A file is PHP that returns ['build' => '<sha256>', 'entries' => [...], 'format' => 9,
  * 'registry' => '<name>']. The keys of every array are written in alphabetical order, lists keep
  * the compiled order, and nothing depends on the time or the machine, so the same registry always
  * gives the same bytes. Reading checks every key and type and builds the typed entries; anything
@@ -54,7 +70,7 @@ use LogicException;
 #[Internal]
 final readonly class RegistryCacheCodec
 {
-    public const int FORMAT = 8;
+    public const int FORMAT = 9;
 
     private const string HEADER = <<<'PHP'
         <?php
@@ -144,6 +160,34 @@ final readonly class RegistryCacheCodec
                 'priority' => $hook->priority,
                 'reads' => $hook->reads?->value,
             ], $registry->hooks),
+            RegistryName::Panel->value => array_map(static fn (PanelPointEntry $point): array => [
+                'class' => $point->class,
+                'fills' => array_map(static fn (PanelFill $fill): array => [
+                    'contribution' => $fill->contribution->value,
+                    'package' => $fill->package,
+                    'priority' => $fill->priority,
+                    'scope' => [
+                        'commands' => array_map(static fn (CommandRef $command): string => $command->toString(), $fill->scope->commands),
+                        'field_types' => $fill->scope->fieldTypes,
+                        'pages' => array_map(static fn (PageName $page): string => $page->value, $fill->scope->pages),
+                        'requires' => $fill->scope->requires?->value,
+                        'types' => array_map(static fn (TypeName $type): string => $type->value, $fill->scope->types),
+                    ],
+                ], $point->fills),
+                'id' => $point->id()->toString(),
+                'keyed_by' => $point->declaration->keyedBy?->value,
+                'kind' => $point->declaration->kind->value,
+                'label' => $point->declaration->label,
+                'max' => $point->declaration->max,
+                'multiplicity' => $point->declaration->multiplicity->value,
+                'ownership' => $point->declaration->ownership?->value,
+                'package' => $point->package,
+                'page' => $point->declaration->page,
+                'region' => $point->declaration->region?->value,
+                'since' => $point->declaration->since,
+                'stability' => $point->stability->value,
+                'tightens' => array_map(static fn (Tighten $tighten): string => $tighten->value, $point->declaration->tightens),
+            ], $registry->panel),
             RegistryName::Rest->value => array_map(static fn (RestRoute $route): array => [
                 'kind' => $route->kind->value,
                 'method' => $route->method->value,
@@ -382,13 +426,142 @@ final readonly class RegistryCacheCodec
             ));
         }
 
-        $registry = new CompiledRegistry($commands, $hooks, $actions, $subscribers, $schema, $rest);
+        $panel = [];
+
+        foreach ($entries[RegistryName::Panel->value] as $index => $entry) {
+            $panel[] = $this->panelPoint($entry, $directory.'/'.RegistryName::Panel->fileName(), sprintf('entries[%d]', $index));
+        }
+
+        $registry = new CompiledRegistry($commands, $hooks, $actions, $subscribers, $schema, $rest, $panel);
 
         if ($this->build($this->entries($registry)) !== $first[1]) {
             throw MalformedRegistryCache::at($directory.'/'.$first[0]->fileName(), 'build', 'the build does not match the entries of the registry files, so they were changed after cms:build wrote them');
         }
 
         return $registry;
+    }
+
+    /**
+     * @throws MalformedRegistryCache
+     */
+    private function panelPoint(mixed $entry, string $path, string $at): PanelPointEntry
+    {
+        $data = $this->map($entry, $path, $at, ['class', 'fills', 'id', 'keyed_by', 'kind', 'label', 'max', 'multiplicity', 'ownership', 'package', 'page', 'region', 'since', 'stability', 'tightens']);
+        $id = $this->panel($path, $at.'.id', fn (): PointId => PointId::fromString($this->string($data['id'], $path, $at.'.id')));
+        $kind = $this->enum(PointKind::class, $data['kind'], $path, $at.'.kind', 'panel point kind');
+        $multiplicity = $this->enum(Multiplicity::class, $data['multiplicity'], $path, $at.'.multiplicity', 'multiplicity');
+        $stability = $this->enum(PointStability::class, $data['stability'], $path, $at.'.stability', 'stability');
+        $region = $data['region'] === null ? null : $this->enum(Region::class, $data['region'], $path, $at.'.region', 'region');
+        $ownership = $data['ownership'] === null ? null : $this->enum(Ownership::class, $data['ownership'], $path, $at.'.ownership', 'ownership');
+        $keyedBy = $data['keyed_by'] === null ? null : $this->enum(ReplacementKey::class, $data['keyed_by'], $path, $at.'.keyed_by', 'replacement key');
+        $max = $data['max'] === null ? null : $this->int($data['max'], $path, $at.'.max');
+        $tightens = [];
+
+        foreach ($this->list($data['tightens'], $path, $at.'.tightens') as $position => $tighten) {
+            $tightens[] = $this->enum(Tighten::class, $tighten, $path, sprintf('%s.tightens[%d]', $at, $position), 'tightening prop');
+        }
+
+        $declaration = $this->panel($path, $at, fn (): PanelPoint => new PanelPoint(
+            $id->name->value,
+            $id->version,
+            $kind,
+            $this->string($data['page'], $path, $at.'.page'),
+            $this->string($data['since'], $path, $at.'.since'),
+            $this->string($data['label'], $path, $at.'.label'),
+            $region,
+            $multiplicity,
+            $max,
+            $ownership,
+            $keyedBy,
+            $tightens,
+        ));
+        $fills = [];
+
+        foreach ($this->list($data['fills'], $path, $at.'.fills') as $position => $fill) {
+            $fills[] = $this->panelFill($fill, $path, sprintf('%s.fills[%d]', $at, $position));
+        }
+
+        return $this->entry($path, $at, fn (): PanelPointEntry => new PanelPointEntry(
+            $declaration,
+            $this->string($data['class'], $path, $at.'.class'),
+            $this->string($data['package'], $path, $at.'.package'),
+            $stability,
+            $fills,
+        ));
+    }
+
+    /**
+     * @throws MalformedRegistryCache
+     */
+    private function panelFill(mixed $fill, string $path, string $at): PanelFill
+    {
+        $data = $this->map($fill, $path, $at, ['contribution', 'package', 'priority', 'scope']);
+        $scope = $this->map($data['scope'], $path, $at.'.scope', ['commands', 'field_types', 'pages', 'requires', 'types']);
+        $contribution = $this->panel($path, $at.'.contribution', fn (): ContributionId => new ContributionId($this->string($data['contribution'], $path, $at.'.contribution')));
+        $commands = [];
+        $pages = [];
+        $fieldTypes = [];
+
+        foreach ($this->list($scope['commands'], $path, $at.'.scope.commands') as $position => $command) {
+            $commandAt = sprintf('%s.scope.commands[%d]', $at, $position);
+            $commands[] = $this->panel($path, $commandAt, fn (): CommandRef => CommandRef::fromString($this->string($command, $path, $commandAt)));
+        }
+
+        foreach ($this->list($scope['pages'], $path, $at.'.scope.pages') as $position => $page) {
+            $pageAt = sprintf('%s.scope.pages[%d]', $at, $position);
+            $pages[] = $this->panel($path, $pageAt, fn (): PageName => new PageName($this->string($page, $path, $pageAt)));
+        }
+
+        foreach ($this->list($scope['field_types'], $path, $at.'.scope.field_types') as $position => $fieldType) {
+            $fieldTypes[] = $this->string($fieldType, $path, sprintf('%s.scope.field_types[%d]', $at, $position));
+        }
+
+        $types = $this->typeNames($scope['types'], $path, $at.'.scope.types');
+        $requires = $scope['requires'] === null ? null : $this->commandName($scope['requires'], $path, $at.'.scope.requires');
+        $priority = $this->int($data['priority'], $path, $at.'.priority');
+
+        return $this->entry($path, $at, fn (): PanelFill => new PanelFill(
+            $contribution,
+            $this->string($data['package'], $path, $at.'.package'),
+            $priority,
+            $this->panel($path, $at.'.scope', static fn (): Scope => new Scope($pages, $commands, $types, $fieldTypes, $requires)),
+        ));
+    }
+
+    /**
+     * A value of the panel registry, whose value objects refuse a value with InvalidPanelPoint.
+     *
+     * @template T of object
+     *
+     * @param  callable(): T  $build
+     * @return T
+     *
+     * @throws MalformedRegistryCache
+     */
+    private function panel(string $path, string $at, callable $build): object
+    {
+        try {
+            return $build();
+        } catch (InvalidPanelPoint $invalid) {
+            throw MalformedRegistryCache::at($path, $at, rtrim($invalid->getMessage(), '.'), $invalid);
+        }
+    }
+
+    /**
+     * The case of a string-backed enum that a string of the cache names.
+     *
+     * @template T of \BackedEnum
+     *
+     * @param  class-string<T>  $enum
+     * @return T
+     *
+     * @throws MalformedRegistryCache
+     */
+    private function enum(string $enum, mixed $value, string $path, string $at, string $what): object
+    {
+        $text = $this->string($value, $path, $at);
+
+        return $enum::tryFrom($text) ?? throw MalformedRegistryCache::at($path, $at, sprintf('"%s" is not a %s', $text, $what));
     }
 
     /**

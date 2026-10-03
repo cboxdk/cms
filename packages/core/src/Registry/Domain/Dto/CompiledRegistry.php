@@ -7,6 +7,8 @@ namespace Cbox\Cms\Core\Registry\Domain\Dto;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\PanelPoints\PageName;
+use Cbox\Cms\Contracts\PanelPoints\PointId;
 use Cbox\Cms\Core\Registry\Domain\RegistryName;
 
 /**
@@ -19,7 +21,8 @@ use Cbox\Cms\Core\Registry\Domain\RegistryName;
  * by the addon's namespace.
  *
  * The REST routes are compiled from the actions exposed on REST (RestRoute::of()), in the order of
- * the actions.
+ * the actions. The panel points are sorted by name, then version, each with its contributions in
+ * render order.
  *
  * The registry answers which subscribers receive an event class and which projections they
  * acknowledge, so the kernel can list on a changeset's receipt each projection its events affect
@@ -44,6 +47,7 @@ final readonly class CompiledRegistry
      * @param  list<SubscriberEntry>  $subscribers
      * @param  list<SchemaEntry>  $schema
      * @param  list<RestRoute>  $rest
+     * @param  list<PanelPointEntry>  $panel
      */
     public function __construct(
         public array $commands,
@@ -52,6 +56,7 @@ final readonly class CompiledRegistry
         public array $subscribers = [],
         public array $schema = [],
         public array $rest = [],
+        public array $panel = [],
     ) {
         $byCommand = [];
         $byClass = [];
@@ -89,7 +94,32 @@ final readonly class CompiledRegistry
             RegistryName::Rest => count($this->rest),
             RegistryName::Schema => count($this->schema),
             RegistryName::Subscribers => count($this->subscribers),
+            RegistryName::Panel => count($this->panel),
         };
+    }
+
+    /**
+     * The panel point with an id, or null when no class declares it.
+     */
+    public function panelPoint(PointId $id): ?PanelPointEntry
+    {
+        foreach ($this->panel as $point) {
+            if ($point->id()->equals($id)) {
+                return $point;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The panel points a page renders, in registry order.
+     *
+     * @return list<PanelPointEntry>
+     */
+    public function panelPointsOf(PageName $page): array
+    {
+        return array_values(array_filter($this->panel, static fn (PanelPointEntry $point): bool => $point->page()->equals($page)));
     }
 
     /**
