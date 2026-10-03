@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Panel\Boundary;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Identity\Login\Boundary\LoginInput;
 use Cbox\Cms\Identity\Login\Domain\Dto\LocalLoginRequest;
 use Cbox\Cms\Identity\Login\Domain\Dto\LoginOutcome;
 use Cbox\Cms\Identity\Login\Domain\LoginField;
@@ -18,8 +19,8 @@ use Illuminate\Support\ViewErrorBag;
 
 /**
  * The panel's login form (PRD 5.16): reads what it posted, the fields EMAIL and PASSWORD, the
- * client's IP address and the session the browser still carries, into a LocalLoginRequest, and
- * answers how the login ended.
+ * client's IP address and the session the browser still carries, parsed by the identity module's
+ * LoginInput into a LocalLoginRequest, and answers how the login ended.
  *
  * A login that issued a session is answered by PanelSessions::start(). A refusal goes back to the
  * login page with the catalog code in Inertia's errors prop: under the form's field when the
@@ -44,13 +45,10 @@ final readonly class LoginForm
 
     public function attempt(Request $request): LocalLoginRequest
     {
-        $email = $request->input(self::EMAIL);
-        $password = $request->input(self::PASSWORD);
-
         return new LocalLoginRequest(
-            is_string($email) ? $email : '',
-            is_string($password) ? $password : '',
-            (string) $request->ip(),
+            LoginInput::login($request->input(self::EMAIL)),
+            LoginInput::password($request->input(self::PASSWORD)),
+            LoginInput::address($request->ip()),
             $this->sessions->carried($request),
         );
     }

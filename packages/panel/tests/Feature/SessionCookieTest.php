@@ -8,6 +8,8 @@ use Cbox\Cms\Contracts\Identity\Actor;
 use Cbox\Cms\Contracts\Identity\ActorState;
 use Cbox\Cms\Contracts\Identity\SessionToken;
 use Cbox\Cms\Contracts\Identity\TransportCredential;
+use Cbox\Cms\Identity\Login\Boundary\LoginInput;
+use Cbox\Cms\Identity\Login\Domain\ClientAddress;
 use Cbox\Cms\Identity\Login\Domain\Dto\LocalLoginRequest;
 use Cbox\Cms\Identity\Sessions\Boundary\SessionCookieConfig;
 use Cbox\Cms\Identity\Sessions\Domain\Dto\SessionCookie;
@@ -62,7 +64,7 @@ final class SessionCookieTest extends TestCase
         $page = $this->visitLogin();
         $laravelBefore = $this->laravelSessionId($page);
         $tokenBefore = $this->csrf();
-        $planted = $this->logins()->action()->login(new LocalLoginRequest(self::EMAIL, $this->password(), '192.0.2.99'))->session;
+        $planted = $this->logins()->action()->login(new LocalLoginRequest(LoginInput::login(self::EMAIL), LoginInput::password($this->password()), new ClientAddress('192.0.2.99')))->session;
         self::assertNotNull($planted);
 
         $response = $this->logIn(self::EMAIL, $this->password(), $planted->token->credential()->reveal());

@@ -14,10 +14,15 @@ use Cbox\Cms\Contracts\Identity\Login\Issuer;
 use Cbox\Cms\Contracts\Identity\Login\Subject;
 use Cbox\Cms\Contracts\Identity\LoginIdentifier;
 use Cbox\Cms\Contracts\Identity\Password;
+use Cbox\Cms\Contracts\Identity\PasswordResetToken;
 use Cbox\Cms\Contracts\Identity\Principal;
 use Cbox\Cms\Contracts\Identity\TransportCredential;
 use Cbox\Cms\Contracts\Ids\ActorId;
+use Cbox\Cms\Identity\Login\Boundary\LoginInput;
+use Cbox\Cms\Identity\Login\Domain\ClientAddress;
 use Cbox\Cms\Identity\Login\Domain\Dto\LocalLoginRequest;
+use Cbox\Cms\Identity\Login\Domain\Dto\LoginThrottleKeys;
+use Cbox\Cms\Identity\Login\Domain\ThrottleScope;
 use Cbox\Cms\Identity\LoginPolicy\Domain\LoginMethod;
 use Cbox\Cms\Identity\PasswordReset\Actions\RequestPasswordReset;
 use Cbox\Cms\Identity\PasswordReset\Actions\ResetPassword;
@@ -50,7 +55,7 @@ const RESET_IP = '192.0.2.20';
 
 function resetRequest(string $email = RESET_EMAIL): ResetRequest
 {
-    return new ResetRequest($email, RESET_IP);
+    return new ResetRequest(LoginInput::login($email), new ClientAddress(RESET_IP));
 }
 
 /**
@@ -63,7 +68,7 @@ function passwordIs(PasswordResetWorld $world, ActorId $actor, string $password)
 
 function newPassword(string $token, string $password = PasswordResetWorld::NEW_PASSWORD, ?TransportCredential $previous = null): PasswordResetSubmission
 {
-    return new PasswordResetSubmission($token, $password, $previous);
+    return new PasswordResetSubmission(PasswordResetToken::parse($token), LoginInput::password($password), $previous);
 }
 
 it('mails a link only for a known local account whose actor is active, and answers every request the same', function (): void {
@@ -97,6 +102,18 @@ it('refuses an email left empty with validation_required and counts no request',
         ->and($world->login->telemetry->counted(RequestPasswordReset::REQUESTS))->toBe(0);
 });
 
+it('sends nothing for a request without a client address, counts no throttle attempt and answers the same', function (): void {
+    $world = new PasswordResetWorld;
+    $world->login->person(RESET_EMAIL);
+
+    $outcome = $world->request()->request(new ResetRequest(LoginInput::login(RESET_EMAIL), null));
+
+    expect($outcome->taken)->toBeTrue()
+        ->and($world->mail->sent())->toBe([])
+        ->and($world->throttle->count(ThrottleScope::Identifier, LoginThrottleKeys::of(new LoginIdentifier(RESET_EMAIL), new ClientAddress(RESET_IP))))->toBe(0)
+        ->and($world->login->telemetry->counted(RequestPasswordReset::REQUESTS))->toBe(1);
+});
+
 it('sends nothing above the limit of requests for one email, and answers the same', function (): void {
     $world = new PasswordResetWorld;
     $world->login->person(RESET_EMAIL);
@@ -119,8 +136,8 @@ it('answers the same when the mail transport does not take the mail', function (
 it('sets the password with a token once, ends every session of the actor and logs in with a new session', function (): void {
     $world = new PasswordResetWorld;
     $actor = $world->login->person(RESET_EMAIL);
-    $first = $world->login->action()->login(new LocalLoginRequest(RESET_EMAIL, LocalLoginWorld::PASSWORD, RESET_IP))->session;
-    $second = $world->login->action()->login(new LocalLoginRequest(RESET_EMAIL, LocalLoginWorld::PASSWORD, '198.51.100.7'))->session;
+    $first = $world->login->action()->login(new LocalLoginRequest(LoginInput::login(RESET_EMAIL), LoginInput::password(LocalLoginWorld::PASSWORD), new ClientAddress(RESET_IP)))->session;
+    $second = $world->login->action()->login(new LocalLoginRequest(LoginInput::login(RESET_EMAIL), LoginInput::password(LocalLoginWorld::PASSWORD), new ClientAddress('198.51.100.7')))->session;
     $world->request()->request(resetRequest());
     $token = $world->mailedToken();
     $world->login->clock->advance(new DateInterval('PT10M'));
@@ -142,8 +159,8 @@ it('sets the password with a token once, ends every session of the actor and log
     $principal = $world->login->verifier()->verify($outcome->session?->token->credential());
 
     expect($principal instanceof ActorPrincipal && $principal->actor->equals($actor->id))->toBeTrue()
-        ->and($world->login->action()->login(new LocalLoginRequest(RESET_EMAIL, PasswordResetWorld::NEW_PASSWORD, RESET_IP))->session)->not->toBeNull()
-        ->and($world->login->action()->login(new LocalLoginRequest(RESET_EMAIL, LocalLoginWorld::PASSWORD, RESET_IP))->refusal)->toBe(ErrorCode::LoginRejected);
+        ->and($world->login->action()->login(new LocalLoginRequest(LoginInput::login(RESET_EMAIL), LoginInput::password(PasswordResetWorld::NEW_PASSWORD), new ClientAddress(RESET_IP)))->session)->not->toBeNull()
+        ->and($world->login->action()->login(new LocalLoginRequest(LoginInput::login(RESET_EMAIL), LoginInput::password(LocalLoginWorld::PASSWORD), new ClientAddress(RESET_IP)))->refusal)->toBe(ErrorCode::LoginRejected);
 });
 
 it('refuses a token once it expires, with the same code as an unknown or malformed one, before it checks or hashes the password', function (): void {
@@ -202,7 +219,7 @@ it('refuses with breached_passwords_unavailable when the breach check cannot be 
 it('sets the password but logs no one in when the login policy refuses the factors a reset gives', function (): void {
     $world = new PasswordResetWorld;
     $world->login->person(RESET_EMAIL);
-    $first = $world->login->action()->login(new LocalLoginRequest(RESET_EMAIL, LocalLoginWorld::PASSWORD, RESET_IP))->session;
+    $first = $world->login->action()->login(new LocalLoginRequest(LoginInput::login(RESET_EMAIL), LoginInput::password(LocalLoginWorld::PASSWORD), new ClientAddress(RESET_IP)))->session;
     $world->request()->request(resetRequest());
     $world->login->policy = SessionWorld::policy(['staff' => ['local_factors' => 'passkey_or_two_factors']]);
 

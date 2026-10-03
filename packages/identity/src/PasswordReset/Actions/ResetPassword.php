@@ -38,12 +38,13 @@ use Cbox\Cms\Identity\Sessions\Domain\Dto\NewSession;
  * Sets a new password with the token of a reset link (PRD 5.16), the login path of the reset page.
  * In this order:
  *
- * 1. a text that is not in the form of a token, or whose checksum does not match, is refused with
- *    password_reset_token_invalid before any lookup, and so is a token the store does not hold
- *    usable, looked up without taking it, so a dead link costs no breach check and no hashing, and
- *    so is a token of an actor the login policy would not let log in by password reset
- *    (CheckLoginPolicy::admitLocal(): not active, password_reset or local login off for its class,
- *    or linked to an authoritative connection, invariant 38), which changes nothing;
+ * 1. a submission without a token, which the Boundary gives when the text is not in the form of
+ *    a token or its checksum does not match, is refused with password_reset_token_invalid before
+ *    any lookup, and so is a token the store does not hold usable, looked up without taking it, so
+ *    a dead link costs no breach check and no hashing, and so is a token of an actor the login
+ *    policy would not let log in by password reset (CheckLoginPolicy::admitLocal(): not active,
+ *    password_reset or local login off for its class, or linked to an authoritative connection,
+ *    invariant 38), which changes nothing;
  * 2. an empty password is validation_required, and one the password policy refuses is refused with
  *    its code (at least 12 characters, at most 1024 bytes, not breached); when the breach check
  *    cannot be made, breached_passwords_unavailable, and the token stays usable;
@@ -98,7 +99,7 @@ final readonly class ResetPassword
 
     private function decide(PasswordResetSubmission $submission): PasswordResetOutcome
     {
-        $token = PasswordResetToken::parse($submission->token());
+        $token = $submission->token;
 
         $actor = $token instanceof PasswordResetToken ? $this->store->resetTokenActor($token) : null;
 
@@ -106,11 +107,11 @@ final readonly class ResetPassword
             return PasswordResetOutcome::refused(ErrorCode::PasswordResetTokenInvalid);
         }
 
-        if ($submission->password() === '') {
+        $password = $submission->password;
+
+        if (! $password instanceof Password) {
             return PasswordResetOutcome::refused(ErrorCode::ValidationRequired);
         }
-
-        $password = new Password($submission->password());
 
         try {
             $this->passwords->check($password);

@@ -89,6 +89,20 @@ final class PasswordResetPagesTest extends TestCase
     }
 
     #[Test]
+    public function a_request_without_a_client_address_gets_the_same_answer_and_no_mail(): void
+    {
+        $this->get('/cms/forgot-password')->assertOk();
+        $this->withServerVariables(['REMOTE_ADDR' => '']);
+
+        $this->from('/cms/forgot-password')->post('/cms/forgot-password', [PasswordResetForms::EMAIL => self::EMAIL, '_token' => $this->csrf()])
+            ->assertStatus(PanelSessions::REDIRECT)
+            ->assertHeader('Location', '/cms/forgot-password')
+            ->assertSessionHasNoErrors();
+
+        self::assertSame([], $this->world()->mail->sent());
+    }
+
+    #[Test]
     public function an_empty_email_goes_back_with_validation_required_and_a_post_without_the_csrf_token_is_refused(): void
     {
         $this->get('/cms/forgot-password')->assertOk();

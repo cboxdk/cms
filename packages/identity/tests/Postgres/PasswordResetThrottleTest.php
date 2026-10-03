@@ -9,6 +9,8 @@ use Cbox\Cms\Contracts\Identity\LocalCredentialStore;
 use Cbox\Cms\Contracts\Identity\LoginIdentifier;
 use Cbox\Cms\Contracts\Identity\PasswordHash;
 use Cbox\Cms\Identity\Login\Adapter\ValkeyLoginThrottle;
+use Cbox\Cms\Identity\Login\Boundary\LoginInput;
+use Cbox\Cms\Identity\Login\Domain\ClientAddress;
 use Cbox\Cms\Identity\PasswordReset\Actions\RequestPasswordReset;
 use Cbox\Cms\Identity\PasswordReset\Domain\Dto\ResetRequest;
 use Cbox\Cms\Identity\Tests\LocalAccounts\PostgresLocalAccounts;
@@ -35,7 +37,7 @@ it('mails at most three links an hour for one email and counts apart from the lo
     $accounts->store()->bind($actor, new LoginIdentifier('mette.holm@example.com'), new PasswordHash('$argon2id$v=19$m=65536,t=4,p=1$c2FsdHNhbHRzYWx0c2FsdA$9bSmXR8xsVQBq0xKC6hU3nPVUbKjsr6Ln0QGqkPZ+9I'));
 
     foreach (range(1, 4) as $request) {
-        expect(app(RequestPasswordReset::class)->request(new ResetRequest('mette.holm@example.com', '192.0.2.30'))->taken)->toBeTrue();
+        expect(app(RequestPasswordReset::class)->request(new ResetRequest(LoginInput::login('mette.holm@example.com'), new ClientAddress('192.0.2.30')))->taken)->toBeTrue();
     }
 
     $transport = app(MailManager::class)->mailer()->getSymfonyTransport();

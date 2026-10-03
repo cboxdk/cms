@@ -104,6 +104,23 @@ final class LoginRateLimitTest extends TestCase
     }
 
     #[Test]
+    public function a_login_from_a_request_without_a_client_address_is_refused_unchecked_and_uncounted(): void
+    {
+        $this->visitLogin();
+        $this->withServerVariables(['REMOTE_ADDR' => '']);
+
+        $this->logIn(self::EMAIL, LocalLoginWorld::PASSWORD)
+            ->assertStatus(PanelSessions::REDIRECT)
+            ->assertHeader('Location', '/cms/login')
+            ->assertSessionHasErrors([LoginForm::FORM => 'login_rejected']);
+
+        $logins = $this->logins ?? self::fail('No logins.');
+
+        self::assertSame(0, $logins->sessions->count(), 'Without an address the login could not be counted, so it is refused.');
+        self::assertSame([], $logins->hasher->verified);
+    }
+
+    #[Test]
     public function a_login_without_the_csrf_token_is_refused(): void
     {
         $this->visitLogin();

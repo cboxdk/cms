@@ -6,6 +6,8 @@ namespace Cbox\Cms\Panel\Boundary;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
+use Cbox\Cms\Contracts\Identity\PasswordResetToken;
+use Cbox\Cms\Identity\Login\Boundary\LoginInput;
 use Cbox\Cms\Identity\PasswordReset\Domain\Dto\PasswordResetOutcome;
 use Cbox\Cms\Identity\PasswordReset\Domain\Dto\PasswordResetSubmission;
 use Cbox\Cms\Identity\PasswordReset\Domain\Dto\ResetRequest;
@@ -19,8 +21,9 @@ use Illuminate\Support\MessageBag;
 use Illuminate\Support\ViewErrorBag;
 
 /**
- * The panel's two forms of a password reset (PRD 5.16): reads what they posted and answers how the
- * identity module's actions ended.
+ * The panel's two forms of a password reset (PRD 5.16): reads what they posted into the domain's
+ * values (LoginInput, PasswordResetToken::parse()) and answers how the identity module's actions
+ * ended.
  *
  * The form that asks for a link posts EMAIL. Every request that was not empty goes back to its page
  * with REQUESTED flashed, whether a link was mailed or not; an empty email goes back with
@@ -59,9 +62,7 @@ final readonly class PasswordResetForms
 
     public function request(Request $request): ResetRequest
     {
-        $email = $request->input(self::EMAIL);
-
-        return new ResetRequest(is_string($email) ? $email : '', (string) $request->ip());
+        return new ResetRequest(LoginInput::login($request->input(self::EMAIL)), LoginInput::address($request->ip()));
     }
 
     public function requested(Request $request, ResetRequestOutcome $outcome): Response
@@ -77,9 +78,11 @@ final readonly class PasswordResetForms
 
     public function submission(Request $request): PasswordResetSubmission
     {
-        $password = $request->input(self::PASSWORD);
-
-        return new PasswordResetSubmission($this->token($request), is_string($password) ? $password : '', $this->sessions->carried($request));
+        return new PasswordResetSubmission(
+            PasswordResetToken::parse($this->token($request)),
+            LoginInput::password($request->input(self::PASSWORD)),
+            $this->sessions->carried($request),
+        );
     }
 
     public function reset(Request $request, PasswordResetOutcome $outcome): Response

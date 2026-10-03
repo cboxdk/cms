@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Identity\Tests\Login;
 
+use Cbox\Cms\Contracts\Identity\LoginIdentifier;
+use Cbox\Cms\Identity\Login\Boundary\LoginInput;
+use Cbox\Cms\Identity\Login\Domain\ClientAddress;
 use Cbox\Cms\Identity\Login\Domain\Dto\LoginThrottleKeys;
 use Cbox\Cms\Identity\Login\Domain\Dto\LoginThrottleSettings;
 use Cbox\Cms\Identity\Login\Domain\Dto\ThrottleLimit;
@@ -30,12 +33,12 @@ trait LoginThrottleBehaviour
         $throttle = $this->loginThrottle(self::settings(identifier: 3, ip: 100));
 
         foreach (range(1, 3) as $attempt) {
-            Assert::assertNull($throttle->hit(LoginThrottleKeys::of('ada@example.org', '192.0.2.1')), 'attempt '.$attempt);
+            Assert::assertNull($throttle->hit(LoginThrottleKeys::of(new LoginIdentifier('ada@example.org'), new ClientAddress('192.0.2.1'))), 'attempt '.$attempt);
         }
 
-        Assert::assertSame(ThrottleScope::Identifier, $throttle->hit(LoginThrottleKeys::of(' Ada@Example.org ', '198.51.100.7')));
-        Assert::assertSame(ThrottleScope::Identifier, $throttle->hit(LoginThrottleKeys::of('ada@example.org', '192.0.2.1')));
-        Assert::assertNull($throttle->hit(LoginThrottleKeys::of('grace@example.org', '192.0.2.1')));
+        Assert::assertSame(ThrottleScope::Identifier, $throttle->hit(LoginThrottleKeys::of(LoginInput::login(' Ada@Example.org ')->identifier ?? Assert::fail('The identifier is unreadable.'), new ClientAddress('198.51.100.7'))));
+        Assert::assertSame(ThrottleScope::Identifier, $throttle->hit(LoginThrottleKeys::of(new LoginIdentifier('ada@example.org'), new ClientAddress('192.0.2.1'))));
+        Assert::assertNull($throttle->hit(LoginThrottleKeys::of(new LoginIdentifier('grace@example.org'), new ClientAddress('192.0.2.1'))));
     }
 
     #[Test]
@@ -44,18 +47,18 @@ trait LoginThrottleBehaviour
         $throttle = $this->loginThrottle(self::settings(identifier: 5, ip: 4));
 
         foreach (['a', 'b', 'c', 'd'] as $name) {
-            Assert::assertNull($throttle->hit(LoginThrottleKeys::of($name.'@example.org', '192.0.2.1')));
+            Assert::assertNull($throttle->hit(LoginThrottleKeys::of(new LoginIdentifier($name.'@example.org'), new ClientAddress('192.0.2.1'))));
         }
 
-        Assert::assertSame(ThrottleScope::Ip, $throttle->hit(LoginThrottleKeys::of('e@example.org', '192.0.2.1')));
-        Assert::assertNull($throttle->hit(LoginThrottleKeys::of('e@example.org', '192.0.2.2')));
+        Assert::assertSame(ThrottleScope::Ip, $throttle->hit(LoginThrottleKeys::of(new LoginIdentifier('e@example.org'), new ClientAddress('192.0.2.1'))));
+        Assert::assertNull($throttle->hit(LoginThrottleKeys::of(new LoginIdentifier('e@example.org'), new ClientAddress('192.0.2.2'))));
     }
 
     #[Test]
     public function a_login_that_succeeds_clears_its_identifier_and_takes_itself_off_its_address(): void
     {
         $throttle = $this->loginThrottle(self::settings(identifier: 2, ip: 3));
-        $ada = LoginThrottleKeys::of('ada@example.org', '192.0.2.1');
+        $ada = LoginThrottleKeys::of(new LoginIdentifier('ada@example.org'), new ClientAddress('192.0.2.1'));
 
         Assert::assertNull($throttle->hit($ada));
         Assert::assertNull($throttle->hit($ada));
@@ -67,8 +70,8 @@ trait LoginThrottleBehaviour
 
         // On another address: without the success taken off it, grace's second attempt would be
         // the address's fourth.
-        $lin = LoginThrottleKeys::of('lin@example.org', '192.0.2.9');
-        $grace = LoginThrottleKeys::of('grace@example.org', '192.0.2.9');
+        $lin = LoginThrottleKeys::of(new LoginIdentifier('lin@example.org'), new ClientAddress('192.0.2.9'));
+        $grace = LoginThrottleKeys::of(new LoginIdentifier('grace@example.org'), new ClientAddress('192.0.2.9'));
 
         Assert::assertNull($throttle->hit($lin));
         Assert::assertNull($throttle->hit($lin));
@@ -77,14 +80,14 @@ trait LoginThrottleBehaviour
         Assert::assertNull($throttle->hit($grace));
         Assert::assertNull($throttle->hit($grace));
         Assert::assertSame(ThrottleScope::Identifier, $throttle->hit($grace));
-        Assert::assertSame(ThrottleScope::Ip, $throttle->hit(LoginThrottleKeys::of('carol@example.org', '192.0.2.9')));
+        Assert::assertSame(ThrottleScope::Ip, $throttle->hit(LoginThrottleKeys::of(new LoginIdentifier('carol@example.org'), new ClientAddress('192.0.2.9'))));
     }
 
     #[Test]
     public function taking_back_an_attempt_it_never_counted_changes_nothing(): void
     {
         $throttle = $this->loginThrottle(self::settings(identifier: 1, ip: 1));
-        $keys = LoginThrottleKeys::of('ada@example.org', '192.0.2.1');
+        $keys = LoginThrottleKeys::of(new LoginIdentifier('ada@example.org'), new ClientAddress('192.0.2.1'));
 
         $throttle->succeeded($keys);
 

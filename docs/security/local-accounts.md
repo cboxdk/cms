@@ -66,7 +66,7 @@ An accepted login gives a verified assertion whose issuer is the installation's 
 A member of staff who forgot the password asks for a link on the panel's page at `/cms/forgot-password`, which the login page links to. The page answers every email the same way, so it never tells which emails have an account:
 
 1. An email left empty is refused with [`validation_required`](../reference/errors.md#validation_required) under the field.
-2. The request is counted by a rate limit of its own in Valkey, per email and per IP address: 3 and 20 requests within an hour by default (`cbox-cms.identity.password_reset.throttle`). A request above a limit sends nothing, so the page cannot be used to fill someone's mailbox.
+2. The request is counted by a rate limit of its own in Valkey, per email and per IP address: 3 and 20 requests within an hour by default (`cbox-cms.identity.password_reset.throttle`). A request above a limit sends nothing, so the page cannot be used to fill someone's mailbox. A request without a valid client address cannot be counted and sends nothing either, and an email that cannot be a login is not counted, because it names no account.
 3. Only a known local account whose actor the [login policy](login-policy.md) would let log in with the method `password_reset` gets a link: the actor is active, the policy of its class allows `password_reset` and has local login on, and the actor is linked to no authoritative connection (invariant 38). The credential store keeps the SHA-256 of a new random token, never the token, with its expiry, 60 minutes by default (`cbox-cms.identity.password_reset.token_minutes`). The link is the reset page's address with the token, `cbox-cms.identity.password_reset.url`, which is `app.url` followed by `/cms/reset-password` when it is not set. It is never built from the request's host, so a forged `Host` header cannot send a link elsewhere.
 4. The link is mailed to the account's email through the [mail gateway](egress.md#mail). A mail the transport does not take is counted as a failure; the person sees the same answer, and the token expires unused.
 
@@ -80,7 +80,7 @@ The reset page, `/cms/reset-password/<token>`, sends `Referrer-Policy: no-referr
 4. Every session of the actor is ended, through the session store's set of the actor's sessions, and so is the session the browser still carried.
 5. The [login policy](login-policy.md) decides the login with the method `password_reset`. When it allows it, the person gets a new session with a new id and lands on the panel's start page. When it does not, which after steps 1 and 3 means the factors, for example when local staff logins need a passkey, the password stays set and the person signs in on the login page.
 
-Every request adds 1 to the counter `cms.password_reset.requests` with `cms.outcome` (`mailed`, `no_account`, `rate_limited` or `mail_failed`), and every reset to `cms.password_reset.resets` with `cms.outcome` (`logged_in`, `changed` or `refused`) and, for a refusal, `cms.error.code`. No counter, log entry or message holds an email address, a token or a link.
+Every request adds 1 to the counter `cms.password_reset.requests` with `cms.outcome` (`mailed`, `no_account`, `rate_limited`, `mail_failed` or `no_address`), and every reset to `cms.password_reset.resets` with `cms.outcome` (`logged_in`, `changed` or `refused`) and, for a refusal, `cms.error.code`. No counter, log entry or message holds an email address, a token or a link.
 
 ### A link from an operator
 

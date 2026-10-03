@@ -9,6 +9,8 @@ use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Contracts\Identity\CredentialRejected;
 use Cbox\Cms\Contracts\Identity\Login\LoginRefused;
 use Cbox\Cms\Contracts\Identity\Login\SubmittedCredentials;
+use Cbox\Cms\Contracts\Identity\LoginIdentifier;
+use Cbox\Cms\Contracts\Identity\Password;
 use Cbox\Cms\Contracts\Identity\SessionToken;
 use Cbox\Cms\Contracts\Identity\TransportCredential;
 use Cbox\Cms\Contracts\Ids\ActorId;
@@ -19,6 +21,7 @@ use Cbox\Cms\Contracts\Telemetry\CounterRecord;
 use Cbox\Cms\Contracts\Telemetry\Telemetry;
 use Cbox\Cms\Contracts\Telemetry\TelemetryName;
 use Cbox\Cms\Identity\LocalAccounts\Domain\LocalConnection;
+use Cbox\Cms\Identity\Login\Domain\ClientAddress;
 use Cbox\Cms\Identity\Login\Domain\Dto\LocalLoginRequest;
 use Cbox\Cms\Identity\Login\Domain\Dto\LoginOutcome;
 use Cbox\Cms\Identity\Login\Domain\Dto\LoginThrottleKeys;
@@ -38,17 +41,20 @@ use Cbox\Cms\Identity\Sessions\Actions\IssueSession;
  *
  * 1. an identifier or a password left empty is refused with validation_required on that field, and
  *    counts as no attempt;
- * 2. the attempt is counted by the LoginThrottle under the identifier and the IP address; one
+ * 2. an identifier the form could not read as one (TypedLogin::unreadable()), which names no
+ *    account, and a request without a client address, which the throttle could not count, are
+ *    refused with login_rejected, count as no attempt and check no password;
+ * 3. the attempt is counted by the LoginThrottle under the identifier and the IP address; one
  *    above the limit of either is refused with login_rate_limited, adds 1 to the counter
  *    `cms.login.rate_limited` with `cms.limit`, the ThrottleScope, and checks no password;
- * 3. the local connection starts and completes the login with the identifier and the password in
+ * 4. the local connection starts and completes the login with the identifier and the password in
  *    one go: its flow is Direct, so the pending login never leaves the request, and the form's
  *    protection against forgery is the CSRF token of the request that carries it. The connection
  *    verifies the password exactly once, against the account's hash or a dummy one;
- * 4. the login policy decides on the assertion with the method password (CheckLoginPolicy);
- * 5. a refusal of the connection or the policy is login_rejected, whatever the reason, so an
+ * 5. the login policy decides on the assertion with the method password (CheckLoginPolicy);
+ * 6. a refusal of the connection or the policy is login_rejected, whatever the reason, so an
  *    unknown email, a wrong password and an actor that may not log in look the same;
- * 6. a login that got through is taken back from the throttle, the session the browser still
+ * 7. a login that got through is taken back from the throttle, the session the browser still
  *    carried, if any, is ended, and a new session is issued with a new id (IssueSession).
  *
  * No identifier, password or IP address reaches a message, a log entry or a counter.
@@ -71,16 +77,23 @@ final readonly class LogInLocally
 
     public function login(LocalLoginRequest $request): LoginOutcome
     {
+        $password = $request->password;
         $missing = array_values(array_filter([
-            trim($request->identifier) === '' ? LoginField::Identifier : null,
-            $request->password() === '' ? LoginField::Password : null,
+            $request->login->given ? null : LoginField::Identifier,
+            $password instanceof Password ? null : LoginField::Password,
         ]));
 
-        if ($missing !== []) {
+        if ($missing !== [] || ! $password instanceof Password) {
             return LoginOutcome::refused(ErrorCode::ValidationRequired, ...$missing);
         }
 
-        $keys = LoginThrottleKeys::of($request->identifier, $request->ip);
+        $identifier = $request->login->identifier;
+
+        if (! $identifier instanceof LoginIdentifier || ! $request->address instanceof ClientAddress) {
+            return LoginOutcome::refused(ErrorCode::LoginRejected);
+        }
+
+        $keys = LoginThrottleKeys::of($identifier, $request->address);
         $exceeded = $this->throttle->hit($keys);
 
         if ($exceeded instanceof ThrottleScope) {
@@ -91,7 +104,7 @@ final readonly class LogInLocally
 
         try {
             $pending = $this->connection->start()->pending;
-            $assertion = $this->connection->complete($pending, new SubmittedCredentials($pending->state->value, $request->identifier, $request->password()));
+            $assertion = $this->connection->complete($pending, new SubmittedCredentials($pending->state->value, $identifier->value, $password->reveal()));
             $decision = $this->policy->check(new LoginAttempt(ActorId::fromString($assertion->subject->value), LoginMethod::Password, $assertion));
         } catch (LoginRefused|LoginPolicyRefused|InvalidUuid7) {
             return LoginOutcome::refused(ErrorCode::LoginRejected);

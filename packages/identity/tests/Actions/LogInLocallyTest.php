@@ -8,9 +8,12 @@ use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Contracts\Identity\ActorPrincipal;
 use Cbox\Cms\Contracts\Identity\ActorState;
 use Cbox\Cms\Contracts\Identity\IssuerKind;
+use Cbox\Cms\Contracts\Identity\LoginIdentifier;
 use Cbox\Cms\Contracts\Identity\TransportCredential;
 use Cbox\Cms\Contracts\Telemetry\CounterRecord;
 use Cbox\Cms\Identity\Login\Actions\LogInLocally;
+use Cbox\Cms\Identity\Login\Boundary\LoginInput;
+use Cbox\Cms\Identity\Login\Domain\ClientAddress;
 use Cbox\Cms\Identity\Login\Domain\Dto\LocalLoginRequest;
 use Cbox\Cms\Identity\Login\Domain\Dto\LoginOutcome;
 use Cbox\Cms\Identity\Login\Domain\Dto\LoginThrottleKeys;
@@ -37,7 +40,7 @@ const LOGIN_IP = '192.0.2.10';
 
 function localLogin(string $email = LOGIN_EMAIL, string $password = LocalLoginWorld::PASSWORD, ?TransportCredential $previous = null): LocalLoginRequest
 {
-    return new LocalLoginRequest($email, $password, LOGIN_IP, $previous);
+    return new LocalLoginRequest(LoginInput::login($email), LoginInput::password($password), new ClientAddress(LOGIN_IP), $previous);
 }
 
 function loggedIn(LoginOutcome $outcome): NewSession
@@ -59,7 +62,7 @@ it('logs a member of staff in with the right password and issues a new session t
         ->and($principal instanceof ActorPrincipal ? $principal->issuerKind : null)->toBe(IssuerKind::Human)
         ->and($world->hasher->verified)->toHaveCount(1)
         ->and($world->telemetry->counted('cms.session.issued'))->toBe(1)
-        ->and($world->throttle->count(ThrottleScope::Identifier, LoginThrottleKeys::of(LOGIN_EMAIL, LOGIN_IP)))->toBe(0);
+        ->and($world->throttle->count(ThrottleScope::Identifier, LoginThrottleKeys::of(new LoginIdentifier(LOGIN_EMAIL), new ClientAddress(LOGIN_IP))))->toBe(0);
 });
 
 it('refuses an unknown email, a wrong password and an actor that is not active alike, with login_rejected', function (Closure $refused): void {
@@ -77,7 +80,7 @@ it('refuses an unknown email, a wrong password and an actor that is not active a
         ->and($outcome->fields)->toBe([])
         ->and($world->hasher->verified)->toHaveCount(1)
         ->and($world->sessions->count())->toBe(0)
-        ->and($world->throttle->count(ThrottleScope::Identifier, LoginThrottleKeys::of($request->identifier, LOGIN_IP)))->toBe(1);
+        ->and($world->throttle->count(ThrottleScope::Identifier, LoginThrottleKeys::of($request->login->identifier ?? throw new RuntimeException('The identifier is unreadable.'), new ClientAddress(LOGIN_IP))))->toBe(1);
 })->with([
     'an unknown email' => [fn (): LocalLoginRequest => localLogin('nobody@example.com')],
     'a wrong password' => [fn (): LocalLoginRequest => localLogin(password: 'not the password at all')],
@@ -96,8 +99,25 @@ it('refuses empty fields with validation_required on each, without counting an a
         ->and($both->fields)->toBe([LoginField::Identifier, LoginField::Password])
         ->and($password->fields)->toBe([LoginField::Password])
         ->and($world->hasher->verified)->toBe([])
-        ->and($world->throttle->count(ThrottleScope::Ip, LoginThrottleKeys::of(LOGIN_EMAIL, LOGIN_IP)))->toBe(0);
+        ->and($world->throttle->count(ThrottleScope::Ip, LoginThrottleKeys::of(new LoginIdentifier(LOGIN_EMAIL), new ClientAddress(LOGIN_IP))))->toBe(0);
 });
+
+it('refuses an identifier that names no account and a request without a client address with login_rejected, uncounted and unchecked', function (LocalLoginRequest $request): void {
+    $world = new LocalLoginWorld;
+    $world->person(LOGIN_EMAIL);
+
+    $outcome = $world->action()->login($request);
+
+    expect($outcome->session)->toBeNull()
+        ->and($outcome->refusal)->toBe(ErrorCode::LoginRejected)
+        ->and($outcome->fields)->toBe([])
+        ->and($world->hasher->verified)->toBe([])
+        ->and($world->sessions->count())->toBe(0)
+        ->and($world->throttle->count(ThrottleScope::Ip, LoginThrottleKeys::of(new LoginIdentifier(LOGIN_EMAIL), new ClientAddress(LOGIN_IP))))->toBe(0);
+})->with([
+    'an unreadable identifier' => [fn (): LocalLoginRequest => localLogin('mette holm@example.com')],
+    'no client address' => [fn (): LocalLoginRequest => new LocalLoginRequest(LoginInput::login(LOGIN_EMAIL), LoginInput::password(LocalLoginWorld::PASSWORD), null)],
+]);
 
 it('refuses the sixth failed login for one identifier in the window with login_rate_limited, without checking its password', function (): void {
     $world = new LocalLoginWorld;
@@ -130,8 +150,8 @@ it('clears the identifier\'s count when the login succeeds', function (): void {
 
     loggedIn($login->login(localLogin()));
 
-    expect($world->throttle->count(ThrottleScope::Identifier, LoginThrottleKeys::of(LOGIN_EMAIL, LOGIN_IP)))->toBe(0)
-        ->and($world->throttle->count(ThrottleScope::Ip, LoginThrottleKeys::of(LOGIN_EMAIL, LOGIN_IP)))->toBe(4);
+    expect($world->throttle->count(ThrottleScope::Identifier, LoginThrottleKeys::of(new LoginIdentifier(LOGIN_EMAIL), new ClientAddress(LOGIN_IP))))->toBe(0)
+        ->and($world->throttle->count(ThrottleScope::Ip, LoginThrottleKeys::of(new LoginIdentifier(LOGIN_EMAIL), new ClientAddress(LOGIN_IP))))->toBe(4);
 });
 
 it('ends the session the browser still carried and ignores a value that is no session id', function (): void {

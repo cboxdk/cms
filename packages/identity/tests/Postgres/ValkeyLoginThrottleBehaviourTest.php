@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Identity\Tests\Postgres;
 
+use Cbox\Cms\Contracts\Identity\LoginIdentifier;
 use Cbox\Cms\Identity\Login\Adapter\ValkeyLoginThrottle;
+use Cbox\Cms\Identity\Login\Domain\ClientAddress;
 use Cbox\Cms\Identity\Login\Domain\Dto\LoginThrottleKeys;
 use Cbox\Cms\Identity\Login\Domain\Dto\LoginThrottleSettings;
 use Cbox\Cms\Identity\Login\Domain\LoginThrottle;
@@ -45,7 +47,7 @@ final class ValkeyLoginThrottleBehaviourTest extends TestCase
     public function test_a_count_expires_its_window_after_its_first_attempt_and_holds_no_identifier_or_address(): void
     {
         $throttle = $this->loginThrottle(self::settings(identifier: 5, ip: 50, window: 600));
-        $keys = LoginThrottleKeys::of('ada@example.org', '192.0.2.1');
+        $keys = LoginThrottleKeys::of(new LoginIdentifier('ada@example.org'), new ClientAddress('192.0.2.1'));
 
         $throttle->hit($keys);
         $throttle->hit($keys);

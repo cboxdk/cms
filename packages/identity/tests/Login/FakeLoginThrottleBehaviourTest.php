@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Identity\Tests\Login;
 
+use Cbox\Cms\Contracts\Identity\LoginIdentifier;
+use Cbox\Cms\Identity\Login\Domain\ClientAddress;
 use Cbox\Cms\Identity\Login\Domain\Dto\LoginThrottleKeys;
 use Cbox\Cms\Identity\Login\Domain\Dto\LoginThrottleSettings;
 use Cbox\Cms\Identity\Login\Domain\LoginThrottle;
@@ -35,7 +37,7 @@ final class FakeLoginThrottleBehaviourTest extends TestCase
     public function test_a_count_lives_for_its_window_from_its_first_attempt(): void
     {
         $throttle = new FakeLoginThrottle(self::settings(identifier: 2, ip: 100, window: 600), $this->clock());
-        $keys = LoginThrottleKeys::of('ada@example.org', '192.0.2.1');
+        $keys = LoginThrottleKeys::of(new LoginIdentifier('ada@example.org'), new ClientAddress('192.0.2.1'));
 
         self::assertNull($throttle->hit($keys));
         $this->clock()->advance(new DateInterval('PT9M'));
