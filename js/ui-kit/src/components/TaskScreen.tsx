@@ -21,7 +21,7 @@ export interface TaskScreenProps {
 export function TaskScreen({ title, description, children, footer }: TaskScreenProps) {
   return (
     <main className="cms-task-screen">
-      <div className="cms-task-screen__panel">
+      <div className="cms-task-screen__panel" data-cms-part="task-screen">
         <h1 className="cms-task-screen__title">{title}</h1>
         {description === undefined ? null : (
           <p className="cms-task-screen__description">{description}</p>

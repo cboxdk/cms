@@ -1,44 +1,52 @@
-.cms-text-field {
-  display: grid;
-  gap: var(--cms-space-1);
-  width: 100%;
-}
+@layer cms.kit {
+  .cms-text-field {
+    display: grid;
+    gap: var(--cms-space-1);
+    width: 100%;
+  }
 
-.cms-text-field__label {
-  font-size: var(--cms-font-size-md);
-  font-weight: var(--cms-font-weight-medium);
-}
+  .cms-text-field__label {
+    font-size: var(--cms-font-size-md);
+    font-weight: var(--cms-font-weight-medium);
+  }
 
-.cms-text-field__hint {
-  margin: 0;
-  color: var(--cms-color-text-muted);
-  font-size: var(--cms-font-size-md);
-}
+  .cms-text-field__required {
+    margin-inline-start: var(--cms-space-2);
+    color: var(--cms-color-text-muted);
+    font-weight: var(--cms-font-weight-regular);
+  }
 
-.cms-text-field__input {
-  width: 100%;
-  min-height: calc(var(--cms-target-size) + var(--cms-space-4));
-  padding: var(--cms-space-2) var(--cms-space-3);
-  border: 1px solid var(--cms-color-border-strong);
-  border-radius: var(--cms-radius-md);
-  background: var(--cms-color-surface);
-  color: var(--cms-color-text);
-  font-family: var(--cms-font-family);
-  font-size: var(--cms-font-size-lg);
-  line-height: var(--cms-line-height);
-}
+  .cms-text-field__hint {
+    margin: 0;
+    color: var(--cms-color-text-muted);
+    font-size: var(--cms-font-size-md);
+  }
 
-.cms-text-field__input:focus-visible {
-  outline: none;
-  box-shadow: var(--cms-focus-ring);
-}
+  .cms-text-field__input {
+    width: 100%;
+    min-height: calc(var(--cms-target-size) + var(--cms-space-4));
+    padding: var(--cms-space-2) var(--cms-space-3);
+    border: 1px solid var(--cms-color-border-strong);
+    border-radius: var(--cms-radius-md);
+    background: var(--cms-color-surface);
+    color: var(--cms-color-text);
+    font-family: var(--cms-font-family);
+    font-size: var(--cms-font-size-lg);
+    line-height: var(--cms-line-height);
+  }
 
-.cms-text-field__input[aria-invalid='true'] {
-  border-color: var(--cms-color-danger);
-}
+  .cms-text-field__input:focus-visible {
+    outline: none;
+    box-shadow: var(--cms-focus-ring);
+  }
 
-.cms-text-field__error {
-  margin: 0;
-  color: var(--cms-color-danger);
-  font-size: var(--cms-font-size-md);
+  .cms-text-field__input[aria-invalid='true'] {
+    border-color: var(--cms-color-danger);
+  }
+
+  .cms-text-field__error {
+    margin: 0;
+    color: var(--cms-color-danger);
+    font-size: var(--cms-font-size-md);
+  }
 }

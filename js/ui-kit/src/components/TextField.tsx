@@ -1,5 +1,7 @@
 import { useId, type InputHTMLAttributes } from 'react';
 
+import { useKitTranslation } from '../i18n/KitI18nProvider';
+
 import './text-field.css';
 
 export type TextFieldType = 'text' | 'email' | 'password';
@@ -21,10 +23,13 @@ export interface TextFieldProps extends Omit<
  * A text field of the kit: a label and an input, joined by an id of their own, so a click on the
  * label focuses the input and a screen reader reads the label with it. A hint is shown below the
  * label and read as the input's description; an error is shown below the input, marks it invalid
- * and is read after the hint. The input is a plain input element, so
- * the keyboard, autofill and password managers work as the platform does.
+ * and is read after the hint. A required field says so after its label, in the kit's own text; a
+ * screen reader hears it from the input's required state instead, so the mark is hidden from it.
+ * The input is a plain input element, so the keyboard, autofill and password managers work as the
+ * platform does.
  */
 export function TextField({ label, hint, error, type = 'text', ...rest }: TextFieldProps) {
+  const t = useKitTranslation();
   const id = useId();
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
@@ -36,6 +41,11 @@ export function TextField({ label, hint, error, type = 'text', ...rest }: TextFi
     <div className="cms-text-field">
       <label className="cms-text-field__label" htmlFor={id}>
         {label}
+        {rest.required === true ? (
+          <span className="cms-text-field__required" aria-hidden="true">
+            {t('kit.field.required')}
+          </span>
+        ) : null}
       </label>
       {hint === undefined ? null : (
         <p id={hintId} className="cms-text-field__hint">

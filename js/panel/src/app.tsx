@@ -1,13 +1,17 @@
 // The entry of the panel: Inertia resolves each page the server names from ./pages, and every
-// page renders inside the translations of the locale the server set on <html lang>.
+// page renders inside the translations of the locale the server set on <html lang>, the panel's
+// and the kit's. The kit's stylesheets come first, layers.css before any other, so the order of
+// the cascade layers is declared before a rule of any layer.
 //
 // The panel runs under a strict Content-Security-Policy with a nonce per response (GUARDRAILS 6).
 // The server puts the nonce on a meta element, and Inertia gets it here for the style elements it
 // adds, such as the progress bar's; Vite's preload helper reads the same element.
 
+import '@cboxdk/cms-ui-kit/layers.css';
 import '@cboxdk/cms-ui-kit/tokens.css';
 import '@cboxdk/cms-ui-kit/base.css';
 
+import { KitI18nProvider } from '@cboxdk/cms-ui-kit';
 import { createInertiaApp } from '@inertiajs/react';
 import type { ComponentType } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -61,9 +65,11 @@ void createInertiaApp({
   progress: progress(),
   setup({ el, App, props }) {
     createRoot(el).render(
-      <TranslationProvider locale={locale}>
-        <App {...props} />
-      </TranslationProvider>,
+      <KitI18nProvider locale={locale}>
+        <TranslationProvider locale={locale}>
+          <App {...props} />
+        </TranslationProvider>
+      </KitI18nProvider>,
     );
   },
 });

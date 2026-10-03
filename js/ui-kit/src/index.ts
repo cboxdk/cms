@@ -1,6 +1,8 @@
 // The public entry of the component kit. The panel and addons import components from here, and the
-// design tokens and the document styles from "@cboxdk/cms-ui-kit/tokens.css" and
-// "@cboxdk/cms-ui-kit/base.css".
+// stylesheets, in this order, from "@cboxdk/cms-ui-kit/layers.css" (the order of the cascade
+// layers), "@cboxdk/cms-ui-kit/tokens.css" (the design tokens) and "@cboxdk/cms-ui-kit/base.css"
+// (the document styles). React Aria, whose primitives the kit builds on, is never exported: every
+// component has props of its own, so the primitives can change without breaking a caller.
 
 export { Alert } from './components/Alert';
 export type { AlertProps, AlertTone } from './components/Alert';
@@ -16,3 +18,11 @@ export { TextField } from './components/TextField';
 export type { TextFieldProps, TextFieldType } from './components/TextField';
 export { TextLink } from './components/TextLink';
 export type { TextLinkProps } from './components/TextLink';
+export {
+  DEFAULT_KIT_LOCALE,
+  isKitLocale,
+  KIT_LOCALES,
+  KitI18nProvider,
+} from './i18n/KitI18nProvider';
+export type { KitI18nProviderProps, KitLocale } from './i18n/KitI18nProvider';
+export type { PartName, ThemeTokenName, TokenName } from './generated/tokens';

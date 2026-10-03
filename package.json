@@ -15,7 +15,9 @@
     "lint": "eslint --max-warnings=0 .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint:translations": "node js/tooling/translation-parity.js js/panel/src/i18n/catalogues"
+    "lint:translations": "node js/tooling/translation-parity.js js/panel/src/i18n/catalogues && node js/tooling/translation-parity.js js/ui-kit/src/i18n/catalogues",
+    "generate:tokens": "node js/ui-kit/scripts/generate-tokens.js",
+    "test:kit": "node js/ui-kit/tests/run.js"
   },
   "devDependencies": {
     "@cboxdk/cms-tooling": "0.1.0",
@@ -23,7 +25,6 @@
     "eslint": "10.11.0",
     "playwright": "1.63.0",
     "prettier": "3.9.9",
-    "react-aria-components": "1.21.1",
     "typescript": "6.0.3"
   }
 }

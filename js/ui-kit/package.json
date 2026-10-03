@@ -2,11 +2,12 @@
   "name": "@cboxdk/cms-ui-kit",
   "version": "0.1.0",
   "private": true,
-  "description": "The component kit of the Cbox CMS panel (working name, GUARDRAILS 8: one kit, no stand-alone components). Design tokens are CSS custom properties in src/tokens.css.",
+  "description": "The component kit of the Cbox CMS panel (working name, GUARDRAILS 8: one kit, no stand-alone components). Its design tokens come from tokens.json, the single source of src/tokens.css, the TypeScript names and the JSON Schema of a theme (npm run generate:tokens); its stylesheets sit in the cascade layers that src/layers.css declares; its own texts come from its da and en catalogues through KitI18nProvider; and it builds on React Aria's headless, accessible primitives, which stay internal to it.",
   "license": "MIT",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./layers.css": "./src/layers.css",
     "./tokens.css": "./src/tokens.css",
     "./base.css": "./src/base.css"
   },
@@ -15,6 +16,9 @@
   ],
   "engines": {
     "node": "^22.13.0 || >=24"
+  },
+  "dependencies": {
+    "react-aria-components": "1.21.1"
   },
   "peerDependencies": {
     "react": "19.3.0"

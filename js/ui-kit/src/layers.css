@@ -1,0 +1,15 @@
+/*
+ * The order of the panel's cascade layers, declared once and first, before any rule of a layer.
+ * A later layer wins over an earlier one whatever the specificity of its selectors:
+ *
+ * - cms.reset: the document styles of base.css;
+ * - cms.tokens: the design tokens of tokens.css, generated from tokens.json;
+ * - cms.addon: the styles of an addon, each in a sublayer of its own and scoped to its subtree,
+ *   so it cannot restyle the kit or the panel;
+ * - cms.kit: the components of the kit;
+ * - cms.panel: the panel's own pages;
+ * - cms.theme: the themes the application selects, the only layer that may set tokens or target
+ *   the curated data-cms-part hooks.
+ */
+
+@layer cms.reset, cms.tokens, cms.addon, cms.kit, cms.panel, cms.theme;

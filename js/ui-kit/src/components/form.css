@@ -1,9 +1,11 @@
-.cms-form {
-  display: grid;
-  gap: var(--cms-space-4);
-  width: 100%;
-}
+@layer cms.kit {
+  .cms-form {
+    display: grid;
+    gap: var(--cms-space-4);
+    width: 100%;
+  }
 
-.cms-form > .cms-button {
-  justify-self: start;
+  .cms-form > .cms-button {
+    justify-self: start;
+  }
 }

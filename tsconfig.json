@@ -11,6 +11,8 @@
     "*.js",
     "js/*/*.js",
     "js/*/src/**/*",
+    "js/*/scripts/**/*",
+    "js/*/tests/**/*",
     "js/*/vite.config.ts",
     "workbench/resources/js/**/*",
     "packages/*/resources/typescript/**/*",

@@ -23,11 +23,13 @@ final readonly class Node
     public const string PROBE_DIRECTORY = 'workbench/resources/js';
 
     /**
-     * Runs a command from the monorepo root, for example ['npm', 'run', 'typecheck'].
+     * Runs a command from the monorepo root, for example ['npm', 'run', 'typecheck'], with the
+     * process's environment and the variables given on top.
      *
      * @param  list<string>  $command
+     * @param  array<string, string>  $environment
      */
-    public static function run(array $command): Process
+    public static function run(array $command, array $environment = []): Process
     {
         $root = Phpstan::root();
 
@@ -35,7 +37,7 @@ final readonly class Node
             throw new RuntimeException('node_modules is missing or stale. Run `npm ci` in the monorepo root.');
         }
 
-        $process = new Process($command, $root, null, null, 180);
+        $process = new Process($command, $root, $environment === [] ? null : $environment, null, 180);
 
         // A whole-project run such as tsc must not see another process's probe (JsToolchainLock).
         JsToolchainLock::shared(static fn (): int => $process->run());
@@ -97,8 +99,22 @@ final readonly class Node
      */
     public static function withProbe(string $extension, string $code, Closure $callback): mixed
     {
-        return JsToolchainLock::exclusive(static function () use ($extension, $code, $callback) {
-            $path = self::PROBE_DIRECTORY.'/cms-probe-'.bin2hex(random_bytes(4)).'.'.$extension;
+        return self::withProbeIn(self::PROBE_DIRECTORY, $extension, $code, $callback);
+    }
+
+    /**
+     * As withProbe(), with the probe in another directory of the root tsconfig.json, such as the
+     * component kit's, whose files the lint holds to rules of their own.
+     *
+     * @template TResult
+     *
+     * @param  Closure(string): TResult  $callback
+     * @return TResult
+     */
+    public static function withProbeIn(string $directory, string $extension, string $code, Closure $callback): mixed
+    {
+        return JsToolchainLock::exclusive(static function () use ($directory, $extension, $code, $callback) {
+            $path = $directory.'/cms-probe-'.bin2hex(random_bytes(4)).'.'.$extension;
             $absolute = Phpstan::root().'/'.$path;
             file_put_contents($absolute, $code);
 

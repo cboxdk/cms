@@ -2,7 +2,7 @@
   "name": "@cboxdk/cms-tooling",
   "version": "0.1.0",
   "private": true,
-  "description": "The shared TypeScript, ESLint and Prettier configuration for Cbox CMS repositories (GUARDRAILS 1, 8 and 10), with the rule against literal UI text and the translation key parity check.",
+  "description": "The shared TypeScript, ESLint and Prettier configuration for Cbox CMS repositories (GUARDRAILS 1, 8 and 10), with the rules against literal UI text and against className and style props on a kit component, and the translation key parity check.",
   "license": "MIT",
   "type": "module",
   "exports": {
@@ -14,6 +14,7 @@
     "tsconfig.base.json",
     "eslint.js",
     "no-literal-ui-text.js",
+    "no-style-props.js",
     "translation-parity.js",
     "prettier.js"
   ],

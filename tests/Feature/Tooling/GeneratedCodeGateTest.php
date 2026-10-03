@@ -26,15 +26,17 @@ use RuntimeException;
 use Symfony\Component\Process\Process;
 
 /*
- * Gate 6 of GUARDRAILS 10 for the workbench and the kernel (PRD 11.12, GUARDRAILS 2.2, 7.1):
- * `composer check:generated` fails unless the committed generated code is exactly what cms:generate
- * writes from the committed schema, and the kernel's committed codecs exactly what composer
- * generate:protocol writes from the kernel's JSON Schemas.
+ * Gate 6 of GUARDRAILS 10 for the workbench, the kernel and the component kit (PRD 11.12,
+ * GUARDRAILS 2.2, 2.4, 7.1): `composer check:generated` fails unless the committed generated code is
+ * exactly what cms:generate writes from the committed schema, the kernel's committed codecs exactly
+ * what composer generate:protocol writes from the kernel's JSON Schemas, and the files of the kit's
+ * design tokens exactly what npm run generate:tokens writes from js/ui-kit/tokens.json.
  *
  * The gate is run step by step from composer.json in a scratch git repository with a copy of the
- * workbench's blueprints and the fixture addon's, the kernel's schemas and the generated code, so the test does not depend
+ * workbench's blueprints and the fixture addon's, the kernel's schemas, the kit's tokens.json and the generated code, so the test does not depend
  * on the state of this working copy. cms:generate runs in-process with cbox-cms.generators.root
- * pointing at the copy, and generate:protocol in-process with the copy as its root.
+ * pointing at the copy, generate:protocol in-process with the copy as its root, and the token
+ * generator of this checkout with the copy as its root.
  */
 
 const GENERATED_PATHS = ['workbench/app/Cms/Generated', 'workbench/resources/js/cms/generated', 'workbench/database/migrations/cms'];
@@ -49,6 +51,15 @@ const PANEL_PAGE_PATHS = [PanelPageSchemas::PHP_DIRECTORY, PanelPageSchemas::TYP
  * pages' codecs: their TypeScript and the compatibility lock, a file.
  */
 const PANEL_POINT_PATHS = [PanelPointSchemas::TYPESCRIPT_DIRECTORY, PanelPointSchemas::LOCK];
+
+/** The source of the kit's design tokens. */
+const TOKENS_SOURCE = 'js/ui-kit/tokens.json';
+
+/** What the token generator writes from it. */
+const TOKEN_PATHS = ['js/ui-kit/src/tokens.css', 'js/ui-kit/src/generated', 'docs/ui/tokens.md'];
+
+/** The step of the gate that runs the token generator. */
+const TOKENS_STEP = 'node js/ui-kit/scripts/generate-tokens.js';
 
 afterEach(function (): void {
     SchemaFixtures::cleanUp();
@@ -109,6 +120,18 @@ function gateRepository(): string
         }
     }
 
+    foreach ([TOKENS_SOURCE, ...TOKEN_PATHS] as $path) {
+        if (is_file(Phpstan::root().'/'.$path)) {
+            $files[] = $path;
+
+            continue;
+        }
+
+        foreach (SchemaFixtures::files(Phpstan::root().'/'.$path) as $file) {
+            $files[] = $path.'/'.$file;
+        }
+    }
+
     foreach ($files as $file) {
         SchemaFixtures::write($root.'/'.$file, (string) file_get_contents(Phpstan::root().'/'.$file));
     }
@@ -155,6 +178,10 @@ function runGate(string $root): array
             $status = ProtocolGeneration::main($root, $out, $out);
             rewind($out);
             $output .= stream_get_contents($out);
+        } elseif ($step === TOKENS_STEP) {
+            $process = new Process(['node', Phpstan::root().'/js/ui-kit/scripts/generate-tokens.js', '--root='.$root], $root);
+            $status = $process->run();
+            $output .= $process->getOutput().$process->getErrorOutput();
         } else {
             $process = Process::fromShellCommandline($step, $root);
             $status = $process->run();
@@ -175,11 +202,12 @@ function appendTo(string $path, string $text): void
 }
 
 it('regenerates, then fails on a diff or an untracked file under the generated paths, checked before and after', function (): void {
-    $paths = implode(' ', [...GENERATED_PATHS, PROTOCOL_PATH, ...PANEL_PAGE_PATHS, ...PANEL_POINT_PATHS]);
+    $paths = implode(' ', [...GENERATED_PATHS, PROTOCOL_PATH, ...PANEL_PAGE_PATHS, ...PANEL_POINT_PATHS, ...TOKEN_PATHS]);
 
-    expect(ComposerScripts::steps('check:generated'))->toHaveCount(6)
+    expect(ComposerScripts::steps('check:generated'))->toHaveCount(7)
         ->and(ComposerScripts::steps('check:generated')[2])->toBe('@php vendor/bin/testbench cms:generate --ansi')
         ->and(ComposerScripts::steps('check:generated')[3])->toBe('@php tools/bin/generate-protocol.php')
+        ->and(ComposerScripts::steps('check:generated')[4])->toBe(TOKENS_STEP)
         ->and(ComposerScripts::steps('generate:protocol'))->toBe(['@php tools/bin/generate-protocol.php'])
         ->and(ComposerScripts::steps('check:generated:committed')[0])->toStartWith('git diff --exit-code -- '.$paths.' || ')
         ->and(ComposerScripts::steps('check:generated:committed')[1])->toStartWith('git ls-files --others --exclude-standard -- '.$paths.' | ')
@@ -187,6 +215,7 @@ it('regenerates, then fails on a diff or an untracked file under the generated p
             ...ComposerScripts::steps('check:generated:committed'),
             '@php vendor/bin/testbench cms:generate --ansi',
             '@php tools/bin/generate-protocol.php',
+            TOKENS_STEP,
             ...ComposerScripts::steps('check:generated:committed'),
         ]);
 });
@@ -344,6 +373,46 @@ it('fails after a manual edit to the panel\'s generated TypeScript', function ()
 
     expect($status)->not->toBe(0)
         ->and($output)->toContain('The generated code above is not the committed code.', 'edited by hand');
+});
+
+it('fails after a manual edit to tokens.css, and passes again after git checkout of it', function (): void {
+    $root = gateRepository();
+    $css = $root.'/js/ui-kit/src/tokens.css';
+    SchemaFixtures::write($css, str_replace('--cms-ref-white: #ffffff;', '--cms-ref-white: #fefefe;', (string) file_get_contents($css)));
+
+    [$edited, $output] = runGate($root);
+    git($root, 'checkout', '--', 'js/ui-kit/src/tokens.css');
+    [$restored, $restoredOutput] = runGate($root);
+
+    expect($edited)->not->toBe(0)
+        ->and($output)->toContain('-    --cms-ref-white: #ffffff;', '+    --cms-ref-white: #fefefe;', 'The generated code above is not the committed code.')
+        ->and($restored)->toBe(0, $restoredOutput);
+});
+
+it('fails after tokens.json changes without regenerating, and passes once the generated files are staged with it', function (): void {
+    $root = gateRepository();
+    $source = $root.'/'.TOKENS_SOURCE;
+    SchemaFixtures::write($source, str_replace('"value": "32rem"', '"value": "36rem"', (string) file_get_contents($source)));
+    git($root, 'add', '--all');
+
+    [$changed, $output] = runGate($root);
+    git($root, 'add', '--all');
+    [$staged, $stagedOutput] = runGate($root);
+
+    expect($changed)->not->toBe(0)
+        ->and($output)->toContain('+    --cms-measure: 36rem;', 'docs/ui/tokens.md')
+        ->and($staged)->toBe(0, $stagedOutput);
+});
+
+it('fails on a catalogue of tokens with a problem, and names it', function (): void {
+    $root = gateRepository();
+    $source = $root.'/'.TOKENS_SOURCE;
+    SchemaFixtures::write($source, str_replace('"value": "{radius-md}"', '"value": "{radius-missing}"', (string) file_get_contents($source)));
+
+    [$status, $output] = runGate($root);
+
+    expect($status)->toBe(65)
+        ->and($output)->toContain('js/ui-kit/tokens.json: tokens.button-radius: refers to the unknown token "radius-missing"');
 });
 
 it('fails on an untracked file in a generated directory', function (): void {

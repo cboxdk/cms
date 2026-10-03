@@ -21,7 +21,7 @@ export interface StatusScreenProps {
 export function StatusScreen({ code, title, description, children }: StatusScreenProps) {
   return (
     <main className="cms-status-screen">
-      <div className="cms-status-screen__panel">
+      <div className="cms-status-screen__panel" data-cms-part="status-screen">
         {code === undefined ? null : <p className="cms-status-screen__code">{code}</p>}
         <h1 className="cms-status-screen__title">{title}</h1>
         <p className="cms-status-screen__description">{description}</p>
