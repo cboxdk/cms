@@ -132,3 +132,37 @@ it('hashes the password again at the installation\'s parameters when the account
         ->and($rehashed instanceof LocalAccount ? hashParameters($rehashed->hash) : null)->toBe('argon2id m=2048 t=1 p=1')
         ->and($current->hashed)->toBe(1);
 });
+
+it('gives the hash a rehash set as the login\'s, which stays current until the password is set again', function (): void {
+    $clock = new FakeClock;
+    $store = new FakeLocalCredentialStore($clock);
+    $actor = $store->actor();
+    $old = new CountingPasswordHasher(new Argon2idParameters(Argon2idParameters::MIN_MEMORY_KIB, 1));
+    $store->bind($actor, new LoginIdentifier('ada@example.org'), $old->hash(new Password('correct horse battery staple')));
+    $connection = new LocalConnection($store, new CountingPasswordHasher(new Argon2idParameters(2048, 1)), new Issuer('https://cms.example.org'), $clock);
+    $started = $connection->start();
+
+    $login = $connection->completeLocally($started->pending, new SubmittedCredentials($started->pending->state->value, 'ada@example.org', 'correct horse battery staple'));
+    $current = $connection->stillCurrent($login);
+    $store->changePassword($actor, $old->hash(new Password('another long passphrase')));
+
+    expect(hashParameters($login->hash))->toBe('argon2id m=2048 t=1 p=1')
+        ->and($login->actor->equals($actor))->toBeTrue()
+        ->and($current)->toBeTrue()
+        ->and($connection->stillCurrent($login))->toBeFalse();
+});
+
+it('refuses a login whose rehash finds the password set again since it was verified', function (): void {
+    $clock = new FakeClock;
+    $store = new FakeLocalCredentialStore($clock);
+    $actor = $store->actor();
+    $old = new CountingPasswordHasher(new Argon2idParameters(Argon2idParameters::MIN_MEMORY_KIB, 1));
+    $store->bind($actor, new LoginIdentifier('ada@example.org'), $old->hash(new Password('correct horse battery staple')));
+    $current = new CountingPasswordHasher(new Argon2idParameters(2048, 1));
+    $current->whenVerified(static function () use ($store, $actor, $old): void {
+        $store->changePassword($actor, $old->hash(new Password('another long passphrase')));
+    });
+    $connection = new LocalConnection($store, $current, new Issuer('https://cms.example.org'), $clock);
+
+    expect(refusedLogin($connection, 'ada@example.org', 'correct horse battery staple'))->toBe(LoginErrorCode::Rejected);
+});

@@ -24,6 +24,8 @@ use Cbox\Cms\Contracts\Identity\Login\SubmittedCredentials;
 use Cbox\Cms\Contracts\Identity\Login\VerifiedAssertion;
 use Cbox\Cms\Contracts\Identity\LoginIdentifier;
 use Cbox\Cms\Contracts\Identity\Password;
+use Cbox\Cms\Contracts\Identity\PasswordHash;
+use Cbox\Cms\Identity\LocalAccounts\Domain\Dto\LocalLogin;
 use Cbox\Cms\Identity\LoginPolicy\Domain\Dto\LoginPolicy;
 use Override;
 
@@ -42,7 +44,14 @@ use Override;
  *   PasswordPolicy::MAX_BYTES is refused before any hashing, whatever the identifier;
  * - a refusal is login_rejected, whatever the reason;
  * - a password that verifies against a hash made with other parameters than the installation's is
- *   hashed again, and the store replaces the hash only while it is still the one verified.
+ *   hashed again, and the store replaces the hash only while it is still the one verified; when it
+ *   is no longer, the password was changed meanwhile and the login is refused.
+ *
+ * completeLocally() does what complete() does and also gives the hash the account held once the
+ * login was through with it (Dto\LocalLogin). stillCurrent() reads the account again and tells
+ * whether it still holds that hash: a reset or a change of the password between the check and the
+ * session the login issues makes it false (PRD 5.16, a reset ends every session that knew the old
+ * password). Argon2id salts every hash, so a password set again to the same text has another hash.
  *
  * The assertion's issuer is the installation's local issuer (cbox-cms.identity.local.issuer, or
  * app.url), its subject the actor's id, its auth_time the Clock's time, its amr `pwd` (RFC 8176),
@@ -86,6 +95,16 @@ final readonly class LocalConnection implements LoginConnection
     #[Override]
     public function complete(PendingLogin $pending, LoginResponse $response): VerifiedAssertion
     {
+        return $this->completeLocally($pending, $response)->assertion;
+    }
+
+    /**
+     * complete(), with the actor and the hash the account held once the login was through with it.
+     *
+     * @throws LoginRefused when the response is not the pending login's, or the password does not verify
+     */
+    public function completeLocally(PendingLogin $pending, LoginResponse $response): LocalLogin
+    {
         $pending->check($this->id(), $response);
 
         if (! $response instanceof SubmittedCredentials || strlen($response->secret()) > PasswordPolicy::MAX_BYTES) {
@@ -106,15 +125,34 @@ final readonly class LocalConnection implements LoginConnection
             throw LoginRefused::because(LoginErrorCode::Rejected);
         }
 
-        $this->rehash($account, $password);
+        $hash = $this->rehash($account, $password);
 
-        return new VerifiedAssertion(
-            $this->id(),
-            $this->issuer,
-            new Subject($account->actor->toString()),
-            $this->clock->now(),
-            [new AuthenticationMethod(self::PASSWORD_METHOD)],
+        if (! $hash instanceof PasswordHash) {
+            throw LoginRefused::because(LoginErrorCode::Rejected);
+        }
+
+        return new LocalLogin(
+            new VerifiedAssertion(
+                $this->id(),
+                $this->issuer,
+                new Subject($account->actor->toString()),
+                $this->clock->now(),
+                [new AuthenticationMethod(self::PASSWORD_METHOD)],
+            ),
+            $account->actor,
+            $hash,
         );
+    }
+
+    /**
+     * Whether the account of the login still holds the hash it held once the login was through
+     * with it; false when the account is gone or its password was set since.
+     */
+    public function stillCurrent(LocalLogin $login): bool
+    {
+        $account = $this->store->ofActor($login->actor);
+
+        return $account instanceof LocalAccount && $account->hash->equals($login->hash);
     }
 
     /**
@@ -143,12 +181,18 @@ final readonly class LocalConnection implements LoginConnection
         return $this->issuer;
     }
 
-    private function rehash(LocalAccount $account, Password $password): void
+    /**
+     * The hash the account holds after the rehash, if one was needed, or null when the store held
+     * another hash than the one verified, because the password was set meanwhile.
+     */
+    private function rehash(LocalAccount $account, Password $password): ?PasswordHash
     {
         if (! $this->hasher->needsRehash($account->hash)) {
-            return;
+            return $account->hash;
         }
 
-        $this->store->rehash($account->actor, $account->hash, $this->hasher->hash($password));
+        $rehashed = $this->hasher->hash($password);
+
+        return $this->store->rehash($account->actor, $account->hash, $rehashed) ? $rehashed : null;
     }
 }

@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Identity\PasswordHash;
 use Cbox\Cms\Identity\LocalAccounts\Adapter\Argon2idPasswordHasher;
 use Cbox\Cms\Identity\LocalAccounts\Domain\Dto\Argon2idParameters;
 use Cbox\Cms\Identity\LocalAccounts\Domain\PasswordHasher;
+use Closure;
 use Override;
 
 /**
@@ -25,6 +26,9 @@ final class CountingPasswordHasher implements PasswordHasher
 
     private readonly Argon2idPasswordHasher $hasher;
 
+    /** @var (Closure(): void)|null */
+    private ?Closure $afterVerify = null;
+
     public function __construct(Argon2idParameters $parameters = new Argon2idParameters(Argon2idParameters::MIN_MEMORY_KIB, 1))
     {
         $this->hasher = new Argon2idPasswordHasher($parameters);
@@ -36,6 +40,16 @@ final class CountingPasswordHasher implements PasswordHasher
     public function lastVerified(): ?PasswordHash
     {
         return $this->verified === [] ? null : array_last($this->verified);
+    }
+
+    /**
+     * Runs $then once, right after the next verify() has verified.
+     *
+     * @param  Closure(): void  $then
+     */
+    public function whenVerified(Closure $then): void
+    {
+        $this->afterVerify = $then;
     }
 
     /**
@@ -58,8 +72,15 @@ final class CountingPasswordHasher implements PasswordHasher
     public function verify(Password $password, PasswordHash $hash): bool
     {
         $this->verified[] = $hash;
+        $verified = $this->hasher->verify($password, $hash);
+        $then = $this->afterVerify;
+        $this->afterVerify = null;
 
-        return $this->hasher->verify($password, $hash);
+        if ($then instanceof Closure) {
+            $then();
+        }
+
+        return $verified;
     }
 
     #[Override]

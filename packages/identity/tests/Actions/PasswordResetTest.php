@@ -323,3 +323,38 @@ it('counts every reset by its outcome and never with the token', function (): vo
 
     expect($outcomes)->toBe([['refused', 'password_too_short'], ['logged_in', null]]);
 });
+
+it('refuses a login that checked the old password while a reset set a new one, and leaves it no session', function (): void {
+    $world = new PasswordResetWorld;
+    $world->login->person(RESET_EMAIL);
+    $world->request()->request(resetRequest());
+    $token = $world->mailedToken();
+    $reset = null;
+    $world->login->hasher->whenVerified(static function () use ($world, $token, &$reset): void {
+        $reset = $world->reset()->reset(newPassword($token));
+    });
+
+    $login = $world->login->action()->login(new LocalLoginRequest(LoginInput::login(RESET_EMAIL), LoginInput::password(LocalLoginWorld::PASSWORD), new ClientAddress(RESET_IP)));
+    $owner = $reset instanceof PasswordResetOutcome ? $reset->session : null;
+
+    expect($reset?->refusal)->toBeNull()
+        ->and($owner)->not->toBeNull()
+        ->and($login->session)->toBeNull()
+        ->and($login->refusal)->toBe(ErrorCode::LoginRejected)
+        ->and($world->login->sessions->count())->toBe(1)
+        ->and($world->login->verifier()->verify($owner?->token->credential()))->toBeInstanceOf(ActorPrincipal::class);
+});
+
+it('refuses a login that checked the old password while the password was changed, and leaves it no session', function (): void {
+    $world = new PasswordResetWorld;
+    $actor = $world->login->person(RESET_EMAIL);
+    $world->login->hasher->whenVerified(static function () use ($world, $actor): void {
+        $world->login->accounts->changePassword($actor->id, $world->login->hasher->hash(new Password(PasswordResetWorld::NEW_PASSWORD)));
+    });
+
+    $login = $world->login->action()->login(new LocalLoginRequest(LoginInput::login(RESET_EMAIL), LoginInput::password(LocalLoginWorld::PASSWORD), new ClientAddress(RESET_IP)));
+
+    expect($login->session)->toBeNull()
+        ->and($login->refusal)->toBe(ErrorCode::LoginRejected)
+        ->and($world->login->sessions->count())->toBe(0);
+});

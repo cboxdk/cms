@@ -54,8 +54,13 @@ use Cbox\Cms\Identity\Sessions\Actions\IssueSession;
  * 5. the login policy decides on the assertion with the method password (CheckLoginPolicy);
  * 6. a refusal of the connection or the policy is login_rejected, whatever the reason, so an
  *    unknown email, a wrong password and an actor that may not log in look the same;
- * 7. a login that got through is taken back from the throttle, the session the browser still
- *    carried, if any, is ended, and a new session is issued with a new id (IssueSession).
+ * 7. a new session is issued with a new id (IssueSession), and then the account is read again: when
+ *    it no longer holds the hash the password was checked against, because a reset or a change set
+ *    the password meanwhile, the new session is ended and the login is login_rejected. A reset sets
+ *    the hash before it ends the actor's sessions, so a session put before that end is ended by
+ *    the reset and one put after it is ended here: no session outlives the old password;
+ * 8. a login that got through is taken back from the throttle, and the session the browser still
+ *    carried, if any, is ended.
  *
  * No identifier, password or IP address reaches a message, a log entry or a counter.
  */
@@ -104,16 +109,24 @@ final readonly class LogInLocally
 
         try {
             $pending = $this->connection->start()->pending;
-            $assertion = $this->connection->complete($pending, new SubmittedCredentials($pending->state->value, $identifier->value, $password->reveal()));
-            $decision = $this->policy->check(new LoginAttempt(ActorId::fromString($assertion->subject->value), LoginMethod::Password, $assertion));
+            $verified = $this->connection->completeLocally($pending, new SubmittedCredentials($pending->state->value, $identifier->value, $password->reveal()));
+            $decision = $this->policy->check(new LoginAttempt(ActorId::fromString($verified->assertion->subject->value), LoginMethod::Password, $verified->assertion));
         } catch (LoginRefused|LoginPolicyRefused|InvalidUuid7) {
+            return LoginOutcome::refused(ErrorCode::LoginRejected);
+        }
+
+        $session = $this->sessions->issue($decision);
+
+        if (! $this->connection->stillCurrent($verified)) {
+            $this->ends->logout($session->token);
+
             return LoginOutcome::refused(ErrorCode::LoginRejected);
         }
 
         $this->throttle->succeeded($keys);
         $this->endPrevious($request->previous);
 
-        return LoginOutcome::loggedIn($this->sessions->issue($decision));
+        return LoginOutcome::loggedIn($session);
     }
 
     private function endPrevious(?TransportCredential $previous): void
