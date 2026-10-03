@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "notes.detail.card props, contract version 2",
+  "description": "The props of version 2 of the note card slot, the newest, with one member of each kind of value a point's props hold. The PHP form is Cbox\\Cms\\Panel\\Tests\\Points\\Fixtures\\NoteCardV2.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "access",
+    "author",
+    "edited_at",
+    "locale",
+    "owner",
+    "pinned",
+    "stars",
+    "tags",
+    "title"
+  ],
+  "properties": {
+    "access": {
+      "description": "The classification access of the viewer.",
+      "enum": [
+        "public",
+        "internal",
+        "confidential",
+        "personal",
+        "sensitive"
+      ]
+    },
+    "author": {
+      "description": "The note's author.",
+      "$ref": "#/$defs/author"
+    },
+    "compact": {
+      "description": "Whether the card is shown compact; false when it is left out.",
+      "type": "boolean",
+      "default": false
+    },
+    "edited_at": {
+      "description": "When the note was last edited, or null when it never was.",
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "locale": {
+      "description": "The locale the viewer reads the note in.",
+      "type": "string",
+      "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$",
+      "examples": [
+        "da"
+      ]
+    },
+    "owner": {
+      "description": "The note's owner.",
+      "$ref": "#/$defs/id"
+    },
+    "pinned": {
+      "description": "Whether the note is pinned.",
+      "type": "boolean"
+    },
+    "stars": {
+      "description": "The note's rating, 1 to 5.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5
+    },
+    "tags": {
+      "description": "The note's tags, at most 5.",
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 32
+      }
+    },
+    "title": {
+      "description": "The note's title.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    }
+  },
+  "$defs": {
+    "author": {
+      "description": "The author of a note.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actor_class",
+        "name"
+      ],
+      "properties": {
+        "actor_class": {
+          "description": "The author's actor class.",
+          "enum": [
+            "staff",
+            "end_user",
+            "service"
+          ]
+        },
+        "name": {
+          "description": "The author's display name.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      }
+    },
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+      "examples": [
+        "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"
+      ]
+    }
+  }
+}

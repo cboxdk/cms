@@ -173,6 +173,7 @@ export type ErrorCode =
   | 'registry_not_a_subscriber'
   | 'registry_not_an_action'
   | 'registry_not_final_readonly'
+  | 'registry_panel_point_without_downcast'
   | 'registry_panel_point_without_stability'
   | 'registry_reserved_namespace'
   | 'registry_surface_without_codec'
@@ -455,6 +456,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'registry_not_a_subscriber',
           'registry_not_an_action',
           'registry_not_final_readonly',
+          'registry_panel_point_without_downcast',
           'registry_panel_point_without_stability',
           'registry_reserved_namespace',
           'registry_surface_without_codec',
@@ -701,6 +703,7 @@ const problemV1Rule: ObjectRule = {
           'registry_not_a_subscriber',
           'registry_not_an_action',
           'registry_not_final_readonly',
+          'registry_panel_point_without_downcast',
           'registry_panel_point_without_stability',
           'registry_reserved_namespace',
           'registry_surface_without_codec',

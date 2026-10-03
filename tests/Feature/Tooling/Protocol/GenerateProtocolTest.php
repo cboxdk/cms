@@ -10,14 +10,15 @@ use Cbox\Cms\Tests\Support\Tooling\ComposerScripts;
 use Cbox\Cms\Tests\Support\Tooling\ScratchDirectory;
 use Cbox\Cms\Tooling\Protocol\Boundary\GenerateProtocolOptions;
 use Cbox\Cms\Tooling\Protocol\Domain\PanelPageSchemas;
+use Cbox\Cms\Tooling\Protocol\Domain\PanelPointSchemas;
 use InvalidArgumentException;
 use RuntimeException;
 use Symfony\Component\Process\Process;
 
 /*
  * `composer generate:protocol` (tools/bin/generate-protocol.php, GUARDRAILS 2.2): it writes the
- * codecs of the kernel's JSON Schemas, and the codecs and TypeScript of the panel's page schemas,
- * below a root, the same bytes as the committed codecs,
+ * codecs of the kernel's JSON Schemas, the codecs and TypeScript of the panel's page schemas, and
+ * the codecs, TypeScript and compatibility lock of the panel's point schemas, below a root, the same bytes as the committed codecs,
  * removes every other file in their directory, changes nothing on a second run, and writes nothing
  * when a schema is missing or invalid, with the catalog's exit code.
  */
@@ -80,6 +81,12 @@ const PANEL_PAGE_FILES = [
     'packages/panel/src/Boundary/Generated/ResetPasswordPageCodecV1.php',
 ];
 
+/** What generate:protocol writes for the panel's points, below the root, sorted: the validators' runtime and the compatibility lock. */
+const PANEL_POINT_FILES = [
+    'js/panel-sdk/src/generated/validation.ts',
+    'packages/panel/resources/points.lock.json',
+];
+
 /**
  * Runs tools/bin/generate-protocol.php of this checkout with the arguments.
  *
@@ -112,7 +119,7 @@ function protocolTree(): string
 {
     $root = ScratchDirectory::make();
 
-    foreach ([...ProtocolSchemas::all(), ...PanelPageSchemas::all()] as $binding) {
+    foreach ([...ProtocolSchemas::all(), ...PanelPageSchemas::all(), ...PanelPointSchemas::all()] as $binding) {
         ScratchDirectory::write($root.'/'.$binding->path(), protocolRead(Phpstan::root().'/'.$binding->path()));
     }
 
@@ -124,7 +131,7 @@ it('writes the committed codecs into a tree, removes other files there, and a se
     $directory = ProtocolSchemas::PHP_DIRECTORY;
     ScratchDirectory::write($root.'/'.$directory.'/HandWrittenCodec.php', "<?php\n");
     ScratchDirectory::write($root.'/'.PanelPageSchemas::TYPESCRIPT_DIRECTORY.'/pages/HandWritten.ts', "export {};\n");
-    $written = [...PANEL_PAGE_FILES, ...array_map(static fn (string $file): string => $directory.'/'.$file, PROTOCOL_CODECS)];
+    $written = [...PANEL_PAGE_FILES, ...PANEL_POINT_FILES, ...array_map(static fn (string $file): string => $directory.'/'.$file, PROTOCOL_CODECS)];
     sort($written, SORT_STRING);
     $removed = [PanelPageSchemas::TYPESCRIPT_DIRECTORY.'/pages/HandWritten.ts', $directory.'/HandWrittenCodec.php'];
 
@@ -197,6 +204,6 @@ it('exits 2 on a usage error, and parses --root once', function (): void {
 
 it('runs the script as composer generate:protocol, with a description', function (): void {
     expect(ComposerScripts::steps('generate:protocol'))->toBe(['@php tools/bin/generate-protocol.php'])
-        ->and(ComposerScripts::description('generate:protocol'))->toContain(ProtocolSchemas::PHP_DIRECTORY, PanelPageSchemas::PHP_DIRECTORY, PanelPageSchemas::TYPESCRIPT_DIRECTORY, '--root=<dir>')
-        ->and(ComposerScripts::description('check:generated'))->toContain('kernel\'s codecs');
+        ->and(ComposerScripts::description('generate:protocol'))->toContain(ProtocolSchemas::PHP_DIRECTORY, PanelPageSchemas::PHP_DIRECTORY, PanelPageSchemas::TYPESCRIPT_DIRECTORY, PanelPointSchemas::SCHEMA_DIRECTORY, PanelPointSchemas::PHP_DIRECTORY, PanelPointSchemas::TYPESCRIPT_DIRECTORY, PanelPointSchemas::LOCK, '--root=<dir>')
+        ->and(ComposerScripts::description('check:generated'))->toContain('kernel\'s codecs', 'points');
 });

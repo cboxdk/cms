@@ -15,6 +15,7 @@
     "workbench/resources/js/**/*",
     "packages/*/resources/typescript/**/*",
     "packages/generators/tests/Descriptor/Fixtures/Comprehensive/typescript/**/*",
+    "packages/panel/tests/Points/Fixtures/typescript/**/*",
     "tests/Support/TypeScript/*.ts"
   ]
 }

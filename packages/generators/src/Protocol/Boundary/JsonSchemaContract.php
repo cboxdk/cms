@@ -85,9 +85,12 @@ final readonly class JsonSchemaContract
     /** The keywords of the document besides those of an object. */
     private const array DOCUMENT_KEYWORDS = ['$schema', '$defs', 'title'];
 
-    /** The keywords of a node that have a form in the codec. */
+    /**
+     * The keywords of a node that have a form in the codec, and `examples`, which the codec leaves
+     * alone and the sample props of a panel point take their values from (SampleProps).
+     */
     private const array KEYWORDS = [
-        '$ref', 'additionalProperties', 'anyOf', 'default', 'description', 'enum', 'format', 'items',
+        '$ref', 'additionalProperties', 'anyOf', 'default', 'description', 'enum', 'examples', 'format', 'items',
         'maxItems', 'maxLength', 'maximum', 'minItems', 'minLength', 'minimum', 'pattern', 'properties',
         'required', 'type',
     ];

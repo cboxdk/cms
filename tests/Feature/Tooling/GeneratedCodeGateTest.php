@@ -20,6 +20,7 @@ use Cbox\Cms\Tests\Support\Phpstan;
 use Cbox\Cms\Tests\Support\Tooling\ComposerScripts;
 use Cbox\Cms\Tooling\Protocol\Adapter\ProtocolGeneration;
 use Cbox\Cms\Tooling\Protocol\Domain\PanelPageSchemas;
+use Cbox\Cms\Tooling\Protocol\Domain\PanelPointSchemas;
 use Illuminate\Contracts\Console\Kernel;
 use RuntimeException;
 use Symfony\Component\Process\Process;
@@ -42,6 +43,12 @@ const PROTOCOL_PATH = ProtocolSchemas::PHP_DIRECTORY;
 
 /** What generate:protocol writes for the panel's pages: their codecs and their TypeScript. */
 const PANEL_PAGE_PATHS = [PanelPageSchemas::PHP_DIRECTORY, PanelPageSchemas::TYPESCRIPT_DIRECTORY];
+
+/**
+ * What generate:protocol writes for the panel's points besides their codecs, which sit below the
+ * pages' codecs: their TypeScript and the compatibility lock, a file.
+ */
+const PANEL_POINT_PATHS = [PanelPointSchemas::TYPESCRIPT_DIRECTORY, PanelPointSchemas::LOCK];
 
 afterEach(function (): void {
     SchemaFixtures::cleanUp();
@@ -85,7 +92,18 @@ function gateRepository(): string
     $root = SchemaFixtures::scratch();
     $files = [];
 
-    foreach (['workbench/schema', 'workbench/addons/fixtureaddon/schema', ProtocolSchemas::SCHEMA_DIRECTORY, ProtocolSchemas::CORE_SCHEMA_DIRECTORY, ProtocolSchemas::COMMAND_SCHEMA_DIRECTORY, PanelPageSchemas::SCHEMA_DIRECTORY, ...GENERATED_PATHS, PROTOCOL_PATH, ...PANEL_PAGE_PATHS] as $directory) {
+    foreach (['workbench/schema', 'workbench/addons/fixtureaddon/schema', ProtocolSchemas::SCHEMA_DIRECTORY, ProtocolSchemas::CORE_SCHEMA_DIRECTORY, ProtocolSchemas::COMMAND_SCHEMA_DIRECTORY, PanelPageSchemas::SCHEMA_DIRECTORY, PanelPointSchemas::SCHEMA_DIRECTORY, ...GENERATED_PATHS, PROTOCOL_PATH, ...PANEL_PAGE_PATHS, ...PANEL_POINT_PATHS] as $directory) {
+        if (is_file(Phpstan::root().'/'.$directory)) {
+            $files[] = $directory;
+
+            continue;
+        }
+
+        // The panel declares no point until a page renders one, so its point schemas may not exist yet.
+        if (! is_dir(Phpstan::root().'/'.$directory)) {
+            continue;
+        }
+
         foreach (SchemaFixtures::files(Phpstan::root().'/'.$directory) as $file) {
             $files[] = $directory.'/'.$file;
         }
@@ -157,7 +175,7 @@ function appendTo(string $path, string $text): void
 }
 
 it('regenerates, then fails on a diff or an untracked file under the generated paths, checked before and after', function (): void {
-    $paths = implode(' ', [...GENERATED_PATHS, PROTOCOL_PATH, ...PANEL_PAGE_PATHS]);
+    $paths = implode(' ', [...GENERATED_PATHS, PROTOCOL_PATH, ...PANEL_PAGE_PATHS, ...PANEL_POINT_PATHS]);
 
     expect(ComposerScripts::steps('check:generated'))->toHaveCount(6)
         ->and(ComposerScripts::steps('check:generated')[2])->toBe('@php vendor/bin/testbench cms:generate --ansi')

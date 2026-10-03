@@ -8,6 +8,7 @@ use Cbox\Cms\Contracts\Addons\AddonManifest;
 use Cbox\Cms\Contracts\Addons\CoreApiVersion;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Attributes\Phase;
+use Cbox\Cms\Contracts\PanelPoints\DowncastsFromNewest;
 use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\BuildProblem;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
@@ -182,6 +183,7 @@ final readonly class RegistryCompiler
             ...$this->duplicateActions($actions),
             ...$this->duplicateSubscriptions($discovery->subscribers),
             ...$this->duplicatePanelPoints($discovery->panelPoints),
+            ...$this->pointsWithoutDowncast($discovery->panelPoints),
         ];
 
         if ($problems !== []) {
@@ -428,6 +430,51 @@ final readonly class RegistryCompiler
                 implode(' and ', $classes),
             ));
         }
+
+        return $problems;
+    }
+
+    /**
+     * One problem per older version of a panel point whose props class does not implement
+     * DowncastsFromNewest (PRD 13.4): the panel builds the props of a point's newest version only,
+     * and every older version builds its own from them through its declared downcast.
+     *
+     * @param  list<PanelPointEntry>  $points
+     * @return list<BuildProblem>
+     */
+    private function pointsWithoutDowncast(array $points): array
+    {
+        $newest = [];
+
+        foreach ($points as $point) {
+            $name = $point->declaration->name;
+            $newest[$name] = max($newest[$name] ?? 0, $point->declaration->version);
+        }
+
+        $problems = [];
+
+        foreach ($points as $point) {
+            $latest = $newest[$point->declaration->name];
+
+            if ($point->declaration->version === $latest || is_a($point->class, DowncastsFromNewest::class, true)) {
+                continue;
+            }
+
+            $problems[] = new BuildProblem(BuildErrorCode::PanelPointWithoutDowncast, sprintf(
+                'The panel point %s on %s (%s) is an older version of %s@%d and does not implement %s. The panel builds the props of the newest version only: implement it with the props class of %s@%d as its template, so contributions to %s keep working.',
+                $point->id()->toString(),
+                $point->class,
+                $point->package,
+                $point->declaration->name,
+                $latest,
+                DowncastsFromNewest::class,
+                $point->declaration->name,
+                $latest,
+                $point->id()->toString(),
+            ));
+        }
+
+        usort($problems, static fn (BuildProblem $a, BuildProblem $b): int => strcmp($a->message, $b->message));
 
         return $problems;
     }

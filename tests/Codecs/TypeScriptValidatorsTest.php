@@ -16,7 +16,12 @@ use Cbox\Cms\Core\Codecs\Boundary\Generated\PathExplanationCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ProblemCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ReceiptCodecV1;
 use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
+use Cbox\Cms\Generators\Protocol\Boundary\SampleProps;
+use Cbox\Cms\Generators\Protocol\Domain\Dto\SchemaBinding;
+use Cbox\Cms\Panel\Tests\Points\PanelPointFixtures;
+use Cbox\Cms\Tests\Support\Panel\PointViolations;
 use Cbox\Cms\Tests\Support\TypeScript\TypeScriptValidators;
+use Cbox\Cms\Tooling\Protocol\Domain\PanelPointSchemas;
 use LogicException;
 use stdClass;
 use Workbench\App\Cms\Generated\Boundary\AppFixtureArticleCodecV1;
@@ -26,7 +31,9 @@ use Workbench\App\Cms\Generated\Boundary\AppFixtureMeasurementCodecV1;
  * The TypeScript validators cms:generate writes, run in Node against what the PHP codecs actually
  * write (PRD 11.12, GUARDRAILS 2.2 and 9): one test per contract version, the workbench's records
  * of both fixture types, the receipt, the problem details, the envelope, the delivery API's
- * documents and fragment, the path explanation and cms:explain's document. Each test has its own
+ * documents and fragment, the path explanation and cms:explain's document, and one per panel
+ * point's props (PRD 13.4), whose broken documents PointViolations makes from the schema, one per
+ * rule and place. Each test has its own
  * fixtures, written by hand: documents with every field type, null and omitted fields that both
  * sides must accept, and documents that break one rule each, which both must refuse at the same
  * value. Every document the PHP codec accepts is written again by the PHP codec, as callers with
@@ -483,3 +490,61 @@ it('refuses a value of the PHP codec\'s output planted wrong', function (JsonCod
     'a delivery answer\'s record as a list' => [new DeliveryCodecV1, 'protocol/DeliveryV1', 'validateDeliveryV1', VALIDATED_DELIVERY, ['data'], [], 'data'],
     'an explanation\'s visibility time without its offset' => [new PathExplanationCodecV1, 'protocol/PathExplanationV1', 'validatePathExplanationV1', VALIDATED_EXPLANATION, ['visibility', 'at'], '2026-03-10T12:00:00', 'visibility.at'],
 ]);
+
+/**
+ * Every point binding with its generated TypeScript directory and its PHP codec, by point schema:
+ * the panel's points of PanelPointSchemas and the fixture points of PanelPointFixtures.
+ *
+ * @return array<string, array{SchemaBinding, string, JsonCodec<object>}>
+ */
+function typeScriptPointBindings(): array
+{
+    $bindings = [];
+
+    foreach ([[PanelPointSchemas::all(), PanelPointSchemas::TYPESCRIPT_DIRECTORY, PanelPointSchemas::PHP_NAMESPACE], [PanelPointFixtures::bindings(), PanelPointFixtures::TYPESCRIPT_DIRECTORY, PanelPointFixtures::PHP_NAMESPACE]] as [$points, $directory, $namespace]) {
+        foreach ($points as $binding) {
+            $class = $namespace.'\\'.$binding->codecClass;
+            $codec = class_exists($class) ? new $class : null;
+            $bindings[$binding->path()] = [$binding, $directory, $codec instanceof JsonCodec ? $codec : throw new LogicException('No generated codec '.$class.'. Run composer generate:protocol.')];
+        }
+    }
+
+    return $bindings;
+}
+
+it('accepts the sample props of every panel point and what the PHP codec writes of them, and refuses each broken rule at the value the PHP codec refuses', function (SchemaBinding $binding, string $directory, JsonCodec $codec): void {
+    $schema = (string) file_get_contents(PanelPointFixtures::root().'/'.$binding->path());
+    $sample = SampleProps::of($schema, $binding->path());
+    $name = (string) preg_replace('/Codec(V[0-9]+)\z/', '$1', $binding->codecClass);
+    $module = PanelPointSchemas::POINTS.'/'.$name;
+    $fixtures = ['the sample props' => [SampleProps::json($sample), null]];
+
+    foreach (PointViolations::of($schema, $sample) as $violation => $document) {
+        $refusedAt = phpRefusedAt($codec, $document);
+
+        expect($refusedAt)->not->toBeNull('The PHP codec refuses the props with '.$violation);
+
+        $fixtures[$violation] = [$document, $refusedAt];
+    }
+
+    $cases = [];
+    $expected = [];
+
+    foreach ($fixtures as $fixture => [$document, $path]) {
+        $cases[] = ['module' => $module, 'validator' => 'validate'.$name, 'document' => $document];
+        $expected[] = [$fixture, $path];
+
+        if ($path === null) {
+            foreach (phpOutputs($codec, $document) as $index => $output) {
+                $cases[] = ['module' => $module, 'validator' => 'validate'.$name, 'document' => $output];
+                $expected[] = [$fixture.', written by PHP for '.ClassificationAccess::cases()[$index]->value, null];
+            }
+        }
+    }
+
+    foreach (TypeScriptValidators::run($directory, $cases) as $index => $verdict) {
+        [$fixture, $path] = $expected[$index];
+
+        expect($verdict['valid'] ? null : ($verdict['path'] ?? ''))->toBe($path, sprintf('The TypeScript validator of %s on %s: %s', $binding->path(), $fixture, $verdict['reason'] ?? 'valid'));
+    }
+})->with(typeScriptPointBindings());

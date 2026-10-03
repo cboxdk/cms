@@ -178,6 +178,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`registry_not_a_subscriber`](#registry_not_a_subscriber) | 500 | 65 | internal_error | no |
 | [`registry_not_an_action`](#registry_not_an_action) | 500 | 65 | internal_error | no |
 | [`registry_not_final_readonly`](#registry_not_final_readonly) | 500 | 65 | internal_error | no |
+| [`registry_panel_point_without_downcast`](#registry_panel_point_without_downcast) | 500 | 65 | internal_error | no |
 | [`registry_panel_point_without_stability`](#registry_panel_point_without_stability) | 500 | 65 | internal_error | no |
 | [`registry_reserved_namespace`](#registry_reserved_namespace) | 500 | 65 | internal_error | no |
 | [`registry_surface_without_codec`](#registry_surface_without_codec) | 500 | 65 | internal_error | no |
@@ -1705,6 +1706,15 @@ An #[Action] sits on a class that implements neither WriteAction nor QueryAction
 ### registry_not_final_readonly
 
 A #[Command], #[Query], #[Action], #[Subscription] or #[PanelPoint] sits on a class that is not a final readonly class (GUARDRAILS 2.1). Make the class final readonly.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_panel_point_without_downcast
+
+A panel point has more than one version, and the props class of an older version does not implement DowncastsFromNewest. The panel builds the props of the newest version only, and an older version keeps working through its declared downcast from them (PRD 13.4). Implement Cbox\Cms\Contracts\PanelPoints\DowncastsFromNewest on the older props class, with the newest props class as its template.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)

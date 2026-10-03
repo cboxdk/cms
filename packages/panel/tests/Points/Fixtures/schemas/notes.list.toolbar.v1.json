@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "notes.list.toolbar props, contract version 1",
+  "description": "The props of the actions of the note list's toolbar, a stable point. The PHP form is Cbox\\Cms\\Panel\\Tests\\Points\\Fixtures\\NoteToolbarV1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "count",
+    "filter"
+  ],
+  "properties": {
+    "count": {
+      "description": "The number of notes the list shows.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "filter": {
+      "description": "The text the list is filtered by, or null when it is not.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 100
+    }
+  }
+}

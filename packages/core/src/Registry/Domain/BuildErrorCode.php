@@ -92,4 +92,7 @@ enum BuildErrorCode: string
 
     /** A #[PanelPoint] class carries none, or more than one, of #[Stable], #[Experimental] and #[Internal] (GUARDRAILS 2.3). */
     case PanelPointWithoutStability = 'registry_panel_point_without_stability';
+
+    /** A panel point has more than one version, and an older version's props class does not implement DowncastsFromNewest. */
+    case PanelPointWithoutDowncast = 'registry_panel_point_without_downcast';
 }

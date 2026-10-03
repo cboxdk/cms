@@ -17,6 +17,7 @@ use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Events\EventType;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\PanelPoints\DowncastsFromNewest;
 use Cbox\Cms\Contracts\PanelPoints\PageName;
 use Cbox\Cms\Contracts\PanelPoints\PointId;
 use Cbox\Cms\Contracts\PanelPoints\PointKind;
@@ -77,6 +78,8 @@ use Cbox\Cms\Core\Tests\Registry\Fixtures\Panel\NoteSectionsV1;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Panel\NotesToolbarV1;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Panel\NoteSubmitV1;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Panel\NoteSubmitV2;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\PanelPointWithoutDowncast\AsideV1;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\PanelPointWithoutDowncast\AsideV2;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\PanelPointWithoutStability\TwiceMarked;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\PanelPointWithoutStability\Unmarked;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\UnknownActionCommand\LabelWriter;
@@ -1009,6 +1012,23 @@ it('refuses a panel point whose props class declares no stability, or two', func
         ->toContain(sprintf('[registry_panel_point_without_stability] The panel point notes.detail.tabs@1 on %s (%s) declares stable and experimental.', TwiceMarked::class, RegistryFixtures::PACKAGE))
         ->toContain(sprintf('[registry_panel_point_without_stability] The panel point notes.detail.aside@1 on %s (%s) declares no stability.', Unmarked::class, RegistryFixtures::PACKAGE))
         ->and(is_dir($directory))->toBeFalse();
+});
+
+it('refuses an older version of a panel point whose props class declares no downcast from the newest, and writes nothing', function (): void {
+    $directory = RegistryFixtures::scratch();
+    $failed = failedRegistryBuild($directory, new ScanRoots(RegistryFixtures::root('PanelPointWithoutDowncast')));
+
+    expect($failed->codes())->toBe([BuildErrorCode::PanelPointWithoutDowncast, BuildErrorCode::PanelPointWithoutDowncast])
+        ->and($failed->getMessage())
+        ->toContain(sprintf(
+            '[registry_panel_point_without_downcast] The panel point notes.form.aside@1 on %s (%s) is an older version of notes.form.aside@3 and does not implement %s.',
+            AsideV1::class,
+            RegistryFixtures::PACKAGE,
+            DowncastsFromNewest::class,
+        ))
+        ->toContain(sprintf('[registry_panel_point_without_downcast] The panel point notes.form.aside@2 on %s (%s) is an older version of notes.form.aside@3', AsideV2::class, RegistryFixtures::PACKAGE))
+        ->and(is_dir($directory))->toBeFalse();
+    expect($failed->getMessage())->not->toContain('notes.form.aside@3 on');
 });
 
 it('refuses a #[PanelPoint] whose arguments break the rules of its kind, and one on a props class that is not final readonly', function (): void {

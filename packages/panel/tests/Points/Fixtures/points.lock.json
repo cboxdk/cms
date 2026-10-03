@@ -1,0 +1,31 @@
+{
+    "format": 1,
+    "points": {
+        "notes.list.toolbar@1": {
+            "contract": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "additionalProperties": false,
+                "properties": {
+                    "count": {
+                        "minimum": 0,
+                        "type": "integer"
+                    },
+                    "filter": {
+                        "maxLength": 100,
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    }
+                },
+                "required": [
+                    "count",
+                    "filter"
+                ],
+                "type": "object"
+            },
+            "schema": "packages/panel/tests/Points/Fixtures/schemas/notes.list.toolbar.v1.json",
+            "sha256": "2772d0b1226d2e5d91be4c4392345a38ce9833b99d76bfcaabe8a907606925dd"
+        }
+    }
+}

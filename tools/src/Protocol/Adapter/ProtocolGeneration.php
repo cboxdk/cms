@@ -16,17 +16,25 @@ use Cbox\Cms\Generators\Generation\Domain\Dto\WriteReport;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Protocol\Boundary\JsonSchemaContract;
+use Cbox\Cms\Generators\Protocol\Boundary\SampleProps;
 use Cbox\Cms\Generators\Protocol\Domain\Dto\SchemaBinding;
 use Cbox\Cms\Generators\Protocol\Domain\ProtocolSchemas;
 use Cbox\Cms\Generators\Schema\Boundary\LocalFile;
+use Cbox\Cms\Tooling\Protocol\Boundary\PointDeclaration;
+use Cbox\Cms\Tooling\Protocol\Boundary\PointsLock;
+use Cbox\Cms\Tooling\Protocol\Domain\Dto\PointSchema;
 use Cbox\Cms\Tooling\Protocol\Domain\PanelPageSchemas;
+use Cbox\Cms\Tooling\Protocol\Domain\PanelPointSchemas;
 
 /**
  * `composer generate:protocol` (GUARDRAILS 2.2): reads each kernel JSON Schema of
  * ProtocolSchemas::all() below a root, reads it into its codec contract with its binding, emits
  * the codecs and writes them into the core's codecs, removing every other file there. It does the
  * same for the schemas of the panel's pages (PanelPageSchemas), whose codecs go into the panel and
- * whose TypeScript, with the validators' runtime module, goes into js/panel. Nothing is written
+ * whose TypeScript, with the validators' runtime module, goes into js/panel, and for the props of
+ * the panel's points (PanelPointSchemas), whose codecs go into the panel and whose TypeScript, with
+ * sample props, goes into js/panel-sdk, with the compatibility lock of the stable points
+ * (PointsLock), which refuses a change to one that is not an added optional member. Nothing is written
  * unless every schema is valid; the problems of all schemas are reported together.
  */
 final readonly class ProtocolGeneration
@@ -72,19 +80,66 @@ final readonly class ProtocolGeneration
         $problems = [];
         $contracts = self::contracts($root, ProtocolSchemas::all(), ProtocolSchemas::ATTRIBUTE, $problems);
         $pages = self::contracts($root, PanelPageSchemas::all(), PanelPageSchemas::ATTRIBUTE, $problems);
+        $points = self::points($root, PanelPointSchemas::all(), $problems);
 
         if ($problems !== []) {
             throw GenerationFailed::with($problems);
         }
 
+        $runtime = new TypeScriptRuntime()->source();
+
         $kernel = ProtocolSchemas::result($contracts, new PhpLocation(ProtocolSchemas::PHP_DIRECTORY, ProtocolSchemas::PHP_NAMESPACE));
-        $panel = PanelPageSchemas::result($pages, new TypeScriptRuntime()->source());
-        $files = [...$kernel->files, ...$panel->files];
+        $panel = PanelPageSchemas::result($pages, $runtime);
+        $pointsResult = PanelPointSchemas::result($points, $runtime, new PhpLocation(PanelPointSchemas::PHP_DIRECTORY, PanelPointSchemas::PHP_NAMESPACE), PanelPointSchemas::TYPESCRIPT_DIRECTORY);
+        $lock = PointsLock::file($points, LocalFile::contents($root.'/'.PanelPointSchemas::LOCK), PanelPointSchemas::LOCK);
+        $files = [...$kernel->files, ...$panel->files, ...$pointsResult->files, $lock];
         usort($files, static fn (GeneratedFile $a, GeneratedFile $b): int => strcmp($a->path, $b->path));
-        $directories = [...$kernel->directories, ...$panel->directories];
+        $directories = [...$kernel->directories, ...$panel->directories, ...$pointsResult->directories];
         sort($directories, SORT_STRING);
 
         return new FilesystemGeneratedOutput()->write($root, new GenerationResult($files, $directories));
+    }
+
+    /**
+     * The props schema of each panel point a binding names, read below $root (PRD 13.4): its codec
+     * contract, the point its props class declares, whether the point is stable, its contract for
+     * the compatibility lock and its sample props; a missing or invalid schema adds its problems to
+     * $problems instead.
+     *
+     * @param  list<SchemaBinding>  $bindings
+     * @param  list<GenerationProblem>  $problems
+     * @return list<PointSchema>
+     */
+    public static function points(string $root, array $bindings, array &$problems): array
+    {
+        $points = [];
+
+        foreach ($bindings as $binding) {
+            $path = $binding->path();
+            $json = LocalFile::contents(rtrim($root, '/').'/'.$path);
+
+            if ($json === null) {
+                $problems[] = new GenerationProblem(GenerateErrorCode::SchemaMissing, sprintf('The schema %s does not exist or cannot be read.', $path));
+
+                continue;
+            }
+
+            try {
+                $declaration = PointDeclaration::of($binding);
+                $points[] = new PointSchema(
+                    $binding,
+                    JsonSchemaContract::read($json, $binding, PanelPointSchemas::ATTRIBUTE),
+                    $declaration->point,
+                    $declaration->stable,
+                    PointsLock::contract($json, $path),
+                    SampleProps::literal(SampleProps::of($json, $path)),
+                );
+            } catch (GenerationFailed $failed) {
+                array_push($problems, ...$failed->problems);
+            }
+        }
+
+        return $points;
     }
 
     /**

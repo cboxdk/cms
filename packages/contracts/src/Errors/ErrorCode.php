@@ -190,6 +190,7 @@ enum ErrorCode: string
     case RegistryNotASubscriber = 'registry_not_a_subscriber';
     case RegistryNotAnAction = 'registry_not_an_action';
     case RegistryNotFinalReadonly = 'registry_not_final_readonly';
+    case RegistryPanelPointWithoutDowncast = 'registry_panel_point_without_downcast';
     case RegistryPanelPointWithoutStability = 'registry_panel_point_without_stability';
     case RegistryReservedNamespace = 'registry_reserved_namespace';
     case RegistrySurfaceWithoutCodec = 'registry_surface_without_codec';
@@ -856,6 +857,9 @@ enum ErrorCode: string
             ),
             self::RegistryNotFinalReadonly => $this->refusedInput(
                 'A #[Command], #[Query], #[Action], #[Subscription] or #[PanelPoint] sits on a class that is not a final readonly class (GUARDRAILS 2.1). Make the class final readonly.',
+            ),
+            self::RegistryPanelPointWithoutDowncast => $this->refusedInput(
+                'A panel point has more than one version, and the props class of an older version does not implement DowncastsFromNewest. The panel builds the props of the newest version only, and an older version keeps working through its declared downcast from them (PRD 13.4). Implement Cbox\\Cms\\Contracts\\PanelPoints\\DowncastsFromNewest on the older props class, with the newest props class as its template.',
             ),
             self::RegistryPanelPointWithoutStability => $this->refusedInput(
                 'A #[PanelPoint] class carries none, or more than one, of #[Stable], #[Experimental] and #[Internal]. The attribute on the props class is the point\'s stability (GUARDRAILS 2.3), so give it exactly one.',

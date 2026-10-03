@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "notes.detail.card props, contract version 1",
+  "description": "The props of version 1 of the note card slot, built from the props of version 2 through its downcast. The PHP form is Cbox\\Cms\\Panel\\Tests\\Points\\Fixtures\\NoteCardV1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "owner",
+    "title"
+  ],
+  "properties": {
+    "owner": {
+      "description": "The note's owner.",
+      "$ref": "#/$defs/id"
+    },
+    "title": {
+      "description": "The note's title.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+      "examples": [
+        "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"
+      ]
+    }
+  }
+}
