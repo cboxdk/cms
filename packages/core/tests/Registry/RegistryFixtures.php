@@ -33,6 +33,7 @@ use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
 use Cbox\Cms\Core\Registry\Boundary\RegistryCacheCodec;
 use Cbox\Cms\Core\Registry\Domain\ActionKind;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
+use Cbox\Cms\Core\Registry\Domain\Dto\ContractShapes;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredAction;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredHook;
 use Cbox\Cms\Core\Registry\Domain\Dto\Discovery;
@@ -44,6 +45,7 @@ use Cbox\Cms\Core\Registry\Domain\PointStability;
 use Cbox\Cms\Core\Registry\Domain\RegistryCompiler;
 use Cbox\Cms\Core\Registry\Domain\RegistryName;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
+use Cbox\Cms\Core\Tests\Registry\Fakes\FakeContractSchemas;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNote;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNoteAction;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\FindNote;
@@ -54,6 +56,7 @@ use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\NoteArchived;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\NoteCardV1;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\NoteCreated;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\NoteRenamed;
+use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\NoteTitle;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\NotifyNoteWebhooks;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\TrimNoteTitle;
 use Cbox\Cms\Core\Tests\Registry\FixtureSupport\CreateNoteCodec;
@@ -104,7 +107,26 @@ final class RegistryFixtures
                 $package,
                 PointStability::Experimental,
             )],
+            self::validPackages($package),
         );
+    }
+
+    /**
+     * Every class the Valid fixture declares, by its lower-case name, with the package.
+     *
+     * @return array<string, string>
+     */
+    public static function validPackages(string $package = self::PACKAGE): array
+    {
+        $classes = [
+            CreateNote::class, CreateNoteAction::class, FindNote::class, FindNoteAction::class, IndexNote::class,
+            InvalidateNoteFragments::class, NoteArchived::class, NoteCardV1::class, NoteCreated::class,
+            NoteRenamed::class, NoteTitle::class, NotifyNoteWebhooks::class, TrimNoteTitle::class,
+        ];
+        $packages = array_fill_keys(array_map(strtolower(...), $classes), $package);
+        ksort($packages, SORT_STRING);
+
+        return $packages;
     }
 
     /**
@@ -164,9 +186,9 @@ final class RegistryFixtures
         );
     }
 
-    public static function builder(string $directory): BuildRegistry
+    public static function builder(string $directory, ContractShapes $shapes = new ContractShapes): BuildRegistry
     {
-        return new BuildRegistry(new AttributeScanner, new RegistryCompiler, self::cache($directory), self::documents($directory));
+        return new BuildRegistry(new AttributeScanner, new RegistryCompiler, self::cache($directory), self::documents($directory), new FakeContractSchemas($shapes));
     }
 
     /**

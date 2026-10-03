@@ -36,6 +36,7 @@ final class StarsFieldTypeTest extends BuildTestCase
     #[Test]
     public function it_generates_a_field_of_the_addon_s_field_type(): void
     {
+        $this->allowAddons('acme/cms-reviews');
         self::assertSame(0, $this->build(NotesServiceProvider::class, ReviewsServiceProvider::class));
 
         $schema = require $this->registryFile('schema');
@@ -77,6 +78,7 @@ final class StarsFieldTypeTest extends BuildTestCase
     #[Test]
     public function it_checks_the_options_against_the_options_schema_and_refuses_an_unknown_namespace(): void
     {
+        $this->allowAddons('acme/cms-reviews');
         self::assertSame(0, $this->build(NotesServiceProvider::class, ReviewsServiceProvider::class));
 
         self::assertSame(65, $this->generate(<<<'YAML'

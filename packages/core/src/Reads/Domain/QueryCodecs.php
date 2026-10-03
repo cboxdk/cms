@@ -60,6 +60,19 @@ final readonly class QueryCodecs
         return $this->codecs[$this->key($query, $version)] ?? null;
     }
 
+    /**
+     * Every registered codec, sorted by query name, then version.
+     *
+     * @return list<QueryCodec>
+     */
+    public function all(): array
+    {
+        $codecs = $this->codecs;
+        ksort($codecs, SORT_STRING);
+
+        return array_values($codecs);
+    }
+
     private function key(CommandName $query, int $version): string
     {
         return $query->value.'@'.$version;

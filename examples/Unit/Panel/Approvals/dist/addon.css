@@ -1,0 +1,5 @@
+@layer cms.addon.approvals {
+  .approvals-badge {
+    font-weight: 600;
+  }
+}

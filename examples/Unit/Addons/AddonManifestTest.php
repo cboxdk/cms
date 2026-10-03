@@ -23,6 +23,7 @@ final class AddonManifestTest extends BuildTestCase
     #[Test]
     public function it_registers_the_addon_s_hook_and_schema_contributions(): void
     {
+        $this->allowAddons('acme/cms-reviews');
         self::assertSame(0, $this->build(NotesServiceProvider::class, ReviewsServiceProvider::class));
 
         $hooks = require $this->registryFile('hooks');
@@ -58,6 +59,7 @@ final class AddonManifestTest extends BuildTestCase
     #[Test]
     public function it_refuses_a_hook_the_manifest_does_not_allow_and_writes_nothing(): void
     {
+        $this->allowAddons('acme/cms-reviews');
         self::assertSame(65, $this->build(NotesServiceProvider::class, UnlistedHookServiceProvider::class));
         self::assertStringContainsString(
             '[registry_undeclared_hook] Hook '.RequireStars::class.' (acme/cms-reviews) runs for '.PublishNote::class.' (note.publish) in the validate phase, which the manifest of addon "reviews" does not allow.',

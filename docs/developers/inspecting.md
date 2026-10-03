@@ -60,11 +60,11 @@ With `--json`, the document is `{"points": [...], "version": 1}`, with keys sort
 
 ## cms:panel:fills
 
-`cms:panel:fills <point>`, such as `cms:panel:fills account.me.sections@1`, lists the contributions to a point in the order the panel renders them: priority with the lowest first, then the addon's namespace, then the contribution's id. Each line gives the contribution's id, its priority, its package and addon, and the scope it is narrowed to: pages, command forms, types, field types and the permission a viewer must hold. Contributions come from the addon manifests.
+`cms:panel:fills <point>`, such as `cms:panel:fills account.me.sections@1`, lists the contributions to a point in the order the panel renders them: priority with the lowest first, then the addon's namespace, then the contribution's id. Each contribution takes two lines. The first gives its id, its kind, its package and addon, the key a replacement replaces, the command an action runs or a check or step is for, the data query, and the scope it is narrowed to: pages, command forms, types, field types and the permission a viewer must hold. The second gives its priority and whether that is the addon's or the installation's (`cbox-cms.panel.contributions`), and whether the panel renders it: enabled, enabled or disabled by the installation, chosen or passed over by the installation for a replacement's key (`cbox-cms.panel.replacements`), or disabled by the activation state (`cbox-cms.panel.disabled`), which the command reads as it is now. Contributions come from the addon manifests ([panel contributions](../addons/panel-contributions.md)).
 
-With `--json`, the document is `{"fills": [...], "point": "<id>", "version": 1}`, each contribution with `contribution`, `addon`, `package`, `priority` and `scope`, which has `pages`, `commands`, `types`, `field_types` and `requires`.
+With `--json`, the document is `{"fills": [...], "point": "<id>", "version": 1}`, each contribution with `contribution`, `addon`, `package`, `kind`, `priority`, `ordering` (`addon` or `installation`), `enabled`, `enabling` (`addon`, `installation` or `activation`), `key`, `command`, `query` and `scope`, which has `pages`, `commands`, `types`, `field_types` and `requires`.
 
-A selector or id that names no point of the registry exits 64 and names the registered points.
+A selector or id that names no point of the registry exits 64 and names the registered points, and an activation state that is not of its form exits 78.
 
 ## Exit codes
 

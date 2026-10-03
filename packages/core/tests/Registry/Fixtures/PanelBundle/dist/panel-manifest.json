@@ -1,0 +1,26 @@
+{
+  "contributions": [
+    "approvals.badge"
+  ],
+  "entry": "addon.js",
+  "externals": [
+    "react"
+  ],
+  "files": [
+    {
+      "integrity": "sha384-hMD4wC4KNNJCfxskYtADOTOS6p/d9DdOWBWm2xZZYwzmnLSX6XLXqYtUtBQ6mXmZ",
+      "kind": "style",
+      "path": "addon.css"
+    },
+    {
+      "integrity": "sha384-hk44qyAzC8E49N5FefIIMN7nfaYgxNsrUQGgk8nQSxjHLJQJWX1foB8vpkeuhttj",
+      "kind": "script",
+      "path": "addon.js"
+    },
+    {
+      "integrity": "sha384-hMD4wC4KNNJCfxskYtADOTOS6p/d9DdOWBWm2xZZYwzmnLSX6XLXqYtUtBQ6mXmZ",
+      "kind": "asset",
+      "path": "missing.png"
+    }
+  ]
+}

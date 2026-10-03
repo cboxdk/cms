@@ -10,6 +10,9 @@ use Cbox\Cms\Contracts\Addons\AddonNamespace;
 use Cbox\Cms\Contracts\Addons\ContributedFieldType;
 use Cbox\Cms\Contracts\Addons\CoreApiVersion;
 use Cbox\Cms\Contracts\Addons\SchemaContributions;
+use Cbox\Cms\Contracts\PanelPoints\ContributionId;
+use Cbox\Cms\Contracts\PanelPoints\Scope;
+use Cbox\Cms\Contracts\PanelPoints\SlotFill;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Core\Registry\Boundary\ProviderAddonManifests;
 use Cbox\Cms\Core\Registry\Domain\BuildErrorCode;
@@ -135,4 +138,21 @@ it('asks the application\'s providers, deferred ones included, and no provider t
     // The workbench's fixture addon, which package discovery registers, and the deferred one.
     expect($read->manifests)->toEqual([new FixtureAddonServiceProvider($app)->addonManifest(), RegistryFixtures::addonManifest()])
         ->and($read->problems)->toBe([]);
+});
+
+it('reports a panel contribution whose scope refuses its values as registry_invalid_manifest', function (): void {
+    $read = ProviderAddonManifests::from([manifestProvider(static fn (): AddonManifest => PanelBuildWorld::manifest([new SlotFill(new ContributionId('approvals.badge'), 'notes.legacy@1', scope: new Scope(fieldTypes: ['Stars']))]))]);
+
+    expect($read->manifests)->toBe([])
+        ->and(array_map(static fn (BuildProblem $problem): BuildErrorCode => $problem->code, $read->problems))->toBe([BuildErrorCode::InvalidManifest])
+        ->and(manifestProblems(...$read->problems)[0])->toContain('The scope names the field type "Stars"');
+});
+
+it('reads the panel bundle of a manifest that names one, by the manifest\'s package', function (): void {
+    $manifest = PanelBuildWorld::manifest([new SlotFill(new ContributionId('approvals.badge'), 'notes.detail.sections@1')], bundle: __DIR__.'/Fixtures/PanelBundleValid/dist');
+    $read = ProviderAddonManifests::from([manifestProvider($manifest), manifestProvider(RegistryFixtures::addonManifest())]);
+
+    expect(array_keys($read->bundles))->toBe([PanelBuildWorld::ADDON])
+        ->and($read->bundles[PanelBuildWorld::ADDON]->problems)->toBe([])
+        ->and($read->bundles[PanelBuildWorld::ADDON]->manifest?->entry->value)->toBe('addon.js');
 });

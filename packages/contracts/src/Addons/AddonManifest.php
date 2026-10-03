@@ -7,6 +7,7 @@ namespace Cbox\Cms\Contracts\Addons;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Attributes\Phase;
 use Cbox\Cms\Contracts\Build\ScanRoot;
+use Cbox\Cms\Contracts\PanelPoints\PanelContributions;
 use Cbox\Cms\Contracts\Subscribers\Lane;
 
 /**
@@ -25,6 +26,7 @@ use Cbox\Cms\Contracts\Subscribers\Lane;
  *   themselves with #[Hook]; the manifest allows them.
  * - subscriptions: each event class its subscribers may receive, with the lane.
  * - schema: its field types, own types and blueprint extensions (SchemaContributions).
+ * - panel: what it adds to the panel (PanelContributions), or null for an addon without UI.
  *
  * The constructor holds the manifest to its namespace: the field types and own types are in it,
  * and it extends no type of its own. It refuses a hook or a subscription listed twice.
@@ -55,6 +57,7 @@ final readonly class AddonManifest
         array $hooks = [],
         array $subscriptions = [],
         public SchemaContributions $schema = new SchemaContributions,
+        public ?PanelContributions $panel = null,
     ) {
         if (preg_match(ScanRoot::PACKAGE_PATTERN, $package) !== 1) {
             throw InvalidAddonManifest::because(sprintf('The addon package "%s" is not a Composer package name such as "acme/cms-reviews".', $package));

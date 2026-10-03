@@ -74,6 +74,18 @@ abstract class BuildTestCase extends TestCase
     }
 
     /**
+     * Adds the addons' Composer packages to the installation's allowlist of addons,
+     * cbox-cms.addons.allowed (PRD 13.8), as an application does when it installs them; cms:build
+     * refuses an addon that is not on it.
+     */
+    protected function allowAddons(string ...$packages): void
+    {
+        $allowed = config('cbox-cms.addons.allowed', []);
+
+        config()->set('cbox-cms.addons.allowed', [...(is_array($allowed) ? $allowed : []), ...$packages]);
+    }
+
+    /**
      * What the last cms:build printed.
      */
     protected function buildOutput(): string

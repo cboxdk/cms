@@ -50,6 +50,7 @@ use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Ids\RoleId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Ids\TypeId;
+use Cbox\Cms\Contracts\PanelPoints\ContributionId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Receipts\Receipt;
@@ -91,6 +92,11 @@ use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry;
 use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
 use Cbox\Cms\Core\Reads\Domain\Dto\QueryCodec;
+use Cbox\Cms\Core\Registry\Domain\BundleFileKind;
+use Cbox\Cms\Core\Registry\Domain\BundleIntegrity;
+use Cbox\Cms\Core\Registry\Domain\BundlePath;
+use Cbox\Cms\Core\Registry\Domain\Dto\BundleFile;
+use Cbox\Cms\Core\Registry\Domain\Dto\BundleManifest;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\ExplainedPath;
 use Cbox\Cms\Core\Routing\Domain\Dto\MountStep;
@@ -199,9 +205,10 @@ final readonly class ProtocolSchemas
      * The bindings of the kernel's documents, sorted by file: the schemas of the contracts module,
      * the delivery explanation, the delivery API's answers, the envelope, the explained path, the
      * path explanation, the problem details and the receipt, then the core's own, the delivery
-     * API's fragment. A member of a document that is a document of another contract, such as the
-     * record of a delivery answer or the explanation inside a delivery explanation, is bound with
-     * ValueBinding::document(), so its own contract's codec writes it.
+     * API's fragment and the manifest of an addon's panel bundle. A member of a document that is a
+     * document of another contract, such as the record of a delivery answer or the explanation
+     * inside a delivery explanation, is bound with ValueBinding::document(), so its own contract's
+     * codec writes it.
      *
      * @return list<SchemaBinding>
      */
@@ -324,6 +331,23 @@ final readonly class ProtocolSchemas
                 values: [
                     '#/properties/format' => ValueBinding::enum(AnswerFormat::class),
                     '#/properties/status' => ValueBinding::enum(HttpStatus::class),
+                ],
+                directory: self::CORE_SCHEMA_DIRECTORY,
+            ),
+            new SchemaBinding(
+                schema: 'panel-bundle.v1.json',
+                codecClass: 'PanelBundleCodecV1',
+                version: 1,
+                objects: [
+                    '#' => BundleManifest::class,
+                    '#/$defs/file' => BundleFile::class,
+                ],
+                values: [
+                    '#/properties/contributions/items' => ValueBinding::value(ContributionId::class),
+                    '#/properties/entry' => ValueBinding::value(BundlePath::class),
+                    '#/$defs/file/properties/integrity' => ValueBinding::value(BundleIntegrity::class),
+                    '#/$defs/file/properties/kind' => ValueBinding::enum(BundleFileKind::class),
+                    '#/$defs/file/properties/path' => ValueBinding::value(BundlePath::class),
                 ],
                 directory: self::CORE_SCHEMA_DIRECTORY,
             ),

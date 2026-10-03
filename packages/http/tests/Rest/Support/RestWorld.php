@@ -14,6 +14,7 @@ use Cbox\Cms\Core\Reads\Domain\Dto\QuerySettings;
 use Cbox\Cms\Core\Reads\Domain\QueryCodecs;
 use Cbox\Cms\Core\Reads\Domain\ReadableFields;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
+use Cbox\Cms\Core\Registry\Adapter\CodecContractSchemas;
 use Cbox\Cms\Core\Registry\Adapter\FileOpenApiDocuments;
 use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
 use Cbox\Cms\Core\Registry\Boundary\RegistryCacheCodec;
@@ -94,6 +95,7 @@ final readonly class RestWorld
             new RegistryCompiler,
             new FileRegistryCache($directory, new RegistryCacheCodec),
             new FileOpenApiDocuments($directory, ExposedWorld::codecs(), self::queryCodecs()),
+            new CodecContractSchemas(ExposedWorld::codecs(), self::queryCodecs()),
         )->build(self::roots());
     }
 

@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\PanelPoints\CommandRef;
 use Cbox\Cms\Contracts\PanelPoints\ContributionId;
 use Cbox\Cms\Contracts\PanelPoints\PageName;
 use Cbox\Cms\Contracts\PanelPoints\Scope;
+use Cbox\Cms\Contracts\PanelPoints\SlotFill;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
@@ -43,15 +44,15 @@ final class PanelRegistry
     private static function withFills(CompiledRegistry $registry): CompiledRegistry
     {
         $fills = [
-            new PanelFill(new ContributionId('reviews.stars'), 'acme/cms-reviews', 500, new Scope(
+            new PanelFill(new SlotFill(new ContributionId('reviews.stars'), 'notes.detail.sections@1', priority: 500, scope: new Scope(
                 [new PageName('notes.detail')],
                 [new CommandRef(new CommandName('note.create'), 1)],
                 [new TypeName('app:note')],
                 ['reviews:stars'],
                 new CommandName('note.find'),
-            )),
-            new PanelFill(new ContributionId('approvals.badge'), 'acme/cms-approvals', 500, Scope::everywhere()),
-            new PanelFill(new ContributionId('cms.summary'), 'cboxdk/cms', 100, Scope::everywhere()),
+            )), 'acme/cms-reviews', 500),
+            new PanelFill(new SlotFill(new ContributionId('approvals.badge'), 'notes.detail.sections@1', priority: 500, scope: Scope::everywhere()), 'acme/cms-approvals', 500),
+            new PanelFill(new SlotFill(new ContributionId('cms.summary'), 'notes.detail.sections@1', priority: 100, scope: Scope::everywhere()), 'cboxdk/cms', 100),
         ];
 
         return new CompiledRegistry(

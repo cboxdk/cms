@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Panel bundle manifest, contract version 1",
+  "description": "What an addon's prebuilt panel bundle says of itself in panel-manifest.json, in the bundle directory its PanelContributions name (PRD 13.4): the entry module, every file with its SHA-384, the shared modules it imports and the contributions it registers code for. cms:build reads it with the generated codec PanelBundleCodecV1, checks every file on disk against its hash, every stylesheet against the addon's cascade layer, the imports against the modules the panel shares and the contributions against the addon's manifest, and keeps the entry and the files in addons.php, so the panel serves only those files, by hash. The PHP form is Cbox\\Cms\\Core\\Registry\\Domain\\Dto\\BundleManifest.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contributions",
+    "entry",
+    "externals",
+    "files"
+  ],
+  "properties": {
+    "contributions": {
+      "description": "The ids of the contributions the bundle registers code for, each `<namespace>.<local>`: exactly the addon's contributions that run code.",
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "type": "string",
+        "maxLength": 96,
+        "pattern": "^[a-z][a-z0-9]{0,19}(\\.[a-z][a-z0-9_]*(-[a-z0-9_]+)*)+$"
+      }
+    },
+    "entry": {
+      "$ref": "#/$defs/path"
+    },
+    "externals": {
+      "description": "The bare module specifiers the bundle imports and leaves to the panel's import map: the shared React modules and @cboxdk/cms-panel with its subpaths.",
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      }
+    },
+    "files": {
+      "description": "Every file of the bundle, each with its path, SHA-384 and kind.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1000,
+      "items": {
+        "$ref": "#/$defs/file"
+      }
+    }
+  },
+  "$defs": {
+    "file": {
+      "description": "One file of the bundle.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "integrity",
+        "kind",
+        "path"
+      ],
+      "properties": {
+        "integrity": {
+          "description": "The SHA-384 of the file's bytes in the form of Subresource Integrity: sha384- and the base64 of the digest.",
+          "type": "string",
+          "pattern": "^sha384-[A-Za-z0-9+/]{64}$"
+        },
+        "kind": {
+          "description": "What the file is: an ES module, a stylesheet in the addon's cascade layer, or another asset.",
+          "enum": [
+            "script",
+            "style",
+            "asset"
+          ]
+        },
+        "path": {
+          "$ref": "#/$defs/path"
+        }
+      }
+    },
+    "path": {
+      "description": "A path relative to the bundle directory, of the entry module or of a file: slash-separated segments of letters, digits, dots, hyphens and underscores, none starting with a dot.",
+      "type": "string",
+      "maxLength": 255,
+      "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]*(/[A-Za-z0-9_][A-Za-z0-9._-]*)*$"
+    }
+  }
+}

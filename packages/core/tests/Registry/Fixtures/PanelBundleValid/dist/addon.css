@@ -1,0 +1,5 @@
+@layer cms.addon {
+  .approvals-badge {
+    color: var(--cms-color-accent);
+  }
+}

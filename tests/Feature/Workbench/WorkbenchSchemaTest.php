@@ -185,6 +185,7 @@ it('generates exactly these files from the workbench\'s schema', function (): vo
         'workbench/resources/js/cms/generated/protocol/ListNodesV1.ts',
         'workbench/resources/js/cms/generated/protocol/ListRolesV1.ts',
         'workbench/resources/js/cms/generated/protocol/NodeListV1.ts',
+        'workbench/resources/js/cms/generated/protocol/PanelBundleV1.ts',
         'workbench/resources/js/cms/generated/protocol/PathExplanationV1.ts',
         'workbench/resources/js/cms/generated/protocol/ProblemV1.ts',
         'workbench/resources/js/cms/generated/protocol/PublishEntryV1.ts',

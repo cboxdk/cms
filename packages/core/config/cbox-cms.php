@@ -125,14 +125,37 @@ return [
     ],
 
     /*
-     * Addons (PRD 13.1, invariant 21). service_actors maps each installed addon's namespace, from
-     * its manifest, to the id of its service actor: the actor created when the installation
-     * approved the addon's capabilities. The addon's subscribers run as that actor, with its own
-     * grants, and never as the system; a subscriber of an addon without an active service actor
-     * does not run.
+     * Addons (PRD 13.1, 13.8, invariant 21). allowed is the installation's allowlist of addons:
+     * the Composer packages of the addons it has reviewed, such as 'acme/cms-approvals'. cms:build
+     * refuses an installed addon whose package is not on it, as registry_addon_not_allowed, so an
+     * addon fails at build, never at run time. service_actors maps each installed addon's
+     * namespace, from its manifest, to the id of its service actor: the actor created when the
+     * installation approved the addon's capabilities. The addon's subscribers run as that actor,
+     * with its own grants, and never as the system; a subscriber of an addon without an active
+     * service actor does not run.
      */
     'addons' => [
+        'allowed' => [],
         'service_actors' => [],
+    ],
+
+    /*
+     * The panel's contributions from addons (PRD 13.4, 13.5). contributions sets, per panel point
+     * id and contribution id, another priority (a whole number from 0 to 1000000, the lowest
+     * rendered first) or enabled => false; replacements names, per replaceable point id and key,
+     * the contribution id of the replacement that wins it when several claim it. cms:build compiles
+     * both, and refuses one that names no contribution as registry_panel_override_invalid.
+     * disabled is the activation state, read at each request without a rebuild: the namespaces of
+     * addons whose panel UI is off under addons, and contribution ids under contributions. Each
+     * shows in cms:panel:fills with where it comes from.
+     */
+    'panel' => [
+        'contributions' => [],
+        'replacements' => [],
+        'disabled' => [
+            'addons' => [],
+            'contributions' => [],
+        ],
     ],
 
     /*

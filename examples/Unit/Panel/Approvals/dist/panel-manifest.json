@@ -1,0 +1,22 @@
+{
+  "contributions": ["approvals.badge"],
+  "entry": "addon.js",
+  "externals": ["@cboxdk/cms-panel/extend", "react", "react/jsx-runtime"],
+  "files": [
+    {
+      "integrity": "sha384-iS4H/x5SnTQ8Vj3DsRVxwIOx/FLS2WnfkAjIXyy/s8iWaeQIueCXzXIRcWYT2yBa",
+      "kind": "style",
+      "path": "addon.css"
+    },
+    {
+      "integrity": "sha384-B3wbEOZJfswkjwIl/Lup6+5/CVhiMn08tNVNvlmWs2vc/ZxoneWDO/GbDiMMBxu4",
+      "kind": "script",
+      "path": "addon.js"
+    },
+    {
+      "integrity": "sha384-E9LkkwZSgxYZalyCshUAFWrOhzHOTN+RszI+I7YX4ZkWDPIjKneo4zBWm7TVr1HJ",
+      "kind": "script",
+      "path": "badge.js"
+    }
+  ]
+}

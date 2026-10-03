@@ -7,6 +7,7 @@ namespace Cbox\Cms\Panel;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Build\DeclaresScanRoots;
 use Cbox\Cms\Contracts\Build\ScanRoot;
+use Cbox\Cms\Core\Registry\Domain\Dto\PointSchemaDirectory;
 use Cbox\Cms\Identity\Sessions\Domain\Dto\SessionCookie;
 use Cbox\Cms\Panel\Boundary\PanelSessions;
 use Cbox\Cms\Panel\Boundary\ViteManifest;
@@ -33,7 +34,8 @@ use Override;
  * is a random id with a checksum that only the session store can use (docs/security/sessions.md),
  * and clears Laravel's session cookie once the kernel has handled a logout
  * (PanelSessions::clearCookies()). Declares the module's classes as a scan root for cms:build (PRD
- * 13.2). An application mounts the panel with PanelRoutes.
+ * 13.2), and the directory of its points' props schemas, which cms:build checks the addons'
+ * contributions against (PRD 13.4). An application mounts the panel with PanelRoutes.
  */
 #[Internal]
 final class PanelServiceProvider extends ServiceProvider implements DeclaresScanRoots
@@ -42,11 +44,26 @@ final class PanelServiceProvider extends ServiceProvider implements DeclaresScan
 
     public const string VIEWS = 'cms-panel';
 
+    /** The container id of the panel's PointSchemaDirectory. */
+    public const string POINT_SCHEMAS = 'cbox-cms.panel.point-schemas';
+
     #[Override]
     public function register(): void
     {
         $this->app->singleton(PanelBuild::class, static fn (): PanelBuild => ViteManifest::read(self::buildDirectory()));
         $this->app->bind(ImportMap::class, static fn (Application $app): ImportMap => PanelRootView::importMap($app->make(PanelBuild::class), $app->make(UrlGenerator::class)));
+
+        // The props schemas of the panel's points, which cms:build checks contributions against.
+        $this->app->bind(self::POINT_SCHEMAS, static fn (): PointSchemaDirectory => new PointSchemaDirectory(self::pointSchemaDirectory()));
+        $this->app->tag([self::POINT_SCHEMAS], PointSchemaDirectory::TAG);
+    }
+
+    /**
+     * The directory of the props schemas of the panel's points, `<name>.v<version>.json` each.
+     */
+    public static function pointSchemaDirectory(): string
+    {
+        return __DIR__.'/../resources/schemas/points';
     }
 
     public function boot(): void

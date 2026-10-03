@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\Tests\Registry;
 
 use Cbox\Cms\Contracts\PanelPoints\ContributionId;
 use Cbox\Cms\Contracts\PanelPoints\Scope;
+use Cbox\Cms\Contracts\PanelPoints\SlotFill;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Dto\PanelFill;
 use Cbox\Cms\Core\Registry\Domain\Dto\PanelPointEntry;
@@ -24,8 +25,8 @@ final class PanelRegistryFixture
     {
         $registry = new RegistryCompiler()->compile(new AttributeScanner()->scan(new ScanRoots(RegistryFixtures::root('Panel'))));
         $fills = [
-            new PanelFill(new ContributionId('reviews.stars'), 'acme/cms-reviews', 200, Scope::everywhere()),
-            new PanelFill(new ContributionId('cms.summary'), 'cboxdk/cms', 100, Scope::everywhere()),
+            new PanelFill(new SlotFill(new ContributionId('reviews.stars'), 'notes.detail.sections@1', priority: 200, scope: Scope::everywhere()), 'acme/cms-reviews', 200),
+            new PanelFill(new SlotFill(new ContributionId('cms.summary'), 'notes.detail.sections@1', priority: 100, scope: Scope::everywhere()), 'cboxdk/cms', 100),
         ];
 
         return new CompiledRegistry([], [], panel: array_map(

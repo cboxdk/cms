@@ -10,6 +10,7 @@ use Cbox\Cms\Cli\Console\HooksCommand;
 use Cbox\Cms\Cli\Console\PanelFillsCommand;
 use Cbox\Cms\Cli\Console\PanelPointsCommand;
 use Cbox\Cms\Cli\Domain\CliCallRefused;
+use Cbox\Cms\Core\Registry\Domain\InvalidPanelActivation;
 use Cbox\Cms\Core\Registry\Domain\MalformedRegistryCache;
 use Cbox\Cms\Core\Registry\Domain\RegistryCacheMissing;
 use Cbox\Cms\Core\Registry\Domain\UnknownCommand;
@@ -37,6 +38,7 @@ arch('inspecting commands use only actions, DTOs, Boundary and the framework\'s 
         CliCallRefused::class,
         UnknownCommand::class,
         UnknownPanelPoint::class,
+        InvalidPanelActivation::class,
         RegistryCacheMissing::class,
         MalformedRegistryCache::class,
         'Cbox\Cms\Contracts\Attributes',

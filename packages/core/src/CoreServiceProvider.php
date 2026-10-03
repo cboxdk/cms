@@ -215,12 +215,17 @@ use Cbox\Cms\Core\Reads\Domain\QueryCodecs;
 use Cbox\Cms\Core\Reads\Domain\QueryTransaction;
 use Cbox\Cms\Core\Reads\Domain\ReadableFields;
 use Cbox\Cms\Core\Reads\Domain\ReadAudit;
+use Cbox\Cms\Core\Registry\Adapter\CodecContractSchemas;
+use Cbox\Cms\Core\Registry\Adapter\ConfigPanelActivation;
 use Cbox\Cms\Core\Registry\Adapter\FileOpenApiDocuments;
 use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
 use Cbox\Cms\Core\Registry\Boundary\RegistryCacheCodec;
+use Cbox\Cms\Core\Registry\Domain\ContractSchemas;
 use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
+use Cbox\Cms\Core\Registry\Domain\Dto\PointSchemaDirectory;
 use Cbox\Cms\Core\Registry\Domain\OpenApiDocuments;
+use Cbox\Cms\Core\Registry\Domain\PanelActivation;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
 use Cbox\Cms\Core\Routing\Adapter\PostgresRouteReader;
@@ -423,6 +428,21 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
                 $app->make(QueryCodecs::class),
             ),
         );
+
+        // The JSON Schemas cms:build checks the panel's contributions against (PRD 13.4): every
+        // command's and query's from its codec, and the props schemas of the panel points in the
+        // directories the modules that declare points tag as PointSchemaDirectory::TAG.
+        $this->app->bind(
+            ContractSchemas::class,
+            static fn (Application $app): ContractSchemas => new CodecContractSchemas(
+                $app->make(CommandCodecs::class),
+                $app->make(QueryCodecs::class),
+                ...self::tagged($app, PointSchemaDirectory::TAG, PointSchemaDirectory::class),
+            ),
+        );
+
+        // The activation state of the panel's contributions, read at each call (PRD 13.5).
+        $this->app->bind(PanelActivation::class, ConfigPanelActivation::class);
 
         // Read once per process from the files cms:build wrote; a missing file throws RegistryCacheMissing.
         $this->app->singleton(

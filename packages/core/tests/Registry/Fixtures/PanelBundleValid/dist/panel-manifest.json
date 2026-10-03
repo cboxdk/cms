@@ -1,0 +1,23 @@
+{
+  "contributions": [
+    "approvals.badge",
+    "approvals.legacy"
+  ],
+  "entry": "addon.js",
+  "externals": [
+    "@cboxdk/cms-panel/extend",
+    "react"
+  ],
+  "files": [
+    {
+      "integrity": "sha384-nEFQFPkPeHpQ+D69J9CYiYZvCXOP6MVBwemPUYF7SrOMRMyZ1inSpgXjtoUO0c3/",
+      "kind": "style",
+      "path": "addon.css"
+    },
+    {
+      "integrity": "sha384-5ANobkmoDY0zYrzZ2mU0zM+AdjN7wdT5PTcN/GZtMaSF29tgz8iwHr+Y0NGFvCYJ",
+      "kind": "script",
+      "path": "addon.js"
+    }
+  ]
+}

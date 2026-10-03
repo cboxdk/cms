@@ -34,6 +34,19 @@ function panelFillsDocument(string $output): array
     return is_array($document) ? $document : throw new RuntimeException('The output is not a JSON object.');
 }
 
+/**
+ * A fill of cms:panel:fills' document with its keys sorted, as the command writes them.
+ *
+ * @param  array<string, mixed>  $fill
+ * @return array<string, mixed>
+ */
+function fillsDocumentFill(array $fill): array
+{
+    ksort($fill, SORT_STRING);
+
+    return $fill;
+}
+
 it('prints the contributions to a point in render order, each with its scope', function (): void {
     PanelRegistry::bind(withFills: true);
 
@@ -42,9 +55,12 @@ it('prints the contributions to a point in render order, each with its scope', f
     expect($status)->toBe(0)
         ->and($output)->toBe(
             "notes.detail.sections@1: 3 contributions, in the order the host renders them\n"
-            ."  1. cms.summary  priority 100  cboxdk/cms, addon cms\n"
-            ."  2. approvals.badge  priority 500  acme/cms-approvals, addon approvals\n"
-            ."  3. reviews.stars  priority 500  acme/cms-reviews, addon reviews, scope pages notes.detail; commands note.create@1; types app:note; field types reviews:stars; requires note.find\n",
+            ."  1. cms.summary  slot  cboxdk/cms, addon cms\n"
+            ."     priority 100 from the addon, enabled\n"
+            ."  2. approvals.badge  slot  acme/cms-approvals, addon approvals\n"
+            ."     priority 500 from the addon, enabled\n"
+            ."  3. reviews.stars  slot  acme/cms-reviews, addon reviews, scope pages notes.detail; commands note.create@1; types app:note; field types reviews:stars; requires note.find\n"
+            ."     priority 500 from the addon, enabled\n",
         );
 });
 
@@ -53,19 +69,20 @@ it('prints the contributions as one JSON document in render order', function ():
 
     [$status, $output] = panelFillsCli('notes.detail.sections@1', json: true);
     $everywhere = ['commands' => [], 'field_types' => [], 'pages' => [], 'requires' => null, 'types' => []];
+    $compiled = ['command' => null, 'enabled' => true, 'enabling' => 'addon', 'key' => null, 'kind' => 'slot', 'ordering' => 'addon', 'query' => null];
 
     expect($status)->toBe(0)
         ->and(panelFillsDocument($output))->toBe([
             'fills' => [
-                ['addon' => 'cms', 'contribution' => 'cms.summary', 'package' => 'cboxdk/cms', 'priority' => 100, 'scope' => $everywhere],
-                ['addon' => 'approvals', 'contribution' => 'approvals.badge', 'package' => 'acme/cms-approvals', 'priority' => 500, 'scope' => $everywhere],
-                ['addon' => 'reviews', 'contribution' => 'reviews.stars', 'package' => 'acme/cms-reviews', 'priority' => 500, 'scope' => [
+                fillsDocumentFill(['addon' => 'cms', 'contribution' => 'cms.summary', 'package' => 'cboxdk/cms', 'priority' => 100, 'scope' => $everywhere, ...$compiled]),
+                fillsDocumentFill(['addon' => 'approvals', 'contribution' => 'approvals.badge', 'package' => 'acme/cms-approvals', 'priority' => 500, 'scope' => $everywhere, ...$compiled]),
+                fillsDocumentFill([...$compiled, 'addon' => 'reviews', 'contribution' => 'reviews.stars', 'package' => 'acme/cms-reviews', 'priority' => 500, 'scope' => [
                     'commands' => ['note.create@1'],
                     'field_types' => ['reviews:stars'],
                     'pages' => ['notes.detail'],
                     'requires' => 'note.find',
                     'types' => ['app:note'],
-                ]],
+                ]]),
             ],
             'point' => 'notes.detail.sections@1',
             'version' => 1,

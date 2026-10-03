@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace Cbox\Cms\Tests\Support\Arch;
 
 use Cbox\Cms\Contracts\Envelope\IssuerKind;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\PanelBundleCodecV1;
 use Cbox\Cms\Core\Doctor\Adapter\ProcessToolProbe;
 use Cbox\Cms\Core\Egress\Adapter\LaravelMailGateway;
 use Cbox\Cms\Core\Egress\Adapter\SsrfEgressGateway;
 use Cbox\Cms\Core\Registry\Adapter\FileOpenApiDocuments;
 use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
+use Cbox\Cms\Core\Registry\Boundary\LocalFiles;
 use Cbox\Cms\Core\Registry\Boundary\OpenApiJson;
+use Cbox\Cms\Core\Registry\Boundary\RegistryCacheCodec;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
 use Cbox\Cms\Generators\Cli\Console\GenerateCommand;
 use Cbox\Cms\Generators\Cli\Console\SchemaEditorCommand;
@@ -115,6 +118,11 @@ final class Egress
         // directory, which PanelBuild requires to be an absolute local path, and refuses a path
         // that names a stream wrapper before it touches it.
         PanelAssetResponse::class => ['SplFileObject'],
+        // Reads the props schemas of the panel's points from the directories the modules register,
+        // and the manifest and files of an addon's panel bundle from the absolute directory its
+        // manifest names, for cms:build's checks; it refuses a path that names a stream wrapper
+        // before it touches it, and lists one directory, not recursively.
+        LocalFiles::class => ['FilesystemIterator', 'SplFileObject'],
         // Lists a scan root with a RecursiveDirectoryIterator and reads the .php files it finds
         // there; ScanRoot requires the directory to be an absolute path, and the scanner lists its
         // realpath(), which resolves no stream wrapper.
@@ -171,6 +179,12 @@ final class Egress
         // The member "file" of a chunk in Vite's manifest, the chunk's output file, which it reads
         // from the decoded JSON, never a function it calls.
         ViteManifest::class => ['file'],
+        // The member "files" of panel-bundle.v1.json, the files of an addon's panel bundle, which
+        // the generated codec reads from and writes to the decoded JSON.
+        PanelBundleCodecV1::class => ['files'],
+        // The key "files" of a bundle in addons.php, the files of an addon's panel bundle, which
+        // the codec writes and reads in the registry cache, never a container id it resolves.
+        RegistryCacheCodec::class => ['files'],
         // PDO::exec(), one of the PDO methods that take SQL, which the rule compares a method
         // call's name with.
         RawSqlRule::class => ['exec'],

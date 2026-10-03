@@ -28,6 +28,7 @@ final class PanelPointsTest extends BuildTestCase
         self::assertIsArray($panel['entries']);
         self::assertContains([
             'class' => ReviewSectionsV1::class,
+            'deprecated' => null,
             'fills' => [],
             'id' => 'reviews.detail.sections@1',
             'keyed_by' => null,

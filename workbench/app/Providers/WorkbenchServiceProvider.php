@@ -66,6 +66,9 @@ final class WorkbenchServiceProvider extends ServiceProvider
     /** The handle of the workbench's site. */
     public const string SITE = 'workbench';
 
+    /** The Composer package of the workbench's fixture addon, the one addon its allowlist names. */
+    public const string FIXTURE_ADDON = 'cboxdk/cms-fixture-addon';
+
     /** The environment variable that picks the CDN driver; only fake is known. */
     public const string CDN_DRIVER = 'CBOX_CMS_CDN_DRIVER';
 
@@ -83,6 +86,10 @@ final class WorkbenchServiceProvider extends ServiceProvider
             'typescript_directory' => 'workbench/resources/js/cms/generated',
             'migrations_directory' => 'workbench/database/migrations/cms',
         ]);
+
+        // The installation's allowlist of addons (PRD 13.8): the fixture addon, which the root
+        // package requires for development, is the one addon the workbench installs.
+        $config->set('cbox-cms.addons.allowed', [self::FIXTURE_ADDON]);
 
         $config->set('cbox-cms.doctor.project_path', dirname(__DIR__, 3));
         $config->set('cbox-cms.doctor.vendor_manifest', dirname(__DIR__, 3).'/vendor/composer/installed.json');

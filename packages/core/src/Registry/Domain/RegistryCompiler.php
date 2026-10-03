@@ -11,8 +11,10 @@ use Cbox\Cms\Contracts\Attributes\Phase;
 use Cbox\Cms\Contracts\PanelPoints\DowncastsFromNewest;
 use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\BuildProblem;
+use Cbox\Cms\Core\Registry\Domain\Dto\BuildSettings;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
+use Cbox\Cms\Core\Registry\Domain\Dto\ContractShapes;
 use Cbox\Cms\Core\Registry\Domain\Dto\DeclaredAddons;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredAction;
 use Cbox\Cms\Core\Registry\Domain\Dto\Discovery;
@@ -40,8 +42,11 @@ use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
  * action, in the order of the actions.
  *
  * The panel points come from #[PanelPoint]: a point's name and version belong to one class, and
- * the points are sorted by name, then version. The registry holds no contribution to a point until
- * the addon manifests declare panel contributions.
+ * the points are sorted by name, then version. The addons' panel contributions are compiled onto
+ * them by PanelCompiler, with the installation's settings and the contracts' schemas.
+ *
+ * The installation allows its addons by package in cbox-cms.addons.allowed (PRD 13.8); a manifest
+ * whose package BuildSettings does not allow fails the build as registry_addon_not_allowed.
  */
 #[Experimental]
 final readonly class RegistryCompiler
@@ -49,10 +54,33 @@ final readonly class RegistryCompiler
     /**
      * @throws RegistryBuildFailed with the scanner's problems and the compiler's own
      */
-    public function compile(Discovery $discovery, DeclaredAddons $addons = new DeclaredAddons): CompiledRegistry
-    {
-        $problems = [...$discovery->problems, ...$addons->problems, ...$this->manifestProblems($addons->manifests)];
-        $manifests = $this->manifests($addons->manifests);
+    public function compile(
+        Discovery $discovery,
+        DeclaredAddons $addons = new DeclaredAddons,
+        BuildSettings $settings = new BuildSettings,
+        ContractShapes $shapes = new ContractShapes,
+    ): CompiledRegistry {
+        $allowed = [];
+        $problems = [...$discovery->problems, ...$addons->problems];
+
+        foreach ($addons->manifests as $manifest) {
+            if ($settings->allows($manifest->package)) {
+                $allowed[] = $manifest;
+
+                continue;
+            }
+
+            $problems[] = new BuildProblem(BuildErrorCode::AddonNotAllowed, sprintf(
+                'Addon "%s" (%s) is installed, and the installation\'s allowlist of addons does not name %s (PRD 13.8). Review the addon and add \'%s\' to cbox-cms.addons.allowed, or remove the package.',
+                $manifest->namespace->value,
+                $manifest->package,
+                $manifest->package,
+                $manifest->package,
+            ));
+        }
+
+        $problems = [...$problems, ...$this->manifestProblems($allowed)];
+        $manifests = $this->manifests($allowed);
         $commandsByClass = [];
         $queriesByClass = [];
         $declarations = [];
@@ -178,12 +206,15 @@ final readonly class RegistryCompiler
             $subscribers[] = new SubscriberEntry($subscriber->class, $subscriber->package, $subscriber->name, $subscriber->lane, $subscriber->projection, $subscriber->events, $manifest->namespace);
         }
 
+        $panel = new PanelCompiler()->compile($discovery->panelPoints, array_values($manifests), $discovery, $actions, $settings, $shapes, $addons->bundles);
+
         $problems = [
             ...$problems,
             ...$this->duplicateActions($actions),
             ...$this->duplicateSubscriptions($discovery->subscribers),
             ...$this->duplicatePanelPoints($discovery->panelPoints),
             ...$this->pointsWithoutDowncast($discovery->panelPoints),
+            ...$panel->problems,
         ];
 
         if ($problems !== []) {
@@ -213,11 +244,7 @@ final readonly class RegistryCompiler
 
         $rest = array_values(array_filter(array_map(RestRoute::of(...), $actions), static fn (?RestRoute $route): bool => $route instanceof RestRoute));
 
-        $panel = $discovery->panelPoints;
-
-        usort($panel, static fn (PanelPointEntry $a, PanelPointEntry $b): int => [$a->declaration->name, $a->declaration->version] <=> [$b->declaration->name, $b->declaration->version]);
-
-        return new CompiledRegistry($commands, $hooks, $actions, $subscribers, $schema, $rest, $panel);
+        return new CompiledRegistry($commands, $hooks, $actions, $subscribers, $schema, $rest, $panel->points, $panel->addons, $panel->warnings);
     }
 
     /**

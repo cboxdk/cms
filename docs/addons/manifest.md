@@ -22,8 +22,13 @@ An addon is a Composer package that declares, in one manifest, everything it doe
 | `hooks` | A list of `AllowedHook`: each command class and phase a hook of the addon may run for. |
 | `subscriptions` | A list of `AllowedSubscription`: each event class a subscriber of the addon may receive, and the lane. |
 | `schema` | A `SchemaContributions`: the field types the addon contributes with the class of their contributor ([Addon field types](field-types.md)), the types it owns, the types of others it extends, and the absolute directory of its blueprint files. |
+| `panel` | A `PanelContributions`, or null for an addon without UI: the panel API version it needs, its prebuilt bundle, the experimental points it accepts and its contributions to the panel's points ([panel contributions](panel-contributions.md)). |
 
 All of them live in `Cbox\Cms\Contracts\Addons` and are `#[Experimental]`. A manifest that breaks a rule throws `InvalidAddonManifest` from its constructor, and a reserved namespace throws `ReservedAddonNamespace`; `cms:build` turns either into a build error that names the provider.
+
+### The allowlist
+
+The installation allows its addons by Composer package in `cbox-cms.addons.allowed` (PRD 13.8). `cms:build` refuses a manifest whose package is not on it with `registry_addon_not_allowed`, so an addon the installation has not reviewed fails at build, never at run time. Add the package when you install the addon, such as `'addons' => ['allowed' => ['acme/cms-reviews']]` in `config/cbox-cms.php`.
 
 ### The namespace
 
@@ -37,7 +42,9 @@ The manifest holds its schema contributions to the namespace: every field type i
 
 ### Capabilities
 
-`AddonCapabilities(reads: ...)` is the highest classification of fields the kernel hands the addon's hooks. The kernel gives every hook of the addon a view of the pending plan with the fields up to the lower of this and the actor's classification access, and refuses a transform hook's change of a field above it with `hook_change_refused` ([hooks](hooks.md)). An addon that reads up to internal never sees a confidential field, whoever runs the command, and one that reads up to sensitive never sees more than the actor may read. A hook of a package without a manifest sees what the actor may read (invariant 21).
+The install screen shows every capability before the installation approves the addon, and the kernel enforces each at its boundary. `issues` lists the command classes the addon's panel UI may run, through its actions and the host's `runCommand`; `cms:build` refuses one that is not a registered command exposed on Inertia, with `registry_panel_command_not_issuable`. It limits what the panel offers, and the viewer's grants still decide every command on the server. `uiTheme` says whether the addon may ship a theme of token values for the panel, which the application still selects.
+
+`AddonCapabilities(reads: ...)` is the highest classification of fields the kernel hands the addon's hooks and its panel contributions. The kernel gives every hook of the addon a view of the pending plan with the fields up to the lower of this and the actor's classification access, and refuses a transform hook's change of a field above it with `hook_change_refused` ([hooks](hooks.md)). An addon that reads up to internal never sees a confidential field, whoever runs the command, and one that reads up to sensitive never sees more than the actor may read. A hook of a package without a manifest sees what the actor may read (invariant 21).
 
 ### Hooks and subscriptions
 
@@ -72,6 +79,9 @@ A build with any of these writes nothing and exits 65, listing every problem ([e
 | `registry_incompatible_core_api` | The kernel does not satisfy the manifest's core API version. |
 | `registry_undeclared_hook` | A hook of the addon's package runs for a command and phase its manifest does not allow. |
 | `registry_undeclared_subscriber` | A subscriber of the addon's package receives an event on a lane its manifest does not allow. |
+| `registry_addon_not_allowed` | The manifest's package is not on `cbox-cms.addons.allowed`, or the setting is not a list of package names. |
+
+[Panel contributions](panel-contributions.md) lists the build errors of the panel member.
 
 ## Example
 
@@ -227,6 +237,7 @@ final class AddonManifestTest extends BuildTestCase
     #[Test]
     public function it_registers_the_addon_s_hook_and_schema_contributions(): void
     {
+        $this->allowAddons('acme/cms-reviews');
         self::assertSame(0, $this->build(NotesServiceProvider::class, ReviewsServiceProvider::class));
 
         $hooks = require $this->registryFile('hooks');
@@ -262,6 +273,7 @@ final class AddonManifestTest extends BuildTestCase
     #[Test]
     public function it_refuses_a_hook_the_manifest_does_not_allow_and_writes_nothing(): void
     {
+        $this->allowAddons('acme/cms-reviews');
         self::assertSame(65, $this->build(NotesServiceProvider::class, UnlistedHookServiceProvider::class));
         self::assertStringContainsString(
             '[registry_undeclared_hook] Hook '.RequireStars::class.' (acme/cms-reviews) runs for '.PublishNote::class.' (note.publish) in the validate phase, which the manifest of addon "reviews" does not allow.',

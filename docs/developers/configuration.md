@@ -52,7 +52,17 @@ For example, `'contracts' => [Clock::class => StagingClock::class]` replaces the
 
 | Key | Default | What it does |
 |---|---|---|
+| `cbox-cms.addons.allowed` | `[]` | The installation's allowlist of addons (PRD 13.8): the Composer packages of the addons it has reviewed, such as `['acme/cms-approvals']`. `cms:build` refuses an installed addon whose package is not on it, and a value that is not a list of package names, with [`registry_addon_not_allowed`](../reference/errors.md#registry_addon_not_allowed), so an addon fails at build, never at run time. See [Addon manifest](../addons/manifest.md#the-allowlist). |
 | `cbox-cms.addons.service_actors` | `[]` | The service actor of each installed addon, by the namespace its manifest names: `['reviews' => '<actor id>']`. The actor is created when the installation approves the addon's capabilities, and the addon's subscribers run as it, with its own grants, never as the system. A subscriber of an addon without an active service actor does not run: [`addon_service_actor_unavailable`](../reference/errors.md#addon_service_actor_unavailable). A key that is not an addon namespace, or a value that is not a UUIDv7 actor id, fails when the kernel reads it. See [Addon manifest](../addons/manifest.md). |
+
+## Panel contributions
+
+| Key | Default | What it does |
+|---|---|---|
+| `cbox-cms.panel.contributions` | `[]` | Per panel point id and contribution id, another `priority` (a whole number from 0 to 1000000, the lowest rendered first) or `enabled => false`: `['account.me.sections@1' => ['approvals.badge' => ['priority' => 50]]]`. `cms:build` compiles it into `panel.php`, and refuses a setting that names no contribution of the point, or is not of this form, with [`registry_panel_override_invalid`](../reference/errors.md#registry_panel_override_invalid). |
+| `cbox-cms.panel.replacements` | `[]` | Per replaceable point id and key, the contribution id of the replacement that wins the key when several claim it: `['command.form.field@1' => ['acme:stars' => 'acme.stars-input']]`. `cms:build` compiles it; the other replacements of the key stay listed and are not rendered. Without a winner, two claims fail the build with [`registry_panel_replacement_conflict`](../reference/errors.md#registry_panel_replacement_conflict). |
+| `cbox-cms.panel.disabled.addons` | `[]` | The activation state (PRD 13.5): the namespaces of the addons whose panel UI is off. The panel reads it at each request, so it takes effect without `cms:build`. |
+| `cbox-cms.panel.disabled.contributions` | `[]` | The activation state: the ids of single contributions that are off, read at each request like `addons`. A value that is not a list of contribution ids makes `cms:panel:fills` exit 78. See [Panel contributions](../addons/panel-contributions.md#order-choices-and-the-kill-switch). |
 
 ## CLI surface
 

@@ -106,7 +106,10 @@ final readonly class AttributeScanner implements DeclarationScanner
             }
         }
 
-        return new Discovery($found->commands, $found->hooks, $problems, $found->queries, $found->actions, $found->subscribers, $found->panelPoints);
+        $packages = array_map(static fn (ResolvedRoot $owner): string => $owner->root->package, $owners);
+        ksort($packages, SORT_STRING);
+
+        return new Discovery($found->commands, $found->hooks, $problems, $found->queries, $found->actions, $found->subscribers, $found->panelPoints, $packages);
     }
 
     /**

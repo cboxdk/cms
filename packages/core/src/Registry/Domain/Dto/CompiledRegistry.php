@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Registry\Domain\Dto;
 
+use Cbox\Cms\Contracts\Addons\AddonNamespace;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Ids\CommandName;
@@ -22,7 +23,10 @@ use Cbox\Cms\Core\Registry\Domain\RegistryName;
  *
  * The REST routes are compiled from the actions exposed on REST (RestRoute::of()), in the order of
  * the actions. The panel points are sorted by name, then version, each with its contributions in
- * render order.
+ * render order. The addons are sorted by namespace.
+ *
+ * The warnings are what the build told the installation without refusing to build (BuildWarning);
+ * the cache does not hold them, so a registry read from it has none.
  *
  * The registry answers which subscribers receive an event class and which projections they
  * acknowledge, so the kernel can list on a changeset's receipt each projection its events affect
@@ -48,6 +52,8 @@ final readonly class CompiledRegistry
      * @param  list<SchemaEntry>  $schema
      * @param  list<RestRoute>  $rest
      * @param  list<PanelPointEntry>  $panel
+     * @param  list<AddonEntry>  $addons
+     * @param  list<BuildWarning>  $warnings
      */
     public function __construct(
         public array $commands,
@@ -57,6 +63,8 @@ final readonly class CompiledRegistry
         public array $schema = [],
         public array $rest = [],
         public array $panel = [],
+        public array $addons = [],
+        public array $warnings = [],
     ) {
         $byCommand = [];
         $byClass = [];
@@ -89,6 +97,7 @@ final readonly class CompiledRegistry
     {
         return match ($registry) {
             RegistryName::Actions => count($this->actions),
+            RegistryName::Addons => count($this->addons),
             RegistryName::Commands => count($this->commands),
             RegistryName::Hooks => count($this->hooks),
             RegistryName::Rest => count($this->rest),
@@ -106,6 +115,20 @@ final readonly class CompiledRegistry
         foreach ($this->panel as $point) {
             if ($point->id()->equals($id)) {
                 return $point;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The installed addon with the namespace, or null when no manifest declares it.
+     */
+    public function addon(AddonNamespace $namespace): ?AddonEntry
+    {
+        foreach ($this->addons as $addon) {
+            if ($addon->namespace->equals($namespace)) {
+                return $addon;
             }
         }
 

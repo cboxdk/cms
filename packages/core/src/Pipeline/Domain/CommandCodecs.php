@@ -60,6 +60,19 @@ final readonly class CommandCodecs
         return $this->codecs[$this->key($command, $version)] ?? null;
     }
 
+    /**
+     * Every registered codec, sorted by command name, then version.
+     *
+     * @return list<CommandCodec>
+     */
+    public function all(): array
+    {
+        $codecs = $this->codecs;
+        ksort($codecs, SORT_STRING);
+
+        return array_values($codecs);
+    }
+
     private function key(CommandName $command, int $version): string
     {
         return $command->value.'@'.$version;

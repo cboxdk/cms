@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\Registry\Boundary;
 
 use Cbox\Cms\Contracts\Addons\AddonNamespace;
 use Cbox\Cms\Contracts\Addons\ContributedFieldType;
+use Cbox\Cms\Contracts\Addons\CoreApiVersion;
 use Cbox\Cms\Contracts\Addons\InvalidAddonManifest;
 use Cbox\Cms\Contracts\Addons\ReservedAddonNamespace;
 use Cbox\Cms\Contracts\Attributes\Internal;
@@ -18,43 +19,71 @@ use Cbox\Cms\Contracts\Events\InvalidEvent;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\InvalidCommandName;
+use Cbox\Cms\Contracts\PanelPoints\ActionContribution;
 use Cbox\Cms\Contracts\PanelPoints\CommandRef;
+use Cbox\Cms\Contracts\PanelPoints\Confirm;
 use Cbox\Cms\Contracts\PanelPoints\ContributionId;
+use Cbox\Cms\Contracts\PanelPoints\DecoratorContribution;
+use Cbox\Cms\Contracts\PanelPoints\FlowStep;
+use Cbox\Cms\Contracts\PanelPoints\FormCheck;
 use Cbox\Cms\Contracts\PanelPoints\InvalidPanelPoint;
+use Cbox\Cms\Contracts\PanelPoints\LoginNotice;
 use Cbox\Cms\Contracts\PanelPoints\Multiplicity;
+use Cbox\Cms\Contracts\PanelPoints\NavContribution;
+use Cbox\Cms\Contracts\PanelPoints\ObserverContribution;
 use Cbox\Cms\Contracts\PanelPoints\Ownership;
+use Cbox\Cms\Contracts\PanelPoints\PageContribution;
 use Cbox\Cms\Contracts\PanelPoints\PageName;
+use Cbox\Cms\Contracts\PanelPoints\PanelApiVersion;
+use Cbox\Cms\Contracts\PanelPoints\PanelContribution;
 use Cbox\Cms\Contracts\PanelPoints\PanelPoint;
+use Cbox\Cms\Contracts\PanelPoints\PointDeprecation;
 use Cbox\Cms\Contracts\PanelPoints\PointId;
 use Cbox\Cms\Contracts\PanelPoints\PointKind;
+use Cbox\Cms\Contracts\PanelPoints\ProviderContribution;
 use Cbox\Cms\Contracts\PanelPoints\Region;
+use Cbox\Cms\Contracts\PanelPoints\ReplacementContribution;
 use Cbox\Cms\Contracts\PanelPoints\ReplacementKey;
 use Cbox\Cms\Contracts\PanelPoints\Scope;
+use Cbox\Cms\Contracts\PanelPoints\Severity;
+use Cbox\Cms\Contracts\PanelPoints\SlotFill;
+use Cbox\Cms\Contracts\PanelPoints\StepPosition;
 use Cbox\Cms\Contracts\PanelPoints\Tighten;
+use Cbox\Cms\Contracts\PanelPoints\Tone;
 use Cbox\Cms\Contracts\Schema\InvalidTypeDefinition;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Contracts\Subscribers\InvalidSubscriptionName;
 use Cbox\Cms\Contracts\Subscribers\Lane;
 use Cbox\Cms\Contracts\Subscribers\SubscriptionName;
 use Cbox\Cms\Core\Registry\Domain\ActionKind;
+use Cbox\Cms\Core\Registry\Domain\BundleFileKind;
+use Cbox\Cms\Core\Registry\Domain\BundleIntegrity;
+use Cbox\Cms\Core\Registry\Domain\BundlePath;
 use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
+use Cbox\Cms\Core\Registry\Domain\Dto\AddonEntry;
+use Cbox\Cms\Core\Registry\Domain\Dto\AddonPanel;
+use Cbox\Cms\Core\Registry\Domain\Dto\BundleFile;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
+use Cbox\Cms\Core\Registry\Domain\Dto\CompiledBundle;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Dto\HookEntry;
+use Cbox\Cms\Core\Registry\Domain\Dto\IssuedCommand;
 use Cbox\Cms\Core\Registry\Domain\Dto\PanelFill;
 use Cbox\Cms\Core\Registry\Domain\Dto\PanelPointEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\RestRoute;
 use Cbox\Cms\Core\Registry\Domain\Dto\SchemaEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscribedEvent;
 use Cbox\Cms\Core\Registry\Domain\Dto\SubscriberEntry;
+use Cbox\Cms\Core\Registry\Domain\FillSource;
 use Cbox\Cms\Core\Registry\Domain\InvalidRegistryEntry;
 use Cbox\Cms\Core\Registry\Domain\MalformedRegistryCache;
 use Cbox\Cms\Core\Registry\Domain\PointStability;
 use Cbox\Cms\Core\Registry\Domain\RegistryName;
+use InvalidArgumentException;
 use LogicException;
 
 /**
- * The registry cache files of format 9, in both directions (PRD 13.2).
+ * The registry cache files of format 10, in both directions (PRD 13.2).
  *
  * A file is PHP that returns ['build' => '<sha256>', 'entries' => [...], 'format' => 9,
  * 'registry' => '<name>']. The keys of every array are written in alphabetical order, lists keep
@@ -70,7 +99,13 @@ use LogicException;
 #[Internal]
 final readonly class RegistryCacheCodec
 {
-    public const int FORMAT = 9;
+    public const int FORMAT = 10;
+
+    /** The keys of a declaration of panel.php that only some kinds of contribution have. */
+    private const array DECLARATION_KEYS = ['command', 'confirm', 'data', 'icon', 'key', 'label', 'message', 'mirrors', 'page', 'patches', 'path', 'position', 'prefill', 'severity', 'tightens', 'timeout_seconds', 'tone'];
+
+    /** Every key of a declaration of panel.php, sorted. */
+    private const array DECLARATION_KEYS_WITH_COMMON = ['command', 'confirm', 'data', 'icon', 'key', 'kind', 'label', 'message', 'mirrors', 'page', 'patches', 'path', 'point', 'position', 'prefill', 'priority', 'severity', 'tightens', 'timeout_seconds', 'tone'];
 
     private const string HEADER = <<<'PHP'
         <?php
@@ -142,6 +177,7 @@ final readonly class RegistryCacheCodec
                 'package' => $action->package,
                 'surfaces' => array_map(static fn (Surface $surface): string => $surface->value, $action->surfaces),
             ], $registry->actions),
+            RegistryName::Addons->value => array_map($this->encodeAddon(...), $registry->addons),
             RegistryName::Commands->value => array_map(static fn (CommandEntry $command): array => [
                 'class' => $command->class,
                 'name' => $command->name->value,
@@ -160,20 +196,14 @@ final readonly class RegistryCacheCodec
                 'priority' => $hook->priority,
                 'reads' => $hook->reads?->value,
             ], $registry->hooks),
-            RegistryName::Panel->value => array_map(static fn (PanelPointEntry $point): array => [
+            RegistryName::Panel->value => array_map(fn (PanelPointEntry $point): array => [
                 'class' => $point->class,
-                'fills' => array_map(static fn (PanelFill $fill): array => [
-                    'contribution' => $fill->contribution->value,
-                    'package' => $fill->package,
-                    'priority' => $fill->priority,
-                    'scope' => [
-                        'commands' => array_map(static fn (CommandRef $command): string => $command->toString(), $fill->scope->commands),
-                        'field_types' => $fill->scope->fieldTypes,
-                        'pages' => array_map(static fn (PageName $page): string => $page->value, $fill->scope->pages),
-                        'requires' => $fill->scope->requires?->value,
-                        'types' => array_map(static fn (TypeName $type): string => $type->value, $fill->scope->types),
-                    ],
-                ], $point->fills),
+                'deprecated' => $point->declaration->deprecated instanceof PointDeprecation ? [
+                    'remove_in' => $point->declaration->deprecated->removeIn,
+                    'replacement' => $point->declaration->deprecated->replacement,
+                    'since' => $point->declaration->deprecated->since,
+                ] : null,
+                'fills' => array_map($this->encodeFill(...), $point->fills),
                 'id' => $point->id()->toString(),
                 'keyed_by' => $point->declaration->keyedBy?->value,
                 'kind' => $point->declaration->kind->value,
@@ -426,13 +456,19 @@ final readonly class RegistryCacheCodec
             ));
         }
 
+        $addons = [];
+
+        foreach ($entries[RegistryName::Addons->value] as $index => $entry) {
+            $addons[] = $this->addon($entry, $directory.'/'.RegistryName::Addons->fileName(), sprintf('entries[%d]', $index));
+        }
+
         $panel = [];
 
         foreach ($entries[RegistryName::Panel->value] as $index => $entry) {
             $panel[] = $this->panelPoint($entry, $directory.'/'.RegistryName::Panel->fileName(), sprintf('entries[%d]', $index));
         }
 
-        $registry = new CompiledRegistry($commands, $hooks, $actions, $subscribers, $schema, $rest, $panel);
+        $registry = new CompiledRegistry($commands, $hooks, $actions, $subscribers, $schema, $rest, $panel, $addons);
 
         if ($this->build($this->entries($registry)) !== $first[1]) {
             throw MalformedRegistryCache::at($directory.'/'.$first[0]->fileName(), 'build', 'the build does not match the entries of the registry files, so they were changed after cms:build wrote them');
@@ -446,7 +482,7 @@ final readonly class RegistryCacheCodec
      */
     private function panelPoint(mixed $entry, string $path, string $at): PanelPointEntry
     {
-        $data = $this->map($entry, $path, $at, ['class', 'fills', 'id', 'keyed_by', 'kind', 'label', 'max', 'multiplicity', 'ownership', 'package', 'page', 'region', 'since', 'stability', 'tightens']);
+        $data = $this->map($entry, $path, $at, ['class', 'deprecated', 'fills', 'id', 'keyed_by', 'kind', 'label', 'max', 'multiplicity', 'ownership', 'package', 'page', 'region', 'since', 'stability', 'tightens']);
         $id = $this->panel($path, $at.'.id', fn (): PointId => PointId::fromString($this->string($data['id'], $path, $at.'.id')));
         $kind = $this->enum(PointKind::class, $data['kind'], $path, $at.'.kind', 'panel point kind');
         $multiplicity = $this->enum(Multiplicity::class, $data['multiplicity'], $path, $at.'.multiplicity', 'multiplicity');
@@ -456,6 +492,16 @@ final readonly class RegistryCacheCodec
         $keyedBy = $data['keyed_by'] === null ? null : $this->enum(ReplacementKey::class, $data['keyed_by'], $path, $at.'.keyed_by', 'replacement key');
         $max = $data['max'] === null ? null : $this->int($data['max'], $path, $at.'.max');
         $tightens = [];
+        $deprecated = null;
+
+        if ($data['deprecated'] !== null) {
+            $deprecation = $this->map($data['deprecated'], $path, $at.'.deprecated', ['remove_in', 'replacement', 'since']);
+            $deprecated = $this->panel($path, $at.'.deprecated', fn (): PointDeprecation => new PointDeprecation(
+                $this->string($deprecation['since'], $path, $at.'.deprecated.since'),
+                $this->string($deprecation['remove_in'], $path, $at.'.deprecated.remove_in'),
+                $deprecation['replacement'] === null ? null : $this->string($deprecation['replacement'], $path, $at.'.deprecated.replacement'),
+            ));
+        }
 
         foreach ($this->list($data['tightens'], $path, $at.'.tightens') as $position => $tighten) {
             $tightens[] = $this->enum(Tighten::class, $tighten, $path, sprintf('%s.tightens[%d]', $at, $position), 'tightening prop');
@@ -474,6 +520,7 @@ final readonly class RegistryCacheCodec
             $ownership,
             $keyedBy,
             $tightens,
+            $deprecated,
         ));
         $fills = [];
 
@@ -491,11 +538,82 @@ final readonly class RegistryCacheCodec
     }
 
     /**
+     * A fill of panel.php: what the build compiled for it and the contribution as the manifest
+     * declares it.
+     *
+     * @return array<string, mixed>
+     */
+    private function encodeFill(PanelFill $fill): array
+    {
+        return [
+            'command' => $fill->command?->toString(),
+            'contribution' => $fill->contribution->value,
+            'declaration' => $this->encodeDeclaration($fill->declaration),
+            'enabled' => $fill->enabled,
+            'enabling' => $fill->enabling->value,
+            'ordering' => $fill->ordering->value,
+            'package' => $fill->package,
+            'priority' => $fill->priority,
+            'query' => $fill->query?->toString(),
+            'scope' => [
+                'commands' => array_map(static fn (CommandRef $command): string => $command->toString(), $fill->scope->commands),
+                'field_types' => $fill->scope->fieldTypes,
+                'pages' => array_map(static fn (PageName $page): string => $page->value, $fill->scope->pages),
+                'requires' => $fill->scope->requires?->value,
+                'types' => array_map(static fn (TypeName $type): string => $type->value, $fill->scope->types),
+            ],
+        ];
+    }
+
+    /**
+     * A contribution as its manifest declares it, with every key of DECLARATION_KEYS, null where
+     * its kind has none, and its id, point and scope in the fill.
+     *
+     * @return array<string, mixed>
+     */
+    private function encodeDeclaration(PanelContribution $contribution): array
+    {
+        $values = match (true) {
+            $contribution instanceof SlotFill => ['data' => $contribution->data],
+            $contribution instanceof ActionContribution => [
+                'command' => $contribution->command,
+                'confirm' => $contribution->confirm->value,
+                'icon' => $contribution->icon,
+                'label' => $contribution->label,
+                'prefill' => $contribution->prefill,
+                'tone' => $contribution->tone->value,
+            ],
+            $contribution instanceof NavContribution => ['icon' => $contribution->icon, 'label' => $contribution->label, 'page' => $contribution->page],
+            $contribution instanceof PageContribution => ['data' => $contribution->data, 'path' => $contribution->path],
+            $contribution instanceof DecoratorContribution => [
+                'mirrors' => $contribution->mirrors,
+                'tightens' => array_map(static fn (Tighten $tighten): string => $tighten->value, $contribution->tightens),
+            ],
+            $contribution instanceof ReplacementContribution => ['key' => $contribution->key],
+            $contribution instanceof FormCheck => ['command' => $contribution->command, 'mirrors' => $contribution->mirrors, 'severity' => $contribution->severity->value],
+            $contribution instanceof FlowStep => [
+                'command' => $contribution->command,
+                'patches' => $contribution->patches,
+                'position' => $contribution->position->value,
+                'timeout_seconds' => $contribution->timeoutSeconds,
+            ],
+            $contribution instanceof LoginNotice => ['message' => $contribution->message, 'tone' => $contribution->tone->value],
+            $contribution instanceof ObserverContribution, $contribution instanceof ProviderContribution => [],
+            default => throw new LogicException(sprintf('The registry cache cannot hold the contribution %s of the class %s.', $contribution->id()->value, $contribution::class)),
+        };
+
+        $declaration = [...array_fill_keys(self::DECLARATION_KEYS, null), ...$values, 'kind' => $contribution->kind()->value, 'point' => $contribution->point(), 'priority' => $contribution->priority()];
+        ksort($declaration, SORT_STRING);
+
+        return $declaration;
+    }
+
+    /**
      * @throws MalformedRegistryCache
      */
     private function panelFill(mixed $fill, string $path, string $at): PanelFill
     {
-        $data = $this->map($fill, $path, $at, ['contribution', 'package', 'priority', 'scope']);
+        $data = $this->map($fill, $path, $at, ['command', 'contribution', 'declaration', 'enabled', 'enabling', 'ordering', 'package', 'priority', 'query', 'scope']);
         $scope = $this->map($data['scope'], $path, $at.'.scope', ['commands', 'field_types', 'pages', 'requires', 'types']);
         $contribution = $this->panel($path, $at.'.contribution', fn (): ContributionId => new ContributionId($this->string($data['contribution'], $path, $at.'.contribution')));
         $commands = [];
@@ -518,18 +636,257 @@ final readonly class RegistryCacheCodec
 
         $types = $this->typeNames($scope['types'], $path, $at.'.scope.types');
         $requires = $scope['requires'] === null ? null : $this->commandName($scope['requires'], $path, $at.'.scope.requires');
+        $built = $this->panel($path, $at.'.scope', static fn (): Scope => new Scope($pages, $commands, $types, $fieldTypes, $requires));
+        $declaration = $this->declaration($data['declaration'], $contribution, $built, $path, $at.'.declaration');
         $priority = $this->int($data['priority'], $path, $at.'.priority');
+        $enabled = $data['enabled'];
+
+        if (! is_bool($enabled)) {
+            throw MalformedRegistryCache::at($path, $at.'.enabled', sprintf('expected a boolean, got %s', get_debug_type($enabled)));
+        }
+
+        $ordering = $this->enum(FillSource::class, $data['ordering'], $path, $at.'.ordering', 'fill source');
+        $enabling = $this->enum(FillSource::class, $data['enabling'], $path, $at.'.enabling', 'fill source');
+        $command = $data['command'] === null ? null : $this->panel($path, $at.'.command', fn (): CommandRef => CommandRef::fromString($this->string($data['command'], $path, $at.'.command')));
+        $query = $data['query'] === null ? null : $this->panel($path, $at.'.query', fn (): CommandRef => CommandRef::fromString($this->string($data['query'], $path, $at.'.query')));
 
         return $this->entry($path, $at, fn (): PanelFill => new PanelFill(
-            $contribution,
+            $declaration,
             $this->string($data['package'], $path, $at.'.package'),
             $priority,
-            $this->panel($path, $at.'.scope', static fn (): Scope => new Scope($pages, $commands, $types, $fieldTypes, $requires)),
+            $ordering,
+            $enabled,
+            $enabling,
+            $command,
+            $query,
         ));
     }
 
     /**
-     * A value of the panel registry, whose value objects refuse a value with InvalidPanelPoint.
+     * The contribution a declaration of panel.php holds, with the fill's id and scope.
+     *
+     * @throws MalformedRegistryCache
+     */
+    private function declaration(mixed $value, ContributionId $id, Scope $scope, string $path, string $at): PanelContribution
+    {
+        $data = $this->map($value, $path, $at, self::DECLARATION_KEYS_WITH_COMMON);
+        $kind = $this->enum(PointKind::class, $data['kind'], $path, $at.'.kind', 'panel point kind');
+        $point = $this->string($data['point'], $path, $at.'.point');
+        $priority = $this->int($data['priority'], $path, $at.'.priority');
+        $text = fn (string $key): string => $this->string($data[$key], $path, $at.'.'.$key);
+        $optional = fn (string $key): ?string => $data[$key] === null ? null : $this->string($data[$key], $path, $at.'.'.$key);
+
+        return $this->panel($path, $at, fn (): PanelContribution => match ($kind) {
+            PointKind::Slot => new SlotFill($id, $point, $optional('data'), $priority, $scope),
+            PointKind::Action => new ActionContribution(
+                $id,
+                $point,
+                $text('command'),
+                $text('label'),
+                $optional('icon'),
+                $this->strings($data['prefill'], $path, $at.'.prefill'),
+                $this->enum(Confirm::class, $data['confirm'], $path, $at.'.confirm', 'confirmation'),
+                $this->enum(Tone::class, $data['tone'], $path, $at.'.tone', 'tone'),
+                $priority,
+                $scope,
+            ),
+            PointKind::Nav => new NavContribution($id, $point, $text('label'), $text('page'), $optional('icon'), $priority, $scope),
+            PointKind::Page => new PageContribution($id, $point, $text('path'), $optional('data'), $priority, $scope),
+            PointKind::Decorator => new DecoratorContribution(
+                $id,
+                $point,
+                array_map(
+                    fn (mixed $tighten): Tighten => $this->enum(Tighten::class, $tighten, $path, $at.'.tightens', 'tightening prop'),
+                    $this->list($data['tightens'], $path, $at.'.tightens'),
+                ),
+                $optional('mirrors'),
+                $priority,
+                $scope,
+            ),
+            PointKind::Replacement => new ReplacementContribution($id, $point, $text('key'), $priority, $scope),
+            PointKind::FormCheck => new FormCheck($id, $point, $text('command'), $this->enum(Severity::class, $data['severity'], $path, $at.'.severity', 'severity'), $optional('mirrors'), $priority, $scope),
+            PointKind::FlowStep => new FlowStep(
+                $id,
+                $point,
+                $text('command'),
+                $this->enum(StepPosition::class, $data['position'], $path, $at.'.position', 'step position'),
+                array_map(fn (mixed $patch): string => $this->string($patch, $path, $at.'.patches'), $this->list($data['patches'], $path, $at.'.patches')),
+                $this->int($data['timeout_seconds'], $path, $at.'.timeout_seconds'),
+                $priority,
+                $scope,
+            ),
+            PointKind::Observer => new ObserverContribution($id, $point, $priority, $scope),
+            PointKind::Provider => new ProviderContribution($id, $point, $priority, $scope),
+            PointKind::Data => new LoginNotice($id, $point, $text('message'), $this->enum(Tone::class, $data['tone'], $path, $at.'.tone', 'tone'), $priority, $scope),
+            PointKind::Theme => throw MalformedRegistryCache::at($path, $at.'.kind', 'a theme is no contribution to a point'),
+        });
+    }
+
+    /**
+     * An entry of addons.php.
+     *
+     * @return array<string, mixed>
+     */
+    private function encodeAddon(AddonEntry $addon): array
+    {
+        $panel = $addon->panel;
+
+        return [
+            'core_api' => $addon->coreApi->toString(),
+            'issues' => array_map(static fn (IssuedCommand $issued): array => ['class' => $issued->class, 'command' => $issued->command->toString()], $addon->issues),
+            'namespace' => $addon->namespace->value,
+            'package' => $addon->package,
+            'panel' => $panel instanceof AddonPanel ? [
+                'accepts_experimental' => array_map(static fn (PointId $point): string => $point->toString(), $panel->acceptsExperimental),
+                'bundle' => $panel->bundle instanceof CompiledBundle ? [
+                    'entry' => $panel->bundle->entry->value,
+                    'files' => array_map(static fn (BundleFile $file): array => [
+                        'integrity' => $file->integrity->value,
+                        'kind' => $file->kind->value,
+                        'path' => $file->path->value,
+                    ], $panel->bundle->files),
+                ] : null,
+                'sdk' => $panel->sdk->toString(),
+            ] : null,
+            'reads' => $addon->reads->value,
+            'ui_theme' => $addon->uiTheme,
+        ];
+    }
+
+    /**
+     * @throws MalformedRegistryCache
+     */
+    private function addon(mixed $entry, string $path, string $at): AddonEntry
+    {
+        $data = $this->map($entry, $path, $at, ['core_api', 'issues', 'namespace', 'package', 'panel', 'reads', 'ui_theme']);
+        $issues = [];
+
+        foreach ($this->list($data['issues'], $path, $at.'.issues') as $position => $issued) {
+            $issuedAt = sprintf('%s.issues[%d]', $at, $position);
+            $issue = $this->map($issued, $path, $issuedAt, ['class', 'command']);
+            $command = $this->panel($path, $issuedAt.'.command', fn (): CommandRef => CommandRef::fromString($this->string($issue['command'], $path, $issuedAt.'.command')));
+            $issues[] = $this->entry($path, $issuedAt, fn (): IssuedCommand => new IssuedCommand($command, $this->string($issue['class'], $path, $issuedAt.'.class')));
+        }
+
+        $panel = null;
+
+        if ($data['panel'] !== null) {
+            $panelData = $this->map($data['panel'], $path, $at.'.panel', ['accepts_experimental', 'bundle', 'sdk']);
+            $accepted = [];
+
+            foreach ($this->list($panelData['accepts_experimental'], $path, $at.'.panel.accepts_experimental') as $position => $point) {
+                $pointAt = sprintf('%s.panel.accepts_experimental[%d]', $at, $position);
+                $accepted[] = $this->panel($path, $pointAt, fn (): PointId => PointId::fromString($this->string($point, $path, $pointAt)));
+            }
+
+            $panel = new AddonPanel(
+                $this->panelApi($panelData['sdk'], $path, $at.'.panel.sdk'),
+                $accepted,
+                $panelData['bundle'] === null ? null : $this->bundle($panelData['bundle'], $path, $at.'.panel.bundle'),
+            );
+        }
+
+        $uiTheme = $data['ui_theme'];
+
+        if (! is_bool($uiTheme)) {
+            throw MalformedRegistryCache::at($path, $at.'.ui_theme', sprintf('expected a boolean, got %s', get_debug_type($uiTheme)));
+        }
+
+        $reads = $this->string($data['reads'], $path, $at.'.reads');
+
+        return $this->entry($path, $at, fn (): AddonEntry => new AddonEntry(
+            $this->addonNamespace($data['namespace'], $path, $at.'.namespace'),
+            $this->string($data['package'], $path, $at.'.package'),
+            $this->coreApi($data['core_api'], $path, $at.'.core_api'),
+            ClassificationAccess::tryFrom($reads) ?? throw MalformedRegistryCache::at($path, $at.'.reads', sprintf('"%s" is not a classification', $reads)),
+            $issues,
+            $uiTheme,
+            $panel,
+        ));
+    }
+
+    /**
+     * @throws MalformedRegistryCache
+     */
+    private function bundle(mixed $value, string $path, string $at): CompiledBundle
+    {
+        $data = $this->map($value, $path, $at, ['entry', 'files']);
+        $files = [];
+
+        foreach ($this->list($data['files'], $path, $at.'.files') as $position => $file) {
+            $fileAt = sprintf('%s.files[%d]', $at, $position);
+            $fileData = $this->map($file, $path, $fileAt, ['integrity', 'kind', 'path']);
+            $files[] = $this->panel($path, $fileAt, fn (): BundleFile => new BundleFile(
+                new BundlePath($this->string($fileData['path'], $path, $fileAt.'.path')),
+                new BundleIntegrity($this->string($fileData['integrity'], $path, $fileAt.'.integrity')),
+                $this->enum(BundleFileKind::class, $fileData['kind'], $path, $fileAt.'.kind', 'bundle file kind'),
+            ));
+        }
+
+        return $this->panel($path, $at, fn (): CompiledBundle => new CompiledBundle(new BundlePath($this->string($data['entry'], $path, $at.'.entry')), $files));
+    }
+
+    /**
+     * @throws MalformedRegistryCache
+     */
+    private function coreApi(mixed $value, string $path, string $at): CoreApiVersion
+    {
+        [$major, $minor] = $this->version($value, $path, $at);
+
+        return $this->panel($path, $at, static fn (): CoreApiVersion => new CoreApiVersion($major, $minor));
+    }
+
+    /**
+     * @throws MalformedRegistryCache
+     */
+    private function panelApi(mixed $value, string $path, string $at): PanelApiVersion
+    {
+        [$major, $minor] = $this->version($value, $path, $at);
+
+        return $this->panel($path, $at, static fn (): PanelApiVersion => new PanelApiVersion($major, $minor));
+    }
+
+    /**
+     * @return array{int, int}
+     *
+     * @throws MalformedRegistryCache
+     */
+    private function version(mixed $value, string $path, string $at): array
+    {
+        $text = $this->string($value, $path, $at);
+
+        if (preg_match('/\A(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})\z/', $text, $parts) !== 1) {
+            throw MalformedRegistryCache::at($path, $at, sprintf('"%s" is not a version as <major>.<minor>', $text));
+        }
+
+        return [(int) $parts[1], (int) $parts[2]];
+    }
+
+    /**
+     * A map from strings to strings, such as an action's prefill.
+     *
+     * @return array<string, string>
+     *
+     * @throws MalformedRegistryCache
+     */
+    private function strings(mixed $value, string $path, string $at): array
+    {
+        if (! is_array($value) || ($value !== [] && array_is_list($value))) {
+            throw MalformedRegistryCache::at($path, $at, sprintf('expected a map of strings, got %s', get_debug_type($value)));
+        }
+
+        $map = [];
+
+        foreach ($value as $key => $item) {
+            $map[(string) $key] = $this->string($item, $path, sprintf('%s.%s', $at, $key));
+        }
+
+        return $map;
+    }
+
+    /**
+     * A value of the panel or addon registry, whose value objects refuse a value with
+     * InvalidPanelPoint, InvalidAddonManifest or another InvalidArgumentException.
      *
      * @template T of object
      *
@@ -542,7 +899,7 @@ final readonly class RegistryCacheCodec
     {
         try {
             return $build();
-        } catch (InvalidPanelPoint $invalid) {
+        } catch (InvalidPanelPoint|InvalidAddonManifest|InvalidArgumentException $invalid) {
             throw MalformedRegistryCache::at($path, $at, rtrim($invalid->getMessage(), '.'), $invalid);
         }
     }

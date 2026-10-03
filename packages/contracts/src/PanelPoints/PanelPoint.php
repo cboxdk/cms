@@ -32,6 +32,8 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
  *   any.
  * - `since`: the panel API release the point arrived in, `<major>.<minor>`.
  * - `label`: the translation key of the point's name in the panel's catalogue.
+ * - `deprecated`: a PointDeprecation when the point is on its way out, which cms:build warns about
+ *   for every contribution to it; null for a point that is not.
  *
  * Anything else throws InvalidPanelPoint, which cms:build reports as registry_invalid_attribute.
  */
@@ -64,6 +66,7 @@ final readonly class PanelPoint
         public ?Ownership $ownership = null,
         public ?ReplacementKey $keyedBy = null,
         array $tightens = [],
+        public ?PointDeprecation $deprecated = null,
     ) {
         $id = new PointId(new PointName($name), $version);
         new PageName($page);
@@ -117,6 +120,10 @@ final readonly class PanelPoint
             }
 
             $seen[$tighten->value] = true;
+        }
+
+        if ($deprecated instanceof PointDeprecation && $deprecated->replacementId()?->equals($id) === true) {
+            throw InvalidPanelPoint::because(sprintf('The panel point %s names itself as its replacement. Name the point that replaces it, or none.', $point));
         }
 
         $this->tightens = $tightens;

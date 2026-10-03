@@ -26,9 +26,13 @@ use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Seeding\Domain\Commands\SeedEntries;
 use Cbox\Cms\Core\Structure\Domain\Commands\RegisterSite;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNote;
+use Cbox\Cms\Core\Tests\Registry\PanelBuildWorld;
 use Cbox\Cms\Core\Tests\Registry\Providers\FixtureRootProvider;
+use Cbox\Cms\Core\Tests\Registry\Providers\PanelAddonProvider;
 use Cbox\Cms\Core\Tests\Registry\RegistryFixtures;
+use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Console\Kernel;
+use Workbench\App\Providers\WorkbenchServiceProvider;
 
 /*
  * cms:build in the testbench application: it compiles the scan roots the providers declare and
@@ -58,7 +62,7 @@ it('is registered', function (): void {
         ->and(app(Kernel::class)->all()['cms:build'])->toBeInstanceOf(BuildCommand::class);
 });
 
-it('writes the seven registries to the application\'s bootstrap/cache/cms, and removes the files it no longer writes', function (): void {
+it('writes the eight registries to the application\'s bootstrap/cache/cms, and removes the files it no longer writes', function (): void {
     $directory = app()->bootstrapPath('cache/cms');
 
     if (! is_dir($directory)) {
@@ -72,6 +76,8 @@ it('writes the seven registries to the application\'s bootstrap/cache/cms, and r
     expect($status)->toBe(0)
         ->and($output)->toBe([
             'actions: 22',
+            // The workbench's fixture addon, which its allowlist names.
+            'addons: 1',
             'commands: 17',
             // The workbench's fixture addon, which package discovery registers: its two hooks and
             // its extension of app:fixture_article.
@@ -82,7 +88,7 @@ it('writes the seven registries to the application\'s bootstrap/cache/cms, and r
             'subscribers: 1',
             sprintf('Registry written to %s.', $directory),
         ])
-        ->and(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'openapi.json', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php']);
+        ->and(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'addons.php', 'commands.php', 'hooks.php', 'openapi.json', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php']);
 });
 
 it('adds what an addon provider\'s scan root declares', function (): void {
@@ -94,7 +100,7 @@ it('adds what an addon provider\'s scan root declares', function (): void {
     [$status, $output] = buildCommand();
 
     expect($status)->toBe(0)
-        ->and(array_slice($output, 0, 5))->toBe(['actions: 24', 'commands: 18', 'hooks: 3', 'panel: 1', 'rest: 17'])
+        ->and(array_slice($output, 0, 6))->toBe(['actions: 24', 'addons: 1', 'commands: 18', 'hooks: 3', 'panel: 1', 'rest: 17'])
         ->and(RegistryFixtures::load($directory.'/commands.php'))->toMatchArray(['entries' => [[
             'class' => GrantBootstrapRole::class,
             'name' => 'access.bootstrap',
@@ -213,4 +219,34 @@ it('exits with 73 when the cache cannot be written', function (): void {
 
     expect($status)->toBe(BuildCommand::EXIT_UNWRITABLE)
         ->and($output[0])->toStartWith('[registry_cache_unwritable] ');
+});
+
+it('prints the warnings of a build with their codes before the counts', function (): void {
+    $directory = RegistryFixtures::scratch();
+    app()->instance(RegistryCache::class, RegistryFixtures::cache($directory));
+    app()->instance(OpenApiDocuments::class, RegistryFixtures::documents($directory));
+    app(Repository::class)->set('cbox-cms.addons.allowed', [WorkbenchServiceProvider::FIXTURE_ADDON, PanelBuildWorld::ADDON]);
+    app()->register(PanelAddonProvider::class);
+
+    [$status, $output] = buildCommand();
+
+    expect($status)->toBe(0)
+        ->and($output[0])->toStartWith('[registry_panel_point_experimental] The contribution approvals.badge of addon "approvals" (acme/cms-approvals) contributes to notes.detail.sections@1')
+        ->and($output[1])->toStartWith('[registry_panel_point_deprecated] The contribution approvals.legacy of addon "approvals" (acme/cms-approvals) contributes to notes.legacy@1')
+        ->and($output[2])->toStartWith('actions: ')
+        ->and($output)->toContain('addons: 2')
+        ->and($output)->toContain('panel: 16');
+});
+
+it('refuses an installed addon the allowlist does not name, and writes nothing', function (): void {
+    $directory = RegistryFixtures::scratch();
+    app()->instance(RegistryCache::class, RegistryFixtures::cache($directory));
+    app()->instance(OpenApiDocuments::class, RegistryFixtures::documents($directory));
+    app(Repository::class)->set('cbox-cms.addons.allowed', []);
+
+    [$status, $output] = buildCommand();
+
+    expect($status)->toBe(BuildCommand::EXIT_INVALID_DECLARATIONS)
+        ->and($output[0])->toStartWith('[registry_addon_not_allowed] Addon "fixtureaddon" (cboxdk/cms-fixture-addon) is installed, and the installation\'s allowlist of addons does not name cboxdk/cms-fixture-addon (PRD 13.8).')
+        ->and(is_dir($directory))->toBeFalse();
 });

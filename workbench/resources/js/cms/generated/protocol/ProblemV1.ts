@@ -154,6 +154,7 @@ export type ErrorCode =
   | 'rebuild_identity_invalid'
   | 'rebuild_schema_version_unsupported'
   | 'rebuild_type_unknown'
+  | 'registry_addon_not_allowed'
   | 'registry_cache_malformed'
   | 'registry_cache_missing'
   | 'registry_cache_unwritable'
@@ -165,6 +166,7 @@ export type ErrorCode =
   | 'registry_duplicate_panel_point'
   | 'registry_duplicate_subscription'
   | 'registry_incompatible_core_api'
+  | 'registry_incompatible_panel_api'
   | 'registry_invalid_attribute'
   | 'registry_invalid_manifest'
   | 'registry_invalid_scan_root'
@@ -173,8 +175,27 @@ export type ErrorCode =
   | 'registry_not_a_subscriber'
   | 'registry_not_an_action'
   | 'registry_not_final_readonly'
+  | 'registry_panel_action_prefill_invalid'
+  | 'registry_panel_bundle_invalid'
+  | 'registry_panel_check_unmirrored'
+  | 'registry_panel_command_not_issuable'
+  | 'registry_panel_data_query_invalid'
+  | 'registry_panel_duplicate_contribution'
+  | 'registry_panel_experimental_not_accepted'
+  | 'registry_panel_flow_path_unknown'
+  | 'registry_panel_internal_point'
+  | 'registry_panel_kind_mismatch'
+  | 'registry_panel_nav_target_unknown'
+  | 'registry_panel_override_invalid'
+  | 'registry_panel_point_deprecated'
+  | 'registry_panel_point_experimental'
   | 'registry_panel_point_without_downcast'
   | 'registry_panel_point_without_stability'
+  | 'registry_panel_replacement_conflict'
+  | 'registry_panel_tightening_undeclared'
+  | 'registry_panel_unknown_command'
+  | 'registry_panel_unknown_point'
+  | 'registry_panel_unowned_target'
   | 'registry_reserved_namespace'
   | 'registry_surface_without_codec'
   | 'registry_undeclared_hook'
@@ -437,6 +458,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'rebuild_identity_invalid',
           'rebuild_schema_version_unsupported',
           'rebuild_type_unknown',
+          'registry_addon_not_allowed',
           'registry_cache_malformed',
           'registry_cache_missing',
           'registry_cache_unwritable',
@@ -448,6 +470,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'registry_duplicate_panel_point',
           'registry_duplicate_subscription',
           'registry_incompatible_core_api',
+          'registry_incompatible_panel_api',
           'registry_invalid_attribute',
           'registry_invalid_manifest',
           'registry_invalid_scan_root',
@@ -456,8 +479,27 @@ const catalogErrorV1Rule: ObjectRule = {
           'registry_not_a_subscriber',
           'registry_not_an_action',
           'registry_not_final_readonly',
+          'registry_panel_action_prefill_invalid',
+          'registry_panel_bundle_invalid',
+          'registry_panel_check_unmirrored',
+          'registry_panel_command_not_issuable',
+          'registry_panel_data_query_invalid',
+          'registry_panel_duplicate_contribution',
+          'registry_panel_experimental_not_accepted',
+          'registry_panel_flow_path_unknown',
+          'registry_panel_internal_point',
+          'registry_panel_kind_mismatch',
+          'registry_panel_nav_target_unknown',
+          'registry_panel_override_invalid',
+          'registry_panel_point_deprecated',
+          'registry_panel_point_experimental',
           'registry_panel_point_without_downcast',
           'registry_panel_point_without_stability',
+          'registry_panel_replacement_conflict',
+          'registry_panel_tightening_undeclared',
+          'registry_panel_unknown_command',
+          'registry_panel_unknown_point',
+          'registry_panel_unowned_target',
           'registry_reserved_namespace',
           'registry_surface_without_codec',
           'registry_undeclared_hook',
@@ -684,6 +726,7 @@ const problemV1Rule: ObjectRule = {
           'rebuild_identity_invalid',
           'rebuild_schema_version_unsupported',
           'rebuild_type_unknown',
+          'registry_addon_not_allowed',
           'registry_cache_malformed',
           'registry_cache_missing',
           'registry_cache_unwritable',
@@ -695,6 +738,7 @@ const problemV1Rule: ObjectRule = {
           'registry_duplicate_panel_point',
           'registry_duplicate_subscription',
           'registry_incompatible_core_api',
+          'registry_incompatible_panel_api',
           'registry_invalid_attribute',
           'registry_invalid_manifest',
           'registry_invalid_scan_root',
@@ -703,8 +747,27 @@ const problemV1Rule: ObjectRule = {
           'registry_not_a_subscriber',
           'registry_not_an_action',
           'registry_not_final_readonly',
+          'registry_panel_action_prefill_invalid',
+          'registry_panel_bundle_invalid',
+          'registry_panel_check_unmirrored',
+          'registry_panel_command_not_issuable',
+          'registry_panel_data_query_invalid',
+          'registry_panel_duplicate_contribution',
+          'registry_panel_experimental_not_accepted',
+          'registry_panel_flow_path_unknown',
+          'registry_panel_internal_point',
+          'registry_panel_kind_mismatch',
+          'registry_panel_nav_target_unknown',
+          'registry_panel_override_invalid',
+          'registry_panel_point_deprecated',
+          'registry_panel_point_experimental',
           'registry_panel_point_without_downcast',
           'registry_panel_point_without_stability',
+          'registry_panel_replacement_conflict',
+          'registry_panel_tightening_undeclared',
+          'registry_panel_unknown_command',
+          'registry_panel_unknown_point',
+          'registry_panel_unowned_target',
           'registry_reserved_namespace',
           'registry_surface_without_codec',
           'registry_undeclared_hook',

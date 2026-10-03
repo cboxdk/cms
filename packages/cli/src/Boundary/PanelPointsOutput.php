@@ -11,25 +11,31 @@ use Cbox\Cms\Contracts\PanelPoints\CommandRef;
 use Cbox\Cms\Contracts\PanelPoints\Multiplicity;
 use Cbox\Cms\Contracts\PanelPoints\Ownership;
 use Cbox\Cms\Contracts\PanelPoints\PageName;
+use Cbox\Cms\Contracts\PanelPoints\PointDeprecation;
 use Cbox\Cms\Contracts\PanelPoints\Region;
 use Cbox\Cms\Contracts\PanelPoints\ReplacementKey;
 use Cbox\Cms\Contracts\PanelPoints\Tighten;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Core\Registry\Domain\Dto\PanelFill;
 use Cbox\Cms\Core\Registry\Domain\Dto\PanelPointEntry;
+use Cbox\Cms\Core\Registry\Domain\FillSource;
 
 /**
  * What cms:panel:points and cms:panel:fills print (PRD 13.2, 13.4).
  *
  * cms:panel:points, with --json, one document, keys sorted: `{"points": [...], "version": 1}`,
  * each point with `id`, `kind`, `page`, `region`, `multiplicity`, `max`, `ownership`, `keyed_by`,
- * `tightens`, `stability`, `since`, `label`, `class`, `package` and `fills`, the number of
- * contributions to it. Without it, two lines per point.
+ * `tightens`, `stability`, `since`, `deprecated` (`since`, `remove_in`, `replacement`, or null),
+ * `label`, `class`, `package` and `fills`, the number of contributions to it. Without it, two
+ * lines per point, and a third for a deprecated point.
  *
  * cms:panel:fills, with --json, `{"fills": [...], "point": "<id>", "version": 1}`, each fill with
- * `contribution`, `addon`, `package`, `priority` and `scope` (`pages`, `commands`, `types`,
- * `field_types`, `requires`), in the order the host renders them. Without it, a heading and a
- * numbered line per contribution.
+ * `contribution`, `addon`, `package`, `kind`, `priority`, `ordering` (where the priority comes
+ * from: `addon` or `installation`), `enabled`, `enabling` (where that comes from: `addon`,
+ * `installation` or `activation`), `key` (a replacement's), `command`, `query` and `scope`
+ * (`pages`, `commands`, `types`, `field_types`, `requires`), in the order the host renders them.
+ * Without it, a heading and two numbered lines per contribution: what it is, and where its order
+ * and enabled state come from.
  */
 #[Internal]
 final readonly class PanelPointsOutput
@@ -66,6 +72,15 @@ final readonly class PanelPointsOutput
                 $fills === 1 ? 'contribution' : 'contributions',
             );
             $lines[] = sprintf('      props %s (%s), label %s', $point->class, $point->package, $declaration->label);
+
+            if ($declaration->deprecated instanceof PointDeprecation) {
+                $lines[] = sprintf(
+                    '      <comment>deprecated since %s, removed in %s</comment>%s',
+                    $declaration->deprecated->since,
+                    $declaration->deprecated->removeIn,
+                    $declaration->deprecated->replacement === null ? '' : ', replaced by '.$declaration->deprecated->replacement,
+                );
+            }
         }
 
         return new CliAnswer(ExitCode::Ok, $lines);
@@ -89,13 +104,20 @@ final readonly class PanelPointsOutput
 
         foreach ($point->fills as $number => $fill) {
             $lines[] = sprintf(
-                '  %d. %s  priority %d  %s, addon %s%s',
+                '  %d. %s  %s  %s, addon %s%s%s',
                 $number + 1,
                 $fill->contribution->value,
-                $fill->priority,
+                $fill->declaration->kind()->value,
                 $fill->package,
                 $fill->addon()->value,
+                $this->detailLine($fill),
                 $this->scopeLine($fill),
+            );
+            $lines[] = sprintf(
+                '     priority %d from the %s, %s',
+                $fill->priority,
+                $fill->ordering === FillSource::Installation ? 'installation' : 'addon',
+                $this->state($fill),
             );
         }
 
@@ -126,6 +148,36 @@ final readonly class PanelPointsOutput
         return implode(', ', $parts);
     }
 
+    /**
+     * Whether the host renders the fill, and why.
+     */
+    private function state(PanelFill $fill): string
+    {
+        $key = $fill->key();
+
+        return match (true) {
+            $fill->enabled && $fill->enabling === FillSource::Installation => $key === null ? '<info>enabled by the installation</info>' : sprintf('<info>chosen by the installation for %s</info>', $key),
+            $fill->enabled => 'enabled',
+            $fill->enabling === FillSource::Activation => '<comment>disabled by the activation state</comment>',
+            $key !== null => sprintf('<comment>passed over by the installation for %s</comment>', $key),
+            default => '<comment>disabled by the installation</comment>',
+        };
+    }
+
+    /**
+     * The replacement's key, the command and the data query, as the fill has them.
+     */
+    private function detailLine(PanelFill $fill): string
+    {
+        $parts = array_filter([
+            'replaces' => $fill->key() ?? '',
+            'command' => $fill->command?->toString() ?? '',
+            'data' => $fill->query?->toString() ?? '',
+        ], static fn (string $value): bool => $value !== '');
+
+        return implode('', array_map(static fn (string $key, string $value): string => sprintf(', %s %s', $key, $value), array_keys($parts), $parts));
+    }
+
     private function scopeLine(PanelFill $fill): string
     {
         $scope = $fill->scope;
@@ -153,6 +205,11 @@ final readonly class PanelPointsOutput
 
         return [
             'class' => $point->class,
+            'deprecated' => $declaration->deprecated instanceof PointDeprecation ? [
+                'remove_in' => $declaration->deprecated->removeIn,
+                'replacement' => $declaration->deprecated->replacement,
+                'since' => $declaration->deprecated->since,
+            ] : null,
             'fills' => count($point->fills),
             'id' => $point->id()->toString(),
             'keyed_by' => $declaration->keyedBy?->value,
@@ -179,9 +236,16 @@ final readonly class PanelPointsOutput
 
         return [
             'addon' => $fill->addon()->value,
+            'command' => $fill->command?->toString(),
             'contribution' => $fill->contribution->value,
+            'enabled' => $fill->enabled,
+            'enabling' => $fill->enabling->value,
+            'key' => $fill->key(),
+            'kind' => $fill->declaration->kind()->value,
+            'ordering' => $fill->ordering->value,
             'package' => $fill->package,
             'priority' => $fill->priority,
+            'query' => $fill->query?->toString(),
             'scope' => [
                 'commands' => array_map(static fn (CommandRef $command): string => $command->toString(), $scope->commands),
                 'field_types' => $scope->fieldTypes,

@@ -11,6 +11,7 @@ use Cbox\Cms\Cli\Boundary\RegistryRefusal;
 use Cbox\Cms\Cli\Domain\CliCallRefused;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Core\Registry\Actions\MapPanelFills;
+use Cbox\Cms\Core\Registry\Domain\InvalidPanelActivation;
 use Cbox\Cms\Core\Registry\Domain\MalformedRegistryCache;
 use Cbox\Cms\Core\Registry\Domain\RegistryCacheMissing;
 use Cbox\Cms\Core\Registry\Domain\UnknownPanelPoint;
@@ -22,11 +23,13 @@ use Symfony\Component\Console\Output\OutputInterface;
 /**
  * `cms:panel:fills <point>` (PRD 13.2, 13.4, GUARDRAILS 7.1): the contributions to a panel point
  * in the order the host renders them, priority with the lowest first, then the addon's namespace,
- * then the contribution's id, each with its package and the scope it is narrowed to. It calls the
- * action MapPanelFills, and PanelPointsOutput prints them, as JSON with --json.
+ * then the contribution's id, each with its package, the scope it is narrowed to, and where its
+ * order and enabled state come from: the addon, the installation's settings that cms:build
+ * compiled, or the activation state of now (cbox-cms.panel.disabled). It calls the action
+ * MapPanelFills, and PanelPointsOutput prints them, as JSON with --json.
  *
  * Exit codes: 0; 64 for an argument that is not a point's id, or the id of no registered point; 78
- * when the registry cache is missing or damaged.
+ * when the registry cache is missing or damaged, or the activation state is not of its form.
  */
 #[Internal]
 #[Description('List the contributions to a panel point in the order the panel renders them')]
@@ -45,6 +48,8 @@ final class PanelFillsCommand extends Command
             $answer = $refusals->refused($refused, $json);
         } catch (UnknownPanelPoint $unknown) {
             $answer = $refusals->refused(CliCallRefused::usage($unknown->getMessage(), $unknown), $json);
+        } catch (InvalidPanelActivation $invalid) {
+            $answer = $refusals->refused(CliCallRefused::config($invalid->getMessage(), $invalid), $json);
         } catch (RegistryCacheMissing|MalformedRegistryCache $failed) {
             $answer = $refusals->refused(RegistryRefusal::of($failed), $json);
         }

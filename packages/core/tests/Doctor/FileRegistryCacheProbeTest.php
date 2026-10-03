@@ -32,7 +32,7 @@ function registryProbeFixture(int $builtAt, int $manifestAt): array
     $directory = $root.'/bootstrap/cache/cms';
     RegistryFixtures::cache($directory)->write(CompiledRegistry::empty());
 
-    foreach (['actions.php', 'commands.php', 'hooks.php', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php'] as $file) {
+    foreach (['actions.php', 'addons.php', 'commands.php', 'hooks.php', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php'] as $file) {
         touch($directory.'/'.$file, $builtAt);
     }
 
@@ -72,7 +72,7 @@ it('does not ask for the file of slots', function (): void {
 
     $result = new RegistryCacheCheck(new FileRegistryCacheProbe(RegistryFixtures::cache($directory), $manifest))->run();
 
-    expect(glob($directory.'/*') ?: [])->toHaveCount(7)
+    expect(glob($directory.'/*') ?: [])->toHaveCount(8)
         ->and($result->status)->toBe(CheckStatus::Pass);
 });
 

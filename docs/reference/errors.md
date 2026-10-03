@@ -159,6 +159,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`rebuild_identity_invalid`](#rebuild_identity_invalid) | 500 | 78 | internal_error | no |
 | [`rebuild_schema_version_unsupported`](#rebuild_schema_version_unsupported) | 422 | 65 | tool_error | no |
 | [`rebuild_type_unknown`](#rebuild_type_unknown) | 422 | 65 | tool_error | no |
+| [`registry_addon_not_allowed`](#registry_addon_not_allowed) | 500 | 65 | internal_error | no |
 | [`registry_cache_malformed`](#registry_cache_malformed) | 500 | 78 | internal_error | no |
 | [`registry_cache_missing`](#registry_cache_missing) | 500 | 78 | internal_error | no |
 | [`registry_cache_unwritable`](#registry_cache_unwritable) | 500 | 73 | internal_error | no |
@@ -170,6 +171,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`registry_duplicate_panel_point`](#registry_duplicate_panel_point) | 500 | 65 | internal_error | no |
 | [`registry_duplicate_subscription`](#registry_duplicate_subscription) | 500 | 65 | internal_error | no |
 | [`registry_incompatible_core_api`](#registry_incompatible_core_api) | 500 | 65 | internal_error | no |
+| [`registry_incompatible_panel_api`](#registry_incompatible_panel_api) | 500 | 65 | internal_error | no |
 | [`registry_invalid_attribute`](#registry_invalid_attribute) | 500 | 65 | internal_error | no |
 | [`registry_invalid_manifest`](#registry_invalid_manifest) | 500 | 65 | internal_error | no |
 | [`registry_invalid_scan_root`](#registry_invalid_scan_root) | 500 | 65 | internal_error | no |
@@ -178,8 +180,27 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`registry_not_a_subscriber`](#registry_not_a_subscriber) | 500 | 65 | internal_error | no |
 | [`registry_not_an_action`](#registry_not_an_action) | 500 | 65 | internal_error | no |
 | [`registry_not_final_readonly`](#registry_not_final_readonly) | 500 | 65 | internal_error | no |
+| [`registry_panel_action_prefill_invalid`](#registry_panel_action_prefill_invalid) | 500 | 65 | internal_error | no |
+| [`registry_panel_bundle_invalid`](#registry_panel_bundle_invalid) | 500 | 65 | internal_error | no |
+| [`registry_panel_check_unmirrored`](#registry_panel_check_unmirrored) | 500 | 65 | internal_error | no |
+| [`registry_panel_command_not_issuable`](#registry_panel_command_not_issuable) | 500 | 65 | internal_error | no |
+| [`registry_panel_data_query_invalid`](#registry_panel_data_query_invalid) | 500 | 65 | internal_error | no |
+| [`registry_panel_duplicate_contribution`](#registry_panel_duplicate_contribution) | 500 | 65 | internal_error | no |
+| [`registry_panel_experimental_not_accepted`](#registry_panel_experimental_not_accepted) | 500 | 65 | internal_error | no |
+| [`registry_panel_flow_path_unknown`](#registry_panel_flow_path_unknown) | 500 | 65 | internal_error | no |
+| [`registry_panel_internal_point`](#registry_panel_internal_point) | 500 | 65 | internal_error | no |
+| [`registry_panel_kind_mismatch`](#registry_panel_kind_mismatch) | 500 | 65 | internal_error | no |
+| [`registry_panel_nav_target_unknown`](#registry_panel_nav_target_unknown) | 500 | 65 | internal_error | no |
+| [`registry_panel_override_invalid`](#registry_panel_override_invalid) | 500 | 65 | internal_error | no |
+| [`registry_panel_point_deprecated`](#registry_panel_point_deprecated) | 200 | 0 | result | no |
+| [`registry_panel_point_experimental`](#registry_panel_point_experimental) | 200 | 0 | result | no |
 | [`registry_panel_point_without_downcast`](#registry_panel_point_without_downcast) | 500 | 65 | internal_error | no |
 | [`registry_panel_point_without_stability`](#registry_panel_point_without_stability) | 500 | 65 | internal_error | no |
+| [`registry_panel_replacement_conflict`](#registry_panel_replacement_conflict) | 500 | 65 | internal_error | no |
+| [`registry_panel_tightening_undeclared`](#registry_panel_tightening_undeclared) | 500 | 65 | internal_error | no |
+| [`registry_panel_unknown_command`](#registry_panel_unknown_command) | 500 | 65 | internal_error | no |
+| [`registry_panel_unknown_point`](#registry_panel_unknown_point) | 500 | 65 | internal_error | no |
+| [`registry_panel_unowned_target`](#registry_panel_unowned_target) | 500 | 65 | internal_error | no |
 | [`registry_reserved_namespace`](#registry_reserved_namespace) | 500 | 65 | internal_error | no |
 | [`registry_surface_without_codec`](#registry_surface_without_codec) | 500 | 65 | internal_error | no |
 | [`registry_undeclared_hook`](#registry_undeclared_hook) | 500 | 65 | internal_error | no |
@@ -1541,6 +1562,15 @@ No type of this installation has the name given to the rebuild, so nothing was r
 - MCP: a tool result with isError set
 - Retry: no, the same call gives the same answer until something changes
 
+### registry_addon_not_allowed
+
+An installed addon's Composer package is not on the installation's allowlist of addons, cbox-cms.addons.allowed (PRD 13.8), or the allowlist is not a list of package names. An addon fails at build, never at run time. Review the addon and add its package to cbox-cms.addons.allowed, or remove the package.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
 ### registry_cache_malformed
 
 The registry cache in bootstrap/cache/cms is damaged, or its files come from different builds, so the kernel cannot read its actions, commands, hooks, schema contributions and subscribers. Run cms:build.
@@ -1640,6 +1670,15 @@ An addon manifest needs a version of the kernel's API that this kernel does not 
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
+### registry_incompatible_panel_api
+
+An addon's panel contributions need a version of the panel's API (PanelContributions::$sdk, read as ^major.minor) that this panel does not satisfy (PRD 13.4). Install a version of the addon made for this panel's API, or a panel whose API the addon needs.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
 ### registry_invalid_attribute
 
 The arguments of an #[Action], #[Command], #[Query], #[Hook], #[Subscription] or #[PanelPoint] attribute are invalid, so it cannot be built. Correct the attribute as the cause says.
@@ -1712,6 +1751,132 @@ A #[Command], #[Query], #[Action], #[Subscription] or #[PanelPoint] sits on a cl
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
+### registry_panel_action_prefill_invalid
+
+An action prefills a property of its command from a JSON pointer into the point's props, and the pointer is not in the point's props schema, the property is not in the command's schema, the point or the command has no schema the build can read, or the value the pointer holds is of a type the property does not take. Point the prefill at a value of the props that the property takes.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_panel_bundle_invalid
+
+An addon's panel bundle does not match: panel-manifest.json is missing or not a document of panel-bundle.v1.json, a file it lists is missing or has another SHA-384, a stylesheet has a rule outside the @layer cms.addon, the entry is not one of its scripts, it imports a module the panel does not share, its contributions differ from the manifest's contributions that run code, or the manifest has such contributions and names no bundle (PRD 13.4). Build the addon's UI again from its manifest, and do not edit the built files.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_panel_check_unmirrored
+
+A form check with severity error, or a decorator that tightens the disabled reason, blocks a submit in the panel, and it names no ValidateHook or AuthorizeHook of its own addon on the same command in mirrors (the mirror rule, PRD 13.4); a decorator must also be scoped to that one command. Mirror the rule with a hook that enforces it on the server, so it holds over REST, MCP and the CLI too, or lower the check to a warning.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_panel_command_not_issuable
+
+An action runs a command that its addon's AddonCapabilities::$issues does not list, or a command in issues is not a registered #[Command] whose #[Action] lists Surface::Inertia (PRD 13.4). The panel runs commands through the Inertia profile and offers only what the manifest declares: list the command class in issues, and expose its action on Inertia.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_panel_data_query_invalid
+
+A slot fill or a page reads its data with a class that is not a registered #[Query] of its own addon, that has no codec, or whose required input the panel cannot take from the point's props by name with a type it takes (PRD 13.4). Read through a query of the addon whose input the props give.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_panel_duplicate_contribution
+
+A panel contribution's id is not in its addon's namespace, another contribution in the installation has it too, two pages of one addon have one path, or an addon in the namespace cms, the core's own, contributes to the panel (PRD 13.4). Give every contribution an id <namespace>.<local> of its own addon and every page its own path.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_panel_experimental_not_accepted
+
+A contribution goes to an experimental panel point, which may change in a minor release of the panel's API, and its addon's PanelContributions::$acceptsExperimental does not list the point (PRD 13.4). Add the point's id to acceptsExperimental to opt in, or contribute to a stable point.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_panel_flow_path_unknown
+
+A flow step patches a path its command's schema does not have, the command has no schema the build can read, or the path is neither below ext.<namespace> of the step's addon nor a path of a command the addon declares (PRD 13.4). The server's transform hooks change everything else; patch only the addon's own paths.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_panel_internal_point
+
+A contribution, or an addon's acceptsExperimental, names an #[Internal] panel point: the core's own wiring, which no addon contributes to (PRD 13.4). Contribute to a stable or experimental point; cms:panel:points lists them with their stability.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_panel_kind_mismatch
+
+A contribution is of another kind than the panel point it contributes to, such as a SlotFill at an action point (PRD 13.4). Contribute with the class of the point's kind, which cms:panel:points shows.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_panel_nav_target_unknown
+
+A nav entry links to a page its addon does not contribute (PRD 13.4). Point NavContribution::$page at the id of a PageContribution of the same addon.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_panel_override_invalid
+
+cbox-cms.panel.contributions or cbox-cms.panel.replacements is not of its form, or names a point, contribution or key it does not hold: a priority or enabled for a contribution the point does not have, or a winner that is no replacement of that key (PRD 13.4). Correct the setting against what cms:panel:fills lists.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_panel_point_deprecated
+
+A warning, not a failure: a contribution goes to a deprecated panel point, which is removed in the release the warning names (PRD 13.4). Move the contribution to the point's replacement before that release.
+
+- HTTP status: 200 OK
+- CLI exit code: 0 (EX_OK)
+- MCP: a tool result
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_panel_point_experimental
+
+A warning, not a failure: a contribution goes to an experimental panel point that its addon accepts, and the point may change in a minor release of the panel's API (PRD 13.4). Check the addon against each release of the panel.
+
+- HTTP status: 200 OK
+- CLI exit code: 0 (EX_OK)
+- MCP: a tool result
+- Retry: no, the same call gives the same answer until something changes
+
 ### registry_panel_point_without_downcast
 
 A panel point has more than one version, and the props class of an older version does not implement DowncastsFromNewest. The panel builds the props of the newest version only, and an older version keeps working through its declared downcast from them (PRD 13.4). Implement Cbox\Cms\Contracts\PanelPoints\DowncastsFromNewest on the older props class, with the newest props class as its template.
@@ -1724,6 +1889,51 @@ A panel point has more than one version, and the props class of an older version
 ### registry_panel_point_without_stability
 
 A #[PanelPoint] class carries none, or more than one, of #[Stable], #[Experimental] and #[Internal]. The attribute on the props class is the point's stability (GUARDRAILS 2.3), so give it exactly one.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_panel_replacement_conflict
+
+Two or more replacements claim one key of a replaceable panel point, and exactly one replacement wins a key (PRD 13.4). Name the winner in cbox-cms.panel.replacements, [point id => [key => contribution id]], or remove all but one.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_panel_tightening_undeclared
+
+A decorator tightens a prop that its panel point does not let decorators tighten (#[PanelPoint] tightens). A decorator may only tighten what its point declares (PRD 13.4); tighten only those props.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_panel_unknown_command
+
+A form check or flow step is for a command form, or a contribution's scope names a command or the permission of a command or query, that no scan root registers (PRD 13.4). Name a registered command and version, `<name>@<version>`, or a registered command's or query's name.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_panel_unknown_point
+
+A panel contribution, or an addon's acceptsExperimental, names a point id that no #[PanelPoint] declares, or text that is not a point id `<name>@<version>` (PRD 13.4). Name a declared point; cms:panel:points lists them.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_panel_unowned_target
+
+A replacement replaces a key its addon does not own at a panel point that lets addons replace only their own (Ownership::Own): a field type its manifest does not contribute, or a command or class no scan root of its package declares (PRD 13.4). Replace only the addon's own field types, commands and value classes.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)

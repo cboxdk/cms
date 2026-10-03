@@ -10,6 +10,7 @@ use Cbox\Cms\Contracts\Addons\ReservedAddonNamespace;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Build\DeclaresAddon;
 use Cbox\Cms\Contracts\FieldTypes\FieldTypeContributor;
+use Cbox\Cms\Contracts\PanelPoints\InvalidPanelPoint;
 use Cbox\Cms\Core\Registry\Domain\BuildErrorCode;
 use Cbox\Cms\Core\Registry\Domain\Dto\BuildProblem;
 use Cbox\Cms\Core\Registry\Domain\Dto\DeclaredAddons;
@@ -23,7 +24,11 @@ use Illuminate\Contracts\Foundation\Application;
  * namespace is registry_reserved_namespace and anything else registry_invalid_manifest, each
  * naming the provider. So is a manifest whose documentation directory, or schema directory when it
  * has one, is not a readable directory, and one whose field type contributor is not a class that
- * implements FieldTypeContributor.
+ * implements FieldTypeContributor. A panel contribution or scope that refuses its values counts as
+ * a manifest that cannot be built.
+ *
+ * The panel bundle of a manifest that names one is read here, through PanelBundles, so the
+ * compiler checks it without touching the disk (PRD 13.4).
  */
 #[Internal]
 final readonly class ProviderAddonManifests
@@ -42,6 +47,7 @@ final readonly class ProviderAddonManifests
     {
         $manifests = [];
         $problems = [];
+        $bundles = [];
 
         foreach ($providers as $provider) {
             if (! $provider instanceof DeclaresAddon) {
@@ -54,7 +60,7 @@ final readonly class ProviderAddonManifests
                 $problems[] = new BuildProblem(BuildErrorCode::ReservedNamespace, sprintf('The service provider %s declares an addon manifest with a reserved namespace. %s', $provider::class, $reserved->getMessage()));
 
                 continue;
-            } catch (InvalidAddonManifest $invalid) {
+            } catch (InvalidAddonManifest|InvalidPanelPoint $invalid) {
                 $problems[] = new BuildProblem(BuildErrorCode::InvalidManifest, sprintf('The service provider %s declares an addon manifest that cannot be built. %s', $provider::class, $invalid->getMessage()));
 
                 continue;
@@ -89,9 +95,14 @@ final readonly class ProviderAddonManifests
             }
 
             $manifests[] = $manifest;
+            $bundle = $manifest->panel?->bundle;
+
+            if ($bundle !== null) {
+                $bundles[$manifest->package] ??= PanelBundles::read($bundle);
+            }
         }
 
-        return new DeclaredAddons($manifests, $problems);
+        return new DeclaredAddons($manifests, $problems, $bundles);
     }
 
     /**

@@ -171,6 +171,7 @@ enum ErrorCode: string
     case RebuildIdentityInvalid = 'rebuild_identity_invalid';
     case RebuildSchemaVersionUnsupported = 'rebuild_schema_version_unsupported';
     case RebuildTypeUnknown = 'rebuild_type_unknown';
+    case RegistryAddonNotAllowed = 'registry_addon_not_allowed';
     case RegistryCacheMalformed = 'registry_cache_malformed';
     case RegistryCacheMissing = 'registry_cache_missing';
     case RegistryCacheUnwritable = 'registry_cache_unwritable';
@@ -182,6 +183,7 @@ enum ErrorCode: string
     case RegistryDuplicatePanelPoint = 'registry_duplicate_panel_point';
     case RegistryDuplicateSubscription = 'registry_duplicate_subscription';
     case RegistryIncompatibleCoreApi = 'registry_incompatible_core_api';
+    case RegistryIncompatiblePanelApi = 'registry_incompatible_panel_api';
     case RegistryInvalidAttribute = 'registry_invalid_attribute';
     case RegistryInvalidManifest = 'registry_invalid_manifest';
     case RegistryInvalidScanRoot = 'registry_invalid_scan_root';
@@ -190,8 +192,27 @@ enum ErrorCode: string
     case RegistryNotASubscriber = 'registry_not_a_subscriber';
     case RegistryNotAnAction = 'registry_not_an_action';
     case RegistryNotFinalReadonly = 'registry_not_final_readonly';
+    case RegistryPanelActionPrefillInvalid = 'registry_panel_action_prefill_invalid';
+    case RegistryPanelBundleInvalid = 'registry_panel_bundle_invalid';
+    case RegistryPanelCheckUnmirrored = 'registry_panel_check_unmirrored';
+    case RegistryPanelCommandNotIssuable = 'registry_panel_command_not_issuable';
+    case RegistryPanelDataQueryInvalid = 'registry_panel_data_query_invalid';
+    case RegistryPanelDuplicateContribution = 'registry_panel_duplicate_contribution';
+    case RegistryPanelExperimentalNotAccepted = 'registry_panel_experimental_not_accepted';
+    case RegistryPanelFlowPathUnknown = 'registry_panel_flow_path_unknown';
+    case RegistryPanelInternalPoint = 'registry_panel_internal_point';
+    case RegistryPanelKindMismatch = 'registry_panel_kind_mismatch';
+    case RegistryPanelNavTargetUnknown = 'registry_panel_nav_target_unknown';
+    case RegistryPanelOverrideInvalid = 'registry_panel_override_invalid';
+    case RegistryPanelPointDeprecated = 'registry_panel_point_deprecated';
+    case RegistryPanelPointExperimental = 'registry_panel_point_experimental';
     case RegistryPanelPointWithoutDowncast = 'registry_panel_point_without_downcast';
     case RegistryPanelPointWithoutStability = 'registry_panel_point_without_stability';
+    case RegistryPanelReplacementConflict = 'registry_panel_replacement_conflict';
+    case RegistryPanelTighteningUndeclared = 'registry_panel_tightening_undeclared';
+    case RegistryPanelUnknownCommand = 'registry_panel_unknown_command';
+    case RegistryPanelUnknownPoint = 'registry_panel_unknown_point';
+    case RegistryPanelUnownedTarget = 'registry_panel_unowned_target';
     case RegistryReservedNamespace = 'registry_reserved_namespace';
     case RegistrySurfaceWithoutCodec = 'registry_surface_without_codec';
     case RegistryUndeclaredHook = 'registry_undeclared_hook';
@@ -864,6 +885,69 @@ enum ErrorCode: string
             self::RegistryPanelPointWithoutStability => $this->refusedInput(
                 'A #[PanelPoint] class carries none, or more than one, of #[Stable], #[Experimental] and #[Internal]. The attribute on the props class is the point\'s stability (GUARDRAILS 2.3), so give it exactly one.',
             ),
+            self::RegistryAddonNotAllowed => $this->refusedInput(
+                'An installed addon\'s Composer package is not on the installation\'s allowlist of addons, cbox-cms.addons.allowed (PRD 13.8), or the allowlist is not a list of package names. An addon fails at build, never at run time. Review the addon and add its package to cbox-cms.addons.allowed, or remove the package.',
+            ),
+            self::RegistryIncompatiblePanelApi => $this->refusedInput(
+                'An addon\'s panel contributions need a version of the panel\'s API (PanelContributions::$sdk, read as ^major.minor) that this panel does not satisfy (PRD 13.4). Install a version of the addon made for this panel\'s API, or a panel whose API the addon needs.',
+            ),
+            self::RegistryPanelActionPrefillInvalid => $this->refusedInput(
+                'An action prefills a property of its command from a JSON pointer into the point\'s props, and the pointer is not in the point\'s props schema, the property is not in the command\'s schema, the point or the command has no schema the build can read, or the value the pointer holds is of a type the property does not take. Point the prefill at a value of the props that the property takes.',
+            ),
+            self::RegistryPanelBundleInvalid => $this->refusedInput(
+                'An addon\'s panel bundle does not match: panel-manifest.json is missing or not a document of panel-bundle.v1.json, a file it lists is missing or has another SHA-384, a stylesheet has a rule outside the @layer cms.addon, the entry is not one of its scripts, it imports a module the panel does not share, its contributions differ from the manifest\'s contributions that run code, or the manifest has such contributions and names no bundle (PRD 13.4). Build the addon\'s UI again from its manifest, and do not edit the built files.',
+            ),
+            self::RegistryPanelCheckUnmirrored => $this->refusedInput(
+                'A form check with severity error, or a decorator that tightens the disabled reason, blocks a submit in the panel, and it names no ValidateHook or AuthorizeHook of its own addon on the same command in mirrors (the mirror rule, PRD 13.4); a decorator must also be scoped to that one command. Mirror the rule with a hook that enforces it on the server, so it holds over REST, MCP and the CLI too, or lower the check to a warning.',
+            ),
+            self::RegistryPanelCommandNotIssuable => $this->refusedInput(
+                'An action runs a command that its addon\'s AddonCapabilities::$issues does not list, or a command in issues is not a registered #[Command] whose #[Action] lists Surface::Inertia (PRD 13.4). The panel runs commands through the Inertia profile and offers only what the manifest declares: list the command class in issues, and expose its action on Inertia.',
+            ),
+            self::RegistryPanelDataQueryInvalid => $this->refusedInput(
+                'A slot fill or a page reads its data with a class that is not a registered #[Query] of its own addon, that has no codec, or whose required input the panel cannot take from the point\'s props by name with a type it takes (PRD 13.4). Read through a query of the addon whose input the props give.',
+            ),
+            self::RegistryPanelDuplicateContribution => $this->refusedInput(
+                'A panel contribution\'s id is not in its addon\'s namespace, another contribution in the installation has it too, two pages of one addon have one path, or an addon in the namespace cms, the core\'s own, contributes to the panel (PRD 13.4). Give every contribution an id <namespace>.<local> of its own addon and every page its own path.',
+            ),
+            self::RegistryPanelExperimentalNotAccepted => $this->refusedInput(
+                'A contribution goes to an experimental panel point, which may change in a minor release of the panel\'s API, and its addon\'s PanelContributions::$acceptsExperimental does not list the point (PRD 13.4). Add the point\'s id to acceptsExperimental to opt in, or contribute to a stable point.',
+            ),
+            self::RegistryPanelFlowPathUnknown => $this->refusedInput(
+                'A flow step patches a path its command\'s schema does not have, the command has no schema the build can read, or the path is neither below ext.<namespace> of the step\'s addon nor a path of a command the addon declares (PRD 13.4). The server\'s transform hooks change everything else; patch only the addon\'s own paths.',
+            ),
+            self::RegistryPanelInternalPoint => $this->refusedInput(
+                'A contribution, or an addon\'s acceptsExperimental, names an #[Internal] panel point: the core\'s own wiring, which no addon contributes to (PRD 13.4). Contribute to a stable or experimental point; cms:panel:points lists them with their stability.',
+            ),
+            self::RegistryPanelKindMismatch => $this->refusedInput(
+                'A contribution is of another kind than the panel point it contributes to, such as a SlotFill at an action point (PRD 13.4). Contribute with the class of the point\'s kind, which cms:panel:points shows.',
+            ),
+            self::RegistryPanelNavTargetUnknown => $this->refusedInput(
+                'A nav entry links to a page its addon does not contribute (PRD 13.4). Point NavContribution::$page at the id of a PageContribution of the same addon.',
+            ),
+            self::RegistryPanelOverrideInvalid => $this->refusedInput(
+                'cbox-cms.panel.contributions or cbox-cms.panel.replacements is not of its form, or names a point, contribution or key it does not hold: a priority or enabled for a contribution the point does not have, or a winner that is no replacement of that key (PRD 13.4). Correct the setting against what cms:panel:fills lists.',
+            ),
+            self::RegistryPanelPointDeprecated => $this->warning(
+                'A warning, not a failure: a contribution goes to a deprecated panel point, which is removed in the release the warning names (PRD 13.4). Move the contribution to the point\'s replacement before that release.',
+            ),
+            self::RegistryPanelPointExperimental => $this->warning(
+                'A warning, not a failure: a contribution goes to an experimental panel point that its addon accepts, and the point may change in a minor release of the panel\'s API (PRD 13.4). Check the addon against each release of the panel.',
+            ),
+            self::RegistryPanelReplacementConflict => $this->refusedInput(
+                'Two or more replacements claim one key of a replaceable panel point, and exactly one replacement wins a key (PRD 13.4). Name the winner in cbox-cms.panel.replacements, [point id => [key => contribution id]], or remove all but one.',
+            ),
+            self::RegistryPanelTighteningUndeclared => $this->refusedInput(
+                'A decorator tightens a prop that its panel point does not let decorators tighten (#[PanelPoint] tightens). A decorator may only tighten what its point declares (PRD 13.4); tighten only those props.',
+            ),
+            self::RegistryPanelUnknownCommand => $this->refusedInput(
+                'A form check or flow step is for a command form, or a contribution\'s scope names a command or the permission of a command or query, that no scan root registers (PRD 13.4). Name a registered command and version, `<name>@<version>`, or a registered command\'s or query\'s name.',
+            ),
+            self::RegistryPanelUnknownPoint => $this->refusedInput(
+                'A panel contribution, or an addon\'s acceptsExperimental, names a point id that no #[PanelPoint] declares, or text that is not a point id `<name>@<version>` (PRD 13.4). Name a declared point; cms:panel:points lists them.',
+            ),
+            self::RegistryPanelUnownedTarget => $this->refusedInput(
+                'A replacement replaces a key its addon does not own at a panel point that lets addons replace only their own (Ownership::Own): a field type its manifest does not contribute, or a command or class no scan root of its package declares (PRD 13.4). Replace only the addon\'s own field types, commands and value classes.',
+            ),
             self::RegistryReservedNamespace => $this->refusedInput(
                 'An addon manifest names the namespace app or ext. The application\'s own fields live under app, and ext holds every extender\'s namespace (PRD 11.12), so neither can be an addon\'s. Give the addon a name of its own.',
             ),
@@ -1159,6 +1243,14 @@ enum ErrorCode: string
     private function readiness(string $explanation): ErrorEntry
     {
         return new ErrorEntry($this, HttpStatus::ServiceUnavailable, ExitCode::NotReady, McpResponse::InternalError, false, $explanation);
+    }
+
+    /**
+     * Something a tool tells the installation without failing, such as a warning of cms:build.
+     */
+    private function warning(string $explanation): ErrorEntry
+    {
+        return new ErrorEntry($this, HttpStatus::Ok, ExitCode::Ok, McpResponse::Result, false, $explanation);
     }
 
     /**

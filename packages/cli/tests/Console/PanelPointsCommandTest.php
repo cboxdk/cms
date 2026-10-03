@@ -69,6 +69,7 @@ it('prints the panel points as one JSON document, every key present', function (
         ->and(panelPointsDocument($output))->toBe([
             'points' => [[
                 'class' => NoteSectionsV1::class,
+                'deprecated' => null,
                 'fills' => 3,
                 'id' => 'notes.detail.sections@1',
                 'keyed_by' => null,

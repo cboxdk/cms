@@ -95,4 +95,61 @@ enum BuildErrorCode: string
 
     /** A panel point has more than one version, and an older version's props class does not implement DowncastsFromNewest. */
     case PanelPointWithoutDowncast = 'registry_panel_point_without_downcast';
+
+    /** An addon manifest's package is not on the installation's allowlist of addons, cbox-cms.addons.allowed (PRD 13.8). */
+    case AddonNotAllowed = 'registry_addon_not_allowed';
+
+    /** An addon's panel contributions need a version of the panel's API that this panel does not satisfy (PRD 13.4). */
+    case IncompatiblePanelApi = 'registry_incompatible_panel_api';
+
+    /** A panel contribution names a point id that no #[PanelPoint] declares, or that is not a point id. */
+    case PanelUnknownPoint = 'registry_panel_unknown_point';
+
+    /** A panel contribution, or an addon's acceptsExperimental, names an #[Internal] point, the core's own wiring. */
+    case PanelInternalPoint = 'registry_panel_internal_point';
+
+    /** A panel contribution is of another kind than the point it contributes to. */
+    case PanelKindMismatch = 'registry_panel_kind_mismatch';
+
+    /** A panel contribution goes to an experimental point the addon's acceptsExperimental does not list. */
+    case PanelExperimentalNotAccepted = 'registry_panel_experimental_not_accepted';
+
+    /** A panel contribution's id is not `<namespace>.<local>` in the addon's namespace, or another contribution, or page path, has it too. */
+    case PanelDuplicateContribution = 'registry_panel_duplicate_contribution';
+
+    /** A replacement replaces a key the addon does not own at a point with Ownership::Own. */
+    case PanelUnownedTarget = 'registry_panel_unowned_target';
+
+    /** Two replacements claim one key of a point, and cbox-cms.panel.replacements names no winner. */
+    case PanelReplacementConflict = 'registry_panel_replacement_conflict';
+
+    /** A blocking form check, or a decorator that tightens the disabled reason, mirrors no hook of its addon on its command. */
+    case PanelCheckUnmirrored = 'registry_panel_check_unmirrored';
+
+    /** A flow step patches a path its command's schema does not have, or one the addon does not own. */
+    case PanelFlowPathUnknown = 'registry_panel_flow_path_unknown';
+
+    /** An action's command is not in the addon's issues, or a command in issues is not a registered command exposed on Inertia. */
+    case PanelCommandNotIssuable = 'registry_panel_command_not_issuable';
+
+    /** An action's prefill names a pointer the point's props do not have, a property the command does not have, or types that do not fit. */
+    case PanelActionPrefillInvalid = 'registry_panel_action_prefill_invalid';
+
+    /** A contribution's data query is not a #[Query] of the addon with a codec, or its input cannot be taken from the point's props. */
+    case PanelDataQueryInvalid = 'registry_panel_data_query_invalid';
+
+    /** An addon's panel bundle is missing, unreadable or does not match its manifest: a file is missing or has another hash, a stylesheet is not in the addon's layer, an import is not a shared module, or the contributions differ. */
+    case PanelBundleInvalid = 'registry_panel_bundle_invalid';
+
+    /** A form check, a flow step or a contribution's scope names a command or query no scan root registers. */
+    case PanelUnknownCommand = 'registry_panel_unknown_command';
+
+    /** cbox-cms.panel.contributions or cbox-cms.panel.replacements is malformed or names a point, contribution or key that does not exist. */
+    case PanelOverrideInvalid = 'registry_panel_override_invalid';
+
+    /** A decorator tightens a prop its point does not let decorators tighten. */
+    case PanelTighteningUndeclared = 'registry_panel_tightening_undeclared';
+
+    /** A nav entry links to a page its addon does not contribute. */
+    case PanelNavTargetUnknown = 'registry_panel_nav_target_unknown';
 }

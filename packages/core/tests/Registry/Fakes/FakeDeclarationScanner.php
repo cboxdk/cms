@@ -25,7 +25,9 @@ use Override;
  * files. A scan stamps each entry with the package of the root it was found through, as the
  * attribute scanner does, visits the roots sorted by directory and package, scans a directory and
  * package pair once, reports a class that two roots reach with ClassInTwoRoots, and reports a
- * directory it does not know with InvalidScanRoot. Every scan's roots are kept in $scanned.
+ * directory it does not know with InvalidScanRoot. Every scan's roots are kept in $scanned. A
+ * directory's Discovery lists every class it declares in packages, entries or not, and the scan
+ * maps each to the package of the root it was first found through, as the attribute scanner does.
  * DeclarationScannerBehaviour holds it to AttributeScanner.
  */
 final class FakeDeclarationScanner implements DeclarationScanner
@@ -51,6 +53,7 @@ final class FakeDeclarationScanner implements DeclarationScanner
         $subscribers = [];
         $panelPoints = [];
         $problems = [];
+        $packages = [];
 
         /** @var array<string, ScanRoot> $unique */
         $unique = [];
@@ -80,6 +83,7 @@ final class FakeDeclarationScanner implements DeclarationScanner
 
             foreach ($this->classes($found) as $class) {
                 $owner = $owners[strtolower($class)] ?? null;
+                $packages[strtolower($class)] ??= $package;
 
                 if ($owner instanceof ScanRoot && $owner !== $root) {
                     $problems[] = new BuildProblem(BuildErrorCode::ClassInTwoRoots, sprintf(
@@ -134,7 +138,9 @@ final class FakeDeclarationScanner implements DeclarationScanner
             array_push($problems, ...$found->problems);
         }
 
-        return new Discovery($commands, $hooks, $problems, $queries, $actions, $subscribers, $panelPoints);
+        ksort($packages, SORT_STRING);
+
+        return new Discovery($commands, $hooks, $problems, $queries, $actions, $subscribers, $panelPoints, $packages);
     }
 
     /**
@@ -152,7 +158,16 @@ final class FakeDeclarationScanner implements DeclarationScanner
             ...array_map(static fn (SubscriberEntry $subscriber): string => $subscriber->class, $found->subscribers),
             ...array_map(static fn (PanelPointEntry $point): string => $point->class, $found->panelPoints),
         ];
+        $byName = [];
 
-        return array_values(array_unique($classes));
+        foreach ($classes as $class) {
+            $byName[strtolower($class)] ??= $class;
+        }
+
+        foreach (array_keys($found->packages) as $class) {
+            $byName[$class] ??= $class;
+        }
+
+        return array_values($byName);
     }
 }

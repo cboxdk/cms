@@ -107,7 +107,7 @@ it('merges config/cbox-cms.php under cbox-cms, the only root of the configuratio
     $defaults = new Repository(['cbox-cms' => require __DIR__.'/../config/cbox-cms.php']);
 
     expect(array_map(basename(...), glob(__DIR__.'/../config/*.php') ?: []))->toBe(['cbox-cms.php'])
-        ->and(array_keys($defaults->array('cbox-cms')))->toBe(['contracts', 'database', 'addons', 'cli', 'queries', 'sites', 'idempotency', 'receipts', 'egress', 'events', 'rebuild', 'seeding', 'access', 'fragments', 'delivery', 'doctor'])
+        ->and(array_keys($defaults->array('cbox-cms')))->toBe(['contracts', 'database', 'addons', 'panel', 'cli', 'queries', 'sites', 'idempotency', 'receipts', 'egress', 'events', 'rebuild', 'seeding', 'access', 'fragments', 'delivery', 'doctor'])
         ->and(config('cbox-cms.contracts'))->toBe([...(array) $defaults->get('cbox-cms.contracts'), BreachedPasswords::class => HibpBreachedPasswords::class, LocalCredentialStore::class => PostgresLocalCredentialStore::class])
         ->and(config('cbox-cms.egress'))->toBe($defaults->get('cbox-cms.egress'))
         ->and(config('cbox-cms.database.partitions.runway_days'))->toBe($defaults->get('cbox-cms.database.partitions.runway_days'))
@@ -118,6 +118,8 @@ it('merges config/cbox-cms.php under cbox-cms, the only root of the configuratio
         ->and(config('cbox-cms.rebuild'))->toBe($defaults->get('cbox-cms.rebuild'))
         ->and($defaults->get('cbox-cms.rebuild'))->toBe(['service_actor' => null, 'chunk_size' => 100])
         ->and(config('cbox-cms.addons.service_actors'))->toBe($defaults->get('cbox-cms.addons.service_actors'))
+        ->and($defaults->get('cbox-cms.addons.allowed'))->toBe([])
+        ->and(config('cbox-cms.panel'))->toBe($defaults->get('cbox-cms.panel'))
         ->and(config('cbox-cms.cli.credential'))->toBeNull()
         ->and($defaults->get('cbox-cms.cli.credential'))->toBeNull()
         ->and(config()->has('cms'))->toBeFalse()

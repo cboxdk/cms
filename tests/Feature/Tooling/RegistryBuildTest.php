@@ -67,7 +67,7 @@ it('builds the seven files and the OpenAPI document from the command line, byte 
 
     expect($first->getExitCode())->toBe(0, $first->getErrorOutput().$first->getOutput())
         ->and($first->getOutput())->toContain('Registry written to')
-        ->and(array_keys($firstHashes))->toBe(['actions.php', 'commands.php', 'hooks.php', 'openapi.json', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php'])
+        ->and(array_keys($firstHashes))->toBe(['actions.php', 'addons.php', 'commands.php', 'hooks.php', 'openapi.json', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php'])
         ->and($second->getExitCode())->toBe(0)
         ->and(registryHashes())->toBe($firstHashes);
 });

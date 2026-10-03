@@ -22,7 +22,7 @@ it('creates the directory and its parents when they do not exist', function (): 
 
     $cache->write(CompiledRegistry::empty());
 
-    expect(RegistryFixtures::files($directory.'/bootstrap/cache/cms'))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php'])
+    expect(RegistryFixtures::files($directory.'/bootstrap/cache/cms'))->toBe(['.lock', 'actions.php', 'addons.php', 'commands.php', 'hooks.php', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php'])
         ->and($cache->read())->toEqual(CompiledRegistry::empty())
         ->and($cache->location())->toBe($directory.'/bootstrap/cache/cms');
 });
@@ -41,7 +41,7 @@ it('owns its directory: every file it does not write is removed, whatever its na
 
     RegistryFixtures::cache($directory)->write(CompiledRegistry::empty());
 
-    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php']);
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'addons.php', 'commands.php', 'hooks.php', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php']);
 });
 
 it('leaves subdirectories and the temporary file of a concurrent write in place', function (): void {
@@ -52,7 +52,7 @@ it('leaves subdirectories and the temporary file of a concurrent write in place'
 
     RegistryFixtures::cache($directory)->write(CompiledRegistry::empty());
 
-    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'hooks.php.0123456789abcdef.tmp', 'nested', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php'])
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'addons.php', 'commands.php', 'hooks.php', 'hooks.php.0123456789abcdef.tmp', 'nested', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php'])
         ->and(RegistryFixtures::files($directory.'/nested'))->toBe(['slots.php']);
 });
 
@@ -66,7 +66,7 @@ it('keeps the OpenAPI document cms:build writes next to it, and its temporary fi
 
     RegistryFixtures::cache($directory)->write(CompiledRegistry::empty());
 
-    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'openapi.json', 'openapi.json.0123456789abcdef.tmp', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php']);
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'addons.php', 'commands.php', 'hooks.php', 'openapi.json', 'openapi.json.0123456789abcdef.tmp', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php']);
 });
 
 it('replaces the files before it removes the others, so a failed write keeps what was there', function (): void {
@@ -78,7 +78,7 @@ it('replaces the files before it removes the others, so a failed write keeps wha
     expect(fn () => RegistryFixtures::cache($directory)->write(CompiledRegistry::empty()))
         ->toThrow(RegistryCacheUnwritable::class, $directory.'/hooks.php');
 
-    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php', 'slots.php']);
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'addons.php', 'commands.php', 'hooks.php', 'slots.php']);
 });
 
 it('refuses to read a cache that was never built, and says how to build it', function (): void {
@@ -169,7 +169,7 @@ it('reports a rename that fails, and leaves no temporary file', function (): voi
         expect($unwritable->getMessage())->toContain($directory.'/hooks.php')->toContain('rename(');
     }
 
-    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'commands.php', 'hooks.php']);
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'addons.php', 'commands.php', 'hooks.php']);
 });
 
 it('refuses to write to a directory that names a stream wrapper before it touches it, so it never writes to ftp:// (GUARDRAILS 3)', function (string $directory): void {

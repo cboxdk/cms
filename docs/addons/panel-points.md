@@ -27,12 +27,13 @@ The class is the point's props: its public properties are what a contribution re
 | `multiplicity` and `max` | How many contributions the panel renders: `Multiplicity::Many` (the default), `Multiplicity::Max` with `max` from 1, or `Multiplicity::Exclusive`, which a replacement is and only a replacement is. |
 | `ownership` and `keyedBy` | For a replacement, and only a replacement: which keys an addon may replace (`Ownership::Own` for keys it owns, `Ownership::Any` for any) and what a key is (`ReplacementKey::FieldType`, `ValueClass` or `Command`). |
 | `tightens` | For a decorator, and only a decorator: the props of the default it may tighten, each once: `Tighten::DisabledReason`, `Tighten::Description` and `Tighten::ToneTowardsDanger`. |
+| `deprecated` | A `PointDeprecation(since, removeIn, replacement)` for a point on its way out: the panel API release it was deprecated in, the release it is removed in, and the id of the point that replaces it, or null. `cms:build` warns about every contribution to it with `registry_panel_point_deprecated`. |
 
 An argument that breaks these rules throws `InvalidPanelPoint`, and `cms:build` reports it as `registry_invalid_attribute`. The build also refuses two classes that declare one name and version (`registry_duplicate_panel_point`), a props class without exactly one stability attribute (`registry_panel_point_without_stability`) and one that is not a `final readonly class` (`registry_not_final_readonly`), and writes nothing.
 
 ## The panel registry
 
-`panel.php` holds every point sorted by name and then version, each with its id, kind, page, region, multiplicity, `max`, ownership, key, tightening props, stability, release, label, props class and package, and the contributions to it in the order the panel renders them: priority with the lowest first, then the addon's namespace, then the contribution's id. A contribution's id is `<namespace>.<local>`, such as `approvals.badge`, with `cms` for the core's own, and its scope narrows it to pages, command forms (`<command>@<version>`), types, field types and the permission a viewer must hold. Contributions come from the addon manifests, so the registry holds none until a manifest declares them.
+`panel.php` holds every point sorted by name and then version, each with its id, kind, page, region, multiplicity, `max`, ownership, key, tightening props, stability, release, label, props class and package, and the contributions to it in the order the panel renders them: priority with the lowest first, then the addon's namespace, then the contribution's id. A contribution's id is `<namespace>.<local>`, such as `approvals.badge`, with `cms` for the core's own, and its scope narrows it to pages, command forms (`<command>@<version>`), types, field types and the permission a viewer must hold. Contributions come from the addon manifests, and [panel contributions](panel-contributions.md) describes them, the checks `cms:build` runs on them and what each fill in `panel.php` holds.
 
 `cms:panel:points [selector]` lists the points, all of them or those a page, a point's name or an id selects, and `cms:panel:fills <point>` lists the contributions to one point in render order. Both take `--json`, and [inspecting the installation](../developers/inspecting.md) describes their output.
 
@@ -277,6 +278,7 @@ final class PanelPointsTest extends BuildTestCase
         self::assertIsArray($panel['entries']);
         self::assertContains([
             'class' => ReviewSectionsV1::class,
+            'deprecated' => null,
             'fills' => [],
             'id' => 'reviews.detail.sections@1',
             'keyed_by' => null,
