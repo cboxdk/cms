@@ -7,8 +7,13 @@ namespace Cbox\Cms\Panel\Views;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Panel\Boundary\HandlePanelRequests;
 use Cbox\Cms\Panel\Boundary\ImportMapJson;
+use Cbox\Cms\Panel\Boundary\PanelBrandProps;
+use Cbox\Cms\Panel\Branding\Domain\Dto\BrandFile;
+use Cbox\Cms\Panel\Branding\Domain\Dto\Branding;
 use Cbox\Cms\Panel\Domain\Dto\ImportMap;
 use Cbox\Cms\Panel\Domain\Dto\PanelBuild;
+use Cbox\Cms\Panel\Domain\Dto\PanelTheme;
+use Cbox\Cms\Panel\Domain\PanelRoute;
 use Cbox\Cms\Panel\Middleware\SendContentSecurityPolicy;
 use Cbox\Cms\Panel\PanelRoutes;
 use Illuminate\Contracts\Foundation\Application;
@@ -24,6 +29,11 @@ use Illuminate\Http\Request;
  * each of them and on the `csp-nonce` meta element, where Inertia and Vite find it for the style
  * and preload elements they add later. It also gives the page's import map (ImportMap), which the
  * view writes, with the nonce, before any module is loaded, as a browser requires.
+ *
+ * It also gives the installation's brand (PRD 13.4): the product name for the document's first
+ * title and, when the application sets one, its application-name meta element, which the panel's
+ * script reads for every later title; the favicon's address and type; and the address of the
+ * theme's stylesheet, the cascade layer cms.theme, when the installation selects a theme.
  */
 #[Internal]
 final readonly class PanelRootView
@@ -36,6 +46,9 @@ final readonly class PanelRootView
         private UrlGenerator $urls,
         private Application $app,
         private ImportMap $importMap,
+        private Branding $branding,
+        private PanelTheme $theme,
+        private PanelBrandProps $brand,
     ) {}
 
     public function compose(View $view): void
@@ -47,6 +60,11 @@ final readonly class PanelRootView
             'panelScript' => $this->url($this->build->entry),
             'panelStyles' => array_map($this->url(...), $this->build->styles),
             'panelPreloads' => array_map($this->url(...), $this->build->preloads),
+            'panelTheme' => $this->theme->version === null ? null : $this->urls->route(PanelRoute::Theme->value, ['version' => $this->theme->version], false),
+            'panelName' => $this->branding->name(),
+            'panelBranded' => $this->branding->name !== null,
+            'panelFavicon' => $this->branding->favicon instanceof BrandFile ? $this->brand->url($this->branding->favicon) : null,
+            'panelFaviconType' => $this->branding->favicon?->type->contentType(),
         ]);
     }
 

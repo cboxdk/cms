@@ -9,6 +9,7 @@ use Cbox\Cms\Panel\Domain\ContentSecurityPolicy;
 use Cbox\Cms\Panel\Domain\CspNonce;
 use Cbox\Cms\Panel\Domain\Dto\PanelBuild;
 use Cbox\Cms\Panel\Domain\PanelBuildUnavailable;
+use Cbox\Cms\Panel\Domain\PanelRoute;
 use Cbox\Cms\Panel\Middleware\SendContentSecurityPolicy;
 use Cbox\Cms\Panel\PanelRoutes;
 use Cbox\Cms\Panel\Tests\FixtureBuild;
@@ -156,7 +157,7 @@ final class PanelPageTest extends TestCase
     }
 
     #[Test]
-    public function it_runs_every_panel_page_behind_the_content_security_policy_and_only_the_builds_files_without_it(): void
+    public function it_runs_every_panel_page_behind_the_content_security_policy_and_only_the_files_it_serves_without_it(): void
     {
         $panelRoutes = array_values(array_filter(
             app(Router::class)->getRoutes()->getRoutes(),
@@ -164,13 +165,19 @@ final class PanelPageTest extends TestCase
         ));
         $names = array_map(static fn (Route $route): ?string => $route->getName(), $panelRoutes);
 
+        // The files the panel serves, not pages: the build's, the theme's stylesheet and the
+        // brand's images, which BrandFileResponse gives a sandboxing policy of its own.
+        $files = [PanelRoutes::ASSET, PanelRoute::Theme->value, PanelRoute::Brand->value];
+
         self::assertContains(PanelRoutes::ASSET, $names);
+        self::assertContains(PanelRoute::Theme->value, $names);
+        self::assertContains(PanelRoute::Brand->value, $names);
         self::assertContains(PanelRoutes::NOT_FOUND, $names);
 
         foreach ($panelRoutes as $route) {
             $guarded = in_array(SendContentSecurityPolicy::class, $route->gatherMiddleware(), true);
 
-            self::assertSame($route->getName() !== PanelRoutes::ASSET, $guarded, "The panel route {$route->uri()} is ".($guarded ? '' : 'not ').'behind SendContentSecurityPolicy.');
+            self::assertSame(! in_array($route->getName(), $files, true), $guarded, "The panel route {$route->uri()} is ".($guarded ? '' : 'not ').'behind SendContentSecurityPolicy.');
         }
     }
 

@@ -1,0 +1,19 @@
+@layer cms.kit {
+  .cms-shell-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--cms-space-3) var(--cms-space-4);
+    padding: var(--cms-space-3) var(--cms-space-6);
+    border-block-end: 1px solid var(--cms-color-border);
+    background: var(--cms-color-surface-raised);
+  }
+
+  .cms-shell-header__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--cms-space-3);
+  }
+}

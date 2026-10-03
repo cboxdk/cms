@@ -1,8 +1,9 @@
-import { Alert, Button, Form, TaskScreen, TextField, TextLink } from '@cboxdk/cms-ui-kit';
+import { Alert, Brand, Button, Form, TaskScreen, TextField, TextLink } from '@cboxdk/cms-ui-kit';
 import { Head, useForm } from '@inertiajs/react';
 import type { SubmitEvent } from 'react';
 
 import type { LoginPageV1, LoginRefusal, SignInReason } from '../../generated/pages/LoginPageV1';
+import { useBrand } from '../../brand';
 import { useTranslation, type TranslationKey } from '../../i18n/translations';
 
 const REASONS: Readonly<Record<SignInReason, TranslationKey>> = {
@@ -38,6 +39,7 @@ function refusal(code: LoginRefusal | null): TranslationKey | undefined {
  */
 export default function Login({ action, forgot, reason, refusals }: LoginPageV1) {
   const { t } = useTranslation();
+  const brand = useBrand();
   const form = useForm({ email: '', password: '' });
 
   const failed = refusal(refusals.form);
@@ -58,6 +60,7 @@ export default function Login({ action, forgot, reason, refusals }: LoginPageV1)
     <>
       <Head title={t('panel.login.title')} />
       <TaskScreen
+        brand={<Brand name={brand.name} logo={brand.login} />}
         title={t('panel.login.title')}
         description={t('panel.login.description')}
         footer={<TextLink href={forgot}>{t('panel.login.forgot')}</TextLink>}

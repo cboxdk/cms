@@ -310,6 +310,10 @@
         "button-radius": {
           "description": "The rounding of a button.",
           "$ref": "#/$defs/length"
+        },
+        "brand-logo-height": {
+          "description": "The height of the installation's logo next to its name, in the shell's header and on the login page.",
+          "$ref": "#/$defs/length"
         }
       }
     }

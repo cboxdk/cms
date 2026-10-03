@@ -7,16 +7,28 @@ namespace Cbox\Cms\Panel;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Build\DeclaresScanRoots;
 use Cbox\Cms\Contracts\Build\ScanRoot;
+use Cbox\Cms\Contracts\Doctor\DoctorCheck;
+use Cbox\Cms\Core\Doctor\Boundary\DoctorConfig;
+use Cbox\Cms\Core\PanelThemes\Domain\ThemeStylesheets;
 use Cbox\Cms\Core\Registry\Domain\Dto\PointSchemaDirectory;
+use Cbox\Cms\Identity\IdentityServiceProvider;
 use Cbox\Cms\Identity\Sessions\Domain\Dto\SessionCookie;
 use Cbox\Cms\Panel\Boundary\Generated\Points\PanelPointCodecs;
 use Cbox\Cms\Panel\Boundary\PanelSessions;
 use Cbox\Cms\Panel\Boundary\ViteManifest;
+use Cbox\Cms\Panel\Branding\Boundary\BrandingConfig;
+use Cbox\Cms\Panel\Branding\Domain\Dto\Branding;
+use Cbox\Cms\Panel\Branding\Domain\InvalidBranding;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\PointCodec;
 use Cbox\Cms\Panel\Contributions\Domain\PointCodecs;
+use Cbox\Cms\Panel\Doctor\Boundary\ConfigBrandingProbe;
+use Cbox\Cms\Panel\Doctor\Domain\Checks\BrandingCheck;
+use Cbox\Cms\Panel\Doctor\Domain\Probes\BrandingProbe;
 use Cbox\Cms\Panel\Domain\Dto\ImportMap;
 use Cbox\Cms\Panel\Domain\Dto\PanelBuild;
+use Cbox\Cms\Panel\Domain\Dto\PanelTheme;
 use Cbox\Cms\Panel\Views\PanelRootView;
+use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Routing\UrlGenerator;
@@ -32,7 +44,10 @@ use Override;
  * application. Loaded through package discovery.
  *
  * Binds the panel's build, read from its Vite manifest in buildDirectory() when a panel page or
- * file is first asked for, so a process without the build boots and runs everything else; loads
+ * file is first asked for, so a process without the build boots and runs everything else; the
+ * installation's brand from cbox-cms.panel.branding and the stylesheet of the composed theme,
+ * each read once per process; adds panel.branding to cms:doctor's checks, after the identity
+ * module's; loads
  * the panel's views under the namespace VIEWS and gives its root view what it needs
  * (PanelRootView). Leaves the session cookie out of Laravel's cookie encryption, because its value
  * is a random id with a checksum that only the session store can use (docs/security/sessions.md),
@@ -53,10 +68,50 @@ final class PanelServiceProvider extends ServiceProvider implements DeclaresScan
     /** The container id of the panel's PointSchemaDirectory. */
     public const string POINT_SCHEMAS = 'cbox-cms.panel.point-schemas';
 
+    /**
+     * The checks the module adds to cms:doctor, in their order.
+     *
+     * @var list<class-string<DoctorCheck>>
+     */
+    public const array DOCTOR_CHECKS = [BrandingCheck::class];
+
     #[Override]
     public function register(): void
     {
+        $config = $this->app->make(Repository::class);
+        $key = DoctorConfig::CONFIG_KEY.'.'.DoctorConfig::CHECKS;
+        $added = $config->get($key) ?? [];
+
+        // After the identity module's checks and in front of the application's. A setting that is
+        // not a list stays as it is, so the doctor reports it as doctor.config.
+        if (is_array($added)) {
+            $identity = [];
+
+            foreach ($added as $check) {
+                if (in_array($check, IdentityServiceProvider::DOCTOR_CHECKS, true)) {
+                    $identity[] = $check;
+                }
+            }
+
+            $config->set($key, array_values(array_unique([...$identity, ...self::DOCTOR_CHECKS, ...$added], SORT_REGULAR)));
+        }
+
         $this->app->singleton(PanelBuild::class, static fn (): PanelBuild => ViteManifest::read(self::buildDirectory()));
+
+        // The installation's brand, read once per process from cbox-cms.panel.branding and the
+        // files it names. A brand that cannot be used is no brand: the panel shows Cbox CMS, and
+        // cms:doctor's panel.branding says why.
+        $this->app->singleton(static function (Application $app): Branding {
+            try {
+                return BrandingConfig::read($app->make(Repository::class), $app->basePath());
+            } catch (InvalidBranding) {
+                return new Branding;
+            }
+        });
+        $this->app->bind(BrandingProbe::class, static fn (Application $app): BrandingProbe => new ConfigBrandingProbe($app->make(Repository::class), $app->basePath()));
+
+        // The stylesheet of the composed theme, read once per process from what cms:build wrote.
+        $this->app->singleton(PanelTheme::class, static fn (Application $app): PanelTheme => new PanelTheme($app->make(ThemeStylesheets::class)->read()));
         $this->app->bind(ImportMap::class, static fn (Application $app): ImportMap => PanelRootView::importMap($app->make(PanelBuild::class), $app->make(UrlGenerator::class)));
 
         // The props schemas of the panel's points, which cms:build checks contributions against.

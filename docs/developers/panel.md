@@ -15,6 +15,7 @@ An application mounts the panel in its web routes, inside the web middleware gro
 `PanelRoutes::register()` adds, below the prefix:
 
 - `GET build/{path}`, named `cbox-cms.panel.asset`: a file of the panel's build;
+- `GET theme/{version}.css`, named `cbox-cms.panel.theme`: the stylesheet of the theme `cms:build` composed from the themes the installation selects, and `GET brand/{name}`, named `cbox-cms.panel.brand`: a logo or the favicon of the installation's brand (see [Branding and theming the panel](panel-branding.md));
 - the panel's pages, each behind the Content-Security-Policy below and Inertia's middleware with the panel's root view:
   - `GET login`, named `cbox-cms.panel.login`, the login page, and `POST login`, named `cbox-cms.panel.login.submit`, a login from its form;
   - `GET forgot-password` and `POST forgot-password`, named `cbox-cms.panel.forgot-password` and `cbox-cms.panel.forgot-password.submit`, the page that asks for a password reset link and its form, and `GET reset-password/{token}` and `POST reset-password`, named `cbox-cms.panel.reset-password` and `cbox-cms.panel.reset-password.submit`, the page a reset link opens and its form;
@@ -75,6 +76,7 @@ The module reads the build from the manifest Vite writes, `packages/panel/dist/.
 
 ## Page props
 
+<!-- extension-point: packages/panel/resources/schemas/pages/brand.v1.json -->
 <!-- extension-point: packages/panel/resources/schemas/pages/forgot-password.v1.json -->
 <!-- extension-point: packages/panel/resources/schemas/pages/home.v1.json -->
 <!-- extension-point: packages/panel/resources/schemas/pages/login.v1.json -->
@@ -90,6 +92,7 @@ The props of each panel page are written from PHP and typed from PHP, never by h
 | `Auth/ResetPassword` | `reset-password.v1.json` | `ResetPasswordPage` | `ResetPasswordPageV1` |
 | `Home` | `home.v1.json` | `HomePage` | `HomePageV1` |
 | `Errors/NotFound` | `not-found.v1.json` | `NotFoundPage` | `NotFoundPageV1` |
+| every page, the prop `brand` | `brand.v1.json` | `PanelBrand` | `PanelBrandV1` |
 
 `composer generate:protocol` writes, from the schemas, a codec per page into `packages/panel/src/Boundary/Generated` and, into `js/panel/src/generated`, a module per page in `pages/` with the props' TypeScript types and a validator, next to the validators' runtime module. `PanelPages` renders each page with the props its codec writes, and each page in `js/panel` takes the generated type as its props. Gate 6 fails when the committed files differ from what the schemas give.
 
@@ -136,7 +139,14 @@ it('accepts the props of a page', function (string $schema, string $document): v
     'the reset page after a short password' => ['reset-password.v1.json', '{"action":"/cms/reset-password","forgot":"/cms/forgot-password","login":"/cms/login","refusals":{"form":null,"password":"password_too_short"},"token":null}'],
     'the start page' => ['home.v1.json', '{"logout":"/cms/logout"}'],
     'the page for a path the panel does not have' => ['not-found.v1.json', '{"home":"/cms"}'],
+    'the brand every page shares, without branding' => ['brand.v1.json', '{"login":null,"logo":null,"name":"Cbox CMS"}'],
+    'the brand every page shares, with a logo' => ['brand.v1.json', '{"login":{"alt":"Skovbo","dark":"/cms/brand/logo-dark-0123456789abcdef.svg","light":"/cms/brand/logo-light-0123456789abcdef.svg"},"logo":{"alt":"Skovbo","dark":"/cms/brand/logo-dark-0123456789abcdef.svg","light":"/cms/brand/logo-light-0123456789abcdef.svg"},"name":"Skovbo Content"}'],
 ]);
+
+it('refuses a logo without its alternative text', function (): void {
+    expect(pagePropsErrors('brand.v1.json', '{"login":null,"logo":{"alt":"","dark":"/cms/brand/logo-dark-0123456789abcdef.svg","light":"/cms/brand/logo-light-0123456789abcdef.svg"},"name":"Skovbo Content"}'))
+        ->not->toBe([]);
+});
 
 it('refuses a refusal code the page does not know', function (): void {
     expect(pagePropsErrors('login.v1.json', '{"action":"/cms/login","forgot":"/cms/forgot-password","reason":null,"refusals":{"email":null,"form":"password_too_short","password":null}}'))

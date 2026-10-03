@@ -57,6 +57,7 @@
     --cms-target-size: 1.5rem;
     --cms-measure: 32rem;
     --cms-button-radius: var(--cms-radius-md);
+    --cms-brand-logo-height: 2rem;
     color-scheme: light dark;
   }
 

@@ -93,6 +93,26 @@ final readonly class CompiledRegistry
         return new self([], []);
     }
 
+    /**
+     * The same registry with more warnings after its own, such as those of the panel's theme.
+     *
+     * @param  list<BuildWarning>  $warnings
+     */
+    public function withWarnings(array $warnings): self
+    {
+        return $warnings === [] ? $this : new self(
+            $this->commands,
+            $this->hooks,
+            $this->actions,
+            $this->subscribers,
+            $this->schema,
+            $this->rest,
+            $this->panel,
+            $this->addons,
+            [...$this->warnings, ...$warnings],
+        );
+    }
+
     public function count(RegistryName $registry): int
     {
         return match ($registry) {

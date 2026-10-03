@@ -8,6 +8,9 @@ use Cbox\Cms\Contracts\Build\ScanRoot;
 use Cbox\Cms\Contracts\Codecs\JsonSchema;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Pipeline\QueryCost;
+use Cbox\Cms\Core\PanelThemes\Actions\CompilePanelThemes;
+use Cbox\Cms\Core\PanelThemes\Adapter\FileThemeSources;
+use Cbox\Cms\Core\PanelThemes\Adapter\FileThemeStylesheets;
 use Cbox\Cms\Core\Reads\Actions\QueryPipeline;
 use Cbox\Cms\Core\Reads\Domain\Dto\QueryCodec;
 use Cbox\Cms\Core\Reads\Domain\Dto\QuerySettings;
@@ -96,6 +99,8 @@ final readonly class RestWorld
             new FileRegistryCache($directory, new RegistryCacheCodec),
             new FileOpenApiDocuments($directory, ExposedWorld::codecs(), self::queryCodecs()),
             new CodecContractSchemas(ExposedWorld::codecs(), self::queryCodecs()),
+            new CompilePanelThemes(new FileThemeSources),
+            new FileThemeStylesheets($directory),
         )->build(self::roots());
     }
 

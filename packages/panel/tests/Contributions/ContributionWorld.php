@@ -19,6 +19,7 @@ use Cbox\Cms\Contracts\PanelPoints\PointId;
 use Cbox\Cms\Contracts\PanelPoints\PointName;
 use Cbox\Cms\Contracts\PanelPoints\Scope;
 use Cbox\Cms\Contracts\PanelPoints\SlotFill;
+use Cbox\Cms\Core\PanelThemes\Actions\CompilePanelThemes;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
 use Cbox\Cms\Core\Registry\Boundary\JsonSchemaNodes;
 use Cbox\Cms\Core\Registry\Domain\Dto\BuildSettings;
@@ -29,6 +30,8 @@ use Cbox\Cms\Core\Registry\Domain\Dto\DeclaredAddons;
 use Cbox\Cms\Core\Registry\Domain\Dto\ScanRoots;
 use Cbox\Cms\Core\Registry\Domain\RegistryCompiler;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
+use Cbox\Cms\Core\Tests\PanelThemes\Fakes\FakeThemeSources;
+use Cbox\Cms\Core\Tests\PanelThemes\Fakes\FakeThemeStylesheets;
 use Cbox\Cms\Core\Tests\Registry\Fakes\FakeContractSchemas;
 use Cbox\Cms\Core\Tests\Registry\Fakes\FakeOpenApiDocuments;
 use Cbox\Cms\Core\Tests\Registry\Fakes\FakeRegistryCache;
@@ -113,7 +116,7 @@ final class ContributionWorld
     {
         $manifest ??= self::manifest();
 
-        return new BuildRegistry(new AttributeScanner, new RegistryCompiler, new FakeRegistryCache, new FakeOpenApiDocuments, new FakeContractSchemas(self::shapes()))->build(
+        return new BuildRegistry(new AttributeScanner, new RegistryCompiler, new FakeRegistryCache, new FakeOpenApiDocuments, new FakeContractSchemas(self::shapes()), new CompilePanelThemes(new FakeThemeSources), new FakeThemeStylesheets)->build(
             new ScanRoots(new ScanRoot(self::HOST, __DIR__.'/Fixtures/Desk'), new ScanRoot(self::ADDON, __DIR__.'/Fixtures/Tally')),
             new DeclaredAddons([$manifest], [], [self::ADDON => PanelBuildWorld::bundle($manifest)]),
             new BuildSettings(null, $overrides),

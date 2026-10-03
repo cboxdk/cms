@@ -16,6 +16,10 @@
     background: var(--cms-color-surface-raised);
   }
 
+  .cms-task-screen__brand {
+    margin-block-end: var(--cms-space-6);
+  }
+
   .cms-task-screen__title {
     margin: 0 0 var(--cms-space-3);
     font-size: var(--cms-font-size-xl);

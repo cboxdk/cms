@@ -16,6 +16,8 @@ use Cbox\Cms\Tests\Support\Tooling\ScratchDirectory;
 use Cbox\Cms\Tooling\Docs\Boundary\DocsCheckOptions;
 use Cbox\Cms\Tooling\Docs\Boundary\LocalDocsTree;
 use Cbox\Cms\Tooling\Docs\Boundary\PhpTokens;
+use Cbox\Cms\Tooling\Docs\Domain\BrowserScreenshot;
+use Cbox\Cms\Tooling\Docs\Domain\CapturedImage;
 use Cbox\Cms\Tooling\Docs\Domain\DeclaredType;
 use Cbox\Cms\Tooling\Docs\Domain\DocsAudit;
 use Cbox\Cms\Tooling\Docs\Domain\Exclusion;
@@ -151,7 +153,7 @@ function docsWrite(string $root, string $path, string $contents): void
 
 /**
  * @param  list<Exclusion>  $exclusions
- * @param  list<Screenshot>  $screenshots
+ * @param  list<CapturedImage>  $screenshots
  * @return list<string>
  */
 function docsFindings(string $root, array $exclusions = [], array $screenshots = []): array
@@ -630,6 +632,33 @@ it('reports a screenshot without its file, a file without an entry, an entry no 
     ]);
 });
 
+it('holds a browser screenshot to its PNG, its embed and its caption as it holds a terminal one', function (): void {
+    $root = docsTree();
+    $shots = [
+        new BrowserScreenshot('login', 'The login page.', 'tests/Browser/Panel/LoginTest.php'),
+        new BrowserScreenshot('shell', 'The shell.', 'tests/Browser/Panel/ShellTest.php'),
+        new BrowserScreenshot('bare', 'Bare.', ''),
+    ];
+    docsWrite($root, 'docs/screenshots/_index.md', docsFrontmatter('Screenshots', 90)."# Screenshots\n");
+    docsWrite($root, 'docs/screenshots/login.png', 'png');
+    docsWrite($root, 'docs/screenshots/bare.png', 'png');
+    docsWrite($root, 'docs/index.md', docsFrontmatter('Greeter', 1)."# Greeter\n\nSee [the addons](addons/_index.md).\n\n![The login page.](screenshots/login.png)\n![Bare.](screenshots/bare.png)\n");
+    docsWrite($root, 'README.md', "# Greeter\n\n![The login page.](docs/screenshots/login.png)\n");
+
+    expect(docsFindings($root, [], $shots))->toBe([
+        'bare: a screenshot has a caption and a command',
+        'docs/screenshots/shell.png: missing; capture it with composer image:run -- env CMS_DOCS_SCREENSHOTS=1 vendor/bin/pest --testsuite=Browser tests/Browser/Panel/ShellTest.php',
+        'docs/screenshots/shell.png: no page outside docs/screenshots embeds it; embed it on the page that describes it, or remove its entry from Screenshots',
+    ]);
+});
+
+it('lists this repository\'s browser screenshots once each, each with its Browser test and a caption that ends a sentence', function (): void {
+    $keys = array_map(static fn (BrowserScreenshot $shot): string => $shot->key, Screenshots::browser());
+
+    expect($keys)->toBe(array_values(array_unique($keys)))
+        ->and(array_filter(Screenshots::browser(), static fn (BrowserScreenshot $shot): bool => ! is_file(Phpstan::root().'/'.$shot->test) || ! str_ends_with($shot->caption, '.')))->toBe([]);
+});
+
 it('reports a screenshot key that is not lowercase words joined by hyphens, one used twice, and one without a caption', function (): void {
     $root = docsTree();
     $shots = [
@@ -659,7 +688,7 @@ it('lists this repository\'s screenshots once each, each with a command, a capti
 
 it('gives every exclusion of the Docs module a reason, and each names something the inventory rule finds in this repository', function (): void {
     $names = array_map(static fn (Exclusion $exclusion): string => $exclusion->name, Exclusions::all());
-    $findings = array_map(static fn (Finding $finding): string => (string) $finding, DocsAudit::findings(LocalDocsTree::read(Phpstan::root()), Exclusions::all(), Screenshots::all()));
+    $findings = array_map(static fn (Finding $finding): string => (string) $finding, DocsAudit::findings(LocalDocsTree::read(Phpstan::root()), Exclusions::all(), [...Screenshots::all(), ...Screenshots::browser()]));
 
     expect($names)->toBe([
         ClaimResult::class,
@@ -697,7 +726,7 @@ it('excludes nothing of the testkit, the API an addon tests with, and documents 
 });
 
 it('finds in this repository nothing but undocumented extension points, and nothing for the blueprint schema and its page', function (): void {
-    $findings = array_map(static fn (Finding $finding): string => (string) $finding, DocsAudit::findings(LocalDocsTree::read(Phpstan::root()), Exclusions::all(), Screenshots::all()));
+    $findings = array_map(static fn (Finding $finding): string => (string) $finding, DocsAudit::findings(LocalDocsTree::read(Phpstan::root()), Exclusions::all(), [...Screenshots::all(), ...Screenshots::browser()]));
 
     expect(array_values(array_filter($findings, static fn (string $finding): bool => ! str_ends_with($finding, ': undocumented'))))->toBe([])
         ->and(array_values(array_filter($findings, static fn (string $finding): bool => str_contains($finding, 'blueprint.v1'))))->toBe([]);

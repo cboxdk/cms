@@ -8,7 +8,7 @@ namespace Cbox\Cms\Tooling\Docs\Domain;
  * One screenshot of the documentation: the output of a command in a terminal, captured by
  * `composer docs:screenshots` into docs/screenshots/<key>.svg (Screenshots).
  */
-final readonly class Screenshot
+final readonly class Screenshot implements CapturedImage
 {
     /** The width of the terminal in columns, unless a shot says otherwise. */
     public const int COLUMNS = 120;
@@ -44,6 +44,11 @@ final readonly class Screenshot
     public function commandLine(): string
     {
         return implode(' ', $this->command);
+    }
+
+    public function captureCommand(): string
+    {
+        return $this->command === [] ? '' : 'composer docs:screenshots -- --only='.$this->key;
     }
 
     /**

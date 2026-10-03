@@ -26,6 +26,8 @@ use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Contracts\Subscribers\Lane;
 use Cbox\Cms\Contracts\Subscribers\SubscriptionName;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\KernelQueryCodecs;
+use Cbox\Cms\Core\PanelThemes\Actions\CompilePanelThemes;
+use Cbox\Cms\Core\PanelThemes\Adapter\FileThemeStylesheets;
 use Cbox\Cms\Core\Reads\Domain\QueryCodecs;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
 use Cbox\Cms\Core\Registry\Adapter\FileOpenApiDocuments;
@@ -45,6 +47,7 @@ use Cbox\Cms\Core\Registry\Domain\PointStability;
 use Cbox\Cms\Core\Registry\Domain\RegistryCompiler;
 use Cbox\Cms\Core\Registry\Domain\RegistryName;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
+use Cbox\Cms\Core\Tests\PanelThemes\Fakes\FakeThemeSources;
 use Cbox\Cms\Core\Tests\Registry\Fakes\FakeContractSchemas;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNote;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNoteAction;
@@ -188,7 +191,7 @@ final class RegistryFixtures
 
     public static function builder(string $directory, ContractShapes $shapes = new ContractShapes): BuildRegistry
     {
-        return new BuildRegistry(new AttributeScanner, new RegistryCompiler, self::cache($directory), self::documents($directory), new FakeContractSchemas($shapes));
+        return new BuildRegistry(new AttributeScanner, new RegistryCompiler, self::cache($directory), self::documents($directory), new FakeContractSchemas($shapes), new CompilePanelThemes(new FakeThemeSources), new FileThemeStylesheets($directory));
     }
 
     /**

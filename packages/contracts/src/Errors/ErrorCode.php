@@ -68,6 +68,7 @@ enum ErrorCode: string
     case DoctorOperatorMissing = 'doctor_operator_missing';
     case DoctorOperatorUnreadable = 'doctor_operator_unreadable';
     case DoctorOwnerCredentialsExposed = 'doctor_owner_credentials_exposed';
+    case DoctorPanelBrandingInvalid = 'doctor_panel_branding_invalid';
     case DoctorPartitionRunwayShort = 'doctor_partition_runway_short';
     case DoctorPartitionTableUnmanageable = 'doctor_partition_table_unmanageable';
     case DoctorPhpAllowUrlFopen = 'doctor_php_allow_url_fopen';
@@ -209,6 +210,9 @@ enum ErrorCode: string
     case RegistryPanelPointWithoutDowncast = 'registry_panel_point_without_downcast';
     case RegistryPanelPointWithoutStability = 'registry_panel_point_without_stability';
     case RegistryPanelReplacementConflict = 'registry_panel_replacement_conflict';
+    case RegistryPanelThemeContrast = 'registry_panel_theme_contrast';
+    case RegistryPanelThemeInvalid = 'registry_panel_theme_invalid';
+    case RegistryPanelThemeOverlap = 'registry_panel_theme_overlap';
     case RegistryPanelTighteningUndeclared = 'registry_panel_tightening_undeclared';
     case RegistryPanelUnknownCommand = 'registry_panel_unknown_command';
     case RegistryPanelUnknownPoint = 'registry_panel_unknown_point';
@@ -408,6 +412,9 @@ enum ErrorCode: string
             ),
             self::DoctorOwnerCredentialsExposed => $this->readiness(
                 'The owner connection, which may change the schema and passes the row level security, is configured in a process that serves HTTP, runs queued jobs, or is not declared the maintenance process (PRD 4.2). Remove the owner connection from that process\'s configuration, or declare the maintenance process with CBOX_CMS_MAINTENANCE_PROCESS=true.',
+            ),
+            self::DoctorPanelBrandingInvalid => $this->readiness(
+                'The installation\'s brand in cbox-cms.panel.branding cannot be used (PRD 13.4): a key is of another form, the name is longer than 60 characters, a logo has no alternative text, or a file is not a readable SVG or PNG of at most 512 KiB inside the application, or is an SVG with a script, an event handler or a foreignObject. The panel shows Cbox CMS without the brand meanwhile. Correct the key the cause names, as docs/developers/panel-branding.md describes it, then run cms:doctor again.',
             ),
             self::DoctorPartitionRunwayShort => $this->readiness(
                 'A partitioned table has partitions for fewer days ahead than cbox-cms.doctor.partition_runway_days, so writes will fail with partition_missing when the runway runs out. Check that the scheduler runs cms:partitions:maintain every hour in the maintenance process, or run it now.',
@@ -935,6 +942,15 @@ enum ErrorCode: string
             ),
             self::RegistryPanelReplacementConflict => $this->refusedInput(
                 'Two or more replacements claim one key of a replaceable panel point, and exactly one replacement wins a key (PRD 13.4). Name the winner in cbox-cms.panel.replacements, [point id => [key => contribution id]], or remove all but one.',
+            ),
+            self::RegistryPanelThemeContrast => $this->refusedInput(
+                'The panel themes cbox-cms.panel.themes selects, composed in their order, draw a contrast pair of the kit\'s token catalogue below WCAG 2.2 AA: text below 4.5:1 or a user interface part or the focus ring below 3:1, in the light or the dark mode, on the whole panel or on a part hook (PRD 13.4, GUARDRAILS 8). The message names the pair, the mode and the place. Change the value of one side in the theme that sets it; cms:panel:theme:check checks one theme file on its own.',
+            ),
+            self::RegistryPanelThemeInvalid => $this->refusedInput(
+                'A panel theme cannot be used (PRD 13.4): an addon ships a theme and its manifest does not grant the capability uiTheme; cbox-cms.panel.themes selects a theme twice, one an allowed addon does not ship, or app without cbox-cms.panel.app_theme; a theme file cannot be read or is not of theme.v1.json\'s form (a key other than tokens and parts, an unknown or primitive token, a part that is not a curated part hook, a value that is not of its token\'s type or is given for one mode only); or the composed theme makes --cms-target-size smaller than 24 pixels. The message names the theme and the place in its file. Correct it, and check a file with cms:panel:theme:check.',
+            ),
+            self::RegistryPanelThemeOverlap => $this->warning(
+                'A warning, not a failure: more than one theme that cbox-cms.panel.themes selects sets the same token on the whole panel or on one part hook, and the last of them in the selection wins (PRD 13.4). Check that the order of the selection is the one the installation wants.',
             ),
             self::RegistryPanelTighteningUndeclared => $this->refusedInput(
                 'A decorator tightens a prop that its panel point does not let decorators tighten (#[PanelPoint] tightens). A decorator may only tighten what its point declares (PRD 13.4); tighten only those props.',

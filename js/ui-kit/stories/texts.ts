@@ -21,6 +21,10 @@ export interface StoryTexts {
   readonly missingTitle: string;
   readonly missingDescription: string;
   readonly backToPanel: string;
+  readonly productName: string;
+  readonly brandName: string;
+  readonly brandLogo: string;
+  readonly signOut: string;
 }
 
 export const STORY_TEXTS: Readonly<Record<KitLocale, StoryTexts>> = {
@@ -41,6 +45,10 @@ export const STORY_TEXTS: Readonly<Record<KitLocale, StoryTexts>> = {
     missingTitle: 'Siden findes ikke',
     missingDescription: 'Adressen peger ikke på en side i panelet.',
     backToPanel: 'Tilbage til panelet',
+    productName: 'Cbox CMS',
+    brandName: 'Skovbo Indhold',
+    brandLogo: 'Skovbo',
+    signOut: 'Log ud',
   },
   en: {
     saved: 'The changes are saved.',
@@ -59,5 +67,9 @@ export const STORY_TEXTS: Readonly<Record<KitLocale, StoryTexts>> = {
     missingTitle: 'There is no such page',
     missingDescription: 'The address does not lead to a page of the panel.',
     backToPanel: 'Back to the panel',
+    productName: 'Cbox CMS',
+    brandName: 'Skovbo Content',
+    brandLogo: 'Skovbo',
+    signOut: 'Sign out',
   },
 };

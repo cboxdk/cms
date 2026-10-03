@@ -23,8 +23,9 @@ use Illuminate\Contracts\Foundation\Application;
  * routes, schema contributions and subscribers to bootstrap/cache/cms/ (PRD 13.2, GUARDRAILS 7.1),
  * from the scan roots and the addon manifests the service providers declare and the installation's
  * settings (the allowlist of addons, cbox-cms.addons.allowed, and the panel's
- * cbox-cms.panel.contributions and cbox-cms.panel.replacements), and removes any other file in that
- * directory. Composer runs it after every dump-autoload. It prints each warning with its code, such
+ * cbox-cms.panel.contributions and cbox-cms.panel.replacements), writes the stylesheet of the panel's
+ * theme from the themes cbox-cms.panel.themes selects next to them, theme.css, and removes any
+ * other file in that directory. Composer runs it after every dump-autoload. It prints each warning with its code, such
  * as a contribution to an experimental or deprecated panel point, before the counts.
  *
  * Exit codes: 0 written, 65 the declarations or settings are invalid and nothing was written (each

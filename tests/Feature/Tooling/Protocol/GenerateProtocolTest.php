@@ -74,6 +74,7 @@ const PANEL_PAGE_FILES = [
     'js/panel/src/generated/pages/HomePageV1.ts',
     'js/panel/src/generated/pages/LoginPageV1.ts',
     'js/panel/src/generated/pages/NotFoundPageV1.ts',
+    'js/panel/src/generated/pages/PanelBrandV1.ts',
     'js/panel/src/generated/pages/ResetPasswordPageV1.ts',
     'js/panel/src/generated/validation.ts',
     'packages/panel/src/Boundary/Generated/ContributionsCodecV1.php',
@@ -81,6 +82,7 @@ const PANEL_PAGE_FILES = [
     'packages/panel/src/Boundary/Generated/HomePageCodecV1.php',
     'packages/panel/src/Boundary/Generated/LoginPageCodecV1.php',
     'packages/panel/src/Boundary/Generated/NotFoundPageCodecV1.php',
+    'packages/panel/src/Boundary/Generated/PanelBrandCodecV1.php',
     'packages/panel/src/Boundary/Generated/ResetPasswordPageCodecV1.php',
 ];
 

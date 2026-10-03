@@ -9,12 +9,15 @@ use Cbox\Cms\Contracts\Build\ScanRoot;
 use Cbox\Cms\Contracts\PanelPoints\ContributionId;
 use Cbox\Cms\Contracts\PanelPoints\InvalidPanelPoint;
 use Cbox\Cms\Contracts\PanelPoints\PointId;
+use Cbox\Cms\Core\PanelThemes\Domain\Dto\ThemeSelection;
+use Cbox\Cms\Core\PanelThemes\Domain\ThemeName;
 use Cbox\Cms\Core\Registry\Domain\BuildErrorCode;
 use Cbox\Cms\Core\Registry\Domain\Dto\BuildProblem;
 use Cbox\Cms\Core\Registry\Domain\Dto\BuildSettings;
 use Cbox\Cms\Core\Registry\Domain\Dto\ContributionOverride;
 use Cbox\Cms\Core\Registry\Domain\Dto\ReplacementChoice;
 use Illuminate\Contracts\Config\Repository;
+use InvalidArgumentException;
 
 /**
  * Reads the installation's settings cms:build compiles (PRD 13.8, 13.4):
@@ -27,11 +30,13 @@ use Illuminate\Contracts\Config\Repository;
  *         'replacements' => [
  *             'command.form.field@1' => ['acme:stars' => 'acme.stars-input'],
  *         ],
+ *         'themes' => ['fixtureaddon:brand', 'app'],
+ *         'app_theme' => base_path('resources/panel/theme.json'),
  *     ],
  *
  * A value of the wrong form is a problem of the build, not an exception: the allowlist's as
- * registry_addon_not_allowed and the panel's as registry_panel_override_invalid, each naming the
- * setting.
+ * registry_addon_not_allowed, the panel's overrides as registry_panel_override_invalid and its
+ * themes as registry_panel_theme_invalid, each naming the setting.
  */
 #[Internal]
 final readonly class BuildSettingsConfig
@@ -41,6 +46,10 @@ final readonly class BuildSettingsConfig
     public const string CONTRIBUTIONS = 'cbox-cms.panel.contributions';
 
     public const string REPLACEMENTS = 'cbox-cms.panel.replacements';
+
+    public const string THEMES = 'cbox-cms.panel.themes';
+
+    public const string APP_THEME = 'cbox-cms.panel.app_theme';
 
     public static function read(Repository $config): BuildSettings
     {
@@ -91,7 +100,37 @@ final readonly class BuildSettingsConfig
             }
         }
 
-        return new BuildSettings($allowed, $overrides, $replacements, $problems);
+        $themes = self::themes($config->get(self::THEMES, []), $config->get(self::APP_THEME), $problems);
+
+        return new BuildSettings($allowed, $overrides, $replacements, $problems, $themes);
+    }
+
+    /**
+     * @param  list<BuildProblem>  $problems
+     */
+    private static function themes(mixed $selected, mixed $appTheme, array &$problems): ThemeSelection
+    {
+        $themes = [];
+
+        if ($selected !== null && (! is_array($selected) || ! array_is_list($selected))) {
+            $problems[] = self::problem(BuildErrorCode::PanelThemeInvalid, sprintf('The setting %s must be a list of theme names in the order they compose, such as ["fixtureaddon:brand", "app"]; it is %s.', self::THEMES, get_debug_type($selected)));
+            $selected = [];
+        }
+
+        foreach ($selected ?? [] as $name) {
+            try {
+                $themes[] = new ThemeName(is_string($name) ? $name : throw new InvalidArgumentException(sprintf('%s is not the name of a panel theme.', get_debug_type($name))));
+            } catch (InvalidArgumentException $invalid) {
+                $problems[] = self::problem(BuildErrorCode::PanelThemeInvalid, sprintf('The setting %s names a theme it cannot use. %s', self::THEMES, $invalid->getMessage()));
+            }
+        }
+
+        if ($appTheme !== null && (! is_string($appTheme) || ! str_ends_with($appTheme, '.json') || (! str_starts_with($appTheme, '/') && preg_match('/\A[A-Za-z]:[\\\\\/]/', $appTheme) !== 1))) {
+            $problems[] = self::problem(BuildErrorCode::PanelThemeInvalid, sprintf('The setting %s must be the absolute path of the application\'s theme JSON, such as base_path(\'resources/panel/theme.json\'), or null; it is %s.', self::APP_THEME, is_string($appTheme) ? '"'.$appTheme.'"' : get_debug_type($appTheme)));
+            $appTheme = null;
+        }
+
+        return new ThemeSelection($themes, is_string($appTheme) ? $appTheme : null);
     }
 
     /**

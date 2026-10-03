@@ -6,10 +6,14 @@
 
 export { Alert } from './components/Alert';
 export type { AlertProps, AlertTone } from './components/Alert';
+export { Brand } from './components/Brand';
+export type { BrandLogo, BrandProps } from './components/Brand';
 export { Button } from './components/Button';
 export type { ButtonProps, ButtonVariant } from './components/Button';
 export { Form } from './components/Form';
 export type { FormProps } from './components/Form';
+export { ShellHeader } from './components/ShellHeader';
+export type { ShellHeaderProps } from './components/ShellHeader';
 export { StatusScreen } from './components/StatusScreen';
 export type { StatusScreenProps } from './components/StatusScreen';
 export { TaskScreen } from './components/TaskScreen';

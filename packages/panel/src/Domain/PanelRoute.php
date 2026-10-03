@@ -34,6 +34,12 @@ enum PanelRoute: string
     /** POST <prefix>/logout: ends the person's session. */
     case Logout = 'cbox-cms.panel.logout';
 
+    /** GET <prefix>/theme/{version}.css: the stylesheet of the theme cms:build composed. */
+    case Theme = 'cbox-cms.panel.theme';
+
+    /** GET <prefix>/brand/{name}: a file of the installation's brand, a logo or the favicon. */
+    case Brand = 'cbox-cms.panel.brand';
+
     /** GET <prefix>: the panel's start page. */
     case Home = 'cbox-cms.panel.home';
 

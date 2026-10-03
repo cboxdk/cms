@@ -51,6 +51,30 @@ final readonly class Screenshots
     }
 
     /**
+     * The browser screenshots: pages of the panel as a Browser test of gate 8 shows them, captured
+     * into docs/screenshots/<key>.png by running the test with CMS_DOCS_SCREENSHOTS=1 in the dev
+     * image, after `composer panel:build`. They are not compared again, because a browser draws
+     * text with the fonts of its machine; the test asserts what the page shows.
+     *
+     * @return list<BrowserScreenshot>
+     */
+    public static function browser(): array
+    {
+        return [
+            new BrowserScreenshot(
+                'branding-login',
+                'The login page of a branded panel: the installation\'s logo and name above the form, in the light mode.',
+                'tests/Browser/Panel/BrandingTest.php',
+            ),
+            new BrowserScreenshot(
+                'branding-shell',
+                'The start page of a branded panel: the shell\'s header with the installation\'s logo and name.',
+                'tests/Browser/Panel/BrandingTest.php',
+            ),
+        ];
+    }
+
+    /**
      * The shot with the key, or null.
      */
     public static function find(string $key): ?Screenshot

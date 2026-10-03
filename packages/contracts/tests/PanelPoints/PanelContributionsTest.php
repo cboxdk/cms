@@ -113,6 +113,31 @@ it('holds the panel contributions to an absolute bundle and each accepted point 
         ->and(static fn (): PanelContributions => new PanelContributions(PanelApiVersion::current(), null, ['notes.a@1', 'notes.a@1']))->toThrow(InvalidAddonManifest::class, 'accept the experimental point "notes.a@1" 2 times');
 });
 
+it('holds the addon\'s themes by a local name to absolute JSON files, sorted by name', function (): void {
+    $panel = new PanelContributions(PanelApiVersion::current(), themes: ['quiet' => '/srv/addons/brand/quiet.json', 'brand' => '/srv/addons/brand/theme.json']);
+
+    expect($panel->themes)->toBe(['brand' => '/srv/addons/brand/theme.json', 'quiet' => '/srv/addons/brand/quiet.json'])
+        ->and(new PanelContributions(PanelApiVersion::current())->themes)->toBe([]);
+});
+
+/**
+ * @param  array<string, string>  $themes
+ */
+function panelWithThemes(array $themes): PanelContributions
+{
+    return new PanelContributions(PanelApiVersion::current(), themes: $themes);
+}
+
+it('refuses a theme whose name or file is not of its form', function (string $name, string $file, string $message): void {
+    expect(static fn (): PanelContributions => panelWithThemes([$name => $file]))->toThrow(InvalidAddonManifest::class, $message);
+})->with([
+    'a name in upper case' => ['Brand', '/srv/theme.json', 'The panel theme name "Brand" is not lower-case words and digits joined by hyphens'],
+    'a name with a colon' => ['acme:brand', '/srv/theme.json', 'The panel theme name "acme:brand"'],
+    'a name that is too long' => [str_repeat('a', 41), '/srv/theme.json', 'at most 40 characters'],
+    'a relative file' => ['brand', 'resources/theme.json', 'names the file "resources/theme.json", which is not the absolute path of a .json file'],
+    'a file that is no JSON' => ['brand', '/srv/theme.css', 'names the file "/srv/theme.css", which is not the absolute path of a .json file'],
+]);
+
 it('reads a panel API version as ^major.minor', function (): void {
     $needs = new PanelApiVersion(1, 2);
 

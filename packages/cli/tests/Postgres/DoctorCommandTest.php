@@ -164,7 +164,7 @@ it('passes every runtime check against the services, in-process', function (): v
     expect($status)->toBe(0, (string) json_encode($document))
         ->and($document['status'])->toBe('ok')
         ->and(array_unique(doctorStatuses($document)))->toBe(['php.version' => 'pass'])
-        ->and(doctorStatuses($document))->toHaveCount(26)
+        ->and(doctorStatuses($document))->toHaveCount(27)
         ->and(doctorCheck($document, 'postgres.transaction_timeout')['explanation'])->toBe('transaction_timeout is 5000 ms on the app role cms_app.')
         ->and(doctorCheck($document, 'postgres.lc_messages')['explanation'])->toBe('Messages are English: lc_messages is C for the role cms_app and C for the role cms_owner, and LC_MESSAGES of the PHP process is C.')
         ->and(doctorCheck($document, 'postgres.ddl_privileges')['explanation'])->toBe('The app role cms_app owns nothing and cannot create objects in the database '.CheckoutDatabase::name().' or its schemas.');
@@ -431,7 +431,7 @@ it('exits 0 from the command line with --dev --json when the services, partition
     expect($status)->toBe(0, $errors.json_encode($document))
         ->and($document['status'])->toBe('ok')
         ->and($document['dev'])->toBeTrue()
-        ->and(doctorStatuses($document))->toHaveCount(29)
+        ->and(doctorStatuses($document))->toHaveCount(30)
         ->and(doctorStatuses($document)['postgres.lc_messages'])->toBe('pass')
         ->and(array_unique(doctorStatuses($document)))->toBe(['php.version' => 'pass'])
         ->and(array_slice(array_keys(doctorStatuses($document)), -3))->toBe(['dev.node', 'dev.playwright', 'dev.chromium']);

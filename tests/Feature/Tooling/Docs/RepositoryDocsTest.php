@@ -34,7 +34,7 @@ use RuntimeException;
  */
 function repositoryDocsFindings(DocsTree $tree): array
 {
-    return array_map(static fn (Finding $finding): string => (string) $finding, DocsAudit::findings($tree, Exclusions::all(), Screenshots::all()));
+    return array_map(static fn (Finding $finding): string => (string) $finding, DocsAudit::findings($tree, Exclusions::all(), [...Screenshots::all(), ...Screenshots::browser()]));
 }
 
 /**

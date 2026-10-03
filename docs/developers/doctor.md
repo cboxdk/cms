@@ -63,6 +63,12 @@ The identity module adds five blocking checks in front of the ones an applicatio
 | `identity.session_cookie` | yes | | the session cookie of the environment can be set, and outside local and testing it is Secure, named with the `__Host-` prefix and not SameSite=None |
 | `identity.login_policy` | yes | | the login policy of the environment, `cbox-cms.identity.policy`, can be read, and outside local and testing a local staff login needs a passkey or two factors |
 
+The panel module adds one check after those, before the application's:
+
+| Id | Blocking | Requires | What it looks at |
+|---|---|---|---|
+| `panel.branding` | no | | the installation's brand, `cbox-cms.panel.branding`, can be used: every key of its form, a name of at most 60 characters, each logo with its alternative text, and every file a readable SVG or PNG inside the application (see [Branding and theming the panel](panel-branding.md)) |
+
 When the doctor's own settings, `cbox-cms.doctor`, are invalid, or a check added there cannot be used, the doctor runs none of these. It runs the single check `doctor.config` instead, which fails as a violation with the code `doctor_config_invalid` and names the setting in its cause, so the command still prints its document and exits with the violation code.
 
 ## Processes: web, queue and maintenance

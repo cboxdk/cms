@@ -12,15 +12,21 @@ use Cbox\Cms\Panel\Boundary\Generated\ForgotPasswordPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\HomePageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\LoginPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\NotFoundPageCodecV1;
+use Cbox\Cms\Panel\Boundary\Generated\PanelBrandCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\ResetPasswordPageCodecV1;
+use Cbox\Cms\Panel\Boundary\PanelBrandProps;
 use Cbox\Cms\Panel\Boundary\PanelPages;
 use Cbox\Cms\Panel\Boundary\PasswordResetForms;
+use Cbox\Cms\Panel\Branding\Boundary\BrandingConfig;
+use Cbox\Cms\Panel\Branding\Domain\Dto\Branding;
 use Cbox\Cms\Panel\Contributions\Boundary\ContributionProps;
+use Cbox\Cms\Panel\Tests\Branding\BrandFixtures;
 use Cbox\Cms\Panel\Tests\FixtureBuild;
 use Cbox\Cms\Panel\Tests\PanelLogins;
 use Cbox\Cms\Tests\Support\TypeScript\TypeScriptValidators;
 use Cbox\Cms\Tests\TestCase;
 use Cbox\Cms\Tooling\Protocol\Domain\PanelPageSchemas;
+use Illuminate\Contracts\Config\Repository;
 use Illuminate\Testing\TestResponse;
 use JsonException;
 use Override;
@@ -118,6 +124,40 @@ final class PanelPageValidatorsTest extends TestCase
         $states = array_map(static fn (array $page): string => $page['state'], $rendered);
 
         self::assertContains('login refused with login_rate_limited', $states);
+    }
+
+    /**
+     * The brand every page shares (brand.v1.json), without branding and with a logo: the generated
+     * validator accepts what each page renders, and it reads back through PanelBrandCodecV1.
+     *
+     * @throws JsonException
+     */
+    #[Test]
+    public function the_typescript_validator_accepts_the_brand_every_page_shares(): void
+    {
+        $plain = $this->brand($this->get('/cms/login'));
+        $files = new BrandFixtures;
+
+        try {
+            app(Repository::class)->set(BrandingConfig::KEY, ['root' => $files->root, 'name' => 'Skovbo Content', 'logo' => ['light' => 'brand/logo.svg', 'dark' => 'brand/logo-dark.svg', 'alt' => 'Skovbo']]);
+            app()->forgetInstance(Branding::class);
+            $branded = $this->brand($this->get('/cms/login'));
+        } finally {
+            $files->remove();
+        }
+
+        $verdicts = TypeScriptValidators::run(PanelPageSchemas::TYPESCRIPT_DIRECTORY, array_map(
+            static fn (string $document): array => ['module' => 'pages/PanelBrandV1', 'validator' => 'validatePanelBrandV1', 'document' => $document],
+            [$plain, $branded],
+        ));
+
+        self::assertSame('{"login":null,"logo":null,"name":"Cbox CMS"}', $plain);
+        self::assertStringContainsString('"name":"Skovbo Content"', $branded);
+        self::assertSame([['valid' => true], ['valid' => true]], $verdicts);
+
+        foreach ([$plain, $branded] as $document) {
+            self::assertSame($document, $this->through(new PanelBrandCodecV1, $document));
+        }
     }
 
     /**
@@ -230,8 +270,9 @@ final class PanelPageValidatorsTest extends TestCase
 
     /**
      * The JSON of the page's own props, as the browser receives them, without the props every page
-     * shares and the contributions every page behind the login sends (ContributionProps::CMS, held
-     * to its own validator by ContributionsCodecTest).
+     * shares, Inertia's errors, the problem and the brand, which brand() reads, and the
+     * contributions every page behind the login sends (ContributionProps::CMS, held to its own
+     * validator by ContributionsCodecTest).
      *
      * @param  TestResponse<Response>  $response
      *
@@ -246,9 +287,28 @@ final class PanelPageValidatorsTest extends TestCase
             self::fail('The response rendered no Inertia page.');
         }
 
-        unset($props['errors'], $props['problem'], $props[ContributionProps::CMS]);
+        unset($props['errors'], $props['problem'], $props[PanelBrandProps::PROP], $props[ContributionProps::CMS]);
 
         return json_encode((object) $props, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+    }
+
+    /**
+     * The JSON of the brand the page shares, as the browser receives it.
+     *
+     * @param  TestResponse<Response>  $response
+     *
+     * @throws JsonException
+     */
+    private function brand(TestResponse $response): string
+    {
+        $page = $response->viewData('page');
+        $brand = is_array($page) && is_array($page['props'] ?? null) ? $page['props'][PanelBrandProps::PROP] ?? null : null;
+
+        if (! is_array($brand)) {
+            self::fail('The page shares no brand.');
+        }
+
+        return json_encode((object) $brand, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
     }
 
     /**

@@ -75,6 +75,7 @@ Each custom property is set on the root in the cascade layer `cms.tokens`. A tok
 | `--cms-target-size` | semantic | length | `1.5rem` | `1.5rem` | stable | 1.0 | The smallest height of a pointer target: at least 24 pixels (WCAG 2.2, 2.5.8). |
 | `--cms-measure` | semantic | length | `32rem` | `32rem` | stable | 1.0 | The widest a panel of running text grows. |
 | `--cms-button-radius` | component | length | `6px` (`var(--cms-radius-md)`) | `6px` (`var(--cms-radius-md)`) | experimental | 1.0 | The rounding of a button. |
+| `--cms-brand-logo-height` | component | length | `2rem` | `2rem` | experimental | 1.0 | The height of the installation's logo next to its name, in the shell's header and on the login page. |
 
 ## Contrast pairs
 

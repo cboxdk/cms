@@ -1,4 +1,4 @@
-import { Alert, Button, Form, TaskScreen, TextField, TextLink } from '@cboxdk/cms-ui-kit';
+import { Alert, Brand, Button, Form, TaskScreen, TextField, TextLink } from '@cboxdk/cms-ui-kit';
 import { Head, useForm } from '@inertiajs/react';
 import type { SubmitEvent } from 'react';
 
@@ -6,6 +6,7 @@ import type {
   ResetPasswordPageV1,
   ResetPasswordRefusal,
 } from '../../generated/pages/ResetPasswordPageV1';
+import { useBrand } from '../../brand';
 import { useTranslation, type TranslationKey } from '../../i18n/translations';
 
 /** The text of each catalog code the server puts under the password field. */
@@ -30,6 +31,7 @@ export default function ResetPassword({
   refusals,
 }: ResetPasswordPageV1) {
   const { t } = useTranslation();
+  const brand = useBrand();
   const form = useForm({ token: token ?? '', password: '' });
 
   const invalid = token === null || refusals.form === 'password_reset_token_invalid';
@@ -50,6 +52,7 @@ export default function ResetPassword({
     <>
       <Head title={t('panel.reset.title')} />
       <TaskScreen
+        brand={<Brand name={brand.name} logo={brand.login} />}
         title={t('panel.reset.title')}
         description={invalid ? undefined : t('panel.reset.description')}
         footer={

@@ -51,6 +51,7 @@ export type ErrorCode =
   | 'doctor_operator_missing'
   | 'doctor_operator_unreadable'
   | 'doctor_owner_credentials_exposed'
+  | 'doctor_panel_branding_invalid'
   | 'doctor_partition_runway_short'
   | 'doctor_partition_table_unmanageable'
   | 'doctor_php_allow_url_fopen'
@@ -192,6 +193,9 @@ export type ErrorCode =
   | 'registry_panel_point_without_downcast'
   | 'registry_panel_point_without_stability'
   | 'registry_panel_replacement_conflict'
+  | 'registry_panel_theme_contrast'
+  | 'registry_panel_theme_invalid'
+  | 'registry_panel_theme_overlap'
   | 'registry_panel_tightening_undeclared'
   | 'registry_panel_unknown_command'
   | 'registry_panel_unknown_point'
@@ -355,6 +359,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'doctor_operator_missing',
           'doctor_operator_unreadable',
           'doctor_owner_credentials_exposed',
+          'doctor_panel_branding_invalid',
           'doctor_partition_runway_short',
           'doctor_partition_table_unmanageable',
           'doctor_php_allow_url_fopen',
@@ -496,6 +501,9 @@ const catalogErrorV1Rule: ObjectRule = {
           'registry_panel_point_without_downcast',
           'registry_panel_point_without_stability',
           'registry_panel_replacement_conflict',
+          'registry_panel_theme_contrast',
+          'registry_panel_theme_invalid',
+          'registry_panel_theme_overlap',
           'registry_panel_tightening_undeclared',
           'registry_panel_unknown_command',
           'registry_panel_unknown_point',
@@ -623,6 +631,7 @@ const problemV1Rule: ObjectRule = {
           'doctor_operator_missing',
           'doctor_operator_unreadable',
           'doctor_owner_credentials_exposed',
+          'doctor_panel_branding_invalid',
           'doctor_partition_runway_short',
           'doctor_partition_table_unmanageable',
           'doctor_php_allow_url_fopen',
@@ -764,6 +773,9 @@ const problemV1Rule: ObjectRule = {
           'registry_panel_point_without_downcast',
           'registry_panel_point_without_stability',
           'registry_panel_replacement_conflict',
+          'registry_panel_theme_contrast',
+          'registry_panel_theme_invalid',
+          'registry_panel_theme_overlap',
           'registry_panel_tightening_undeclared',
           'registry_panel_unknown_command',
           'registry_panel_unknown_point',

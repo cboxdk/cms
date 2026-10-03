@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\Registry\Adapter;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Storage\LocalPath;
+use Cbox\Cms\Core\PanelThemes\Adapter\FileThemeStylesheets;
 use Cbox\Cms\Core\Registry\Boundary\RegistryCacheCodec;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\MalformedRegistryCache;
@@ -42,8 +43,9 @@ use Throwable;
  * The cache owns its directory. After the files are in place, every other file there is removed,
  * so a registry an earlier version wrote, or a file someone put there, cannot linger. Four things
  * stay: the lock file, subdirectories, which the cache never writes, the temporary file of a
- * registry that a write has not renamed yet, and the OpenAPI document cms:build writes next to the
- * registry, FileOpenApiDocuments::FILE, with its temporary file.
+ * registry that a write has not renamed yet, and the files cms:build writes next to the registry,
+ * the OpenAPI document, FileOpenApiDocuments::FILE, and the panel theme's stylesheet,
+ * FileThemeStylesheets::FILE, each with its temporary file.
  *
  * The cache writes only a local directory: write() refuses a directory that names a stream wrapper,
  * such as ftp://, before any file function sees it (GUARDRAILS 3).
@@ -256,6 +258,7 @@ final readonly class FileRegistryCache implements RegistryCache
         $names = array_map(static fn (string $file): string => preg_quote($file, '/'), [
             ...array_map(static fn (RegistryName $name): string => $name->fileName(), RegistryName::cases()),
             FileOpenApiDocuments::FILE,
+            FileThemeStylesheets::FILE,
         ]);
         $keep = '/\A(?:(?:'.implode('|', $names).')(?:\.[0-9a-f]{16}\.tmp)?|'.preg_quote(self::LOCK_FILE, '/').')\z/';
 

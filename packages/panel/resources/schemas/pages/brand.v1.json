@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "the panel's brand, contract version 1",
+  "description": "The installation's brand, which every page of the panel shares as the prop brand (PRD 13.4): the product name and the logos the application sets in cbox-cms.panel.branding, or Cbox CMS without them. The PHP form is Cbox\\Cms\\Panel\\Domain\\Dto\\PanelBrand, and the generated codec writes its canonical JSON: keys sorted, no whitespace. No theme or addon sets any of it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "login",
+    "logo",
+    "name"
+  ],
+  "properties": {
+    "login": {
+      "description": "The brand image the login page shows, the logo unless the application sets one of its own for the login page, or null when it sets neither.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/logo"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "logo": {
+      "description": "The logo the shell's header shows, or null when the application sets none.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/logo"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "name": {
+      "description": "The product name: the application's, or Cbox CMS when it sets none.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 60
+    }
+  },
+  "$defs": {
+    "logo": {
+      "description": "An image in a light and a dark version, each the address of a file the panel serves from its own origin, and the text that stands for it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "alt",
+        "dark",
+        "light"
+      ],
+      "properties": {
+        "alt": {
+          "description": "The image's alternative text, which a screen reader announces.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 150
+        },
+        "dark": {
+          "description": "The address of the version shown in the dark mode.",
+          "type": "string",
+          "minLength": 1
+        },
+        "light": {
+          "description": "The address of the version shown in the light mode.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

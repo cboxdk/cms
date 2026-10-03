@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace Cbox\Cms\Tooling\Docs\Domain;
 
 /**
- * Holds the manifest of screenshots (Screenshots), the images in docs/screenshots and the pages
- * that embed them together:
+ * Holds the manifest of screenshots (Screenshots, terminal and browser), the images in
+ * docs/screenshots and the pages that embed them together:
  *
  * - every entry has a key of lowercase words joined by hyphens, used once, a caption and a command;
- * - every entry has its image, docs/screenshots/<key>.svg;
+ * - every entry has its image, docs/screenshots/<key>.svg for a terminal shot and <key>.png for a
+ *   browser shot;
  * - every file in docs/screenshots but _index.md is the image of an entry;
  * - a page outside docs/screenshots embeds every entry, so no image is committed that no page
  *   describes; README.md, CONTRIBUTING.md and SECURITY.md count as pages here;
@@ -22,13 +23,13 @@ final readonly class ScreenshotAudit
     private const string KEY = '/^[a-z0-9]+(?:-[a-z0-9]+)*$/';
 
     /**
-     * @param  list<Screenshot>  $screenshots
+     * @param  list<CapturedImage>  $screenshots
      * @return list<Finding>
      */
     public static function findings(DocsTree $tree, array $screenshots): array
     {
         $findings = [];
-        /** @var array<string, Screenshot> $byPath */
+        /** @var array<string, CapturedImage> $byPath */
         $byPath = [];
 
         foreach ($screenshots as $shot) {
@@ -38,7 +39,7 @@ final readonly class ScreenshotAudit
                 $findings[] = Finding::about($shot->key, 'the key of a screenshot is used twice in Screenshots');
             }
 
-            if (trim($shot->caption) === '' || $shot->command === []) {
+            if (trim($shot->caption) === '' || $shot->captureCommand() === '') {
                 $findings[] = Finding::about($shot->key, 'a screenshot has a caption and a command');
             }
 
@@ -49,7 +50,7 @@ final readonly class ScreenshotAudit
 
         foreach ($byPath as $path => $shot) {
             if (! isset($files[$path])) {
-                $findings[] = Finding::about($path, "missing; capture it with composer docs:screenshots -- --only={$shot->key}");
+                $findings[] = Finding::about($path, 'missing; capture it with '.$shot->captureCommand());
             }
         }
 
@@ -70,7 +71,7 @@ final readonly class ScreenshotAudit
                 $resolved = $link->image && $link->isRelative() ? DocsLinks::resolve($page->path, $link->path()) : null;
                 $shot = $resolved === null ? null : ($byPath[$resolved] ?? null);
 
-                if (! $shot instanceof Screenshot) {
+                if (! $shot instanceof CapturedImage) {
                     continue;
                 }
 

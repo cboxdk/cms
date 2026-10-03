@@ -56,6 +56,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`doctor_operator_missing`](#doctor_operator_missing) | 503 | 79 | internal_error | no |
 | [`doctor_operator_unreadable`](#doctor_operator_unreadable) | 503 | 79 | internal_error | no |
 | [`doctor_owner_credentials_exposed`](#doctor_owner_credentials_exposed) | 503 | 79 | internal_error | no |
+| [`doctor_panel_branding_invalid`](#doctor_panel_branding_invalid) | 503 | 79 | internal_error | no |
 | [`doctor_partition_runway_short`](#doctor_partition_runway_short) | 503 | 79 | internal_error | no |
 | [`doctor_partition_table_unmanageable`](#doctor_partition_table_unmanageable) | 503 | 79 | internal_error | no |
 | [`doctor_php_allow_url_fopen`](#doctor_php_allow_url_fopen) | 500 | 78 | internal_error | no |
@@ -197,6 +198,9 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`registry_panel_point_without_downcast`](#registry_panel_point_without_downcast) | 500 | 65 | internal_error | no |
 | [`registry_panel_point_without_stability`](#registry_panel_point_without_stability) | 500 | 65 | internal_error | no |
 | [`registry_panel_replacement_conflict`](#registry_panel_replacement_conflict) | 500 | 65 | internal_error | no |
+| [`registry_panel_theme_contrast`](#registry_panel_theme_contrast) | 500 | 65 | internal_error | no |
+| [`registry_panel_theme_invalid`](#registry_panel_theme_invalid) | 500 | 65 | internal_error | no |
+| [`registry_panel_theme_overlap`](#registry_panel_theme_overlap) | 200 | 0 | result | no |
 | [`registry_panel_tightening_undeclared`](#registry_panel_tightening_undeclared) | 500 | 65 | internal_error | no |
 | [`registry_panel_unknown_command`](#registry_panel_unknown_command) | 500 | 65 | internal_error | no |
 | [`registry_panel_unknown_point`](#registry_panel_unknown_point) | 500 | 65 | internal_error | no |
@@ -629,6 +633,15 @@ The doctor could not read the installation operator, usually because the core's 
 ### doctor_owner_credentials_exposed
 
 The owner connection, which may change the schema and passes the row level security, is configured in a process that serves HTTP, runs queued jobs, or is not declared the maintenance process (PRD 4.2). Remove the owner connection from that process's configuration, or declare the maintenance process with CBOX_CMS_MAINTENANCE_PROCESS=true.
+
+- HTTP status: 503 Service Unavailable
+- CLI exit code: 79 (NOT_READY)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### doctor_panel_branding_invalid
+
+The installation's brand in cbox-cms.panel.branding cannot be used (PRD 13.4): a key is of another form, the name is longer than 60 characters, a logo has no alternative text, or a file is not a readable SVG or PNG of at most 512 KiB inside the application, or is an SVG with a script, an event handler or a foreignObject. The panel shows Cbox CMS without the brand meanwhile. Correct the key the cause names, as docs/developers/panel-branding.md describes it, then run cms:doctor again.
 
 - HTTP status: 503 Service Unavailable
 - CLI exit code: 79 (NOT_READY)
@@ -1902,6 +1915,33 @@ Two or more replacements claim one key of a replaceable panel point, and exactly
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)
 - MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_panel_theme_contrast
+
+The panel themes cbox-cms.panel.themes selects, composed in their order, draw a contrast pair of the kit's token catalogue below WCAG 2.2 AA: text below 4.5:1 or a user interface part or the focus ring below 3:1, in the light or the dark mode, on the whole panel or on a part hook (PRD 13.4, GUARDRAILS 8). The message names the pair, the mode and the place. Change the value of one side in the theme that sets it; cms:panel:theme:check checks one theme file on its own.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_panel_theme_invalid
+
+A panel theme cannot be used (PRD 13.4): an addon ships a theme and its manifest does not grant the capability uiTheme; cbox-cms.panel.themes selects a theme twice, one an allowed addon does not ship, or app without cbox-cms.panel.app_theme; a theme file cannot be read or is not of theme.v1.json's form (a key other than tokens and parts, an unknown or primitive token, a part that is not a curated part hook, a value that is not of its token's type or is given for one mode only); or the composed theme makes --cms-target-size smaller than 24 pixels. The message names the theme and the place in its file. Correct it, and check a file with cms:panel:theme:check.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_panel_theme_overlap
+
+A warning, not a failure: more than one theme that cbox-cms.panel.themes selects sets the same token on the whole panel or on one part hook, and the last of them in the selection wins (PRD 13.4). Check that the order of the selection is the one the installation wants.
+
+- HTTP status: 200 OK
+- CLI exit code: 0 (EX_OK)
+- MCP: a tool result
 - Retry: no, the same call gives the same answer until something changes
 
 ### registry_panel_tightening_undeclared

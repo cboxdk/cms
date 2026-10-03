@@ -60,7 +60,8 @@ export type TokenName =
   | 'duration-fast'
   | 'target-size'
   | 'measure'
-  | 'button-radius';
+  | 'button-radius'
+  | 'brand-logo-height';
 
 /**
  * A token a theme may set: the semantic and the component tiers, never a primitive.
@@ -103,7 +104,8 @@ export type ThemeTokenName =
   | 'duration-fast'
   | 'target-size'
   | 'measure'
-  | 'button-radius';
+  | 'button-radius'
+  | 'brand-logo-height';
 
 /**
  * A curated part hook, the value of a `data-cms-part` attribute, which only the theme layer

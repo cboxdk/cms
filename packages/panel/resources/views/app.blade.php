@@ -7,12 +7,22 @@
     <meta name="color-scheme" content="light dark">
     <meta name="robots" content="noindex, nofollow">
     <meta property="csp-nonce" nonce="{{ $cspNonce }}">
-    <title inertia>Cbox CMS</title>
+@if ($panelBranded)
+    <meta name="application-name" content="{{ $panelName }}">
+@endif
+    <title inertia>{{ $panelName }}</title>
+@if ($panelFavicon === null)
     <link rel="icon" href="data:,">
+@else
+    <link rel="icon" href="{{ $panelFavicon }}" type="{{ $panelFaviconType }}">
+@endif
     <script type="importmap" nonce="{{ $cspNonce }}">{!! $panelImportMap !!}</script>
 @foreach ($panelStyles as $panelStyle)
     <link rel="stylesheet" href="{{ $panelStyle }}" nonce="{{ $cspNonce }}">
 @endforeach
+@if ($panelTheme !== null)
+    <link rel="stylesheet" href="{{ $panelTheme }}" nonce="{{ $cspNonce }}">
+@endif
 @foreach ($panelPreloads as $panelPreload)
     <link rel="modulepreload" href="{{ $panelPreload }}" nonce="{{ $cspNonce }}">
 @endforeach

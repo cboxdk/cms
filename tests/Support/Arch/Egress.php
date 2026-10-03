@@ -9,6 +9,7 @@ use Cbox\Cms\Core\Codecs\Boundary\Generated\PanelBundleCodecV1;
 use Cbox\Cms\Core\Doctor\Adapter\ProcessToolProbe;
 use Cbox\Cms\Core\Egress\Adapter\LaravelMailGateway;
 use Cbox\Cms\Core\Egress\Adapter\SsrfEgressGateway;
+use Cbox\Cms\Core\PanelThemes\Adapter\FileThemeStylesheets;
 use Cbox\Cms\Core\Registry\Adapter\FileOpenApiDocuments;
 use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
 use Cbox\Cms\Core\Registry\Boundary\LocalFiles;
@@ -137,6 +138,11 @@ final class Egress
         // CoreServiceProvider gives it, renames it into place and removes it when that fails; it
         // refuses a path that names a stream wrapper before it touches it.
         FileOpenApiDocuments::class => ['file_put_contents', 'rename', 'SplFileObject', 'unlink'],
+        // Writes a temporary file next to theme.css in the registry cache's directory, which
+        // CoreServiceProvider gives it, renames it into place, and removes the stylesheet when no
+        // theme is selected or the temporary file when a write fails; it refuses a directory that
+        // names a stream wrapper before it touches it.
+        FileThemeStylesheets::class => ['file_put_contents', 'rename', 'unlink'],
         // Lists a schema root, whose base SchemaRoot requires to be an absolute path, which names
         // no stream wrapper.
         BlueprintFiles::class => ['FilesystemIterator', 'RecursiveDirectoryIterator'],

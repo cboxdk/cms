@@ -33,7 +33,14 @@ it('accepts the props of a page', function (string $schema, string $document): v
     'the reset page after a short password' => ['reset-password.v1.json', '{"action":"/cms/reset-password","forgot":"/cms/forgot-password","login":"/cms/login","refusals":{"form":null,"password":"password_too_short"},"token":null}'],
     'the start page' => ['home.v1.json', '{"logout":"/cms/logout"}'],
     'the page for a path the panel does not have' => ['not-found.v1.json', '{"home":"/cms"}'],
+    'the brand every page shares, without branding' => ['brand.v1.json', '{"login":null,"logo":null,"name":"Cbox CMS"}'],
+    'the brand every page shares, with a logo' => ['brand.v1.json', '{"login":{"alt":"Skovbo","dark":"/cms/brand/logo-dark-0123456789abcdef.svg","light":"/cms/brand/logo-light-0123456789abcdef.svg"},"logo":{"alt":"Skovbo","dark":"/cms/brand/logo-dark-0123456789abcdef.svg","light":"/cms/brand/logo-light-0123456789abcdef.svg"},"name":"Skovbo Content"}'],
 ]);
+
+it('refuses a logo without its alternative text', function (): void {
+    expect(pagePropsErrors('brand.v1.json', '{"login":null,"logo":{"alt":"","dark":"/cms/brand/logo-dark-0123456789abcdef.svg","light":"/cms/brand/logo-light-0123456789abcdef.svg"},"name":"Skovbo Content"}'))
+        ->not->toBe([]);
+});
 
 it('refuses a refusal code the page does not know', function (): void {
     expect(pagePropsErrors('login.v1.json', '{"action":"/cms/login","forgot":"/cms/forgot-password","reason":null,"refusals":{"email":null,"form":"password_too_short","password":null}}'))

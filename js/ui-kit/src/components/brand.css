@@ -1,0 +1,40 @@
+@layer cms.kit {
+  .cms-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--cms-space-3);
+    color: var(--cms-color-text);
+    font-size: var(--cms-font-size-lg);
+    font-weight: var(--cms-font-weight-semibold);
+    line-height: var(--cms-line-height-tight);
+  }
+
+  .cms-brand__logo {
+    display: block;
+    block-size: var(--cms-brand-logo-height);
+    inline-size: auto;
+    max-inline-size: 12rem;
+  }
+
+  .cms-brand__logo--dark {
+    display: none;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) .cms-brand__logo--light {
+      display: none;
+    }
+
+    :root:not([data-theme='light']) .cms-brand__logo--dark {
+      display: block;
+    }
+  }
+
+  :root[data-theme='dark'] .cms-brand__logo--light {
+    display: none;
+  }
+
+  :root[data-theme='dark'] .cms-brand__logo--dark {
+    display: block;
+  }
+}

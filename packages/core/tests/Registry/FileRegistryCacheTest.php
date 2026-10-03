@@ -69,6 +69,18 @@ it('keeps the OpenAPI document cms:build writes next to it, and its temporary fi
     expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'addons.php', 'commands.php', 'hooks.php', 'openapi.json', 'openapi.json.0123456789abcdef.tmp', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php']);
 });
 
+it('keeps the theme\'s stylesheet cms:build writes next to it, and its temporary file', function (): void {
+    $directory = RegistryFixtures::scratch();
+    mkdir($directory, 0o775, true);
+    file_put_contents($directory.'/theme.css', "@layer cms.theme {}\n");
+    file_put_contents($directory.'/theme.css.0123456789abcdef.tmp', 'being written by another cms:build');
+    file_put_contents($directory.'/theme.css.old', '');
+
+    RegistryFixtures::cache($directory)->write(CompiledRegistry::empty());
+
+    expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'addons.php', 'commands.php', 'hooks.php', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php', 'theme.css', 'theme.css.0123456789abcdef.tmp']);
+});
+
 it('replaces the files before it removes the others, so a failed write keeps what was there', function (): void {
     $directory = RegistryFixtures::scratch();
     mkdir($directory);

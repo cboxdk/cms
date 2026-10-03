@@ -50,7 +50,7 @@ try {
 }
 
 $findings = Finding::sorted([
-    ...DocsAudit::findings($tree, Exclusions::all(), Screenshots::all()),
+    ...DocsAudit::findings($tree, Exclusions::all(), [...Screenshots::all(), ...Screenshots::browser()]),
     ...ErrorReferencePage::findings($tree, ErrorReferencePage::current()),
 ]);
 

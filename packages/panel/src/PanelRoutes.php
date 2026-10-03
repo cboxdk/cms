@@ -7,8 +7,12 @@ namespace Cbox\Cms\Panel;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Http\Inertia\InertiaRoutes;
 use Cbox\Cms\Panel\Assets\AssetController;
+use Cbox\Cms\Panel\Assets\BrandController;
+use Cbox\Cms\Panel\Assets\ThemeController;
 use Cbox\Cms\Panel\Boundary\HandlePanelRequests;
+use Cbox\Cms\Panel\Branding\Domain\Dto\BrandFile;
 use Cbox\Cms\Panel\Domain\Dto\PanelBuild;
+use Cbox\Cms\Panel\Domain\Dto\PanelTheme;
 use Cbox\Cms\Panel\Domain\PanelRoute;
 use Cbox\Cms\Panel\Middleware\AuthenticatePanelSession;
 use Cbox\Cms\Panel\Middleware\SendContentSecurityPolicy;
@@ -28,6 +32,10 @@ use Illuminate\Contracts\Routing\Registrar;
  * Mounts the control panel (PRD 13.4) below a prefix, `cms` unless the application names another:
  *
  * - `GET <prefix>/build/{path}`, named ASSET: a file of the panel's build, such as its script.
+ * - `GET <prefix>/theme/{version}.css` (PanelRoute::Theme): the stylesheet of the theme cms:build
+ *   composed from the themes the installation selects (PRD 13.4).
+ * - `GET <prefix>/brand/{name}` (PanelRoute::Brand): a file of the installation's brand, its logos
+ *   and favicon, from cbox-cms.panel.branding.
  * - every panel page, behind SendContentSecurityPolicy, which gives the response a strict
  *   Content-Security-Policy with a nonce of its own (GUARDRAILS 6), and HandlePanelRequests,
  *   Inertia's middleware with the panel's root view and the build's version:
@@ -73,6 +81,12 @@ final readonly class PanelRoutes
             $router->get('build/{path}', AssetController::class)
                 ->where('path', PanelBuild::FILE_PATTERN)
                 ->name(self::ASSET);
+            $router->get('theme/{version}.css', ThemeController::class)
+                ->where('version', PanelTheme::VERSION_PATTERN)
+                ->name(PanelRoute::Theme->value);
+            $router->get('brand/{name}', BrandController::class)
+                ->where('name', BrandFile::NAME_PATTERN)
+                ->name(PanelRoute::Brand->value);
 
             $router->group(['middleware' => [SendContentSecurityPolicy::class, HandlePanelRequests::class]], static function (Registrar $router): void {
                 $router->group(['middleware' => [VerifyPanelCsrfToken::class]], static function (Registrar $router): void {

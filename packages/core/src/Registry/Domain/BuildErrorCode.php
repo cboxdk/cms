@@ -152,4 +152,10 @@ enum BuildErrorCode: string
 
     /** A nav entry links to a page its addon does not contribute. */
     case PanelNavTargetUnknown = 'registry_panel_nav_target_unknown';
+
+    /** A panel theme cannot be used: an addon ships one without the capability uiTheme, cbox-cms.panel.themes names a theme twice or one that is not there, or a theme file is not of theme.v1.json's form, or the composed theme makes a pointer target smaller than 24 pixels. */
+    case PanelThemeInvalid = 'registry_panel_theme_invalid';
+
+    /** The selected panel themes, composed, draw a contrast pair of the token catalogue below WCAG 2.2 AA in a mode. */
+    case PanelThemeContrast = 'registry_panel_theme_contrast';
 }

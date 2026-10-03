@@ -148,6 +148,18 @@ return [
      * disabled is the activation state, read at each request without a rebuild: the namespaces of
      * addons whose panel UI is off under addons, and contribution ids under contributions. Each
      * shows in cms:panel:fills with where it comes from.
+     *
+     * themes selects and orders the panel's themes of design tokens: 'app', the application's own
+     * in app_theme (the absolute path of its JSON, such as base_path('resources/panel/theme.json')),
+     * and '<namespace>:<name>' of an allowed addon's, a later one over an earlier one. A theme
+     * nothing selects has no effect. cms:build composes them, refuses one below WCAG 2.2 AA, and
+     * writes the stylesheet the panel serves (docs/developers/panel-branding.md).
+     *
+     * branding is the installation's own: name, the product name of at most 60 characters; logo
+     * and login, each ['light' => <file>, 'dark' => <file>, 'alt' => <text>], the shell header's
+     * logo and the login page's image (the logo when null); favicon, a file. A file is an SVG or
+     * PNG inside root, the application's base path when null, by a path relative to it. Without
+     * branding the panel shows Cbox CMS; cms:doctor's panel.branding checks it.
      */
     'panel' => [
         'contributions' => [],
@@ -155,6 +167,15 @@ return [
         'disabled' => [
             'addons' => [],
             'contributions' => [],
+        ],
+        'themes' => [],
+        'app_theme' => null,
+        'branding' => [
+            'root' => null,
+            'name' => null,
+            'logo' => null,
+            'login' => null,
+            'favicon' => null,
         ],
     ],
 

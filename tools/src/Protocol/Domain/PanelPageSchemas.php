@@ -27,6 +27,8 @@ use Cbox\Cms\Panel\Domain\Dto\HomePage;
 use Cbox\Cms\Panel\Domain\Dto\LoginPage;
 use Cbox\Cms\Panel\Domain\Dto\LoginRefusals;
 use Cbox\Cms\Panel\Domain\Dto\NotFoundPage;
+use Cbox\Cms\Panel\Domain\Dto\PanelBrand;
+use Cbox\Cms\Panel\Domain\Dto\PanelBrandLogo;
 use Cbox\Cms\Panel\Domain\Dto\PointFillsProp;
 use Cbox\Cms\Panel\Domain\Dto\ResetPasswordPage;
 use Cbox\Cms\Panel\Domain\Dto\ResetPasswordRefusals;
@@ -38,7 +40,8 @@ use Cbox\Cms\Panel\Domain\SignInReason;
 
 /**
  * The props of the panel's pages (GUARDRAILS 2.2, 2.4): one JSON Schema per page and contract
- * version in packages/panel/resources/schemas/pages, bound to the page's DTO in the panel's
+ * version in packages/panel/resources/schemas/pages, and one for the brand every page shares,
+ * brand.v1.json, each bound to its DTO in the panel's
  * Domain\Dto, so the panel renders the props through the generated codec and js/panel imports
  * their generated TypeScript types and validators. contributions.v1.json is the prop
  * cms.contributions that every page behind the login sends beside its own props (PRD 13.4). Types go one way, from PHP and the schema to
@@ -79,6 +82,10 @@ final readonly class PanelPageSchemas
     public static function all(): array
     {
         return [
+            self::page('brand.v1.json', 'PanelBrandCodecV1', [
+                '#' => PanelBrand::class,
+                '#/$defs/logo' => PanelBrandLogo::class,
+            ]),
             self::page('contributions.v1.json', 'ContributionsCodecV1', [
                 '#' => ContributionsProp::class,
                 '#/$defs/fill' => FillProp::class,

@@ -150,6 +150,10 @@ use Cbox\Cms\Core\Maintenance\Domain\MaintenanceAuthorizer;
 use Cbox\Cms\Core\Maintenance\Domain\OperatorGenesis;
 use Cbox\Cms\Core\Operations\Adapter\PackageOperationRunner;
 use Cbox\Cms\Core\Operations\Domain\OperationRunner;
+use Cbox\Cms\Core\PanelThemes\Adapter\FileThemeSources;
+use Cbox\Cms\Core\PanelThemes\Adapter\FileThemeStylesheets;
+use Cbox\Cms\Core\PanelThemes\Domain\ThemeSources;
+use Cbox\Cms\Core\PanelThemes\Domain\ThemeStylesheets;
 use Cbox\Cms\Core\Partitions\Boundary\PartitionConfig;
 use Cbox\Cms\Core\Partitions\Domain\PartitionMaintenance;
 use Cbox\Cms\Core\Partitions\Infrastructure\PostgresPartitionManager;
@@ -445,6 +449,14 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
 
         // The activation state of the panel's contributions, read at each call (PRD 13.5).
         $this->app->bind(PanelActivation::class, ConfigPanelActivation::class);
+
+        // The panel's themes (PRD 13.4): the kit's token catalogue and the theme files, and the
+        // stylesheet of the composed theme next to the registry cache, which the panel serves.
+        $this->app->bind(ThemeSources::class, static fn (): ThemeSources => new FileThemeSources);
+        $this->app->bind(
+            ThemeStylesheets::class,
+            static fn (Application $app): ThemeStylesheets => new FileThemeStylesheets($app->bootstrapPath(self::REGISTRY_CACHE)),
+        );
 
         // Read once per process from the files cms:build wrote; a missing file throws RegistryCacheMissing.
         $this->app->singleton(

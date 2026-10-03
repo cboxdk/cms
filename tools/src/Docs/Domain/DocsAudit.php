@@ -55,7 +55,7 @@ final readonly class DocsAudit
      * Every finding for the tree, sorted (Finding::sorted()); none when the check passes.
      *
      * @param  list<Exclusion>  $exclusions
-     * @param  list<Screenshot>  $screenshots  the manifest of screenshots, Screenshots::all() for the repository
+     * @param  list<CapturedImage>  $screenshots  the manifest of screenshots, Screenshots::all() and Screenshots::browser() for the repository
      * @return list<Finding>
      */
     public static function findings(DocsTree $tree, array $exclusions, array $screenshots): array

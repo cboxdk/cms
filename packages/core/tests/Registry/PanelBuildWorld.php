@@ -36,6 +36,7 @@ use Cbox\Cms\Contracts\PanelPoints\SlotFill;
 use Cbox\Cms\Contracts\PanelPoints\StepPosition;
 use Cbox\Cms\Contracts\PanelPoints\Tighten;
 use Cbox\Cms\Contracts\PanelPoints\Tone;
+use Cbox\Cms\Core\PanelThemes\Domain\Dto\ThemeSelection;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
 use Cbox\Cms\Core\Registry\Boundary\JsonSchemaNodes;
 use Cbox\Cms\Core\Registry\Domain\BundleFileKind;
@@ -55,6 +56,8 @@ use Cbox\Cms\Core\Registry\Domain\Dto\ScanRoots;
 use Cbox\Cms\Core\Registry\Domain\RegistryBuildFailed;
 use Cbox\Cms\Core\Registry\Domain\RegistryCompiler;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
+use Cbox\Cms\Core\Tests\PanelThemes\Fakes\FakeThemeStylesheets;
+use Cbox\Cms\Core\Tests\PanelThemes\ThemeWorld;
 use Cbox\Cms\Core\Tests\Registry\Fakes\FakeContractSchemas;
 use Cbox\Cms\Core\Tests\Registry\Fakes\FakeOpenApiDocuments;
 use Cbox\Cms\Core\Tests\Registry\Fakes\FakeRegistryCache;
@@ -83,6 +86,9 @@ final class PanelBuildWorld
     public const string STAMPS = 'acme/cms-stamps';
 
     public const string BUNDLE = '/srv/addons/approvals/dist/panel';
+
+    /** The theme files a build reads, by path: a pale accent below AA. */
+    public const array THEMES = ['/srv/addons/approvals/resources/panel/pale.json' => ThemeWorld::PALE];
 
     public static function roots(): ScanRoots
     {
@@ -125,6 +131,7 @@ final class PanelBuildWorld
      * @param  list<PanelContribution>  $contributions
      * @param  list<string>  $accepts
      * @param  list<string>|null  $issues  null for the addon's commands on Inertia
+     * @param  array<string, string>  $themes  theme files by name, read from THEMES
      */
     public static function manifest(
         array $contributions,
@@ -134,6 +141,7 @@ final class PanelBuildWorld
         string $namespace = 'approvals',
         string $package = self::ADDON,
         ?string $bundle = self::BUNDLE,
+        array $themes = [],
     ): AddonManifest {
         return new AddonManifest(
             $package,
@@ -148,7 +156,7 @@ final class PanelBuildWorld
             ] : [],
             [],
             new SchemaContributions([new ContributedFieldType($namespace.':stars')], fieldTypeContributor: AddonFieldTypes::class),
-            new PanelContributions($sdk ?? PanelApiVersion::current(), $bundle, $accepts, $contributions),
+            new PanelContributions($sdk ?? PanelApiVersion::current(), $bundle, $accepts, $contributions, $themes),
         );
     }
 
@@ -227,14 +235,14 @@ final class PanelBuildWorld
      * @param  list<ReplacementChoice>  $replacements
      * @param  list<string>|null  $allowed
      */
-    public static function settings(array $overrides = [], array $replacements = [], ?array $allowed = [self::ADDON, self::STAMPS]): BuildSettings
+    public static function settings(array $overrides = [], array $replacements = [], ?array $allowed = [self::ADDON, self::STAMPS], ThemeSelection $themes = new ThemeSelection): BuildSettings
     {
-        return new BuildSettings($allowed, $overrides, $replacements);
+        return new BuildSettings($allowed, $overrides, $replacements, themes: $themes);
     }
 
     public static function build(DeclaredAddons $addons, ?BuildSettings $settings = null, ?ContractShapes $shapes = null, ?ScanRoots $roots = null): CompiledRegistry
     {
-        return new BuildRegistry(new AttributeScanner, new RegistryCompiler, new FakeRegistryCache, new FakeOpenApiDocuments, new FakeContractSchemas($shapes ?? self::shapes()))
+        return new BuildRegistry(new AttributeScanner, new RegistryCompiler, new FakeRegistryCache, new FakeOpenApiDocuments, new FakeContractSchemas($shapes ?? self::shapes()), ThemeWorld::compiler(self::THEMES), new FakeThemeStylesheets)
             ->build($roots ?? self::roots(), $addons, $settings ?? self::settings());
     }
 

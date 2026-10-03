@@ -1,0 +1,12 @@
+{
+  "tokens": {
+    "color-accent": { "light": "#9d174d", "dark": "#f9a8d4" },
+    "color-accent-hover": { "light": "#831843", "dark": "#fbcfe8" },
+    "radius-md": "2px"
+  },
+  "parts": {
+    "task-screen": {
+      "color-surface-raised": { "light": "#fdf2f8", "dark": "#1f1219" }
+    }
+  }
+}

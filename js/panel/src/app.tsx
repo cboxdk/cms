@@ -1,6 +1,7 @@
 // The entry of the panel: Inertia resolves each page the server names from ./pages, and every
 // page renders inside the translations of the locale the server set on <html lang>, the panel's
-// and the kit's. The kit's stylesheets come first, layers.css before any other, so the order of
+// and the kit's. Every title ends with the installation's product name, which the server writes
+// into the application-name meta element when cbox-cms.panel.branding sets one. The kit's stylesheets come first, layers.css before any other, so the order of
 // the cascade layers is declared before a rule of any layer.
 //
 // The panel runs under a strict Content-Security-Policy with a nonce per response (GUARDRAILS 6).
@@ -16,6 +17,7 @@ import { createInertiaApp } from '@inertiajs/react';
 import type { ComponentType } from 'react';
 import { createRoot } from 'react-dom/client';
 
+import { applicationName } from './brand';
 import { localeOf, TranslationProvider, translator } from './i18n/translations';
 import { MissingPage } from './MissingPage';
 
@@ -26,6 +28,9 @@ const pages = import.meta.glob<PageModule>('./pages/**/*.tsx', { eager: true });
 const locale = localeOf(document.documentElement.lang);
 
 const t = translator(locale);
+
+/** The product name every title ends with: the installation's, or the panel's own. */
+const name = applicationName() ?? t('panel.name');
 
 function resolvePage(name: string): ComponentType {
   const page = pages[`./pages/${name}.tsx`];
@@ -59,8 +64,7 @@ const nonce = cspNonce();
 
 void createInertiaApp({
   resolve: resolvePage,
-  title: (title) =>
-    title === '' ? t('panel.name') : t('panel.title', { page: title, name: t('panel.name') }),
+  title: (title) => (title === '' ? name : t('panel.title', { page: title, name })),
   ...(nonce === undefined ? {} : { nonce }),
   progress: progress(),
   setup({ el, App, props }) {

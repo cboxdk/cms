@@ -21,6 +21,8 @@ use Cbox\Cms\Contracts\PanelPoints\Severity;
 use Cbox\Cms\Contracts\PanelPoints\SlotFill;
 use Cbox\Cms\Contracts\PanelPoints\StepPosition;
 use Cbox\Cms\Contracts\PanelPoints\Tighten;
+use Cbox\Cms\Core\PanelThemes\Domain\Dto\ThemeSelection;
+use Cbox\Cms\Core\PanelThemes\Domain\ThemeName;
 use Cbox\Cms\Core\Registry\Boundary\PanelBundles;
 use Cbox\Cms\Core\Registry\Domain\BuildErrorCode;
 use Cbox\Cms\Core\Registry\Domain\Dto\BuildProblem;
@@ -181,6 +183,14 @@ function panelFailures(): array
         'a #[PanelPoint] without a stability attribute' => ['registry_panel_point_without_stability', static fn (): array => PanelBuildWorld::refused(PanelBuildWorld::addons([]), roots: new ScanRoots(RegistryFixtures::root('PanelPointWithoutStability')))],
         'an older version of a point without a downcast' => ['registry_panel_point_without_downcast', static fn (): array => PanelBuildWorld::refused(PanelBuildWorld::addons([]), roots: new ScanRoots(RegistryFixtures::root('PanelPointWithoutDowncast')))],
         'contributions that need a newer panel API' => ['registry_incompatible_panel_api', static fn (): array => PanelBuildWorld::refused(PanelBuildWorld::addons([PanelBuildWorld::manifest([], sdk: new PanelApiVersion(PanelApiVersion::CURRENT_MAJOR + 1, 0))]))],
+        'a selected theme the addon does not ship' => ['registry_panel_theme_invalid', static fn (): array => PanelBuildWorld::refused(
+            PanelBuildWorld::addons([PanelBuildWorld::manifest([])]),
+            PanelBuildWorld::settings(themes: new ThemeSelection([new ThemeName('approvals:pale')])),
+        )],
+        'selected themes that compose below AA' => ['registry_panel_theme_contrast', static fn (): array => PanelBuildWorld::refused(
+            PanelBuildWorld::addons([PanelBuildWorld::manifest([], themes: ['pale' => array_key_first(PanelBuildWorld::THEMES)])]),
+            PanelBuildWorld::settings(themes: new ThemeSelection([new ThemeName('approvals:pale')])),
+        )],
         'an addon the installation\'s allowlist does not name' => ['registry_addon_not_allowed', static fn (): array => PanelBuildWorld::refused(PanelBuildWorld::addons([PanelBuildWorld::manifest([])]), PanelBuildWorld::settings(allowed: [PanelBuildWorld::STAMPS]))],
     ];
 }

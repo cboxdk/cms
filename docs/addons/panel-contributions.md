@@ -20,6 +20,7 @@ An addon adds to the panel through the `panel` member of its [manifest](manifest
 | `bundle` | The absolute directory of the addon's prebuilt bundle, which holds `panel-manifest.json`, or null when no contribution runs code. |
 | `acceptsExperimental` | The ids of the experimental points the addon contributes to, such as `account.me.sections@1`, each once. An experimental point may change in a minor release of the panel API, so the addon opts in to each. |
 | `contributions` | The contributions, each a `PanelContribution`. |
+| `themes` | The addon's themes of token values by a local name, each the absolute path of its JSON file, such as `['brand' => __DIR__.'/../resources/panel/theme.json']`. The installation selects one as `<namespace>:<name>`; a theme nothing selects has no effect. See [Branding and theming the panel](../developers/panel-branding.md#themes). |
 
 The capabilities that go with it are in `AddonCapabilities`: `issues`, the command classes the addon's UI may run, and `uiTheme`, whether it may ship a theme ([manifest](manifest.md#capabilities)).
 
@@ -67,10 +68,12 @@ A build with any of these writes nothing and exits 65, listing every problem ([e
 | `registry_panel_replacement_conflict` | Two replacements claim one key, and `cbox-cms.panel.replacements` names no winner. |
 | `registry_panel_bundle_invalid` | The bundle does not match: see below. |
 | `registry_panel_override_invalid` | `cbox-cms.panel.contributions` or `cbox-cms.panel.replacements` is malformed or names what the build does not have. |
+| `registry_panel_theme_invalid` | The addon ships a theme without `uiTheme`, or a selected theme of it cannot be read or is not of the theme's form. |
+| `registry_panel_theme_contrast` | The selected themes, composed, draw a contrast pair of the token catalogue below WCAG 2.2 AA. |
 
 The JSON Schemas the checks read are each command's and query's, from their generated codecs, and the props schema of each point, `<name>.v<version>.json` in the directories the modules that declare points register as a `PointSchemaDirectory` under `PointSchemaDirectory::TAG`; the panel registers `packages/panel/resources/schemas/points`.
 
-The build still writes the registry, and prints a warning with its code, for every contribution to an experimental point (`registry_panel_point_experimental`) and to a deprecated one (`registry_panel_point_deprecated`, with the release it goes in and its replacement).
+The build still writes the registry, and prints a warning with its code, for every contribution to an experimental point (`registry_panel_point_experimental`), to a deprecated one (`registry_panel_point_deprecated`, with the release it goes in and its replacement), and for each token more than one selected theme sets (`registry_panel_theme_overlap`).
 
 ## The bundle
 

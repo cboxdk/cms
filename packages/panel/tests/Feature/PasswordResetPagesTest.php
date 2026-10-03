@@ -8,6 +8,7 @@ use Cbox\Cms\Identity\PasswordReset\Actions\RequestPasswordReset;
 use Cbox\Cms\Identity\Tests\Login\LocalLoginWorld;
 use Cbox\Cms\Identity\Tests\PasswordReset\PasswordResetWorld;
 use Cbox\Cms\Identity\Tests\Sessions\SessionWorld;
+use Cbox\Cms\Panel\Boundary\PanelBrandProps;
 use Cbox\Cms\Panel\Boundary\PanelSessions;
 use Cbox\Cms\Panel\Boundary\PasswordResetForms;
 use Cbox\Cms\Panel\Tests\FixtureBuild;
@@ -218,7 +219,7 @@ final class PasswordResetPagesTest extends TestCase
             self::fail('The response rendered no Inertia page.');
         }
 
-        unset($props['errors'], $props['problem']);
+        unset($props['errors'], $props['problem'], $props[PanelBrandProps::PROP]);
         $json = json_decode(json_encode($props, JSON_THROW_ON_ERROR), true, 16, JSON_THROW_ON_ERROR);
 
         return is_array($json) ? $json : self::fail('The props are not an object.');

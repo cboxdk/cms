@@ -17,7 +17,8 @@ use Override;
  * one in full instead of mixing the two (Inertia answers 409 and the client reloads). Every page
  * gets Inertia's `errors` prop and flash data from Laravel's session, and the prop `problem`, the
  * problem details of a command the Inertia profile rejected, which InertiaOutcome flashed for the
- * page the redirect renders, null on every other page. It sits in Boundary because the props it
+ * page the redirect renders, null on every other page, and the prop brand, the installation's
+ * name and logos (PanelBrandProps, brand.v1.json). It sits in Boundary because the props it
  * shares are untyped values of Laravel's session.
  */
 #[Internal]
@@ -30,7 +31,10 @@ final class HandlePanelRequests extends Middleware
     #[Override]
     protected $rootView = self::ROOT_VIEW;
 
-    public function __construct(private readonly PanelBuild $build) {}
+    public function __construct(
+        private readonly PanelBuild $build,
+        private readonly PanelBrandProps $brand,
+    ) {}
 
     #[Override]
     public function version(Request $request): string
@@ -47,6 +51,7 @@ final class HandlePanelRequests extends Middleware
         return [
             ...parent::share($request),
             InertiaOutcome::PROBLEM_PROP => $request->hasSession() ? $request->session()->get(InertiaOutcome::PROBLEM) : null,
+            PanelBrandProps::PROP => $this->brand->props(),
         ];
     }
 }

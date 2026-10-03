@@ -22,6 +22,7 @@ use Cbox\Cms\Identity\Doctor\Domain\Probes\LoginPolicyProbe;
 use Cbox\Cms\Identity\Doctor\Domain\Probes\PasswordHashingProbe;
 use Cbox\Cms\Identity\Doctor\Domain\Probes\SessionCookieProbe;
 use Cbox\Cms\Identity\IdentityServiceProvider;
+use Cbox\Cms\Panel\PanelServiceProvider;
 use Illuminate\Config\Repository;
 use Illuminate\Database\Migrations\Migrator;
 
@@ -42,12 +43,12 @@ it('loads the migrations of the credential store', function (): void {
     expect(array_map(realpath(...), app(Migrator::class)->paths()))->toContain(realpath(__DIR__.'/../database/migrations'));
 });
 
-it('adds its five checks to cms:doctor in front of the ones the application names, and runs them after the core\'s', function (): void {
+it('adds its five checks to cms:doctor in front of the ones the application names, and runs them after the core\'s, before the panel module\'s', function (): void {
     $ids = array_map(static fn (DoctorCheck $check): string => $check->id()->value, app(DoctorChecks::class)->for(new DoctorRunOptions(dev: false)));
 
-    expect(config('cbox-cms.doctor.checks'))->toBe(IdentityServiceProvider::DOCTOR_CHECKS)
+    expect(config('cbox-cms.doctor.checks'))->toBe([...IdentityServiceProvider::DOCTOR_CHECKS, ...PanelServiceProvider::DOCTOR_CHECKS])
         ->and(IdentityServiceProvider::DOCTOR_CHECKS)->toBe([IdentityConnectionCheck::class, CredentialIsolationCheck::class, Argon2idCheck::class, SessionCookieCheck::class, LoginPolicyCheck::class])
-        ->and(array_slice($ids, -5))->toBe([IdentityConnectionCheck::ID, CredentialIsolationCheck::ID, Argon2idCheck::ID, SessionCookieCheck::ID, LoginPolicyCheck::ID])
+        ->and(array_slice($ids, -6, 5))->toBe([IdentityConnectionCheck::ID, CredentialIsolationCheck::ID, Argon2idCheck::ID, SessionCookieCheck::ID, LoginPolicyCheck::ID])
         ->and($ids)->toContain('postgres.reachable')
         ->and(app(CredentialStoreProbe::class))->toBeInstanceOf(ConnectionCredentialStoreProbe::class)
         ->and(app(PasswordHashingProbe::class))->toBeInstanceOf(PhpPasswordHashingProbe::class)
