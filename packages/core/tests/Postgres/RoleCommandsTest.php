@@ -54,10 +54,11 @@ use PHPUnit\Framework\AssertionFailedError;
  * role.create and role.set_permissions on Postgres (PRD 5.10, 6.4, invariant 31): the real
  * pipeline, authorizer, escalation guard, commit and writers as the app role, over AccessWorld.
  * ALICE holds the role commands on ROOT besides her desk role (entry.create and entry.revise) on
- * NEWS less SPORT but FOOTBALL. The role reviewer (entry.revise) is granted to CAROL on NEWS and to
- * BOB on FOOTBALL. A change of its permissions commits one changeset that moves the role and both
- * grants, with grant.changed for each holder, and the kernel's command authorizer then allows CAROL
- * the added command. The guard refuses what ALICE does not hold where the role is granted, and a
+ * NEWS less SPORT but FOOTBALL. The role reviewer (entry.revise) is granted to CAROL and to BOB on
+ * FOOTBALL. A change of its permissions commits one changeset that moves the role and both grants,
+ * with grant.changed for each holder, and the kernel's command authorizer then allows CAROL the
+ * added command. The guard refuses what ALICE does not hold where the role is granted, also below
+ * the node of a grant (CAROL's on NEWS reaches SPORT, where ALICE's desk role is denied), and a
  * change that makes the granted role administrative. The app role writes no role itself, and the
  * owner functions that do refuse to run outside their command's changeset.
  */
@@ -75,7 +76,7 @@ afterEach(function (): void {
 /**
  * @return array{GrantWorld, RoleId, list<GrantId>}
  */
-function roleCommandsWorld(): array
+function roleCommandsWorld(string $carolNode = AccessWorld::FOOTBALL): array
 {
     AccessWorld::seed();
     $world = new GrantWorld;
@@ -88,7 +89,7 @@ function roleCommandsWorld(): array
     $reviewer = $fixtures->role('reviewer', ClassificationAccess::Internal, $names('entry.revise'));
 
     return [$world, $reviewer, [
-        $fixtures->grant(ActorId::fromString(ROLE_CAROL), $reviewer, NodeId::fromString(AccessWorld::NEWS)),
+        $fixtures->grant(ActorId::fromString(ROLE_CAROL), $reviewer, NodeId::fromString($carolNode)),
         $fixtures->grant(ActorId::fromString(AccessWorld::BOB), $reviewer, NodeId::fromString(AccessWorld::FOOTBALL)),
     ]];
 }
@@ -117,7 +118,7 @@ function reviewerPermissions(RoleId $role, array $permissions, int $version = 1)
 }
 
 /**
- * Whether the kernel's command authorizer lets CAROL run the command on NEWS.
+ * Whether the kernel's command authorizer lets CAROL run the command on FOOTBALL.
  */
 function carolMay(string $command): Authorization
 {
@@ -126,8 +127,8 @@ function carolMay(string $command): Authorization
     return AuthorizerWorld::within($carol, static fn (AccessContext $access): Authorization => app(CommandAuthorizer::class)->authorize(
         $access,
         new CommandName($command),
-        new RenameProbe(EntryId::fromString(AccessWorld::ENTRY_NEWS), TypeId::fromString(AccessWorld::TYPE), NodeId::fromString(AccessWorld::NEWS), new FieldValues),
-        new ScopedAggregates(AuthorizationScope::on(new AuthorizationTarget(NodeId::fromString(AccessWorld::NEWS)))),
+        new RenameProbe(EntryId::fromString(AccessWorld::ENTRY_FOOTBALL), TypeId::fromString(AccessWorld::TYPE), NodeId::fromString(AccessWorld::FOOTBALL), new FieldValues),
+        new ScopedAggregates(AuthorizationScope::on(new AuthorizationTarget(NodeId::fromString(AccessWorld::FOOTBALL)))),
         Envelope::external(IssuingSurface::Rest, EnvelopeIssuer::Human, $carol->actor, new IdempotencyKey('carol-may'), new CorrelationId('carol-may')),
     ));
 }
@@ -141,7 +142,7 @@ it('sets a role\'s permissions in one changeset with grant.changed for each hold
     $superuser = StorageTables::superuser();
     $payload = static fn (string $actor, string $node): string => sprintf('{"node": {"identifier": "%s"}, "role": {"identifier": "%s"}, "actor": {"identifier": "%s"}}', $node, $reviewer->toString(), $actor);
     $expectedEvents = [
-        $grants[0]->toString().' 2 grant.changed 1 '.$payload(ROLE_CAROL, AccessWorld::NEWS),
+        $grants[0]->toString().' 2 grant.changed 1 '.$payload(ROLE_CAROL, AccessWorld::FOOTBALL),
         $grants[1]->toString().' 2 grant.changed 1 '.$payload(AccessWorld::BOB, AccessWorld::FOOTBALL),
     ];
     sort($expectedEvents);
@@ -202,6 +203,18 @@ it('refuses to add what the issuer lacks where the role is granted, and a change
     expect(roleErrors($escalation))->toBe(['grant_escalation_refused'])
         ->and(roleErrors($administrative))->toBe(['step_up_required'])
         ->and(roleErrors($stale))->toBe(['version_conflict'])
+        ->and(StorageTables::texts($superuser, 'select concat_ws(\' \', handle, version) as value from roles where id = ?', [$reviewer->toString()]))->toBe(['reviewer 1'])
+        ->and(StorageTables::texts($superuser, 'select command as value from role_permissions where role_id = ?', [$reviewer->toString()]))->toBe(['entry.revise']);
+});
+
+it('refuses to add a permission the issuer holds on a node where the role is granted but not on a node below it, and writes nothing', function (): void {
+    [$world, $reviewer] = roleCommandsWorld(AccessWorld::NEWS);
+
+    $escalation = $world->run(AccessWorld::alice(), reviewerPermissions($reviewer, ['entry.revise', 'entry.create']), 'set-below');
+    $superuser = StorageTables::superuser();
+
+    expect(roleErrors($escalation))->toBe(['grant_escalation_refused'])
+        ->and($escalation->errors[0]->message)->toContain('below the node '.AccessWorld::NEWS)
         ->and(StorageTables::texts($superuser, 'select concat_ws(\' \', handle, version) as value from roles where id = ?', [$reviewer->toString()]))->toBe(['reviewer 1'])
         ->and(StorageTables::texts($superuser, 'select command as value from role_permissions where role_id = ?', [$reviewer->toString()]))->toBe(['entry.revise']);
 });

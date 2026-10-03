@@ -42,7 +42,9 @@ use PHPUnit\Framework\AssertionFailedError;
  * grant.assign and grant.revoke on ROOT besides her desk role (entry.create and entry.revise) on
  * NEWS less SPORT but FOOTBALL; CAROL is an active staff actor with no grant. An assign commits one
  * changeset with its audit row and grant.changed, and the access resolver gives CAROL the new
- * region; a revoke commits one more, and CAROL reaches nothing again. The app role writes no grant
+ * region; a revoke commits one more, and CAROL reaches nothing again. ALICE may give the desk's
+ * rights on FOOTBALL, but not on NEWS, whose subtree holds SPORT, to anyone, herself included, and
+ * may not revoke a deny on NEWS, which would give them back on SPORT. The app role writes no grant
  * itself, and the owner functions that do refuse to run outside their command's changeset.
  */
 
@@ -83,9 +85,9 @@ function grantWorld(): array
     ]];
 }
 
-function assignTo(string $actor, RoleId $role, string $grant = GRANT_ID): AssignGrant
+function assignTo(string $actor, RoleId $role, string $grant = GRANT_ID, string $node = AccessWorld::FOOTBALL, GrantEffect $effect = GrantEffect::Allow): AssignGrant
 {
-    return new AssignGrant(GrantId::fromString($grant), ActorId::fromString($actor), $role, NodeId::fromString(AccessWorld::NEWS), GrantEffect::Allow);
+    return new AssignGrant(GrantId::fromString($grant), ActorId::fromString($actor), $role, NodeId::fromString($node), $effect);
 }
 
 function grantChangeset(WriteResult $result): string
@@ -132,12 +134,12 @@ it('assigns and revokes a grant, one changeset each with its audit row and grant
     $changesets = [grantChangeset($assigned), grantChangeset($revoked)];
     $superuser = StorageTables::superuser();
     $in = ['{'.implode(',', $changesets).'}'];
-    $grant = sprintf('{"node": {"identifier": "%s"}, "role": {"identifier": "%s"}, "actor": {"identifier": "%s"}}', AccessWorld::NEWS, $roles['reviewer']->toString(), GRANT_CAROL);
+    $grant = sprintf('{"node": {"identifier": "%s"}, "role": {"identifier": "%s"}, "actor": {"identifier": "%s"}}', AccessWorld::FOOTBALL, $roles['reviewer']->toString(), GRANT_CAROL);
 
     expect($assigned->outcome())->toBe(Outcome::Committed)
         ->and($revoked->outcome())->toBe(Outcome::Committed)
         ->and($before)->toBe([])
-        ->and($afterAssign)->toBe([AccessWorld::path(AccessWorld::ROOT, AccessWorld::NEWS)])
+        ->and($afterAssign)->toBe([AccessWorld::path(AccessWorld::ROOT, AccessWorld::NEWS, AccessWorld::SPORT, AccessWorld::FOOTBALL)])
         ->and(carolRegions())->toBe([])
         ->and(StorageTables::texts($superuser, 'select concat_ws(\' \', command, actor_id) as value from changesets where changeset_id = any(?::uuid[]) order by changeset_id', $in))
         ->toBe(['grant.assign '.AccessWorld::ALICE, 'grant.revoke '.AccessWorld::ALICE])
@@ -146,7 +148,26 @@ it('assigns and revokes a grant, one changeset each with its audit row and grant
         ->and(StorageTables::texts($superuser, 'select concat_ws(\' \', aggregate_id, aggregate_version, type, type_version, data::text) as value from events where changeset_id = any(?::uuid[]) order by event_id', $in))
         ->toBe([GRANT_ID.' 1 grant.changed 1 '.$grant, GRANT_ID.' 2 grant.changed 1 '.$grant])
         ->and(StorageTables::texts($superuser, 'select concat_ws(\' \', actor_id, role_id, node_id, effect, version, ended_changeset_id) as value from grants where id = ?', [GRANT_ID]))
-        ->toBe([implode(' ', [GRANT_CAROL, $roles['reviewer']->toString(), AccessWorld::NEWS, 'allow', 2, $changesets[1]])]);
+        ->toBe([implode(' ', [GRANT_CAROL, $roles['reviewer']->toString(), AccessWorld::FOOTBALL, 'allow', 2, $changesets[1]])]);
+});
+
+it('refuses to give a role on a node whose subtree holds a node where the issuer is denied it, to another actor or to herself, and to revoke a deny there', function (): void {
+    [$world, $roles] = grantWorld();
+    $alice = AccessWorld::alice();
+
+    $toCarol = $world->run($alice, assignTo(GRANT_CAROL, $roles['reviewer'], node: AccessWorld::NEWS), 'assign-news');
+    $toAlice = $world->run($alice, assignTo(AccessWorld::ALICE, $roles['reviewer'], node: AccessWorld::NEWS), 'assign-self');
+    $deny = $world->run($alice, assignTo(GRANT_CAROL, $roles['reviewer'], node: AccessWorld::NEWS, effect: GrantEffect::Deny), 'deny-news');
+    $revoke = $world->run($alice, new RevokeGrant(GrantId::fromString(GRANT_ID), AggregateVersion::first()), 'revoke-deny-news');
+    $superuser = StorageTables::superuser();
+
+    expect(grantErrors($toCarol))->toBe(['grant_escalation_refused'])
+        ->and($toCarol->errors[0]->message)->toContain('below the node '.AccessWorld::NEWS)
+        ->and(grantErrors($toAlice))->toBe(['grant_escalation_refused'])
+        ->and($deny->outcome())->toBe(Outcome::Committed)
+        ->and(grantErrors($revoke))->toBe(['grant_escalation_refused'])
+        ->and(StorageTables::texts($superuser, 'select concat_ws(\' \', actor_id, node_id, effect, version) as value from grants where role_id = ? order by id', [$roles['reviewer']->toString()]))
+        ->toBe([implode(' ', [GRANT_CAROL, AccessWorld::NEWS, 'deny', 1])]);
 });
 
 it('refuses an escalation, an administrative role, a pending actor and a role held on the node already, and writes nothing', function (): void {

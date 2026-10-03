@@ -22,12 +22,16 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\Authorization;
  * command's own permission, with the issuing actor's grants and their roles' permissions, and the
  * same for each actor the issuer acts on behalf of.
  *
- * The issuer must itself hold every permission of the role on the node, in each of the grant's
- * locales, or in every locale for a grant without a locale set, as the PermissionRule reaches it:
- * through a role whose permissions name it, whose nearest grant above the node, or on it, allows.
- * Its classification access on the node must not be below the role's ceiling: on the node, in each
- * of those locales, the highest ceiling among its roles that reach it, capped by the credential's
- * ceiling. Otherwise the grant is refused with grant_escalation_refused.
+ * A grant on a node gives the role on the node's whole subtree, so the issuer is held to the whole
+ * subtree too. It must itself hold every permission of the role on the node and on every node below
+ * it, in each of the grant's locales, or in every locale for a grant without a locale set, as the
+ * PermissionRule reaches it: through a role whose permissions name it, whose nearest grant above the
+ * node, or on it, allows. A deny of the issuer's below the node, not allowed again deeper by another
+ * of its roles, therefore refuses the grant. Its classification access must not be below the role's
+ * ceiling anywhere in the subtree: on each node, in each of those locales, the highest ceiling among
+ * its roles that reach it, capped by the credential's ceiling. Otherwise the grant is refused with
+ * grant_escalation_refused. The issuer's reach changes only on the nodes of its own grants, so the
+ * node and the nodes of its grants strictly below it are the nodes that decide the subtree.
  *
  * A role is administrative when one of its permissions is a command, a write, that changes roles,
  * grants, the identity mapping, connections or who is active, as AdministrativePermissions decides
@@ -66,13 +70,15 @@ final readonly class EscalationGuard
             $permitted = $this->permitted($held, $permission);
 
             foreach ($locales as $locale) {
-                if (! $this->rule->reaches($permitted, $node, $locale)) {
+                $missing = $this->unreached($permitted, $node, $locale);
+
+                if ($missing instanceof NodePath) {
                     return Authorization::refuse(sprintf(
-                        'The role %s may run %s, and %s does not hold it on the node %s %s, so it may not give the role there (invariant 31).',
+                        'The role %s may run %s, and %s does not hold it %s %s, so it may not give the role there (invariant 31).',
                         $grant->role->toString(),
                         $permission->value,
                         $whose,
-                        $grant->node->toString(),
+                        $this->on($grant->node->toString(), $node, $missing),
                         $this->where($locale),
                     ), ErrorCode::GrantEscalationRefused);
                 }
@@ -83,7 +89,7 @@ final readonly class EscalationGuard
 
         if (! $access->allows($grant->ceiling)) {
             return Authorization::refuse(sprintf(
-                'The role %s reads up to %s, above the %s classification access %s has on the node %s, so it may not give the role there (invariant 31).',
+                'The role %s reads up to %s, above the %s classification access %s has on the node %s or below it, so it may not give the role there (invariant 31).',
                 $grant->role->toString(),
                 $grant->ceiling->value,
                 $access->value,
@@ -123,8 +129,8 @@ final readonly class EscalationGuard
     /**
      * Whether the issuer, with the grants it holds, may change what the role gives (PRD 5.10,
      * invariant 31): it must itself hold each permission the change adds on every node where an
-     * allow of the role has not ended, in that grant's locales, or in every locale for a grant
-     * without a locale set. A node whose path the issuer may not read is one where it holds
+     * allow of the role has not ended, and on every node below it, in that grant's locales, or in
+     * every locale for a grant without a locale set. A node whose path the issuer may not read is one where it holds
      * nothing. A change that makes a granted role administrative needs step-up, which is not built
      * yet, so it is refused with step_up_required.
      *
@@ -152,13 +158,16 @@ final readonly class EscalationGuard
                 $permitted = $this->permitted($held, $permission);
 
                 foreach ($grant->locales ?? [null] as $locale) {
-                    if (! $this->rule->reaches($permitted, $node, $locale)) {
+                    $missing = $this->unreached($permitted, $node, $locale);
+
+                    if ($missing instanceof NodePath) {
                         return Authorization::refuse(sprintf(
-                            'The role %s is granted on the node %s, and %s does not hold %s there %s, so it may not add it to the role (invariant 31).',
+                            'The role %s is granted on the node %s, and %s does not hold %s %s %s, so it may not add it to the role (invariant 31).',
                             $change->role->toString(),
                             $grant->node->toString(),
                             $whose,
                             $permission->value,
+                            $this->on($grant->node->toString(), $node, $missing),
                             $this->where($locale),
                         ), ErrorCode::GrantEscalationRefused);
                     }
@@ -206,9 +215,49 @@ final readonly class EscalationGuard
     }
 
     /**
-     * The issuer's classification access on the node: in each locale, the highest ceiling among
-     * its roles that reach the node there, and the lowest of those over the locales; public when a
-     * locale has none.
+     * The first node of the subtree below the node, the node included, that the grants do not
+     * reach in the locale; null when they reach all of it. The reach of the grants changes only on
+     * their own nodes, so the node and the nodes of the grants strictly below it decide.
+     *
+     * @param  list<Grant>  $grants
+     */
+    private function unreached(array $grants, NodePath $node, ?Locale $locale): ?NodePath
+    {
+        foreach ($this->deciding($grants, $node) as $point) {
+            if (! $this->rule->reaches($grants, $point, $locale)) {
+                return $point;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The node, then the nodes of the grants strictly below it, each once, by path.
+     *
+     * @param  list<Grant>  $grants
+     * @return list<NodePath>
+     */
+    private function deciding(array $grants, NodePath $node): array
+    {
+        $points = [$node->value => $node];
+
+        foreach ($grants as $grant) {
+            if ($node->isAbove($grant->node)) {
+                $points[$grant->node->value] ??= $grant->node;
+            }
+        }
+
+        $below = array_slice($points, 1);
+        ksort($below, SORT_STRING);
+
+        return [$node, ...array_values($below)];
+    }
+
+    /**
+     * The issuer's classification access on the node's subtree: on each node of it, in each
+     * locale, the highest ceiling among its roles that reach the node there, and the lowest of
+     * those over the nodes and the locales; public when one has none.
      *
      * @param  list<HeldGrant>  $held
      * @param  list<Locale|null>  $locales
@@ -216,26 +265,40 @@ final readonly class EscalationGuard
     private function access(array $held, NodePath $node, array $locales): ClassificationAccess
     {
         $byRole = [];
+        $all = [];
 
         foreach ($held as $grant) {
             $byRole[$grant->grant->role->toString()][] = $grant->grant;
+            $all[] = $grant->grant;
         }
 
         $lowest = null;
 
-        foreach ($locales as $locale) {
-            $highest = ClassificationAccess::Public;
+        foreach ($this->deciding($all, $node) as $point) {
+            foreach ($locales as $locale) {
+                $highest = ClassificationAccess::Public;
 
-            foreach ($byRole as $grants) {
-                if ($grants[0]->roleCeiling->rank() > $highest->rank() && $this->rule->reaches($grants, $node, $locale)) {
-                    $highest = $grants[0]->roleCeiling;
+                foreach ($byRole as $grants) {
+                    if ($grants[0]->roleCeiling->rank() > $highest->rank() && $this->rule->reaches($grants, $point, $locale)) {
+                        $highest = $grants[0]->roleCeiling;
+                    }
                 }
-            }
 
-            $lowest = $lowest === null ? $highest : $lowest->atMost($highest);
+                $lowest = $lowest === null ? $highest : $lowest->atMost($highest);
+            }
         }
 
         return $lowest ?? ClassificationAccess::Public;
+    }
+
+    /**
+     * Where the issuer lacks a permission, for the reason: on the node, or below it.
+     */
+    private function on(string $id, NodePath $node, NodePath $missing): string
+    {
+        return $missing->equals($node)
+            ? 'on the node '.$id
+            : sprintf('on the node %s below the node %s', $missing->value, $id);
     }
 
     private function where(?Locale $locale): string

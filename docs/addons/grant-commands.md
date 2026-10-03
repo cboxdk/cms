@@ -114,8 +114,8 @@ An actor holds a role on a node once: a second grant of the same role on the sam
 An actor can only give the roles it holds itself, on the nodes where it holds them (PRD 5.10, invariant 31). The kernel's authorize step holds both commands to that:
 
 1. The issuing actor needs `grant.assign`, or `grant.revoke`, on the grant's node in each of its locales, or in every locale. Without it the command is `unauthorized`.
-2. For an allow, the issuing actor must itself hold every permission of the role on the node, in each of the grant's locales: through a role of its own whose permissions name it and whose nearest grant above the node, or on it, allows. Holding it on a sibling node, or only in another locale, is not enough.
-3. Its classification access on the node must not be below the role's ceiling: in each locale, the highest ceiling among its roles that reach the node, capped by its credential's ceiling.
+2. For an allow, the issuing actor must itself hold every permission of the role on the node and on every node below it, because the grant gives the role on the node's whole subtree, in each of the grant's locales: through a role of its own whose permissions name it and whose nearest grant above the node, or on it, allows. Holding it on a sibling node, or only in another locale, is not enough, and neither is holding it on the node with a deny of its own below it that no deeper grant allows again.
+3. Its classification access on the node and on every node below it must not be below the role's ceiling: in each locale, the highest ceiling among its roles that reach the node, capped by its credential's ceiling.
 
 A grant that breaks 2 or 3 is refused with `grant_escalation_refused`. A deny takes rights away and is not held to 2 and 3. Ending a deny gives back what it kept out, so `grant.revoke` of a deny is held to them as a grant of the role would be; ending an allow is not. An actor that acts on behalf of a person is held to the rules with its own grants and with the person's.
 
@@ -140,7 +140,7 @@ Whatever caches an actor's compiled access, or the credentials that act for it, 
 | Code | When |
 |---|---|
 | `unauthorized` | the issuing actor may not run the command on the grant's node in its locales |
-| `grant_escalation_refused` | the issuing actor lacks a permission of the role on the node in the grant's locales, or its classification access there is below the role's ceiling |
+| `grant_escalation_refused` | the issuing actor lacks a permission of the role on the node or below it in the grant's locales, or its classification access there is below the role's ceiling |
 | `step_up_required` | the role is administrative |
 | `validation_failed` | the actor may not get a grant, the role does not exist, the locales name one twice, the actor holds the role on the node already, or the grant has ended |
 | `version_conflict` | the grant's id exists, the grant is at another version or outside the issuing actor's regions, or something read changed before the commit |

@@ -89,7 +89,7 @@ A change of a role's content requires that the issuing actor itself holds each a
 
 1. The issuing actor needs `role.create`, or `role.set_permissions`, on some node. Without it the command is `unauthorized`.
 2. A new role's ceiling may not be above the issuing actor's classification access.
-3. For each permission role.set_permissions adds, the issuing actor must itself hold it on every node where an allow of the role has not ended, in each of that grant's locales, or in every locale for a grant without a locale set, through a role of its own whose nearest grant above the node, or on it, allows. A node the issuing actor does not reach is one where it holds nothing.
+3. For each permission role.set_permissions adds, the issuing actor must itself hold it on every node where an allow of the role has not ended and on every node below it, in each of that grant's locales, or in every locale for a grant without a locale set, through a role of its own whose nearest grant above the node, or on it, allows. A node the issuing actor does not reach is one where it holds nothing.
 
 A command that breaks 2 or 3 is refused with `grant_escalation_refused`. Taking permissions away is not held to 3, and neither is a deny of the role, which gives nothing. An actor that acts on behalf of a person is held to the rules with its own grants and with the person's.
 
@@ -115,7 +115,7 @@ A new role has no holder, so role.create writes no event. Whatever caches an act
 | Code | When |
 |---|---|
 | `unauthorized` | the issuing actor may not run the command on any node |
-| `grant_escalation_refused` | a new role's ceiling is above the issuing actor's classification access, or the issuing actor lacks an added permission on a node where the role is granted |
+| `grant_escalation_refused` | a new role's ceiling is above the issuing actor's classification access, or the issuing actor lacks an added permission on a node where the role is granted or below it |
 | `step_up_required` | the change makes a granted role administrative |
 | `validation_failed` | a name the registry does not know or a name given twice, a handle another role has, or a list equal to the role's |
 | `version_conflict` | the role's id exists, the role is at another version or does not exist, or something read changed before the commit |

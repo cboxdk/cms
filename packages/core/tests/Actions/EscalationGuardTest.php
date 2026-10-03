@@ -9,13 +9,18 @@ use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\GrantEffect;
 use Cbox\Cms\Contracts\Identity\NodePath;
+use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Ids\GrantId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\RoleId;
+use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Core\Access\Domain\AdministrativePermissions;
 use Cbox\Cms\Core\Access\Domain\Dto\Grant;
 use Cbox\Cms\Core\Access\Domain\Dto\HeldGrant;
+use Cbox\Cms\Core\Access\Domain\Dto\RoleContentChange;
 use Cbox\Cms\Core\Access\Domain\Dto\RoleGrant;
+use Cbox\Cms\Core\Access\Domain\Dto\StoredGrant;
 use Cbox\Cms\Core\Access\Domain\EscalationGuard;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\Authorization;
 use Cbox\Cms\Core\Tests\Access\Fakes\FakePermissionCatalog;
@@ -165,4 +170,63 @@ it('counts as administrative only a command the registry has, so a name that is 
         ->and(new AdministrativePermissions(new FakePermissionCatalog(['identity.map']))->is(new CommandName('identity.map')))->toBeTrue()
         ->and(new AdministrativePermissions(new FakePermissionCatalog(['actor.reactivate', 'roles.create']))->is(new CommandName('roles.create')))->toBeFalse()
         ->and(new AdministrativePermissions(new FakePermissionCatalog(['actor.reactivate']))->is(new CommandName('actor.reactivate')))->toBeTrue();
+});
+
+it('refuses a role whose permissions the issuer holds on the node but not on a node below it, and allows it where a deeper allow gives them back', function (): void {
+    $sport = guardHeld(1, 'root.news.sport', ['entry.create'], effect: GrantEffect::Deny);
+    $refusal = guardDecision([guardHeld(1, 'root.news', ['entry.create']), $sport], ['entry.create'], 'root.news');
+
+    expect($refusal->code)->toBe(ErrorCode::GrantEscalationRefused)
+        ->and($refusal->reason)->toContain('on the node root.news.sport below the node')
+        ->and(guardDecision([guardHeld(1, 'root.news', ['entry.create']), $sport], ['entry.create'], 'root.news.culture')->allowed())->toBeTrue()
+        ->and(guardDecision([guardHeld(1, 'root.news', ['entry.create']), $sport, guardHeld(2, 'root.news.sport', ['entry.create'])], ['entry.create'], 'root.news')->allowed())->toBeTrue()
+        ->and(guardDecision([guardHeld(1, 'root.news', ['entry.create']), $sport, guardHeld(1, 'root.news.sport.football', ['entry.create'])], ['entry.create'], 'root.news')->code)->toBe(ErrorCode::GrantEscalationRefused)
+        ->and(guardDecision([
+            guardHeld(1, 'root.news', ['entry.create']),
+            guardHeld(1, 'root.news.sport', ['entry.create'], effect: GrantEffect::Deny, locales: ['en']),
+        ], ['entry.create'], 'root.news', ['da'])->allowed())->toBeTrue()
+        ->and(guardDecision([
+            guardHeld(1, 'root.news', ['entry.create']),
+            guardHeld(1, 'root.news.sport', ['entry.create'], effect: GrantEffect::Deny, locales: ['en']),
+        ], ['entry.create'], 'root.news')->code)->toBe(ErrorCode::GrantEscalationRefused);
+});
+
+it('refuses an issuer that gives itself, or anyone, a new role on a node above its own deny (invariant 31)', function (): void {
+    // The issuer holds R allow on news and R deny on sport. A new role R2 with R's permission and
+    // no grants passes ceiling() and content(); giving it on news would reach sport.
+    $held = [guardHeld(1, 'root.news', ['entry.create']), guardHeld(1, 'root.news.sport', ['entry.create'], effect: GrantEffect::Deny)];
+    $created = new RoleContentChange(RoleId::fromString(GUARD_ROLE), ClassificationAccess::Internal, [new CommandName('entry.create')], [], []);
+
+    expect(new EscalationGuard(guardAdministrative())->ceiling($created, ClassificationAccess::Internal)->allowed())->toBeTrue()
+        ->and(new EscalationGuard(guardAdministrative())->content($created, [], $held)->allowed())->toBeTrue()
+        ->and(guardDecision($held, ['entry.create'], 'root.news')->code)->toBe(ErrorCode::GrantEscalationRefused);
+});
+
+it('refuses a role that reads above the issuer\'s classification access on a node below the node', function (): void {
+    $held = [
+        guardHeld(1, 'root.news', ['entry.create'], ClassificationAccess::Personal),
+        guardHeld(2, 'root.news', ['entry.create']),
+        guardHeld(1, 'root.news.sport', ['entry.create'], ClassificationAccess::Personal, GrantEffect::Deny),
+    ];
+
+    expect(guardDecision($held, ['entry.create'], 'root.news', ceiling: ClassificationAccess::Internal)->allowed())->toBeTrue()
+        ->and(guardDecision($held, ['entry.create'], 'root.news', ceiling: ClassificationAccess::Personal)->reason)->toContain('above the internal classification access')
+        ->and(guardDecision($held, ['entry.create'], 'root.news.culture', ceiling: ClassificationAccess::Personal)->allowed())->toBeTrue();
+});
+
+it('refuses to add a permission to a role granted on a node where the issuer holds it, but not on a node below it', function (): void {
+    $held = [guardHeld(1, 'root.news', ['entry.create', 'entry.publish']), guardHeld(1, 'root.news.sport', ['entry.create', 'entry.publish'], effect: GrantEffect::Deny)];
+    $node = NodeId::fromString(GUARD_NODE);
+    $change = new RoleContentChange(
+        RoleId::fromString(GUARD_ROLE),
+        null,
+        [new CommandName('entry.publish')],
+        [new StoredGrant(GrantId::fromString('01936f5e-8a2b-7c3d-9e4f-000000000803'), ActorId::fromString('01936f5e-8a2b-7c3d-9e4f-000000000804'), RoleId::fromString(GUARD_ROLE), $node, GrantEffect::Allow, null, AggregateVersion::first(), false)],
+        [new CommandName('entry.create')],
+    );
+    $refusal = new EscalationGuard(guardAdministrative())->content($change, [GUARD_NODE => new NodePath('root.news')], $held);
+
+    expect($refusal->code)->toBe(ErrorCode::GrantEscalationRefused)
+        ->and($refusal->reason)->toContain('below the node')
+        ->and(new EscalationGuard(guardAdministrative())->content($change, [GUARD_NODE => new NodePath('root.news.culture')], $held)->allowed())->toBeTrue();
 });
