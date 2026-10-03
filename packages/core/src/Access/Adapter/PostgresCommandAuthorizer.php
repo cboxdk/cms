@@ -61,7 +61,7 @@ final readonly class PostgresCommandAuthorizer implements CommandAuthorizer
     public function __construct(
         private ConnectionResolverInterface $connections,
         private PermissionRule $rule,
-        private EscalationGuard $guard = new EscalationGuard,
+        private EscalationGuard $guard,
         private ?string $connection = null,
     ) {}
 
@@ -116,7 +116,7 @@ final readonly class PostgresCommandAuthorizer implements CommandAuthorizer
     {
         $authorization = $this->guard->ceiling($content, $access->classificationAccess);
 
-        if (! $authorization->allowed() || $content->added === [] && ! $content->becomesAdministrative) {
+        if (! $authorization->allowed() || $content->added === []) {
             return $authorization;
         }
 

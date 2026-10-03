@@ -62,6 +62,6 @@ final readonly class CreateRoleAggregates implements GuardedRoleContent
     #[Override]
     public function roleContent(): RoleContentChange
     {
-        return new RoleContentChange($this->role, $this->ceiling, $this->permissions, [], false);
+        return new RoleContentChange($this->role, $this->ceiling, $this->permissions, [], []);
     }
 }

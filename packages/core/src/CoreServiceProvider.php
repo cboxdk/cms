@@ -40,6 +40,8 @@ use Cbox\Cms\Core\Access\Domain\AccessCompiler;
 use Cbox\Cms\Core\Access\Domain\AccessContexts;
 use Cbox\Cms\Core\Access\Domain\AccessListings;
 use Cbox\Cms\Core\Access\Domain\AccessResolver;
+use Cbox\Cms\Core\Access\Domain\AdministrativePermissions;
+use Cbox\Cms\Core\Access\Domain\EscalationGuard;
 use Cbox\Cms\Core\Access\Domain\GrantReader;
 use Cbox\Cms\Core\Access\Domain\PermissionCatalog;
 use Cbox\Cms\Core\Access\Domain\PermissionRule;
@@ -545,7 +547,11 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         // transaction's connection under its actor context.
         $this->app->bind(
             CommandAuthorizer::class,
-            static fn (Application $app): CommandAuthorizer => new PostgresCommandAuthorizer($app->make(ConnectionResolverInterface::class), new PermissionRule),
+            static fn (Application $app): CommandAuthorizer => new PostgresCommandAuthorizer(
+                $app->make(ConnectionResolverInterface::class),
+                new PermissionRule,
+                new EscalationGuard(new AdministrativePermissions($app->make(PermissionCatalog::class))),
+            ),
         );
         $this->app->bind(CommandHooks::class, RegistryCommandHooks::class);
         $this->app->singleton(Stopwatch::class, HrtimeStopwatch::class);

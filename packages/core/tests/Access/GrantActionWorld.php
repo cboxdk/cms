@@ -88,7 +88,7 @@ final class GrantActionWorld
     public const string ROLE = '01936f5e-8a2b-7c3d-9e4f-000000000602';
 
     /**
-     * The command and query names the world's PermissionCatalog knows.
+     * The command names the world's PermissionCatalog knows.
      *
      * @var list<string>
      */
@@ -99,10 +99,16 @@ final class GrantActionWorld
         'entry.revise',
         'grant.assign',
         'grant.revoke',
-        'path.resolve',
         'role.create',
         'role.set_permissions',
     ];
+
+    /**
+     * The query names the world's PermissionCatalog knows.
+     *
+     * @var list<string>
+     */
+    public const array QUERIES = ['grant.list', 'path.resolve', 'role.list'];
 
     public readonly FakeIdentity $identity;
 
@@ -135,8 +141,8 @@ final class GrantActionWorld
         ]));
         $this->reader = new FakeGrantReader(array_map(NodeId::fromString(...), [AccessWorld::ROOT, AccessWorld::NEWS, AccessWorld::SPORT, AccessWorld::FOOTBALL, AccessWorld::CULTURE]));
         $this->committer = new FakeChangesetCommitter;
-        $this->authorizer = FakeCommandAuthorizer::granting($this->permissions);
-        $this->catalog = new FakePermissionCatalog(self::NAMES);
+        $this->catalog = new FakePermissionCatalog(self::NAMES, self::QUERIES);
+        $this->authorizer = FakeCommandAuthorizer::granting($this->permissions, $this->catalog);
     }
 
     /**

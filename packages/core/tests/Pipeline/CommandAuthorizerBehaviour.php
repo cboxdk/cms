@@ -57,7 +57,8 @@ use PHPUnit\Framework\Attributes\Test;
  * to the guard on the role's content: a ceiling not above the context's classification access,
  * and each added permission held by the actor, and the person it acts for, on every node where an
  * allow of the role has not ended, in that grant's locales; a change that makes a granted role
- * administrative is refused for want of step-up.
+ * administrative is refused for want of step-up. Only a command that changes roles, grants or
+ * who is active makes a role administrative; role.list and grant.list only read.
  *
  * The tree is AccessWorld's: ROOT, with NEWS, SPORT below it and FOOTBALL below that, and CULTURE.
  * The actor of each test holds only the grants the test gives it.
@@ -267,6 +268,16 @@ trait CommandAuthorizerBehaviour
     }
 
     #[Test]
+    public function it_lets_an_actor_that_holds_them_give_a_role_that_may_only_read_roles_and_grants(): void
+    {
+        $actor = $this->grantedActor([
+            ['grantor', ['grant.assign', 'role.list', 'grant.list'], AccessWorld::ROOT, GrantEffect::Allow, null],
+        ]);
+
+        Assert::assertTrue($this->giving($actor, ['role.list', 'grant.list'], AccessWorld::NEWS)->allowed());
+    }
+
+    #[Test]
     public function it_holds_an_actor_on_behalf_of_a_person_to_the_person_s_permissions_too(): void
     {
         $person = $this->grantedActor([
@@ -328,13 +339,15 @@ trait CommandAuthorizerBehaviour
     public function it_refuses_a_change_that_makes_a_granted_role_administrative_for_want_of_step_up(): void
     {
         $actor = $this->grantedActor([
-            ['roles', ['role.set_permissions', 'grant.assign', 'actor.deactivate'], AccessWorld::ROOT, GrantEffect::Allow, null],
+            ['roles', ['role.set_permissions', 'grant.assign', 'actor.deactivate', 'role.list', 'grant.list'], AccessWorld::ROOT, GrantEffect::Allow, null],
         ]);
 
-        Assert::assertSame(ErrorCode::StepUpRequired, $this->changing($actor, ['grant.assign'], [[AccessWorld::NEWS, GrantEffect::Allow, null]], administrative: true)->code);
-        Assert::assertSame(ErrorCode::StepUpRequired, $this->changing($actor, [], [[AccessWorld::NEWS, GrantEffect::Allow, null]], administrative: true)->code);
-        Assert::assertTrue($this->changing($actor, ['actor.deactivate'], [], administrative: true)->allowed());
-        Assert::assertTrue($this->changing($actor, ['actor.deactivate'], [[AccessWorld::NEWS, GrantEffect::Deny, null]], administrative: true)->allowed());
+        Assert::assertSame(ErrorCode::StepUpRequired, $this->changing($actor, ['grant.assign'], [[AccessWorld::NEWS, GrantEffect::Allow, null]])->code);
+        Assert::assertSame(ErrorCode::StepUpRequired, $this->changing($actor, ['actor.deactivate'], [[AccessWorld::NEWS, GrantEffect::Allow, null]], previous: ['entry.create', 'role.list'])->code);
+        Assert::assertTrue($this->changing($actor, ['grant.assign'], [[AccessWorld::NEWS, GrantEffect::Allow, null]], previous: ['grant.revoke'])->allowed());
+        Assert::assertTrue($this->changing($actor, ['role.list', 'grant.list'], [[AccessWorld::NEWS, GrantEffect::Allow, null]])->allowed());
+        Assert::assertTrue($this->changing($actor, ['actor.deactivate'], [])->allowed());
+        Assert::assertTrue($this->changing($actor, ['actor.deactivate'], [[AccessWorld::NEWS, GrantEffect::Deny, null]])->allowed());
     }
 
     #[Test]
@@ -439,8 +452,9 @@ trait CommandAuthorizerBehaviour
      *
      * @param  list<string>  $added
      * @param  list<array{string, GrantEffect, list<string>|null}>  $grants
+     * @param  list<string>  $previous  the role's permissions before the change
      */
-    private function changing(Principal $principal, array $added, array $grants, bool $administrative = false, ?ClassificationAccess $ceiling = null, string $command = 'role.set_permissions'): Authorization
+    private function changing(Principal $principal, array $added, array $grants, ?ClassificationAccess $ceiling = null, string $command = 'role.set_permissions', array $previous = []): Authorization
     {
         $role = RoleId::fromString('0192a0c0-0000-7000-8000-000000000998');
         $stored = [];
@@ -458,7 +472,7 @@ trait CommandAuthorizerBehaviour
             );
         }
 
-        $change = new RoleContentChange($role, $ceiling, array_map(static fn (string $name): CommandName => new CommandName($name), $added), $stored, $administrative);
+        $change = new RoleContentChange($role, $ceiling, array_map(static fn (string $name): CommandName => new CommandName($name), $added), $stored, array_map(static fn (string $name): CommandName => new CommandName($name), $previous));
         $input = new RenameProbe(
             EntryId::fromString('0192a0c0-0000-7000-8000-0000000000d1'),
             TypeId::fromString(AccessWorld::TYPE),

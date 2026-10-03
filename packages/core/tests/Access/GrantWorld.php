@@ -119,7 +119,7 @@ final readonly class GrantWorld
         $directory = new PostgresActorDirectory($this->connections);
         $receipts = new PostgresReceiptStore($this->connections, $this->clock);
         $reader = new PostgresGrantReader($this->connections);
-        $catalog = new FakePermissionCatalog(GrantActionWorld::NAMES);
+        $catalog = new FakePermissionCatalog(GrantActionWorld::NAMES, GrantActionWorld::QUERIES);
 
         return new CommandPipeline(
             new FakeWriteActions([

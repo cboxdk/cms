@@ -10,7 +10,6 @@ use Cbox\Cms\Contracts\Ids\RoleId;
 use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersions;
-use Cbox\Cms\Core\Access\Domain\EscalationGuard;
 use Cbox\Cms\Core\Access\Domain\GuardedRoleContent;
 use Cbox\Cms\Core\Access\Domain\RoleGrantsRef;
 use Override;
@@ -62,8 +61,9 @@ final readonly class SetRolePermissionsAggregates implements GuardedRoleContent
     }
 
     /**
-     * The permissions the change adds, the role's grants, and whether the change makes it
-     * administrative; null for a role that was not read.
+     * The permissions the change adds, the role's grants, and the permissions it held, from which
+     * the guard decides whether the change makes it administrative; null for a role that was not
+     * read.
      */
     #[Override]
     public function roleContent(): ?RoleContentChange
@@ -77,7 +77,7 @@ final readonly class SetRolePermissionsAggregates implements GuardedRoleContent
             null,
             $this->added(),
             $this->grants->grants,
-            ! EscalationGuard::administrative($this->stored->permissions) && EscalationGuard::administrative($this->permissions),
+            $this->stored->permissions,
         );
     }
 

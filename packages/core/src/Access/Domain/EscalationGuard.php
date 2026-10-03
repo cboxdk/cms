@@ -29,10 +29,12 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\Authorization;
  * of those locales, the highest ceiling among its roles that reach it, capped by the credential's
  * ceiling. Otherwise the grant is refused with grant_escalation_refused.
  *
- * A role is administrative when its permissions include a grant.*, a role.* or actor.deactivate:
- * whoever holds it can change roles, grants or who is active. PRD 5.16 requires step-up for a grant
- * of one, and step-up is not built yet, so such a grant is refused with step_up_required whoever
- * gives it; the one-time access bootstrap, in the maintenance process, does not come through here.
+ * A role is administrative when one of its permissions is a command, a write, that changes roles,
+ * grants, the identity mapping, connections or who is active, as AdministrativePermissions decides
+ * from the registry: role.list and grant.list only read, so they do not count. PRD 5.16 requires
+ * step-up for a grant of one, and step-up is not built yet, so such a grant is refused with
+ * step_up_required whoever gives it; the one-time access bootstrap, in the maintenance process,
+ * does not come through here.
  *
  * A command that creates a role or changes its permissions is held to the same rule on the role's
  * content (content() and ceiling()): a role the issuer creates may not read above its own
@@ -43,21 +45,10 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\Authorization;
 #[Internal]
 final readonly class EscalationGuard
 {
-    /**
-     * The prefixes of the permissions that make a role administrative.
-     *
-     * @var list<string>
-     */
-    public const array ADMINISTRATIVE_PREFIXES = ['grant.', 'role.'];
-
-    /**
-     * The permissions that make a role administrative by themselves.
-     *
-     * @var list<string>
-     */
-    public const array ADMINISTRATIVE_PERMISSIONS = ['actor.deactivate'];
-
-    public function __construct(private PermissionRule $rule = new PermissionRule) {}
+    public function __construct(
+        private AdministrativePermissions $administrative,
+        private PermissionRule $rule = new PermissionRule,
+    ) {}
 
     /**
      * Whether the issuer, with the grants it holds, may give the role on the node, whose path is
@@ -101,7 +92,7 @@ final readonly class EscalationGuard
             ), ErrorCode::GrantEscalationRefused);
         }
 
-        if (self::administrative($grant->permissions)) {
+        if ($this->administrative->any($grant->permissions)) {
             return Authorization::refuse(sprintf(
                 'The role %s is administrative, because it may change roles, grants or who is active, and a grant of it needs step-up (PRD 5.16), which is not built yet; the first administrator gets one from the access bootstrap.',
                 $grant->role->toString(),
@@ -175,7 +166,7 @@ final readonly class EscalationGuard
             }
         }
 
-        if ($change->becomesAdministrative && $allows !== []) {
+        if ($allows !== [] && $this->becomesAdministrative($change)) {
             return Authorization::refuse(sprintf(
                 'The change makes the granted role %s administrative, because it could then change roles, grants or who is active, and that needs step-up (PRD 5.16), which is not built yet.',
                 $change->role->toString(),
@@ -186,26 +177,13 @@ final readonly class EscalationGuard
     }
 
     /**
-     * Whether a role with these permissions is administrative: it may change roles, grants or who
-     * is active.
-     *
-     * @param  list<CommandName>  $permissions
+     * Whether the change makes a role that was not administrative administrative: the role held no
+     * administrative permission and the change adds one. A permission it takes away cannot make it
+     * so, and a role that was administrative already is not made so again.
      */
-    public static function administrative(array $permissions): bool
+    public function becomesAdministrative(RoleContentChange $change): bool
     {
-        foreach ($permissions as $permission) {
-            if (in_array($permission->value, self::ADMINISTRATIVE_PERMISSIONS, true)) {
-                return true;
-            }
-
-            foreach (self::ADMINISTRATIVE_PREFIXES as $prefix) {
-                if (str_starts_with($permission->value, $prefix)) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        return ! $this->administrative->any($change->previous) && $this->administrative->any($change->added);
     }
 
     /**

@@ -95,7 +95,7 @@ A command that breaks 2 or 3 is refused with `grant_escalation_refused`. Taking 
 
 ## Step-up for a role that becomes administrative
 
-A role is administrative when its permissions include a `grant.*`, a `role.*` or `actor.deactivate` (see [grant commands](grant-commands.md)). A change that makes a granted role administrative needs step-up, which is not built yet, so it is refused with `step_up_required`, after rules 1 to 3. A role that is granted nowhere may become administrative; a grant of it then needs step-up.
+A role is administrative when one of its permissions is a command that changes roles, grants, the identity mapping, connections or who is active; queries such as `role.list` and `grant.list` do not count (see [grant commands](grant-commands.md)). A change that makes a granted role administrative needs step-up, which is not built yet, so it is refused with `step_up_required`, after rules 1 to 3. A role that is granted nowhere may become administrative; a grant of it then needs step-up.
 
 ## What a command writes
 

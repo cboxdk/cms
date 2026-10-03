@@ -121,7 +121,7 @@ A grant that breaks 2 or 3 is refused with `grant_escalation_refused`. A deny ta
 
 ## Step-up for administrative roles
 
-A role is administrative when its permissions include a `grant.*`, a `role.*` or `actor.deactivate`: whoever holds it can change who may do what. PRD 5.16 requires step-up, a fresh authentication of a person in an interactive session, for a grant of one. Step-up is not built yet, so such a grant, and the end of a deny of one, is refused with `step_up_required` on every surface, after rules 1 to 3. The first administrator of an installation gets the role from the one-time access bootstrap in the maintenance process, which does not come through this guard.
+A role is administrative when one of its permissions is a command, a write, that changes roles, grants, the identity mapping or connections, or who is active: a command of the registry in the `grant`, `role` or `identity` namespace, or `actor.activate`, `actor.deactivate` or `actor.reactivate`. Whoever holds it can change who may do what. A query changes nothing, so a role with only `role.list` and `grant.list`, such as an access reviewer's, is not administrative and is granted under rules 1 to 3 alone. PRD 5.16 requires step-up, a fresh authentication of a person in an interactive session, for a grant of one. Step-up is not built yet, so such a grant, and the end of a deny of one, is refused with `step_up_required` on every surface, after rules 1 to 3. The first administrator of an installation gets the role from the one-time access bootstrap in the maintenance process, which does not come through this guard.
 
 ## What a command writes
 

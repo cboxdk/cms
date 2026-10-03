@@ -19,6 +19,6 @@ final class FakePermissionCatalogBehaviourTest extends TestCase
     #[Override]
     protected function catalogOf(array $commands, array $queries): PermissionCatalog
     {
-        return new FakePermissionCatalog([...$commands, ...$queries]);
+        return new FakePermissionCatalog($commands, $queries);
     }
 }

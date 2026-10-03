@@ -12,7 +12,7 @@ use PHPUnit\Framework\Attributes\Test;
 /**
  * What every PermissionCatalog of the kernel does (PRD 5.10), held against the fake the action
  * tests use and RegistryPermissionCatalog: it knows the name of every command and of every query
- * an action handles, in any version, and no other name.
+ * an action handles, in any version, and no other name; and only a command's name is a write.
  */
 trait PermissionCatalogBehaviour
 {
@@ -35,6 +35,18 @@ trait PermissionCatalogBehaviour
         Assert::assertTrue($catalog->has(new CommandName('probe.cards')));
         Assert::assertFalse($catalog->has(new CommandName('entry.creates')));
         Assert::assertFalse($catalog->has(new CommandName('probe.unknown')));
+    }
+
+    #[Test]
+    public function it_tells_a_command_which_writes_from_a_query_which_only_reads(): void
+    {
+        $catalog = $this->catalogOf(['grant.assign', 'role.create'], ['role.list', 'grant.list']);
+
+        Assert::assertTrue($catalog->writes(new CommandName('grant.assign')));
+        Assert::assertTrue($catalog->writes(new CommandName('role.create')));
+        Assert::assertFalse($catalog->writes(new CommandName('role.list')));
+        Assert::assertFalse($catalog->writes(new CommandName('grant.list')));
+        Assert::assertFalse($catalog->writes(new CommandName('role.unknown')));
     }
 
     #[Test]

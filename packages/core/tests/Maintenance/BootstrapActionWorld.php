@@ -164,7 +164,7 @@ final class BootstrapActionWorld
 
         return new CommandPipeline(
             new FakeWriteActions([
-                CreateRole::class => $this->binding('role.create', new CreateRoleAction($reader, new FakePermissionCatalog([...self::COMMANDS, ...self::QUERIES]))),
+                CreateRole::class => $this->binding('role.create', new CreateRoleAction($reader, new FakePermissionCatalog(self::COMMANDS, self::QUERIES))),
                 AssignGrant::class => $this->binding('grant.assign', new AssignGrantAction($this->identity, $reader)),
             ]),
             $this->identity,

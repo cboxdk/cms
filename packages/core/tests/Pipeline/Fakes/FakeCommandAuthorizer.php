@@ -14,6 +14,7 @@ use Cbox\Cms\Contracts\Pipeline\Aggregates;
 use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
 use Cbox\Cms\Contracts\Pipeline\AuthorizationTarget;
 use Cbox\Cms\Contracts\Pipeline\Command;
+use Cbox\Cms\Core\Access\Domain\AdministrativePermissions;
 use Cbox\Cms\Core\Access\Domain\Dto\Grant;
 use Cbox\Cms\Core\Access\Domain\Dto\RoleContentChange;
 use Cbox\Cms\Core\Access\Domain\Dto\RoleGrant;
@@ -21,9 +22,11 @@ use Cbox\Cms\Core\Access\Domain\Dto\StoredGrant;
 use Cbox\Cms\Core\Access\Domain\EscalationGuard;
 use Cbox\Cms\Core\Access\Domain\GuardedGrant;
 use Cbox\Cms\Core\Access\Domain\GuardedRoleContent;
+use Cbox\Cms\Core\Access\Domain\PermissionCatalog;
 use Cbox\Cms\Core\Access\Domain\PermissionRule;
 use Cbox\Cms\Core\Pipeline\Domain\CommandAuthorizer;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\Authorization;
+use Cbox\Cms\Core\Tests\Access\Fakes\FakePermissionCatalog;
 use Cbox\Cms\Core\Tests\Access\Fakes\FakePermissions;
 use Override;
 
@@ -41,11 +44,16 @@ final class FakeCommandAuthorizer implements CommandAuthorizer
     public function __construct(
         private readonly ?string $refusal = null,
         private readonly ?FakePermissions $permissions = null,
+        private readonly ?PermissionCatalog $catalog = null,
     ) {}
 
-    public static function granting(FakePermissions $permissions): self
+    /**
+     * Decides from the grants in memory, with the commands and queries of the catalog, the
+     * kernel's by default, telling the guard which permissions are administrative.
+     */
+    public static function granting(FakePermissions $permissions, ?PermissionCatalog $catalog = null): self
     {
-        return new self(permissions: $permissions);
+        return new self(permissions: $permissions, catalog: $catalog ?? FakePermissionCatalog::kernel());
     }
 
     #[Override]
@@ -97,7 +105,7 @@ final class FakeCommandAuthorizer implements CommandAuthorizer
             return Authorization::refuse(sprintf('The actor reaches no node %s to give a role on.', $escalation->node->toString()));
         }
 
-        $guard = new EscalationGuard;
+        $guard = $this->guard();
         $authorization = $guard->decide($escalation, $node, $this->permissions->held($principal->actor), $principal->classificationCeiling());
 
         foreach ($principal->onBehalfOf as $delegator) {
@@ -116,10 +124,10 @@ final class FakeCommandAuthorizer implements CommandAuthorizer
      */
     private function contentGuarded(AccessContext $access, ActorPrincipal $principal, RoleContentChange $content, FakePermissions $permissions): Authorization
     {
-        $guard = new EscalationGuard;
+        $guard = $this->guard();
         $authorization = $guard->ceiling($content, $access->classificationAccess);
 
-        if (! $authorization->allowed() || $content->added === [] && ! $content->becomesAdministrative) {
+        if (! $authorization->allowed() || $content->added === []) {
             return $authorization;
         }
 
@@ -148,5 +156,10 @@ final class FakeCommandAuthorizer implements CommandAuthorizer
         }
 
         return new PermissionRule()->command($command, $scope, $permitted, $paths);
+    }
+
+    private function guard(): EscalationGuard
+    {
+        return new EscalationGuard(new AdministrativePermissions($this->catalog ?? FakePermissionCatalog::kernel()));
     }
 }

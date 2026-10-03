@@ -12,18 +12,21 @@ use Cbox\Cms\Contracts\Identity\NodePath;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\RoleId;
+use Cbox\Cms\Core\Access\Domain\AdministrativePermissions;
 use Cbox\Cms\Core\Access\Domain\Dto\Grant;
 use Cbox\Cms\Core\Access\Domain\Dto\HeldGrant;
 use Cbox\Cms\Core\Access\Domain\Dto\RoleGrant;
 use Cbox\Cms\Core\Access\Domain\EscalationGuard;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\Authorization;
+use Cbox\Cms\Core\Tests\Access\Fakes\FakePermissionCatalog;
 
 /*
  * The escalation guard (PRD 5.10, invariant 31) on its own: an actor gives a role only when it holds
  * each of the role's permissions on the node in the grant's locales, and has a classification
  * access there not below the role's ceiling; an administrative role needs step-up (PRD 5.16). The
  * tree is root, with news, sport below it, and culture; the role given is ROLE on sport unless a
- * test says otherwise.
+ * test says otherwise. Which permissions are administrative comes from the kernel's commands and
+ * queries.
  */
 
 const GUARD_ROLE = '01936f5e-8a2b-7c3d-9e4f-000000000801';
@@ -54,6 +57,20 @@ function guardLocales(?array $locales): ?array
     return $locales === null ? null : array_map(static fn (string $locale): Locale => new Locale($locale), $locales);
 }
 
+function guardAdministrative(): AdministrativePermissions
+{
+    return new AdministrativePermissions(FakePermissionCatalog::kernel());
+}
+
+/**
+ * @param  list<string>  $names
+ * @return list<CommandName>
+ */
+function guardNames(array $names): array
+{
+    return array_map(static fn (string $name): CommandName => new CommandName($name), $names);
+}
+
 /**
  * The guard's decision on giving ROLE with the permissions and ceiling on the path in the locales.
  *
@@ -63,7 +80,7 @@ function guardLocales(?array $locales): ?array
  */
 function guardDecision(array $held, array $permissions, string $path = 'root.news.sport', ?array $locales = null, ClassificationAccess $ceiling = ClassificationAccess::Internal, ClassificationAccess $credential = ClassificationAccess::Sensitive): Authorization
 {
-    return new EscalationGuard()->decide(
+    return new EscalationGuard(guardAdministrative())->decide(
         new RoleGrant(
             RoleId::fromString(GUARD_ROLE),
             $ceiling,
@@ -121,12 +138,31 @@ it('refuses a role that reads above the issuer\'s classification access on the n
 });
 
 it('refuses an administrative role with step_up_required after the issuer\'s own rights, and knows which roles are administrative', function (): void {
-    $administrator = [guardHeld(1, 'root', ['entry.create', 'grant.assign', 'role.create', 'actor.deactivate'], ClassificationAccess::Sensitive)];
+    $administrator = [guardHeld(1, 'root', ['entry.create', 'grant.assign', 'role.create', 'actor.deactivate', 'actor.activate'], ClassificationAccess::Sensitive)];
 
     expect(guardDecision($administrator, ['entry.create', 'grant.assign'])->code)->toBe(ErrorCode::StepUpRequired)
         ->and(guardDecision($administrator, ['actor.deactivate'])->code)->toBe(ErrorCode::StepUpRequired)
+        ->and(guardDecision($administrator, ['actor.activate'])->code)->toBe(ErrorCode::StepUpRequired)
         ->and(guardDecision([guardHeld(1, 'root', ['entry.create'])], ['entry.create', 'role.create'])->code)->toBe(ErrorCode::GrantEscalationRefused)
-        ->and(EscalationGuard::administrative([new CommandName('role.set_permissions')]))->toBeTrue()
-        ->and(EscalationGuard::administrative([new CommandName('actor.activate'), new CommandName('entry.create')]))->toBeFalse()
-        ->and(EscalationGuard::administrative([]))->toBeFalse();
+        ->and(guardAdministrative()->any(guardNames(['role.set_permissions'])))->toBeTrue()
+        ->and(guardAdministrative()->any(guardNames(['grant.revoke'])))->toBeTrue()
+        ->and(guardAdministrative()->any(guardNames(['actor.activate', 'entry.create'])))->toBeTrue()
+        ->and(guardAdministrative()->any(guardNames(['actor.register', 'entry.create', 'actor.list'])))->toBeFalse()
+        ->and(guardAdministrative()->any([]))->toBeFalse();
+});
+
+it('lets an issuer that holds them give a role that may only read roles and grants, because a query changes nothing', function (): void {
+    $administrator = [guardHeld(1, 'root', ['role.list', 'grant.list', 'grant.assign'], ClassificationAccess::Sensitive)];
+
+    expect(guardDecision($administrator, ['role.list', 'grant.list'])->allowed())->toBeTrue()
+        ->and(guardAdministrative()->any(guardNames(['role.list', 'grant.list'])))->toBeFalse();
+});
+
+it('counts as administrative only a command the registry has, so a name that is no write gives no step-up', function (): void {
+    $administrative = new AdministrativePermissions(new FakePermissionCatalog(['entry.create'], ['role.create', 'actor.deactivate']));
+
+    expect($administrative->any(guardNames(['role.create', 'actor.deactivate', 'identity.map'])))->toBeFalse()
+        ->and(new AdministrativePermissions(new FakePermissionCatalog(['identity.map']))->is(new CommandName('identity.map')))->toBeTrue()
+        ->and(new AdministrativePermissions(new FakePermissionCatalog(['actor.reactivate', 'roles.create']))->is(new CommandName('roles.create')))->toBeFalse()
+        ->and(new AdministrativePermissions(new FakePermissionCatalog(['actor.reactivate']))->is(new CommandName('actor.reactivate')))->toBeTrue();
 });
