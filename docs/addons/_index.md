@@ -16,6 +16,7 @@ An extension point is `#[Stable]` or `#[Experimental]`. Every extension point do
 - [Addon field types](field-types.md): a field type `<namespace>:<handle>` an addon contributes, the JSON Schema of its options, and the shape every generator writes a field of it as.
 - [Panel points](panel-points.md): `#[PanelPoint]` on a props class, the rules for each kind of point, and the panel registry `panel.php`.
 - [Panel contributions](panel-contributions.md): the `panel` member of an addon's manifest, the kinds of contribution, every check `cms:build` runs on them, the bundle manifest, and the installation's order, choices, kill switch and allowlist.
+- [Panel SDK](panel-sdk.md): the npm package `@cboxdk/cms-panel` an addon builds its panel UI with, its subpaths, `definePanelAddon` and `usePanelHost`, the types `cms:panel:types` writes from the manifest, and the API report.
 - [Hooks](hooks.md): authorize, transform and validate hooks, the classification-filtered view of the plan they get, and their time budgets.
 - [Doctor checks](doctor-checks.md): add a check to `cms:doctor` and test it.
 - [Blueprint schema v1](blueprint-v1.md): the format of blueprint files, extensions of another owner's type, and addon field types.

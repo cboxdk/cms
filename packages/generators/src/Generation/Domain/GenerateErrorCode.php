@@ -160,6 +160,12 @@ enum GenerateErrorCode: string
     /** A generated file could not be written, or a stale one could not be removed. */
     case OutputUnwritable = 'generate_output_unwritable';
 
+    /** cms:panel:types was given a namespace no installed addon has. */
+    case PanelAddonUnknown = 'generate_panel_addon_unknown';
+
+    /** cms:panel:types could not read the registry cms:build compiles. */
+    case RegistryUnreadable = 'generate_registry_unreadable';
+
     /** cms:schema:editor could not write the editor line into a blueprint file. */
     case SchemaUnwritable = 'generate_schema_unwritable';
 }

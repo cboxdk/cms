@@ -100,6 +100,8 @@ export type ErrorCode =
   | 'generate_min_length_above_max_length'
   | 'generate_name_collision'
   | 'generate_output_unwritable'
+  | 'generate_panel_addon_unknown'
+  | 'generate_registry_unreadable'
   | 'generate_required_field_added'
   | 'generate_scale_above_precision'
   | 'generate_schema_invalid'
@@ -408,6 +410,8 @@ const catalogErrorV1Rule: ObjectRule = {
           'generate_min_length_above_max_length',
           'generate_name_collision',
           'generate_output_unwritable',
+          'generate_panel_addon_unknown',
+          'generate_registry_unreadable',
           'generate_required_field_added',
           'generate_scale_above_precision',
           'generate_schema_invalid',
@@ -680,6 +684,8 @@ const problemV1Rule: ObjectRule = {
           'generate_min_length_above_max_length',
           'generate_name_collision',
           'generate_output_unwritable',
+          'generate_panel_addon_unknown',
+          'generate_registry_unreadable',
           'generate_required_field_added',
           'generate_scale_above_precision',
           'generate_schema_invalid',

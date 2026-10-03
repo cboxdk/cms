@@ -413,7 +413,8 @@ it('reads the package default schema root of app, schema below the root', functi
 
 it('has an exit code for every error code', function (GenerateErrorCode $code): void {
     expect(GenerateCommand::exitCode($code))->toBe(match ($code) {
-        GenerateErrorCode::InvalidConfig => 78,
+        GenerateErrorCode::InvalidConfig, GenerateErrorCode::RegistryUnreadable => 78,
+        GenerateErrorCode::PanelAddonUnknown => 64,
         GenerateErrorCode::SchemaMissing => 66,
         GenerateErrorCode::InvalidOutput => 70,
         GenerateErrorCode::OutputUnwritable, GenerateErrorCode::SchemaUnwritable => 73,

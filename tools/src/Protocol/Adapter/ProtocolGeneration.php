@@ -90,7 +90,7 @@ final readonly class ProtocolGeneration
 
         $kernel = ProtocolSchemas::result($contracts, new PhpLocation(ProtocolSchemas::PHP_DIRECTORY, ProtocolSchemas::PHP_NAMESPACE));
         $panel = PanelPageSchemas::result($pages, $runtime);
-        $pointsResult = PanelPointSchemas::result($points, $runtime, new PhpLocation(PanelPointSchemas::PHP_DIRECTORY, PanelPointSchemas::PHP_NAMESPACE), PanelPointSchemas::TYPESCRIPT_DIRECTORY);
+        $pointsResult = PanelPointSchemas::result($points, $runtime, new PhpLocation(PanelPointSchemas::PHP_DIRECTORY, PanelPointSchemas::PHP_NAMESPACE), PanelPointSchemas::TYPESCRIPT_DIRECTORY, protocol: $contracts);
         $lock = PointsLock::file($points, LocalFile::contents($root.'/'.PanelPointSchemas::LOCK), PanelPointSchemas::LOCK);
         $files = [...$kernel->files, ...$panel->files, ...$pointsResult->files, $lock];
         usort($files, static fn (GeneratedFile $a, GeneratedFile $b): int => strcmp($a->path, $b->path));

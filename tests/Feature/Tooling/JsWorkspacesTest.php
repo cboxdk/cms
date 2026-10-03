@@ -70,25 +70,31 @@ function translationParity(array $catalogues): Process
     }
 }
 
-it('declares js/panel and js/ui-kit as private workspaces on React 19, Inertia and Vite, pinned exactly', function (): void {
+it('declares js/panel, js/ui-kit and js/panel-sdk as private workspaces on React 19, Inertia and Vite, pinned exactly', function (): void {
     $panel = Node::jsonFile('js/panel/package.json');
     $kit = Node::jsonFile('js/ui-kit/package.json');
+    $sdk = Node::jsonFile('js/panel-sdk/package.json');
     $lock = Node::jsonFile('package-lock.json');
     $packages = is_array($lock['packages'] ?? null) ? $lock['packages'] : [];
 
     expect($panel['private'] ?? null)->toBeTrue()
         ->and($kit['private'] ?? null)->toBeTrue()
-        ->and($panel['name'] ?? null)->toBe('@cboxdk/cms-panel')
+        ->and($sdk['private'] ?? null)->toBeTrue()
+        ->and($panel['name'] ?? null)->toBe('@cboxdk/cms-panel-app')
         ->and($kit['name'] ?? null)->toBe('@cboxdk/cms-ui-kit')
+        ->and($sdk['name'] ?? null)->toBe('@cboxdk/cms-panel')
+        ->and($sdk['dependencies'] ?? null)->toBe(['@cboxdk/cms-tooling' => '0.1.0', '@cboxdk/cms-ui-kit' => '0.1.0'])
+        ->and($sdk['peerDependencies'] ?? null)->toBeArray()->toMatchArray(['react' => '19.3.0'])
         ->and($panel['dependencies'] ?? null)->toBeArray()
         ->toMatchArray(['react' => '19.3.0', 'react-dom' => '19.3.0', '@cboxdk/cms-ui-kit' => '0.1.0'])
         ->toHaveKey('@inertiajs/react')
         ->and($panel['devDependencies'] ?? null)->toBeArray()->toHaveKeys(['vite', '@vitejs/plugin-react', '@types/react'])
         ->and($kit['peerDependencies'] ?? null)->toBe(['react' => '19.3.0'])
-        ->and($packages['node_modules/@cboxdk/cms-panel'] ?? null)->toBe(['resolved' => 'js/panel', 'link' => true])
+        ->and($packages['node_modules/@cboxdk/cms-panel-app'] ?? null)->toBe(['resolved' => 'js/panel', 'link' => true])
+        ->and($packages['node_modules/@cboxdk/cms-panel'] ?? null)->toBe(['resolved' => 'js/panel-sdk', 'link' => true])
         ->and($packages['node_modules/@cboxdk/cms-ui-kit'] ?? null)->toBe(['resolved' => 'js/ui-kit', 'link' => true]);
 
-    foreach ([$panel, $kit] as $package) {
+    foreach ([$panel, $kit, $sdk] as $package) {
         foreach (['dependencies', 'devDependencies', 'peerDependencies'] as $kind) {
             $dependencies = $package[$kind] ?? [];
 

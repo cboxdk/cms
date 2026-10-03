@@ -105,6 +105,8 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`generate_min_length_above_max_length`](#generate_min_length_above_max_length) | 500 | 65 | internal_error | no |
 | [`generate_name_collision`](#generate_name_collision) | 500 | 65 | internal_error | no |
 | [`generate_output_unwritable`](#generate_output_unwritable) | 500 | 73 | internal_error | no |
+| [`generate_panel_addon_unknown`](#generate_panel_addon_unknown) | 500 | 64 | internal_error | no |
+| [`generate_registry_unreadable`](#generate_registry_unreadable) | 500 | 78 | internal_error | no |
 | [`generate_required_field_added`](#generate_required_field_added) | 500 | 65 | internal_error | no |
 | [`generate_scale_above_precision`](#generate_scale_above_precision) | 500 | 65 | internal_error | no |
 | [`generate_schema_invalid`](#generate_schema_invalid) | 500 | 65 | internal_error | no |
@@ -1077,6 +1079,24 @@ A generated file could not be written, or a stale one could not be removed. Chec
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 73 (EX_CANTCREAT)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### generate_panel_addon_unknown
+
+cms:panel:types was given a namespace that no installed addon has, as cms:build compiled the addons' manifests (PRD 13.4). Nothing was written. Give the namespace of the addon's manifest, such as reviews, and run cms:build first when the addon was installed since.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 64 (EX_USAGE)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### generate_registry_unreadable
+
+cms:panel:types reads the addon's contributions from the registry cms:build compiles, and the registry cache is missing or cannot be read. Nothing was written. Run cms:build, then cms:panel:types again.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 78 (EX_CONFIG)
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 

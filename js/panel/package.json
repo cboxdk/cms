@@ -1,8 +1,8 @@
 {
-  "name": "@cboxdk/cms-panel",
+  "name": "@cboxdk/cms-panel-app",
   "version": "0.1.0",
   "private": true,
-  "description": "The Cbox CMS control panel (working name): Inertia pages in React on the component kit, with every text in the da and en catalogues.",
+  "description": "The Cbox CMS control panel, never published (decision D1 of the panel extension architecture): the shell, the Inertia pages in React on the component kit, with every text in the da and en catalogues.",
   "license": "MIT",
   "type": "module",
   "engines": {

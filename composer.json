@@ -177,7 +177,7 @@
         "image:prune": "@php tools/bin/prune-image-volumes.php",
         "panel:build": [
             "Composer\\Config::disableProcessTimeout",
-            "@php tools/bin/dev-image.php -- npm run build --workspace=@cboxdk/cms-panel"
+            "@php tools/bin/dev-image.php -- npm run build --workspace=@cboxdk/cms-panel-app"
         ],
         "check:selftest": [
             "Composer\\Config::disableProcessTimeout",

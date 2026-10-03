@@ -117,6 +117,8 @@ enum ErrorCode: string
     case GenerateMinLengthAboveMaxLength = 'generate_min_length_above_max_length';
     case GenerateNameCollision = 'generate_name_collision';
     case GenerateOutputUnwritable = 'generate_output_unwritable';
+    case GeneratePanelAddonUnknown = 'generate_panel_addon_unknown';
+    case GenerateRegistryUnreadable = 'generate_registry_unreadable';
     case GenerateRequiredFieldAdded = 'generate_required_field_added';
     case GenerateScaleAbovePrecision = 'generate_scale_above_precision';
     case GenerateSchemaInvalid = 'generate_schema_invalid';
@@ -572,6 +574,18 @@ enum ErrorCode: string
             ),
             self::GenerateNameCollision => $this->refusedInput(
                 'Two fields, options or extender namespaces of one type would get the same name in the type\'s generated PHP records or DTOs, such as the handles size_1 and size1, or a name PHP reserves; or two classes of the generated DTOs would get the same name. Rename one of them so they differ in more than underscores.',
+            ),
+            self::GeneratePanelAddonUnknown => new ErrorEntry(
+                $this,
+                HttpStatus::InternalServerError,
+                ExitCode::Usage,
+                McpResponse::InternalError,
+                false,
+                'cms:panel:types was given a namespace that no installed addon has, as cms:build compiled the addons\' manifests (PRD 13.4). Nothing was written. Give the namespace of the addon\'s manifest, such as reviews, and run cms:build first when the addon was installed since.',
+            ),
+            self::GenerateRegistryUnreadable => $this->tooling(
+                ExitCode::Config,
+                'cms:panel:types reads the addon\'s contributions from the registry cms:build compiles, and the registry cache is missing or cannot be read. Nothing was written. Run cms:build, then cms:panel:types again.',
             ),
             self::GenerateOutputUnwritable => $this->tooling(
                 ExitCode::CantCreat,

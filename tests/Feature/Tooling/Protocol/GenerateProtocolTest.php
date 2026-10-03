@@ -86,8 +86,12 @@ const PANEL_PAGE_FILES = [
     'packages/panel/src/Boundary/Generated/ResetPasswordPageCodecV1.php',
 ];
 
-/** What generate:protocol writes for the panel's points, below the root, sorted: the validators' runtime, the compatibility lock and the list of the points' codecs. */
+/** What generate:protocol writes for the panel's points, below the root, sorted: the SDK's barrels of the stable and experimental points' types, the receipt and problem details its host answers with, the validators' runtime, the compatibility lock and the list of the points' codecs. */
 const PANEL_POINT_FILES = [
+    'js/panel-sdk/src/generated/experimental.ts',
+    'js/panel-sdk/src/generated/protocol/ProblemV1.ts',
+    'js/panel-sdk/src/generated/protocol/ReceiptV1.ts',
+    'js/panel-sdk/src/generated/stable.ts',
     'js/panel-sdk/src/generated/validation.ts',
     'packages/panel/resources/points.lock.json',
     'packages/panel/src/Boundary/Generated/Points/PanelPointCodecs.php',

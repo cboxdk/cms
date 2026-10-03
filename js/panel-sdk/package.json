@@ -1,0 +1,54 @@
+{
+  "name": "@cboxdk/cms-panel",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The SDK an addon of the Cbox CMS panel builds its UI with (PRD 13.4, decision D1 of the panel extension architecture): the component kit's stable API (/ui), the panel API that defines and registers an addon's contributions and reaches the host (/extend), the experimental API that needs an addon's opt-in (/experimental), the design tokens (/tokens.css), the addon build plugin (/vite), the test helpers (/testing), and the lint, stylelint and Storybook configurations for an addon's repository (/eslint, /stylelint, /storybook).",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    "./ui": "./src/ui.ts",
+    "./extend": "./src/extend.ts",
+    "./experimental": "./src/experimental.ts",
+    "./tokens.css": "./src/tokens.css",
+    "./vite": "./vite.js",
+    "./testing": "./src/testing.tsx",
+    "./eslint": "./eslint.js",
+    "./stylelint": "./stylelint.js",
+    "./storybook": "./storybook/preset.js"
+  },
+  "files": [
+    "src",
+    "storybook",
+    "vite.js",
+    "eslint.js",
+    "stylelint.js"
+  ],
+  "engines": {
+    "node": "^22.13.0 || >=24"
+  },
+  "dependencies": {
+    "@cboxdk/cms-tooling": "0.1.0",
+    "@cboxdk/cms-ui-kit": "0.1.0"
+  },
+  "peerDependencies": {
+    "eslint": "10.11.0",
+    "react": "19.3.0",
+    "vite": "8.3.2"
+  },
+  "peerDependenciesMeta": {
+    "eslint": {
+      "optional": true
+    },
+    "vite": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@microsoft/api-extractor": "7.59.3",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "vite": "8.3.2"
+  }
+}
