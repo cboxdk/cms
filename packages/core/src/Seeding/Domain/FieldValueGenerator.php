@@ -69,12 +69,13 @@ final readonly class FieldValueGenerator
     public function __construct(private SeedProfile $profile) {}
 
     /**
-     * Whether an actor with the classification access may write the field: it is at or below the
-     * access, and not stored encrypted.
+     * Whether an actor with the classification access may write the field: the seeder, which is no
+     * agent, may read it (FieldDefinition::readableBy(), the rule the command pipeline holds every
+     * writer to, WritableFields), and it is not stored encrypted.
      */
     public static function writable(FieldDefinition $field, ClassificationAccess $access): bool
     {
-        return ! $field->encrypted && $access->allows($field->classification);
+        return ! $field->encrypted && $field->readableBy($access, agent: false);
     }
 
     /**

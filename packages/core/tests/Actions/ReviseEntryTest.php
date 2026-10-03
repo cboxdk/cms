@@ -11,6 +11,7 @@ use Cbox\Cms\Contracts\Content\RevisionNumber;
 use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Content\VariantRef;
 use Cbox\Cms\Contracts\Fields\TextValue;
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Plans\Mutation;
@@ -27,6 +28,7 @@ use Cbox\Cms\Core\Entries\Domain\Dto\StoredHead;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\StaleRead;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\VersionConflict;
 use Cbox\Cms\Core\Tests\Entries\EntryActionWorld;
+use Cbox\Cms\Core\Tests\Entries\NoteType;
 use LogicException;
 use ReflectionAttribute;
 use ReflectionClass;
@@ -50,6 +52,7 @@ function reviseEntryWorld(): EntryActionWorld
     $world->entries
         ->withEntry(EntryActionWorld::entry(), EntryActionWorld::type(), EntryActionWorld::home(), new AggregateVersion(2))
         ->withHead(EntryActionWorld::entry(), VariantKey::shared(), new StoredHead(new AggregateVersion(6), new RevisionNumber(4), new RevisionNumber(4), null));
+    $world->revisions->with(EntryActionWorld::entry(), VariantKey::shared(), new RevisionNumber(4), NoteType::definition()->version, EntryActionWorld::fields('Groceries for Saturday'));
 
     return $world;
 }
@@ -85,6 +88,7 @@ it('numbers the revision after the published revision a release wrote after the 
     $world->entries
         ->withEntry(EntryActionWorld::entry(), EntryActionWorld::type(), EntryActionWorld::home(), new AggregateVersion(2))
         ->withHead(EntryActionWorld::entry(), VariantKey::shared(), new StoredHead(new AggregateVersion(7), new RevisionNumber(4), new RevisionNumber(5), new RevisionNumber(5)));
+    $world->revisions->with(EntryActionWorld::entry(), VariantKey::shared(), new RevisionNumber(4), NoteType::definition()->version, EntryActionWorld::fields('Before the release'));
 
     $result = $world->revise(7, EntryActionWorld::fields('After the release'));
     [$revision, $head] = $world->committed()->plan->mutations();
@@ -105,6 +109,7 @@ it('rejects fields that break the type\'s rules and commits nothing', function (
 
 it('rejects a value for an encrypted field', function (): void {
     $world = reviseEntryWorld();
+    $world->access = ClassificationAccess::Confidential;
 
     $result = $world->revise(6, EntryActionWorld::fields('Groceries', ['secret' => new TextValue('the door code')]));
 

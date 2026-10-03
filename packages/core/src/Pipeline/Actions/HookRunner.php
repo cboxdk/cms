@@ -85,7 +85,7 @@ final readonly class HookRunner
             $readable = $hook->access($call->access->classificationAccess);
 
             if (! $view instanceof PlanView || $viewed !== $run->plan || $viewedAs !== $readable) {
-                $view = $this->plans->view($binding->command, $binding->version, $call->access, $run->plan, $readable, $run->releases);
+                $view = $this->plans->view($binding->command, $binding->version, $call->access, $run->plan, $readable, $run->releases, $call->issuedByAgent());
                 $viewed = $run->plan;
                 $viewedAs = $readable;
             }
@@ -123,7 +123,7 @@ final readonly class HookRunner
         }
 
         if ($answer instanceof FieldChanges) {
-            $changed = $this->plans->apply($run->plan, $answer, $call->access, $hook->access($call->access->classificationAccess));
+            $changed = $this->plans->apply($run->plan, $answer, $call->access, $hook->access($call->access->classificationAccess), $call->issuedByAgent());
 
             return $changed instanceof Plan
                 ? $run->withPlan($changed)

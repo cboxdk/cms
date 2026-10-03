@@ -12,6 +12,7 @@ use Cbox\Cms\Contracts\Fields\GroupValue;
 use Cbox\Cms\Contracts\Fields\IntegerValue;
 use Cbox\Cms\Contracts\Fields\NullValue;
 use Cbox\Cms\Contracts\Fields\TextValue;
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
@@ -235,6 +236,7 @@ it('rejects a create of an id that exists, and a revise at a stale version, with
 
 it('rejects fields that break the type\'s rules, and a value for an encrypted field, and keeps nothing', function (): void {
     $world = new EntryWorld;
+    $world->classification = ClassificationAccess::Confidential;
     $type = EntryWorld::type(EntryWorld::ARTICLE);
 
     $invalid = $world->create($type->id, EntryFields::of(['fixture_title' => new TextValue('No flag'), 'fixture_reading_minutes' => new IntegerValue(0)]), 'create-invalid');

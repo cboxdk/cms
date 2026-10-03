@@ -31,7 +31,8 @@ use Override;
  * RevisionContentsBehaviour against PostgresRevisionContents on real Postgres, as the app role
  * inside a transaction under the actor context of a staff member whose region is the root ROOT
  * above the entry's home NODE. The rows are written as the superuser: the two revisions of ENTRY,
- * drafts, each with its payload in `revision_payloads`.
+ * drafts, each with its payload in `revision_payloads`, and the head of SNAPSHOT_ENTRY with its
+ * snapshot in `head_snapshots`.
  */
 final class PostgresRevisionContentsBehaviourTest extends TestCase
 {
@@ -58,6 +59,16 @@ final class PostgresRevisionContentsBehaviourTest extends TestCase
             'lifecycle' => 'active', 'version' => 1, 'created_at' => StorageTables::CREATED_AT,
         ]);
         $superuser->table('changeset_register')->insert(['changeset_id' => StorageTables::CHANGESET, 'retention_class' => 'standard']);
+
+        $superuser->table('entries')->insert([
+            'id' => self::SNAPSHOT_ENTRY, 'type_id' => '0192a0c0-0000-7000-8000-0000000003f1', 'home_node_id' => self::NODE, 'owner_actor_id' => null,
+            'lifecycle' => 'active', 'version' => 1, 'created_at' => StorageTables::CREATED_AT,
+        ]);
+        $superuser->table('variant_heads')->insert(StorageTables::head(['entry_id' => self::SNAPSHOT_ENTRY, 'draft_revision_id' => null, 'schema_version' => 3]));
+        $superuser->table('head_snapshots')->insert([
+            'entry_id' => self::SNAPSHOT_ENTRY, 'variant' => 'shared', 'rev_no' => 4, 'schema_version' => 3, 'format_version' => 1,
+            'content' => (string) json_encode(['title' => self::TITLE]), 'updated_at' => StorageTables::CREATED_AT,
+        ]);
 
         foreach ([1 => 3, 2 => 2] as $number => $schemaVersion) {
             $superuser->table('revisions')->insert([

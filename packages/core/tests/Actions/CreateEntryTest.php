@@ -11,6 +11,7 @@ use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Content\VariantRef;
 use Cbox\Cms\Contracts\Fields\NullValue;
 use Cbox\Cms\Contracts\Fields\TextValue;
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
@@ -81,6 +82,7 @@ it('rejects fields that break the type\'s rules and commits nothing', function (
 
 it('rejects a value for an encrypted field, which it cannot store until keys exist', function (): void {
     $world = new EntryActionWorld;
+    $world->access = ClassificationAccess::Confidential;
 
     $result = $world->create(EntryActionWorld::fields('Groceries', ['secret' => new TextValue('the door code')]));
 

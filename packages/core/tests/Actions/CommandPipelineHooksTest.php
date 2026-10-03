@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\Tests\Actions;
 
 use Cbox\Cms\Contracts\Attributes\Phase;
 use Cbox\Cms\Contracts\Consistency\Outcome;
+use Cbox\Cms\Contracts\Content\RevisionNumber;
 use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Content\VariantRef;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
@@ -28,6 +29,7 @@ use Cbox\Cms\Contracts\Hooks\PlanView;
 use Cbox\Cms\Contracts\Identity\ActorPrincipal;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Plans\Mutation;
 use Cbox\Cms\Contracts\Plans\Mutations\RevisionCreated;
 use Cbox\Cms\Contracts\Plans\Plan;
@@ -232,9 +234,10 @@ it('commits the fields a transform hook changes, and the next hook sees the chan
 
 it('keeps the fields a hook cannot see when it changes others', function (): void {
     $world = new PipelineWorld;
+    $world->access = ClassificationAccess::Confidential;
     $world->hook(new CallbackTransform(static fn (): FieldChanges => new FieldChanges(
         FieldChange::extension(hookVariant($world), new FieldNamespace(ProbeType::EXTENDER), new FieldHandle('tag'), new TextValue('derived')),
-    )), Phase::Transform);
+    )), Phase::Transform, reads: ClassificationAccess::Internal);
 
     $world->run($world->command(probeFields('Note', ['memo' => new TextValue('secret')], ['code' => new TextValue('X-1')])));
 
@@ -372,7 +375,8 @@ it('hides a confidential field from the hooks of an actor whose classification a
         return HookDecision::noObjection();
     }), Phase::Authorize);
 
-    $world->run($world->command(probeFields('Note', ['memo' => new TextValue('the confidential memo')], ['code' => new TextValue('X-1'), 'tag' => new TextValue('public')])));
+    $world->shelf->put($world->entry(), new AggregateVersion(3), new AggregateVersion(5), new RevisionNumber(4), probeFields('Stored', ['memo' => new TextValue('the confidential memo')], ['code' => new TextValue('X-1')]));
+    $world->run($world->command(probeFields('Note', [], ['tag' => new TextValue('public')])));
     $world->access = ClassificationAccess::Confidential;
     $world->run($world->command(probeFields('Note', ['memo' => new TextValue('the confidential memo')], ['code' => new TextValue('X-1'), 'tag' => new TextValue('public')])));
 
@@ -382,8 +386,8 @@ it('hides a confidential field from the hooks of an actor whose classification a
         ->and($internal->revision(hookVariant($world))?->fields->equals(probeFields('Note', [], ['tag' => new TextValue('public')])))->toBeTrue()
         ->and($confidential->classificationAccess)->toBe(ClassificationAccess::Confidential)
         ->and($confidential->revision(hookVariant($world))?->fields->equals(probeFields('Note', ['memo' => new TextValue('the confidential memo')], ['code' => new TextValue('X-1'), 'tag' => new TextValue('public')])))->toBeTrue()
-        ->and($world->committer->pending[0]->plan->mutations()[1])->toBeInstanceOf(RevisionCreated::class)
-        ->and(revisionFields($world->committer->pending[0]->plan)->own->get(new FieldHandle('memo')))->toEqual(new TextValue('the confidential memo'));
+        ->and($world->committer->pending[0]->plan->mutations()[0])->toBeInstanceOf(RevisionCreated::class)
+        ->and(revisionFields($world->committer->pending[0]->plan)->equals(probeFields('Note', ['memo' => new TextValue('the confidential memo')], ['code' => new TextValue('X-1'), 'tag' => new TextValue('public')])))->toBeTrue();
 });
 
 it('gives an addon\'s hook without the capability for an aggregate\'s fields a view without them, and one with it a view with them (invariant 21)', function (): void {
@@ -426,8 +430,9 @@ it('never gives an addon\'s hook more than the actor may read, whatever its mani
 
         return HookErrors::none();
     }), Phase::Validate, package: 'acme/cms-sensitive', reads: ClassificationAccess::Sensitive);
+    $world->shelf->put($world->entry(), new AggregateVersion(3), new AggregateVersion(5), new RevisionNumber(4), probeFields('Stored', ['memo' => new TextValue('the confidential memo')]));
 
-    $world->run($world->command(probeFields('Note', ['memo' => new TextValue('the confidential memo')])));
+    $world->run($world->command(probeFields('Note')));
 
     expect($views->view(0)->classificationAccess)->toBe(ClassificationAccess::Internal)
         ->and($views->view(0)->revision(hookVariant($world))?->fields->equals(probeFields('Note')))->toBeTrue();

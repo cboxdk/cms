@@ -6,8 +6,10 @@ namespace Cbox\Cms\Core\Pipeline\Domain\Dto;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Envelope\Envelope;
+use Cbox\Cms\Contracts\Envelope\IssuerKind as EnvelopeIssuer;
 use Cbox\Cms\Contracts\Identity\AccessContext;
 use Cbox\Cms\Contracts\Identity\ActorPrincipal;
+use Cbox\Cms\Contracts\Identity\IssuerKind as CredentialIssuer;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Pipeline\Command;
 use Cbox\Cms\Core\Pipeline\Domain\InvalidCommandCall;
@@ -37,6 +39,18 @@ final readonly class CommandCall
             || ! $this->sameChain($principal->onBehalfOf, $envelope->onBehalfOf->chain)) {
             throw InvalidCommandCall::principalMismatch($envelope->actor);
         }
+    }
+
+    /**
+     * Whether an agent issues the call (PRD 2.31, invariant 18): the envelope says the issuer is an
+     * agent, or the principal's credential was issued for an agent.
+     */
+    public function issuedByAgent(): bool
+    {
+        $principal = $this->access->principal;
+
+        return $this->envelope->issuerKind === EnvelopeIssuer::Agent
+            || ($principal instanceof ActorPrincipal && $principal->issuerKind === CredentialIssuer::Agent);
     }
 
     /**

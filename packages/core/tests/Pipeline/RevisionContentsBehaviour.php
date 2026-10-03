@@ -13,6 +13,11 @@ use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Fields\TextValue;
 use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\Schema\History;
+use Cbox\Cms\Contracts\Schema\Localization;
+use Cbox\Cms\Contracts\Schema\Stages;
+use Cbox\Cms\Contracts\Schema\TypeCapabilities;
+use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\RevisionContent;
 use Cbox\Cms\Core\Pipeline\Domain\RevisionContents;
 use Cbox\Cms\Core\Tests\Entries\NoteType;
@@ -30,10 +35,14 @@ trait RevisionContentsBehaviour
 
     public const string TITLE = 'A note on the harbour';
 
+    /** An entry of the note type kept with audit-only history: a head snapshot and no revisions. */
+    public const string SNAPSHOT_ENTRY = '0192a0c0-0000-7000-8000-0000000003e2';
+
     /**
      * The contents under test, knowing the shared variant of ENTRY with revision 1 written under
      * NoteType's schema version 3 with the title TITLE, and revision 2 written under version 2 with
-     * the same title.
+     * the same title, and the shared variant of SNAPSHOT_ENTRY with the head snapshot of its
+     * revision 4 written under version 3 with the title TITLE.
      */
     abstract protected function revisionContents(): RevisionContents;
 
@@ -59,6 +68,30 @@ trait RevisionContentsBehaviour
             new RevisionContent(2, null),
             $this->revisionContents()->find(EntryId::fromString(self::ENTRY), VariantKey::shared(), new RevisionNumber(2), NoteType::definition()),
         );
+    }
+
+    /**
+     * The note type kept with audit-only history and no stages: its entries keep a head snapshot.
+     */
+    public static function auditedNote(): TypeDefinition
+    {
+        $note = NoteType::definition();
+
+        return new TypeDefinition($note->id, $note->name, $note->version, new TypeCapabilities(History::AuditOnly, Stages::None, Localization::None, false), $note->extensions, $note->fields);
+    }
+
+    #[Test]
+    public function it_reads_the_head_snapshot_of_a_type_that_keeps_no_revisions_when_its_number_is_the_one_asked_for(): void
+    {
+        $contents = $this->revisionContents();
+        $entry = EntryId::fromString(self::SNAPSHOT_ENTRY);
+        $content = $contents->find($entry, VariantKey::shared(), new RevisionNumber(4), self::auditedNote());
+
+        Assert::assertInstanceOf(RevisionContent::class, $content);
+        Assert::assertSame(3, $content->schemaVersion);
+        Assert::assertTrue($content->fields?->equals(self::noteFields()));
+        Assert::assertNull($contents->find($entry, VariantKey::shared(), new RevisionNumber(3), self::auditedNote()));
+        Assert::assertNull($contents->find(EntryId::fromString(self::ENTRY), VariantKey::shared(), RevisionNumber::first(), self::auditedNote()));
     }
 
     #[Test]

@@ -135,6 +135,12 @@ final class EntryWorld
     /** @var (Closure(): void)|null runs after an action's resolve() has read, before the pipeline goes on */
     public ?Closure $meanwhile = null;
 
+    /** The issuer of the actor's credential: a service unless a test gives an agent, whose calls the envelope then says an agent issues. */
+    public IssuerKind $credential = IssuerKind::Service;
+
+    /** The call's classification access: internal unless a test gives another. */
+    public ClassificationAccess $classification = ClassificationAccess::Internal;
+
     private readonly FakeIdGenerator $ids;
 
     /**
@@ -202,8 +208,8 @@ final class EntryWorld
     public function run(Command $command, string $key): WriteResult
     {
         $envelope = Envelope::external(
-            IssuingSurface::Rest,
-            EnvelopeIssuer::Human,
+            $this->credential === IssuerKind::Agent ? IssuingSurface::Mcp : IssuingSurface::Rest,
+            $this->credential === IssuerKind::Agent ? EnvelopeIssuer::Agent : EnvelopeIssuer::Human,
             $this->actor,
             new IdempotencyKey($key),
             new CorrelationId('entry-correlation'),
@@ -261,14 +267,16 @@ final class EntryWorld
     }
 
     /**
-     * The actor's context: its whole tree, internal classification access.
+     * The actor's context: its whole tree, internal classification access unless a test gives
+     * another, through a service's credential with a sensitive ceiling unless a test gives an
+     * agent's, whose ceiling is confidential.
      */
     public function access(): AccessContext
     {
         return new AccessContext(
-            new ActorPrincipal($this->actor, [], IssuerKind::Service, ClassificationAccess::Sensitive),
+            new ActorPrincipal($this->actor, [], $this->credential, $this->credential === IssuerKind::Agent ? $this->credential->maximumCeiling() : ClassificationAccess::Sensitive),
             [new AccessRegion(new NodePath(StorageTables::label(self::ROOT)))],
-            ClassificationAccess::Internal,
+            $this->classification,
         );
     }
 

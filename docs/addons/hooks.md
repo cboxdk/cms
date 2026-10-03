@@ -38,7 +38,7 @@ A hook never gets the plan itself. It gets a `PlanView`: the command's name and 
 
 A release names a revision that is stored already, so its mutation, `VariantReleased`, holds no fields. The kernel reads the revision each release names once, before the hooks run, and the view holds it: `releases()` gives each `ReleasedRevision`, the release with the fields of its revision, and `release($variant)` the one for a variant. That is how a validate hook requires a field at the release that the entry's commands never require, such as an addon's extension field, which the owner's code creates and revises entries without (PRD 11.12, invariant 36). A release whose revision the kernel cannot read, one the variant does not have or one written under another schema version, is not among them; the kernel rejects that release after the validate hooks. A transform hook cannot change a released revision: a release changes no field.
 
-The view is filtered to the classification access of the call (PRD 12.2). Every revision's fields, a released revision's included, hold only the fields whose classification, as the type catalog gives it, the access allows; a field above it is absent, as if the revision did not set it. A hook of an actor whose access is internal never sees a confidential field, and cannot change it. A hook of an addon gets less when its [manifest](manifest.md) lets it read less: the view holds the fields up to the lower of the call's access and the manifest's `reads`, and the view's classification access is that lower one (invariant 21). The view is read-only: every class in it is `final readonly`.
+The view is filtered to the classification access of the call (PRD 12.2). Every revision's fields, a released revision's included, hold only the fields whose classification, as the type catalog gives it, the access allows; a field above it is absent, as if the revision did not set it. A hook of an actor whose access is internal never sees a confidential field, and cannot change it. In a call an agent issues, the view also leaves out every field and nested field whose blueprint says `agents: false`, and a change that sets one is refused. A hook of an addon gets less when its [manifest](manifest.md) lets it read less: the view holds the fields up to the lower of the call's access and the manifest's `reads`, and the view's classification access is that lower one (invariant 21). The view is read-only: every class in it is `final readonly`.
 
 ## What a transform may change
 
@@ -49,6 +49,7 @@ That is all a hook can ask for, so it cannot change the actor, the grants, a cla
 - a variant the plan writes no revision of, or writes more than one of;
 - a field the revision's type does not declare, in the owner's fields or in the namespace given;
 - a field classified above the classification access of the call, or, for a hook of an addon, above what its manifest lets it read.
+- in a call an agent issues, a field or nested field whose blueprint says `agents: false`.
 
 The error names the hook, its package and the field, because the refusal is a bug in the hook, not in the caller's input.
 

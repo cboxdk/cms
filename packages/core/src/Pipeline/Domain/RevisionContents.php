@@ -13,7 +13,10 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\RevisionContent;
 
 /**
  * The stored content of a revision, as the command pipeline validates a release against it (PRD
- * 6.2 phase 5, invariant 5): the schema version the revision was written under and its fields. It
+ * 6.2 phase 5, invariant 5) and keeps the fields a writer may not read from the revision the head
+ * moves from (PRD 12.2): the schema version the revision was written under and its fields. For a
+ * type whose history is audit-only or none, which keeps no revisions, it is the head snapshot of
+ * the variant, when the snapshot's number is the one asked for. It
  * runs in the command transaction under the call's actor context, so a revision the actor's regions
  * do not reach reads as absent. It is one lookup by key, whatever else the variant holds (GUARDRAILS
  * 4.1), writes nothing and takes no lock.

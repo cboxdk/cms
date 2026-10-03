@@ -23,9 +23,11 @@ use Cbox\Cms\Contracts\Plans\ClassifiedMutation;
 use Cbox\Cms\Contracts\Plans\Mutation;
 use Cbox\Cms\Contracts\Plans\Mutations\RevisionCreated;
 use Cbox\Cms\Contracts\Plans\Plan;
+use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Contracts\Schema\FieldDefinition;
 use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
+use Cbox\Cms\Core\Pipeline\Domain\Dto\ClosedValue;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\RefusedChange;
 
 /**
@@ -47,6 +49,11 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\RefusedChange;
  * A hook of an addon may read less than the actor, as its manifest says (PRD 13.1, invariant 21).
  * Given that lower classification, view() leaves out and apply() refuses every field above it, so
  * the kernel never hands an addon a field it may not read and the addon never changes one.
+ *
+ * For a call an agent issues, view() also leaves out every field, and every nested field of a
+ * group, whose blueprint closes it to agents, by the read rule every read applies
+ * (TypeDefinition::readable()), and apply() refuses a change that sets one (WritableFields), as the
+ * kernel refuses the agent's own value for it (PRD 2.31).
  */
 #[Internal]
 final readonly class HookPlans
@@ -56,8 +63,9 @@ final readonly class HookPlans
     /**
      * @param  ClassificationAccess|null  $readable  the classification the hook may read, when it is lower than the access; null for the access
      * @param  list<ReleasedRevision>  $releases  the revisions the plan's releases make public, with every field they hold
+     * @param  bool  $agent  whether an agent issues the call, so the fields closed to agents are left out too
      */
-    public function view(CommandName $command, int $version, AccessContext $access, Plan $plan, ?ClassificationAccess $readable = null, array $releases = []): PlanView
+    public function view(CommandName $command, int $version, AccessContext $access, Plan $plan, ?ClassificationAccess $readable = null, array $releases = [], bool $agent = false): PlanView
     {
         $classification = $readable ?? $access->classificationAccess;
 
@@ -68,14 +76,14 @@ final readonly class HookPlans
             $classification,
             ...array_map(
                 fn (Mutation $mutation): Mutation => match (true) {
-                    $mutation instanceof RevisionCreated => $this->visible($mutation, $classification),
+                    $mutation instanceof RevisionCreated => $this->visible($mutation, $classification, $agent),
                     $mutation instanceof ClassifiedMutation && ! $classification->allows($mutation->classification()) => $mutation->withoutClassified(),
                     default => $mutation,
                 },
                 $plan->mutations(),
             ),
         )->withReleases(...array_map(
-            fn (ReleasedRevision $released): ReleasedRevision => new ReleasedRevision($released->release, $this->filtered($released->release->type, $released->fields, $classification)),
+            fn (ReleasedRevision $released): ReleasedRevision => new ReleasedRevision($released->release, $this->filtered($released->release->type, $released->fields, $classification, $agent)),
             $releases,
         ));
     }
@@ -84,11 +92,12 @@ final readonly class HookPlans
      * The plan with every change applied in order, or the first change the kernel refuses.
      *
      * @param  ClassificationAccess|null  $readable  the classification the hook may read, when it is lower than the access; null for the access
+     * @param  bool  $agent  whether an agent issues the call, so a field closed to agents is refused too
      */
-    public function apply(Plan $plan, FieldChanges $changes, AccessContext $access, ?ClassificationAccess $readable = null): Plan|RefusedChange
+    public function apply(Plan $plan, FieldChanges $changes, AccessContext $access, ?ClassificationAccess $readable = null, bool $agent = false): Plan|RefusedChange
     {
         foreach ($changes->changes as $change) {
-            $changed = $this->applyOne($plan, $change, $readable ?? $access->classificationAccess);
+            $changed = $this->applyOne($plan, $change, $readable ?? $access->classificationAccess, $agent);
 
             if ($changed instanceof RefusedChange) {
                 return $changed;
@@ -100,7 +109,7 @@ final readonly class HookPlans
         return $plan;
     }
 
-    private function applyOne(Plan $plan, FieldChange $change, ClassificationAccess $access): Plan|RefusedChange
+    private function applyOne(Plan $plan, FieldChange $change, ClassificationAccess $access, bool $agent): Plan|RefusedChange
     {
         $targets = [];
 
@@ -130,6 +139,16 @@ final readonly class HookPlans
                 $change->address(),
                 $field->classification->value,
                 $access->value,
+            ));
+        }
+
+        $closed = $field->readableBy($access, $agent) ? WritableFields::closedIn($field, $change->value, $access, $agent, new FieldPath($change->handle->value)) : [new ClosedValue(new FieldPath($change->handle->value), $field)];
+
+        if ($closed !== []) {
+            return new RefusedChange($change, sprintf(
+                'The change sets %s of the field "%s", closed to agents (agents: false in its blueprint), and an agent issues the call.',
+                implode(', ', array_map(static fn (ClosedValue $value): string => $value->path->toString(), $closed)),
+                $change->address(),
             ));
         }
 
@@ -171,40 +190,21 @@ final readonly class HookPlans
         );
     }
 
-    private function visible(RevisionCreated $revision, ClassificationAccess $access): RevisionCreated
+    private function visible(RevisionCreated $revision, ClassificationAccess $access, bool $agent): RevisionCreated
     {
-        return $this->withFields($revision, $this->filtered($revision->type, $revision->fields, $access));
+        return $this->withFields($revision, $this->filtered($revision->type, $revision->fields, $access, $agent));
     }
 
     /**
-     * The fields the access allows, of the owner and of every extension, as the type classifies them.
+     * The fields a reader with the access may read, of the owner and of every extension, by the
+     * type's own read rule (TypeDefinition::readable()): nothing above the access, nothing the type
+     * does not declare, and for an agent nothing closed to agents.
      */
-    private function filtered(TypeId $typeId, FieldValues $values, ClassificationAccess $access): FieldValues
+    private function filtered(TypeId $typeId, FieldValues $values, ClassificationAccess $access, bool $agent): FieldValues
     {
         $type = $this->types->find($typeId);
-        $extensions = [];
 
-        foreach ($values->extensions as $extension) {
-            $fields = $this->allowed($type, $extension->namespace, $extension->fields, $access);
-
-            if (! $fields->isEmpty()) {
-                $extensions[] = new ExtensionFields($extension->namespace, $fields);
-            }
-        }
-
-        return new FieldValues($this->allowed($type, null, $values->own, $access), ...$extensions);
-    }
-
-    private function allowed(?TypeDefinition $type, ?FieldNamespace $namespace, FieldMap $fields, ClassificationAccess $access): FieldMap
-    {
-        return new FieldMap(...array_filter(
-            $fields->fields,
-            static function (NamedValue $field) use ($type, $namespace, $access): bool {
-                $definition = $type?->field($namespace, $field->handle);
-
-                return $definition instanceof FieldDefinition && $access->allows($definition->classification);
-            },
-        ));
+        return $type instanceof TypeDefinition ? $type->readable($values, $access, $agent) : new FieldValues(new FieldMap);
     }
 
     private function withFields(RevisionCreated $revision, FieldValues $fields): RevisionCreated

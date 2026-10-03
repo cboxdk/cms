@@ -12,6 +12,7 @@ use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Fields\FieldMap;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Fields\FieldValues;
+use Cbox\Cms\Contracts\Fields\GroupValue;
 use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Fields\TextValue;
 use Cbox\Cms\Contracts\Hooks\FieldChange;
@@ -36,6 +37,7 @@ use Cbox\Cms\Contracts\Plans\Mutations\VariantReleased;
 use Cbox\Cms\Contracts\Plans\Plan;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\RefusedChange;
 use Cbox\Cms\Core\Pipeline\Domain\HookPlans;
+use Cbox\Cms\Core\Tests\Entries\BriefType;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\ProbeType;
 use Cbox\Cms\Testkit\Schema\FakeTypeCatalog;
 use PHPUnit\Framework\Assert;
@@ -227,3 +229,46 @@ it('shows a hook a mutation with classified values without them when its access 
         ->and($personal->mutations)->toEqual([$registered])
         ->and($addon->mutations)->toEqual([$registered->withoutClassified()]);
 });
+
+it('hides from the hooks of an agent\'s call every field and nested field closed to agents, and shows them for any other call', function (): void {
+    $place = new GroupValue(new FieldMap(new NamedValue(new FieldHandle('code'), new TextValue('H-7')), new NamedValue(new FieldHandle('name'), new TextValue('Harbour'))));
+    $fields = new FieldValues(new FieldMap(
+        new NamedValue(new FieldHandle('contact'), new TextValue('desk@example.org')),
+        new NamedValue(new FieldHandle('notes'), new TextValue('N')),
+        new NamedValue(new FieldHandle('place'), $place),
+        new NamedValue(new FieldHandle('title'), new TextValue('T')),
+    ));
+    $plans = new HookPlans(new FakeTypeCatalog(BriefType::definition()));
+    $plan = new Plan(plansRevision(PipelineWorld::ENTRY, $fields, TypeId::fromString(BriefType::ID)));
+
+    $agent = $plans->view(new CommandName('entry.revise'), 1, plansAccess(), $plan, agent: true);
+    $person = $plans->view(new CommandName('entry.revise'), 1, plansAccess(), $plan);
+
+    expect($agent->revisions()[0]->fields->equals(new FieldValues(new FieldMap(
+        new NamedValue(new FieldHandle('notes'), new TextValue('N')),
+        new NamedValue(new FieldHandle('place'), new GroupValue(new FieldMap(new NamedValue(new FieldHandle('name'), new TextValue('Harbour'))))),
+        new NamedValue(new FieldHandle('title'), new TextValue('T')),
+    ))))->toBeTrue()
+        ->and($person->revisions()[0]->fields->equals($fields))->toBeTrue();
+});
+
+it('refuses a hook\'s change of a field or a nested field closed to agents in an agent\'s call, and takes it in any other call', function (FieldChange $change, string $reason): void {
+    $plan = new Plan(plansRevision(PipelineWorld::ENTRY, new FieldValues(new FieldMap(new NamedValue(new FieldHandle('title'), new TextValue('T')))), TypeId::fromString(BriefType::ID)));
+    $plans = new HookPlans(new FakeTypeCatalog(BriefType::definition()));
+
+    $refused = $plans->apply($plan, new FieldChanges($change), plansAccess(), agent: true);
+
+    Assert::assertInstanceOf(RefusedChange::class, $refused);
+
+    expect($refused->reason)->toBe($reason)
+        ->and($plans->apply($plan, new FieldChanges($change), plansAccess()))->toBeInstanceOf(Plan::class);
+})->with([
+    'a field' => [
+        FieldChange::own(plansVariant(PipelineWorld::ENTRY), new FieldHandle('contact'), new TextValue('desk@example.org')),
+        'The change sets contact of the field "contact", closed to agents (agents: false in its blueprint), and an agent issues the call.',
+    ],
+    'a nested field' => [
+        FieldChange::own(plansVariant(PipelineWorld::ENTRY), new FieldHandle('place'), new GroupValue(new FieldMap(new NamedValue(new FieldHandle('code'), new TextValue('H-7'))))),
+        'The change sets place.code of the field "place", closed to agents (agents: false in its blueprint), and an agent issues the call.',
+    ],
+]);

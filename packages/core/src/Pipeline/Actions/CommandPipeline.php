@@ -8,7 +8,8 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Attributes\Phase;
 use Cbox\Cms\Contracts\Consistency\Outcome;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
-use Cbox\Cms\Contracts\Envelope\IssuerKind as EnvelopeIssuer;
+use Cbox\Cms\Contracts\Content\RevisionNumber;
+use Cbox\Cms\Contracts\Content\VariantRef;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Contracts\Fields\FieldMap;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
@@ -22,8 +23,6 @@ use Cbox\Cms\Contracts\Idempotency\Replay;
 use Cbox\Cms\Contracts\IdempotencyStore;
 use Cbox\Cms\Contracts\Identity\Actor;
 use Cbox\Cms\Contracts\Identity\ActorDirectory;
-use Cbox\Cms\Contracts\Identity\ActorPrincipal;
-use Cbox\Cms\Contracts\Identity\IssuerKind as CredentialIssuer;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Pipeline\ExpectsVersions;
@@ -32,7 +31,9 @@ use Cbox\Cms\Contracts\Pipeline\ReadVersions;
 use Cbox\Cms\Contracts\Pipeline\RefusesCommand;
 use Cbox\Cms\Contracts\Pipeline\ReportsVisibility;
 use Cbox\Cms\Contracts\Plans\ChangesPublicVisibility;
+use Cbox\Cms\Contracts\Plans\Mutation;
 use Cbox\Cms\Contracts\Plans\Mutations\EntryCreated;
+use Cbox\Cms\Contracts\Plans\Mutations\HeadMoved;
 use Cbox\Cms\Contracts\Plans\Mutations\RevisionCreated;
 use Cbox\Cms\Contracts\Plans\Mutations\VariantReleased;
 use Cbox\Cms\Contracts\Plans\Plan;
@@ -68,6 +69,7 @@ use Cbox\Cms\Core\Pipeline\Domain\InvalidCommandCall;
 use Cbox\Cms\Core\Pipeline\Domain\MissingReplayReceipt;
 use Cbox\Cms\Core\Pipeline\Domain\ReplayReceipt;
 use Cbox\Cms\Core\Pipeline\Domain\RevisionContents;
+use Cbox\Cms\Core\Pipeline\Domain\WritableFields;
 use Cbox\Cms\Core\Pipeline\Domain\WriteActions;
 use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 
@@ -105,7 +107,11 @@ use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
  * 3. Plan: the action's plan() from the command and the aggregates. The kernel checks its shape
  *    at once: every aggregate a mutation changes was read, every revision's and release's type is
  *    a type of the TypeCatalog, and an entry's home node, when the action read it, exists, so the
- *    hooks only ever see a plan the kernel can read. A plan with a mutation that makes content
+ *    hooks only ever see a plan the kernel can read. A writer sets only the fields it may read
+ *    (PRD 2.31, 12.2, WritableFields): a revision that gives a value, other than null, for a field
+ *    classified above the call's classification access, or, for a call an agent issues, for a
+ *    field or a nested field of a group whose blueprint closes it to agents, is unauthorized, with
+ *    an error at each such field's path below fields. A plan with a mutation that makes content
  *    public (ChangesPublicVisibility), such as a release or a window, is rejected with
  *    agent_visibility_forbidden when the envelope's issuer or the credential's issuer is an agent
  *    (invariant 18). A release of a type that has no revision to release, one with stages none or
@@ -116,7 +122,12 @@ use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
  *    hooks run on the pending plan; a denial is unauthorized. They run after plan() because they
  *    see the plan, and they can only add refusals to the CommandAuthorizer's decision.
  * 4. Transform: the transform hooks change fields of the plan's revisions (HookRunner).
- * 5. Validate. The kernel validates the plan as the transforms left it (invariant 12): the fields
+ * 5. Validate. First every field of a revision that the caller may not read is kept as the variant
+ *    holds it: a revision replaces every field, so each closed field takes the value of the
+ *    revision the plan moves the head from, read through RevisionContents (the head snapshot for a
+ *    type that keeps no revisions), and a revise never erases what its writer cannot see; a head
+ *    the kernel cannot read under the type's schema version rejects the call with
+ *    validation_failed instead. The kernel validates the plan as the transforms left it (invariant 12): the fields
  *    of every revision through the type's generated validator, so a transform can never produce
  *    fields that break a rule. A transform changes only fields, so the plan's shape stands. A
  *    released revision is validated as phase 3 read it, or taken from the plan when the plan
@@ -349,7 +360,17 @@ final readonly class CommandPipeline
             return $this->invalid($call, $errors);
         }
 
-        $public = $this->agentIssued($call) ? $this->makesPublic($plan) : null;
+        $closed = $this->closed($call, $plan);
+
+        if ($closed !== []) {
+            return $this->rejected($call, new CatalogError(ErrorCode::Unauthorized, null, sprintf(
+                'The plan sets %d field%s the caller may not read, and a writer sets only the fields it may read; the errors below name them.',
+                count($closed),
+                count($closed) === 1 ? '' : 's',
+            )), ...$closed);
+        }
+
+        $public = $call->issuedByAgent() ? $this->makesPublic($plan) : null;
 
         if ($public instanceof ChangesPublicVisibility) {
             return $this->rejected($call, new CatalogError(ErrorCode::AgentVisibilityForbidden, null, sprintf(
@@ -378,7 +399,14 @@ final readonly class CommandPipeline
             }
         }
 
-        $plan = $run->plan;
+        $kept = $this->kept($call, $run->plan);
+
+        if ($kept instanceof CatalogError) {
+            return $this->rejected($call, $kept);
+        }
+
+        $run = $run->withPlan($kept);
+        $plan = $kept;
         $errors = $this->fieldErrors($plan, $releases);
         $run = $this->hooks->run(Phase::Validate, $hooks, $call, $binding, $run);
 
@@ -456,15 +484,136 @@ final readonly class CommandPipeline
     }
 
     /**
-     * Whether an agent issues the call (invariant 18): the envelope says the issuer is an agent, or
-     * the principal's credential was issued for an agent.
+     * Every value the plan's revisions give for a field the caller may not read (PRD 2.31, 12.2):
+     * a field classified above the call's classification access, and for an agent a field, or a
+     * nested field of a group, its blueprint closes to agents (WritableFields).
+     *
+     * @return list<CatalogError>
      */
-    private function agentIssued(CommandCall $call): bool
+    private function closed(CommandCall $call, Plan $plan): array
     {
-        $principal = $call->access->principal;
+        $access = $call->access->classificationAccess;
+        $agent = $call->issuedByAgent();
+        $errors = [];
 
-        return $call->envelope->issuerKind === EnvelopeIssuer::Agent
-            || ($principal instanceof ActorPrincipal && $principal->issuerKind === CredentialIssuer::Agent);
+        foreach ($plan->mutations() as $mutation) {
+            $type = $mutation instanceof RevisionCreated ? $this->types->find($mutation->type) : null;
+
+            if (! $mutation instanceof RevisionCreated || ! $type instanceof TypeDefinition) {
+                continue;
+            }
+
+            foreach (WritableFields::closed($type, $mutation->fields, $access, $agent, new FieldPath(self::FIELDS)) as $value) {
+                $field = $value->field;
+                $errors[] = new CatalogError(ErrorCode::Unauthorized, $value->path, $access->allows($field->classification)
+                    ? sprintf('The field at %s of %s is closed to agents (agents: false in its blueprint), and the call is an agent\'s, so it may not set it.', $value->path->toString(), $type->name->value)
+                    : sprintf('The field at %s of %s is classified %s, above the classification access %s of the call, so the caller may not set it.', $value->path->toString(), $type->name->value, $field->classification->value, $access->value));
+            }
+        }
+
+        return $errors;
+    }
+
+    /**
+     * The plan with every field of its revisions that the caller may not read kept as the variant
+     * holds it (PRD 5.4, 12.2): a revision replaces every field, so a closed field takes the value
+     * of the head's current revision, read through RevisionContents (the revision for a type with
+     * full history, the head snapshot otherwise), and a revision of a variant the plan creates has
+     * none. A head whose content the kernel cannot read, or reads under another schema version than
+     * the type's, cannot keep its closed fields, so the call is rejected rather than erase them.
+     */
+    private function kept(CommandCall $call, Plan $plan): Plan|CatalogError
+    {
+        $access = $call->access->classificationAccess;
+        $agent = $call->issuedByAgent();
+        $kept = [];
+
+        foreach ($plan->mutations() as $mutation) {
+            $type = $mutation instanceof RevisionCreated ? $this->types->find($mutation->type) : null;
+
+            if (! $mutation instanceof RevisionCreated || ! $type instanceof TypeDefinition || ! WritableFields::hidesAny($type, $access, $agent)) {
+                continue;
+            }
+
+            $current = $this->current($plan, $mutation, $type);
+
+            if ($current instanceof CatalogError) {
+                return $current;
+            }
+
+            $kept[spl_object_id($mutation)] = new RevisionCreated(
+                $mutation->entry,
+                $mutation->type,
+                $mutation->variant,
+                $mutation->revision,
+                WritableFields::kept($type, $mutation->fields, $current, $access, $agent),
+            );
+        }
+
+        return $kept === [] ? $plan : $this->replaced($plan, $kept);
+    }
+
+    /**
+     * The fields the variant holds before the revision: those of the revision the plan moves the
+     * head from, or none when the plan gives the variant its first head.
+     */
+    private function current(Plan $plan, RevisionCreated $revision, TypeDefinition $type): FieldValues|CatalogError
+    {
+        $from = null;
+
+        foreach ($plan->mutations() as $mutation) {
+            if ($mutation instanceof HeadMoved
+                && $mutation->entry->equals($revision->entry)
+                && $mutation->variant->equals($revision->variant)
+                && $mutation->to->equals($revision->revision)) {
+                $from = $mutation->from;
+            }
+        }
+
+        if (! $from instanceof RevisionNumber) {
+            return new FieldValues;
+        }
+
+        $content = $this->revisions->find($revision->entry, $revision->variant, $from, $type);
+        $variant = new VariantRef($revision->entry, $revision->variant);
+
+        if (! $content instanceof RevisionContent) {
+            return new CatalogError(ErrorCode::ValidationFailed, new FieldPath(self::FIELDS), sprintf(
+                'The head of the variant "%s" is on revision %d, which the kernel cannot read, so it cannot keep the fields of %s the caller may not read; nothing was committed.',
+                $variant->aggregateKey(),
+                $from->value,
+                $type->name->value,
+            ));
+        }
+
+        if (! $content->fields instanceof FieldValues) {
+            return new CatalogError(ErrorCode::ValidationFailed, new FieldPath(self::FIELDS), sprintf(
+                'Revision %d of the variant "%s" was written under schema version %d of %s, and this installation reads version %d only, so it cannot keep the fields the caller may not read. A caller who may read every field can save it under version %d.',
+                $from->value,
+                $variant->aggregateKey(),
+                $content->schemaVersion,
+                $type->name->value,
+                $type->version,
+                $type->version,
+            ));
+        }
+
+        return $content->fields;
+    }
+
+    /**
+     * The plan with each revision replaced by the one given for it, in sub-plans too.
+     *
+     * @param  array<int, RevisionCreated>  $replacements  by the object id of the revision they replace
+     */
+    private function replaced(Plan $plan, array $replacements): Plan
+    {
+        return new Plan(...array_map(
+            fn (Mutation|Plan $step): Mutation|Plan => $step instanceof Plan
+                ? $this->replaced($step, $replacements)
+                : $replacements[spl_object_id($step)] ?? $step,
+            $plan->steps,
+        ));
     }
 
     /**

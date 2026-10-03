@@ -39,9 +39,11 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\ExposedCall;
  *    that differs is unauthorized, because the chain comes from authentication, never from input.
  * 4. The AccessContext of the principal comes from AccessContexts.
  * 5. The command is read from its JSON document with its generated codec, as a caller with the
- *    context's classification access, so a field classified above it is refused. A document the
- *    codec refuses rejects the call with json_malformed or json_invalid at the path of the value,
- *    relative to the command's document.
+ *    context's classification access. A codec refuses a member of the command's own contract
+ *    classified above that access; the fields of a revision, which a command carries in the generic
+ *    form whose classification only the type knows, are held to the access by the command pipeline
+ *    after plan() (WritableFields). A document the codec refuses rejects the call with
+ *    json_malformed or json_invalid at the path of the value, relative to the command's document.
  * 6. The Envelope is built from the caller's fields with the surface, the actor, the issuer kind of
  *    the credential (IssuerKind::envelopeIssuer(): a person's session as human, an agent's
  *    credential as agent, a service's as system) and the caller's correlation id,

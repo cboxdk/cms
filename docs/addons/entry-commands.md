@@ -15,7 +15,15 @@ Content is written with two commands of the kernel, `entry.create` and `entry.re
 
 `Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry` creates an entry with its first revision: the entry's `EntryId`, which the caller makes, the `TypeId` of its type, the `NodeId` of its home node, which owns its content and where its access is decided (PRD 5.10), and the `FieldValues` of its shared variant. A type of blueprint v1 has no localization, so `shared` is its one variant. The command expects the entry not to exist, so a repeat of a create with the same idempotency key replays the first receipt, and a create of an id that exists is `version_conflict`.
 
-`Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry` writes the next revision of the shared variant and moves the variant's head to it: the entry, the `AggregateVersion` of the shared variant the caller read, and the variant's fields. A revision is a whole snapshot, so the command carries every field, not a change. `variant()` gives the `VariantRef` it revises, and `expectedVersions()` that variant at the version given.
+`Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry` writes the next revision of the shared variant and moves the variant's head to it: the entry, the `AggregateVersion` of the shared variant the caller read, and the variant's fields. A revision is a whole snapshot, so the command carries every field the caller may read, not a change. `variant()` gives the `VariantRef` it revises, and `expectedVersions()` that variant at the version given.
+
+## Fields the caller may not read
+
+A caller sets only the fields it may read (PRD 2.31, 12.2), by the rule every read applies: a field classified above the call's classification access is closed to it, and for a call an agent issues, every field, and every nested field of a group, whose blueprint says `agents: false`. The command pipeline checks every revision a plan writes, so the rule holds for both commands and any other command that writes a revision:
+
+- A value other than null for a closed field is `unauthorized`, with an error at the field's path below `fields`, such as `fields.fixture_organiser_email` or, for a nested field, `fields.<group>.<field>` with the item's index in a repeated group. Nothing is committed.
+- A null, or no value, sets nothing. `entry.revise` replaces every field, so before validation each closed field takes the value of the revision the head moves from: the stored revision for a type with full history, the head snapshot for a type whose history is audit-only or none. A revise never erases what its caller cannot see. For an agent, a nested field closed to agents takes the value of the same group, item by item by position in a repeated group.
+- A head written under another schema version than the type's cannot be read with the type's definitions, so a revise by a caller with closed fields is `validation_failed` until a caller who may read every field saves it under the current version.
 
 <!-- example: examples/Unit/Entries/EntryCommandsTest.php -->
 ```php

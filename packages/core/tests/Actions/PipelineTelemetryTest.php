@@ -15,6 +15,7 @@ use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Fields\TextValue;
 use Cbox\Cms\Contracts\Hooks\HookDecision;
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Plans\Mutations\ActorDeactivated;
@@ -221,6 +222,7 @@ it('exports the span of a command that throws, with the exception\'s class, and 
 it('puts no field value of a command in any attribute, committed or rejected', function (): void {
     $world = new PipelineWorld;
     $world->committing();
+    $world->access = ClassificationAccess::Confidential;
     $fields = new FieldValues(
         new FieldMap(
             new NamedValue(new FieldHandle('label'), new TextValue('Public label 4711')),

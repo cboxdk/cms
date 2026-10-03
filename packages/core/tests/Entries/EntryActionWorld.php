@@ -32,6 +32,7 @@ use Cbox\Cms\Contracts\Pipeline\Command;
 use Cbox\Cms\Contracts\Pipeline\WriteAction;
 use Cbox\Cms\Contracts\Results\WriteResult;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
+use Cbox\Cms\Contracts\Validation\TypeValidator;
 use Cbox\Cms\Core\Entries\Actions\CreateEntryAction;
 use Cbox\Cms\Core\Entries\Actions\ReleaseVariantAction;
 use Cbox\Cms\Core\Entries\Actions\ReviseEntryAction;
@@ -102,8 +103,14 @@ final class EntryActionWorld
 
     public EnvelopeIssuer $issuer = EnvelopeIssuer::Human;
 
+    /** The call's classification access: internal unless a test gives another. */
+    public ClassificationAccess $access = ClassificationAccess::Internal;
+
     /** @var list<TypeDefinition> the types of the catalog besides NoteType */
     public array $types = [];
+
+    /** @var list<TypeValidator> the validators of the types besides NoteType's */
+    public array $validators = [];
 
     public FakeChangesetCommitter $committer;
 
@@ -198,7 +205,7 @@ final class EntryActionWorld
             $this->identity,
             new FakeCommandAuthorizer,
             $types,
-            new FakeFieldValidation(new FakeTypeValidators(new NoteType)),
+            new FakeFieldValidation(new FakeTypeValidators(new NoteType, ...$this->validators)),
             $this->revisions,
             $this->committer,
             $keys,
@@ -222,7 +229,7 @@ final class EntryActionWorld
         return $pipeline->run(new CommandCall($command, $envelope, new AccessContext(
             new ActorPrincipal($this->editor, [], $this->credential, $this->credential->maximumCeiling()),
             [],
-            ClassificationAccess::Internal,
+            $this->access,
         )));
     }
 

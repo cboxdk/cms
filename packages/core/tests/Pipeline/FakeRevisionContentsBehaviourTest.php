@@ -26,6 +26,7 @@ final class FakeRevisionContentsBehaviourTest extends TestCase
 
         return new FakeRevisionContents()
             ->with($entry, VariantKey::shared(), RevisionNumber::first(), 3, self::noteFields())
-            ->with($entry, VariantKey::shared(), new RevisionNumber(2), 2, self::noteFields());
+            ->with($entry, VariantKey::shared(), new RevisionNumber(2), 2, self::noteFields())
+            ->snapshot(EntryId::fromString(self::SNAPSHOT_ENTRY), VariantKey::shared(), new RevisionNumber(4), 3, self::noteFields());
     }
 }
