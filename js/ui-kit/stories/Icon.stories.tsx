@@ -10,6 +10,7 @@ const meta: StoryMeta<IconProps> = {
 export default meta;
 
 const NAMES: readonly IconName[] = [
+  'arrow-right',
   'check',
   'chevron-down',
   'chevron-left',

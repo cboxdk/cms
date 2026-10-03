@@ -4,20 +4,24 @@
     align-items: center;
     justify-content: center;
     gap: var(--cms-space-2);
-    min-block-size: calc(var(--cms-target-size) + var(--cms-space-3));
+    min-block-size: calc(var(--cms-target-size) + var(--cms-space-4));
     padding: var(--cms-space-1) var(--cms-space-4);
-    border: 1px solid var(--cms-color-border-strong);
+    border: 1px solid var(--cms-color-border);
     border-radius: var(--cms-button-radius);
-    background: var(--cms-color-surface-raised);
+    background: var(--cms-color-card);
+    box-shadow: var(--cms-shadow-card);
     color: var(--cms-color-text);
     font-family: var(--cms-font-family);
     font-size: var(--cms-font-size-md);
-    font-weight: var(--cms-font-weight-medium);
-    line-height: var(--cms-line-height);
+    font-weight: var(--cms-font-weight-semibold);
+    line-height: var(--cms-line-height-tight);
     text-decoration: none;
     white-space: nowrap;
     cursor: pointer;
-    transition: background-color var(--cms-duration-fast) ease-out;
+    transition:
+      background-color var(--cms-duration-fast) ease-out,
+      border-color var(--cms-duration-fast) ease-out,
+      box-shadow var(--cms-duration-fast) ease-out;
   }
 
   .cms-button:focus-visible {
@@ -31,7 +35,8 @@
   }
 
   .cms-button:hover:not(:disabled) {
-    border-color: var(--cms-color-text-muted);
+    border-color: var(--cms-color-border-strong);
+    background: var(--cms-color-surface-raised);
   }
 
   .cms-button[data-variant='primary'] {
@@ -50,9 +55,15 @@
     color: var(--cms-color-danger);
   }
 
+  .cms-button[data-variant='danger']:hover:not(:disabled) {
+    border-color: var(--cms-color-danger);
+    background: var(--cms-color-danger-soft);
+  }
+
   .cms-button[data-variant='quiet'] {
     border-color: transparent;
     background: transparent;
+    box-shadow: none;
   }
 
   .cms-button[data-variant='quiet']:hover:not(:disabled) {
@@ -60,9 +71,17 @@
     background: var(--cms-color-surface-raised);
   }
 
+  /*
+   * Forced colours paint the button in the system's button colours; they are named here too, so
+   * the computed colours a checker such as axe reads are the ones on the screen and not the near
+   * white of the accent's text.
+   */
   @media (forced-colors: active) {
     .cms-button[data-variant='primary'] {
       border-width: 2px;
+      border-color: ButtonText;
+      background-color: ButtonFace;
+      color: ButtonText;
     }
   }
 }

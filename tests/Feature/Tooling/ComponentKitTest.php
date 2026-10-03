@@ -98,19 +98,19 @@ it('fails the token tests when a listed contrast pair drops below its minimum', 
         ->and($process->getOutput())->toContain($failure);
 })->with([
     'muted text below 4.5:1 in the dark mode' => [
-        '"value": "#9aa1ad"',
-        '"value": "#5f6570"',
-        'color-text-muted on color-surface is 3.14:1 in the dark mode, below 4.50:1',
+        '"value": "oklch(70% 0.012 250)"',
+        '"value": "oklch(42% 0.012 250)"',
+        'color-text-muted on color-surface is 2.31:1 in the dark mode, below 4.50:1',
     ],
     'the border of a control below 3:1 in the light mode' => [
-        '"value": "#8a919e"',
-        '"value": "#a3a9b3"',
-        'color-border-strong on color-surface is 2.36:1 in the light mode, below 3.00:1',
+        '"value": "oklch(64% 0.012 250)"',
+        '"value": "oklch(80% 0.012 250)"',
+        'color-border-strong on color-surface is 1.82:1 in the light mode, below 3.00:1',
     ],
     'the focus ring below 3:1 in the light mode' => [
-        '"value": "#2f5bd3"',
-        '"value": "#b9c8f2"',
-        'color-focus on color-surface is 1.66:1 in the light mode, below 3.00:1',
+        '"value": "oklch(45% 0.16 258)"',
+        '"value": "oklch(85% 0.06 258)"',
+        'color-focus on color-surface is 1.54:1 in the light mode, below 3.00:1',
     ],
 ]);
 

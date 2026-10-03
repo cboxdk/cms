@@ -21,10 +21,9 @@
     align-items: flex-start;
     gap: var(--cms-space-3);
     padding: var(--cms-space-3) var(--cms-space-3) var(--cms-space-3) var(--cms-space-4);
-    border: 1px solid var(--cms-color-border-strong);
-    border-inline-start: 4px solid var(--cms-color-accent);
-    border-radius: var(--cms-radius-md);
-    background: var(--cms-color-surface);
+    border: 1px solid var(--cms-color-border);
+    border-radius: var(--cms-radius-lg);
+    background: var(--cms-color-card);
     color: var(--cms-color-text);
     box-shadow: var(--cms-shadow-overlay);
     outline: none;
@@ -34,32 +33,31 @@
     box-shadow: var(--cms-focus-ring);
   }
 
+  /* The tone shows in the icon on its soft background, never in a stripe at the edge. */
   .cms-toast__icon {
+    display: inline-flex;
     flex: none;
+    align-items: center;
+    justify-content: center;
+    inline-size: 1.75rem;
+    block-size: 1.75rem;
+    border-radius: var(--cms-radius-md);
+    background: var(--cms-color-accent-subtle);
     color: var(--cms-color-accent);
   }
 
-  .cms-toast--success {
-    border-inline-start-color: var(--cms-color-success);
-  }
-
   .cms-toast--success .cms-toast__icon {
+    background: var(--cms-color-success-soft);
     color: var(--cms-color-success);
   }
 
-  .cms-toast--warning {
-    border-inline-start-color: var(--cms-color-warning);
-  }
-
   .cms-toast--warning .cms-toast__icon {
+    background: var(--cms-color-warning-soft);
     color: var(--cms-color-warning);
   }
 
-  .cms-toast--danger {
-    border-inline-start-color: var(--cms-color-danger);
-  }
-
   .cms-toast--danger .cms-toast__icon {
+    background: var(--cms-color-danger-soft);
     color: var(--cms-color-danger);
   }
 

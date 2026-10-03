@@ -32,8 +32,8 @@
     align-items: center;
     min-block-size: calc(var(--cms-target-size) + var(--cms-space-3));
     padding: var(--cms-space-1) var(--cms-space-3);
-    border-inline-start: 3px solid transparent;
-    border-radius: var(--cms-radius-sm);
+    border: 1px solid transparent;
+    border-radius: var(--cms-radius-md);
     color: var(--cms-color-text);
     font-size: var(--cms-font-size-md);
     font-weight: var(--cms-font-weight-medium);
@@ -46,9 +46,9 @@
   }
 
   .cms-side-nav__link[aria-current='page'] {
-    border-inline-start-color: var(--cms-color-accent);
     background: var(--cms-color-accent-subtle);
     color: var(--cms-color-accent);
+    font-weight: var(--cms-font-weight-semibold);
   }
 
   .cms-side-nav__link[data-focus-visible] {
@@ -57,7 +57,7 @@
 
   @media (forced-colors: active) {
     .cms-side-nav__link[aria-current='page'] {
-      border-inline-start-color: Highlight;
+      border-color: Highlight;
     }
   }
 }

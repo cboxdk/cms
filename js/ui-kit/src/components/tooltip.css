@@ -9,4 +9,13 @@
     font-size: var(--cms-font-size-sm);
     line-height: var(--cms-line-height);
   }
+
+  /* As for the primary button: the system's colours, named so a checker reads what is shown. */
+  @media (forced-colors: active) {
+    .cms-tooltip {
+      border-color: CanvasText;
+      background-color: Canvas;
+      color: CanvasText;
+    }
+  }
 }

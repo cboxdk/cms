@@ -1,9 +1,19 @@
-import { Brand, Button, Callout, Form, TaskScreen, TextInput, TextLink } from '@cboxdk/cms-ui-kit';
+import {
+  Brand,
+  Button,
+  Callout,
+  Form,
+  Icon,
+  TaskScreen,
+  TextInput,
+  TextLink,
+} from '@cboxdk/cms-ui-kit';
 import { Head, useForm } from '@inertiajs/react';
 import type { SubmitEvent } from 'react';
 
 import type { LoginPageV1, LoginRefusal, SignInReason } from '../../generated/pages/LoginPageV1';
 import { useBrand } from '../../brand';
+import { showcase } from '../../showcase';
 import { useTranslation, type TranslationKey } from '../../i18n/translations';
 
 const REASONS: Readonly<Record<SignInReason, TranslationKey>> = {
@@ -61,12 +71,21 @@ export default function Login({ action, forgot, reason, refusals }: LoginPageV1)
       <Head title={t('panel.login.title')} />
       <TaskScreen
         brand={<Brand name={brand.name} logo={brand.login} />}
-        title={t('panel.login.title')}
+        showcase={showcase(t)}
+        title={t('panel.login.heading')}
         description={t('panel.login.description')}
         footer={<TextLink href={forgot}>{t('panel.login.forgot')}</TextLink>}
       >
         {reason === null || failed !== undefined ? null : <Callout>{t(REASONS[reason])}</Callout>}
-        {failed === undefined ? null : <Callout tone="danger">{t(failed)}</Callout>}
+        {failed === undefined ? null : (
+          <Callout
+            tone="danger"
+            title={failed === 'panel.login.failed' ? t('panel.login.failed_title') : undefined}
+            action={<TextLink href={forgot}>{t('panel.login.failed_reset')}</TextLink>}
+          >
+            {t(failed)}
+          </Callout>
+        )}
         <Form method="post" action={action} onSubmit={submit}>
           <TextInput
             label={t('panel.login.email')}
@@ -94,6 +113,7 @@ export default function Login({ action, forgot, reason, refusals }: LoginPageV1)
           />
           <Button type="submit" variant="primary" disabled={form.processing}>
             {t('panel.login.submit')}
+            <Icon name="arrow-right" />
           </Button>
         </Form>
       </TaskScreen>

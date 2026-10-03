@@ -64,9 +64,9 @@ it('resolves the references of the catalogue to the values a theme sets', functi
     $catalogue = ThemeWorld::catalogue();
     $accent = ['color-accent' => new TokenValue('#14532d', '#86efac')];
 
-    expect(ResolvedTokens::of($catalogue, [], Mode::Light)['color-focus'])->toBe('#2f5bd3')
+    expect(ResolvedTokens::of($catalogue, [], Mode::Light)['color-focus'])->toBe('oklch(45% 0.16 258)')
         ->and(ResolvedTokens::of($catalogue, $accent, Mode::Light)['color-focus'])->toBe('#14532d')
-        ->and(ResolvedTokens::of($catalogue, $accent, Mode::Dark)['focus-ring'])->toBe('0 0 0 2px #121418, 0 0 0 4px #86efac');
+        ->and(ResolvedTokens::of($catalogue, $accent, Mode::Dark)['focus-ring'])->toBe('0 0 0 2px oklch(15.5% 0.01 250), 0 0 0 4px #86efac');
 });
 
 it('composes later themes over earlier ones and lists every overlap', function (): void {
@@ -94,17 +94,17 @@ it('writes every token a part changes, resolved, so a reference on the root does
         }
         [data-cms-part='task-screen'] {
         --cms-color-surface: #f4f8f6;
-        --cms-focus-ring: 0 0 0 2px #f4f8f6, 0 0 0 4px #2f5bd3;
+        --cms-focus-ring: 0 0 0 2px #f4f8f6, 0 0 0 4px oklch(45% 0.16 258);
         }
         @media (prefers-color-scheme: dark) {
         :root:not([data-theme='light']) [data-cms-part='task-screen'] {
         --cms-color-surface: #14201a;
-        --cms-focus-ring: 0 0 0 2px #14201a, 0 0 0 4px #6b8ff0;
+        --cms-focus-ring: 0 0 0 2px #14201a, 0 0 0 4px oklch(65% 0.18 258);
         }
         }
         :root[data-theme='dark'] [data-cms-part='task-screen'] {
         --cms-color-surface: #14201a;
-        --cms-focus-ring: 0 0 0 2px #14201a, 0 0 0 4px #6b8ff0;
+        --cms-focus-ring: 0 0 0 2px #14201a, 0 0 0 4px oklch(65% 0.18 258);
         }
         @media (prefers-reduced-motion: reduce) {
         :root {

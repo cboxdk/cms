@@ -9,8 +9,8 @@
 // moves the pointer over it. The command prepareStoryPage of vitest.config.ts asks Playwright for
 // all three. A text field's caret does not blink in the story tests (STEADY_CARET).
 //
-// After a story has rendered, its play function has run and axe has found nothing, the page is
-// compared with the story's baseline, js/ui-kit/visual-baselines/<story id>.png (vitest.config.ts
+// After a story has rendered, its play function has run and axe has found nothing, and the kit's
+// two typefaces have loaded, the page is compared with the story's baseline, js/ui-kit/visual-baselines/<story id>.png (vitest.config.ts
 // resolves the path). A story without a baseline fails, as does any changed pixel beyond
 // pixelmatch's threshold for antialiasing; `npm run storybook:baselines` in the dev image writes the
 // baselines anew after an intended change, and the new images are reviewed in the diff like any
@@ -57,5 +57,12 @@ afterEach(async (context) => {
     return;
   }
 
+  // The kit's typefaces are web fonts (base.css), which load while the story renders; the
+  // screenshot waits for both faces, so it never catches a fallback face.
+  await Promise.all([
+    document.fonts.load("1em 'Plus Jakarta Sans'"),
+    document.fonts.load("1em 'JetBrains Mono'"),
+  ]);
+  await document.fonts.ready;
   await expect.element(page.elementLocator(document.body)).toMatchScreenshot(storyId);
 });

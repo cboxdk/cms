@@ -491,7 +491,7 @@ export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
 }
 
 // @experimental
-export type IconName = 'check' | 'chevron-down' | 'chevron-left' | 'chevron-right' | 'chevron-up' | 'close' | 'copy' | 'error' | 'eye' | 'eye-off' | 'info' | 'menu' | 'minus' | 'more' | 'plus' | 'search' | 'sort-ascending' | 'sort-descending' | 'success' | 'warning';
+export type IconName = 'arrow-right' | 'check' | 'chevron-down' | 'chevron-left' | 'chevron-right' | 'chevron-up' | 'close' | 'copy' | 'error' | 'eye' | 'eye-off' | 'info' | 'menu' | 'minus' | 'more' | 'plus' | 'search' | 'sort-ascending' | 'sort-descending' | 'success' | 'warning';
 
 // @experimental
 export interface IconProps {
@@ -1006,11 +1006,34 @@ export interface TagProps {
 export function TaskScreen(input: TaskScreenProps): JSX.Element;
 
 // @experimental
+export interface TaskScreenFact {
+    readonly label: string;
+    readonly value: string;
+}
+
+// @experimental
 export interface TaskScreenProps {
     readonly brand?: ReactNode;
     readonly children: ReactNode;
     readonly description?: string | undefined;
     readonly footer?: ReactNode;
+    readonly showcase?: TaskScreenShowcase | undefined;
+    readonly title: string;
+}
+
+// @experimental
+export interface TaskScreenShowcase {
+    readonly card?: TaskScreenShowcaseCard | undefined;
+    readonly description?: string | undefined;
+    readonly eyebrow?: string | undefined;
+    readonly title: string;
+}
+
+// @experimental
+export interface TaskScreenShowcaseCard {
+    readonly facts: readonly TaskScreenFact[];
+    readonly note?: string | undefined;
+    readonly status?: string | undefined;
     readonly title: string;
 }
 
@@ -1051,7 +1074,7 @@ export interface TextLinkProps extends Omit<AnchorHTMLAttributes<HTMLAnchorEleme
 }
 
 // @stable
-export type ThemeTokenName = 'color-surface' | 'color-surface-raised' | 'color-text' | 'color-text-muted' | 'color-border' | 'color-border-strong' | 'color-accent' | 'color-accent-hover' | 'color-on-accent' | 'color-danger' | 'color-focus' | 'color-accent-subtle' | 'color-success' | 'color-warning' | 'color-backdrop' | 'shadow-overlay' | 'font-family' | 'font-family-mono' | 'font-size-sm' | 'font-size-md' | 'font-size-lg' | 'font-size-xl' | 'font-weight-regular' | 'font-weight-medium' | 'font-weight-semibold' | 'line-height' | 'line-height-tight' | 'space-1' | 'space-2' | 'space-3' | 'space-4' | 'space-6' | 'space-8' | 'radius-sm' | 'radius-md' | 'radius-lg' | 'focus-ring' | 'duration-fast' | 'target-size' | 'measure' | 'button-radius' | 'brand-logo-height' | 'nav-width' | 'table-row-height' | 'dialog-width' | 'drawer-width' | 'palette-width';
+export type ThemeTokenName = 'color-surface' | 'color-surface-raised' | 'color-card' | 'color-canvas' | 'color-muted' | 'color-text' | 'color-text-muted' | 'color-border' | 'color-border-strong' | 'color-accent' | 'color-accent-hover' | 'color-on-accent' | 'color-danger' | 'color-danger-soft' | 'color-focus' | 'color-accent-subtle' | 'color-success' | 'color-success-soft' | 'color-warning' | 'color-warning-soft' | 'color-backdrop' | 'shadow-overlay' | 'shadow-card' | 'font-family' | 'font-family-display' | 'font-family-mono' | 'font-size-sm' | 'font-size-md' | 'font-size-lg' | 'font-size-xl' | 'font-size-display' | 'font-weight-regular' | 'font-weight-medium' | 'font-weight-semibold' | 'font-weight-bold' | 'line-height' | 'line-height-tight' | 'space-1' | 'space-2' | 'space-3' | 'space-4' | 'space-6' | 'space-8' | 'radius-sm' | 'radius-md' | 'radius-lg' | 'radius-xl' | 'focus-ring' | 'duration-fast' | 'target-size' | 'measure' | 'button-radius' | 'brand-logo-height' | 'nav-width' | 'table-row-height' | 'dialog-width' | 'drawer-width' | 'palette-width';
 
 // @experimental
 export function Timestamp(input: TimestampProps): JSX.Element;
@@ -1072,7 +1095,7 @@ export interface ToastRegionProps {
 }
 
 // @stable
-export type TokenName = 'ref-white' | 'ref-gray-50' | 'ref-gray-100' | 'ref-gray-200' | 'ref-gray-400' | 'ref-gray-500' | 'ref-gray-550' | 'ref-gray-600' | 'ref-gray-800' | 'ref-gray-900' | 'ref-gray-925' | 'ref-gray-950' | 'ref-gray-1000' | 'ref-blue-300' | 'ref-blue-400' | 'ref-blue-600' | 'ref-blue-700' | 'ref-red-400' | 'ref-red-600' | 'ref-black' | 'ref-gray-300' | 'ref-blue-50' | 'ref-blue-900' | 'ref-green-400' | 'ref-green-600' | 'ref-amber-400' | 'ref-amber-700' | 'color-surface' | 'color-surface-raised' | 'color-text' | 'color-text-muted' | 'color-border' | 'color-border-strong' | 'color-accent' | 'color-accent-hover' | 'color-on-accent' | 'color-danger' | 'color-focus' | 'color-accent-subtle' | 'color-success' | 'color-warning' | 'color-backdrop' | 'shadow-overlay' | 'font-family' | 'font-family-mono' | 'font-size-sm' | 'font-size-md' | 'font-size-lg' | 'font-size-xl' | 'font-weight-regular' | 'font-weight-medium' | 'font-weight-semibold' | 'line-height' | 'line-height-tight' | 'space-1' | 'space-2' | 'space-3' | 'space-4' | 'space-6' | 'space-8' | 'radius-sm' | 'radius-md' | 'radius-lg' | 'focus-ring' | 'duration-fast' | 'target-size' | 'measure' | 'button-radius' | 'brand-logo-height' | 'nav-width' | 'table-row-height' | 'dialog-width' | 'drawer-width' | 'palette-width';
+export type TokenName = 'ref-white' | 'ref-gray-10' | 'ref-gray-25' | 'ref-gray-50' | 'ref-gray-75' | 'ref-gray-150' | 'ref-gray-200' | 'ref-gray-300' | 'ref-gray-450' | 'ref-gray-600' | 'ref-gray-900' | 'ref-gray-100' | 'ref-gray-350' | 'ref-gray-550' | 'ref-gray-800' | 'ref-gray-850' | 'ref-gray-925' | 'ref-gray-940' | 'ref-gray-950' | 'ref-gray-1000' | 'ref-blue-50' | 'ref-blue-300' | 'ref-blue-400' | 'ref-blue-600' | 'ref-blue-700' | 'ref-blue-900' | 'ref-red-50' | 'ref-red-400' | 'ref-red-600' | 'ref-red-900' | 'ref-black' | 'ref-green-50' | 'ref-green-400' | 'ref-green-600' | 'ref-green-900' | 'ref-amber-50' | 'ref-amber-400' | 'ref-amber-700' | 'ref-amber-900' | 'color-surface' | 'color-surface-raised' | 'color-card' | 'color-canvas' | 'color-muted' | 'color-text' | 'color-text-muted' | 'color-border' | 'color-border-strong' | 'color-accent' | 'color-accent-hover' | 'color-on-accent' | 'color-danger' | 'color-danger-soft' | 'color-focus' | 'color-accent-subtle' | 'color-success' | 'color-success-soft' | 'color-warning' | 'color-warning-soft' | 'color-backdrop' | 'shadow-overlay' | 'shadow-card' | 'font-family' | 'font-family-display' | 'font-family-mono' | 'font-size-sm' | 'font-size-md' | 'font-size-lg' | 'font-size-xl' | 'font-size-display' | 'font-weight-regular' | 'font-weight-medium' | 'font-weight-semibold' | 'font-weight-bold' | 'line-height' | 'line-height-tight' | 'space-1' | 'space-2' | 'space-3' | 'space-4' | 'space-6' | 'space-8' | 'radius-sm' | 'radius-md' | 'radius-lg' | 'radius-xl' | 'focus-ring' | 'duration-fast' | 'target-size' | 'measure' | 'button-radius' | 'brand-logo-height' | 'nav-width' | 'table-row-height' | 'dialog-width' | 'drawer-width' | 'palette-width';
 
 // @experimental
 export type Tone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';

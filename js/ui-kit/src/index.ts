@@ -118,7 +118,12 @@ export type { ErrorStateProps } from './components/ErrorState';
 export { StatusScreen } from './components/StatusScreen';
 export type { StatusScreenProps } from './components/StatusScreen';
 export { TaskScreen } from './components/TaskScreen';
-export type { TaskScreenProps } from './components/TaskScreen';
+export type {
+  TaskScreenFact,
+  TaskScreenProps,
+  TaskScreenShowcase,
+  TaskScreenShowcaseCard,
+} from './components/TaskScreen';
 
 // Overlays
 export { Dialog } from './components/Dialog';

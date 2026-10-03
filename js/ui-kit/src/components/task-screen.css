@@ -1,48 +1,233 @@
 @layer cms.kit {
+  /*
+   * The sign-in layout of the Cbox design language (cms-planning/design/round-1/Main.dc.html): the
+   * task on the page's surface, and the showcase on the cool canvas with a faint grid of dots and
+   * a card with a 1px border and a soft shadow. The two sides sit beside each other from 60rem up
+   * and one below the other below it.
+   */
   .cms-task-screen {
     display: grid;
-    place-items: center;
-    min-height: 100vh;
-    min-height: 100dvh;
+    grid-template-columns: minmax(0, 1fr);
+    min-block-size: 100vh;
+    min-block-size: 100dvh;
+    background: var(--cms-color-surface);
+  }
+
+  .cms-task-screen__main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cms-space-6);
+    min-inline-size: 0;
+    min-block-size: 100vh;
+    min-block-size: 100dvh;
     padding: var(--cms-space-6) var(--cms-space-4);
   }
 
-  .cms-task-screen__panel {
-    width: 100%;
-    max-width: var(--cms-measure);
-    padding: var(--cms-space-8) var(--cms-space-6);
-    border: 1px solid var(--cms-color-border);
-    border-radius: var(--cms-radius-lg);
-    background: var(--cms-color-surface-raised);
+  .cms-task-screen__brand {
+    display: flex;
+    align-items: center;
   }
 
-  .cms-task-screen__brand {
-    margin-block-end: var(--cms-space-6);
+  .cms-task-screen__center {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .cms-task-screen__panel {
+    display: grid;
+    gap: var(--cms-space-6);
+    inline-size: 100%;
+    max-inline-size: 25rem;
+  }
+
+  .cms-task-screen__intro {
+    display: grid;
+    gap: var(--cms-space-2);
   }
 
   .cms-task-screen__title {
-    margin: 0 0 var(--cms-space-3);
-    font-size: var(--cms-font-size-xl);
-    font-weight: var(--cms-font-weight-semibold);
-    line-height: var(--cms-line-height-tight);
+    margin: 0;
+    font-family: var(--cms-font-family-display);
+    font-size: var(--cms-font-size-display);
+    font-weight: var(--cms-font-weight-bold);
+    line-height: 1.15;
+    letter-spacing: -0.025em;
   }
 
   .cms-task-screen__description {
     margin: 0;
     color: var(--cms-color-text-muted);
+    font-size: var(--cms-font-size-lg);
+    line-height: 1.55;
   }
 
   .cms-task-screen__body {
     display: grid;
     gap: var(--cms-space-4);
-    margin-top: var(--cms-space-6);
+  }
+
+  /* The task's controls are a step taller than the panel's, as the design's sign-in page has them. */
+  .cms-task-screen__body .cms-input,
+  .cms-task-screen__body .cms-button {
+    min-block-size: calc(var(--cms-target-size) + var(--cms-space-4) + var(--cms-space-1));
+  }
+
+  .cms-task-screen__body .cms-button[data-variant='primary'] {
+    inline-size: 100%;
+    font-size: var(--cms-font-size-lg);
   }
 
   .cms-task-screen__footer {
     display: flex;
     flex-wrap: wrap;
-    justify-content: space-between;
+    justify-content: center;
     gap: var(--cms-space-2) var(--cms-space-4);
-    margin-top: var(--cms-space-6);
+    color: var(--cms-color-text-muted);
+    font-size: var(--cms-font-size-md);
+  }
+
+  .cms-task-screen__showcase {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: var(--cms-space-6);
+    min-inline-size: 0;
+    padding: var(--cms-space-8) var(--cms-space-4);
+    border-block-start: 1px solid var(--cms-color-border);
+    background-color: var(--cms-color-canvas);
+    background-image: radial-gradient(var(--cms-color-border) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+
+  .cms-task-screen__pitch {
+    display: grid;
+    gap: var(--cms-space-3);
+    max-inline-size: 32rem;
+  }
+
+  .cms-task-screen__eyebrow {
+    justify-self: start;
+    padding: var(--cms-space-1) var(--cms-space-3);
+    border-radius: 999px;
+    background: var(--cms-color-accent-subtle);
+    color: var(--cms-color-accent);
+    font-family: var(--cms-font-family-mono);
+    font-size: var(--cms-font-size-sm);
+    font-weight: var(--cms-font-weight-medium);
+    line-height: var(--cms-line-height);
+  }
+
+  .cms-task-screen__pitch-title {
+    margin: 0;
+    font-family: var(--cms-font-family-display);
+    font-size: clamp(1.75rem, 1.2rem + 1.4vw, 2.125rem);
+    font-weight: var(--cms-font-weight-bold);
+    line-height: 1.15;
+    letter-spacing: -0.03em;
+    text-wrap: balance;
+  }
+
+  .cms-task-screen__pitch-description {
+    margin: 0;
+    color: var(--cms-color-text-muted);
+    font-size: var(--cms-font-size-lg);
+    line-height: 1.6;
+  }
+
+  .cms-task-screen__card {
+    display: grid;
+    gap: var(--cms-space-3);
+    max-inline-size: 32rem;
+    padding: var(--cms-space-4);
+    border: 1px solid var(--cms-color-border);
+    border-radius: var(--cms-radius-xl);
+    background: var(--cms-color-card);
+    box-shadow: var(--cms-shadow-overlay);
+  }
+
+  .cms-task-screen__card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--cms-space-2);
+  }
+
+  .cms-task-screen__card-title {
+    margin: 0;
+    font-size: var(--cms-font-size-md);
+    font-weight: var(--cms-font-weight-semibold);
+  }
+
+  .cms-task-screen__status {
+    padding: 0 var(--cms-space-2);
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: var(--cms-color-success-soft);
+    color: var(--cms-color-success);
+    font-size: var(--cms-font-size-sm);
+    font-weight: var(--cms-font-weight-semibold);
+    line-height: var(--cms-line-height);
+  }
+
+  .cms-task-screen__facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+    gap: var(--cms-space-2);
+    margin: 0;
+  }
+
+  .cms-task-screen__fact {
+    display: grid;
+    gap: var(--cms-space-1);
+    padding: var(--cms-space-3);
+    border: 1px solid transparent;
+    border-radius: var(--cms-radius-lg);
+    background: var(--cms-color-muted);
+  }
+
+  .cms-task-screen__fact-label {
+    color: var(--cms-color-text-muted);
+    font-size: var(--cms-font-size-sm);
+  }
+
+  .cms-task-screen__fact-value {
+    margin: 0;
+    font-family: var(--cms-font-family-mono);
+    font-size: var(--cms-font-size-md);
+  }
+
+  .cms-task-screen__note {
+    margin: 0;
+    color: var(--cms-color-text-muted);
+    font-size: var(--cms-font-size-md);
+  }
+
+  @media (min-width: 40rem) {
+    .cms-task-screen__main {
+      padding: var(--cms-space-8);
+    }
+
+    .cms-task-screen__showcase {
+      padding: var(--cms-space-8);
+    }
+  }
+
+  @media (min-width: 60rem) {
+    .cms-task-screen[data-layout='split'] {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .cms-task-screen__showcase {
+      border-block-start: 0;
+      border-inline-start: 1px solid var(--cms-color-border);
+    }
+  }
+
+  @media (forced-colors: active) {
+    .cms-task-screen__showcase {
+      background-image: none;
+    }
   }
 }

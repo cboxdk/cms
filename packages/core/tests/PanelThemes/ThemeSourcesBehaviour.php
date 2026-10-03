@@ -37,7 +37,7 @@ trait ThemeSourcesBehaviour
 
         Assert::assertSame('{ref-blue-600}', $catalogue->token('color-accent')?->value->light);
         Assert::assertSame(['status-screen', 'task-screen'], $catalogue->parts);
-        Assert::assertCount(22, $catalogue->contrast);
+        Assert::assertCount(39, $catalogue->contrast);
     }
 
     #[Test]

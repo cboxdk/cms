@@ -72,12 +72,12 @@ it('fails with registry_panel_theme_contrast on a composed theme below AA, namin
 
     expect(themeCodes($compiled->problems))->toBe(['registry_panel_theme_contrast'])
         ->and($compiled->stylesheet)->toBe('')
-        ->and($compiled->problems[0]->message)->toBe('The panel\'s theme, app composed in that order, draws --cms-color-accent on --cms-color-surface (text) at 1.16:1 in the light mode on the whole panel, below the 4.50:1 WCAG 2.2 AA needs. Change the theme\'s value of one of them, in the mode the problem names.')
+        ->and($compiled->problems[0]->message)->toBe('The panel\'s theme, app composed in that order, draws --cms-color-accent on --cms-color-surface (text) at 1.13:1 in the light mode on the whole panel, below the 4.50:1 WCAG 2.2 AA needs. Change the theme\'s value of one of them, in the mode the problem names.')
         ->and(array_map(static fn (BuildProblem $problem): string => $problem->message, $compiled->problems))->each->toContain('light mode');
 });
 
 it('checks the contrast after composition, so two themes that pass alone can fail together', function (): void {
-    $surface = '{"tokens":{"color-surface":{"light":"#1a1a1a","dark":"#121418"},"color-surface-raised":{"light":"#1a1a1a","dark":"#1b1e24"},"color-text":{"light":"#f5f5f5","dark":"#e8eaee"},"color-text-muted":{"light":"#c8c8c8","dark":"#9aa1ad"},"color-accent":{"light":"#8ab4ff","dark":"#6b8ff0"},"color-accent-hover":{"light":"#a8c6ff","dark":"#87a4f4"},"color-on-accent":{"light":"#0c0e12","dark":"#0c0e12"},"color-danger":{"light":"#ff8a85","dark":"#ef6b66"},"color-border-strong":{"light":"#8a919e","dark":"#6b7280"},"color-success":{"light":"#4ade80","dark":"#4ade80"},"color-warning":{"light":"#fbbf24","dark":"#fbbf24"},"color-accent-subtle":{"light":"#1e2a44","dark":"#1e2a44"}}}';
+    $surface = '{"tokens":{"color-surface":{"light":"#1a1a1a","dark":"#121418"},"color-surface-raised":{"light":"#1a1a1a","dark":"#1b1e24"},"color-text":{"light":"#f5f5f5","dark":"#e8eaee"},"color-text-muted":{"light":"#c8c8c8","dark":"#9aa1ad"},"color-accent":{"light":"#8ab4ff","dark":"#6b8ff0"},"color-accent-hover":{"light":"#a8c6ff","dark":"#87a4f4"},"color-on-accent":{"light":"#0c0e12","dark":"#0c0e12"},"color-danger":{"light":"#ff8a85","dark":"#ef6b66"},"color-border-strong":{"light":"#8a919e","dark":"#6b7280"},"color-success":{"light":"#4ade80","dark":"#4ade80"},"color-warning":{"light":"#fbbf24","dark":"#fbbf24"},"color-accent-subtle":{"light":"#1e2a44","dark":"#1e2a44"},"color-card":{"light":"#1a1a1a","dark":"#1b1e24"},"color-canvas":{"light":"#1a1a1a","dark":"#1b1e24"},"color-muted":{"light":"#242424","dark":"#24272e"},"color-danger-soft":{"light":"#3a1d1c","dark":"#3a1d1c"},"color-success-soft":{"light":"#13261b","dark":"#13261b"},"color-warning-soft":{"light":"#33270f","dark":"#33270f"}}}';
     $accent = '{"tokens":{"color-accent":{"light":"#2f5bd3","dark":"#6b8ff0"}}}';
     $sources = [ThemeWorld::BRAND => $surface, ThemeWorld::APP => $accent];
     $check = new CheckPanelTheme(ThemeWorld::sources($sources));
@@ -173,7 +173,7 @@ it('checks one theme file on its own, as cms:panel:theme:check does', function (
     expect($green->passed())->toBeTrue()
         ->and([$green->tokens, $green->partTokens])->toBe([2, 1])
         ->and(themeCodes($pale->problems))->toBe(['registry_panel_theme_contrast'])
-        ->and($pale->problems[0]->message)->toStartWith('The theme '.ThemeWorld::APP.' draws --cms-color-accent on --cms-color-surface (text) at 1.16:1')
+        ->and($pale->problems[0]->message)->toStartWith('The theme '.ThemeWorld::APP.' draws --cms-color-accent on --cms-color-surface (text) at 1.13:1')
         ->and(themeCodes($invalid->problems))->toBe(['registry_panel_theme_invalid'])
         ->and($invalid->problems[0]->message)->toBe('The theme '.ThemeWorld::LOUD.' cannot be used. /tokens/ref-white: a primitive token, which only the kit sets; a theme sets only the semantic and component tokens of docs/ui/tokens.md.');
 });

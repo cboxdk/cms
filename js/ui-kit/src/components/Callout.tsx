@@ -39,7 +39,7 @@ const ICONS: Readonly<Record<CalloutTone, IconName>> = {
  * A message about the page's state, such as why a form was refused or that a change is saved. A
  * danger or warning message is an alert, which a screen reader announces as soon as it appears; an
  * info or success message is a status, which it announces when it is idle. The tone is shown by an
- * icon and a coloured edge as well as by colour, and a message that refuses something says what to
+ * icon on the tone's soft background as well as by colour, never a coloured edge, and a message that refuses something says what to
  * do next in its action.
  *
  * @experimental

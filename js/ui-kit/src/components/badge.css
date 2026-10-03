@@ -4,10 +4,10 @@
     align-items: center;
     gap: var(--cms-space-1);
     padding: 0 var(--cms-space-2);
-    border: 1px solid var(--cms-color-border-strong);
+    border: 1px solid transparent;
     border-radius: 999px;
-    background: var(--cms-color-surface);
-    color: var(--cms-color-text);
+    background: var(--cms-color-surface-raised);
+    color: var(--cms-color-text-muted);
     font-size: var(--cms-font-size-sm);
     font-weight: var(--cms-font-weight-medium);
     line-height: var(--cms-line-height);
@@ -22,7 +22,8 @@
   }
 
   .cms-badge[data-tone='info'] {
-    border-color: var(--cms-color-accent);
+    background: var(--cms-color-accent-subtle);
+    color: var(--cms-color-accent);
   }
 
   .cms-badge[data-tone='info'] .cms-badge__dot {
@@ -30,7 +31,8 @@
   }
 
   .cms-badge[data-tone='success'] {
-    border-color: var(--cms-color-success);
+    background: var(--cms-color-success-soft);
+    color: var(--cms-color-success);
   }
 
   .cms-badge[data-tone='success'] .cms-badge__dot {
@@ -38,7 +40,8 @@
   }
 
   .cms-badge[data-tone='warning'] {
-    border-color: var(--cms-color-warning);
+    background: var(--cms-color-warning-soft);
+    color: var(--cms-color-warning);
   }
 
   .cms-badge[data-tone='warning'] .cms-badge__dot {
@@ -46,7 +49,8 @@
   }
 
   .cms-badge[data-tone='danger'] {
-    border-color: var(--cms-color-danger);
+    background: var(--cms-color-danger-soft);
+    color: var(--cms-color-danger);
   }
 
   .cms-badge[data-tone='danger'] .cms-badge__dot {

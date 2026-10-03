@@ -45,8 +45,8 @@ it('refuses a theme below AA with registry_panel_theme_contrast and exit 65', fu
     [$status, $output] = themeCheckCli(ThemeWorld::PALE);
 
     expect($status)->toBe(65)
-        ->and($output)->toStartWith('[registry_panel_theme_contrast] The theme <file> draws --cms-color-accent on --cms-color-surface (text) at 1.16:1 in the light mode on the whole panel')
-        ->and(substr_count($output, '[registry_panel_theme_contrast]'))->toBe(6);
+        ->and($output)->toStartWith('[registry_panel_theme_contrast] The theme <file> draws --cms-color-accent on --cms-color-surface (text) at 1.13:1 in the light mode on the whole panel')
+        ->and(substr_count($output, '[registry_panel_theme_contrast]'))->toBe(9);
 });
 
 it('refuses a theme that is not of theme.v1.json\'s form with registry_panel_theme_invalid and exit 65', function (): void {

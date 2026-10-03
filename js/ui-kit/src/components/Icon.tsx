@@ -6,6 +6,7 @@ import './icon.css';
  * @experimental
  */
 export type IconName =
+  | 'arrow-right'
   | 'check'
   | 'chevron-down'
   | 'chevron-left'
@@ -32,6 +33,7 @@ export type IconName =
  * so an icon follows the tone of the text it stands by and the system colours in forced colours.
  */
 const PATHS: Readonly<Record<IconName, readonly string[]>> = {
+  'arrow-right': ['M5 12h14', 'M13 6l6 6-6 6'],
   check: ['M5 12.5l4.5 4.5L19 7.5'],
   'chevron-down': ['M6 9l6 6 6-6'],
   'chevron-left': ['M15 6l-6 6 6 6'],
@@ -39,7 +41,7 @@ const PATHS: Readonly<Record<IconName, readonly string[]>> = {
   'chevron-up': ['M6 15l6-6 6 6'],
   close: ['M6 6l12 12', 'M18 6L6 18'],
   copy: ['M9 9h10v10H9z', 'M5 15V5h10'],
-  error: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M9 9l6 6', 'M15 9l-6 6'],
+  error: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M12 8v4', 'M12 16h.01'],
   eye: ['M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z', 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z'],
   'eye-off': [
     'M3 3l18 18',

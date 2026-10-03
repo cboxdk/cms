@@ -73,9 +73,9 @@ it('gives an addon\'s theme that the installation does not select no effect', fu
     PanelPage::assertPage($page, ['panel.login.title']);
 
     expect(themeLinks($page))->toBe([])
-        ->and(tokenOn($page, ':root', 'color-accent'))->toBe('#2f5bd3')
-        ->and(tokenOn($page, '[data-cms-part="task-screen"]', 'color-surface-raised'))->toBe('#f6f7f9')
-        ->and(tokenOn($page, ':root', 'radius-md'))->toBe('6px');
+        ->and(tokenOn($page, ':root', 'color-accent'))->toBe('oklch(45% .16 258)')
+        ->and(tokenOn($page, '[data-cms-part="task-screen"]', 'color-surface-raised'))->toBe('oklch(97.5% .008 250)')
+        ->and(tokenOn($page, ':root', 'radius-md'))->toBe('8px');
 });
 
 it('applies the addon\'s theme once the installation selects it, in both modes and on its part hook', function (): void {

@@ -7,6 +7,7 @@ import type {
   ResetPasswordRefusal,
 } from '../../generated/pages/ResetPasswordPageV1';
 import { useBrand } from '../../brand';
+import { showcase } from '../../showcase';
 import { useTranslation, type TranslationKey } from '../../i18n/translations';
 
 /** The text of each catalog code the server puts under the password field. */
@@ -53,6 +54,7 @@ export default function ResetPassword({
       <Head title={t('panel.reset.title')} />
       <TaskScreen
         brand={<Brand name={brand.name} logo={brand.login} />}
+        showcase={showcase(t)}
         title={t('panel.reset.title')}
         description={invalid ? undefined : t('panel.reset.description')}
         footer={

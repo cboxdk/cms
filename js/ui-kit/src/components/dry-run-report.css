@@ -1,14 +1,14 @@
 @layer cms.kit {
-  .cms-dry-run-report {
-    border-inline-start: 4px solid var(--cms-color-accent);
-  }
-
   .cms-dry-run-report__title {
     display: flex;
     align-items: center;
     gap: var(--cms-space-2);
     margin: 0;
     font-weight: var(--cms-font-weight-semibold);
+  }
+
+  .cms-dry-run-report__title > .cms-icon {
+    color: var(--cms-color-accent);
   }
 
   .cms-dry-run-report__part {

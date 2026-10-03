@@ -5,8 +5,9 @@
     gap: var(--cms-space-3);
     color: var(--cms-color-text);
     font-size: var(--cms-font-size-lg);
-    font-weight: var(--cms-font-weight-semibold);
+    font-weight: var(--cms-font-weight-bold);
     line-height: var(--cms-line-height-tight);
+    letter-spacing: -0.01em;
   }
 
   .cms-brand__logo {

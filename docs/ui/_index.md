@@ -11,6 +11,14 @@ Every component of the panel lives in one kit, the npm workspace `js/ui-kit`. Th
 - [Components](components.md): every component of the kit, by group, with what it is for.
 - [Design tokens](tokens.md): every token with its tier and values, the contrast pairs the kit checks, and the curated part hooks.
 
+## Design language
+
+The kit follows the Cbox design language of `@cboxdk/cbox-ui` (MIT), a dependency of `js/ui-kit`: its palette in `tokens/cbox.css`, refined and minimal, with a deep blue primary, a cool canvas, white cards with a 1px border and a soft shadow, and soft tones for messages. The kit's tokens take their values from that file; where a pair of the kit's contrast checks needs more contrast than a cbox-ui value gives, such as the text of a tone or the border of a control, the kit uses the same hue at another lightness, and each primitive's description in [Design tokens](tokens.md) says which. `npm run test:kit -- brand` holds the copied values to the installed `tokens/cbox.css`.
+
+Text and headings are set in Plus Jakarta Sans and code, ids and numbers in JetBrains Mono, both variable fonts under the SIL Open Font License 1.1 from `@fontsource-variable/plus-jakarta-sans` and `@fontsource-variable/jetbrains-mono`. `base.css` declares their Latin and Latin Extended faces, and the panel's build bundles the files, so they come from the panel's own origin. A system face is only the fallback after them.
+
+A message, a card or a panel never marks its tone with a coloured stripe at its edge: a message shows its tone with its soft background, its icon and its text, and says what to do next. The same test fails on a `border-left`, a `border-inline-start` or an inset shadow at that edge in a tone in any stylesheet of the kit or the panel.
+
 ## Cascade layers
 
 `js/ui-kit/src/layers.css` declares the order of the cascade layers once, and a page imports it before any other stylesheet. A later layer wins over an earlier one, whatever the specificity of the selectors:

@@ -7,6 +7,7 @@ import type {
   ForgotPasswordRefusal,
 } from '../../generated/pages/ForgotPasswordPageV1';
 import { useBrand } from '../../brand';
+import { showcase } from '../../showcase';
 import { useTranslation, type TranslationKey } from '../../i18n/translations';
 
 /** The text of each catalog code a request for a link is refused with. */
@@ -41,6 +42,7 @@ export default function ForgotPassword({
       <Head title={t('panel.forgot.title')} />
       <TaskScreen
         brand={<Brand name={brand.name} logo={brand.login} />}
+        showcase={showcase(t)}
         title={t('panel.forgot.title')}
         description={t('panel.forgot.description')}
         footer={<TextLink href={login}>{t('panel.forgot.back')}</TextLink>}

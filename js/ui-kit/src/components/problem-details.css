@@ -3,10 +3,9 @@
     display: grid;
     gap: var(--cms-space-2);
     padding: var(--cms-space-3) var(--cms-space-4);
-    border: 1px solid var(--cms-color-border);
-    border-inline-start: 4px solid var(--cms-color-danger);
-    border-radius: var(--cms-radius-md);
-    background: var(--cms-color-surface);
+    border: 1px solid transparent;
+    border-radius: var(--cms-radius-lg);
+    background: var(--cms-color-danger-soft);
     font-size: var(--cms-font-size-md);
   }
 

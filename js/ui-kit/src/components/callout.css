@@ -1,40 +1,51 @@
 @layer cms.kit {
+  /*
+   * A message in the soft background of its tone, with the tone's icon and text, never a coloured
+   * stripe at its edge (@cboxdk/cbox-ui BRAND.md). The border is transparent, so forced colours
+   * draw it as an outline when they drop the background.
+   */
   .cms-callout {
     display: flex;
+    align-items: flex-start;
     gap: var(--cms-space-3);
     inline-size: 100%;
     padding: var(--cms-space-3) var(--cms-space-4);
-    border: 1px solid var(--cms-color-border);
-    border-inline-start: 4px solid var(--cms-color-accent);
-    border-radius: var(--cms-radius-md);
-    background: var(--cms-color-surface);
+    border: 1px solid transparent;
+    border-radius: var(--cms-radius-lg);
+    background: var(--cms-color-accent-subtle);
     color: var(--cms-color-text);
     font-size: var(--cms-font-size-md);
+    line-height: var(--cms-line-height);
   }
 
   .cms-callout__icon {
+    display: inline-flex;
     flex: none;
+    margin-block-start: 0.15em;
     color: var(--cms-color-accent);
   }
 
   .cms-callout[data-tone='success'] {
-    border-inline-start-color: var(--cms-color-success);
+    background: var(--cms-color-success-soft);
   }
 
-  .cms-callout[data-tone='success'] .cms-callout__icon {
+  .cms-callout[data-tone='success'] .cms-callout__icon,
+  .cms-callout[data-tone='success'] .cms-callout__title {
     color: var(--cms-color-success);
   }
 
   .cms-callout[data-tone='warning'] {
-    border-inline-start-color: var(--cms-color-warning);
+    background: var(--cms-color-warning-soft);
   }
 
-  .cms-callout[data-tone='warning'] .cms-callout__icon {
+  .cms-callout[data-tone='warning'] .cms-callout__icon,
+  .cms-callout[data-tone='warning'] .cms-callout__title {
     color: var(--cms-color-warning);
   }
 
   .cms-callout[data-tone='danger'] {
-    border-inline-start-color: var(--cms-color-danger);
+    background: var(--cms-color-danger-soft);
+    color: var(--cms-color-danger);
   }
 
   .cms-callout[data-tone='danger'] .cms-callout__icon {
@@ -55,6 +66,12 @@
 
   .cms-callout__message > p {
     margin: 0;
+  }
+
+  /* A link in a danger message keeps the message's tone, underlined, as the design shows it. */
+  .cms-callout__message a,
+  .cms-callout[data-tone='danger'] .cms-callout__action a {
+    color: inherit;
   }
 
   .cms-callout__action {

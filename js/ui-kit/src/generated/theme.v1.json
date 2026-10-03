@@ -175,6 +175,18 @@
           "description": "The background of a panel or a button that sits on the surface.",
           "$ref": "#/$defs/color"
         },
+        "color-card": {
+          "description": "The background of a card or a panel that sits on the canvas, with a 1px border and the card shadow.",
+          "$ref": "#/$defs/color"
+        },
+        "color-canvas": {
+          "description": "The cool background behind cards, such as the product side of a sign-in page.",
+          "$ref": "#/$defs/color"
+        },
+        "color-muted": {
+          "description": "A muted fill inside a card, such as a tile of facts.",
+          "$ref": "#/$defs/color"
+        },
         "color-text": {
           "description": "Body text and headings.",
           "$ref": "#/$defs/color"
@@ -207,6 +219,10 @@
           "description": "Errors and destructive actions.",
           "$ref": "#/$defs/color"
         },
+        "color-danger-soft": {
+          "description": "The soft background of a danger message, under text in color-danger.",
+          "$ref": "#/$defs/color"
+        },
         "color-focus": {
           "description": "The colour of the focus ring.",
           "$ref": "#/$defs/color"
@@ -219,8 +235,16 @@
           "description": "Success, such as a committed change.",
           "$ref": "#/$defs/color"
         },
+        "color-success-soft": {
+          "description": "The soft background of a success message, under text in color-success.",
+          "$ref": "#/$defs/color"
+        },
         "color-warning": {
           "description": "A warning, such as a change that waits for a projection.",
+          "$ref": "#/$defs/color"
+        },
+        "color-warning-soft": {
+          "description": "The soft background of a warning message, under text in color-warning.",
           "$ref": "#/$defs/color"
         },
         "color-backdrop": {
@@ -231,12 +255,20 @@
           "description": "The shadow of an overlay, such as a menu or a dialog.",
           "$ref": "#/$defs/shadow"
         },
+        "shadow-card": {
+          "description": "The one-pixel shadow of a card, under its 1px border.",
+          "$ref": "#/$defs/shadow"
+        },
         "font-family": {
-          "description": "The typeface of all text.",
+          "description": "The typeface of all text: Plus Jakarta Sans, self-hosted with the kit, as @cboxdk/cbox-ui sets it.",
+          "$ref": "#/$defs/font-family"
+        },
+        "font-family-display": {
+          "description": "The typeface of headings: Plus Jakarta Sans, as for all text.",
           "$ref": "#/$defs/font-family"
         },
         "font-family-mono": {
-          "description": "The typeface of codes and identifiers.",
+          "description": "The typeface of code, ids and numbers: JetBrains Mono, self-hosted with the kit, as @cboxdk/cbox-ui sets it.",
           "$ref": "#/$defs/font-family"
         },
         "font-size-sm": {
@@ -255,6 +287,10 @@
           "description": "A page's heading.",
           "$ref": "#/$defs/length"
         },
+        "font-size-display": {
+          "description": "The heading of a page outside the panel's navigation, such as signing in.",
+          "$ref": "#/$defs/length"
+        },
         "font-weight-regular": {
           "description": "The weight of body text.",
           "$ref": "#/$defs/number"
@@ -265,6 +301,10 @@
         },
         "font-weight-semibold": {
           "description": "The weight of headings.",
+          "$ref": "#/$defs/number"
+        },
+        "font-weight-bold": {
+          "description": "The weight of display headings, such as the heading of a sign-in page.",
           "$ref": "#/$defs/number"
         },
         "line-height": {
@@ -309,6 +349,10 @@
         },
         "radius-lg": {
           "description": "The rounding of panels.",
+          "$ref": "#/$defs/length"
+        },
+        "radius-xl": {
+          "description": "The rounding of a card that stands on its own, such as the product card of a sign-in page.",
           "$ref": "#/$defs/length"
         },
         "focus-ring": {
