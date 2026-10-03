@@ -66,4 +66,10 @@ final readonly class CommittedRoles implements GrantReader
     {
         return $this->reader->handleTaken($handle);
     }
+
+    #[Override]
+    public function actorGrants(array $actors): array
+    {
+        return $this->reader->actorGrants($actors);
+    }
 }

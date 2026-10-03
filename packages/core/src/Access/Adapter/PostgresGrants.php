@@ -13,6 +13,8 @@ use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\RoleId;
+use Cbox\Cms\Contracts\Pipeline\ReadVersion;
+use Cbox\Cms\Core\Access\Domain\ActorGrantsRef;
 use Cbox\Cms\Core\Access\Domain\Dto\Grant;
 use Cbox\Cms\Core\Access\Domain\Dto\HeldGrant;
 use Illuminate\Database\ConnectionInterface;
@@ -115,6 +117,26 @@ final readonly class PostgresGrants
     public function heldByDelegator(ActorId $actor): array
     {
         return $this->withPermissions($this->ofDelegator($actor));
+    }
+
+    /**
+     * The read of each actor's set of grants (ActorGrantsRef) at its version, in one statement,
+     * also of an actor the app role may not read the grants of. The escalation guard reads them
+     * before the grants it decides from, so a change that commits between the two reads makes the
+     * commit find the set at another version.
+     *
+     * @param  list<ActorId>  $actors
+     * @return list<ReadVersion>
+     */
+    public function sets(array $actors): array
+    {
+        $reads = [];
+
+        foreach (ActorGrantVersions::of($this->db(), $actors) as $actor => $version) {
+            $reads[] = ReadVersion::at(new ActorGrantsRef(ActorId::fromString($actor)), $version);
+        }
+
+        return $reads;
     }
 
     /**

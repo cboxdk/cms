@@ -122,4 +122,24 @@ final class FakeGrantReader implements GrantReader
     {
         return isset($this->handles[$handle->value]);
     }
+
+    #[Override]
+    public function actorGrants(array $actors): array
+    {
+        $versions = [];
+
+        foreach ($actors as $actor) {
+            $version = 1;
+
+            foreach ($this->grants as $grant) {
+                if ($grant->actor->equals($actor)) {
+                    $version += $grant->version->value + ($grant->ended ? 1 : 0);
+                }
+            }
+
+            $versions[$actor->toString()] = new AggregateVersion($version);
+        }
+
+        return $versions;
+    }
 }

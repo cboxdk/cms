@@ -8,6 +8,9 @@ use Cbox\Cms\Contracts\Identity\NodePath;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\NodeId;
+use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Contracts\Pipeline\ReadVersion;
+use Cbox\Cms\Core\Access\Domain\ActorGrantsRef;
 use Cbox\Cms\Core\Access\Domain\Dto\Grant;
 use Cbox\Cms\Core\Access\Domain\Dto\HeldGrant;
 use LogicException;
@@ -68,6 +71,26 @@ final class FakePermissions
             static fn (array $held): HeldGrant => new HeldGrant($held[0], array_map(static fn (string $name): CommandName => new CommandName($name), $held[1])),
             $this->grants[$actor->toString()] ?? [],
         );
+    }
+
+    /**
+     * The read of each actor's set of grants at its version, as PostgresGrants::sets() gives it:
+     * one plus the versions of its grants, each at version 1 and none ended.
+     *
+     * @param  list<ActorId>  $actors
+     * @return list<ReadVersion>
+     */
+    public function sets(array $actors): array
+    {
+        $reads = [];
+
+        foreach ($actors as $actor) {
+            $reads[$actor->toString()] = ReadVersion::at(new ActorGrantsRef($actor), new AggregateVersion(1 + count($this->grants[$actor->toString()] ?? [])));
+        }
+
+        ksort($reads);
+
+        return array_values($reads);
     }
 
     /**

@@ -15,6 +15,7 @@ use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\RoleId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Plans\Mutations\GrantAssigned;
+use Cbox\Cms\Core\Access\Domain\ActorGrantsRef;
 use Cbox\Cms\Core\Access\Domain\Dto\StoredGrant;
 use Cbox\Cms\Core\Access\Domain\GrantSlotRef;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\StaleRead;
@@ -39,7 +40,7 @@ function grantAssignWorld(): GrantActionWorld
         ->hold(['entry.create', 'entry.revise'], AccessWorld::NEWS);
 }
 
-it('grants a role whose permissions the issuer holds on the node, reading the grant, the actor, the role and the slot', function (): void {
+it('grants a role whose permissions the issuer holds on the node, reading the grant, the actor, the role, the slot and both actors\' sets of grants', function (): void {
     $world = grantAssignWorld();
     $target = $world->target();
     $role = $world->role(['entry.create']);
@@ -60,6 +61,8 @@ it('grants a role whose permissions the issuer holds on the node, reading the gr
         ->and($world->reads())->toBe([
             $world->issuer->aggregateKey().' 1',
             $target->aggregateKey().' 1',
+            new ActorGrantsRef($world->issuer)->aggregateKey().' 3',
+            new ActorGrantsRef($target)->aggregateKey().' 1',
             'grant:'.GrantActionWorld::GRANT.' -',
             $slot->aggregateKey().' -',
             'role:'.GrantActionWorld::ROLE.' 1',
@@ -191,4 +194,16 @@ it('rejects a grant whose id exists with version_conflict, and fails with it whe
         ->and($world->committer->pending)->toBe([])
         ->and(ActorCommandFakes::errors($taken))->toBe(['version_conflict'])
         ->and($fresh->committer->pending)->toHaveCount(1);
+});
+
+it('rejects a grant the issuer gives itself with version_conflict when the guard read its set of grants at another version than the action did', function (): void {
+    $world = grantAssignWorld();
+    $world->role(['entry.create']);
+
+    $result = $world->run($world->assign($world->issuer, AccessWorld::SPORT));
+
+    expect(ActorCommandFakes::errors($result))->toBe(['version_conflict'])
+        ->and($result->errors[0]->message)->toContain(new ActorGrantsRef($world->issuer)->aggregateKey())
+        ->and($result->errors[0]->message)->toContain('read twice in this call')
+        ->and($world->committer->pending)->toBe([]);
 });

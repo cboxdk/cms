@@ -116,7 +116,7 @@ final class FakeCommandAuthorizer implements CommandAuthorizer
             $authorization = $guard->decide($escalation, $node, $this->permissions->held($delegator), $principal->classificationCeiling(), sprintf('the actor %s it acts on behalf of', $delegator->toString()));
         }
 
-        return $authorization;
+        return $authorization->relyingOn(...$this->permissions->sets([$principal->actor, ...$principal->onBehalfOf]));
     }
 
     /**
@@ -127,7 +127,7 @@ final class FakeCommandAuthorizer implements CommandAuthorizer
         $guard = $this->guard();
         $authorization = $guard->ceiling($content, $access->classificationAccess);
 
-        if (! $authorization->allowed() || $content->added === []) {
+        if (! $authorization->allowed() || $content->added === [] || $content->allows() === []) {
             return $authorization;
         }
 
@@ -142,7 +142,7 @@ final class FakeCommandAuthorizer implements CommandAuthorizer
             $authorization = $guard->content($content, $paths, $permissions->held($delegator), sprintf('the actor %s it acts on behalf of', $delegator->toString()));
         }
 
-        return $authorization;
+        return $authorization->relyingOn(...$permissions->sets([$principal->actor, ...$principal->onBehalfOf]));
     }
 
     /**

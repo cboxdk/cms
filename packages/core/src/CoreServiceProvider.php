@@ -24,6 +24,7 @@ use Cbox\Cms\Core\Access\Adapter\GrantRevokedWriter;
 use Cbox\Cms\Core\Access\Adapter\GrantRoleContentChangedWriter;
 use Cbox\Cms\Core\Access\Adapter\PostgresAccessListings;
 use Cbox\Cms\Core\Access\Adapter\PostgresAccessResolver;
+use Cbox\Cms\Core\Access\Adapter\PostgresActorGrantsLock;
 use Cbox\Cms\Core\Access\Adapter\PostgresCommandAuthorizer;
 use Cbox\Cms\Core\Access\Adapter\PostgresGrantReader;
 use Cbox\Cms\Core\Access\Adapter\PostgresGrantSlotLock;
@@ -520,6 +521,10 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->bind(PermissionCatalog::class, RegistryPermissionCatalog::class);
         $this->app->tag([PostgresRoleHandleLock::class, PostgresRoleGrantsLock::class], VersionLocks::TAG);
         $this->app->tag([RoleCreatedWriter::class, RolePermissionsSetWriter::class, GrantRoleContentChangedWriter::class], MutationWriters::TAG);
+
+        // The lock of an actor's set of grants (invariant 31), which the escalation guard decided
+        // from and which every command that changes the actor's grants reads.
+        $this->app->tag([PostgresActorGrantsLock::class], VersionLocks::TAG);
 
         // role.list, grant.list, actor.list and node.list (PRD 5.8, 5.10, 5.16): what the
         // listing queries read, under the read's actor context.

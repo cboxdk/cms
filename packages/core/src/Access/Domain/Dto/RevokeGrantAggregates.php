@@ -7,16 +7,19 @@ namespace Cbox\Cms\Core\Access\Domain\Dto;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Identity\GrantEffect;
 use Cbox\Cms\Contracts\Ids\GrantId;
+use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersions;
+use Cbox\Cms\Core\Access\Domain\ActorGrantsRef;
 use Cbox\Cms\Core\Access\Domain\GuardedGrant;
 use Override;
 
 /**
  * What grant.revoke read (PRD 5.10, 6.2 phase 1): the grant, or null when no grant has the id or
- * the issuing actor's regions do not reach its node, and its role with its permissions. The kernel
- * checks both at commit under their locks.
+ * the issuing actor's regions do not reach its node, its role with its permissions, and the version
+ * of the set of grants of the grant's actor, which the revocation changes. The kernel checks each
+ * at commit under its lock.
  *
  * The command is authorized on the grant's node in its locales. Ending a deny gives the actor back
  * what the deny kept from it, so a deny's role is held to the escalation guard.
@@ -28,6 +31,7 @@ final readonly class RevokeGrantAggregates implements GuardedGrant
         public GrantId $id,
         public ?StoredGrant $grant,
         public ?StoredRole $role,
+        public AggregateVersion $actorGrants,
     ) {}
 
     #[Override]
@@ -40,6 +44,7 @@ final readonly class RevokeGrantAggregates implements GuardedGrant
         return new ReadVersions(
             new ReadVersion($this->id, $this->grant->version),
             new ReadVersion($this->grant->role, $this->role?->version),
+            new ReadVersion(new ActorGrantsRef($this->grant->actor), $this->actorGrants),
         );
     }
 

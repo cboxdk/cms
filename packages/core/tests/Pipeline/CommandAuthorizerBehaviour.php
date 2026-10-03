@@ -28,6 +28,8 @@ use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
 use Cbox\Cms\Contracts\Pipeline\AuthorizationTarget;
+use Cbox\Cms\Contracts\Pipeline\ReadVersion;
+use Cbox\Cms\Core\Access\Domain\ActorGrantsRef;
 use Cbox\Cms\Core\Access\Domain\Dto\RoleContentChange;
 use Cbox\Cms\Core\Access\Domain\Dto\RoleGrant;
 use Cbox\Cms\Core\Access\Domain\Dto\StoredGrant;
@@ -222,6 +224,33 @@ trait CommandAuthorizerBehaviour
     }
 
     #[Test]
+    public function it_relies_on_the_actor_s_set_of_grants_when_the_escalation_guard_lets_it_give_a_role(): void
+    {
+        $actor = $this->grantedActor([
+            ['grantor', ['grant.assign'], AccessWorld::ROOT, GrantEffect::Allow, null],
+            ['writer', ['entry.create'], AccessWorld::NEWS, GrantEffect::Allow, null],
+        ]);
+
+        Assert::assertSame([new ActorGrantsRef($actor->actor)->aggregateKey().' 3'], $this->sets($this->giving($actor, ['entry.create'], AccessWorld::NEWS)));
+        Assert::assertSame([], $this->sets($this->authorized($actor, 'entry.create', $this->on(AccessWorld::NEWS))));
+        Assert::assertSame([], $this->sets($this->giving($actor, ['entry.publish'], AccessWorld::NEWS)));
+    }
+
+    #[Test]
+    public function it_relies_on_the_set_of_grants_of_each_actor_of_the_chain_the_escalation_guard_decided_from(): void
+    {
+        $person = $this->grantedActor([['lead', ['grant.assign', 'entry.create'], AccessWorld::ROOT, GrantEffect::Allow, null]]);
+        $delegate = $this->delegateOf($person, [['agent', ['grant.assign', 'entry.create'], AccessWorld::NEWS, GrantEffect::Allow, null]]);
+        $expected = [
+            new ActorGrantsRef($delegate->actor)->aggregateKey().' 2',
+            new ActorGrantsRef($person->actor)->aggregateKey().' 2',
+        ];
+        sort($expected);
+
+        Assert::assertSame($expected, $this->sets($this->giving($delegate, ['entry.create'], AccessWorld::NEWS)));
+    }
+
+    #[Test]
     public function it_refuses_a_role_with_a_permission_the_actor_lacks_on_the_node_as_an_escalation(): void
     {
         $actor = $this->grantedActor([
@@ -383,6 +412,19 @@ trait CommandAuthorizerBehaviour
 
         Assert::assertFalse($refusal->allowed());
         Assert::assertStringContainsString('anonymous', (string) $refusal->reason);
+    }
+
+    /**
+     * What an authorization relied on besides the aggregates, each as its key and version.
+     *
+     * @return list<string>
+     */
+    private function sets(Authorization $authorization): array
+    {
+        return array_map(
+            static fn (ReadVersion $read): string => $read->aggregate->aggregateKey().' '.($read->version->value ?? '-'),
+            $authorization->reads->reads,
+        );
     }
 
     private function authorized(Principal $principal, string $command, AuthorizationScope $scope): Authorization

@@ -95,7 +95,11 @@ use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
  *    version its caller saw (invariant 11), and so is a call whose two reads of one aggregate
  *    differ.
  * 2. Authorize, through the CommandAuthorizer with the call's AccessContext; a refusal is
- *    unauthorized, or the code it names, such as grant_escalation_refused. Then an action that
+ *    unauthorized, or the code it names, such as grant_escalation_refused. What an allowing
+ *    decision relied on beyond the action's aggregates, such as the issuing actor's set of grants
+ *    the escalation guard decided from (invariant 31), joins the call's reads, so the commit holds
+ *    it to the version the authorizer read; one the call read before at another version is
+ *    version_conflict. Then an action that
  *    RefusesCommand says whether what it read refuses the command, such as a slug another
  *    placement has, and the call is rejected with its errors.
  * 3. Plan: the action's plan() from the command and the aggregates. The kernel checks its shape
@@ -313,6 +317,14 @@ final readonly class CommandPipeline
         if (! $authorization->allowed()) {
             return $this->rejected($call, new CatalogError($authorization->code, null, (string) $authorization->reason));
         }
+
+        $relied = $this->relied($reads, $authorization->reads);
+
+        if ($relied instanceof CatalogError) {
+            return $this->rejected($call, $relied);
+        }
+
+        $reads = $relied;
 
         if ($action instanceof RefusesCommand) {
             $refusals = $action->refusals($call->command, $aggregates);
@@ -684,6 +696,28 @@ final readonly class CommandPipeline
             $this->version($stale->read),
             $this->version($stale->current),
         ));
+    }
+
+    /**
+     * The call's reads with what the authorization relied on (invariant 31): a read the call has
+     * already at the same version is kept once, and one it has at another version, read twice in
+     * this call, is version_conflict.
+     */
+    private function relied(ReadVersions $reads, ReadVersions $relied): ReadVersions|CatalogError
+    {
+        $added = [];
+
+        foreach ($relied->reads as $read) {
+            $known = $reads->of($read->aggregate);
+
+            if (! $known instanceof ReadVersion) {
+                $added[] = $read;
+            } elseif (! $this->sameVersion($known->version, $read->version)) {
+                return $this->conflict(new StaleRead($read->aggregate, $known->version, $read->version), 'was read twice in this call at different versions');
+            }
+        }
+
+        return $added === [] ? $reads : new ReadVersions(...$reads->reads, ...$added);
     }
 
     private function inactive(ActorId $id, ?Actor $actor, bool $onBehalfOf): string

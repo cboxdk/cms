@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Access\Domain\Dto;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\RoleId;
+use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersions;
+use Cbox\Cms\Core\Access\Domain\ActorGrantsRef;
 use Cbox\Cms\Core\Access\Domain\GuardedRoleContent;
 use Cbox\Cms\Core\Access\Domain\RoleGrantsRef;
 use Override;
@@ -17,9 +20,10 @@ use Override;
 /**
  * What role.set_permissions read (PRD 5.10, 6.2 phase 1): the role with its permissions, or null
  * when no role has the id; the role's grants that have not ended, wherever they are, with the
- * version of its set of grants; and which of the new permissions the registry does not know. The
- * kernel checks the role, its set of grants and each grant at commit under their locks, so a grant
- * of the role given, ended or changed meanwhile is version_conflict.
+ * version of its set of grants; the version of the set of grants of each actor that holds one of
+ * them, which the change changes; and which of the new permissions the registry does not know. The
+ * kernel checks the role, its set of grants, each grant and each holder's set at commit under
+ * their locks, so a grant of the role given, ended or changed meanwhile is version_conflict.
  *
  * The command is authorized anywhere, so the issuing actor needs role.set_permissions on some
  * node, and what the change adds is held to the escalation guard on every node where the role is
@@ -31,6 +35,7 @@ final readonly class SetRolePermissionsAggregates implements GuardedRoleContent
     /**
      * @param  list<CommandName>  $permissions  the new permissions the registry knows, as the command lists them
      * @param  list<CommandName>  $unknown  the new permissions the registry does not know
+     * @param  array<string, AggregateVersion>  $holders  the version of the set of grants of each actor that holds one of the role's grants, by the actor's id
      */
     public function __construct(
         public RoleId $role,
@@ -38,6 +43,7 @@ final readonly class SetRolePermissionsAggregates implements GuardedRoleContent
         public ?RoleGrants $grants,
         public array $permissions,
         public array $unknown,
+        public array $holders,
     ) {}
 
     #[Override]
@@ -51,6 +57,11 @@ final readonly class SetRolePermissionsAggregates implements GuardedRoleContent
             new ReadVersion($this->role, $this->stored->version),
             new ReadVersion(new RoleGrantsRef($this->role), $this->grants->version),
             ...array_map(static fn (StoredGrant $grant): ReadVersion => new ReadVersion($grant->id, $grant->version), $this->grants->grants),
+            ...array_map(
+                static fn (string $actor, AggregateVersion $version): ReadVersion => new ReadVersion(new ActorGrantsRef(ActorId::fromString($actor)), $version),
+                array_keys($this->holders),
+                array_values($this->holders),
+            ),
         );
     }
 

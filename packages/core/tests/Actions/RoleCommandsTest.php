@@ -17,6 +17,7 @@ use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Plans\Mutations\GrantRoleContentChanged;
 use Cbox\Cms\Contracts\Plans\Mutations\RoleCreated;
 use Cbox\Cms\Contracts\Plans\Mutations\RolePermissionsSet;
+use Cbox\Cms\Core\Access\Domain\ActorGrantsRef;
 use Cbox\Cms\Core\Access\Domain\Commands\CreateRole;
 use Cbox\Cms\Core\Access\Domain\Commands\SetRolePermissions;
 use Cbox\Cms\Core\Access\Domain\Dto\StoredGrant;
@@ -174,6 +175,8 @@ it('sets a role\'s permissions and moves each of its grants, when the issuer hol
         ])
         ->and($world->reads())->toBe([
             $world->issuer->aggregateKey().' 1',
+            new ActorGrantsRef(ActorId::fromString(ROLE_HOLDER))->aggregateKey().' 3',
+            new ActorGrantsRef($world->issuer)->aggregateKey().' 3',
             'grant:'.ROLE_GRANT_NEWS.' 1',
             'grant:'.ROLE_GRANT_CULTURE.' 1',
             'role:'.GrantActionWorld::ROLE.' 1',

@@ -12,6 +12,7 @@ use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Contracts\Identity\Actor;
 use Cbox\Cms\Contracts\Identity\ActorDirectory;
 use Cbox\Cms\Contracts\Pipeline\Aggregates;
+use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Pipeline\Command;
 use Cbox\Cms\Contracts\Pipeline\RefusesCommand;
 use Cbox\Cms\Contracts\Pipeline\WriteAction;
@@ -28,12 +29,12 @@ use Override;
 
 /**
  * The write action of grant.assign (PRD 5.10, 6.2). resolve() reads the grant's id, the actor to
- * get it through the ActorDirectory, the role and whether the actor holds the role on the node
- * already, through the GrantReader. The kernel's authorize step holds the issuing actor to
- * grant.assign on the node and an allow to the escalation guard. refusals() refuses an actor that
- * is not an active staff or service actor, a role that does not exist, a locale set that is empty
- * or names a locale twice, and a role the actor holds on the node already, each with
- * validation_failed, and plan() creates the grant.
+ * get it through the ActorDirectory, the role, whether the actor holds the role on the node
+ * already and the version of the actor's set of grants, through the GrantReader. The kernel's
+ * authorize step holds the issuing actor to grant.assign on the node and an allow to the
+ * escalation guard. refusals() refuses an actor that is not an active staff or service actor, a
+ * role that does not exist, a locale set that is empty or names a locale twice, and a role the
+ * actor holds on the node already, each with validation_failed, and plan() creates the grant.
  *
  * @implements WriteAction<AssignGrant, AssignGrantAggregates>
  * @implements RefusesCommand<AssignGrant, AssignGrantAggregates>
@@ -66,6 +67,7 @@ final readonly class AssignGrantAction implements RefusesCommand, WriteAction
             $this->grants->held($slot),
             $command->effect,
             $command->locales,
+            $this->grants->actorGrants([$command->actor])[$command->actor->toString()] ?? AggregateVersion::first(),
         );
     }
 

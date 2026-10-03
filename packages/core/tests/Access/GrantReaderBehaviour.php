@@ -29,8 +29,9 @@ use PHPUnit\Framework\Attributes\Test;
  * FOOTBALL, and CULTURE, it reads a grant of another actor on a node she reaches, ended or not, and
  * no grant on a node she does not reach; it reads every role with its permissions, sorted; it
  * says whether a slot holds a grant that has not ended; it reads every grant of a role that has not
- * ended, wherever it is, with the version of the role's set of grants; and it says whether a role
- * has a handle.
+ * ended, wherever it is, with the version of the role's set of grants; it says whether a role
+ * has a handle; and it gives the version of actors' sets of grants: one, plus the versions of their
+ * grants, plus the number that have ended.
  */
 trait GrantReaderBehaviour
 {
@@ -123,6 +124,37 @@ trait GrantReaderBehaviour
             Assert::assertSame([], $none->grants);
             Assert::assertSame(1, $none->version->value);
         }));
+    }
+
+    #[Test]
+    public function it_gives_the_version_of_each_actor_s_set_of_grants_ended_ones_included(): void
+    {
+        $role = RoleId::fromString(self::GRANT_ROLE);
+        $service = ActorId::fromString(AccessWorld::SERVICE);
+        $grant = static fn (string $id, string $node, int $version, bool $ended): StoredGrant => new StoredGrant(
+            GrantId::fromString($id),
+            $service,
+            $role,
+            NodeId::fromString($node),
+            GrantEffect::Allow,
+            null,
+            new AggregateVersion($version),
+            $ended,
+        );
+
+        $this->readAsAlice(
+            $this->world(static function (GrantReader $reader): void {})[0],
+            [$grant(self::GRANT_NEWS, AccessWorld::NEWS, 2, false), $grant(self::GRANT_ENDED, AccessWorld::CULTURE, 3, true)],
+            static function (GrantReader $reader) use ($service): void {
+                $nobody = ActorId::fromString('0192a0c0-0000-7000-8000-000000000e5f');
+                $versions = $reader->actorGrants([$service, $nobody, $service]);
+
+                Assert::assertSame([$service->toString(), $nobody->toString()], array_keys($versions));
+                Assert::assertSame(7, $versions[$service->toString()]->value);
+                Assert::assertSame(1, $versions[$nobody->toString()]->value);
+                Assert::assertSame([], $reader->actorGrants([]));
+            },
+        );
     }
 
     #[Test]

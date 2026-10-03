@@ -6,8 +6,10 @@ namespace Cbox\Cms\Core\Access\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Identity\RoleHandle;
+use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\GrantId;
 use Cbox\Cms\Contracts\Ids\RoleId;
+use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Core\Access\Domain\Dto\RoleGrants;
 use Cbox\Cms\Core\Access\Domain\Dto\StoredGrant;
 use Cbox\Cms\Core\Access\Domain\Dto\StoredRole;
@@ -48,4 +50,15 @@ interface GrantReader
      * Whether a role has the handle.
      */
     public function handleTaken(RoleHandle $handle): bool;
+
+    /**
+     * The version of each actor's set of grants (ActorGrantsRef) by the actor's id, also of an
+     * actor outside the context's regions, in one read: one, plus the versions of every grant of
+     * the actor, ended ones included, plus the number that have ended. An actor without grants has
+     * version 1.
+     *
+     * @param  list<ActorId>  $actors
+     * @return array<string, AggregateVersion>
+     */
+    public function actorGrants(array $actors): array;
 }

@@ -11,6 +11,7 @@ use Cbox\Cms\Contracts\Ids\GrantId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Plans\Mutations\GrantRevoked;
+use Cbox\Cms\Core\Access\Domain\ActorGrantsRef;
 use Cbox\Cms\Core\Access\Domain\Commands\RevokeGrant;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\StaleRead;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\VersionConflict;
@@ -38,10 +39,11 @@ function revokeCommand(GrantId $grant, int $version = 1): RevokeGrant
     return new RevokeGrant($grant, new AggregateVersion($version));
 }
 
-it('ends a grant read at the version the caller saw, reading the grant and its role', function (): void {
+it('ends a grant read at the version the caller saw, reading the grant, its role and its actor\'s set of grants', function (): void {
     $world = grantRevokeWorld();
     $world->role(['entry.create', 'grant.assign'], ClassificationAccess::Sensitive);
-    $grant = $world->stored($world->target(), AccessWorld::SPORT, locales: ['da'], version: 3);
+    $target = $world->target();
+    $grant = $world->stored($target, AccessWorld::SPORT, locales: ['da'], version: 3);
 
     $result = $world->run(revokeCommand($grant, 3));
 
@@ -50,6 +52,7 @@ it('ends a grant read at the version the caller saw, reading the grant and its r
         ->and($world->committer->pending[0]->plan->mutations())->toEqual([new GrantRevoked($grant)])
         ->and($world->reads())->toBe([
             $world->issuer->aggregateKey().' 1',
+            new ActorGrantsRef($target)->aggregateKey().' 4',
             'grant:'.GrantActionWorld::GRANT.' 3',
             'role:'.GrantActionWorld::ROLE.' 1',
         ]);

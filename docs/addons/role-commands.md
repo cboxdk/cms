@@ -93,6 +93,8 @@ A change of a role's content requires that the issuing actor itself holds each a
 
 A command that breaks 2 or 3 is refused with `grant_escalation_refused`. Taking permissions away is not held to 3, and neither is a deny of the role, which gives nothing. An actor that acts on behalf of a person is held to the rules with its own grants and with the person's.
 
+Rule 3 is decided from the grants the issuing actor, and each actor it acts on behalf of, holds when the command is authorized. The commit holds each one's set of grants, `actor_grants:<actor>`, to the version the guard read, so a change of those grants that commits meanwhile makes the command `version_conflict`. role.set_permissions reads the set of every holder of the role too, because it changes what each holds.
+
 ## Step-up for a role that becomes administrative
 
 A role is administrative when one of its permissions is a command that changes roles, grants, the identity mapping, connections or who is active; queries such as `role.list` and `grant.list` do not count (see [grant commands](grant-commands.md)). A change that makes a granted role administrative needs step-up, which is not built yet, so it is refused with `step_up_required`, after rules 1 to 3. A role that is granted nowhere may become administrative; a grant of it then needs step-up.

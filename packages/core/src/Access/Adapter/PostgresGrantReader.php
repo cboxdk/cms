@@ -28,7 +28,8 @@ use Override;
  * command transaction and under its actor context. The app role reads only its own actor's grants,
  * so a grant and a grant's slot are read through the owner functions cms_access_grant (only where
  * the context's regions reach the grant's node) and cms_access_grant_held, and a role's grants
- * through cms_access_role_grants and cms_access_role_grants_version; every actor reads the roles,
+ * through cms_access_role_grants and cms_access_role_grants_version, and the version of actors' sets
+ * of grants through cms_access_actor_grants_versions; every actor reads the roles,
  * their handles and their permissions itself. Each read is one statement, roleGrants() two, on the
  * write PDO.
  */
@@ -147,6 +148,12 @@ final readonly class PostgresGrantReader implements GrantReader
     public function handleTaken(RoleHandle $handle): bool
     {
         return $this->db()->table('roles')->useWritePdo()->where('handle', $handle->value)->exists();
+    }
+
+    #[Override]
+    public function actorGrants(array $actors): array
+    {
+        return ActorGrantVersions::of($this->db(), $actors);
     }
 
     private function db(): ConnectionInterface

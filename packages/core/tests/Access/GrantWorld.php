@@ -21,6 +21,8 @@ use Cbox\Cms\Core\Access\Actions\SetRolePermissionsAction;
 use Cbox\Cms\Core\Access\Adapter\GrantAssignedWriter;
 use Cbox\Cms\Core\Access\Adapter\GrantRevokedWriter;
 use Cbox\Cms\Core\Access\Adapter\GrantRoleContentChangedWriter;
+use Cbox\Cms\Core\Access\Adapter\PostgresActorGrantsLock;
+use Cbox\Cms\Core\Access\Adapter\PostgresCommandAuthorizer;
 use Cbox\Cms\Core\Access\Adapter\PostgresGrantReader;
 use Cbox\Cms\Core\Access\Adapter\PostgresGrantSlotLock;
 use Cbox\Cms\Core\Access\Adapter\PostgresGrantVersionLock;
@@ -30,10 +32,14 @@ use Cbox\Cms\Core\Access\Adapter\PostgresRoleVersionLock;
 use Cbox\Cms\Core\Access\Adapter\RoleCreatedWriter;
 use Cbox\Cms\Core\Access\Adapter\RolePermissionsSetWriter;
 use Cbox\Cms\Core\Access\Domain\AccessContexts;
+use Cbox\Cms\Core\Access\Domain\AdministrativePermissions;
 use Cbox\Cms\Core\Access\Domain\Commands\AssignGrant;
 use Cbox\Cms\Core\Access\Domain\Commands\CreateRole;
 use Cbox\Cms\Core\Access\Domain\Commands\RevokeGrant;
 use Cbox\Cms\Core\Access\Domain\Commands\SetRolePermissions;
+use Cbox\Cms\Core\Access\Domain\EscalationGuard;
+use Cbox\Cms\Core\Access\Domain\PermissionCatalog;
+use Cbox\Cms\Core\Access\Domain\PermissionRule;
 use Cbox\Cms\Core\IdempotencyStore\Adapter\PostgresIdempotencyStore;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
 use Cbox\Cms\Core\Identity\Adapter\PostgresActorDirectory;
@@ -68,6 +74,7 @@ use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
 use Cbox\Cms\Testkit\Schema\FakeTypeCatalog;
 use Cbox\Cms\Testkit\Telemetry\FakeTelemetry;
 use Cbox\Cms\Testkit\Validation\FakeTypeValidators;
+use Closure;
 use DateTimeImmutable;
 use Illuminate\Database\ConnectionResolverInterface;
 use LogicException;
@@ -76,9 +83,10 @@ use LogicException;
  * grant.assign, grant.revoke, role.create and role.set_permissions on Postgres (PRD 5.10, 6.4): the
  * real command pipeline as the app role, with the kernel's command authorizer and escalation
  * guard, the grant reader, the commit with the locks of an actor, a grant, a role, a grant's slot,
- * a role's handle and a role's set of grants, and the writers. The PermissionCatalog knows the
- * names of GrantActionWorld::NAMES. A call runs with
- * the access context the kernel compiles for the principal from its grants.
+ * a role's handle, a role's set of grants and an actor's set of grants, and the writers. The
+ * PermissionCatalog knows the names of GrantActionWorld::NAMES. A call runs with the access context
+ * the kernel compiles for the principal from its grants, on the default connection or the one
+ * named, and with what a test lets happen right after the kernel authorized it.
  */
 final readonly class GrantWorld
 {
@@ -90,11 +98,18 @@ final readonly class GrantWorld
 
     private FakeIdGenerator $ids;
 
-    public function __construct()
-    {
+    /**
+     * @param  string|null  $connection  the connection the calls run on; null for the default connection
+     * @param  (Closure(): void)|null  $afterAuthorize  what a test lets happen right after the kernel authorized a call, before it commits
+     */
+    public function __construct(
+        private ?string $connection = null,
+        int $seed = 61,
+        private ?Closure $afterAuthorize = null,
+    ) {
         $this->clock = new FakeClock(new DateTimeImmutable(self::NOW));
         $this->connections = app(ConnectionResolverInterface::class);
-        $this->ids = new FakeIdGenerator(seed: 61, clock: $this->clock);
+        $this->ids = new FakeIdGenerator(seed: $seed, clock: $this->clock);
     }
 
     /**
@@ -116,9 +131,11 @@ final readonly class GrantWorld
     private function pipeline(): CommandPipeline
     {
         $types = new FakeTypeCatalog;
-        $directory = new PostgresActorDirectory($this->connections);
-        $receipts = new PostgresReceiptStore($this->connections, $this->clock);
-        $reader = new PostgresGrantReader($this->connections);
+        $connection = $this->connection;
+        $directory = new PostgresActorDirectory($this->connections, $connection);
+        $receipts = new PostgresReceiptStore($this->connections, $this->clock, $connection);
+        $reader = new PostgresGrantReader($this->connections, $connection);
+        $authorizer = $connection === null ? app(CommandAuthorizer::class) : new PostgresCommandAuthorizer($this->connections, new PermissionRule, new EscalationGuard(new AdministrativePermissions(app(PermissionCatalog::class))), $connection);
         $catalog = new FakePermissionCatalog(GrantActionWorld::NAMES, GrantActionWorld::QUERIES);
 
         return new CommandPipeline(
@@ -129,7 +146,7 @@ final readonly class GrantWorld
                 SetRolePermissions::class => $this->binding('role.set_permissions', new SetRolePermissionsAction($reader, $catalog)),
             ]),
             $directory,
-            app(CommandAuthorizer::class),
+            $this->afterAuthorize instanceof Closure ? new AfterAuthorize($authorizer, $this->afterAuthorize) : $authorizer,
             $types,
             new FakeFieldValidation(new FakeTypeValidators),
             new FakeRevisionContents,
@@ -138,28 +155,30 @@ final readonly class GrantWorld
                 $this->clock,
                 $this->ids,
                 new VersionLocks(
-                    new PostgresActorVersionLock($this->connections),
-                    new PostgresGrantVersionLock($this->connections),
-                    new PostgresRoleVersionLock($this->connections),
-                    new PostgresGrantSlotLock($this->connections),
-                    new PostgresRoleHandleLock($this->connections),
-                    new PostgresRoleGrantsLock($this->connections),
+                    new PostgresActorVersionLock($this->connections, $connection),
+                    new PostgresGrantVersionLock($this->connections, $connection),
+                    new PostgresRoleVersionLock($this->connections, $connection),
+                    new PostgresGrantSlotLock($this->connections, $connection),
+                    new PostgresRoleHandleLock($this->connections, $connection),
+                    new PostgresRoleGrantsLock($this->connections, $connection),
+                    new PostgresActorGrantsLock($this->connections, $connection),
                 ),
                 new MutationWriters(
-                    new GrantAssignedWriter($this->connections),
-                    new GrantRevokedWriter($this->connections),
-                    new RoleCreatedWriter($this->connections),
-                    new RolePermissionsSetWriter($this->connections),
-                    new GrantRoleContentChangedWriter($this->connections),
+                    new GrantAssignedWriter($this->connections, $connection),
+                    new GrantRevokedWriter($this->connections, $connection),
+                    new RoleCreatedWriter($this->connections, $connection),
+                    new RolePermissionsSetWriter($this->connections, $connection),
+                    new GrantRoleContentChangedWriter($this->connections, $connection),
                 ),
                 new FakeAffectedProjections,
                 $receipts,
+                $connection,
             ),
-            new PostgresIdempotencyStore($this->connections, $this->clock),
+            new PostgresIdempotencyStore($this->connections, $this->clock, $connection),
             $receipts,
             new FakeCommandContentHasher,
             new IdempotencySettings(WaitBudget::milliseconds(200)),
-            new ConnectionCommandTransaction($this->connections, new SavepointRefusal),
+            new ConnectionCommandTransaction($this->connections, new SavepointRefusal, $connection),
             new HookRunner(new FakeCommandHooks, new HookPlans($types), new FakeStopwatch, new FakeHookOverruns),
             new PipelineTelemetry(new FakeTelemetry, new FakeClock, new FakeStopwatch),
             new AwaitWaitLevel($receipts, new SystemPacing, new WaitSettings(0)),

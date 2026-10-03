@@ -47,6 +47,11 @@ use Override;
  * its chain, on every node where the role is granted; a change that makes a granted role
  * administrative needs step-up.
  *
+ * The guard decides from the grants the actor, and each actor of its chain, holds, so an allowing
+ * decision relies on each one's set of grants (ActorGrantsRef), read before those grants: the
+ * kernel adds the sets to the call's reads, and a revocation, a deny or a change of a held role's
+ * permissions that commits before the call does makes it version_conflict (invariant 31).
+ *
  * It reads the actor's grants of those roles and the paths of the target nodes on the default
  * connection, or the one named, inside the command transaction and under its actor context, so a
  * node the context may not read is not reached. Row level security stays the backstop for every
@@ -110,16 +115,18 @@ final readonly class PostgresCommandAuthorizer implements CommandAuthorizer
      * The escalation guard on a command that creates a role or changes its permissions (invariant
      * 31): the role's ceiling against the context's classification access, then each added
      * permission on every node where the role is granted, for the actor and for each actor it acts
-     * on behalf of, each with every grant it holds.
+     * on behalf of, each with every grant it holds. A role granted nowhere, such as a new one, gives
+     * nothing through its permissions, so only its ceiling is held to the guard.
      */
     private function contentGuarded(AccessContext $access, ActorPrincipal $principal, RoleContentChange $content, PostgresGrants $grants): Authorization
     {
         $authorization = $this->guard->ceiling($content, $access->classificationAccess);
 
-        if (! $authorization->allowed() || $content->added === []) {
+        if (! $authorization->allowed() || $content->added === [] || $content->allows() === []) {
             return $authorization;
         }
 
+        $sets = $grants->sets([$principal->actor, ...$principal->onBehalfOf]);
         $paths = $grants->paths(array_map(static fn (StoredGrant $grant): NodeId => $grant->node, $content->allows()));
         $authorization = $this->guard->content($content, $paths, $grants->held($principal->actor));
 
@@ -131,7 +138,7 @@ final readonly class PostgresCommandAuthorizer implements CommandAuthorizer
             $authorization = $this->guard->content($content, $paths, $grants->heldByDelegator($delegator), sprintf('the actor %s it acts on behalf of', $delegator->toString()));
         }
 
-        return $authorization;
+        return $authorization->relyingOn(...$sets);
     }
 
     /**
@@ -148,6 +155,7 @@ final readonly class PostgresCommandAuthorizer implements CommandAuthorizer
             return Authorization::refuse(sprintf('The actor reaches no node %s to give a role on.', $escalation->node->toString()));
         }
 
+        $sets = $grants->sets([$principal->actor, ...$principal->onBehalfOf]);
         $authorization = $this->guard->decide($escalation, $node, $grants->held($principal->actor), $principal->classificationCeiling());
 
         foreach ($principal->onBehalfOf as $delegator) {
@@ -158,7 +166,7 @@ final readonly class PostgresCommandAuthorizer implements CommandAuthorizer
             $authorization = $this->guard->decide($escalation, $node, $grants->heldByDelegator($delegator), $principal->classificationCeiling(), sprintf('the actor %s it acts on behalf of', $delegator->toString()));
         }
 
-        return $authorization;
+        return $authorization->relyingOn(...$sets);
     }
 
     /**

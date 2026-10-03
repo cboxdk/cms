@@ -18,16 +18,18 @@ use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
 use Cbox\Cms\Contracts\Pipeline\AuthorizationTarget;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersions;
+use Cbox\Cms\Core\Access\Domain\ActorGrantsRef;
 use Cbox\Cms\Core\Access\Domain\GrantSlotRef;
 use Cbox\Cms\Core\Access\Domain\GuardedGrant;
 use Override;
 
 /**
  * What grant.assign read (PRD 5.10, 6.2 phase 1): the new grant, absent unless a grant has its id;
- * the actor to get it, as the ActorDirectory gave it; the role with its permissions; and whether
- * the actor holds the role on the node already (the grant's slot). The kernel checks each at commit
- * under its lock, so a role changed, an actor deactivated or a second grant of the slot meanwhile
- * is version_conflict.
+ * the actor to get it, as the ActorDirectory gave it; the role with its permissions; whether the
+ * actor holds the role on the node already (the grant's slot); and the version of the actor's set
+ * of grants, which the grant changes. The kernel checks each at commit under its lock, so a role
+ * changed, an actor deactivated, a second grant of the slot or another change of the actor's
+ * grants meanwhile is version_conflict.
  *
  * The command is authorized on the node in each of the grant's locales, or in every locale, and an
  * allow is held to the escalation guard.
@@ -48,6 +50,7 @@ final readonly class AssignGrantAggregates implements GuardedGrant
         public bool $slotTaken,
         public GrantEffect $effect,
         public ?array $locales,
+        public AggregateVersion $actorGrants,
     ) {}
 
     /**
@@ -69,6 +72,7 @@ final readonly class AssignGrantAggregates implements GuardedGrant
             new ReadVersion($this->slot->actor, $this->actor instanceof Actor ? new AggregateVersion($this->actor->version) : null),
             new ReadVersion($this->role, $this->stored?->version),
             new ReadVersion($this->slot, $this->slotTaken ? AggregateVersion::first() : null),
+            new ReadVersion(new ActorGrantsRef($this->slot->actor), $this->actorGrants),
         );
     }
 
