@@ -30,7 +30,8 @@ use Override;
  * every actor of its chain, each from that actor's current grants (PRD 5.16, 2.31, 22), so a
  * delegated credential reaches no node and no classification its person does not, and loses what
  * the person loses. The chain's grants are read through PostgresGrants::ofDelegator(), under the
- * context that names only the actor. The kernel runs it once per command and read, after the
+ * context that names only the actor. A ceiling lowers the compiled context's classification access
+ * to it before the context is set; it never raises it. The kernel runs it once per command and read, after the
  * credential verifier. Like ActorContext it needs the caller's open transaction and throws
  * TransactionRequired without one, before any statement.
  */
@@ -50,7 +51,7 @@ final readonly class PostgresAccessResolver implements AccessResolver
      * @throws TransactionRequired
      */
     #[Override]
-    public function resolve(Principal $principal): AccessContext
+    public function resolve(Principal $principal, ?ClassificationAccess $ceiling = null): AccessContext
     {
         $context = new ActorContext($this->connections, $this->connection);
 
@@ -70,6 +71,10 @@ final readonly class PostgresAccessResolver implements AccessResolver
                 fn (ActorId $delegator): AccessContext => $this->compiler->compile($principal, $grants->ofDelegator($delegator)),
                 $principal->onBehalfOf,
             ));
+        }
+
+        if ($ceiling instanceof ClassificationAccess) {
+            $compiled = new AccessContext($compiled->principal, $compiled->regions, $compiled->classificationAccess->atMost($ceiling));
         }
 
         $context->set($compiled);

@@ -20,9 +20,9 @@ use PHPUnit\Framework\Attributes\Test;
  * What every AccessResolver does (PRD 5.10, 6.2), held against the fake the query pipeline's action
  * tests use and the Postgres resolver: inside a transaction it gives the anonymous principal the
  * anonymous context, an actor the regions of its grants with the classification its roles allow,
- * capped by the credential's ceiling, an actor without grants no regions and public access, and an
- * actor on behalf of others the intersection of its context and theirs (PRD 5.16); outside one it
- * refuses.
+ * capped by the credential's ceiling and by a ceiling the caller gives, an actor without grants no
+ * regions and public access, and an actor on behalf of others the intersection of its context and
+ * theirs (PRD 5.16); outside one it refuses.
  */
 trait AccessResolverBehaviour
 {
@@ -81,6 +81,20 @@ trait AccessResolverBehaviour
     }
 
     #[Test]
+    public function it_lowers_the_classification_to_a_ceiling_the_caller_gives_and_never_raises_it(): void
+    {
+        $principal = new ActorPrincipal($this->grantedActor(), [], IssuerKind::Service, ClassificationAccess::Sensitive);
+
+        $capped = $this->resolved($principal, ClassificationAccess::Public);
+        $above = $this->resolved($principal, ClassificationAccess::Sensitive);
+
+        Assert::assertEquals($this->grantedRegions(), $capped->regions);
+        Assert::assertSame(ClassificationAccess::Public, $capped->classificationAccess);
+        Assert::assertSame(ClassificationAccess::Internal, $above->classificationAccess);
+        Assert::assertEquals(AccessContext::anonymous(), $this->resolved(new AnonymousPrincipal, ClassificationAccess::Sensitive));
+    }
+
+    #[Test]
     public function it_gives_an_actor_without_grants_no_regions_and_public_access(): void
     {
         $context = $this->resolved(new ActorPrincipal($this->ungrantedActor(), [], IssuerKind::Service, ClassificationAccess::Sensitive));
@@ -124,12 +138,12 @@ trait AccessResolverBehaviour
         $this->accessResolver()->resolve(new AnonymousPrincipal);
     }
 
-    private function resolved(AnonymousPrincipal|ActorPrincipal $principal): AccessContext
+    private function resolved(AnonymousPrincipal|ActorPrincipal $principal, ?ClassificationAccess $ceiling = null): AccessContext
     {
         $this->begin();
 
         try {
-            return $this->accessResolver()->resolve($principal);
+            return $this->accessResolver()->resolve($principal, $ceiling);
         } finally {
             $this->end();
         }

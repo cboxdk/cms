@@ -46,7 +46,8 @@ use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
  *    that requires an agent, MCP, is unauthorized without an agent's credential (PRD 2.31, 22).
  * 2. Context. The AccessResolver compiles the principal's grants into its AccessContext and sets it
  *    with SET LOCAL in the read transaction, so row level security holds for everything the read
- *    does (PRD 5.10), and the context ends with the transaction.
+ *    does (PRD 5.10), and the context ends with the transaction. A call that gives a ceiling gets
+ *    a context whose classification access is at most the ceiling, so everything below holds to it.
  * 3. Authorize, through the QueryAuthorizer with the context; a refusal is unauthorized.
  * 4. Budget. The action's cost() of the query, from the query alone, is checked against the
  *    principal's budget (QuerySettings); a read above it is query_over_budget, before it reads.
@@ -110,7 +111,7 @@ final readonly class QueryPipeline
             )));
         }
 
-        $access = $this->access->resolve($principal);
+        $access = $this->access->resolve($principal, $call->ceiling);
         $authorization = $this->authorizer->authorize($access, $binding->query, $call->query);
 
         if (! $authorization->allowed()) {

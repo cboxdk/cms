@@ -169,6 +169,18 @@ it('caps what an actor reads at its credential\'s ceiling, whatever its grants a
         ->and($world->audit->records)->toBe([]);
 });
 
+it('caps what a read gets at a ceiling the call gives, below the actor\'s access, and audits nothing above it', function (): void {
+    $world = new QueryWorld;
+    $world->access->grant($world->reader, [], ClassificationAccess::Sensitive);
+
+    $result = $world->pipeline()->run(new QueryCall(new ReadProbe, $world->credential, ceiling: ClassificationAccess::Confidential));
+
+    expect(answeredFields($result))->toBe([['label', 'memo', 'note', 'ext.probe.tag']])
+        ->and($result->access)->toBe(ClassificationAccess::Confidential)
+        ->and($world->access->resolved[0]->classificationAccess ?? null)->toBe(ClassificationAccess::Confidential)
+        ->and($world->audit->records)->toBe([]);
+});
+
 it('rejects a credential of an actor that is not active before it sets a context or reads', function (ActorState $state): void {
     $world = new QueryWorld;
     $world->identity->changeState($world->reader, $state);

@@ -14,6 +14,7 @@ use Cbox\Cms\Panel\Boundary\Generated\HomePageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\LoginPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\NotFoundPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\ResetPasswordPageCodecV1;
+use Cbox\Cms\Panel\Contributions\Boundary\SharedProps;
 use Cbox\Cms\Panel\Domain\Dto\ForgotPasswordPage;
 use Cbox\Cms\Panel\Domain\Dto\ForgotPasswordRefusals;
 use Cbox\Cms\Panel\Domain\Dto\HomePage;
@@ -55,8 +56,10 @@ use LogicException;
  * - the page a reset link opens, with the address its form posts to, the token of the link, or
  *   null when the address holds no text in the form of a token, and the addresses of the other two
  *   pages. Its answer is never cached and sends no Referer, because its address holds the token;
- * - the start page of a person who logged in, with the address of the logout. Like every page
- *   behind the login, its answer is never cached (PRIVATE_CACHE_CONTROL), because the props of a
+ * - the start page of a person who logged in, with the address of the logout and the props of
+ *   its contributions, cms.contributions, which every page behind the login sends (ContributionProps;
+ *   the start page renders no point yet, so it lists none). Like every page behind the login, its
+ *   answer is never cached (PRIVATE_CACHE_CONTROL), because the props of a
  *   page behind the login can hold personal fields (PRD 12.2) that no browser cache, back/forward
  *   cache after logout or shared proxy may keep.
  */
@@ -71,6 +74,9 @@ final readonly class PanelPages
 
     /** The start page, in js/panel/src/pages. */
     public const string HOME = 'Home';
+
+    /** The start page's name, which a panel point it renders names as its page (PRD 13.4). */
+    public const string HOME_PAGE = 'home';
 
     /** The page that asks for a password reset link, in js/panel/src/pages. */
     public const string FORGOT_PASSWORD = 'Auth/ForgotPassword';
@@ -137,12 +143,12 @@ final readonly class PanelPages
         return $this->unstored($response);
     }
 
-    public function home(Request $request): Response|JsonResponse
+    public function home(Request $request, SharedProps $contributions): Response|JsonResponse
     {
         return $this->unstored($this->render($request, self::HOME, $this->homePage->encode(
             new HomePage($this->urls->route(PanelRoute::Logout->value, [], false)),
             ClassificationAccess::Public,
-        )));
+        ), $contributions));
     }
 
     public function notFound(Request $request): Response|JsonResponse
@@ -165,11 +171,12 @@ final readonly class PanelPages
     }
 
     /**
-     * The page with the props a generated codec wrote as $json.
+     * The page with the props a generated codec wrote as $json, and for a page behind the login the
+     * props of its contributions (ContributionProps).
      */
-    private function render(Request $request, string $page, string $json): Response|JsonResponse
+    private function render(Request $request, string $page, string $json, SharedProps $contributions = new SharedProps): Response|JsonResponse
     {
-        $response = $this->inertia->render($page, InertiaProps::document($json))->toResponse($request);
+        $response = $this->inertia->render($page, [...InertiaProps::document($json), ...$contributions->props])->toResponse($request);
 
         if (! $response instanceof Response && ! $response instanceof JsonResponse) {
             throw new LogicException('Inertia answered the panel page with a response of another kind.');

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Postgres;
 
 use Cbox\Cms\Contracts\Identity\AccessRegion;
+use Cbox\Cms\Contracts\Identity\ActorPrincipal;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Contracts\Identity\IssuerKind;
 use Cbox\Cms\Contracts\Identity\NodePath;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\NodeId;
@@ -20,6 +22,7 @@ use DateTimeImmutable;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Support\Facades\DB;
 use Override;
+use PHPUnit\Framework\Attributes\Test;
 
 /**
  * AccessResolverBehaviour against the container's AccessResolver, PostgresAccessResolver on the
@@ -84,6 +87,21 @@ final class PostgresAccessResolverBehaviourTest extends TestCase
     protected function delegate(): ActorId
     {
         return ActorId::fromString(self::DELEGATE);
+    }
+
+    #[Test]
+    public function it_sets_the_context_with_the_classification_lowered_to_the_ceiling(): void
+    {
+        $connection = app(DatabaseManager::class)->connection();
+        $connection->beginTransaction();
+
+        try {
+            $this->accessResolver()->resolve(new ActorPrincipal($this->grantedActor(), [], IssuerKind::Service, ClassificationAccess::Sensitive), ClassificationAccess::Public);
+
+            self::assertSame('public', $connection->scalar("select current_setting('cbox_cms.classification')"));
+        } finally {
+            $connection->rollBack();
+        }
     }
 
     #[Override]

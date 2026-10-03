@@ -7,6 +7,7 @@ namespace Cbox\Cms\Core\Reads\Domain\Dto;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Envelope\CorrelationId;
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\TransportCredential;
 use Cbox\Cms\Contracts\Pipeline\Query;
 
@@ -18,7 +19,10 @@ use Cbox\Cms\Contracts\Pipeline\Query;
  * credential alone, and a call without one reads as the anonymous principal. A surface that
  * requires an agent, MCP, reads only with an agent's credential (Surface::requiresAgent()). The
  * correlation id ties the read to the rest of its request in telemetry (PRD 6.1), when the surface
- * has one.
+ * has one. A ceiling, when given, is the highest classification access the read may get: the panel
+ * gives the classification an addon reads (AddonCapabilities::$reads) for the data query of the
+ * addon's contribution (PRD 13.4), so the read, its stripping and its audit hold to the lower of
+ * the principal's access and the addon's.
  */
 #[Internal]
 final readonly class QueryCall
@@ -28,5 +32,6 @@ final readonly class QueryCall
         public ?TransportCredential $credential,
         public ?Surface $surface = null,
         public ?CorrelationId $correlationId = null,
+        public ?ClassificationAccess $ceiling = null,
     ) {}
 }

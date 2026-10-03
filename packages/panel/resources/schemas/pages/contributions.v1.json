@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "the active contributions of a panel page, contract version 1",
+  "description": "The prop cms.contributions of every panel page behind the login (PRD 13.4): for each point the page renders, the contributions the server resolved for this viewer and request, in the order the host renders them. A contribution is listed only when it is enabled, in scope and the viewer holds the permission its scope requires; any other is never sent. Each carries the point's props as the point's generated codec wrote them at the lower of the viewer's classification access and the addon's reads capability. A contribution with data gets it as the deferred prop ext.<addon>, under its id. The PHP form is Cbox\\Cms\\Panel\\Domain\\Dto\\ContributionsProp, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "points"
+  ],
+  "properties": {
+    "points": {
+      "description": "Each point the page renders that has an active contribution, in the order the page lists its points.",
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "$ref": "#/$defs/point"
+      }
+    }
+  },
+  "$defs": {
+    "fill": {
+      "description": "One active contribution to the point.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "addon",
+        "data",
+        "id",
+        "kind",
+        "priority",
+        "props"
+      ],
+      "properties": {
+        "addon": {
+          "description": "The namespace of the addon that contributes it.",
+          "type": "string",
+          "maxLength": 20,
+          "pattern": "^[a-z][a-z0-9]{0,19}$"
+        },
+        "data": {
+          "description": "Whether the contribution reads data: its query's result comes as the deferred prop ext.<addon>, under the contribution's id, and is absent there when the query was refused, rejected or failed.",
+          "type": "boolean"
+        },
+        "id": {
+          "description": "The contribution's id, `<namespace>.<local>`, under which the addon's bundle registers its code.",
+          "type": "string",
+          "maxLength": 96,
+          "pattern": "^[a-z][a-z0-9]{0,19}(\\.[a-z][a-z0-9_]*(-[a-z0-9_]+)*)+$"
+        },
+        "kind": {
+          "description": "The kind of contribution, the kind of the point.",
+          "enum": [
+            "slot",
+            "action",
+            "nav",
+            "page",
+            "decorator",
+            "replacement",
+            "form_check",
+            "flow_step",
+            "observer",
+            "provider",
+            "theme",
+            "data"
+          ]
+        },
+        "priority": {
+          "description": "The priority it renders at, as cms:build compiled it with the installation's settings; the lowest first.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "props": {
+          "description": "The point's props as the point's generated codec wrote them for this contribution, without every member classified above the lower of the viewer's access and the addon's reads.",
+          "type": "object"
+        }
+      }
+    },
+    "point": {
+      "description": "One point the page renders, with its active contributions.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fills",
+        "point"
+      ],
+      "properties": {
+        "fills": {
+          "description": "The point's active contributions in the order the host renders them: priority with the lowest first, then the addon's namespace, then the contribution's id.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 500,
+          "items": {
+            "$ref": "#/$defs/fill"
+          }
+        },
+        "point": {
+          "description": "The point's id, `<name>@<version>`.",
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 200
+        }
+      }
+    }
+  }
+}

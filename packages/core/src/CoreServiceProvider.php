@@ -39,6 +39,7 @@ use Cbox\Cms\Core\Access\Adapter\RegistryPermissionCatalog;
 use Cbox\Cms\Core\Access\Adapter\RoleCreatedWriter;
 use Cbox\Cms\Core\Access\Adapter\RolePermissionsSetWriter;
 use Cbox\Cms\Core\Access\Adapter\TransactionalAccessContexts;
+use Cbox\Cms\Core\Access\Adapter\TransactionalHeldPermissions;
 use Cbox\Cms\Core\Access\Domain\AccessCompiler;
 use Cbox\Cms\Core\Access\Domain\AccessContexts;
 use Cbox\Cms\Core\Access\Domain\AccessListings;
@@ -46,6 +47,7 @@ use Cbox\Cms\Core\Access\Domain\AccessResolver;
 use Cbox\Cms\Core\Access\Domain\AdministrativePermissions;
 use Cbox\Cms\Core\Access\Domain\EscalationGuard;
 use Cbox\Cms\Core\Access\Domain\GrantReader;
+use Cbox\Cms\Core\Access\Domain\HeldPermissions;
 use Cbox\Cms\Core\Access\Domain\PermissionCatalog;
 use Cbox\Cms\Core\Access\Domain\PermissionRule;
 use Cbox\Cms\Core\Addons\Boundary\AddonConfig;
@@ -472,6 +474,7 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         // connection, and the codecs of each command and query it reads, which each command and
         // query registers under the tag CommandCodecs::TAG or QueryCodecs::TAG.
         $this->app->bind(AccessContexts::class, TransactionalAccessContexts::class);
+        $this->app->bind(HeldPermissions::class, TransactionalHeldPermissions::class);
         $this->app->bind(
             CommandCodecs::class,
             static fn (Application $app): CommandCodecs => new CommandCodecs(...self::tagged($app, CommandCodecs::TAG, CommandCodec::class)),

@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Tooling\Protocol\Domain;
 
+use Cbox\Cms\Contracts\Addons\AddonNamespace;
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Codecs\JsonDocument;
+use Cbox\Cms\Contracts\PanelPoints\ContributionId;
+use Cbox\Cms\Contracts\PanelPoints\PointKind;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecContract;
 use Cbox\Cms\Generators\Codec\Domain\Dto\PhpLocation;
 use Cbox\Cms\Generators\Codec\Domain\PhpCodecEmitter;
@@ -15,12 +19,15 @@ use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Protocol\Domain\Dto\SchemaBinding;
 use Cbox\Cms\Generators\Protocol\Domain\Dto\ValueBinding;
+use Cbox\Cms\Panel\Domain\Dto\ContributionsProp;
+use Cbox\Cms\Panel\Domain\Dto\FillProp;
 use Cbox\Cms\Panel\Domain\Dto\ForgotPasswordPage;
 use Cbox\Cms\Panel\Domain\Dto\ForgotPasswordRefusals;
 use Cbox\Cms\Panel\Domain\Dto\HomePage;
 use Cbox\Cms\Panel\Domain\Dto\LoginPage;
 use Cbox\Cms\Panel\Domain\Dto\LoginRefusals;
 use Cbox\Cms\Panel\Domain\Dto\NotFoundPage;
+use Cbox\Cms\Panel\Domain\Dto\PointFillsProp;
 use Cbox\Cms\Panel\Domain\Dto\ResetPasswordPage;
 use Cbox\Cms\Panel\Domain\Dto\ResetPasswordRefusals;
 use Cbox\Cms\Panel\Domain\ForgotPasswordRefusal;
@@ -33,7 +40,8 @@ use Cbox\Cms\Panel\Domain\SignInReason;
  * The props of the panel's pages (GUARDRAILS 2.2, 2.4): one JSON Schema per page and contract
  * version in packages/panel/resources/schemas/pages, bound to the page's DTO in the panel's
  * Domain\Dto, so the panel renders the props through the generated codec and js/panel imports
- * their generated TypeScript types and validators. Types go one way, from PHP and the schema to
+ * their generated TypeScript types and validators. contributions.v1.json is the prop
+ * cms.contributions that every page behind the login sends beside its own props (PRD 13.4). Types go one way, from PHP and the schema to
  * TypeScript; no page declares its props by hand.
  *
  * composer generate:protocol writes, from these bindings, the PHP codecs into PHP_DIRECTORY and,
@@ -71,6 +79,16 @@ final readonly class PanelPageSchemas
     public static function all(): array
     {
         return [
+            self::page('contributions.v1.json', 'ContributionsCodecV1', [
+                '#' => ContributionsProp::class,
+                '#/$defs/fill' => FillProp::class,
+                '#/$defs/point' => PointFillsProp::class,
+            ], [
+                '#/$defs/fill/properties/addon' => ValueBinding::value(AddonNamespace::class),
+                '#/$defs/fill/properties/id' => ValueBinding::value(ContributionId::class),
+                '#/$defs/fill/properties/kind' => ValueBinding::enum(PointKind::class),
+                '#/$defs/fill/properties/props' => ValueBinding::document(JsonDocument::class),
+            ]),
             self::page('forgot-password.v1.json', 'ForgotPasswordPageCodecV1', [
                 '#' => ForgotPasswordPage::class,
                 '#/$defs/refusals' => ForgotPasswordRefusals::class,

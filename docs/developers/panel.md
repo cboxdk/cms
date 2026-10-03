@@ -93,6 +93,8 @@ The props of each panel page are written from PHP and typed from PHP, never by h
 
 `composer generate:protocol` writes, from the schemas, a codec per page into `packages/panel/src/Boundary/Generated` and, into `js/panel/src/generated`, a module per page in `pages/` with the props' TypeScript types and a validator, next to the validators' runtime module. `PanelPages` renders each page with the props its codec writes, and each page in `js/panel` takes the generated type as its props. Gate 6 fails when the committed files differ from what the schemas give.
 
+Beside its own props, every page behind the login, the start page included, sends `cms.contributions`, the contributions active for the person who signed in, and a deferred prop `ext.<namespace>` for each addon whose contributions read data ([panel contributions](../addons/panel-contributions.md#what-a-page-sends-a-viewer)).
+
 The reason the panel sent a browser to the login page is the enum `SignInReason`, and the refusal of a form just posted is a typed member of the props, `refusals`, with the refusal under the field it is about, or under `form` for the form as a whole. Each refusal is an enum of the panel's Domain whose values are the catalog codes the form is refused with (`LoginRefusal`, `ForgotPasswordRefusal`, `ResetFormRefusal` and `ResetPasswordRefusal`), so the TypeScript type holds exactly those codes and a page that does not give each one a text fails tsc. A new prop, reason or code therefore starts in the schema; `tests/Codecs/PanelPageValidatorsTest.php` runs the generated validators against what every page renders in each of its states.
 
 This example checks props against the schemas. It is in the `Codecs` suite:

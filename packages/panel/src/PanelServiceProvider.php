@@ -9,8 +9,11 @@ use Cbox\Cms\Contracts\Build\DeclaresScanRoots;
 use Cbox\Cms\Contracts\Build\ScanRoot;
 use Cbox\Cms\Core\Registry\Domain\Dto\PointSchemaDirectory;
 use Cbox\Cms\Identity\Sessions\Domain\Dto\SessionCookie;
+use Cbox\Cms\Panel\Boundary\Generated\Points\PanelPointCodecs;
 use Cbox\Cms\Panel\Boundary\PanelSessions;
 use Cbox\Cms\Panel\Boundary\ViteManifest;
+use Cbox\Cms\Panel\Contributions\Domain\Dto\PointCodec;
+use Cbox\Cms\Panel\Contributions\Domain\PointCodecs;
 use Cbox\Cms\Panel\Domain\Dto\ImportMap;
 use Cbox\Cms\Panel\Domain\Dto\PanelBuild;
 use Cbox\Cms\Panel\Views\PanelRootView;
@@ -21,6 +24,7 @@ use Illuminate\Contracts\View\Factory;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Events\RequestHandled;
 use Illuminate\Support\ServiceProvider;
+use LogicException;
 use Override;
 
 /**
@@ -35,7 +39,9 @@ use Override;
  * and clears Laravel's session cookie once the kernel has handled a logout
  * (PanelSessions::clearCookies()). Declares the module's classes as a scan root for cms:build (PRD
  * 13.2), and the directory of its points' props schemas, which cms:build checks the addons'
- * contributions against (PRD 13.4). An application mounts the panel with PanelRoutes.
+ * contributions against (PRD 13.4), and the codecs of the points' props, which the panel hands
+ * each active contribution its props with (PointCodecs). An application mounts the panel with
+ * PanelRoutes.
  */
 #[Internal]
 final class PanelServiceProvider extends ServiceProvider implements DeclaresScanRoots
@@ -56,6 +62,25 @@ final class PanelServiceProvider extends ServiceProvider implements DeclaresScan
         // The props schemas of the panel's points, which cms:build checks contributions against.
         $this->app->bind(self::POINT_SCHEMAS, static fn (): PointSchemaDirectory => new PointSchemaDirectory(self::pointSchemaDirectory()));
         $this->app->tag([self::POINT_SCHEMAS], PointSchemaDirectory::TAG);
+
+        // The codecs of the points' props (PRD 13.4), which the panel hands each contribution its
+        // props with: the panel's own, which composer generate:protocol lists, and any a module or
+        // addon tags under PointCodecs::TAG.
+        $this->app->singleton(static function (Application $app): PointCodecs {
+            $codecs = [];
+
+            foreach ($app->tagged(PointCodecs::TAG) as $codec) {
+                $codecs[] = $codec instanceof PointCodec ? $codec : throw new LogicException(sprintf('The service %s under the tag %s is not a %s.', get_debug_type($codec), PointCodecs::TAG, PointCodec::class));
+            }
+
+            return new PointCodecs(...$codecs);
+        });
+
+        foreach (PanelPointCodecs::all() as $codec) {
+            $id = PointCodecs::TAG.'.'.$codec->point->toString();
+            $this->app->instance($id, $codec);
+            $this->app->tag($id, PointCodecs::TAG);
+        }
     }
 
     /**

@@ -15,6 +15,7 @@ use Cbox\Cms\Panel\Boundary\Generated\NotFoundPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\ResetPasswordPageCodecV1;
 use Cbox\Cms\Panel\Boundary\PanelPages;
 use Cbox\Cms\Panel\Boundary\PasswordResetForms;
+use Cbox\Cms\Panel\Contributions\Boundary\ContributionProps;
 use Cbox\Cms\Panel\Tests\FixtureBuild;
 use Cbox\Cms\Panel\Tests\PanelLogins;
 use Cbox\Cms\Tests\Support\TypeScript\TypeScriptValidators;
@@ -229,7 +230,8 @@ final class PanelPageValidatorsTest extends TestCase
 
     /**
      * The JSON of the page's own props, as the browser receives them, without the props every page
-     * shares.
+     * shares and the contributions every page behind the login sends (ContributionProps::CMS, held
+     * to its own validator by ContributionsCodecTest).
      *
      * @param  TestResponse<Response>  $response
      *
@@ -244,7 +246,7 @@ final class PanelPageValidatorsTest extends TestCase
             self::fail('The response rendered no Inertia page.');
         }
 
-        unset($props['errors'], $props['problem']);
+        unset($props['errors'], $props['problem'], $props[ContributionProps::CMS]);
 
         return json_encode((object) $props, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
     }

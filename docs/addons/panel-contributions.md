@@ -1,13 +1,14 @@
 ---
 title: Panel contributions
 weight: 51
-description: "What an addon adds to the panel in its manifest: the kinds of contribution, the checks cms:build runs on them, the bundle manifest, and how the installation orders, chooses, disables and allows them."
+description: "What an addon adds to the panel in its manifest: the kinds of contribution, the checks cms:build runs on them, the bundle manifest, how the installation orders, chooses, disables and allows them, and what a page sends each viewer."
 ---
 
 # Panel contributions
 
 <!-- extension-point: Cbox\Cms\Contracts\PanelPoints\PanelContribution -->
 <!-- extension-point: packages/core/resources/schemas/panel-bundle.v1.json -->
+<!-- extension-point: packages/panel/resources/schemas/pages/contributions.v1.json -->
 
 An addon adds to the panel through the `panel` member of its [manifest](manifest.md): a `Cbox\Cms\Contracts\PanelPoints\PanelContributions` that lists every contribution it makes to the [panel points](panel-points.md) (PRD 13.4). The list is the allowance: what it names is exactly what the addon may touch, and the install screen shows it. `cms:build` checks every contribution against the points the scan roots declare, the addon's manifest, the commands, queries and hooks the build registered and their JSON Schemas, and writes the result to `panel.php` and `addons.php` in `bootstrap/cache/cms/`. Every type on this page is `#[Experimental]`.
 
@@ -156,6 +157,65 @@ The panel renders a point's contributions by priority, the lowest first, then by
 - `cbox-cms.panel.disabled` is the activation state (PRD 13.5): the namespaces of addons whose panel UI is off under `addons`, and contribution ids under `contributions`. The panel reads it at each request, so an incident is handled without a rebuild.
 
 `cms:panel:fills <point>` shows each contribution with where its priority comes from (the addon or the installation) and whether it is enabled and why (the addon, the installation, a replacement the installation chose or passed over, or the activation state), as text and with `--json` ([inspecting](../developers/inspecting.md)).
+
+## What a page sends a viewer
+
+The server works out, per request and page, which contributions a viewer gets (`Cbox\Cms\Panel\Contributions\Actions\ResolveContributions`):
+
+1. The points the page renders. A page names each point it renders with its props, an object of the newest version's props class; a contribution to an older version of the point gets what that version's downcast builds from them ([panel points](panel-points.md)).
+2. The contributions in scope: each compiled fill of those points that the installation's settings and the activation state of now leave enabled, whose `Scope` names the page, if it names pages, and what the page is about, if it names commands, types or field types.
+3. `requires`: the viewer must hold the permission of the command or read the scope names, decided by the viewer's grants as the kernel decides any read (`PermissionRule`), asked once per page for every name. A contribution the viewer may not see is never sent, not even its id.
+4. Access: each contribution is handed the point's props, and runs its data, at the lower of the viewer's classification access and the addon's `reads` capability. The point's generated codec writes the props at that access, so a member classified above what the addon reads is absent from what it gets, whatever the viewer may read.
+
+The page sends the result as the prop `cms.contributions`, a document of `contributions.v1.json`: per point, the fills in render order, each with its id, its addon, its kind, the priority it renders at, the props and whether it reads data.
+
+A slot fill or a page with a `data` query gets its data as a deferred prop: the host asks for `ext.<namespace>` once the page has rendered, one deferred prop per addon in the group of its namespace, and gets the result of each of the addon's queries under the contribution's id. The query's input is taken from the props by name and read by the query's codec. It runs through the query pipeline as the viewer, from the viewer's own credential, never as the addon, so the viewer's grants, row level security and the actor's query budget (`cbox-cms.queries.budgets.actor`) all hold, with the read capped at the contribution's access, and the query's result codec writes the answer at that access. A query the pipeline rejects, such as one over the budget or one whose permission the viewer does not hold, one that throws, or one whose input the props do not give, leaves the contribution's data absent, so the contribution renders its error state, and the page still answers 200. A failure is reported to the application's exception handler.
+
+Nothing one addon does blanks a page. When the registry cache or the activation state cannot be read, the page has no contribution at all; a point without a codec for its props loses its contributions. The panel records each case, and each data query, per addon through the [telemetry contract](contracts/telemetry.md#what-the-panel-exports).
+
+This example checks `cms.contributions` documents against the schema. It is in the `Codecs` suite:
+
+<!-- example: examples/Codecs/Panel/ContributionsPropTest.php -->
+```php
+<?php
+
+declare(strict_types=1);
+
+use Opis\JsonSchema\CompliantValidator;
+use Opis\JsonSchema\Errors\ErrorFormatter;
+use Opis\JsonSchema\Errors\ValidationError;
+
+// Every panel page behind the login sends the contributions active for the viewer as the prop
+// cms.contributions, a document of packages/panel/resources/schemas/pages/contributions.v1.json:
+// per point the page renders, the fills in render order, each with the point's props as the
+// point's codec wrote them for it and whether its data comes as the deferred prop ext.<addon>.
+
+/**
+ * The errors of a cms.contributions document, none when it is valid.
+ *
+ * @return array<array-key, mixed>
+ */
+function contributionsErrors(string $document): array
+{
+    $json = file_get_contents(dirname(__DIR__, 3).'/packages/panel/resources/schemas/pages/contributions.v1.json')
+        ?: throw new RuntimeException('Cannot read contributions.v1.json.');
+    $error = new CompliantValidator()->validate(json_decode($document), $json)->error();
+
+    return $error instanceof ValidationError ? new ErrorFormatter()->format($error) : [];
+}
+
+it('accepts the contributions of a page', function (string $document): void {
+    expect(contributionsErrors($document))->toBe([]);
+})->with([
+    'a page with no active contribution' => ['{"points":[]}'],
+    'a section that reads its data' => ['{"points":[{"fills":[{"addon":"approvals","data":true,"id":"approvals.badge","kind":"slot","priority":1000,"props":{"note":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"}}],"point":"reviews.detail.sections@1"}]}'],
+]);
+
+it('refuses a fill that does not say whether it reads data', function (): void {
+    expect(contributionsErrors('{"points":[{"fills":[{"addon":"approvals","id":"approvals.badge","kind":"slot","priority":1000,"props":{}}],"point":"reviews.detail.sections@1"}]}'))
+        ->not->toBe([]);
+});
+```
 
 ## The install screen
 

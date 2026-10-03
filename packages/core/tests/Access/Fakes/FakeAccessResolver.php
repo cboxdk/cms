@@ -49,7 +49,7 @@ final class FakeAccessResolver implements AccessResolver, TransactionalSession
     }
 
     #[Override]
-    public function resolve(Principal $principal): AccessContext
+    public function resolve(Principal $principal, ?ClassificationAccess $ceiling = null): AccessContext
     {
         if (! $this->open) {
             throw TransactionRequired::forAccessContext();
@@ -66,6 +66,10 @@ final class FakeAccessResolver implements AccessResolver, TransactionalSession
                     $principal->onBehalfOf,
                 ));
             }
+        }
+
+        if ($ceiling instanceof ClassificationAccess) {
+            $context = new AccessContext($context->principal, $context->regions, $context->classificationAccess->atMost($ceiling));
         }
 
         $this->resolved[] = $context;

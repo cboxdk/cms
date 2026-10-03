@@ -48,6 +48,27 @@ The metrics are the histograms `cms.command.duration` and `cms.query.duration` i
 
 The identity module's login policy adds the counter `cms.login.decisions`, incremented once for each decision, with `cms.outcome` `allowed` or `refused` and, for a refusal, `cms.error.code`, the catalog code of the rule that refused it (see [Login policy](../../security/login-policy.md)). It carries no actor id, login identifier or e-mail address.
 
+## What the panel exports
+
+The panel exports, per addon, what it does with the contributions of each page it renders (PRD 13.4):
+
+| Metric | Kind | When |
+|---|---|---|
+| `cms.panel.data.duration` | histogram, milliseconds | each data query of a contribution, answered or not |
+| `cms.panel.data.errors` | counter | each data query that was not answered |
+| `cms.panel.contributions.withheld` | counter | each time the panel left contributions off a page it rendered |
+
+| Attribute | On | Value |
+|---|---|---|
+| `cms.addon`, `cms.panel.contribution`, `cms.panel.point` | the data metrics, and a withheld count of one contribution | the addon's namespace, the contribution's id and the point's id |
+| `cms.panel.page` | every panel metric | the page's name |
+| `cms.action`, `cms.action.version` | the data metrics | the query's name and version |
+| `cms.outcome` | the data metrics | `answered`, `rejected`, `refused` (the panel did not run it) or `failed` (it threw) |
+| `cms.error.code` | the data metrics of a rejected query | the catalog code of its first error, such as `query_over_budget` |
+| `cms.panel.reason` | a refused query, and every withheld count | for a query, `query_without_codec` or `input_invalid`; for a withheld count, `registry_missing`, `registry_malformed`, `activation_invalid`, `point_without_codec` or `props_unencodable` |
+
+The query pipeline exports each data query's own span and metrics as well. No prop, field value or message reaches an attribute.
+
 ## The log exporter: LogTelemetry
 
 `LogTelemetry` writes each record as one log entry whose message names its kind and whose context holds the record, so a log pipeline reads it as structured data:
