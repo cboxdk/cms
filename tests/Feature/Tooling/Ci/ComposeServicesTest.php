@@ -74,6 +74,7 @@ it('sets the server settings of the operating contract in docker/postgres/conf.d
         'max_prepared_transactions = 0',
         "lc_messages = 'C'",
         'max_locks_per_transaction = 256',
+        'max_connections = 400',
         'fsync = off',
         'synchronous_commit = off',
         'full_page_writes = off',
