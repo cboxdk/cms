@@ -22,6 +22,7 @@ use Cbox\Cms\Panel\Contributions\Domain\Dto\ContributionData;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\ContributionDataCall;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\PanelView;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\RenderedPoint;
+use Cbox\Cms\Panel\Contributions\Domain\Registrations;
 use Cbox\Cms\Panel\Tests\Contributions\Fixtures\Desk\DeskAsideV1;
 use Cbox\Cms\Panel\Tests\Contributions\Fixtures\Desk\DeskCardsV1;
 use Cbox\Cms\Panel\Tests\Contributions\Fixtures\Tally\HeavyTally;
@@ -30,6 +31,7 @@ use Cbox\Cms\Panel\Tests\Contributions\Fixtures\Tally\TallyCount;
 use Cbox\Cms\Panel\Tests\Contributions\Fixtures\Tally\TallyNotes;
 use Cbox\Cms\Testkit\Telemetry\FakeTelemetry;
 use Illuminate\Contracts\Debug\ExceptionHandler;
+use Illuminate\Contracts\Routing\UrlGenerator;
 use Illuminate\Http\Request;
 use Inertia\DeferProp;
 use LogicException;
@@ -46,7 +48,7 @@ use stdClass;
 
 function contributionProps(FakeTelemetry $telemetry, ?QueryCodecs $queries = null): ContributionProps
 {
-    return new ContributionProps(new ContributionsCodecV1, ContributionWorld::pointCodecs(), $queries ?? new QueryCodecs(...TallyCodecs::all()), new ContributionTelemetry($telemetry), app(ExceptionHandler::class));
+    return new ContributionProps(new ContributionsCodecV1, ContributionWorld::pointCodecs(), $queries ?? new QueryCodecs(...TallyCodecs::all()), new ContributionTelemetry($telemetry), app(ExceptionHandler::class), app(UrlGenerator::class));
 }
 
 function viewerRequest(): Request
@@ -142,4 +144,28 @@ it('sends contributions only for a request the panel authenticated', function ()
     expect(fn (): PanelView => $props->view(Request::create('/cms'), ContributionWorld::PAGE))->toThrow(LogicException::class)
         ->and(fn (): SharedProps => $props->props(Request::create('/cms'), deskActive(), static fn (ContributionDataCall $call): ContributionData => ContributionData::refused(DataRefusal::NoCodec), static fn (PageName $page, ActiveFill $fill, DataRefusal $refusal): ContributionData => ContributionData::refused($refusal)))->toThrow(LogicException::class)
         ->and($props->view(viewerRequest(), ContributionWorld::PAGE)->viewer->actor->toString())->toBe(ResolveWorld::AUDITOR);
+});
+
+it('tells the host each point s kind and multiplicity, the registration of the addon, whether the viewer sees detail, the pages and where commands run', function (): void {
+    $props = contributionProps(new FakeTelemetry)->props(viewerRequest(), deskActive(), static fn (ContributionDataCall $call): ContributionData => ContributionData::refused(DataRefusal::NoCodec), static fn (PageName $page, ActiveFill $fill, DataRefusal $refusal): ContributionData => ContributionData::refused($refusal))->props;
+    $cms = $props[ContributionProps::CMS] ?? null;
+    $contributions = json_decode((string) json_encode(is_array($cms) ? $cms[ContributionProps::CONTRIBUTIONS] ?? null : null), true);
+
+    expect(is_array($contributions) ? $contributions : null)->toMatchArray([
+        'addons' => [[
+            'addon' => 'tally',
+            'any_command' => false,
+            'issues' => [],
+            // Every contribution of the addon that runs code, the one the viewer does not get and
+            // the one whose point has no codec included, and none of them by name.
+            'registration' => Registrations::digest([ContributionWorld::ASIDE, ContributionWorld::AUDIT, ContributionWorld::COUNT, ContributionWorld::HEAVY]),
+        ]],
+        'commands' => '/cms/commands',
+        'details' => true,
+        'pages' => [['page' => 'home', 'url' => '/cms']],
+    ])
+        ->and(is_array($contributions) && is_array($contributions['points'] ?? null) ? array_map(static fn (mixed $point): array => is_array($point) ? array_intersect_key($point, ['kind' => true, 'max' => true, 'multiplicity' => true, 'region' => true]) : [], $contributions['points']) : null)->toBe([
+            ['kind' => 'slot', 'max' => null, 'multiplicity' => 'many', 'region' => 'sections'],
+        ])
+        ->and(Registrations::digest(['b', 'a']))->toBe(hash('sha256', "a\nb"));
 });

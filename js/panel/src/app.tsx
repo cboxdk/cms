@@ -1,6 +1,6 @@
 // The entry of the panel: Inertia resolves each page the server names from ./pages, and every
 // page renders inside the translations of the locale the server set on <html lang>, the panel's
-// and the kit's. Every title ends with the installation's product name, which the server writes
+// and the kit's, and inside the host runtime its panel points render their contributions from. Every title ends with the installation's product name, which the server writes
 // into the application-name meta element when cbox-cms.panel.branding sets one. The kit's stylesheets come first, layers.css before any other, so the order of
 // the cascade layers is declared before a rule of any layer.
 //
@@ -18,6 +18,8 @@ import type { ComponentType } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { applicationName } from './brand';
+import { PanelRuntime } from './host';
+import './host/host.css';
 import { localeOf, TranslationProvider, translator } from './i18n/translations';
 import { MissingPage } from './MissingPage';
 
@@ -71,7 +73,13 @@ void createInertiaApp({
     createRoot(el).render(
       <KitI18nProvider locale={locale}>
         <TranslationProvider locale={locale}>
-          <App {...props} />
+          <App {...props}>
+            {({ Component, props: page, key }) => (
+              <PanelRuntime props={page}>
+                <Component key={key} {...page} />
+              </PanelRuntime>
+            )}
+          </App>
         </TranslationProvider>
       </KitI18nProvider>,
     );

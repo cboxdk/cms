@@ -7,7 +7,10 @@ namespace Cbox\Cms\Generators;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Build\DeclaresScanRoots;
 use Cbox\Cms\Contracts\Build\ScanRoot;
+use Cbox\Cms\Core\Registry\Domain\Dto\PointSchemaDirectory;
+use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Generators\Cli\Console\GenerateCommand;
+use Cbox\Cms\Generators\Cli\Console\PanelStoriesCommand;
 use Cbox\Cms\Generators\Cli\Console\PanelTypesCommand;
 use Cbox\Cms\Generators\Cli\Console\SchemaEditorCommand;
 use Cbox\Cms\Generators\Editor\Adapter\FilesystemSchemaFiles;
@@ -29,6 +32,8 @@ use Cbox\Cms\Generators\Generation\Domain\Generators\TypeTableMigrations;
 use Cbox\Cms\Generators\Migrations\Boundary\LockFiles;
 use Cbox\Cms\Generators\Migrations\Boundary\TypeTableLockJson;
 use Cbox\Cms\Generators\Migrations\Domain\SchemaLocks;
+use Cbox\Cms\Generators\PanelStories\Adapter\RegistryPanelPointSource;
+use Cbox\Cms\Generators\PanelStories\Domain\PanelPointSource;
 use Cbox\Cms\Generators\PanelTypes\Adapter\RegistryAddonUiSource;
 use Cbox\Cms\Generators\PanelTypes\Domain\AddonUiSource;
 use Cbox\Cms\Generators\Protocol\Boundary\KernelContracts;
@@ -68,6 +73,17 @@ final class GeneratorsServiceProvider extends ServiceProvider implements Declare
         $this->app->singleton(FieldTypeRegistry::class, static fn (Application $app): FieldTypeRegistry => RegisteredFieldTypes::of($app)->registry());
         $this->app->bind(GeneratedOutput::class, FilesystemGeneratedOutput::class);
         $this->app->bind(AddonUiSource::class, RegistryAddonUiSource::class);
+        $this->app->bind(static function (Application $app): PanelPointSource {
+            $schemas = [];
+
+            foreach ($app->tagged(PointSchemaDirectory::TAG) as $directory) {
+                if ($directory instanceof PointSchemaDirectory) {
+                    $schemas[] = $directory;
+                }
+            }
+
+            return new RegistryPanelPointSource($app->make(RegistryCache::class), $schemas);
+        });
         $this->app->bind(SchemaFiles::class, FilesystemSchemaFiles::class);
         $this->app->bind(SchemaLocks::class, LockFiles::class);
 
@@ -91,7 +107,7 @@ final class GeneratorsServiceProvider extends ServiceProvider implements Declare
     public function boot(): void
     {
         if ($this->app->runningInConsole()) {
-            $this->commands([GenerateCommand::class, PanelTypesCommand::class, SchemaEditorCommand::class]);
+            $this->commands([GenerateCommand::class, PanelStoriesCommand::class, PanelTypesCommand::class, SchemaEditorCommand::class]);
         }
     }
 

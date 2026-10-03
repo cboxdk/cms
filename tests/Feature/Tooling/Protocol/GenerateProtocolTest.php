@@ -67,7 +67,7 @@ const PROTOCOL_CODECS = [
     'UnpublishEntryCodecV1.php',
 ];
 
-/** What generate:protocol writes for the panel's pages, below the root, sorted. */
+/** What generate:protocol writes for the panel's pages, below the root, sorted: their codecs and TypeScript, and the receipt and problem details the panel's host reads answers with. */
 const PANEL_PAGE_FILES = [
     'js/panel/src/generated/pages/ContributionsV1.ts',
     'js/panel/src/generated/pages/ForgotPasswordPageV1.ts',
@@ -76,6 +76,8 @@ const PANEL_PAGE_FILES = [
     'js/panel/src/generated/pages/NotFoundPageV1.ts',
     'js/panel/src/generated/pages/PanelBrandV1.ts',
     'js/panel/src/generated/pages/ResetPasswordPageV1.ts',
+    'js/panel/src/generated/protocol/ProblemV1.ts',
+    'js/panel/src/generated/protocol/ReceiptV1.ts',
     'js/panel/src/generated/validation.ts',
     'packages/panel/src/Boundary/Generated/ContributionsCodecV1.php',
     'packages/panel/src/Boundary/Generated/ForgotPasswordPageCodecV1.php',

@@ -161,6 +161,10 @@ The panel renders a point's contributions by priority, the lowest first, then by
 
 `cms:panel:fills <point>` shows each contribution with where its priority comes from (the addon or the installation) and whether it is enabled and why (the addon, the installation, a replacement the installation chose or passed over, or the activation state), as text and with `--json` ([inspecting](../developers/inspecting.md)).
 
+## The core's own contributions
+
+The panel's pages contribute to their own points too, in the namespace `cms`: the profile section of the who-am-I page, the core's pickers of a command form's fields and the like. A module of `cboxdk/cms` declares them through its service provider's `DeclaresCoreContributions` (`#[Internal]`; the panel module's list is `Cbox\Cms\Panel\Contributions\Domain\CoreContributions`), and `cms:build` compiles them with the addons' onto `panel.php`, at the core's priorities, 100, 200 and so on, so they come before an addon's at its default of 1000, and the installation reorders or disables them as it does an addon's. They are held to the same rules as an addon's, less those that limit an addon to what it owns: a core contribution may sit at an `#[Internal]` or an experimental point without opting in, run any command exposed on Inertia, replace any key and patch any path, and mirrors no hook, because the kernel enforces its own rules on the server. They have no bundle: the panel's own JavaScript registers those that run code with `definePanelAddon()` in `js/panel/src/host/core.ts`, and the host holds that registration to `cms:build`'s list as it holds an addon's bundle to its manifest. They are handed the viewer's classification access. A provider outside `Cbox\Cms` that implements the interface fails the build with `registry_invalid_manifest`, and an addon in the namespace `cms` with `registry_panel_duplicate_contribution`.
+
 ## What a page sends a viewer
 
 The server works out, per request and page, which contributions a viewer gets (`Cbox\Cms\Panel\Contributions\Actions\ResolveContributions`):
@@ -170,7 +174,12 @@ The server works out, per request and page, which contributions a viewer gets (`
 3. `requires`: the viewer must hold the permission of the command or read the scope names, decided by the viewer's grants as the kernel decides any read (`PermissionRule`), asked once per page for every name. A contribution the viewer may not see is never sent, not even its id.
 4. Access: each contribution is handed the point's props, and runs its data, at the lower of the viewer's classification access and the addon's `reads` capability. The point's generated codec writes the props at that access, so a member classified above what the addon reads is absent from what it gets, whatever the viewer may read.
 
-The page sends the result as the prop `cms.contributions`, a document of `contributions.v1.json`: per point, the fills in render order, each with its id, its addon, its kind, the priority it renders at, the props and whether it reads data.
+The page sends the result as the prop `cms.contributions`, a document of `contributions.v1.json`, which the panel's [host](../developers/panel.md#the-host-runtime) renders every point from:
+
+- per point, its kind, its region when it is a slot, how many contributions it shows (`many`, at most `max`, or `exclusive`), and the fills in render order, each with its id, its addon, its kind, the priority it renders at, the props, whether it reads data, and what its kind needs besides: an action's command, label, icon, prefill, confirmation and tone, a check's form command and severity, a step's form command, position, paths and timeout, what a decorator may tighten, or the key a replacement replaces;
+- per addon whose contributions that run code are on the page, the core's namespace `cms` included, the registration its code must match: the SHA-256 of the ids of every contribution of the addon that runs code, as `cms:build` compiled them, sorted and joined by line feeds, so the digest names none the viewer does not get; and the commands its contributions may issue through the host, any for the core's own;
+- whether the viewer sees the detail of a contribution that failed, which a viewer whose classification access is internal or above does;
+- the panel's pages a contribution may navigate to, by page id, and the address of the Inertia profile the host runs commands through.
 
 A slot fill or a page with a `data` query gets its data as a deferred prop: the host asks for `ext.<namespace>` once the page has rendered, one deferred prop per addon in the group of its namespace, and gets the result of each of the addon's queries under the contribution's id. The query's input is taken from the props by name and read by the query's codec. It runs through the query pipeline as the viewer, from the viewer's own credential, never as the addon, so the viewer's grants, row level security and the actor's query budget (`cbox-cms.queries.budgets.actor`) all hold, with the read capped at the contribution's access, and the query's result codec writes the answer at that access. A query the pipeline rejects, such as one over the budget or one whose permission the viewer does not hold, one that throws, or one whose input the props do not give, leaves the contribution's data absent, so the contribution renders its error state, and the page still answers 200. A failure is reported to the application's exception handler.
 
@@ -190,8 +199,10 @@ use Opis\JsonSchema\Errors\ValidationError;
 
 // Every panel page behind the login sends the contributions active for the viewer as the prop
 // cms.contributions, a document of packages/panel/resources/schemas/pages/contributions.v1.json:
-// per point the page renders, the fills in render order, each with the point's props as the
-// point's codec wrote them for it and whether its data comes as the deferred prop ext.<addon>.
+// per point the page renders, its kind and multiplicity and the fills in render order, each with
+// the point's props as the point's codec wrote them for it, whether its data comes as the deferred
+// prop ext.<addon> and what its kind needs besides; the registration of each addon whose code runs
+// on the page; and what the host needs to navigate and run commands.
 
 /**
  * The errors of a cms.contributions document, none when it is valid.
@@ -210,12 +221,12 @@ function contributionsErrors(string $document): array
 it('accepts the contributions of a page', function (string $document): void {
     expect(contributionsErrors($document))->toBe([]);
 })->with([
-    'a page with no active contribution' => ['{"points":[]}'],
-    'a section that reads its data' => ['{"points":[{"fills":[{"addon":"approvals","data":true,"id":"approvals.badge","kind":"slot","priority":1000,"props":{"note":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"}}],"point":"reviews.detail.sections@1"}]}'],
+    'a page with no active contribution' => ['{"addons":[],"commands":"/cms/commands","details":false,"pages":[{"page":"home","url":"/cms"}],"points":[]}'],
+    'a section that reads its data' => ['{"addons":[{"addon":"approvals","any_command":false,"issues":["approvals.request@1"],"registration":"0000000000000000000000000000000000000000000000000000000000000000"}],"commands":"/cms/commands","details":false,"pages":[{"page":"home","url":"/cms"}],"points":[{"fills":[{"action":null,"addon":"approvals","check":null,"data":true,"decorator":null,"id":"approvals.badge","kind":"slot","priority":1000,"props":{"note":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"},"replacement":null,"step":null}],"kind":"slot","max":null,"multiplicity":"many","point":"reviews.detail.sections@1","region":"sections"}]}'],
 ]);
 
 it('refuses a fill that does not say whether it reads data', function (): void {
-    expect(contributionsErrors('{"points":[{"fills":[{"addon":"approvals","id":"approvals.badge","kind":"slot","priority":1000,"props":{}}],"point":"reviews.detail.sections@1"}]}'))
+    expect(contributionsErrors('{"addons":[{"addon":"approvals","any_command":false,"issues":["approvals.request@1"],"registration":"0000000000000000000000000000000000000000000000000000000000000000"}],"commands":"/cms/commands","details":false,"pages":[{"page":"home","url":"/cms"}],"points":[{"fills":[{"action":null,"addon":"approvals","check":null,"decorator":null,"id":"approvals.badge","kind":"slot","priority":1000,"props":{"note":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"},"replacement":null,"step":null}],"kind":"slot","max":null,"multiplicity":"many","point":"reviews.detail.sections@1","region":"sections"}]}'))
         ->not->toBe([]);
 });
 ```

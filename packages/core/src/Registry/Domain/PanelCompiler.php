@@ -74,6 +74,13 @@ use Cbox\Cms\Core\Registry\Domain\Dto\SchemaNode;
  * (registry_panel_override_invalid).
  *
  * It warns about every contribution to an experimental or a deprecated point.
+ *
+ * The core's own contributions, in the namespace cms (DeclaresCoreContributions), are compiled with
+ * the addons' and held to the same rules, less those that limit an addon to what it owns: the core
+ * runs any registered command exposed on Inertia and reads any query of cboxdk/cms, contributes to
+ * experimental and #[Internal] points without opting in, replaces any key, patches any path, and
+ * mirrors nothing, because the kernel enforces its own rules on the server. They have no bundle:
+ * the panel's own JavaScript registers those that run code.
  */
 #[Experimental]
 final readonly class PanelCompiler
@@ -81,11 +88,15 @@ final readonly class PanelCompiler
     /** The core's own contributions' namespace; no addon contributes in it. */
     public const string CORE_NAMESPACE = 'cms';
 
+    /** The package of the core's own contributions. */
+    public const string CORE_PACKAGE = 'cboxdk/cms';
+
     /**
      * @param  list<PanelPointEntry>  $points  as the scan found them
      * @param  list<AddonManifest>  $manifests  one per package, those the installation allows
      * @param  list<ActionEntry>  $actions  the compiled actions
      * @param  array<string, AddonBundle>  $bundles  by package
+     * @param  list<PanelContribution>  $core  the core's own contributions, in the namespace cms
      */
     public function compile(
         array $points,
@@ -95,6 +106,7 @@ final readonly class PanelCompiler
         BuildSettings $settings,
         ContractShapes $shapes,
         array $bundles,
+        array $core = [],
     ): PanelCompilation {
         $context = new PanelContext($points, $discovery, $actions, $shapes);
         $problems = [];
@@ -115,6 +127,14 @@ final readonly class PanelCompiler
             }
 
             $addons[] = new AddonEntry($manifest->namespace, $manifest->package, $manifest->coreApi, $manifest->capabilities->reads, $issues, $manifest->capabilities->uiTheme, $compiled);
+        }
+
+        foreach ($core as $contribution) {
+            $fill = $this->contribution(null, null, $contribution, $context, [], $owners, $problems, $warnings);
+
+            if ($fill instanceof PanelFill) {
+                $fills[$contribution->point()][] = $fill;
+            }
         }
 
         $fills = $this->chooseReplacements($fills, $context, $settings, $problems);
@@ -287,7 +307,8 @@ final readonly class PanelCompiler
     }
 
     /**
-     * Checks one contribution, and gives its fill, or null when it cannot be placed at a point.
+     * Checks one contribution, and gives its fill, or null when it cannot be placed at a point. A
+     * contribution without a manifest is the core's own.
      *
      * @param  array<string, true>  $pages  the ids of the addon's pages
      * @param  array<string, string>  $owners
@@ -295,8 +316,8 @@ final readonly class PanelCompiler
      * @param  list<BuildWarning>  $warnings
      */
     private function contribution(
-        AddonManifest $manifest,
-        PanelContributions $panel,
+        ?AddonManifest $manifest,
+        ?PanelContributions $panel,
         PanelContribution $contribution,
         PanelContext $context,
         array $pages,
@@ -304,13 +325,16 @@ final readonly class PanelCompiler
         array &$problems,
         array &$warnings,
     ): ?PanelFill {
-        $addon = $manifest->namespace->value;
+        $addon = $manifest instanceof AddonManifest ? $manifest->namespace->value : self::CORE_NAMESPACE;
+        $package = $manifest instanceof AddonManifest ? $manifest->package : self::CORE_PACKAGE;
         $contributionId = $contribution->id();
         $id = $contributionId->value;
-        $named = sprintf('The contribution %s of addon "%s" (%s)', $id, $addon, $manifest->package);
+        $named = $manifest instanceof AddonManifest
+            ? sprintf('The contribution %s of addon "%s" (%s)', $id, $addon, $package)
+            : sprintf('The core\'s contribution %s (%s)', $id, $package);
 
         if ($contributionId->namespace()->value !== $addon) {
-            $problems[] = new BuildProblem(BuildErrorCode::PanelDuplicateContribution, sprintf('%s is in the namespace "%s". An addon\'s contributions are in its own namespace: name it "%s.<local>".', $named, $contributionId->namespace()->value, $addon));
+            $problems[] = new BuildProblem(BuildErrorCode::PanelDuplicateContribution, sprintf('%s is in the namespace "%s". %s contributions are in %s namespace: name it "%s.<local>".', $named, $contributionId->namespace()->value, $manifest instanceof AddonManifest ? 'An addon\'s' : 'The core\'s', $manifest instanceof AddonManifest ? 'its own' : 'the', $addon));
 
             return null;
         }
@@ -321,7 +345,7 @@ final readonly class PanelCompiler
             return null;
         }
 
-        $owners[$id] = $manifest->package;
+        $owners[$id] = $package;
         $point = $context->point($contribution->point());
 
         if (! $point instanceof PanelPointEntry) {
@@ -337,7 +361,7 @@ final readonly class PanelCompiler
 
         $pointId = $point->id()->toString();
 
-        if ($point->stability === PointStability::Internal) {
+        if ($point->stability === PointStability::Internal && $manifest instanceof AddonManifest) {
             $problems[] = new BuildProblem(BuildErrorCode::PanelInternalPoint, sprintf('%s contributes to %s, which is #[Internal]: the core\'s own wiring, which no addon contributes to.', $named, $pointId));
 
             return null;
@@ -356,7 +380,7 @@ final readonly class PanelCompiler
             return null;
         }
 
-        if ($point->stability === PointStability::Experimental) {
+        if ($point->stability === PointStability::Experimental && $panel instanceof PanelContributions) {
             if (! $panel->accepts($point->id())) {
                 $problems[] = new BuildProblem(BuildErrorCode::PanelExperimentalNotAccepted, sprintf(
                     '%s contributes to %s, which is experimental and may change in a minor release of the panel API. Add "%s" to acceptsExperimental to opt in, or contribute to a stable point.',
@@ -371,7 +395,7 @@ final readonly class PanelCompiler
 
         $deprecation = $point->declaration->deprecated;
 
-        if ($deprecation instanceof PointDeprecation) {
+        if ($deprecation instanceof PointDeprecation && $manifest instanceof AddonManifest) {
             $warnings[] = new BuildWarning(BuildWarning::CODE_POINT_DEPRECATED, sprintf(
                 '%s contributes to %s, which is deprecated since panel API %s and is removed in %s.%s',
                 $named,
@@ -394,7 +418,7 @@ final readonly class PanelCompiler
             $command = $this->action($manifest, $contribution, $named, $point, $context, $problems);
         }
 
-        if ($contribution instanceof NavContribution && ! isset($pages[$contribution->page])) {
+        if ($contribution instanceof NavContribution && $manifest instanceof AddonManifest && ! isset($pages[$contribution->page])) {
             $problems[] = new BuildProblem(BuildErrorCode::PanelNavTargetUnknown, sprintf(
                 '%s links to the page "%s", which the addon does not contribute. Point it at the id of a PageContribution of the addon.',
                 $named,
@@ -406,14 +430,14 @@ final readonly class PanelCompiler
             $this->decorator($manifest, $contribution, $named, $point, $context, $problems);
         }
 
-        if ($contribution instanceof ReplacementContribution) {
+        if ($contribution instanceof ReplacementContribution && $manifest instanceof AddonManifest) {
             $this->replacement($manifest, $contribution, $named, $point, $context, $problems);
         }
 
         if ($contribution instanceof FormCheck) {
             $command = $this->formCommand($contribution->command, $named, $context, $problems);
 
-            if ($command instanceof CommandRef && ($contribution->severity === Severity::Error || $contribution->mirrors !== null)) {
+            if ($command instanceof CommandRef && $manifest instanceof AddonManifest && ($contribution->severity === Severity::Error || $contribution->mirrors !== null)) {
                 $this->mirror($manifest, $contribution->mirrors, $command, $named, 'blocks the submit with an error', $context, $problems);
             }
         }
@@ -426,7 +450,7 @@ final readonly class PanelCompiler
             }
         }
 
-        return new PanelFill($contribution, $manifest->package, $contribution->priority(), command: $command, query: $query);
+        return new PanelFill($contribution, $package, $contribution->priority(), command: $command, query: $query);
     }
 
     /**
@@ -478,16 +502,17 @@ final readonly class PanelCompiler
      *
      * @param  list<BuildProblem>  $problems
      */
-    private function action(AddonManifest $manifest, ActionContribution $action, string $named, PanelPointEntry $point, PanelContext $context, array &$problems): ?CommandRef
+    private function action(?AddonManifest $manifest, ActionContribution $action, string $named, PanelPointEntry $point, PanelContext $context, array &$problems): ?CommandRef
     {
         $command = $context->commandOfClass($action->command);
+        $mayIssue = ! $manifest instanceof AddonManifest || $manifest->capabilities->mayIssue($action->command);
 
-        if (! $manifest->capabilities->mayIssue($action->command) || ! $command instanceof CommandEntry || ! $context->exposedOnInertia($command)) {
+        if (! $mayIssue || ! $command instanceof CommandEntry || ! $context->exposedOnInertia($command)) {
             $problems[] = new BuildProblem(BuildErrorCode::PanelCommandNotIssuable, sprintf(
                 '%s runs %s, which %s. An action runs a registered command exposed on Inertia that the addon lists in AddonCapabilities::$issues.',
                 $named,
                 $action->command,
-                $manifest->capabilities->mayIssue($action->command) ? 'is not a registered command exposed on Inertia' : 'the addon\'s capabilities do not list in issues',
+                $mayIssue ? 'is not a registered command exposed on Inertia' : 'the addon\'s capabilities do not list in issues',
             ));
 
             return null;
@@ -527,11 +552,11 @@ final readonly class PanelCompiler
      *
      * @param  list<BuildProblem>  $problems
      */
-    private function dataQuery(AddonManifest $manifest, string $class, string $named, PanelPointEntry $point, PanelContext $context, array &$problems): ?CommandRef
+    private function dataQuery(?AddonManifest $manifest, string $class, string $named, PanelPointEntry $point, PanelContext $context, array &$problems): ?CommandRef
     {
         $query = $context->queryOfClass($class);
 
-        if (! $query instanceof QueryEntry || $query->package !== $manifest->package) {
+        if (! $query instanceof QueryEntry || $query->package !== ($manifest instanceof AddonManifest ? $manifest->package : self::CORE_PACKAGE)) {
             $problems[] = new BuildProblem(BuildErrorCode::PanelDataQueryInvalid, sprintf(
                 '%s reads its data with %s, which is %s. A contribution reads only through a #[Query] of its own addon, run as the viewer.',
                 $named,
@@ -577,7 +602,7 @@ final readonly class PanelCompiler
      *
      * @param  list<BuildProblem>  $problems
      */
-    private function decorator(AddonManifest $manifest, DecoratorContribution $decorator, string $named, PanelPointEntry $point, PanelContext $context, array &$problems): void
+    private function decorator(?AddonManifest $manifest, DecoratorContribution $decorator, string $named, PanelPointEntry $point, PanelContext $context, array &$problems): void
     {
         foreach ($decorator->tightens as $tighten) {
             if (! in_array($tighten, $point->declaration->tightens, true)) {
@@ -591,7 +616,7 @@ final readonly class PanelCompiler
             }
         }
 
-        if (! in_array(Tighten::DisabledReason, $decorator->tightens, true) && $decorator->mirrors === null) {
+        if (! $manifest instanceof AddonManifest || (! in_array(Tighten::DisabledReason, $decorator->tightens, true) && $decorator->mirrors === null)) {
             return;
         }
 
@@ -653,18 +678,19 @@ final readonly class PanelCompiler
      *
      * @param  list<BuildProblem>  $problems
      */
-    private function flowPaths(AddonManifest $manifest, FlowStep $step, CommandRef $command, string $named, PanelContext $context, array &$problems): void
+    private function flowPaths(?AddonManifest $manifest, FlowStep $step, CommandRef $command, string $named, PanelContext $context, array &$problems): void
     {
         $schema = $context->shapes->command($command->name, $command->version);
         $entry = $context->command($command);
-        $ownsCommand = $entry instanceof CommandEntry && $entry->package === $manifest->package;
+        $ownsCommand = ! $manifest instanceof AddonManifest || ($entry instanceof CommandEntry && $entry->package === $manifest->package);
+        $namespace = $manifest instanceof AddonManifest ? $manifest->namespace->value : self::CORE_NAMESPACE;
 
         foreach ($step->patches as $patch) {
             $path = FieldPath::fromString($patch);
             $wrong = match (true) {
                 ! $schema instanceof SchemaNode => sprintf('the command %s has no schema the build can read', $command->toString()),
                 ! $schema->at($path) instanceof SchemaNode => sprintf('the schema of %s has no %s', $command->toString(), $patch),
-                ! $ownsCommand && ! $this->ownedPath($path, $manifest->namespace->value) => sprintf('%s is not below ext.%s, and %s is not a command of the addon', $patch, $manifest->namespace->value, $command->toString()),
+                ! $ownsCommand && ! $this->ownedPath($path, $namespace) => sprintf('%s is not below ext.%s, and %s is not a command of the addon', $patch, $namespace, $command->toString()),
                 default => null,
             };
 
@@ -674,7 +700,7 @@ final readonly class PanelCompiler
                     $named,
                     $patch,
                     $wrong,
-                    $manifest->namespace->value,
+                    $namespace,
                 ));
             }
         }

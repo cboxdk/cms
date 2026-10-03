@@ -61,6 +61,18 @@ export interface CheckContext {
 }
 
 // @stable
+export interface ColumnDescriptor<P> {
+    // (undocumented)
+    readonly cell: ComponentType<{
+        readonly props: Readonly<P>;
+    }>;
+    // (undocumented)
+    readonly header: TranslationKey;
+    // (undocumented)
+    readonly width?: 'narrow' | 'medium' | 'wide';
+}
+
+// @stable
 export interface CommandAnswer {
     // (undocumented)
     readonly problem: ProblemV1 | null;
@@ -345,6 +357,14 @@ export interface StepProps<D, Path extends string = never, I extends IssuedComma
 }
 
 // @stable
+export interface TabDescriptor<P, D = never> {
+    // (undocumented)
+    readonly component: SlotComponent<P, D>;
+    // (undocumented)
+    readonly label: TranslationKey;
+}
+
+// @stable
 export interface Tightening {
     // (undocumented)
     readonly description: TranslationKey;
@@ -356,6 +376,22 @@ export interface Tightening {
 
 // @stable
 export type TighterTone = 'warning' | 'danger';
+
+// @stable
+export type ToolbarItem<P> = (props: Readonly<P>) => ToolbarItemDescriptor | null;
+
+// @stable
+export type ToolbarItemDescriptor = {
+    readonly kind: 'badge';
+    readonly label: TranslationKey;
+    readonly tone?: BadgeDescriptor['tone'];
+    readonly parameters?: TranslationParameters;
+} | {
+    readonly kind: 'button';
+    readonly label: TranslationKey;
+    readonly parameters?: TranslationParameters;
+    readonly onPress: () => void;
+};
 
 // @stable
 export type TranslationKey = string;

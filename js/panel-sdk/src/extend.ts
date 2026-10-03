@@ -10,6 +10,7 @@ export type { ContributionMap, PanelAddon } from './addon';
 export type {
   BadgeDescriptor,
   CheckContext,
+  ColumnDescriptor,
   ContributionImplementation,
   DataState,
   Decoration,
@@ -31,8 +32,11 @@ export type {
   SlotComponent,
   SlotProps,
   StepProps,
+  TabDescriptor,
   TighterTone,
   Tightening,
+  ToolbarItem,
+  ToolbarItemDescriptor,
 } from './contributions';
 export { PanelHostMissing, usePanelHost } from './host';
 export type {

@@ -1,5 +1,7 @@
 // The Storybook of the component kit (GUARDRAILS 8: every component has a story and a visual
-// regression test). It shows the stories in js/ui-kit/stories, written against the kit's public
+// regression test), and of the panel's points: the section "Panel points", which cms:panel:stories
+// generates into js/panel/stories/generated from panel.php, one story per point (PRD 13.4). It
+// shows the stories in js/ui-kit/stories, written against the kit's public
 // entry @cboxdk/cms-ui-kit as a page or an addon uses it, and beside each component's stories its
 // MDX page (js/ui-kit/stories/<Name>.mdx) with what it is for, do and don't, its keyboard and
 // accessibility, its stability and its props, read from its TSDoc by the docs addon. Gate 7 builds it
@@ -15,7 +17,11 @@
 
 const config = {
   framework: '@storybook/react-vite',
-  stories: ['../stories/**/*.mdx', '../stories/**/*.stories.tsx'],
+  stories: [
+    '../stories/**/*.mdx',
+    '../stories/**/*.stories.tsx',
+    '../../panel/stories/**/*.stories.tsx',
+  ],
   addons: ['@storybook/addon-a11y', '@storybook/addon-docs', '@storybook/addon-vitest'],
   core: { disableTelemetry: true, disableWhatsNewNotifications: true },
 };

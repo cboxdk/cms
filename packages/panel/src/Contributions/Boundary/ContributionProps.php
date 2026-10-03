@@ -9,8 +9,13 @@ use Cbox\Cms\Contracts\Codecs\JsonDocument;
 use Cbox\Cms\Contracts\Identity\ActorPrincipal;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\TransportCredential;
+use Cbox\Cms\Contracts\PanelPoints\ActionContribution;
 use Cbox\Cms\Contracts\PanelPoints\CommandRef;
+use Cbox\Cms\Contracts\PanelPoints\DecoratorContribution;
+use Cbox\Cms\Contracts\PanelPoints\FlowStep;
+use Cbox\Cms\Contracts\PanelPoints\FormCheck;
 use Cbox\Cms\Contracts\PanelPoints\PageName;
+use Cbox\Cms\Contracts\PanelPoints\ReplacementContribution;
 use Cbox\Cms\Contracts\Pipeline\Result;
 use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
 use Cbox\Cms\Core\Codecs\Domain\EncodingFailed;
@@ -19,11 +24,13 @@ use Cbox\Cms\Core\Reads\Domain\QueryCodecs;
 use Cbox\Cms\Http\Credentials\Boundary\RequestCredential;
 use Cbox\Cms\Http\Inertia\Boundary\InertiaProps;
 use Cbox\Cms\Panel\Boundary\Generated\ContributionsCodecV1;
+use Cbox\Cms\Panel\Boundary\PanelPages;
 use Cbox\Cms\Panel\Boundary\PanelSessions;
 use Cbox\Cms\Panel\Contributions\Domain\ContributionTelemetry;
 use Cbox\Cms\Panel\Contributions\Domain\DataRefusal;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\ActiveContributions;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\ActiveFill;
+use Cbox\Cms\Panel\Contributions\Domain\Dto\AddonRegistration;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\ContributionData;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\ContributionDataCall;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\PanelView;
@@ -32,11 +39,21 @@ use Cbox\Cms\Panel\Contributions\Domain\Dto\RenderedPoint;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\ViewSubject;
 use Cbox\Cms\Panel\Contributions\Domain\PointCodecs;
 use Cbox\Cms\Panel\Contributions\Domain\Withheld;
+use Cbox\Cms\Panel\Domain\Dto\ActionProp;
+use Cbox\Cms\Panel\Domain\Dto\AddonProp;
+use Cbox\Cms\Panel\Domain\Dto\CheckProp;
 use Cbox\Cms\Panel\Domain\Dto\ContributionsProp;
+use Cbox\Cms\Panel\Domain\Dto\DecoratorProp;
 use Cbox\Cms\Panel\Domain\Dto\FillProp;
+use Cbox\Cms\Panel\Domain\Dto\PageLinkProp;
 use Cbox\Cms\Panel\Domain\Dto\PointFillsProp;
+use Cbox\Cms\Panel\Domain\Dto\PrefillProp;
+use Cbox\Cms\Panel\Domain\Dto\ReplacementProp;
+use Cbox\Cms\Panel\Domain\Dto\StepProp;
+use Cbox\Cms\Panel\Domain\PanelRoute;
 use Closure;
 use Illuminate\Contracts\Debug\ExceptionHandler;
+use Illuminate\Contracts\Routing\UrlGenerator;
 use Illuminate\Http\Request;
 use Inertia\DeferProp;
 use LogicException;
@@ -51,8 +68,13 @@ use Throwable;
  *   ResolveContributions works them out for the PanelView that view() reads from the request,
  *   written by the generated ContributionsCodecV1 (contributions.v1.json), each with the point's
  *   props as the point's codec (PointCodecs) wrote them at the fill's access, the lower of the
- *   viewer's and the addon's reads. A point without a codec, or props its codec cannot write, loses
- *   its contributions, recorded in telemetry (ContributionTelemetry::withheld());
+ *   viewer's and the addon's reads, and what its kind needs besides; each point with its kind,
+ *   region and multiplicity; the registration of each addon whose code runs on the page; whether
+ *   the viewer sees the detail of a failure; the panel's pages a contribution may navigate to; and
+ *   the address of the Inertia profile the host runs commands through, which is everything the
+ *   panel's host (js/panel/src/host) renders the points from. A point without a codec, or props
+ *   its codec cannot write, loses its contributions, recorded in telemetry
+ *   (ContributionTelemetry::withheld());
  * - DATA, `ext.<addon>`: per addon whose contributions read data, a deferred prop in the group of
  *   the addon's namespace, which the host asks for after the page has rendered. It holds, under
  *   each such contribution's id, the result of its query as the action RunContributionData gives
@@ -84,6 +106,7 @@ final readonly class ContributionProps
         private QueryCodecs $queries,
         private ContributionTelemetry $telemetry,
         private ExceptionHandler $exceptions,
+        private UrlGenerator $urls,
     ) {}
 
     /**
@@ -134,7 +157,7 @@ final readonly class ContributionProps
                 }
 
                 $query = $fill->data();
-                $fills[] = new FillProp($fill->fill->addon(), $query instanceof CommandRef, $fill->fill->contribution, $fill->fill->declaration->kind(), $fill->fill->priority, $props);
+                $fills[] = $this->fill($fill, $props);
 
                 if ($query instanceof CommandRef) {
                     $data[$fill->fill->addon()->value][] = new EncodedFill($fill, $props);
@@ -142,11 +165,24 @@ final readonly class ContributionProps
             }
 
             if ($fills !== []) {
-                $points[] = new PointFillsProp($point->point->toString(), $fills);
+                $declaration = $point->declaration;
+                $points[] = new PointFillsProp($point->point->toString(), $fills, $declaration->kind, $declaration->region, $declaration->multiplicity, $declaration->max);
             }
         }
 
-        $props = [self::CMS => [self::CONTRIBUTIONS => InertiaProps::document($this->codec->encode(new ContributionsProp($points), ClassificationAccess::Public))]];
+        $prop = new ContributionsProp(
+            $points,
+            array_map(static fn (AddonRegistration $addon): AddonProp => new AddonProp(
+                $addon->addon,
+                $addon->digest,
+                array_map(static fn (CommandRef $command): string => $command->toString(), $addon->issues),
+                $addon->anyCommand,
+            ), $active->registrations),
+            $this->home().'/'.PanelRoute::COMMANDS_PATH,
+            $active->details,
+            [new PageLinkProp(PanelPages::HOME_PAGE, $this->home())],
+        );
+        $props = [self::CMS => [self::CONTRIBUTIONS => InertiaProps::document($this->codec->encode($prop, ClassificationAccess::Public))]];
         ksort($data, SORT_STRING);
 
         foreach ($data as $addon => $fills) {
@@ -154,6 +190,45 @@ final readonly class ContributionProps
         }
 
         return new SharedProps($props);
+    }
+
+    /**
+     * The fill as the host gets it: what every contribution has, and what its kind needs besides.
+     */
+    private function fill(ActiveFill $active, JsonDocument $props): FillProp
+    {
+        $fill = $active->fill;
+        $declaration = $fill->declaration;
+        $command = $fill->command?->toString();
+
+        return new FillProp(
+            $fill->addon(),
+            $active->data() instanceof CommandRef,
+            $fill->contribution,
+            $declaration->kind(),
+            $fill->priority,
+            $props,
+            $declaration instanceof ActionContribution && $command !== null ? new ActionProp(
+                $command,
+                $declaration->label,
+                $declaration->icon,
+                array_map(static fn (string $property, string $pointer): PrefillProp => new PrefillProp($property, $pointer), array_keys($declaration->prefill), array_values($declaration->prefill)),
+                $declaration->confirm,
+                $declaration->tone,
+            ) : null,
+            $declaration instanceof FormCheck && $command !== null ? new CheckProp($command, $declaration->severity) : null,
+            $declaration instanceof DecoratorContribution ? new DecoratorProp($declaration->tightens) : null,
+            $declaration instanceof ReplacementContribution ? new ReplacementProp($declaration->key) : null,
+            $declaration instanceof FlowStep && $command !== null ? new StepProp($command, $declaration->position, $declaration->patches, $declaration->timeoutSeconds) : null,
+        );
+    }
+
+    /**
+     * The address of the panel's start page, without a trailing slash.
+     */
+    private function home(): string
+    {
+        return rtrim($this->urls->route(PanelRoute::Home->value, [], false), '/');
     }
 
     /**

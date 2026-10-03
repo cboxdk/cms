@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\Registry\Domain\Dto;
 
 use Cbox\Cms\Contracts\Addons\AddonManifest;
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\PanelPoints\PanelContribution;
 
 /**
  * The addon manifests of one cms:build (PRD 13.1, 13.2), as the service providers declared them,
@@ -15,6 +16,9 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
  *
  * The bundles are the panel bundles of the manifests that name one (PRD 13.4), by the manifest's
  * package, as the build read them from disk.
+ *
+ * The core's contributions are the panel contributions the modules of cboxdk/cms declare in the
+ * namespace cms (DeclaresCoreContributions), compiled with the addons'.
  */
 #[Experimental]
 final readonly class DeclaredAddons
@@ -23,10 +27,12 @@ final readonly class DeclaredAddons
      * @param  list<AddonManifest>  $manifests
      * @param  list<BuildProblem>  $problems
      * @param  array<string, AddonBundle>  $bundles  by package
+     * @param  list<PanelContribution>  $core  the core's own panel contributions
      */
     public function __construct(
         public array $manifests = [],
         public array $problems = [],
         public array $bundles = [],
+        public array $core = [],
     ) {}
 }

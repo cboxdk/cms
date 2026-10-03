@@ -9,16 +9,31 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Codecs\JsonCodec;
 use Cbox\Cms\Contracts\Codecs\JsonDocument;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Contracts\PanelPoints\Confirm;
 use Cbox\Cms\Contracts\PanelPoints\ContributionId;
+use Cbox\Cms\Contracts\PanelPoints\Multiplicity;
 use Cbox\Cms\Contracts\PanelPoints\PointKind;
+use Cbox\Cms\Contracts\PanelPoints\Region;
+use Cbox\Cms\Contracts\PanelPoints\Severity;
+use Cbox\Cms\Contracts\PanelPoints\StepPosition;
+use Cbox\Cms\Contracts\PanelPoints\Tighten;
+use Cbox\Cms\Contracts\PanelPoints\Tone;
 use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Core\Codecs\Boundary\JsonText;
 use Cbox\Cms\Core\Codecs\Boundary\JsonValues;
 use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
 use Cbox\Cms\Core\Codecs\Domain\EncodingFailed;
+use Cbox\Cms\Panel\Domain\Dto\ActionProp;
+use Cbox\Cms\Panel\Domain\Dto\AddonProp;
+use Cbox\Cms\Panel\Domain\Dto\CheckProp;
 use Cbox\Cms\Panel\Domain\Dto\ContributionsProp;
+use Cbox\Cms\Panel\Domain\Dto\DecoratorProp;
 use Cbox\Cms\Panel\Domain\Dto\FillProp;
+use Cbox\Cms\Panel\Domain\Dto\PageLinkProp;
 use Cbox\Cms\Panel\Domain\Dto\PointFillsProp;
+use Cbox\Cms\Panel\Domain\Dto\PrefillProp;
+use Cbox\Cms\Panel\Domain\Dto\ReplacementProp;
+use Cbox\Cms\Panel\Domain\Dto\StepProp;
 use Override;
 use stdClass;
 
@@ -66,6 +81,10 @@ final readonly class ContributionsCodecV1 implements JsonCodec
     private function encodeContributionsProp(ContributionsProp $object): stdClass
     {
         $json = new stdClass;
+        $json->addons = array_map($this->encodeAddonProp(...), $object->addons);
+        $json->commands = $object->commands;
+        $json->details = $object->details;
+        $json->pages = array_map($this->encodePageLinkProp(...), $object->pages);
         $json->points = array_map($this->encodePointFillsProp(...), $object->points);
 
         return $json;
@@ -73,10 +92,56 @@ final readonly class ContributionsCodecV1 implements JsonCodec
 
     private function decodeContributionsProp(stdClass $value): ContributionsProp
     {
-        $object = JsonValues::object($value, null, ['points']);
+        $object = JsonValues::object($value, null, ['addons', 'commands', 'details', 'pages', 'points']);
 
         return JsonValues::build(null, fn (): ContributionsProp => new ContributionsProp(
             points: JsonValues::required($object, 'points', null, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodePointFillsProp(...), maxItems: 200)),
+            addons: JsonValues::required($object, 'addons', null, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeAddonProp(...), maxItems: 200)),
+            commands: JsonValues::required($object, 'commands', null, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1, maxLength: 200)),
+            details: JsonValues::required($object, 'details', null, static fn (mixed $value, FieldPath $at): bool => JsonValues::boolean($value, $at)),
+            pages: JsonValues::required($object, 'pages', null, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodePageLinkProp(...), maxItems: 500)),
+        ));
+    }
+
+    private function encodeAddonProp(AddonProp $object): stdClass
+    {
+        $json = new stdClass;
+        $json->addon = $object->addon->value;
+        $json->any_command = $object->anyCommand;
+        $json->issues = $object->issues;
+        $json->registration = $object->registration;
+
+        return $json;
+    }
+
+    private function decodeAddonProp(mixed $value, FieldPath $path): AddonProp
+    {
+        $object = JsonValues::object($value, $path, ['addon', 'any_command', 'issues', 'registration']);
+
+        return JsonValues::build($path, static fn (): AddonProp => new AddonProp(
+            addon: JsonValues::required($object, 'addon', $path, static fn (mixed $value, FieldPath $at): AddonNamespace => JsonValues::value($value, $at, static fn (string $text): AddonNamespace => new AddonNamespace($text))),
+            registration: JsonValues::required($object, 'registration', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 64, maxLength: 64)),
+            issues: JsonValues::required($object, 'issues', $path, static fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, static fn (mixed $item, FieldPath $itemAt): string => JsonValues::text($item, $itemAt, minLength: 3, maxLength: 200), maxItems: 500)),
+            anyCommand: JsonValues::required($object, 'any_command', $path, static fn (mixed $value, FieldPath $at): bool => JsonValues::boolean($value, $at)),
+        ));
+    }
+
+    private function encodePageLinkProp(PageLinkProp $object): stdClass
+    {
+        $json = new stdClass;
+        $json->page = $object->page;
+        $json->url = $object->url;
+
+        return $json;
+    }
+
+    private function decodePageLinkProp(mixed $value, FieldPath $path): PageLinkProp
+    {
+        $object = JsonValues::object($value, $path, ['page', 'url']);
+
+        return JsonValues::build($path, static fn (): PageLinkProp => new PageLinkProp(
+            page: JsonValues::required($object, 'page', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1, maxLength: 100)),
+            url: JsonValues::required($object, 'url', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1, maxLength: 500)),
         ));
     }
 
@@ -84,45 +149,185 @@ final readonly class ContributionsCodecV1 implements JsonCodec
     {
         $json = new stdClass;
         $json->fills = array_map($this->encodeFillProp(...), $object->fills);
+        $json->kind = $object->kind->value;
+        $json->max = $object->max;
+        $json->multiplicity = $object->multiplicity->value;
         $json->point = $object->point;
+        $json->region = $object->region instanceof Region ? $object->region->value : null;
 
         return $json;
     }
 
     private function decodePointFillsProp(mixed $value, FieldPath $path): PointFillsProp
     {
-        $object = JsonValues::object($value, $path, ['fills', 'point']);
+        $object = JsonValues::object($value, $path, ['fills', 'kind', 'max', 'multiplicity', 'point', 'region']);
 
         return JsonValues::build($path, fn (): PointFillsProp => new PointFillsProp(
             point: JsonValues::required($object, 'point', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 3, maxLength: 200)),
             fills: JsonValues::required($object, 'fills', $path, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeFillProp(...), minItems: 1, maxItems: 500)),
+            kind: JsonValues::required($object, 'kind', $path, static fn (mixed $value, FieldPath $at): PointKind => JsonValues::enum($value, $at, PointKind::class)),
+            region: JsonValues::present($object, 'region', $path, static fn (mixed $value, FieldPath $at): Region => JsonValues::enum($value, $at, Region::class)),
+            multiplicity: JsonValues::required($object, 'multiplicity', $path, static fn (mixed $value, FieldPath $at): Multiplicity => JsonValues::enum($value, $at, Multiplicity::class)),
+            max: JsonValues::present($object, 'max', $path, static fn (mixed $value, FieldPath $at): int => JsonValues::integer($value, $at, min: 1, max: 500)),
         ));
     }
 
     private function encodeFillProp(FillProp $object): stdClass
     {
         $json = new stdClass;
+        $json->action = $object->action instanceof ActionProp ? $this->encodeActionProp($object->action) : null;
         $json->addon = $object->addon->value;
+        $json->check = $object->check instanceof CheckProp ? $this->encodeCheckProp($object->check) : null;
         $json->data = $object->data;
+        $json->decorator = $object->decorator instanceof DecoratorProp ? $this->encodeDecoratorProp($object->decorator) : null;
         $json->id = $object->id->value;
         $json->kind = $object->kind->value;
         $json->priority = $object->priority;
         $json->props = JsonValues::encodeDocument($object->props->value);
+        $json->replacement = $object->replacement instanceof ReplacementProp ? $this->encodeReplacementProp($object->replacement) : null;
+        $json->step = $object->step instanceof StepProp ? $this->encodeStepProp($object->step) : null;
 
         return $json;
     }
 
     private function decodeFillProp(mixed $value, FieldPath $path): FillProp
     {
-        $object = JsonValues::object($value, $path, ['addon', 'data', 'id', 'kind', 'priority', 'props']);
+        $object = JsonValues::object($value, $path, ['action', 'addon', 'check', 'data', 'decorator', 'id', 'kind', 'priority', 'props', 'replacement', 'step']);
 
-        return JsonValues::build($path, static fn (): FillProp => new FillProp(
+        return JsonValues::build($path, fn (): FillProp => new FillProp(
             addon: JsonValues::required($object, 'addon', $path, static fn (mixed $value, FieldPath $at): AddonNamespace => JsonValues::value($value, $at, static fn (string $text): AddonNamespace => new AddonNamespace($text))),
             data: JsonValues::required($object, 'data', $path, static fn (mixed $value, FieldPath $at): bool => JsonValues::boolean($value, $at)),
             id: JsonValues::required($object, 'id', $path, static fn (mixed $value, FieldPath $at): ContributionId => JsonValues::value($value, $at, static fn (string $text): ContributionId => new ContributionId($text))),
             kind: JsonValues::required($object, 'kind', $path, static fn (mixed $value, FieldPath $at): PointKind => JsonValues::enum($value, $at, PointKind::class)),
             priority: JsonValues::required($object, 'priority', $path, static fn (mixed $value, FieldPath $at): int => JsonValues::integer($value, $at, min: 0, max: 1000000)),
             props: JsonValues::required($object, 'props', $path, static fn (mixed $value, FieldPath $at): JsonDocument => JsonValues::document($value, $at, static fn (string $text): JsonDocument => new JsonDocument($text))),
+            action: JsonValues::present($object, 'action', $path, $this->decodeActionProp(...)),
+            check: JsonValues::present($object, 'check', $path, $this->decodeCheckProp(...)),
+            decorator: JsonValues::present($object, 'decorator', $path, $this->decodeDecoratorProp(...)),
+            replacement: JsonValues::present($object, 'replacement', $path, $this->decodeReplacementProp(...)),
+            step: JsonValues::present($object, 'step', $path, $this->decodeStepProp(...)),
+        ));
+    }
+
+    private function encodeActionProp(ActionProp $object): stdClass
+    {
+        $json = new stdClass;
+        $json->command = $object->command;
+        $json->confirm = $object->confirm->value;
+        $json->icon = $object->icon;
+        $json->label = $object->label;
+        $json->prefill = array_map($this->encodePrefillProp(...), $object->prefill);
+        $json->tone = $object->tone->value;
+
+        return $json;
+    }
+
+    private function decodeActionProp(mixed $value, FieldPath $path): ActionProp
+    {
+        $object = JsonValues::object($value, $path, ['command', 'confirm', 'icon', 'label', 'prefill', 'tone']);
+
+        return JsonValues::build($path, fn (): ActionProp => new ActionProp(
+            command: JsonValues::required($object, 'command', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 3, maxLength: 200)),
+            label: JsonValues::required($object, 'label', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1, maxLength: 200)),
+            icon: JsonValues::present($object, 'icon', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1, maxLength: 64)),
+            prefill: JsonValues::required($object, 'prefill', $path, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodePrefillProp(...), maxItems: 100)),
+            confirm: JsonValues::required($object, 'confirm', $path, static fn (mixed $value, FieldPath $at): Confirm => JsonValues::enum($value, $at, Confirm::class)),
+            tone: JsonValues::required($object, 'tone', $path, static fn (mixed $value, FieldPath $at): Tone => JsonValues::enum($value, $at, Tone::class)),
+        ));
+    }
+
+    private function encodePrefillProp(PrefillProp $object): stdClass
+    {
+        $json = new stdClass;
+        $json->pointer = $object->pointer;
+        $json->property = $object->property;
+
+        return $json;
+    }
+
+    private function decodePrefillProp(mixed $value, FieldPath $path): PrefillProp
+    {
+        $object = JsonValues::object($value, $path, ['pointer', 'property']);
+
+        return JsonValues::build($path, static fn (): PrefillProp => new PrefillProp(
+            property: JsonValues::required($object, 'property', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1, maxLength: 100)),
+            pointer: JsonValues::required($object, 'pointer', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 2, maxLength: 200)),
+        ));
+    }
+
+    private function encodeCheckProp(CheckProp $object): stdClass
+    {
+        $json = new stdClass;
+        $json->command = $object->command;
+        $json->severity = $object->severity->value;
+
+        return $json;
+    }
+
+    private function decodeCheckProp(mixed $value, FieldPath $path): CheckProp
+    {
+        $object = JsonValues::object($value, $path, ['command', 'severity']);
+
+        return JsonValues::build($path, static fn (): CheckProp => new CheckProp(
+            command: JsonValues::required($object, 'command', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 3, maxLength: 200)),
+            severity: JsonValues::required($object, 'severity', $path, static fn (mixed $value, FieldPath $at): Severity => JsonValues::enum($value, $at, Severity::class)),
+        ));
+    }
+
+    private function encodeDecoratorProp(DecoratorProp $object): stdClass
+    {
+        $json = new stdClass;
+        $json->tightens = array_map(static fn (Tighten $item): mixed => $item->value, $object->tightens);
+
+        return $json;
+    }
+
+    private function decodeDecoratorProp(mixed $value, FieldPath $path): DecoratorProp
+    {
+        $object = JsonValues::object($value, $path, ['tightens']);
+
+        return JsonValues::build($path, static fn (): DecoratorProp => new DecoratorProp(
+            tightens: JsonValues::required($object, 'tightens', $path, static fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, static fn (mixed $item, FieldPath $itemAt): Tighten => JsonValues::enum($item, $itemAt, Tighten::class), maxItems: 3)),
+        ));
+    }
+
+    private function encodeReplacementProp(ReplacementProp $object): stdClass
+    {
+        $json = new stdClass;
+        $json->key = $object->key;
+
+        return $json;
+    }
+
+    private function decodeReplacementProp(mixed $value, FieldPath $path): ReplacementProp
+    {
+        $object = JsonValues::object($value, $path, ['key']);
+
+        return JsonValues::build($path, static fn (): ReplacementProp => new ReplacementProp(
+            key: JsonValues::required($object, 'key', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1, maxLength: 255)),
+        ));
+    }
+
+    private function encodeStepProp(StepProp $object): stdClass
+    {
+        $json = new stdClass;
+        $json->command = $object->command;
+        $json->patches = $object->patches;
+        $json->position = $object->position->value;
+        $json->timeout_seconds = $object->timeoutSeconds;
+
+        return $json;
+    }
+
+    private function decodeStepProp(mixed $value, FieldPath $path): StepProp
+    {
+        $object = JsonValues::object($value, $path, ['command', 'patches', 'position', 'timeout_seconds']);
+
+        return JsonValues::build($path, static fn (): StepProp => new StepProp(
+            command: JsonValues::required($object, 'command', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 3, maxLength: 200)),
+            position: JsonValues::required($object, 'position', $path, static fn (mixed $value, FieldPath $at): StepPosition => JsonValues::enum($value, $at, StepPosition::class)),
+            patches: JsonValues::required($object, 'patches', $path, static fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, static fn (mixed $item, FieldPath $itemAt): string => JsonValues::text($item, $itemAt, minLength: 1, maxLength: 500), maxItems: 100)),
+            timeoutSeconds: JsonValues::required($object, 'timeout_seconds', $path, static fn (mixed $value, FieldPath $at): int => JsonValues::integer($value, $at, min: 1, max: 30)),
         ));
     }
 }

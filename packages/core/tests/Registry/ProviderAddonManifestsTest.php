@@ -10,6 +10,7 @@ use Cbox\Cms\Contracts\Addons\AddonNamespace;
 use Cbox\Cms\Contracts\Addons\ContributedFieldType;
 use Cbox\Cms\Contracts\Addons\CoreApiVersion;
 use Cbox\Cms\Contracts\Addons\SchemaContributions;
+use Cbox\Cms\Contracts\Build\DeclaresCoreContributions;
 use Cbox\Cms\Contracts\PanelPoints\ContributionId;
 use Cbox\Cms\Contracts\PanelPoints\Scope;
 use Cbox\Cms\Contracts\PanelPoints\SlotFill;
@@ -20,10 +21,12 @@ use Cbox\Cms\Core\Registry\Domain\Dto\BuildProblem;
 use Cbox\Cms\Core\Registry\Domain\Dto\ScanRoots;
 use Cbox\Cms\Core\Registry\Domain\RegistryBuildFailed;
 use Cbox\Cms\Core\Tests\Registry\Providers\AddonManifestProvider;
+use Cbox\Cms\Core\Tests\Registry\Providers\CoreContributionsProvider;
 use Cbox\Cms\Core\Tests\Registry\Providers\DeferredAddonProvider;
 use Cbox\Cms\Core\Tests\Registry\Providers\FixtureRootProvider;
 use Closure;
 use Illuminate\Contracts\Foundation\Application;
+use Override;
 use PHPUnit\Framework\Assert;
 use stdClass;
 use Workbench\FixtureAddon\FixtureAddonServiceProvider;
@@ -155,4 +158,26 @@ it('reads the panel bundle of a manifest that names one, by the manifest\'s pack
     expect(array_keys($read->bundles))->toBe([PanelBuildWorld::ADDON])
         ->and($read->bundles[PanelBuildWorld::ADDON]->problems)->toBe([])
         ->and($read->bundles[PanelBuildWorld::ADDON]->manifest?->entry->value)->toBe('addon.js');
+});
+
+it('reads the core\'s contributions of a module\'s provider, and refuses them from a provider outside cboxdk/cms or when they cannot be built', function (): void {
+    $summary = new SlotFill(new ContributionId('cms.summary'), 'notes.detail.sections@1', priority: 100);
+    $read = ProviderAddonManifests::from([new CoreContributionsProvider(static fn (): array => [$summary])]);
+
+    $outside = new class implements DeclaresCoreContributions
+    {
+        #[Override]
+        public function coreContributions(): array
+        {
+            return [new SlotFill(new ContributionId('cms.summary'), 'notes.detail.sections@1')];
+        }
+    };
+    $refused = ProviderAddonManifests::from([$outside, new CoreContributionsProvider(static fn (): array => [new SlotFill(new ContributionId('cms.summary'), 'notes.detail.sections@1', priority: -1)])]);
+
+    expect($read->core)->toBe([$summary])
+        ->and($read->problems)->toBe([])
+        ->and($refused->core)->toBe([])
+        ->and(array_map(static fn (BuildProblem $problem): string => $problem->code->value, $refused->problems))->toBe([BuildErrorCode::InvalidManifest->value, BuildErrorCode::InvalidManifest->value])
+        ->and($refused->problems[0]->message)->toContain('is not a module of cboxdk/cms')
+        ->and($refused->problems[1]->message)->toContain(CoreContributionsProvider::class)->toContain('cannot be built');
 });

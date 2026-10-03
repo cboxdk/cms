@@ -51,9 +51,9 @@ final class ActiveContributionsTest extends TestCase
     public function it_sends_each_contribution_the_point_s_props_at_the_lower_of_the_viewer_s_access_and_the_addon_s_reads(): void
     {
         self::assertSame([
-            ['addon' => 'tally', 'data' => false, 'id' => ContributionWorld::AUDIT, 'kind' => 'slot', 'priority' => 10, 'props' => ['note' => DeskWorld::NOTE]],
-            ['addon' => 'tally', 'data' => true, 'id' => ContributionWorld::COUNT, 'kind' => 'slot', 'priority' => 20, 'props' => ['note' => DeskWorld::NOTE]],
-            ['addon' => 'tally', 'data' => true, 'id' => ContributionWorld::HEAVY, 'kind' => 'slot', 'priority' => 30, 'props' => ['note' => DeskWorld::NOTE]],
+            ['action' => null, 'addon' => 'tally', 'check' => null, 'data' => false, 'decorator' => null, 'id' => ContributionWorld::AUDIT, 'kind' => 'slot', 'priority' => 10, 'props' => ['note' => DeskWorld::NOTE], 'replacement' => null, 'step' => null],
+            ['action' => null, 'addon' => 'tally', 'check' => null, 'data' => true, 'decorator' => null, 'id' => ContributionWorld::COUNT, 'kind' => 'slot', 'priority' => 20, 'props' => ['note' => DeskWorld::NOTE], 'replacement' => null, 'step' => null],
+            ['action' => null, 'addon' => 'tally', 'check' => null, 'data' => true, 'decorator' => null, 'id' => ContributionWorld::HEAVY, 'kind' => 'slot', 'priority' => 30, 'props' => ['note' => DeskWorld::NOTE], 'replacement' => null, 'step' => null],
         ], self::firstFills($this->visitDesk($this->desk()->auditor)));
     }
 

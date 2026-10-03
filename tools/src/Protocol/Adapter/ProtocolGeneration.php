@@ -89,7 +89,7 @@ final readonly class ProtocolGeneration
         $runtime = new TypeScriptRuntime()->source();
 
         $kernel = ProtocolSchemas::result($contracts, new PhpLocation(ProtocolSchemas::PHP_DIRECTORY, ProtocolSchemas::PHP_NAMESPACE));
-        $panel = PanelPageSchemas::result($pages, $runtime);
+        $panel = PanelPageSchemas::result($pages, $runtime, $contracts);
         $pointsResult = PanelPointSchemas::result($points, $runtime, new PhpLocation(PanelPointSchemas::PHP_DIRECTORY, PanelPointSchemas::PHP_NAMESPACE), PanelPointSchemas::TYPESCRIPT_DIRECTORY, protocol: $contracts);
         $lock = PointsLock::file($points, LocalFile::contents($root.'/'.PanelPointSchemas::LOCK), PanelPointSchemas::LOCK);
         $files = [...$kernel->files, ...$panel->files, ...$pointsResult->files, $lock];

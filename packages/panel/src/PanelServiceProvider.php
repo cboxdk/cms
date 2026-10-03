@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Panel;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Build\DeclaresCoreContributions;
 use Cbox\Cms\Contracts\Build\DeclaresScanRoots;
 use Cbox\Cms\Contracts\Build\ScanRoot;
 use Cbox\Cms\Contracts\Doctor\DoctorCheck;
@@ -19,6 +20,7 @@ use Cbox\Cms\Panel\Boundary\ViteManifest;
 use Cbox\Cms\Panel\Branding\Boundary\BrandingConfig;
 use Cbox\Cms\Panel\Branding\Domain\Dto\Branding;
 use Cbox\Cms\Panel\Branding\Domain\InvalidBranding;
+use Cbox\Cms\Panel\Contributions\Domain\CoreContributions;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\PointCodec;
 use Cbox\Cms\Panel\Contributions\Domain\PointCodecs;
 use Cbox\Cms\Panel\Doctor\Boundary\ConfigBrandingProbe;
@@ -55,11 +57,12 @@ use Override;
  * (PanelSessions::clearCookies()). Declares the module's classes as a scan root for cms:build (PRD
  * 13.2), and the directory of its points' props schemas, which cms:build checks the addons'
  * contributions against (PRD 13.4), and the codecs of the points' props, which the panel hands
- * each active contribution its props with (PointCodecs). An application mounts the panel with
+ * each active contribution its props with (PointCodecs), and the core's own contributions to the
+ * points, in the namespace cms (CoreContributions). An application mounts the panel with
  * PanelRoutes.
  */
 #[Internal]
-final class PanelServiceProvider extends ServiceProvider implements DeclaresScanRoots
+final class PanelServiceProvider extends ServiceProvider implements DeclaresCoreContributions, DeclaresScanRoots
 {
     public const string PACKAGE = 'cboxdk/cms';
 
@@ -170,6 +173,12 @@ final class PanelServiceProvider extends ServiceProvider implements DeclaresScan
     public function scanRoots(): array
     {
         return [new ScanRoot(self::PACKAGE, __DIR__)];
+    }
+
+    #[Override]
+    public function coreContributions(): array
+    {
+        return CoreContributions::all();
     }
 
     /**

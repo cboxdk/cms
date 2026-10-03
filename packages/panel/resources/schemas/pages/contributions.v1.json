@@ -1,13 +1,43 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "the active contributions of a panel page, contract version 1",
-  "description": "The prop cms.contributions of every panel page behind the login (PRD 13.4): for each point the page renders, the contributions the server resolved for this viewer and request, in the order the host renders them. A contribution is listed only when it is enabled, in scope and the viewer holds the permission its scope requires; any other is never sent. Each carries the point's props as the point's generated codec wrote them at the lower of the viewer's classification access and the addon's reads capability. A contribution with data gets it as the deferred prop ext.<addon>, under its id. The PHP form is Cbox\\Cms\\Panel\\Domain\\Dto\\ContributionsProp, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
+  "description": "The prop cms.contributions of every panel page behind the login (PRD 13.4), which the panel's host renders the page's points from: for each point the page renders, its kind and how many contributions it shows, with the contributions the server resolved for this viewer and request, in the order the host renders them; the addons those contributions come from, each with the digest of the contributions its code must register and the commands it may issue; whether the viewer sees the detail of a contribution that failed; the panel's pages a contribution may navigate to; and the address the host runs commands through. A contribution is listed only when it is enabled, in scope and the viewer holds the permission its scope requires; any other is never sent, not even by name. Each carries the point's props as the point's generated codec wrote them at the lower of the viewer's classification access and the addon's reads capability, and what its kind needs besides. A contribution with data gets it as the deferred prop ext.<addon>, under its id. The PHP form is Cbox\\Cms\\Panel\\Domain\\Dto\\ContributionsProp, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
   "type": "object",
   "additionalProperties": false,
   "required": [
+    "addons",
+    "commands",
+    "details",
+    "pages",
     "points"
   ],
   "properties": {
+    "addons": {
+      "description": "Each addon with an active contribution that runs code on the page, the core's namespace cms included, sorted by namespace.",
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "$ref": "#/$defs/addon"
+      }
+    },
+    "commands": {
+      "description": "The address of the panel's Inertia profile below which the host runs a command, `<commands>/<name>/v<version>`, such as /cms/commands.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "details": {
+      "description": "Whether the viewer sees the detail of a contribution that failed, beside the notice that names its addon: true for a viewer whose classification access is internal or above.",
+      "type": "boolean"
+    },
+    "pages": {
+      "description": "The panel's pages a contribution may navigate to through the host, each by its page id, sorted by page id.",
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "$ref": "#/$defs/page"
+      }
+    },
     "points": {
       "description": "Each point the page renders that has an active contribution, in the order the page lists its points.",
       "type": "array",
@@ -18,28 +48,215 @@
     }
   },
   "$defs": {
+    "action": {
+      "description": "An action: a button or menu item that runs one command as the viewer.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "command",
+        "confirm",
+        "icon",
+        "label",
+        "prefill",
+        "tone"
+      ],
+      "properties": {
+        "command": {
+          "description": "The command it runs, `<name>@<version>`, such as approvals.request@1.",
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 200
+        },
+        "confirm": {
+          "description": "How it asks before it runs its command.",
+          "enum": [
+            "none",
+            "confirm",
+            "dry_run",
+            "form"
+          ]
+        },
+        "icon": {
+          "description": "The kit icon it shows, or null.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "label": {
+          "description": "The translation key of its text, in its addon's catalogue.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "prefill": {
+          "description": "The properties of the command document it fills from the point's props, sorted by property.",
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/prefill"
+          }
+        },
+        "tone": {
+          "description": "How it is shown.",
+          "enum": [
+            "neutral",
+            "info",
+            "warning",
+            "danger"
+          ]
+        }
+      }
+    },
+    "addon": {
+      "description": "An addon with an active contribution that runs code on the page.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "addon",
+        "any_command",
+        "issues",
+        "registration"
+      ],
+      "properties": {
+        "addon": {
+          "description": "The addon's namespace, or cms for the core's own contributions.",
+          "type": "string",
+          "maxLength": 20,
+          "pattern": "^[a-z][a-z0-9]{0,19}$"
+        },
+        "any_command": {
+          "description": "Whether its contributions may issue any command through the host: true for the core's own, whose commands the server authorizes as every other; false for an addon, which issues only those of issues.",
+          "type": "boolean"
+        },
+        "issues": {
+          "description": "The commands its contributions may issue through the host, each `<name>@<version>`, sorted; empty for the core's own.",
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 200
+          }
+        },
+        "registration": {
+          "description": "The SHA-256, in lowercase hexadecimal, of the ids of every contribution of the addon that runs code, as cms:build compiled them, sorted and joined by line feeds: what the addon's registration must hold, so the host renders none of its contributions when its code registers others. The digest names no contribution the viewer does not get.",
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64
+        }
+      }
+    },
+    "check": {
+      "description": "A form check.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "command",
+        "severity"
+      ],
+      "properties": {
+        "command": {
+          "description": "The form's command and version, `<name>@<version>`.",
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 200
+        },
+        "severity": {
+          "description": "The most its issues weigh: an issue the check gives above it is shown at it.",
+          "enum": [
+            "info",
+            "warning",
+            "acknowledge",
+            "error"
+          ]
+        }
+      }
+    },
+    "decorator": {
+      "description": "A decorator.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tightens"
+      ],
+      "properties": {
+        "tightens": {
+          "description": "The props of the default it may tighten, as its manifest declares them; the host passes over any other.",
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "enum": [
+              "disabled_reason",
+              "description",
+              "tone_towards_danger"
+            ]
+          }
+        }
+      }
+    },
     "fill": {
       "description": "One active contribution to the point.",
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "action",
         "addon",
+        "check",
         "data",
+        "decorator",
         "id",
         "kind",
         "priority",
-        "props"
+        "props",
+        "replacement",
+        "step"
       ],
       "properties": {
+        "action": {
+          "description": "What an action renders and runs, for a contribution to an action point; null for any other kind.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/action"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "addon": {
           "description": "The namespace of the addon that contributes it.",
           "type": "string",
           "maxLength": 20,
           "pattern": "^[a-z][a-z0-9]{0,19}$"
         },
+        "check": {
+          "description": "The command form and the severity of a form check; null for any other kind.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/check"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "data": {
           "description": "Whether the contribution reads data: its query's result comes as the deferred prop ext.<addon>, under the contribution's id, and is absent there when the query was refused, rejected or failed.",
           "type": "boolean"
+        },
+        "decorator": {
+          "description": "What a decorator may tighten; null for any other kind.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/decorator"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "id": {
           "description": "The contribution's id, `<namespace>.<local>`, under which the addon's bundle registers its code.",
@@ -73,6 +290,51 @@
         "props": {
           "description": "The point's props as the point's generated codec wrote them for this contribution, without every member classified above the lower of the viewer's access and the addon's reads.",
           "type": "object"
+        },
+        "replacement": {
+          "description": "The key a replacement replaces; null for any other kind.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/replacement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "step": {
+          "description": "The command form, the position, the paths and the timeout of a flow step; null for any other kind.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/step"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "page": {
+      "description": "A page of the panel.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "page",
+        "url"
+      ],
+      "properties": {
+        "page": {
+          "description": "The page's id, such as home.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "url": {
+          "description": "The page's address on the panel's origin.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
         }
       }
     },
@@ -82,7 +344,11 @@
       "additionalProperties": false,
       "required": [
         "fills",
-        "point"
+        "kind",
+        "max",
+        "multiplicity",
+        "point",
+        "region"
       ],
       "properties": {
         "fills": {
@@ -94,11 +360,143 @@
             "$ref": "#/$defs/fill"
           }
         },
+        "kind": {
+          "description": "The point's kind, which the page renders it as.",
+          "enum": [
+            "slot",
+            "action",
+            "nav",
+            "page",
+            "decorator",
+            "replacement",
+            "form_check",
+            "flow_step",
+            "observer",
+            "provider",
+            "theme",
+            "data"
+          ]
+        },
+        "max": {
+          "description": "How many contributions the point shows at most, for a point whose multiplicity is max; null otherwise. Past it, the structured items of a toolbar or the actions overflow into a menu.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 500
+        },
+        "multiplicity": {
+          "description": "How many contributions the point shows: many, at most max, or one (exclusive).",
+          "enum": [
+            "many",
+            "max",
+            "exclusive"
+          ]
+        },
         "point": {
           "description": "The point's id, `<name>@<version>`.",
           "type": "string",
           "minLength": 3,
           "maxLength": 200
+        },
+        "region": {
+          "description": "Where on the page a slot sits, which decides what its contributions give: toolbar items, table columns or tabs as descriptors, or free markup in sections and the aside; null for a point of another kind.",
+          "anyOf": [
+            {
+              "enum": [
+                "toolbar",
+                "columns",
+                "tabs",
+                "sections",
+                "aside"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "prefill": {
+      "description": "One property of the command document an action fills from the point's props.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pointer",
+        "property"
+      ],
+      "properties": {
+        "pointer": {
+          "description": "The JSON pointer into the point's props it takes the value from, such as /actor.",
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 200
+        },
+        "property": {
+          "description": "The property of the command document, such as actor.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      }
+    },
+    "replacement": {
+      "description": "A replacement.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key"
+      ],
+      "properties": {
+        "key": {
+          "description": "The key it replaces: a field type, a class or a command and version.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        }
+      }
+    },
+    "step": {
+      "description": "A flow step.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "command",
+        "patches",
+        "position",
+        "timeout_seconds"
+      ],
+      "properties": {
+        "command": {
+          "description": "The form's command and version, `<name>@<version>`.",
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 200
+        },
+        "patches": {
+          "description": "The paths of the command document it may change, as FieldPath::toString() writes them, sorted; the host refuses any other.",
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "position": {
+          "description": "Whether it runs before the submit or after the receipt.",
+          "enum": [
+            "before_submit",
+            "after_receipt"
+          ]
+        },
+        "timeout_seconds": {
+          "description": "How long it may take before the host cancels it in its addon's name.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30
         }
       }
     }

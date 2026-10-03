@@ -15,6 +15,7 @@ use Cbox\Cms\Core\Registry\Domain\Dto\PanelFill;
 use Cbox\Cms\Core\Registry\Domain\InvalidPanelActivation;
 use Cbox\Cms\Core\Registry\Domain\MalformedRegistryCache;
 use Cbox\Cms\Core\Registry\Domain\PanelActivation;
+use Cbox\Cms\Core\Registry\Domain\PanelCompiler;
 use Cbox\Cms\Core\Registry\Domain\PointDowncastRefused;
 use Cbox\Cms\Core\Registry\Domain\PointDowncasts;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
@@ -25,6 +26,7 @@ use Cbox\Cms\Panel\Contributions\Domain\Dto\ActiveFill;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\ActivePoint;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\PanelView;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\PointInScope;
+use Cbox\Cms\Panel\Contributions\Domain\Registrations;
 use Cbox\Cms\Panel\Contributions\Domain\Withheld;
 
 /**
@@ -42,8 +44,11 @@ use Cbox\Cms\Panel\Contributions\Domain\Withheld;
  *    name. A fill the viewer may not see is never listed and never handed anything.
  * 4. Access: each fill is handed the point's props, and runs its data query, at the lower of the
  *    viewer's classification access and the addon's reads capability, so a member above what the
- *    addon may read is absent from what it gets, whatever the viewer may read. The point's codec
- *    writes the props at that access (ContributionProps).
+ *    addon may read is absent from what it gets, whatever the viewer may read; the core's own
+ *    contributions, in the namespace cms, at the viewer's. The point's codec writes the props at
+ *    that access (ContributionProps).
+ * 5. The host's checks: the registration each addon's code must match (Registrations), with the
+ *    commands its contributions may issue, and whether the viewer sees the detail of a failure.
  *
  * Nothing an addon does blanks the page: when the registry or the activation state cannot be
  * read the page gets no contribution, recorded in telemetry (Withheld). A page that renders no
@@ -108,16 +113,22 @@ final readonly class ResolveContributions
                     continue;
                 }
 
-                $reads = $registry->addon($fill->addon())->reads ?? ClassificationAccess::Public;
-                $active[] = new ActiveFill($fill, $candidate->point->id(), $candidate->props, $held->access->classificationAccess->atMost($reads));
+                $viewer = $held->access->classificationAccess;
+                $access = $fill->addon()->value === PanelCompiler::CORE_NAMESPACE ? $viewer : $viewer->atMost($registry->addon($fill->addon())->reads ?? ClassificationAccess::Public);
+                $active[] = new ActiveFill($fill, $candidate->point->id(), $candidate->props, $access);
             }
 
             if ($active !== []) {
-                $points[] = new ActivePoint($candidate->point->id(), $active);
+                $points[] = new ActivePoint($candidate->point->id(), $active, $candidate->point->declaration);
             }
         }
 
-        return new ActiveContributions($view->page, $points);
+        return new ActiveContributions(
+            $view->page,
+            $points,
+            Registrations::of($registry, $points),
+            $held->access->classificationAccess->allows(ClassificationAccess::Internal),
+        );
     }
 
     /**

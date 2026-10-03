@@ -103,7 +103,7 @@ final readonly class PanelRoutes
                 $router->group(['middleware' => [AuthenticatePanelSession::class, VerifyPanelCsrfToken::class]], static function (Registrar $router): void {
                     $router->get('', HomeController::class)->name(PanelRoute::Home->value);
                     $router->post('logout', LogoutController::class)->name(PanelRoute::Logout->value);
-                    InertiaRoutes::register($router, 'commands', PanelRoute::Command->value);
+                    InertiaRoutes::register($router, PanelRoute::COMMANDS_PATH, PanelRoute::Command->value);
                 });
 
                 $router->get('{path?}', NotFoundController::class)

@@ -206,7 +206,7 @@ final readonly class RegistryCompiler
             $subscribers[] = new SubscriberEntry($subscriber->class, $subscriber->package, $subscriber->name, $subscriber->lane, $subscriber->projection, $subscriber->events, $manifest->namespace);
         }
 
-        $panel = new PanelCompiler()->compile($discovery->panelPoints, array_values($manifests), $discovery, $actions, $settings, $shapes, $addons->bundles);
+        $panel = new PanelCompiler()->compile($discovery->panelPoints, array_values($manifests), $discovery, $actions, $settings, $shapes, $addons->bundles, $addons->core);
 
         $problems = [
             ...$problems,

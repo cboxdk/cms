@@ -13,6 +13,9 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 #[Internal]
 enum PanelRoute: string
 {
+    /** The path below the prefix of the Inertia profile, `<prefix>/commands/{command}/v{version}` (Command). */
+    public const string COMMANDS_PATH = 'commands';
+
     /** GET <prefix>/login: the login page. */
     case Login = 'cbox-cms.panel.login';
 

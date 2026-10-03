@@ -98,3 +98,21 @@ it('reports a host whose point is not a literal id, and one whose literal is no 
         'src/pages/B.ts:3: renders "account.me.sections", which is not a panel point id',
     ]);
 });
+
+it('reads the points a page asks for with usePointHost() too, but not the hook s own declaration', function (): void {
+    $root = renderedPages([
+        'src/pages/Form.tsx' => "export function Form() {\n  const checks = usePointHost('command.form.checks@1');\n  return <PointHost point=\"command.form.submit@1\" render={render} />;\n}\n",
+        'src/host/PointHost.tsx' => "export function usePointHost(point: string): PointHandle {\n  return handle(point);\n}\n",
+    ]);
+
+    expect(RenderedPanelPoints::findings($root.'/src', $root, [renderedPoint('command.form.checks'), renderedPoint('command.form.submit')]))->toBe([]);
+});
+
+it('reports a usePointHost() without a literal point id, and one no #[PanelPoint] declares', function (): void {
+    $root = renderedPages(['src/pages/Form.tsx' => "const point = 'command.form.checks@1';\nconst a = usePointHost(point);\nconst b = usePointHost(\"command.form.steps@1\");\n"]);
+
+    expect(RenderedPanelPoints::findings($root.'/src', $root, []))->toBe([
+        "src/pages/Form.tsx:2: usePointHost() without a literal point id, such as usePointHost('account.me.sections@1')",
+        'src/pages/Form.tsx:3: renders command.form.steps@1, which no #[PanelPoint] declares',
+    ]);
+});

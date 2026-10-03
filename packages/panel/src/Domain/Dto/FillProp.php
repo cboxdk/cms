@@ -13,7 +13,10 @@ use Cbox\Cms\Contracts\PanelPoints\PointKind;
 /**
  * One active contribution as a panel page sends it (contributions.v1.json, `#/$defs/fill`): its
  * id, its addon, its kind, the priority it renders at, the point's props as the point's codec
- * wrote them for it, and whether its data comes as the deferred prop ext.<addon>.
+ * wrote them for it, whether its data comes as the deferred prop ext.<addon>, and what its kind
+ * needs besides: an action's command and how it is shown, a check's command and severity, a
+ * step's command, position, paths and timeout, what a decorator may tighten, or the key a
+ * replacement replaces. Each of those is null for a contribution of another kind.
  */
 #[Internal]
 final readonly class FillProp
@@ -25,5 +28,10 @@ final readonly class FillProp
         public PointKind $kind,
         public int $priority,
         public JsonDocument $props,
+        public ?ActionProp $action = null,
+        public ?CheckProp $check = null,
+        public ?DecoratorProp $decorator = null,
+        public ?ReplacementProp $replacement = null,
+        public ?StepProp $step = null,
     ) {}
 }

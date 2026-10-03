@@ -53,6 +53,61 @@ export type SlotProps<P, D = never> = [D] extends [never]
 export type SlotComponent<P, D = never> = ComponentType<SlotProps<P, D>>;
 
 /**
+ * An item a contribution gives a slot in a toolbar region, which the host renders with the kit:
+ * a badge, or a button that calls onPress. The label is a key of the addon's catalogue. A toolbar
+ * takes descriptors, not markup, so its items stay accessible and consistent; past the point's
+ * maximum, buttons overflow into a menu.
+ *
+ * @stable
+ */
+export type ToolbarItemDescriptor =
+  | {
+      readonly kind: 'badge';
+      readonly label: TranslationKey;
+      readonly tone?: BadgeDescriptor['tone'];
+      readonly parameters?: TranslationParameters;
+    }
+  | {
+      readonly kind: 'button';
+      readonly label: TranslationKey;
+      readonly parameters?: TranslationParameters;
+      readonly onPress: () => void;
+    };
+
+/**
+ * A contribution to a slot in a toolbar region: the default export of its module, a function of
+ * the point's props to its item, or null for none.
+ *
+ * @stable
+ */
+export type ToolbarItem<P> = (props: Readonly<P>) => ToolbarItemDescriptor | null;
+
+/**
+ * A column a contribution gives a slot in a columns region: its header, a key of the addon's
+ * catalogue, how wide it is, and the component of its cell, which gets the point's props of the
+ * row. The default export of its module.
+ *
+ * @stable
+ */
+export interface ColumnDescriptor<P> {
+  readonly header: TranslationKey;
+  readonly width?: 'narrow' | 'medium' | 'wide';
+  readonly cell: ComponentType<{ readonly props: Readonly<P> }>;
+}
+
+/**
+ * A tab a contribution gives a slot in a tabs region: its label, a key of the addon's catalogue,
+ * and the component of its panel, which gets what a slot's contribution gets. The default export
+ * of its module.
+ *
+ * @stable
+ */
+export interface TabDescriptor<P, D = never> {
+  readonly label: TranslationKey;
+  readonly component: SlotComponent<P, D>;
+}
+
+/**
  * What an addon's page receives: its data query's result, the only props a page has, so the same
  * data can be read over REST. D is never for a page without a data query.
  *

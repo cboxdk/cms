@@ -7,8 +7,15 @@ namespace Cbox\Cms\Tooling\Protocol\Domain;
 use Cbox\Cms\Contracts\Addons\AddonNamespace;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Codecs\JsonDocument;
+use Cbox\Cms\Contracts\PanelPoints\Confirm;
 use Cbox\Cms\Contracts\PanelPoints\ContributionId;
+use Cbox\Cms\Contracts\PanelPoints\Multiplicity;
 use Cbox\Cms\Contracts\PanelPoints\PointKind;
+use Cbox\Cms\Contracts\PanelPoints\Region;
+use Cbox\Cms\Contracts\PanelPoints\Severity;
+use Cbox\Cms\Contracts\PanelPoints\StepPosition;
+use Cbox\Cms\Contracts\PanelPoints\Tighten;
+use Cbox\Cms\Contracts\PanelPoints\Tone;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecContract;
 use Cbox\Cms\Generators\Codec\Domain\Dto\PhpLocation;
 use Cbox\Cms\Generators\Codec\Domain\PhpCodecEmitter;
@@ -19,7 +26,11 @@ use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Protocol\Domain\Dto\SchemaBinding;
 use Cbox\Cms\Generators\Protocol\Domain\Dto\ValueBinding;
+use Cbox\Cms\Panel\Domain\Dto\ActionProp;
+use Cbox\Cms\Panel\Domain\Dto\AddonProp;
+use Cbox\Cms\Panel\Domain\Dto\CheckProp;
 use Cbox\Cms\Panel\Domain\Dto\ContributionsProp;
+use Cbox\Cms\Panel\Domain\Dto\DecoratorProp;
 use Cbox\Cms\Panel\Domain\Dto\FillProp;
 use Cbox\Cms\Panel\Domain\Dto\ForgotPasswordPage;
 use Cbox\Cms\Panel\Domain\Dto\ForgotPasswordRefusals;
@@ -27,11 +38,15 @@ use Cbox\Cms\Panel\Domain\Dto\HomePage;
 use Cbox\Cms\Panel\Domain\Dto\LoginPage;
 use Cbox\Cms\Panel\Domain\Dto\LoginRefusals;
 use Cbox\Cms\Panel\Domain\Dto\NotFoundPage;
+use Cbox\Cms\Panel\Domain\Dto\PageLinkProp;
 use Cbox\Cms\Panel\Domain\Dto\PanelBrand;
 use Cbox\Cms\Panel\Domain\Dto\PanelBrandLogo;
 use Cbox\Cms\Panel\Domain\Dto\PointFillsProp;
+use Cbox\Cms\Panel\Domain\Dto\PrefillProp;
+use Cbox\Cms\Panel\Domain\Dto\ReplacementProp;
 use Cbox\Cms\Panel\Domain\Dto\ResetPasswordPage;
 use Cbox\Cms\Panel\Domain\Dto\ResetPasswordRefusals;
+use Cbox\Cms\Panel\Domain\Dto\StepProp;
 use Cbox\Cms\Panel\Domain\ForgotPasswordRefusal;
 use Cbox\Cms\Panel\Domain\LoginRefusal;
 use Cbox\Cms\Panel\Domain\ResetFormRefusal;
@@ -71,6 +86,17 @@ final readonly class PanelPageSchemas
     /** The directory of the pages' modules, below TYPESCRIPT_DIRECTORY. */
     public const string PAGES = 'pages';
 
+    /** The directory of the kernel contracts' modules the panel's host reads answers with, below TYPESCRIPT_DIRECTORY. */
+    public const string PROTOCOL = 'protocol';
+
+    /**
+     * The kernel contracts the panel's host reads, by codec class: a command a contribution issues
+     * through the host answers with its receipt and, for a rejection, the problem details.
+     *
+     * @var list<string>
+     */
+    public const array PROTOCOL_CODECS = ['ProblemCodecV1', 'ReceiptCodecV1'];
+
     /** The stability of the generated codecs: the pages' DTOs are the panel's own. */
     public const string ATTRIBUTE = Internal::class;
 
@@ -88,13 +114,30 @@ final readonly class PanelPageSchemas
             ]),
             self::page('contributions.v1.json', 'ContributionsCodecV1', [
                 '#' => ContributionsProp::class,
+                '#/$defs/action' => ActionProp::class,
+                '#/$defs/addon' => AddonProp::class,
+                '#/$defs/check' => CheckProp::class,
+                '#/$defs/decorator' => DecoratorProp::class,
                 '#/$defs/fill' => FillProp::class,
+                '#/$defs/page' => PageLinkProp::class,
                 '#/$defs/point' => PointFillsProp::class,
+                '#/$defs/prefill' => PrefillProp::class,
+                '#/$defs/replacement' => ReplacementProp::class,
+                '#/$defs/step' => StepProp::class,
             ], [
+                '#/$defs/action/properties/confirm' => ValueBinding::enum(Confirm::class),
+                '#/$defs/action/properties/tone' => ValueBinding::enum(Tone::class),
+                '#/$defs/addon/properties/addon' => ValueBinding::value(AddonNamespace::class),
+                '#/$defs/check/properties/severity' => ValueBinding::enum(Severity::class),
+                '#/$defs/decorator/properties/tightens/items' => ValueBinding::enum(Tighten::class),
                 '#/$defs/fill/properties/addon' => ValueBinding::value(AddonNamespace::class),
                 '#/$defs/fill/properties/id' => ValueBinding::value(ContributionId::class),
                 '#/$defs/fill/properties/kind' => ValueBinding::enum(PointKind::class),
                 '#/$defs/fill/properties/props' => ValueBinding::document(JsonDocument::class),
+                '#/$defs/point/properties/kind' => ValueBinding::enum(PointKind::class),
+                '#/$defs/point/properties/multiplicity' => ValueBinding::enum(Multiplicity::class),
+                '#/$defs/point/properties/region' => ValueBinding::enum(Region::class),
+                '#/$defs/step/properties/position' => ValueBinding::enum(StepPosition::class),
             ]),
             self::page('forgot-password.v1.json', 'ForgotPasswordPageCodecV1', [
                 '#' => ForgotPasswordPage::class,
@@ -124,17 +167,41 @@ final readonly class PanelPageSchemas
     }
 
     /**
-     * The codec of each page in PHP_DIRECTORY, and in TYPESCRIPT_DIRECTORY the runtime module and
-     * each page's module, which the result owns.
+     * The codec of each page in PHP_DIRECTORY, and in TYPESCRIPT_DIRECTORY the runtime module, each
+     * page's module and the module of each kernel contract of PROTOCOL_CODECS among $protocol, which
+     * the result owns.
      *
      * @param  list<CodecContract>  $contracts
+     * @param  list<CodecContract>  $protocol  the kernel's contracts; those of PROTOCOL_CODECS get a module
      *
      * @throws GenerationFailed with GenerateErrorCode::InvalidOutput or GenerateErrorCode::NameCollision
      */
-    public static function result(array $contracts, string $runtime): GenerationResult
+    public static function result(array $contracts, string $runtime, array $protocol = []): GenerationResult
     {
         $location = new PhpLocation(self::PHP_DIRECTORY, self::PHP_NAMESPACE);
         $files = [self::TYPESCRIPT_DIRECTORY.'/'.self::RUNTIME => new GeneratedFile(self::TYPESCRIPT_DIRECTORY.'/'.self::RUNTIME, $runtime)];
+
+        foreach ($protocol as $contract) {
+            if (! in_array($contract->codecClass, self::PROTOCOL_CODECS, true)) {
+                continue;
+            }
+
+            $name = (string) preg_replace('/Codec(V[0-9]+)\z/', '$1', $contract->codecClass);
+            $module = TypeScriptEmitter::emit(
+                $contract,
+                self::TYPESCRIPT_DIRECTORY.'/'.self::PROTOCOL.'/'.$name.'.ts',
+                '../validation',
+                [
+                    sprintf('A contract of the kernel, %s, as TypeScript (GUARDRAILS 2.2): its JSON form, which the', $name),
+                    sprintf('kernel\'s codec %s writes, and a validator that checks a JSON value against', $contract->codecClass),
+                    'every rule of its JSON Schema. The panel\'s host reads the answers of commands with it.',
+                    '',
+                    'Generated by composer generate:protocol from the JSON Schemas of cboxdk/cms.',
+                    'Do not edit this file: change the schema and run composer generate:protocol.',
+                ],
+            );
+            $files[$module->path] = $module;
+        }
 
         foreach ($contracts as $contract) {
             $codec = PhpCodecEmitter::emit($contract, $location, $location);

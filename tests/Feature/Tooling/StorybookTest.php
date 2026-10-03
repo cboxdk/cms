@@ -21,9 +21,9 @@ function storybookFile(string $path): string
     return (string) file_get_contents(Phpstan::root().'/'.$path);
 }
 
-it('fails a story\'s test on an axe violation, and runs every story and MDX page of js/ui-kit/stories', function (): void {
+it('fails a story\'s test on an axe violation, and runs every story and MDX page of js/ui-kit/stories and the stories of the panel\'s points', function (): void {
     expect(storybookFile('js/ui-kit/.storybook/preview.tsx'))->toContain("a11y: { test: 'error' }")
-        ->and(storybookFile('js/ui-kit/.storybook/main.ts'))->toContain("stories: ['../stories/**/*.mdx', '../stories/**/*.stories.tsx']", "'@storybook/addon-a11y'", "'@storybook/addon-docs'", "'@storybook/addon-vitest'");
+        ->and(storybookFile('js/ui-kit/.storybook/main.ts'))->toContain("    '../stories/**/*.mdx',\n    '../stories/**/*.stories.tsx',\n    '../../panel/stories/**/*.stories.tsx',\n  ],", "'@storybook/addon-a11y'", "'@storybook/addon-docs'", "'@storybook/addon-vitest'");
 });
 
 it('turns off Storybook\'s telemetry and notifications in the configuration, the build and the story tests', function (): void {

@@ -21,9 +21,11 @@ use Cbox\Cms\Core\Tests\Registry\Fakes\FakeRegistryCache;
 use Cbox\Cms\Panel\Contributions\Actions\ResolveContributions;
 use Cbox\Cms\Panel\Contributions\Domain\ContributionTelemetry;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\ActiveContributions;
+use Cbox\Cms\Panel\Contributions\Domain\Dto\AddonRegistration;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\PanelView;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\RenderedPoint;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\ViewSubject;
+use Cbox\Cms\Panel\Contributions\Domain\Registrations;
 use Cbox\Cms\Panel\Contributions\Domain\Withheld;
 use Cbox\Cms\Panel\Tests\Contributions\ContributionWorld;
 use Cbox\Cms\Panel\Tests\Contributions\Fixtures\Desk\DeskAsideV1;
@@ -148,4 +150,20 @@ it('reads nothing for a page that renders no point', function (): void {
 
 it('refuses props of a point that are not the newest version s, a bug of the page', function (): void {
     expect(fn (): ActiveContributions => new ResolveWorld()->resolve(ResolveWorld::AUDITOR, cards: new DeskAsideV1('wrong')))->toThrow(PointDowncastRefused::class);
+});
+
+it('hands the core s own contributions the viewer s access, and gives the host the registration of each addon whose code runs on the page', function (): void {
+    $world = new ResolveWorld(ContributionWorld::registry(core: [new SlotFill(new ContributionId('cms.notes'), 'desk.cards@1', priority: 100)]));
+    $active = $world->resolve(ResolveWorld::AUDITOR);
+    $core = $active->points[0]->fills[3] ?? null;
+
+    expect(ResolveWorld::listed($active))->toBe(['desk.cards@1' => [ContributionWorld::AUDIT, ContributionWorld::COUNT, ContributionWorld::HEAVY, 'cms.notes']])
+        ->and($core?->access)->toBe(ClassificationAccess::Confidential)
+        ->and($active->points[0]->fills[0]->access)->toBe(ClassificationAccess::Internal)
+        ->and($active->points[0]->declaration->name)->toBe('desk.cards')
+        ->and($active->details)->toBeTrue()
+        ->and(array_map(static fn (AddonRegistration $registration): array => [$registration->addon->value, $registration->digest, $registration->anyCommand], $active->registrations))->toBe([
+            ['cms', Registrations::digest(['cms.notes']), true],
+            ['tally', Registrations::digest([ContributionWorld::ASIDE, ContributionWorld::AUDIT, ContributionWorld::COUNT, ContributionWorld::HEAVY]), false],
+        ]);
 });

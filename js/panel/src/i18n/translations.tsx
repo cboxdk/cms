@@ -37,15 +37,29 @@ export function localeOf(tag: string): Locale {
   return isLocale(language) ? language : DEFAULT_LOCALE;
 }
 
+/** Fills in the parameters a text names as {name}, leaving a name without a value as it is. */
+export function fill(text: string, parameters: TranslationParameters = {}): string {
+  return text.replace(PARAMETER, (match, name: string) => {
+    const value = parameters[name];
+
+    return value === undefined ? match : String(value);
+  });
+}
+
+/**
+ * The panel's own text of a key given as a string, such as one a core contribution reaches through
+ * the host, or undefined when the panel's catalogue has no such key.
+ */
+export function lookup(locale: Locale, key: string): string | undefined {
+  const catalogue: Readonly<Record<string, string>> = CATALOGUES[locale];
+
+  return Object.hasOwn(catalogue, key) ? catalogue[key] : undefined;
+}
+
 export function translator(locale: Locale): Translate {
   const catalogue = CATALOGUES[locale];
 
-  return (key, parameters = {}) =>
-    catalogue[key].replace(PARAMETER, (match, name: string) => {
-      const value = parameters[name];
-
-      return value === undefined ? match : String(value);
-    });
+  return (key, parameters = {}) => fill(catalogue[key], parameters);
 }
 
 interface TranslationContextValue {

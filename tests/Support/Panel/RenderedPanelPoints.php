@@ -15,9 +15,10 @@ use SplFileInfo;
 
 /**
  * Holds the panel's pages to the panel registry (PRD 13.4): a page renders a point with the host
- * element `<PointHost point="<name>@<version>" ...>`, and every point it renders must be one a
- * #[PanelPoint] declares, every declared point must be rendered by a page, and the point is a
- * string literal, so this check can read it.
+ * element `<PointHost point="<name>@<version>" ...>`, or asks a point for its checks, flow steps,
+ * observers or columns with the hook `usePointHost('<name>@<version>')`, and every point it renders
+ * must be one a #[PanelPoint] declares, every declared point must be rendered by a page, and the
+ * point is a string literal, so this check can read it.
  *
  * It reads the .ts and .tsx files below a directory, with comments blanked out and line numbers
  * kept, and reports each finding as `<file>:<line>: <message>` with the file relative to the
@@ -27,6 +28,9 @@ final readonly class RenderedPanelPoints
 {
     /** The element a page renders a panel point with. */
     public const string HOST = 'PointHost';
+
+    /** The hook a page asks a panel point for what it does not render with. */
+    public const string HOOK = 'usePointHost';
 
     /**
      * @param  list<PanelPointEntry>  $declared
@@ -51,6 +55,8 @@ final readonly class RenderedPanelPoints
                 throw new RuntimeException(sprintf('Could not search %s.', $file));
             }
 
+            $uses = [];
+
             foreach ($hosts['attributes'] as [$attributes, $offset]) {
                 $line = substr_count($source, "\n", 0, $offset) + 1;
 
@@ -60,8 +66,26 @@ final readonly class RenderedPanelPoints
                     continue;
                 }
 
-                $text = $match['double'] !== '' ? $match['double'] : ($match['single'] ?? '');
+                $uses[] = [$line, $match['double'] !== '' ? $match['double'] : ($match['single'] ?? '')];
+            }
 
+            if (preg_match_all('/(?<!function )(?<![\w.$])'.self::HOOK.'\((?<argument>[^)]*)\)/', $source, $hooks, PREG_OFFSET_CAPTURE) === false) {
+                throw new RuntimeException(sprintf('Could not search %s.', $file));
+            }
+
+            foreach ($hooks['argument'] as [$argument, $offset]) {
+                $line = substr_count($source, "\n", 0, $offset) + 1;
+
+                if (preg_match('/\A\s*(?:"(?<double>[^"]*)"|\'(?<single>[^\']*)\')\s*\z/', $argument, $match) !== 1) {
+                    $findings[] = sprintf('%s:%d: %s() without a literal point id, such as %s(\'account.me.sections@1\')', $relative, $line, self::HOOK, self::HOOK);
+
+                    continue;
+                }
+
+                $uses[] = [$line, $match['double'] !== '' ? $match['double'] : ($match['single'] ?? '')];
+            }
+
+            foreach ($uses as [$line, $text]) {
                 try {
                     $id = PointId::fromString($text)->toString();
                 } catch (InvalidPanelPoint) {

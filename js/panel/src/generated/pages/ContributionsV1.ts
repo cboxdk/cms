@@ -7,6 +7,12 @@
 
 import { validate, type ObjectRule, type JsonObject, type Validation } from '../validation';
 
+/** The values of Confirm. */
+export type Confirm = 'none' | 'confirm' | 'dry_run' | 'form';
+
+/** The values of Multiplicity. */
+export type Multiplicity = 'many' | 'max' | 'exclusive';
+
 /** The values of PointKind. */
 export type PointKind =
   | 'slot'
@@ -22,22 +28,94 @@ export type PointKind =
   | 'theme'
   | 'data';
 
+/** The values of Region. */
+export type Region = 'toolbar' | 'columns' | 'tabs' | 'sections' | 'aside';
+
+/** The values of Severity. */
+export type Severity = 'info' | 'warning' | 'acknowledge' | 'error';
+
+/** The values of StepPosition. */
+export type StepPosition = 'before_submit' | 'after_receipt';
+
+/** The values of Tighten. */
+export type Tighten = 'disabled_reason' | 'description' | 'tone_towards_danger';
+
+/** The values of Tone. */
+export type Tone = 'neutral' | 'info' | 'warning' | 'danger';
+
 /**
- * The prop cms.contributions of every panel page behind the login (PRD 13.4): for each point the
- * page renders, the contributions the server resolved for this viewer and request, in the order the
- * host renders them. A contribution is listed only when it is enabled, in scope and the viewer
- * holds the permission its scope requires; any other is never sent. Each carries the point's props
- * as the point's generated codec wrote them at the lower of the viewer's classification access and
- * the addon's reads capability. A contribution with data gets it as the deferred prop ext.<addon>,
+ * The prop cms.contributions of every panel page behind the login (PRD 13.4), which the panel's
+ * host renders the page's points from: for each point the page renders, its kind and how many
+ * contributions it shows, with the contributions the server resolved for this viewer and request,
+ * in the order the host renders them; the addons those contributions come from, each with the
+ * digest of the contributions its code must register and the commands it may issue; whether the
+ * viewer sees the detail of a contribution that failed; the panel's pages a contribution may
+ * navigate to; and the address the host runs commands through. A contribution is listed only when
+ * it is enabled, in scope and the viewer holds the permission its scope requires; any other is
+ * never sent, not even by name. Each carries the point's props as the point's generated codec wrote
+ * them at the lower of the viewer's classification access and the addon's reads capability, and
+ * what its kind needs besides. A contribution with data gets it as the deferred prop ext.<addon>,
  * under its id. The PHP form is Cbox\Cms\Panel\Domain\Dto\ContributionsProp, and the generated
  * codec writes its canonical JSON: keys sorted, no whitespace.
  */
 export interface ContributionsV1 {
   /**
+   * Each addon with an active contribution that runs code on the page, the core's namespace cms
+   * included, sorted by namespace.
+   */
+  addons: readonly AddonPropV1[];
+  /**
+   * The address of the panel's Inertia profile below which the host runs a command,
+   * `<commands>/<name>/v<version>`, such as /cms/commands.
+   */
+  commands: string;
+  /**
+   * Whether the viewer sees the detail of a contribution that failed, beside the notice that names
+   * its addon: true for a viewer whose classification access is internal or above.
+   */
+  details: boolean;
+  /**
+   * The panel's pages a contribution may navigate to through the host, each by its page id, sorted
+   * by page id.
+   */
+  pages: readonly PageLinkPropV1[];
+  /**
    * Each point the page renders that has an active contribution, in the order the page lists its
    * points.
    */
   points: readonly PointFillsPropV1[];
+}
+
+/** An addon with an active contribution that runs code on the page. */
+export interface AddonPropV1 {
+  /** The addon's namespace, or cms for the core's own contributions. */
+  addon: string;
+  /**
+   * Whether its contributions may issue any command through the host: true for the core's own,
+   * whose commands the server authorizes as every other; false for an addon, which issues only
+   * those of issues.
+   */
+  any_command: boolean;
+  /**
+   * The commands its contributions may issue through the host, each `<name>@<version>`, sorted;
+   * empty for the core's own.
+   */
+  issues: readonly string[];
+  /**
+   * The SHA-256, in lowercase hexadecimal, of the ids of every contribution of the addon that runs
+   * code, as cms:build compiled them, sorted and joined by line feeds: what the addon's
+   * registration must hold, so the host renders none of its contributions when its code registers
+   * others. The digest names no contribution the viewer does not get.
+   */
+  registration: string;
+}
+
+/** A page of the panel. */
+export interface PageLinkPropV1 {
+  /** The page's id, such as home. */
+  page: string;
+  /** The page's address on the panel's origin. */
+  url: string;
 }
 
 /** One point the page renders, with its active contributions. */
@@ -47,20 +125,44 @@ export interface PointFillsPropV1 {
    * first, then the addon's namespace, then the contribution's id.
    */
   fills: readonly FillPropV1[];
+  /** The point's kind, which the page renders it as. */
+  kind: PointKind;
+  /**
+   * How many contributions the point shows at most, for a point whose multiplicity is max; null
+   * otherwise. Past it, the structured items of a toolbar or the actions overflow into a menu.
+   */
+  max: number | null;
+  /** How many contributions the point shows: many, at most max, or one (exclusive). */
+  multiplicity: Multiplicity;
   /** The point's id, `<name>@<version>`. */
   point: string;
+  /**
+   * Where on the page a slot sits, which decides what its contributions give: toolbar items, table
+   * columns or tabs as descriptors, or free markup in sections and the aside; null for a point of
+   * another kind.
+   */
+  region: Region | null;
 }
 
 /** One active contribution to the point. */
 export interface FillPropV1 {
+  /**
+   * What an action renders and runs, for a contribution to an action point; null for any other
+   * kind.
+   */
+  action: ActionPropV1 | null;
   /** The namespace of the addon that contributes it. */
   addon: string;
+  /** The command form and the severity of a form check; null for any other kind. */
+  check: CheckPropV1 | null;
   /**
    * Whether the contribution reads data: its query's result comes as the deferred prop ext.<addon>,
    * under the contribution's id, and is absent there when the query was refused, rejected or
    * failed.
    */
   data: boolean;
+  /** What a decorator may tighten; null for any other kind. */
+  decorator: DecoratorPropV1 | null;
   /**
    * The contribution's id, `<namespace>.<local>`, under which the addon's bundle registers its
    * code.
@@ -78,7 +180,158 @@ export interface FillPropV1 {
    * every member classified above the lower of the viewer's access and the addon's reads.
    */
   props: JsonObject;
+  /** The key a replacement replaces; null for any other kind. */
+  replacement: ReplacementPropV1 | null;
+  /**
+   * The command form, the position, the paths and the timeout of a flow step; null for any other
+   * kind.
+   */
+  step: StepPropV1 | null;
 }
+
+/** An action: a button or menu item that runs one command as the viewer. */
+export interface ActionPropV1 {
+  /** The command it runs, `<name>@<version>`, such as approvals.request@1. */
+  command: string;
+  /** How it asks before it runs its command. */
+  confirm: Confirm;
+  /** The kit icon it shows, or null. */
+  icon: string | null;
+  /** The translation key of its text, in its addon's catalogue. */
+  label: string;
+  /** The properties of the command document it fills from the point's props, sorted by property. */
+  prefill: readonly PrefillPropV1[];
+  /** How it is shown. */
+  tone: Tone;
+}
+
+/** One property of the command document an action fills from the point's props. */
+export interface PrefillPropV1 {
+  /** The JSON pointer into the point's props it takes the value from, such as /actor. */
+  pointer: string;
+  /** The property of the command document, such as actor. */
+  property: string;
+}
+
+/** A form check. */
+export interface CheckPropV1 {
+  /** The form's command and version, `<name>@<version>`. */
+  command: string;
+  /** The most its issues weigh: an issue the check gives above it is shown at it. */
+  severity: Severity;
+}
+
+/** A decorator. */
+export interface DecoratorPropV1 {
+  /**
+   * The props of the default it may tighten, as its manifest declares them; the host passes over
+   * any other.
+   */
+  tightens: readonly Tighten[];
+}
+
+/** A replacement. */
+export interface ReplacementPropV1 {
+  /** The key it replaces: a field type, a class or a command and version. */
+  key: string;
+}
+
+/** A flow step. */
+export interface StepPropV1 {
+  /** The form's command and version, `<name>@<version>`. */
+  command: string;
+  /**
+   * The paths of the command document it may change, as FieldPath::toString() writes them, sorted;
+   * the host refuses any other.
+   */
+  patches: readonly string[];
+  /** Whether it runs before the submit or after the receipt. */
+  position: StepPosition;
+  /** How long it may take before the host cancels it in its addon's name. */
+  timeout_seconds: number;
+}
+
+const stepPropV1Rule: ObjectRule = {
+  properties: [
+    { key: 'command', presence: 'required', value: { kind: 'text', minLength: 3, maxLength: 200 } },
+    {
+      key: 'position',
+      presence: 'required',
+      value: { kind: 'enum', values: ['before_submit', 'after_receipt'] },
+    },
+    {
+      key: 'patches',
+      presence: 'required',
+      value: { kind: 'list', item: { kind: 'text', minLength: 1, maxLength: 500 }, maxItems: 100 },
+    },
+    { key: 'timeout_seconds', presence: 'required', value: { kind: 'integer', min: 1, max: 30 } },
+  ],
+};
+
+const replacementPropV1Rule: ObjectRule = {
+  properties: [
+    { key: 'key', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 255 } },
+  ],
+};
+
+const decoratorPropV1Rule: ObjectRule = {
+  properties: [
+    {
+      key: 'tightens',
+      presence: 'required',
+      value: {
+        kind: 'list',
+        item: { kind: 'enum', values: ['disabled_reason', 'description', 'tone_towards_danger'] },
+        maxItems: 3,
+      },
+    },
+  ],
+};
+
+const checkPropV1Rule: ObjectRule = {
+  properties: [
+    { key: 'command', presence: 'required', value: { kind: 'text', minLength: 3, maxLength: 200 } },
+    {
+      key: 'severity',
+      presence: 'required',
+      value: { kind: 'enum', values: ['info', 'warning', 'acknowledge', 'error'] },
+    },
+  ],
+};
+
+const prefillPropV1Rule: ObjectRule = {
+  properties: [
+    {
+      key: 'property',
+      presence: 'required',
+      value: { kind: 'text', minLength: 1, maxLength: 100 },
+    },
+    { key: 'pointer', presence: 'required', value: { kind: 'text', minLength: 2, maxLength: 200 } },
+  ],
+};
+
+const actionPropV1Rule: ObjectRule = {
+  properties: [
+    { key: 'command', presence: 'required', value: { kind: 'text', minLength: 3, maxLength: 200 } },
+    { key: 'label', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 200 } },
+    { key: 'icon', presence: 'present', value: { kind: 'text', minLength: 1, maxLength: 64 } },
+    {
+      key: 'prefill',
+      presence: 'required',
+      value: { kind: 'list', item: { kind: 'object', object: prefillPropV1Rule }, maxItems: 100 },
+    },
+    {
+      key: 'confirm',
+      presence: 'required',
+      value: { kind: 'enum', values: ['none', 'confirm', 'dry_run', 'form'] },
+    },
+    {
+      key: 'tone',
+      presence: 'required',
+      value: { kind: 'enum', values: ['neutral', 'info', 'warning', 'danger'] },
+    },
+  ],
+};
 
 const fillPropV1Rule: ObjectRule = {
   properties: [
@@ -120,6 +373,19 @@ const fillPropV1Rule: ObjectRule = {
     },
     { key: 'priority', presence: 'required', value: { kind: 'integer', min: 0, max: 1000000 } },
     { key: 'props', presence: 'required', value: { kind: 'document' } },
+    { key: 'action', presence: 'present', value: { kind: 'object', object: actionPropV1Rule } },
+    { key: 'check', presence: 'present', value: { kind: 'object', object: checkPropV1Rule } },
+    {
+      key: 'decorator',
+      presence: 'present',
+      value: { kind: 'object', object: decoratorPropV1Rule },
+    },
+    {
+      key: 'replacement',
+      presence: 'present',
+      value: { kind: 'object', object: replacementPropV1Rule },
+    },
+    { key: 'step', presence: 'present', value: { kind: 'object', object: stepPropV1Rule } },
   ],
 };
 
@@ -136,6 +402,66 @@ const pointFillsPropV1Rule: ObjectRule = {
         maxItems: 500,
       },
     },
+    {
+      key: 'kind',
+      presence: 'required',
+      value: {
+        kind: 'enum',
+        values: [
+          'slot',
+          'action',
+          'nav',
+          'page',
+          'decorator',
+          'replacement',
+          'form_check',
+          'flow_step',
+          'observer',
+          'provider',
+          'theme',
+          'data',
+        ],
+      },
+    },
+    {
+      key: 'region',
+      presence: 'present',
+      value: { kind: 'enum', values: ['toolbar', 'columns', 'tabs', 'sections', 'aside'] },
+    },
+    {
+      key: 'multiplicity',
+      presence: 'required',
+      value: { kind: 'enum', values: ['many', 'max', 'exclusive'] },
+    },
+    { key: 'max', presence: 'present', value: { kind: 'integer', min: 1, max: 500 } },
+  ],
+};
+
+const pageLinkPropV1Rule: ObjectRule = {
+  properties: [
+    { key: 'page', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 100 } },
+    { key: 'url', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 500 } },
+  ],
+};
+
+const addonPropV1Rule: ObjectRule = {
+  properties: [
+    {
+      key: 'addon',
+      presence: 'required',
+      value: { kind: 'string', pattern: '^[a-z][a-z0-9]{0,19}$', maxLength: 20 },
+    },
+    {
+      key: 'registration',
+      presence: 'required',
+      value: { kind: 'text', minLength: 64, maxLength: 64 },
+    },
+    {
+      key: 'issues',
+      presence: 'required',
+      value: { kind: 'list', item: { kind: 'text', minLength: 3, maxLength: 200 }, maxItems: 500 },
+    },
+    { key: 'any_command', presence: 'required', value: { kind: 'boolean' } },
   ],
 };
 
@@ -149,6 +475,22 @@ const contributionsV1Rule: ObjectRule = {
         item: { kind: 'object', object: pointFillsPropV1Rule },
         maxItems: 200,
       },
+    },
+    {
+      key: 'addons',
+      presence: 'required',
+      value: { kind: 'list', item: { kind: 'object', object: addonPropV1Rule }, maxItems: 200 },
+    },
+    {
+      key: 'commands',
+      presence: 'required',
+      value: { kind: 'text', minLength: 1, maxLength: 200 },
+    },
+    { key: 'details', presence: 'required', value: { kind: 'boolean' } },
+    {
+      key: 'pages',
+      presence: 'required',
+      value: { kind: 'list', item: { kind: 'object', object: pageLinkPropV1Rule }, maxItems: 500 },
     },
   ],
 };

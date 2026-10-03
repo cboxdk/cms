@@ -1,0 +1,10 @@
+/*
+ * The panel's host (js/panel/src/host): the element a contribution renders inside names its addon,
+ * point and contribution for the addon's scoped styles, and adds no box of its own, so it never
+ * changes the layout of the region it sits in.
+ */
+@layer cms.panel {
+  .cms-contribution {
+    display: contents;
+  }
+}

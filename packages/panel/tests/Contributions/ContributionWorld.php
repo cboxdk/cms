@@ -111,14 +111,15 @@ final class ContributionWorld
      * The registry cms:build compiles for the host and the addon.
      *
      * @param  list<ContributionOverride>  $overrides
+     * @param  list<PanelContribution>  $core  the core's own contributions, in the namespace cms
      */
-    public static function registry(?AddonManifest $manifest = null, array $overrides = []): CompiledRegistry
+    public static function registry(?AddonManifest $manifest = null, array $overrides = [], array $core = []): CompiledRegistry
     {
         $manifest ??= self::manifest();
 
         return new BuildRegistry(new AttributeScanner, new RegistryCompiler, new FakeRegistryCache, new FakeOpenApiDocuments, new FakeContractSchemas(self::shapes()), new CompilePanelThemes(new FakeThemeSources), new FakeThemeStylesheets)->build(
             new ScanRoots(new ScanRoot(self::HOST, __DIR__.'/Fixtures/Desk'), new ScanRoot(self::ADDON, __DIR__.'/Fixtures/Tally')),
-            new DeclaredAddons([$manifest], [], [self::ADDON => PanelBuildWorld::bundle($manifest)]),
+            new DeclaredAddons([$manifest], [], [self::ADDON => PanelBuildWorld::bundle($manifest)], $core),
             new BuildSettings(null, $overrides),
         );
     }
