@@ -2,10 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Cbox\Cms\Core\Egress\Domain\Dto;
+namespace Cbox\Cms\Contracts\Egress;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
-use Cbox\Cms\Core\Egress\Domain\EgressOutcome;
 use InvalidArgumentException;
 
 /**

@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-use Cbox\Cms\Core\Egress\Domain\Dto\EgressHeader;
-use Cbox\Cms\Core\Egress\Domain\Dto\EgressRequest;
-use Cbox\Cms\Core\Egress\Domain\Dto\EgressResponse;
-use Cbox\Cms\Core\Egress\Domain\EgressFailed;
-use Cbox\Cms\Core\Egress\Domain\EgressGateway;
-use Cbox\Cms\Core\Egress\Domain\HostClass;
+use Cbox\Cms\Contracts\Egress\EgressFailed;
+use Cbox\Cms\Contracts\Egress\EgressGateway;
+use Cbox\Cms\Contracts\Egress\EgressHeader;
+use Cbox\Cms\Contracts\Egress\EgressRequest;
+use Cbox\Cms\Contracts\Egress\EgressResponse;
+use Cbox\Cms\Contracts\Egress\HostClass;
 use Cbox\Ssrf\Contracts\Resolver;
 use Cbox\Ssrf\Testing\FakeResolver;
 use Illuminate\Http\Client\Factory;

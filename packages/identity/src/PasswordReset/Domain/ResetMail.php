@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Cbox\Cms\Identity\PasswordReset\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Egress\HostClass;
+use Cbox\Cms\Contracts\Egress\OutboundMail;
 use Cbox\Cms\Contracts\Identity\EmailAddress;
-use Cbox\Cms\Core\Egress\Domain\Dto\OutboundMail;
-use Cbox\Cms\Core\Egress\Domain\HostClass;
 use SensitiveParameter;
 
 /**

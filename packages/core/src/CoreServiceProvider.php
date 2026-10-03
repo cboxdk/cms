@@ -11,6 +11,8 @@ use Cbox\Cms\Contracts\Cache\FragmentStore;
 use Cbox\Cms\Contracts\Cdn\CdnDriver;
 use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\Doctor\InvalidDoctorCheck;
+use Cbox\Cms\Contracts\Egress\EgressGateway;
+use Cbox\Cms\Contracts\Egress\MailGateway;
 use Cbox\Cms\Contracts\IdempotencyStore;
 use Cbox\Cms\Contracts\Identity\ActorDirectory;
 use Cbox\Cms\Contracts\Identity\CredentialVerifier;
@@ -111,12 +113,8 @@ use Cbox\Cms\Core\Doctor\Domain\Probes\RegistryCacheProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\RuntimeProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\ToolProbe;
 use Cbox\Cms\Core\Doctor\Domain\Probes\ValkeyProbe;
-use Cbox\Cms\Core\Egress\Adapter\LaravelMailGateway;
-use Cbox\Cms\Core\Egress\Adapter\SsrfEgressGateway;
 use Cbox\Cms\Core\Egress\Boundary\EgressConfig;
 use Cbox\Cms\Core\Egress\Domain\Dto\EgressSettings;
-use Cbox\Cms\Core\Egress\Domain\EgressGateway;
-use Cbox\Cms\Core\Egress\Domain\MailGateway;
 use Cbox\Cms\Core\Entries\Adapter\EntryCreatedWriter;
 use Cbox\Cms\Core\Entries\Adapter\HeadMovedWriter;
 use Cbox\Cms\Core\Entries\Adapter\PostgresEntryReader;
@@ -387,16 +385,24 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
 
         // Outbound HTTP goes through one gateway on cboxdk/laravel-ssrf, which the kernel uses
         // directly (GUARDRAILS 3, PRD 7.14). The core registers the package's provider itself, so its
-        // guard and policy are there wherever the core is. The settings are built on each
-        // resolution, so the timeouts follow the configuration.
+        // guard and policy are there wherever the core is. The settings are built when the gateway is
+        // built, from the configuration.
         $this->app->register(SsrfServiceProvider::class);
         $this->app->bind(
             EgressSettings::class,
             static fn (Application $app): EgressSettings => EgressConfig::read($app->make(Repository::class)),
         );
-        $this->app->bind(EgressGateway::class, SsrfEgressGateway::class);
-        // Mail goes through the mail gateway, on the transport of the operator's default mailer.
-        $this->app->bind(MailGateway::class, LaravelMailGateway::class);
+        // Both gateways are contracts (GUARDRAILS 2.3): the classes in cbox-cms.contracts, by default
+        // SsrfEgressGateway and LaravelMailGateway, the mail gateway on the transport of the operator's
+        // default mailer.
+        $this->app->singleton(
+            EgressGateway::class,
+            static fn (Application $app): EgressGateway => $app->make(ContractBindings::class)->resolve($app, EgressGateway::class),
+        );
+        $this->app->singleton(
+            MailGateway::class,
+            static fn (Application $app): MailGateway => $app->make(ContractBindings::class)->resolve($app, MailGateway::class),
+        );
 
         $this->app->bind(DeclarationScanner::class, AttributeScanner::class);
 

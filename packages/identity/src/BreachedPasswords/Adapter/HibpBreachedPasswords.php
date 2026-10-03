@@ -5,6 +5,11 @@ declare(strict_types=1);
 namespace Cbox\Cms\Identity\BreachedPasswords\Adapter;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Egress\EgressFailed;
+use Cbox\Cms\Contracts\Egress\EgressGateway;
+use Cbox\Cms\Contracts\Egress\EgressHeader;
+use Cbox\Cms\Contracts\Egress\EgressRequest;
+use Cbox\Cms\Contracts\Egress\HostClass;
 use Cbox\Cms\Contracts\Identity\BreachedPasswords;
 use Cbox\Cms\Contracts\Identity\BreachedPasswordsUnavailable;
 use Cbox\Cms\Contracts\Identity\Password;
@@ -13,11 +18,6 @@ use Cbox\Cms\Contracts\Telemetry\Attributes;
 use Cbox\Cms\Contracts\Telemetry\CounterRecord;
 use Cbox\Cms\Contracts\Telemetry\Telemetry;
 use Cbox\Cms\Contracts\Telemetry\TelemetryName;
-use Cbox\Cms\Core\Egress\Domain\Dto\EgressHeader;
-use Cbox\Cms\Core\Egress\Domain\Dto\EgressRequest;
-use Cbox\Cms\Core\Egress\Domain\EgressFailed;
-use Cbox\Cms\Core\Egress\Domain\EgressGateway;
-use Cbox\Cms\Core\Egress\Domain\HostClass;
 use Override;
 use SensitiveParameter;
 

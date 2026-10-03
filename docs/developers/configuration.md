@@ -14,7 +14,7 @@ A test that changes a setting sets the single key, such as `cbox-cms.contracts.<
 
 | Key | Default | What it does |
 |---|---|---|
-| `cbox-cms.contracts` | the ten entries below | Maps each contract to the class the container builds for it, as a singleton, the first time something resolves the contract. The class must implement the contract. |
+| `cbox-cms.contracts` | the thirteen entries below | Maps each contract to the class the container builds for it, as a singleton, the first time something resolves the contract. The class must implement the contract. |
 
 | Contract | Default class |
 |---|---|
@@ -27,12 +27,14 @@ A test that changes a setting sets the single key, such as `cbox-cms.contracts.<
 | `Cbox\Cms\Contracts\Cache\FragmentStore` | `Cbox\Cms\Core\Cache\Adapter\ValkeyFragmentStore` |
 | `Cbox\Cms\Contracts\TypeTables\TypeTableReader` | `Cbox\Cms\Core\TypeTables\Adapter\PostgresTypeTableReader` |
 | `Cbox\Cms\Contracts\Telemetry\Telemetry` | `Cbox\Cms\Core\Telemetry\Adapter\LogTelemetry` |
+| `Cbox\Cms\Contracts\Egress\EgressGateway` | `Cbox\Cms\Core\Egress\Adapter\SsrfEgressGateway` |
+| `Cbox\Cms\Contracts\Egress\MailGateway` | `Cbox\Cms\Core\Egress\Adapter\LaravelMailGateway` |
 | `Cbox\Cms\Contracts\Identity\BreachedPasswords` | `Cbox\Cms\Identity\BreachedPasswords\Adapter\HibpBreachedPasswords`, set by the identity module's provider when the application names none |
 | `Cbox\Cms\Contracts\Identity\LocalCredentialStore` | `Cbox\Cms\Identity\CredentialStore\Adapter\PostgresLocalCredentialStore`, set by the identity module's provider when the application names none |
 
 `Cbox\Cms\Contracts\Cdn\CdnDriver` has no default: the real drivers come with full-scale invalidation, and until an application sets `cbox-cms.contracts.Cbox\Cms\Contracts\Cdn\CdnDriver`, resolving it throws `InvalidContractBinding` with the key to set. The invalidation subscriber on the critical lane purges through it, so `cms:events:run` needs one. Tests use the testkit's `FakeCdnDriver`, and the workbench binds it when its environment has `CBOX_CMS_CDN_DRIVER=fake`; see [CDN driver](../addons/contracts/cdn-driver.md).
 
-For example, `'contracts' => [Clock::class => StagingClock::class]` replaces the clock and keeps the other nine. See [Contracts](../addons/contracts/_index.md).
+For example, `'contracts' => [Clock::class => StagingClock::class]` replaces the clock and keeps the other twelve. See [Contracts](../addons/contracts/_index.md).
 
 ## Database
 

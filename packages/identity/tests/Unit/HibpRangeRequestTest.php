@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Identity\Tests\Unit;
 
+use Cbox\Cms\Contracts\Egress\EgressGateway;
+use Cbox\Cms\Contracts\Egress\EgressHeader;
+use Cbox\Cms\Contracts\Egress\EgressResponse;
 use Cbox\Cms\Contracts\Identity\BreachedPasswords;
 use Cbox\Cms\Contracts\Identity\BreachedPasswordsUnavailable;
 use Cbox\Cms\Contracts\Identity\Password;
 use Cbox\Cms\Contracts\Telemetry\CounterRecord;
-use Cbox\Cms\Core\Egress\Domain\Dto\EgressHeader;
-use Cbox\Cms\Core\Egress\Domain\Dto\EgressResponse;
-use Cbox\Cms\Core\Egress\Domain\EgressGateway;
-use Cbox\Cms\Core\Tests\Egress\Fakes\FakeEgressGateway;
 use Cbox\Cms\Identity\BreachedPasswords\Adapter\HibpBreachedPasswords;
 use Cbox\Cms\Identity\Tests\BreachedPasswords\HibpRangeService;
+use Cbox\Cms\Testkit\Egress\FakeEgressGateway;
 use Cbox\Cms\Testkit\Telemetry\FakeTelemetry;
 
 // What HibpBreachedPasswords sends to the Pwned Passwords range API and how it reads the answer

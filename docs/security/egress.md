@@ -8,11 +8,9 @@ description: "The egress gateway: every outbound request goes through it and its
 
 A CMS fetches URLs that people and other systems give it, which makes it a way into the network it runs in. The rule is therefore that every outbound request goes through one gateway, the namespace `Cbox\Cms\Core\Egress`, which checks the destination with an SSRF guard before it connects, and every mail through its mail gateway (GUARDRAILS 3).
 
-<!-- extension-point: Cbox\Cms\Core\Egress\Domain\EgressGateway -->
-
 ## The gateway
 
-`Cbox\Cms\Core\Egress\Domain\EgressGateway` has one method, `get(EgressRequest $request): EgressResponse`. A request is a `HostClass`, the URL and a list of `EgressHeader`s. The host class is a lowercase word the caller chooses for the kind of destination, such as `breached_passwords` or `oembed`; the gateway counts under it, so telemetry never carries the URL. The interface is `#[Experimental]`: a module or an addon asks the container for it, and the container gives `SsrfEgressGateway`.
+`Cbox\Cms\Contracts\Egress\EgressGateway` has one method, `get(EgressRequest $request): EgressResponse`. A request is a `HostClass`, the URL and a list of `EgressHeader`s. The host class is a lowercase word the caller chooses for the kind of destination, such as `breached_passwords` or `oembed`; the gateway counts under it, so telemetry never carries the URL. The interface is an `#[Experimental]` [contract](../addons/contracts/egress-gateway.md): a module or an addon asks the container for it, and `cbox-cms.contracts` binds it to `SsrfEgressGateway` unless the application names another class. Tests use the testkit's `FakeEgressGateway`.
 
 The gateway is built on [cboxdk/laravel-ssrf](https://github.com/cboxdk/laravel-ssrf), used as released. Every request is sent the way the package's `Http::ssrf()` sends it: the package's middleware checks the URL the request is actually sent to, at the moment it is sent, and pins the connection to the addresses it checked, so DNS cannot point it elsewhere between the check and the connection. The gateway:
 
@@ -39,12 +37,12 @@ This example is in the `Unit` suite; it fakes DNS with the package's `FakeResolv
 
 declare(strict_types=1);
 
-use Cbox\Cms\Core\Egress\Domain\Dto\EgressHeader;
-use Cbox\Cms\Core\Egress\Domain\Dto\EgressRequest;
-use Cbox\Cms\Core\Egress\Domain\Dto\EgressResponse;
-use Cbox\Cms\Core\Egress\Domain\EgressFailed;
-use Cbox\Cms\Core\Egress\Domain\EgressGateway;
-use Cbox\Cms\Core\Egress\Domain\HostClass;
+use Cbox\Cms\Contracts\Egress\EgressFailed;
+use Cbox\Cms\Contracts\Egress\EgressGateway;
+use Cbox\Cms\Contracts\Egress\EgressHeader;
+use Cbox\Cms\Contracts\Egress\EgressRequest;
+use Cbox\Cms\Contracts\Egress\EgressResponse;
+use Cbox\Cms\Contracts\Egress\HostClass;
 use Cbox\Ssrf\Contracts\Resolver;
 use Cbox\Ssrf\Testing\FakeResolver;
 use Illuminate\Http\Client\Factory;
@@ -84,9 +82,7 @@ Every request adds 1 to `cms.egress.requests`, and every request that does not e
 
 ## Mail
 
-<!-- extension-point: Cbox\Cms\Core\Egress\Domain\MailGateway -->
-
-Mail leaves the process through the mail gateway, `Cbox\Cms\Core\Egress\Domain\MailGateway`, as HTTP leaves it through the egress gateway; the architecture tests fail on any other use of a mailer. It has one method, `send(OutboundMail $mail)`. An `OutboundMail` is a `HostClass` to count it under, such as `password_reset`, one recipient, a subject of one line and a plain text. The interface is `#[Experimental]`, and the container gives `LaravelMailGateway`, which hands the mail to the transport of Laravel's default mailer, `mail.default`, from the sender `mail.from`.
+Mail leaves the process through the mail gateway, `Cbox\Cms\Contracts\Egress\MailGateway`, as HTTP leaves it through the egress gateway; the architecture tests fail on any other use of a mailer. It has one method, `send(OutboundMail $mail)`. An `OutboundMail` is a `HostClass` to count it under, such as `password_reset`, one recipient, a subject of one line and a plain text. The interface is an `#[Experimental]` [contract](../addons/contracts/mail-gateway.md), and `cbox-cms.contracts` binds it to `LaravelMailGateway` unless the application names another class; tests use the testkit's `FakeMailGateway`. `LaravelMailGateway` hands the mail to the transport of Laravel's default mailer, `mail.default`, from the sender `mail.from`.
 
 The SSRF guard does not apply to mail. The guard protects against a destination that comes from input, such as a URL an editor pastes. The mail transport's host, whether an SMTP server or an API such as Postmark or SES, is the operator's configuration, `mail.mailers`, and never input: a mail's recipient, subject and text choose what is sent, not where the process connects. The SMTP server then delivers to the recipient's domain, outside the process. So the gateway checks the mail's form, not its destination, and the network rule that limits the servers' outbound traffic should let them reach the configured mail host.
 
@@ -100,10 +96,10 @@ This example is in the `Unit` suite; it sets Laravel's array mailer, as the work
 
 declare(strict_types=1);
 
+use Cbox\Cms\Contracts\Egress\HostClass;
+use Cbox\Cms\Contracts\Egress\MailGateway;
+use Cbox\Cms\Contracts\Egress\OutboundMail;
 use Cbox\Cms\Contracts\Identity\EmailAddress;
-use Cbox\Cms\Core\Egress\Domain\Dto\OutboundMail;
-use Cbox\Cms\Core\Egress\Domain\HostClass;
-use Cbox\Cms\Core\Egress\Domain\MailGateway;
 use Illuminate\Mail\MailManager;
 use Illuminate\Mail\Transport\ArrayTransport;
 use Symfony\Component\Mailer\SentMessage;

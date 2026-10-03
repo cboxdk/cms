@@ -2,15 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Cbox\Cms\Core\Egress\Domain;
+namespace Cbox\Cms\Contracts\Egress;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
-use Cbox\Cms\Core\Egress\Domain\Dto\EgressRequest;
-use Cbox\Cms\Core\Egress\Domain\Dto\EgressResponse;
 
 /**
  * The one way out of the process for HTTP (GUARDRAILS 3, PRD 7.14). Every outbound request of the
- * kernel, its modules and its addons goes through it, and the Arch suite fails on any other.
+ * kernel, its modules and its addons goes through it, and the Arch suite fails on any other. It is a
+ * contract (GUARDRAILS 2.3): cbox-cms.contracts binds it to the core's SsrfEgressGateway unless an
+ * application names another class, the testkit's FakeEgressGateway stands in for it in tests, and
+ * every implementation runs the shared suite EgressGatewayContract.
  *
  * get() sends a GET over https to the request's URL with its headers, after the SSRF guard of
  * cboxdk/laravel-ssrf has checked the URL: it refuses private, reserved and cloud metadata
@@ -26,6 +27,18 @@ use Cbox\Cms\Core\Egress\Domain\Dto\EgressResponse;
 #[Experimental]
 interface EgressGateway
 {
+    /** The counter of every outbound request. */
+    public const string REQUESTS = 'cms.egress.requests';
+
+    /** The counter of every outbound request, and every mail, that did not end with Ok. */
+    public const string FAILURES = 'cms.egress.failures';
+
+    /** The attribute of the counters that holds the host class. */
+    public const string HOST_CLASS = 'cms.egress.host_class';
+
+    /** The attribute of the counters that holds the outcome, an EgressOutcome. */
+    public const string OUTCOME = 'cms.egress.outcome';
+
     /**
      * @throws EgressFailed when the guard refuses the URL, the destination redirects, it does not answer in time, or the guard is off
      */

@@ -4,19 +4,19 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Egress\Adapter;
 
-use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\Egress\EgressFailed;
+use Cbox\Cms\Contracts\Egress\EgressGateway;
+use Cbox\Cms\Contracts\Egress\EgressOutcome;
+use Cbox\Cms\Contracts\Egress\EgressRequest;
+use Cbox\Cms\Contracts\Egress\EgressResponse;
+use Cbox\Cms\Contracts\Egress\HostClass;
 use Cbox\Cms\Contracts\Telemetry\Attribute;
 use Cbox\Cms\Contracts\Telemetry\Attributes;
 use Cbox\Cms\Contracts\Telemetry\CounterRecord;
 use Cbox\Cms\Contracts\Telemetry\Telemetry;
 use Cbox\Cms\Contracts\Telemetry\TelemetryName;
-use Cbox\Cms\Core\Egress\Domain\Dto\EgressRequest;
-use Cbox\Cms\Core\Egress\Domain\Dto\EgressResponse;
 use Cbox\Cms\Core\Egress\Domain\Dto\EgressSettings;
-use Cbox\Cms\Core\Egress\Domain\EgressFailed;
-use Cbox\Cms\Core\Egress\Domain\EgressGateway;
-use Cbox\Cms\Core\Egress\Domain\EgressOutcome;
-use Cbox\Cms\Core\Egress\Domain\HostClass;
 use Cbox\Ssrf\Exceptions\BlockedUrl;
 use Cbox\Ssrf\GuardPolicy;
 use Cbox\Ssrf\Http\GuardRequestMiddleware;
@@ -34,19 +34,11 @@ use Override;
  * scheme and no credentials in the URL. The policy is the package's, `ssrf` in the configuration;
  * the gateway sends nothing unless it enforces and pins DNS. The timeouts are cbox-cms.egress's.
  */
-#[Internal]
+#[Experimental]
 final readonly class SsrfEgressGateway implements EgressGateway
 {
     /** The only scheme the gateway sends to. */
     public const array SCHEMES = ['https'];
-
-    public const string REQUESTS = 'cms.egress.requests';
-
-    public const string FAILURES = 'cms.egress.failures';
-
-    public const string HOST_CLASS = 'cms.egress.host_class';
-
-    public const string OUTCOME = 'cms.egress.outcome';
 
     public function __construct(
         private Factory $http,
@@ -112,12 +104,12 @@ final readonly class SsrfEgressGateway implements EgressGateway
 
     private function count(HostClass $hostClass, EgressOutcome $outcome): void
     {
-        $attributes = new Attributes(Attribute::of(self::HOST_CLASS, $hostClass->value), Attribute::of(self::OUTCOME, $outcome->value));
+        $attributes = new Attributes(Attribute::of(EgressGateway::HOST_CLASS, $hostClass->value), Attribute::of(EgressGateway::OUTCOME, $outcome->value));
 
-        $this->telemetry->counter(new CounterRecord(new TelemetryName(self::REQUESTS), 1, $attributes));
+        $this->telemetry->counter(new CounterRecord(new TelemetryName(EgressGateway::REQUESTS), 1, $attributes));
 
         if ($outcome->failed()) {
-            $this->telemetry->counter(new CounterRecord(new TelemetryName(self::FAILURES), 1, $attributes));
+            $this->telemetry->counter(new CounterRecord(new TelemetryName(EgressGateway::FAILURES), 1, $attributes));
         }
     }
 }

@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Identity\Tests\PasswordReset;
 
+use Cbox\Cms\Contracts\Egress\OutboundMail;
 use Cbox\Cms\Contracts\Identity\Password;
 use Cbox\Cms\Contracts\Identity\PasswordResetToken;
-use Cbox\Cms\Core\Egress\Domain\Dto\OutboundMail;
-use Cbox\Cms\Core\Tests\Egress\Fakes\FakeMailGateway;
 use Cbox\Cms\Identity\LocalAccounts\Domain\PasswordPolicy;
 use Cbox\Cms\Identity\Login\Domain\Dto\LoginThrottleSettings;
 use Cbox\Cms\Identity\Login\Domain\Dto\ThrottleLimit;
@@ -24,6 +23,7 @@ use Cbox\Cms\Identity\Sessions\Domain\SessionCounters;
 use Cbox\Cms\Identity\Tests\Login\Fakes\FakeLoginThrottle;
 use Cbox\Cms\Identity\Tests\Login\LocalLoginWorld;
 use Cbox\Cms\Identity\Tests\LoginPolicy\Fakes\FakeIdpLinks;
+use Cbox\Cms\Testkit\Egress\FakeMailGateway;
 use Cbox\Cms\Testkit\Identity\FakeBreachedPasswords;
 use Illuminate\Contracts\Container\Container;
 use RuntimeException;

@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Identity\Tests\BreachedPasswords;
 
+use Cbox\Cms\Contracts\Egress\EgressHeader;
+use Cbox\Cms\Contracts\Egress\EgressRequest;
+use Cbox\Cms\Contracts\Egress\EgressResponse;
 use Cbox\Cms\Contracts\Identity\BreachedPasswords;
 use Cbox\Cms\Contracts\Identity\Password;
-use Cbox\Cms\Core\Egress\Domain\Dto\EgressHeader;
-use Cbox\Cms\Core\Egress\Domain\Dto\EgressRequest;
-use Cbox\Cms\Core\Egress\Domain\Dto\EgressResponse;
-use Cbox\Cms\Core\Tests\Egress\Fakes\FakeEgressGateway;
 use Cbox\Cms\Identity\BreachedPasswords\Adapter\HibpBreachedPasswords;
+use Cbox\Cms\Testkit\Egress\FakeEgressGateway;
 use Cbox\Cms\Testkit\Identity\BreachedPasswordsHarness;
 use Cbox\Cms\Testkit\Telemetry\FakeTelemetry;
 use Override;

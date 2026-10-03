@@ -29,6 +29,8 @@ Every contract has two things in the testkit, `Cbox\Cms\Testkit`: a fake for tes
 | [`ScimProvisioning`](scim-provisioning.md) | none until the identity module's SCIM server (B6) | `FakeScimProvisioning` | `ScimProvisioningContract` |
 | [`TypeTableReader`](type-table-reader.md) | `PostgresTypeTableReader` | `FakeTypeTableReader` | `TypeTableReaderContract` |
 | [`Telemetry`](telemetry.md) | `LogTelemetry` | `FakeTelemetry` | `TelemetryContract` |
+| [`EgressGateway`](egress-gateway.md) | `SsrfEgressGateway` | `FakeEgressGateway` | `EgressGatewayContract` |
+| [`MailGateway`](mail-gateway.md) | `LaravelMailGateway` | `FakeMailGateway` | `MailGatewayContract` |
 | [`TypeCatalog`](type-catalog.md) | the generated `GeneratedTypeCatalog` | `FakeTypeCatalog` | `TypeCatalogContract` |
 | [`RecordCodecs`](record-codecs.md) | the generated `GeneratedRecordCodecs` | `FakeRecordCodecs` | `RecordCodecsContract` |
 

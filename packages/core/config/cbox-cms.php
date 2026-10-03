@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use Cbox\Cms\Contracts\Cache\FragmentStore;
 use Cbox\Cms\Contracts\Clock;
+use Cbox\Cms\Contracts\Egress\EgressGateway;
+use Cbox\Cms\Contracts\Egress\MailGateway;
 use Cbox\Cms\Contracts\IdempotencyStore;
 use Cbox\Cms\Contracts\Identity\ActorDirectory;
 use Cbox\Cms\Contracts\Identity\CredentialVerifier;
@@ -13,6 +15,8 @@ use Cbox\Cms\Contracts\Telemetry\Telemetry;
 use Cbox\Cms\Contracts\TypeTables\TypeTableReader;
 use Cbox\Cms\Core\Cache\Adapter\ValkeyFragmentStore;
 use Cbox\Cms\Core\Clock\Adapter\SystemClock;
+use Cbox\Cms\Core\Egress\Adapter\LaravelMailGateway;
+use Cbox\Cms\Core\Egress\Adapter\SsrfEgressGateway;
 use Cbox\Cms\Core\IdempotencyStore\Adapter\PostgresIdempotencyStore;
 use Cbox\Cms\Core\Identity\Adapter\PostgresActorDirectory;
 use Cbox\Cms\Core\Identity\Adapter\PostgresCredentialVerifier;
@@ -37,6 +41,8 @@ return [
         FragmentStore::class => ValkeyFragmentStore::class,
         TypeTableReader::class => PostgresTypeTableReader::class,
         Telemetry::class => LogTelemetry::class,
+        EgressGateway::class => SsrfEgressGateway::class,
+        MailGateway::class => LaravelMailGateway::class,
     ],
 
     'database' => [
@@ -186,7 +192,7 @@ return [
     ],
 
     /*
-     * The egress gateway (GUARDRAILS 3, PRD 7.14), Cbox\Cms\Core\Egress, the one way out for HTTP.
+     * The default egress gateway (GUARDRAILS 3, PRD 7.14), SsrfEgressGateway, the one way out for HTTP.
      * It waits at most connect_timeout_ms for a connection (1 to 30000) and timeout_ms for the whole
      * request (the connect timeout to 60000). Which destinations it refuses is the policy of
      * cboxdk/laravel-ssrf, `ssrf` in the configuration, whose enforce and pin_dns must stay on.

@@ -2,30 +2,33 @@
 
 declare(strict_types=1);
 
-namespace Cbox\Cms\Core\Tests\Egress\Fakes;
+namespace Cbox\Cms\Testkit\Egress;
 
+use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\Egress\EgressFailed;
+use Cbox\Cms\Contracts\Egress\EgressGateway;
+use Cbox\Cms\Contracts\Egress\EgressOutcome;
+use Cbox\Cms\Contracts\Egress\EgressRequest;
+use Cbox\Cms\Contracts\Egress\EgressResponse;
 use Cbox\Cms\Contracts\Telemetry\Attribute;
 use Cbox\Cms\Contracts\Telemetry\Attributes;
 use Cbox\Cms\Contracts\Telemetry\CounterRecord;
 use Cbox\Cms\Contracts\Telemetry\Telemetry;
 use Cbox\Cms\Contracts\Telemetry\TelemetryName;
-use Cbox\Cms\Core\Egress\Adapter\SsrfEgressGateway;
-use Cbox\Cms\Core\Egress\Domain\Dto\EgressRequest;
-use Cbox\Cms\Core\Egress\Domain\Dto\EgressResponse;
-use Cbox\Cms\Core\Egress\Domain\EgressFailed;
-use Cbox\Cms\Core\Egress\Domain\EgressGateway;
-use Cbox\Cms\Core\Egress\Domain\EgressOutcome;
 use Cbox\Cms\Testkit\Telemetry\FakeTelemetry;
 use Closure;
 use Override;
 
 /**
- * The fake of the egress gateway, held to SsrfEgressGateway by EgressGatewayBehaviour. It sends
- * nothing: it answers each URL as answer() set it, a URL whose host block() named or whose scheme
- * is not https is refused as the guard refuses it, after goDown() nothing answers, a URL without an
- * answer of its own gets answerOthers()'s, and a URL it has no answer for is unavailable. A redirect fails as the gateway's does. It records every request,
- * and counts as the gateway counts.
+ * The fake of the egress gateway, for tests of code that sends outbound requests: bind it in place
+ * of the default and read requests(). It passes the shared suite EgressGatewayContract, as the
+ * core's SsrfEgressGateway does. It sends nothing: it answers each URL as answer() set it, a URL
+ * whose host block() named or whose scheme is not https is refused as the guard refuses it, after
+ * goDown() nothing answers, a URL without an answer of its own gets answerOthers()'s, and a URL it
+ * has no answer for is unavailable. A redirect fails as a gateway's does. It records every request,
+ * and counts as a gateway counts.
  */
+#[Experimental]
 final class FakeEgressGateway implements EgressGateway
 {
     /** @var array<string, (Closure(EgressRequest): (EgressResponse|int))|EgressResponse|int> */
@@ -135,14 +138,14 @@ final class FakeEgressGateway implements EgressGateway
     private function count(EgressRequest $request, EgressOutcome $outcome): void
     {
         $attributes = new Attributes(
-            Attribute::of(SsrfEgressGateway::HOST_CLASS, $request->hostClass->value),
-            Attribute::of(SsrfEgressGateway::OUTCOME, $outcome->value),
+            Attribute::of(EgressGateway::HOST_CLASS, $request->hostClass->value),
+            Attribute::of(EgressGateway::OUTCOME, $outcome->value),
         );
 
-        $this->telemetry->counter(new CounterRecord(new TelemetryName(SsrfEgressGateway::REQUESTS), 1, $attributes));
+        $this->telemetry->counter(new CounterRecord(new TelemetryName(EgressGateway::REQUESTS), 1, $attributes));
 
         if ($outcome->failed()) {
-            $this->telemetry->counter(new CounterRecord(new TelemetryName(SsrfEgressGateway::FAILURES), 1, $attributes));
+            $this->telemetry->counter(new CounterRecord(new TelemetryName(EgressGateway::FAILURES), 1, $attributes));
         }
     }
 }

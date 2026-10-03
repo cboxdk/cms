@@ -14,7 +14,7 @@ use Symfony\Component\Mime\Message;
 use Symfony\Component\Mime\RawMessage;
 
 /**
- * A Symfony mail transport for the tests of LaravelMailGateway: it keeps every mail it takes, until
+ * A Symfony mail transport for the tests of LaravelMailGateway (LaravelMailGatewayHarness): it keeps every mail it takes, until
  * breakDown(), after which it refuses each as an SMTP server that does not answer does. It checks
  * the message as a real transport does before sending, so a mail without a sender fails.
  */

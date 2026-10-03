@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Cbox\Cms\Identity\PasswordReset\Actions;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Egress\EgressFailed;
+use Cbox\Cms\Contracts\Egress\MailGateway;
 use Cbox\Cms\Contracts\Identity\EmailAddress;
 use Cbox\Cms\Contracts\Identity\InvalidIdentity;
 use Cbox\Cms\Contracts\Identity\LoginIdentifier;
@@ -13,8 +15,6 @@ use Cbox\Cms\Contracts\Telemetry\Attributes;
 use Cbox\Cms\Contracts\Telemetry\CounterRecord;
 use Cbox\Cms\Contracts\Telemetry\Telemetry;
 use Cbox\Cms\Contracts\Telemetry\TelemetryName;
-use Cbox\Cms\Core\Egress\Domain\EgressFailed;
-use Cbox\Cms\Core\Egress\Domain\MailGateway;
 use Cbox\Cms\Identity\Login\Domain\ClientAddress;
 use Cbox\Cms\Identity\Login\Domain\Dto\LoginThrottleKeys;
 use Cbox\Cms\Identity\Login\Domain\LoginThrottle;

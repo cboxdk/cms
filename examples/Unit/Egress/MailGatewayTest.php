@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
+use Cbox\Cms\Contracts\Egress\HostClass;
+use Cbox\Cms\Contracts\Egress\MailGateway;
+use Cbox\Cms\Contracts\Egress\OutboundMail;
 use Cbox\Cms\Contracts\Identity\EmailAddress;
-use Cbox\Cms\Core\Egress\Domain\Dto\OutboundMail;
-use Cbox\Cms\Core\Egress\Domain\HostClass;
-use Cbox\Cms\Core\Egress\Domain\MailGateway;
 use Illuminate\Mail\MailManager;
 use Illuminate\Mail\Transport\ArrayTransport;
 use Symfony\Component\Mailer\SentMessage;

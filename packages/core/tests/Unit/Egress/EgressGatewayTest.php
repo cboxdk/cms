@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Unit\Egress;
 
+use Cbox\Cms\Contracts\Egress\EgressFailed;
+use Cbox\Cms\Contracts\Egress\EgressGateway;
+use Cbox\Cms\Contracts\Egress\EgressRequest;
+use Cbox\Cms\Contracts\Egress\EgressResponse;
+use Cbox\Cms\Contracts\Egress\HostClass;
 use Cbox\Cms\Core\Egress\Adapter\SsrfEgressGateway;
 use Cbox\Cms\Core\Egress\Boundary\EgressConfig;
-use Cbox\Cms\Core\Egress\Domain\Dto\EgressRequest;
-use Cbox\Cms\Core\Egress\Domain\Dto\EgressResponse;
 use Cbox\Cms\Core\Egress\Domain\Dto\EgressSettings;
-use Cbox\Cms\Core\Egress\Domain\EgressFailed;
-use Cbox\Cms\Core\Egress\Domain\EgressGateway;
-use Cbox\Cms\Core\Egress\Domain\HostClass;
 use Cbox\Cms\Core\Tests\Egress\SsrfEgressGatewayWorld;
 use Cbox\Cms\Testkit\Telemetry\FakeTelemetry;
 use Cbox\Ssrf\GuardPolicy;
@@ -48,7 +48,7 @@ function egressCounters(FakeTelemetry $telemetry): array
     $counted = [];
 
     foreach ($telemetry->counters() as $counter) {
-        $counted[] = sprintf('%s %s %s', $counter->name->value, (string) $counter->attributes->get(SsrfEgressGateway::HOST_CLASS), (string) $counter->attributes->get(SsrfEgressGateway::OUTCOME));
+        $counted[] = sprintf('%s %s %s', $counter->name->value, (string) $counter->attributes->get(EgressGateway::HOST_CLASS), (string) $counter->attributes->get(EgressGateway::OUTCOME));
     }
 
     return $counted;
@@ -81,7 +81,7 @@ it('refuses a host whose DNS points at the metadata address or a private network
 
     expect(egressFailure($world->gateway($telemetry), 'https://rebind.example.net/')?->errorCode)->toBe(EgressFailed::CODE_BLOCKED)
         ->and($world->sent())->toBe([])
-        ->and($telemetry->counted(SsrfEgressGateway::FAILURES))->toBe(1);
+        ->and($telemetry->counted(EgressGateway::FAILURES))->toBe(1);
 })->with(['169.254.169.254', '10.0.0.5', '192.168.1.1', '127.0.0.1']);
 
 it('refuses a redirect and never follows it, even to a public address', function (int $status): void {
@@ -151,7 +151,7 @@ it('counts under the host class and the outcome only, never the host, the path o
         ->and(egressCounters($telemetry))->toBe(['cms.egress.requests probe status', 'cms.egress.failures probe status']);
 
     foreach ($telemetry->counters() as $counter) {
-        expect($counter->attributes->names())->toBe([SsrfEgressGateway::HOST_CLASS, SsrfEgressGateway::OUTCOME]);
+        expect($counter->attributes->names())->toBe([EgressGateway::HOST_CLASS, EgressGateway::OUTCOME]);
     }
 });
 

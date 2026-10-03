@@ -4,17 +4,18 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Egress\Adapter;
 
-use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\Egress\EgressFailed;
+use Cbox\Cms\Contracts\Egress\EgressGateway;
+use Cbox\Cms\Contracts\Egress\EgressOutcome;
+use Cbox\Cms\Contracts\Egress\HostClass;
+use Cbox\Cms\Contracts\Egress\MailGateway;
+use Cbox\Cms\Contracts\Egress\OutboundMail;
 use Cbox\Cms\Contracts\Telemetry\Attribute;
 use Cbox\Cms\Contracts\Telemetry\Attributes;
 use Cbox\Cms\Contracts\Telemetry\CounterRecord;
 use Cbox\Cms\Contracts\Telemetry\Telemetry;
 use Cbox\Cms\Contracts\Telemetry\TelemetryName;
-use Cbox\Cms\Core\Egress\Domain\Dto\OutboundMail;
-use Cbox\Cms\Core\Egress\Domain\EgressFailed;
-use Cbox\Cms\Core\Egress\Domain\EgressOutcome;
-use Cbox\Cms\Core\Egress\Domain\HostClass;
-use Cbox\Cms\Core\Egress\Domain\MailGateway;
 use Illuminate\Contracts\Mail\Mailer;
 use Illuminate\Mail\Message;
 use Override;
@@ -30,11 +31,9 @@ use Symfony\Component\Mime\Exception\ExceptionInterface;
  * EgressFailed::mailFailed(); the exception of the transport is not chained, because its message
  * can name the recipient or the server's answer about it.
  */
-#[Internal]
+#[Experimental]
 final readonly class LaravelMailGateway implements MailGateway
 {
-    public const string MAILS = 'cms.egress.mails';
-
     public function __construct(
         private Mailer $mailer,
         private Telemetry $telemetry,
@@ -59,14 +58,14 @@ final readonly class LaravelMailGateway implements MailGateway
     private function count(HostClass $hostClass, EgressOutcome $outcome): void
     {
         $attributes = new Attributes(
-            Attribute::of(SsrfEgressGateway::HOST_CLASS, $hostClass->value),
-            Attribute::of(SsrfEgressGateway::OUTCOME, $outcome->value),
+            Attribute::of(EgressGateway::HOST_CLASS, $hostClass->value),
+            Attribute::of(EgressGateway::OUTCOME, $outcome->value),
         );
 
-        $this->telemetry->counter(new CounterRecord(new TelemetryName(self::MAILS), 1, $attributes));
+        $this->telemetry->counter(new CounterRecord(new TelemetryName(MailGateway::MAILS), 1, $attributes));
 
         if ($outcome->failed()) {
-            $this->telemetry->counter(new CounterRecord(new TelemetryName(SsrfEgressGateway::FAILURES), 1, $attributes));
+            $this->telemetry->counter(new CounterRecord(new TelemetryName(EgressGateway::FAILURES), 1, $attributes));
         }
     }
 }
