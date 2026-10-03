@@ -42,7 +42,9 @@ use Throwable;
  * Clock's time; an unknown login or actor has none; a login or an actor is bound once, and an
  * actor that does not exist not at all, with messages that never hold the login; a rehash replaces
  * only the hash the caller verified and keeps when the password was set; a password change sets
- * the hash and the time; a reset token sets a password once and not after it expires, an unknown
+ * the hash and the time, never before the account was made, as a node whose clock is behind
+ * would date it; a reset token sets a password once and not after it expires, also on a node whose
+ * clock is behind the one that issued it, an unknown
  * token is refused as a used one is, a token is looked up without being taken and only while it is
  * usable, a reset takes the account's other unused tokens, a token is
  * issued only for an account and with an expiry after now, and a prune removes exactly the tokens
@@ -198,6 +200,43 @@ trait LocalCredentialStoreContract
         Assert::assertSame($this->instant($harness->clock()->now()), $this->instant($reset->passwordChangedAt));
         Assert::assertInstanceOf(PasswordResetRefused::class, $again);
         Assert::assertStringNotContainsString($token->reveal(), $again->getMessage());
+    }
+
+    #[Test]
+    public function a_password_change_on_a_node_behind_the_one_that_made_the_account_is_not_dated_before_it(): void
+    {
+        $harness = $this->harness();
+        $actor = $harness->actor();
+        $made = $harness->store()->bind($actor, new LoginIdentifier(self::LOGIN), new PasswordHash(self::HASH))->createdAt;
+        $harness->clock()->set($made->sub(new DateInterval('PT1S')));
+
+        $changed = $harness->store()->changePassword($actor, new PasswordHash(self::OTHER_HASH));
+
+        Assert::assertSame(self::OTHER_HASH, $harness->store()->ofActor($actor)?->hash->value);
+        Assert::assertSame(2, $changed->version);
+        Assert::assertSame($this->instant($made), $this->instant($changed->passwordChangedAt));
+    }
+
+    #[Test]
+    public function a_reset_token_issued_on_a_node_ahead_of_the_resetting_one_sets_a_password_once(): void
+    {
+        $harness = $this->harness();
+        $actor = $harness->actor();
+        $issued = $harness->clock()->now();
+        $harness->store()->bind($actor, new LoginIdentifier(self::LOGIN), new PasswordHash(self::HASH));
+        $token = $harness->store()->issueResetToken($actor, $issued->add(new DateInterval('PT1H')));
+        $other = $harness->store()->issueResetToken($actor, $issued->add(new DateInterval('PT1H')));
+        $harness->clock()->set($issued->sub(new DateInterval('PT1S')));
+
+        $reset = $harness->store()->resetPassword($token, new PasswordHash(self::OTHER_HASH));
+        $again = $this->refusal(static fn (): LocalAccount => $harness->store()->resetPassword($token, new PasswordHash(self::THIRD_HASH)));
+        $taken = $this->refusal(static fn (): LocalAccount => $harness->store()->resetPassword($other, new PasswordHash(self::THIRD_HASH)));
+
+        Assert::assertTrue($reset->actor->equals($actor));
+        Assert::assertSame(self::OTHER_HASH, $harness->store()->ofActor($actor)?->hash->value);
+        Assert::assertSame($this->instant($issued), $this->instant($reset->passwordChangedAt));
+        Assert::assertInstanceOf(PasswordResetRefused::class, $again);
+        Assert::assertInstanceOf(PasswordResetRefused::class, $taken);
     }
 
     #[Test]

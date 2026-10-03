@@ -100,7 +100,8 @@ final class FakeLocalCredentialStore implements LocalCredentialStore, LocalCrede
     {
         $account = $this->ofActor($actor) ?? throw LocalAccountMissing::of($actor);
 
-        return $this->accounts[$actor->toString()] = new LocalAccount($actor, $account->login, $hash, $account->version + 1, $this->clock->now(), $account->createdAt);
+        // Never before the account was made, as a store on a node whose clock is behind would date it.
+        return $this->accounts[$actor->toString()] = new LocalAccount($actor, $account->login, $hash, $account->version + 1, max($this->clock->now(), $account->createdAt), $account->createdAt);
     }
 
     #[Override]
@@ -117,7 +118,7 @@ final class FakeLocalCredentialStore implements LocalCredentialStore, LocalCrede
         }
 
         $token = PasswordResetToken::fromSecret(random_bytes(PasswordResetToken::SECRET_BYTES));
-        $this->tokens[$token->hash()] = new FakeResetToken($actor, $expiresAt);
+        $this->tokens[$token->hash()] = new FakeResetToken($actor, $expiresAt, $now);
 
         return $token;
     }
@@ -146,7 +147,7 @@ final class FakeLocalCredentialStore implements LocalCredentialStore, LocalCrede
 
         foreach ($this->tokens as $key => $other) {
             if ($other->actor->equals($stored->actor) && ! $other->usedAt instanceof DateTimeImmutable && $other->expiresAt > $now) {
-                $this->tokens[$key] = $other->usedAt($now);
+                $this->tokens[$key] = $other->usedAt(max($now, $other->createdAt));
             }
         }
 

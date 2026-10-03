@@ -39,7 +39,10 @@ use Override;
  * expired at the Clock's time, so two resets with one token set one password. A prune is one
  * DELETE of the tokens whose use, or else expiry, is before the time given: a used token has its
  * used_at at or before its expires_at, so it goes once it was used that long ago. Times are the
- * Clock's, written with their microseconds.
+ * Clock's, written with their microseconds. The Clocks of two nodes may differ, or one may step
+ * back, so a time this node writes beside one another node wrote is never before it: a token is
+ * used and a password is set no earlier than the token or the account was made (the CHECKs
+ * password_reset_tokens_used_at and local_accounts_password_changed_at).
  */
 #[Internal]
 final readonly class PostgresLocalCredentialStore implements LocalCredentialStore
@@ -52,17 +55,24 @@ final readonly class PostgresLocalCredentialStore implements LocalCredentialStor
 
     private const string FOREIGN_KEY_VIOLATION = '23503';
 
-    private const string TAKE_TOKEN = 'update cms_identity.password_reset_tokens set used_at = ? '
+    /**
+     * used_at is the Clock's time, or the token's created_at when the node that issued it had a
+     * clock ahead of this one's, so the CHECK password_reset_tokens_used_at holds.
+     */
+    private const string TAKE_TOKEN = 'update cms_identity.password_reset_tokens set used_at = greatest(?::timestamptz, created_at) '
         .'where token_hash = ? and used_at is null and expires_at > ? returning actor_id';
 
-    /** Takes every other token of the actor that is still unused, at the time of the reset. */
-    private const string TAKE_OTHERS = 'update cms_identity.password_reset_tokens set used_at = ? '
-        .'where actor_id = ? and used_at is null and expires_at > ? and created_at <= ? and token_hash <> ?';
+    /**
+     * Takes every other token of the actor that is still unused, at the time of the reset, or at
+     * its created_at when it was issued by a node whose clock is ahead of this one's.
+     */
+    private const string TAKE_OTHERS = 'update cms_identity.password_reset_tokens set used_at = greatest(?::timestamptz, created_at) '
+        .'where actor_id = ? and used_at is null and expires_at > ? and token_hash <> ?';
 
     private const string PRUNE = 'delete from cms_identity.password_reset_tokens where coalesce(used_at, expires_at) < ?';
 
     private const string CHANGE = 'update cms_identity.local_accounts '
-        .'set password_hash = ?, password_changed_at = ?, version = version + 1 '
+        .'set password_hash = ?, password_changed_at = greatest(?::timestamptz, created_at), version = version + 1 '
         .'where actor_id = ? returning actor_id, login, password_hash, version, password_changed_at, created_at';
 
     public function __construct(
@@ -197,7 +207,7 @@ final readonly class PostgresLocalCredentialStore implements LocalCredentialStor
                 throw PasswordResetRefused::token();
             }
 
-            $connection->update(self::TAKE_OTHERS, [$now, $actor, $now, $now, $token->hash()]);
+            $connection->update(self::TAKE_OTHERS, [$now, $actor, $now, $token->hash()]);
 
             return $this->account($row);
         });
