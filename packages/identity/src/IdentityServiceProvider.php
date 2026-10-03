@@ -198,6 +198,7 @@ final class IdentityServiceProvider extends ServiceProvider implements DeclaresS
             $app->make(SessionStore::class),
             $app->make(ActorDirectory::class),
             $app->make(LoginPolicy::class),
+            $app->make(IdpLinks::class),
             $app->make(Clock::class),
             $app->make(SessionCounters::class),
         ));

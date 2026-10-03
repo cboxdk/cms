@@ -21,4 +21,13 @@ enum LocalFactors: string
      * a local staff login.
      */
     case PasskeyOrTwoFactors = 'passkey_or_two_factors';
+
+    /**
+     * Whether a login that gave these factors meets a policy that requires $required: two factors
+     * or a passkey meet both, a single factor only Password.
+     */
+    public function satisfies(self $required): bool
+    {
+        return $this === self::PasskeyOrTwoFactors || $required === self::Password;
+    }
 }

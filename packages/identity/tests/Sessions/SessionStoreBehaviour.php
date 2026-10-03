@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Identity\CredentialGeneration;
 use Cbox\Cms\Contracts\Identity\Login\ConnectionId;
 use Cbox\Cms\Contracts\Identity\SessionToken;
 use Cbox\Cms\Contracts\Ids\ActorId;
+use Cbox\Cms\Identity\LoginPolicy\Domain\LocalFactors;
 use Cbox\Cms\Identity\LoginPolicy\Domain\LoginMethod;
 use Cbox\Cms\Identity\Sessions\Domain\Dto\StoredSession;
 use Cbox\Cms\Identity\Sessions\Domain\IdpSessionId;
@@ -38,7 +39,7 @@ trait SessionStoreBehaviour
     public function it_keeps_a_session_under_its_key_as_it_was_put(): void
     {
         $store = $this->sessionStore();
-        $session = $this->storedSession(idpSession: 'sid-1', connection: 'entra', method: LoginMethod::Federated);
+        $session = $this->storedSession(idpSession: 'sid-1', connection: 'entra', method: LoginMethod::Federated, factors: LocalFactors::PasskeyOrTwoFactors);
 
         $store->put($session, $this->later('PT1H'));
 
@@ -164,6 +165,7 @@ trait SessionStoreBehaviour
         ?string $idpSession = null,
         string $connection = 'local',
         LoginMethod $method = LoginMethod::Password,
+        LocalFactors $factors = LocalFactors::Password,
     ): StoredSession {
         $now = $this->now();
 
@@ -173,6 +175,7 @@ trait SessionStoreBehaviour
             ActorClass::Staff,
             new ConnectionId($connection),
             $method,
+            $factors,
             $idpSession === null ? null : new IdpSessionId($idpSession),
             new CredentialGeneration(3),
             $now->modify('-10 minutes'),

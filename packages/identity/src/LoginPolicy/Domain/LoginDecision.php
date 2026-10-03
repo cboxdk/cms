@@ -27,9 +27,10 @@ use DateTimeImmutable;
  * packages/identity/tests/Phpstan).
  *
  * The decision carries what the session stores: the actor, its class and its credential
- * generation, the connection, the login method, when the person authenticated, the identity
- * provider's session id of the login or null, and the session's lifetimes from the policy of the
- * actor's class.
+ * generation, the connection, the login method, the factors the login gave, when the person
+ * authenticated, the identity provider's session id of the login or null, and the session's
+ * lifetimes from the policy of the actor's class. The session keeps the factors, so a policy that
+ * later requires more refuses it at its next request (SessionRules).
  */
 #[Internal]
 final readonly class LoginDecision
@@ -40,6 +41,7 @@ final readonly class LoginDecision
         public CredentialGeneration $credentialGeneration,
         public ConnectionId $connection,
         public LoginMethod $method,
+        public LocalFactors $factors,
         public DateTimeImmutable $authTime,
         public SessionLifetimes $lifetimes,
         public ?IdpSessionId $idpSession = null,
@@ -73,7 +75,9 @@ final readonly class LoginDecision
         $class = self::admit($policy, $actor, $attempt->actor, $connection, $attempt->method, $links);
         $local = LoginPolicy::isLocal($connection);
 
-        if (! ($local ? self::localFactorsGiven($class, $attempt) : self::federatedFactorsGiven($class, $attempt->assertion))) {
+        $factors = self::factorsGiven($attempt);
+
+        if (! ($local ? $factors->satisfies($class->localFactors) : self::federatedFactorsGiven($class, $attempt->assertion))) {
             throw LoginPolicyRefused::because(LoginPolicyErrorCode::FactorsUnavailable);
         }
 
@@ -83,6 +87,7 @@ final readonly class LoginDecision
             $actor->credentialGeneration,
             $connection,
             $attempt->method,
+            $factors,
             $attempt->assertion->authTime,
             $class->lifetimes,
             $attempt->idpSession,
@@ -149,17 +154,17 @@ final readonly class LoginDecision
     }
 
     /**
-     * A passkey is a factor of its own and user verification; otherwise two factors show as mfa in
-     * the amr claim or as two methods there (RFC 8176).
+     * The factors the login gave: a passkey is a factor of its own and user verification;
+     * otherwise two factors show as mfa in the amr claim or as two methods there (RFC 8176), and
+     * anything less is a single factor.
      */
-    private static function localFactorsGiven(ClassPolicy $class, LoginAttempt $attempt): bool
+    private static function factorsGiven(LoginAttempt $attempt): LocalFactors
     {
-        return match ($class->localFactors) {
-            LocalFactors::Password => true,
-            LocalFactors::PasskeyOrTwoFactors => $attempt->method === LoginMethod::Passkey
-                || $attempt->assertion->authenticatedWith(new AuthenticationMethod('mfa'))
-                || count($attempt->assertion->amr) >= 2,
-        };
+        return $attempt->method === LoginMethod::Passkey
+            || $attempt->assertion->authenticatedWith(new AuthenticationMethod('mfa'))
+            || count($attempt->assertion->amr) >= 2
+            ? LocalFactors::PasskeyOrTwoFactors
+            : LocalFactors::Password;
     }
 
     /**

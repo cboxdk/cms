@@ -23,7 +23,8 @@ use Cbox\Cms\Identity\Sessions\Domain\SessionStore;
  * Every session gets a new id of 256 random bits, SessionToken, never one the request carried, so
  * a session id planted before the login is never the one that logs in (no fixation). The store
  * keeps it under the SHA-256 of the id with what the decision says: the actor, its class and its
- * credential generation, the connection, the login method and the IdP session id, issued and last
+ * credential generation, the connection, the login method, the factors the login gave and the IdP
+ * session id, issued and last
  * seen at the Clock's time, until the end of its lifetimes (SessionRules::keptUntil()). Each issue adds 1 to the counter
  * `cms.session.issued` with its login method.
  */
@@ -46,6 +47,7 @@ final readonly class IssueSession
             $decision->actorClass,
             $decision->connection,
             $decision->method,
+            $decision->factors,
             $decision->idpSession,
             $decision->credentialGeneration,
             $now,

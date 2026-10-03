@@ -16,6 +16,7 @@ use Cbox\Cms\Contracts\Identity\SessionToken;
 use Cbox\Cms\Contracts\Identity\TransportCredential;
 use Cbox\Cms\Identity\LoginPolicy\Domain\Dto\ClassPolicy;
 use Cbox\Cms\Identity\LoginPolicy\Domain\Dto\LoginPolicy;
+use Cbox\Cms\Identity\LoginPolicy\Domain\IdpLinks;
 use Cbox\Cms\Identity\Sessions\Domain\SessionCounters;
 use Cbox\Cms\Identity\Sessions\Domain\SessionEndReason;
 use Cbox\Cms\Identity\Sessions\Domain\SessionKey;
@@ -34,7 +35,9 @@ use Override;
  * actor through the ActorDirectory, whose state and generation are in Postgres, and
  * SessionRules::principal() decides at the Clock's time with the login policy as it is now: expired
  * (credential_expired), actor not active (actor_not_active), revoked (credential_revoked) or no
- * longer allowed by the policy (credential_not_allowed). A refused session is ended, and counted in
+ * longer allowed by the policy (credential_not_allowed), which includes a local session whose
+ * factors the class no longer accepts and one of an actor since linked to an authoritative
+ * connection, read through IdpLinks (invariant 38). A refused session is ended, and counted in
  * `cms.session.ended` with its reason. A session that verifies is renewed: its last-seen time moves
  * to now, and its end slides with it within its absolute lifetime. When it was ended meanwhile, the
  * renewal finds nothing, and it is refused as credential_unknown.
@@ -51,6 +54,7 @@ final readonly class SessionCredentialVerifier implements CredentialVerifier
         private SessionStore $store,
         private ActorDirectory $actors,
         private LoginPolicy $policy,
+        private IdpLinks $links,
         private Clock $clock,
         private SessionCounters $counters,
     ) {}
@@ -67,7 +71,7 @@ final readonly class SessionCredentialVerifier implements CredentialVerifier
         $now = $this->clock->now();
 
         try {
-            $principal = SessionRules::principal($session, $this->actors->find($session->actor), $this->policy, $now);
+            $principal = SessionRules::principal($session, $this->actors->find($session->actor), $this->policy, $this->links, $now);
         } catch (CredentialRejected $rejected) {
             $reason = SessionEndReason::refused($rejected->reason);
 

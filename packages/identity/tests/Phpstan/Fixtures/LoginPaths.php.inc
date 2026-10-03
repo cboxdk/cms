@@ -12,6 +12,7 @@ use Cbox\Cms\Identity\LoginPolicy\Actions\CheckLoginPolicy;
 use Cbox\Cms\Identity\LoginPolicy\Domain\Dto\LoginAttempt;
 use Cbox\Cms\Identity\LoginPolicy\Domain\Dto\SessionLifetimes;
 use Cbox\Cms\Identity\LoginPolicy\Domain\LoginDecision;
+use Cbox\Cms\Identity\LoginPolicy\Domain\LocalFactors;
 use Cbox\Cms\Identity\LoginPolicy\Domain\LoginMethod;
 use DateTimeImmutable;
 
@@ -37,6 +38,7 @@ final readonly class LoginPaths
             $generation,
             new ConnectionId('local'),
             LoginMethod::Password,
+            LocalFactors::Password,
             new DateTimeImmutable('2026-10-02T09:00:00Z'),
             new SessionLifetimes(60, 720),
         );

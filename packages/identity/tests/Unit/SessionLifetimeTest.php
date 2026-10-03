@@ -12,8 +12,13 @@ use Cbox\Cms\Contracts\Identity\CredentialErrorCode;
 use Cbox\Cms\Contracts\Identity\CredentialRejected;
 use Cbox\Cms\Contracts\Identity\CredentialVerifier;
 use Cbox\Cms\Contracts\Identity\IssuerKind;
+use Cbox\Cms\Contracts\Identity\Login\ConnectionId;
+use Cbox\Cms\Contracts\Identity\Login\IdpIdentity;
+use Cbox\Cms\Contracts\Identity\Login\Issuer;
+use Cbox\Cms\Contracts\Identity\Login\Subject;
 use Cbox\Cms\Contracts\Identity\TransportCredential;
 use Cbox\Cms\Contracts\Telemetry\CounterRecord;
+use Cbox\Cms\Identity\LoginPolicy\Domain\LocalFactors;
 use Cbox\Cms\Identity\LoginPolicy\Domain\LoginMethod;
 use Cbox\Cms\Identity\LoginPolicy\Domain\LoginPolicyRefused;
 use Cbox\Cms\Identity\Sessions\Domain\Dto\StoredSession;
@@ -28,7 +33,8 @@ use PHPUnit\Framework\Assert;
  * The lifetime of a session (PRD 5.16, "Loginpolitik" and "Sessioner og credentials"), on a
  * FakeClock: a staff session ends after 60 minutes without a request, each request renews it
  * within that window, it ends 12 hours after the login whatever happens, and it is refused at its
- * next request once the login policy no longer allows how it was obtained. Every refusal ends the
+ * next request once the login policy no longer allows how it was obtained: its connection, its
+ * method, its factors, or a local login of an actor since linked to an authoritative connection. Every refusal ends the
  * session and counts it in cms.session.ended with its reason.
  */
 
@@ -213,6 +219,46 @@ it('refuses a session once the policy no longer allows its connection or local l
     'the local connection is not allowed' => [['staff' => ['connections' => ['local' => false, 'entra' => true]]]],
     'local login is switched off' => [['staff' => ['local_login' => false, 'connections' => ['entra' => true]]]],
 ]);
+
+it('refuses a password session at its next request once the class requires a passkey or two factors', function (): void {
+    $world = new SessionWorld;
+    $actor = $world->actor();
+    $issued = $world->login($actor);
+    $password = SessionWorld::credential($issued);
+    $passkeyIssued = $world->login($actor, LoginMethod::Passkey);
+    $passkey = SessionWorld::credential($passkeyIssued);
+
+    expect($world->store->find($issued->session->key)?->factors)->toBe(LocalFactors::Password)
+        ->and($world->store->find($passkeyIssued->session->key)?->factors)->toBe(LocalFactors::PasskeyOrTwoFactors);
+
+    $world->policy = SessionWorld::policy(['staff' => ['local_factors' => 'passkey_or_two_factors']]);
+
+    expect(refusedSession($world->verifier(), $password))->toBe(CredentialErrorCode::NotAllowed)
+        ->and(endedSessions($world))->toBe(['policy' => 1]);
+
+    verifiedSession($world->verifier(), $passkey);
+});
+
+it('refuses a local session at its next request once the actor is linked to an authoritative connection (invariant 38)', function (): void {
+    $world = new SessionWorld(['authoritative_connections' => ['entra'], 'staff' => ['connections' => ['entra' => true, 'google' => true]]]);
+    $linked = $world->actor();
+    $other = $world->actor();
+    $local = SessionWorld::credential($world->login($linked));
+    $federated = SessionWorld::credential($world->login($linked, LoginMethod::Federated, 'entra', 'sid-1'));
+    $kept = SessionWorld::credential($world->login($other));
+
+    verifiedSession($world->verifier(), $local);
+
+    // A link to a connection that is not authoritative leaves the local session alone.
+    $world->links->link($other->id, new IdpIdentity(new ConnectionId('google'), new Issuer('https://accounts.google.com'), new Subject('s-2')));
+    $world->links->link($linked->id, new IdpIdentity(new ConnectionId('entra'), new Issuer('https://login.example.test'), new Subject('s-1')));
+
+    expect(refusedSession($world->verifier(), $local))->toBe(CredentialErrorCode::NotAllowed)
+        ->and(endedSessions($world))->toBe(['policy' => 1]);
+
+    verifiedSession($world->verifier(), $federated);
+    verifiedSession($world->verifier(), $kept);
+});
 
 it('refuses a session of an actor that is no longer active or whose credentials were revoked, and ends it', function (): void {
     $world = new SessionWorld;

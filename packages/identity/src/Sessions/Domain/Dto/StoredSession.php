@@ -10,6 +10,7 @@ use Cbox\Cms\Contracts\Identity\CredentialGeneration;
 use Cbox\Cms\Contracts\Identity\IssuedSession;
 use Cbox\Cms\Contracts\Identity\Login\ConnectionId;
 use Cbox\Cms\Contracts\Ids\ActorId;
+use Cbox\Cms\Identity\LoginPolicy\Domain\LocalFactors;
 use Cbox\Cms\Identity\LoginPolicy\Domain\LoginMethod;
 use Cbox\Cms\Identity\Sessions\Domain\IdpSessionId;
 use Cbox\Cms\Identity\Sessions\Domain\SessionKey;
@@ -18,7 +19,8 @@ use DateTimeZone;
 
 /**
  * A session as the SessionStore keeps it (PRD 5.16): its key, the SHA-256 of its id; the actor who
- * logged in and the actor's class; the connection and the login method of the login; the identity
+ * logged in and the actor's class; the connection and the login method of the login; the factors
+ * the login gave, which a local login's policy is judged by again at each request; the identity
  * provider's session id, or null for a login without one, such as a local login; the actor's
  * credential generation when it was issued; and when it was issued and last seen, in UTC.
  */
@@ -35,6 +37,7 @@ final readonly class StoredSession
         public ActorClass $actorClass,
         public ConnectionId $connection,
         public LoginMethod $method,
+        public LocalFactors $factors,
         public ?IdpSessionId $idpSession,
         public CredentialGeneration $generation,
         DateTimeImmutable $issuedAt,
@@ -49,7 +52,7 @@ final readonly class StoredSession
      */
     public function seenAt(DateTimeImmutable $now): self
     {
-        return new self($this->key, $this->actor, $this->actorClass, $this->connection, $this->method, $this->idpSession, $this->generation, $this->issuedAt, $now);
+        return new self($this->key, $this->actor, $this->actorClass, $this->connection, $this->method, $this->factors, $this->idpSession, $this->generation, $this->issuedAt, $now);
     }
 
     /**

@@ -12,6 +12,7 @@ use Cbox\Cms\Contracts\Identity\CredentialRejected;
 use Cbox\Cms\Identity\LoginPolicy\Domain\Dto\ClassPolicy;
 use Cbox\Cms\Identity\LoginPolicy\Domain\Dto\LoginPolicy;
 use Cbox\Cms\Identity\LoginPolicy\Domain\Dto\SessionLifetimes;
+use Cbox\Cms\Identity\LoginPolicy\Domain\IdpLinks;
 use Cbox\Cms\Identity\Sessions\Domain\Dto\StoredSession;
 use DateInterval;
 use DateTimeImmutable;
@@ -66,11 +67,16 @@ final readonly class SessionRules
      *    above the session's (credential_revoked), as IssuedSession::principal() decides;
      * 4. the policy of the actor's class still allows the session's connection and its login
      *    method, the method still belongs to the connection, and for the local connection local
-     *    login is still switched on (credential_not_allowed).
+     *    login is still switched on, the factors the login gave still meet the class's
+     *    local_factors, and the actor is linked to no authoritative connection, read through
+     *    $links only for a local session that passed everything else (credential_not_allowed,
+     *    invariant 38): a policy tightened after the login, or a link to an authoritative
+     *    connection made after it, refuses the session at its next request as LoginDecision
+     *    refuses the login.
      *
      * @throws CredentialRejected
      */
-    public static function principal(StoredSession $session, ?Actor $actor, LoginPolicy $policy, DateTimeImmutable $now): ActorPrincipal
+    public static function principal(StoredSession $session, ?Actor $actor, LoginPolicy $policy, IdpLinks $links, DateTimeImmutable $now): ActorPrincipal
     {
         $class = $policy->of($session->actorClass);
 
@@ -88,20 +94,29 @@ final readonly class SessionRules
 
         $principal = $session->issued()->principal($actor);
 
-        if (! self::allowed($session, $class)) {
+        if (! self::allowed($session, $class, $policy, $links)) {
             throw CredentialRejected::because(CredentialErrorCode::NotAllowed);
         }
 
         return $principal;
     }
 
-    private static function allowed(StoredSession $session, ClassPolicy $class): bool
+    private static function allowed(StoredSession $session, ClassPolicy $class, LoginPolicy $policy, IdpLinks $links): bool
     {
         $local = LoginPolicy::isLocal($session->connection);
 
-        return $class->allowsConnection($session->connection)
-            && $class->allowsMethod($session->method)
-            && $session->method->isLocal() === $local
-            && (! $local || $class->localLogin);
+        if (! $class->allowsConnection($session->connection)
+            || ! $class->allowsMethod($session->method)
+            || $session->method->isLocal() !== $local) {
+            return false;
+        }
+
+        if (! $local) {
+            return true;
+        }
+
+        return $class->localLogin
+            && $session->factors->satisfies($class->localFactors)
+            && ! array_any($links->connectionsOf($session->actor), $policy->isAuthoritative(...));
     }
 }

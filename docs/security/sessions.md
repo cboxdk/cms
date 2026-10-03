@@ -31,11 +31,11 @@ Each request with a session checks, in this order:
 | it has not ended: its inactivity end, the last request plus `inactivity_minutes`, and its absolute end, the login plus `absolute_minutes`, are both later than now | `credential_expired` |
 | the actor is active, read from Postgres | `actor_not_active` |
 | the actor's credential generation is not above the session's | `credential_revoked` |
-| the login policy still allows the session's connection and login method, and local login when it came through the local connection | `credential_not_allowed` |
+| the login policy still allows the session's connection and login method; for a session from the local connection, local login is still on, the factors the login gave still meet the class's `local_factors`, and the actor is linked to no authoritative connection | `credential_not_allowed` |
 
 The lifetimes are those of the login policy now, so a shorter lifetime applies to the sessions already issued. A request that passes renews the session: its inactivity end slides to the request plus `inactivity_minutes`, but never past the absolute end. A refused session is ended at once.
 
-The actor's state and generation are read from Postgres at each request. A deactivation or a revocation counts the generation up, so every session of the actor is refused at its next request. A copy of the actor's state in Valkey is not built yet.
+The actor's state and generation are read from Postgres at each request. A deactivation or a revocation counts the generation up, so every session of the actor is refused at its next request. For a session from the local connection, the actor's IdP links are read from the identity store at each request too, so a link to an authoritative connection made after the login refuses the session at its next request. A copy of the actor's state in Valkey is not built yet.
 
 ## Logging in with a password
 

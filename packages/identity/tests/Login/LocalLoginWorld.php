@@ -121,7 +121,7 @@ final class LocalLoginWorld
 
     public function verifier(): SessionCredentialVerifier
     {
-        return new SessionCredentialVerifier($this->identity, $this->sessions, $this->identity, $this->policy, $this->clock, new SessionCounters($this->telemetry));
+        return new SessionCredentialVerifier($this->identity, $this->sessions, $this->identity, $this->policy, new FakeIdpLinks, $this->clock, new SessionCounters($this->telemetry));
     }
 
     /**

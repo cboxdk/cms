@@ -10,6 +10,7 @@ use Cbox\Cms\Contracts\Identity\ActorClass;
 use Cbox\Cms\Contracts\Identity\CredentialGeneration;
 use Cbox\Cms\Contracts\Identity\Login\ConnectionId;
 use Cbox\Cms\Contracts\Ids\ActorId;
+use Cbox\Cms\Identity\LoginPolicy\Domain\LocalFactors;
 use Cbox\Cms\Identity\LoginPolicy\Domain\LoginMethod;
 use Cbox\Cms\Identity\Sessions\Domain\Dto\StoredSession;
 use Cbox\Cms\Identity\Sessions\Domain\IdpSessionId;
@@ -32,7 +33,8 @@ use UnexpectedValueException;
  * Keys, below the connection's own prefix:
  *
  * - `cms:session:<key>`, a hash per session under the SHA-256 of its id: the actor, its class, the
- *   connection, the login method, the IdP session id or an empty string, the credential
+ *   connection, the login method, the factors the login gave, the IdP session id or an empty
+ *   string, the credential
  *   generation, the issued and last-seen times in unix microseconds, and the names of the sets it
  *   is in as JSON;
  * - `cms:sessions_of_actor:<actor id>`, a set of the session hashes of an actor;
@@ -85,7 +87,7 @@ final readonly class ValkeySessionStore implements SessionStore
      */
     public const string FIND = <<<'LUA'
         if redis.call('EXISTS', KEYS[1]) == 0 then return {} end
-        return redis.call('HMGET', KEYS[1], 'actor', 'class', 'connection', 'method', 'idp_session', 'generation', 'issued', 'seen')
+        return redis.call('HMGET', KEYS[1], 'actor', 'class', 'connection', 'method', 'factors', 'idp_session', 'generation', 'issued', 'seen')
         LUA;
 
     /**
@@ -167,6 +169,7 @@ final readonly class ValkeySessionStore implements SessionStore
             'class', $session->actorClass->value,
             'connection', $session->connection->value,
             'method', $session->method->value,
+            'factors', $session->factors->value,
             'idp_session', $session->idpSession->value ?? '',
             'generation', (string) $session->generation->value,
             'issued', $this->microseconds($session->issuedAt),
@@ -185,11 +188,11 @@ final readonly class ValkeySessionStore implements SessionStore
 
         $strings = array_values(array_filter($values, is_string(...)));
 
-        if (count($values) !== 8 || count($strings) !== 8) {
+        if (count($values) !== 9 || count($strings) !== 9) {
             throw $this->unexpected('find', $values);
         }
 
-        [$actor, $class, $connection, $method, $idpSession, $generation, $issued, $seen] = $strings;
+        [$actor, $class, $connection, $method, $factors, $idpSession, $generation, $issued, $seen] = $strings;
 
         try {
             return new StoredSession(
@@ -198,6 +201,7 @@ final readonly class ValkeySessionStore implements SessionStore
                 ActorClass::from($class),
                 new ConnectionId($connection),
                 LoginMethod::from($method),
+                LocalFactors::from($factors),
                 $idpSession === '' ? null : new IdpSessionId($idpSession),
                 new CredentialGeneration((int) $generation),
                 $this->instant($issued),

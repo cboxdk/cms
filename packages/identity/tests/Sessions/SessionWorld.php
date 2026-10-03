@@ -34,7 +34,8 @@ use Illuminate\Config\Repository;
 
 /**
  * Sessions over fakes: FakeIdentity as the actor directory and as the verifier the session
- * verifier decorates, FakeSessionStore, FakeTelemetry and one FakeClock for all of them. A session
+ * verifier decorates, FakeSessionStore, FakeIdpLinks, FakeTelemetry and one FakeClock for all of
+ * them. A session
  * is issued as a login path issues it, with the decision of CheckLoginPolicy under the policy the
  * world holds; a test changes the policy with policy(), as an environment's configuration would
  * change between two requests.
@@ -53,6 +54,8 @@ final class SessionWorld
 
     public LoginPolicy $policy;
 
+    public FakeIdpLinks $links;
+
     /**
      * @param  array<array-key, mixed>  $policy  changes to the module's default policy
      * @param  FakeClock|null  $clock  the clock of every part, NOW by default
@@ -64,6 +67,7 @@ final class SessionWorld
         $this->store = new FakeSessionStore($this->clock);
         $this->telemetry = new FakeTelemetry;
         $this->policy = self::policy($policy);
+        $this->links = new FakeIdpLinks;
     }
 
     /**
@@ -98,7 +102,7 @@ final class SessionWorld
             $this->clock->now(),
             [new AuthenticationMethod($method === LoginMethod::Passkey ? 'hwk' : 'pwd')],
         );
-        $decision = new CheckLoginPolicy($this->policy, $this->identity, new FakeIdpLinks, $this->telemetry)
+        $decision = new CheckLoginPolicy($this->policy, $this->identity, $this->links, $this->telemetry)
             ->check(new LoginAttempt($actor->id, $method, $assertion, $idpSession === null ? null : new IdpSessionId($idpSession)));
 
         return new IssueSession($this->store, $this->clock, $this->counters())->issue($decision);
@@ -106,7 +110,7 @@ final class SessionWorld
 
     public function verifier(): SessionCredentialVerifier
     {
-        return new SessionCredentialVerifier($this->identity, $this->store, $this->identity, $this->policy, $this->clock, $this->counters());
+        return new SessionCredentialVerifier($this->identity, $this->store, $this->identity, $this->policy, $this->links, $this->clock, $this->counters());
     }
 
     public function ends(): EndSessions
