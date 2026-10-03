@@ -536,7 +536,10 @@ import { TabsProps } from '@cboxdk/cms-ui-kit';
 import { Tag } from '@cboxdk/cms-ui-kit';
 import { TagProps } from '@cboxdk/cms-ui-kit';
 import { TaskScreen } from '@cboxdk/cms-ui-kit';
+import { TaskScreenFact } from '@cboxdk/cms-ui-kit';
 import { TaskScreenProps } from '@cboxdk/cms-ui-kit';
+import { TaskScreenShowcase } from '@cboxdk/cms-ui-kit';
+import { TaskScreenShowcaseCard } from '@cboxdk/cms-ui-kit';
 import { TextArea } from '@cboxdk/cms-ui-kit';
 import { TextAreaProps } from '@cboxdk/cms-ui-kit';
 import { TextInput } from '@cboxdk/cms-ui-kit';
@@ -896,7 +899,13 @@ export { TagProps }
 
 export { TaskScreen }
 
+export { TaskScreenFact }
+
 export { TaskScreenProps }
+
+export { TaskScreenShowcase }
+
+export { TaskScreenShowcaseCard }
 
 export { TextArea }
 
