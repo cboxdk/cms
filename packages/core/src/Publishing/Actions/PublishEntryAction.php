@@ -94,6 +94,7 @@ final readonly class PublishEntryAction implements RefusesCommand, ReportsVisibi
             $command->locale,
             $this->placements->everyLocale($command->entry),
             $at,
+            $command->revision,
         );
     }
 

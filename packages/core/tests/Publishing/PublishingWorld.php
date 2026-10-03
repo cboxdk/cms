@@ -21,6 +21,7 @@ use Cbox\Cms\Contracts\Identity\AccessRegion;
 use Cbox\Cms\Contracts\Identity\ActorClass;
 use Cbox\Cms\Contracts\Identity\ActorPrincipal;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Contracts\Identity\GrantEffect;
 use Cbox\Cms\Contracts\Identity\IssuerKind;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
@@ -143,6 +144,10 @@ final readonly class PublishingWorld
      *                           of real time; 0, never past commit, unless a test waits
      * @param  bool  $granted  whether the kernel's CommandAuthorizer decides, with the actor granted a
      *                         role that may run COMMANDS on each root; otherwise a fake that allows
+     * @param  list<string>|null  $locales  the locales the granted role's grant on each root holds in,
+     *                                      null for every locale
+     * @param  list<array{StructureNode, list<string>}>  $denied  a deny of the granted role on each
+     *                                                            node in the locales given
      */
     public function __construct(
         private array $regions,
@@ -150,6 +155,8 @@ final readonly class PublishingWorld
         string $now = EntryWorld::NOW,
         private int $waitBudget = 0,
         private bool $granted = false,
+        ?array $locales = null,
+        array $denied = [],
     ) {
         $this->clock = new FakeClock(new DateTimeImmutable($now));
         $this->ids = new FakeIdGenerator(seed: $seed, clock: $this->clock);
@@ -162,7 +169,11 @@ final readonly class PublishingWorld
             $role = $access->role('publisher_'.$seed, ClassificationAccess::Internal, array_map(static fn (string $name): CommandName => new CommandName($name), self::COMMANDS));
 
             foreach ($regions as $root) {
-                $access->grant($this->actor, $role, $root->id);
+                $access->grant($this->actor, $role, $root->id, locales: $locales === null ? null : $this->locales($locales));
+            }
+
+            foreach ($denied as [$node, $deniedLocales]) {
+                $access->grant($this->actor, $role, $node->id, GrantEffect::Deny, $this->locales($deniedLocales));
             }
         }
     }
@@ -294,6 +305,15 @@ final readonly class PublishingWorld
             new PipelineTelemetry(new FakeTelemetry, new FakeClock, new FakeStopwatch),
             new AwaitWaitLevel(new PostgresReceiptStore($connections, $this->clock), new SystemPacing, new WaitSettings($this->waitBudget)),
         );
+    }
+
+    /**
+     * @param  list<string>  $names
+     * @return list<Locale>
+     */
+    private function locales(array $names): array
+    {
+        return array_map(static fn (string $name): Locale => new Locale($name), $names);
     }
 
     private function binding(string $command, object $action): ActionBinding

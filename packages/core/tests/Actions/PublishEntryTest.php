@@ -12,6 +12,7 @@ use Cbox\Cms\Contracts\Content\RevisionNumber;
 use Cbox\Cms\Contracts\Content\TimeWindow;
 use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Content\VariantRef;
+use Cbox\Cms\Contracts\Identity\GrantEffect;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Plans\Mutation;
@@ -182,6 +183,27 @@ it('rejects a placement below a node the actor\'s grants do not reach as unautho
     expect(publishErrors($result))->toBe(['unauthorized placement'])
         ->and($world->committer->pending)->toBe([]);
 });
+
+it('rejects a release by an actor whose grants on the home do not hold in every locale, and allows the window alone (security review S-1)', function (string $grants): void {
+    $grant = static fn (World $world): World => $grants === 'da only'
+        ? $world->grant(World::HOME, locales: ['da'])
+        : $world->grant(World::ROOT)->grant(World::HOME, GrantEffect::Deny, ['en']);
+    $hidden = ['da' => [Visibility::Hidden, null, true], 'en' => [Visibility::Live, null, false]];
+    $staged = $grant(new World()->place(World::HOME_PLACEMENT, World::HOME, $hidden));
+    $released = $grant(new World(new StoredHead(new AggregateVersion(6), new RevisionNumber(4), new RevisionNumber(4), new RevisionNumber(4)))->place(World::HOME_PLACEMENT, World::HOME, $hidden));
+    $unstaged = $grant(World::unstaged()->place(World::HOME_PLACEMENT, World::HOME, $hidden));
+
+    $release = $staged->publish();
+    $windowOfReleased = $released->publish();
+    $window = $unstaged->publish(revision: null, version: 3);
+
+    expect(publishErrors($release))->toBe(['unauthorized -'])
+        ->and($staged->committer->pending)->toBe([])
+        ->and($windowOfReleased->outcome())->toBe(Outcome::Committed)
+        ->and(publishSteps($released->committed()->plan->mutations()))->toBe(['window '.World::HOME_PLACEMENT.' da 12:00'])
+        ->and($window->outcome())->toBe(Outcome::Committed)
+        ->and(publishSteps($unstaged->committed()->plan->mutations()))->toBe(['window '.World::HOME_PLACEMENT.' da 12:00']);
+})->with(['da only', 'deny en']);
 
 it('rejects a placement that is not the entry\'s home placement, a locale it lacks and a locale it is withdrawn in', function (): void {
     $world = new World()

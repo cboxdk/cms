@@ -69,7 +69,7 @@ Each command is composite (PRD 6.2): its plan is made of the plans of the kernel
 - `entry.publish` is the release planner's `VariantReleased` of the revision, followed by the placement planner's `PlacementWindowSet` of the home placement in the locale, with the moves of the canonical flag the window causes (invariant 14). A step that would change nothing is left out: the release of the revision that is released already, and a window when the placement is live already and the call asks for now, or has the window asked for. A call where both are left out changes nothing and is rejected.
 - `entry.unpublish` is the release planner's `VariantUnreleased` of the revision released until now, followed by the placement planner's `PlacementClosed` of every placement of the entry that is visible now or later, in every locale and on every site. A closed placement is hidden and loses its window, so publishing the content again shows it only where a window is set again. Withdrawn placements stay withdrawn (invariant 7), and a hidden placement or one whose window has ended is left as it is. For a type with `stages: none` it only closes the placements.
 
-Publishing and unpublishing content is decided on the entry's home (PRD 5.10). `entry.unpublish` therefore closes placements below nodes the caller's grants do not reach too; the kernel writes those through an owner function that runs only in the transaction of an `entry.unpublish` changeset. Unpublishing needs no legal basis and can be reversed: the entry can be published again. Withdrawal is something else, for legal takedowns only.
+Publishing and unpublishing content is decided on the entry's home (PRD 5.10). `entry.publish` needs the home and the home placement's node in the command's locale for the window, and, when its plan releases a revision, the home in every locale, as `variant.release` does: the release changes the shared variant that every locale and site serves, so a grant limited to some locales, or a deny in one, does not allow it. `entry.unpublish` therefore closes placements below nodes the caller's grants do not reach too; the kernel writes those through an owner function that runs only in the transaction of an `entry.unpublish` changeset. Unpublishing needs no legal basis and can be reversed: the entry can be published again. Withdrawal is something else, for legal takedowns only.
 
 ## The dry run
 
@@ -91,7 +91,7 @@ The events are those of both sub-plans: `variant.released` and `placement.visibi
 
 | Code | When |
 |---|---|
-| `unauthorized` | the caller's grants do not reach the home placement's node |
+| `unauthorized` | the caller's grants do not reach the home placement's node in the command's locale, or the plan releases a revision and they do not reach the entry's home in every locale |
 | `agent_visibility_forbidden` | an agent or a token publishes (invariant 18) |
 | `type_not_releasable` | the entry's type has stages but a history that keeps no revisions |
 | `validation_failed` | the placement is not a placement of the entry below its home node, it has no such locale or is withdrawn there, the revision is missing for a type with stages or given for one with `stages: none`, the revision breaks the type's rules at the release stage, or the call changes nothing |

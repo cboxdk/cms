@@ -44,6 +44,10 @@ const HOME_PLACEMENT_ID = '0192a0c0-0000-7000-8000-0000000005c1';
 
 const AWAY_PLACEMENT_ID = '0192a0c0-0000-7000-8000-0000000005c2';
 
+const READING_ENTRY = '0192a0c0-0000-7000-8000-0000000005e2';
+
+const READING_PLACEMENT_ID = '0192a0c0-0000-7000-8000-0000000005c3';
+
 function publishedEntry(): EntryId
 {
     return EntryId::fromString(PUBLISHED_ENTRY);
@@ -253,6 +257,29 @@ it('only puts the placement of a type with stages none live, in one changeset wi
         ->and(publishedEvents(publishedChangeset($unpublished)))->toBe(['placement.visibility_changed '.HOME_PLACEMENT_ID])
         ->and(publishedLocales())->toBe([HOME_PLACEMENT_ID.' hidden true']);
 });
+
+it('rejects a release by an actor whose grants on the home do not hold in every locale, and allows the window alone (security review S-1)', function (string $grants): void {
+    $structure = PlacementWorld::seed();
+    $editor = new PublishingWorld([$structure->north->root]);
+    $translator = $grants === 'da only'
+        ? new PublishingWorld([$structure->north->root], seed: 2, granted: true, locales: ['da'])
+        : new PublishingWorld([$structure->north->root], seed: 2, granted: true, denied: [[$structure->northSection, ['en']]]);
+    publishedArticle($editor, $structure);
+    $reading = EntryId::fromString(READING_ENTRY);
+    $editor->createEntry($reading, EntryWorld::MEASUREMENT, EntryFields::measurement(), $structure->northSection, 'reading');
+    $editor->place(publishedPlacement(READING_PLACEMENT_ID), $reading, $structure->northSection, $structure->north, 'reading', 'reading-home');
+    $before = publishedChangesets();
+
+    $release = $translator->publish(publishedEntry(), 1, 1, publishedPlacement(HOME_PLACEMENT_ID), publishedVersion('placements', 'id', HOME_PLACEMENT_ID), 'publish');
+    $window = $translator->publish($reading, 1, null, publishedPlacement(READING_PLACEMENT_ID), publishedVersion('placements', 'id', READING_PLACEMENT_ID), 'publish-reading');
+
+    expect(array_map(static fn (CatalogError $error): string => $error->code->value, $release->errors))->toBe(['unauthorized'])
+        ->and($release->errors[0]->message)->toContain('in every locale')
+        ->and(StorageTables::texts(StorageTables::superuser(), 'select release_state as value from variant_heads where entry_id = ?::uuid', [PUBLISHED_ENTRY]))->toBe(['unreleased'])
+        ->and($window->outcome())->toBe(Outcome::Committed)
+        ->and(publishedEvents(publishedChangeset($window)))->toBe(['placement.visibility_changed '.READING_PLACEMENT_ID])
+        ->and(publishedChangesets())->toBe($before + 1);
+})->with(['da only', 'deny en']);
 
 it('rejects a publish of a placement that is not the home placement and keeps nothing of it', function (): void {
     $structure = PlacementWorld::seed();

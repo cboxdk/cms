@@ -19,6 +19,7 @@ use Cbox\Cms\Contracts\Identity\AccessContext;
 use Cbox\Cms\Contracts\Identity\ActorClass;
 use Cbox\Cms\Contracts\Identity\ActorPrincipal;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Contracts\Identity\GrantEffect;
 use Cbox\Cms\Contracts\Identity\IssuerKind;
 use Cbox\Cms\Contracts\Identity\NodePath;
 use Cbox\Cms\Contracts\Ids\ActorId;
@@ -26,6 +27,7 @@ use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
+use Cbox\Cms\Contracts\Ids\RoleId;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Pipeline\Command;
@@ -37,6 +39,7 @@ use Cbox\Cms\Contracts\Schema\Stages;
 use Cbox\Cms\Contracts\Schema\TypeCapabilities;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Contracts\Schema\TypeName;
+use Cbox\Cms\Core\Access\Domain\Dto\Grant;
 use Cbox\Cms\Core\Entries\Domain\Dto\StoredHead;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
 use Cbox\Cms\Core\Pipeline\Actions\AwaitWaitLevel;
@@ -57,6 +60,7 @@ use Cbox\Cms\Core\Publishing\Actions\UnpublishEntryAction;
 use Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry;
 use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
 use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
+use Cbox\Cms\Core\Tests\Access\Fakes\FakePermissions;
 use Cbox\Cms\Core\Tests\Entries\EntryActionWorld;
 use Cbox\Cms\Core\Tests\Entries\Fakes\FakeEntryReader;
 use Cbox\Cms\Core\Tests\Entries\NoteType;
@@ -91,7 +95,8 @@ use LogicException;
  *
  * The entry ENTRY is a note homed on HOME at version 2, its shared variant at version 6 on draft
  * revision 4, nothing released, and revision 4 is a valid note. The editor reaches HOME and AWAY,
- * and not FAR. Tests add placements with place(), such as HOME_PLACEMENT below HOME.
+ * and not FAR. Tests add placements with place(), such as HOME_PLACEMENT below HOME. The authorizer
+ * allows every command until a test grants the editor a role with grant().
  */
 final class PublishingActionWorld
 {
@@ -115,6 +120,9 @@ final class PublishingActionWorld
 
     public const string FAR_PLACEMENT = '01936f5e-8a2b-7c3d-9e4f-000000000653';
 
+    /** The id of the role grant() gives the editor. */
+    public const string PUBLISHER = '01936f5e-8a2b-7c3d-9e4f-0000000006e1';
+
     /** The id of the test type with stages none. */
     public const string READING = '01936f5e-8a2b-7c3d-9e4f-0000000006d2';
 
@@ -131,6 +139,9 @@ final class PublishingActionWorld
     public readonly FakeClock $clock;
 
     public FakeChangesetCommitter $committer;
+
+    /** The grants the kernel's rule decides from once a test grants a role; until then every command is allowed. */
+    private ?FakePermissions $permissions = null;
 
     private int $keys = 0;
 
@@ -210,6 +221,33 @@ final class PublishingActionWorld
         return $this;
     }
 
+    /**
+     * Grants the editor the role PUBLISHER, which may run entry.publish and entry.unpublish, on the node, with the effect, in the
+     * locales given or in every locale. From the first grant on, the authorizer decides as the
+     * kernel's CommandAuthorizer does (FakeCommandAuthorizer::granting()).
+     *
+     * @param  list<string>|null  $locales
+     */
+    public function grant(string $node, GrantEffect $effect = GrantEffect::Allow, ?array $locales = null): self
+    {
+        $this->permissions ??= new FakePermissions([
+            self::ROOT => new NodePath(str_replace('-', '', self::ROOT)),
+            self::HOME => $this->path(self::HOME),
+            self::AWAY => $this->path(self::AWAY),
+            self::FAR => $this->path(self::FAR),
+        ]);
+
+        $this->permissions->grant($this->editor, new Grant(
+            RoleId::fromString(self::PUBLISHER),
+            ClassificationAccess::Internal,
+            $this->permissions->path($node),
+            $effect,
+            $locales === null ? null : array_map(static fn (string $locale): Locale => new Locale($locale), $locales),
+        ), [new CommandName('entry.publish'), new CommandName('entry.unpublish')]);
+
+        return $this;
+    }
+
     public function commitWith(CommitOutcome $outcome): self
     {
         $this->committer = new FakeChangesetCommitter($outcome);
@@ -265,7 +303,7 @@ final class PublishingActionWorld
                 UnpublishEntry::class => $this->binding('entry.unpublish', new UnpublishEntryAction($this->entries, $this->placements, $this->clock)),
             ]),
             $this->identity,
-            new FakeCommandAuthorizer,
+            $this->permissions instanceof FakePermissions ? FakeCommandAuthorizer::granting($this->permissions) : new FakeCommandAuthorizer,
             $types,
             new FakeFieldValidation(new FakeTypeValidators(new NoteType)),
             $this->revisions,

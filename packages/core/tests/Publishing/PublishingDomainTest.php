@@ -42,6 +42,7 @@ use Cbox\Cms\Core\Publishing\Domain\Dto\UnpublishEntryAggregates;
 use Cbox\Cms\Core\Publishing\Domain\VisibilityReport;
 use Cbox\Cms\Core\Tests\Entries\EntryActionWorld;
 use Cbox\Cms\Core\Tests\Entries\Fakes\FakeEntryReader;
+use Cbox\Cms\Core\Tests\Entries\NoteType;
 use Cbox\Cms\Core\Tests\Placements\Fakes\FakePlacementReader;
 use Cbox\Cms\Core\Tests\Publishing\PublishingActionWorld as World;
 use Cbox\Cms\Testkit\Clock\FakeClock;
@@ -192,6 +193,38 @@ it('reads the shared variant of an entry without a head as absent, and authorize
         ->and($entryOnly->authorizationScope())->toEqual(AuthorizationScope::on(new AuthorizationTarget(World::node(World::HOME), $da)))
         ->and($placementOnly->authorizationScope())->toEqual(AuthorizationScope::on(new AuthorizationTarget(World::node(World::AWAY), $da)))
         ->and(new PublishEntryAggregates(World::entry(), null, null, World::placement(), null, null, $da, [], World::at(0))->authorizationScope()->isAnywhere())->toBeTrue();
+});
+
+it('authorizes a release on the home in every locale and the window in the command\'s locale (security review S-1)', function (): void {
+    $da = new Locale('da');
+    $head = static fn (?int $released): StoredHead => new StoredHead(new AggregateVersion(6), new RevisionNumber(4), new RevisionNumber(4), $released === null ? null : new RevisionNumber($released));
+    $entry = static fn (?int $released): StoredEntry => new StoredEntry(World::entry(), EntryActionWorld::type(), World::node(World::HOME), new AggregateVersion(3), $head($released));
+    $placement = new StoredPlacement(World::placement(), World::entry(), World::node(World::HOME), new AggregateVersion(2), []);
+    $aggregates = static fn (?int $released, ?int $revision): PublishEntryAggregates => new PublishEntryAggregates(
+        World::entry(),
+        $entry($released),
+        NoteType::definition(),
+        World::placement(),
+        new AggregateVersion(2),
+        $placement,
+        $da,
+        [],
+        World::at(0),
+        $revision === null ? null : new RevisionNumber($revision),
+    );
+    $window = AuthorizationScope::on(new AuthorizationTarget(World::node(World::HOME), $da), new AuthorizationTarget(World::node(World::HOME), $da));
+
+    expect($aggregates(null, 4)->releases())->toBeTrue()
+        ->and($aggregates(null, 4)->authorizationScope())->toEqual(AuthorizationScope::on(
+            new AuthorizationTarget(World::node(World::HOME), $da),
+            new AuthorizationTarget(World::node(World::HOME)),
+            new AuthorizationTarget(World::node(World::HOME), $da),
+        ))
+        ->and($aggregates(3, 4)->releases())->toBeTrue()
+        ->and($aggregates(4, 4)->releases())->toBeFalse()
+        ->and($aggregates(4, 4)->authorizationScope())->toEqual($window)
+        ->and($aggregates(null, null)->releases())->toBeFalse()
+        ->and($aggregates(null, null)->authorizationScope())->toEqual($window);
 });
 
 it('refuses to publish an entry whose type this installation does not have', function (): void {
