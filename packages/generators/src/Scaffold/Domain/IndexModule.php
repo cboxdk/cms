@@ -37,7 +37,7 @@ final readonly class IndexModule
      */
     public static function index(AddonNamespace $namespace, array $entries): GeneratedFile
     {
-        usort($entries, static fn (RegistrationEntry $a, RegistrationEntry $b): int => strcmp($a->id, $b->id));
+        usort($entries, static fn (RegistrationEntry $a, RegistrationEntry $b): int => strcmp($a->id->value, $b->id->value));
         $imports = [];
 
         foreach ($entries as $entry) {
@@ -126,14 +126,15 @@ final readonly class IndexModule
     {
         $opening = strpos($source, self::OPENING);
 
-        if ($opening === false || str_contains($source, ScaffoldNames::quote($entry->id).':')) {
+        if ($opening === false || str_contains($source, ScaffoldNames::quote($entry->id->value).':')) {
             return null;
         }
 
         $start = $opening + strlen(self::OPENING);
         $closed = str_starts_with(substr($source, $start), '});');
-        $head = $closed ? substr($source, 0, $start)."\n" : substr($source, $start, 1) === "\n" ? substr($source, 0, $start + 1) : substr($source, 0, $start)."\n";
-        $tail = $closed ? substr($source, $start) : substr($source, $start + 1);
+        $newline = ! $closed && substr($source, $start, 1) === "\n";
+        $head = substr($source, 0, $start)."\n";
+        $tail = substr($source, $newline ? $start + 1 : $start);
         $source = $head.self::line($entry)."\n".$tail;
 
         if ($entry->import !== null && ! str_contains($source, $entry->import)) {
@@ -174,6 +175,6 @@ final readonly class IndexModule
 
     private static function line(RegistrationEntry $entry): string
     {
-        return '  '.ScaffoldNames::quote($entry->id).': '.$entry->expression.',';
+        return '  '.ScaffoldNames::quote($entry->id->value).': '.$entry->expression.',';
     }
 }

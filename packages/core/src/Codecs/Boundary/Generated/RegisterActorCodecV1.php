@@ -76,6 +76,9 @@ final readonly class RegisterActorCodecV1 implements CommandEncoder, JsonCodec
                     "description": "The name the actor's profile shows, 1 to 200 characters without control characters, that starts and ends with a character that is not white space. Personal data.",
                     "type": "string",
                     "pattern": "^[^\\s\\x00-\\x1F\\x7F]([^\\x00-\\x1F\\x7F]*[^\\s\\x00-\\x1F\\x7F])?$",
+                    "examples": [
+                        "Editor"
+                    ],
                     "minLength": 1,
                     "maxLength": 200
                 },
@@ -83,6 +86,9 @@ final readonly class RegisterActorCodecV1 implements CommandEncoder, JsonCodec
                     "description": "The contact email address of the actor's profile, or of the person responsible for a service: a local part, an @ and a domain with a dot, at most 254 characters, without white space or control characters. It is never the key of an identity. Personal data.",
                     "type": "string",
                     "pattern": "^[^\\s@\\x00-\\x1F\\x7F]+@[^\\s@\\x00-\\x1F\\x7F]+\\.[^\\s@\\x00-\\x1F\\x7F]+$",
+                    "examples": [
+                        "editor@example.com"
+                    ],
                     "minLength": 5,
                     "maxLength": 254
                 },
@@ -103,7 +109,10 @@ final readonly class RegisterActorCodecV1 implements CommandEncoder, JsonCodec
                 "id": {
                     "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
                     "type": "string",
-                    "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+                    "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+                    "examples": [
+                        "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"
+                    ]
                 }
             }
         }

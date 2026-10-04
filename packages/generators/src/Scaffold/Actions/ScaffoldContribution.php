@@ -180,7 +180,7 @@ final readonly class ScaffoldContribution
             $updated = IndexModule::withEntry($index, $entry);
 
             if ($updated === null) {
-                $notes[] = sprintf('Add the contribution to the registration in %s by hand: %s: %s.', IndexModule::INDEX, $entry->id, $entry->expression);
+                $notes[] = sprintf('Add the contribution to the registration in %s by hand: %s: %s.', IndexModule::INDEX, $entry->id->value, $entry->expression);
             } elseif ($updated !== $index) {
                 $updates[] = new GeneratedFile(IndexModule::INDEX, $updated);
             }
@@ -190,13 +190,13 @@ final readonly class ScaffoldContribution
         $known = $ids === null ? [] : IndexModule::idsOf($ids);
 
         if ($known === null) {
-            $notes[] = sprintf('Add %s to the ids in %s by hand.', $entry->id, IndexModule::IDS);
+            $notes[] = sprintf('Add %s to the ids in %s by hand.', $entry->id->value, IndexModule::IDS);
 
             return;
         }
 
-        if (! in_array($entry->id, $known, true)) {
-            $updates[] = IndexModule::ids($request->namespace, [...$known, $entry->id]);
+        if (! in_array($entry->id->value, $known, true)) {
+            $updates[] = IndexModule::ids($request->namespace, [...$known, $entry->id->value]);
         }
     }
 }

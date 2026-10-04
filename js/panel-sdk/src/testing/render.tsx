@@ -267,9 +267,22 @@ export function patched(document: object, path: string, value: JsonValue): objec
   return copy;
 }
 
-/** The host given, or one built from the options. */
-function hostOf(host: FakeHost | FakeHostOptions | undefined): FakeHost {
-  return host !== undefined && 'record' in host ? host : createFakeHost(host);
+/**
+ * The host given, or one built from the options for the contribution: its namespace is the id's
+ * unless the options name one, and it sends the id as the provenance of every command.
+ */
+function hostOf(host: FakeHost | FakeHostOptions | undefined, id: string): FakeHost {
+  if (host !== undefined && 'record' in host) {
+    return host;
+  }
+
+  const separator = id.indexOf('.');
+
+  return createFakeHost({
+    ...(separator > 0 ? { namespace: id.slice(0, separator) } : {}),
+    contribution: id,
+    ...host,
+  });
 }
 
 /** The implementation the registration holds for the id, which definePanelAddon() checked is a function. */
@@ -425,7 +438,7 @@ async function rendered(id: string, host: FakeHost, render: () => ReactNode): Pr
 export async function renderSlot<C extends ContributionMap<C>, D = never>(
   options: RenderSlotOptions<C, D>,
 ): Promise<RenderedSlot> {
-  const host = hostOf(options.host);
+  const host = hostOf(options.host, options.id);
   const props = frozenCopy(options.props ?? {});
   const region = options.region ?? 'sections';
   const slotProps =
@@ -544,7 +557,7 @@ function toolbarItem(id: string, item: unknown): ToolbarItemDescriptor | null {
 export async function renderPage<C extends ContributionMap<C>, D = never>(
   options: RenderPageOptions<C, D>,
 ): Promise<Rendered> {
-  const host = hostOf(options.host);
+  const host = hostOf(options.host, options.id);
   const Page = componentOf(
     options.id,
     await moduleOf(options.addon, options.id),
@@ -563,7 +576,7 @@ export async function renderPage<C extends ContributionMap<C>, D = never>(
 export async function renderReplacement<C extends ContributionMap<C>>(
   options: RenderReplacementOptions<C>,
 ): Promise<Rendered> {
-  const host = hostOf(options.host);
+  const host = hostOf(options.host, options.id);
   const Replacement = componentOf(
     options.id,
     await moduleOf(options.addon, options.id),
@@ -582,7 +595,7 @@ export async function renderReplacement<C extends ContributionMap<C>>(
 export async function renderProvider<C extends ContributionMap<C>>(
   options: RenderProviderOptions<C>,
 ): Promise<Rendered> {
-  const host = hostOf(options.host);
+  const host = hostOf(options.host, options.id);
   const Provider = componentOf<{ readonly props: object; readonly children: ReactNode }>(
     options.id,
     await moduleOf(options.addon, options.id),
@@ -625,7 +638,7 @@ const TONE_RANK: Readonly<Record<TightenedProps['tone'], number>> = {
 export async function renderDecorator<C extends ContributionMap<C>>(
   options: RenderDecoratorOptions<C>,
 ): Promise<RenderedDecorator> {
-  const host = hostOf(options.host);
+  const host = hostOf(options.host, options.id);
   const decorator = implementationOf(options.addon, options.id);
 
   if (typeof decorator !== 'function') {
@@ -729,7 +742,7 @@ export async function renderDecorator<C extends ContributionMap<C>>(
 export async function renderStep<C extends ContributionMap<C>>(
   options: RenderStepOptions<C>,
 ): Promise<RenderedStep> {
-  const host = hostOf(options.host);
+  const host = hostOf(options.host, options.id);
   const Step = componentOf(
     options.id,
     await moduleOf(options.addon, options.id),

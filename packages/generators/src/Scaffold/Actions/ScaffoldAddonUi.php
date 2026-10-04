@@ -90,7 +90,7 @@ final readonly class ScaffoldAddonUi
 
         $files[] = IndexModule::index($request->namespace, $entries);
         $files[] = IndexModule::indexTest($request->namespace);
-        $notes[] = sprintf('Install the dependencies with npm install, then run npm run typecheck, npm run lint and npm run test; npm run build writes dist/panel, which the manifest names as the bundle.');
+        $notes[] = 'Install the dependencies with npm install, then run npm run typecheck, npm run lint and npm run test; npm run build writes dist/panel, which the manifest names as the bundle.';
 
         return $this->output->write($addon->root, new ScaffoldResult(
             $this->sorted($files),

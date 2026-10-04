@@ -103,6 +103,8 @@ export type ErrorCode =
   | 'generate_name_collision'
   | 'generate_output_unwritable'
   | 'generate_panel_addon_unknown'
+  | 'generate_panel_contribution_mismatch'
+  | 'generate_panel_point_unknown'
   | 'generate_registry_unreadable'
   | 'generate_required_field_added'
   | 'generate_scale_above_precision'
@@ -418,6 +420,8 @@ const catalogErrorV1Rule: ObjectRule = {
           'generate_name_collision',
           'generate_output_unwritable',
           'generate_panel_addon_unknown',
+          'generate_panel_contribution_mismatch',
+          'generate_panel_point_unknown',
           'generate_registry_unreadable',
           'generate_required_field_added',
           'generate_scale_above_precision',
@@ -697,6 +701,8 @@ const problemV1Rule: ObjectRule = {
           'generate_name_collision',
           'generate_output_unwritable',
           'generate_panel_addon_unknown',
+          'generate_panel_contribution_mismatch',
+          'generate_panel_point_unknown',
           'generate_registry_unreadable',
           'generate_required_field_added',
           'generate_scale_above_precision',

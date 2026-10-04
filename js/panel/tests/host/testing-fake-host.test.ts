@@ -81,6 +81,7 @@ const SUBJECTS: Readonly<Record<string, () => Subject>> = {
   'the fake host': () => {
     const host: FakeHost = createFakeHost({
       namespace: 'alpha',
+      contribution: 'alpha.card',
       texts: TEXTS,
       issues: ['alpha.request@1'],
       pages: { home: '/cms' },
@@ -153,11 +154,17 @@ describe.each(Object.entries(SUBJECTS))('%s', (_name, subject) => {
     ).rejects.toThrow('No command runs in this test.');
 
     expect(observed().commands).toEqual([
-      { command: 'alpha.request@1', document: { note: 'n' }, options: {} },
+      {
+        command: 'alpha.request@1',
+        document: { note: 'n' },
+        options: {},
+        provenance: 'addon:alpha:alpha.card',
+      },
       {
         command: 'alpha.request@1',
         document: { note: 'n' },
         options: { dryRun: true, waitLevel: 'origin' },
+        provenance: 'addon:alpha:alpha.card',
       },
     ]);
     expect(observed().refusals).toEqual(['panel_command_refused']);

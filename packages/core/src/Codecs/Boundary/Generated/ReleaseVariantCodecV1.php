@@ -75,7 +75,10 @@ final readonly class ReleaseVariantCodecV1 implements CommandEncoder, JsonCodec
                 "id": {
                     "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
                     "type": "string",
-                    "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+                    "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+                    "examples": [
+                        "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"
+                    ]
                 },
                 "revision": {
                     "description": "The number of a revision of a variant, an integer of 1 or more.",

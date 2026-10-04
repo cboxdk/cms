@@ -15,6 +15,7 @@ use Cbox\Cms\Generators\Scaffold\Domain\Dto\ScaffoldReport;
 use Cbox\Cms\Generators\Scaffold\Domain\Dto\ScaffoldResult;
 use Cbox\Cms\Generators\Scaffold\Domain\ScaffoldOutput;
 use Cbox\Cms\Generators\Schema\Boundary\LocalFile;
+use Closure;
 use Override;
 
 /**
@@ -108,7 +109,10 @@ final readonly class FilesystemScaffoldOutput implements ScaffoldOutput
         }
     }
 
-    private function attempt(callable $operation, string $fallback): ?string
+    /**
+     * @param  Closure(): bool  $operation
+     */
+    private function attempt(Closure $operation, string $fallback): ?string
     {
         $warning = null;
         set_error_handler(static function (int $level, string $message) use (&$warning): bool {

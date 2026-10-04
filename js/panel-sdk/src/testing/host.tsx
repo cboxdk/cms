@@ -77,6 +77,11 @@ export interface RecordedCommand {
   readonly command: string;
   readonly document: object;
   readonly options: CommandOptions;
+  /**
+   * The provenance the host sends with the call, `addon:<namespace>:<contribution>`, as the
+   * panel's host sends it; undefined for the core's own contributions.
+   */
+  readonly provenance?: string | undefined;
 }
 
 /**
@@ -136,6 +141,12 @@ export interface HostRecord {
 export interface FakeHostOptions {
   /** The addon whose contribution the host serves; its texts are those of its catalogue. */
   readonly namespace?: string;
+  /**
+   * The id of the contribution the host serves, `<namespace>.<local>`, which the host sends as
+   * the provenance of every command; `<namespace>.contribution` unless given. The renderers give
+   * the id they render.
+   */
+  readonly contribution?: string;
   /** The panel's locale; `en` unless given. */
   readonly locale?: string;
   /** The addon's catalogue in the locale, by key. A key it lacks shows as the key. */
@@ -184,8 +195,9 @@ export function fillText(text: string, parameters: TranslationParameters = {}): 
  * Builds a fake host of an addon's contribution, which does what the panel's host does: texts of
  * the addon's own catalogue only, a key outside its namespace or missing from the catalogue
  * showing as the key; formatting in the locale through Intl; notices and dialogs with their texts
- * in the locale; navigation only to the pages given, and only the commands given, each recorded;
- * a command the addon may not issue is refused with PanelCommandRefused, as the panel refuses it.
+ * in the locale; navigation only to the pages given, and only the commands given, each recorded
+ * with the provenance `addon:<namespace>:<contribution>`; a command the addon may not issue is
+ * refused with PanelCommandRefused, as the panel refuses it.
  *
  * @stable
  */
@@ -193,6 +205,7 @@ export function createFakeHost<I extends IssuedCommands<I> = AnyIssuedCommands>(
   options: FakeHostOptions = {},
 ): FakeHost<I> {
   const namespace = options.namespace ?? 'addon';
+  const contribution = options.contribution ?? `${namespace}.contribution`;
   const locale = options.locale ?? 'en';
   const texts = options.texts ?? {};
   const issues = options.issues ?? [];
@@ -242,7 +255,14 @@ export function createFakeHost<I extends IssuedCommands<I> = AnyIssuedCommands>(
         return Promise.reject(new PanelCommandRefused(namespace, command));
       }
 
-      const recorded: RecordedCommand = { command, document, options: commandOptions };
+      const recorded: RecordedCommand = {
+        command,
+        document,
+        options: commandOptions,
+        ...(namespace === CORE_NAMESPACE
+          ? {}
+          : { provenance: `addon:${namespace}:${contribution}` }),
+      };
       commands.push(recorded);
 
       return Promise.resolve(answer(recorded));

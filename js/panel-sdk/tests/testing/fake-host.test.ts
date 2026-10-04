@@ -100,8 +100,18 @@ describe('createFakeHost()', () => {
     ]);
     expect(dry.receipt.outcome).toBe('dry_run');
     expect(host.record.commands).toEqual([
-      { command: 'alpha.request@1', document: { note: 'n' }, options: {} },
-      { command: 'alpha.request@1', document: { note: 'n' }, options: { dryRun: true } },
+      {
+        command: 'alpha.request@1',
+        document: { note: 'n' },
+        options: {},
+        provenance: 'addon:alpha:alpha.contribution',
+      },
+      {
+        command: 'alpha.request@1',
+        document: { note: 'n' },
+        options: { dryRun: true },
+        provenance: 'addon:alpha:alpha.contribution',
+      },
     ]);
     expect(host.record.refusals).toEqual([
       { code: 'panel_command_refused', subject: 'grant.assign@1' },
@@ -109,6 +119,9 @@ describe('createFakeHost()', () => {
 
     const core = createFakeHost({ namespace: 'cms' });
     await expect(core.runCommand('grant.assign@1', {})).resolves.toEqual(committedReceipt());
+    expect(core.record.commands).toEqual([
+      { command: 'grant.assign@1', document: {}, options: {} },
+    ]);
   });
 });
 

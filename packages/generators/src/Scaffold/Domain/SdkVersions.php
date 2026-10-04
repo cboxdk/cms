@@ -8,7 +8,8 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 
 /**
  * The npm packages and versions the package.json of an addon's panel UI names: the SDK and what it
- * needs beside it, at the versions this release of cboxdk/cms is built and tested with. A test
+ * needs beside it, its peers for the test helpers, the build and the lint among them, at the
+ * versions this release of cboxdk/cms is built and tested with. A test
  * holds them to the repository's own package manifests, so they never drift from the SDK.
  */
 #[Internal]
@@ -28,8 +29,9 @@ final readonly class SdkVersions
         '@types/node' => '22.20.4',
         '@types/react' => '19.3.0',
         '@types/react-dom' => '19.3.0',
+        'axe-core' => '4.13.0',
         'eslint' => '10.11.0',
-        'jsdom' => '29.1.1',
+        'jsdom' => '30.1.1',
         'prettier' => '3.9.9',
         'react' => '19.3.0',
         'react-dom' => '19.3.0',

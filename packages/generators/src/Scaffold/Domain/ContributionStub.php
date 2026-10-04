@@ -54,10 +54,10 @@ final readonly class ContributionStub
         $module = ScaffoldNames::module($id);
 
         return match ($contribution->kind) {
-            ScaffoldKind::Fill => new RegistrationEntry($id->value, sprintf("() => import('./%s')", $module)),
-            ScaffoldKind::Step => new RegistrationEntry($id->value, sprintf("() => import('./%sStep')", $module)),
+            ScaffoldKind::Fill => new RegistrationEntry($id, sprintf("() => import('./%s')", $module)),
+            ScaffoldKind::Step => new RegistrationEntry($id, sprintf("() => import('./%sStep')", $module)),
             ScaffoldKind::Check => new RegistrationEntry(
-                $id->value,
+                $id,
                 ScaffoldNames::variable($id).'Check',
                 sprintf("import { %sCheck } from './%sCheck';", ScaffoldNames::variable($id), $module),
             ),
@@ -98,11 +98,12 @@ final readonly class ContributionStub
         $module = ScaffoldNames::module($contribution->id);
         $props = $contribution->point->props;
         $result = $contribution->query instanceof CommandRef ? ScaffoldNames::result($contribution->query) : null;
+        $data = $contribution->query instanceof CommandRef ? ' and the result of its data query '.$contribution->query->toString() : '';
         $generated = $result === null ? ['Issues'] : ['Issues', $result];
         sort($generated, SORT_STRING);
 
         $lines = [
-            sprintf('// The contribution %s: a section on %s, rendered with the point\'s props%s.', $id, $contribution->point->id->toString(), $result === null ? '' : ' and the result of its data query '.$contribution->query?->toString()),
+            sprintf('// The contribution %s: a section on %s, rendered with the point\'s props%s.', $id, $contribution->point->id->toString(), $data),
             '',
             ...self::imports($contribution->point, ['usePanelHost'], ['SlotProps'], $generated),
             '',
@@ -112,7 +113,7 @@ final readonly class ContributionStub
             '',
             ...($result === null ? [] : [
                 "  if (input.data.status !== 'ready') {",
-                sprintf("    return <p>{panel.t(`%s.${input.data.status}`)}</p>;", $id),
+                sprintf('    return <p>{panel.t(`%s.${input.data.status}`)}</p>;', $id),
                 '  }',
                 '',
             ]),

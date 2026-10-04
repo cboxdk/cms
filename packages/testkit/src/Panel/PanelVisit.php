@@ -11,6 +11,7 @@ use Cbox\Cms\Contracts\Identity\PasswordHash;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Illuminate\Container\Container;
 use JsonException;
+use Pest\Browser\Api\AwaitableWebpage;
 use Pest\Browser\Api\Webpage;
 use PHPUnit\Framework\Assert;
 use SensitiveParameter;
@@ -41,8 +42,11 @@ final readonly class PanelVisit
             .map((element) => element.getAttribute('data-cms-contribution'))
         JS;
 
+    /**
+     * @param  AwaitableWebpage|Webpage  $page  the page the visit landed on, for every assertion the browser plugin has; the plugin gives a page that retries its assertions until its timeout
+     */
     private function __construct(
-        public Webpage $page,
+        public AwaitableWebpage|Webpage $page,
         public string $prefix,
     ) {}
 

@@ -4,6 +4,7 @@
 // the panel would hand it.
 
 import type { CommandAnswer } from '../host';
+import type { DryRunSummaryV1 } from '../generated/protocol/DryRunSummaryV1';
 import type { CatalogErrorV1, ErrorCode, ProblemV1 } from '../generated/protocol/ProblemV1';
 import type { ReceiptV1 } from '../generated/protocol/ReceiptV1';
 
@@ -28,15 +29,20 @@ export function committedReceipt(overrides: Partial<ReceiptV1> = {}): CommandAns
       ...overrides,
     },
     problem: null,
+    dryRun: null,
   };
 }
 
 /**
- * A receipt of a dry run: the plan was computed and nothing committed.
+ * The answer of a dry run: a receipt with the outcome dry_run, nothing committed, and the
+ * summary of what the command would have changed, an empty plan unless a test gives one.
  *
  * @stable
  */
-export function dryRunReceipt(overrides: Partial<ReceiptV1> = {}): CommandAnswer {
+export function dryRunReceipt(
+  overrides: Partial<ReceiptV1> = {},
+  summary: Partial<DryRunSummaryV1> = {},
+): CommandAnswer {
   return {
     receipt: {
       changeset_id: null,
@@ -49,6 +55,12 @@ export function dryRunReceipt(overrides: Partial<ReceiptV1> = {}): CommandAnswer
       ...overrides,
     },
     problem: null,
+    dryRun: {
+      becomes_visible: [],
+      blast_radius: { aggregates: [], mutations: 0 },
+      changes: [],
+      ...summary,
+    },
   };
 }
 
@@ -104,6 +116,7 @@ export function rejectedProblem(
       wait_level: 'commit',
     },
     problem,
+    dryRun: null,
   };
 }
 

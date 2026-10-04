@@ -38,6 +38,7 @@ final readonly class SharedContractSuites
         'packages/testkit/src/Ids/IdGeneratorContract.php',
         'packages/testkit/src/Login/IssuerResolverContract.php',
         'packages/testkit/src/Login/LoginConnectionContract.php',
+        'packages/testkit/src/Panel/PanelContributionsContract.php',
         'packages/testkit/src/Provisioning/ScimProvisioningContract.php',
         'packages/testkit/src/ReceiptStore/ReceiptStoreContract.php',
         'packages/testkit/src/Schema/TypeCatalogContract.php',

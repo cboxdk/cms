@@ -118,7 +118,9 @@ final readonly class ContributionsModule
         $points = [];
 
         foreach ($addon->contributions as $contribution) {
-            $points[$contribution->point->name] = true;
+            if (self::usesProps($contribution->kind)) {
+                $points[$contribution->point->name] = true;
+            }
         }
 
         $declared = [...$declared, ...array_keys($points)];
@@ -126,7 +128,9 @@ final readonly class ContributionsModule
         foreach ($addon->contributions as $contribution) {
             $props = $contribution->point->name;
 
-            if ($contribution->point->stable) {
+            if (! self::usesProps($contribution->kind)) {
+                // A form check and a flow step are typed on the command's document, not the point's props.
+            } elseif ($contribution->point->stable) {
                 $extend[$props] = true;
             } else {
                 $experimental[$props] = true;
@@ -193,6 +197,19 @@ final readonly class ContributionsModule
         ];
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * Whether the member of a contribution of the kind is typed on the point's props, so the
+     * module imports them: a page is typed on its data alone, and a form check and a flow step on
+     * the command's document, so their props type would be an unused import, which tsc refuses.
+     */
+    private static function usesProps(PointKind $kind): bool
+    {
+        return match ($kind) {
+            PointKind::Slot, PointKind::Decorator, PointKind::Replacement, PointKind::Observer, PointKind::Provider => true,
+            default => false,
+        };
     }
 
     /**
