@@ -71,6 +71,11 @@ final readonly class Screenshots
                 'The start page of a branded panel: the shell\'s header with the installation\'s logo and name.',
                 'tests/Browser/Panel/BrandingTest.php',
             ),
+            new BrowserScreenshot(
+                'account-me',
+                'The who-am-I page: the shell\'s navigation with its entry marked as the current page, and the person\'s profile, actor and the grants they hold, read with actor.me.',
+                'tests/Browser/Panel/ShellTest.php',
+            ),
         ];
     }
 

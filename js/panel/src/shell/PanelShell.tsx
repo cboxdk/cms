@@ -1,11 +1,13 @@
 // The shell every page behind the login renders around its content (PRD 13.4, section 8 of the
-// panel extension architecture): the header with the installation's brand and the actions of the
-// viewer's menu, which addons contribute to shell.user-menu@1, and the navigation of the addons'
-// pages, the nav entries of shell.nav@1 that the server left for the viewer, each opening a page
-// below /x/<namespace>/. The entries are the pages of the command palette too. Each page keeps its
+// panel extension architecture): the kit's AppShell, with the installation's brand and the actions
+// of the viewer's menu, which addons contribute to shell.user-menu@1, in the top bar, the
+// navigation beside the content, the nav entries of shell.nav@1 that the server left for the
+// viewer, each opening one of the panel's own pages, such as the who-am-I page the core contributes
+// the entry of, or a page of an addon below /x/<namespace>/, and the page in the main landmark the
+// skip link leads to. The entries are the pages of the command palette too. Each page keeps its
 // sign-out in its own content.
 
-import { Brand, ShellHeader, SideNav } from '@cboxdk/cms-ui-kit';
+import { AppShell, Brand, SideNav } from '@cboxdk/cms-ui-kit';
 import type { ReactNode } from 'react';
 
 import { useBrand } from '../brand';
@@ -14,39 +16,41 @@ import { useTranslation } from '../i18n/translations';
 
 /** The props of PanelShell. */
 export interface PanelShellProps {
-  /** The id of the page shown, which its nav entry is marked as; undefined for the panel's own pages. */
+  /** The id of the page shown, which its nav entry is marked as; undefined for a page without an entry. */
   readonly page?: string | undefined;
   readonly children: ReactNode;
 }
 
-/** The shell around a page behind the login: the brand, the viewer's menu and the navigation. */
+/** The shell around a page behind the login: the brand, the viewer's menu, the navigation and the main landmark. */
 export function PanelShell({ page, children }: PanelShellProps) {
   const { t } = useTranslation();
   const brand = useBrand();
   const { nav } = usePointHost('shell.nav@1');
 
   return (
-    <>
-      <ShellHeader brand={<Brand name={brand.name} logo={brand.logo} />}>
-        <PointHost point="shell.user-menu@1" label={t('panel.shell.user_menu')} />
-      </ShellHeader>
-      {nav.length === 0 ? null : (
-        <SideNav
-          label={t('panel.shell.nav')}
-          groups={[
-            {
-              id: 'addons',
-              items: nav.map((entry) => ({
-                id: entry.id,
-                label: entry.label,
-                href: entry.url,
-                current: entry.page === page,
-              })),
-            },
-          ]}
-        />
-      )}
+    <AppShell
+      brand={<Brand name={brand.name} logo={brand.logo} />}
+      actions={<PointHost point="shell.user-menu@1" label={t('panel.shell.user_menu')} />}
+      navigation={
+        nav.length === 0 ? null : (
+          <SideNav
+            label={t('panel.shell.nav')}
+            groups={[
+              {
+                id: 'pages',
+                items: nav.map((entry) => ({
+                  id: entry.id,
+                  label: entry.label,
+                  href: entry.url,
+                  current: entry.page === page,
+                })),
+              },
+            ]}
+          />
+        )
+      }
+    >
       {children}
-    </>
+    </AppShell>
   );
 }

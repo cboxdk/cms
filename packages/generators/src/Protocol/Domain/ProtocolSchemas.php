@@ -33,6 +33,7 @@ use Cbox\Cms\Contracts\Errors\Problem;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Idempotency\IdempotencyKey;
 use Cbox\Cms\Contracts\Identity\ActorClass;
+use Cbox\Cms\Contracts\Identity\ActorProfile;
 use Cbox\Cms\Contracts\Identity\ActorState;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\DeactivationSource;
@@ -85,9 +86,12 @@ use Cbox\Cms\Core\Identity\Domain\Commands\ActivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\RegisterActor;
 use Cbox\Cms\Core\Identity\Domain\Dto\ActorList;
+use Cbox\Cms\Core\Identity\Domain\Dto\ActorMe;
 use Cbox\Cms\Core\Identity\Domain\Dto\ListedActor;
 use Cbox\Cms\Core\Identity\Domain\Dto\ListedProfile;
+use Cbox\Cms\Core\Identity\Domain\Dto\OwnGrant;
 use Cbox\Cms\Core\Identity\Domain\Queries\ListActors;
+use Cbox\Cms\Core\Identity\Domain\Queries\WhoAmI;
 use Cbox\Cms\Core\Maintenance\Domain\Commands\GrantBootstrapRole;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCodec;
 use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
@@ -394,7 +398,8 @@ final readonly class ProtocolSchemas
 
     /**
      * The bindings of the schemas of the kernel's queries, each at its version, sorted by file: the
-     * query's document, then its result. path.resolve is public and answers with the entry the
+     * query's document, then its result. actor.me carries nothing and answers with the principal's
+     * own actor, whose profile is the subject's own and so unclassified. path.resolve is public and answers with the entry the
      * placement places and the explanation of the resolution (PRD 5.9), whose objects are those of
      * path-explanation.v1.json below `#/$defs/path_explanation`.
      *
@@ -423,6 +428,29 @@ final readonly class ProtocolSchemas
                     '#/$defs/listed_actor/properties/state' => ValueBinding::enum(ActorState::class),
                     '#/$defs/listed_actor/properties/version' => $version,
                     ...$profile,
+                ],
+            ),
+            ...self::query(
+                'actor.me',
+                WhoAmI::class,
+                'WhoAmICodecV1',
+                [],
+                'ActorMeCodecV1',
+                ['#' => ActorMe::class, '#/$defs/own_grant' => OwnGrant::class, '#/$defs/profile' => ActorProfile::class],
+                [
+                    '#/properties/actor' => $id(ActorId::class),
+                    '#/properties/class' => ValueBinding::enum(ActorClass::class),
+                    '#/properties/state' => ValueBinding::enum(ActorState::class),
+                    '#/properties/version' => $version,
+                    '#/$defs/own_grant/properties/effect' => ValueBinding::enum(GrantEffect::class),
+                    '#/$defs/own_grant/properties/id' => $id(GrantId::class),
+                    '#/$defs/own_grant/properties/locales/items' => ValueBinding::value(Locale::class),
+                    '#/$defs/own_grant/properties/node' => $id(NodeId::class),
+                    '#/$defs/own_grant/properties/role' => $id(RoleId::class),
+                    '#/$defs/own_grant/properties/role_handle' => ValueBinding::value(RoleHandle::class),
+                    '#/$defs/own_grant/properties/version' => $version,
+                    '#/$defs/profile/properties/display_name' => ValueBinding::value(DisplayName::class),
+                    '#/$defs/profile/properties/email' => ValueBinding::value(EmailAddress::class),
                 ],
             ),
             ...self::query(

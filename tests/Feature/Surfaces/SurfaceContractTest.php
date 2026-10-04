@@ -63,9 +63,10 @@ final class SurfaceContractTest extends TestCase
         'role.set_permissions' => ['rest', 'inertia', 'cli'],
     ];
 
-    /** The kernel's access queries of B1, each on REST and Inertia, by name. */
+    /** The kernel's access queries of B1 and the who-am-I read, each on REST and Inertia, by name. */
     private const array ACCESS_QUERIES = [
         'actor.list' => ['rest', 'inertia'],
+        'actor.me' => ['rest', 'inertia'],
         'grant.list' => ['rest', 'inertia'],
         'node.list' => ['rest', 'inertia'],
         'role.list' => ['rest', 'inertia'],

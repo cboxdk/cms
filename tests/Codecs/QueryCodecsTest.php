@@ -17,6 +17,7 @@ use Cbox\Cms\Core\Access\Domain\Dto\RoleList;
 use Cbox\Cms\Core\Access\Domain\Queries\ListGrants;
 use Cbox\Cms\Core\Access\Domain\Queries\ListRoles;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ActorListCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\ActorMeCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\GrantListCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\KernelQueryCodecs;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ListActorsCodecV1;
@@ -27,10 +28,12 @@ use Cbox\Cms\Core\Codecs\Boundary\Generated\NodeListCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ResolvedPathCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ResolvePathCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\RoleListCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\WhoAmICodecV1;
 use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
 use Cbox\Cms\Core\Identity\Domain\Dto\ActorList;
 use Cbox\Cms\Core\Identity\Domain\Dto\ListedActor;
 use Cbox\Cms\Core\Identity\Domain\Queries\ListActors;
+use Cbox\Cms\Core\Identity\Domain\Queries\WhoAmI;
 use Cbox\Cms\Core\Reads\Domain\Dto\QueryCodec;
 use Cbox\Cms\Core\Routing\Domain\Host;
 use Cbox\Cms\Core\Routing\Domain\Queries\ResolvePath;
@@ -90,6 +93,26 @@ function queryFixtures(): array
                 queryRoundTrip(new ActorListCodecV1, $result, 'actor.list.result.v1.json', 'result '.$index);
                 queryWithheld(new ActorListCodecV1, $result, 'actor.list.result.v1.json', 'result '.$index);
             }
+        },
+        'actor.me v1' => static function (QueryCodec $codec): void {
+            expect($codec->query)->toBeInstanceOf(WhoAmICodecV1::class)
+                ->and($codec->result)->toBeInstanceOf(ActorMeCodecV1::class)
+                ->and(new WhoAmICodecV1()->encode(new WhoAmI, ClassificationAccess::Public))->toBe('{}')
+                ->and(queryRefusedAt(new WhoAmICodecV1, '{"actor":"0192a0c0-0000-7000-8000-000000000321"}'))->toBe('');
+
+            queryRoundTrip(new WhoAmICodecV1, new WhoAmI, 'actor.me.v1.json', 'query');
+
+            foreach ([ListingWorld::ADMIN, ListingWorld::EDITOR, ListingWorld::BOB, ListingWorld::SERVICE] as $actor) {
+                $own = ListingWorld::own($actor);
+                queryRoundTrip(new ActorMeCodecV1, $own, 'actor.me.result.v1.json', 'result of '.$actor);
+
+                // The subject's own profile is written whatever the reader's access (PRD 12.2 does not
+                // withhold a person's own data from them), so a public reader gets the same document.
+                expect(new ActorMeCodecV1()->encode($own, ClassificationAccess::Public))->toBe(new ActorMeCodecV1()->encode($own, ClassificationAccess::Sensitive), 'the own self of '.$actor.' at public access');
+            }
+
+            expect(new ActorMeCodecV1()->encode(ListingWorld::own(ListingWorld::BOB), ClassificationAccess::Public))->toContain('"profile":null')
+                ->and(new ActorMeCodecV1()->encode(ListingWorld::own(ListingWorld::ADMIN), ClassificationAccess::Public))->toContain('"email":"ada@example.com"');
         },
         'grant.list v1' => static function (QueryCodec $codec): void {
             expect($codec->query)->toBeInstanceOf(ListGrantsCodecV1::class)

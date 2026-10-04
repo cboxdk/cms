@@ -23,7 +23,8 @@ use Illuminate\Database\DatabaseManager;
  * build `composer panel:build` writes, this checkout's test database and Valkey: a member of staff
  * with a local account signs in with the email and password and lands on the start page, signs out
  * and is back on the login page with the reason; a wrong password shows the one generic refusal;
- * the whole login works with the keyboard alone; and the page is set in the Cbox typefaces, served
+ * the whole login works with the keyboard alone, the start page's skip link leading to its main
+ * landmark and the sign-out; and the page is set in the Cbox typefaces, served
  * from the panel's own origin. Every page makes the shared assertions: its
  * translated text, an empty console, no script error, no axe finding and no policy violation.
  *
@@ -152,7 +153,17 @@ it('signs in with the keyboard alone and shows where the focus is', function ():
     PanelPage::assertPage($page, ['panel.home.body', 'panel.home.sign_out']);
     $page->assertPathIs('/cms');
 
+    // The shell's first tab stop is the skip link, which moves the focus to the page's main
+    // landmark; the next stop in it is the sign-out.
     $page->keys('app', 'Tab');
+
+    expect($page->script('document.activeElement.className'))->toBe('cms-skip-link');
+
+    $page->keys('.cms-skip-link', 'Enter');
+
+    expect($page->script('document.activeElement.tagName'))->toBe('MAIN');
+
+    $page->keys('.cms-app-shell__main', 'Tab');
 
     expect($page->script('document.activeElement.textContent'))->toBe(PanelPage::text('panel.home.sign_out'));
 

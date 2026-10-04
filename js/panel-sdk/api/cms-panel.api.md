@@ -633,6 +633,11 @@ import { Wizard } from '@cboxdk/cms-ui-kit';
 import { WizardProps } from '@cboxdk/cms-ui-kit';
 import { WizardStep } from '@cboxdk/cms-ui-kit';
 
+// @experimental
+export interface AccountMeSectionsV1 {
+    actor: string;
+}
+
 export { ActionBar }
 
 export { ActionBarAction }

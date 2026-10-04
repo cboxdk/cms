@@ -18,6 +18,7 @@ use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Protocol\Domain\Dto\SchemaBinding;
 use Cbox\Cms\Generators\Protocol\Domain\Dto\ValueBinding;
+use Cbox\Cms\Panel\Account\Domain\Dto\AccountMeSectionsV1;
 use Cbox\Cms\Panel\Shell\Domain\Dto\ShellNavV1;
 use Cbox\Cms\Panel\Shell\Domain\Dto\ShellPageV1;
 use Cbox\Cms\Panel\Shell\Domain\Dto\ViewerSummaryV1;
@@ -41,7 +42,8 @@ use Cbox\Cms\Tooling\Protocol\Domain\Dto\PointSchema;
  * The bindings live in the repository's tooling, not in the generators module, because the
  * generators may not use the panel. The panel's points come with the pages that render them (X5's
  * RenderedPanelPointsTest holds every declared point to a page), and each brings its binding here:
- * the shell's three, which every page behind the login renders.
+ * the shell's three, which every page behind the login renders, and the sections of the who-am-I
+ * page.
  */
 final readonly class PanelPointSchemas
 {
@@ -100,6 +102,9 @@ final readonly class PanelPointSchemas
     public static function all(): array
     {
         return [
+            self::point('account.me.sections.v1.json', 'AccountMeSectionsCodecV1', 1, ['#' => AccountMeSectionsV1::class], [
+                '#/properties/actor' => ValueBinding::id(ActorId::class),
+            ]),
             self::point('shell.nav.v1.json', 'ShellNavCodecV1', 1, ['#' => ShellNavV1::class]),
             self::point('shell.page.v1.json', 'ShellPageCodecV1', 1, ['#' => ShellPageV1::class]),
             self::point('shell.user-menu.v1.json', 'ViewerSummaryCodecV1', 1, ['#' => ViewerSummaryV1::class], [

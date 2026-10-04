@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "actor.me, contract version 1",
+  "description": "Who am I (PRD 5.16, 13.4): the principal's own actor with its class, state and version, its profile and the grants it holds. The document carries nothing: the actor is never a field of a query, so the pipeline takes it from the credential alone, and every actor may run it without a permission while the anonymous principal may not. The PHP form is Cbox\\Cms\\Core\\Identity\\Domain\\Queries\\WhoAmI, and the generated codec reads it and writes its canonical JSON: an object without members. Its result is actor.me.result.v1.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [],
+  "properties": {}
+}

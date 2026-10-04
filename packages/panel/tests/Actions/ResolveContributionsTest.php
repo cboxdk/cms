@@ -8,6 +8,7 @@ use Cbox\Cms\Contracts\Addons\AddonNamespace;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\PanelPoints\ContributionId;
+use Cbox\Cms\Contracts\PanelPoints\NavContribution;
 use Cbox\Cms\Contracts\PanelPoints\PageName;
 use Cbox\Cms\Contracts\PanelPoints\PointId;
 use Cbox\Cms\Contracts\PanelPoints\PointName;
@@ -20,6 +21,7 @@ use Cbox\Cms\Core\Registry\Domain\PointDowncastRefused;
 use Cbox\Cms\Core\Tests\Registry\Fakes\FakeRegistryCache;
 use Cbox\Cms\Panel\Contributions\Actions\ResolveContributions;
 use Cbox\Cms\Panel\Contributions\Domain\ContributionTelemetry;
+use Cbox\Cms\Panel\Contributions\Domain\CoreContributions;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\ActiveContributions;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\AddonRegistration;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\PanelView;
@@ -28,6 +30,7 @@ use Cbox\Cms\Panel\Contributions\Domain\Dto\ViewSubject;
 use Cbox\Cms\Panel\Contributions\Domain\Registrations;
 use Cbox\Cms\Panel\Contributions\Domain\Withheld;
 use Cbox\Cms\Panel\Shell\Domain\Dto\ViewerSummaryV1;
+use Cbox\Cms\Panel\Shell\Domain\OwnPage;
 use Cbox\Cms\Panel\Tests\Contributions\ContributionWorld;
 use Cbox\Cms\Panel\Tests\Contributions\Fixtures\Desk\DeskAsideV1;
 use Cbox\Cms\Panel\Tests\Contributions\Fixtures\Desk\DeskCardsV1;
@@ -117,6 +120,17 @@ it('hides an action whose command the viewer may not run, a page whose permissio
         ->and($active->page(new ContributionId(ContributionWorld::BOARD)))->toBeNull()
         ->and($active->pages())->toBe([])
         ->and(array_map(static fn (CommandName $name): string => $name->value, $world->permissions->asked[0][1]))->toBe([ContributionWorld::AUDIT_PERMISSION, ContributionWorld::BOARD_PERMISSION, ContributionWorld::ADD_PERMISSION]);
+});
+
+it('keeps the core s nav entry to one of the panel s own pages for a viewer who holds no permission at all', function (): void {
+    $world = new ResolveWorld(ContributionWorld::registry(core: CoreContributions::all()));
+    $active = $world->resolveShell(ResolveWorld::VIEWER);
+    $nav = $active->points[1]->fills[0] ?? null;
+
+    expect(ResolveWorld::listed($active))->toBe(['desk.cards@1' => [ContributionWorld::COUNT, ContributionWorld::HEAVY], 'shell.nav@1' => [CoreContributions::ACCOUNT_ME_NAV]])
+        ->and($nav?->fill->declaration)->toBeInstanceOf(NavContribution::class)
+        ->and($nav?->fill->declaration instanceof NavContribution ? $nav->fill->declaration->page : null)->toBe(OwnPage::AccountMe->value)
+        ->and($nav?->access)->toBe(ClassificationAccess::Confidential);
 });
 
 it('hides the nav entry to a page the activation state disables, although the viewer holds the page s permission', function (): void {

@@ -26,6 +26,7 @@ final readonly class PanelPointCodecs
     public static function all(): array
     {
         return [
+            new PointCodec(new PointId(new PointName('account.me.sections'), 1), new AccountMeSectionsCodecV1),
             new PointCodec(new PointId(new PointName('shell.nav'), 1), new ShellNavCodecV1),
             new PointCodec(new PointId(new PointName('shell.page'), 1), new ShellPageCodecV1),
             new PointCodec(new PointId(new PointName('shell.user-menu'), 1), new ViewerSummaryCodecV1),

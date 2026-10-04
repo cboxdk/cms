@@ -12,6 +12,8 @@ use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\RoleId;
 use Cbox\Cms\Core\Access\Domain\Dto\Grant;
 use Cbox\Cms\Core\Access\Domain\HeldPermissions;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\KernelQueryCodecs;
+use Cbox\Cms\Core\Reads\Actions\QueryPipeline;
 use Cbox\Cms\Core\Reads\Domain\QueryCodecs;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
@@ -20,6 +22,7 @@ use Cbox\Cms\Core\Tests\Access\Fakes\FakeHeldPermissions;
 use Cbox\Cms\Core\Tests\Access\Fakes\FakePermissions;
 use Cbox\Cms\Identity\Tests\Login\LocalLoginWorld;
 use Cbox\Cms\Identity\Tests\PasswordReset\PasswordResetWorld;
+use Cbox\Cms\Panel\Boundary\Generated\AccountMePageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\AddonPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\ForgotPasswordPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\HomePageCodecV1;
@@ -34,6 +37,7 @@ use Cbox\Cms\Panel\Branding\Boundary\BrandingConfig;
 use Cbox\Cms\Panel\Branding\Domain\Dto\Branding;
 use Cbox\Cms\Panel\Contributions\Boundary\ContributionProps;
 use Cbox\Cms\Panel\Contributions\Domain\PointCodecs;
+use Cbox\Cms\Panel\Tests\Account\AccountMeWorld;
 use Cbox\Cms\Panel\Tests\Branding\BrandFixtures;
 use Cbox\Cms\Panel\Tests\Contributions\ContributionWorld;
 use Cbox\Cms\Panel\Tests\Contributions\Fixtures\Tally\TallyCodecs;
@@ -81,9 +85,12 @@ final class PanelPageValidatorsTest extends TestCase
         PanelPages::HOME => ['module' => 'pages/HomePageV1', 'validator' => 'validateHomePageV1'],
         PanelPages::NOT_FOUND => ['module' => 'pages/NotFoundPageV1', 'validator' => 'validateNotFoundPageV1'],
         PanelPages::ADDON => ['module' => 'pages/AddonPageV1', 'validator' => 'validateAddonPageV1'],
+        PanelPages::ACCOUNT_ME => ['module' => 'pages/AccountMePageV1', 'validator' => 'validateAccountMePageV1'],
     ];
 
     private ?PasswordResetWorld $resets = null;
+
+    private ?AccountMeWorld $account = null;
 
     #[Override]
     protected function setUp(): void
@@ -99,13 +106,17 @@ final class PanelPageValidatorsTest extends TestCase
         $this->logins->person(self::EMAIL);
         $second = $this->logins->person(self::SECOND_EMAIL);
 
+        // The who-am-I page's read of actor.me as the second person, over fakes (AccountMeWorld).
+        $this->account = new AccountMeWorld($this->logins->verifier(), $second->id, self::SECOND_EMAIL);
+        $app->instance(QueryPipeline::class, $this->account->pipeline());
+
         // The test addon's page at /cms/x/tally/board, which the second person may open: the
         // registry ContributionWorld compiles, the points' codecs, and the permissions over fakes.
         $registry = ContributionWorld::registry();
         $app->instance(CompiledRegistry::class, $registry);
         $app->instance(RegistryCache::class, ContributionWorld::cache($registry));
         $app->instance(PointCodecs::class, ContributionWorld::pointCodecs());
-        $app->instance(QueryCodecs::class, new QueryCodecs(...TallyCodecs::all()));
+        $app->instance(QueryCodecs::class, new QueryCodecs(...TallyCodecs::all(), ...KernelQueryCodecs::all()));
         $app->instance(HeldPermissions::class, new FakeHeldPermissions(
             new FakePermissions([])->grant(
                 $second->id,
@@ -121,6 +132,7 @@ final class PanelPageValidatorsTest extends TestCase
     {
         $this->tearDownPanelLogins();
         $this->resets = null;
+        $this->account = null;
 
         parent::tearDown();
     }
@@ -157,6 +169,7 @@ final class PanelPageValidatorsTest extends TestCase
         $states = array_map(static fn (array $page): string => $page['state'], $rendered);
 
         self::assertContains('login refused with login_rate_limited', $states);
+        self::assertContains('who am I with the read refused', $states);
     }
 
     /**
@@ -286,6 +299,9 @@ final class PanelPageValidatorsTest extends TestCase
 
         $page('home', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms'));
         $page('addon page', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/x/tally/'.ContributionWorld::BOARD_PATH));
+        $page('who am I', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/account/me'));
+        app()->instance(QueryPipeline::class, ($this->account ?? self::fail('No account world.'))->refusing());
+        $page('who am I with the read refused', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/account/me'));
         $page('not found', $this->get('/cms/no-such-page'));
 
         return $pages;
@@ -373,6 +389,7 @@ final class PanelPageValidatorsTest extends TestCase
             PanelPages::HOME => $this->through(new HomePageCodecV1, $props),
             PanelPages::NOT_FOUND => $this->through(new NotFoundPageCodecV1, $props),
             PanelPages::ADDON => $this->through(new AddonPageCodecV1, $props),
+            PanelPages::ACCOUNT_ME => $this->through(new AccountMePageCodecV1, $props),
             default => self::fail('No codec for the page '.$component.'.'),
         };
     }

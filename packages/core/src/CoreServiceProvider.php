@@ -136,7 +136,9 @@ use Cbox\Cms\Core\Identity\Adapter\ActorDeactivatedWriter;
 use Cbox\Cms\Core\Identity\Adapter\ActorRegisteredWriter;
 use Cbox\Cms\Core\Identity\Adapter\PostgresActorListing;
 use Cbox\Cms\Core\Identity\Adapter\PostgresActorVersionLock;
+use Cbox\Cms\Core\Identity\Adapter\PostgresOwnActorReader;
 use Cbox\Cms\Core\Identity\Domain\ActorListing;
+use Cbox\Cms\Core\Identity\Domain\OwnActorReader;
 use Cbox\Cms\Core\Maintenance\Actions\BootstrapAccess;
 use Cbox\Cms\Core\Maintenance\Actions\RunMaintenanceCommand;
 use Cbox\Cms\Core\Maintenance\Adapter\PostgresInstallationOperator;
@@ -570,11 +572,12 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         // from and which every command that changes the actor's grants reads.
         $this->app->tag([PostgresActorGrantsLock::class], VersionLocks::TAG);
 
-        // role.list, grant.list, actor.list and node.list (PRD 5.8, 5.10, 5.16): what the
-        // listing queries read, under the read's actor context.
+        // role.list, grant.list, actor.list, node.list and actor.me (PRD 5.8, 5.10, 5.16, 13.4):
+        // what the listing queries and the who-am-I read read, under the read's actor context.
         $this->app->bind(AccessListings::class, PostgresAccessListings::class);
         $this->app->bind(ActorListing::class, PostgresActorListing::class);
         $this->app->bind(NodeListing::class, PostgresNodeListing::class);
+        $this->app->bind(OwnActorReader::class, PostgresOwnActorReader::class);
         // site.register (PRD 5.9, 11.14): the reads of a site by id and handle, the lock of a
         // handle, and the writer of the registration, which creates the root node, the site, its
         // locales and its root routes.

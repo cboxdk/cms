@@ -17,6 +17,7 @@ An extension point is `#[Stable]` or `#[Experimental]`. Every extension point do
 - [Panel points](panel-points.md): `#[PanelPoint]` on a props class, the rules for each kind of point, and the panel registry `panel.php`.
 - [Panel contributions](panel-contributions.md): the `panel` member of an addon's manifest, the kinds of contribution, every check `cms:build` runs on them, the bundle manifest, and the installation's order, choices, kill switch and allowlist.
 - [Panel shell points](panel-shell.md): the navigation, the addons' pages below `/x/<namespace>/` with their data queries, and the actions of the viewer's menu with their prefill, confirmation and dry run.
+- [Panel pages](panel-pages.md): the panel's own pages behind the login, the navigation entries a module registers with the permission each needs, the who-am-I page and `actor.me`, the query of one's own self it reads, and the sections point of the page.
 - [Panel SDK](panel-sdk.md): the npm package `@cboxdk/cms-panel` an addon builds its panel UI with, its subpaths, `definePanelAddon` and `usePanelHost`, the types `cms:panel:types` writes from the manifest, and the API report.
 - [Hooks](hooks.md): authorize, transform and validate hooks, the classification-filtered view of the plan they get, and their time budgets.
 - [Doctor checks](doctor-checks.md): add a check to `cms:doctor` and test it.
