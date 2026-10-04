@@ -22,7 +22,9 @@ use Cbox\Cms\Core\Access\Domain\Dto\Grant;
 use Cbox\Cms\Core\Access\Domain\Queries\ListGrants;
 use Cbox\Cms\Core\Access\Domain\Queries\ListRoles;
 use Cbox\Cms\Core\Identity\Actions\ListActorsAction;
+use Cbox\Cms\Core\Identity\Actions\WhoAmIAction;
 use Cbox\Cms\Core\Identity\Domain\Queries\ListActors;
+use Cbox\Cms\Core\Identity\Domain\Queries\WhoAmI;
 use Cbox\Cms\Core\Reads\Actions\QueryPipeline;
 use Cbox\Cms\Core\Reads\Domain\Dto\QueryCall;
 use Cbox\Cms\Core\Reads\Domain\Dto\QuerySettings;
@@ -48,8 +50,9 @@ use DateInterval;
 /**
  * The access queries run through the real QueryPipeline with fakes for its ports (GUARDRAILS 9):
  * the identity, the access resolver, the read audit and the read transaction, the query
- * authorizer deciding from FakePermissions as the Postgres one does, and the four actions over the
- * listing fakes of ListingWorld read as ADMIN reads them, every profile included. A reader is an
+ * authorizer deciding from FakePermissions as the Postgres one does, and the five actions over the
+ * listing fakes of ListingWorld read as ADMIN reads them, every profile included, actor.me giving
+ * ADMIN's own self. A reader is an
  * service actor of the identity, with a credential whose ceiling is sensitive, sent as a Bearer
  * token, whose regions reach the
  * whole tree and whose classification access a test gives, holding a role whose permissions are
@@ -120,6 +123,7 @@ final class ListingActionWorld
                 ListGrants::class => ProbeQueryBinding::of(new ListGrantsAction(ListingWorld::accessListings(ListingWorld::ADMIN)), 'grant.list', 1),
                 ListActors::class => ProbeQueryBinding::of(new ListActorsAction(ListingWorld::actorListing(ListingWorld::ADMIN)), 'actor.list', 1),
                 ListNodes::class => ProbeQueryBinding::of(new ListNodesAction(ListingWorld::nodeListing(ListingWorld::ADMIN)), 'node.list', 1),
+                WhoAmI::class => ProbeQueryBinding::of(new WhoAmIAction(ListingWorld::ownActorReader(ListingWorld::ADMIN)), 'actor.me', 1),
             ]),
             $this->identity,
             $this->access,

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Access;
 
 use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Identity\ActorClass;
 use Cbox\Cms\Contracts\Identity\ActorPrincipal;
+use Cbox\Cms\Contracts\Identity\ActorProfile;
 use Cbox\Cms\Contracts\Identity\ActorState;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\DisplayName;
@@ -23,13 +25,16 @@ use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Core\Access\Adapter\GrantRows;
 use Cbox\Cms\Core\Access\Domain\Dto\ListedGrant;
 use Cbox\Cms\Core\Access\Domain\Dto\ListedRole;
+use Cbox\Cms\Core\Identity\Domain\Dto\ActorMe;
 use Cbox\Cms\Core\Identity\Domain\Dto\ListedActor;
 use Cbox\Cms\Core\Identity\Domain\Dto\ListedProfile;
+use Cbox\Cms\Core\Identity\Domain\Dto\OwnGrant;
 use Cbox\Cms\Core\Routing\Domain\NodeKind;
 use Cbox\Cms\Core\Routing\Domain\SiteHandle;
 use Cbox\Cms\Core\Structure\Domain\Dto\ListedNode;
 use Cbox\Cms\Core\Tests\Access\Fakes\FakeAccessListings;
 use Cbox\Cms\Core\Tests\Identity\Fakes\FakeActorListing;
+use Cbox\Cms\Core\Tests\Identity\Fakes\FakeOwnActorReader;
 use Cbox\Cms\Core\Tests\Postgres\StorageTables;
 use Cbox\Cms\Core\Tests\Structure\Fakes\FakeNodeListing;
 use LogicException;
@@ -175,6 +180,46 @@ final class ListingWorld
             new ListedNode(NodeId::fromString(self::SPORT), NodeId::fromString(self::NEWS), NodeKind::Section, $site, $handle, 'north/nyheder/section'),
             new ListedNode(NodeId::fromString(self::CULTURE), NodeId::fromString(self::ROOT), NodeKind::List, $site, $handle, 'north/list'),
         ];
+    }
+
+    /**
+     * An actor's own self as actor.me gives it: its class, state and version, its own profile and
+     * the grants it holds that have not ended, in the order of their ids.
+     */
+    public static function own(string $actor): ActorMe
+    {
+        $profile = self::PROFILES[$actor] ?? null;
+        $grants = [];
+
+        foreach (self::grants() as [$grant, $ended]) {
+            if (! $ended && $grant->actor->toString() === $actor) {
+                $grants[] = new OwnGrant($grant->id, $grant->role, $grant->roleHandle, $grant->node, $grant->effect, $grant->locales, $grant->version);
+            }
+        }
+
+        return new ActorMe(
+            ActorId::fromString($actor),
+            $actor === self::SERVICE ? ActorClass::Service : ActorClass::Staff,
+            ActorState::Active,
+            AggregateVersion::first(),
+            $profile === null ? null : new ActorProfile(new DisplayName($profile[0]), new EmailAddress($profile[1])),
+            $grants,
+        );
+    }
+
+    /**
+     * The OwnActorReader in memory as the reader's context reads it, with every actor's self; the
+     * reader is any actor of the world, because every actor reads its own self.
+     */
+    public static function ownActorReader(string $reader): FakeOwnActorReader
+    {
+        $own = new FakeOwnActorReader(ActorId::fromString($reader));
+
+        foreach ([self::ADMIN, self::EDITOR, self::BOB, self::SERVICE] as $actor) {
+            $own->add(self::own($actor));
+        }
+
+        return $own;
     }
 
     public static function profile(string $actor): ?ListedProfile

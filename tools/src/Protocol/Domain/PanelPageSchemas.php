@@ -26,6 +26,7 @@ use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Protocol\Domain\Dto\SchemaBinding;
 use Cbox\Cms\Generators\Protocol\Domain\Dto\ValueBinding;
+use Cbox\Cms\Panel\Domain\Dto\AccountMePage;
 use Cbox\Cms\Panel\Domain\Dto\ActionProp;
 use Cbox\Cms\Panel\Domain\Dto\AddonPage;
 use Cbox\Cms\Panel\Domain\Dto\AddonProp;
@@ -61,8 +62,10 @@ use Cbox\Cms\Panel\Domain\SignInReason;
  * brand.v1.json, each bound to its DTO in the panel's
  * Domain\Dto, so the panel renders the props through the generated codec and js/panel imports
  * their generated TypeScript types and validators. contributions.v1.json is the prop
- * cms.contributions that every page behind the login sends beside its own props (PRD 13.4), and
- * addon-page.v1.json the props of an addon's page below /x/<namespace>/. Types go one way, from PHP and the schema to
+ * cms.contributions that every page behind the login sends beside its own props (PRD 13.4),
+ * addon-page.v1.json the props of an addon's page below /x/<namespace>/, and account-me.v1.json
+ * the props of the who-am-I page, whose result and rejection are documents of the kernel's
+ * contracts. Types go one way, from PHP and the schema to
  * TypeScript; no page declares its props by hand.
  *
  * composer generate:protocol writes, from these bindings, the PHP codecs into PHP_DIRECTORY and,
@@ -93,12 +96,13 @@ final readonly class PanelPageSchemas
     public const string PROTOCOL = 'protocol';
 
     /**
-     * The kernel contracts the panel's host reads, by codec class: a command a contribution issues
-     * through the host answers with its receipt and, for a rejection, the problem details.
+     * The kernel contracts the panel reads, by codec class: a command a contribution issues through
+     * the host answers with its receipt and, for a rejection, the problem details; and the result
+     * of actor.me, which the who-am-I page reads from its props.
      *
      * @var list<string>
      */
-    public const array PROTOCOL_CODECS = ['DryRunSummaryCodecV1', 'ProblemCodecV1', 'ReceiptCodecV1'];
+    public const array PROTOCOL_CODECS = ['ActorMeCodecV1', 'DryRunSummaryCodecV1', 'ProblemCodecV1', 'ReceiptCodecV1'];
 
     /** The stability of the generated codecs: the pages' DTOs are the panel's own. */
     public const string ATTRIBUTE = Internal::class;
@@ -111,6 +115,10 @@ final readonly class PanelPageSchemas
     public static function all(): array
     {
         return [
+            self::page('account-me.v1.json', 'AccountMePageCodecV1', ['#' => AccountMePage::class], [
+                '#/properties/rejection' => ValueBinding::document(JsonDocument::class),
+                '#/properties/result' => ValueBinding::document(JsonDocument::class),
+            ]),
             self::page('addon-page.v1.json', 'AddonPageCodecV1', ['#' => AddonPage::class], [
                 '#/properties/addon' => ValueBinding::value(AddonNamespace::class),
                 '#/properties/page' => ValueBinding::value(ContributionId::class),

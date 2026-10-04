@@ -6,6 +6,7 @@ namespace Cbox\Cms\Panel;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Http\Inertia\InertiaRoutes;
+use Cbox\Cms\Panel\Account\Domain\AccountMe;
 use Cbox\Cms\Panel\Assets\AddonAssetController;
 use Cbox\Cms\Panel\Assets\AssetController;
 use Cbox\Cms\Panel\Assets\BrandController;
@@ -19,6 +20,7 @@ use Cbox\Cms\Panel\Domain\PanelRoute;
 use Cbox\Cms\Panel\Middleware\AuthenticatePanelSession;
 use Cbox\Cms\Panel\Middleware\SendContentSecurityPolicy;
 use Cbox\Cms\Panel\Middleware\VerifyPanelCsrfToken;
+use Cbox\Cms\Panel\Pages\AccountMeController;
 use Cbox\Cms\Panel\Pages\AddonPageController;
 use Cbox\Cms\Panel\Pages\ForgotPasswordController;
 use Cbox\Cms\Panel\Pages\ForgotPasswordPageController;
@@ -64,10 +66,11 @@ use Illuminate\Routing\Route;
  *     takes only a request whose session cookie verifies and sends any other to the login page,
  *     and VerifyPanelCsrfToken: `GET <prefix>`, the start page, `POST <prefix>/logout`, and the
  *     Inertia profile's `POST <prefix>/commands/{command}/v{version}`, which runs a command as the
- *     person (PanelRoute::Home, Logout, Command), and `GET <prefix>/x/{namespace}/{path}`, a page of
- *     an addon, its PageContribution at the path, with its data query's result as its props
- *     (PanelRoute::AddonPage), or the page for a path the panel does not have when no addon has
- *     such a page or the person may not open it;
+ *     person (PanelRoute::Home, Logout, Command), `GET <prefix>/account/me`, the who-am-I page,
+ *     which reads actor.me as the person (PanelRoute::AccountMe), and
+ *     `GET <prefix>/x/{namespace}/{path}`, a page of an addon, its PageContribution at the path,
+ *     with its data query's result as its props (PanelRoute::AddonPage), or the page for a path the
+ *     panel does not have when no addon has such a page or the person may not open it;
  *   - last, `GET <prefix>/{path?}` for any other path below the prefix, named NOT_FOUND: the
  *     panel's page for a path it does not have, with 404, which shows nothing of the installation
  *     and so needs no session.
@@ -139,6 +142,7 @@ final readonly class PanelRoutes
                     self::page($router->get('', HomeController::class), PanelRoute::Home);
                     self::page($router->post('logout', LogoutController::class), PanelRoute::Logout);
                     self::withAddons(InertiaRoutes::register($router, PanelRoute::COMMANDS_PATH, PanelRoute::Command->value), PanelRoute::Command->allowsAddons());
+                    self::page($router->get(AccountMe::PATH, AccountMeController::class), PanelRoute::AccountMe);
                     self::page($router->get(PanelRoute::ADDON_PAGES_PATH.'/{namespace}/{path}', AddonPageController::class)
                         ->where(['namespace' => self::NAMESPACE_SEGMENT, 'path' => self::PAGE_PATH]), PanelRoute::AddonPage);
                 });

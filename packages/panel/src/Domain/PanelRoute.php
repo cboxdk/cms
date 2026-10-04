@@ -61,6 +61,9 @@ enum PanelRoute: string
     /** GET <prefix>/x/{namespace}/{path}: a page of an addon, its PageContribution at the path (PRD 13.4). */
     case AddonPage = 'cbox-cms.panel.addon-page';
 
+    /** GET <prefix>/account/me: the who-am-I page, which reads actor.me as the person (PRD 5.16, 13.4). */
+    case AccountMe = 'cbox-cms.panel.account-me';
+
     /**
      * Whether a page of the route loads the addons' panel UI (PRD 13.4, decision D13 of the
      * panel extension architecture): a credential page, where a person types a password or
@@ -71,7 +74,7 @@ enum PanelRoute: string
     public function allowsAddons(): bool
     {
         return match ($this) {
-            self::Home, self::Command, self::AddonPage => true,
+            self::Home, self::Command, self::AddonPage, self::AccountMe => true,
             self::Login, self::LoginSubmit, self::ForgotPassword, self::ForgotPasswordSubmit, self::ResetPassword, self::ResetPasswordSubmit, self::Logout, self::Theme, self::Brand, self::AddonAsset, self::CspReport => false,
         };
     }

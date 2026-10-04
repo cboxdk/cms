@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Panel\Tests;
 
+use Cbox\Cms\Core\Access\Domain\HeldPermissions;
+use Cbox\Cms\Core\Tests\Access\Fakes\FakeHeldPermissions;
 use Cbox\Cms\Identity\Sessions\Domain\Dto\SessionCookie;
 use Cbox\Cms\Identity\Tests\Login\LocalLoginWorld;
 use Cbox\Cms\Panel\Boundary\LoginForm;
@@ -16,7 +18,10 @@ use Symfony\Component\HttpFoundation\Response;
  * Logging in to the panel in the workbench, which mounts it at /cms, over LocalLoginWorld's fakes
  * and a FixtureBuild: the login page's visit starts Laravel's session, whose CSRF token csrf()
  * reads, and logIn() posts the login form as a browser does. The session cookie travels unencrypted,
- * as the panel leaves it out of Laravel's cookie encryption.
+ * as the panel leaves it out of Laravel's cookie encryption. Every page behind the login asks the
+ * viewer's permissions for its contributions (the core's nav entry is on every page), so the trait
+ * binds a FakeHeldPermissions that holds none, and a test in the Unit suite never reaches Postgres
+ * for them; a test that needs other permissions binds its own after setUpPanelLogins().
  */
 trait PanelLogins
 {
@@ -31,6 +36,7 @@ trait PanelLogins
         $this->fixture->bind($app);
         $this->logins = new LocalLoginWorld;
         $this->logins->into($app);
+        $app->instance(HeldPermissions::class, new FakeHeldPermissions);
 
         return $this->logins;
     }

@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\PasswordResetToken;
 use Cbox\Cms\Http\Inertia\Boundary\InertiaProps;
 use Cbox\Cms\Identity\PasswordReset\Domain\Dto\ResetSettings;
+use Cbox\Cms\Panel\Boundary\Generated\AccountMePageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\AddonPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\ForgotPasswordPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\HomePageCodecV1;
@@ -17,6 +18,7 @@ use Cbox\Cms\Panel\Boundary\Generated\NotFoundPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\ResetPasswordPageCodecV1;
 use Cbox\Cms\Panel\Contributions\Boundary\SharedProps;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\ActiveFill;
+use Cbox\Cms\Panel\Domain\Dto\AccountMePage;
 use Cbox\Cms\Panel\Domain\Dto\AddonPage;
 use Cbox\Cms\Panel\Domain\Dto\ForgotPasswordPage;
 use Cbox\Cms\Panel\Domain\Dto\ForgotPasswordRefusals;
@@ -24,6 +26,7 @@ use Cbox\Cms\Panel\Domain\Dto\HomePage;
 use Cbox\Cms\Panel\Domain\Dto\LoginPage;
 use Cbox\Cms\Panel\Domain\Dto\LoginRefusals;
 use Cbox\Cms\Panel\Domain\Dto\NotFoundPage;
+use Cbox\Cms\Panel\Domain\Dto\ReadAnswer;
 use Cbox\Cms\Panel\Domain\Dto\ResetPasswordPage;
 use Cbox\Cms\Panel\Domain\Dto\ResetPasswordRefusals;
 use Cbox\Cms\Panel\Domain\ForgotPasswordRefusal;
@@ -32,6 +35,7 @@ use Cbox\Cms\Panel\Domain\PanelRoute;
 use Cbox\Cms\Panel\Domain\ResetFormRefusal;
 use Cbox\Cms\Panel\Domain\ResetPasswordRefusal;
 use Cbox\Cms\Panel\Domain\SignInReason;
+use Cbox\Cms\Panel\Shell\Domain\OwnPage;
 use Illuminate\Contracts\Routing\UrlGenerator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -67,7 +71,10 @@ use LogicException;
  *   cache after logout or shared proxy may keep;
  * - an addon's page (PRD 13.4), at `<prefix>/x/<namespace>/<path>`, with the page's id, the
  *   addon's namespace and the address of the logout, beside its contributions, among which the
- *   page's own data comes as the deferred prop of its addon.
+ *   page's own data comes as the deferred prop of its addon;
+ * - the who-am-I page (PRD 5.16), at `<prefix>/account/me`, with the address of the logout and the
+ *   read of actor.me as the person (PanelReads), the result's document or the rejection's problem
+ *   details, beside its contributions.
  */
 #[Internal]
 final readonly class PanelPages
@@ -82,7 +89,10 @@ final readonly class PanelPages
     public const string HOME = 'Home';
 
     /** The start page's name, which a panel point it renders names as its page (PRD 13.4). */
-    public const string HOME_PAGE = 'home';
+    public const string HOME_PAGE = OwnPage::Home->value;
+
+    /** The who-am-I page, in js/panel/src/pages, which shows the person their own actor, profile and grants. */
+    public const string ACCOUNT_ME = 'Account/Me';
 
     /** An addon's page, in js/panel/src/pages, which renders the addon's component of the page. */
     public const string ADDON = 'Addon';
@@ -106,6 +116,7 @@ final readonly class PanelPages
         private HomePageCodecV1 $homePage,
         private NotFoundPageCodecV1 $notFoundPage,
         private AddonPageCodecV1 $addonPage,
+        private AccountMePageCodecV1 $accountMePage,
     ) {}
 
     public function login(Request $request): Response|JsonResponse
@@ -169,6 +180,18 @@ final readonly class PanelPages
     {
         return $this->unstored($this->render($request, self::ADDON, $this->addonPage->encode(
             new AddonPage($page->fill->contribution, $page->fill->addon(), $this->urls->route(PanelRoute::Logout->value, [], false)),
+            ClassificationAccess::Public,
+        ), $contributions));
+    }
+
+    /**
+     * The who-am-I page, with the read of actor.me as the person, the result or the problem, and
+     * the contributions active on it (PRD 5.16, 13.4).
+     */
+    public function accountMe(Request $request, ReadAnswer $read, SharedProps $contributions): Response|JsonResponse
+    {
+        return $this->unstored($this->render($request, self::ACCOUNT_ME, $this->accountMePage->encode(
+            new AccountMePage($this->urls->route(PanelRoute::Logout->value, [], false), $read->result, $read->rejection),
             ClassificationAccess::Public,
         ), $contributions));
     }

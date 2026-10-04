@@ -29,6 +29,7 @@ use Cbox\Cms\Core\Identity\Actions\ActivateActorAction;
 use Cbox\Cms\Core\Identity\Actions\DeactivateActorAction;
 use Cbox\Cms\Core\Identity\Actions\ListActorsAction;
 use Cbox\Cms\Core\Identity\Actions\RegisterActorAction;
+use Cbox\Cms\Core\Identity\Actions\WhoAmIAction;
 use Cbox\Cms\Core\Identity\Domain\Commands\ActivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\RegisterActor;
@@ -154,6 +155,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'actor.activate@1 '.ActivateActorAction::class.' write',
             'actor.deactivate@1 '.DeactivateActorAction::class.' write',
             'actor.list@1 '.ListActorsAction::class.' query',
+            'actor.me@1 '.WhoAmIAction::class.' query',
             'actor.register@1 '.RegisterActorAction::class.' write',
             'entry.create@1 '.CreateEntryAction::class.' write',
             'entry.publish@1 '.PublishEntryAction::class.' write',
@@ -185,7 +187,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
         ->and($registry->actionFor(CreateEntry::class)?->class)->toBe(CreateEntryAction::class)
         ->and($registry->actionFor(ReviseEntry::class)?->class)->toBe(ReviseEntryAction::class)
         ->and($registry->actionFor(ListNodes::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia])
-        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([22, 0, 17, 0, 3, 16, 0, 1])
+        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([23, 0, 17, 0, 4, 17, 0, 1])
         ->and($registry->hooks)->toBe([])
         ->and(array_map(static fn (SubscriberEntry $entry): string => $entry->name->value.' '.$entry->class.' '.$entry->lane->value.' '.$entry->projection?->value, $registry->subscribers))
         ->toBe(['fragments.invalidate '.InvalidateFragments::class.' critical origin'])

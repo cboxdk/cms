@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "actor.me result, contract version 1",
+  "description": "The result of actor.me (PRD 5.10, 5.16, 13.4): the principal's own actor with its id, class, state and version, its profile, or null when the actor has none, and the grants it holds that have not ended, in the order of their ids. The profile is the subject's own, so it is written whatever the reader's classification access: a person always reads their own name and email. The PHP form is Cbox\\Cms\\Core\\Identity\\Domain\\Dto\\ActorMe, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "actor",
+    "class",
+    "grants",
+    "profile",
+    "state",
+    "version"
+  ],
+  "properties": {
+    "actor": {
+      "description": "The actor's id.",
+      "$ref": "#/$defs/id"
+    },
+    "class": {
+      "description": "The actor's class: a member of staff, an end user or a service.",
+      "enum": [
+        "staff",
+        "end_user",
+        "service"
+      ]
+    },
+    "grants": {
+      "description": "The grants the actor holds that have not ended, in the order of their ids.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/own_grant"
+      }
+    },
+    "profile": {
+      "description": "The actor's own profile, or null when the actor has none.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/profile"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "state": {
+      "description": "The actor's state.",
+      "enum": [
+        "pending",
+        "active",
+        "deactivated",
+        "deprovisioned"
+      ]
+    },
+    "version": {
+      "description": "The actor's version, from 1.",
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "locale": {
+      "description": "A language tag of a language, an optional script and an optional region, such as da, en-GB or sr-Latn-RS; the kernel writes the language in lowercase, the script in title case and the region in uppercase.",
+      "type": "string",
+      "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$"
+    },
+    "own_grant": {
+      "description": "A grant the actor holds that has not ended (PRD 5.10).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "effect",
+        "id",
+        "locales",
+        "node",
+        "role",
+        "role_handle",
+        "version"
+      ],
+      "properties": {
+        "effect": {
+          "description": "allow gives the role's permissions on the node and the subtree below it, deny keeps them from it.",
+          "enum": [
+            "allow",
+            "deny"
+          ]
+        },
+        "id": {
+          "description": "The grant.",
+          "$ref": "#/$defs/id"
+        },
+        "locales": {
+          "description": "The locales the grant holds in, or null for every locale.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/locale"
+          }
+        },
+        "node": {
+          "description": "The node the grant holds on.",
+          "$ref": "#/$defs/id"
+        },
+        "role": {
+          "description": "The role granted.",
+          "$ref": "#/$defs/id"
+        },
+        "role_handle": {
+          "description": "The role's handle.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "version": {
+          "description": "The grant's version, from 1.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "profile": {
+      "description": "The actor's own profile (PRD 5.16): the name it is shown by and its contact email. Both are the subject's own personal data, which the subject always reads, so neither is classified above the reader here.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "display_name",
+        "email"
+      ],
+      "properties": {
+        "display_name": {
+          "description": "The name the actor's profile shows, 1 to 200 characters without control characters, that starts and ends with a character that is not white space.",
+          "type": "string",
+          "pattern": "^[^\\s\\x00-\\x1F\\x7F]([^\\x00-\\x1F\\x7F]*[^\\s\\x00-\\x1F\\x7F])?$",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "email": {
+          "description": "The contact email address of the actor's profile, at most 254 characters.",
+          "type": "string",
+          "pattern": "^[^\\s@\\x00-\\x1F\\x7F]+@[^\\s@\\x00-\\x1F\\x7F]+\\.[^\\s@\\x00-\\x1F\\x7F]+$",
+          "minLength": 5,
+          "maxLength": 254
+        }
+      }
+    }
+  }
+}

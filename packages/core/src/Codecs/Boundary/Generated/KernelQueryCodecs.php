@@ -25,6 +25,7 @@ final readonly class KernelQueryCodecs
     {
         return [
             ListActorsCodecV1::queryCodec(),
+            WhoAmICodecV1::queryCodec(),
             ListGrantsCodecV1::queryCodec(),
             ListNodesCodecV1::queryCodec(),
             ResolvePathCodecV1::queryCodec(),

@@ -30,6 +30,7 @@ afterEach(function (): void {
 const PROTOCOL_CODECS = [
     'ActivateActorCodecV1.php',
     'ActorListCodecV1.php',
+    'ActorMeCodecV1.php',
     'AssignGrantCodecV1.php',
     'CreateEntryCodecV1.php',
     'CreatePlacementCodecV1.php',
@@ -67,10 +68,12 @@ const PROTOCOL_CODECS = [
     'SetPlacementWindowCodecV1.php',
     'SetRolePermissionsCodecV1.php',
     'UnpublishEntryCodecV1.php',
+    'WhoAmICodecV1.php',
 ];
 
 /** What generate:protocol writes for the panel's pages, below the root, sorted: their codecs and TypeScript, and the receipt and problem details the panel's host reads answers with. */
 const PANEL_PAGE_FILES = [
+    'js/panel/src/generated/pages/AccountMePageV1.ts',
     'js/panel/src/generated/pages/AddonPageV1.ts',
     'js/panel/src/generated/pages/ContributionsV1.ts',
     'js/panel/src/generated/pages/ForgotPasswordPageV1.ts',
@@ -79,10 +82,12 @@ const PANEL_PAGE_FILES = [
     'js/panel/src/generated/pages/NotFoundPageV1.ts',
     'js/panel/src/generated/pages/PanelBrandV1.ts',
     'js/panel/src/generated/pages/ResetPasswordPageV1.ts',
+    'js/panel/src/generated/protocol/ActorMeV1.ts',
     'js/panel/src/generated/protocol/DryRunSummaryV1.ts',
     'js/panel/src/generated/protocol/ProblemV1.ts',
     'js/panel/src/generated/protocol/ReceiptV1.ts',
     'js/panel/src/generated/validation.ts',
+    'packages/panel/src/Boundary/Generated/AccountMePageCodecV1.php',
     'packages/panel/src/Boundary/Generated/AddonPageCodecV1.php',
     'packages/panel/src/Boundary/Generated/ContributionsCodecV1.php',
     'packages/panel/src/Boundary/Generated/ForgotPasswordPageCodecV1.php',
@@ -96,6 +101,7 @@ const PANEL_PAGE_FILES = [
 /** What generate:protocol writes for the panel's points, below the root, sorted: the SDK's barrels of the stable and experimental points' types, the shell's points' modules and codecs, the receipt, the dry run summary and the problem details its host answers with, the validators' runtime, the compatibility lock and the list of the points' codecs. */
 const PANEL_POINT_FILES = [
     'js/panel-sdk/src/generated/experimental.ts',
+    'js/panel-sdk/src/generated/points/AccountMeSectionsV1.ts',
     'js/panel-sdk/src/generated/points/ShellNavV1.ts',
     'js/panel-sdk/src/generated/points/ShellPageV1.ts',
     'js/panel-sdk/src/generated/points/ViewerSummaryV1.ts',
@@ -106,6 +112,7 @@ const PANEL_POINT_FILES = [
     'js/panel-sdk/src/generated/validation.ts',
     'packages/panel/resources/points.lock.json',
     'packages/panel/src/Boundary/Generated/Points/PanelPointCodecs.php',
+    'packages/panel/src/Boundary/Generated/Points/AccountMeSectionsCodecV1.php',
     'packages/panel/src/Boundary/Generated/Points/ShellNavCodecV1.php',
     'packages/panel/src/Boundary/Generated/Points/ShellPageCodecV1.php',
     'packages/panel/src/Boundary/Generated/Points/ViewerSummaryCodecV1.php',

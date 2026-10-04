@@ -174,7 +174,7 @@ it('builds every page s view with the shell, and writes the nav entries, the add
         ->and($byPoint['shell.page@1']['data'] ?? null)->toBeFalse()
         ->and(is_array($action) ? $action['prefill'] ?? null : null)->toBe([['pointer' => '/actor', 'property' => 'tally']])
         ->and($byPoint['shell.user-menu@1']['props'] ?? null)->toBe(['actor' => ResolveWorld::AUDITOR, 'issuer' => 'human'])
-        ->and(is_array($contributions) ? $contributions['pages'] ?? null : null)->toBe([['page' => 'home', 'url' => '/cms'], ['page' => ContributionWorld::BOARD, 'url' => '/cms/x/tally/'.ContributionWorld::BOARD_PATH]])
+        ->and(is_array($contributions) ? $contributions['pages'] ?? null : null)->toBe([['page' => 'account.me', 'url' => '/cms/account/me'], ['page' => 'home', 'url' => '/cms'], ['page' => ContributionWorld::BOARD, 'url' => '/cms/x/tally/'.ContributionWorld::BOARD_PATH]])
         ->and(is_array($data) ? array_keys($data) : null)->toBe([ContributionWorld::COUNT, ContributionWorld::HEAVY]);
 
     $board = $props->props(viewerRequest(), $resolve->resolve($props->view(viewerRequest(), ContributionWorld::BOARD)), $run, $refuse)->props;
@@ -209,7 +209,7 @@ it('tells the host each point s kind and multiplicity, the registration of the a
         ]],
         'commands' => '/cms/commands',
         'details' => true,
-        'pages' => [['page' => 'home', 'url' => '/cms']],
+        'pages' => [['page' => 'account.me', 'url' => '/cms/account/me'], ['page' => 'home', 'url' => '/cms']],
     ])
         ->and(is_array($contributions) && is_array($contributions['points'] ?? null) ? array_map(static fn (mixed $point): array => is_array($point) ? array_intersect_key($point, ['kind' => true, 'max' => true, 'multiplicity' => true, 'region' => true]) : [], $contributions['points']) : null)->toBe([
             ['kind' => 'slot', 'max' => null, 'multiplicity' => 'many', 'region' => 'sections'],

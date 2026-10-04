@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace Cbox\Cms\Panel\Contributions\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\PanelPoints\ContributionId;
+use Cbox\Cms\Contracts\PanelPoints\NavContribution;
 use Cbox\Cms\Contracts\PanelPoints\PanelContribution;
+use Cbox\Cms\Panel\Shell\Domain\OwnPage;
+use Cbox\Cms\Panel\Shell\Domain\Shell;
 
 /**
  * The core's own contributions to the panel's points (PRD 13.4), in the namespace cms, which the
@@ -17,16 +21,29 @@ use Cbox\Cms\Contracts\PanelPoints\PanelContribution;
  * host holds to this list at run time as it holds an addon's bundle to its manifest.
  *
  * The panel's points come with the pages that render them, and so do the core's contributions to
- * them; until a page renders a point, the core contributes nothing.
+ * them. The core contributes the nav entry of the who-am-I page to shell.nav@1 (PRD 13.4): a nav
+ * entry is how a module registers a page in the navigation, with the permission the viewer must
+ * hold in its Scope (requires), decided per viewer as every contribution's is (ResolveContributions);
+ * the who-am-I page requires none, because every actor reads its own self. A module of cboxdk/cms
+ * with pages of its own declares their nav entries the same way through its service provider's
+ * DeclaresCoreContributions, each pointing at one of the panel's own pages (OwnPage).
  */
 #[Internal]
 final readonly class CoreContributions
 {
+    /** The nav entry of the who-am-I page, in the shell's navigation. */
+    public const string ACCOUNT_ME_NAV = 'cms.account-me';
+
+    /** The priority of the core's first nav entry; a module's come after it, an addon's at 1000. */
+    public const int FIRST = 100;
+
     /**
      * @return list<PanelContribution>
      */
     public static function all(): array
     {
-        return [];
+        return [
+            new NavContribution(new ContributionId(self::ACCOUNT_ME_NAV), Shell::NAV.'@1', 'panel.nav.account_me', OwnPage::AccountMe->value, null, self::FIRST),
+        ];
     }
 }

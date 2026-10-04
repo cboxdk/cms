@@ -20,7 +20,7 @@ An application mounts the panel in its web routes, inside the web middleware gro
 - the panel's pages, each behind the Content-Security-Policy below and Inertia's middleware with the panel's root view:
   - `GET login`, named `cbox-cms.panel.login`, the login page, and `POST login`, named `cbox-cms.panel.login.submit`, a login from its form;
   - `GET forgot-password` and `POST forgot-password`, named `cbox-cms.panel.forgot-password` and `cbox-cms.panel.forgot-password.submit`, the page that asks for a password reset link and its form, and `GET reset-password/{token}` and `POST reset-password`, named `cbox-cms.panel.reset-password` and `cbox-cms.panel.reset-password.submit`, the page a reset link opens and its form;
-  - behind the panel's session middleware, which sends a request without a session that verifies to the login page: `GET` the prefix itself, named `cbox-cms.panel.home`, the start page; `POST logout`, named `cbox-cms.panel.logout`; `POST commands/{command}/v{version}`, named `cbox-cms.panel.command`, the Inertia command profile, which runs a command as the person who logged in; and `GET x/{namespace}/{path}`, named `cbox-cms.panel.addon-page`, a page of an addon, its `PageContribution` at the path, with its data query's result as its props ([panel shell points](../addons/panel-shell.md)), or the page for a path the panel does not have when no addon has such a page or the person may not open it; the start page, as every page behind the login, is sent with `Cache-Control: no-store, private`, so no browser cache, back/forward cache or shared proxy keeps its props;
+  - behind the panel's session middleware, which sends a request without a session that verifies to the login page: `GET` the prefix itself, named `cbox-cms.panel.home`, the start page; `POST logout`, named `cbox-cms.panel.logout`; `POST commands/{command}/v{version}`, named `cbox-cms.panel.command`, the Inertia command profile, which runs a command as the person who logged in; `GET account/me`, named `cbox-cms.panel.account-me`, the who-am-I page, which reads `actor.me` as the person ([panel pages](../addons/panel-pages.md)); and `GET x/{namespace}/{path}`, named `cbox-cms.panel.addon-page`, a page of an addon, its `PageContribution` at the path, with its data query's result as its props ([panel shell points](../addons/panel-shell.md)), or the page for a path the panel does not have when no addon has such a page or the person may not open it; the start page, as every page behind the login, is sent with `Cache-Control: no-store, private`, so no browser cache, back/forward cache or shared proxy keeps its props;
 - last, any other path, named `cbox-cms.panel.not-found`: the page that says the panel has no page at the address, with 404 and a link back to the start of the panel.
 
 ## Logging in
@@ -111,6 +111,7 @@ While an addon's UI is developed, a local application can load it from the addon
 
 ## Page props
 
+<!-- extension-point: packages/panel/resources/schemas/pages/account-me.v1.json -->
 <!-- extension-point: packages/panel/resources/schemas/pages/addon-page.v1.json -->
 <!-- extension-point: packages/panel/resources/schemas/pages/brand.v1.json -->
 <!-- extension-point: packages/panel/resources/schemas/pages/forgot-password.v1.json -->
@@ -129,9 +130,10 @@ The props of each panel page are written from PHP and typed from PHP, never by h
 | `Home` | `home.v1.json` | `HomePage` | `HomePageV1` |
 | `Errors/NotFound` | `not-found.v1.json` | `NotFoundPage` | `NotFoundPageV1` |
 | `Addon`, an addon's page below `/x/<namespace>/` | `addon-page.v1.json` | `AddonPage` | `AddonPageV1` |
+| `Account/Me`, the who-am-I page | `account-me.v1.json` | `AccountMePage` | `AccountMePageV1` |
 | every page, the prop `brand` | `brand.v1.json` | `PanelBrand` | `PanelBrandV1` |
 
-`composer generate:protocol` writes, from the schemas, a codec per page into `packages/panel/src/Boundary/Generated` and, into `js/panel/src/generated`, a module per page in `pages/` with the props' TypeScript types and a validator, next to the validators' runtime module. `PanelPages` renders each page with the props its codec writes, and each page in `js/panel` takes the generated type as its props. Gate 6 fails when the committed files differ from what the schemas give.
+`composer generate:protocol` writes, from the schemas, a codec per page into `packages/panel/src/Boundary/Generated` and, into `js/panel/src/generated`, a module per page in `pages/` with the props' TypeScript types and a validator, next to the validators' runtime module, and a module per kernel contract the panel reads in `protocol/`: the receipt, the problem details and the dry run summary the host reads commands' answers with, and the result of `actor.me` the who-am-I page reads from its props (`PanelPageSchemas::PROTOCOL_CODECS`). A page that reads carries the read's result and rejection as documents of the kernel's contracts, `result` and `rejection`, one of the two and never both, and validates the result with the contract's generated validator before it shows it. `PanelPages` renders each page with the props its codec writes, and each page in `js/panel` takes the generated type as its props. Gate 6 fails when the committed files differ from what the schemas give.
 
 Beside its own props, every page behind the login, the start page included, sends `cms.contributions`, the contributions active for the person who signed in, and a deferred prop `ext.<namespace>` for each addon whose contributions read data ([panel contributions](../addons/panel-contributions.md#what-a-page-sends-a-viewer)).
 

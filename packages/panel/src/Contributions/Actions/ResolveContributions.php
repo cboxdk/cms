@@ -32,6 +32,7 @@ use Cbox\Cms\Panel\Contributions\Domain\Dto\PanelView;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\PointInScope;
 use Cbox\Cms\Panel\Contributions\Domain\Registrations;
 use Cbox\Cms\Panel\Contributions\Domain\Withheld;
+use Cbox\Cms\Panel\Shell\Domain\OwnPage;
 use Cbox\Cms\Panel\Shell\Domain\Shell;
 
 /**
@@ -49,8 +50,10 @@ use Cbox\Cms\Panel\Shell\Domain\Shell;
  *    decides it from the viewer's grants (HeldPermissions), asked once for the page with every
  *    name; an action must also be of a command the viewer may run, so no action is shown that the
  *    server would refuse (section 3.3 of the panel extension architecture); and a nav entry must
- *    link to a page the viewer gets, so no entry leads to a page the viewer may not open. A fill
- *    the viewer may not see is never listed and never handed anything.
+ *    link to a page the viewer gets, an addon's page among the active ones or one of the panel's
+ *    own pages (OwnPage), whose own permission the entry's scope requires, so no entry leads to a
+ *    page the viewer may not open. A fill the viewer may not see is never listed and never handed
+ *    anything.
  * 4. Access: each fill is handed the point's props, and runs its data query, at the lower of the
  *    viewer's classification access and the addon's reads capability, so a member above what the
  *    addon may read is absent from what it gets, whatever the viewer may read; the core's own
@@ -143,7 +146,7 @@ final readonly class ResolveContributions
         foreach ($resolved as [$candidate, $active]) {
             $active = array_values(array_filter(
                 $active,
-                static fn (ActiveFill $fill): bool => ! $fill->fill->declaration instanceof NavContribution || isset($pages[$fill->fill->declaration->page]),
+                static fn (ActiveFill $fill): bool => ! $fill->fill->declaration instanceof NavContribution || isset($pages[$fill->fill->declaration->page]) || OwnPage::named($fill->fill->declaration->page) instanceof OwnPage,
             ));
 
             if ($active !== []) {

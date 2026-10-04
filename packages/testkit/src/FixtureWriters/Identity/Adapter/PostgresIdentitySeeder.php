@@ -8,6 +8,7 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\Identity\Actor;
 use Cbox\Cms\Contracts\Identity\ActorClass;
+use Cbox\Cms\Contracts\Identity\ActorProfile;
 use Cbox\Cms\Contracts\Identity\ActorState;
 use Cbox\Cms\Contracts\Identity\CredentialGeneration;
 use Cbox\Cms\Contracts\Identity\InvalidIdentity;
@@ -43,6 +44,8 @@ final readonly class PostgresIdentitySeeder implements IdentitySeeder
 
     public const string DELEGATIONS = 'service_credential_delegations';
 
+    public const string PROFILES = 'actor_profiles';
+
     public function __construct(
         private ConnectionResolverInterface $connections,
         private Clock $clock,
@@ -64,6 +67,20 @@ final readonly class PostgresIdentitySeeder implements IdentitySeeder
         ]);
 
         return $actor;
+    }
+
+    /**
+     * Gives an actor its profile, as actor.register writes it (PRD 5.16): one row of actor_profiles
+     * with its display name and email, at version 1.
+     */
+    public function addProfile(ActorId $actor, ActorProfile $profile): void
+    {
+        $this->owner()->table(self::PROFILES)->insert([
+            'actor_id' => $actor->toString(),
+            'display_name' => $profile->displayName->value,
+            'email' => $profile->email->value,
+            'version' => 1,
+        ]);
     }
 
     public function issue(ServiceCredentialSpec $spec): TransportCredential

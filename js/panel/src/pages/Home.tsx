@@ -1,4 +1,4 @@
-import { Button, Form, TaskScreen } from '@cboxdk/cms-ui-kit';
+import { Button, Form, Page, PageHeader } from '@cboxdk/cms-ui-kit';
 import { Head, router } from '@inertiajs/react';
 import type { SubmitEvent } from 'react';
 
@@ -8,7 +8,7 @@ import { PanelShell } from '../shell/PanelShell';
 
 /**
  * The start page of a person who signed in (PRD 13.4): the shell with the installation's brand,
- * the viewer's menu and the navigation, and a panel that says the person signed in and signs out.
+ * the viewer's menu and the navigation, and a page that says the person signed in and signs out.
  * Signing out posts to the server, which ends the session and answers with the login page. The
  * props are HomePageV1, generated from the page's JSON Schema.
  */
@@ -23,12 +23,14 @@ export default function Home({ logout }: HomePageV1) {
   return (
     <>
       <Head title={t('panel.home.title')} />
-      <PanelShell>
-        <TaskScreen title={t('panel.home.title')} description={t('panel.home.body')}>
+      <PanelShell page="home">
+        <Page
+          header={<PageHeader title={t('panel.home.title')} description={t('panel.home.body')} />}
+        >
           <Form method="post" action={logout} onSubmit={signOut}>
             <Button type="submit">{t('panel.home.sign_out')}</Button>
           </Form>
-        </TaskScreen>
+        </Page>
       </PanelShell>
     </>
   );

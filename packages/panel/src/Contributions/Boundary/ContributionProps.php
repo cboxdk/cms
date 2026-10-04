@@ -27,7 +27,6 @@ use Cbox\Cms\Core\Reads\Domain\QueryCodecs;
 use Cbox\Cms\Http\Credentials\Boundary\RequestCredential;
 use Cbox\Cms\Http\Inertia\Boundary\InertiaProps;
 use Cbox\Cms\Panel\Boundary\Generated\ContributionsCodecV1;
-use Cbox\Cms\Panel\Boundary\PanelPages;
 use Cbox\Cms\Panel\Boundary\PanelSessions;
 use Cbox\Cms\Panel\Contributions\Domain\ContributionTelemetry;
 use Cbox\Cms\Panel\Contributions\Domain\DataRefusal;
@@ -58,6 +57,7 @@ use Cbox\Cms\Panel\Domain\PanelRoute;
 use Cbox\Cms\Panel\Shell\Domain\Dto\ShellNavV1;
 use Cbox\Cms\Panel\Shell\Domain\Dto\ShellPageV1;
 use Cbox\Cms\Panel\Shell\Domain\Dto\ViewerSummaryV1;
+use Cbox\Cms\Panel\Shell\Domain\OwnPage;
 use Cbox\Cms\Panel\Shell\Domain\Shell;
 use Closure;
 use Illuminate\Contracts\Debug\ExceptionHandler;
@@ -80,7 +80,7 @@ use Throwable;
  *   viewer's and the addon's reads, and what its kind needs besides; each point with its kind,
  *   region and multiplicity; the registration of each addon whose code runs on the page; whether
  *   the viewer sees the detail of a failure; the panel's pages a contribution may navigate to,
- *   the start page and every addon's page the viewer may open, each at
+ *   the panel's own pages (OwnPage) and every addon's page the viewer may open, each at
  *   `<prefix>/x/<namespace>/<path>`; and
  *   the address of the Inertia profile the host runs commands through, which is everything the
  *   panel's host (js/panel/src/host) renders the points from. A point without a codec, or props
@@ -131,11 +131,7 @@ final readonly class ContributionProps
      */
     public function view(Request $request, string $page, array $points = [], ViewSubject $subject = new ViewSubject): PanelView
     {
-        $viewer = $request->attributes->get(PanelSessions::PRINCIPAL);
-
-        if (! $viewer instanceof ActorPrincipal) {
-            throw new LogicException(sprintf('The panel page %s shows contributions only for a request the panel authenticated.', $page));
-        }
+        $viewer = $this->viewer($request, $page);
 
         return new PanelView(new PageName($page), $viewer, [
             ...$points,
@@ -143,6 +139,23 @@ final readonly class ContributionProps
             new RenderedPoint(Shell::pages(), new ShellPageV1),
             new RenderedPoint(Shell::userMenu(), new ViewerSummaryV1($viewer->actor, $viewer->issuerKind)),
         ], $subject);
+    }
+
+    /**
+     * The viewer the panel authenticated on the request, whose actor a page hands the points it
+     * renders as their props.
+     *
+     * @throws LogicException for a request the panel did not authenticate
+     */
+    public function viewer(Request $request, string $page): ActorPrincipal
+    {
+        $viewer = $request->attributes->get(PanelSessions::PRINCIPAL);
+
+        if (! $viewer instanceof ActorPrincipal) {
+            throw new LogicException(sprintf('The panel page %s shows contributions only for a request the panel authenticated.', $page));
+        }
+
+        return $viewer;
     }
 
     /**
@@ -243,14 +256,19 @@ final readonly class ContributionProps
     }
 
     /**
-     * The pages a contribution may navigate to, sorted by page id: the panel's start page, and
-     * every page of an addon the viewer may open, at `<prefix>/x/<namespace>/<path>`.
+     * The pages a contribution may navigate to, sorted by page id: the panel's own pages (OwnPage),
+     * each at its route, and every page of an addon the viewer may open, at
+     * `<prefix>/x/<namespace>/<path>`.
      *
      * @return list<PageLinkProp>
      */
     private function pages(ActiveContributions $active): array
     {
-        $pages = [PanelPages::HOME_PAGE => new PageLinkProp(PanelPages::HOME_PAGE, $this->home())];
+        $pages = [];
+
+        foreach (OwnPage::cases() as $own) {
+            $pages[$own->value] = new PageLinkProp($own->value, rtrim($this->urls->route($own->route()->value, [], false), '/'));
+        }
 
         foreach ($active->pages() as $page) {
             $declaration = $page->fill->declaration;

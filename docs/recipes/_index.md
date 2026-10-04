@@ -21,5 +21,6 @@ There is no generator for these tasks yet. When one comes, it takes a recipe's i
 - [Add a content type](content-type.md): a type as one blueprint file, its generated code and migration, and the tests that list the workbench's types.
 - [Write a hook in an addon](addon-hook.md): the addon package, its manifest, a hook class with its budget, and the tests with the testkit.
 - [Add a kernel action](kernel-action.md): a command, its write action with `#[Action]` and surfaces, the mutation writer, the Actions-suite tests and the surface tests.
+- [Add a panel page](panel-page.md): a page of the panel behind the login, the query it reads as the person with its schema and codec, its props, its React page, its navigation entry with the permission it needs, the point it declares, and the tests that hold it to REST and to the browser.
 
 Before any recipe, read `CLAUDE.md` and `PROGRESS.md`, and work in a worktree of your own. Every recipe ends with `composer check`, and with every changed or new test recorded in `CHECKS-LOG.md` (GUARDRAILS 7.3).

@@ -9,6 +9,24 @@ import type { PanelPointStoryData } from '../PanelPointStory';
 
 const PANEL_POINTS: readonly PanelPointStoryData[] = [
   {
+    id: 'account.me.sections@1',
+    page: 'account.me',
+    label: 'panel.points.account_me_sections',
+    since: '1.0',
+    stability: 'experimental',
+    class: 'Cbox\\Cms\\Panel\\Account\\Domain\\Dto\\AccountMeSectionsV1',
+    schema:
+      '{\n  "$schema": "https://json-schema.org/draft/2020-12/schema",\n  "title": "account.me.sections props, contract version 1",\n  "description": "The props of the sections of the who-am-I page, a slot point in its sections region (PRD 13.4): the viewer\'s actor id, which a section\'s data query takes as its input. The PHP form is Cbox\\\\Cms\\\\Panel\\\\Account\\\\Domain\\\\Dto\\\\AccountMeSectionsV1.",\n  "type": "object",\n  "additionalProperties": false,\n  "required": [\n    "actor"\n  ],\n  "properties": {\n    "actor": {\n      "description": "The viewer\'s actor id.",\n      "$ref": "#/$defs/id"\n    }\n  },\n  "$defs": {\n    "id": {\n      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",\n      "type": "string",\n      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",\n      "examples": [\n        "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"\n      ]\n    }\n  }\n}',
+    point: {
+      fills: [],
+      kind: 'slot',
+      max: null,
+      multiplicity: 'many',
+      point: 'account.me.sections@1',
+      region: 'sections',
+    },
+  },
+  {
     id: 'shell.nav@1',
     page: 'shell',
     label: 'panel.points.shell_nav',
@@ -18,7 +36,22 @@ const PANEL_POINTS: readonly PanelPointStoryData[] = [
     schema:
       '{\n  "$schema": "https://json-schema.org/draft/2020-12/schema",\n  "title": "shell.nav props, contract version 1",\n  "description": "The props of the navigation of the panel\'s shell, a nav point (PRD 13.4): none. A contribution to it is an entry of the navigation that opens one of its addon\'s pages. The PHP form is Cbox\\\\Cms\\\\Panel\\\\Shell\\\\Domain\\\\Dto\\\\ShellNavV1.",\n  "type": "object",\n  "additionalProperties": false,\n  "properties": {}\n}',
     point: {
-      fills: [],
+      fills: [
+        {
+          action: null,
+          addon: 'cms',
+          check: null,
+          data: false,
+          decorator: null,
+          id: 'cms.account-me',
+          kind: 'nav',
+          nav: { icon: null, label: 'panel.nav.account_me', page: 'account.me' },
+          priority: 100,
+          props: {},
+          replacement: null,
+          step: null,
+        },
+      ],
       kind: 'nav',
       max: null,
       multiplicity: 'many',
