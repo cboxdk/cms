@@ -278,7 +278,7 @@ it('gives mutation on changed files its base: the pull request\'s base commit in
         ->and($checkout)->toHaveCount(1)
         ->and(CiFiles::at($checkout[0] ?? [], 'with', 'fetch-depth'))->toBe(0);
 
-    foreach ([CiFiles::ENTRY, CiFiles::WORKFLOW, CiFiles::COMPOSE_CI, 'docker/ci-entry.sh', 'CLAUDE.md', 'AGENTS.md'] as $file) {
+    foreach ([CiFiles::ENTRY, CiFiles::WORKFLOW, CiFiles::COMPOSE_CI, 'docker/ci-entry.sh', 'CLAUDE.md', 'AGENTS.md', 'docs/developers/architecture/gates.md'] as $file) {
         expect(CiFiles::text($file))->toContain('CMS_CI_BASE_REF');
     }
 })->with(WORKFLOW_JOBS);
