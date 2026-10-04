@@ -41,6 +41,7 @@ use Cbox\Cms\Core\Registry\Domain\Dto\BuildSettings;
 use Cbox\Cms\Core\Registry\Domain\Dto\BuildWarning;
 use Cbox\Cms\Core\Registry\Domain\Dto\BundleFile;
 use Cbox\Cms\Core\Registry\Domain\Dto\BundleManifest;
+use Cbox\Cms\Core\Registry\Domain\Dto\BundleSigning;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledBundle;
 use Cbox\Cms\Core\Registry\Domain\Dto\ContractShapes;
@@ -52,6 +53,7 @@ use Cbox\Cms\Core\Registry\Domain\Dto\PanelFill;
 use Cbox\Cms\Core\Registry\Domain\Dto\PanelPointEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\QueryEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\SchemaNode;
+use Cbox\Cms\Core\Registry\Domain\Dto\SignaturePolicy;
 
 /**
  * Compiles the addons' panel contributions into the panel registry (PRD 13.4, 13.1): every
@@ -123,7 +125,7 @@ final readonly class PanelCompiler
             $compiled = null;
 
             if ($panel instanceof PanelContributions) {
-                $compiled = $this->addonPanel($manifest, $panel, $context, $bundles[$manifest->package] ?? null, $owners, $fills, $problems, $warnings);
+                $compiled = $this->addonPanel($manifest, $panel, $context, $bundles[$manifest->package] ?? null, $settings, $owners, $fills, $problems, $warnings);
             }
 
             $addons[] = new AddonEntry($manifest->namespace, $manifest->package, $manifest->coreApi, $manifest->capabilities->reads, $issues, $manifest->capabilities->uiTheme, $compiled);
@@ -192,6 +194,7 @@ final readonly class PanelCompiler
         PanelContributions $panel,
         PanelContext $context,
         ?AddonBundle $bundle,
+        BuildSettings $settings,
         array &$owners,
         array &$fills,
         array &$problems,
@@ -270,7 +273,7 @@ final readonly class PanelCompiler
 
         sort($code, SORT_STRING);
 
-        return new AddonPanel($panel->sdk, $accepted, $this->bundle($manifest, $panel, $bundle, $code, $problems));
+        return new AddonPanel($panel->sdk, $accepted, $this->bundle($manifest, $panel, $bundle, $code, $settings, $problems));
     }
 
     /**
@@ -782,7 +785,7 @@ final readonly class PanelCompiler
      * @param  list<string>  $code  the ids of the contributions that run code, sorted
      * @param  list<BuildProblem>  $problems
      */
-    private function bundle(AddonManifest $manifest, PanelContributions $panel, ?AddonBundle $bundle, array $code, array &$problems): ?CompiledBundle
+    private function bundle(AddonManifest $manifest, PanelContributions $panel, ?AddonBundle $bundle, array $code, BuildSettings $settings, array &$problems): ?CompiledBundle
     {
         $named = sprintf('The panel bundle of addon "%s" (%s)', $manifest->namespace->value, $manifest->package);
 
@@ -845,6 +848,14 @@ final readonly class PanelCompiler
 
         foreach ($wrong as $message) {
             $problems[] = new BuildProblem(BuildErrorCode::PanelBundleInvalid, sprintf('%s in %s: %s. Build the bundle again from the addon\'s manifest.', $named, $panel->bundle, $message));
+        }
+
+        $refusal = $settings->signatures instanceof SignaturePolicy && $bundle->signing instanceof BundleSigning
+            ? BundleSignatures::refusal($manifest->package, $bundle->signing, $settings->signatures)
+            : null;
+
+        if ($refusal !== null) {
+            $problems[] = new BuildProblem(BuildErrorCode::PanelBundleUnsigned, sprintf('%s in %s: %s', $named, $panel->bundle, $refusal));
         }
 
         return new CompiledBundle($read->entry, $read->files);

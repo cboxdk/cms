@@ -11,6 +11,7 @@ use Cbox\Cms\Core\Registry\Domain\Dto\BuildProblem;
 use Cbox\Cms\Core\Registry\Domain\Dto\BuildSettings;
 use Cbox\Cms\Core\Registry\Domain\Dto\ContributionOverride;
 use Cbox\Cms\Core\Registry\Domain\Dto\ReplacementChoice;
+use Cbox\Cms\Core\Registry\Domain\PublisherKey;
 use Illuminate\Config\Repository;
 
 /*
@@ -23,10 +24,13 @@ use Illuminate\Config\Repository;
  * @param  array<array-key, mixed>  $addons
  * @param  array<array-key, mixed>  $panel
  */
-function buildSettings(array $addons, array $panel = []): BuildSettings
+function buildSettings(array $addons, array $panel = [], ?string $environment = null): BuildSettings
 {
-    return BuildSettingsConfig::read(new Repository(['cbox-cms' => ['addons' => $addons, 'panel' => $panel]]));
+    return BuildSettingsConfig::read(new Repository(['cbox-cms' => ['addons' => $addons, 'panel' => $panel], 'app' => ['env' => $environment]]));
 }
+
+/** A publisher's Ed25519 public key, the base64 of 32 bytes. */
+const PUBLISHER_KEY = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
 
 /**
  * @return list<string>
@@ -91,4 +95,27 @@ it('reports each theme setting of the wrong form as registry_panel_theme_invalid
     'a theme that is no text' => [['themes' => [1]], '[registry_panel_theme_invalid] The setting cbox-cms.panel.themes names a theme it cannot use. int is not the name of a panel theme.'],
     'an app theme that is relative' => [['app_theme' => 'resources/panel/theme.json'], '[registry_panel_theme_invalid] The setting cbox-cms.panel.app_theme must be the absolute path of the application\'s theme JSON, such as base_path(\'resources/panel/theme.json\'), or null; it is "resources/panel/theme.json".'],
     'an app theme that is no JSON file' => [['app_theme' => '/srv/app/theme.css'], '[registry_panel_theme_invalid] The setting cbox-cms.panel.app_theme must be the absolute path of the application\'s theme JSON, such as base_path(\'resources/panel/theme.json\'), or null; it is "/srv/app/theme.css".'],
+]);
+
+it('reads the publisher keys the installation trusts by package, and whether the environment is local', function (): void {
+    $other = 'MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=';
+    $settings = buildSettings(['allowed' => [], 'publishers' => ['acme/cms-approvals' => [PUBLISHER_KEY, $other], 'acme/cms-stamps' => []]], environment: 'local');
+    $production = buildSettings(['allowed' => []], environment: 'production');
+
+    expect($settings->problems)->toBe([])
+        ->and($settings->signatures?->unsignedAllowed)->toBeTrue()
+        ->and(array_map(static fn (array $keys): array => array_map(static fn (PublisherKey $key): string => $key->value, $keys), $settings->signatures->publishers ?? []))->toBe(['acme/cms-approvals' => [PUBLISHER_KEY, $other], 'acme/cms-stamps' => []])
+        ->and($production->signatures?->unsignedAllowed)->toBeFalse()
+        ->and($production->signatures?->publishers)->toBe([])
+        ->and(BuildSettingsConfig::read(new Repository([]))->signatures?->unsignedAllowed)->toBeFalse();
+});
+
+it('reports each publisher setting of the wrong form as registry_panel_bundle_unsigned', function (array $addons, string $problem): void {
+    expect(settingsProblems(buildSettings($addons)))->toBe([$problem]);
+})->with([
+    'publishers that are a list' => [['allowed' => [], 'publishers' => [PUBLISHER_KEY]], '[registry_panel_bundle_unsigned] The setting cbox-cms.addons.publishers must be a map from the Composer packages of the addons to lists of their publishers\' Ed25519 public keys, each the base64 of its 32 bytes; it is array.'],
+    'a package that is no package name' => [['allowed' => [], 'publishers' => ['approvals' => [PUBLISHER_KEY]]], '[registry_panel_bundle_unsigned] The setting cbox-cms.addons.publishers names "approvals", which is not a Composer package name such as "acme/cms-approvals".'],
+    'keys that are a string' => [['allowed' => [], 'publishers' => ['acme/cms-approvals' => PUBLISHER_KEY]], '[registry_panel_bundle_unsigned] The setting cbox-cms.addons.publishers.acme/cms-approvals must be a list of the publisher\'s Ed25519 public keys, each the base64 of its 32 bytes; it is string.'],
+    'a key that is too short' => [['allowed' => [], 'publishers' => ['acme/cms-approvals' => ['c2hvcnQ=']]], '[registry_panel_bundle_unsigned] The setting cbox-cms.addons.publishers.acme/cms-approvals names a key it cannot use. "c2hvcnQ=" is not an Ed25519 public key: the 44 base64 characters of its 32 bytes.'],
+    'a key that is no text' => [['allowed' => [], 'publishers' => ['acme/cms-approvals' => [32]]], '[registry_panel_bundle_unsigned] The setting cbox-cms.addons.publishers.acme/cms-approvals names a key it cannot use. int is not an Ed25519 public key.'],
 ]);

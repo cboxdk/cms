@@ -16,10 +16,16 @@ use Illuminate\Support\ServiceProvider;
 /**
  * The fixture addon acme/cms-approvals as an application registers it: the scan roots of the host
  * and the addon fixtures, and a manifest whose two slot fills go to an experimental and a
- * deprecated point, with the bundle in Fixtures/PanelBundleValid.
+ * deprecated point, with the bundle in Fixtures/PanelBundleValid, signed into its
+ * panel-signature.json by a keypair made once for the fixture and kept nowhere (PRD 13.8): a test
+ * that builds it outside the local environment trusts PUBLISHER_KEY for the addon, and a change of
+ * the fixture's manifest signs it again with a new keypair and replaces the key here.
  */
 final class PanelAddonProvider extends ServiceProvider implements DeclaresAddon, DeclaresScanRoots
 {
+    /** The Ed25519 public key that signed Fixtures/PanelBundleValid/dist/panel-manifest.json. */
+    public const string PUBLISHER_KEY = 'kBdLEySzrvQvSdMyZgUqXDEh7LFw0SsAOxGBPVG5xJc=';
+
     public function scanRoots(): array
     {
         return [RegistryFixtures::root('PanelHost', PanelBuildWorld::HOST), RegistryFixtures::root('PanelAddon', PanelBuildWorld::ADDON)];

@@ -19,8 +19,7 @@ Cbox CMS is one package, `cboxdk/cms`, with the kernel and the first-party modul
 | PHP | `^8.5` |
 | Laravel, through the `illuminate/*` packages | `^13.0` |
 | `composer-runtime-api` | `^2.2` |
-
-`composer.json` requires no PHP extension. The extensions the connections use are checked at run time, as the section on cms:doctor below says.
+| PHP extension `sodium` | `*` |
 
 ### Packages
 

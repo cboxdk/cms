@@ -22,7 +22,11 @@
 // addon's own subtree, [data-cms-addon="<ns>"], which the panel's host renders each contribution
 // inside. Last it writes panel-manifest.json next to the files: the entry, every file with its
 // SHA-384 and kind, the shared modules the bundle imports and the contribution ids it registers
-// code for, which cms:build checks against the addon's manifest (panel-bundle.v1.json).
+// code for, which cms:build checks against the addon's manifest (panel-bundle.v1.json). Given the
+// publisher's Ed25519 private key (`sign`), it also writes panel-signature.json, the signature over
+// the manifest's bytes with the publisher's public key (panel-bundle-signature.v1.json), which
+// cms:build verifies against the keys the installation trusts for the addon (PRD 13.8); without
+// one it warns, because an installation accepts an unsigned bundle in its local environment alone.
 //
 // In the dev server (`vite`) the entry module is served at DEV_ENTRY, which the panel's import map
 // names when CBOX_CMS_PANEL_DEV_ADDONS points the addon at the server, so the panel loads the
@@ -31,7 +35,7 @@
 // map maps each of those to the panel's own copy too (DEV_SHARED_PREFIX).
 
 import { Buffer } from 'node:buffer';
-import { createHash } from 'node:crypto';
+import { createHash, createPrivateKey, createPublicKey, sign } from 'node:crypto';
 import { isAbsolute, resolve } from 'node:path';
 
 /**
@@ -91,6 +95,96 @@ export const DEV_SHARED_PREFIX = '/@id/';
  * @stable
  */
 export const MANIFEST = 'panel-manifest.json';
+
+/**
+ * The file the plugin writes the publisher's signature over the manifest's bytes to, next to the
+ * manifest, when it is given the publisher's key.
+ *
+ * @stable
+ */
+export const SIGNATURE = 'panel-signature.json';
+
+/**
+ * The signature algorithm, as panel-signature.json names it: Ed25519 (RFC 8032).
+ *
+ * @stable
+ */
+export const SIGNATURE_ALGORITHM = 'ed25519';
+
+/**
+ * @typedef {object} BundleSignature
+ * @property {'ed25519'} algorithm The signature algorithm.
+ * @property {string} public_key The publisher's public key, the base64 of its 32 bytes, which the installation names in cbox-cms.addons.publishers.
+ * @property {string} signature The signature over the bytes of panel-manifest.json, the base64 of its 64 bytes.
+ * @stable
+ */
+
+/**
+ * The publisher's Ed25519 private key, read from its PEM (PKCS#8, as `openssl genpkey -algorithm
+ * ed25519` writes it).
+ *
+ * @param {string} pem
+ * @returns {import('node:crypto').KeyObject}
+ * @throws {TypeError} when the PEM is not an Ed25519 private key
+ */
+function privateKeyOf(pem) {
+  /** @type {import('node:crypto').KeyObject} */
+  let key;
+
+  try {
+    key = createPrivateKey(pem);
+  } catch (error) {
+    throw new TypeError(
+      `sign.privateKey is not a private key in PEM: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    );
+  }
+
+  if (key.asymmetricKeyType !== SIGNATURE_ALGORITHM) {
+    throw new TypeError(
+      `sign.privateKey is a ${String(key.asymmetricKeyType)} key; the panel verifies Ed25519 signatures. Make one with: openssl genpkey -algorithm ed25519 -out panel-signing.pem`,
+    );
+  }
+
+  return key;
+}
+
+/**
+ * The public key of an Ed25519 private key in PEM, the base64 of its 32 bytes: what the
+ * installation puts in cbox-cms.addons.publishers for the addon.
+ *
+ * @param {string} pem
+ * @returns {string}
+ * @stable
+ */
+export function publicKeyOf(pem) {
+  const jwk = createPublicKey(privateKeyOf(pem)).export({ format: 'jwk' });
+
+  if (typeof jwk.x !== 'string') {
+    throw new TypeError('The key exports no public key.');
+  }
+
+  return Buffer.from(jwk.x, 'base64url').toString('base64');
+}
+
+/**
+ * The publisher's signature over the manifest's bytes by the Ed25519 private key in PEM: the
+ * document of panel-signature.json.
+ *
+ * @param {Uint8Array | string} manifest the bytes of panel-manifest.json
+ * @param {string} pem
+ * @returns {BundleSignature}
+ * @stable
+ */
+export function signManifest(manifest, pem) {
+  const bytes = typeof manifest === 'string' ? Buffer.from(manifest, 'utf8') : manifest;
+
+  return {
+    algorithm: SIGNATURE_ALGORITHM,
+    public_key: publicKeyOf(pem),
+    signature: sign(null, bytes, privateKeyOf(pem)).toString('base64'),
+  };
+}
 
 /**
  * The size budget of a bundle unless the addon names another: every built file together, in
@@ -539,10 +633,17 @@ function entryOf(config) {
 }
 
 /**
+ * @typedef {object} SigningOptions
+ * @property {string} privateKey The publisher's Ed25519 private key in PEM (PKCS#8), read by the configuration from a file or a secret outside the repository, never committed.
+ * @stable
+ */
+
+/**
  * @typedef {object} PanelAddonOptions
  * @property {string} namespace The addon's namespace, as its manifest declares it.
  * @property {readonly string[]} contributions The ids of the contributions the bundle registers code for: exactly the addon's contributions that run code.
  * @property {number} [budget] The bundle's size budget in bytes, every built file together; DEFAULT_BUDGET unless given.
+ * @property {SigningOptions} [sign] The publisher's key, which signs the manifest into panel-signature.json; without it the bundle is unsigned, which only a local installation accepts.
  * @stable
  */
 
@@ -557,7 +658,7 @@ function entryOf(config) {
  * @stable
  */
 export default function cmsPanelAddon(options) {
-  const { namespace, contributions, budget = DEFAULT_BUDGET } = options;
+  const { namespace, contributions, budget = DEFAULT_BUDGET, sign: signing } = options;
 
   if (
     typeof namespace !== 'string' ||
@@ -588,6 +689,24 @@ export default function cmsPanelAddon(options) {
 
   if (!Number.isInteger(budget) || budget < 1) {
     throw new TypeError("budget is the bundle's size budget in bytes, a positive integer.");
+  }
+
+  if (signing !== undefined) {
+    // Read as unknown: at run time the configuration can hold anything.
+    const given = /** @type {unknown} */ (signing);
+
+    if (
+      typeof given !== 'object' ||
+      given === null ||
+      !('privateKey' in given) ||
+      typeof given.privateKey !== 'string'
+    ) {
+      throw new TypeError(
+        "sign is { privateKey } with the publisher's Ed25519 private key in PEM, or left out.",
+      );
+    }
+
+    privateKeyOf(signing.privateKey);
   }
 
   /** @type {import('vite').ResolvedConfig | null} */
@@ -766,10 +885,22 @@ export default function cmsPanelAddon(options) {
         files,
       };
 
+      const document = `${JSON.stringify(manifest, null, 2)}\n`;
+
+      this.emitFile({ type: 'asset', fileName: MANIFEST, source: document });
+
+      if (signing === undefined) {
+        this.warn(
+          `The bundle is not signed: an installation accepts it in its local environment alone (PRD 13.8). Give cmsPanelAddon({ sign: { privateKey } }) the publisher's Ed25519 private key to write ${SIGNATURE}.`,
+        );
+
+        return;
+      }
+
       this.emitFile({
         type: 'asset',
-        fileName: MANIFEST,
-        source: `${JSON.stringify(manifest, null, 2)}\n`,
+        fileName: SIGNATURE,
+        source: `${JSON.stringify(signManifest(document, signing.privateKey), null, 2)}\n`,
       });
     },
   };

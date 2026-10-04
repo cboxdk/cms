@@ -28,7 +28,7 @@ All of them live in `Cbox\Cms\Contracts\Addons` and are `#[Experimental]`. A man
 
 ### The allowlist
 
-The installation allows its addons by Composer package in `cbox-cms.addons.allowed` (PRD 13.8). `cms:build` refuses a manifest whose package is not on it with `registry_addon_not_allowed`, so an addon the installation has not reviewed fails at build, never at run time. Add the package when you install the addon, such as `'addons' => ['allowed' => ['acme/cms-reviews']]` in `config/cbox-cms.php`.
+The installation allows its addons by Composer package in `cbox-cms.addons.allowed` (PRD 13.8). `cms:build` refuses a manifest whose package is not on it with `registry_addon_not_allowed`, so an addon the installation has not reviewed fails at build, never at run time. Add the package when you install the addon, such as `'addons' => ['allowed' => ['acme/cms-reviews']]` in `config/cbox-cms.php`. An addon with panel UI also needs its publisher's key under `cbox-cms.addons.publishers`, which `cms:build` verifies its bundle's signature against; see [Signing the bundle](panel-contributions.md#signing-the-bundle).
 
 ### The namespace
 

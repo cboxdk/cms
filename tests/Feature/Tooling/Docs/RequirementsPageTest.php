@@ -102,7 +102,11 @@ it('lists on docs/requirements.md every requirement and suggestion of composer.j
 
     foreach ($require as $name => $constraint) {
         $constraint = is_string($constraint) ? $constraint : '';
-        $row = $name === 'php' ? '| PHP | `'.$constraint.'` |' : '| `'.$name.'` | `'.str_replace('|', '\|', $constraint).'` |';
+        $row = match (true) {
+            $name === 'php' => '| PHP | `'.$constraint.'` |',
+            str_starts_with((string) $name, 'ext-') => '| PHP extension `'.substr((string) $name, strlen('ext-')).'` | `'.str_replace('|', '\|', $constraint).'` |',
+            default => '| `'.$name.'` | `'.str_replace('|', '\|', $constraint).'` |',
+        };
 
         if (! str_contains($page, $row)) {
             $missing[] = $row;

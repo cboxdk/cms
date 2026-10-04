@@ -86,6 +86,17 @@ abstract class BuildTestCase extends TestCase
     }
 
     /**
+     * Trusts the publisher's Ed25519 public key for the addon's panel bundle, as an installation
+     * does in cbox-cms.addons.publishers after reviewing where the key came from.
+     */
+    protected function trustPublisher(string $package, string $publicKey): void
+    {
+        $publishers = config('cbox-cms.addons.publishers', []);
+
+        config()->set('cbox-cms.addons.publishers', [...(is_array($publishers) ? $publishers : []), $package => [$publicKey]]);
+    }
+
+    /**
      * What the last cms:build printed.
      */
     protected function buildOutput(): string

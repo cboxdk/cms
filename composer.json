@@ -12,6 +12,7 @@
     "require": {
         "php": "^8.5",
         "composer-runtime-api": "^2.2",
+        "ext-sodium": "*",
         "cboxdk/laravel-operations": "0.1.0",
         "cboxdk/laravel-ssrf": "~1.5.0",
         "illuminate/console": "^13.0",

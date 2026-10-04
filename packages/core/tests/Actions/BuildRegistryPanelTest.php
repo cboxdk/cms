@@ -167,6 +167,14 @@ function panelFailures(): array
 
             return PanelBuildWorld::refused(PanelBuildWorld::addons([$manifest], [PanelBuildWorld::ADDON => PanelBundles::read(__DIR__.'/../Registry/Fixtures/PanelBundle/dist')]));
         }],
+        'a bundle without a signature where the installation trusts a publisher key' => ['registry_panel_bundle_unsigned', static function () use ($badge): array {
+            $manifest = PanelBuildWorld::manifest([$badge('notes.legacy@1')]);
+
+            return PanelBuildWorld::refused(
+                PanelBuildWorld::addons([$manifest], [PanelBuildWorld::ADDON => PanelBuildWorld::writtenBundle($manifest)]),
+                PanelBuildWorld::settings(signatures: PanelBuildWorld::signatures([PanelBuildWorld::keypair()])),
+            );
+        }],
         'a check for a command form no scan root registers' => ['registry_panel_unknown_command', static fn (): array => panelRefusal([new FormCheck(new ContributionId('approvals.hint'), 'notes.form.checks@1', 'notes.publish@1', Severity::Warning)])],
         'a scope that requires an unknown permission' => ['registry_panel_unknown_command', static fn (): array => panelRefusal([new SlotFill(new ContributionId('approvals.legacy'), 'notes.legacy@1', scope: new Scope(requires: new CommandName('notes.publish')))])],
         'a scope of an unknown command' => ['registry_panel_unknown_command', static fn (): array => panelRefusal([new SlotFill(new ContributionId('approvals.legacy'), 'notes.legacy@1', scope: new Scope(commands: [new CommandRef(new CommandName('notes.draft'), 2)]))])],
@@ -205,6 +213,10 @@ function panelRefusalWithout(array $contributions): array
 {
     return PanelBuildWorld::refused(PanelBuildWorld::addons([PanelBuildWorld::manifest($contributions, bundle: null)]));
 }
+
+afterEach(function (): void {
+    RegistryFixtures::cleanUp();
+});
 
 it('builds a contribution of every kind into panel.php and the addon into addons.php', function (): void {
     $registry = PanelBuildWorld::build(PanelBuildWorld::addons([PanelBuildWorld::manifest(PanelBuildWorld::everyKind())]));

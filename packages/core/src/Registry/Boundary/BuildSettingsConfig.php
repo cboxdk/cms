@@ -16,13 +16,18 @@ use Cbox\Cms\Core\Registry\Domain\Dto\BuildProblem;
 use Cbox\Cms\Core\Registry\Domain\Dto\BuildSettings;
 use Cbox\Cms\Core\Registry\Domain\Dto\ContributionOverride;
 use Cbox\Cms\Core\Registry\Domain\Dto\ReplacementChoice;
+use Cbox\Cms\Core\Registry\Domain\Dto\SignaturePolicy;
+use Cbox\Cms\Core\Registry\Domain\PublisherKey;
 use Illuminate\Contracts\Config\Repository;
 use InvalidArgumentException;
 
 /**
  * Reads the installation's settings cms:build compiles (PRD 13.8, 13.4):
  *
- *     'addons' => ['allowed' => ['acme/cms-approvals']],
+ *     'addons' => [
+ *         'allowed' => ['acme/cms-approvals'],
+ *         'publishers' => ['acme/cms-approvals' => ['<base64 Ed25519 public key>']],
+ *     ],
  *     'panel' => [
  *         'contributions' => [
  *             'account.me.sections@1' => ['approvals.badge' => ['priority' => 50, 'enabled' => true]],
@@ -35,13 +40,22 @@ use InvalidArgumentException;
  *     ],
  *
  * A value of the wrong form is a problem of the build, not an exception: the allowlist's as
- * registry_addon_not_allowed, the panel's overrides as registry_panel_override_invalid and its
- * themes as registry_panel_theme_invalid, each naming the setting.
+ * registry_addon_not_allowed, the publishers' as registry_panel_bundle_unsigned, the panel's
+ * overrides as registry_panel_override_invalid and its themes as registry_panel_theme_invalid,
+ * each naming the setting. The environment, app.env, decides whether a bundle of an addon the
+ * installation trusts no key for passes unsigned: only local does (decision D8).
  */
 #[Internal]
 final readonly class BuildSettingsConfig
 {
     public const string ALLOWED = 'cbox-cms.addons.allowed';
+
+    public const string PUBLISHERS = 'cbox-cms.addons.publishers';
+
+    public const string ENVIRONMENT = 'app.env';
+
+    /** The one environment that accepts an unsigned bundle of an addon without trusted keys. */
+    public const string LOCAL = 'local';
 
     public const string CONTRIBUTIONS = 'cbox-cms.panel.contributions';
 
@@ -101,8 +115,58 @@ final readonly class BuildSettingsConfig
         }
 
         $themes = self::themes($config->get(self::THEMES, []), $config->get(self::APP_THEME), $problems);
+        $signatures = new SignaturePolicy(self::publishers($config->get(self::PUBLISHERS, []), $problems), $config->get(self::ENVIRONMENT) === self::LOCAL);
 
-        return new BuildSettings($allowed, $overrides, $replacements, $problems, $themes);
+        return new BuildSettings($allowed, $overrides, $replacements, $problems, $themes, $signatures);
+    }
+
+    /**
+     * @param  list<BuildProblem>  $problems
+     * @return array<string, list<PublisherKey>>
+     */
+    private static function publishers(mixed $value, array &$problems): array
+    {
+        if ($value === null) {
+            return [];
+        }
+
+        if (! is_array($value) || ($value !== [] && array_is_list($value))) {
+            $problems[] = self::problem(BuildErrorCode::PanelBundleUnsigned, sprintf('The setting %s must be a map from the Composer packages of the addons to lists of their publishers\' Ed25519 public keys, each the base64 of its 32 bytes; it is %s.', self::PUBLISHERS, get_debug_type($value)));
+
+            return [];
+        }
+
+        $publishers = [];
+
+        foreach ($value as $package => $keys) {
+            $at = sprintf('%s.%s', self::PUBLISHERS, $package);
+
+            if (! is_string($package) || preg_match(ScanRoot::PACKAGE_PATTERN, $package) !== 1) {
+                $problems[] = self::problem(BuildErrorCode::PanelBundleUnsigned, sprintf('The setting %s names "%s", which is not a Composer package name such as "acme/cms-approvals".', self::PUBLISHERS, $package));
+
+                continue;
+            }
+
+            if (! is_array($keys) || ! array_is_list($keys)) {
+                $problems[] = self::problem(BuildErrorCode::PanelBundleUnsigned, sprintf('The setting %s must be a list of the publisher\'s Ed25519 public keys, each the base64 of its 32 bytes; it is %s.', $at, get_debug_type($keys)));
+
+                continue;
+            }
+
+            $trusted = [];
+
+            foreach ($keys as $key) {
+                try {
+                    $trusted[] = new PublisherKey(is_string($key) ? $key : throw new InvalidArgumentException(sprintf('%s is not an Ed25519 public key.', get_debug_type($key))));
+                } catch (InvalidArgumentException $invalid) {
+                    $problems[] = self::problem(BuildErrorCode::PanelBundleUnsigned, sprintf('The setting %s names a key it cannot use. %s', $at, $invalid->getMessage()));
+                }
+            }
+
+            $publishers[$package] = $trusted;
+        }
+
+        return $publishers;
     }
 
     /**

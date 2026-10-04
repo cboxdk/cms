@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Panel bundle signature, contract version 1",
+  "description": "The publisher's signature of an addon's prebuilt panel bundle (PRD 13.8, decision D8 of the panel extension architecture): panel-signature.json next to panel-manifest.json in the bundle directory, an Ed25519 signature over the bytes of panel-manifest.json, which carries the SHA-384 of every file, by the publisher's key. cms:build reads it with the generated codec PanelBundleSignatureCodecV1 and refuses the bundle with registry_panel_bundle_unsigned unless the key is one the installation trusts for the addon (cbox-cms.addons.publishers) and the signature verifies; a bundle without the file passes only in the local environment of an installation that trusts no key for the addon. The PHP form is Cbox\\Cms\\Core\\Registry\\Domain\\Dto\\BundleSignature.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "algorithm",
+    "public_key",
+    "signature"
+  ],
+  "properties": {
+    "algorithm": {
+      "description": "The signature algorithm: Ed25519 (RFC 8032).",
+      "enum": [
+        "ed25519"
+      ]
+    },
+    "public_key": {
+      "description": "The publisher's Ed25519 public key, the base64 of its 32 bytes, which the installation names in cbox-cms.addons.publishers.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9+/]{43}=$"
+    },
+    "signature": {
+      "description": "The Ed25519 signature over the bytes of panel-manifest.json, the base64 of its 64 bytes.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9+/]{86}==$"
+    }
+  }
+}

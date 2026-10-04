@@ -185,6 +185,7 @@ export type ErrorCode =
   | 'registry_not_final_readonly'
   | 'registry_panel_action_prefill_invalid'
   | 'registry_panel_bundle_invalid'
+  | 'registry_panel_bundle_unsigned'
   | 'registry_panel_check_unmirrored'
   | 'registry_panel_command_not_issuable'
   | 'registry_panel_data_query_invalid'
@@ -500,6 +501,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'registry_not_final_readonly',
           'registry_panel_action_prefill_invalid',
           'registry_panel_bundle_invalid',
+          'registry_panel_bundle_unsigned',
           'registry_panel_check_unmirrored',
           'registry_panel_command_not_issuable',
           'registry_panel_data_query_invalid',
@@ -779,6 +781,7 @@ const problemV1Rule: ObjectRule = {
           'registry_not_final_readonly',
           'registry_panel_action_prefill_invalid',
           'registry_panel_bundle_invalid',
+          'registry_panel_bundle_unsigned',
           'registry_panel_check_unmirrored',
           'registry_panel_command_not_issuable',
           'registry_panel_data_query_invalid',

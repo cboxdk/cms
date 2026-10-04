@@ -69,6 +69,12 @@ final class WorkbenchServiceProvider extends ServiceProvider
     /** The Composer package of the workbench's fixture addon, the one addon its allowlist names. */
     public const string FIXTURE_ADDON = 'cboxdk/cms-fixture-addon';
 
+    /**
+     * The Ed25519 public key of the fixture addon's test signing key, which signs its panel bundle:
+     * the base64 of its 32 bytes, as `publicKeyOf()` of @cboxdk/cms-panel/vite gives it.
+     */
+    public const string FIXTURE_ADDON_PUBLISHER_KEY = '07bBOJSaN0kTC4Xxkz7BB67pdOvsAvcvXgsBU/I2HjU=';
+
     /** The environment variable that picks the CDN driver; only fake is known. */
     public const string CDN_DRIVER = 'CBOX_CMS_CDN_DRIVER';
 
@@ -88,8 +94,11 @@ final class WorkbenchServiceProvider extends ServiceProvider
         ]);
 
         // The installation's allowlist of addons (PRD 13.8): the fixture addon, which the root
-        // package requires for development, is the one addon the workbench installs.
+        // package requires for development, is the one addon the workbench installs; and the
+        // publisher key the workbench trusts for its panel bundle, the public key of the test key
+        // workbench/addons/fixtureaddon/panel-signing-test-key.pem the bundle is signed with.
         $config->set('cbox-cms.addons.allowed', [self::FIXTURE_ADDON]);
+        $config->set('cbox-cms.addons.publishers', [self::FIXTURE_ADDON => [self::FIXTURE_ADDON_PUBLISHER_KEY]]);
 
         $config->set('cbox-cms.doctor.project_path', dirname(__DIR__, 3));
         $config->set('cbox-cms.doctor.vendor_manifest', dirname(__DIR__, 3).'/vendor/composer/installed.json');

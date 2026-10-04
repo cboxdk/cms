@@ -226,6 +226,7 @@ it('prints the warnings of a build with their codes before the counts', function
     app()->instance(RegistryCache::class, RegistryFixtures::cache($directory));
     app()->instance(OpenApiDocuments::class, RegistryFixtures::documents($directory));
     app(Repository::class)->set('cbox-cms.addons.allowed', [WorkbenchServiceProvider::FIXTURE_ADDON, PanelBuildWorld::ADDON]);
+    app(Repository::class)->set('cbox-cms.addons.publishers', [WorkbenchServiceProvider::FIXTURE_ADDON => [WorkbenchServiceProvider::FIXTURE_ADDON_PUBLISHER_KEY], PanelBuildWorld::ADDON => [PanelAddonProvider::PUBLISHER_KEY]]);
     app()->register(PanelAddonProvider::class);
 
     [$status, $output] = buildCommand();

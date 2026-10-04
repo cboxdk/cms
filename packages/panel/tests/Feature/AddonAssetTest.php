@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Panel\Tests\Feature;
 
+use Cbox\Cms\Core\Access\Domain\HeldPermissions;
+use Cbox\Cms\Core\Tests\Access\Fakes\FakeHeldPermissions;
 use Cbox\Cms\Identity\Tests\Login\LocalLoginWorld;
 use Cbox\Cms\Panel\Boundary\AddonAssetResponse;
 use Cbox\Cms\Panel\Boundary\PanelAssetResponse;
@@ -39,7 +41,11 @@ final class AddonAssetTest extends TestCase
 
         $this->setUpPanelLogins()->person(self::EMAIL);
         $this->bundle = AddonBundleWorld::write();
-        $this->bundle->bind($this->app ?? app());
+        $app = $this->app ?? app();
+        $this->bundle->bind($app);
+        // A page behind the login resolves the bundle's contributions, which asks the viewer's
+        // permissions; this is a Unit test, so the port is a fake and no database is needed.
+        $app->instance(HeldPermissions::class, new FakeHeldPermissions);
     }
 
     #[Override]
