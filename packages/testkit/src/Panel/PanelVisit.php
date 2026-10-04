@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Identity\LocalCredentialStore;
 use Cbox\Cms\Contracts\Identity\LoginIdentifier;
 use Cbox\Cms\Contracts\Identity\PasswordHash;
 use Cbox\Cms\Contracts\Ids\ActorId;
+use Cbox\Cms\Testkit\Panel\Boundary\FillOrderScript;
 use Illuminate\Container\Container;
 use JsonException;
 use Pest\Browser\Api\AwaitableWebpage;
@@ -35,12 +36,6 @@ final readonly class PanelVisit
 {
     /** Where the workbench and an application by default mount the panel. */
     public const string DEFAULT_PREFIX = '/cms';
-
-    /** The ids of the contributions rendered on a point, in document order. */
-    private const string FILL_ORDER = <<<'JS'
-        (point) => [...document.querySelectorAll(`[data-cms-point="${point}"][data-cms-contribution]`)]
-            .map((element) => element.getAttribute('data-cms-contribution'))
-        JS;
 
     /**
      * @param  AwaitableWebpage|Webpage  $page  the page the visit landed on, for every assertion the browser plugin has; the plugin gives a page that retries its assertions until its timeout
@@ -107,7 +102,7 @@ final readonly class PanelVisit
      */
     public function assertFillOrder(string $point, array $contributions): self
     {
-        $rendered = $this->page->script(sprintf('(%s)(%s)', self::FILL_ORDER, json_encode($point, JSON_THROW_ON_ERROR)));
+        $rendered = $this->page->script(FillOrderScript::for($point));
 
         Assert::assertSame($contributions, $rendered, sprintf('The point %s renders other contributions, or in another order.', $point));
 

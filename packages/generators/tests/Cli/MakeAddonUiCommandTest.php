@@ -41,7 +41,10 @@ function runInScaffoldedAddon(string $package, array $command): Process
     }
 
     $command[0] = $root.'/node_modules/.bin/'.$command[0];
-    $process = new Process($command, $package, null, null, 300);
+    // The tools decide colour from the environment (TERM, CI, a TTY), which differs between a
+    // terminal, the dev image and CI; the assertions read their text, so colour is turned off
+    // on every path the tools check: NO_COLOR for tinyrainbow, FORCE_COLOR=0 for kleur.
+    $process = new Process($command, $package, ['NO_COLOR' => '1', 'FORCE_COLOR' => '0', 'TERM' => 'dumb'], null, 300);
     $process->run();
 
     return $process;
@@ -83,7 +86,9 @@ it('scaffolds an addon whose typecheck, lint and tests pass, and a second run ke
     }
 
     // The stubs' tests ran: one per fill, check and step, and the registration's.
-    expect($process->getOutput().$process->getErrorOutput())->toContain('Test Files  4 passed', 'Tests  4 passed');
+    expect($process->getOutput().$process->getErrorOutput())
+        ->not->toContain("\e[")
+        ->toContain('Test Files  4 passed', 'Tests  4 passed');
 
     unlink($package.'/node_modules');
     $second = $kernel->call('cms:make:addon-ui', ['namespace' => ScaffoldWorld::NAMESPACE]);

@@ -21,6 +21,7 @@ use Cbox\Cms\Generators\Cli\Console\SchemaEditorCommand;
 use Cbox\Cms\Generators\Editor\Adapter\FilesystemSchemaFiles;
 use Cbox\Cms\Generators\Generation\Adapter\FilesystemGeneratedOutput;
 use Cbox\Cms\Generators\Migrations\Boundary\LockFiles;
+use Cbox\Cms\Generators\Scaffold\Adapter\FilesystemScaffoldOutput;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintFiles;
 use Cbox\Cms\Generators\Schema\Boundary\LocalFile;
 use Cbox\Cms\Mcp\Boundary\KernelSchemas;
@@ -164,6 +165,11 @@ final class Egress
         // that fails; write() refuses a path that names a stream wrapper, and realpath() resolves
         // none.
         FilesystemSchemaFiles::class => ['chmod', 'file_put_contents', 'rename', 'unlink'],
+        // Makes the directories of a scaffolded addon's files below the addon's package root, which
+        // RegistryAddonUiSource takes from Composer's install path of the addon's package, writes each file to a
+        // temporary file next to it, renames it into place and removes it when that fails; write()
+        // refuses a root that names a stream wrapper before it touches it.
+        FilesystemScaffoldOutput::class => ['file_put_contents', 'mkdir', 'rename', 'unlink'],
         // Runs `node --version` and `node -e` with a fixed script for cms:doctor --dev.
         ProcessToolProbe::class => ['Symfony\Component\Process\\'],
         // The testkit: PHPStan's analysed files, a lock file in the temporary directory, and child
