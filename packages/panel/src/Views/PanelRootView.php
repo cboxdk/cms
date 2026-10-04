@@ -5,14 +5,18 @@ declare(strict_types=1);
 namespace Cbox\Cms\Panel\Views;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Panel\Boundary\AddonAssetUrls;
 use Cbox\Cms\Panel\Boundary\HandlePanelRequests;
 use Cbox\Cms\Panel\Boundary\ImportMapJson;
 use Cbox\Cms\Panel\Boundary\PanelBrandProps;
 use Cbox\Cms\Panel\Branding\Domain\Dto\BrandFile;
 use Cbox\Cms\Panel\Branding\Domain\Dto\Branding;
+use Cbox\Cms\Panel\Domain\Dto\DevAddons;
+use Cbox\Cms\Panel\Domain\Dto\DevServer;
 use Cbox\Cms\Panel\Domain\Dto\ImportMap;
 use Cbox\Cms\Panel\Domain\Dto\PanelBuild;
 use Cbox\Cms\Panel\Domain\Dto\PanelTheme;
+use Cbox\Cms\Panel\Domain\Dto\ServedBundles;
 use Cbox\Cms\Panel\Domain\PanelRoute;
 use Cbox\Cms\Panel\Middleware\SendContentSecurityPolicy;
 use Cbox\Cms\Panel\PanelRoutes;
@@ -28,7 +32,14 @@ use Illuminate\Http\Request;
  * stylesheets and its module preloads, below the panel's asset route. The view puts the nonce on
  * each of them and on the `csp-nonce` meta element, where Inertia and Vite find it for the style
  * and preload elements they add later. It also gives the page's import map (ImportMap), which the
- * view writes, with the nonce, before any module is loaded, as a browser requires.
+ * view writes before any module is loaded, as a browser requires, and whose text the policy
+ * names by its hash (SendContentSecurityPolicy::allowInlineScript()).
+ *
+ * On a page whose route loads the addons' panel UI (PanelRoutes::allowsAddons()), the map also
+ * has every installed addon's bundle, its entry, scope and integrity (AddonAssetUrls), or the dev
+ * server of an addon CBOX_CMS_PANEL_DEV_ADDONS names, whose client the page loads too, and the
+ * view links every bundle's stylesheets. A credential page gets none of it. The bundles are read
+ * from the container only on such a page, so a page without the compiled registry still renders.
  *
  * It also gives the installation's brand (PRD 13.4): the product name for the document's first
  * title and, when the application sets one, its application-name meta element, which the panel's
@@ -49,16 +60,34 @@ final readonly class PanelRootView
         private Branding $branding,
         private PanelTheme $theme,
         private PanelBrandProps $brand,
+        private DevAddons $devAddons,
+        private AddonAssetUrls $addonUrls,
     ) {}
 
     public function compose(View $view): void
     {
+        $map = $this->importMap;
+        $styles = [];
+        $clients = [];
+
+        if (PanelRoutes::allowsAddons($this->request)) {
+            $bundles = $this->app->make(ServedBundles::class);
+            $map = $this->addonUrls->importMap($map, $bundles, $this->devAddons);
+            $styles = $this->addonUrls->styles($bundles, $this->devAddons);
+            $clients = array_map(static fn (DevServer $server): string => $server->clientUrl(), $this->devAddons->servers);
+        }
+
+        $importMap = ImportMapJson::encode($map);
+        SendContentSecurityPolicy::allowInlineScript($this->request, $importMap);
+
         $view->with([
             'cspNonce' => SendContentSecurityPolicy::nonceOf($this->request)->value,
             'panelLocale' => str_replace('_', '-', $this->app->getLocale()),
-            'panelImportMap' => ImportMapJson::encode($this->importMap),
+            'panelImportMap' => $importMap,
             'panelScript' => $this->url($this->build->entry),
             'panelStyles' => array_map($this->url(...), $this->build->styles),
+            'panelAddonStyles' => $styles,
+            'panelDevClients' => $clients,
             'panelPreloads' => array_map($this->url(...), $this->build->preloads),
             'panelTheme' => $this->theme->version === null ? null : $this->urls->route(PanelRoute::Theme->value, ['version' => $this->theme->version], false),
             'panelName' => $this->branding->name(),

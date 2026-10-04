@@ -7,6 +7,7 @@ namespace Cbox\Cms\Tests\Browser\Panel;
 use ArrayObject;
 use Cbox\Cms\Panel\Domain\ContentSecurityPolicy;
 use Cbox\Cms\Panel\Domain\CspNonce;
+use Cbox\Cms\Panel\Domain\Dto\PagePolicy;
 use Cbox\Cms\Panel\Middleware\SendContentSecurityPolicy;
 use Cbox\Cms\Tests\Support\Browser\PanelPage;
 use Illuminate\Foundation\Http\Events\RequestHandled;
@@ -20,7 +21,8 @@ use RuntimeException;
  * The panel's public page, the one it shows for an address it does not have, in Chromium against
  * the build `composer panel:build` writes (PRD 13.4, GUARDRAILS 6, 8 and 9). The page is rendered
  * by React from the build's script, so its translated text proves the script ran under the page's
- * Content-Security-Policy; the policy's nonce is the one on that script, the console stays empty,
+ * Content-Security-Policy; the policy's nonce is the one on the page's styles, the console stays
+ * empty,
  * no script throws, axe finds no WCAG 2.2 AA issue, the browser reports no policy violation, and
  * the page works with the keyboard alone, in the light and the dark theme and on a phone.
  *
@@ -59,7 +61,7 @@ function notFoundTexts(): array
     return ['panel.not_found.title', 'panel.not_found.body', 'panel.not_found.home'];
 }
 
-it('shows the translated page, with a policy whose nonce is the script\'s, no console output, no errors and no accessibility issues', function (): void {
+it('shows the translated page, with a policy whose nonce is the styles\' and whose hash is the import map\'s, no console output, no errors and no accessibility issues', function (): void {
     $policies = recordPanelPolicies();
 
     $page = visit('/cms/no/such/page');
@@ -72,15 +74,17 @@ it('shows the translated page, with a policy whose nonce is the script\'s, no co
 
     expect($policy)->not->toContain('unsafe-inline');
     expect($policy)->not->toContain('unsafe-eval');
-    expect(preg_match("/script-src 'nonce-([A-Za-z0-9+\\/]{22}==)' 'strict-dynamic'/", $policy, $match))->toBe(1);
+    expect($policy)->not->toContain('strict-dynamic');
+    expect(preg_match("/style-src 'self' 'nonce-([A-Za-z0-9+\\/]{22}==)'/", $policy, $match))->toBe(1);
 
     $nonce = $match[1] ?? '';
     $styles = $page->script("[...document.querySelectorAll('link[rel=\"stylesheet\"]')].map((link) => link.nonce)");
+    $importMap = $page->script("document.querySelector('script[type=\"importmap\"]').textContent");
 
     expect($page->script("document.querySelector('script[type=\"module\"]').nonce"))->toBe($nonce);
     expect($page->script("document.querySelector('meta[property=\"csp-nonce\"]').nonce"))->toBe($nonce);
-    expect($styles)->toBe([$nonce]);
-    expect($policy)->toBe(ContentSecurityPolicy::header(new CspNonce($nonce)));
+    expect(is_array($styles) ? array_values(array_unique(array_map(static fn (mixed $style): string => is_string($style) ? $style : '', $styles))) : $styles)->toBe([$nonce]);
+    expect($policy)->toBe(ContentSecurityPolicy::header(new PagePolicy(new CspNonce($nonce), [PagePolicy::hashOf(is_string($importMap) ? $importMap : '')], '/cms/csp-report')));
 });
 
 it('shows the page in the dark theme and on a phone with the same assertions', function (callable $visit): void {

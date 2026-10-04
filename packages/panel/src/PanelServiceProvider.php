@@ -11,11 +11,17 @@ use Cbox\Cms\Contracts\Build\ScanRoot;
 use Cbox\Cms\Contracts\Doctor\DoctorCheck;
 use Cbox\Cms\Core\Doctor\Boundary\DoctorConfig;
 use Cbox\Cms\Core\PanelThemes\Domain\ThemeStylesheets;
+use Cbox\Cms\Core\Process\Boundary\ProcessWorkload;
+use Cbox\Cms\Core\Process\Domain\Workload;
 use Cbox\Cms\Core\Registry\Domain\Dto\PointSchemaDirectory;
+use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Identity\IdentityServiceProvider;
 use Cbox\Cms\Identity\Sessions\Domain\Dto\SessionCookie;
+use Cbox\Cms\Panel\Boundary\DevAddonsEnvironment;
 use Cbox\Cms\Panel\Boundary\Generated\Points\PanelPointCodecs;
+use Cbox\Cms\Panel\Boundary\InstalledBundles;
 use Cbox\Cms\Panel\Boundary\PanelSessions;
+use Cbox\Cms\Panel\Boundary\ProviderBundleDirectories;
 use Cbox\Cms\Panel\Boundary\ViteManifest;
 use Cbox\Cms\Panel\Branding\Boundary\BrandingConfig;
 use Cbox\Cms\Panel\Branding\Domain\Dto\Branding;
@@ -24,11 +30,21 @@ use Cbox\Cms\Panel\Contributions\Domain\CoreContributions;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\PointCodec;
 use Cbox\Cms\Panel\Contributions\Domain\PointCodecs;
 use Cbox\Cms\Panel\Doctor\Boundary\ConfigBrandingProbe;
+use Cbox\Cms\Panel\Doctor\Boundary\DiskAddonBundlesProbe;
+use Cbox\Cms\Panel\Doctor\Boundary\EnvironmentDevServerProbe;
+use Cbox\Cms\Panel\Doctor\Domain\Checks\AddonBundlesCheck;
 use Cbox\Cms\Panel\Doctor\Domain\Checks\BrandingCheck;
+use Cbox\Cms\Panel\Doctor\Domain\Checks\DevServerCheck;
+use Cbox\Cms\Panel\Doctor\Domain\Probes\AddonBundlesProbe;
 use Cbox\Cms\Panel\Doctor\Domain\Probes\BrandingProbe;
+use Cbox\Cms\Panel\Doctor\Domain\Probes\DevServerProbe;
+use Cbox\Cms\Panel\Domain\Dto\BundleDirectories;
+use Cbox\Cms\Panel\Domain\Dto\DevAddons;
 use Cbox\Cms\Panel\Domain\Dto\ImportMap;
 use Cbox\Cms\Panel\Domain\Dto\PanelBuild;
 use Cbox\Cms\Panel\Domain\Dto\PanelTheme;
+use Cbox\Cms\Panel\Domain\Dto\ServedBundles;
+use Cbox\Cms\Panel\Domain\PanelDevServerForbidden;
 use Cbox\Cms\Panel\Views\PanelRootView;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Events\Dispatcher;
@@ -48,8 +64,14 @@ use Override;
  * Binds the panel's build, read from its Vite manifest in buildDirectory() when a panel page or
  * file is first asked for, so a process without the build boots and runs everything else; the
  * installation's brand from cbox-cms.panel.branding and the stylesheet of the composed theme,
- * each read once per process; adds panel.branding to cms:doctor's checks, after the identity
- * module's; loads
+ * each read once per process; the bundles of the installed addons' panel UI (ServedBundles), from
+ * the compiled registry and the directories the addons' providers name, read when a page that
+ * loads addons or one of their files is first asked for; and the dev servers of
+ * CBOX_CMS_PANEL_DEV_ADDONS (DevAddons). Adds panel.branding, panel.addons and panel.dev_server
+ * to cms:doctor's checks, after the identity module's. Refuses to boot a process that serves HTTP
+ * or runs queued jobs with CBOX_CMS_PANEL_DEV_ADDONS outside the local environment
+ * (PanelDevServerForbidden), because the variable widens the panel's content security policy to
+ * a dev server; a console process boots, so cms:doctor can report it. Loads
  * the panel's views under the namespace VIEWS and gives its root view what it needs
  * (PanelRootView). Leaves the session cookie out of Laravel's cookie encryption, because its value
  * is a random id with a checksum that only the session store can use (docs/security/sessions.md),
@@ -76,7 +98,7 @@ final class PanelServiceProvider extends ServiceProvider implements DeclaresCore
      *
      * @var list<class-string<DoctorCheck>>
      */
-    public const array DOCTOR_CHECKS = [BrandingCheck::class];
+    public const array DOCTOR_CHECKS = [BrandingCheck::class, AddonBundlesCheck::class, DevServerCheck::class];
 
     #[Override]
     public function register(): void
@@ -117,6 +139,14 @@ final class PanelServiceProvider extends ServiceProvider implements DeclaresCore
         $this->app->singleton(PanelTheme::class, static fn (Application $app): PanelTheme => new PanelTheme($app->make(ThemeStylesheets::class)->read()));
         $this->app->bind(ImportMap::class, static fn (Application $app): ImportMap => PanelRootView::importMap($app->make(PanelBuild::class), $app->make(UrlGenerator::class)));
 
+        // The addons' panel bundles (PRD 13.4): the compiled registry says which files and hashes,
+        // the providers' manifests where they are. Read once per process, when first needed.
+        $this->app->singleton(static fn (Application $app): BundleDirectories => ProviderBundleDirectories::of($app));
+        $this->app->singleton(static fn (Application $app): ServedBundles => InstalledBundles::read($app->make(RegistryCache::class)->read(), $app->make(BundleDirectories::class)));
+        $this->app->singleton(static fn (): DevAddons => DevAddonsEnvironment::read());
+        $this->app->bind(AddonBundlesProbe::class, static fn (Application $app): AddonBundlesProbe => new DiskAddonBundlesProbe($app->make(RegistryCache::class), $app->make(BundleDirectories::class)));
+        $this->app->bind(DevServerProbe::class, static fn (Application $app): DevServerProbe => new EnvironmentDevServerProbe($app));
+
         // The props schemas of the panel's points, which cms:build checks contributions against.
         $this->app->bind(self::POINT_SCHEMAS, static fn (): PointSchemaDirectory => new PointSchemaDirectory(self::pointSchemaDirectory()));
         $this->app->tag([self::POINT_SCHEMAS], PointSchemaDirectory::TAG);
@@ -149,8 +179,12 @@ final class PanelServiceProvider extends ServiceProvider implements DeclaresCore
         return __DIR__.'/../resources/schemas/points';
     }
 
+    /**
+     * @throws PanelDevServerForbidden
+     */
     public function boot(): void
     {
+        $this->refuseDevServerOutsideLocal();
         $this->loadViewsFrom(__DIR__.'/../resources/views', self::VIEWS);
         $this->callAfterResolving(Factory::class, static function (Factory $views): void {
             $views->composer(PanelRootView::VIEW, PanelRootView::class);
@@ -173,6 +207,27 @@ final class PanelServiceProvider extends ServiceProvider implements DeclaresCore
     public function scanRoots(): array
     {
         return [new ScanRoot(self::PACKAGE, __DIR__)];
+    }
+
+    /**
+     * A process that serves the panel never runs with a dev server outside the local environment.
+     *
+     * @throws PanelDevServerForbidden
+     */
+    private function refuseDevServerOutsideLocal(): void
+    {
+        if (ProcessWorkload::of($this->app) === Workload::Console || DevAddonsEnvironment::raw() === null) {
+            return;
+        }
+
+        $environment = $this->app->environment();
+
+        if ($environment !== DevServerCheck::LOCAL) {
+            throw PanelDevServerForbidden::outsideLocal(DevAddonsEnvironment::VARIABLE, $environment);
+        }
+
+        // Invalid text throws InvalidDevAddons here, so the process does not serve pages with it.
+        DevAddonsEnvironment::read();
     }
 
     #[Override]

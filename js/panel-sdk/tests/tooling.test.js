@@ -96,7 +96,10 @@ describe('the ESLint configuration of an addon', () => {
         groups.includes('react-aria-components') &&
         groups.includes('@cboxdk/cms-ui-kit'),
     );
-    assert.equal(cmsPanelAddon().name, 'cboxdk-cms-panel-addon');
+    assert.equal(
+      cmsPanelAddon({ namespace: 'acme', contributions: [] })[0]?.name,
+      'cboxdk-cms-panel-addon',
+    );
   });
 });
 

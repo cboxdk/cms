@@ -21,10 +21,11 @@ use SplFileObject;
  * imports at once, depth first, each once; its preloads are those chunks' files. The files the
  * build serves are every chunk's file, stylesheets and assets.
  *
- * The build also has an entry for each of the panel's shared modules and for each module an addon
- * may not import, named in js/panel/shared-modules.json and in SHARED and REFUSED here (the panel's
- * tests hold the two equal), and found by the `name` of their entry chunk. Every script of the
- * build, a `.js` file, gets the SHA-384 of its bytes, for the import map's integrity.
+ * The build also has an entry for each of the panel's shared modules, React's and the SDK's
+ * subpaths, and for each module an addon may not import, named in js/panel/shared-modules.json
+ * and in SHARED, SDK and REFUSED here (the panel's tests hold the two equal), and found by the
+ * `name` of their entry chunk. Every script of the build, a `.js` file, gets the SHA-384 of its
+ * bytes, for the import map's integrity.
  *
  * It reads a local file and never a URL: the directory must be an absolute path, and one that
  * names a stream wrapper is refused before any file function sees it. The Arch suite allows
@@ -53,14 +54,28 @@ final readonly class ViteManifest
     ];
 
     /**
+     * The SDK's subpaths the panel shares, by specifier, with the name of their entry chunk, as
+     * js/panel/shared-modules.json lists them under `sdk`: ES modules, re-exported as they are.
+     *
+     * @var array<string, string>
+     */
+    public const array SDK = [
+        '@cboxdk/cms-panel/experimental' => 'shared-cboxdk-cms-panel-experimental',
+        '@cboxdk/cms-panel/extend' => 'shared-cboxdk-cms-panel-extend',
+        '@cboxdk/cms-panel/ui' => 'shared-cboxdk-cms-panel-ui',
+    ];
+
+    /**
      * The modules an addon may not import, by specifier, with the name of their entry chunk, as
      * js/panel/shared-modules.json lists them under `refused`.
      *
      * @var array<string, string>
      */
     public const array REFUSED = [
+        '@cboxdk/cms-ui-kit' => 'refused-cboxdk-cms-ui-kit',
         '@inertiajs/core' => 'refused-inertiajs-core',
         '@inertiajs/react' => 'refused-inertiajs-react',
+        'react-aria-components' => 'refused-react-aria-components',
     ];
 
     /**
@@ -127,7 +142,7 @@ final readonly class ViteManifest
                 array_values(array_diff($preloads, [self::string($manifest, $entry, 'file')])),
                 $files,
                 hash('sha256', $json),
-                self::entries($manifest, $chunks, self::SHARED),
+                self::entries($manifest, $chunks, [...self::SHARED, ...self::SDK]),
                 self::entries($manifest, $chunks, self::REFUSED),
                 $integrity,
             );

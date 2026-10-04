@@ -23,8 +23,14 @@
 @if ($panelTheme !== null)
     <link rel="stylesheet" href="{{ $panelTheme }}" nonce="{{ $cspNonce }}">
 @endif
+@foreach ($panelAddonStyles as $panelAddonStyle)
+    <link rel="stylesheet" href="{{ $panelAddonStyle }}" nonce="{{ $cspNonce }}">
+@endforeach
 @foreach ($panelPreloads as $panelPreload)
     <link rel="modulepreload" href="{{ $panelPreload }}" nonce="{{ $cspNonce }}">
+@endforeach
+@foreach ($panelDevClients as $panelDevClient)
+    <script type="module" src="{{ $panelDevClient }}"></script>
 @endforeach
     <script type="module" src="{{ $panelScript }}" nonce="{{ $cspNonce }}"></script>
 </head>

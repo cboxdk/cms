@@ -68,7 +68,9 @@ enum ErrorCode: string
     case DoctorOperatorMissing = 'doctor_operator_missing';
     case DoctorOperatorUnreadable = 'doctor_operator_unreadable';
     case DoctorOwnerCredentialsExposed = 'doctor_owner_credentials_exposed';
+    case DoctorPanelAddonsChanged = 'doctor_panel_addons_changed';
     case DoctorPanelBrandingInvalid = 'doctor_panel_branding_invalid';
+    case DoctorPanelDevServerForbidden = 'doctor_panel_dev_server_forbidden';
     case DoctorPartitionRunwayShort = 'doctor_partition_runway_short';
     case DoctorPartitionTableUnmanageable = 'doctor_partition_table_unmanageable';
     case DoctorPhpAllowUrlFopen = 'doctor_php_allow_url_fopen';
@@ -159,6 +161,9 @@ enum ErrorCode: string
     case LoginTenantMismatch = 'login_tenant_mismatch';
     case MaintenanceProcessRequired = 'maintenance_process_required';
     case OwnerCredentialsExposed = 'owner_credentials_exposed';
+    case PanelAssetHashMismatch = 'panel_asset_hash_mismatch';
+    case PanelDevAddonsInvalid = 'panel_dev_addons_invalid';
+    case PanelDevServerForbidden = 'panel_dev_server_forbidden';
     case PartitionLockTimeout = 'partition_lock_timeout';
     case PartitionMissing = 'partition_missing';
     case PartitionOwnerRequired = 'partition_owner_required';
@@ -415,8 +420,14 @@ enum ErrorCode: string
             self::DoctorOwnerCredentialsExposed => $this->readiness(
                 'The owner connection, which may change the schema and passes the row level security, is configured in a process that serves HTTP, runs queued jobs, or is not declared the maintenance process (PRD 4.2). Remove the owner connection from that process\'s configuration, or declare the maintenance process with CBOX_CMS_MAINTENANCE_PROCESS=true.',
             ),
+            self::DoctorPanelAddonsChanged => $this->readiness(
+                'The panel bundle of an installed addon is not what cms:build compiled (PRD 13.4): a file it listed is missing, has another SHA-384, or the process does not know the bundle\'s directory because the addon\'s provider names none. The panel refuses to serve the file, so the addon\'s UI does not load. Run cms:build after a change of an addon, and never edit the built files.',
+            ),
             self::DoctorPanelBrandingInvalid => $this->readiness(
                 'The installation\'s brand in cbox-cms.panel.branding cannot be used (PRD 13.4): a key is of another form, the name is longer than 60 characters, a logo has no alternative text, or a file is not a readable SVG or PNG of at most 512 KiB inside the application, or is an SVG with a script, an event handler or a foreignObject. The panel shows Cbox CMS without the brand meanwhile. Correct the key the cause names, as docs/developers/panel-branding.md describes it, then run cms:doctor again.',
+            ),
+            self::DoctorPanelDevServerForbidden => $this->violation(
+                'CBOX_CMS_PANEL_DEV_ADDONS is set outside the local environment, or cannot be read (PRD 13.4): it points the panel at a Vite dev server for an addon\'s UI and widens the panel\'s content security policy to that origin, which only development may do; the panel\'s provider refuses to boot a process that serves HTTP with it. Unset it in this environment, or set it to <namespace>=<loopback origin> pairs in a local application.',
             ),
             self::DoctorPartitionRunwayShort => $this->readiness(
                 'A partitioned table has partitions for fewer days ahead than cbox-cms.doctor.partition_runway_days, so writes will fail with partition_missing when the runway runs out. Check that the scheduler runs cms:partitions:maintain every hour in the maintenance process, or run it now.',
@@ -766,6 +777,15 @@ enum ErrorCode: string
             ),
             self::OwnerCredentialsExposed => $this->violation(
                 'The core refused to boot a process that serves HTTP or runs queued jobs, because the owner connection is configured in it (PRD 4.2). Give the owner connection to the maintenance process alone, which runs the migrations and cms:partitions:maintain.',
+            ),
+            self::PanelAssetHashMismatch => $this->violation(
+                'A file of an addon\'s panel bundle is not what cms:build compiled: its SHA-384 is not the one in the compiled registry, or the file is missing, so the panel refused to serve it (PRD 13.4). The bundle changed after cms:build. Run cms:build after a change of an addon, and never edit the built files; cms:doctor\'s panel.addons lists what changed.',
+            ),
+            self::PanelDevAddonsInvalid => $this->violation(
+                'CBOX_CMS_PANEL_DEV_ADDONS is not a list of <namespace>=<origin> pairs joined by commas, each an addon\'s namespace and the loopback origin of its Vite dev server over http, such as approvals=http://localhost:5174 (PRD 13.4). Correct the variable, or unset it.',
+            ),
+            self::PanelDevServerForbidden => $this->violation(
+                'The panel\'s provider refused to boot a process that serves HTTP or runs queued jobs, because CBOX_CMS_PANEL_DEV_ADDONS is set outside the local environment (PRD 13.4): it widens the panel\'s content security policy to a dev server\'s origin, which only development may do. Unset it in this environment, or build the addon\'s bundle and name it in its manifest.',
             ),
             self::PartitionLockTimeout => new ErrorEntry(
                 $this,

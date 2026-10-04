@@ -22,6 +22,7 @@ use Illuminate\Contracts\Routing\UrlGenerator;
 use Illuminate\Contracts\Session\Session;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Inertia\Support\Header;
 use LogicException;
 use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
@@ -64,6 +65,9 @@ final readonly class PanelSessions
     /** The status of every redirect: the browser follows it with a GET. */
     public const int REDIRECT = 303;
 
+    /** The status of a redirect to an Inertia visit, which makes Inertia load the address as a new document. */
+    public const int FULL_PAGE = 409;
+
     public function __construct(
         private SessionCookie $cookie,
         private CredentialVerifier $verifier,
@@ -83,7 +87,7 @@ final readonly class PanelSessions
         $value = $this->carried($request);
 
         if (! $value instanceof TransportCredential) {
-            return $this->toLogin(SignInReason::Required);
+            return $this->toLogin($request, SignInReason::Required);
         }
 
         try {
@@ -124,7 +128,7 @@ final readonly class PanelSessions
         }
 
         return $principal instanceof ActorPrincipal && $principal->issuerKind === IssuerKind::Human
-            ? $this->redirect($this->urls->route(PanelRoute::Home->value, [], false))
+            ? $this->redirect($request, $this->urls->route(PanelRoute::Home->value, [], false))
             : null;
     }
 
@@ -149,7 +153,7 @@ final readonly class PanelSessions
         $laravel->regenerateToken();
         $laravel->put(self::BINDING, $session->token->hash());
 
-        $response = $this->redirect($this->urls->route(PanelRoute::Home->value, [], false));
+        $response = $this->redirect($request, $this->urls->route(PanelRoute::Home->value, [], false));
         $response->headers->setCookie($this->sessionCookie($session->token->credential()->reveal()));
 
         return $response;
@@ -238,15 +242,15 @@ final readonly class PanelSessions
         $laravel->invalidate();
         $laravel->regenerateToken();
 
-        $response = $this->toLogin($reason);
+        $response = $this->toLogin($request, $reason);
         $response->headers->setCookie($this->sessionCookie(null));
 
         return $response;
     }
 
-    private function toLogin(SignInReason $reason): Response
+    private function toLogin(Request $request, SignInReason $reason): Response
     {
-        return $this->redirect($this->urls->route(PanelRoute::Login->value, [SignInReason::PARAMETER => $reason->value], false));
+        return $this->redirect($request, $this->urls->route(PanelRoute::Login->value, [SignInReason::PARAMETER => $reason->value], false));
     }
 
     /**
@@ -285,9 +289,18 @@ final readonly class PanelSessions
         );
     }
 
-    private function redirect(string $location): Response
+    /**
+     * The redirect across the login boundary, which is always a full page load: a page behind the
+     * login carries the addons' import map and code, a credential page carries none (PRD 13.4),
+     * and a document's import map cannot change once it is loaded. A browser follows the 303 with
+     * a GET; an Inertia visit gets FULL_PAGE with the address in X-Inertia-Location, on which
+     * Inertia loads the address as a new document instead of swapping the page in.
+     */
+    private function redirect(Request $request, string $location): Response
     {
-        return new Response('', self::REDIRECT, ['Location' => $location]);
+        return $request->headers->get(Header::INERTIA) === 'true'
+            ? new Response('', self::FULL_PAGE, [Header::LOCATION => $location])
+            : new Response('', self::REDIRECT, ['Location' => $location]);
     }
 
     /**

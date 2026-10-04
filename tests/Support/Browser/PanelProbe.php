@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Cbox\Cms\Tests\Support\Browser;
 
 use Cbox\Cms\Panel\Domain\ContentSecurityPolicy;
+use Cbox\Cms\Panel\Domain\CspNonce;
+use Cbox\Cms\Panel\Domain\Dto\PagePolicy;
 use Cbox\Cms\Panel\Middleware\SendContentSecurityPolicy;
 use Closure;
 use Illuminate\Foundation\Http\Events\RequestHandled;
@@ -26,9 +28,11 @@ use RuntimeException;
  *   which is how the test sees how many React DOMs the page runs and which React each uses;
  * - last in <head>, the probe's settings as JSON and the probe host's module.
  *
- * The page keeps everything else, its import map included, and its policy, unless the test gives
- * another (D6). These listeners work in Chromium, Firefox and WebKit alike, where the reporting
- * API PanelPage reads is Chromium's.
+ * The page keeps everything else, its import map included. Its policy names the panel's origin and
+ * the hashes of the page's inline scripts (D6), so the probe sends the page's policy again with
+ * the hash of the recorder among them (policyOf()), unless the test gives another policy. These
+ * listeners work in Chromium, Firefox and WebKit alike, where the reporting API PanelPage reads is
+ * Chromium's.
  */
 final class PanelProbe
 {
@@ -99,11 +103,31 @@ final class PanelProbe
             $html = str_replace(['<head>', '</head>'], ["<head>\n    {$recorder}", "    {$host}\n</head>"], $html);
 
             $handled->response->setContent($html);
-
-            if ($policy instanceof Closure) {
-                $handled->response->headers->set(ContentSecurityPolicy::HEADER, $policy($html, $nonce));
-            }
+            $handled->response->headers->set(ContentSecurityPolicy::HEADER, $policy instanceof Closure ? $policy($html, $nonce) : self::policyOf($html, $nonce, (string) $handled->response->headers->get(ContentSecurityPolicy::HEADER)));
         });
+    }
+
+    /**
+     * The panel's policy for the final HTML: the hashes of every inline script in it, and the
+     * report path of the policy the page was sent with.
+     */
+    public static function policyOf(string $html, string $nonce, string $sent): string
+    {
+        $reportPath = preg_match('/report-uri (\S+)/', $sent, $match) === 1 ? $match[1] : null;
+
+        return ContentSecurityPolicy::header(new PagePolicy(new CspNonce($nonce), self::inlineScriptHashes($html), $reportPath));
+    }
+
+    /**
+     * The SHA-256, in base64, of each inline script of the page, its import map included.
+     *
+     * @return list<string>
+     */
+    public static function inlineScriptHashes(string $html): array
+    {
+        preg_match_all('~<script(?![^>]*\bsrc=)(?![^>]*type="application/json")[^>]*>(.*?)</script>~s', $html, $scripts);
+
+        return array_map(PagePolicy::hashOf(...), $scripts[1]);
     }
 
     /**

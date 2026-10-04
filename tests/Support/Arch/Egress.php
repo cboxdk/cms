@@ -24,6 +24,7 @@ use Cbox\Cms\Generators\Migrations\Boundary\LockFiles;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintFiles;
 use Cbox\Cms\Generators\Schema\Boundary\LocalFile;
 use Cbox\Cms\Mcp\Boundary\KernelSchemas;
+use Cbox\Cms\Panel\Boundary\AddonAssetResponse;
 use Cbox\Cms\Panel\Boundary\PanelAssetResponse;
 use Cbox\Cms\Panel\Boundary\ViteManifest;
 use Cbox\Cms\Testkit\Phpstan\EgressNames;
@@ -119,6 +120,10 @@ final class Egress
         // directory, which PanelBuild requires to be an absolute local path, and refuses a path
         // that names a stream wrapper before it touches it.
         PanelAssetResponse::class => ['SplFileObject'],
+        // Reads a file of an addon's panel bundle that the compiled registry lists, below the
+        // absolute directory the addon's manifest names, which ServedBundle requires to be a local
+        // path, and refuses a path that names a stream wrapper before any file function sees it.
+        AddonAssetResponse::class => ['SplFileObject'],
         // Reads the props schemas of the panel's points from the directories the modules register,
         // and the manifest and files of an addon's panel bundle from the absolute directory its
         // manifest names, for cms:build's checks; it refuses a path that names a stream wrapper

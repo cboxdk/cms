@@ -6,17 +6,19 @@
 //
 // Besides the panel's entry, the build has an entry for each of the panel's shared modules (PRD
 // 13.4), so the import map the panel module writes can hand an addon the very React the panel
-// runs on, and an entry for each module an addon may not import, which throws instead.
-// shared-modules.json lists both, by specifier, with the name of each entry, which is what
-// the panel module's ViteManifest reads them by.
+// runs on and the panel's own copy of the SDK, @cboxdk/cms-panel with its subpaths, and an entry
+// for each module an addon may not import, which throws instead. shared-modules.json lists all
+// three, by specifier, with the name of each entry, which is what the panel module's ViteManifest
+// reads them by.
 //
 // React 19 ships as CommonJS, and Rolldown gives `export * from 'react'` only a default export,
 // so each shared entry names every export of the module itself: the names are read from the
 // module in a Node process with NODE_ENV production, the build the panel ships, and the entry
 // re-exports them from the same module the panel's own code imports. The panel's code and the
-// entry then share one chunk, so there is one React. A refused entry calls refuse() before an
-// addon that imports it runs, and re-exports every name of the module, so the browser links the
-// addon and reaches the throw instead of failing on a missing export.
+// entry then share one chunk, so there is one React. The SDK's subpaths are ES modules, so their
+// entries re-export them as they are. A refused entry calls refuse() before an addon that imports
+// it runs, and re-exports every name of the module, so the browser links the addon and reaches
+// the throw instead of failing on a missing export.
 
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -62,6 +64,10 @@ function sharedEntry(specifier: string): string {
   ].join('\n');
 }
 
+function sdkEntry(specifier: string): string {
+  return `export * from ${JSON.stringify(specifier)};\n`;
+}
+
 function refusedEntry(specifier: string): string {
   return [
     `import { refuse } from ${JSON.stringify(refusal)};`,
@@ -74,9 +80,11 @@ function refusedEntry(specifier: string): string {
 /** The build's inputs for the shared and refused modules, by the name of their entry. */
 function sharedModuleInputs(): Record<string, string> {
   return Object.fromEntries(
-    [...Object.entries(modules.shared), ...Object.entries(modules.refused)].map(
-      ([specifier, name]) => [name, `${PREFIX}${specifier}`],
-    ),
+    [
+      ...Object.entries(modules.shared),
+      ...Object.entries(modules.sdk),
+      ...Object.entries(modules.refused),
+    ].map(([specifier, name]) => [name, `${PREFIX}${specifier}`]),
   );
 }
 
@@ -96,6 +104,10 @@ function sharedModules(): Plugin {
 
       if (Object.hasOwn(modules.shared, specifier)) {
         return sharedEntry(specifier);
+      }
+
+      if (Object.hasOwn(modules.sdk, specifier)) {
+        return sdkEntry(specifier);
       }
 
       if (Object.hasOwn(modules.refused, specifier)) {

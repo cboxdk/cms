@@ -63,11 +63,13 @@ The identity module adds five blocking checks in front of the ones an applicatio
 | `identity.session_cookie` | yes | | the session cookie of the environment can be set, and outside local and testing it is Secure, named with the `__Host-` prefix and not SameSite=None |
 | `identity.login_policy` | yes | | the login policy of the environment, `cbox-cms.identity.policy`, can be read, and outside local and testing a local staff login needs a passkey or two factors |
 
-The panel module adds one check after those, before the application's:
+The panel module adds three checks after those, before the application's:
 
 | Id | Blocking | Requires | What it looks at |
 |---|---|---|---|
 | `panel.branding` | no | | the installation's brand, `cbox-cms.panel.branding`, can be used: every key of its form, a name of at most 60 characters, each logo with its alternative text, and every file a readable SVG or PNG inside the application (see [Branding and theming the panel](panel-branding.md)) |
+| `panel.addons` | no | `registry.cache` | the panel bundle of every installed addon on disk is what `cms:build` compiled: every file the compiled registry lists has the SHA-384 it lists, and the process knows each bundle's directory from the addon's provider; a file that differs is refused when the panel serves it, so the addon's UI does not load (see [The panel module](panel.md#addon-files-and-the-dev-server)) |
+| `panel.dev_server` | yes | | `CBOX_CMS_PANEL_DEV_ADDONS`, which loads an addon's panel UI from a Vite dev server and widens the panel's policy to it, is unset, or set in the local environment to `<namespace>=<origin>` pairs the panel can read; a process that serves HTTP refuses to boot with it elsewhere |
 
 When the doctor's own settings, `cbox-cms.doctor`, are invalid, or a check added there cannot be used, the doctor runs none of these. It runs the single check `doctor.config` instead, which fails as a violation with the code `doctor_config_invalid` and names the setting in its cause, so the command still prints its document and exits with the violation code.
 

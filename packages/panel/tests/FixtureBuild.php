@@ -18,16 +18,21 @@ use RuntimeException;
 final readonly class FixtureBuild
 {
     /**
-     * The entries of the panel's shared and refused modules, as the build names them
-     * (ViteManifest::SHARED and REFUSED), each importing the chunk it re-exports.
+     * The entries of the panel's shared, SDK and refused modules, as the build names them
+     * (ViteManifest::SHARED, SDK and REFUSED), each importing the chunk it re-exports.
      */
     public const array MODULES = [
         'cms-panel-module:react' => ['file' => 'assets/shared-react-0a0a0a.js', 'name' => 'shared-react', 'src' => 'cms-panel-module:react', 'isEntry' => true, 'imports' => ['_shared-4d5e6f.js']],
         'cms-panel-module:react/jsx-runtime' => ['file' => 'assets/shared-react-jsx-runtime-0b0b0b.js', 'name' => 'shared-react-jsx-runtime', 'src' => 'cms-panel-module:react/jsx-runtime', 'isEntry' => true, 'imports' => ['_shared-4d5e6f.js']],
         'cms-panel-module:react-dom' => ['file' => 'assets/shared-react-dom-0c0c0c.js', 'name' => 'shared-react-dom', 'src' => 'cms-panel-module:react-dom', 'isEntry' => true, 'imports' => ['_shared-4d5e6f.js']],
         'cms-panel-module:react-dom/client' => ['file' => 'assets/shared-react-dom-client-0d0d0d.js', 'name' => 'shared-react-dom-client', 'src' => 'cms-panel-module:react-dom/client', 'isEntry' => true, 'imports' => ['_shared-4d5e6f.js']],
+        'cms-panel-module:@cboxdk/cms-panel/experimental' => ['file' => 'assets/shared-cboxdk-cms-panel-experimental-1a1a1a.js', 'name' => 'shared-cboxdk-cms-panel-experimental', 'src' => 'cms-panel-module:@cboxdk/cms-panel/experimental', 'isEntry' => true, 'imports' => ['_shared-4d5e6f.js']],
+        'cms-panel-module:@cboxdk/cms-panel/extend' => ['file' => 'assets/shared-cboxdk-cms-panel-extend-1b1b1b.js', 'name' => 'shared-cboxdk-cms-panel-extend', 'src' => 'cms-panel-module:@cboxdk/cms-panel/extend', 'isEntry' => true, 'imports' => ['_shared-4d5e6f.js']],
+        'cms-panel-module:@cboxdk/cms-panel/ui' => ['file' => 'assets/shared-cboxdk-cms-panel-ui-1c1c1c.js', 'name' => 'shared-cboxdk-cms-panel-ui', 'src' => 'cms-panel-module:@cboxdk/cms-panel/ui', 'isEntry' => true, 'imports' => ['_shared-4d5e6f.js']],
+        'cms-panel-module:@cboxdk/cms-ui-kit' => ['file' => 'assets/refused-cboxdk-cms-ui-kit-1d1d1d.js', 'name' => 'refused-cboxdk-cms-ui-kit', 'src' => 'cms-panel-module:@cboxdk/cms-ui-kit', 'isEntry' => true, 'imports' => ['_shared-4d5e6f.js']],
         'cms-panel-module:@inertiajs/core' => ['file' => 'assets/refused-inertiajs-core-0e0e0e.js', 'name' => 'refused-inertiajs-core', 'src' => 'cms-panel-module:@inertiajs/core', 'isEntry' => true, 'imports' => ['_shared-4d5e6f.js']],
         'cms-panel-module:@inertiajs/react' => ['file' => 'assets/refused-inertiajs-react-0f0f0f.js', 'name' => 'refused-inertiajs-react', 'src' => 'cms-panel-module:@inertiajs/react', 'isEntry' => true, 'imports' => ['_shared-4d5e6f.js']],
+        'cms-panel-module:react-aria-components' => ['file' => 'assets/refused-react-aria-components-1e1e1e.js', 'name' => 'refused-react-aria-components', 'src' => 'cms-panel-module:react-aria-components', 'isEntry' => true, 'imports' => ['_shared-4d5e6f.js']],
     ];
 
     /** The manifest of a build with an entry that imports a shared chunk, lazily loads a page and has a font, and the module entries. */

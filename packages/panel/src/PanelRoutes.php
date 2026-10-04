@@ -6,11 +6,13 @@ namespace Cbox\Cms\Panel;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Http\Inertia\InertiaRoutes;
+use Cbox\Cms\Panel\Assets\AddonAssetController;
 use Cbox\Cms\Panel\Assets\AssetController;
 use Cbox\Cms\Panel\Assets\BrandController;
 use Cbox\Cms\Panel\Assets\ThemeController;
 use Cbox\Cms\Panel\Boundary\HandlePanelRequests;
 use Cbox\Cms\Panel\Branding\Domain\Dto\BrandFile;
+use Cbox\Cms\Panel\Domain\BundleHash;
 use Cbox\Cms\Panel\Domain\Dto\PanelBuild;
 use Cbox\Cms\Panel\Domain\Dto\PanelTheme;
 use Cbox\Cms\Panel\Domain\PanelRoute;
@@ -26,7 +28,11 @@ use Cbox\Cms\Panel\Pages\LogoutController;
 use Cbox\Cms\Panel\Pages\NotFoundController;
 use Cbox\Cms\Panel\Pages\ResetPasswordController;
 use Cbox\Cms\Panel\Pages\ResetPasswordPageController;
+use Cbox\Cms\Panel\Reports\CspReportController;
 use Illuminate\Contracts\Routing\Registrar;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
+use Illuminate\Http\Request;
+use Illuminate\Routing\Route;
 
 /**
  * Mounts the control panel (PRD 13.4) below a prefix, `cms` unless the application names another:
@@ -36,6 +42,12 @@ use Illuminate\Contracts\Routing\Registrar;
  *   composed from the themes the installation selects (PRD 13.4).
  * - `GET <prefix>/brand/{name}` (PanelRoute::Brand): a file of the installation's brand, its logos
  *   and favicon, from cbox-cms.panel.branding.
+ * - `GET <prefix>/addons/{addon}/{hash}/{path}` (PanelRoute::AddonAsset): a file of an addon's
+ *   panel bundle, below the hash of the bundle as cms:build compiled it, checked against its
+ *   SHA-384 before it is sent (AddonAssetResponse).
+ * - `POST <prefix>/csp-report` (PanelRoute::CspReport): where a browser reports a violation of
+ *   the panel's Content-Security-Policy, outside the CSRF check, because a browser sends no token
+ *   with a report; it is counted by directive and addon and answered 204.
  * - every panel page, behind SendContentSecurityPolicy, which gives the response a strict
  *   Content-Security-Policy with a nonce of its own (GUARDRAILS 6), and HandlePanelRequests,
  *   Inertia's middleware with the panel's root view and the build's version:
@@ -56,6 +68,12 @@ use Illuminate\Contracts\Routing\Registrar;
  *     panel's page for a path it does not have, with 404, which shows nothing of the installation
  *     and so needs no session.
  *
+ * Only the routes whose PanelRoute allows it load the addons' panel UI (PRD 13.4): their action
+ * carries ADDONS as true, and the root view writes the addons' entries, scopes, integrity and
+ * stylesheets into those pages alone. A credential route, the page for an address the panel does
+ * not have and every other route carry false, so no addon's code runs near a password or a reset
+ * link; CredentialRoutesWithoutAddonsTest holds every credential route to it.
+ *
  * An application registers it inside its web middleware group, which gives the panel Laravel's
  * session, its cookies and its own CSRF protection, such as in routes/web.php:
  * PanelRoutes::register(app(Registrar::class)). Laravel's session should be in Valkey, as
@@ -73,6 +91,12 @@ final readonly class PanelRoutes
     /** What the reset page's address takes as its token: one path segment, which the page checks. */
     public const string TOKEN_SEGMENT = '[^/]{1,200}';
 
+    /** The key of a route's action that says whether its page loads the addons' panel UI. */
+    public const string ADDONS = 'cbox-cms.panel.addons';
+
+    /** A file of an addon's bundle in its address: the form of a BundlePath, as a route takes it. */
+    public const string ADDON_FILE = '[A-Za-z0-9_][A-Za-z0-9._-]*(?:/[A-Za-z0-9_][A-Za-z0-9._-]*)*';
+
     private function __construct() {}
 
     public static function register(Registrar $router, string $prefix = self::PREFIX): void
@@ -81,35 +105,57 @@ final readonly class PanelRoutes
             $router->get('build/{path}', AssetController::class)
                 ->where('path', PanelBuild::FILE_PATTERN)
                 ->name(self::ASSET);
-            $router->get('theme/{version}.css', ThemeController::class)
-                ->where('version', PanelTheme::VERSION_PATTERN)
-                ->name(PanelRoute::Theme->value);
-            $router->get('brand/{name}', BrandController::class)
-                ->where('name', BrandFile::NAME_PATTERN)
-                ->name(PanelRoute::Brand->value);
+            self::page($router->get('theme/{version}.css', ThemeController::class)
+                ->where('version', PanelTheme::VERSION_PATTERN), PanelRoute::Theme);
+            self::page($router->get('brand/{name}', BrandController::class)
+                ->where('name', BrandFile::NAME_PATTERN), PanelRoute::Brand);
+            self::page($router->get('addons/{addon}/{hash}/{path}', AddonAssetController::class)
+                ->where(['addon' => '[a-z][a-z0-9]{0,19}', 'hash' => BundleHash::PATTERN, 'path' => self::ADDON_FILE]), PanelRoute::AddonAsset);
+            self::page($router->post('csp-report', CspReportController::class)
+                ->withoutMiddleware([PreventRequestForgery::class]), PanelRoute::CspReport);
 
             $router->group(['middleware' => [SendContentSecurityPolicy::class, HandlePanelRequests::class]], static function (Registrar $router): void {
                 $router->group(['middleware' => [VerifyPanelCsrfToken::class]], static function (Registrar $router): void {
-                    $router->get('login', LoginPageController::class)->name(PanelRoute::Login->value);
-                    $router->post('login', LoginController::class)->name(PanelRoute::LoginSubmit->value);
-                    $router->get('forgot-password', ForgotPasswordPageController::class)->name(PanelRoute::ForgotPassword->value);
-                    $router->post('forgot-password', ForgotPasswordController::class)->name(PanelRoute::ForgotPasswordSubmit->value);
-                    $router->get('reset-password/{token}', ResetPasswordPageController::class)
-                        ->where('token', self::TOKEN_SEGMENT)
-                        ->name(PanelRoute::ResetPassword->value);
-                    $router->post('reset-password', ResetPasswordController::class)->name(PanelRoute::ResetPasswordSubmit->value);
+                    self::page($router->get('login', LoginPageController::class), PanelRoute::Login);
+                    self::page($router->post('login', LoginController::class), PanelRoute::LoginSubmit);
+                    self::page($router->get('forgot-password', ForgotPasswordPageController::class), PanelRoute::ForgotPassword);
+                    self::page($router->post('forgot-password', ForgotPasswordController::class), PanelRoute::ForgotPasswordSubmit);
+                    self::page($router->get('reset-password/{token}', ResetPasswordPageController::class)
+                        ->where('token', self::TOKEN_SEGMENT), PanelRoute::ResetPassword);
+                    self::page($router->post('reset-password', ResetPasswordController::class), PanelRoute::ResetPasswordSubmit);
                 });
 
                 $router->group(['middleware' => [AuthenticatePanelSession::class, VerifyPanelCsrfToken::class]], static function (Registrar $router): void {
-                    $router->get('', HomeController::class)->name(PanelRoute::Home->value);
-                    $router->post('logout', LogoutController::class)->name(PanelRoute::Logout->value);
-                    InertiaRoutes::register($router, PanelRoute::COMMANDS_PATH, PanelRoute::Command->value);
+                    self::page($router->get('', HomeController::class), PanelRoute::Home);
+                    self::page($router->post('logout', LogoutController::class), PanelRoute::Logout);
+                    self::withAddons(InertiaRoutes::register($router, PanelRoute::COMMANDS_PATH, PanelRoute::Command->value), PanelRoute::Command->allowsAddons());
                 });
 
-                $router->get('{path?}', NotFoundController::class)
+                self::withAddons($router->get('{path?}', NotFoundController::class)
                     ->where('path', '.*')
-                    ->name(self::NOT_FOUND);
+                    ->name(self::NOT_FOUND), false);
             });
         });
+    }
+
+    /**
+     * Whether the matched route's page loads the addons' panel UI; false for a request that
+     * matched no panel route, and for one whose route does not say.
+     */
+    public static function allowsAddons(Request $request): bool
+    {
+        $route = $request->route();
+
+        return $route instanceof Route && $route->getAction(self::ADDONS) === true;
+    }
+
+    private static function page(Route $route, PanelRoute $name): Route
+    {
+        return self::withAddons($route->name($name->value), $name->allowsAddons());
+    }
+
+    private static function withAddons(Route $route, bool $addons): Route
+    {
+        return $route->setAction([...$route->action, self::ADDONS => $addons]);
     }
 }

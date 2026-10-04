@@ -56,7 +56,9 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`doctor_operator_missing`](#doctor_operator_missing) | 503 | 79 | internal_error | no |
 | [`doctor_operator_unreadable`](#doctor_operator_unreadable) | 503 | 79 | internal_error | no |
 | [`doctor_owner_credentials_exposed`](#doctor_owner_credentials_exposed) | 503 | 79 | internal_error | no |
+| [`doctor_panel_addons_changed`](#doctor_panel_addons_changed) | 503 | 79 | internal_error | no |
 | [`doctor_panel_branding_invalid`](#doctor_panel_branding_invalid) | 503 | 79 | internal_error | no |
+| [`doctor_panel_dev_server_forbidden`](#doctor_panel_dev_server_forbidden) | 500 | 78 | internal_error | no |
 | [`doctor_partition_runway_short`](#doctor_partition_runway_short) | 503 | 79 | internal_error | no |
 | [`doctor_partition_table_unmanageable`](#doctor_partition_table_unmanageable) | 503 | 79 | internal_error | no |
 | [`doctor_php_allow_url_fopen`](#doctor_php_allow_url_fopen) | 500 | 78 | internal_error | no |
@@ -147,6 +149,9 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`login_tenant_mismatch`](#login_tenant_mismatch) | 401 | 77 | tool_error | no |
 | [`maintenance_process_required`](#maintenance_process_required) | 500 | 78 | internal_error | no |
 | [`owner_credentials_exposed`](#owner_credentials_exposed) | 500 | 78 | internal_error | no |
+| [`panel_asset_hash_mismatch`](#panel_asset_hash_mismatch) | 500 | 78 | internal_error | no |
+| [`panel_dev_addons_invalid`](#panel_dev_addons_invalid) | 500 | 78 | internal_error | no |
+| [`panel_dev_server_forbidden`](#panel_dev_server_forbidden) | 500 | 78 | internal_error | no |
 | [`partition_lock_timeout`](#partition_lock_timeout) | 503 | 75 | internal_error | yes |
 | [`partition_missing`](#partition_missing) | 503 | 75 | internal_error | yes |
 | [`partition_owner_required`](#partition_owner_required) | 500 | 78 | internal_error | no |
@@ -641,12 +646,30 @@ The owner connection, which may change the schema and passes the row level secur
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
+### doctor_panel_addons_changed
+
+The panel bundle of an installed addon is not what cms:build compiled (PRD 13.4): a file it listed is missing, has another SHA-384, or the process does not know the bundle's directory because the addon's provider names none. The panel refuses to serve the file, so the addon's UI does not load. Run cms:build after a change of an addon, and never edit the built files.
+
+- HTTP status: 503 Service Unavailable
+- CLI exit code: 79 (NOT_READY)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
 ### doctor_panel_branding_invalid
 
 The installation's brand in cbox-cms.panel.branding cannot be used (PRD 13.4): a key is of another form, the name is longer than 60 characters, a logo has no alternative text, or a file is not a readable SVG or PNG of at most 512 KiB inside the application, or is an SVG with a script, an event handler or a foreignObject. The panel shows Cbox CMS without the brand meanwhile. Correct the key the cause names, as docs/developers/panel-branding.md describes it, then run cms:doctor again.
 
 - HTTP status: 503 Service Unavailable
 - CLI exit code: 79 (NOT_READY)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### doctor_panel_dev_server_forbidden
+
+CBOX_CMS_PANEL_DEV_ADDONS is set outside the local environment, or cannot be read (PRD 13.4): it points the panel at a Vite dev server for an addon's UI and widens the panel's content security policy to that origin, which only development may do; the panel's provider refuses to boot a process that serves HTTP with it. Unset it in this environment, or set it to <namespace>=<loopback origin> pairs in a local application.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 78 (EX_CONFIG)
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
@@ -1454,6 +1477,33 @@ The command runs only in the maintenance process (PRD 4.2, 5.16), the console pr
 ### owner_credentials_exposed
 
 The core refused to boot a process that serves HTTP or runs queued jobs, because the owner connection is configured in it (PRD 4.2). Give the owner connection to the maintenance process alone, which runs the migrations and cms:partitions:maintain.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 78 (EX_CONFIG)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### panel_asset_hash_mismatch
+
+A file of an addon's panel bundle is not what cms:build compiled: its SHA-384 is not the one in the compiled registry, or the file is missing, so the panel refused to serve it (PRD 13.4). The bundle changed after cms:build. Run cms:build after a change of an addon, and never edit the built files; cms:doctor's panel.addons lists what changed.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 78 (EX_CONFIG)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### panel_dev_addons_invalid
+
+CBOX_CMS_PANEL_DEV_ADDONS is not a list of <namespace>=<origin> pairs joined by commas, each an addon's namespace and the loopback origin of its Vite dev server over http, such as approvals=http://localhost:5174 (PRD 13.4). Correct the variable, or unset it.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 78 (EX_CONFIG)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### panel_dev_server_forbidden
+
+The panel's provider refused to boot a process that serves HTTP or runs queued jobs, because CBOX_CMS_PANEL_DEV_ADDONS is set outside the local environment (PRD 13.4): it widens the panel's content security policy to a dev server's origin, which only development may do. Unset it in this environment, or build the addon's bundle and name it in its manifest.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 78 (EX_CONFIG)

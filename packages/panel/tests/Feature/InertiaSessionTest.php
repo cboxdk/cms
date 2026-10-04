@@ -138,13 +138,15 @@ final class InertiaSessionTest extends TestCase
     }
 
     #[Test]
-    public function a_post_without_a_session_goes_to_the_login_page_and_runs_nothing(): void
+    public function a_post_without_a_session_goes_to_the_login_page_as_a_full_page_load_and_runs_nothing(): void
     {
         $this->get('/cms/login')->assertOk();
 
+        // An Inertia visit crosses the login boundary with a new document, so the addons' import
+        // map and code of the page behind the login never reach the login page.
         $this->submit(['X-CSRF-TOKEN' => $this->csrf()])
-            ->assertStatus(PanelSessions::REDIRECT)
-            ->assertHeader('Location', '/cms/login?reason=required');
+            ->assertStatus(PanelSessions::FULL_PAGE)
+            ->assertHeader('X-Inertia-Location', '/cms/login?reason=required');
 
         self::assertSame([], $this->world()->world->committer->pending);
     }

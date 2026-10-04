@@ -6,6 +6,7 @@ namespace Cbox\Cms\Panel\Tests\Domain;
 
 use Cbox\Cms\Panel\Domain\ContentSecurityPolicy;
 use Cbox\Cms\Panel\Domain\CspNonce;
+use Cbox\Cms\Panel\Domain\Dto\PagePolicy;
 use InvalidArgumentException;
 
 /*
@@ -34,25 +35,28 @@ it('refuses a nonce that is not 16 bytes in base64', function (string $value): v
     'a space' => ['abcdefghijklm opqrstuv=='],
 ]);
 
-it('allows scripts only by the nonce and what they import, with no unsafe-inline or unsafe-eval', function (): void {
+it('allows styles by the nonce and scripts by the panel\'s origin and the hashes of the inline scripts, with no unsafe-inline or unsafe-eval', function (): void {
     $nonce = new CspNonce('MDEyMzQ1Njc4OWFiY2RlZg==');
+    $hash = PagePolicy::hashOf('{}');
+    $header = ContentSecurityPolicy::header(new PagePolicy($nonce, [$hash]));
     $directives = [];
 
-    foreach (explode('; ', ContentSecurityPolicy::header($nonce)) as $directive) {
+    foreach (explode('; ', $header) as $directive) {
         $parts = explode(' ', $directive);
         $directives[array_shift($parts)] = $parts;
     }
 
-    expect(ContentSecurityPolicy::header($nonce))->not->toContain('unsafe-');
-    expect(ContentSecurityPolicy::header($nonce))->not->toContain('*');
+    expect($header)->not->toContain('unsafe-');
+    expect($header)->not->toContain('*');
     expect(ContentSecurityPolicy::HEADER)->toBe('Content-Security-Policy');
     expect($directives)->toBe([
         'default-src' => ["'self'"],
-        'script-src' => ["'nonce-MDEyMzQ1Njc4OWFiY2RlZg=='", "'strict-dynamic'"],
+        'script-src' => ["'self'", "'sha256-{$hash}'"],
         'style-src' => ["'self'", "'nonce-MDEyMzQ1Njc4OWFiY2RlZg=='"],
         'img-src' => ["'self'", 'data:'],
         'font-src' => ["'self'"],
         'connect-src' => ["'self'"],
+        'frame-src' => ["'none'"],
         'object-src' => ["'none'"],
         'base-uri' => ["'none'"],
         'form-action' => ["'self'"],

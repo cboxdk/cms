@@ -43,9 +43,30 @@ enum PanelRoute: string
     /** GET <prefix>/brand/{name}: a file of the installation's brand, a logo or the favicon. */
     case Brand = 'cbox-cms.panel.brand';
 
+    /** GET <prefix>/addons/{addon}/{hash}/{path}: a file of an addon's panel bundle, by the bundle's hash. */
+    case AddonAsset = 'cbox-cms.panel.addon-asset';
+
+    /** POST <prefix>/csp-report: where a browser reports a violation of the panel's Content-Security-Policy. */
+    case CspReport = 'cbox-cms.panel.csp-report';
+
     /** GET <prefix>: the panel's start page. */
     case Home = 'cbox-cms.panel.home';
 
     /** POST <prefix>/commands/{command}/v{version}: a command through the Inertia profile, as the person. */
     case Command = 'cbox-cms.panel.command';
+
+    /**
+     * Whether a page of the route loads the addons' panel UI (PRD 13.4, decision D13 of the
+     * panel extension architecture): a credential page, where a person types a password or
+     * handles a reset link, never does, so no addon's code runs near it, and neither does the
+     * page for an address the panel does not have. The routes that are no page, the files and the
+     * report, do not either.
+     */
+    public function allowsAddons(): bool
+    {
+        return match ($this) {
+            self::Home, self::Command => true,
+            self::Login, self::LoginSubmit, self::ForgotPassword, self::ForgotPasswordSubmit, self::ResetPassword, self::ResetPasswordSubmit, self::Logout, self::Theme, self::Brand, self::AddonAsset, self::CspReport => false,
+        };
+    }
 }

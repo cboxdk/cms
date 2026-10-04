@@ -5,8 +5,15 @@
     "react-dom": "shared-react-dom",
     "react-dom/client": "shared-react-dom-client"
   },
+  "sdk": {
+    "@cboxdk/cms-panel/experimental": "shared-cboxdk-cms-panel-experimental",
+    "@cboxdk/cms-panel/extend": "shared-cboxdk-cms-panel-extend",
+    "@cboxdk/cms-panel/ui": "shared-cboxdk-cms-panel-ui"
+  },
   "refused": {
+    "@cboxdk/cms-ui-kit": "refused-cboxdk-cms-ui-kit",
     "@inertiajs/core": "refused-inertiajs-core",
-    "@inertiajs/react": "refused-inertiajs-react"
+    "@inertiajs/react": "refused-inertiajs-react",
+    "react-aria-components": "refused-react-aria-components"
   }
 }

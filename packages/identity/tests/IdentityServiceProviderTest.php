@@ -48,7 +48,7 @@ it('adds its five checks to cms:doctor in front of the ones the application name
 
     expect(config('cbox-cms.doctor.checks'))->toBe([...IdentityServiceProvider::DOCTOR_CHECKS, ...PanelServiceProvider::DOCTOR_CHECKS])
         ->and(IdentityServiceProvider::DOCTOR_CHECKS)->toBe([IdentityConnectionCheck::class, CredentialIsolationCheck::class, Argon2idCheck::class, SessionCookieCheck::class, LoginPolicyCheck::class])
-        ->and(array_slice($ids, -6, 5))->toBe([IdentityConnectionCheck::ID, CredentialIsolationCheck::ID, Argon2idCheck::ID, SessionCookieCheck::ID, LoginPolicyCheck::ID])
+        ->and(array_slice($ids, -8, 5))->toBe([IdentityConnectionCheck::ID, CredentialIsolationCheck::ID, Argon2idCheck::ID, SessionCookieCheck::ID, LoginPolicyCheck::ID])
         ->and($ids)->toContain('postgres.reachable')
         ->and(app(CredentialStoreProbe::class))->toBeInstanceOf(ConnectionCredentialStoreProbe::class)
         ->and(app(PasswordHashingProbe::class))->toBeInstanceOf(PhpPasswordHashingProbe::class)

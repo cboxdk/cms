@@ -30,10 +30,15 @@ it('reads the entry, its stylesheets and preloads, every file and the version fr
                 'assets/app-1a2b3c.js',
                 'assets/app-7a8b9c.css',
                 'assets/font-0a1b2c.woff2',
+                'assets/refused-cboxdk-cms-ui-kit-1d1d1d.js',
                 'assets/refused-inertiajs-core-0e0e0e.js',
                 'assets/refused-inertiajs-react-0f0f0f.js',
+                'assets/refused-react-aria-components-1e1e1e.js',
                 'assets/shared-3c4d5e.css',
                 'assets/shared-4d5e6f.js',
+                'assets/shared-cboxdk-cms-panel-experimental-1a1a1a.js',
+                'assets/shared-cboxdk-cms-panel-extend-1b1b1b.js',
+                'assets/shared-cboxdk-cms-panel-ui-1c1c1c.js',
                 'assets/shared-react-0a0a0a.js',
                 'assets/shared-react-dom-0c0c0c.js',
                 'assets/shared-react-dom-client-0d0d0d.js',
@@ -124,10 +129,15 @@ it('reads the entry of each shared and refused module by its name, and the SHA-3
             'react/jsx-runtime' => 'assets/shared-react-jsx-runtime-0b0b0b.js',
             'react-dom' => 'assets/shared-react-dom-0c0c0c.js',
             'react-dom/client' => 'assets/shared-react-dom-client-0d0d0d.js',
+            '@cboxdk/cms-panel/experimental' => 'assets/shared-cboxdk-cms-panel-experimental-1a1a1a.js',
+            '@cboxdk/cms-panel/extend' => 'assets/shared-cboxdk-cms-panel-extend-1b1b1b.js',
+            '@cboxdk/cms-panel/ui' => 'assets/shared-cboxdk-cms-panel-ui-1c1c1c.js',
         ])
             ->and($build->refused)->toBe([
+                '@cboxdk/cms-ui-kit' => 'assets/refused-cboxdk-cms-ui-kit-1d1d1d.js',
                 '@inertiajs/core' => 'assets/refused-inertiajs-core-0e0e0e.js',
                 '@inertiajs/react' => 'assets/refused-inertiajs-react-0f0f0f.js',
+                'react-aria-components' => 'assets/refused-react-aria-components-1e1e1e.js',
             ])
             ->and($build->integrity)->toBe(array_fill_keys(array_values(array_filter($build->files, static fn (string $file): bool => str_ends_with($file, '.js'))), $integrity));
     } finally {
@@ -170,8 +180,8 @@ it('refuses a build whose script it names cannot be read', function (): void {
     }
 });
 
-it('names the same shared and refused modules as the panel\'s build, js/panel/shared-modules.json', function (): void {
+it('names the same shared, SDK and refused modules as the panel\'s build, js/panel/shared-modules.json', function (): void {
     $modules = json_decode((string) file_get_contents(Codebase::root().'/js/panel/shared-modules.json'), true, 4, JSON_THROW_ON_ERROR);
 
-    expect($modules)->toBe(['shared' => ViteManifest::SHARED, 'refused' => ViteManifest::REFUSED]);
+    expect($modules)->toBe(['shared' => ViteManifest::SHARED, 'sdk' => ViteManifest::SDK, 'refused' => ViteManifest::REFUSED]);
 });

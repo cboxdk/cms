@@ -51,7 +51,9 @@ export type ErrorCode =
   | 'doctor_operator_missing'
   | 'doctor_operator_unreadable'
   | 'doctor_owner_credentials_exposed'
+  | 'doctor_panel_addons_changed'
   | 'doctor_panel_branding_invalid'
+  | 'doctor_panel_dev_server_forbidden'
   | 'doctor_partition_runway_short'
   | 'doctor_partition_table_unmanageable'
   | 'doctor_php_allow_url_fopen'
@@ -142,6 +144,9 @@ export type ErrorCode =
   | 'login_tenant_mismatch'
   | 'maintenance_process_required'
   | 'owner_credentials_exposed'
+  | 'panel_asset_hash_mismatch'
+  | 'panel_dev_addons_invalid'
+  | 'panel_dev_server_forbidden'
   | 'partition_lock_timeout'
   | 'partition_missing'
   | 'partition_owner_required'
@@ -361,7 +366,9 @@ const catalogErrorV1Rule: ObjectRule = {
           'doctor_operator_missing',
           'doctor_operator_unreadable',
           'doctor_owner_credentials_exposed',
+          'doctor_panel_addons_changed',
           'doctor_panel_branding_invalid',
+          'doctor_panel_dev_server_forbidden',
           'doctor_partition_runway_short',
           'doctor_partition_table_unmanageable',
           'doctor_php_allow_url_fopen',
@@ -452,6 +459,9 @@ const catalogErrorV1Rule: ObjectRule = {
           'login_tenant_mismatch',
           'maintenance_process_required',
           'owner_credentials_exposed',
+          'panel_asset_hash_mismatch',
+          'panel_dev_addons_invalid',
+          'panel_dev_server_forbidden',
           'partition_lock_timeout',
           'partition_missing',
           'partition_owner_required',
@@ -635,7 +645,9 @@ const problemV1Rule: ObjectRule = {
           'doctor_operator_missing',
           'doctor_operator_unreadable',
           'doctor_owner_credentials_exposed',
+          'doctor_panel_addons_changed',
           'doctor_panel_branding_invalid',
+          'doctor_panel_dev_server_forbidden',
           'doctor_partition_runway_short',
           'doctor_partition_table_unmanageable',
           'doctor_php_allow_url_fopen',
@@ -726,6 +738,9 @@ const problemV1Rule: ObjectRule = {
           'login_tenant_mismatch',
           'maintenance_process_required',
           'owner_credentials_exposed',
+          'panel_asset_hash_mismatch',
+          'panel_dev_addons_invalid',
+          'panel_dev_server_forbidden',
           'partition_lock_timeout',
           'partition_missing',
           'partition_owner_required',

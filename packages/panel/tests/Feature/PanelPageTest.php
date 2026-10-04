@@ -7,6 +7,7 @@ namespace Cbox\Cms\Panel\Tests\Feature;
 use Cbox\Cms\Panel\Boundary\ViteManifest;
 use Cbox\Cms\Panel\Domain\ContentSecurityPolicy;
 use Cbox\Cms\Panel\Domain\CspNonce;
+use Cbox\Cms\Panel\Domain\Dto\PagePolicy;
 use Cbox\Cms\Panel\Domain\Dto\PanelBuild;
 use Cbox\Cms\Panel\Domain\PanelBuildUnavailable;
 use Cbox\Cms\Panel\Domain\PanelRoute;
@@ -24,9 +25,10 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * The panel's pages over HTTP (PRD 13.4, GUARDRAILS 6), in the workbench, which mounts the panel
- * at /cms: every page carries a strict Content-Security-Policy with a nonce of its own, the root
- * view puts that nonce on the build's script, stylesheets and module preloads and on the
- * csp-nonce meta element, and a path the panel does not have is the page Errors/NotFound with 404.
+ * at /cms: every page carries a strict Content-Security-Policy with a nonce of its own for its
+ * styles and the hash of its import map for its scripts, the root view puts that nonce on the
+ * build's script, stylesheets and module preloads and on the csp-nonce meta element, and a path
+ * the panel does not have is the page Errors/NotFound with 404.
  */
 final class PanelPageTest extends TestCase
 {
@@ -75,7 +77,13 @@ final class PanelPageTest extends TestCase
         $nonce = $this->nonce($response);
         $html = (string) $response->getContent();
 
-        self::assertSame(ContentSecurityPolicy::header(new CspNonce($nonce)), $response->headers->get(ContentSecurityPolicy::HEADER));
+        self::assertSame(1, preg_match('~<script type="importmap" nonce="[^"]+">(.*?)</script>~s', $html, $map));
+        self::assertSame(
+            ContentSecurityPolicy::header(new PagePolicy(new CspNonce($nonce), [PagePolicy::hashOf($map[1] ?? '')], '/cms/csp-report')),
+            $response->headers->get(ContentSecurityPolicy::HEADER),
+        );
+        self::assertSame('cms-csp="/cms/csp-report"', $response->headers->get(ContentSecurityPolicy::REPORTING_ENDPOINTS));
+        self::assertStringNotContainsString("'nonce-{$nonce}' 'strict-dynamic'", $response->headers->get(ContentSecurityPolicy::HEADER));
         self::assertStringContainsString('<meta property="csp-nonce" nonce="'.$nonce.'">', $html);
         self::assertStringContainsString('<script type="module" src="/cms/build/assets/app-1a2b3c.js" nonce="'.$nonce.'"></script>', $html);
         self::assertStringContainsString('<link rel="stylesheet" href="/cms/build/assets/shared-3c4d5e.css" nonce="'.$nonce.'">', $html);
@@ -100,6 +108,9 @@ final class PanelPageTest extends TestCase
 
         self::assertSame([
             'imports' => [
+                '@cboxdk/cms-panel/experimental' => '/cms/build/assets/shared-cboxdk-cms-panel-experimental-1a1a1a.js',
+                '@cboxdk/cms-panel/extend' => '/cms/build/assets/shared-cboxdk-cms-panel-extend-1b1b1b.js',
+                '@cboxdk/cms-panel/ui' => '/cms/build/assets/shared-cboxdk-cms-panel-ui-1c1c1c.js',
                 'react' => '/cms/build/assets/shared-react-0a0a0a.js',
                 'react-dom' => '/cms/build/assets/shared-react-dom-0c0c0c.js',
                 'react-dom/client' => '/cms/build/assets/shared-react-dom-client-0d0d0d.js',
@@ -132,6 +143,7 @@ final class PanelPageTest extends TestCase
             ->assertJsonPath('props.home', '/cms');
 
         self::assertMatchesRegularExpression(CspNonce::PATTERN, $this->nonce($response));
+        self::assertStringContainsString("script-src 'self';", (string) $response->headers->get(ContentSecurityPolicy::HEADER));
     }
 
     #[Test]
@@ -157,7 +169,7 @@ final class PanelPageTest extends TestCase
     }
 
     #[Test]
-    public function it_runs_every_panel_page_behind_the_content_security_policy_and_only_the_files_it_serves_without_it(): void
+    public function it_runs_every_panel_page_behind_the_content_security_policy_and_only_the_files_it_serves_and_the_report_without_it(): void
     {
         $panelRoutes = array_values(array_filter(
             app(Router::class)->getRoutes()->getRoutes(),
@@ -165,13 +177,16 @@ final class PanelPageTest extends TestCase
         ));
         $names = array_map(static fn (Route $route): ?string => $route->getName(), $panelRoutes);
 
-        // The files the panel serves, not pages: the build's, the theme's stylesheet and the
-        // brand's images, which BrandFileResponse gives a sandboxing policy of its own.
-        $files = [PanelRoutes::ASSET, PanelRoute::Theme->value, PanelRoute::Brand->value];
+        // The files the panel serves, not pages: the build's, the theme's stylesheet, the brand's
+        // images, which BrandFileResponse gives a sandboxing policy of its own, and the addons'
+        // files; and the route a browser reports a violation to, which renders nothing.
+        $files = [PanelRoutes::ASSET, PanelRoute::Theme->value, PanelRoute::Brand->value, PanelRoute::AddonAsset->value, PanelRoute::CspReport->value];
 
         self::assertContains(PanelRoutes::ASSET, $names);
         self::assertContains(PanelRoute::Theme->value, $names);
         self::assertContains(PanelRoute::Brand->value, $names);
+        self::assertContains(PanelRoute::AddonAsset->value, $names);
+        self::assertContains(PanelRoute::CspReport->value, $names);
         self::assertContains(PanelRoutes::NOT_FOUND, $names);
 
         foreach ($panelRoutes as $route) {
@@ -214,7 +229,7 @@ final class PanelPageTest extends TestCase
     }
 
     /**
-     * The nonce of the response's policy.
+     * The nonce of the response's policy, which its styles carry.
      *
      * @param  TestResponse<Response>  $response
      */
@@ -222,8 +237,8 @@ final class PanelPageTest extends TestCase
     {
         $policy = (string) $response->headers->get(ContentSecurityPolicy::HEADER);
 
-        return preg_match("/script-src 'nonce-([^']+)' 'strict-dynamic'/", $policy, $match) === 1
+        return preg_match("/style-src 'self' 'nonce-([^']+)'/", $policy, $match) === 1
             ? $match[1]
-            : self::fail("No script nonce in [{$policy}].");
+            : self::fail("No style nonce in [{$policy}].");
     }
 }
