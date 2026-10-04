@@ -141,6 +141,9 @@ enum BuildErrorCode: string
     /** An addon's panel bundle is missing, unreadable or does not match its manifest: a file is missing or has another hash, a stylesheet is not in the addon's layer, an import is not a shared module, or the contributions differ. */
     case PanelBundleInvalid = 'registry_panel_bundle_invalid';
 
+    /** An addon's panel bundle is not vouched for by a publisher key the installation trusts: no panel-signature.json outside local, a key it does not trust, or a signature that does not verify over panel-manifest.json (PRD 13.8). */
+    case PanelBundleUnsigned = 'registry_panel_bundle_unsigned';
+
     /** A form check, a flow step or a contribution's scope names a command or query no scan root registers. */
     case PanelUnknownCommand = 'registry_panel_unknown_command';
 

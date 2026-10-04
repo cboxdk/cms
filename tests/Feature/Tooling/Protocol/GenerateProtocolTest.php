@@ -51,6 +51,7 @@ const PROTOCOL_CODECS = [
     'ListRolesCodecV1.php',
     'NodeListCodecV1.php',
     'PanelBundleCodecV1.php',
+    'PanelBundleSignatureCodecV1.php',
     'PathExplanationCodecV1.php',
     'ProblemCodecV1.php',
     'PublishEntryCodecV1.php',

@@ -190,6 +190,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`registry_not_final_readonly`](#registry_not_final_readonly) | 500 | 65 | internal_error | no |
 | [`registry_panel_action_prefill_invalid`](#registry_panel_action_prefill_invalid) | 500 | 65 | internal_error | no |
 | [`registry_panel_bundle_invalid`](#registry_panel_bundle_invalid) | 500 | 65 | internal_error | no |
+| [`registry_panel_bundle_unsigned`](#registry_panel_bundle_unsigned) | 500 | 65 | internal_error | no |
 | [`registry_panel_check_unmirrored`](#registry_panel_check_unmirrored) | 500 | 65 | internal_error | no |
 | [`registry_panel_command_not_issuable`](#registry_panel_command_not_issuable) | 500 | 65 | internal_error | no |
 | [`registry_panel_data_query_invalid`](#registry_panel_data_query_invalid) | 500 | 65 | internal_error | no |
@@ -1846,6 +1847,15 @@ An action prefills a property of its command from a JSON pointer into the point'
 ### registry_panel_bundle_invalid
 
 An addon's panel bundle does not match: panel-manifest.json is missing or not a document of panel-bundle.v1.json, a file it lists is missing or has another SHA-384, a stylesheet has a rule outside the @layer cms.addon, the entry is not one of its scripts, it imports a module the panel does not share, its contributions differ from the manifest's contributions that run code, or the manifest has such contributions and names no bundle (PRD 13.4). Build the addon's UI again from its manifest, and do not edit the built files.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_panel_bundle_unsigned
+
+An addon's panel bundle is not vouched for by its publisher (PRD 13.8): panel-signature.json is missing or not a document of panel-bundle-signature.v1.json, its Ed25519 signature over panel-manifest.json does not verify, so the manifest changed after the bundle was signed, its key is not one the installation trusts for the addon in cbox-cms.addons.publishers, or the installation trusts no key for the addon outside the local environment, the one environment that accepts a bundle without a signature. Build the bundle with the publisher's key, and add the publisher's public key to cbox-cms.addons.publishers after reviewing where it came from.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)

@@ -8,6 +8,7 @@ description: "What an addon adds to the panel in its manifest: the kinds of cont
 
 <!-- extension-point: Cbox\Cms\Contracts\PanelPoints\PanelContribution -->
 <!-- extension-point: packages/core/resources/schemas/panel-bundle.v1.json -->
+<!-- extension-point: packages/core/resources/schemas/panel-bundle-signature.v1.json -->
 <!-- extension-point: packages/panel/resources/schemas/pages/contributions.v1.json -->
 
 An addon adds to the panel through the `panel` member of its [manifest](manifest.md): a `Cbox\Cms\Contracts\PanelPoints\PanelContributions` that lists every contribution it makes to the [panel points](panel-points.md) (PRD 13.4). The list is the allowance: what it names is exactly what the addon may touch, and the install screen shows it. `cms:build` checks every contribution against the points the scan roots declare, the addon's manifest, the commands, queries and hooks the build registered and their JSON Schemas, and writes the result to `panel.php` and `addons.php` in `bootstrap/cache/cms/`. Every type on this page is `#[Experimental]`.
@@ -77,7 +78,7 @@ The build still writes the registry, and prints a warning with its code, for eve
 
 ## The bundle
 
-An addon builds its panel UI with the SDK's Vite plugin, `@cboxdk/cms-panel/vite`: `cmsPanelAddon({ namespace, contributions, budget })` in the addon's Vite configuration, with the addon's namespace, the ids of its contributions that run code and, when the default of 256 KiB is not enough, a size budget in bytes. The plugin leaves the panel's shared modules external, the React modules and `@cboxdk/cms-panel` with its subpaths, so the bundle runs on the panel's own copies, and points the CommonJS shim of `useSyncExternalStore` at React's own hook. It fails the build on an import an addon may not make (`@inertiajs/*`, React Aria, `@cboxdk/cms-ui-kit` and a module from a URL), on built code that calls `eval`, `new Function`, a timer with a string or `import()` of another origin, on a stylesheet with a rule outside `@layer cms.addon.<namespace>`, with `!important`, an `@import`, a `--cms-*` declaration or a selector on `.cms-*` or `[data-cms-part]`, and on a bundle over its budget. It scopes every selector of the stylesheets to `[data-cms-addon="<namespace>"]`, the element the host renders each contribution inside, and writes `panel-manifest.json` next to the files. `npm run test:js -- vite` in this repository holds it to each of those.
+An addon builds its panel UI with the SDK's Vite plugin, `@cboxdk/cms-panel/vite`: `cmsPanelAddon({ namespace, contributions, budget })` in the addon's Vite configuration, with the addon's namespace, the ids of its contributions that run code and, when the default of 256 KiB is not enough, a size budget in bytes. The plugin leaves the panel's shared modules external, the React modules and `@cboxdk/cms-panel` with its subpaths, so the bundle runs on the panel's own copies, and points the CommonJS shim of `useSyncExternalStore` at React's own hook. It fails the build on an import an addon may not make (`@inertiajs/*`, React Aria, `@cboxdk/cms-ui-kit` and a module from a URL), on built code that calls `eval`, `new Function`, a timer with a string or `import()` of another origin, on a stylesheet with a rule outside `@layer cms.addon.<namespace>`, with `!important`, an `@import`, a `--cms-*` declaration or a selector on `.cms-*` or `[data-cms-part]`, and on a bundle over its budget. It scopes every selector of the stylesheets to `[data-cms-addon="<namespace>"]`, the element the host renders each contribution inside, writes `panel-manifest.json` next to the files and, given the publisher's key, signs it (see [Signing the bundle](#signing-the-bundle)). `npm run test:js -- vite` in this repository holds it to each of those. The workbench's fixture addon builds its own bundle that way, `npm run build:fixture-addon` from `workbench/addons/fixtureaddon/resources/panel`, signed with the test key beside it.
 
 The prebuilt bundle holds `panel-manifest.json`, a document of `panel-bundle.v1.json`: the entry module, every file with its path, its SHA-384 as `sha384-<base64>` and its kind (`script`, `style` or `asset`), the bare module specifiers it imports, and the ids of the contributions it registers code for. `cms:build` reads it through the generated codec `PanelBundleCodecV1` and refuses the bundle with `registry_panel_bundle_invalid` when a file is missing or has another hash, a stylesheet has a rule outside `@layer cms.addon` (or a layer below it), the entry is not one of its scripts, it imports a module other than the shared React modules and `@cboxdk/cms-panel` with its subpaths, or its contributions are not exactly the manifest's contributions that run code. `addons.php` keeps the entry and the files with their hashes, so the panel serves only those files, by hash, and no path on disk.
 
@@ -151,6 +152,63 @@ final class PanelBundleManifestTest extends TestCase
         }
 
         self::assertSame([BundleFileKind::Style, BundleFileKind::Script, BundleFileKind::Script], array_map(static fn (BundleFile $file): BundleFileKind => $file->kind, $manifest->files));
+    }
+}
+```
+
+### Signing the bundle
+
+An installation runs an addon's UI in the panel's window with the viewer's session, so it only runs code the addon's publisher vouches for (PRD 13.8). The publisher signs the bundle with an Ed25519 key: `openssl genpkey -algorithm ed25519 -out panel-signing.pem` makes one, kept outside the repository like any secret, and the plugin takes it as `cmsPanelAddon({ sign: { privateKey } })`, with the PEM read from a file or a secret of the addon's CI. The plugin then writes `panel-signature.json` next to the manifest, a document of `panel-bundle-signature.v1.json`: the algorithm, the publisher's public key as the base64 of its 32 bytes, and the signature over the bytes of `panel-manifest.json`, which carries the SHA-384 of every file, so one signature vouches for the whole bundle. `publicKeyOf(pem)` from `@cboxdk/cms-panel/vite` gives the public key the publisher states in the addon's documentation, and a build without a key warns and writes no signature.
+
+The installation names the keys it trusts for each addon in `cbox-cms.addons.publishers`, by the addon's Composer package: `['acme/cms-approvals' => ['<public key>']]`, more than one while a publisher rotates its key. `cms:build` reads the signature through the generated codec `PanelBundleSignatureCodecV1` and refuses the bundle with `registry_panel_bundle_unsigned` when the signature is missing, its key is not one the installation trusts for the addon, or it does not verify over the manifest, because the manifest changed after the signing. A bundle of an addon the installation trusts no key for passes, signed or not, in the local environment alone (`app.env`), so an addon's UI can be developed before its publisher's key is known, and never anywhere else. Trusting a key means reviewing where it came from: the key is what makes the bundle the publisher's.
+
+<!-- example-file: examples/Unit/Panel/Approvals/dist/panel-signature.json -->
+```json
+{
+  "algorithm": "ed25519",
+  "public_key": "KvpGeOheh2ZDEsrHAy/wRzWWnJdCf1AcwubMOddwn3Y=",
+  "signature": "fXW/NgdFbDY8m8QXoho0YstVyKAzD2D9YSbge2Q321ZLgCJT8YDSbCFRpQtoSbYKK4xj/UvEflqwv9FmZYsQCQ=="
+}
+```
+
+<!-- example: examples/Unit/Panel/PanelBundleSignatureTest.php -->
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace Examples\Unit\Panel;
+
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\PanelBundleSignatureCodecV1;
+use Cbox\Cms\Core\Registry\Domain\PublisherKey;
+use Cbox\Cms\Core\Registry\Domain\SignatureAlgorithm;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
+
+/**
+ * The approvals addon's dist/panel-signature.json is a document of panel-bundle-signature.v1.json:
+ * its generated codec reads it, and the publisher's Ed25519 signature verifies over the bytes of
+ * dist/panel-manifest.json with the public key it names, the key an installation puts in
+ * cbox-cms.addons.publishers for the addon. A manifest changed after the signing does not verify.
+ */
+final class PanelBundleSignatureTest extends TestCase
+{
+    #[Test]
+    public function it_reads_the_signature_and_verifies_it_over_the_manifest(): void
+    {
+        $directory = __DIR__.'/Approvals/dist';
+        $manifest = file_get_contents($directory.'/panel-manifest.json');
+        $json = file_get_contents($directory.'/panel-signature.json');
+        self::assertIsString($manifest);
+        self::assertIsString($json);
+
+        $signature = new PanelBundleSignatureCodecV1()->decode($json, ClassificationAccess::Public);
+
+        self::assertSame(SignatureAlgorithm::Ed25519, $signature->algorithm);
+        self::assertTrue($signature->publicKey->equals(new PublisherKey('KvpGeOheh2ZDEsrHAy/wRzWWnJdCf1AcwubMOddwn3Y=')));
+        self::assertTrue($signature->signature->verifies($manifest, $signature->publicKey));
+        self::assertFalse($signature->signature->verifies(str_replace('badge.js', 'other.js', $manifest), $signature->publicKey));
     }
 }
 ```
@@ -310,14 +368,19 @@ use PHPUnit\Framework\Attributes\Test;
  * cms:build compiles the approvals addon's panel contributions onto the review package's points:
  * the section goes to panel.php in render order, the addon and its checked bundle to addons.php,
  * and the build warns that the point is experimental. The installation can reorder the section
- * without touching the addon, and refuses an addon its allowlist does not name.
+ * without touching the addon, refuses an addon its allowlist does not name, and refuses the bundle
+ * unless its signature verifies with the publisher's key it trusts.
  */
 final class PanelContributionsTest extends BuildTestCase
 {
+    /** The public key the approvals addon's publisher signed dist/panel-signature.json with. */
+    private const string PUBLISHER_KEY = 'KvpGeOheh2ZDEsrHAy/wRzWWnJdCf1AcwubMOddwn3Y=';
+
     #[Test]
     public function it_compiles_the_addon_s_contribution_and_bundle(): void
     {
         $this->allowAddons('acme/cms-approvals');
+        $this->trustPublisher('acme/cms-approvals', self::PUBLISHER_KEY);
 
         self::assertSame(0, $this->build(ReviewsServiceProvider::class, ApprovalsServiceProvider::class));
         self::assertStringContainsString('[registry_panel_point_experimental] The contribution approvals.badge of addon "approvals" (acme/cms-approvals) contributes to reviews.detail.sections@1', $this->buildOutput());
@@ -345,11 +408,25 @@ final class PanelContributionsTest extends BuildTestCase
     public function it_lets_the_installation_reorder_a_contribution_and_shows_where_the_order_comes_from(): void
     {
         $this->allowAddons('acme/cms-approvals');
+        $this->trustPublisher('acme/cms-approvals', self::PUBLISHER_KEY);
         config()->set('cbox-cms.panel.contributions', ['reviews.detail.sections@1' => ['approvals.badge' => ['priority' => 10]]]);
 
         self::assertSame(0, $this->build(ReviewsServiceProvider::class, ApprovalsServiceProvider::class));
         self::assertSame(0, app(Kernel::class)->call('cms:panel:fills', ['point' => 'reviews.detail.sections@1']));
         self::assertStringContainsString('priority 10 from the installation, enabled', app(Kernel::class)->output());
+    }
+
+    #[Test]
+    public function it_refuses_the_bundle_when_the_installation_trusts_another_key_for_the_addon(): void
+    {
+        $this->allowAddons('acme/cms-approvals');
+        $this->trustPublisher('acme/cms-approvals', 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=');
+
+        self::assertSame(65, $this->build(ReviewsServiceProvider::class, ApprovalsServiceProvider::class));
+
+        $output = $this->buildOutput();
+        self::assertStringContainsString('[registry_panel_bundle_unsigned] The panel bundle of addon "approvals" (acme/cms-approvals)', $output);
+        self::assertStringContainsString('it is signed by the key '.self::PUBLISHER_KEY.', which the installation does not trust for the addon', $output);
     }
 
     #[Test]

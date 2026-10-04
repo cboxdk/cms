@@ -11,6 +11,7 @@ use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Schema\FieldDefinition;
 use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Contracts\Schema\TypeName;
+use Illuminate\Contracts\Config\Repository;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionClass;
 use Workbench\FixtureAddon\DeriveSlug;
@@ -42,6 +43,26 @@ final class FixtureAddonBuildTest extends FixtureAddonTestCase
         self::assertSame(FixtureAddonServiceProvider::NAMESPACE, $manifest->namespace->value);
         self::assertSame(ClassificationAccess::Public, $manifest->capabilities->reads);
         self::assertSame([FixtureArticle::TYPE], array_map(static fn (TypeName $type): string => $type->value, $manifest->schema->extends));
+    }
+
+    #[Test]
+    public function cms_build_verifies_its_signed_panel_bundle_against_the_key_the_workbench_trusts(): void
+    {
+        self::assertSame(0, $this->build());
+
+        $addon = array_values(array_filter(
+            $this->entries('addons'),
+            static fn (array $entry): bool => ($entry['package'] ?? null) === FixtureAddonServiceProvider::PACKAGE,
+        ));
+
+        self::assertCount(1, $addon);
+        self::assertIsArray($addon[0]['panel']);
+        self::assertIsArray($addon[0]['panel']['bundle']);
+        self::assertSame('panel.js', $addon[0]['panel']['bundle']['entry']);
+
+        app(Repository::class)->set('cbox-cms.addons.publishers', [FixtureAddonServiceProvider::PACKAGE => ['AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=']]);
+
+        self::assertSame(65, $this->build());
     }
 
     #[Test]

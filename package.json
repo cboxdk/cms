@@ -18,6 +18,7 @@
     "lint:translations": "node js/tooling/translation-parity.js js/panel/src/i18n/catalogues && node js/tooling/translation-parity.js js/ui-kit/src/i18n/catalogues",
     "generate:tokens": "node js/ui-kit/scripts/generate-tokens.js",
     "generate:sdk": "node js/panel-sdk/scripts/generate-entries.js",
+    "build:fixture-addon": "vite build --config workbench/addons/fixtureaddon/resources/panel/vite.config.ts",
     "test:kit": "node js/ui-kit/tests/run.js",
     "test:js": "vitest run --project=unit --reporter=default --reporter=./js/tooling/vitest-no-skipped.js",
     "api:report": "node js/ui-kit/scripts/api-report.js --update && node js/panel-sdk/scripts/api-report.js --update",

@@ -6,7 +6,7 @@ import cmsEslintConfig from '@cboxdk/cms-tooling/eslint';
 
 export default cmsEslintConfig({
   tsconfigRootDir: import.meta.dirname,
-  ignores: ['.cache/', '.claude/', '.harness/'],
+  ignores: ['.cache/', '.claude/', '.harness/', 'workbench/addons/*/dist/'],
   kit: {
     directory: 'js/ui-kit/src',
     consumers: ['js/panel', 'js/panel-sdk', 'workbench/resources/js'],

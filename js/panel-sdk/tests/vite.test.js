@@ -7,7 +7,8 @@
 // DEV_ENTRY with the shared modules still bare.
 
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { Buffer } from 'node:buffer';
+import { createHash, generateKeyPairSync, verify } from 'node:crypto';
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -22,10 +23,13 @@ import cmsPanelAddon, {
   integrity,
   isShared,
   MANIFEST,
+  publicKeyOf,
   refusal,
   scopeStylesheet,
   SDK,
   SHARED_MODULES,
+  SIGNATURE,
+  signManifest,
   styleRefusal,
 } from '../vite.js';
 import { ROOT } from './sdk.js';
@@ -79,7 +83,7 @@ function parseManifest(json) {
  *
  * @param {string} name
  * @param {string} source
- * @param {{ files?: Record<string, string>, contributions?: string[], budget?: number }} [options]
+ * @param {{ files?: Record<string, string>, contributions?: string[], budget?: number, sign?: { privateKey: string } }} [options]
  * @returns {Promise<Built | { error: string }>}
  */
 async function buildAddon(name, source, options = {}) {
@@ -102,6 +106,7 @@ async function buildAddon(name, source, options = {}) {
           namespace: NAMESPACE,
           contributions: options.contributions ?? [`${NAMESPACE}.badge`],
           ...(options.budget === undefined ? {} : { budget: options.budget }),
+          ...(options.sign === undefined ? {} : { sign: options.sign }),
         }),
       ],
       build: {
@@ -159,7 +164,116 @@ const LAYERED_CSS = [
   '',
 ].join('\n');
 
+/**
+ * A publisher's Ed25519 keypair: the private key in PEM, as the plugin takes it, and the public
+ * key as the installation names it, the base64 of its 32 bytes.
+ *
+ * @returns {{ privateKey: string, publicKey: string, publicKeyObject: import('node:crypto').KeyObject }}
+ */
+function publisherKeypair() {
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const jwk = publicKey.export({ format: 'jwk' });
+
+  return {
+    privateKey: String(privateKey.export({ type: 'pkcs8', format: 'pem' })),
+    publicKey: Buffer.from(String(jwk.x), 'base64url').toString('base64'),
+    publicKeyObject: publicKey,
+  };
+}
+
 describe('the addon build plugin', () => {
+  test(
+    "signs the manifest with the publisher's key into panel-signature.json, which verifies over the manifest's bytes, and writes none without a key",
+    { timeout: 60_000 },
+    async () => {
+      const publisher = publisherKeypair();
+      const signed = await buildAddon('signed', SHARED_SOURCE, {
+        sign: { privateKey: publisher.privateKey },
+      });
+
+      assert.ok('files' in signed, 'error' in signed ? signed.error : '');
+
+      const document = signed.files[MANIFEST];
+      const signatureJson = signed.files[SIGNATURE];
+
+      assert.ok(
+        document !== undefined && signatureJson !== undefined,
+        `the plugin wrote no ${SIGNATURE}`,
+      );
+
+      /** @type {unknown} */
+      const parsed = JSON.parse(signatureJson);
+      const signature =
+        /** @type {{ algorithm: string, public_key: string, signature: string }} */ (parsed);
+
+      assert.equal(signature.algorithm, 'ed25519');
+      assert.equal(signature.public_key, publisher.publicKey);
+      assert.equal(publicKeyOf(publisher.privateKey), publisher.publicKey);
+      assert.equal(Buffer.from(signature.public_key, 'base64').length, 32);
+      assert.equal(Buffer.from(signature.signature, 'base64').length, 64);
+      assert.ok(
+        verify(
+          null,
+          Buffer.from(document, 'utf8'),
+          publisher.publicKeyObject,
+          Buffer.from(signature.signature, 'base64'),
+        ),
+        'the signature does not verify over the manifest',
+      );
+      assert.ok(
+        !verify(
+          null,
+          Buffer.from(`${document} `, 'utf8'),
+          publisher.publicKeyObject,
+          Buffer.from(signature.signature, 'base64'),
+        ),
+        'the signature verifies over other bytes',
+      );
+      assert.deepEqual(signManifest(document, publisher.privateKey), signature);
+      assert.ok(
+        !Object.hasOwn(parseManifest(document), 'signature'),
+        'the manifest carries the signature',
+      );
+
+      const unsigned = await buildAddon('unsigned', SHARED_SOURCE);
+
+      assert.ok('files' in unsigned, 'error' in unsigned ? unsigned.error : '');
+      assert.equal(unsigned.files[SIGNATURE], undefined);
+    },
+  );
+
+  test('refuses a signing key that is not an Ed25519 private key', () => {
+    const rsa = String(
+      generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({
+        type: 'pkcs8',
+        format: 'pem',
+      }),
+    );
+
+    assert.throws(
+      () => cmsPanelAddon({ namespace: NAMESPACE, contributions: [], sign: { privateKey: rsa } }),
+      /sign\.privateKey is a rsa key; the panel verifies Ed25519 signatures/,
+    );
+    assert.throws(
+      () =>
+        cmsPanelAddon({
+          namespace: NAMESPACE,
+          contributions: [],
+          sign: { privateKey: 'not a key' },
+        }),
+      /sign\.privateKey is not a private key in PEM/,
+    );
+    assert.throws(
+      () =>
+        cmsPanelAddon({
+          namespace: NAMESPACE,
+          contributions: [],
+          sign: /** @type {{ privateKey: string }} */ (/** @type {unknown} */ ({ keyFile: 'x' })),
+        }),
+      /sign is \{ privateKey \} with the publisher's Ed25519 private key in PEM, or left out/,
+    );
+  });
+
   test(
     "leaves React and the SDK to the import map, and writes the manifest with every file's SHA-384",
     { timeout: 60_000 },

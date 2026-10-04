@@ -132,10 +132,16 @@ return [
      * namespace, from its manifest, to the id of its service actor: the actor created when the
      * installation approved the addon's capabilities. The addon's subscribers run as that actor,
      * with its own grants, and never as the system; a subscriber of an addon without an active
-     * service actor does not run.
+     * service actor does not run. publishers maps each addon's package to the Ed25519 public keys
+     * of its publisher the installation trusts, each the base64 of its 32 bytes, as the publisher
+     * states it and panel-signature.json in the addon's bundle carries it: cms:build refuses the
+     * addon's panel bundle as registry_panel_bundle_unsigned unless its signature over
+     * panel-manifest.json verifies with one of them. A bundle of an addon without keys here passes
+     * unsigned in the local environment alone (PRD 13.8).
      */
     'addons' => [
         'allowed' => [],
+        'publishers' => [],
         'service_actors' => [],
     ],
 

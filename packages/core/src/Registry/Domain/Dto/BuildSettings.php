@@ -17,8 +17,12 @@ use Cbox\Cms\Core\PanelThemes\Domain\Dto\ThemeSelection;
  * - overrides and replacements: cbox-cms.panel.contributions and cbox-cms.panel.replacements.
  * - themes: the panel themes the installation selects, cbox-cms.panel.themes, in their order, and
  *   the file of its own theme, cbox-cms.panel.app_theme.
- * - problems: what could not be read of them, as registry_panel_override_invalid, and of the
- *   themes as registry_panel_theme_invalid.
+ * - problems: what could not be read of them, as registry_panel_override_invalid, of the
+ *   themes as registry_panel_theme_invalid and of the publishers as registry_panel_bundle_unsigned.
+ * - signatures: the publisher keys the installation trusts for the addons' panel bundles,
+ *   cbox-cms.addons.publishers, and whether the environment is local, which alone accepts a bundle
+ *   of an addon without trusted keys unsigned (PRD 13.8); or null when the build does not hold the
+ *   bundles to their signatures, as the compiler's own tests build. cms:build always passes it.
  */
 #[Experimental]
 final readonly class BuildSettings
@@ -35,6 +39,7 @@ final readonly class BuildSettings
         public array $replacements = [],
         public array $problems = [],
         public ThemeSelection $themes = new ThemeSelection,
+        public ?SignaturePolicy $signatures = null,
     ) {}
 
     /**

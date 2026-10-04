@@ -1,0 +1,14 @@
+{
+  "contributions": [],
+  "entry": "panel.js",
+  "externals": [
+    "@cboxdk/cms-panel/extend"
+  ],
+  "files": [
+    {
+      "integrity": "sha384-NI+EFoV9/JcWpuQeB5doE/i5gGfUehiVr3aYY694qWFNiCgKYdnqpjz32lOuCcfm",
+      "kind": "script",
+      "path": "panel.js"
+    }
+  ]
+}

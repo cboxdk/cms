@@ -39,6 +39,7 @@ use Cbox\Cms\Contracts\PanelPoints\Tone;
 use Cbox\Cms\Core\PanelThemes\Domain\Dto\ThemeSelection;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
 use Cbox\Cms\Core\Registry\Boundary\JsonSchemaNodes;
+use Cbox\Cms\Core\Registry\Boundary\PanelBundles;
 use Cbox\Cms\Core\Registry\Domain\BundleFileKind;
 use Cbox\Cms\Core\Registry\Domain\BundleIntegrity;
 use Cbox\Cms\Core\Registry\Domain\BundlePath;
@@ -53,6 +54,8 @@ use Cbox\Cms\Core\Registry\Domain\Dto\ContributionOverride;
 use Cbox\Cms\Core\Registry\Domain\Dto\DeclaredAddons;
 use Cbox\Cms\Core\Registry\Domain\Dto\ReplacementChoice;
 use Cbox\Cms\Core\Registry\Domain\Dto\ScanRoots;
+use Cbox\Cms\Core\Registry\Domain\Dto\SignaturePolicy;
+use Cbox\Cms\Core\Registry\Domain\PublisherKey;
 use Cbox\Cms\Core\Registry\Domain\RegistryBuildFailed;
 use Cbox\Cms\Core\Registry\Domain\RegistryCompiler;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
@@ -68,6 +71,7 @@ use Cbox\Cms\Core\Tests\Registry\Fixtures\PanelAddon\PendingApprovals;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\PanelAddon\RequestApproval;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\PanelHost\DraftNote;
 use PHPUnit\Framework\Assert;
+use RuntimeException;
 
 /**
  * A world for compiling addons' panel contributions (PRD 13.4): the scan roots of the host
@@ -205,6 +209,100 @@ final class PanelBuildWorld
     }
 
     /**
+     * A publisher's Ed25519 keypair, as sodium makes it.
+     *
+     * @return non-empty-string
+     */
+    public static function keypair(): string
+    {
+        return sodium_crypto_sign_keypair();
+    }
+
+    /**
+     * The public key of the keypair, as the installation names it.
+     *
+     * @param  non-empty-string  $keypair
+     */
+    public static function publisherKey(string $keypair): PublisherKey
+    {
+        return new PublisherKey(base64_encode(sodium_crypto_sign_publickey($keypair)));
+    }
+
+    /**
+     * The installation's trust in the keypairs' keys for the addon fixture, and whether the
+     * environment is local.
+     *
+     * @param  list<non-empty-string>  $keypairs
+     */
+    public static function signatures(array $keypairs, bool $local = false): SignaturePolicy
+    {
+        return new SignaturePolicy($keypairs === [] ? [] : [self::ADDON => array_map(self::publisherKey(...), $keypairs)], $local);
+    }
+
+    /**
+     * Writes a bundle that registers code for exactly the manifest's contributions that run code
+     * into a scratch directory (RegistryFixtures::cleanUp() removes it), signed by the keypair
+     * when one is given, as the addon's build plugin writes it, lets $after change the directory,
+     * as a hand edit after the build would, and reads it as cms:build does.
+     *
+     * @param  non-empty-string|null  $keypair
+     * @param  (callable(string): void)|null  $after  given the directory
+     */
+    public static function writtenBundle(AddonManifest $manifest, ?string $keypair = null, ?callable $after = null): AddonBundle
+    {
+        $directory = RegistryFixtures::scratch();
+
+        if (! mkdir($directory, 0o755, true)) {
+            throw new RuntimeException("Cannot make {$directory}.");
+        }
+
+        $script = 'export default {};';
+        $style = '@layer cms.addon {}';
+        $ids = array_values(array_map(
+            static fn (PanelContribution $contribution): string => $contribution->id()->value,
+            array_filter($manifest->panel->contributions ?? [], static fn (PanelContribution $contribution): bool => $contribution->runsCode()),
+        ));
+        sort($ids, SORT_STRING);
+        $document = json_encode([
+            'contributions' => $ids,
+            'entry' => 'addon.js',
+            'externals' => ['@cboxdk/cms-panel/extend', 'react'],
+            'files' => [
+                ['integrity' => BundleIntegrity::of($style)->value, 'kind' => 'style', 'path' => 'addon.css'],
+                ['integrity' => BundleIntegrity::of($script)->value, 'kind' => 'script', 'path' => 'addon.js'],
+            ],
+        ], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n";
+
+        file_put_contents($directory.'/addon.js', $script);
+        file_put_contents($directory.'/addon.css', $style);
+        file_put_contents($directory.'/'.PanelBundles::MANIFEST, $document);
+
+        if ($keypair !== null) {
+            file_put_contents($directory.'/'.PanelBundles::SIGNATURE, self::signatureDocument($document, $keypair));
+        }
+
+        if ($after !== null) {
+            $after($directory);
+        }
+
+        return PanelBundles::read($directory);
+    }
+
+    /**
+     * The document of panel-bundle-signature.v1.json for the manifest's bytes, by the keypair.
+     *
+     * @param  non-empty-string  $keypair
+     */
+    public static function signatureDocument(string $document, string $keypair): string
+    {
+        return json_encode([
+            'algorithm' => 'ed25519',
+            'public_key' => self::publisherKey($keypair)->value,
+            'signature' => base64_encode(sodium_crypto_sign_detached($document, sodium_crypto_sign_secretkey($keypair))),
+        ], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n";
+    }
+
+    /**
      * The JSON Schemas of the fixtures' contracts: notes.draft and approvals.request, the query
      * approvals.pending, and the props of notes.detail.sections@1 and notes.detail.actions@1.
      *
@@ -234,10 +332,11 @@ final class PanelBuildWorld
      * @param  list<ContributionOverride>  $overrides
      * @param  list<ReplacementChoice>  $replacements
      * @param  list<string>|null  $allowed
+     * @param  SignaturePolicy|null  $signatures  null leaves the bundles' signatures unchecked
      */
-    public static function settings(array $overrides = [], array $replacements = [], ?array $allowed = [self::ADDON, self::STAMPS], ThemeSelection $themes = new ThemeSelection): BuildSettings
+    public static function settings(array $overrides = [], array $replacements = [], ?array $allowed = [self::ADDON, self::STAMPS], ThemeSelection $themes = new ThemeSelection, ?SignaturePolicy $signatures = null): BuildSettings
     {
-        return new BuildSettings($allowed, $overrides, $replacements, themes: $themes);
+        return new BuildSettings($allowed, $overrides, $replacements, themes: $themes, signatures: $signatures);
     }
 
     public static function build(DeclaredAddons $addons, ?BuildSettings $settings = null, ?ContractShapes $shapes = null, ?ScanRoots $roots = null): CompiledRegistry

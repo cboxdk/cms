@@ -202,6 +202,7 @@ enum ErrorCode: string
     case RegistryNotFinalReadonly = 'registry_not_final_readonly';
     case RegistryPanelActionPrefillInvalid = 'registry_panel_action_prefill_invalid';
     case RegistryPanelBundleInvalid = 'registry_panel_bundle_invalid';
+    case RegistryPanelBundleUnsigned = 'registry_panel_bundle_unsigned';
     case RegistryPanelCheckUnmirrored = 'registry_panel_check_unmirrored';
     case RegistryPanelCommandNotIssuable = 'registry_panel_command_not_issuable';
     case RegistryPanelDataQueryInvalid = 'registry_panel_data_query_invalid';
@@ -937,6 +938,9 @@ enum ErrorCode: string
             ),
             self::RegistryPanelBundleInvalid => $this->refusedInput(
                 'An addon\'s panel bundle does not match: panel-manifest.json is missing or not a document of panel-bundle.v1.json, a file it lists is missing or has another SHA-384, a stylesheet has a rule outside the @layer cms.addon, the entry is not one of its scripts, it imports a module the panel does not share, its contributions differ from the manifest\'s contributions that run code, or the manifest has such contributions and names no bundle (PRD 13.4). Build the addon\'s UI again from its manifest, and do not edit the built files.',
+            ),
+            self::RegistryPanelBundleUnsigned => $this->refusedInput(
+                'An addon\'s panel bundle is not vouched for by its publisher (PRD 13.8): panel-signature.json is missing or not a document of panel-bundle-signature.v1.json, its Ed25519 signature over panel-manifest.json does not verify, so the manifest changed after the bundle was signed, its key is not one the installation trusts for the addon in cbox-cms.addons.publishers, or the installation trusts no key for the addon outside the local environment, the one environment that accepts a bundle without a signature. Build the bundle with the publisher\'s key, and add the publisher\'s public key to cbox-cms.addons.publishers after reviewing where it came from.',
             ),
             self::RegistryPanelCheckUnmirrored => $this->refusedInput(
                 'A form check with severity error, or a decorator that tightens the disabled reason, blocks a submit in the panel, and it names no ValidateHook or AuthorizeHook of its own addon on the same command in mirrors (the mirror rule, PRD 13.4); a decorator must also be scoped to that one command. Mirror the rule with a hook that enforces it on the server, so it holds over REST, MCP and the CLI too, or lower the check to a warning.',

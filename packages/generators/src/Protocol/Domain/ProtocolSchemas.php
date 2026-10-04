@@ -102,6 +102,10 @@ use Cbox\Cms\Core\Registry\Domain\BundleIntegrity;
 use Cbox\Cms\Core\Registry\Domain\BundlePath;
 use Cbox\Cms\Core\Registry\Domain\Dto\BundleFile;
 use Cbox\Cms\Core\Registry\Domain\Dto\BundleManifest;
+use Cbox\Cms\Core\Registry\Domain\Dto\BundleSignature;
+use Cbox\Cms\Core\Registry\Domain\Ed25519Signature;
+use Cbox\Cms\Core\Registry\Domain\PublisherKey;
+use Cbox\Cms\Core\Registry\Domain\SignatureAlgorithm;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\ExplainedPath;
 use Cbox\Cms\Core\Routing\Domain\Dto\MountStep;
@@ -375,6 +379,20 @@ final readonly class ProtocolSchemas
                     '#/$defs/file/properties/integrity' => ValueBinding::value(BundleIntegrity::class),
                     '#/$defs/file/properties/kind' => ValueBinding::enum(BundleFileKind::class),
                     '#/$defs/file/properties/path' => ValueBinding::value(BundlePath::class),
+                ],
+                directory: self::CORE_SCHEMA_DIRECTORY,
+            ),
+            new SchemaBinding(
+                schema: 'panel-bundle-signature.v1.json',
+                codecClass: 'PanelBundleSignatureCodecV1',
+                version: 1,
+                objects: [
+                    '#' => BundleSignature::class,
+                ],
+                values: [
+                    '#/properties/algorithm' => ValueBinding::enum(SignatureAlgorithm::class),
+                    '#/properties/public_key' => ValueBinding::value(PublisherKey::class),
+                    '#/properties/signature' => ValueBinding::value(Ed25519Signature::class),
                 ],
                 directory: self::CORE_SCHEMA_DIRECTORY,
             ),

@@ -7,11 +7,13 @@ namespace Cbox\Cms\Core\Tests\Registry;
 use Cbox\Cms\Core\Registry\Boundary\PanelBundles;
 use Cbox\Cms\Core\Registry\Domain\AddonLayer;
 use Cbox\Cms\Core\Registry\Domain\BundleIntegrity;
+use Cbox\Cms\Core\Registry\Domain\SignatureAlgorithm;
 
 /*
  * cms:build reads an addon's panel bundle from its directory (PRD 13.4): panel-manifest.json
  * through the generated codec of panel-bundle.v1.json, and every file it lists against its
- * SHA-384, with every stylesheet held to the addon's cascade layer.
+ * SHA-384, with every stylesheet held to the addon's cascade layer; and the publisher's signature
+ * over the manifest's bytes from panel-signature.json (PRD 13.8), when the bundle has one.
  */
 
 afterEach(function (): void {
@@ -89,3 +91,32 @@ it('finds the first rule of a stylesheet outside the addon\'s cascade layer', fu
     'a block never closed' => ['@layer cms.addon { .a {', '.a {'],
     'an import' => ['@import "other.css";', '@import "other.css";'],
 ]);
+
+it('reads the publisher\'s signature over the manifest\'s bytes from panel-signature.json, and none from a bundle without the file', function (): void {
+    $keypair = PanelBuildWorld::keypair();
+    $manifest = bundleManifest();
+    $files = ['panel-manifest.json' => $manifest, 'addon.js' => 'export default {};', 'addon.css' => '@layer cms.addon { .x { color: red; } }'];
+    $signed = PanelBundles::read(bundleDirectory([...$files, 'panel-signature.json' => PanelBuildWorld::signatureDocument($manifest, $keypair)]));
+    $unsigned = PanelBundles::read(bundleDirectory($files));
+
+    expect($signed->problems)->toBe([])
+        ->and($signed->signing?->document)->toBe($manifest)
+        ->and($signed->signing?->problem)->toBeNull()
+        ->and($signed->signing?->signature?->algorithm)->toBe(SignatureAlgorithm::Ed25519)
+        ->and($signed->signing?->signature?->publicKey->equals(PanelBuildWorld::publisherKey($keypair)))->toBeTrue()
+        ->and($signed->signing?->signature?->signature->verifies($manifest, PanelBuildWorld::publisherKey($keypair)))->toBeTrue()
+        ->and($signed->signing?->signature?->signature->verifies($manifest.' ', PanelBuildWorld::publisherKey($keypair)))->toBeFalse()
+        ->and($unsigned->signing?->document)->toBe($manifest)
+        ->and($unsigned->signing?->signature)->toBeNull()
+        ->and($unsigned->signing?->problem)->toBeNull();
+});
+
+it('reads a signature file that is no document of panel-bundle-signature.v1.json as a problem of the signing, apart from the files', function (): void {
+    $manifest = bundleManifest();
+    $bundle = PanelBundles::read(bundleDirectory(['panel-manifest.json' => $manifest, 'addon.js' => 'export default {};', 'addon.css' => '@layer cms.addon { .x { color: red; } }', 'panel-signature.json' => '{"algorithm": "ed25519", "public_key": "short", "signature": "short"}']));
+
+    expect($bundle->problems)->toBe([])
+        ->and($bundle->signing?->signature)->toBeNull()
+        ->and($bundle->signing?->problem)->toStartWith('panel-signature.json is not a document of panel-bundle-signature.v1.json: ')
+        ->and($bundle->signing?->problem)->toContain('public_key');
+});

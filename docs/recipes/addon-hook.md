@@ -87,7 +87,10 @@ use Illuminate\Support\ServiceProvider;
  * fields only, may transform entry.create and validate variant.release, and
  * extends app:fixture_article with the blueprint in its schema directory. In the panel it ships one
  * theme, brand, a magenta accent (PRD 13.4), which has no effect until the installation selects it
- * in cbox-cms.panel.themes; the workbench does not.
+ * in cbox-cms.panel.themes; the workbench does not, and a prebuilt bundle in dist/panel that
+ * registers no contribution, built from resources/panel by `npm run build:fixture-addon` and
+ * signed with the test key panel-signing-test-key.pem, whose public key the workbench trusts in
+ * cbox-cms.addons.publishers (PRD 13.8).
  *
  * It registers nothing at run time: cms:build compiles the hooks from the scan root and the
  * manifest, and cms:generate reads the blueprint from the schema root the application names for the
@@ -127,6 +130,7 @@ final class FixtureAddonServiceProvider extends ServiceProvider implements Decla
             ),
             panel: new PanelContributions(
                 sdk: new PanelApiVersion(1, 0),
+                bundle: __DIR__.'/../dist/panel',
                 themes: [self::THEME => __DIR__.'/../resources/panel/theme.json'],
             ),
         );
@@ -423,6 +427,7 @@ use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Schema\FieldDefinition;
 use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Contracts\Schema\TypeName;
+use Illuminate\Contracts\Config\Repository;
 use PHPUnit\Framework\Attributes\Test;
 use ReflectionClass;
 use Workbench\FixtureAddon\DeriveSlug;
@@ -454,6 +459,26 @@ final class FixtureAddonBuildTest extends FixtureAddonTestCase
         self::assertSame(FixtureAddonServiceProvider::NAMESPACE, $manifest->namespace->value);
         self::assertSame(ClassificationAccess::Public, $manifest->capabilities->reads);
         self::assertSame([FixtureArticle::TYPE], array_map(static fn (TypeName $type): string => $type->value, $manifest->schema->extends));
+    }
+
+    #[Test]
+    public function cms_build_verifies_its_signed_panel_bundle_against_the_key_the_workbench_trusts(): void
+    {
+        self::assertSame(0, $this->build());
+
+        $addon = array_values(array_filter(
+            $this->entries('addons'),
+            static fn (array $entry): bool => ($entry['package'] ?? null) === FixtureAddonServiceProvider::PACKAGE,
+        ));
+
+        self::assertCount(1, $addon);
+        self::assertIsArray($addon[0]['panel']);
+        self::assertIsArray($addon[0]['panel']['bundle']);
+        self::assertSame('panel.js', $addon[0]['panel']['bundle']['entry']);
+
+        app(Repository::class)->set('cbox-cms.addons.publishers', [FixtureAddonServiceProvider::PACKAGE => ['AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=']]);
+
+        self::assertSame(65, $this->build());
     }
 
     #[Test]
