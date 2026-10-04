@@ -21,3 +21,4 @@ This section is for people who work on the kernel itself.
 - [Maintenance commands](maintenance-commands.md): `cms:install`, the installation operator and the commands that run as it.
 - [Infrastructure models](models.md): Eloquent models and the strictness the kernel sets for every model.
 - [Inspecting the installation](inspecting.md): `cms:actions`, `cms:hooks` and `cms:explain`.
+- [Architecture notes](architecture/_index.md): one page per area of the kernel, moved here from `CLAUDE.md`: the pipelines, the commands, hooks and addons, identity, receipts, events, caching, the database, access, the registry, the generators, the JSON contracts, the surfaces, the doctor, the panel, the gates and the documentation gate.

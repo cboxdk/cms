@@ -43,7 +43,7 @@ Paths below are relative to `packages/core/`; `<Feature>` is the feature and `<C
 | `tests/<Feature>/<Feature>RegistrationTest.php` and `tests/<Feature>/<Feature>WritersTest.php` | the wiring: the registry, the container, the locks and the writers |
 | `tests/Postgres/<Feature>CommandsTest.php` | the command committed on Postgres: rows, events, receipt and row level security, and, when the action reads rows below an aggregate, the same statements at 20 and at 200 of them |
 | `tests/Feature/Surfaces/SurfaceContractTest.php` and `tests/Feature/Workbench/WorkbenchSchemaTest.php` at the root | the command in the list of exposed commands, and its TypeScript file in the list of generated files |
-| `docs/addons/<feature>-commands.md`, `examples/Unit/<Feature>/<Name>Test.php`, `CLAUDE.md` and `AGENTS.md` at the root | the page with its running example, and the command's paragraph in "Hvor ting bor", the same in both files |
+| `docs/addons/<feature>-commands.md`, `examples/Unit/<Feature>/<Name>Test.php` and `docs/developers/architecture/commands.md` | the page with its running example, and the command's paragraph on the architecture page of the commands |
 
 ## Steps
 
