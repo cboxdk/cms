@@ -22,6 +22,8 @@ export const HOST_REPORT_CODES = [
   'panel_point_kind_mismatch',
   'panel_command_refused',
   'panel_navigation_refused',
+  'panel_action_failed',
+  'panel_action_unhandled',
 ] as const;
 
 /** A code the host reports. */

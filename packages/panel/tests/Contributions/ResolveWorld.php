@@ -27,14 +27,18 @@ use Cbox\Cms\Panel\Contributions\Domain\Dto\ActiveContributions;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\PanelView;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\RenderedPoint;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\ViewSubject;
+use Cbox\Cms\Panel\Shell\Domain\Dto\ShellNavV1;
+use Cbox\Cms\Panel\Shell\Domain\Dto\ShellPageV1;
+use Cbox\Cms\Panel\Shell\Domain\Dto\ViewerSummaryV1;
+use Cbox\Cms\Panel\Shell\Domain\Shell;
 use Cbox\Cms\Panel\Tests\Contributions\Fixtures\Desk\DeskAsideV1;
 use Cbox\Cms\Panel\Tests\Contributions\Fixtures\Desk\DeskCardsV1;
 use Cbox\Cms\Testkit\Telemetry\FakeTelemetry;
 
 /**
  * ResolveContributions over ContributionWorld's registry and fakes of its ports: AUDITOR holds a
- * role that may run tally.audit, with confidential access; VIEWER holds nothing, with confidential
- * access too.
+ * role that may run tally.audit, tally.board and tally.add, with confidential access; VIEWER holds
+ * nothing, with confidential access too.
  */
 final readonly class ResolveWorld
 {
@@ -59,7 +63,7 @@ final readonly class ResolveWorld
             new FakePermissions([])->grant(
                 ActorId::fromString(self::AUDITOR),
                 new Grant(RoleId::fromString('0192a0c0-0000-7000-8000-000000000b11'), ClassificationAccess::Confidential, new NodePath('a1'), GrantEffect::Allow),
-                [new CommandName(ContributionWorld::AUDIT_PERMISSION)],
+                [new CommandName(ContributionWorld::AUDIT_PERMISSION), new CommandName(ContributionWorld::BOARD_PERMISSION), new CommandName(ContributionWorld::ADD_PERMISSION)],
             ),
             new FakeAccessContexts()
                 ->grant(ActorId::fromString(self::AUDITOR), ClassificationAccess::Confidential)
@@ -89,6 +93,23 @@ final readonly class ResolveWorld
         }
 
         return $this->action()->resolve(new PanelView(new PageName(ContributionWorld::PAGE), self::principal($actor), $points, $subject));
+    }
+
+    /**
+     * The page as a viewer sees it with the shell around it, as ContributionProps::view() builds
+     * every page behind the login: desk.cards, then the shell's navigation, pages and the viewer's
+     * menu with the viewer as its props.
+     */
+    public function resolveShell(string $actor, string $page = ContributionWorld::PAGE): ActiveContributions
+    {
+        $principal = self::principal($actor);
+
+        return $this->action()->resolve(new PanelView(new PageName($page), $principal, [
+            new RenderedPoint(new PointName('desk.cards'), new DeskCardsV1('Weekly desk', 'Call the printer')),
+            new RenderedPoint(Shell::nav(), new ShellNavV1),
+            new RenderedPoint(Shell::pages(), new ShellPageV1),
+            new RenderedPoint(Shell::userMenu(), new ViewerSummaryV1($principal->actor, $principal->issuerKind)),
+        ]));
     }
 
     /**

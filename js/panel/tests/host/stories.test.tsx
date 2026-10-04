@@ -76,12 +76,16 @@ const POINTS: readonly PanelPointStoryData[] = [
 ];
 
 describe('the panel points section', () => {
-  test('the generated section renders its overview', () => {
+  test('the generated section renders its overview, a card per point of the installation', () => {
     render(<>{Overview.render({}, { globals: { locale: 'en' } })}</>);
 
-    expect(
-      screen.getByText(PANEL_POINTS.length === 0 ? 'No panel points yet' : 'Panel points'),
-    ).toBeTruthy();
+    if (PANEL_POINTS.length === 0) {
+      expect(screen.getByText('No panel points yet')).toBeTruthy();
+    }
+
+    for (const point of PANEL_POINTS) {
+      expect(screen.getByText((text) => text.startsWith(`${point.id} · `))).toBeTruthy();
+    }
   });
 
   test('the overview lists every point with its facts, and the order rule', () => {

@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Dry run summary, contract version 1",
+  "description": "What a dry run reports to its caller (PRD 6.1, 6.2 phase 6): the blast radius of the plan the command would have committed, the version change of every aggregate the commit would make, and every placement the write makes visible to the public. Nothing was committed. The PHP form is Cbox\\Cms\\Contracts\\Results\\DryRunSummary, and the generated codec DryRunSummaryCodecV1 writes its canonical JSON: keys sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "becomes_visible",
+    "blast_radius",
+    "changes"
+  ],
+  "properties": {
+    "becomes_visible": {
+      "description": "Each placement and locale the write makes visible to the public, sorted by placement and locale; a placement a release shows is listed although the plan does not change it. Empty when nothing becomes visible.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/becomes_visible"
+      }
+    },
+    "blast_radius": {
+      "description": "How far the write reaches: the number of mutations in the plan and the number of distinct aggregates they change, by kind.",
+      "$ref": "#/$defs/blast_radius"
+    },
+    "changes": {
+      "description": "The version change of each aggregate the commit would make, each aggregate once, sorted by aggregate key.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/change"
+      }
+    }
+  },
+  "$defs": {
+    "aggregate_count": {
+      "description": "How many aggregates of one kind the write would change.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "count",
+        "kind"
+      ],
+      "properties": {
+        "count": {
+          "description": "The number of distinct aggregates of the kind, 1 or more.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "kind": {
+          "description": "The kind of aggregate, the part of its key before the first colon, such as entry, variant or placement.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      }
+    },
+    "becomes_visible": {
+      "description": "One placement in one locale that the write makes visible to the public, and from when.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "locale",
+        "placement"
+      ],
+      "properties": {
+        "from": {
+          "description": "When it becomes visible, RFC 3339 in UTC with six decimals: the time the command read at for a placement it makes visible now, and the start of its window for one it makes visible later.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "locale": {
+          "description": "The locale the placement becomes visible in.",
+          "$ref": "#/$defs/locale"
+        },
+        "placement": {
+          "description": "The placement's id.",
+          "$ref": "#/$defs/id"
+        }
+      }
+    },
+    "blast_radius": {
+      "description": "The counts of what the write would reach: what the plan changes itself, not what a change reaches through the durable graph.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "aggregates",
+        "mutations"
+      ],
+      "properties": {
+        "aggregates": {
+          "description": "The number of distinct aggregates the plan changes, by kind, each kind once, sorted by kind.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/aggregate_count"
+          }
+        },
+        "mutations": {
+          "description": "The number of mutations in the plan, 0 or more.",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "change": {
+      "description": "One aggregate the commit would change: its key, the version it was read at, the version the commit would give it, and how many of the plan's mutations change it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after",
+        "aggregate",
+        "before",
+        "mutations"
+      ],
+      "properties": {
+        "after": {
+          "description": "The version the commit would give the aggregate: one above the version read, or 1 for one the write creates.",
+          "$ref": "#/$defs/version"
+        },
+        "aggregate": {
+          "description": "The aggregate's key, its kind, a colon and its id, such as entry:0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01 or variant:0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01:da.",
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 500
+        },
+        "before": {
+          "description": "The version the aggregate was read at, 1 or more, or null when the write creates it.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "mutations": {
+          "description": "How many of the plan's mutations change the aggregate, 1 or more.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "locale": {
+      "description": "A language tag of a language, an optional script and an optional region, such as da, en-GB or sr-Latn-RS; the kernel writes the language in lowercase, the script in title case and the region in uppercase.",
+      "type": "string",
+      "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$"
+    },
+    "version": {
+      "description": "The version of an aggregate, an integer of 1 or more.",
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

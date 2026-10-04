@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "shell.nav props, contract version 1",
+  "description": "The props of the navigation of the panel's shell, a nav point (PRD 13.4): none. A contribution to it is an entry of the navigation that opens one of its addon's pages. The PHP form is Cbox\\Cms\\Panel\\Shell\\Domain\\Dto\\ShellNavV1.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {}
+}

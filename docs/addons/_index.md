@@ -16,6 +16,7 @@ An extension point is `#[Stable]` or `#[Experimental]`. Every extension point do
 - [Addon field types](field-types.md): a field type `<namespace>:<handle>` an addon contributes, the JSON Schema of its options, and the shape every generator writes a field of it as.
 - [Panel points](panel-points.md): `#[PanelPoint]` on a props class, the rules for each kind of point, and the panel registry `panel.php`.
 - [Panel contributions](panel-contributions.md): the `panel` member of an addon's manifest, the kinds of contribution, every check `cms:build` runs on them, the bundle manifest, and the installation's order, choices, kill switch and allowlist.
+- [Panel shell points](panel-shell.md): the navigation, the addons' pages below `/x/<namespace>/` with their data queries, and the actions of the viewer's menu with their prefill, confirmation and dry run.
 - [Panel SDK](panel-sdk.md): the npm package `@cboxdk/cms-panel` an addon builds its panel UI with, its subpaths, `definePanelAddon` and `usePanelHost`, the types `cms:panel:types` writes from the manifest, and the API report.
 - [Hooks](hooks.md): authorize, transform and validate hooks, the classification-filtered view of the plan they get, and their time budgets.
 - [Doctor checks](doctor-checks.md): add a check to `cms:doctor` and test it.
@@ -39,6 +40,7 @@ An extension point is `#[Stable]` or `#[Experimental]`. Every extension point do
 - [Access queries](access-queries.md): `role.list`, `grant.list`, `actor.list` and `node.list`, the pages they read, who may run them, and the profiles they leave out below personal access.
 - [Records and JSON codecs](codecs.md): the record DTO and the JSON codec `cms:generate` writes for every type, the JSON form of each kind of value, classification access and `Omitted`, and the `JsonCodec` contract.
 - [Runtime validators](validation.md): the validator `cms:generate` writes per type, its rules, and the kernel's `InputValidator`, which checks input from outside against them.
+- [Dry run JSON](dry-run-json.md): the JSON form of what a dry run reports, the blast radius, each aggregate's version change and what becomes visible, and its generated codec.
 - [Receipt JSON](receipt-json.md): the JSON form of the receipt a write returns, `receipt.v1.json`, and its generated codec.
 - [Problem details](problem-details.md): the problem details document (RFC 9457) a surface answers an error with, `problem.v1.json`, and its generated codec.
 - [Envelope JSON](envelope-json.md): the envelope fields a caller sends with a write, `envelope.v1.json`, and how a surface builds the `Envelope` from them.

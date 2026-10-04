@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\PanelPoints\ActionContribution;
 use Cbox\Cms\Contracts\PanelPoints\DecoratorContribution;
 use Cbox\Cms\Contracts\PanelPoints\FlowStep;
 use Cbox\Cms\Contracts\PanelPoints\FormCheck;
+use Cbox\Cms\Contracts\PanelPoints\NavContribution;
 use Cbox\Cms\Contracts\PanelPoints\Region;
 use Cbox\Cms\Contracts\PanelPoints\ReplacementContribution;
 use Cbox\Cms\Contracts\PanelPoints\Tighten;
@@ -214,6 +215,11 @@ final readonly class PanelStoriesModule
             ]) : $null),
             new Property('id', new StringLiteral($fill->contribution->value)),
             new Property('kind', new StringLiteral($declaration->kind()->value)),
+            new Property('nav', $declaration instanceof NavContribution ? new ObjectLiteral([
+                new Property('icon', $declaration->icon === null ? $null : new StringLiteral($declaration->icon)),
+                new Property('label', new StringLiteral($declaration->label)),
+                new Property('page', new StringLiteral($declaration->page)),
+            ]) : $null),
             new Property('priority', NumberLiteral::of($fill->priority)),
             new Property('props', $sample),
             new Property('replacement', $declaration instanceof ReplacementContribution ? new ObjectLiteral([new Property('key', new StringLiteral($declaration->key))]) : $null),

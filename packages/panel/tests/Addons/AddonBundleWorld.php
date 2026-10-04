@@ -26,6 +26,7 @@ use Cbox\Cms\Core\Registry\Domain\RegistryCompiler;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
 use Cbox\Cms\Core\Tests\PanelThemes\Fakes\FakeThemeSources;
 use Cbox\Cms\Core\Tests\PanelThemes\Fakes\FakeThemeStylesheets;
+use Cbox\Cms\Core\Tests\Pipeline\Tally\AddTally;
 use Cbox\Cms\Core\Tests\Registry\Fakes\FakeContractSchemas;
 use Cbox\Cms\Core\Tests\Registry\Fakes\FakeOpenApiDocuments;
 use Cbox\Cms\Core\Tests\Registry\Fakes\FakeRegistryCache;
@@ -33,6 +34,7 @@ use Cbox\Cms\Panel\Boundary\InstalledBundles;
 use Cbox\Cms\Panel\Domain\BundleHash;
 use Cbox\Cms\Panel\Domain\Dto\BundleDirectories;
 use Cbox\Cms\Panel\Domain\Dto\ServedBundles;
+use Cbox\Cms\Panel\PanelServiceProvider;
 use Cbox\Cms\Panel\Tests\Contributions\ContributionWorld;
 use Illuminate\Contracts\Container\Container;
 use LogicException;
@@ -198,13 +200,18 @@ final class AddonBundleWorld
             new AddonNamespace(self::NAMESPACE),
             new CoreApiVersion(CoreApiVersion::CURRENT_MAJOR, CoreApiVersion::CURRENT_MINOR),
             __DIR__.'/../Contributions/Fixtures/Tally',
-            new AddonCapabilities(ClassificationAccess::Internal),
-            panel: new PanelContributions(PanelApiVersion::current(), $directory, ['desk.cards@1', 'desk.aside@1'], ContributionWorld::contributions()),
+            new AddonCapabilities(ClassificationAccess::Internal, [AddTally::class]),
+            panel: new PanelContributions(PanelApiVersion::current(), $directory, ContributionWorld::POINTS, ContributionWorld::contributions()),
         );
         $fixtures = __DIR__.'/../Contributions/Fixtures';
 
-        return new BuildRegistry(new AttributeScanner, new RegistryCompiler, new FakeRegistryCache, new FakeOpenApiDocuments, new FakeContractSchemas(ContributionWorld::shapes()), new CompilePanelThemes(new FakeThemeSources), new FakeThemeStylesheets)->build(
-            new ScanRoots(new ScanRoot(ContributionWorld::HOST, $fixtures.'/Desk'), new ScanRoot(ContributionWorld::ADDON, $fixtures.'/Tally')),
+        return new BuildRegistry(new AttributeScanner, new RegistryCompiler, new FakeRegistryCache, new FakeOpenApiDocuments('tally.add@1', 'tally.board@1'), new FakeContractSchemas(ContributionWorld::shapes()), new CompilePanelThemes(new FakeThemeSources), new FakeThemeStylesheets)->build(
+            new ScanRoots(
+                new ScanRoot(ContributionWorld::HOST, $fixtures.'/Desk'),
+                new ScanRoot(ContributionWorld::ADDON, $fixtures.'/Tally'),
+                new ScanRoot(ContributionWorld::ADDON, ContributionWorld::TALLY_COMMAND),
+                new ScanRoot(PanelServiceProvider::PACKAGE, dirname(__DIR__, 2).'/src'),
+            ),
             new DeclaredAddons([$manifest], [], [ContributionWorld::ADDON => PanelBundles::read($directory)], []),
             new BuildSettings(null, []),
         );

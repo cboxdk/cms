@@ -2,7 +2,11 @@
 // registrations of addons as definePanelAddon() gives them with the digest the server would send,
 // and a render of a node inside the host runtime with services that record what they were asked.
 
-import { definePanelAddon, type ContributionImplementation } from '@cboxdk/cms-panel/extend';
+import {
+  definePanelAddon,
+  type CommandAnswer,
+  type ContributionImplementation,
+} from '@cboxdk/cms-panel/extend';
 import { KitI18nProvider } from '@cboxdk/cms-ui-kit';
 import { cleanup, render, type RenderResult } from '@testing-library/react';
 import userEvent, { type UserEvent } from '@testing-library/user-event';
@@ -41,6 +45,7 @@ export function fill(
     decorator: null,
     id,
     kind: 'slot',
+    nav: null,
     priority,
     props: { note: 'Weekly desk' },
     replacement: null,
@@ -119,8 +124,20 @@ export interface Recorded {
   readonly notices: string[];
 }
 
-/** Services that record what they are asked, with the catalogue's texts. */
-export function services(texts: Readonly<Record<string, string>> = {}): {
+/** How a test's services answer: a command's answer by its call, and whether a confirmation is given. */
+export interface Answering {
+  readonly runCommand?: ((call: CommandCall) => Promise<CommandAnswer>) | undefined;
+  readonly confirm?: (() => Promise<boolean>) | undefined;
+}
+
+/**
+ * Services that record what they are asked, with the catalogue's texts; a command is refused
+ * unless the test answers it, and a confirmation is given unless the test says otherwise.
+ */
+export function services(
+  texts: Readonly<Record<string, string>> = {},
+  answering: Answering = {},
+): {
   readonly services: HostServices;
   readonly recorded: Recorded;
 } {
@@ -140,9 +157,12 @@ export function services(texts: Readonly<Record<string, string>> = {}): {
       runCommand: (call) => {
         recorded.commands.push(call);
 
-        return Promise.reject(new Error('No command runs in this test.'));
+        return answering.runCommand === undefined
+          ? Promise.reject(new Error('No command runs in this test.'))
+          : answering.runCommand(call);
       },
-      confirm: () => Promise.resolve(true),
+      confirm: () =>
+        answering.confirm === undefined ? Promise.resolve(true) : answering.confirm(),
       report: (report) => {
         recorded.reports.push(report);
       },
@@ -158,6 +178,8 @@ export interface HostOptions {
   readonly ext?: unknown;
   readonly texts?: Readonly<Record<string, string>>;
   readonly details?: boolean;
+  /** How the services answer commands and confirmations. */
+  readonly answering?: Answering;
 }
 
 /** Renders the node inside the host runtime, and returns the screen, a user and what was recorded. */
@@ -170,7 +192,7 @@ export function renderHost(
   readonly source: AddonSource;
 } {
   const user = userEvent.setup();
-  const { services: built, recorded } = services(options.texts);
+  const { services: built, recorded } = services(options.texts, options.answering);
   const load: AddonLoader = (addon) => {
     const known = options.registrations[addon];
 

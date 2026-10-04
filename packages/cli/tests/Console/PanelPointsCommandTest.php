@@ -121,8 +121,8 @@ it('says so when the registry holds no panel point, as text and as JSON', functi
     [$jsonStatus, $json] = panelPointsCli(json: true);
 
     expect([$status, $jsonStatus])->toBe([0, 0])
-        ->and($output)->toBe("No panel points are declared.\n")
-        ->and(panelPointsDocument($json))->toBe(['points' => [], 'version' => 1]);
+        ->and($output)->toContain('3 panel points, by name and version', 'shell.nav@1  nav, renders many  page shell  experimental since 1.0  0 contributions', 'shell.page@1  page, renders many  page shell  experimental since 1.0  0 contributions', 'shell.user-menu@1  action, renders many  page shell  experimental since 1.0  0 contributions')
+        ->and(is_array($points = panelPointsDocument($json)['points'] ?? null) ? array_column($points, 'id') : null)->toBe(['shell.nav@1', 'shell.page@1', 'shell.user-menu@1']);
 });
 
 it('exits 64 for a selector that selects no point or is no page\'s name or point\'s id', function (string $selector, string $message): void {

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "an addon's page in the panel, contract version 1",
+  "description": "The props of an addon's page (PRD 13.4), Addon in js/panel, which the panel serves below /x/<namespace>/: the page's id, which names the contribution whose component the host renders with its data from the deferred prop ext.<namespace>, the addon's namespace and the address the logout posts to. The PHP form is Cbox\\Cms\\Panel\\Domain\\Dto\\AddonPage, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "addon",
+    "logout",
+    "page"
+  ],
+  "properties": {
+    "addon": {
+      "description": "The namespace of the addon whose page it is.",
+      "type": "string",
+      "maxLength": 20,
+      "pattern": "^[a-z][a-z0-9]{0,19}$"
+    },
+    "logout": {
+      "description": "The address the logout posts to.",
+      "type": "string",
+      "minLength": 1
+    },
+    "page": {
+      "description": "The page's id, the id of its PageContribution, `<namespace>.<local>`, under which the addon's bundle registers the page's component and under which its data comes in ext.<namespace>.",
+      "type": "string",
+      "maxLength": 96,
+      "pattern": "^[a-z][a-z0-9]{0,19}(\\.[a-z][a-z0-9_]*(-[a-z0-9_]+)*)+$"
+    }
+  }
+}

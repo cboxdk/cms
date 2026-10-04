@@ -50,8 +50,9 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * The viewers are service actors with service credentials (ceiling sensitive), granted on a site's
  * root by the testkit's fixture writers as the owner role: AUDITOR through a role (ceiling
- * confidential) that may run tally.audit, tally.notes and tally.heavy; VIEWER through one (ceiling
- * confidential) that may run tally.heavy alone.
+ * confidential) that may run tally.audit, tally.notes, tally.heavy, tally.board and tally.add, so
+ * the shell's page, nav entry and action are theirs too; VIEWER through one (ceiling confidential)
+ * that may run tally.heavy alone.
  */
 final readonly class DeskWorld
 {
@@ -90,7 +91,7 @@ final readonly class DeskWorld
 
         $auditor = $identity->addActor(ActorClass::Service)->id;
         $viewer = $identity->addActor(ActorClass::Service)->id;
-        $access->grant($auditor, $access->role('auditor'.$seed, ClassificationAccess::Confidential, $this->names(ContributionWorld::AUDIT_PERMISSION, 'tally.notes', 'tally.heavy')), $root);
+        $access->grant($auditor, $access->role('auditor'.$seed, ClassificationAccess::Confidential, $this->names(ContributionWorld::AUDIT_PERMISSION, 'tally.notes', 'tally.heavy', ContributionWorld::BOARD_PERMISSION, ContributionWorld::ADD_PERMISSION)), $root);
         $access->grant($viewer, $access->role('reader'.$seed, ClassificationAccess::Confidential, $this->names('tally.heavy')), $root);
         $this->auditor = $identity->issue(new ServiceCredentialSpec($auditor, IssuerKind::Service, ClassificationAccess::Sensitive, $clock->now()->modify('+1 day')));
         $this->viewer = $identity->issue(new ServiceCredentialSpec($viewer, IssuerKind::Service, ClassificationAccess::Sensitive, $clock->now()->modify('+1 day')));

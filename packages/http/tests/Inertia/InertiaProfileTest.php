@@ -13,11 +13,13 @@ use Cbox\Cms\Contracts\Fields\FieldMap;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Fields\TextValue;
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\TransportCredential;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Receipts\Receipt;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\DryRunSummaryCodecV1;
 use Cbox\Cms\Core\Pipeline\Actions\RunExposedCommand;
 use Cbox\Cms\Core\Pipeline\Domain\CommandCodecs;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\Committed;
@@ -178,6 +180,11 @@ final class InertiaProfileTest extends TestCase
         $page = $this->page();
 
         self::assertSame('dry_run', $this->part($page, 'flash', InertiaOutcome::RECEIPT)['outcome']);
+        self::assertSame(['becomes_visible', 'blast_radius', 'changes'], array_keys($this->part($page, 'flash', InertiaOutcome::DRY_RUN)));
+        $summary = new DryRunSummaryCodecV1()->decode(json_encode($this->part($page, 'flash', InertiaOutcome::DRY_RUN), JSON_THROW_ON_ERROR), ClassificationAccess::Public);
+        self::assertGreaterThan(0, $summary->blastRadius->mutations);
+        self::assertNotSame([], $summary->changes);
+        self::assertSame($summary->blastRadius->total(), count($summary->changes));
         self::assertSame([], $this->part($page, 'props', 'errors'));
         self::assertNull($this->part($page, 'props')['problem']);
         self::assertSame([], $this->exposed()->world->committer->pending);

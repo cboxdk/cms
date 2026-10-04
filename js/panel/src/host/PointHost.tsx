@@ -6,28 +6,40 @@
 // - a slot renders each contribution's component with the point's props and its data; in a
 //   toolbar, tabs or columns region a contribution gives descriptors the host renders with the
 //   kit, not markup; past the point's maximum, toolbar buttons overflow into a menu;
-// - an action renders a kit button per contribution, which hands the page the prefilled command;
+// - an action renders a kit button per contribution, which runs the prefilled command as the
+//   viewer, asking first as the action's manifest says, and shows the receipt; a form action is
+//   handed to the page, which opens the command's form;
+// - a page renders the addon's page component of one contribution with its data;
 // - a decorator renders the page's default once, with what the decorators add and tighten;
 // - a replacement renders the winning contribution for the page's target in place of the
 //   default, and the default when there is none, while it loads, and when it fails.
 //
-// The points a page asks about rather than renders, the checks, flow steps, observers and columns
-// of a point, come from usePointHost('<name>@<version>'). A point the server sent no contribution
-// for renders the page's default, or nothing.
+// The points a page asks about rather than renders, the checks, flow steps, observers, columns and
+// nav entries of a point, come from usePointHost('<name>@<version>'). A point the server sent no
+// contribution for renders the page's default, or nothing.
 
 import {
   ActionBar,
   Badge,
+  Button,
+  Callout,
+  Dialog,
+  DryRunReport,
   Inline,
+  ProblemDetails,
+  ReceiptStatus,
   Skeleton,
+  Stack,
   Tabs,
   type IconName,
   type TabSpec,
 } from '@cboxdk/cms-ui-kit';
-import type { JsonObject, JsonValue } from '@cboxdk/cms-panel/extend';
-import { Fragment, useMemo, type ComponentType, type ReactNode } from 'react';
+import type { CommandAnswer, JsonObject, JsonValue } from '@cboxdk/cms-panel/extend';
+import { Fragment, useMemo, useState, type ComponentType, type ReactNode } from 'react';
 
+import type { DryRunSummaryV1 } from '../generated/protocol/DryRunSummaryV1';
 import { useTranslation } from '../i18n/translations';
+import { dryRunReport, runAction, type ActionOutcome } from './actions';
 import {
   ContributionBoundary,
   FailedContribution,
@@ -38,7 +50,15 @@ import { frozenCopy, runChecks, type CheckRuns, type FormCheckEntry } from './ch
 import { compose, type AppliedDecoration, type DefaultTone, type Tightened } from './decorators';
 import { FlowRun, type FlowPosition, type FlowStepEntry } from './flow';
 import { useLoadedAddons, useLoadedModules, type FillModule } from './loading';
-import { pointOf, renderOrder, type ActivePoint, type Fill, type PointKind } from './model';
+import {
+  navEntries,
+  pointOf,
+  renderOrder,
+  type ActivePoint,
+  type Fill,
+  type NavEntry,
+  type PointKind,
+} from './model';
 import { notifyObservers, type ObserverEntry } from './observers';
 import { asError, type HostReport } from './reports';
 import { useHostRuntime, type HostRuntime } from './runtime';
@@ -73,12 +93,27 @@ export interface TabsHostProps {
   readonly onChange?: ((id: string) => void) | undefined;
 }
 
-/** An action point's host: a button per action, which hands the page the action taken. */
+/**
+ * An action point's host: a button per action, which runs the action's command as the viewer and
+ * shows its receipt where the actions are. An action whose manifest asks for the command's form is
+ * handed to the page through onAction, which opens the form prefilled; a page without onAction
+ * gets no such action.
+ */
 export interface ActionHostProps {
   readonly point: string;
   /** What the actions act on, from the page's translations. */
   readonly label: string;
-  readonly onAction: (action: HostAction) => void;
+  /** Opens the command's form for an action whose confirm is form. */
+  readonly onAction?: ((action: HostAction) => void) | undefined;
+  /** Called with what a run of an action came to, after the host has shown it. */
+  readonly onOutcome?: ((action: HostAction, outcome: ActionOutcome) => void) | undefined;
+}
+
+/** A page point's host: the addon's page component of one contribution, with its data. */
+export interface PageHostProps {
+  readonly point: string;
+  /** The id of the page, the PageContribution whose component the host renders. */
+  readonly page: string;
 }
 
 /** A decorator point's host: the page's default, rendered once with the decorations. */
@@ -103,14 +138,15 @@ export interface ReplacementHostProps {
 
 /** The props of PointHost: one shape per kind of point a page renders. */
 export type PointHostProps =
-  SlotHostProps | TabsHostProps | ActionHostProps | DecoratorHostProps | ReplacementHostProps;
+  | SlotHostProps
+  | TabsHostProps
+  | ActionHostProps
+  | PageHostProps
+  | DecoratorHostProps
+  | ReplacementHostProps;
 
 /** Renders a panel point of a page with the contributions active on it. */
 export function PointHost(props: PointHostProps) {
-  if ('onAction' in props) {
-    return <ActionHost {...props} />;
-  }
-
   if ('render' in props) {
     return <DecoratorHost {...props} />;
   }
@@ -121,6 +157,14 @@ export function PointHost(props: PointHostProps) {
 
   if ('tabs' in props) {
     return <TabsHost {...props} />;
+  }
+
+  if ('page' in props) {
+    return <PageHost {...props} />;
+  }
+
+  if ('label' in props) {
+    return <ActionHost {...props} />;
   }
 
   return <SlotHost {...props} />;
@@ -174,6 +218,7 @@ interface Expected {
 const FREE_OR_TOOLBAR_SLOT: Expected = { kind: 'slot', regions: ['sections', 'aside', 'toolbar'] };
 const TABS_SLOT: Expected = { kind: 'slot', regions: ['tabs'] };
 const ACTIONS: Expected = { kind: 'action' };
+const PAGES: Expected = { kind: 'page' };
 const DECORATORS: Expected = { kind: 'decorator' };
 const REPLACEMENTS: Expected = { kind: 'replacement' };
 
@@ -218,6 +263,72 @@ function SlotHost({ point }: SlotHostProps) {
     <ToolbarSlot point={point} active={active} />
   ) : (
     <FreeSlot point={point} active={active} />
+  );
+}
+
+/**
+ * A page point: the component of the page with the id, the addon's default export registered
+ * under the contribution's id, with the page's data from the deferred prop of its addon. Nothing
+ * renders for a page the server did not list, which the viewer may not open.
+ */
+function PageHost({ point, page }: PageHostProps) {
+  const active = useActivePoint(point, PAGES);
+  const fill = active?.fills.find(
+    (candidate) => candidate.id === page && candidate.kind === 'page',
+  );
+  const modules = useLoadedModules(fill === undefined ? [] : [fill]);
+
+  if (fill === undefined) {
+    return null;
+  }
+
+  return (
+    <>
+      <RefusedAddons fills={[fill]} modules={modules} />
+      <PageFillView point={point} fill={fill} module={modules.get(fill.id)} />
+    </>
+  );
+}
+
+/** A page's component, with its data, in its boundary and scope. */
+function PageFillView({
+  point,
+  fill,
+  module,
+}: {
+  readonly point: string;
+  readonly fill: Fill;
+  readonly module: FillModule | undefined;
+}) {
+  const runtime = useHostRuntime();
+  const { t } = useTranslation();
+  const name = useAddonName(fill.addon);
+
+  if (module === undefined || module.status === 'refused') {
+    return null;
+  }
+
+  if (module.status === 'loading') {
+    return <Skeleton label={t('panel.host.loading', { addon: name })} />;
+  }
+
+  return (
+    <ContributionBoundary
+      report={fillReport('panel_contribution_failed', point, fill)}
+      onFailure={runtime.report}
+      fallback={(failure) => <FailedContribution addon={fill.addon} failure={failure} />}
+    >
+      {module.status === 'failed' ? (
+        <Thrown failure={module.failure} />
+      ) : (
+        <ContributionScope addon={fill.addon} point={point} contribution={fill.id}>
+          <Rendered
+            module={module.value}
+            props={fill.data ? { data: runtime.data(fill.addon, fill.id) } : {}}
+          />
+        </ContributionScope>
+      )}
+    </ContributionBoundary>
   );
 }
 
@@ -501,10 +612,31 @@ function TabsHost({ point, label, tabs, selected, onChange }: TabsHostProps) {
   );
 }
 
-/** An action point: a kit button per action, in render order, overflowing into a menu past its maximum. */
-function ActionHost({ point, label, onAction }: ActionHostProps) {
+/** The id of the action a run is about, and what the host shows of it. */
+interface ActionRun {
+  readonly action: HostAction;
+  readonly outcome: ActionOutcome;
+}
+
+/** A dry run the viewer reviews before the command runs for real. */
+interface PendingReview {
+  readonly action: HostAction;
+  readonly summary: DryRunSummaryV1;
+  readonly answer: (confirmed: boolean) => void;
+}
+
+/**
+ * An action point: a kit button per action, in render order, overflowing into a menu past its
+ * maximum. A press runs the action's command through the contribution's own host, asking first as
+ * its manifest says, and the receipt, or the problem of a rejection, is shown below the actions.
+ */
+function ActionHost({ point, label, onAction, onOutcome }: ActionHostProps) {
   const runtime = useHostRuntime();
+  const { t } = useTranslation();
   const active = useActivePoint(point, ACTIONS);
+  const [running, setRunning] = useState<string | null>(null);
+  const [run, setRun] = useState<ActionRun | null>(null);
+  const [review, setReview] = useState<PendingReview | null>(null);
   const actions: HostAction[] = [];
 
   for (const fill of active === undefined ? [] : renderOrder(active.fills)) {
@@ -537,26 +669,158 @@ function ActionHost({ point, label, onAction }: ActionHostProps) {
     return null;
   }
 
-  return (
-    <ActionBar
-      label={label}
-      actions={actions.map((action, index) => ({
-        id: action.contribution,
-        label: action.label,
-        variant: action.tone === 'danger' ? 'danger' : index === 0 ? 'secondary' : 'quiet',
-        icon: kitIcon(
-          active.fills.find((fill) => fill.id === action.contribution)?.action?.icon ?? null,
-        ),
-      }))}
-      visible={active.max ?? actions.length}
-      onAction={(id) => {
-        const action = actions.find((candidate) => candidate.contribution === id);
+  const take = (action: HostAction): void => {
+    if (action.confirm === 'form') {
+      if (onAction === undefined) {
+        runtime.report({
+          code: 'panel_action_unhandled',
+          addon: action.addon,
+          point,
+          contribution: action.contribution,
+        });
+      } else {
+        onAction(action);
+      }
 
-        if (action !== undefined) {
-          onAction(action);
-        }
-      }}
-    />
+      return;
+    }
+
+    setRunning(action.contribution);
+    setRun(null);
+
+    void runAction(
+      runtime.hostFor(action.addon, point, action.contribution),
+      action.command,
+      action.document,
+      action.confirm,
+      {
+        confirm: () =>
+          runtime.services.confirm({
+            title: t('panel.host.confirm_title'),
+            body: t('panel.host.confirm_body'),
+            confirm: t('panel.host.confirm'),
+            tone: action.tone === 'danger' ? 'danger' : 'neutral',
+          }),
+        review: (summary) =>
+          new Promise<boolean>((resolve) => {
+            setReview({ action, summary, answer: resolve });
+          }),
+      },
+    ).then((outcome) => {
+      setRunning(null);
+      setReview(null);
+
+      if (outcome.status === 'failed') {
+        runtime.report({
+          code: 'panel_action_failed',
+          addon: action.addon,
+          point,
+          contribution: action.contribution,
+        });
+      }
+
+      if (outcome.status !== 'cancelled') {
+        setRun({ action, outcome });
+      }
+
+      onOutcome?.(action, outcome);
+    });
+  };
+
+  return (
+    <Stack gap="sm">
+      <ActionBar
+        label={label}
+        actions={actions.map((action, index) => ({
+          id: action.contribution,
+          label: action.label,
+          variant: action.tone === 'danger' ? 'danger' : index === 0 ? 'secondary' : 'quiet',
+          icon: kitIcon(
+            active.fills.find((fill) => fill.id === action.contribution)?.action?.icon ?? null,
+          ),
+          disabled: running !== null,
+        }))}
+        visible={active.max ?? actions.length}
+        onAction={(id) => {
+          const action = actions.find((candidate) => candidate.contribution === id);
+
+          if (action !== undefined && running === null) {
+            take(action);
+          }
+        }}
+      />
+      {run === null ? null : <ActionOutcomeView point={point} run={run} />}
+      {review === null ? null : (
+        <Dialog
+          title={t('panel.host.dry_run_title', { action: review.action.label })}
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              review.answer(false);
+            }
+          }}
+          footer={
+            <>
+              <Button
+                variant="quiet"
+                onClick={() => {
+                  review.answer(false);
+                }}
+              >
+                {t('panel.host.cancel')}
+              </Button>
+              <Button
+                variant={review.action.tone === 'danger' ? 'danger' : 'primary'}
+                onClick={() => {
+                  review.answer(true);
+                }}
+              >
+                {t('panel.host.dry_run_confirm')}
+              </Button>
+            </>
+          }
+        >
+          <DryRunReport report={dryRunReport(review.summary)} />
+        </Dialog>
+      )}
+    </Stack>
+  );
+}
+
+/** What a run of an action came to, in the scope of the action's contribution. */
+function ActionOutcomeView({ point, run }: { readonly point: string; readonly run: ActionRun }) {
+  const { t } = useTranslation();
+  const name = useAddonName(run.action.addon);
+  const { outcome } = run;
+
+  return (
+    <ContributionScope
+      addon={run.action.addon}
+      point={point}
+      contribution={run.action.contribution}
+    >
+      {outcome.status === 'failed' ? (
+        <Callout tone="warning" title={t('panel.host.action_failed', { addon: name })}>
+          {t('panel.host.action_failed_body')}
+        </Callout>
+      ) : outcome.status === 'answered' ? (
+        <AnswerView answer={outcome.answer} />
+      ) : null}
+    </ContributionScope>
+  );
+}
+
+/** The receipt of a command, and the problem details of a rejection. */
+function AnswerView({ answer }: { readonly answer: CommandAnswer }) {
+  const { t } = useTranslation();
+
+  return (
+    <Stack gap="sm">
+      <ReceiptStatus receipt={answer.receipt} />
+      {answer.problem === null ? null : (
+        <ProblemDetails problem={answer.problem} explanation={t('panel.host.refused')} />
+      )}
+    </Stack>
   );
 }
 
@@ -760,6 +1024,8 @@ export interface PointHandle {
   readonly kind: PointKind | undefined;
   /** The columns of a slot in a columns region, in render order, once their modules loaded. */
   readonly columns: readonly HostColumn[];
+  /** The nav entries of a nav point, in render order, each with the address of the page it opens. */
+  readonly nav: readonly NavEntry[];
   /** Runs the form checks of the command, `<name>@<version>`, on its document. */
   readonly checks: (command: string, document: object, edits?: AbortSignal) => CheckRuns;
   /** Starts the flow of the command's steps at the position on the draft. */
@@ -769,8 +1035,9 @@ export interface PointHandle {
 }
 
 /**
- * The point as a page asks about it: its columns, checks, flow and observers. Their code is the
- * addons' registered code once checked; until then a point has none of them.
+ * The point as a page asks about it: its columns, checks, flow, observers and nav entries. Their
+ * code is the addons' registered code once checked; until then a point has none of them. Nav
+ * entries are data and need no code.
  */
 export function usePointHost(point: string): PointHandle {
   const runtime = useHostRuntime();
@@ -844,6 +1111,7 @@ export function usePointHost(point: string): PointHandle {
     point,
     kind: active?.kind,
     columns,
+    nav: navEntries(runtime.contributions, point, runtime.text),
     checks: (command, document, edits) => {
       const entries: FormCheckEntry[] = [];
 

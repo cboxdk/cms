@@ -11,9 +11,12 @@ use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\TransportCredential;
 use Cbox\Cms\Contracts\PanelPoints\ActionContribution;
 use Cbox\Cms\Contracts\PanelPoints\CommandRef;
+use Cbox\Cms\Contracts\PanelPoints\ContributionId;
 use Cbox\Cms\Contracts\PanelPoints\DecoratorContribution;
 use Cbox\Cms\Contracts\PanelPoints\FlowStep;
 use Cbox\Cms\Contracts\PanelPoints\FormCheck;
+use Cbox\Cms\Contracts\PanelPoints\NavContribution;
+use Cbox\Cms\Contracts\PanelPoints\PageContribution;
 use Cbox\Cms\Contracts\PanelPoints\PageName;
 use Cbox\Cms\Contracts\PanelPoints\ReplacementContribution;
 use Cbox\Cms\Contracts\Pipeline\Result;
@@ -45,12 +48,17 @@ use Cbox\Cms\Panel\Domain\Dto\CheckProp;
 use Cbox\Cms\Panel\Domain\Dto\ContributionsProp;
 use Cbox\Cms\Panel\Domain\Dto\DecoratorProp;
 use Cbox\Cms\Panel\Domain\Dto\FillProp;
+use Cbox\Cms\Panel\Domain\Dto\NavProp;
 use Cbox\Cms\Panel\Domain\Dto\PageLinkProp;
 use Cbox\Cms\Panel\Domain\Dto\PointFillsProp;
 use Cbox\Cms\Panel\Domain\Dto\PrefillProp;
 use Cbox\Cms\Panel\Domain\Dto\ReplacementProp;
 use Cbox\Cms\Panel\Domain\Dto\StepProp;
 use Cbox\Cms\Panel\Domain\PanelRoute;
+use Cbox\Cms\Panel\Shell\Domain\Dto\ShellNavV1;
+use Cbox\Cms\Panel\Shell\Domain\Dto\ShellPageV1;
+use Cbox\Cms\Panel\Shell\Domain\Dto\ViewerSummaryV1;
+use Cbox\Cms\Panel\Shell\Domain\Shell;
 use Closure;
 use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Contracts\Routing\UrlGenerator;
@@ -65,12 +73,15 @@ use Throwable;
  * (PRD 13.4), beside its own props, which PanelPages adds to the page:
  *
  * - CMS.CONTRIBUTIONS, `cms.contributions`: the contributions active for the viewer, as the action
- *   ResolveContributions works them out for the PanelView that view() reads from the request,
+ *   ResolveContributions works them out for the PanelView that view() reads from the request, the
+ *   shell's points among the page's,
  *   written by the generated ContributionsCodecV1 (contributions.v1.json), each with the point's
  *   props as the point's codec (PointCodecs) wrote them at the fill's access, the lower of the
  *   viewer's and the addon's reads, and what its kind needs besides; each point with its kind,
  *   region and multiplicity; the registration of each addon whose code runs on the page; whether
- *   the viewer sees the detail of a failure; the panel's pages a contribution may navigate to; and
+ *   the viewer sees the detail of a failure; the panel's pages a contribution may navigate to,
+ *   the start page and every addon's page the viewer may open, each at
+ *   `<prefix>/x/<namespace>/<path>`; and
  *   the address of the Inertia profile the host runs commands through, which is everything the
  *   panel's host (js/panel/src/host) renders the points from. A point without a codec, or props
  *   its codec cannot write, loses its contributions, recorded in telemetry
@@ -110,7 +121,9 @@ final readonly class ContributionProps
     ) {}
 
     /**
-     * The view of a page for the viewer the panel authenticated on the request.
+     * The view of a page for the viewer the panel authenticated on the request: the page's own
+     * points, then the shell's, which every page behind the login renders around its content: the
+     * navigation, the addons' pages and the viewer's menu, whose props are the viewer.
      *
      * @param  list<RenderedPoint>  $points  the points the page renders, in its order
      *
@@ -124,7 +137,12 @@ final readonly class ContributionProps
             throw new LogicException(sprintf('The panel page %s shows contributions only for a request the panel authenticated.', $page));
         }
 
-        return new PanelView(new PageName($page), $viewer, $points, $subject);
+        return new PanelView(new PageName($page), $viewer, [
+            ...$points,
+            new RenderedPoint(Shell::nav(), new ShellNavV1),
+            new RenderedPoint(Shell::pages(), new ShellPageV1),
+            new RenderedPoint(Shell::userMenu(), new ViewerSummaryV1($viewer->actor, $viewer->issuerKind)),
+        ], $subject);
     }
 
     /**
@@ -180,7 +198,7 @@ final readonly class ContributionProps
             ), $active->registrations),
             $this->home().'/'.PanelRoute::COMMANDS_PATH,
             $active->details,
-            [new PageLinkProp(PanelPages::HOME_PAGE, $this->home())],
+            $this->pages($active),
         );
         $props = [self::CMS => [self::CONTRIBUTIONS => InertiaProps::document($this->codec->encode($prop, ClassificationAccess::Public))]];
         ksort($data, SORT_STRING);
@@ -220,7 +238,31 @@ final readonly class ContributionProps
             $declaration instanceof DecoratorContribution ? new DecoratorProp($declaration->tightens) : null,
             $declaration instanceof ReplacementContribution ? new ReplacementProp($declaration->key) : null,
             $declaration instanceof FlowStep && $command !== null ? new StepProp($command, $declaration->position, $declaration->patches, $declaration->timeoutSeconds) : null,
+            $declaration instanceof NavContribution ? new NavProp($declaration->label, $declaration->icon, new ContributionId($declaration->page)) : null,
         );
+    }
+
+    /**
+     * The pages a contribution may navigate to, sorted by page id: the panel's start page, and
+     * every page of an addon the viewer may open, at `<prefix>/x/<namespace>/<path>`.
+     *
+     * @return list<PageLinkProp>
+     */
+    private function pages(ActiveContributions $active): array
+    {
+        $pages = [PanelPages::HOME_PAGE => new PageLinkProp(PanelPages::HOME_PAGE, $this->home())];
+
+        foreach ($active->pages() as $page) {
+            $declaration = $page->fill->declaration;
+
+            if ($declaration instanceof PageContribution) {
+                $pages[$declaration->id->value] = new PageLinkProp($declaration->id->value, $this->home().'/'.PanelRoute::ADDON_PAGES_PATH.'/'.$declaration->id->namespace()->value.'/'.$declaration->path);
+            }
+        }
+
+        ksort($pages, SORT_STRING);
+
+        return array_values($pages);
     }
 
     /**

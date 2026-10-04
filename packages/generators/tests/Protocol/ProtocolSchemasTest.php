@@ -79,6 +79,7 @@ it('writes exactly the committed codecs of the receipt, problem details, envelop
         'packages/core/src/Codecs/Boundary/Generated/DeliveryCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/DeliveryExplanationCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/DeliveryFragmentCodecV1.php',
+        'packages/core/src/Codecs/Boundary/Generated/DryRunSummaryCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/EnvelopeCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/ExplainedPathCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/GrantBootstrapRoleCodecV1.php',
@@ -112,7 +113,7 @@ it('writes exactly the committed codecs of the receipt, problem details, envelop
         expect(file_get_contents(kernelRoot().'/'.$file->path))->toBe($file->contents, $file->path.' is not what composer generate:protocol writes.');
     }
 
-    expect(glob(kernelRoot().'/'.ProtocolSchemas::PHP_DIRECTORY.'/*'))->toHaveCount(37);
+    expect(glob(kernelRoot().'/'.ProtocolSchemas::PHP_DIRECTORY.'/*'))->toHaveCount(38);
 });
 
 it('gives each command\'s codec the command\'s name and version from its #[Command] and its schema, and lists each in KernelCommandCodecs', function (SchemaBinding $binding): void {
@@ -209,7 +210,7 @@ it('sorts the codecs by path, owns their directory and refuses two schemas with 
 
     expect(array_map(static fn (GeneratedFile $file): string => $file->path, $result->files))->toBe(['Generated/AParcelCodecV1.php', 'Generated/ParcelCodecV1.php'])
         ->and($result->directories)->toBe(['Generated'])
-        ->and($receipt)->toHaveCount(37);
+        ->and($receipt)->toHaveCount(38);
 
     try {
         ProtocolSchemas::result([$parcel, $parcel], $location);

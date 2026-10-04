@@ -19,6 +19,7 @@ use Cbox\Cms\Panel\Domain\PanelRoute;
 use Cbox\Cms\Panel\Middleware\AuthenticatePanelSession;
 use Cbox\Cms\Panel\Middleware\SendContentSecurityPolicy;
 use Cbox\Cms\Panel\Middleware\VerifyPanelCsrfToken;
+use Cbox\Cms\Panel\Pages\AddonPageController;
 use Cbox\Cms\Panel\Pages\ForgotPasswordController;
 use Cbox\Cms\Panel\Pages\ForgotPasswordPageController;
 use Cbox\Cms\Panel\Pages\HomeController;
@@ -63,7 +64,10 @@ use Illuminate\Routing\Route;
  *     takes only a request whose session cookie verifies and sends any other to the login page,
  *     and VerifyPanelCsrfToken: `GET <prefix>`, the start page, `POST <prefix>/logout`, and the
  *     Inertia profile's `POST <prefix>/commands/{command}/v{version}`, which runs a command as the
- *     person (PanelRoute::Home, Logout, Command);
+ *     person (PanelRoute::Home, Logout, Command), and `GET <prefix>/x/{namespace}/{path}`, a page of
+ *     an addon, its PageContribution at the path, with its data query's result as its props
+ *     (PanelRoute::AddonPage), or the page for a path the panel does not have when no addon has
+ *     such a page or the person may not open it;
  *   - last, `GET <prefix>/{path?}` for any other path below the prefix, named NOT_FOUND: the
  *     panel's page for a path it does not have, with 404, which shows nothing of the installation
  *     and so needs no session.
@@ -97,6 +101,12 @@ final readonly class PanelRoutes
     /** A file of an addon's bundle in its address: the form of a BundlePath, as a route takes it. */
     public const string ADDON_FILE = '[A-Za-z0-9_][A-Za-z0-9._-]*(?:/[A-Za-z0-9_][A-Za-z0-9._-]*)*';
 
+    /** What an addon page's address takes as the addon's namespace: the form of an AddonNamespace. */
+    public const string NAMESPACE_SEGMENT = '[a-z][a-z0-9]{0,19}';
+
+    /** What an addon page's address takes as its path: the form of a PageContribution's path, slashes included. */
+    public const string PAGE_PATH = '[a-z0-9]+(?:-[a-z0-9]+)*(?:/[a-z0-9]+(?:-[a-z0-9]+)*)*';
+
     private function __construct() {}
 
     public static function register(Registrar $router, string $prefix = self::PREFIX): void
@@ -129,6 +139,8 @@ final readonly class PanelRoutes
                     self::page($router->get('', HomeController::class), PanelRoute::Home);
                     self::page($router->post('logout', LogoutController::class), PanelRoute::Logout);
                     self::withAddons(InertiaRoutes::register($router, PanelRoute::COMMANDS_PATH, PanelRoute::Command->value), PanelRoute::Command->allowsAddons());
+                    self::page($router->get(PanelRoute::ADDON_PAGES_PATH.'/{namespace}/{path}', AddonPageController::class)
+                        ->where(['namespace' => self::NAMESPACE_SEGMENT, 'path' => self::PAGE_PATH]), PanelRoute::AddonPage);
                 });
 
                 self::withAddons($router->get('{path?}', NotFoundController::class)

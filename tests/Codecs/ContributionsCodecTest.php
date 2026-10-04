@@ -25,6 +25,7 @@ use Cbox\Cms\Panel\Domain\Dto\CheckProp;
 use Cbox\Cms\Panel\Domain\Dto\ContributionsProp;
 use Cbox\Cms\Panel\Domain\Dto\DecoratorProp;
 use Cbox\Cms\Panel\Domain\Dto\FillProp;
+use Cbox\Cms\Panel\Domain\Dto\NavProp;
 use Cbox\Cms\Panel\Domain\Dto\PageLinkProp;
 use Cbox\Cms\Panel\Domain\Dto\PointFillsProp;
 use Cbox\Cms\Panel\Domain\Dto\PrefillProp;
@@ -38,7 +39,8 @@ use Cbox\Cms\Tooling\Protocol\Domain\PanelPageSchemas;
  * contributions.v1.json: what its generated PHP codec writes validates against the schema with an
  * independent validator, opis/json-schema, and with the generated TypeScript validator the host
  * imports, and reads back to the same JSON; the props of each fill are embedded as the point's
- * codec wrote them, and each kind's descriptor is written beside them. A kind the schema does not list is refused by all three.
+ * codec wrote them, and each kind's descriptor is written beside them, a nav entry's included,
+ * with the addons' pages among the pages. A kind the schema does not list is refused by all three.
  */
 
 const CONTRIBUTIONS_SCHEMA = 'contributions.v1.json';
@@ -66,11 +68,17 @@ function contributionsJson(): string
             new PointFillsProp('desk.form.field@1', [
                 new FillProp(new AddonNamespace('tally'), false, new ContributionId('tally.stars'), PointKind::Replacement, 70, new JsonDocument('{}'), replacement: new ReplacementProp('tally:stars')),
             ], PointKind::Replacement, null, Multiplicity::Exclusive, null),
+            new PointFillsProp('shell.nav@1', [
+                new FillProp(new AddonNamespace('tally'), false, new ContributionId('tally.board-link'), PointKind::Nav, 80, new JsonDocument('{}'), nav: new NavProp('tally.nav.board', 'inbox', new ContributionId('tally.board'))),
+            ], PointKind::Nav, null, Multiplicity::Many, null),
+            new PointFillsProp('shell.page@1', [
+                new FillProp(new AddonNamespace('tally'), true, new ContributionId('tally.board'), PointKind::Page, 90, new JsonDocument('{}')),
+            ], PointKind::Page, null, Multiplicity::Many, null),
         ],
         [new AddonProp(new AddonNamespace('tally'), str_repeat('a', 64), ['tally.recount@1'], false)],
         '/cms/commands',
         true,
-        [new PageLinkProp('home', '/cms')],
+        [new PageLinkProp('home', '/cms'), new PageLinkProp('tally.board', '/cms/x/tally/board')],
     ), ClassificationAccess::Public);
 }
 
@@ -78,10 +86,12 @@ it('writes JSON valid against its schema and the TypeScript validator, and reads
     $json = contributionsJson();
     $codec = new ContributionsCodecV1;
 
-    expect($json)->toStartWith('{"addons":[{"addon":"tally","any_command":false,"issues":["tally.recount@1"],"registration":"'.str_repeat('a', 64).'"}],"commands":"/cms/commands","details":true,"pages":[{"page":"home","url":"/cms"}],"points":[{"fills":[{"action":null,"addon":"tally","check":null,"data":false,"decorator":null,"id":"tally.audit","kind":"slot","priority":10,"props":{"note":"Weekly desk"},"replacement":null,"step":null},')
+    expect($json)->toStartWith('{"addons":[{"addon":"tally","any_command":false,"issues":["tally.recount@1"],"registration":"'.str_repeat('a', 64).'"}],"commands":"/cms/commands","details":true,"pages":[{"page":"home","url":"/cms"},{"page":"tally.board","url":"/cms/x/tally/board"}],"points":[{"fills":[{"action":null,"addon":"tally","check":null,"data":false,"decorator":null,"id":"tally.audit","kind":"slot","nav":null,"priority":10,"props":{"note":"Weekly desk"},"replacement":null,"step":null},')
         ->and($json)->toContain('"action":{"command":"tally.recount@1","confirm":"dry_run","icon":"refresh","label":"tally.recount.label","prefill":[{"pointer":"/note","property":"note"}],"tone":"warning"}')
         ->and($json)->toContain('"kind":"action","max":3,"multiplicity":"max","point":"desk.actions@1","region":null}')
         ->and($json)->toContain('"step":{"command":"tally.recount@1","patches":["fields.ext.tally.reason"],"position":"before_submit","timeout_seconds":20}')
+        ->and($json)->toContain('"kind":"nav","nav":{"icon":"inbox","label":"tally.nav.board","page":"tally.board"},"priority":80')
+        ->and($json)->toContain('"pages":[{"page":"home","url":"/cms"},{"page":"tally.board","url":"/cms/x/tally/board"}]')
         ->and(KernelSchema::errors(CONTRIBUTIONS_SCHEMA, $json, PanelPageSchemas::SCHEMA_DIRECTORY))->toBe([])
         ->and($codec->encode($codec->decode($json, ClassificationAccess::Public), ClassificationAccess::Public))->toBe($json)
         ->and(TypeScriptValidators::run(PanelPageSchemas::TYPESCRIPT_DIRECTORY, [
@@ -91,7 +101,7 @@ it('writes JSON valid against its schema and the TypeScript validator, and reads
 });
 
 it('refuses a kind the schema does not list, in PHP, in TypeScript and in the schema', function (): void {
-    $planted = str_replace('"kind":"slot","priority":10', '"kind":"widget","priority":10', contributionsJson());
+    $planted = str_replace('"kind":"slot","nav":null,"priority":10', '"kind":"widget","nav":null,"priority":10', contributionsJson());
 
     expect($planted)->not->toBe(contributionsJson());
 

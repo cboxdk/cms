@@ -181,7 +181,11 @@ describe('the runtime registration check', () => {
     });
     expect(screen.queryByText(/Rogue/)).toBeNull();
     expect(screen.queryByText(/could not/)).toBeNull();
-    expect(codes(recorded)).toEqual(['panel_addon_mismatch rogue']);
+
+    // The check of the rogue addon settles apart from alpha's rendering.
+    await waitFor(() => {
+      expect(codes(recorded)).toEqual(['panel_addon_mismatch rogue']);
+    });
   });
 
   test('so does a module that exports no registration, or one of another major of the panel API', async () => {

@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "shell.page props, contract version 1",
+  "description": "The props of the pages of the panel's shell, a page point (PRD 13.4): none. A contribution to it is a page of its addon below /x/<namespace>/, whose only props are the result of its data query. The PHP form is Cbox\\Cms\\Panel\\Shell\\Domain\\Dto\\ShellPageV1.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {}
+}

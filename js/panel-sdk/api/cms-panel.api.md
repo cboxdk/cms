@@ -40,11 +40,30 @@ import type { ComponentType } from 'react';
 import type { ReactNode } from 'react';
 
 // @stable
+export interface AggregateCountV1 {
+    count: number;
+    kind: string;
+}
+
+// @stable
 export interface BadgeDescriptor {
     // (undocumented)
     readonly label: TranslationKey;
     // (undocumented)
     readonly tone: 'neutral' | 'info' | 'warning' | 'danger';
+}
+
+// @stable
+export interface BecomesVisibleV1 {
+    from: string;
+    locale: string;
+    placement: string;
+}
+
+// @stable
+export interface BlastRadiusV1 {
+    aggregates: readonly AggregateCountV1[];
+    mutations: number;
 }
 
 // @stable
@@ -74,6 +93,8 @@ export interface ColumnDescriptor<P> {
 
 // @stable
 export interface CommandAnswer {
+    // (undocumented)
+    readonly dryRun: DryRunSummaryV1 | null;
     // (undocumented)
     readonly problem: ProblemV1 | null;
     // (undocumented)
@@ -143,6 +164,13 @@ export interface DialogRequest {
     readonly title: TranslationKey;
     // (undocumented)
     readonly tone?: 'neutral' | 'danger';
+}
+
+// @stable
+export interface DryRunSummaryV1 {
+    becomes_visible: readonly BecomesVisibleV1[];
+    blast_radius: BlastRadiusV1;
+    changes: readonly VersionChangeV1[];
 }
 
 // @stable
@@ -401,6 +429,14 @@ export type TranslationParameters = Readonly<Record<string, string | number>>;
 
 // @stable
 export function usePanelHost<I extends IssuedCommands<I> = NoCommands>(): PanelHost<I>;
+
+// @stable
+export interface VersionChangeV1 {
+    after: number;
+    aggregate: string;
+    before: number | null;
+    mutations: number;
+}
 
 // @stable
 export type WaitLevel = 'commit' | 'origin' | 'edge' | 'verified' | 'propagated';
@@ -779,6 +815,9 @@ export { Inline }
 
 export { InlineProps }
 
+// @experimental
+export type IssuerKind = 'human' | 'agent' | 'service';
+
 export { JsonEditor }
 
 export { JsonEditorProps }
@@ -891,6 +930,12 @@ export { ShellHeader }
 
 export { ShellHeaderProps }
 
+// @experimental
+export type ShellNavV1 = Record<string, never>;
+
+// @experimental
+export type ShellPageV1 = Record<string, never>;
+
 export { ShortcutKey }
 
 export { SideNav }
@@ -976,6 +1021,12 @@ export { Tree }
 export { TreeNode }
 
 export { TreeProps }
+
+// @experimental
+export interface ViewerSummaryV1 {
+    actor: string;
+    issuer: IssuerKind;
+}
 
 export { Wizard }
 

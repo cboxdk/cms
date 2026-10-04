@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Cbox\Cms\Panel\Boundary\Generated\Points;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\PanelPoints\PointId;
+use Cbox\Cms\Contracts\PanelPoints\PointName;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\PointCodec;
 
 /**
@@ -23,6 +25,10 @@ final readonly class PanelPointCodecs
      */
     public static function all(): array
     {
-        return [];
+        return [
+            new PointCodec(new PointId(new PointName('shell.nav'), 1), new ShellNavCodecV1),
+            new PointCodec(new PointId(new PointName('shell.page'), 1), new ShellPageCodecV1),
+            new PointCodec(new PointId(new PointName('shell.user-menu'), 1), new ViewerSummaryCodecV1),
+        ];
     }
 }

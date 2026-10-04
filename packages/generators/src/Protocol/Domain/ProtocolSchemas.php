@@ -54,9 +54,14 @@ use Cbox\Cms\Contracts\PanelPoints\ContributionId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Receipts\Receipt;
+use Cbox\Cms\Contracts\Results\AggregateCount;
+use Cbox\Cms\Contracts\Results\BecomesVisible;
+use Cbox\Cms\Contracts\Results\BlastRadius;
 use Cbox\Cms\Contracts\Results\CatalogError;
+use Cbox\Cms\Contracts\Results\DryRunSummary;
 use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Contracts\Results\ReadContent;
+use Cbox\Cms\Contracts\Results\VersionChange;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Core\Access\Domain\Commands\AssignGrant;
 use Cbox\Cms\Core\Access\Domain\Commands\CreateRole;
@@ -203,7 +208,7 @@ final readonly class ProtocolSchemas
 
     /**
      * The bindings of the kernel's documents, sorted by file: the schemas of the contracts module,
-     * the delivery explanation, the delivery API's answers, the envelope, the explained path, the
+     * the delivery explanation, the delivery API's answers, the dry run summary, the envelope, the explained path, the
      * path explanation, the problem details and the receipt, then the core's own, the delivery
      * API's fragment and the manifest of an addon's panel bundle. A member of a document that is a
      * document of another contract, such as the record of a delivery answer or the explanation
@@ -247,6 +252,28 @@ final readonly class ProtocolSchemas
                     '#/$defs/meta' => DeliveryMeta::class,
                 ],
                 values: ['#/properties/data' => $document, ...$meta],
+            ),
+            new SchemaBinding(
+                schema: 'dry-run-summary.v1.json',
+                codecClass: 'DryRunSummaryCodecV1',
+                version: 1,
+                objects: [
+                    '#' => DryRunSummary::class,
+                    '#/$defs/aggregate_count' => AggregateCount::class,
+                    '#/$defs/becomes_visible' => BecomesVisible::class,
+                    '#/$defs/blast_radius' => BlastRadius::class,
+                    '#/$defs/change' => VersionChange::class,
+                ],
+                values: [
+                    '#/$defs/becomes_visible/properties/locale' => ValueBinding::value(Locale::class),
+                    '#/$defs/becomes_visible/properties/placement' => $id(PlacementId::class),
+                    '#/$defs/change/properties/after' => ValueBinding::value(AggregateVersion::class),
+                    '#/$defs/change/properties/before' => ValueBinding::value(AggregateVersion::class),
+                ],
+                names: [
+                    '#/properties/becomes_visible' => 'becomesVisible',
+                    '#/properties/blast_radius' => 'blastRadius',
+                ],
             ),
             new SchemaBinding(
                 schema: 'envelope.v1.json',

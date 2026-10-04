@@ -16,6 +16,9 @@ enum PanelRoute: string
     /** The path below the prefix of the Inertia profile, `<prefix>/commands/{command}/v{version}` (Command). */
     public const string COMMANDS_PATH = 'commands';
 
+    /** The path below the prefix of the addons' pages, `<prefix>/x/{namespace}/{path}` (AddonPage). */
+    public const string ADDON_PAGES_PATH = 'x';
+
     /** GET <prefix>/login: the login page. */
     case Login = 'cbox-cms.panel.login';
 
@@ -55,6 +58,9 @@ enum PanelRoute: string
     /** POST <prefix>/commands/{command}/v{version}: a command through the Inertia profile, as the person. */
     case Command = 'cbox-cms.panel.command';
 
+    /** GET <prefix>/x/{namespace}/{path}: a page of an addon, its PageContribution at the path (PRD 13.4). */
+    case AddonPage = 'cbox-cms.panel.addon-page';
+
     /**
      * Whether a page of the route loads the addons' panel UI (PRD 13.4, decision D13 of the
      * panel extension architecture): a credential page, where a person types a password or
@@ -65,7 +71,7 @@ enum PanelRoute: string
     public function allowsAddons(): bool
     {
         return match ($this) {
-            self::Home, self::Command => true,
+            self::Home, self::Command, self::AddonPage => true,
             self::Login, self::LoginSubmit, self::ForgotPassword, self::ForgotPasswordSubmit, self::ResetPassword, self::ResetPasswordSubmit, self::Logout, self::Theme, self::Brand, self::AddonAsset, self::CspReport => false,
         };
     }

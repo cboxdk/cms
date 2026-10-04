@@ -27,6 +27,7 @@ use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Protocol\Domain\Dto\SchemaBinding;
 use Cbox\Cms\Generators\Protocol\Domain\Dto\ValueBinding;
 use Cbox\Cms\Panel\Domain\Dto\ActionProp;
+use Cbox\Cms\Panel\Domain\Dto\AddonPage;
 use Cbox\Cms\Panel\Domain\Dto\AddonProp;
 use Cbox\Cms\Panel\Domain\Dto\CheckProp;
 use Cbox\Cms\Panel\Domain\Dto\ContributionsProp;
@@ -37,6 +38,7 @@ use Cbox\Cms\Panel\Domain\Dto\ForgotPasswordRefusals;
 use Cbox\Cms\Panel\Domain\Dto\HomePage;
 use Cbox\Cms\Panel\Domain\Dto\LoginPage;
 use Cbox\Cms\Panel\Domain\Dto\LoginRefusals;
+use Cbox\Cms\Panel\Domain\Dto\NavProp;
 use Cbox\Cms\Panel\Domain\Dto\NotFoundPage;
 use Cbox\Cms\Panel\Domain\Dto\PageLinkProp;
 use Cbox\Cms\Panel\Domain\Dto\PanelBrand;
@@ -59,7 +61,8 @@ use Cbox\Cms\Panel\Domain\SignInReason;
  * brand.v1.json, each bound to its DTO in the panel's
  * Domain\Dto, so the panel renders the props through the generated codec and js/panel imports
  * their generated TypeScript types and validators. contributions.v1.json is the prop
- * cms.contributions that every page behind the login sends beside its own props (PRD 13.4). Types go one way, from PHP and the schema to
+ * cms.contributions that every page behind the login sends beside its own props (PRD 13.4), and
+ * addon-page.v1.json the props of an addon's page below /x/<namespace>/. Types go one way, from PHP and the schema to
  * TypeScript; no page declares its props by hand.
  *
  * composer generate:protocol writes, from these bindings, the PHP codecs into PHP_DIRECTORY and,
@@ -95,7 +98,7 @@ final readonly class PanelPageSchemas
      *
      * @var list<string>
      */
-    public const array PROTOCOL_CODECS = ['ProblemCodecV1', 'ReceiptCodecV1'];
+    public const array PROTOCOL_CODECS = ['DryRunSummaryCodecV1', 'ProblemCodecV1', 'ReceiptCodecV1'];
 
     /** The stability of the generated codecs: the pages' DTOs are the panel's own. */
     public const string ATTRIBUTE = Internal::class;
@@ -108,6 +111,10 @@ final readonly class PanelPageSchemas
     public static function all(): array
     {
         return [
+            self::page('addon-page.v1.json', 'AddonPageCodecV1', ['#' => AddonPage::class], [
+                '#/properties/addon' => ValueBinding::value(AddonNamespace::class),
+                '#/properties/page' => ValueBinding::value(ContributionId::class),
+            ]),
             self::page('brand.v1.json', 'PanelBrandCodecV1', [
                 '#' => PanelBrand::class,
                 '#/$defs/logo' => PanelBrandLogo::class,
@@ -119,6 +126,7 @@ final readonly class PanelPageSchemas
                 '#/$defs/check' => CheckProp::class,
                 '#/$defs/decorator' => DecoratorProp::class,
                 '#/$defs/fill' => FillProp::class,
+                '#/$defs/nav' => NavProp::class,
                 '#/$defs/page' => PageLinkProp::class,
                 '#/$defs/point' => PointFillsProp::class,
                 '#/$defs/prefill' => PrefillProp::class,
@@ -134,6 +142,7 @@ final readonly class PanelPageSchemas
                 '#/$defs/fill/properties/id' => ValueBinding::value(ContributionId::class),
                 '#/$defs/fill/properties/kind' => ValueBinding::enum(PointKind::class),
                 '#/$defs/fill/properties/props' => ValueBinding::document(JsonDocument::class),
+                '#/$defs/nav/properties/page' => ValueBinding::value(ContributionId::class),
                 '#/$defs/point/properties/kind' => ValueBinding::enum(PointKind::class),
                 '#/$defs/point/properties/multiplicity' => ValueBinding::enum(Multiplicity::class),
                 '#/$defs/point/properties/region' => ValueBinding::enum(Region::class),

@@ -17,9 +17,10 @@ use PHPUnit\Framework\Attributes\Test;
 /**
  * The active contributions of a panel page per viewer (PRD 13.4), on real Postgres as the app
  * role over DeskWorld: the page lists, as cms.contributions, the contributions to the points it
- * renders that are enabled and in scope, and only those whose required permission the viewer holds
- * by its grants, as the PermissionRule decides; any other is never sent. The activation state
- * disables a contribution or an addon at the next request.
+ * renders that are enabled and in scope, the shell's among them, and only those whose required
+ * permission the viewer holds by its grants, as the PermissionRule decides, an action's command
+ * included; any other is never sent. The activation state disables a contribution or an addon at
+ * the next request.
  */
 final class ActiveContributionsTest extends TestCase
 {
@@ -40,7 +41,12 @@ final class ActiveContributionsTest extends TestCase
         $auditor = $this->visitDesk($this->desk()->auditor);
         $viewer = $this->visitDesk($this->desk()->viewer);
 
-        self::assertSame(['desk.cards@1' => [ContributionWorld::AUDIT, ContributionWorld::COUNT, ContributionWorld::HEAVY]], self::listedFills($auditor));
+        self::assertSame([
+            'desk.cards@1' => [ContributionWorld::AUDIT, ContributionWorld::COUNT, ContributionWorld::HEAVY],
+            'shell.nav@1' => [ContributionWorld::BOARD_LINK],
+            'shell.page@1' => [ContributionWorld::BOARD],
+            'shell.user-menu@1' => [ContributionWorld::ADD],
+        ], self::listedFills($auditor));
         self::assertSame(['desk.cards@1' => [ContributionWorld::COUNT, ContributionWorld::HEAVY]], self::listedFills($viewer));
         self::assertStringNotContainsString(ContributionWorld::AUDIT.'"', (string) $viewer->getContent());
         self::assertSame([], $viewer->json('props.ext'));
@@ -51,9 +57,9 @@ final class ActiveContributionsTest extends TestCase
     public function it_sends_each_contribution_the_point_s_props_at_the_lower_of_the_viewer_s_access_and_the_addon_s_reads(): void
     {
         self::assertSame([
-            ['action' => null, 'addon' => 'tally', 'check' => null, 'data' => false, 'decorator' => null, 'id' => ContributionWorld::AUDIT, 'kind' => 'slot', 'priority' => 10, 'props' => ['note' => DeskWorld::NOTE], 'replacement' => null, 'step' => null],
-            ['action' => null, 'addon' => 'tally', 'check' => null, 'data' => true, 'decorator' => null, 'id' => ContributionWorld::COUNT, 'kind' => 'slot', 'priority' => 20, 'props' => ['note' => DeskWorld::NOTE], 'replacement' => null, 'step' => null],
-            ['action' => null, 'addon' => 'tally', 'check' => null, 'data' => true, 'decorator' => null, 'id' => ContributionWorld::HEAVY, 'kind' => 'slot', 'priority' => 30, 'props' => ['note' => DeskWorld::NOTE], 'replacement' => null, 'step' => null],
+            ['action' => null, 'addon' => 'tally', 'check' => null, 'data' => false, 'decorator' => null, 'id' => ContributionWorld::AUDIT, 'kind' => 'slot', 'nav' => null, 'priority' => 10, 'props' => ['note' => DeskWorld::NOTE], 'replacement' => null, 'step' => null],
+            ['action' => null, 'addon' => 'tally', 'check' => null, 'data' => true, 'decorator' => null, 'id' => ContributionWorld::COUNT, 'kind' => 'slot', 'nav' => null, 'priority' => 20, 'props' => ['note' => DeskWorld::NOTE], 'replacement' => null, 'step' => null],
+            ['action' => null, 'addon' => 'tally', 'check' => null, 'data' => true, 'decorator' => null, 'id' => ContributionWorld::HEAVY, 'kind' => 'slot', 'nav' => null, 'priority' => 30, 'props' => ['note' => DeskWorld::NOTE], 'replacement' => null, 'step' => null],
         ], self::firstFills($this->visitDesk($this->desk()->auditor)));
     }
 
@@ -69,9 +75,10 @@ final class ActiveContributionsTest extends TestCase
     #[Test]
     public function it_leaves_out_what_the_activation_state_disables_at_the_next_request_without_a_rebuild(): void
     {
-        config([ConfigPanelActivation::KEY => ['contributions' => [ContributionWorld::AUDIT]]]);
+        config([ConfigPanelActivation::KEY => ['contributions' => [ContributionWorld::AUDIT, ContributionWorld::BOARD]]]);
 
-        self::assertSame(['desk.cards@1' => [ContributionWorld::COUNT, ContributionWorld::HEAVY]], self::listedFills($this->visitDesk($this->desk()->auditor)));
+        // Without the page, its nav entry leads nowhere and is left out too.
+        self::assertSame(['desk.cards@1' => [ContributionWorld::COUNT, ContributionWorld::HEAVY], 'shell.user-menu@1' => [ContributionWorld::ADD]], self::listedFills($this->visitDesk($this->desk()->auditor)));
 
         config([ConfigPanelActivation::KEY => ['addons' => ['tally']]]);
         $page = $this->visitDesk($this->desk()->auditor);

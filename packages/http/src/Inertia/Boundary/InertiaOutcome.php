@@ -8,8 +8,11 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Errors\Problem;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Results\CatalogError;
+use Cbox\Cms\Contracts\Results\DryRunReport;
+use Cbox\Cms\Contracts\Results\DryRunSummary;
 use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Contracts\Results\WriteResult;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\DryRunSummaryCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ProblemCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ReceiptCodecV1;
 use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
@@ -27,6 +30,9 @@ use Inertia\ResponseFactory;
  *   under RECEIPT for every outcome: committed, committed_wait_timeout, dry_run and rejected. The
  *   page tells them apart by its outcome, so a committed_wait_timeout is never shown as a failure
  *   and a dry run never as a commit.
+ * - A dry run also flashes its summary under DRY_RUN (dry-run-summary.v1.json, written by the
+ *   generated codec): the blast radius, the version change of each aggregate and what becomes
+ *   visible, which the page shows before the caller confirms the command for real.
  * - A rejected call also leaves its field errors in the page's `errors` prop, the prop Inertia's
  *   forms read, by the path of the value in the request body, such as command.fields.title, and
  *   the problem details document (problem.v1.json) with every catalog code and path, which the
@@ -44,6 +50,9 @@ final readonly class InertiaOutcome
     /** The flash key of the receipt. */
     public const string RECEIPT = 'receipt';
 
+    /** The flash key of a dry run's summary. */
+    public const string DRY_RUN = 'dry_run';
+
     /** The session key the problem is flashed under for the next request. */
     public const string PROBLEM = 'cbox-cms.problem';
 
@@ -58,11 +67,16 @@ final readonly class InertiaOutcome
         private ResponseFactory $inertia,
         private ReceiptCodecV1 $receipts,
         private ProblemCodecV1 $problems,
+        private DryRunSummaryCodecV1 $dryRuns,
     ) {}
 
     public function of(WriteResult $result): RedirectResponse
     {
         $this->inertia->flash(self::RECEIPT, InertiaProps::document($this->receipts->encode($result->receipt, ClassificationAccess::Public)));
+
+        if ($result->dryRun instanceof DryRunReport) {
+            $this->inertia->flash(self::DRY_RUN, InertiaProps::document($this->dryRuns->encode(DryRunSummary::of($result->dryRun), ClassificationAccess::Public)));
+        }
 
         $errors = array_map(
             static fn (CatalogError $error): CatalogError => new CatalogError(

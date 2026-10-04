@@ -76,7 +76,8 @@ export interface ContributionsV1 {
   details: boolean;
   /**
    * The panel's pages a contribution may navigate to through the host, each by its page id, sorted
-   * by page id.
+   * by page id: the panel's own, such as home, and every page of an addon the viewer may open, by
+   * the id of its PageContribution, at `<prefix>/x/<namespace>/<path>`.
    */
   pages: readonly PageLinkPropV1[];
   /**
@@ -171,6 +172,10 @@ export interface FillPropV1 {
   /** The kind of contribution, the kind of the point. */
   kind: PointKind;
   /**
+   * What a nav entry shows and opens, for a contribution to a nav point; null for any other kind.
+   */
+  nav: NavPropV1 | null;
+  /**
    * The priority it renders at, as cms:build compiled it with the installation's settings; the
    * lowest first.
    */
@@ -230,6 +235,19 @@ export interface DecoratorPropV1 {
   tightens: readonly Tighten[];
 }
 
+/** A nav entry: an entry of the shell's navigation that opens a page of its addon. */
+export interface NavPropV1 {
+  /** The kit icon it shows, or null. */
+  icon: string | null;
+  /** The translation key of its text, in its addon's catalogue. */
+  label: string;
+  /**
+   * The id of the page of its addon it opens, `<namespace>.<local>`, whose address the page's entry
+   * in pages gives.
+   */
+  page: string;
+}
+
 /** A replacement. */
 export interface ReplacementPropV1 {
   /** The key it replaces: a field type, a class or a command and version. */
@@ -271,6 +289,22 @@ const stepPropV1Rule: ObjectRule = {
 const replacementPropV1Rule: ObjectRule = {
   properties: [
     { key: 'key', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 255 } },
+  ],
+};
+
+const navPropV1Rule: ObjectRule = {
+  properties: [
+    { key: 'label', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 200 } },
+    { key: 'icon', presence: 'present', value: { kind: 'text', minLength: 1, maxLength: 64 } },
+    {
+      key: 'page',
+      presence: 'required',
+      value: {
+        kind: 'string',
+        pattern: '^[a-z][a-z0-9]{0,19}(\\.[a-z][a-z0-9_]*(-[a-z0-9_]+)*)+$',
+        maxLength: 96,
+      },
+    },
   ],
 };
 
@@ -386,6 +420,7 @@ const fillPropV1Rule: ObjectRule = {
       value: { kind: 'object', object: replacementPropV1Rule },
     },
     { key: 'step', presence: 'present', value: { kind: 'object', object: stepPropV1Rule } },
+    { key: 'nav', presence: 'present', value: { kind: 'object', object: navPropV1Rule } },
   ],
 };
 

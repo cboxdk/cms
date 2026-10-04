@@ -31,7 +31,7 @@
       "type": "boolean"
     },
     "pages": {
-      "description": "The panel's pages a contribution may navigate to through the host, each by its page id, sorted by page id.",
+      "description": "The panel's pages a contribution may navigate to through the host, each by its page id, sorted by page id: the panel's own, such as home, and every page of an addon the viewer may open, by the id of its PageContribution, at `<prefix>/x/<namespace>/<path>`.",
       "type": "array",
       "maxItems": 500,
       "items": {
@@ -209,6 +209,7 @@
         "decorator",
         "id",
         "kind",
+        "nav",
         "priority",
         "props",
         "replacement",
@@ -281,6 +282,17 @@
             "data"
           ]
         },
+        "nav": {
+          "description": "What a nav entry shows and opens, for a contribution to a nav point; null for any other kind.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/nav"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "priority": {
           "description": "The priority it renders at, as cms:build compiled it with the installation's settings; the lowest first.",
           "type": "integer",
@@ -312,6 +324,39 @@
               "type": "null"
             }
           ]
+        }
+      }
+    },
+    "nav": {
+      "description": "A nav entry: an entry of the shell's navigation that opens a page of its addon.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "icon",
+        "label",
+        "page"
+      ],
+      "properties": {
+        "icon": {
+          "description": "The kit icon it shows, or null.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "label": {
+          "description": "The translation key of its text, in its addon's catalogue.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "page": {
+          "description": "The id of the page of its addon it opens, `<namespace>.<local>`, whose address the page's entry in pages gives.",
+          "type": "string",
+          "maxLength": 96,
+          "pattern": "^[a-z][a-z0-9]{0,19}(\\.[a-z][a-z0-9_]*(-[a-z0-9_]+)*)+$"
         }
       }
     },

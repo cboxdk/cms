@@ -48,12 +48,13 @@ it('refuses a point id, name or page that does not have its form', function (cal
     'a name in capitals' => [static fn (): PointName => new PointName('Account.me'), 'The panel point name "Account.me" is not'],
     'a name with a double hyphen' => [static fn (): PointName => new PointName('grants.list.row--actions'), 'is not at least two'],
     'a name of 65 characters' => [static fn (): PointName => new PointName('a.'.str_repeat('b', 63)), 'of at most 64 characters'],
-    'a page with an underscore' => [static fn (): PageName => new PageName('account_me'), 'The panel page name "account_me" is not'],
+    'a page with a capital' => [static fn (): PageName => new PageName('Account.me'), 'The panel page name "Account.me" is not'],
 ]);
 
-it('takes a page of one segment', function (): void {
+it('takes a page of one segment, and the id of an addon\'s page, underscores included', function (): void {
     expect(new PageName('shell')->value)->toBe('shell')
-        ->and(new PageName('account.me')->equals(new PageName('account.me')))->toBeTrue();
+        ->and(new PageName('account.me')->equals(new PageName('account.me')))->toBeTrue()
+        ->and(new PageName('approvals.my_queue')->value)->toBe('approvals.my_queue');
 });
 
 it('declares a slot in its region, which decides whether its fills render markup', function (): void {

@@ -104,11 +104,16 @@ final readonly class PhpCodecEmitter
             self::JSON_VALUES,
             self::DECODING_FAILED,
             self::ENCODING_FAILED,
-            self::FIELD_PATH,
             PhpSource::CLASSIFICATION_ACCESS,
             'stdClass',
         ];
         $methods = [];
+
+        // A codec reads a value at a FieldPath wherever it reads a member; the codec of a root
+        // object without members, such as the props of a point that has none, reads none.
+        if (array_any($objects, static fn (CodecObject $object): bool => $object->properties !== [])) {
+            $classes[] = self::FIELD_PATH;
+        }
 
         if ($contract->attribute !== null) {
             $classes[] = $contract->attribute;
@@ -182,7 +187,7 @@ final readonly class PhpCodecEmitter
             sprintf(
                 '        return JsonText::encode($this->%s(%s));',
                 self::encoderName($root),
-                $root->classified() ? '$dto->visibleTo($access)' : '$dto',
+                $root->properties === [] ? '' : ($root->classified() ? '$dto->visibleTo($access)' : '$dto'),
             ),
             '    }',
             '',
@@ -343,6 +348,12 @@ final readonly class PhpCodecEmitter
      */
     private static function encoder(CodecObject $object): array
     {
+        // An object without members, such as the props of a point that has none, is written as
+        // an empty object from nothing, as Rector keeps a method without unused parameters.
+        if ($object->properties === []) {
+            return [sprintf('    private function %s(): stdClass', self::encoderName($object)), '    {', '        return new stdClass;', '    }'];
+        }
+
         $lines = [
             sprintf('    private function %s(%s $object): stdClass', self::encoderName($object), $object->className),
             '    {',
@@ -395,7 +406,7 @@ final readonly class PhpCodecEmitter
         $lines = [
             sprintf('    private function %s(%s): %s', self::decoderName($object), implode(', ', $parameters), $object->className),
             '    {',
-            sprintf('        $object = JsonValues::object($value, %s, %s);', $path, $keys),
+            sprintf('        %sJsonValues::object($value, %s, %s);', $object->properties === [] ? '' : '$object = ', $path, $keys),
             '',
         ];
 
@@ -405,10 +416,18 @@ final readonly class PhpCodecEmitter
         );
 
         if ($object->class === null) {
-            return [...$lines, sprintf('        return new %s(', $object->className), ...$arguments, '        );', '    }'];
+            return $arguments === []
+                ? [...$lines, sprintf('        return new %s;', $object->className), '    }']
+                : [...$lines, sprintf('        return new %s(', $object->className), ...$arguments, '        );', '    }'];
         }
 
         $static = array_any($object->properties, static fn (CodecProperty $property): bool => self::usesThis($property->value)) ? '' : 'static ';
+
+        // An object without members, such as the props of a point that has none, is built with no
+        // arguments on one line, as Pint writes it.
+        if ($arguments === []) {
+            return [...$lines, sprintf('        return JsonValues::build(%s, static fn (): %s => new %s);', $path, $object->className, $object->className), '    }'];
+        }
 
         return [
             ...$lines,

@@ -11,6 +11,9 @@ use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
 use Cbox\Cms\Generators\Codec\Domain\CodecKind;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecProperty;
+use Cbox\Cms\Generators\Codec\Domain\Dto\PhpLocation;
+use Cbox\Cms\Generators\Codec\Domain\PhpCodecEmitter;
+use Cbox\Cms\Generators\Codec\Domain\TypeScriptEmitter;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\ValidationRule;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
@@ -22,6 +25,7 @@ use Cbox\Cms\Generators\Tests\Codec\Fixtures\Tone;
 use Cbox\Cms\Generators\Tests\Protocol\Fixtures\Box;
 use Cbox\Cms\Generators\Tests\Protocol\Fixtures\Parcel;
 use Cbox\Cms\Generators\Tests\Protocol\Fixtures\ParcelCodecV1;
+use Cbox\Cms\Generators\Tests\Protocol\Fixtures\Seal;
 use Closure;
 use DateTimeImmutable;
 use LogicException;
@@ -193,6 +197,22 @@ it('refuses what the probe schema or its classes refuse, at the value or the obj
     'a label the class refuses' => ['{"id":null,"label":"refused","owner":null,"sent_at":null,"step":1}', null, 'breaks a rule of the contract: A parcel is never labelled "refused".'],
 ]);
 
+it('reads an object without members, such as the props of a point that has none, into an object with no properties', function (): void {
+    $binding = new SchemaBinding('seal.v1.json', 'SealCodecV1', 1, ['#' => Seal::class], [], []);
+    $contract = JsonSchemaContract::read('{"$schema":"https://json-schema.org/draft/2020-12/schema","title":"A seal.","type":"object","additionalProperties":false,"properties":{}}', $binding, Experimental::class);
+    $location = new PhpLocation('src/Generated', 'Acme\\Generated');
+    $php = PhpCodecEmitter::emit($contract, $location, $location)->contents;
+    $typescript = TypeScriptEmitter::emit($contract, 'generated/SealV1.ts', './validation', [])->contents;
+
+    expect($contract->root->class)->toBe(Seal::class)
+        ->and($contract->root->properties)->toBe([])
+        ->and($php)->toContain('JsonValues::object($value, null, []);')
+        ->and($php)->toContain('JsonValues::build(null, static fn (): Seal => new Seal);')
+        ->and($php)->not->toContain('use Cbox\\Cms\\Contracts\\Results\\FieldPath;')
+        ->and($typescript)->toContain('export type SealV1 = Record<string, never>;')
+        ->and($typescript)->toContain('const sealV1Rule: ObjectRule = { properties: [] };');
+});
+
 it('refuses a schema that is not a draft 2020-12 object', function (string $json, string $message): void {
     expect(schemaProblem(json: $json))->toBe('parcel.v1.json #: '.$message.'.');
 })->with([
@@ -208,13 +228,20 @@ it('refuses what the codec has no form for, naming the place', function (Closure
     'an unknown keyword of the document' => [static fn (array $document): array => [...$document, '$id' => 'https://example.test/parcel'], '#: has the keyword "$id", which the codec has no form for'],
     'an object that allows other keys' => [static fn (array $document): array => [...$document, 'additionalProperties' => true], '#: needs "additionalProperties": false, because the codec refuses a key the contract does not have'],
     'a document that is no object' => [static fn (array $document): array => [...$document, 'type' => 'array'], '#: is not an object with "type": "object"'],
-    'an object without properties' => [static function (array $document): array {
+    'an object with no "properties" keyword' => [static function (array $document): array {
+        /** @var array<string, mixed> $definitions */
+        $definitions = $document['$defs'];
+        $definitions['box'] = ['type' => 'object', 'additionalProperties' => false];
+
+        return [...$document, '$defs' => $definitions];
+    }, '#/properties/box: has no "properties"; an object without members has "properties": {}'],
+    'an object without members bound to a class whose constructor takes some' => [static function (array $document): array {
         /** @var array<string, mixed> $definitions */
         $definitions = $document['$defs'];
         $definitions['box'] = ['type' => 'object', 'additionalProperties' => false, 'properties' => (object) []];
 
         return [...$document, '$defs' => $definitions];
-    }, '#/properties/box: has no "properties"'],
+    }, '#/properties/box: is bound to Cbox\\Cms\\Generators\\Tests\\Protocol\\Fixtures\\Box, whose constructor takes size, but the object has the properties '],
     'a required key that is no property' => [static fn (array $document): array => [...$document, 'required' => ['id', 'label', 'owner', 'sent_at', 'step', 'weight']], '#: has a "required" that is not a list of its properties'],
     'an optional key without a default' => [withProperty('count', ['type' => 'integer']), '#/properties/count: is not required and has no default; the codec gives a missing key its default'],
     'a required key with a default' => [withProperty('label', ['type' => 'string', 'default' => 'Books']), '#/properties/label: is required and has a default; a required key has no default'],

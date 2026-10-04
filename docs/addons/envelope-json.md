@@ -19,7 +19,7 @@ A write is a command and an envelope (PRD 6.1). The surface builds the envelope,
 | `wait_level` | `commit` | how long to wait: `commit`, `origin`, `edge`, `verified` or `propagated` (PRD 8.4) |
 | `dry_run` | `false` | compute the plan, the blast radius and the receipt without committing |
 | `on_behalf_of` | `[]` | whom the actor acts for, in order, each an actor id; an actor appears at most once, and never the actor itself |
-| `provenance` | `{}` | for agents and ingestion (PRD 5.5): `model` (`name` and `version`, or `null`), `parameters` (each `name` and `value`), `prompt` (a reference, or `null`) and `sources`; parameters and a prompt need a model |
+| `provenance` | `{}` | for agents and ingestion (PRD 5.5): `model` (`name` and `version`, or `null`), `parameters` (each `name` and `value`), `prompt` (a reference, or `null`) and `sources`; parameters and a prompt need a model. The panel sends a command a contribution of an addon issues with the source `addon:<namespace>:<contribution>`, which the changeset records: attribution, not a control |
 
 A key left out has its default, and the codec writes every key, sorted and without whitespace. The reason of a withdrawal or a redaction is part of the command, not the envelope, so it is read with the command. `RequestEnvelope::envelope()` builds the `Envelope` of an exposed surface from these fields, the surface, the issuer kind and the actor, with the correlation id the surface made when the request has none.
 

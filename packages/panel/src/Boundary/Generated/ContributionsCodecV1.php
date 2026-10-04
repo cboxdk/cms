@@ -29,6 +29,7 @@ use Cbox\Cms\Panel\Domain\Dto\CheckProp;
 use Cbox\Cms\Panel\Domain\Dto\ContributionsProp;
 use Cbox\Cms\Panel\Domain\Dto\DecoratorProp;
 use Cbox\Cms\Panel\Domain\Dto\FillProp;
+use Cbox\Cms\Panel\Domain\Dto\NavProp;
 use Cbox\Cms\Panel\Domain\Dto\PageLinkProp;
 use Cbox\Cms\Panel\Domain\Dto\PointFillsProp;
 use Cbox\Cms\Panel\Domain\Dto\PrefillProp;
@@ -182,6 +183,7 @@ final readonly class ContributionsCodecV1 implements JsonCodec
         $json->decorator = $object->decorator instanceof DecoratorProp ? $this->encodeDecoratorProp($object->decorator) : null;
         $json->id = $object->id->value;
         $json->kind = $object->kind->value;
+        $json->nav = $object->nav instanceof NavProp ? $this->encodeNavProp($object->nav) : null;
         $json->priority = $object->priority;
         $json->props = JsonValues::encodeDocument($object->props->value);
         $json->replacement = $object->replacement instanceof ReplacementProp ? $this->encodeReplacementProp($object->replacement) : null;
@@ -192,7 +194,7 @@ final readonly class ContributionsCodecV1 implements JsonCodec
 
     private function decodeFillProp(mixed $value, FieldPath $path): FillProp
     {
-        $object = JsonValues::object($value, $path, ['action', 'addon', 'check', 'data', 'decorator', 'id', 'kind', 'priority', 'props', 'replacement', 'step']);
+        $object = JsonValues::object($value, $path, ['action', 'addon', 'check', 'data', 'decorator', 'id', 'kind', 'nav', 'priority', 'props', 'replacement', 'step']);
 
         return JsonValues::build($path, fn (): FillProp => new FillProp(
             addon: JsonValues::required($object, 'addon', $path, static fn (mixed $value, FieldPath $at): AddonNamespace => JsonValues::value($value, $at, static fn (string $text): AddonNamespace => new AddonNamespace($text))),
@@ -206,6 +208,7 @@ final readonly class ContributionsCodecV1 implements JsonCodec
             decorator: JsonValues::present($object, 'decorator', $path, $this->decodeDecoratorProp(...)),
             replacement: JsonValues::present($object, 'replacement', $path, $this->decodeReplacementProp(...)),
             step: JsonValues::present($object, 'step', $path, $this->decodeStepProp(...)),
+            nav: JsonValues::present($object, 'nav', $path, $this->decodeNavProp(...)),
         ));
     }
 
@@ -288,6 +291,27 @@ final readonly class ContributionsCodecV1 implements JsonCodec
 
         return JsonValues::build($path, static fn (): DecoratorProp => new DecoratorProp(
             tightens: JsonValues::required($object, 'tightens', $path, static fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, static fn (mixed $item, FieldPath $itemAt): Tighten => JsonValues::enum($item, $itemAt, Tighten::class), maxItems: 3)),
+        ));
+    }
+
+    private function encodeNavProp(NavProp $object): stdClass
+    {
+        $json = new stdClass;
+        $json->icon = $object->icon;
+        $json->label = $object->label;
+        $json->page = $object->page->value;
+
+        return $json;
+    }
+
+    private function decodeNavProp(mixed $value, FieldPath $path): NavProp
+    {
+        $object = JsonValues::object($value, $path, ['icon', 'label', 'page']);
+
+        return JsonValues::build($path, static fn (): NavProp => new NavProp(
+            label: JsonValues::required($object, 'label', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1, maxLength: 200)),
+            icon: JsonValues::present($object, 'icon', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1, maxLength: 64)),
+            page: JsonValues::required($object, 'page', $path, static fn (mixed $value, FieldPath $at): ContributionId => JsonValues::value($value, $at, static fn (string $text): ContributionId => new ContributionId($text))),
         ));
     }
 

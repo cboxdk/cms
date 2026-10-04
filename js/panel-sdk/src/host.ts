@@ -7,6 +7,7 @@
 import { createContext, useContext } from 'react';
 
 import type { IssuedCommands, NoCommands } from './contributions';
+import type { DryRunSummaryV1 } from './generated/protocol/DryRunSummaryV1';
 import type { ProblemV1 } from './generated/protocol/ProblemV1';
 import type { ReceiptV1 } from './generated/protocol/ReceiptV1';
 
@@ -54,14 +55,16 @@ export interface CommandOptions {
 }
 
 /**
- * What a command the addon issued answered: the receipt, for every outcome, and the problem
- * details of a rejection, or null.
+ * What a command the addon issued answered: the receipt, for every outcome, the problem details
+ * of a rejection, or null, and the summary of a dry run, what the command would have changed, or
+ * null for a call that was no dry run or was rejected.
  *
  * @stable
  */
 export interface CommandAnswer {
   readonly receipt: ReceiptV1;
   readonly problem: ProblemV1 | null;
+  readonly dryRun: DryRunSummaryV1 | null;
 }
 
 /**

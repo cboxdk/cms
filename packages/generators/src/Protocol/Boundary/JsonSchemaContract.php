@@ -266,8 +266,8 @@ final readonly class JsonSchemaContract
         $properties = $node->properties ?? null;
         $required = $node->required ?? [];
 
-        if (! $properties instanceof stdClass || get_object_vars($properties) === []) {
-            throw $this->problem($pointer, 'has no "properties"');
+        if (! $properties instanceof stdClass) {
+            throw $this->problem($pointer, 'has no "properties"; an object without members has "properties": {}');
         }
 
         if (! is_array($required) || ! array_is_list($required) || array_any($required, static fn (mixed $key): bool => ! is_string($key) || ! property_exists($properties, $key))) {
@@ -939,6 +939,12 @@ final readonly class JsonSchemaContract
         $class = new ReflectionClass($name);
 
         $constructor = $class->getConstructor();
+
+        // A class without a constructor has the implicit public one that takes nothing, which
+        // builds an object without members, such as the props of a point that has none.
+        if (! $constructor instanceof ReflectionMethod && $object->properties === []) {
+            return [];
+        }
 
         if (! $constructor instanceof ReflectionMethod || ! $constructor->isPublic()) {
             throw $this->problem($pointer, sprintf('is bound to %s, which has no public constructor', $name));

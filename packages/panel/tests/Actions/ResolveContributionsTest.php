@@ -27,6 +27,7 @@ use Cbox\Cms\Panel\Contributions\Domain\Dto\RenderedPoint;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\ViewSubject;
 use Cbox\Cms\Panel\Contributions\Domain\Registrations;
 use Cbox\Cms\Panel\Contributions\Domain\Withheld;
+use Cbox\Cms\Panel\Shell\Domain\Dto\ViewerSummaryV1;
 use Cbox\Cms\Panel\Tests\Contributions\ContributionWorld;
 use Cbox\Cms\Panel\Tests\Contributions\Fixtures\Desk\DeskAsideV1;
 use Cbox\Cms\Panel\Tests\Contributions\Fixtures\Desk\DeskCardsV1;
@@ -37,8 +38,10 @@ use Cbox\Cms\Panel\Tests\Contributions\ResolveWorld;
  * its ports (GUARDRAILS 9): per page and viewer it lists the contributions to the points the page
  * renders that are enabled and in scope and whose required permission the viewer holds, in render
  * order, each handed the point's props at the lower of the viewer's access and the addon's reads;
- * it withholds everything, and says so in telemetry, when the registry or the activation state
- * cannot be read, and reads nothing for a page that renders no point.
+ * the shell's points among them on every page, where an action needs its command's permission, a
+ * nav entry a page the viewer gets, and a page's data runs only on the page itself; it withholds
+ * everything, and says so in telemetry, when the registry or the activation state cannot be read,
+ * and reads nothing for a page that renders no point.
  */
 
 /**
@@ -83,6 +86,44 @@ it('never lists a contribution whose required permission the viewer does not hol
     expect(ResolveWorld::listed($active))->toBe(['desk.cards@1' => [ContributionWorld::COUNT, ContributionWorld::HEAVY]])
         ->and($world->permissions->asked)->toHaveCount(1)
         ->and(array_map(static fn (CommandName $name): string => $name->value, $world->permissions->asked[0][1]))->toBe([ContributionWorld::AUDIT_PERMISSION]);
+});
+
+it('resolves the shell s points on every page: the nav entry, the page and the action a viewer who holds their permissions gets, and the page s data only on the page itself', function (): void {
+    $world = new ResolveWorld;
+    $home = $world->resolveShell(ResolveWorld::AUDITOR);
+
+    expect(ResolveWorld::listed($home))->toBe([
+        'desk.cards@1' => [ContributionWorld::AUDIT, ContributionWorld::COUNT, ContributionWorld::HEAVY],
+        'shell.nav@1' => [ContributionWorld::BOARD_LINK],
+        'shell.page@1' => [ContributionWorld::BOARD],
+        'shell.user-menu@1' => [ContributionWorld::ADD],
+    ])
+        ->and($home->page(new ContributionId(ContributionWorld::BOARD))?->data())->toBeNull()
+        ->and(array_map(static fn ($fill): string => $fill->fill->contribution->value, $home->withData()['tally']))->toBe([ContributionWorld::COUNT, ContributionWorld::HEAVY])
+        ->and($home->points[3]->fills[0]->props)->toBeInstanceOf(ViewerSummaryV1::class);
+
+    $board = $world->resolveShell(ResolveWorld::AUDITOR, ContributionWorld::BOARD);
+
+    expect($board->page(new ContributionId(ContributionWorld::BOARD))?->data()?->toString())->toBe('tally.board@1')
+        ->and(array_map(static fn ($fill): string => $fill->fill->contribution->value, $board->withData()['tally']))->toBe([ContributionWorld::BOARD])
+        ->and(ResolveWorld::listed($board))->toHaveKey('shell.nav@1');
+});
+
+it('hides an action whose command the viewer may not run, a page whose permission the viewer lacks, and the nav entry that leads to it', function (): void {
+    $world = new ResolveWorld;
+    $active = $world->resolveShell(ResolveWorld::VIEWER);
+
+    expect(ResolveWorld::listed($active))->toBe(['desk.cards@1' => [ContributionWorld::COUNT, ContributionWorld::HEAVY]])
+        ->and($active->page(new ContributionId(ContributionWorld::BOARD)))->toBeNull()
+        ->and($active->pages())->toBe([])
+        ->and(array_map(static fn (CommandName $name): string => $name->value, $world->permissions->asked[0][1]))->toBe([ContributionWorld::AUDIT_PERMISSION, ContributionWorld::BOARD_PERMISSION, ContributionWorld::ADD_PERMISSION]);
+});
+
+it('hides the nav entry to a page the activation state disables, although the viewer holds the page s permission', function (): void {
+    $world = new ResolveWorld;
+    $world->activation->set(new DisabledContributions(contributions: [new ContributionId(ContributionWorld::BOARD)]));
+
+    expect(array_keys(ResolveWorld::listed($world->resolveShell(ResolveWorld::AUDITOR))))->toBe(['desk.cards@1', 'shell.user-menu@1']);
 });
 
 it('lists only the points the page renders', function (): void {
@@ -164,6 +205,6 @@ it('hands the core s own contributions the viewer s access, and gives the host t
         ->and($active->details)->toBeTrue()
         ->and(array_map(static fn (AddonRegistration $registration): array => [$registration->addon->value, $registration->digest, $registration->anyCommand], $active->registrations))->toBe([
             ['cms', Registrations::digest(['cms.notes']), true],
-            ['tally', Registrations::digest([ContributionWorld::ASIDE, ContributionWorld::AUDIT, ContributionWorld::COUNT, ContributionWorld::HEAVY]), false],
+            ['tally', Registrations::digest([ContributionWorld::ASIDE, ContributionWorld::AUDIT, ContributionWorld::BOARD, ContributionWorld::COUNT, ContributionWorld::HEAVY]), false],
         ]);
 });

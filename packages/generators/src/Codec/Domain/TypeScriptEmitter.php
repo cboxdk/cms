@@ -181,6 +181,13 @@ final readonly class TypeScriptEmitter
     {
         $name = $names[$object->className];
         $summary = array_values(array_filter(array_map(PhpSource::docText(...), $object->summary), static fn (string $line): bool => $line !== ''));
+
+        // An object without members, such as the props of a point that has none, is an object
+        // type with no keys, which ESLint lets through where it refuses an empty interface.
+        if ($object->properties === []) {
+            return [...self::comment($summary === [] ? [$name.'.'] : $summary, ''), 'export type '.$name.' = Record<string, never>;'];
+        }
+
         $lines = [...self::comment($summary === [] ? [$name.'.'] : $summary, ''), 'export interface '.$name.' {'];
 
         foreach ($object->properties as $property) {

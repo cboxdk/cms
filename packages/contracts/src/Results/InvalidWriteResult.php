@@ -45,6 +45,21 @@ final class InvalidWriteResult extends InvalidArgumentException
         return new self(sprintf('A change of the aggregate "%s" counts at least one mutation.', $aggregateKey));
     }
 
+    public static function aggregateKey(string $value): self
+    {
+        return new self(sprintf('A version change names the aggregate\'s key, "<kind>:<id>", got "%s".', self::shown($value)));
+    }
+
+    public static function versionChange(string $aggregateKey): self
+    {
+        return new self(sprintf('A change of the aggregate "%s" gives it the version after the one read: one higher, or the first for one the write creates.', $aggregateKey));
+    }
+
+    public static function repeatedAggregate(string $aggregateKey): self
+    {
+        return new self(sprintf('A dry run summary names the aggregate "%s" once.', $aggregateKey));
+    }
+
     public static function count(string $kind, int $count): self
     {
         return new self(sprintf('A count of a blast radius names a kind and is at least 1 for an aggregate kind, 0 for mutations, got %d for "%s".', $count, self::shown($kind)));

@@ -1,6 +1,7 @@
 // The host API a contribution gets (section 3.12 of the panel extension architecture): texts of
 // its own addon's catalogue, scoped to its namespace; formatting in the panel's locale; notices;
-// navigation only to the panel's pages the server named; and only the commands its addon may issue.
+// navigation only to the panel's pages the server named; and only the commands its addon may issue,
+// each with the provenance addon:<namespace>:<contribution>.
 
 import { describe, expect, test } from 'vitest';
 
@@ -59,8 +60,14 @@ describe('a contribution s host', () => {
       'No command runs in this test.',
     );
 
+    // An addon's call carries the provenance of the contribution that issued it; the core's none.
     expect(recorded.commands).toEqual([
-      { command: 'alpha.request@1', document: { note: 'n' }, options: {} },
+      {
+        command: 'alpha.request@1',
+        document: { note: 'n' },
+        options: {},
+        provenance: 'addon:alpha:alpha.card',
+      },
       { command: 'grant.assign@1', document: {}, options: { dryRun: true } },
     ]);
     expect(recorded.reports).toEqual([

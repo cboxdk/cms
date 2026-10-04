@@ -18,7 +18,7 @@ use stdClass;
 
 /**
  * The QueryCodecs of the test addon's queries, as a generated query codec gives them: each query
- * read from an object with its note, and its TallyCount written with the count, the summary for a
+ * read from an object with its note, tally.board from one without members, and its TallyCount written with the count, the summary for a
  * reader whose access allows internal and the owner for one whose access allows confidential.
  *
  * @implements JsonCodec<TallyCount>
@@ -26,6 +26,9 @@ use stdClass;
 final readonly class TallyCodecs implements JsonCodec
 {
     public const string INPUT = '{"type":"object","additionalProperties":false,"required":["note"],"properties":{"note":{"type":"string","minLength":1}}}';
+
+    /** The input of tally.board: none, as the query of a page takes. */
+    public const string NO_INPUT = '{"type":"object","additionalProperties":false,"properties":{}}';
 
     public const string RESULT = '{"type":"object","additionalProperties":false,"required":["count"],"properties":{"count":{"type":"integer","minimum":0},"owner":{"type":"string","x-cms-classification":"confidential"},"summary":{"type":"string","x-cms-classification":"internal"}}}';
 
@@ -35,6 +38,7 @@ final readonly class TallyCodecs implements JsonCodec
     public static function all(): array
     {
         return [
+            new QueryCodec(new CommandName('tally.board'), 1, new TallyBoardInputCodec, new JsonSchema(self::NO_INPUT), new self, new JsonSchema(self::RESULT)),
             new QueryCodec(new CommandName('tally.heavy'), 1, new TallyInputCodec(HeavyTally::class), new JsonSchema(self::INPUT), new self, new JsonSchema(self::RESULT)),
             new QueryCodec(new CommandName('tally.notes'), 1, new TallyInputCodec(TallyNotes::class), new JsonSchema(self::INPUT), new self, new JsonSchema(self::RESULT)),
         ];

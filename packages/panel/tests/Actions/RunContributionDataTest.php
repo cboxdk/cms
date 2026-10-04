@@ -50,7 +50,7 @@ function countFill(ClassificationAccess $access): ActiveFill
     expect($fill)->toBeInstanceOf(PanelFill::class)
         ->and($fill->contribution->value)->toBe(ContributionWorld::COUNT);
 
-    return new ActiveFill($fill, new PointId(new PointName('desk.cards'), 1), new DeskCardsV1('Weekly desk', 'Call the printer'), $access);
+    return new ActiveFill($fill, new PointId(new PointName('desk.cards'), 1), new DeskCardsV1('Weekly desk', 'Call the printer'), $access, $fill->query);
 }
 
 function dataAction(QueryWorld $world, FakeTelemetry $telemetry): RunContributionData

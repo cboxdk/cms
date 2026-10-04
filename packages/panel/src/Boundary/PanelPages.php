@@ -9,12 +9,15 @@ use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\PasswordResetToken;
 use Cbox\Cms\Http\Inertia\Boundary\InertiaProps;
 use Cbox\Cms\Identity\PasswordReset\Domain\Dto\ResetSettings;
+use Cbox\Cms\Panel\Boundary\Generated\AddonPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\ForgotPasswordPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\HomePageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\LoginPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\NotFoundPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\ResetPasswordPageCodecV1;
 use Cbox\Cms\Panel\Contributions\Boundary\SharedProps;
+use Cbox\Cms\Panel\Contributions\Domain\Dto\ActiveFill;
+use Cbox\Cms\Panel\Domain\Dto\AddonPage;
 use Cbox\Cms\Panel\Domain\Dto\ForgotPasswordPage;
 use Cbox\Cms\Panel\Domain\Dto\ForgotPasswordRefusals;
 use Cbox\Cms\Panel\Domain\Dto\HomePage;
@@ -58,10 +61,13 @@ use LogicException;
  *   pages. Its answer is never cached and sends no Referer, because its address holds the token;
  * - the start page of a person who logged in, with the address of the logout and the props of
  *   its contributions, cms.contributions, which every page behind the login sends (ContributionProps;
- *   the start page renders no point yet, so it lists none). Like every page behind the login, its
+ *   the start page renders the shell's points). Like every page behind the login, its
  *   answer is never cached (PRIVATE_CACHE_CONTROL), because the props of a
  *   page behind the login can hold personal fields (PRD 12.2) that no browser cache, back/forward
- *   cache after logout or shared proxy may keep.
+ *   cache after logout or shared proxy may keep;
+ * - an addon's page (PRD 13.4), at `<prefix>/x/<namespace>/<path>`, with the page's id, the
+ *   addon's namespace and the address of the logout, beside its contributions, among which the
+ *   page's own data comes as the deferred prop of its addon.
  */
 #[Internal]
 final readonly class PanelPages
@@ -77,6 +83,9 @@ final readonly class PanelPages
 
     /** The start page's name, which a panel point it renders names as its page (PRD 13.4). */
     public const string HOME_PAGE = 'home';
+
+    /** An addon's page, in js/panel/src/pages, which renders the addon's component of the page. */
+    public const string ADDON = 'Addon';
 
     /** The page that asks for a password reset link, in js/panel/src/pages. */
     public const string FORGOT_PASSWORD = 'Auth/ForgotPassword';
@@ -96,6 +105,7 @@ final readonly class PanelPages
         private ResetPasswordPageCodecV1 $resetPasswordPage,
         private HomePageCodecV1 $homePage,
         private NotFoundPageCodecV1 $notFoundPage,
+        private AddonPageCodecV1 $addonPage,
     ) {}
 
     public function login(Request $request): Response|JsonResponse
@@ -147,6 +157,18 @@ final readonly class PanelPages
     {
         return $this->unstored($this->render($request, self::HOME, $this->homePage->encode(
             new HomePage($this->urls->route(PanelRoute::Logout->value, [], false)),
+            ClassificationAccess::Public,
+        ), $contributions));
+    }
+
+    /**
+     * An addon's page, the active PageContribution given, with the contributions active on it,
+     * its own data among them.
+     */
+    public function addonPage(Request $request, ActiveFill $page, SharedProps $contributions): Response|JsonResponse
+    {
+        return $this->unstored($this->render($request, self::ADDON, $this->addonPage->encode(
+            new AddonPage($page->fill->contribution, $page->fill->addon(), $this->urls->route(PanelRoute::Logout->value, [], false)),
             ClassificationAccess::Public,
         ), $contributions));
     }

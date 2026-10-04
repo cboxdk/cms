@@ -7,6 +7,61 @@
 
 import type { PanelPointStoryData } from '../PanelPointStory';
 
-const PANEL_POINTS: readonly PanelPointStoryData[] = [];
+const PANEL_POINTS: readonly PanelPointStoryData[] = [
+  {
+    id: 'shell.nav@1',
+    page: 'shell',
+    label: 'panel.points.shell_nav',
+    since: '1.0',
+    stability: 'experimental',
+    class: 'Cbox\\Cms\\Panel\\Shell\\Domain\\Dto\\ShellNavV1',
+    schema:
+      '{\n  "$schema": "https://json-schema.org/draft/2020-12/schema",\n  "title": "shell.nav props, contract version 1",\n  "description": "The props of the navigation of the panel\'s shell, a nav point (PRD 13.4): none. A contribution to it is an entry of the navigation that opens one of its addon\'s pages. The PHP form is Cbox\\\\Cms\\\\Panel\\\\Shell\\\\Domain\\\\Dto\\\\ShellNavV1.",\n  "type": "object",\n  "additionalProperties": false,\n  "properties": {}\n}',
+    point: {
+      fills: [],
+      kind: 'nav',
+      max: null,
+      multiplicity: 'many',
+      point: 'shell.nav@1',
+      region: null,
+    },
+  },
+  {
+    id: 'shell.page@1',
+    page: 'shell',
+    label: 'panel.points.shell_page',
+    since: '1.0',
+    stability: 'experimental',
+    class: 'Cbox\\Cms\\Panel\\Shell\\Domain\\Dto\\ShellPageV1',
+    schema:
+      '{\n  "$schema": "https://json-schema.org/draft/2020-12/schema",\n  "title": "shell.page props, contract version 1",\n  "description": "The props of the pages of the panel\'s shell, a page point (PRD 13.4): none. A contribution to it is a page of its addon below /x/<namespace>/, whose only props are the result of its data query. The PHP form is Cbox\\\\Cms\\\\Panel\\\\Shell\\\\Domain\\\\Dto\\\\ShellPageV1.",\n  "type": "object",\n  "additionalProperties": false,\n  "properties": {}\n}',
+    point: {
+      fills: [],
+      kind: 'page',
+      max: null,
+      multiplicity: 'many',
+      point: 'shell.page@1',
+      region: null,
+    },
+  },
+  {
+    id: 'shell.user-menu@1',
+    page: 'shell',
+    label: 'panel.points.shell_user_menu',
+    since: '1.0',
+    stability: 'experimental',
+    class: 'Cbox\\Cms\\Panel\\Shell\\Domain\\Dto\\ViewerSummaryV1',
+    schema:
+      '{\n  "$schema": "https://json-schema.org/draft/2020-12/schema",\n  "title": "shell.user-menu props, contract version 1",\n  "description": "The props of the actions of the viewer\'s menu in the panel\'s shell, an action point (PRD 13.4): the viewer, which an action prefills its command from. The PHP form is Cbox\\\\Cms\\\\Panel\\\\Shell\\\\Domain\\\\Dto\\\\ViewerSummaryV1.",\n  "type": "object",\n  "additionalProperties": false,\n  "required": [\n    "actor",\n    "issuer"\n  ],\n  "properties": {\n    "actor": {\n      "description": "The viewer\'s actor id.",\n      "$ref": "#/$defs/id"\n    },\n    "issuer": {\n      "description": "What the viewer\'s credential was issued for: a person\'s session, an agent or a service.",\n      "enum": [\n        "human",\n        "agent",\n        "service"\n      ]\n    }\n  },\n  "$defs": {\n    "id": {\n      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",\n      "type": "string",\n      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",\n      "examples": [\n        "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"\n      ]\n    }\n  }\n}',
+    point: {
+      fills: [],
+      kind: 'action',
+      max: null,
+      multiplicity: 'many',
+      point: 'shell.user-menu@1',
+      region: null,
+    },
+  },
+];
 
 export { PANEL_POINTS };

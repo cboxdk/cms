@@ -6,6 +6,8 @@ namespace Cbox\Cms\Panel\Contributions\Domain\Dto;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\PanelPoints\CommandRef;
+use Cbox\Cms\Contracts\PanelPoints\ContributionId;
+use Cbox\Cms\Contracts\PanelPoints\PageContribution;
 use Cbox\Cms\Contracts\PanelPoints\PageName;
 
 /**
@@ -28,6 +30,42 @@ final readonly class ActiveContributions
         public array $registrations = [],
         public bool $details = false,
     ) {}
+
+    /**
+     * The active page of an addon with the id, or null when the viewer does not get it: a page
+     * is active when it is enabled, in scope and the viewer holds the permission its scope
+     * requires, as every other contribution.
+     */
+    public function page(ContributionId $id): ?ActiveFill
+    {
+        foreach ($this->pages() as $page) {
+            if ($page->fill->contribution->equals($id)) {
+                return $page;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The addons' pages the viewer may open, in render order.
+     *
+     * @return list<ActiveFill>
+     */
+    public function pages(): array
+    {
+        $pages = [];
+
+        foreach ($this->points as $point) {
+            foreach ($point->fills as $fill) {
+                if ($fill->fill->declaration instanceof PageContribution) {
+                    $pages[] = $fill;
+                }
+            }
+        }
+
+        return $pages;
+    }
 
     /**
      * The fills that read data, by the namespace of their addon, each namespace once and sorted,

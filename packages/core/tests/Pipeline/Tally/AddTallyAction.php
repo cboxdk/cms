@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Pipeline\Tally;
 
+use Cbox\Cms\Contracts\Attributes\Action;
+use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Pipeline\Aggregates;
 use Cbox\Cms\Contracts\Pipeline\Command;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
@@ -15,10 +17,13 @@ use Override;
 /**
  * The write action of the test-only command tally.add. resolve() reads each tally's version from
  * the scratch table on the command transaction's connection, and then runs what a test lets happen
- * meanwhile, such as another session changing a row the command read; plan() raises each tally.
+ * meanwhile, such as another session changing a row the command read; plan() raises each tally. It
+ * is exposed on REST and Inertia, so a registry compiled from this directory offers it to the
+ * surfaces and the panel, with AddTallyCodec as its codec.
  *
  * @implements WriteAction<AddTally, TallyAggregates>
  */
+#[Action(handles: AddTally::class, surfaces: [Surface::Rest, Surface::Inertia])]
 final readonly class AddTallyAction implements WriteAction
 {
     /**

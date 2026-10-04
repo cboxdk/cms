@@ -96,5 +96,16 @@
   "panel.points.host": "The point as a page renders it",
   "panel.points.asked": "A page asks this point for its contributions while it works, so it renders nothing of its own here.",
   "panel.points.default": "The default",
-  "panel.points.own_tab": "The page's own tab"
+  "panel.points.own_tab": "The page's own tab",
+  "panel.points.shell_nav": "Navigation entries",
+  "panel.points.shell_page": "Addon pages",
+  "panel.points.shell_user_menu": "Your menu",
+  "panel.shell.nav": "Pages",
+  "panel.shell.user_menu": "Your actions",
+  "panel.addon_page.title": "{addon}",
+  "panel.host.dry_run_title": "{action}: what would change",
+  "panel.host.dry_run_confirm": "Run it",
+  "panel.host.action_failed": "{addon}: the action could not be run",
+  "panel.host.action_failed_body": "The panel got no answer for it. Try again; if it keeps failing, tell whoever looks after the panel's add-ons.",
+  "panel.host.refused": "The command was refused. Nothing was saved."
 }

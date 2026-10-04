@@ -99,6 +99,7 @@ it('writes the runtime module unchanged, a module per record and a module per ke
         $directory.'/records/AppMeasurementV1.ts',
         $directory.'/protocol/DeliveryExplanationV1.ts',
         $directory.'/protocol/DeliveryV1.ts',
+        $directory.'/protocol/DryRunSummaryV1.ts',
         $directory.'/protocol/EnvelopeV1.ts',
         $directory.'/protocol/ExplainedPathV1.ts',
         $directory.'/protocol/PathExplanationV1.ts',
@@ -136,10 +137,10 @@ it('writes the runtime module unchanged, a module per record and a module per ke
         ->and($files[0]->contents)->toBe(new TypeScriptRuntime()->source())
         ->and($files[1]->contents)->toContain("export function validateAppArticleV1(value: unknown): Validation<AppArticleV1> {\n")
         ->and($files[1]->contents)->toContain("import { validate, type ObjectRule, type Validation } from '../validation';\n")
-        ->and($files[9]->contents)->toContain("export function validateReceiptV1(value: unknown): Validation<ReceiptV1> {\n")
-        ->and($files[16]->contents)->toContain("export function validateCreateEntryV1(value: unknown): Validation<CreateEntryV1> {\n")
-        ->and($files[16]->contents)->toContain("import { validate, type ObjectRule, type FieldValues, type Validation } from '../validation';\n")
-        ->and($files[16]->contents)->toContain("  fields: FieldValues;\n")
+        ->and($files[10]->contents)->toContain("export function validateReceiptV1(value: unknown): Validation<ReceiptV1> {\n")
+        ->and($files[17]->contents)->toContain("export function validateCreateEntryV1(value: unknown): Validation<CreateEntryV1> {\n")
+        ->and($files[17]->contents)->toContain("import { validate, type ObjectRule, type FieldValues, type Validation } from '../validation';\n")
+        ->and($files[17]->contents)->toContain("  fields: FieldValues;\n")
         ->and($files[4]->contents)->toContain("import { validate, type ObjectRule, type JsonObject, type Validation } from '../validation';\n")
         ->and($files[4]->contents)->toContain("  data: JsonObject;\n")
         ->and(new TypeScriptContracts(new TypeScriptRuntime()->source(...), static fn (): array => [])->directory($target))->toBe($directory);
@@ -152,6 +153,7 @@ it('reads the kernel\'s contracts in the order of their schemas, and names every
     expect(array_map(static fn (CodecContract $contract): string => $contract->codecClass, $contracts))->toBe([
         'DeliveryExplanationCodecV1',
         'DeliveryCodecV1',
+        'DryRunSummaryCodecV1',
         'EnvelopeCodecV1',
         'ExplainedPathCodecV1',
         'PathExplanationCodecV1',
@@ -194,17 +196,17 @@ it('reads the kernel\'s contracts in the order of their schemas, and names every
         $problems = $failed->problems;
     }
 
-    expect(count($problems))->toBe(35)
+    expect(count($problems))->toBe(36)
         ->and($problems[0]->code)->toBe(GenerateErrorCode::SchemaMissing)
-        ->and($problems[2]->message)->toContain('packages/contracts/resources/schemas/envelope.v1.json')
-        ->and($problems[6]->message)->toContain('receipt.v1.json')
-        ->and($problems[11]->message)->toContain('packages/core/resources/schemas/commands/entry.create.v1.json')
-        ->and($problems[23]->message)->toContain('packages/core/resources/schemas/delivery-fragment.v1.json')
-        ->and($problems[24]->message)->toContain('packages/core/resources/schemas/panel-bundle.v1.json')
-        ->and($problems[25]->message)->toContain('packages/core/resources/schemas/queries/actor.list.result.v1.json')
-        ->and($problems[31]->message)->toContain('packages/core/resources/schemas/queries/path.resolve.result.v1.json')
-        ->and($problems[32]->message)->toContain('packages/core/resources/schemas/queries/path.resolve.v1.json')
-        ->and($problems[34]->message)->toContain('packages/core/resources/schemas/queries/role.list.v1.json');
+        ->and($problems[3]->message)->toContain('packages/contracts/resources/schemas/envelope.v1.json')
+        ->and($problems[7]->message)->toContain('receipt.v1.json')
+        ->and($problems[12]->message)->toContain('packages/core/resources/schemas/commands/entry.create.v1.json')
+        ->and($problems[24]->message)->toContain('packages/core/resources/schemas/delivery-fragment.v1.json')
+        ->and($problems[25]->message)->toContain('packages/core/resources/schemas/panel-bundle.v1.json')
+        ->and($problems[26]->message)->toContain('packages/core/resources/schemas/queries/actor.list.result.v1.json')
+        ->and($problems[32]->message)->toContain('packages/core/resources/schemas/queries/path.resolve.result.v1.json')
+        ->and($problems[33]->message)->toContain('packages/core/resources/schemas/queries/path.resolve.v1.json')
+        ->and($problems[35]->message)->toContain('packages/core/resources/schemas/queries/role.list.v1.json');
 });
 
 it('refuses a kernel schema that is not valid with generate_schema_invalid', function (): void {

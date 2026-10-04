@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Cbox\Cms\Tooling\Protocol\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\Identity\IssuerKind;
+use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecContract;
 use Cbox\Cms\Generators\Codec\Domain\Dto\PhpLocation;
 use Cbox\Cms\Generators\Codec\Domain\PhpCodecEmitter;
@@ -16,6 +18,9 @@ use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Protocol\Domain\Dto\SchemaBinding;
 use Cbox\Cms\Generators\Protocol\Domain\Dto\ValueBinding;
+use Cbox\Cms\Panel\Shell\Domain\Dto\ShellNavV1;
+use Cbox\Cms\Panel\Shell\Domain\Dto\ShellPageV1;
+use Cbox\Cms\Panel\Shell\Domain\Dto\ViewerSummaryV1;
 use Cbox\Cms\Tooling\Protocol\Domain\Dto\PointSchema;
 
 /**
@@ -35,8 +40,8 @@ use Cbox\Cms\Tooling\Protocol\Domain\Dto\PointSchema;
  *
  * The bindings live in the repository's tooling, not in the generators module, because the
  * generators may not use the panel. The panel's points come with the pages that render them (X5's
- * RenderedPanelPointsTest holds every declared point to a page), and each brings its binding here;
- * until a page renders one, the panel declares none.
+ * RenderedPanelPointsTest holds every declared point to a page), and each brings its binding here:
+ * the shell's three, which every page behind the login renders.
  */
 final readonly class PanelPointSchemas
 {
@@ -67,7 +72,7 @@ final readonly class PanelPointSchemas
      *
      * @var list<string>
      */
-    public const array PROTOCOL_CODECS = ['ProblemCodecV1', 'ReceiptCodecV1'];
+    public const array PROTOCOL_CODECS = ['DryRunSummaryCodecV1', 'ProblemCodecV1', 'ReceiptCodecV1'];
 
     /**
      * The modules that re-export the types of the stable and of the experimental points, below the
@@ -94,7 +99,14 @@ final readonly class PanelPointSchemas
      */
     public static function all(): array
     {
-        return [];
+        return [
+            self::point('shell.nav.v1.json', 'ShellNavCodecV1', 1, ['#' => ShellNavV1::class]),
+            self::point('shell.page.v1.json', 'ShellPageCodecV1', 1, ['#' => ShellPageV1::class]),
+            self::point('shell.user-menu.v1.json', 'ViewerSummaryCodecV1', 1, ['#' => ViewerSummaryV1::class], [
+                '#/properties/actor' => ValueBinding::id(ActorId::class),
+                '#/properties/issuer' => ValueBinding::enum(IssuerKind::class),
+            ]),
+        ];
     }
 
     /**

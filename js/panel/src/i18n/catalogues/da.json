@@ -96,5 +96,16 @@
   "panel.points.host": "Punktet, som en side viser det",
   "panel.points.asked": "En side spørger punktet om dets bidrag, mens den arbejder, så det viser intet af sig selv her.",
   "panel.points.default": "Standarden",
-  "panel.points.own_tab": "Sidens egen fane"
+  "panel.points.own_tab": "Sidens egen fane",
+  "panel.points.shell_nav": "Navigationspunkter",
+  "panel.points.shell_page": "Addon-sider",
+  "panel.points.shell_user_menu": "Din menu",
+  "panel.shell.nav": "Sider",
+  "panel.shell.user_menu": "Dine handlinger",
+  "panel.addon_page.title": "{addon}",
+  "panel.host.dry_run_title": "{action}: hvad der ville ændre sig",
+  "panel.host.dry_run_confirm": "Kør den",
+  "panel.host.action_failed": "{addon}: handlingen kunne ikke køres",
+  "panel.host.action_failed_body": "Panelet fik intet svar på den. Prøv igen; hvis det bliver ved med at fejle, så sig det til den der passer panelets tilføjelser.",
+  "panel.host.refused": "Kommandoen blev afvist. Intet blev gemt."
 }

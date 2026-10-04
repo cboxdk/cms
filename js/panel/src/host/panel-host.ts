@@ -1,7 +1,8 @@
 // The host API a contribution reaches the panel through (section 3.12 of the panel extension
 // architecture), built per contribution: texts of the addon's own catalogue in the panel's locale,
-// formatting in it, notices, navigation to the panel's own pages, the commands the addon may issue
-// and dialogs. A contribution gets nothing else: no fetch helper, no router, no page props, no
+// formatting in it, notices, navigation to the panel's own pages, the commands the addon may issue,
+// each sent with the provenance `addon:<namespace>:<contribution>` of the contribution that issued
+// it, and dialogs. A contribution gets nothing else: no fetch helper, no router, no page props, no
 // document handle and no nonce.
 
 import type {
@@ -14,7 +15,7 @@ import type {
 
 import { fill } from '../i18n/translations';
 import { CORE_NAMESPACE } from './addons';
-import type { CommandTransport } from './commands';
+import { provenanceOf, type CommandTransport } from './commands';
 import type { AddonEntry, Contributions } from './model';
 import type { HostReporter } from './reports';
 
@@ -121,7 +122,14 @@ export function createPanelHost(
         return Promise.reject(new PanelCommandRefused(namespace, command));
       }
 
-      return services.runCommand({ command, document, options });
+      return services.runCommand({
+        command,
+        document,
+        options,
+        ...(namespace === CORE_NAMESPACE
+          ? {}
+          : { provenance: provenanceOf(namespace, contribution) }),
+      });
     },
     openDialog: (dialog: DialogRequest) =>
       services.confirm({

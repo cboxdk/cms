@@ -7,4 +7,7 @@ export type { FlowHostProps } from './FlowHost';
 export { PanelRuntime } from './PanelRuntime';
 export { PointHost, usePointHost } from './PointHost';
 export type { HostAction, HostColumn, PointHandle, PointHostProps } from './PointHost';
+export type { ActionConfirm, ActionOutcome } from './actions';
+export { navEntries, paletteEntries } from './model';
+export type { NavEntry, PaletteEntry } from './model';
 export type { Tightened } from './decorators';

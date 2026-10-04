@@ -38,6 +38,7 @@ const PROTOCOL_CODECS = [
     'DeliveryCodecV1.php',
     'DeliveryExplanationCodecV1.php',
     'DeliveryFragmentCodecV1.php',
+    'DryRunSummaryCodecV1.php',
     'EnvelopeCodecV1.php',
     'ExplainedPathCodecV1.php',
     'GrantBootstrapRoleCodecV1.php',
@@ -69,6 +70,7 @@ const PROTOCOL_CODECS = [
 
 /** What generate:protocol writes for the panel's pages, below the root, sorted: their codecs and TypeScript, and the receipt and problem details the panel's host reads answers with. */
 const PANEL_PAGE_FILES = [
+    'js/panel/src/generated/pages/AddonPageV1.ts',
     'js/panel/src/generated/pages/ContributionsV1.ts',
     'js/panel/src/generated/pages/ForgotPasswordPageV1.ts',
     'js/panel/src/generated/pages/HomePageV1.ts',
@@ -76,9 +78,11 @@ const PANEL_PAGE_FILES = [
     'js/panel/src/generated/pages/NotFoundPageV1.ts',
     'js/panel/src/generated/pages/PanelBrandV1.ts',
     'js/panel/src/generated/pages/ResetPasswordPageV1.ts',
+    'js/panel/src/generated/protocol/DryRunSummaryV1.ts',
     'js/panel/src/generated/protocol/ProblemV1.ts',
     'js/panel/src/generated/protocol/ReceiptV1.ts',
     'js/panel/src/generated/validation.ts',
+    'packages/panel/src/Boundary/Generated/AddonPageCodecV1.php',
     'packages/panel/src/Boundary/Generated/ContributionsCodecV1.php',
     'packages/panel/src/Boundary/Generated/ForgotPasswordPageCodecV1.php',
     'packages/panel/src/Boundary/Generated/HomePageCodecV1.php',
@@ -88,15 +92,22 @@ const PANEL_PAGE_FILES = [
     'packages/panel/src/Boundary/Generated/ResetPasswordPageCodecV1.php',
 ];
 
-/** What generate:protocol writes for the panel's points, below the root, sorted: the SDK's barrels of the stable and experimental points' types, the receipt and problem details its host answers with, the validators' runtime, the compatibility lock and the list of the points' codecs. */
+/** What generate:protocol writes for the panel's points, below the root, sorted: the SDK's barrels of the stable and experimental points' types, the shell's points' modules and codecs, the receipt, the dry run summary and the problem details its host answers with, the validators' runtime, the compatibility lock and the list of the points' codecs. */
 const PANEL_POINT_FILES = [
     'js/panel-sdk/src/generated/experimental.ts',
+    'js/panel-sdk/src/generated/points/ShellNavV1.ts',
+    'js/panel-sdk/src/generated/points/ShellPageV1.ts',
+    'js/panel-sdk/src/generated/points/ViewerSummaryV1.ts',
+    'js/panel-sdk/src/generated/protocol/DryRunSummaryV1.ts',
     'js/panel-sdk/src/generated/protocol/ProblemV1.ts',
     'js/panel-sdk/src/generated/protocol/ReceiptV1.ts',
     'js/panel-sdk/src/generated/stable.ts',
     'js/panel-sdk/src/generated/validation.ts',
     'packages/panel/resources/points.lock.json',
     'packages/panel/src/Boundary/Generated/Points/PanelPointCodecs.php',
+    'packages/panel/src/Boundary/Generated/Points/ShellNavCodecV1.php',
+    'packages/panel/src/Boundary/Generated/Points/ShellPageCodecV1.php',
+    'packages/panel/src/Boundary/Generated/Points/ViewerSummaryCodecV1.php',
 ];
 
 /**

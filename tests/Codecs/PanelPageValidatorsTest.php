@@ -6,8 +6,21 @@ namespace Cbox\Cms\Tests\Codecs;
 
 use Cbox\Cms\Contracts\Codecs\JsonCodec;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Contracts\Identity\GrantEffect;
+use Cbox\Cms\Contracts\Identity\NodePath;
+use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Ids\RoleId;
+use Cbox\Cms\Core\Access\Domain\Dto\Grant;
+use Cbox\Cms\Core\Access\Domain\HeldPermissions;
+use Cbox\Cms\Core\Reads\Domain\QueryCodecs;
+use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
+use Cbox\Cms\Core\Registry\Domain\RegistryCache;
+use Cbox\Cms\Core\Tests\Access\Fakes\FakeAccessContexts;
+use Cbox\Cms\Core\Tests\Access\Fakes\FakeHeldPermissions;
+use Cbox\Cms\Core\Tests\Access\Fakes\FakePermissions;
 use Cbox\Cms\Identity\Tests\Login\LocalLoginWorld;
 use Cbox\Cms\Identity\Tests\PasswordReset\PasswordResetWorld;
+use Cbox\Cms\Panel\Boundary\Generated\AddonPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\ForgotPasswordPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\HomePageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\LoginPageCodecV1;
@@ -20,7 +33,10 @@ use Cbox\Cms\Panel\Boundary\PasswordResetForms;
 use Cbox\Cms\Panel\Branding\Boundary\BrandingConfig;
 use Cbox\Cms\Panel\Branding\Domain\Dto\Branding;
 use Cbox\Cms\Panel\Contributions\Boundary\ContributionProps;
+use Cbox\Cms\Panel\Contributions\Domain\PointCodecs;
 use Cbox\Cms\Panel\Tests\Branding\BrandFixtures;
+use Cbox\Cms\Panel\Tests\Contributions\ContributionWorld;
+use Cbox\Cms\Panel\Tests\Contributions\Fixtures\Tally\TallyCodecs;
 use Cbox\Cms\Panel\Tests\FixtureBuild;
 use Cbox\Cms\Panel\Tests\PanelLogins;
 use Cbox\Cms\Tests\Support\TypeScript\TypeScriptValidators;
@@ -64,6 +80,7 @@ final class PanelPageValidatorsTest extends TestCase
         PanelPages::RESET_PASSWORD => ['module' => 'pages/ResetPasswordPageV1', 'validator' => 'validateResetPasswordPageV1'],
         PanelPages::HOME => ['module' => 'pages/HomePageV1', 'validator' => 'validateHomePageV1'],
         PanelPages::NOT_FOUND => ['module' => 'pages/NotFoundPageV1', 'validator' => 'validateNotFoundPageV1'],
+        PanelPages::ADDON => ['module' => 'pages/AddonPageV1', 'validator' => 'validateAddonPageV1'],
     ];
 
     private ?PasswordResetWorld $resets = null;
@@ -80,7 +97,23 @@ final class PanelPageValidatorsTest extends TestCase
         $this->resets->into($app);
         $this->logins = $this->resets->login;
         $this->logins->person(self::EMAIL);
-        $this->logins->person(self::SECOND_EMAIL);
+        $second = $this->logins->person(self::SECOND_EMAIL);
+
+        // The test addon's page at /cms/x/tally/board, which the second person may open: the
+        // registry ContributionWorld compiles, the points' codecs, and the permissions over fakes.
+        $registry = ContributionWorld::registry();
+        $app->instance(CompiledRegistry::class, $registry);
+        $app->instance(RegistryCache::class, ContributionWorld::cache($registry));
+        $app->instance(PointCodecs::class, ContributionWorld::pointCodecs());
+        $app->instance(QueryCodecs::class, new QueryCodecs(...TallyCodecs::all()));
+        $app->instance(HeldPermissions::class, new FakeHeldPermissions(
+            new FakePermissions([])->grant(
+                $second->id,
+                new Grant(RoleId::fromString('0192a0c0-0000-7000-8000-000000000b11'), ClassificationAccess::Confidential, new NodePath('a1'), GrantEffect::Allow),
+                [new CommandName(ContributionWorld::BOARD_PERMISSION)],
+            ),
+            new FakeAccessContexts()->grant($second->id, ClassificationAccess::Confidential),
+        ));
     }
 
     #[Override]
@@ -252,6 +285,7 @@ final class PanelPageValidatorsTest extends TestCase
         $session = $this->sessionCookie($this->logIn(self::SECOND_EMAIL, LocalLoginWorld::PASSWORD))?->getValue() ?? self::fail('No session.');
 
         $page('home', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms'));
+        $page('addon page', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/x/tally/'.ContributionWorld::BOARD_PATH));
         $page('not found', $this->get('/cms/no-such-page'));
 
         return $pages;
@@ -270,9 +304,9 @@ final class PanelPageValidatorsTest extends TestCase
 
     /**
      * The JSON of the page's own props, as the browser receives them, without the props every page
-     * shares, Inertia's errors, the problem and the brand, which brand() reads, and the
+     * shares, Inertia's errors, the problem and the brand, which brand() reads, the
      * contributions every page behind the login sends (ContributionProps::CMS, held to its own
-     * validator by ContributionsCodecTest).
+     * validator by ContributionsCodecTest) and the deferred data of the addons (ContributionProps::DATA).
      *
      * @param  TestResponse<Response>  $response
      *
@@ -287,7 +321,7 @@ final class PanelPageValidatorsTest extends TestCase
             self::fail('The response rendered no Inertia page.');
         }
 
-        unset($props['errors'], $props['problem'], $props[PanelBrandProps::PROP], $props[ContributionProps::CMS]);
+        unset($props['errors'], $props['problem'], $props[PanelBrandProps::PROP], $props[ContributionProps::CMS], $props[ContributionProps::DATA]);
 
         return json_encode((object) $props, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
     }
@@ -338,6 +372,7 @@ final class PanelPageValidatorsTest extends TestCase
             PanelPages::RESET_PASSWORD => $this->through(new ResetPasswordPageCodecV1, $props),
             PanelPages::HOME => $this->through(new HomePageCodecV1, $props),
             PanelPages::NOT_FOUND => $this->through(new NotFoundPageCodecV1, $props),
+            PanelPages::ADDON => $this->through(new AddonPageCodecV1, $props),
             default => self::fail('No codec for the page '.$component.'.'),
         };
     }

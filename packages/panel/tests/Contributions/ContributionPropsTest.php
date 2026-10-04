@@ -42,8 +42,10 @@ use stdClass;
  * ContributionProps (PRD 13.4), the Boundary that turns a page's active contributions into its
  * props: cms.contributions written by its generated codec, each fill's props written by its point's
  * codec at the fill's access, and per addon a deferred prop that runs each fill's data query with
- * the input taken from those props by name. A point without a codec loses its contributions, and
- * a query without a codec or whose input the props do not give is refused, each in telemetry.
+ * the input taken from those props by name; every view gets the shell's points, so a page lists
+ * the nav entries, the addons' pages the viewer may open and the viewer's menu. A point without a
+ * codec loses its contributions, and a query without a codec or whose input the props do not give
+ * is refused, each in telemetry.
  */
 
 function contributionProps(FakeTelemetry $telemetry, ?QueryCodecs $queries = null): ContributionProps
@@ -138,6 +140,50 @@ it('refuses a query without a codec, and one whose input the props do not give, 
     ]);
 });
 
+it('builds every page s view with the shell, and writes the nav entries, the addons pages and the data of a page on the page alone', function (): void {
+    $props = contributionProps(new FakeTelemetry);
+    $calls = [];
+    $run = static function (ContributionDataCall $call) use (&$calls): ContributionData {
+        $calls[] = $call->fill->fill->contribution->value;
+
+        return ContributionData::answered(new TallyCount(7, 's', 'o'), $call->fill->access);
+    };
+    $refuse = static fn (PageName $page, ActiveFill $fill, DataRefusal $refusal): ContributionData => ContributionData::refused($refusal);
+    $resolve = new ResolveWorld()->action();
+
+    $home = $props->props(viewerRequest(), $resolve->resolve($props->view(viewerRequest(), ContributionWorld::PAGE, [new RenderedPoint(new PointName('desk.cards'), new DeskCardsV1('Weekly desk', 'Call the printer'))])), $run, $refuse)->props;
+    $cms = $home[ContributionProps::CMS] ?? null;
+    $contributions = json_decode((string) json_encode(is_array($cms) ? $cms[ContributionProps::CONTRIBUTIONS] ?? null : null), true);
+    $byPoint = [];
+
+    foreach (is_array($contributions) && is_array($contributions['points'] ?? null) ? $contributions['points'] : [] as $point) {
+        $fills = is_array($point) && is_array($point['fills'] ?? null) ? $point['fills'] : [];
+        $first = $fills[0] ?? null;
+
+        if (is_array($point) && is_string($point['point'] ?? null) && is_array($first)) {
+            $byPoint[$point['point']] = $first;
+        }
+    }
+
+    $action = $byPoint['shell.user-menu@1']['action'] ?? null;
+    $data = deferredData($home);
+
+    expect(array_keys($byPoint))->toBe(['desk.cards@1', 'shell.nav@1', 'shell.page@1', 'shell.user-menu@1'])
+        ->and($byPoint['shell.nav@1']['nav'] ?? null)->toBe(['icon' => 'inbox', 'label' => 'tally.nav.board', 'page' => ContributionWorld::BOARD])
+        ->and($byPoint['shell.nav@1']['kind'] ?? null)->toBe('nav')
+        ->and($byPoint['shell.page@1']['data'] ?? null)->toBeFalse()
+        ->and(is_array($action) ? $action['prefill'] ?? null : null)->toBe([['pointer' => '/actor', 'property' => 'tally']])
+        ->and($byPoint['shell.user-menu@1']['props'] ?? null)->toBe(['actor' => ResolveWorld::AUDITOR, 'issuer' => 'human'])
+        ->and(is_array($contributions) ? $contributions['pages'] ?? null : null)->toBe([['page' => 'home', 'url' => '/cms'], ['page' => ContributionWorld::BOARD, 'url' => '/cms/x/tally/'.ContributionWorld::BOARD_PATH]])
+        ->and(is_array($data) ? array_keys($data) : null)->toBe([ContributionWorld::COUNT, ContributionWorld::HEAVY]);
+
+    $board = $props->props(viewerRequest(), $resolve->resolve($props->view(viewerRequest(), ContributionWorld::BOARD)), $run, $refuse)->props;
+    $calls = [];
+
+    expect(deferredData($board))->toBe([ContributionWorld::BOARD => ['count' => 7, 'summary' => 's']])
+        ->and($calls)->toBe([ContributionWorld::BOARD]);
+});
+
 it('sends contributions only for a request the panel authenticated', function (): void {
     $props = contributionProps(new FakeTelemetry);
 
@@ -155,10 +201,11 @@ it('tells the host each point s kind and multiplicity, the registration of the a
         'addons' => [[
             'addon' => 'tally',
             'any_command' => false,
-            'issues' => [],
-            // Every contribution of the addon that runs code, the one the viewer does not get and
-            // the one whose point has no codec included, and none of them by name.
-            'registration' => Registrations::digest([ContributionWorld::ASIDE, ContributionWorld::AUDIT, ContributionWorld::COUNT, ContributionWorld::HEAVY]),
+            'issues' => ['tally.add@1'],
+            // Every contribution of the addon that runs code, the one the viewer does not get, the
+            // one whose point has no codec and the page the view does not render included, and
+            // none of them by name.
+            'registration' => Registrations::digest([ContributionWorld::ASIDE, ContributionWorld::AUDIT, ContributionWorld::BOARD, ContributionWorld::COUNT, ContributionWorld::HEAVY]),
         ]],
         'commands' => '/cms/commands',
         'details' => true,

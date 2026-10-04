@@ -15,8 +15,9 @@ use Cbox\Cms\Contracts\PanelPoints\PointKind;
  * id, its addon, its kind, the priority it renders at, the point's props as the point's codec
  * wrote them for it, whether its data comes as the deferred prop ext.<addon>, and what its kind
  * needs besides: an action's command and how it is shown, a check's command and severity, a
- * step's command, position, paths and timeout, what a decorator may tighten, or the key a
- * replacement replaces. Each of those is null for a contribution of another kind.
+ * step's command, position, paths and timeout, what a decorator may tighten, the key a
+ * replacement replaces, or a nav entry's text, icon and page. Each of those is null for a
+ * contribution of another kind.
  */
 #[Internal]
 final readonly class FillProp
@@ -33,5 +34,6 @@ final readonly class FillProp
         public ?DecoratorProp $decorator = null,
         public ?ReplacementProp $replacement = null,
         public ?StepProp $step = null,
+        public ?NavProp $nav = null,
     ) {}
 }
