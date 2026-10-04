@@ -120,6 +120,8 @@ enum ErrorCode: string
     case GenerateNameCollision = 'generate_name_collision';
     case GenerateOutputUnwritable = 'generate_output_unwritable';
     case GeneratePanelAddonUnknown = 'generate_panel_addon_unknown';
+    case GeneratePanelContributionMismatch = 'generate_panel_contribution_mismatch';
+    case GeneratePanelPointUnknown = 'generate_panel_point_unknown';
     case GenerateRegistryUnreadable = 'generate_registry_unreadable';
     case GenerateRequiredFieldAdded = 'generate_required_field_added';
     case GenerateScaleAbovePrecision = 'generate_scale_above_precision';
@@ -593,6 +595,22 @@ enum ErrorCode: string
                 McpResponse::InternalError,
                 false,
                 'cms:panel:types was given a namespace that no installed addon has, as cms:build compiled the addons\' manifests (PRD 13.4). Nothing was written. Give the namespace of the addon\'s manifest, such as reviews, and run cms:build first when the addon was installed since.',
+            ),
+            self::GeneratePanelContributionMismatch => new ErrorEntry(
+                $this,
+                HttpStatus::InternalServerError,
+                ExitCode::Usage,
+                McpResponse::InternalError,
+                false,
+                'cms:make:panel was asked for a contribution of one kind, such as a fill, where the registry cms:build compiled has the id as another kind, or where the point is of another kind (PRD 13.4). Nothing was written. Give the kind the point takes, or another id.',
+            ),
+            self::GeneratePanelPointUnknown => new ErrorEntry(
+                $this,
+                HttpStatus::InternalServerError,
+                ExitCode::Usage,
+                McpResponse::InternalError,
+                false,
+                'cms:make:panel was given a point no installed package declares, as cms:build compiled the panel points (PRD 13.4). Nothing was written. Give a point cms:panel:points lists, such as account.me.sections@1, and run cms:build first when the package was installed since.',
             ),
             self::GenerateRegistryUnreadable => $this->tooling(
                 ExitCode::Config,

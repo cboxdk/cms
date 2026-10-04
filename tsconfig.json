@@ -11,6 +11,7 @@
     "*.js",
     "*.ts",
     "js/*/*.js",
+    "js/*/bin/**/*",
     "js/*/src/**/*",
     "js/*/stories/**/*",
     "js/*/.storybook/**/*",

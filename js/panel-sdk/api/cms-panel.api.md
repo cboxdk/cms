@@ -1104,7 +1104,177 @@ export function styleRefusal(css: string, namespace: string): string | null;
 ### @cboxdk/cms-panel/testing
 
 ```ts
-import type { ReactNode } from 'react';
+import { ReactNode } from 'react';
+
+// @stable
+export interface A11yOptions {
+    // (undocumented)
+    readonly tags?: readonly string[];
+}
+
+// @stable
+export interface A11yViolation {
+    // (undocumented)
+    readonly help: string;
+    // (undocumented)
+    readonly impact: string;
+    readonly rule: string;
+    readonly targets: readonly string[];
+}
+
+// @stable
+export class A11yViolations extends Error {
+    constructor(violations: readonly A11yViolation[]);
+    // (undocumented)
+    readonly violations: readonly A11yViolation[];
+}
+
+// @stable
+export type AnyIssuedCommands = Readonly<Record<string, object>>;
+
+// @stable
+export const CHECK_BUDGET_MILLISECONDS = 16;
+
+// @stable
+export function checkParity<D>(check: FormCheck<D>, hook: (document: D) => readonly string[] | Promise<readonly string[]>, documents: readonly D[], options?: ParityOptions): Promise<number>;
+
+// @stable
+export function committedReceipt(overrides?: Partial<ReceiptV1>): CommandAnswer;
+
+// @stable
+export class ContributionContractBroken extends Error {
+    constructor(id: string, message: string);
+}
+
+// @stable
+export interface ContributionOptions<C extends ContributionMap<C>> {
+    // (undocumented)
+    readonly addon: PanelAddon<C>;
+    readonly host?: FakeHost | FakeHostOptions;
+    // (undocumented)
+    readonly id: keyof C & string;
+}
+
+// @stable
+export function createFakeHost<I extends IssuedCommands<I> = AnyIssuedCommands>(options?: FakeHostOptions): FakeHost<I>;
+
+// @stable
+export interface DecoratorContractOptions<C extends ContributionMap<C>> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly props?: object;
+    // (undocumented)
+    readonly tightens?: readonly (keyof Tightening)[];
+}
+
+// @stable
+export function dryRunReceipt(overrides?: Partial<ReceiptV1>): CommandAnswer;
+
+// @stable
+export function expectDecoratorKeepsDefault<C extends ContributionMap<C>>(options: DecoratorContractOptions<C>): Promise<RenderedDecorator>;
+
+// @stable
+export function expectFlowStepContract<C extends ContributionMap<C>>(options: FlowStepContractOptions<C>): Promise<RenderedStep>;
+
+// @stable
+export function expectFormCheckContract<C extends ContributionMap<C>, D>(options: FormCheckContractOptions<C, D>): readonly (readonly Issue[])[];
+
+// @stable
+export function expectNoA11yViolations(element: Element, options?: A11yOptions): Promise<void>;
+
+// @stable
+export function expectObserverContract<C extends ContributionMap<C>, E>(options: ObserverContractOptions<C, E>): void;
+
+// @stable
+export function expectPageContract<C extends ContributionMap<C>, D = never>(options: PageContractOptions<C, D>): Promise<Rendered>;
+
+// @stable
+export function expectProviderContract<C extends ContributionMap<C>>(options: ProviderContractOptions<C>): Promise<Rendered>;
+
+// @stable
+export function expectRegistration<C extends ContributionMap<C>>(addon: PanelAddon<C>, ids: readonly string[]): void;
+
+// @stable
+export function expectReplacementContract<C extends ContributionMap<C>>(options: ReplacementContractOptions<C>): Promise<Rendered>;
+
+// @stable
+export function expectSlotContract<C extends ContributionMap<C>, D = never>(options: SlotContractOptions<C, D>): Promise<Rendered>;
+
+// @stable
+export interface FakeHost<I extends IssuedCommands<I> = AnyIssuedCommands> extends PanelHost<I> {
+    // (undocumented)
+    readonly record: HostRecord;
+}
+
+// @stable
+export interface FakeHostOptions {
+    readonly answer?: (command: RecordedCommand) => CommandAnswer | Promise<CommandAnswer>;
+    readonly confirm?: boolean | ((dialog: RecordedDialog) => boolean);
+    readonly issues?: readonly string[];
+    readonly locale?: string;
+    readonly namespace?: string;
+    readonly pages?: Readonly<Record<string, string>>;
+    readonly texts?: Readonly<Record<string, string>>;
+}
+
+// @stable
+export function fillText(text: string, parameters?: TranslationParameters): string;
+
+// @stable
+export interface FlowStepContractOptions<C extends ContributionMap<C>> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly draft: object;
+    // (undocumented)
+    readonly patches?: readonly string[];
+}
+
+// @stable
+export interface FormCheckContractOptions<C extends ContributionMap<C>, D> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly documents: readonly D[];
+    // (undocumented)
+    readonly locale?: string;
+    // (undocumented)
+    readonly namespace: string;
+    // (undocumented)
+    readonly severity: IssueSeverity;
+}
+
+// @stable
+export interface HostRecord {
+    // (undocumented)
+    readonly commands: readonly RecordedCommand[];
+    // (undocumented)
+    readonly dialogs: readonly RecordedDialog[];
+    // (undocumented)
+    readonly notices: readonly RecordedNotice[];
+    // (undocumented)
+    readonly refusals: readonly HostRefusal[];
+    readonly visits: readonly string[];
+}
+
+// @stable
+export interface HostRefusal {
+    // (undocumented)
+    readonly code: 'panel_command_refused' | 'panel_navigation_refused';
+    readonly subject: string;
+}
+
+// @stable
+export interface ObserverContractOptions<C extends ContributionMap<C>, E> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly events: readonly E[];
+}
+
+// @stable
+export interface PageContractOptions<C extends ContributionMap<C>, D = never> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly data?: D;
+}
+
+// @stable
+export class PanelCommandRefused extends Error {
+    constructor(addon: string, command: string);
+}
 
 // @stable
 export function PanelHostProvider<I extends IssuedCommands<I>>(input: PanelHostProviderProps<I>): ReactNode;
@@ -1116,6 +1286,259 @@ export interface PanelHostProviderProps<I extends IssuedCommands<I>> {
     // (undocumented)
     readonly host: PanelHost<I>;
 }
+
+// @stable
+export class ParityBroken extends Error {
+    constructor(disagreements: readonly ParityDisagreement[]);
+    // (undocumented)
+    readonly disagreements: readonly ParityDisagreement[];
+}
+
+// @stable
+export interface ParityDisagreement {
+    readonly check: readonly string[];
+    readonly hook: readonly string[];
+    readonly index: number;
+}
+
+// @stable
+export interface ParityOptions {
+    // (undocumented)
+    readonly locale?: string;
+}
+
+// @stable
+export interface ProviderContractOptions<C extends ContributionMap<C>> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly props?: object;
+}
+
+// @stable
+export interface RecordedCommand {
+    readonly command: string;
+    // (undocumented)
+    readonly document: object;
+    // (undocumented)
+    readonly options: CommandOptions;
+}
+
+// @stable
+export interface RecordedDialog {
+    // (undocumented)
+    readonly body: string;
+    // (undocumented)
+    readonly confirm: string;
+    // (undocumented)
+    readonly title: string;
+    // (undocumented)
+    readonly tone: 'neutral' | 'danger';
+}
+
+// @stable
+export interface RecordedNotice {
+    // (undocumented)
+    readonly message: string;
+    // (undocumented)
+    readonly tone: NoticeTone;
+}
+
+// @stable
+export class RegistrationMismatch extends Error {
+    constructor(missing: readonly string[], extra: readonly string[]);
+    // (undocumented)
+    readonly extra: readonly string[];
+    // (undocumented)
+    readonly missing: readonly string[];
+}
+
+// @stable
+export function rejectedProblem(code: ErrorCode, errors?: readonly RejectionError[], overrides?: Partial<ProblemV1>): CommandAnswer;
+
+// @stable
+export interface RejectionError {
+    // (undocumented)
+    readonly code: ErrorCode;
+    // (undocumented)
+    readonly detail?: string;
+    readonly field?: string | null;
+}
+
+// @stable
+export function renderDecorator<C extends ContributionMap<C>>(options: RenderDecoratorOptions<C>): Promise<RenderedDecorator>;
+
+// @stable
+export interface RenderDecoratorOptions<C extends ContributionMap<C>> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly defaultContent?: ReactNode;
+    // (undocumented)
+    readonly props?: object;
+    // (undocumented)
+    readonly tightens?: readonly (keyof Tightening)[];
+    // (undocumented)
+    readonly tone?: TightenedProps['tone'];
+}
+
+// @stable
+export interface Rendered {
+    readonly container: HTMLElement;
+    // (undocumented)
+    readonly host: FakeHost;
+    readonly rerender: () => Promise<void>;
+    // (undocumented)
+    readonly unmount: () => Promise<void>;
+}
+
+// @stable
+export interface RenderedDecorator extends Rendered {
+    // (undocumented)
+    readonly badges: readonly BadgeDescriptor[];
+    readonly refusedTightenings: readonly string[];
+    // (undocumented)
+    readonly tightened: TightenedProps;
+}
+
+// @stable
+export interface RenderedSlot extends Rendered {
+    // (undocumented)
+    readonly header: TranslationKey | null;
+    // (undocumented)
+    readonly item: ToolbarItemDescriptor | null;
+    // (undocumented)
+    readonly label: TranslationKey | null;
+}
+
+// @stable
+export interface RenderedStep extends Rendered {
+    // (undocumented)
+    readonly step: StepRecord;
+}
+
+// @stable
+export function renderPage<C extends ContributionMap<C>, D = never>(options: RenderPageOptions<C, D>): Promise<Rendered>;
+
+// @stable
+export interface RenderPageOptions<C extends ContributionMap<C>, D = never> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly data?: DataState<D>;
+}
+
+// @stable
+export function renderPoint<C extends ContributionMap<C>>(options: RenderPointOptions<C>): Promise<Rendered | RenderedSlot | RenderedDecorator | RenderedStep>;
+
+// @stable
+export type RenderPointOptions<C extends ContributionMap<C>> = ({
+    readonly kind: 'slot';
+} & RenderSlotOptions<C, unknown>) | ({
+    readonly kind: 'page';
+} & RenderPageOptions<C, unknown>) | ({
+    readonly kind: 'replacement';
+} & RenderReplacementOptions<C>) | ({
+    readonly kind: 'provider';
+} & RenderProviderOptions<C>) | ({
+    readonly kind: 'decorator';
+} & RenderDecoratorOptions<C>) | ({
+    readonly kind: 'flow_step';
+} & RenderStepOptions<C>);
+
+// @stable
+export function renderProvider<C extends ContributionMap<C>>(options: RenderProviderOptions<C>): Promise<Rendered>;
+
+// @stable
+export interface RenderProviderOptions<C extends ContributionMap<C>> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly children?: ReactNode;
+    // (undocumented)
+    readonly props?: object;
+}
+
+// @stable
+export function renderReplacement<C extends ContributionMap<C>>(options: RenderReplacementOptions<C>): Promise<Rendered>;
+
+// @stable
+export interface RenderReplacementOptions<C extends ContributionMap<C>> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly props?: object;
+}
+
+// @stable
+export function renderSlot<C extends ContributionMap<C>, D = never>(options: RenderSlotOptions<C, D>): Promise<RenderedSlot>;
+
+// @stable
+export interface RenderSlotOptions<C extends ContributionMap<C>, D = never> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly data?: DataState<D>;
+    // (undocumented)
+    readonly props?: object;
+    // (undocumented)
+    readonly region?: SlotRegion;
+}
+
+// @stable
+export function renderStep<C extends ContributionMap<C>>(options: RenderStepOptions<C>): Promise<RenderedStep>;
+
+// @stable
+export interface RenderStepOptions<C extends ContributionMap<C>> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly draft: object;
+    // (undocumented)
+    readonly dryRun?: () => CommandAnswer | Promise<CommandAnswer>;
+    // (undocumented)
+    readonly patches?: readonly string[];
+    // (undocumented)
+    readonly position?: 'before_submit' | 'after_receipt';
+    // (undocumented)
+    readonly receipt?: CommandAnswer;
+}
+
+// @stable
+export interface ReplacementContractOptions<C extends ContributionMap<C>> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly props?: object;
+}
+
+// @stable
+export interface SlotContractOptions<C extends ContributionMap<C>, D = never> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly data?: D;
+    // (undocumented)
+    readonly props?: object;
+    // (undocumented)
+    readonly region?: SlotRegion;
+}
+
+// @stable
+export type SlotRegion = 'sections' | 'aside' | 'toolbar' | 'columns' | 'tabs';
+
+// @stable
+export interface StepRecord {
+    // (undocumented)
+    readonly cancelled: TranslationKey | null;
+    readonly draft: object;
+    // (undocumented)
+    readonly dryRuns: number;
+    // (undocumented)
+    readonly next: number;
+    // (undocumented)
+    readonly patches: readonly {
+        readonly path: string;
+        readonly value: JsonValue;
+    }[];
+    readonly refusedPatches: readonly string[];
+}
+
+// @stable
+export interface TightenedProps {
+    // (undocumented)
+    readonly descriptions: readonly string[];
+    // (undocumented)
+    readonly disabled: boolean;
+    readonly disabledReasons: readonly string[];
+    // (undocumented)
+    readonly tone: 'neutral' | 'info' | 'warning' | 'danger';
+}
+
+// @stable
+export const WCAG_22_AA: readonly string[];
 
 // (No @packageDocumentation comment for this package)
 ```

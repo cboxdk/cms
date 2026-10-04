@@ -163,6 +163,15 @@ enum GenerateErrorCode: string
     /** cms:panel:types was given a namespace no installed addon has. */
     case PanelAddonUnknown = 'generate_panel_addon_unknown';
 
+    /**
+     * cms:make:panel was given a contribution of another kind or point than the registry or the
+     * point has.
+     */
+    case PanelContributionMismatch = 'generate_panel_contribution_mismatch';
+
+    /** cms:make:panel was given a point no package declares. */
+    case PanelPointUnknown = 'generate_panel_point_unknown';
+
     /** cms:panel:types could not read the registry cms:build compiles. */
     case RegistryUnreadable = 'generate_registry_unreadable';
 
