@@ -1,0 +1,345 @@
+{
+  "block": "B1",
+  "summary": "B1 part 1, fourth run: the remaining tasks of run 3 (X9 if not merged, X11, X12, X14 to X17, X19 and the panel pages T13, T14, T15, T18, T19) on the cheaper configuration Sylvester chose on 4 October 2026. B1 part 1, third run: the panel extension architecture (X1 to X19, accepted 2 October 2026, with installation branding), then the panel pages T13, T14, T15, T18 and T19 on it, and the security fixes S-1 to S-4 from the review of 2 October.",
+  "tasks": [
+    {
+      "id": "X12",
+      "title": "Bundle signatures",
+      "goal": "Ed25519 signatures over panel-manifest.json verified at cms:build against the publisher keys the installation trusts (cbox-cms.addons.publishers), per PRD 13.8 and D8.",
+      "dependsOn": [
+        "X11"
+      ],
+      "acceptance": [
+        "vendor/bin/pest --testsuite=Actions --filter=BundleSignature fails the build with registry_panel_bundle_unsigned for a wrong key, a changed hash and a missing signature",
+        "the fixture addon's bundle is signed with a test key from the workbench and builds",
+        "composer check passes"
+      ]
+    },
+    {
+      "id": "X14",
+      "title": "Command form extension points",
+      "goal": "command.form.checks, steps, aside, submit, receipt, field and dryrun on the generic command form: the mirror rule at runtime, checkParity, owned patches, after-receipt follow-ups from issues, the field replacement with ownership and the core pickers as cms implementations, and an explicit dry run.",
+      "dependsOn": [
+        "X9",
+        "X10",
+        "T15"
+      ],
+      "acceptance": [
+        "composer image:run -- vendor/bin/pest --testsuite=Browser --filter=CommandFormPoints passes for a warning check, an acknowledge check, a mirrored blocking check, a cancelling step and a replaced field input",
+        "after submit, the server's field errors replace the client's issues at the same paths in the Browser test",
+        "npm run test:js -- checkParity passes for the fixture addon's mirrored check and its hook",
+        "composer check passes"
+      ]
+    },
+    {
+      "id": "X16",
+      "title": "Addon testkit and scaffolding",
+      "goal": "@cboxdk/cms-panel/testing (renderPoint, fake host held to the real one by a behaviour test, conformance per kind, checkParity, expectNoA11yViolations), cms-panel-addon verify, the PHP testkit's PanelContributionsContract and visitPanelAs, and cms:make:addon-ui and cms:make:panel fill|action|check|step in the generators module.",
+      "dependsOn": [
+        "X8",
+        "X9",
+        "X11"
+      ],
+      "acceptance": [
+        "npm run test:js -- testing passes, including the behaviour test of the fake host",
+        "vendor/bin/pest --filter=MakeAddonUi scaffolds an addon whose npm run typecheck, lint and test pass and whose PanelContributionsContract passes",
+        "cms-panel-addon verify fails on a hand-edited bundle in a test",
+        "composer check passes"
+      ]
+    },
+    {
+      "id": "X17",
+      "title": "Fixture addon UI and the browser tests of the extension model",
+      "goal": "The workbench fixture addon contributes to every kind and every B1 point, including a mirrored check on entry.create, a self-grant check on grant.assign backed by an AuthorizeHook, a four-eyes step, a field input for its own field type, a nav entry and page with a data query, a theme and a login notice; Browser tests cover order, isolation, conflicts, experimental opt-in, permission filtering, the reads cap, the CSP with no violations, no addon script on credential routes, hash refusal, the kill switch and INP under 200 ms.",
+      "dependsOn": [
+        "X11",
+        "X12",
+        "X13",
+        "X14",
+        "X15",
+        "X16",
+        "T18"
+      ],
+      "acceptance": [
+        "composer image:run -- vendor/bin/pest --testsuite=Browser --filter=PanelAddons passes",
+        "composer image:run -- vendor/bin/pest --testsuite=Browser --filter=PanelInp passes with every B1 point populated",
+        "cms:panel:fills shows the fixture addon's contributions in the order the tests assert",
+        "composer check passes"
+      ]
+    },
+    {
+      "id": "X19",
+      "title": "Documentation of the kit and the extension model",
+      "goal": "docs/ui (foundations, tokens, layers, accessibility, i18n, component groups linking the stories), docs/addons/panel (overview and trust model, a page per kind and per B1 point with running examples from the scaffold path), the recipes, docs/security/panel-addons.md with the honest scope, and the stability and deprecation page; gate 10 accepts TS examples run by the JS suite.",
+      "dependsOn": [
+        "X3",
+        "X5",
+        "X17"
+      ],
+      "acceptance": [
+        "composer docs:check passes with every #[PanelPoint] documented on exactly one page with a running example",
+        "the TS examples embedded in docs/addons/panel are run by npm run test:js",
+        "composer progress:check -- B1-X19 --changed-checks passes",
+        "composer check passes"
+      ]
+    },
+    {
+      "id": "T13",
+      "title": "Panel shell: navigation and the who-am-I page",
+      "goal": "The panel layout from js/ui-kit: navigation entries registered by modules with the permission each needs, through laravel-console-kit if T20's evaluation adopted it, else a registry in the panel module. An entry is shown only when the actor holds its permission on some node. The start page. The query actor.me version 1, with a schema and a generated codec (T21), on surfaces rest and inertia. It gives the principal's actor id, class, state, its own profile, and its grants with role handle, node, effect and locales. A subject always reads its own profile regardless of classification access, and actor.me is not ReadsContent, which is recorded under Tolkninger. It is allowed for every actor principal without a permission, a new rule in the query authorizer kept to queries marked as self-reads; the anonymous principal is unauthorized. Inertia pages that read get their props from the QueryPipeline with the session credential and the query's result codec. SurfaceParityTest also covers query pages, so an Inertia query page without a REST route fails; T21's Inertia query profile gains its cases. These are check changes, logged. Part 1 shows parity on REST with a Bearer service credential. A person reaches REST with personal API tokens in part 2, recorded under Tolkninger. The who-am-I page shows name, email, actor id, class and the grants. Docs: docs/addons/panel-pages.md (pages and navigation entries with their permissions, with a running example), and a recipe in docs/recipes for 'add a panel page'. Built on the panel extension architecture (cms-planning/proposals/panel-extension-architecture.md, accepted 2 October 2026): every component from js/ui-kit, the page hosts its declared panel points with the core's own contributions in the cms namespace, WCAG 2.2 AA with axe in its browser test, and its screenshot in docs.",
+      "prdRefs": [
+        "PRD 13.4",
+        "PRD 6.2",
+        "PRD 8.8",
+        "GUARDRAILS 2.1",
+        "GUARDRAILS 2.2",
+        "GUARDRAILS 7.3",
+        "GUARDRAILS 8"
+      ],
+      "acceptance": [
+        "packages/core/tests/Actions/ActorMeTest.php: an actor reads its own profile and grants; anonymous is refused as unauthorized",
+        "packages/http/tests/Rest/ActorMeRestTest.php: GET /v1/queries/actor.me/v1 with a Bearer service credential returns the result codec's document, anonymous returns problem details unauthorized, and openapi.json lists it",
+        "composer image:run -- vendor/bin/pest tests/Browser/Panel/ShellTest.php logs in (grants from PostgresAccessFixtures in the test) and opens the who-am-I page from the navigation, seeing the actor's email and grants, with the shared page assertions",
+        "SurfaceParityTest fails on a planted Inertia query page without a REST route",
+        "composer check:generated is clean; composer docs:check passes; composer check passes"
+      ],
+      "dependsOn": [
+        "T11",
+        "T21",
+        "X10",
+        "X15",
+        "X4",
+        "X9"
+      ],
+      "touches": [
+        "packages/panel/src",
+        "packages/core/src/Identity",
+        "packages/core/src/Reads",
+        "packages/core/src/Access/Adapter/PostgresQueryAuthorizer.php",
+        "packages/core/resources/schemas/queries",
+        "packages/core/src/Codecs/Boundary/Generated",
+        "packages/http/src",
+        "js/panel",
+        "js/ui-kit",
+        "tests/Feature/Surfaces",
+        "tests/Browser",
+        "CHECKS-LOG.md",
+        "docs/addons",
+        "docs/recipes"
+      ]
+    },
+    {
+      "id": "T14",
+      "title": "Command palette built from the action registry",
+      "goal": "GUARDRAILS 8 'Tastaturet først'. The query action.list version 1 (schema and codec, surfaces rest and inertia, allowed for every actor principal) gives, from the compiled registry, every action exposed on Inertia whose permission the actor holds on some node (PermissionRule over the actor's grants). Each entry has name, version, kind, and the title and description from its JSON Schema, plus T13's navigation entries the actor may open. The palette in js/ui-kit and js/panel opens with Ctrl+K or Cmd+K from every panel page and filters as one types. It is an accessible combobox (ARIA roles, focus trap, Escape closes) that navigates with the arrow keys and Enter: a page entry navigates, and a command entry opens the command's form page, which T15 fills with the generic form. No action, type or field is named in the palette's code. Browser tests get their grants from the testkit's PostgresAccessFixtures inside the test, because the grant commands come in T16. Built on the panel extension architecture (cms-planning/proposals/panel-extension-architecture.md, accepted 2 October 2026): every component from js/ui-kit, the page hosts its declared panel points with the core's own contributions in the cms namespace, WCAG 2.2 AA with axe in its browser test, and its screenshot in docs.",
+      "prdRefs": [
+        "GUARDRAILS 8",
+        "PRD 13.2",
+        "PRD 13.4",
+        "GUARDRAILS 2.4"
+      ],
+      "acceptance": [
+        "packages/core/tests/Actions/ActionListTest.php shows action.list listing a command only when the actor holds its permission on some node, and never listing an action exposed on no surface or not on Inertia",
+        "composer image:run -- vendor/bin/pest tests/Browser/Panel/PaletteTest.php opens the palette with the keyboard, filters, chooses the who-am-I entry with Enter and lands on the page, with the shared page assertions",
+        "packages/http/tests/Rest/ActionListParityTest.php: REST GET /v1/queries/action.list/v1 returns the same entries as the palette's props for the same actor",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T13",
+        "X15",
+        "X4"
+      ],
+      "touches": [
+        "packages/core/src/Registry",
+        "packages/core/resources/schemas/queries",
+        "packages/core/src/Codecs/Boundary/Generated",
+        "packages/panel/src",
+        "js/panel",
+        "js/ui-kit",
+        "tests/Browser",
+        "packages/http/tests/Rest"
+      ]
+    },
+    {
+      "id": "T15",
+      "title": "Generic command form from the command's JSON Schema",
+      "goal": "So every command the palette offers can be run with the keyboard. A form renderer in js/ui-kit and js/panel is driven by the command's JSON Schema. It supports the subset the kernel's command schemas use: strings with patterns and lengths, integers with bounds, booleans, enums, nullable members, defaults, nested objects, arrays of objects, and the FieldValues member as a JSON editor checked by the generated runtime validator. Any other keyword is an explicit unsupported-keyword error. The form validates in the browser with the generated TypeScript validator before it submits, and submits through the Inertia profile with an idempotency key per form instance, an optional dry run, and the wait level. It shows the receipt's outcome and, for a rejection, each error at its field from the errors prop. Labels come from the schema's title and description, translated when the catalogue has the key, and the form names no command. Docs: a recipe in docs/recipes for 'expose a command in the panel'. Built on the panel extension architecture (cms-planning/proposals/panel-extension-architecture.md, accepted 2 October 2026): every component from js/ui-kit, the page hosts its declared panel points with the core's own contributions in the cms namespace, WCAG 2.2 AA with axe in its browser test, and its screenshot in docs.",
+      "prdRefs": [
+        "GUARDRAILS 8",
+        "PRD 6.1",
+        "PRD 8.4",
+        "GUARDRAILS 2.2"
+      ],
+      "acceptance": [
+        "composer image:run -- vendor/bin/pest tests/Browser/Panel/CommandFormTest.php: with a pending actor set up in the test through the register action and grants from PostgresAccessFixtures, it runs actor.activate from the palette's form. A planted invalid value shows the error at its field, a dry run shows the dry_run receipt, and a commit shows committed, with the shared page assertions",
+        "A JS test renders every kernel command schema of ProtocolSchemas::commands() without an unsupported-keyword error, and fails on a planted schema with an unsupported keyword",
+        "packages/panel/tests/Feature/FormIdempotencyTest.php: submitting the same form instance twice gives one changeset",
+        "npm run typecheck and npm run lint pass; composer docs:check passes; composer check passes"
+      ],
+      "dependsOn": [
+        "T14",
+        "X4",
+        "X9"
+      ],
+      "touches": [
+        "js/panel",
+        "js/ui-kit",
+        "packages/panel/src",
+        "packages/panel/tests",
+        "tests/Browser",
+        "docs/recipes"
+      ]
+    },
+    {
+      "id": "T18",
+      "title": "Roles and grants in the panel",
+      "goal": "Panel pages reachable from the navigation and the palette. Roles: list (role.list), create with role.create, and edit permissions with role.set_permissions. Grants: list (grant.list), assign with pickers for actor (actor.list), role, node (node.list), effect and locales through grant.assign, and revoke through grant.revoke. Each page shows the receipt's outcome, and a refusal by the guard (grant_escalation_refused, step_up_required) with its translated message. Each has empty, loading and failing states. A newly assigned grant appears in the list and on the who-am-I page of its actor. Built on the panel extension architecture (cms-planning/proposals/panel-extension-architecture.md, accepted 2 October 2026): every component from js/ui-kit, the page hosts its declared panel points with the core's own contributions in the cms namespace, WCAG 2.2 AA with axe in its browser test, and its screenshot in docs.",
+      "prdRefs": [
+        "PRD 5.10",
+        "PRD 13.4",
+        "GUARDRAILS 8",
+        "GUARDRAILS 2.1"
+      ],
+      "acceptance": [
+        "composer image:run -- vendor/bin/pest tests/Browser/Panel/RolesAndGrantsTest.php: an administrator assigns a non-administrative role to another staff actor on a node with the keyboard and the pickers, sees the grant in the list, and revokes it; a refusal by the guard shows its message; the shared page assertions hold on every page",
+        "SurfaceParityTest passes with the new query pages; composer check passes"
+      ],
+      "dependsOn": [
+        "T13",
+        "T14",
+        "T17",
+        "T25",
+        "X10",
+        "X15",
+        "X4",
+        "X9"
+      ],
+      "touches": [
+        "packages/panel/src",
+        "js/panel",
+        "js/ui-kit",
+        "tests/Browser"
+      ]
+    },
+    {
+      "id": "T19",
+      "title": "Workbench login path, getting-started docs and the part 1 exit browser test",
+      "goal": "Make the documented path real. composer dev:prepare also runs cms:install, cms:sites:sync and composer panel:build through the dev image, each idempotent. Add composer workbench:serve, which serves the workbench in a dev-image container of the checkout with a published port (127.0.0.1:8080 by default, through DevImageRun with a port option, reaching Postgres and Valkey as the gates do), with a test using the fake docker. compose.yaml's php service is left unchanged. Add a page in docs/getting-started that says how to start the services, prepare the dev database, create the first staff member with cms:staff:create, grant access with cms:access:bootstrap on the workbench site's root node, serve the workbench, open http://127.0.0.1:8080/cms and log in. It embeds running examples where gate 10 needs them and gets a screenshot entry if the page warrants one. Add docs/users/_index.md and a first page for people who log in to the panel. The scripted part of the path is tests/Postgres/GettingStartedPathTest.php: dev:prepare's steps twice, with the second run changing nothing; cms:staff:create; cms:access:bootstrap; then an HTTP login against the served application and a request to the who-am-I page. Following the page by hand in a browser stays manual. The exit browser test is tests/Browser/Panel/StaffJourneyTest.php. A local staff member, created through cms:staff:create's action and bootstrapped, logs in, opens the command palette with the keyboard, assigns a non-administrative role to a second staff member, sees the grant, and logs out, with the shared page assertions at each page. Record B1 part 1 in PROGRESS.md 'Seneste kørsel' only through the merge queue. Built on the panel extension architecture (cms-planning/proposals/panel-extension-architecture.md, accepted 2 October 2026): every component from js/ui-kit, the page hosts its declared panel points with the core's own contributions in the cms namespace, WCAG 2.2 AA with axe in its browser test, and its screenshot in docs.",
+      "prdRefs": [
+        "PRD 5.16",
+        "PRD 5.10",
+        "PRD 14.2",
+        "GUARDRAILS 8",
+        "GUARDRAILS 10"
+      ],
+      "acceptance": [
+        "composer panel:build; composer image:run -- vendor/bin/pest tests/Browser/Panel/StaffJourneyTest.php passes",
+        "composer image:run -- vendor/bin/pest tests/Postgres/GettingStartedPathTest.php passes, including dev:prepare's idempotency and an HTTP login",
+        "composer docs:check passes with the new pages",
+        "composer check passes, and docker compose -f compose.ci.yaml run --rm ci passes with its wall time recorded against 15 minutes"
+      ],
+      "dependsOn": [
+        "T12",
+        "T15",
+        "T18",
+        "T24",
+        "T6",
+        "T8",
+        "X14",
+        "X17",
+        "X19"
+      ],
+      "touches": [
+        "composer.json",
+        "tools/DevImage",
+        "tools/bin",
+        "tests/Feature/Tooling/DevImage",
+        "docs/getting-started",
+        "docs/users",
+        "tools/Docs",
+        "tests/Browser/Panel",
+        "tests/Postgres",
+        "workbench",
+        "README.md"
+      ]
+    }
+  ],
+  "exitCriteria": [
+    {
+      "id": "E1",
+      "description": "Exit criterion of B1 part 1 (Sylvester, 2 October): a browser test (gate 8) logs in as a local staff member, opens the command palette, assigns a role and sees it, and logs out, without console logs, JavaScript errors or accessibility issues",
+      "command": "composer panel:build && composer image:run -- vendor/bin/pest tests/Browser/Panel/StaffJourneyTest.php"
+    },
+    {
+      "id": "E2",
+      "description": "Exit criterion of B1 part 1: a documented path in docs/getting-started to start the workbench and log in. The scripted part runs as a test; the manual part is following the page in a browser on the main checkout",
+      "command": "composer image:run -- vendor/bin/pest tests/Postgres/GettingStartedPathTest.php && composer docs:check; manually on the main checkout: composer services:up, composer dev:prepare, the page's commands, composer workbench:serve, log in at http://127.0.0.1:8080/cms"
+    },
+    {
+      "id": "E3",
+      "description": "Login through the identity contract with the local connection; the credential store has its own Postgres schema, connection and role that the app role cannot read (PRD 5.16), checked by the doctor on the dev database",
+      "command": "vendor/bin/pest packages/identity/tests/Postgres/CredentialStoreIsolationTest.php && vendor/bin/pest --testsuite=Contract --filter='LocalCredentialStore|LoginConnection' && composer image:run -- php -d allow_url_fopen=0 vendor/bin/testbench cms:doctor --json (dev database after composer dev:prepare; identity.connection, identity.credential_isolation and identity.argon2id pass)"
+    },
+    {
+      "id": "E4",
+      "description": "Passwords of at least 12 characters, refusal of known breached passwords through the Egress gateway, and the registration order pending, credential, active",
+      "command": "vendor/bin/pest packages/identity/tests/Unit/PasswordPolicyTest.php packages/identity/tests/Actions/RegisterLocalStaffTest.php packages/cli/tests/Postgres/StaffCreateCommandTest.php packages/identity/tests/Unit/HibpRangeRequestTest.php"
+    },
+    {
+      "id": "E5",
+      "description": "Login policy per actor class and environment (with invariant 38), sessions with renewal and expiry as human credentials, logout and password reset",
+      "command": "vendor/bin/pest packages/identity/tests/Unit/LoginPolicyTest.php packages/identity/tests/Unit/SessionLifetimeTest.php packages/identity/tests/Postgres/SessionCredentialTest.php packages/identity/tests/Actions/PasswordResetTest.php packages/panel/tests/Feature/SessionCookieTest.php && composer image:run -- vendor/bin/pest tests/Browser/Panel/LoginTest.php tests/Browser/Panel/PasswordResetTest.php"
+    },
+    {
+      "id": "E6",
+      "description": "Contracts for login connections (verified assertion with issuer, subject, auth_time, amr, acr, groups), issuer resolution with tenant pinning, lifecycle signal receivers (back-channel logout, SSF) and SCIM provisioning, each with a fake and a shared suite that a planted faulty fake fails",
+      "command": "vendor/bin/pest --testsuite=Contract --filter='LoginConnection|IssuerResolver|BackChannelLogout|SecurityEvent|ScimProvisioning' && vendor/bin/pest packages/testkit/tests/Login/PlantedResolverTest.php packages/testkit/tests/Signals/PlantedReceiversTest.php"
+    },
+    {
+      "id": "E7",
+      "description": "Roles and grants in the panel with the guard against escalation (PRD 5.10), as commands through the pipeline and in parity with REST",
+      "command": "vendor/bin/pest packages/core/tests/Actions/EscalationGuardTest.php packages/core/tests/Actions/GrantAssignTest.php packages/core/tests/Actions/GrantRevokeTest.php packages/core/tests/Actions/RoleCommandsTest.php packages/core/tests/Postgres/GrantCommandsTest.php packages/http/tests/Rest/AccessQueriesParityTest.php tests/Feature/Surfaces && composer image:run -- vendor/bin/pest tests/Browser/Panel/RolesAndGrantsTest.php"
+    },
+    {
+      "id": "E8",
+      "description": "The command palette built from the registry, and the generic command form (GUARDRAILS 8)",
+      "command": "vendor/bin/pest packages/core/tests/Actions/ActionListTest.php packages/http/tests/Rest/ActionListParityTest.php && composer image:run -- vendor/bin/pest tests/Browser/Panel/PaletteTest.php tests/Browser/Panel/CommandFormTest.php"
+    },
+    {
+      "id": "E9",
+      "description": "Panel security and quality: a strict CSP with a per-request nonce, da and en translations with equal keys, axe on every panel page test, and the session cookie's attributes per environment",
+      "command": "composer image:run -- vendor/bin/pest tests/Browser/Panel/PublicPageTest.php && npm run lint && vendor/bin/pest packages/identity/tests/Unit/SessionCookieTest.php packages/panel/tests/Feature/SessionCookieTest.php"
+    },
+    {
+      "id": "E10",
+      "description": "Query parity and query surface contract tests: actor.me and action.list on REST and Inertia give the same documents, and every exposed query has a codec",
+      "command": "vendor/bin/pest packages/http/tests/Rest/ActorMeRestTest.php packages/http/tests/Rest/ActionListParityTest.php tests/Codecs/QueryCodecsTest.php tests/Feature/Surfaces"
+    },
+    {
+      "id": "E11",
+      "description": "Everything passes gates 1 to 6 (mutation is opt-in since 2 October), and the PR profile's gates 8 to 10 in the containerized CI run within the 15-minute budget; gate 7 (Storybook) stays not run with its reason for part 1",
+      "command": "composer check && docker compose -f compose.ci.yaml run --rm ci"
+    },
+    {
+      "id": "EX1",
+      "description": "The fixture addon contributes through every B1 panel point kind (slot, action, nav entry, page, decorator, check, flow step, theme) and the browser tests of the extension model pass, with zero axe violations",
+      "command": "composer image:run -- vendor/bin/pest --testsuite=Browser"
+    },
+    {
+      "id": "EX2",
+      "description": "Storybook builds with every kit component and extension point, gate 7 runs (axe, interaction, visual) and passes",
+      "command": "composer check -- --pr (gate 7 pass)"
+    },
+    {
+      "id": "EX3",
+      "description": "Installation branding shows in the shell and on the login page, with a docs page and screenshots",
+      "command": "vendor/bin/pest --filter=Branding and the docs page under docs/"
+    },
+    {
+      "id": "EX4",
+      "description": "S-1 to S-4 are fixed with regression tests",
+      "command": "vendor/bin/pest --filter=\"S1|S2|S4|Publish|Revise|AgentVisibility\""
+    }
+  ],
+  "blockers": []
+}

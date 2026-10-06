@@ -16,11 +16,15 @@ if (!BLOCK) {
   throw new Error('cms-milestone needs args {block: "<id>"}, e.g. {block: "M1"}')
 }
 const MAX_PARALLEL = Math.max(1, (args && args.maxParallel) || 3)
+// buildModel and integrateModel route the builders, fixers and the merge queue to another model
+// (for example one with a budget of its own); unset, they inherit the session's model.
+const withModel = (key, opts) => Object.assign(opts, args && args[key] ? { model: args[key] } : {})
 const num = (name, dflt) => (args && typeof args[name] === 'number') ? args[name] : dflt
 const MAX_FIX_ROUNDS = num('maxFixRounds', 3)
 const MAX_INTEGRATION_ROUNDS = num('maxIntegrationRounds', 2)
 // 0 is a valid value: no review rounds.
 const MAX_REVIEW_ROUNDS = num('maxReviewRounds', 2)
+const SKIP_VERIFY = !!(args && args.skipVerify)
 // exitOnly skips plan, build and review: regression gate, exit criteria and PROGRESS.md only.
 const EXIT_ONLY = Boolean(args && args.exitOnly)
 
@@ -37,7 +41,7 @@ const WORKTREE_RULES = `Worktree rules:
 - The testkit gives every checkout its own Postgres test database and Valkey prefix, so the Postgres and Valkey suites and "composer check" can run next to other worktrees. The shared services run from the main checkout; if they are down, run "composer services:up" in ${REPO}, never "docker compose up" in a worktree.
 - Do not run "composer check:selftest" or the CI container run (compose.ci.yaml); the integration step runs those one at a time.
 - Do not edit PROGRESS.md or CHECKS-LOG.md: the merge queue writes your task's entries into them from your result before main moves. Report every existing check you changed or removed (a test or its expectation, a suite, tool or analysis configuration, a selftest plant, a CI file: GUARDRAILS 7.3) in changedChecks, with what changed and why, and interpretations, items for human review and blockers in their fields.
-- While you work, run the affected tests with "composer test:affected" (Pest --parallel --tia in the php-baseimages dev image) when main has it; run the full "composer check" before you commit.
+- While you work, run the affected tests with "composer test:affected" (Pest --parallel --tia in the php-baseimages dev image). Before you commit, run "composer test:affected", "composer analyse" when PHP changed, "npm run typecheck" and "npm run lint" when JS or TS changed, "composer lint:check", and the Browser suite files your change touches. Do not run the full "composer check": the merge queue runs it once on the rebased result before main moves.
 - Never make a commit that changes no file. A task that changes nothing in this repository, such as one that edits only the planning repo, makes no commit here and says so in its result.`
 
 const TASK = {
@@ -302,7 +306,7 @@ ${list}
 5. Green means one run of "composer check" in which every gate passed, and, when you run the containerized CI run, that it exits 0: its failure blocks the merge like a failed gate. A failure you believe the environment caused (another worktree's load, a timeout) is still a failure: run "composer check" again until one run is green, and never judge a failed gate green from separate runs of its parts. Only if everything is green, every "composer progress:check" passed and "composer progress:test" passed on the HEAD of ${intBranch}: fast-forward main ("git -C ${REPO} merge --ff-only ${intBranch}"). Each task keeps its own commits. If git refuses because the main checkout has local changes that the merge would overwrite, do not stash or discard them; report it as a failure.
 6. After a successful merge, remove every task worktree and branch of the batch. Whatever the outcome, remove ${intWt} and delete ${intBranch}. Then run "composer test-db:prune" in ${REPO} and report what it dropped.
 Never push. Change PROGRESS.md and CHECKS-LOG.md only as step 4 says.`,
-    { schema: INTEGRATION, label: `integrate batch ${ids}`, phase: 'Integrate', effort: 'medium' },
+    withModel('integrateModel', { schema: INTEGRATION, label: `integrate batch ${ids}`, phase: 'Integrate', effort: 'medium' }),
   )
 }
 
@@ -319,7 +323,7 @@ Failures: ${JSON.stringify(lastFailures)}
 This usually means the task and work merged to main since it started interact. Find the cause and fix it in the worktree without undoing the other work, and without weakening any check (GUARDRAILS 7.3). Add a regression test when it is a bug. Commit with message "${BLOCK}-${task.id}: fix integration <what>". Never push.
 
 ${WORKTREE_RULES}`,
-        { schema: TASK_RESULT, label: `fix integration ${task.id} #${round}`, phase: 'Integrate' },
+        withModel('buildModel', { schema: TASK_RESULT, label: `fix integration ${task.id} #${round}`, phase: 'Integrate' }),
       )
       if (fixed) {
         for (const k of ['changedChecks', 'interpretations', 'forHumanReview', 'checksRun']) report[k] = (report[k] || []).concat(fixed[k] || [])
@@ -343,7 +347,7 @@ Integrate task ${task.id} "${task.title}" of block ${BLOCK} into main. You are t
 4. Green means one run of "composer check" in which every gate passed, and, when you run the containerized CI run, that it exits 0: its failure blocks the merge like a failed gate. A failure you believe the environment caused (another worktree's load, a timeout) is still a failure: run "composer check" again until one run is green, and never judge a failed gate green from separate runs of its parts. Only if everything is green, "composer progress:check" passed and "composer progress:test" passed on the HEAD of ${branchOf(task.id)}: fast-forward main ("git -C ${REPO} merge --ff-only ${branchOf(task.id)}"). If git refuses because the main checkout has local changes that the merge would overwrite, do not stash or discard them; report it as a failure.
 5. After a successful merge, remove the worktree and delete the branch, then run "composer test-db:prune" in ${REPO}, which drops the removed worktree's test database; report what it dropped.
 Never push. Change PROGRESS.md and CHECKS-LOG.md only as step 3 says.`,
-      { schema: INTEGRATION, label, phase: 'Integrate', effort: 'medium' },
+      withModel('integrateModel', { schema: INTEGRATION, label, phase: 'Integrate', effort: 'medium' }),
     )
     // An integration that could not wait for its gates says nothing about the task: run it again,
     // a bounded number of times, without spending an integration round.
@@ -376,10 +380,10 @@ Tasks of this block finished so far: ${JSON.stringify(earlier)}
 
 First create your worktree from the current main: "git -C ${REPO} worktree add ${wtOf(task.id)} -b ${branchOf(task.id)} main" (if it already exists from an earlier attempt, reuse it and rebase it onto main), then "composer install" and "npm ci" in it.
 
-Write the code and its tests following GUARDRAILS.md. Run "composer check" and the acceptance items in the worktree and fix what fails. When green, commit on your branch with message "${BLOCK}-${task.id}: <what>". Do not merge into main; the merge queue does that. Never push. Never weaken a check (GUARDRAILS 7.3); if you think a check is wrong, leave it and report it in forHumanReview. If the task needs a decision reserved for Sylvester, stop and return status blocked with the blocker. Report PRD interpretations you made in interpretations.
+Write the code and its tests following GUARDRAILS.md. Run the checks the worktree rules name and the acceptance items in the worktree and fix what fails. When green, commit on your branch with message "${BLOCK}-${task.id}: <what>". Do not merge into main; the merge queue does that. Never push. Never weaken a check (GUARDRAILS 7.3); if you think a check is wrong, leave it and report it in forHumanReview. If the task needs a decision reserved for Sylvester, stop and return status blocked with the blocker. Report PRD interpretations you made in interpretations.
 
 ${WORKTREE_RULES}`,
-    { schema: TASK_RESULT, label: `build ${task.id}`, phase: PH },
+    withModel('buildModel', { schema: TASK_RESULT, label: `build ${task.id}`, phase: PH }),
   )
   if (!result || result.status === 'blocked') {
     return { id: task.id, status: 'blocked', summary: result ? result.summary : 'agent died', blocker: result && result.blocker }
@@ -409,7 +413,8 @@ ${WORKTREE_RULES}`,
     }
     return v
   }
-  let verdict = await verifyFinished(`verify ${task.id}`)
+  // skipVerify: the merge queue's full composer check is the verification.
+  let verdict = SKIP_VERIFY ? { pass: true, head: null } : await verifyFinished(`verify ${task.id}`)
   let round = 0
   while (verdict && !verdict.pass && round < MAX_FIX_ROUNDS) {
     round++
@@ -423,7 +428,7 @@ Acceptance: ${JSON.stringify(task.acceptance)}
 Fix the cause, not the check (GUARDRAILS 7.3). Add a regression test when the failure is a bug. Run the checks, then commit on the branch with message "${BLOCK}-${task.id}: fix <what>". Never push.
 
 ${WORKTREE_RULES}`,
-      { schema: TASK_RESULT, label: `fix ${task.id} #${round}`, phase: PH },
+      withModel('buildModel', { schema: TASK_RESULT, label: `fix ${task.id} #${round}`, phase: PH }),
     )
     if (fix) {
       result.interpretations = (result.interpretations || []).concat(fix.interpretations || [])
