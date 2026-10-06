@@ -10,6 +10,8 @@ use Cbox\Cms\Contracts\Build\ScanRoot;
 use Cbox\Cms\Core\Registry\Domain\Dto\PointSchemaDirectory;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Generators\Cli\Console\GenerateCommand;
+use Cbox\Cms\Generators\Cli\Console\MakeAddonUiCommand;
+use Cbox\Cms\Generators\Cli\Console\MakePanelCommand;
 use Cbox\Cms\Generators\Cli\Console\PanelStoriesCommand;
 use Cbox\Cms\Generators\Cli\Console\PanelTypesCommand;
 use Cbox\Cms\Generators\Cli\Console\SchemaEditorCommand;
@@ -37,6 +39,10 @@ use Cbox\Cms\Generators\PanelStories\Domain\PanelPointSource;
 use Cbox\Cms\Generators\PanelTypes\Adapter\RegistryAddonUiSource;
 use Cbox\Cms\Generators\PanelTypes\Domain\AddonUiSource;
 use Cbox\Cms\Generators\Protocol\Boundary\KernelContracts;
+use Cbox\Cms\Generators\Scaffold\Adapter\CodecDocumentSamples;
+use Cbox\Cms\Generators\Scaffold\Adapter\FilesystemScaffoldOutput;
+use Cbox\Cms\Generators\Scaffold\Domain\DocumentSamples;
+use Cbox\Cms\Generators\Scaffold\Domain\ScaffoldOutput;
 use Cbox\Cms\Generators\Schema\Boundary\RegisteredFieldTypes;
 use Cbox\Cms\Generators\Schema\Boundary\YamlBlueprintSource;
 use Cbox\Cms\Generators\Schema\Domain\BlueprintSource;
@@ -73,6 +79,8 @@ final class GeneratorsServiceProvider extends ServiceProvider implements Declare
         $this->app->singleton(FieldTypeRegistry::class, static fn (Application $app): FieldTypeRegistry => RegisteredFieldTypes::of($app)->registry());
         $this->app->bind(GeneratedOutput::class, FilesystemGeneratedOutput::class);
         $this->app->bind(AddonUiSource::class, RegistryAddonUiSource::class);
+        $this->app->bind(ScaffoldOutput::class, FilesystemScaffoldOutput::class);
+        $this->app->bind(DocumentSamples::class, CodecDocumentSamples::class);
         $this->app->bind(static function (Application $app): PanelPointSource {
             $schemas = [];
 
@@ -107,7 +115,7 @@ final class GeneratorsServiceProvider extends ServiceProvider implements Declare
     public function boot(): void
     {
         if ($this->app->runningInConsole()) {
-            $this->commands([GenerateCommand::class, PanelStoriesCommand::class, PanelTypesCommand::class, SchemaEditorCommand::class]);
+            $this->commands([GenerateCommand::class, MakeAddonUiCommand::class, MakePanelCommand::class, PanelStoriesCommand::class, PanelTypesCommand::class, SchemaEditorCommand::class]);
         }
     }
 

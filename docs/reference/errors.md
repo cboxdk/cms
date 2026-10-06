@@ -108,6 +108,8 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`generate_name_collision`](#generate_name_collision) | 500 | 65 | internal_error | no |
 | [`generate_output_unwritable`](#generate_output_unwritable) | 500 | 73 | internal_error | no |
 | [`generate_panel_addon_unknown`](#generate_panel_addon_unknown) | 500 | 64 | internal_error | no |
+| [`generate_panel_contribution_mismatch`](#generate_panel_contribution_mismatch) | 500 | 64 | internal_error | no |
+| [`generate_panel_point_unknown`](#generate_panel_point_unknown) | 500 | 64 | internal_error | no |
 | [`generate_registry_unreadable`](#generate_registry_unreadable) | 500 | 78 | internal_error | no |
 | [`generate_required_field_added`](#generate_required_field_added) | 500 | 65 | internal_error | no |
 | [`generate_scale_above_precision`](#generate_scale_above_precision) | 500 | 65 | internal_error | no |
@@ -1109,6 +1111,24 @@ A generated file could not be written, or a stale one could not be removed. Chec
 ### generate_panel_addon_unknown
 
 cms:panel:types was given a namespace that no installed addon has, as cms:build compiled the addons' manifests (PRD 13.4). Nothing was written. Give the namespace of the addon's manifest, such as reviews, and run cms:build first when the addon was installed since.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 64 (EX_USAGE)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### generate_panel_contribution_mismatch
+
+cms:make:panel was asked for a contribution of one kind, such as a fill, where the registry cms:build compiled has the id as another kind, or where the point is of another kind (PRD 13.4). Nothing was written. Give the kind the point takes, or another id.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 64 (EX_USAGE)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### generate_panel_point_unknown
+
+cms:make:panel was given a point no installed package declares, as cms:build compiled the panel points (PRD 13.4). Nothing was written. Give a point cms:panel:points lists, such as account.me.sections@1, and run cms:build first when the package was installed since.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 64 (EX_USAGE)

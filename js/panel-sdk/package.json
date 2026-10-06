@@ -16,10 +16,15 @@
     "./stylelint": "./stylelint.js",
     "./storybook": "./storybook/preset.js"
   },
+  "bin": {
+    "cms-panel-addon": "./bin/cms-panel-addon.js"
+  },
   "files": [
     "src",
     "storybook",
+    "bin",
     "vite.js",
+    "verify.js",
     "eslint.js",
     "stylelint.js"
   ],
@@ -31,11 +36,15 @@
     "@cboxdk/cms-ui-kit": "0.1.0"
   },
   "peerDependencies": {
+    "axe-core": "4.13.0",
     "eslint": "10.11.0",
     "react": "19.3.0",
     "vite": "8.3.2"
   },
   "peerDependenciesMeta": {
+    "axe-core": {
+      "optional": true
+    },
     "eslint": {
       "optional": true
     },
@@ -47,6 +56,8 @@
     "@microsoft/api-extractor": "7.59.3",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
+    "axe-core": "4.13.0",
+    "jsdom": "30.1.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "vite": "8.3.2"

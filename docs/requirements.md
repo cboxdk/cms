@@ -61,6 +61,8 @@ It suggests these and does not require them, so they never reach production. The
 | `laravel/pint` | Required by the testkit's shared Pint configuration (packages/testkit/config/pint.json); install it with require-dev. |
 | `opis/json-schema` | Required by cms:generate, which validates blueprints against blueprint.v1.json; install it with require-dev. |
 | `orchestra/testbench` | Required by the testkit's harnesses and fakes for tests; install it with require-dev. |
+| `pestphp/pest` | Required by the testkit's PanelVisit, which signs in to the panel in a Pest browser test; install it with require-dev. |
+| `pestphp/pest-plugin-browser` | Required by the testkit's PanelVisit, which drives the panel's pages in a real browser; install it with require-dev. |
 | `phpstan/phpstan` | Required by the testkit's PHPStan rules and shared configuration; install it with require-dev. |
 | `phpunit/phpunit` | Required by the testkit's shared contract suites; install it with require-dev. |
 | `rector/rector` | Required by the testkit's shared Rector configuration; install it with require-dev. |

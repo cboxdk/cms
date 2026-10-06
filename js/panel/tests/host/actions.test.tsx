@@ -130,7 +130,13 @@ describe('an action point', () => {
       { max: 1, onAction: (entry) => taken.push(entry) },
     );
 
-    expect(screen.getByRole('toolbar', { name: TEXT.actions })).toBeTruthy();
+    const toolbar = screen.getByRole('toolbar', { name: TEXT.actions });
+    const marked = toolbar.closest('[data-cms-point]');
+
+    // The toolbar's element names the point and the actions in render order, for a test that reads
+    // what a point renders, such as the testkit's PanelVisit.
+    expect(marked?.getAttribute('data-cms-point')).toBe('me.actions@1');
+    expect(marked?.getAttribute('data-cms-actions')).toBe('alpha.first beta.second');
     await user.click(screen.getByRole('button', { name: 'Request access' }));
     await user.click(screen.getByRole('button', { name: 'More actions' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Ask again' }));

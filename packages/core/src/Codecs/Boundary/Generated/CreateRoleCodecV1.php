@@ -66,6 +66,9 @@ final readonly class CreateRoleCodecV1 implements CommandEncoder, JsonCodec
                     "description": "The role's handle, unique among the roles: a lowercase letter followed by up to 62 lowercase letters, digits and underscores.",
                     "type": "string",
                     "pattern": "^[a-z][a-z0-9_]{0,62}$",
+                    "examples": [
+                        "editors"
+                    ],
                     "minLength": 1,
                     "maxLength": 63
                 },
@@ -91,12 +94,18 @@ final readonly class CreateRoleCodecV1 implements CommandEncoder, JsonCodec
                 "id": {
                     "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
                     "type": "string",
-                    "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+                    "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+                    "examples": [
+                        "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"
+                    ]
                 },
                 "permission": {
                     "description": "The name of a command or query without its version, such as entry.create: lowercase segments in snake_case joined by dots, at least two.",
                     "type": "string",
                     "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+                    "examples": [
+                        "entry.create"
+                    ],
                     "minLength": 3,
                     "maxLength": 255
                 }

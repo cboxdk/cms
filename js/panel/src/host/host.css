@@ -1,10 +1,12 @@
 /*
  * The panel's host (js/panel/src/host): the element a contribution renders inside names its addon,
- * point and contribution for the addon's scoped styles, and adds no box of its own, so it never
- * changes the layout of the region it sits in.
+ * point and contribution for the addon's scoped styles, and the element an action point's toolbar
+ * renders inside names the point and its actions; neither adds a box of its own, so they never
+ * change the layout of the region they sit in.
  */
 @layer cms.panel {
-  .cms-contribution {
+  .cms-contribution,
+  .cms-contribution-actions {
     display: contents;
   }
 }

@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\PanelPoints\CommandRef;
 use Cbox\Cms\Contracts\PanelPoints\DecoratorContribution;
 use Cbox\Cms\Contracts\PanelPoints\FlowStep;
+use Cbox\Cms\Contracts\PanelPoints\FormCheck;
 use Cbox\Cms\Contracts\PanelPoints\Tighten;
 use Cbox\Cms\Core\Pipeline\Domain\CommandCodecs;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCodec;
@@ -119,6 +120,8 @@ final readonly class RegistryAddonUiSource implements AddonUiSource
                     $fill->command instanceof CommandRef ? $this->command($fill->command) : null,
                     $declaration instanceof DecoratorContribution ? array_map(static fn (Tighten $tighten): string => $tighten->value, $declaration->tightens) : [],
                     $declaration instanceof FlowStep ? $declaration->patches : [],
+                    $declaration instanceof FormCheck ? $declaration->severity : null,
+                    $declaration instanceof FlowStep ? $declaration->position : null,
                 );
             }
         }

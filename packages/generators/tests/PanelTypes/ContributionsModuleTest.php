@@ -57,7 +57,10 @@ it('refuses two documents that give one TypeScript name, and a document named as
     $addon = new AddonUi(
         new AddonNamespace('reviews'),
         '/srv',
-        [new UiContribution(new ContributionId('reviews.check'), PointKind::FormCheck, new PointType(PointId::fromString('notes.form.checks@1'), $point, true), command: new ContractShape(CommandRef::fromString($command), JsonSchemaShapes::read($schema, 'a schema')))],
+        [
+            new UiContribution(new ContributionId('reviews.check'), PointKind::FormCheck, new PointType(PointId::fromString('notes.form.checks@1'), $point, true), command: new ContractShape(CommandRef::fromString($command), JsonSchemaShapes::read($schema, 'a schema'))),
+            new UiContribution(new ContributionId('reviews.summary'), PointKind::Slot, new PointType(PointId::fromString('notes.form.checks@1'), $point, true)),
+        ],
         [new ContractShape(CommandRef::fromString('notes.create_v@1'), JsonSchemaShapes::read($schema, 'a schema'))],
     );
 
@@ -83,4 +86,24 @@ it('refuses a contribution whose kind runs no code', function (): void {
     assert($failed instanceof GenerationFailed);
     expect($failed->problems[0]->code)->toBe(GenerateErrorCode::InvalidOutput)
         ->and($failed->problems[0]->describe())->toContain('reviews.nav is of the kind nav, which runs no code');
+});
+
+it('imports a point\'s props only for a member typed on them, so a check or a step alone imports no props', function (): void {
+    $schema = '{"type":"object","properties":{"a":{"type":"string"}}}';
+    $create = new ContractShape(CommandRef::fromString('note.create@1'), JsonSchemaShapes::read($schema, 'the schema of note.create@1'));
+    $addon = new AddonUi(
+        new AddonNamespace('reviews'),
+        '/srv',
+        [
+            new UiContribution(new ContributionId('reviews.check'), PointKind::FormCheck, new PointType(PointId::fromString('notes.form.checks@1'), 'NoteChecksV1', true), command: $create),
+            new UiContribution(new ContributionId('reviews.step'), PointKind::FlowStep, new PointType(PointId::fromString('notes.form.steps@1'), 'NoteStepsV1', false), command: $create),
+            new UiContribution(new ContributionId('reviews.queue'), PointKind::Page, new PointType(PointId::fromString('notes.queue@1'), 'NoteQueueV1', false)),
+        ],
+        [],
+    );
+
+    $module = panelTypesModule($addon);
+
+    expect($module)->not->toContain('NoteChecksV1', 'NoteStepsV1', 'NoteQueueV1', '@cboxdk/cms-panel/experimental')
+        ->and($module)->toContain("readonly 'reviews.check': FormCheck<NoteCreateV1>;", "readonly 'reviews.step': Lazy<FlowStep<NoteCreateV1, never, Issues>>;", "readonly 'reviews.queue': Lazy<PageComponent>;");
 });

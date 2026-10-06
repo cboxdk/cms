@@ -174,7 +174,7 @@ export interface DryRunSummaryV1 {
 }
 
 // @stable
-export type ErrorCode = 'access_bootstrap_done' | 'access_bootstrap_production' | 'access_bootstrap_role_conflict' | 'actor_not_active' | 'addon_service_actor_unavailable' | 'agent_visibility_forbidden' | 'breached_passwords_unavailable' | 'credential_expired' | 'credential_malformed' | 'credential_not_allowed' | 'credential_revoked' | 'credential_unknown' | 'doctor_app_role_bypassrls' | 'doctor_app_role_createrole' | 'doctor_app_role_has_ddl' | 'doctor_app_role_privileged_membership' | 'doctor_app_role_superuser' | 'doctor_argon2id_unavailable' | 'doctor_check_crashed' | 'doctor_chromium_missing' | 'doctor_config_invalid' | 'doctor_credential_store_missing' | 'doctor_credential_store_readable' | 'doctor_event_log_unreadable' | 'doctor_events_lag' | 'doctor_events_parked' | 'doctor_extension_missing' | 'doctor_horizon_held' | 'doctor_identity_connection_refused' | 'doctor_identity_connection_shared_role' | 'doctor_identity_connection_unavailable' | 'doctor_identity_role_privileged' | 'doctor_idle_in_transaction_timeout_missing' | 'doctor_laravel_version' | 'doctor_lc_messages_not_english' | 'doctor_login_policy_invalid' | 'doctor_node_missing' | 'doctor_node_version' | 'doctor_operator_invalid' | 'doctor_operator_missing' | 'doctor_operator_unreadable' | 'doctor_owner_credentials_exposed' | 'doctor_panel_addons_changed' | 'doctor_panel_branding_invalid' | 'doctor_panel_dev_server_forbidden' | 'doctor_partition_runway_short' | 'doctor_partition_table_unmanageable' | 'doctor_php_allow_url_fopen' | 'doctor_php_version' | 'doctor_playwright_missing' | 'doctor_postgres_query_failed' | 'doctor_postgres_refused' | 'doctor_postgres_unavailable' | 'doctor_postgres_version' | 'doctor_prepared_transactions_enabled' | 'doctor_registry_cache_damaged' | 'doctor_registry_cache_missing' | 'doctor_registry_cache_stale' | 'doctor_row_security_not_forced' | 'doctor_session_cookie_insecure' | 'doctor_session_cookie_invalid' | 'doctor_snapshot_held' | 'doctor_transaction_timeout_missing' | 'doctor_valkey_refused' | 'doctor_valkey_unavailable' | 'doctor_vendor_manifest_missing' | 'dry_run' | 'egress_blocked' | 'egress_guard_disabled' | 'egress_mail_failed' | 'egress_redirect_refused' | 'egress_unavailable' | 'fake_check_failed' | 'field_encryption_unavailable' | 'generate_column_name_too_long' | 'generate_duplicate_field_handle' | 'generate_duplicate_select_value' | 'generate_duplicate_type_handle' | 'generate_duplicate_type_id' | 'generate_extension_of_own_type' | 'generate_extension_version_mismatch' | 'generate_field_changed' | 'generate_field_not_queryable' | 'generate_field_removed' | 'generate_invalid_case_name' | 'generate_invalid_config' | 'generate_invalid_output' | 'generate_lock_invalid' | 'generate_min_above_max' | 'generate_min_items_above_max_items' | 'generate_min_length_above_max_length' | 'generate_name_collision' | 'generate_output_unwritable' | 'generate_panel_addon_unknown' | 'generate_registry_unreadable' | 'generate_required_field_added' | 'generate_scale_above_precision' | 'generate_schema_invalid' | 'generate_schema_missing' | 'generate_schema_unsupported_version' | 'generate_schema_unwritable' | 'generate_table_changed' | 'generate_table_name_too_long' | 'generate_too_many_fields' | 'generate_type_removed' | 'generate_unknown_extends_target' | 'generate_unknown_field_type' | 'grant_escalation_refused' | 'hook_budget_exceeded' | 'hook_change_refused' | 'host_not_configured' | 'idempotency_conflict' | 'idempotency_in_flight' | 'idempotency_key_required' | 'install_owner_connection_required' | 'installation_operator_missing' | 'json_invalid' | 'json_malformed' | 'local_account_exists' | 'local_account_missing' | 'login_authoritative_link' | 'login_class_not_allowed' | 'login_connection_not_allowed' | 'login_factors_unavailable' | 'login_issuer_mismatch' | 'login_local_disabled' | 'login_method_not_allowed' | 'login_policy_invalid' | 'login_rate_limited' | 'login_rejected' | 'login_state_mismatch' | 'login_tenant_claim_missing' | 'login_tenant_mismatch' | 'maintenance_process_required' | 'owner_credentials_exposed' | 'panel_asset_hash_mismatch' | 'panel_dev_addons_invalid' | 'panel_dev_server_forbidden' | 'partition_lock_timeout' | 'partition_missing' | 'partition_owner_required' | 'partition_table_unmanageable' | 'password_breached' | 'password_reset_token_invalid' | 'password_too_long' | 'password_too_short' | 'path_gone' | 'path_not_found' | 'placement_slug_taken' | 'query_over_budget' | 'rebuild_identity_invalid' | 'rebuild_schema_version_unsupported' | 'rebuild_type_unknown' | 'registry_addon_not_allowed' | 'registry_cache_malformed' | 'registry_cache_missing' | 'registry_cache_unwritable' | 'registry_class_in_two_roots' | 'registry_class_not_loadable' | 'registry_duplicate_action' | 'registry_duplicate_command' | 'registry_duplicate_namespace' | 'registry_duplicate_panel_point' | 'registry_duplicate_subscription' | 'registry_incompatible_core_api' | 'registry_incompatible_panel_api' | 'registry_invalid_attribute' | 'registry_invalid_manifest' | 'registry_invalid_scan_root' | 'registry_not_a_concrete_class' | 'registry_not_a_hook' | 'registry_not_a_subscriber' | 'registry_not_an_action' | 'registry_not_final_readonly' | 'registry_panel_action_prefill_invalid' | 'registry_panel_bundle_invalid' | 'registry_panel_bundle_unsigned' | 'registry_panel_check_unmirrored' | 'registry_panel_command_not_issuable' | 'registry_panel_data_query_invalid' | 'registry_panel_duplicate_contribution' | 'registry_panel_experimental_not_accepted' | 'registry_panel_flow_path_unknown' | 'registry_panel_internal_point' | 'registry_panel_kind_mismatch' | 'registry_panel_nav_target_unknown' | 'registry_panel_override_invalid' | 'registry_panel_point_deprecated' | 'registry_panel_point_experimental' | 'registry_panel_point_without_downcast' | 'registry_panel_point_without_stability' | 'registry_panel_replacement_conflict' | 'registry_panel_theme_contrast' | 'registry_panel_theme_invalid' | 'registry_panel_theme_overlap' | 'registry_panel_tightening_undeclared' | 'registry_panel_unknown_command' | 'registry_panel_unknown_point' | 'registry_panel_unowned_target' | 'registry_reserved_namespace' | 'registry_surface_without_codec' | 'registry_undeclared_hook' | 'registry_undeclared_subscriber' | 'registry_unknown_action_command' | 'registry_unknown_event' | 'registry_unknown_hook_command' | 'registry_unknown_lane' | 'registry_unknown_surface' | 'request_header_invalid' | 'scim_invalid_value' | 'scim_mutability' | 'scim_reactivation_refused' | 'scim_resource_not_found' | 'scim_uniqueness' | 'scim_version_mismatch' | 'session_cookie_insecure' | 'session_cookie_invalid' | 'signal_audience_mismatch' | 'signal_event_unsupported' | 'signal_expired' | 'signal_issued_in_future' | 'signal_issuer_mismatch' | 'signal_logout_event_missing' | 'signal_nonce_present' | 'signal_replayed' | 'signal_subject_missing' | 'signal_subject_unsupported' | 'site_locales_drift' | 'step_up_required' | 'subscription_identity_invalid' | 'subscription_not_parked' | 'subscription_unknown' | 'type_not_releasable' | 'unauthorized' | 'validation_above_maximum' | 'validation_below_minimum' | 'validation_duplicate_item' | 'validation_failed' | 'validation_hook_failed' | 'validation_invalid_format' | 'validation_invalid_rich_text' | 'validation_not_an_option' | 'validation_required' | 'validation_rich_text_not_allowed' | 'validation_too_few_items' | 'validation_too_long' | 'validation_too_many_digits' | 'validation_too_many_items' | 'validation_too_short' | 'validation_unknown_field' | 'validation_wrong_type' | 'version_conflict';
+export type ErrorCode = 'access_bootstrap_done' | 'access_bootstrap_production' | 'access_bootstrap_role_conflict' | 'actor_not_active' | 'addon_service_actor_unavailable' | 'agent_visibility_forbidden' | 'breached_passwords_unavailable' | 'credential_expired' | 'credential_malformed' | 'credential_not_allowed' | 'credential_revoked' | 'credential_unknown' | 'doctor_app_role_bypassrls' | 'doctor_app_role_createrole' | 'doctor_app_role_has_ddl' | 'doctor_app_role_privileged_membership' | 'doctor_app_role_superuser' | 'doctor_argon2id_unavailable' | 'doctor_check_crashed' | 'doctor_chromium_missing' | 'doctor_config_invalid' | 'doctor_credential_store_missing' | 'doctor_credential_store_readable' | 'doctor_event_log_unreadable' | 'doctor_events_lag' | 'doctor_events_parked' | 'doctor_extension_missing' | 'doctor_horizon_held' | 'doctor_identity_connection_refused' | 'doctor_identity_connection_shared_role' | 'doctor_identity_connection_unavailable' | 'doctor_identity_role_privileged' | 'doctor_idle_in_transaction_timeout_missing' | 'doctor_laravel_version' | 'doctor_lc_messages_not_english' | 'doctor_login_policy_invalid' | 'doctor_node_missing' | 'doctor_node_version' | 'doctor_operator_invalid' | 'doctor_operator_missing' | 'doctor_operator_unreadable' | 'doctor_owner_credentials_exposed' | 'doctor_panel_addons_changed' | 'doctor_panel_branding_invalid' | 'doctor_panel_dev_server_forbidden' | 'doctor_partition_runway_short' | 'doctor_partition_table_unmanageable' | 'doctor_php_allow_url_fopen' | 'doctor_php_version' | 'doctor_playwright_missing' | 'doctor_postgres_query_failed' | 'doctor_postgres_refused' | 'doctor_postgres_unavailable' | 'doctor_postgres_version' | 'doctor_prepared_transactions_enabled' | 'doctor_registry_cache_damaged' | 'doctor_registry_cache_missing' | 'doctor_registry_cache_stale' | 'doctor_row_security_not_forced' | 'doctor_session_cookie_insecure' | 'doctor_session_cookie_invalid' | 'doctor_snapshot_held' | 'doctor_transaction_timeout_missing' | 'doctor_valkey_refused' | 'doctor_valkey_unavailable' | 'doctor_vendor_manifest_missing' | 'dry_run' | 'egress_blocked' | 'egress_guard_disabled' | 'egress_mail_failed' | 'egress_redirect_refused' | 'egress_unavailable' | 'fake_check_failed' | 'field_encryption_unavailable' | 'generate_column_name_too_long' | 'generate_duplicate_field_handle' | 'generate_duplicate_select_value' | 'generate_duplicate_type_handle' | 'generate_duplicate_type_id' | 'generate_extension_of_own_type' | 'generate_extension_version_mismatch' | 'generate_field_changed' | 'generate_field_not_queryable' | 'generate_field_removed' | 'generate_invalid_case_name' | 'generate_invalid_config' | 'generate_invalid_output' | 'generate_lock_invalid' | 'generate_min_above_max' | 'generate_min_items_above_max_items' | 'generate_min_length_above_max_length' | 'generate_name_collision' | 'generate_output_unwritable' | 'generate_panel_addon_unknown' | 'generate_panel_contribution_mismatch' | 'generate_panel_point_unknown' | 'generate_registry_unreadable' | 'generate_required_field_added' | 'generate_scale_above_precision' | 'generate_schema_invalid' | 'generate_schema_missing' | 'generate_schema_unsupported_version' | 'generate_schema_unwritable' | 'generate_table_changed' | 'generate_table_name_too_long' | 'generate_too_many_fields' | 'generate_type_removed' | 'generate_unknown_extends_target' | 'generate_unknown_field_type' | 'grant_escalation_refused' | 'hook_budget_exceeded' | 'hook_change_refused' | 'host_not_configured' | 'idempotency_conflict' | 'idempotency_in_flight' | 'idempotency_key_required' | 'install_owner_connection_required' | 'installation_operator_missing' | 'json_invalid' | 'json_malformed' | 'local_account_exists' | 'local_account_missing' | 'login_authoritative_link' | 'login_class_not_allowed' | 'login_connection_not_allowed' | 'login_factors_unavailable' | 'login_issuer_mismatch' | 'login_local_disabled' | 'login_method_not_allowed' | 'login_policy_invalid' | 'login_rate_limited' | 'login_rejected' | 'login_state_mismatch' | 'login_tenant_claim_missing' | 'login_tenant_mismatch' | 'maintenance_process_required' | 'owner_credentials_exposed' | 'panel_asset_hash_mismatch' | 'panel_dev_addons_invalid' | 'panel_dev_server_forbidden' | 'partition_lock_timeout' | 'partition_missing' | 'partition_owner_required' | 'partition_table_unmanageable' | 'password_breached' | 'password_reset_token_invalid' | 'password_too_long' | 'password_too_short' | 'path_gone' | 'path_not_found' | 'placement_slug_taken' | 'query_over_budget' | 'rebuild_identity_invalid' | 'rebuild_schema_version_unsupported' | 'rebuild_type_unknown' | 'registry_addon_not_allowed' | 'registry_cache_malformed' | 'registry_cache_missing' | 'registry_cache_unwritable' | 'registry_class_in_two_roots' | 'registry_class_not_loadable' | 'registry_duplicate_action' | 'registry_duplicate_command' | 'registry_duplicate_namespace' | 'registry_duplicate_panel_point' | 'registry_duplicate_subscription' | 'registry_incompatible_core_api' | 'registry_incompatible_panel_api' | 'registry_invalid_attribute' | 'registry_invalid_manifest' | 'registry_invalid_scan_root' | 'registry_not_a_concrete_class' | 'registry_not_a_hook' | 'registry_not_a_subscriber' | 'registry_not_an_action' | 'registry_not_final_readonly' | 'registry_panel_action_prefill_invalid' | 'registry_panel_bundle_invalid' | 'registry_panel_bundle_unsigned' | 'registry_panel_check_unmirrored' | 'registry_panel_command_not_issuable' | 'registry_panel_data_query_invalid' | 'registry_panel_duplicate_contribution' | 'registry_panel_experimental_not_accepted' | 'registry_panel_flow_path_unknown' | 'registry_panel_internal_point' | 'registry_panel_kind_mismatch' | 'registry_panel_nav_target_unknown' | 'registry_panel_override_invalid' | 'registry_panel_point_deprecated' | 'registry_panel_point_experimental' | 'registry_panel_point_without_downcast' | 'registry_panel_point_without_stability' | 'registry_panel_replacement_conflict' | 'registry_panel_theme_contrast' | 'registry_panel_theme_invalid' | 'registry_panel_theme_overlap' | 'registry_panel_tightening_undeclared' | 'registry_panel_unknown_command' | 'registry_panel_unknown_point' | 'registry_panel_unowned_target' | 'registry_reserved_namespace' | 'registry_surface_without_codec' | 'registry_undeclared_hook' | 'registry_undeclared_subscriber' | 'registry_unknown_action_command' | 'registry_unknown_event' | 'registry_unknown_hook_command' | 'registry_unknown_lane' | 'registry_unknown_surface' | 'request_header_invalid' | 'scim_invalid_value' | 'scim_mutability' | 'scim_reactivation_refused' | 'scim_resource_not_found' | 'scim_uniqueness' | 'scim_version_mismatch' | 'session_cookie_insecure' | 'session_cookie_invalid' | 'signal_audience_mismatch' | 'signal_event_unsupported' | 'signal_expired' | 'signal_issued_in_future' | 'signal_issuer_mismatch' | 'signal_logout_event_missing' | 'signal_nonce_present' | 'signal_replayed' | 'signal_subject_missing' | 'signal_subject_unsupported' | 'site_locales_drift' | 'step_up_required' | 'subscription_identity_invalid' | 'subscription_not_parked' | 'subscription_unknown' | 'type_not_releasable' | 'unauthorized' | 'validation_above_maximum' | 'validation_below_minimum' | 'validation_duplicate_item' | 'validation_failed' | 'validation_hook_failed' | 'validation_invalid_format' | 'validation_invalid_rich_text' | 'validation_not_an_option' | 'validation_required' | 'validation_rich_text_not_allowed' | 'validation_too_few_items' | 'validation_too_long' | 'validation_too_many_digits' | 'validation_too_many_items' | 'validation_too_short' | 'validation_unknown_field' | 'validation_wrong_type' | 'version_conflict';
 
 // @stable
 export type FlowStep<D, Path extends string = never, I extends IssuedCommands<I> = NoCommands> = ComponentType<StepProps<D, Path, I>>;
@@ -1129,7 +1129,178 @@ export function styleRefusal(css: string, namespace: string): string | null;
 ### @cboxdk/cms-panel/testing
 
 ```ts
-import type { ReactNode } from 'react';
+import { ReactNode } from 'react';
+
+// @stable
+export interface A11yOptions {
+    // (undocumented)
+    readonly tags?: readonly string[];
+}
+
+// @stable
+export interface A11yViolation {
+    // (undocumented)
+    readonly help: string;
+    // (undocumented)
+    readonly impact: string;
+    readonly rule: string;
+    readonly targets: readonly string[];
+}
+
+// @stable
+export class A11yViolations extends Error {
+    constructor(violations: readonly A11yViolation[]);
+    // (undocumented)
+    readonly violations: readonly A11yViolation[];
+}
+
+// @stable
+export type AnyIssuedCommands = Readonly<Record<string, object>>;
+
+// @stable
+export const CHECK_BUDGET_MILLISECONDS = 16;
+
+// @stable
+export function checkParity<D>(check: FormCheck<D>, hook: (document: D) => readonly string[] | Promise<readonly string[]>, documents: readonly D[], options?: ParityOptions): Promise<number>;
+
+// @stable
+export function committedReceipt(overrides?: Partial<ReceiptV1>): CommandAnswer;
+
+// @stable
+export class ContributionContractBroken extends Error {
+    constructor(id: string, message: string);
+}
+
+// @stable
+export interface ContributionOptions<C extends ContributionMap<C>> {
+    // (undocumented)
+    readonly addon: PanelAddon<C>;
+    readonly host?: FakeHost | FakeHostOptions;
+    // (undocumented)
+    readonly id: keyof C & string;
+}
+
+// @stable
+export function createFakeHost<I extends IssuedCommands<I> = AnyIssuedCommands>(options?: FakeHostOptions): FakeHost<I>;
+
+// @stable
+export interface DecoratorContractOptions<C extends ContributionMap<C>> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly props?: object;
+    // (undocumented)
+    readonly tightens?: readonly (keyof Tightening)[];
+}
+
+// @stable
+export function dryRunReceipt(overrides?: Partial<ReceiptV1>, summary?: Partial<DryRunSummaryV1>): CommandAnswer;
+
+// @stable
+export function expectDecoratorKeepsDefault<C extends ContributionMap<C>>(options: DecoratorContractOptions<C>): Promise<RenderedDecorator>;
+
+// @stable
+export function expectFlowStepContract<C extends ContributionMap<C>>(options: FlowStepContractOptions<C>): Promise<RenderedStep>;
+
+// @stable
+export function expectFormCheckContract<C extends ContributionMap<C>, D>(options: FormCheckContractOptions<C, D>): readonly (readonly Issue[])[];
+
+// @stable
+export function expectNoA11yViolations(element: Element, options?: A11yOptions): Promise<void>;
+
+// @stable
+export function expectObserverContract<C extends ContributionMap<C>, E>(options: ObserverContractOptions<C, E>): void;
+
+// @stable
+export function expectPageContract<C extends ContributionMap<C>, D = never>(options: PageContractOptions<C, D>): Promise<Rendered>;
+
+// @stable
+export function expectProviderContract<C extends ContributionMap<C>>(options: ProviderContractOptions<C>): Promise<Rendered>;
+
+// @stable
+export function expectRegistration<C extends ContributionMap<C>>(addon: PanelAddon<C>, ids: readonly string[]): void;
+
+// @stable
+export function expectReplacementContract<C extends ContributionMap<C>>(options: ReplacementContractOptions<C>): Promise<Rendered>;
+
+// @stable
+export function expectSlotContract<C extends ContributionMap<C>, D = never>(options: SlotContractOptions<C, D>): Promise<Rendered>;
+
+// @stable
+export interface FakeHost<I extends IssuedCommands<I> = AnyIssuedCommands> extends PanelHost<I> {
+    // (undocumented)
+    readonly record: HostRecord;
+}
+
+// @stable
+export interface FakeHostOptions {
+    readonly answer?: (command: RecordedCommand) => CommandAnswer | Promise<CommandAnswer>;
+    readonly confirm?: boolean | ((dialog: RecordedDialog) => boolean);
+    readonly contribution?: string;
+    readonly issues?: readonly string[];
+    readonly locale?: string;
+    readonly namespace?: string;
+    readonly pages?: Readonly<Record<string, string>>;
+    readonly texts?: Readonly<Record<string, string>>;
+}
+
+// @stable
+export function fillText(text: string, parameters?: TranslationParameters): string;
+
+// @stable
+export interface FlowStepContractOptions<C extends ContributionMap<C>> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly draft: object;
+    // (undocumented)
+    readonly patches?: readonly string[];
+}
+
+// @stable
+export interface FormCheckContractOptions<C extends ContributionMap<C>, D> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly documents: readonly D[];
+    // (undocumented)
+    readonly locale?: string;
+    // (undocumented)
+    readonly namespace: string;
+    // (undocumented)
+    readonly severity: IssueSeverity;
+}
+
+// @stable
+export interface HostRecord {
+    // (undocumented)
+    readonly commands: readonly RecordedCommand[];
+    // (undocumented)
+    readonly dialogs: readonly RecordedDialog[];
+    // (undocumented)
+    readonly notices: readonly RecordedNotice[];
+    // (undocumented)
+    readonly refusals: readonly HostRefusal[];
+    readonly visits: readonly string[];
+}
+
+// @stable
+export interface HostRefusal {
+    // (undocumented)
+    readonly code: 'panel_command_refused' | 'panel_navigation_refused';
+    readonly subject: string;
+}
+
+// @stable
+export interface ObserverContractOptions<C extends ContributionMap<C>, E> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly events: readonly E[];
+}
+
+// @stable
+export interface PageContractOptions<C extends ContributionMap<C>, D = never> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly data?: D;
+}
+
+// @stable
+export class PanelCommandRefused extends Error {
+    constructor(addon: string, command: string);
+}
 
 // @stable
 export function PanelHostProvider<I extends IssuedCommands<I>>(input: PanelHostProviderProps<I>): ReactNode;
@@ -1141,6 +1312,260 @@ export interface PanelHostProviderProps<I extends IssuedCommands<I>> {
     // (undocumented)
     readonly host: PanelHost<I>;
 }
+
+// @stable
+export class ParityBroken extends Error {
+    constructor(disagreements: readonly ParityDisagreement[]);
+    // (undocumented)
+    readonly disagreements: readonly ParityDisagreement[];
+}
+
+// @stable
+export interface ParityDisagreement {
+    readonly check: readonly string[];
+    readonly hook: readonly string[];
+    readonly index: number;
+}
+
+// @stable
+export interface ParityOptions {
+    // (undocumented)
+    readonly locale?: string;
+}
+
+// @stable
+export interface ProviderContractOptions<C extends ContributionMap<C>> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly props?: object;
+}
+
+// @stable
+export interface RecordedCommand {
+    readonly command: string;
+    // (undocumented)
+    readonly document: object;
+    // (undocumented)
+    readonly options: CommandOptions;
+    readonly provenance?: string | undefined;
+}
+
+// @stable
+export interface RecordedDialog {
+    // (undocumented)
+    readonly body: string;
+    // (undocumented)
+    readonly confirm: string;
+    // (undocumented)
+    readonly title: string;
+    // (undocumented)
+    readonly tone: 'neutral' | 'danger';
+}
+
+// @stable
+export interface RecordedNotice {
+    // (undocumented)
+    readonly message: string;
+    // (undocumented)
+    readonly tone: NoticeTone;
+}
+
+// @stable
+export class RegistrationMismatch extends Error {
+    constructor(missing: readonly string[], extra: readonly string[]);
+    // (undocumented)
+    readonly extra: readonly string[];
+    // (undocumented)
+    readonly missing: readonly string[];
+}
+
+// @stable
+export function rejectedProblem(code: ErrorCode, errors?: readonly RejectionError[], overrides?: Partial<ProblemV1>): CommandAnswer;
+
+// @stable
+export interface RejectionError {
+    // (undocumented)
+    readonly code: ErrorCode;
+    // (undocumented)
+    readonly detail?: string;
+    readonly field?: string | null;
+}
+
+// @stable
+export function renderDecorator<C extends ContributionMap<C>>(options: RenderDecoratorOptions<C>): Promise<RenderedDecorator>;
+
+// @stable
+export interface RenderDecoratorOptions<C extends ContributionMap<C>> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly defaultContent?: ReactNode;
+    // (undocumented)
+    readonly props?: object;
+    // (undocumented)
+    readonly tightens?: readonly (keyof Tightening)[];
+    // (undocumented)
+    readonly tone?: TightenedProps['tone'];
+}
+
+// @stable
+export interface Rendered {
+    readonly container: HTMLElement;
+    // (undocumented)
+    readonly host: FakeHost;
+    readonly rerender: () => Promise<void>;
+    // (undocumented)
+    readonly unmount: () => Promise<void>;
+}
+
+// @stable
+export interface RenderedDecorator extends Rendered {
+    // (undocumented)
+    readonly badges: readonly BadgeDescriptor[];
+    readonly refusedTightenings: readonly string[];
+    // (undocumented)
+    readonly tightened: TightenedProps;
+}
+
+// @stable
+export interface RenderedSlot extends Rendered {
+    // (undocumented)
+    readonly header: TranslationKey | null;
+    // (undocumented)
+    readonly item: ToolbarItemDescriptor | null;
+    // (undocumented)
+    readonly label: TranslationKey | null;
+}
+
+// @stable
+export interface RenderedStep extends Rendered {
+    // (undocumented)
+    readonly step: StepRecord;
+}
+
+// @stable
+export function renderPage<C extends ContributionMap<C>, D = never>(options: RenderPageOptions<C, D>): Promise<Rendered>;
+
+// @stable
+export interface RenderPageOptions<C extends ContributionMap<C>, D = never> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly data?: DataState<D>;
+}
+
+// @stable
+export function renderPoint<C extends ContributionMap<C>>(options: RenderPointOptions<C>): Promise<Rendered | RenderedSlot | RenderedDecorator | RenderedStep>;
+
+// @stable
+export type RenderPointOptions<C extends ContributionMap<C>> = ({
+    readonly kind: 'slot';
+} & RenderSlotOptions<C, unknown>) | ({
+    readonly kind: 'page';
+} & RenderPageOptions<C, unknown>) | ({
+    readonly kind: 'replacement';
+} & RenderReplacementOptions<C>) | ({
+    readonly kind: 'provider';
+} & RenderProviderOptions<C>) | ({
+    readonly kind: 'decorator';
+} & RenderDecoratorOptions<C>) | ({
+    readonly kind: 'flow_step';
+} & RenderStepOptions<C>);
+
+// @stable
+export function renderProvider<C extends ContributionMap<C>>(options: RenderProviderOptions<C>): Promise<Rendered>;
+
+// @stable
+export interface RenderProviderOptions<C extends ContributionMap<C>> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly children?: ReactNode;
+    // (undocumented)
+    readonly props?: object;
+}
+
+// @stable
+export function renderReplacement<C extends ContributionMap<C>>(options: RenderReplacementOptions<C>): Promise<Rendered>;
+
+// @stable
+export interface RenderReplacementOptions<C extends ContributionMap<C>> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly props?: object;
+}
+
+// @stable
+export function renderSlot<C extends ContributionMap<C>, D = never>(options: RenderSlotOptions<C, D>): Promise<RenderedSlot>;
+
+// @stable
+export interface RenderSlotOptions<C extends ContributionMap<C>, D = never> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly data?: DataState<D>;
+    // (undocumented)
+    readonly props?: object;
+    // (undocumented)
+    readonly region?: SlotRegion;
+}
+
+// @stable
+export function renderStep<C extends ContributionMap<C>>(options: RenderStepOptions<C>): Promise<RenderedStep>;
+
+// @stable
+export interface RenderStepOptions<C extends ContributionMap<C>> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly draft: object;
+    // (undocumented)
+    readonly dryRun?: () => CommandAnswer | Promise<CommandAnswer>;
+    // (undocumented)
+    readonly patches?: readonly string[];
+    // (undocumented)
+    readonly position?: 'before_submit' | 'after_receipt';
+    // (undocumented)
+    readonly receipt?: CommandAnswer;
+}
+
+// @stable
+export interface ReplacementContractOptions<C extends ContributionMap<C>> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly props?: object;
+}
+
+// @stable
+export interface SlotContractOptions<C extends ContributionMap<C>, D = never> extends ContributionOptions<C> {
+    // (undocumented)
+    readonly data?: D;
+    // (undocumented)
+    readonly props?: object;
+    // (undocumented)
+    readonly region?: SlotRegion;
+}
+
+// @stable
+export type SlotRegion = 'sections' | 'aside' | 'toolbar' | 'columns' | 'tabs';
+
+// @stable
+export interface StepRecord {
+    // (undocumented)
+    readonly cancelled: TranslationKey | null;
+    readonly draft: object;
+    // (undocumented)
+    readonly dryRuns: number;
+    // (undocumented)
+    readonly next: number;
+    // (undocumented)
+    readonly patches: readonly {
+        readonly path: string;
+        readonly value: JsonValue;
+    }[];
+    readonly refusedPatches: readonly string[];
+}
+
+// @stable
+export interface TightenedProps {
+    // (undocumented)
+    readonly descriptions: readonly string[];
+    // (undocumented)
+    readonly disabled: boolean;
+    readonly disabledReasons: readonly string[];
+    // (undocumented)
+    readonly tone: 'neutral' | 'info' | 'warning' | 'danger';
+}
+
+// @stable
+export const WCAG_22_AA: readonly string[];
 
 // (No @packageDocumentation comment for this package)
 ```

@@ -729,26 +729,36 @@ function ActionHost({ point, label, onAction, onOutcome }: ActionHostProps) {
 
   return (
     <Stack gap="sm">
-      <ActionBar
-        label={label}
-        actions={actions.map((action, index) => ({
-          id: action.contribution,
-          label: action.label,
-          variant: action.tone === 'danger' ? 'danger' : index === 0 ? 'secondary' : 'quiet',
-          icon: kitIcon(
-            active.fills.find((fill) => fill.id === action.contribution)?.action?.icon ?? null,
-          ),
-          disabled: running !== null,
-        }))}
-        visible={active.max ?? actions.length}
-        onAction={(id) => {
-          const action = actions.find((candidate) => candidate.contribution === id);
+      {/* The actions are one toolbar, so the point and the ids, in render order, sit on its
+          element: data-cms-actions lists them separated by spaces, which a test reads with the
+          selector [data-cms-actions~="<id>"], as data-cms-contribution names a contribution's own
+          element. */}
+      <div
+        className="cms-contribution-actions"
+        data-cms-point={point}
+        data-cms-actions={actions.map((action) => action.contribution).join(' ')}
+      >
+        <ActionBar
+          label={label}
+          actions={actions.map((action, index) => ({
+            id: action.contribution,
+            label: action.label,
+            variant: action.tone === 'danger' ? 'danger' : index === 0 ? 'secondary' : 'quiet',
+            icon: kitIcon(
+              active.fills.find((fill) => fill.id === action.contribution)?.action?.icon ?? null,
+            ),
+            disabled: running !== null,
+          }))}
+          visible={active.max ?? actions.length}
+          onAction={(id) => {
+            const action = actions.find((candidate) => candidate.contribution === id);
 
-          if (action !== undefined && running === null) {
-            take(action);
-          }
-        }}
-      />
+            if (action !== undefined && running === null) {
+              take(action);
+            }
+          }}
+        />
+      </div>
       {run === null ? null : <ActionOutcomeView point={point} run={run} />}
       {review === null ? null : (
         <Dialog
