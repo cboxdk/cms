@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Access;
 
 use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Identity\AccessRegion;
 use Cbox\Cms\Contracts\Identity\ActorClass;
 use Cbox\Cms\Contracts\Identity\ActorPrincipal;
 use Cbox\Cms\Contracts\Identity\ActorProfile;
@@ -14,6 +15,7 @@ use Cbox\Cms\Contracts\Identity\DisplayName;
 use Cbox\Cms\Contracts\Identity\EmailAddress;
 use Cbox\Cms\Contracts\Identity\GrantEffect;
 use Cbox\Cms\Contracts\Identity\IssuerKind;
+use Cbox\Cms\Contracts\Identity\NodePath;
 use Cbox\Cms\Contracts\Identity\RoleHandle;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
@@ -23,6 +25,8 @@ use Cbox\Cms\Contracts\Ids\RoleId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Core\Access\Adapter\GrantRows;
+use Cbox\Cms\Core\Access\Domain\Dto\Grant;
+use Cbox\Cms\Core\Access\Domain\Dto\HeldGrant;
 use Cbox\Cms\Core\Access\Domain\Dto\ListedGrant;
 use Cbox\Cms\Core\Access\Domain\Dto\ListedRole;
 use Cbox\Cms\Core\Identity\Domain\Dto\ActorMe;
@@ -33,6 +37,8 @@ use Cbox\Cms\Core\Routing\Domain\NodeKind;
 use Cbox\Cms\Core\Routing\Domain\SiteHandle;
 use Cbox\Cms\Core\Structure\Domain\Dto\ListedNode;
 use Cbox\Cms\Core\Tests\Access\Fakes\FakeAccessListings;
+use Cbox\Cms\Core\Tests\Access\Fakes\FakeAccessResolver;
+use Cbox\Cms\Core\Tests\Access\Fakes\FakePermissions;
 use Cbox\Cms\Core\Tests\Identity\Fakes\FakeActorListing;
 use Cbox\Cms\Core\Tests\Identity\Fakes\FakeOwnActorReader;
 use Cbox\Cms\Core\Tests\Postgres\StorageTables;
@@ -205,6 +211,84 @@ final class ListingWorld
             $profile === null ? null : new ActorProfile(new DisplayName($profile[0]), new EmailAddress($profile[1])),
             $grants,
         );
+    }
+
+    /**
+     * The ltree path of a node of the tree, as the nodes table holds it: the labels of the nodes
+     * from the root down to it, joined by dots.
+     */
+    public static function path(string $node): string
+    {
+        $ancestry = match ($node) {
+            self::ROOT => [self::ROOT],
+            self::NEWS => [self::ROOT, self::NEWS],
+            self::SPORT => [self::ROOT, self::NEWS, self::SPORT],
+            self::CULTURE => [self::ROOT, self::CULTURE],
+            default => throw new LogicException(sprintf('The listing world has no node %s.', $node)),
+        };
+
+        return implode('.', array_map(StorageTables::label(...), $ancestry));
+    }
+
+    /**
+     * The grants an actor holds that have not ended, as OwnHeldGrants gives them: in the order of
+     * their ids, each with its role's ceiling, its node's path, its effect, its locales and its
+     * role's permissions.
+     *
+     * @return list<HeldGrant>
+     */
+    public static function heldGrants(string $actor): array
+    {
+        $roles = [];
+
+        foreach (self::roles() as $role) {
+            $roles[$role->id->toString()] = $role;
+        }
+
+        $held = [];
+
+        foreach (self::grants() as [$grant, $ended]) {
+            if ($ended || $grant->actor->toString() !== $actor) {
+                continue;
+            }
+
+            $role = $roles[$grant->role->toString()] ?? throw new LogicException('The grant names a role the world does not have.');
+            $held[] = new HeldGrant(new Grant($grant->role, $role->ceiling, new NodePath(self::path($grant->node->toString())), $grant->effect, $grant->locales), $role->permissions);
+        }
+
+        return $held;
+    }
+
+    /**
+     * The grants of every actor as FakePermissions holds them, over the tree's paths.
+     */
+    public static function permissions(): FakePermissions
+    {
+        $permissions = new FakePermissions(array_combine(
+            [self::ROOT, self::NEWS, self::SPORT, self::CULTURE],
+            array_map(static fn (string $node): NodePath => new NodePath(self::path($node)), [self::ROOT, self::NEWS, self::SPORT, self::CULTURE]),
+        ));
+
+        foreach ([self::ADMIN, self::EDITOR, self::BOB, self::SERVICE] as $actor) {
+            foreach (self::heldGrants($actor) as $held) {
+                $permissions->grant(ActorId::fromString($actor), $held->grant, $held->permissions);
+            }
+        }
+
+        return $permissions;
+    }
+
+    /**
+     * The access resolver in memory with each reader's regions: ADMIN over the whole tree with
+     * personal access, EDITOR over NEWS with internal access, BOB over CULTURE with internal
+     * access, and SERVICE nowhere.
+     */
+    public static function accessResolver(): FakeAccessResolver
+    {
+        return new FakeAccessResolver()
+            ->grant(ActorId::fromString(self::ADMIN), [new AccessRegion(new NodePath(self::path(self::ROOT)))], ClassificationAccess::Personal)
+            ->grant(ActorId::fromString(self::EDITOR), [new AccessRegion(new NodePath(self::path(self::NEWS)))], ClassificationAccess::Internal)
+            ->grant(ActorId::fromString(self::BOB), [new AccessRegion(new NodePath(self::path(self::CULTURE)))], ClassificationAccess::Internal);
     }
 
     /**

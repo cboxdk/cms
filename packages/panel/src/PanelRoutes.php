@@ -19,6 +19,7 @@ use Cbox\Cms\Panel\Domain\Dto\PanelTheme;
 use Cbox\Cms\Panel\Domain\PanelRoute;
 use Cbox\Cms\Panel\Middleware\AuthenticatePanelSession;
 use Cbox\Cms\Panel\Middleware\SendContentSecurityPolicy;
+use Cbox\Cms\Panel\Middleware\SharePalette;
 use Cbox\Cms\Panel\Middleware\VerifyPanelCsrfToken;
 use Cbox\Cms\Panel\Pages\AccountMeController;
 use Cbox\Cms\Panel\Pages\AddonPageController;
@@ -64,7 +65,8 @@ use Illuminate\Routing\Route;
  *     an application that mounts the panel at another prefix sets it;
  *   - the pages and actions of a person who logged in, behind AuthenticatePanelSession, which
  *     takes only a request whose session cookie verifies and sends any other to the login page,
- *     and VerifyPanelCsrfToken: `GET <prefix>`, the start page, `POST <prefix>/logout`, and the
+ *     VerifyPanelCsrfToken, and SharePalette, which gives every page the prop `palette`, the read
+ *     of action.list the command palette is built from: `GET <prefix>`, the start page, `POST <prefix>/logout`, and the
  *     Inertia profile's `POST <prefix>/commands/{command}/v{version}`, which runs a command as the
  *     person (PanelRoute::Home, Logout, Command), `GET <prefix>/account/me`, the who-am-I page,
  *     which reads actor.me as the person (PanelRoute::AccountMe), and
@@ -138,7 +140,7 @@ final readonly class PanelRoutes
                     self::page($router->post('reset-password', ResetPasswordController::class), PanelRoute::ResetPasswordSubmit);
                 });
 
-                $router->group(['middleware' => [AuthenticatePanelSession::class, VerifyPanelCsrfToken::class]], static function (Registrar $router): void {
+                $router->group(['middleware' => [AuthenticatePanelSession::class, VerifyPanelCsrfToken::class, SharePalette::class]], static function (Registrar $router): void {
                     self::page($router->get('', HomeController::class), PanelRoute::Home);
                     self::page($router->post('logout', LogoutController::class), PanelRoute::Logout);
                     self::withAddons(InertiaRoutes::register($router, PanelRoute::COMMANDS_PATH, PanelRoute::Command->value), PanelRoute::Command->allowsAddons());

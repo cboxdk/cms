@@ -173,7 +173,7 @@ export const Keyboard: Story = {
     check(document.activeElement?.tagName === 'INPUT', 'focus is in the search field');
     await userEvent.keyboard(texts.assign.slice(0, 6));
     await waitFor(
-      () => document.querySelectorAll('[role="menuitem"]').length === 1,
+      () => document.querySelectorAll('[role="option"]').length === 1,
       'typing filters the entries',
     );
     await userEvent.keyboard('{Enter}');
@@ -189,7 +189,7 @@ export const Open: Story = {
   render: (_args, { globals }) => <Palette globals={globals} initiallyOpen />,
   play: async () => {
     await waitFor(() => dialog() !== null, 'the palette is open');
-    check(document.querySelectorAll('[role="menuitem"]').length === 4, 'every entry is shown');
+    check(document.querySelectorAll('[role="option"]').length === 4, 'every entry is shown');
   },
 };
 

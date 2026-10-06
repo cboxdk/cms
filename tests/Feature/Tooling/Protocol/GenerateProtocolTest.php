@@ -28,6 +28,7 @@ afterEach(function (): void {
 });
 
 const PROTOCOL_CODECS = [
+    'ActionListCodecV1.php',
     'ActivateActorCodecV1.php',
     'ActorListCodecV1.php',
     'ActorMeCodecV1.php',
@@ -46,6 +47,7 @@ const PROTOCOL_CODECS = [
     'GrantListCodecV1.php',
     'KernelCommandCodecs.php',
     'KernelQueryCodecs.php',
+    'ListActionsCodecV1.php',
     'ListActorsCodecV1.php',
     'ListGrantsCodecV1.php',
     'ListNodesCodecV1.php',
@@ -80,8 +82,10 @@ const PANEL_PAGE_FILES = [
     'js/panel/src/generated/pages/HomePageV1.ts',
     'js/panel/src/generated/pages/LoginPageV1.ts',
     'js/panel/src/generated/pages/NotFoundPageV1.ts',
+    'js/panel/src/generated/pages/PalettePropV1.ts',
     'js/panel/src/generated/pages/PanelBrandV1.ts',
     'js/panel/src/generated/pages/ResetPasswordPageV1.ts',
+    'js/panel/src/generated/protocol/ActionListV1.ts',
     'js/panel/src/generated/protocol/ActorMeV1.ts',
     'js/panel/src/generated/protocol/DryRunSummaryV1.ts',
     'js/panel/src/generated/protocol/ProblemV1.ts',
@@ -94,6 +98,7 @@ const PANEL_PAGE_FILES = [
     'packages/panel/src/Boundary/Generated/HomePageCodecV1.php',
     'packages/panel/src/Boundary/Generated/LoginPageCodecV1.php',
     'packages/panel/src/Boundary/Generated/NotFoundPageCodecV1.php',
+    'packages/panel/src/Boundary/Generated/PalettePropCodecV1.php',
     'packages/panel/src/Boundary/Generated/PanelBrandCodecV1.php',
     'packages/panel/src/Boundary/Generated/ResetPasswordPageCodecV1.php',
 ];

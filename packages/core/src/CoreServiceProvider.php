@@ -31,6 +31,7 @@ use Cbox\Cms\Core\Access\Adapter\PostgresCommandAuthorizer;
 use Cbox\Cms\Core\Access\Adapter\PostgresGrantReader;
 use Cbox\Cms\Core\Access\Adapter\PostgresGrantSlotLock;
 use Cbox\Cms\Core\Access\Adapter\PostgresGrantVersionLock;
+use Cbox\Cms\Core\Access\Adapter\PostgresOwnHeldGrants;
 use Cbox\Cms\Core\Access\Adapter\PostgresQueryAuthorizer;
 use Cbox\Cms\Core\Access\Adapter\PostgresRoleGrantsLock;
 use Cbox\Cms\Core\Access\Adapter\PostgresRoleHandleLock;
@@ -48,6 +49,7 @@ use Cbox\Cms\Core\Access\Domain\AdministrativePermissions;
 use Cbox\Cms\Core\Access\Domain\EscalationGuard;
 use Cbox\Cms\Core\Access\Domain\GrantReader;
 use Cbox\Cms\Core\Access\Domain\HeldPermissions;
+use Cbox\Cms\Core\Access\Domain\OwnHeldGrants;
 use Cbox\Cms\Core\Access\Domain\PermissionCatalog;
 use Cbox\Cms\Core\Access\Domain\PermissionRule;
 use Cbox\Cms\Core\Addons\Boundary\AddonConfig;
@@ -224,11 +226,13 @@ use Cbox\Cms\Core\Reads\Domain\QueryTransaction;
 use Cbox\Cms\Core\Reads\Domain\ReadableFields;
 use Cbox\Cms\Core\Reads\Domain\ReadAudit;
 use Cbox\Cms\Core\Registry\Adapter\CodecContractSchemas;
+use Cbox\Cms\Core\Registry\Adapter\CodecContractSummaries;
 use Cbox\Cms\Core\Registry\Adapter\ConfigPanelActivation;
 use Cbox\Cms\Core\Registry\Adapter\FileOpenApiDocuments;
 use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
 use Cbox\Cms\Core\Registry\Boundary\RegistryCacheCodec;
 use Cbox\Cms\Core\Registry\Domain\ContractSchemas;
+use Cbox\Cms\Core\Registry\Domain\ContractSummaries;
 use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Dto\PointSchemaDirectory;
@@ -578,6 +582,11 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->bind(ActorListing::class, PostgresActorListing::class);
         $this->app->bind(NodeListing::class, PostgresNodeListing::class);
         $this->app->bind(OwnActorReader::class, PostgresOwnActorReader::class);
+        // action.list (PRD 13.2, 13.4): the actor's own grants with their roles' permissions, read
+        // under the read's actor context, and the title and description of each contract version's
+        // JSON Schema from the registered codecs.
+        $this->app->bind(OwnHeldGrants::class, PostgresOwnHeldGrants::class);
+        $this->app->bind(ContractSummaries::class, CodecContractSummaries::class);
         // site.register (PRD 5.9, 11.14): the reads of a site by id and handle, the lock of a
         // handle, and the writer of the registration, which creates the root node, the site, its
         // locales and its root routes.

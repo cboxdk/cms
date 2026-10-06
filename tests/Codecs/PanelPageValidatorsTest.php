@@ -37,6 +37,7 @@ use Cbox\Cms\Panel\Branding\Boundary\BrandingConfig;
 use Cbox\Cms\Panel\Branding\Domain\Dto\Branding;
 use Cbox\Cms\Panel\Contributions\Boundary\ContributionProps;
 use Cbox\Cms\Panel\Contributions\Domain\PointCodecs;
+use Cbox\Cms\Panel\Palette\Boundary\PaletteProps;
 use Cbox\Cms\Panel\Tests\Account\AccountMeWorld;
 use Cbox\Cms\Panel\Tests\Branding\BrandFixtures;
 use Cbox\Cms\Panel\Tests\Contributions\ContributionWorld;
@@ -320,7 +321,7 @@ final class PanelPageValidatorsTest extends TestCase
 
     /**
      * The JSON of the page's own props, as the browser receives them, without the props every page
-     * shares, Inertia's errors, the problem and the brand, which brand() reads, the
+     * shares, Inertia's errors, the problem, the brand, which brand() reads, the palette, the
      * contributions every page behind the login sends (ContributionProps::CMS, held to its own
      * validator by ContributionsCodecTest) and the deferred data of the addons (ContributionProps::DATA).
      *
@@ -337,7 +338,7 @@ final class PanelPageValidatorsTest extends TestCase
             self::fail('The response rendered no Inertia page.');
         }
 
-        unset($props['errors'], $props['problem'], $props[PanelBrandProps::PROP], $props[ContributionProps::CMS], $props[ContributionProps::DATA]);
+        unset($props['errors'], $props['problem'], $props[PanelBrandProps::PROP], $props[PaletteProps::PROP], $props[ContributionProps::CMS], $props[ContributionProps::DATA]);
 
         return json_encode((object) $props, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
     }

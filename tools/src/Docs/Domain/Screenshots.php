@@ -76,6 +76,16 @@ final readonly class Screenshots
                 'The who-am-I page: the shell\'s navigation with its entry marked as the current page, and the person\'s profile, actor and the grants they hold, read with actor.me.',
                 'tests/Browser/Panel/ShellTest.php',
             ),
+            new BrowserScreenshot(
+                'palette',
+                'The command palette open over the start page on a desktop: the search field, the pages the person may open and the commands they may run, as action.list decided them.',
+                'tests/Browser/Panel/PaletteTest.php',
+            ),
+            new BrowserScreenshot(
+                'palette-mobile',
+                'The command palette open on a phone: the same pages and commands, the search field and the entries filling the width.',
+                'tests/Browser/Panel/PaletteTest.php',
+            ),
         ];
     }
 

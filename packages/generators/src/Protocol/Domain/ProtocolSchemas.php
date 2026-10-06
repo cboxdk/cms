@@ -52,6 +52,7 @@ use Cbox\Cms\Contracts\Ids\RoleId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\PanelPoints\ContributionId;
+use Cbox\Cms\Contracts\PanelPoints\PageName;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Receipts\Receipt;
@@ -104,11 +105,16 @@ use Cbox\Cms\Core\Reads\Domain\Dto\QueryCodec;
 use Cbox\Cms\Core\Registry\Domain\BundleFileKind;
 use Cbox\Cms\Core\Registry\Domain\BundleIntegrity;
 use Cbox\Cms\Core\Registry\Domain\BundlePath;
+use Cbox\Cms\Core\Registry\Domain\Dto\ActionList;
 use Cbox\Cms\Core\Registry\Domain\Dto\BundleFile;
 use Cbox\Cms\Core\Registry\Domain\Dto\BundleManifest;
 use Cbox\Cms\Core\Registry\Domain\Dto\BundleSignature;
+use Cbox\Cms\Core\Registry\Domain\Dto\ListedAction;
+use Cbox\Cms\Core\Registry\Domain\Dto\ListedNavEntry;
 use Cbox\Cms\Core\Registry\Domain\Ed25519Signature;
+use Cbox\Cms\Core\Registry\Domain\ListedActionKind;
 use Cbox\Cms\Core\Registry\Domain\PublisherKey;
+use Cbox\Cms\Core\Registry\Domain\Queries\ListActions;
 use Cbox\Cms\Core\Registry\Domain\SignatureAlgorithm;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\ExplainedPath;
@@ -416,7 +422,9 @@ final readonly class ProtocolSchemas
 
     /**
      * The bindings of the schemas of the kernel's queries, each at its version, sorted by file: the
-     * query's document, then its result. actor.me carries nothing and answers with the principal's
+     * query's document, then its result. action.list carries nothing and answers with the actions
+     * exposed on Inertia the actor may run and the navigation entries it may open, every value of
+     * them a name, a kind or a text. actor.me carries nothing and answers with the principal's
      * own actor, whose profile is the subject's own and so unclassified. path.resolve is public and answers with the entry the
      * placement places and the explanation of the resolution (PRD 5.9), whose objects are those of
      * path-explanation.v1.json below `#/$defs/path_explanation`.
@@ -433,6 +441,20 @@ final readonly class ProtocolSchemas
         ];
 
         return [
+            ...self::query(
+                'action.list',
+                ListActions::class,
+                'ListActionsCodecV1',
+                [],
+                'ActionListCodecV1',
+                ['#' => ActionList::class, '#/$defs/listed_action' => ListedAction::class, '#/$defs/nav_entry' => ListedNavEntry::class],
+                [
+                    '#/$defs/listed_action/properties/kind' => ValueBinding::enum(ListedActionKind::class),
+                    '#/$defs/listed_action/properties/name' => ValueBinding::value(CommandName::class),
+                    '#/$defs/nav_entry/properties/id' => ValueBinding::value(ContributionId::class),
+                    '#/$defs/nav_entry/properties/page' => ValueBinding::value(PageName::class),
+                ],
+            ),
             ...self::query(
                 'actor.list',
                 ListActors::class,

@@ -124,6 +124,8 @@ it('writes the runtime module unchanged, a module per record and a module per ke
         $directory.'/protocol/SetRolePermissionsV1.ts',
         $directory.'/protocol/RegisterSiteV1.ts',
         $directory.'/protocol/ReleaseVariantV1.ts',
+        $directory.'/protocol/ListActionsV1.ts',
+        $directory.'/protocol/ActionListV1.ts',
         $directory.'/protocol/ListActorsV1.ts',
         $directory.'/protocol/ActorListV1.ts',
         $directory.'/protocol/WhoAmIV1.ts',
@@ -181,6 +183,8 @@ it('reads the kernel\'s contracts in the order of their schemas, and names every
         'SetRolePermissionsCodecV1',
         'RegisterSiteCodecV1',
         'ReleaseVariantCodecV1',
+        'ListActionsCodecV1',
+        'ActionListCodecV1',
         'ListActorsCodecV1',
         'ActorListCodecV1',
         'WhoAmICodecV1',
@@ -202,7 +206,7 @@ it('reads the kernel\'s contracts in the order of their schemas, and names every
         $problems = $failed->problems;
     }
 
-    expect(count($problems))->toBe(39)
+    expect(count($problems))->toBe(41)
         ->and($problems[0]->code)->toBe(GenerateErrorCode::SchemaMissing)
         ->and($problems[3]->message)->toContain('packages/contracts/resources/schemas/envelope.v1.json')
         ->and($problems[7]->message)->toContain('receipt.v1.json')
@@ -210,10 +214,11 @@ it('reads the kernel\'s contracts in the order of their schemas, and names every
         ->and($problems[24]->message)->toContain('packages/core/resources/schemas/delivery-fragment.v1.json')
         ->and($problems[25]->message)->toContain('packages/core/resources/schemas/panel-bundle-signature.v1.json')
         ->and($problems[26]->message)->toContain('packages/core/resources/schemas/panel-bundle.v1.json')
-        ->and($problems[27]->message)->toContain('packages/core/resources/schemas/queries/actor.list.result.v1.json')
-        ->and($problems[35]->message)->toContain('packages/core/resources/schemas/queries/path.resolve.result.v1.json')
-        ->and($problems[36]->message)->toContain('packages/core/resources/schemas/queries/path.resolve.v1.json')
-        ->and($problems[38]->message)->toContain('packages/core/resources/schemas/queries/role.list.v1.json');
+        ->and($problems[27]->message)->toContain('packages/core/resources/schemas/queries/action.list.result.v1.json')
+        ->and($problems[29]->message)->toContain('packages/core/resources/schemas/queries/actor.list.result.v1.json')
+        ->and($problems[37]->message)->toContain('packages/core/resources/schemas/queries/path.resolve.result.v1.json')
+        ->and($problems[38]->message)->toContain('packages/core/resources/schemas/queries/path.resolve.v1.json')
+        ->and($problems[40]->message)->toContain('packages/core/resources/schemas/queries/role.list.v1.json');
 });
 
 it('refuses a kernel schema that is not valid with generate_schema_invalid', function (): void {

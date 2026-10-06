@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Cbox\Cms\Panel\Tests;
 
 use Cbox\Cms\Core\Access\Domain\HeldPermissions;
+use Cbox\Cms\Core\Reads\Actions\QueryPipeline;
+use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Tests\Access\Fakes\FakeHeldPermissions;
+use Cbox\Cms\Core\Tests\Registry\ActionListWorld;
 use Cbox\Cms\Identity\Sessions\Domain\Dto\SessionCookie;
 use Cbox\Cms\Identity\Tests\Login\LocalLoginWorld;
 use Cbox\Cms\Panel\Boundary\LoginForm;
@@ -19,9 +22,11 @@ use Symfony\Component\HttpFoundation\Response;
  * and a FixtureBuild: the login page's visit starts Laravel's session, whose CSRF token csrf()
  * reads, and logIn() posts the login form as a browser does. The session cookie travels unencrypted,
  * as the panel leaves it out of Laravel's cookie encryption. Every page behind the login asks the
- * viewer's permissions for its contributions (the core's nav entry is on every page), so the trait
- * binds a FakeHeldPermissions that holds none, and a test in the Unit suite never reaches Postgres
- * for them; a test that needs other permissions binds its own after setUpPanelLogins().
+ * viewer's permissions for its contributions (the core's nav entry is on every page) and reads
+ * action.list for the command palette, so the trait binds a FakeHeldPermissions that holds none
+ * and a QueryPipeline over the ActionListWorld's fakes with an empty registry, whose verifier is
+ * the login world's, and a test in the Unit suite never reaches Postgres for them; a test that
+ * needs other permissions or other reads binds its own after setUpPanelLogins().
  */
 trait PanelLogins
 {
@@ -37,6 +42,7 @@ trait PanelLogins
         $this->logins = new LocalLoginWorld;
         $this->logins->into($app);
         $app->instance(HeldPermissions::class, new FakeHeldPermissions);
+        $app->instance(QueryPipeline::class, new ActionListWorld(CompiledRegistry::empty(), $this->logins->verifier(), $this->logins->clock, $this->logins->identity)->pipeline());
 
         return $this->logins;
     }

@@ -71,6 +71,26 @@ describe('the keyboard contract of CommandPalette', () => {
     expect(await screen.findByRole('dialog')).not.toBeNull();
   });
 
+  test('is a combobox: the search field controls a listbox of options and names the one in focus', async () => {
+    const { user } = renderKit(<Harness onAction={() => undefined} />);
+
+    await user.keyboard('{Control>}k{/Control}');
+    await screen.findByRole('dialog');
+    const field = screen.getByRole('searchbox', { name: 'Find a page or a command' });
+    const list = screen.getByRole('listbox', { name: 'Command palette' });
+
+    expect(field.getAttribute('aria-controls')).toBe(list.id);
+    expect(field.getAttribute('aria-autocomplete')).toBe('list');
+    expect(screen.getAllByRole('option')).toHaveLength(3);
+
+    await user.keyboard('{ArrowDown}');
+    await waitFor(() => {
+      expect(field.getAttribute('aria-activedescendant')).toBe(
+        screen.getByRole('option', { name: 'Who am I' }).id,
+      );
+    });
+  });
+
   test('typing filters the entries, by their keywords too', async () => {
     const { user } = renderKit(<Harness onAction={() => undefined} />);
 
@@ -79,7 +99,7 @@ describe('the keyboard contract of CommandPalette', () => {
     await user.keyboard('grant.as');
 
     await waitFor(() => {
-      expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+      expect(screen.getAllByRole('option').map((item) => item.textContent)).toEqual([
         'Assign a grant',
       ]);
     });

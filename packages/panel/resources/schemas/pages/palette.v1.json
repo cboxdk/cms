@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Command palette prop, contract version 1",
+  "description": "The prop `palette` every page of the panel behind the login shares (GUARDRAILS 8, PRD 13.4): the read of action.list as the person who signed in, from which the command palette is built: its result, the document of action.list.result.v1.json the query's result codec wrote, the actions the person may run and the navigation entries they may open, or the rejection, the problem details (problem.v1.json) of a rejected read, never both, and neither for a read the pipeline could not make, which is reported to the application's exception handler and which the palette shows as its entries being unavailable. The PHP form is Cbox\\Cms\\Panel\\Domain\\Dto\\PaletteProp, and the generated codec PalettePropCodecV1 writes its canonical JSON: keys sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "rejection",
+    "result"
+  ],
+  "properties": {
+    "rejection": {
+      "description": "The problem details of a rejected read, a document of problem.v1.json, or null for an answered read. Validate it with the validator of ProblemV1.",
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "result": {
+      "description": "The result of action.list, a document of action.list.result.v1.json as the query's result codec wrote it, or null for a rejected read. Validate it with the validator of ActionListV1.",
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  }
+}

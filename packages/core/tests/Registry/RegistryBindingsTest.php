@@ -44,6 +44,7 @@ use Cbox\Cms\Core\Publishing\Actions\UnpublishEntryAction;
 use Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry;
 use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
+use Cbox\Cms\Core\Registry\Actions\ListActionsAction;
 use Cbox\Cms\Core\Registry\Adapter\FileOpenApiDocuments;
 use Cbox\Cms\Core\Registry\Adapter\FileRegistryCache;
 use Cbox\Cms\Core\Registry\Boundary\ProviderScanRoots;
@@ -152,6 +153,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
         ->and(array_map(static fn (ActionEntry $entry): string => $entry->command->value.'@'.$entry->commandVersion.' '.$entry->class.' '.$entry->kind->value, $registry->actions))
         ->toBe([
             'access.bootstrap@1 '.GrantBootstrapRoleAction::class.' write',
+            'action.list@1 '.ListActionsAction::class.' query',
             'actor.activate@1 '.ActivateActorAction::class.' write',
             'actor.deactivate@1 '.DeactivateActorAction::class.' write',
             'actor.list@1 '.ListActorsAction::class.' query',
@@ -187,7 +189,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
         ->and($registry->actionFor(CreateEntry::class)?->class)->toBe(CreateEntryAction::class)
         ->and($registry->actionFor(ReviseEntry::class)?->class)->toBe(ReviseEntryAction::class)
         ->and($registry->actionFor(ListNodes::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia])
-        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([23, 0, 17, 0, 4, 17, 0, 1])
+        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([24, 0, 17, 0, 4, 18, 0, 1])
         ->and($registry->hooks)->toBe([])
         ->and(array_map(static fn (SubscriberEntry $entry): string => $entry->name->value.' '.$entry->class.' '.$entry->lane->value.' '.$entry->projection?->value, $registry->subscribers))
         ->toBe(['fragments.invalidate '.InvalidateFragments::class.' critical origin'])

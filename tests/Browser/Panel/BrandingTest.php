@@ -160,7 +160,8 @@ it('shows the installation\'s name and logo in the shell\'s header after signing
     $page->assertPathIs('/cms')
         ->assertTitle(PanelPage::text('panel.title', ['page' => PanelPage::text('panel.home.title'), 'name' => BRAND_NAME]));
 
-    expect($page->script('document.querySelector("header").textContent'))->toBe(BRAND_NAME)
+    // The header holds the brand and, beside it, the command palette's button, so the name is the brand's.
+    expect($page->script('document.querySelector("header .cms-brand").textContent'))->toBe(BRAND_NAME)
         ->and(array_column(shownImages($page), 'alt'))->toBe([BRAND_ALT]);
 
     captureForDocs($page, 'branding-shell');

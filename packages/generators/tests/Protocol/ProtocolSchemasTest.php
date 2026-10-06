@@ -69,6 +69,7 @@ it('writes exactly the committed codecs of the receipt, problem details, envelop
     $files = kernelCodecs();
 
     expect(array_map(static fn (GeneratedFile $file): string => $file->path, $files))->toBe([
+        'packages/core/src/Codecs/Boundary/Generated/ActionListCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/ActivateActorCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/ActorListCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/ActorMeCodecV1.php',
@@ -87,6 +88,7 @@ it('writes exactly the committed codecs of the receipt, problem details, envelop
         'packages/core/src/Codecs/Boundary/Generated/GrantListCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/KernelCommandCodecs.php',
         'packages/core/src/Codecs/Boundary/Generated/KernelQueryCodecs.php',
+        'packages/core/src/Codecs/Boundary/Generated/ListActionsCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/ListActorsCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/ListGrantsCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/ListNodesCodecV1.php',
@@ -116,7 +118,7 @@ it('writes exactly the committed codecs of the receipt, problem details, envelop
         expect(file_get_contents(kernelRoot().'/'.$file->path))->toBe($file->contents, $file->path.' is not what composer generate:protocol writes.');
     }
 
-    expect(glob(kernelRoot().'/'.ProtocolSchemas::PHP_DIRECTORY.'/*'))->toHaveCount(41);
+    expect(glob(kernelRoot().'/'.ProtocolSchemas::PHP_DIRECTORY.'/*'))->toHaveCount(43);
 });
 
 it('gives each command\'s codec the command\'s name and version from its #[Command] and its schema, and lists each in KernelCommandCodecs', function (SchemaBinding $binding): void {
@@ -213,7 +215,7 @@ it('sorts the codecs by path, owns their directory and refuses two schemas with 
 
     expect(array_map(static fn (GeneratedFile $file): string => $file->path, $result->files))->toBe(['Generated/AParcelCodecV1.php', 'Generated/ParcelCodecV1.php'])
         ->and($result->directories)->toBe(['Generated'])
-        ->and($receipt)->toHaveCount(41);
+        ->and($receipt)->toHaveCount(43);
 
     try {
         ProtocolSchemas::result([$parcel, $parcel], $location);

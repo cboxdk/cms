@@ -4,15 +4,18 @@
 // navigation beside the content, the nav entries of shell.nav@1 that the server left for the
 // viewer, each opening one of the panel's own pages, such as the who-am-I page the core contributes
 // the entry of, or a page of an addon below /x/<namespace>/, and the page in the main landmark the
-// skip link leads to. The entries are the pages of the command palette too. Each page keeps its
-// sign-out in its own content.
+// skip link leads to. The command palette opens from every page with Ctrl+K or Command+K and from
+// its button in the top bar, built from the prop `palette` every page behind the login shares; the
+// nav entries are its pages too. Each page keeps its sign-out in its own content.
 
 import { AppShell, Brand, SideNav } from '@cboxdk/cms-ui-kit';
+import { usePage } from '@inertiajs/react';
 import type { ReactNode } from 'react';
 
 import { useBrand } from '../brand';
 import { PointHost, usePointHost } from '../host';
 import { useTranslation } from '../i18n/translations';
+import { PanelPalette } from './PanelPalette';
 
 /** The props of PanelShell. */
 export interface PanelShellProps {
@@ -26,11 +29,17 @@ export function PanelShell({ page, children }: PanelShellProps) {
   const { t } = useTranslation();
   const brand = useBrand();
   const { nav } = usePointHost('shell.nav@1');
+  const palette = usePage().props.palette;
 
   return (
     <AppShell
       brand={<Brand name={brand.name} logo={brand.logo} />}
-      actions={<PointHost point="shell.user-menu@1" label={t('panel.shell.user_menu')} />}
+      actions={
+        <>
+          <PanelPalette palette={palette} />
+          <PointHost point="shell.user-menu@1" label={t('panel.shell.user_menu')} />
+        </>
+      }
       navigation={
         nav.length === 0 ? null : (
           <SideNav

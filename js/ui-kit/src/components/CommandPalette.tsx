@@ -5,7 +5,7 @@ import { Collection } from 'react-aria-components/Collection';
 import { Dialog as AriaDialog } from 'react-aria-components/Dialog';
 import { Header } from 'react-aria-components/Header';
 import { Input } from 'react-aria-components/Input';
-import { Menu, MenuItem, MenuSection } from 'react-aria-components/Menu';
+import { ListBox, ListBoxItem, ListBoxSection } from 'react-aria-components/ListBox';
 import { SearchField } from 'react-aria-components/SearchField';
 import { Text } from 'react-aria-components/Text';
 import type { Key } from 'react-stately';
@@ -77,11 +77,13 @@ export interface CommandPaletteProps {
 
 /**
  * The panel's command palette (GUARDRAILS 8, keyboard first): a dialog with a search field and the
- * pages and commands that match what is typed, in sections. Ctrl+K, or Command+K on a Mac, opens it
- * from anywhere on the page and closes it again. Focus starts in the search field; typing filters
- * the entries, ignoring case and accents, and Up and Down move through them while focus stays in the
- * field. Enter runs the entry in focus, and Escape clears what was typed and then closes the
- * palette, returning focus to where it was.
+ * pages and commands that match what is typed, in sections, built as the combobox pattern of WAI-ARIA:
+ * the search field controls a listbox of options and names the option in focus through
+ * aria-activedescendant, so a screen reader hears each entry as it is reached. Ctrl+K, or Command+K
+ * on a Mac, opens it from anywhere on the page and closes it again. Focus starts in the search
+ * field and stays inside the dialog; typing filters the entries, ignoring case and accents, and Up
+ * and Down move through them while focus stays in the field. Enter runs the entry in focus, and
+ * Escape clears what was typed and then closes the palette, returning focus to where it was.
  *
  * @experimental
  */
@@ -129,7 +131,8 @@ export function CommandPalette({
     body = <div className="cms-palette__message">{error}</div>;
   } else {
     body = (
-      <Menu
+      <ListBox
+        aria-label={label}
         items={sections}
         onAction={(key: Key) => {
           onAction(String(key));
@@ -139,11 +142,11 @@ export function CommandPalette({
         className="cms-palette__list"
       >
         {(section) => (
-          <MenuSection id={section.id} className="cms-palette__section">
+          <ListBoxSection id={section.id} className="cms-palette__section">
             <Header className="cms-palette__heading">{section.title}</Header>
             <Collection items={section.items}>
               {(item) => (
-                <MenuItem
+                <ListBoxItem
                   id={item.id}
                   textValue={[item.label, item.description ?? '', ...(item.keywords ?? [])].join(
                     ' ',
@@ -158,12 +161,12 @@ export function CommandPalette({
                       {item.description}
                     </Text>
                   )}
-                </MenuItem>
+                </ListBoxItem>
               )}
             </Collection>
-          </MenuSection>
+          </ListBoxSection>
         )}
-      </Menu>
+      </ListBox>
     );
   }
 
@@ -173,7 +176,7 @@ export function CommandPalette({
         <Autocomplete filter={contains}>
           <SearchField aria-label={searchLabel} autoFocus className="cms-palette__search">
             <Icon name="search" />
-            <Input className="cms-palette__input" />
+            <Input className="cms-palette__input" placeholder={searchLabel} />
           </SearchField>
           {body}
         </Autocomplete>

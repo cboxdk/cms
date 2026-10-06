@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "action.list result, contract version 1",
+  "description": "The result of action.list (GUARDRAILS 8, PRD 13.2, 13.4): the actions of the compiled registry exposed on Inertia whose permission the actor holds on some node, in the registry's order, by the name and then the version of the command or query each handles, each with its kind and the title and description of its JSON Schema; and the navigation entries the actor may open, in render order, each with its label, a translation key of its addon's catalogue, its icon and the id of the page it opens. The PHP form is Cbox\\Cms\\Core\\Registry\\Domain\\Dto\\ActionList, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "actions",
+    "navigation"
+  ],
+  "properties": {
+    "actions": {
+      "description": "The actions the actor may run, in the registry's order.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/listed_action"
+      }
+    },
+    "navigation": {
+      "description": "The navigation entries the actor may open, in render order.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/nav_entry"
+      }
+    }
+  },
+  "$defs": {
+    "listed_action": {
+      "description": "An action the actor may run: a command, which the panel runs through its form, or a query.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "description",
+        "kind",
+        "name",
+        "title",
+        "version"
+      ],
+      "properties": {
+        "description": {
+          "description": "The description of the JSON Schema of the command or query, in English; the panel shows the catalogue's text when it has one for the action.",
+          "type": "string",
+          "maxLength": 4000
+        },
+        "kind": {
+          "description": "Whether the action handles a command, a write, or a query, a read.",
+          "enum": [
+            "command",
+            "query"
+          ]
+        },
+        "name": {
+          "description": "The name of the command or query, such as role.create: the permission a role's permissions hold to allow it.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$"
+        },
+        "title": {
+          "description": "The title of the JSON Schema of the command or query, in English; the panel shows the catalogue's text when it has one for the action.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "version": {
+          "description": "The contract version of the command or query, from 1.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "nav_entry": {
+      "description": "A navigation entry the actor may open: an entry of the shell's navigation that opens a page of the panel or of an addon.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "icon",
+        "id",
+        "label",
+        "page"
+      ],
+      "properties": {
+        "icon": {
+          "description": "The kit icon it shows, or null.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "id": {
+          "description": "The id of the contribution, `<namespace>.<local>`, such as cms.account-me.",
+          "type": "string",
+          "maxLength": 96,
+          "pattern": "^[a-z][a-z0-9]{0,19}(\\.[a-z][a-z0-9_]*(-[a-z0-9_]+)*)+$"
+        },
+        "label": {
+          "description": "The translation key of its text, in its addon's catalogue.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "page": {
+          "description": "The id of the page it opens: one of the panel's own pages, such as account.me, or an addon's page `<namespace>.<local>`, whose address the pages of the panel's contributions give.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96,
+          "pattern": "^[a-z][a-z0-9_]*(-[a-z0-9_]+)*(\\.[a-z][a-z0-9_]*(-[a-z0-9_]+)*)*$"
+        }
+      }
+    }
+  }
+}

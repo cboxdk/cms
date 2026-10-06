@@ -24,6 +24,7 @@ final readonly class KernelQueryCodecs
     public static function all(): array
     {
         return [
+            ListActionsCodecV1::queryCodec(),
             ListActorsCodecV1::queryCodec(),
             WhoAmICodecV1::queryCodec(),
             ListGrantsCodecV1::queryCodec(),

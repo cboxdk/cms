@@ -42,6 +42,7 @@ use Cbox\Cms\Panel\Domain\Dto\LoginRefusals;
 use Cbox\Cms\Panel\Domain\Dto\NavProp;
 use Cbox\Cms\Panel\Domain\Dto\NotFoundPage;
 use Cbox\Cms\Panel\Domain\Dto\PageLinkProp;
+use Cbox\Cms\Panel\Domain\Dto\PaletteProp;
 use Cbox\Cms\Panel\Domain\Dto\PanelBrand;
 use Cbox\Cms\Panel\Domain\Dto\PanelBrandLogo;
 use Cbox\Cms\Panel\Domain\Dto\PointFillsProp;
@@ -63,9 +64,10 @@ use Cbox\Cms\Panel\Domain\SignInReason;
  * Domain\Dto, so the panel renders the props through the generated codec and js/panel imports
  * their generated TypeScript types and validators. contributions.v1.json is the prop
  * cms.contributions that every page behind the login sends beside its own props (PRD 13.4),
- * addon-page.v1.json the props of an addon's page below /x/<namespace>/, and account-me.v1.json
+ * addon-page.v1.json the props of an addon's page below /x/<namespace>/, account-me.v1.json
  * the props of the who-am-I page, whose result and rejection are documents of the kernel's
- * contracts. Types go one way, from PHP and the schema to
+ * contracts, and palette.v1.json the prop `palette` every page behind the login shares, the read
+ * of action.list the command palette is built from. Types go one way, from PHP and the schema to
  * TypeScript; no page declares its props by hand.
  *
  * composer generate:protocol writes, from these bindings, the PHP codecs into PHP_DIRECTORY and,
@@ -102,7 +104,7 @@ final readonly class PanelPageSchemas
      *
      * @var list<string>
      */
-    public const array PROTOCOL_CODECS = ['ActorMeCodecV1', 'DryRunSummaryCodecV1', 'ProblemCodecV1', 'ReceiptCodecV1'];
+    public const array PROTOCOL_CODECS = ['ActionListCodecV1', 'ActorMeCodecV1', 'DryRunSummaryCodecV1', 'ProblemCodecV1', 'ReceiptCodecV1'];
 
     /** The stability of the generated codecs: the pages' DTOs are the panel's own. */
     public const string ATTRIBUTE = Internal::class;
@@ -122,6 +124,10 @@ final readonly class PanelPageSchemas
             self::page('addon-page.v1.json', 'AddonPageCodecV1', ['#' => AddonPage::class], [
                 '#/properties/addon' => ValueBinding::value(AddonNamespace::class),
                 '#/properties/page' => ValueBinding::value(ContributionId::class),
+            ]),
+            self::page('palette.v1.json', 'PalettePropCodecV1', ['#' => PaletteProp::class], [
+                '#/properties/rejection' => ValueBinding::document(JsonDocument::class),
+                '#/properties/result' => ValueBinding::document(JsonDocument::class),
             ]),
             self::page('brand.v1.json', 'PanelBrandCodecV1', [
                 '#' => PanelBrand::class,

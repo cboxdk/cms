@@ -20,7 +20,7 @@ Stability: **experimental**. Since: **1.0**.
 
 ## Accessibility
 
-The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+The palette is the combobox pattern of WAI-ARIA: the search field controls a listbox of options and names the option in focus through `aria-activedescendant`, focus stays inside the dialog, and Escape closes it and returns focus. The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe, and by `js/ui-kit/tests/keyboard/CommandPalette.test.tsx`; every story is shown in the dark theme, in forced colours and in Danish.
 
 ## Props
 

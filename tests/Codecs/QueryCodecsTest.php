@@ -8,18 +8,23 @@ use Cbox\Cms\Contracts\Codecs\JsonCodec;
 use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\ActorId;
+use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\GrantId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\RoleId;
+use Cbox\Cms\Contracts\PanelPoints\ContributionId;
+use Cbox\Cms\Contracts\PanelPoints\PageName;
 use Cbox\Cms\Core\Access\Domain\Dto\GrantList;
 use Cbox\Cms\Core\Access\Domain\Dto\ListedGrant;
 use Cbox\Cms\Core\Access\Domain\Dto\RoleList;
 use Cbox\Cms\Core\Access\Domain\Queries\ListGrants;
 use Cbox\Cms\Core\Access\Domain\Queries\ListRoles;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\ActionListCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ActorListCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ActorMeCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\GrantListCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\KernelQueryCodecs;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\ListActionsCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ListActorsCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ListGrantsCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ListNodesCodecV1;
@@ -35,6 +40,11 @@ use Cbox\Cms\Core\Identity\Domain\Dto\ListedActor;
 use Cbox\Cms\Core\Identity\Domain\Queries\ListActors;
 use Cbox\Cms\Core\Identity\Domain\Queries\WhoAmI;
 use Cbox\Cms\Core\Reads\Domain\Dto\QueryCodec;
+use Cbox\Cms\Core\Registry\Domain\Dto\ActionList;
+use Cbox\Cms\Core\Registry\Domain\Dto\ListedAction;
+use Cbox\Cms\Core\Registry\Domain\Dto\ListedNavEntry;
+use Cbox\Cms\Core\Registry\Domain\ListedActionKind;
+use Cbox\Cms\Core\Registry\Domain\Queries\ListActions;
 use Cbox\Cms\Core\Routing\Domain\Host;
 use Cbox\Cms\Core\Routing\Domain\Queries\ResolvePath;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
@@ -79,6 +89,35 @@ const QUERY_OFFSET = '/(?:Z|[+-][0-9]{2}:[0-9]{2})\z/i';
 function queryFixtures(): array
 {
     return [
+        'action.list v1' => static function (QueryCodec $codec): void {
+            expect($codec->query)->toBeInstanceOf(ListActionsCodecV1::class)
+                ->and($codec->result)->toBeInstanceOf(ActionListCodecV1::class)
+                ->and(new ListActionsCodecV1()->encode(new ListActions, ClassificationAccess::Public))->toBe('{}')
+                ->and(queryRefusedAt(new ListActionsCodecV1, '{"surface":"inertia"}'))->toBe('');
+
+            queryRoundTrip(new ListActionsCodecV1, new ListActions, 'action.list.v1.json', 'query');
+
+            $full = new ActionList(
+                [
+                    new ListedAction(new CommandName('actor.me'), 1, ListedActionKind::Query, 'actor.me, contract version 1', 'Who am I.'),
+                    new ListedAction(new CommandName('role.create'), 1, ListedActionKind::Command, 'role.create, contract version 1', ''),
+                ],
+                [
+                    new ListedNavEntry(new ContributionId('cms.account-me'), 'panel.nav.account_me', null, new PageName('account.me')),
+                    new ListedNavEntry(new ContributionId('tally.board-link'), 'tally.nav.board', 'inbox', new PageName('tally.board')),
+                ],
+            );
+
+            foreach ([$full, new ActionList([], [])] as $index => $result) {
+                queryRoundTrip(new ActionListCodecV1, $result, 'action.list.result.v1.json', 'result '.$index);
+
+                // The list holds no content, only names, kinds and texts of the registry, so a reader at
+                // public access gets the same document as one at sensitive access.
+                expect(new ActionListCodecV1()->encode($result, ClassificationAccess::Public))->toBe(new ActionListCodecV1()->encode($result, ClassificationAccess::Sensitive), 'result '.$index.' at public access');
+            }
+
+            expect(new ActionListCodecV1()->encode($full, ClassificationAccess::Public))->toContain('"kind":"command","name":"role.create"', '"icon":"inbox","id":"tally.board-link"');
+        },
         'actor.list v1' => static function (QueryCodec $codec): void {
             expect($codec->query)->toBeInstanceOf(ListActorsCodecV1::class)
                 ->and($codec->result)->toBeInstanceOf(ActorListCodecV1::class);
