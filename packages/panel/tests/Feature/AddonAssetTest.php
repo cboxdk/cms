@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Panel\Tests\Feature;
 
+use Cbox\Cms\Core\Access\Domain\HeldPermissions;
+use Cbox\Cms\Core\Tests\Access\Fakes\FakeHeldPermissions;
 use Cbox\Cms\Identity\Tests\Login\LocalLoginWorld;
 use Cbox\Cms\Panel\Boundary\AddonAssetResponse;
 use Cbox\Cms\Panel\Boundary\PanelAssetResponse;
@@ -23,6 +25,10 @@ use PHPUnit\Framework\Attributes\Test;
  * is 404. A page behind the login writes the bundle into its import map, with the addon's entry,
  * scope and integrity, and links its stylesheets; a credential page and the page for an address
  * the panel does not have write none of it.
+ *
+ * The class runs in the Unit suite, so it never reaches Postgres: the default connection names a
+ * database that does not exist (ABSENT_DATABASE), and the permissions a page asks for come from
+ * FakeHeldPermissions. A fresh checkout has no test database until the Postgres suite makes one.
  */
 final class AddonAssetTest extends TestCase
 {
@@ -30,12 +36,19 @@ final class AddonAssetTest extends TestCase
 
     private const string EMAIL = 'mette.holm@example.com';
 
+    private const string ABSENT_DATABASE = 'cms_test_absent_addon_assets';
+
     private ?AddonBundleWorld $bundle = null;
 
     #[Override]
     protected function setUp(): void
     {
         parent::setUp();
+
+        $app = $this->app ?? app();
+        $app['config']->set('database.connections.pgsql.database', self::ABSENT_DATABASE);
+        $app['db']->purge('pgsql');
+        $app->instance(HeldPermissions::class, new FakeHeldPermissions);
 
         $this->setUpPanelLogins()->person(self::EMAIL);
         $this->bundle = AddonBundleWorld::write();
