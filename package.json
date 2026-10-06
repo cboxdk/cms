@@ -39,5 +39,10 @@
     "prettier": "3.9.9",
     "typescript": "6.0.3",
     "vitest": "4.1.11"
+  },
+  "overrides": {
+    "@rushstack/ts-command-line": {
+      "argparse": "2.0.1"
+    }
   }
 }
