@@ -12,12 +12,14 @@ use Cbox\Cms\Contracts\Identity\ActorClass;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\CredentialVerifier;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Core\Access\Domain\HeldPermissions;
 use Cbox\Cms\Core\Pipeline\Actions\RunExposedCommand;
 use Cbox\Cms\Core\Pipeline\Domain\CommandCodecs;
 use Cbox\Cms\Core\Registry\Domain\ActionKind;
 use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CommandEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
+use Cbox\Cms\Core\Tests\Access\Fakes\FakeHeldPermissions;
 use Cbox\Cms\Core\Tests\Pipeline\ExposedWorld;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\RenameProbe;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\RenameProbeAction;
@@ -42,7 +44,9 @@ use Symfony\Component\HttpFoundation\Response;
  * post without a session goes to the login page and runs nothing.
  *
  * The registry exposes the test-only probe.rename version 1 on REST and Inertia, the pipeline is
- * the ExposedWorld's over fakes, and FakeIdentity verifies the session.
+ * the ExposedWorld's over fakes, and FakeIdentity verifies the session. The panel's start, which
+ * the sign-in visits, asks the viewer's permissions for the core's nav entry, so a
+ * FakeHeldPermissions holding none stands in, and the test never reaches Postgres.
  */
 final class InertiaSessionTest extends TestCase
 {
@@ -74,6 +78,7 @@ final class InertiaSessionTest extends TestCase
         $app->instance(CommandCodecs::class, ExposedWorld::codecs());
         $app->instance(RunExposedCommand::class, $this->world->action());
         $app->instance(CredentialVerifier::class, $this->world->world->identity);
+        $app->instance(HeldPermissions::class, new FakeHeldPermissions);
     }
 
     #[Override]
