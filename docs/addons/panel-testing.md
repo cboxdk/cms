@@ -32,7 +32,7 @@ The addon's prebuilt bundle, `dist/panel`, is committed in its release commit (d
 
 ## The testkit's PanelContributionsContract
 
-`Cbox\Cms\Testkit\Panel\PanelContributionsContract` is the shared suite an addon's PHP tests run on its manifest: use the trait in a PHPUnit test class on the addon's Testbench application, with package discovery on, so the addon's provider is registered, and a bootstrap directory of the test's own, so `cms:build` writes its cache there, and give the manifest the provider declares. Its case allows the addon's package in `cbox-cms.addons.allowed`, runs `cms:build` on the whole installation and fails with the build's output on any problem, an unknown point, a kind mismatch, an experimental point the manifest does not accept, a bundle whose files or ids are not the manifest's, a blocking check without a mirrored hook and every other refusal of [panel contributions](panel-contributions.md#what-cmsbuild-checks). It then reads what the build wrote and asserts that the addon was compiled and that every contribution of the manifest is on its point.
+`Cbox\Cms\Testkit\Panel\PanelContributionsContract` is the shared suite an addon's PHP tests run on its manifest: use the trait in a PHPUnit test class on the addon's Testbench application, with package discovery on, so the addon's provider is registered, and a bootstrap directory of the test's own, so `cms:build` writes its cache there, and give the manifest the provider declares. Its case allows the addon's package in `cbox-cms.addons.allowed`, runs `cms:build` on the whole installation and fails with the build's output on any problem, an unknown point, a kind mismatch, an experimental point the manifest does not accept, a bundle whose files or ids are not the manifest's, a bundle whose [signature](panel-contributions.md#signing-the-bundle) the installation does not trust (the test trusts the publisher's key in `cbox-cms.addons.publishers`, as an installation does; only the local environment accepts an unsigned bundle), a blocking check without a mirrored hook and every other refusal of [panel contributions](panel-contributions.md#what-cmsbuild-checks). It then reads what the build wrote and asserts that the addon was compiled and that every contribution of the manifest is on its point.
 
 The approvals addon of the [panel contributions](panel-contributions.md#example) example runs it in its own tests:
 
@@ -54,11 +54,17 @@ use Override;
 /**
  * The approvals addon runs the testkit's shared suite in its own tests: the installation with
  * the review package's points and the addon's manifest builds, and the addon's badge is compiled
- * onto the section it fills. The suite's case fails with the build's output on any refusal.
+ * onto the section it fills. The suite's case fails with the build's output on any refusal. The
+ * installation trusts the publisher's key for the addon's signed bundle, as every installation
+ * outside the local environment must (cbox-cms.addons.publishers); the suite verifies the
+ * signature as cms:build does.
  */
 final class PanelContributionsContractTest extends BuildTestCase
 {
     use PanelContributionsContract;
+
+    /** The public key of the test key that signed the approvals bundle in dist/. */
+    private const string PUBLISHER_KEY = 'KvpGeOheh2ZDEsrHAy/wRzWWnJdCf1AcwubMOddwn3Y=';
 
     #[Override]
     protected function setUp(): void
@@ -67,6 +73,7 @@ final class PanelContributionsContractTest extends BuildTestCase
 
         app()->register(ReviewsServiceProvider::class);
         app()->register(ApprovalsServiceProvider::class);
+        $this->trustPublisher('acme/cms-approvals', self::PUBLISHER_KEY);
     }
 
     #[Override]

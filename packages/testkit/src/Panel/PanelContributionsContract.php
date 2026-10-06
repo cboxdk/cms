@@ -38,8 +38,10 @@ use RuntimeException;
  * The case allows the addon's package in cbox-cms.addons.allowed, runs cms:build on the whole
  * installation and fails with the build's output on any problem: an unknown point, a kind
  * mismatch, an experimental point the manifest does not accept, a bundle whose files or ids are
- * not the manifest's, a blocking check without a mirrored hook and every other refusal of
- * PanelCompiler. It then reads what the build wrote and asserts that the addon was compiled and
+ * not the manifest's, a bundle whose signature the installation does not trust (the test trusts
+ * the publisher's key in cbox-cms.addons.publishers, as an installation does; only the local
+ * environment accepts an unsigned bundle), a blocking check without a mirrored hook and every
+ * other refusal of PanelCompiler. It then reads what the build wrote and asserts that the addon was compiled and
  * that each contribution of the manifest is on its point, so a contribution the build left out
  * fails too.
  */
