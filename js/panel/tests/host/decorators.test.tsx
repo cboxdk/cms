@@ -126,7 +126,10 @@ describe('a decorator', () => {
     });
 
     expect(screen.getAllByTestId('default')).toHaveLength(1);
+    // Each addon's registration settles on its own (its digest is awaited), so the host may render
+    // with alpha loaded before beta is: wait for both before reading the order.
     await screen.findByText(TEXT.outerBefore);
+    await screen.findByText(TEXT.innerBefore);
     expect(container.textContent).toBe('[a[bSaveb]a]');
   });
 
@@ -165,12 +168,15 @@ describe('a decorator', () => {
       },
     );
 
+    // The four addons settle on their own; wait for every one's effect (alpha disables, beta and
+    // gamma describe, delta badges) before reading the composition.
     await waitFor(() => {
-      expect(screen.getByTestId('default').textContent).toBe(
-        'Save | Needs a second pair of eyes | Logged',
-      );
+      const button = screen.getByTestId('default');
+
+      expect(button.textContent).toBe('Save | Needs a second pair of eyes | Logged');
+      expect(button.hasAttribute('disabled')).toBe(true);
+      expect(screen.getByText('Watched')).toBeTruthy();
     });
-    expect(screen.getByText('Watched')).toBeTruthy();
     const button = screen.getByTestId('default');
     expect(button.getAttribute('data-tone')).toBe('danger');
     expect(button.hasAttribute('disabled')).toBe(true);
