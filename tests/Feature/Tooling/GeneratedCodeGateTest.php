@@ -147,7 +147,9 @@ function gateRepository(): string
 
 function git(string $root, string ...$arguments): string
 {
-    $process = new Process(['git', '-c', 'user.name=Gate Test', '-c', 'user.email=gate@example.test', '-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null', ...array_values($arguments)], $root);
+    // Auto maintenance is off: git packs a repository in a detached process after a commit once
+    // it holds enough loose objects, which races the removal of the scratch repository.
+    $process = new Process(['git', '-c', 'user.name=Gate Test', '-c', 'user.email=gate@example.test', '-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null', '-c', 'gc.auto=0', '-c', 'maintenance.auto=false', ...array_values($arguments)], $root);
     $process->mustRun();
 
     return $process->getOutput();

@@ -17,8 +17,9 @@ use RuntimeException;
  * The assertions every browser test of a panel page makes (GUARDRAILS 8 and 9):
  *
  * - the page shows each text it is asked for, read from the panel's English catalogue by its
- *   translation key, so a test names what the page says the way the page does, and a text that is
- *   not in the catalogue fails the test instead of passing on a hard-coded string;
+ *   translation key (or the kit's, kitText()), so a test names what the page says the way the page
+ *   does, and a text that is not in the catalogue fails the test instead of passing on a
+ *   hard-coded string;
  * - nothing was written to the console and no script threw;
  * - axe finds nothing of any impact, with its default rules and, run again with only them, with
  *   every rule of WCAG 2.0, 2.1 and 2.2 at levels A and AA, some of which are off by default;
@@ -29,6 +30,9 @@ final class PanelPage
 {
     /** The panel's English catalogue, which the workbench's locale picks. */
     public const string CATALOGUE = 'js/panel/src/i18n/catalogues/en.json';
+
+    /** The component kit's English catalogue, the kit's own few texts, such as a picker's buttons. */
+    public const string KIT_CATALOGUE = 'js/ui-kit/src/i18n/catalogues/en.json';
 
     /** The axe tags of WCAG 2.2 at levels A and AA, with the criteria of 2.0 and 2.1 it keeps. */
     public const array WCAG_22_AA = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22a', 'wcag22aa'];
@@ -106,11 +110,33 @@ final class PanelPage
      */
     public static function text(string $key, array $parameters = []): string
     {
-        $catalogue = json_decode((string) file_get_contents(Codebase::root().'/'.self::CATALOGUE), true, 512, JSON_THROW_ON_ERROR);
-        $text = is_array($catalogue) ? ($catalogue[$key] ?? null) : null;
+        return self::textOf(self::CATALOGUE, $key, $parameters);
+    }
+
+    /**
+     * A text of the component kit's English catalogue, with its parameters filled in.
+     *
+     * @param  array<string, string|int>  $parameters
+     *
+     * @throws JsonException
+     */
+    public static function kitText(string $key, array $parameters = []): string
+    {
+        return self::textOf(self::KIT_CATALOGUE, $key, $parameters);
+    }
+
+    /**
+     * @param  array<string, string|int>  $parameters
+     *
+     * @throws JsonException
+     */
+    private static function textOf(string $catalogue, string $key, array $parameters): string
+    {
+        $decoded = json_decode((string) file_get_contents(Codebase::root().'/'.$catalogue), true, 512, JSON_THROW_ON_ERROR);
+        $text = is_array($decoded) ? ($decoded[$key] ?? null) : null;
 
         if (! is_string($text)) {
-            throw new RuntimeException("The panel's catalogue ".self::CATALOGUE." has no text {$key}.");
+            throw new RuntimeException("The catalogue {$catalogue} has no text {$key}.");
         }
 
         return (string) preg_replace_callback(

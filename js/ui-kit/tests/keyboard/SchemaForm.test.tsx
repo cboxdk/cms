@@ -341,4 +341,67 @@ describe('the form', () => {
     expect(version.getAttribute('name')).toBeNull();
     expect(document.querySelector('input[type="hidden"][name="version"]')).not.toBeNull();
   });
+
+  test("renders a field's input as renderInput gives it, with the field and the default input, and leaves the others", async () => {
+    const schema = schemaOf('actor.activate.v1.json');
+    const model = readCommandSchema(schema);
+    const documents: JsonObject[] = [];
+    const seen: string[] = [];
+    const PICKED = 'Picked';
+
+    function Editor() {
+      const [value, setValue] = useState<JsonObject>(() => initialDocument(model.root));
+
+      return (
+        <SchemaForm
+          model={model}
+          value={value}
+          onChange={(next) => {
+            setValue(next);
+            documents.push(next);
+          }}
+          idPrefix="activate"
+          errors={{ actor: 'is not an id' }}
+          renderInput={(field, input) => {
+            seen.push(`${field.path}:${field.id}:${String(field.required)}:${field.error ?? ''}`);
+
+            if (field.path !== 'actor') {
+              return input;
+            }
+
+            return (
+              <label>
+                {[PICKED, field.label].join(' ')}
+                <input
+                  id={field.id}
+                  name={field.name}
+                  value={typeof field.value === 'string' ? field.value : ''}
+                  onChange={(event) => {
+                    field.onChange(event.target.value === '' ? field.emptied : event.target.value);
+                  }}
+                />
+              </label>
+            );
+          }}
+        />
+      );
+    }
+
+    const { user } = renderKit(<Editor />);
+
+    const picked = screen.getByLabelText(/^Picked actor/);
+    expect(picked.id).toBe('activate-actor');
+    expect(screen.queryByLabelText(/^actor/)).toBeNull();
+    expect(screen.getByLabelText(/^version/)).not.toBeNull();
+    expect(seen.slice(0, 2)).toEqual([
+      'actor:activate-actor:true:is not an id',
+      'version:activate-version:true:',
+    ]);
+
+    await user.type(picked, 'abc');
+    await user.clear(picked);
+
+    expect(documents.at(-2)).toEqual({ actor: 'abc' });
+    expect(documents.at(-1)).toEqual({});
+  });
 });

@@ -115,13 +115,19 @@ const PANEL_PAGE_FILES = [
     'packages/panel/src/Boundary/Generated/ResetPasswordPageCodecV1.php',
 ];
 
-/** What generate:protocol writes for the panel's points, below the root, sorted: the SDK's barrels of the stable and experimental points' types, the shell's points' modules and codecs, the receipt, the dry run summary and the problem details its host answers with, the validators' runtime, the compatibility lock and the list of the points' codecs. */
+/** What generate:protocol writes for the panel's points, below the root, sorted: the SDK's barrels of the stable and experimental points' types, the modules and codecs of the shell's, the who-am-I page's and the command form's points, the receipt, the dry run summary and the problem details its host answers with, the validators' runtime, the compatibility lock and the list of the points' codecs. */
 const PANEL_POINT_FILES = [
     'js/panel-sdk/src/generated/experimental.ts',
     'js/panel-sdk/src/generated/points/AccessGrantsSectionsV1.ts',
     'js/panel-sdk/src/generated/points/AccessRolesSectionsV1.ts',
     'js/panel-sdk/src/generated/points/AccountMeSectionsV1.ts',
+    'js/panel-sdk/src/generated/points/CommandFormChecksV1.ts',
     'js/panel-sdk/src/generated/points/CommandFormContextV1.ts',
+    'js/panel-sdk/src/generated/points/CommandFormReceiptV1.ts',
+    'js/panel-sdk/src/generated/points/CommandFormStepsV1.ts',
+    'js/panel-sdk/src/generated/points/CommandFormSubmitV1.ts',
+    'js/panel-sdk/src/generated/points/DryRunViewV1.ts',
+    'js/panel-sdk/src/generated/points/FieldInputPropsV1.ts',
     'js/panel-sdk/src/generated/points/ShellNavV1.ts',
     'js/panel-sdk/src/generated/points/ShellPageV1.ts',
     'js/panel-sdk/src/generated/points/ViewerSummaryV1.ts',
@@ -135,7 +141,13 @@ const PANEL_POINT_FILES = [
     'packages/panel/src/Boundary/Generated/Points/AccessGrantsSectionsCodecV1.php',
     'packages/panel/src/Boundary/Generated/Points/AccessRolesSectionsCodecV1.php',
     'packages/panel/src/Boundary/Generated/Points/AccountMeSectionsCodecV1.php',
+    'packages/panel/src/Boundary/Generated/Points/CommandFormChecksCodecV1.php',
     'packages/panel/src/Boundary/Generated/Points/CommandFormContextCodecV1.php',
+    'packages/panel/src/Boundary/Generated/Points/CommandFormReceiptCodecV1.php',
+    'packages/panel/src/Boundary/Generated/Points/CommandFormStepsCodecV1.php',
+    'packages/panel/src/Boundary/Generated/Points/CommandFormSubmitCodecV1.php',
+    'packages/panel/src/Boundary/Generated/Points/DryRunViewCodecV1.php',
+    'packages/panel/src/Boundary/Generated/Points/FieldInputPropsCodecV1.php',
     'packages/panel/src/Boundary/Generated/Points/ShellNavCodecV1.php',
     'packages/panel/src/Boundary/Generated/Points/ShellPageCodecV1.php',
     'packages/panel/src/Boundary/Generated/Points/ViewerSummaryCodecV1.php',

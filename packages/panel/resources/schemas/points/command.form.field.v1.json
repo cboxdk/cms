@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "command.form.field props, contract version 1",
+  "description": "The props of the input of one field of the generic command form, a replacement point keyed by the value class the command binds the member to (PRD 13.4): the command's name and contract version, the member's path in the document, the id, label and description the default input shows, the member's JSON Schema node, its value as text or null while the field is empty, what is wrong with it, whether the form is read-only, the panel's locale and the member's presence; in the browser the replacement also gets onChange with the next value. The page holds the props in the browser, per field. The PHP form is Cbox\\Cms\\Panel\\CommandForm\\Domain\\Dto\\FieldInputPropsV1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "command",
+    "description",
+    "errors",
+    "id",
+    "label",
+    "locale",
+    "path",
+    "presence",
+    "read_only",
+    "schema",
+    "value",
+    "version"
+  ],
+  "properties": {
+    "command": {
+      "description": "The name of the command the form runs, such as grant.assign: lowercase segments in snake_case joined by dots, at least two.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+      "examples": [
+        "grant.assign"
+      ],
+      "minLength": 3,
+      "maxLength": 255
+    },
+    "description": {
+      "description": "What the value must be, as the default input shows it below the label, in the panel's locale, or null for none.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 2000
+    },
+    "errors": {
+      "description": "What is wrong with the value, each in the panel's locale: the issue the form found at the member, or the kernel's error there after a submit; empty when nothing is wrong.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2000
+      }
+    },
+    "id": {
+      "description": "The id the default input has, `<prefix>-<path>`, which the form's error summary links to; a replacement gives its control the same id.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "label": {
+      "description": "The field's label, as the default input shows it, in the panel's locale.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "locale": {
+      "description": "The panel's locale, a language tag such as da or en.",
+      "type": "string",
+      "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$",
+      "examples": [
+        "en"
+      ]
+    },
+    "path": {
+      "description": "The member's path in the command document, as the kernel writes it, such as node or window.live_from.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "examples": [
+        "node"
+      ]
+    },
+    "presence": {
+      "description": "Whether the member must be there and may be null, as the kernel's validators say it.",
+      "enum": [
+        "required",
+        "present",
+        "optional",
+        "omittable"
+      ]
+    },
+    "read_only": {
+      "description": "Whether the input cannot be used now, such as while the form submits.",
+      "type": "boolean"
+    },
+    "schema": {
+      "description": "The member's node of the command's JSON Schema, with the definition it refers to resolved: its type, pattern, lengths, bounds and examples.",
+      "type": "object"
+    },
+    "value": {
+      "description": "The member's value as text, the id of an actor, a node or a role for the core's pickers, or null while the field is empty.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 10000
+    },
+    "version": {
+      "description": "The contract version of the command the form runs, 1 or more.",
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

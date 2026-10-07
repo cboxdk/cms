@@ -7,13 +7,10 @@ namespace Cbox\Cms\Tests\Feature\Panel;
 use Cbox\Cms\Contracts\PanelPoints\PanelPoint;
 use Cbox\Cms\Contracts\PanelPoints\PointKind;
 use Cbox\Cms\Contracts\PanelPoints\Region;
-use Cbox\Cms\Core\Registry\Boundary\ProviderAddonManifests;
-use Cbox\Cms\Core\Registry\Boundary\ProviderScanRoots;
-use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
 use Cbox\Cms\Core\Registry\Domain\Dto\PanelPointEntry;
 use Cbox\Cms\Core\Registry\Domain\PointStability;
-use Cbox\Cms\Core\Registry\Domain\RegistryCompiler;
 use Cbox\Cms\Tests\Support\Panel\RenderedPanelPoints;
+use Cbox\Cms\Tests\Support\Registry\InstallationRegistry;
 use Cbox\Cms\Tests\Support\Tooling\ScratchDirectory;
 
 /*
@@ -56,10 +53,7 @@ function renderedPages(array $files): string
 }
 
 it('finds every point the panel\'s pages render declared, and every declared point rendered', function (): void {
-    $registry = app(RegistryCompiler::class)->compile(
-        app(DeclarationScanner::class)->scan(ProviderScanRoots::of(app())),
-        ProviderAddonManifests::of(app()),
-    );
+    $registry = InstallationRegistry::compile(app());
     $root = dirname(__DIR__, 3);
 
     expect(RenderedPanelPoints::findings($root.'/js/panel/src', $root, $registry->panel))->toBe([]);

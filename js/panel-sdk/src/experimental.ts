@@ -6,5 +6,10 @@
 // experimental (decision D4).
 
 export type { ActionContext, ActionHandler, AsyncFormCheck } from './experimental/contributions';
+export type { FieldInput, FieldInputData, FieldInputProps } from './experimental/field-input';
+// A JSON document of another contract a point's props hold, as that contract's codec writes it,
+// such as the receipt of command.form.receipt@1 or the JSON Schema node of command.form.field@1:
+// an object whose keys the contract's own validator checks.
+export type { JsonObject as JsonDocument } from './generated/validation';
 export * from './kit/experimental';
 export * from './generated/experimental';

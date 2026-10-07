@@ -8,8 +8,10 @@ use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Identity\IssuerKind;
 use Cbox\Cms\Core\Registry\Boundary\ProviderAddonManifests;
 use Cbox\Cms\Core\Registry\Boundary\ProviderScanRoots;
+use Cbox\Cms\Core\Registry\Domain\ContractSchemas;
 use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
 use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
+use Cbox\Cms\Core\Registry\Domain\Dto\BuildSettings;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Dto\ScanRoots;
 use Cbox\Cms\Core\Registry\Domain\RegistryCompiler;
@@ -46,7 +48,7 @@ function workbenchRegistry(McpWorld ...$with): CompiledRegistry
         $roots[] = McpWorld::probe();
     }
 
-    return app(RegistryCompiler::class)->compile(app(DeclarationScanner::class)->scan(new ScanRoots(...$roots)), ProviderAddonManifests::of(app()));
+    return app(RegistryCompiler::class)->compile(app(DeclarationScanner::class)->scan(new ScanRoots(...$roots)), ProviderAddonManifests::of(app()), app(BuildSettings::class), app(ContractSchemas::class)->shapes());
 }
 
 /**

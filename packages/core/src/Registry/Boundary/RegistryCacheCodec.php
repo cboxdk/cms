@@ -589,7 +589,7 @@ final readonly class RegistryCacheCodec
                 'mirrors' => $contribution->mirrors,
                 'tightens' => array_map(static fn (Tighten $tighten): string => $tighten->value, $contribution->tightens),
             ],
-            $contribution instanceof ReplacementContribution => ['key' => $contribution->key],
+            $contribution instanceof ReplacementContribution => ['data' => $contribution->data, 'key' => $contribution->key],
             $contribution instanceof FormCheck => ['command' => $contribution->command, 'mirrors' => $contribution->mirrors, 'severity' => $contribution->severity->value],
             $contribution instanceof FlowStep => [
                 'command' => $contribution->command,
@@ -703,7 +703,7 @@ final readonly class RegistryCacheCodec
                 $priority,
                 $scope,
             ),
-            PointKind::Replacement => new ReplacementContribution($id, $point, $text('key'), $priority, $scope),
+            PointKind::Replacement => new ReplacementContribution($id, $point, $text('key'), $optional('data'), $priority, $scope),
             PointKind::FormCheck => new FormCheck($id, $point, $text('command'), $this->enum(Severity::class, $data['severity'], $path, $at.'.severity', 'severity'), $optional('mirrors'), $priority, $scope),
             PointKind::FlowStep => new FlowStep(
                 $id,

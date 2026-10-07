@@ -73,8 +73,13 @@ use Cbox\Cms\Contracts\Build\DeclaresAddon;
 use Cbox\Cms\Contracts\Build\DeclaresScanRoots;
 use Cbox\Cms\Contracts\Build\ScanRoot;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Contracts\PanelPoints\ContributionId;
+use Cbox\Cms\Contracts\PanelPoints\FlowStep;
+use Cbox\Cms\Contracts\PanelPoints\FormCheck;
 use Cbox\Cms\Contracts\PanelPoints\PanelApiVersion;
 use Cbox\Cms\Contracts\PanelPoints\PanelContributions;
+use Cbox\Cms\Contracts\PanelPoints\Severity;
+use Cbox\Cms\Contracts\PanelPoints\StepPosition;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
@@ -82,13 +87,18 @@ use Illuminate\Support\ServiceProvider;
 
 /**
  * The service provider of the workbench's fixture addon, cboxdk/cms-fixture-addon (PRD 13.1, 13.2,
- * MILESTONES M1 point 7). Its scan root holds the addon's two hooks, and its manifest says what the
- * addon does through the kernel: it is named fixtureaddon, needs the core API 1.0, reads public
- * fields only, may transform entry.create and validate variant.release, and
+ * MILESTONES M1 point 7). Its scan root holds the addon's three hooks, and its manifest says what
+ * the addon does through the kernel: it is named fixtureaddon, needs the core API 1.0, reads public
+ * fields only, may transform and validate entry.create and validate variant.release, and
  * extends app:fixture_article with the blueprint in its schema directory. In the panel it ships one
  * theme, brand, a magenta accent (PRD 13.4), which has no effect until the installation selects it
- * in cbox-cms.panel.themes; the workbench does not, and a prebuilt bundle in dist/panel that
- * registers no contribution, built from resources/panel by `npm run build:fixture-addon` and
+ * in cbox-cms.panel.themes; the workbench does not, and its contributions to the generic command
+ * form of entry.create (section 8 of the panel extension architecture): the checks SLUG_HINT, a
+ * warning where the title derives no slug, SLUG_OVERRIDE, which asks the viewer to acknowledge a
+ * slug set by hand, and SLUG_SHAPE, which blocks a slug that is not well formed and mirrors the
+ * hook RequireWellFormedSlug, as the mirror rule asks, and the step SLUG_REVIEW before the submit,
+ * which shows the slug the article gets, patches it into the draft or cancels. Their code is the
+ * prebuilt bundle in dist/panel, built from resources/panel by `npm run build:fixture-addon` and
  * signed with the test key panel-signing-test-key.pem, whose public key the workbench trusts in
  * cbox-cms.addons.publishers (PRD 13.8).
  *
@@ -107,6 +117,24 @@ final class FixtureAddonServiceProvider extends ServiceProvider implements Decla
     /** The name of the addon's panel theme, which the installation selects as fixtureaddon:brand. */
     public const string THEME = 'brand';
 
+    /** The form of entry.create, which the addon's checks and step apply to. */
+    public const string ENTRY_CREATE = 'entry.create@1';
+
+    /** The warning check: the title derives no slug. */
+    public const string SLUG_HINT = 'fixtureaddon.slug-hint';
+
+    /** The acknowledge check: a slug set by hand, instead of the derived one. */
+    public const string SLUG_OVERRIDE = 'fixtureaddon.slug-override';
+
+    /** The blocking check, which mirrors RequireWellFormedSlug: a slug that is not well formed. */
+    public const string SLUG_SHAPE = 'fixtureaddon.slug-shape';
+
+    /** The step before the submit: the slug the article gets, patched into the draft or cancelled. */
+    public const string SLUG_REVIEW = 'fixtureaddon.slug-review';
+
+    /** The path the step may patch: the addon's own field. */
+    public const string SLUG_PATH = 'fields.ext.fixtureaddon.fixture_slug';
+
     public function scanRoots(): array
     {
         return [new ScanRoot(self::PACKAGE, __DIR__)];
@@ -122,6 +150,7 @@ final class FixtureAddonServiceProvider extends ServiceProvider implements Decla
             capabilities: new AddonCapabilities(reads: ClassificationAccess::Public, uiTheme: true),
             hooks: [
                 new AllowedHook(CreateEntry::class, Phase::Transform),
+                new AllowedHook(CreateEntry::class, Phase::Validate),
                 new AllowedHook(ReleaseVariant::class, Phase::Validate),
             ],
             schema: new SchemaContributions(
@@ -131,6 +160,13 @@ final class FixtureAddonServiceProvider extends ServiceProvider implements Decla
             panel: new PanelContributions(
                 sdk: new PanelApiVersion(1, 0),
                 bundle: __DIR__.'/../dist/panel',
+                acceptsExperimental: ['command.form.checks@1', 'command.form.steps@1'],
+                contributions: [
+                    new FormCheck(new ContributionId(self::SLUG_HINT), 'command.form.checks@1', self::ENTRY_CREATE, Severity::Warning),
+                    new FormCheck(new ContributionId(self::SLUG_OVERRIDE), 'command.form.checks@1', self::ENTRY_CREATE, Severity::Acknowledge),
+                    new FormCheck(new ContributionId(self::SLUG_SHAPE), 'command.form.checks@1', self::ENTRY_CREATE, Severity::Error, RequireWellFormedSlug::class),
+                    new FlowStep(new ContributionId(self::SLUG_REVIEW), 'command.form.steps@1', self::ENTRY_CREATE, StepPosition::BeforeSubmit, [self::SLUG_PATH]),
+                ],
                 themes: [self::THEME => __DIR__.'/../resources/panel/theme.json'],
             ),
         );
@@ -434,6 +470,7 @@ use Workbench\FixtureAddon\DeriveSlug;
 use Workbench\FixtureAddon\FixtureAddonServiceProvider;
 use Workbench\FixtureAddon\FixtureArticle;
 use Workbench\FixtureAddon\RequireSlugOnRelease;
+use Workbench\FixtureAddon\RequireWellFormedSlug;
 use Workbench\FixtureAddon\Tests\FixtureAddonTestCase;
 
 /**
@@ -449,7 +486,7 @@ final class FixtureAddonBuildTest extends FixtureAddonTestCase
     {
         $manifest = new FixtureAddonServiceProvider(app())->addonManifest();
 
-        foreach ([DeriveSlug::class, RequireSlugOnRelease::class] as $class) {
+        foreach ([DeriveSlug::class, RequireWellFormedSlug::class, RequireSlugOnRelease::class] as $class) {
             $hook = new ReflectionClass($class)->getAttributes(Hook::class)[0]->newInstance();
             $allowed = array_filter($manifest->hooks, static fn (AllowedHook $allowed): bool => $allowed->allows($hook->command, $hook->phase));
 
@@ -496,7 +533,7 @@ final class FixtureAddonBuildTest extends FixtureAddonTestCase
         ));
 
         self::assertSame(
-            [[DeriveSlug::class, 'entry.create', 'transform', 'fixtureaddon', 'public'], [RequireSlugOnRelease::class, 'variant.release', 'validate', 'fixtureaddon', 'public']],
+            [[DeriveSlug::class, 'entry.create', 'transform', 'fixtureaddon', 'public'], [RequireWellFormedSlug::class, 'entry.create', 'validate', 'fixtureaddon', 'public'], [RequireSlugOnRelease::class, 'variant.release', 'validate', 'fixtureaddon', 'public']],
             array_map(static fn (array $hook): array => [$hook['class'] ?? null, $hook['command'] ?? null, $hook['phase'] ?? null, $hook['addon'] ?? null, $hook['reads'] ?? null], $hooks),
         );
         self::assertCount(1, $schema);

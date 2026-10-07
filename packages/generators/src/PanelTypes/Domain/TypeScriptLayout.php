@@ -12,8 +12,9 @@ use Cbox\Cms\Generators\PanelTypes\Domain\Dto\TypeExpression;
  * (print width 100, two spaces, single quotes, trailing commas), so the generated module passes
  * Prettier unchanged: a line that fits stays on one line; a union that does not moves to the next
  * line, and then breaks into one member per line; a generic that does not breaks its arguments,
- * one per line; a list of imported names breaks into one name per line with a trailing comma; and
- * a TSDoc comment is wrapped within the width.
+ * one per line; an object with an index signature that does not breaks its braces around the
+ * signature on a line of its own; a list of imported names breaks into one name per line with a
+ * trailing comma; and a TSDoc comment is wrapped within the width.
  */
 #[Internal]
 final readonly class TypeScriptLayout
@@ -49,6 +50,10 @@ final readonly class TypeScriptLayout
             return [$pad.$head, ...$members];
         }
 
+        if ($type->value instanceof TypeExpression) {
+            return [$pad.$head.' {', ...self::statement('readonly [key: string]:', $type->value, $indent + 2), $pad.'};'];
+        }
+
         return self::expression($type, $indent, ';', $pad.$head.' ');
     }
 
@@ -64,7 +69,7 @@ final readonly class TypeScriptLayout
         $lead ??= $pad;
         $flat = $lead.$type->flat().$suffix;
 
-        if (strlen($flat) <= self::WIDTH || $type->union || $type->element instanceof TypeExpression || $type->arguments === []) {
+        if (strlen($flat) <= self::WIDTH || $type->union || $type->element instanceof TypeExpression || $type->value instanceof TypeExpression || $type->arguments === []) {
             return [$flat];
         }
 

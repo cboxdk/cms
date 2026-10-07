@@ -34,7 +34,8 @@ function propertyRule(member: FormMember): PropertyRule {
   return { key: member.key, presence: presenceOf(member), value: valueRule(member.shape) };
 }
 
-function presenceOf(member: FormMember): Presence {
+/** The presence of a member, as the generated validators name it, from required and nullable. */
+export function presenceOf(member: FormMember): Presence {
   if (member.required) {
     return member.nullable ? 'present' : 'required';
   }

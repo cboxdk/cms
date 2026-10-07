@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "command.form.submit props, contract version 1",
+  "description": "The props of the decorator of the generic command form's submit, a decorator point (PRD 13.4): what the form is about, the command's name, its contract version and the title of its JSON Schema. A contribution to it adds content around the form's actions and a badge, and tightens a disabled reason, which blocks the submit and so mirrors a hook of its addon, a description and a tone towards danger. The PHP form is Cbox\\Cms\\Panel\\CommandForm\\Domain\\Dto\\CommandFormSubmitV1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "command",
+    "title",
+    "version"
+  ],
+  "properties": {
+    "command": {
+      "description": "The name of the command the form runs, such as entry.create: lowercase segments in snake_case joined by dots, at least two.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+      "examples": [
+        "entry.create"
+      ],
+      "minLength": 3,
+      "maxLength": 255
+    },
+    "title": {
+      "description": "The title of the command's JSON Schema, such as \"entry.create, contract version 1\".",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "version": {
+      "description": "The contract version of the command the form runs, 1 or more.",
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

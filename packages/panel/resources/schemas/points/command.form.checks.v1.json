@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "command.form.checks props, contract version 1",
+  "description": "The props of the checks of the generic command form, a form check point (PRD 13.4): none. A contribution to it is a pure function of the form's command document to issues, run on every edit of the form of the command it names; an issue of severity error blocks the submit only for a check that mirrors a hook of its addon on the same command. The PHP form is Cbox\\Cms\\Panel\\CommandForm\\Domain\\Dto\\CommandFormChecksV1.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {}
+}

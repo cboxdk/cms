@@ -14,7 +14,8 @@ use stdClass;
  * and for its rules a value past each of them: an enum's unknown value, a string shorter than its
  * minLength, longer than its maxLength, off its pattern or not a date-time, an integer that is a
  * fraction or past its minimum or maximum, a list with too few or too many items, and each rule of
- * the first item; and every object with a key the schema does not have. The cases of an object are
+ * the first item; and every object with a key the schema does not have, except a document of
+ * another contract, an object without properties, which takes any keys. The cases of an object are
  * those of its members, and of the members of the objects they hold.
  *
  * It reads the keywords the point schemas use (JsonSchemaContract): `$ref` to `#/$defs/<name>`,
@@ -135,7 +136,10 @@ final class PointViolations
     {
         $this->set($at, $place.' not an object', 'planted');
 
-        if ($value instanceof stdClass) {
+        // A document of another contract, an object without properties of its own, takes any keys:
+        // the contract's own codec and validator check them, so only a value that is no object
+        // breaks the rule here.
+        if ($value instanceof stdClass && isset($node->properties)) {
             $this->object($node, $value, $at);
         }
     }

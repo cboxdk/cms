@@ -6,14 +6,11 @@ namespace Cbox\Cms\Tests\Feature\Surfaces;
 
 use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\PanelPoints\CommandRef;
-use Cbox\Cms\Core\Registry\Boundary\ProviderAddonManifests;
-use Cbox\Cms\Core\Registry\Boundary\ProviderScanRoots;
-use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
 use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
-use Cbox\Cms\Core\Registry\Domain\RegistryCompiler;
 use Cbox\Cms\Http\Inertia\Domain\InertiaActions;
 use Cbox\Cms\Panel\Shell\Domain\OwnPage;
 use Cbox\Cms\Panel\Shell\Domain\QueryPageParity;
+use Cbox\Cms\Tests\Support\Registry\InstallationRegistry;
 
 /*
  * The panel and REST stay in parity (decided by Sylvester on 29 September 2026): every action the
@@ -28,10 +25,7 @@ use Cbox\Cms\Panel\Shell\Domain\QueryPageParity;
  */
 
 it('exposes no action on Inertia that is not on REST', function (): void {
-    $registry = app(RegistryCompiler::class)->compile(
-        app(DeclarationScanner::class)->scan(ProviderScanRoots::of(app())),
-        ProviderAddonManifests::of(app()),
-    );
+    $registry = InstallationRegistry::compile(app());
 
     $broken = array_values(array_map(
         static fn (ActionEntry $entry): string => sprintf('%s (%s version %d)', $entry->class, $entry->command->value, $entry->commandVersion),
@@ -43,10 +37,7 @@ it('exposes no action on Inertia that is not on REST', function (): void {
 });
 
 it('reads no query in a panel page that REST does not expose', function (): void {
-    $registry = app(RegistryCompiler::class)->compile(
-        app(DeclarationScanner::class)->scan(ProviderScanRoots::of(app())),
-        ProviderAddonManifests::of(app()),
-    );
+    $registry = InstallationRegistry::compile(app());
 
     expect(QueryPageParity::broken($registry, OwnPage::cases()))->toBe([])
         ->and(array_filter(OwnPage::cases(), static fn (OwnPage $page): bool => $page->query() instanceof CommandRef))->not->toBe([]);

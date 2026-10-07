@@ -95,7 +95,7 @@ export type { FormActionsProps } from './components/FormActions';
 export { JsonEditor } from './components/JsonEditor';
 export type { JsonEditorProps } from './components/JsonEditor';
 export { SchemaForm } from './components/SchemaForm';
-export type { SchemaFormProps, SchemaFormTexts } from './components/SchemaForm';
+export type { SchemaFormField, SchemaFormProps, SchemaFormTexts } from './components/SchemaForm';
 export {
   emptied,
   fieldPathText,

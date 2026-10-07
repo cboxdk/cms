@@ -7,18 +7,15 @@ namespace Cbox\Cms\Tests\Feature\Panel;
 use Cbox\Cms\Contracts\PanelPoints\PanelPoint;
 use Cbox\Cms\Contracts\PanelPoints\PointKind;
 use Cbox\Cms\Contracts\PanelPoints\Region;
-use Cbox\Cms\Core\Registry\Boundary\ProviderAddonManifests;
-use Cbox\Cms\Core\Registry\Boundary\ProviderScanRoots;
-use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
 use Cbox\Cms\Core\Registry\Domain\Dto\PanelPointEntry;
 use Cbox\Cms\Core\Registry\Domain\PointStability;
-use Cbox\Cms\Core\Registry\Domain\RegistryCompiler;
 use Cbox\Cms\Generators\Protocol\Domain\Dto\SchemaBinding;
 use Cbox\Cms\Panel\Tests\Points\Fixtures\NoteCardV1;
 use Cbox\Cms\Panel\Tests\Points\Fixtures\NoteCardV2;
 use Cbox\Cms\Panel\Tests\Points\Fixtures\NoteToolbarV1;
 use Cbox\Cms\Panel\Tests\Points\PanelPointFixtures;
 use Cbox\Cms\Tests\Support\Panel\PointBindings;
+use Cbox\Cms\Tests\Support\Registry\InstallationRegistry;
 use Cbox\Cms\Tooling\Protocol\Domain\PanelPointSchemas;
 
 /*
@@ -39,10 +36,7 @@ function schemaPoint(string $class, int $version, PointStability $stability): Pa
 }
 
 it('finds a props schema bound to every contributable point of the installation, and no other', function (): void {
-    $registry = app(RegistryCompiler::class)->compile(
-        app(DeclarationScanner::class)->scan(ProviderScanRoots::of(app())),
-        ProviderAddonManifests::of(app()),
-    );
+    $registry = InstallationRegistry::compile(app());
 
     expect(PointBindings::findings($registry->panel, PanelPointSchemas::all()))->toBe([]);
 });

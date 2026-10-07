@@ -185,7 +185,7 @@ final readonly class ContributionsCodecV1 implements JsonCodec
         $json->kind = $object->kind->value;
         $json->nav = $object->nav instanceof NavProp ? $this->encodeNavProp($object->nav) : null;
         $json->priority = $object->priority;
-        $json->props = JsonValues::encodeDocument($object->props->value);
+        $json->props = $object->props instanceof JsonDocument ? JsonValues::encodeDocument($object->props->value) : null;
         $json->replacement = $object->replacement instanceof ReplacementProp ? $this->encodeReplacementProp($object->replacement) : null;
         $json->step = $object->step instanceof StepProp ? $this->encodeStepProp($object->step) : null;
 
@@ -202,7 +202,7 @@ final readonly class ContributionsCodecV1 implements JsonCodec
             id: JsonValues::required($object, 'id', $path, static fn (mixed $value, FieldPath $at): ContributionId => JsonValues::value($value, $at, static fn (string $text): ContributionId => new ContributionId($text))),
             kind: JsonValues::required($object, 'kind', $path, static fn (mixed $value, FieldPath $at): PointKind => JsonValues::enum($value, $at, PointKind::class)),
             priority: JsonValues::required($object, 'priority', $path, static fn (mixed $value, FieldPath $at): int => JsonValues::integer($value, $at, min: 0, max: 1000000)),
-            props: JsonValues::required($object, 'props', $path, static fn (mixed $value, FieldPath $at): JsonDocument => JsonValues::document($value, $at, static fn (string $text): JsonDocument => new JsonDocument($text))),
+            props: JsonValues::present($object, 'props', $path, static fn (mixed $value, FieldPath $at): JsonDocument => JsonValues::document($value, $at, static fn (string $text): JsonDocument => new JsonDocument($text))),
             action: JsonValues::present($object, 'action', $path, $this->decodeActionProp(...)),
             check: JsonValues::present($object, 'check', $path, $this->decodeCheckProp(...)),
             decorator: JsonValues::present($object, 'decorator', $path, $this->decodeDecoratorProp(...)),

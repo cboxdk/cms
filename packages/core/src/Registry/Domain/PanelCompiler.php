@@ -413,7 +413,7 @@ final readonly class PanelCompiler
         $command = null;
         $query = null;
 
-        if ($contribution instanceof SlotFill || $contribution instanceof PageContribution) {
+        if ($contribution instanceof SlotFill || $contribution instanceof PageContribution || $contribution instanceof ReplacementContribution) {
             $query = $contribution->data === null ? null : $this->dataQuery($manifest, $contribution->data, $named, $point, $context, $problems);
         }
 

@@ -136,7 +136,7 @@ final readonly class ContributionsModule
                 $experimental[$props] = true;
             }
 
-            $type = self::contributionType($contribution, $names);
+            $type = self::contributionType($contribution, $names, $addon->issues !== []);
 
             foreach (self::uses($contribution->kind) as $use) {
                 $extend[$use] = true;
@@ -233,13 +233,18 @@ final readonly class ContributionsModule
     }
 
     /**
-     * The type of a contribution's member of Contributions.
+     * The type of a contribution's member of Contributions. A flow step names Issues, the commands
+     * the addon may issue, only when there are any, and its paths only when it patches any or
+     * Issues follows: without, the SDK's defaults, never and NoCommands, are the types, and naming
+     * them again is what the addon's lint refuses as an unnecessary type argument. A replacement
+     * with a data query is typed on its result too, as a slot is.
      *
      * @param  array<string, string>  $names  the type of each contract's document, by its key
+     * @param  bool  $issues  whether the addon may issue any command
      *
      * @throws GenerationFailed with generate_invalid_output for a kind that runs no code, or a form contribution without its command
      */
-    private static function contributionType(UiContribution $contribution, array $names): TypeExpression
+    private static function contributionType(UiContribution $contribution, array $names, bool $issues): TypeExpression
     {
         $props = TypeExpression::atom($contribution->point->name);
         $data = $contribution->data instanceof ContractShape ? TypeExpression::atom($names[$contribution->data->ref->toString().'#result'] ?? '') : null;
@@ -249,12 +254,12 @@ final readonly class ContributionsModule
             PointKind::Slot => self::lazy(TypeExpression::generic('SlotComponent', $data instanceof TypeExpression ? [$props, $data] : [$props])),
             PointKind::Page => self::lazy($data instanceof TypeExpression ? TypeExpression::generic('PageComponent', [$data]) : TypeExpression::atom('PageComponent')),
             PointKind::Decorator => TypeExpression::generic('Decorator', $contribution->tightens === [] ? [$props] : [$props, self::literals($contribution->tightens)]),
-            PointKind::Replacement => self::lazy(TypeExpression::generic('Replacement', [$props])),
+            PointKind::Replacement => self::lazy(TypeExpression::generic('Replacement', $data instanceof TypeExpression ? [$props, $data] : [$props])),
             PointKind::FormCheck => TypeExpression::generic('FormCheck', [self::document($contribution, $document)]),
             PointKind::FlowStep => self::lazy(TypeExpression::generic('FlowStep', [
                 self::document($contribution, $document),
-                $contribution->patches === [] ? TypeExpression::atom('never') : self::literals($contribution->patches),
-                TypeExpression::atom('Issues'),
+                ...($contribution->patches === [] && ! $issues ? [] : [$contribution->patches === [] ? TypeExpression::atom('never') : self::literals($contribution->patches)]),
+                ...($issues ? [TypeExpression::atom('Issues')] : []),
             ])),
             PointKind::Observer => TypeExpression::generic('Observer', [$props]),
             PointKind::Provider => self::lazy(TypeExpression::generic('Provider', [$props])),

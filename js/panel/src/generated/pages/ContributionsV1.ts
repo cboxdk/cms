@@ -182,9 +182,11 @@ export interface FillPropV1 {
   priority: number;
   /**
    * The point's props as the point's generated codec wrote them for this contribution, without
-   * every member classified above the lower of the viewer's access and the addon's reads.
+   * every member classified above the lower of the viewer's access and the addon's reads; null for
+   * a point whose props the page holds in the browser, which the page builds, typed by the point's
+   * generated TypeScript, and hands each contribution itself.
    */
-  props: JsonObject;
+  props: JsonObject | null;
   /** The key a replacement replaces; null for any other kind. */
   replacement: ReplacementPropV1 | null;
   /**
@@ -406,7 +408,7 @@ const fillPropV1Rule: ObjectRule = {
       },
     },
     { key: 'priority', presence: 'required', value: { kind: 'integer', min: 0, max: 1000000 } },
-    { key: 'props', presence: 'required', value: { kind: 'document' } },
+    { key: 'props', presence: 'present', value: { kind: 'document' } },
     { key: 'action', presence: 'present', value: { kind: 'object', object: actionPropV1Rule } },
     { key: 'check', presence: 'present', value: { kind: 'object', object: checkPropV1Rule } },
     {

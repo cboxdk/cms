@@ -9,12 +9,19 @@ import { validate, type ObjectRule, type JsonObject, type Validation } from '../
 
 /**
  * The props of the panel's generic command form, Command (PRD 6.1, 13.4): the address the logout
- * posts to, the command the form runs, by its name and contract version, and the JSON Schema of the
- * command's document, as the command's codec carries it, from which the form is rendered. The PHP
- * form is Cbox\Cms\Panel\Domain\Dto\CommandFormPage, and the generated codec CommandFormPageCodecV1
- * writes its canonical JSON: keys sorted, no whitespace.
+ * posts to, the command the form runs, by its name and contract version, the JSON Schema of the
+ * command's document, as the command's codec carries it, from which the form is rendered, and the
+ * value class the command binds each member to, which keys the replacement of the member's input at
+ * command.form.field@1. The PHP form is Cbox\Cms\Panel\Domain\Dto\CommandFormPage, and the
+ * generated codec CommandFormPageCodecV1 writes its canonical JSON: keys sorted, no whitespace.
  */
 export interface CommandFormPageV1 {
+  /**
+   * The value class the command binds each member of its document to, by the member's path, for the
+   * members bound to a class, sorted by path; a replacement of the member's input at
+   * command.form.field@1 is keyed by the class.
+   */
+  bindings: readonly FieldBindingV1[];
   /**
    * The name of the command the form runs, such as entry.create: lowercase segments in snake_case
    * joined by dots, at least two.
@@ -32,6 +39,24 @@ export interface CommandFormPageV1 {
   version: number;
 }
 
+/** One member of the command's document bound to a value class: its path and the class. */
+export interface FieldBindingV1 {
+  /**
+   * The class the member is bound to, such as Cbox\Cms\Contracts\Ids\NodeId, written without a
+   * leading backslash.
+   */
+  class: string;
+  /** The member's path in the document, as the kernel writes it, such as node. */
+  path: string;
+}
+
+const fieldBindingV1Rule: ObjectRule = {
+  properties: [
+    { key: 'path', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 500 } },
+    { key: 'class', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 255 } },
+  ],
+};
+
 const commandFormPageV1Rule: ObjectRule = {
   properties: [
     { key: 'logout', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 500 } },
@@ -47,6 +72,11 @@ const commandFormPageV1Rule: ObjectRule = {
     },
     { key: 'version', presence: 'required', value: { kind: 'integer', min: 1 } },
     { key: 'schema', presence: 'required', value: { kind: 'document' } },
+    {
+      key: 'bindings',
+      presence: 'required',
+      value: { kind: 'list', item: { kind: 'object', object: fieldBindingV1Rule } },
+    },
   ],
 };
 

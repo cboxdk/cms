@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 
 import { useKitTranslation } from '../i18n/translations';
 import { Button } from './Button';
@@ -42,6 +42,36 @@ export interface SchemaFormTexts {
 }
 
 /**
+ * One field of a SchemaForm, as the caller's renderInput gets it beside the default input: the
+ * member and its path, the value and how to change it, what the member is when its field is
+ * emptied, and what the default input shows: its id and name, label, description and error,
+ * whether it is required and whether it is disabled.
+ *
+ * @experimental
+ */
+export interface SchemaFormField {
+  /** The path of the value in the document, as the kernel writes it, such as `window.live_from`. */
+  readonly path: string;
+  /** The keys of the path, without list indexes, which the texts are looked up by. */
+  readonly keys: readonly string[];
+  readonly member: FormMember;
+  readonly value: JsonValue | undefined;
+  /** Called with the member's value, or undefined to leave the key out. */
+  readonly onChange: (next: JsonValue | undefined) => void;
+  /** What the member is when its field is emptied: null, or undefined to leave the key out. */
+  readonly emptied: JsonValue | undefined;
+  /** The id of the control, `<idPrefix>-<path>`, which an ErrorSummary links to. */
+  readonly id: string;
+  /** The name the control is submitted under: the path. */
+  readonly name: string;
+  readonly label: string;
+  readonly description: string | undefined;
+  readonly error: string | undefined;
+  readonly required: boolean;
+  readonly disabled: boolean;
+}
+
+/**
  * The props of SchemaForm.
  *
  * @experimental
@@ -74,6 +104,12 @@ export interface SchemaFormProps {
   readonly checkJson?: ((value: unknown) => readonly string[]) | undefined;
   /** Whether the controls cannot be used, such as while the form submits. */
   readonly disabled?: boolean | undefined;
+  /**
+   * Renders a field's input in place of the default: given the field and the default input, it
+   * returns what to render, the default input itself for a field it leaves alone. The panel hands
+   * a field whose member is bound to a value class to the replacement point of the command form.
+   */
+  readonly renderInput?: ((field: SchemaFormField, input: ReactNode) => ReactNode) | undefined;
 }
 
 const DEFAULT_TEXTS: SchemaFormTexts = {
@@ -111,6 +147,7 @@ interface FormContext {
   readonly idPrefix: string;
   readonly checkJson: ((value: unknown) => readonly string[]) | undefined;
   readonly disabled: boolean;
+  readonly renderInput: ((field: SchemaFormField, input: ReactNode) => ReactNode) | undefined;
 }
 
 /**
@@ -126,7 +163,8 @@ interface FormContext {
  * document, with the generated validator of the command, and gives the errors back by path. Labels
  * and descriptions come from the schema's title and description, or from the caller's texts. Each
  * control is named by the path of its value in the document, such as `window.live_from`, and has
- * the id `<idPrefix>-<path>`.
+ * the id `<idPrefix>-<path>`. The caller renders a field's input in place of the default with
+ * renderInput, given the field and the default input.
  *
  * @experimental
  */
@@ -139,6 +177,7 @@ export function SchemaForm({
   idPrefix,
   checkJson,
   disabled = false,
+  renderInput,
 }: SchemaFormProps) {
   const ownId = useId();
   const context: FormContext = {
@@ -147,6 +186,7 @@ export function SchemaForm({
     idPrefix: idPrefix ?? ownId,
     checkJson,
     disabled,
+    renderInput,
   };
 
   return (
@@ -224,6 +264,73 @@ function MemberField({ member, path, value, onChange, context, label }: MemberFi
   const error = context.errors[name];
   const id = `${context.idPrefix}-${name}`;
   const required = member.required && !member.nullable;
+  const input = (
+    <DefaultInput
+      member={member}
+      path={path}
+      value={value}
+      onChange={onChange}
+      context={context}
+      keys={keys}
+      text={text}
+      description={description}
+      name={name}
+      error={error}
+      id={id}
+      required={required}
+    />
+  );
+
+  if (context.renderInput === undefined) {
+    return input;
+  }
+
+  return (
+    <>
+      {context.renderInput(
+        {
+          path: name,
+          keys,
+          member,
+          value,
+          onChange,
+          emptied: emptied(member),
+          id,
+          name,
+          label: text,
+          description,
+          error,
+          required,
+          disabled: context.disabled,
+        },
+        input,
+      )}
+    </>
+  );
+}
+
+function DefaultInput({
+  member,
+  path,
+  value,
+  onChange,
+  context,
+  keys,
+  text,
+  description,
+  name,
+  error,
+  id,
+  required,
+}: MemberFieldProps & {
+  readonly keys: readonly string[];
+  readonly text: string;
+  readonly description: string | undefined;
+  readonly name: string;
+  readonly error: string | undefined;
+  readonly id: string;
+  readonly required: boolean;
+}) {
   const shape = member.shape;
 
   switch (shape.kind) {
@@ -363,9 +470,18 @@ function JsonMember({
   readonly onChange: (next: JsonValue | undefined) => void;
   readonly context: FormContext;
 }) {
-  const [text, setText] = useState(() =>
-    value === undefined ? '' : JSON.stringify(value, null, 2),
-  );
+  const [text, setText] = useState(() => printed(value));
+  // The value the text was last read into, so a value set from outside the editor, such as by a
+  // step of the form's flow that patched the document, shows in it, while what is typed does not
+  // print again.
+  const read = useRef<JsonValue | undefined>(value);
+
+  useEffect(() => {
+    if (JSON.stringify(value) !== JSON.stringify(read.current)) {
+      read.current = value;
+      setText(printed(value));
+    }
+  }, [value]);
 
   return (
     <JsonEditor
@@ -378,11 +494,18 @@ function JsonMember({
       value={text}
       validate={context.checkJson}
       onChange={(next, parsed) => {
+        const document = parsed === undefined || !isRecord(parsed) ? undefined : parsed;
+        read.current = document;
         setText(next);
-        onChange(parsed === undefined || !isRecord(parsed) ? undefined : parsed);
+        onChange(document);
       }}
     />
   );
+}
+
+/** The value as the editor prints it: pretty JSON, or nothing for a value that is left out. */
+function printed(value: JsonValue | undefined): string {
+  return value === undefined ? '' : JSON.stringify(value, null, 2);
 }
 
 /** The check box of a nullable object or list: set, or null or left out. */

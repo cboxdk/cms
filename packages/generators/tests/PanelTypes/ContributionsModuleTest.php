@@ -88,7 +88,7 @@ it('refuses a contribution whose kind runs no code', function (): void {
         ->and($failed->problems[0]->describe())->toContain('reviews.nav is of the kind nav, which runs no code');
 });
 
-it('imports a point\'s props only for a member typed on them, so a check or a step alone imports no props', function (): void {
+it('imports a point\'s props only for a member typed on them, so a check or a step alone imports no props, and names a step\'s paths and Issues only where they are not the defaults', function (): void {
     $schema = '{"type":"object","properties":{"a":{"type":"string"}}}';
     $create = new ContractShape(CommandRef::fromString('note.create@1'), JsonSchemaShapes::read($schema, 'the schema of note.create@1'));
     $addon = new AddonUi(
@@ -105,5 +105,5 @@ it('imports a point\'s props only for a member typed on them, so a check or a st
     $module = panelTypesModule($addon);
 
     expect($module)->not->toContain('NoteChecksV1', 'NoteStepsV1', 'NoteQueueV1', '@cboxdk/cms-panel/experimental')
-        ->and($module)->toContain("readonly 'reviews.check': FormCheck<NoteCreateV1>;", "readonly 'reviews.step': Lazy<FlowStep<NoteCreateV1, never, Issues>>;", "readonly 'reviews.queue': Lazy<PageComponent>;");
+        ->and($module)->toContain("readonly 'reviews.check': FormCheck<NoteCreateV1>;", "readonly 'reviews.step': Lazy<FlowStep<NoteCreateV1>>;", "readonly 'reviews.queue': Lazy<PageComponent>;");
 });

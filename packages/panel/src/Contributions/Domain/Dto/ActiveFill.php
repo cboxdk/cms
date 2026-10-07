@@ -12,7 +12,8 @@ use Cbox\Cms\Core\Registry\Domain\Dto\PanelFill;
 
 /**
  * A contribution the server resolved as active for a viewer on a page (PRD 13.4): its compiled
- * fill, the point it contributes to, the point's props for that version, the classification
+ * fill, the point it contributes to, the point's props for that version, or null for a point whose
+ * props the page holds in the browser (RenderedPoint::heldByPage()), the classification
  * access it is handed them and its data at, the lower of the viewer's and the addon's reads, and
  * the query whose result it gets as data on this page, or null: a slot fill's query wherever it is
  * active, and a page's only on the page itself, so the page's query runs once, when the page is
@@ -25,7 +26,7 @@ final readonly class ActiveFill
     public function __construct(
         public PanelFill $fill,
         public PointId $point,
-        public object $props,
+        public ?object $props,
         public ClassificationAccess $access,
         private ?CommandRef $data = null,
     ) {}

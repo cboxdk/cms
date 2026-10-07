@@ -15,7 +15,10 @@ use Cbox\Cms\Core\Registry\Domain\ContractSummaries;
 use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Http\Inertia\Domain\InertiaActions;
 use Cbox\Cms\Panel\CommandForm\Domain\CommandForm;
+use Cbox\Cms\Panel\CommandForm\Domain\Dto\CommandFormChecksV1;
 use Cbox\Cms\Panel\CommandForm\Domain\Dto\CommandFormContextV1;
+use Cbox\Cms\Panel\CommandForm\Domain\Dto\CommandFormStepsV1;
+use Cbox\Cms\Panel\CommandForm\Domain\Dto\CommandFormSubmitV1;
 use Cbox\Cms\Panel\Contributions\Boundary\ContributionProps;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\PanelView;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\RenderedPoint;
@@ -30,12 +33,13 @@ use LogicException;
  * A request of the generic command form (PRD 6.1, 13.4), read for its controller: the command the
  * address names, which must be a write action the Inertia profile exposes and whose document a
  * codec reads, or there is no form, as there is no route for the command's post; the page's
- * props, with the command's JSON Schema as the codec carries it; and the view of the page for the
- * person, which renders the aside point with the command, its version and the schema's title (the
- * ContractSummaries of the registry, the title action.list lists the command by) as its props and
- * names the command as the view's subject, so a contribution whose scope names commands is active
- * on this command's form alone. The controller holds no logic, so what the form is made of is
- * named here.
+ * props, with the command's JSON Schema as the codec carries it and the value classes it binds its
+ * members to (CommandBindings); and the view of the page for the person, which renders the form's
+ * points, the aside and the submit decorator with the command, its version and the schema's title
+ * (the ContractSummaries of the registry, the title action.list lists the command by) as their
+ * props, and names the command as the view's subject, so a contribution whose scope names
+ * commands is active on this command's form alone. The controller holds no logic, so what the form
+ * is made of is named here.
  */
 #[Internal]
 final readonly class CommandFormRequest
@@ -66,23 +70,34 @@ final readonly class CommandFormRequest
             $entry->command,
             $entry->commandVersion,
             new JsonDocument($codec->schema->json),
+            CommandBindings::of($entry->commandClass, SchemaProperties::of($codec->schema)),
         );
     }
 
     /**
-     * The view of the page for the person: its aside point, with what the form is about, and the
-     * command as its subject.
+     * The view of the page for the person: the form's points, and the command as its subject. The
+     * aside and the submit decorator get what the form is about; the checks and the steps have no
+     * props; the receipt, the field inputs and the dry run exist only in the browser, so the page
+     * holds their props.
      *
      * @throws LogicException for a request the panel did not authenticate
      */
     public function view(Request $request, CommandFormPage $form): PanelView
     {
-        $context = new CommandFormContextV1($form->command, $form->version, $this->title($form));
+        $title = $this->title($form);
 
         return $this->contributions->view(
             $request,
             CommandForm::PAGE,
-            [new RenderedPoint(CommandForm::aside(), $context)],
+            [
+                new RenderedPoint(CommandForm::aside(), new CommandFormContextV1($form->command, $form->version, $title)),
+                new RenderedPoint(CommandForm::checks(), new CommandFormChecksV1),
+                new RenderedPoint(CommandForm::steps(), new CommandFormStepsV1),
+                new RenderedPoint(CommandForm::submit(), new CommandFormSubmitV1($form->command, $form->version, $title)),
+                RenderedPoint::heldByPage(CommandForm::receipt()),
+                RenderedPoint::heldByPage(CommandForm::field()),
+                RenderedPoint::heldByPage(CommandForm::dryRun()),
+            ],
             new ViewSubject(new CommandRef($form->command, $form->version)),
         );
     }

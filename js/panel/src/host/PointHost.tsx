@@ -12,7 +12,12 @@
 // - a page renders the addon's page component of one contribution with its data;
 // - a decorator renders the page's default once, with what the decorators add and tighten;
 // - a replacement renders the winning contribution for the page's target in place of the
-//   default, and the default when there is none, while it loads, and when it fails.
+//   default, and the default when there is none, while it loads, and when it fails, with its data
+//   query's result when it names one.
+//
+// A point whose props exist only in the browser, such as the receipt a command form shows, is
+// sent with no props: the page builds them, typed by the point's generated TypeScript, and hands
+// them to the host as `props`, which the host gives each contribution in place of the server's.
 //
 // The points a page asks about rather than renders, the checks, flow steps, observers, columns and
 // nav entries of a point, come from usePointHost('<name>@<version>'). A point the server sent no
@@ -81,6 +86,8 @@ export interface HostAction {
 /** A slot's host: the contributions render in its region. */
 export interface SlotHostProps {
   readonly point: string;
+  /** The point's props as the page holds them, for a point whose props exist only in the browser. */
+  readonly props?: object | undefined;
 }
 
 /** A tabs slot's host: the page's own tabs, then the contributed ones. */
@@ -119,6 +126,8 @@ export interface PageHostProps {
 /** A decorator point's host: the page's default, rendered once with the decorations. */
 export interface DecoratorHostProps {
   readonly point: string;
+  /** The point's props as the page holds them, for a point whose props exist only in the browser. */
+  readonly props?: object | undefined;
   /** The default's own tone, which the decorators may only move towards danger. */
   readonly tone?: DefaultTone;
   /** Renders the default with the props the decorators tightened. */
@@ -151,7 +160,7 @@ export function PointHost(props: PointHostProps) {
     return <DecoratorHost {...props} />;
   }
 
-  if ('target' in props) {
+  if ('target' in props && 'fallback' in props) {
     return <ReplacementHost {...props} />;
   }
 
@@ -252,7 +261,7 @@ export function atPointer(document: unknown, pointer: string): JsonValue | undef
   return value as JsonValue;
 }
 
-function SlotHost({ point }: SlotHostProps) {
+function SlotHost({ point, props }: SlotHostProps) {
   const active = useActivePoint(point, FREE_OR_TOOLBAR_SLOT);
 
   if (active === undefined) {
@@ -260,10 +269,15 @@ function SlotHost({ point }: SlotHostProps) {
   }
 
   return active.region === 'toolbar' ? (
-    <ToolbarSlot point={point} active={active} />
+    <ToolbarSlot point={point} active={active} pageProps={props} />
   ) : (
-    <FreeSlot point={point} active={active} />
+    <FreeSlot point={point} active={active} pageProps={props} />
   );
+}
+
+/** The props a fill gets: the page's for a point whose props the page holds, else the server's. */
+function propsOf(fill: Fill, pageProps: object | undefined): object | undefined {
+  return fill.props ?? pageProps;
 }
 
 /**
@@ -333,7 +347,15 @@ function PageFillView({
 }
 
 /** A slot in a region that takes free markup: sections or the aside. */
-function FreeSlot({ point, active }: { readonly point: string; readonly active: ActivePoint }) {
+function FreeSlot({
+  point,
+  active,
+  pageProps,
+}: {
+  readonly point: string;
+  readonly active: ActivePoint;
+  readonly pageProps: object | undefined;
+}) {
   const fills = shownFills(active);
   const modules = useLoadedModules(fills);
 
@@ -341,7 +363,13 @@ function FreeSlot({ point, active }: { readonly point: string; readonly active: 
     <>
       <RefusedAddons fills={fills} modules={modules} />
       {fills.map((fill) => (
-        <SlotFillView key={fill.id} point={point} fill={fill} module={modules.get(fill.id)} />
+        <SlotFillView
+          key={fill.id}
+          point={point}
+          fill={fill}
+          module={modules.get(fill.id)}
+          pageProps={pageProps}
+        />
       ))}
     </>
   );
@@ -374,22 +402,28 @@ function RefusedAddons({
   );
 }
 
-/** A contribution's component, with the point's props and its data, in its boundary and scope. */
+/**
+ * A contribution's component, with the point's props and its data, in its boundary and scope. A
+ * fill of a point whose props the page holds renders nothing until the page gives them.
+ */
 function SlotFillView({
   point,
   fill,
   module,
+  pageProps,
 }: {
   readonly point: string;
   readonly fill: Fill;
   readonly module: FillModule | undefined;
+  readonly pageProps?: object | undefined;
 }) {
   const runtime = useHostRuntime();
   const { t } = useTranslation();
   const name = useAddonName(fill.addon);
-  const props = useMemo(() => frozenCopy(fill.props), [fill.props]);
+  const given = propsOf(fill, pageProps);
+  const props = useMemo(() => (given === undefined ? undefined : frozenCopy(given)), [given]);
 
-  if (module === undefined || module.status === 'refused') {
+  if (module === undefined || module.status === 'refused' || props === undefined) {
     return null;
   }
 
@@ -434,7 +468,15 @@ function Rendered({ module, props }: { readonly module: unknown; readonly props:
 }
 
 /** A slot in a toolbar region: each contribution gives a badge or a button. */
-function ToolbarSlot({ point, active }: { readonly point: string; readonly active: ActivePoint }) {
+function ToolbarSlot({
+  point,
+  active,
+  pageProps,
+}: {
+  readonly point: string;
+  readonly active: ActivePoint;
+  readonly pageProps: object | undefined;
+}) {
   const runtime = useHostRuntime();
   const { t } = useTranslation();
   const fills = renderOrder(active.fills);
@@ -449,12 +491,13 @@ function ToolbarSlot({ point, active }: { readonly point: string; readonly activ
 
   for (const fill of fills) {
     const module = modules.get(fill.id);
+    const given = propsOf(fill, pageProps);
 
     if (module?.status === 'failed') {
       runtime.report(fillReport('panel_contribution_failed', point, fill));
     }
 
-    if (module?.status !== 'loaded') {
+    if (module?.status !== 'loaded' || given === undefined) {
       continue;
     }
 
@@ -465,7 +508,7 @@ function ToolbarSlot({ point, active }: { readonly point: string; readonly activ
         throw new TypeError("A toolbar item is a function of the point's props.");
       }
 
-      item = (module.value as (props: object) => unknown)(frozenCopy(fill.props));
+      item = (module.value as (props: object) => unknown)(frozenCopy(given));
     } catch {
       runtime.report(fillReport('panel_contribution_failed', point, fill));
 
@@ -647,7 +690,7 @@ function ActionHost({ point, label, onAction, onOutcome }: ActionHostProps) {
     const document: Record<string, JsonValue> = {};
 
     for (const prefill of fill.action.prefill) {
-      const value = atPointer(fill.props, prefill.pointer);
+      const value = atPointer(fill.props ?? {}, prefill.pointer);
 
       if (value !== undefined) {
         document[prefill.property] = value;
@@ -853,7 +896,7 @@ function kitIcon(icon: string | null): IconName | undefined {
 }
 
 /** A decorator point: the page's default once, with the decorators' content, badges and tightening. */
-function DecoratorHost({ point, tone = 'neutral', render }: DecoratorHostProps) {
+function DecoratorHost({ point, props, tone = 'neutral', render }: DecoratorHostProps) {
   const runtime = useHostRuntime();
   const active = useActivePoint(point, DECORATORS);
   const fills = active === undefined ? [] : renderOrder(active.fills);
@@ -866,13 +909,14 @@ function DecoratorHost({ point, tone = 'neutral', render }: DecoratorHostProps) 
       loaded?.status === 'registered'
         ? runtime.source.implementation(loaded.registration, fill.id)
         : undefined;
+    const given = propsOf(fill, props);
 
-    if (decorator === undefined) {
+    if (decorator === undefined || given === undefined) {
       continue;
     }
 
     try {
-      const decoration = (decorator as (props: object) => unknown)(frozenCopy(fill.props));
+      const decoration = (decorator as (props: object) => unknown)(frozenCopy(given));
 
       if (typeof decoration !== 'object' || decoration === null) {
         throw new TypeError('A decorator answers with an object.');
@@ -952,7 +996,10 @@ function DecorationView({
   );
 }
 
-/** A replacement point: the winning replacement of the target in place of the page's default. */
+/**
+ * A replacement point: the winning replacement of the target in place of the page's default, with
+ * the page's props and, for a replacement that reads data, its data query's result.
+ */
 function ReplacementHost({ point, target, props, fallback }: ReplacementHostProps) {
   const runtime = useHostRuntime();
   const active = useActivePoint(point, REPLACEMENTS);
@@ -962,6 +1009,8 @@ function ReplacementHost({ point, target, props, fallback }: ReplacementHostProp
       : renderOrder(active.fills).find((fill) => fill.replacement?.key === target);
   const modules = useLoadedModules(winner === undefined ? [] : [winner]);
   const module = winner === undefined ? undefined : modules.get(winner.id);
+  const given =
+    winner?.data === true ? { ...props, data: runtime.data(winner.addon, winner.id) } : props;
 
   if (winner === undefined || module === undefined || module.status !== 'loaded') {
     if (winner !== undefined && module?.status === 'failed') {
@@ -987,7 +1036,7 @@ function ReplacementHost({ point, target, props, fallback }: ReplacementHostProp
       )}
     >
       <ContributionScope addon={winner.addon} point={point} contribution={winner.id}>
-        <Rendered module={module.value} props={props} />
+        <Rendered module={module.value} props={given} />
       </ContributionScope>
     </ContributionBoundary>
   );
@@ -1032,6 +1081,12 @@ export interface PointHandle {
   readonly point: string;
   /** The point's kind, or undefined when the server sent no contribution for it. */
   readonly kind: PointKind | undefined;
+  /**
+   * The ids of the point's contributions whose code is registered, in render order: a page that
+   * runs the checks or the flow of a point runs them again when this changes, so the code an
+   * addon's bundle registers after the page rendered is not left out.
+   */
+  readonly loaded: readonly string[];
   /** The columns of a slot in a columns region, in render order, once their modules loaded. */
   readonly columns: readonly HostColumn[];
   /** The nav entries of a nav point, in render order, each with the address of the page it opens. */
@@ -1120,6 +1175,7 @@ export function usePointHost(point: string): PointHandle {
   return {
     point,
     kind: active?.kind,
+    loaded: fills.filter((fill) => implementation(fill) !== undefined).map((fill) => fill.id),
     columns,
     nav: navEntries(runtime.contributions, point, runtime.text),
     checks: (command, document, edits) => {

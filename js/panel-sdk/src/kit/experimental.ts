@@ -177,6 +177,7 @@ export type {
   ReceiptSummary,
   ReceiptWaitLevel,
   RolePickerProps,
+  SchemaFormField,
   SchemaFormProps,
   SchemaFormTexts,
   SectionProps,

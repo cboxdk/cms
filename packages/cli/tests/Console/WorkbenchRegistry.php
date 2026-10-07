@@ -4,29 +4,22 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Cli\Tests\Console;
 
-use Cbox\Cms\Core\Registry\Boundary\ProviderAddonManifests;
-use Cbox\Cms\Core\Registry\Boundary\ProviderScanRoots;
-use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
-use Cbox\Cms\Core\Registry\Domain\Dto\ScanRoots;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
-use Cbox\Cms\Core\Registry\Domain\RegistryCompiler;
 use Cbox\Cms\Core\Tests\Registry\Fakes\FakeRegistryCache;
+use Cbox\Cms\Tests\Support\Registry\InstallationRegistry;
 
 /**
  * The workbench's registry for the commands that read it, compiled as cms:build compiles it, from
- * the scan roots and addon manifests of the installation's providers: the core's actions and the
- * fixture addon's hooks. bind() puts it in a FakeRegistryCache the application reads, so a test
+ * the scan roots, addon manifests and contract schemas of the installation's providers
+ * (InstallationRegistry): the core's actions and contributions and the fixture addon's hooks. bind() puts it in a FakeRegistryCache the application reads, so a test
  * sees the installation as it is, whatever the cache on disk holds.
  */
 final class WorkbenchRegistry
 {
     public static function compile(): CompiledRegistry
     {
-        return app(RegistryCompiler::class)->compile(
-            app(DeclarationScanner::class)->scan(new ScanRoots(...ProviderScanRoots::of(app())->roots)),
-            ProviderAddonManifests::of(app()),
-        );
+        return InstallationRegistry::compile(app());
     }
 
     public static function bind(): CompiledRegistry

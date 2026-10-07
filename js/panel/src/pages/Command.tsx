@@ -13,11 +13,13 @@ import { PanelShell } from '../shell/PanelShell';
  * at the address the profile runs it at, which the command palette opens. The props are
  * CommandFormPageV1, generated from the page's JSON Schema: the command's name and version and its
  * JSON Schema, from which the kit's SchemaForm is rendered, with the labels of the panel's
- * catalogue when it has them for the command and its fields, and the schema's own texts otherwise.
- * Beside the form the page hosts command.form.aside@1, where addons add help and context about the
+ * catalogue when it has them for the command and its fields, and the schema's own texts otherwise,
+ * and the value classes the command binds its members to, which key the replacements of their
+ * inputs. The form hosts the checks, steps, submit, receipt, field and dry run points of its page;
+ * beside it the page hosts command.form.aside@1, where addons add help and context about the
  * command, and it keeps its sign-out in its own content.
  */
-export default function Command({ logout, command, version, schema }: CommandFormPageV1) {
+export default function Command({ logout, command, version, schema, bindings }: CommandFormPageV1) {
   const { t, locale } = useTranslation();
   const errors = usePage().props.errors;
   const read = useMemo(() => readForm(schema), [schema]);
@@ -46,7 +48,13 @@ export default function Command({ logout, command, version, schema }: CommandFor
             />
           }
         >
-          <CommandForm command={command} version={version} read={read} errors={errors} />
+          <CommandForm
+            command={command}
+            version={version}
+            read={read}
+            bindings={bindings}
+            errors={errors}
+          />
           <PointHost point="command.form.aside@1" />
           <Form method="post" action={logout} onSubmit={signOut}>
             <Button type="submit">{t('panel.home.sign_out')}</Button>

@@ -77,7 +77,8 @@ use Throwable;
  *   shell's points among the page's,
  *   written by the generated ContributionsCodecV1 (contributions.v1.json), each with the point's
  *   props as the point's codec (PointCodecs) wrote them at the fill's access, the lower of the
- *   viewer's and the addon's reads, and what its kind needs besides; each point with its kind,
+ *   viewer's and the addon's reads, or null for a point whose props the page holds in the browser
+ *   (RenderedPoint::heldByPage()), and what its kind needs besides; each point with its kind,
  *   region and multiplicity; the registration of each addon whose code runs on the page; whether
  *   the viewer sees the detail of a failure; the panel's pages a contribution may navigate to,
  *   the panel's own pages (OwnPage) and every addon's page the viewer may open, each at
@@ -181,9 +182,9 @@ final readonly class ContributionProps
             $fills = [];
 
             foreach ($point->fills as $fill) {
-                $props = $this->encoded($active->page, $fill);
+                $props = $fill->props === null ? null : $this->encoded($active->page, $fill);
 
-                if (! $props instanceof JsonDocument) {
+                if ($fill->props !== null && ! $props instanceof JsonDocument) {
                     continue;
                 }
 
@@ -224,9 +225,10 @@ final readonly class ContributionProps
     }
 
     /**
-     * The fill as the host gets it: what every contribution has, and what its kind needs besides.
+     * The fill as the host gets it: what every contribution has, and what its kind needs besides;
+     * the props are null for a point whose props the page holds in the browser.
      */
-    private function fill(ActiveFill $active, JsonDocument $props): FillProp
+    private function fill(ActiveFill $active, ?JsonDocument $props): FillProp
     {
         $fill = $active->fill;
         $declaration = $fill->declaration;
@@ -298,6 +300,10 @@ final readonly class ContributionProps
     private function encoded(PageName $page, ActiveFill $fill): ?JsonDocument
     {
         $codec = $this->points->find($fill->point);
+
+        if ($fill->props === null) {
+            return null;
+        }
 
         if (! $codec instanceof PointCodec) {
             $this->telemetry->withheld($page, Withheld::PointWithoutCodec, $fill->point, $fill->fill->contribution);

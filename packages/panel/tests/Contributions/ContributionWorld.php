@@ -23,6 +23,9 @@ use Cbox\Cms\Contracts\PanelPoints\PointId;
 use Cbox\Cms\Contracts\PanelPoints\PointName;
 use Cbox\Cms\Contracts\PanelPoints\Scope;
 use Cbox\Cms\Contracts\PanelPoints\SlotFill;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\ListActorsCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\ListNodesCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\ListRolesCodecV1;
 use Cbox\Cms\Core\PanelThemes\Actions\CompilePanelThemes;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
 use Cbox\Cms\Core\Registry\Boundary\JsonSchemaNodes;
@@ -109,8 +112,15 @@ final class ContributionWorld
     /** The tally command's directory in the core's tests, scanned as part of the addon's package. */
     public const string TALLY_COMMAND = __DIR__.'/../../../core/tests/Pipeline/Tally';
 
-    /** The names role.list and grant.list, which the core's nav entries of the access pages require, as queries on no surface. */
-    public const string ACCESS_NAMES = __DIR__.'/Fixtures/Access';
+    /**
+     * The directories of the kernel's queries the core's own pickers read (CoreContributions),
+     * scanned as part of cboxdk/cms when the core's contributions are compiled.
+     */
+    public const array CORE_QUERIES = [
+        __DIR__.'/../../../core/src/Access/Domain/Queries',
+        __DIR__.'/../../../core/src/Identity/Domain/Queries',
+        __DIR__.'/../../../core/src/Structure/Domain/Queries',
+    ];
 
     /** The points the addon's manifest accepts: the host's two and the panel's three shell points. */
     public const array POINTS = ['desk.cards@1', 'desk.aside@1', 'shell.nav@1', 'shell.page@1', 'shell.user-menu@1'];
@@ -166,7 +176,7 @@ final class ContributionWorld
                 new ScanRoot(self::ADDON, __DIR__.'/Fixtures/Tally'),
                 new ScanRoot(self::ADDON, self::TALLY_COMMAND),
                 new ScanRoot(PanelServiceProvider::PACKAGE, dirname(__DIR__, 2).'/src'),
-                new ScanRoot(PanelServiceProvider::PACKAGE, self::ACCESS_NAMES),
+                ...array_map(static fn (string $directory): ScanRoot => new ScanRoot(PanelServiceProvider::PACKAGE, $directory), self::CORE_QUERIES),
             ),
             new DeclaredAddons([$manifest], [], [self::ADDON => PanelBuildWorld::bundle($manifest)], $core),
             new BuildSettings(null, $overrides),
@@ -194,7 +204,7 @@ final class ContributionWorld
 
     /**
      * The JSON Schemas cms:build checks the contributions against: the props of the slots and the
-     * input of the queries.
+     * input of the queries, the kernel's lists the core's pickers read among them.
      */
     public static function shapes(): ContractShapes
     {
@@ -207,6 +217,9 @@ final class ContributionWorld
         return new ContractShapes(
             ['tally.add@1' => JsonSchemaNodes::read(AddTallyCodec::SCHEMA)],
             [
+                'actor.list@1' => JsonSchemaNodes::read(ListActorsCodecV1::SCHEMA),
+                'node.list@1' => JsonSchemaNodes::read(ListNodesCodecV1::SCHEMA),
+                'role.list@1' => JsonSchemaNodes::read(ListRolesCodecV1::SCHEMA),
                 'tally.board@1' => JsonSchemaNodes::read(TallyCodecs::NO_INPUT),
                 'tally.heavy@1' => JsonSchemaNodes::read(TallyCodecs::INPUT),
                 'tally.notes@1' => JsonSchemaNodes::read(TallyCodecs::INPUT),

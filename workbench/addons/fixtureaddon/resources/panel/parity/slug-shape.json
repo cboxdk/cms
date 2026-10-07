@@ -1,0 +1,103 @@
+{
+  "description": "The documents of entry.create the fixture addon's blocking check fixtureaddon.slug-shape and the hook it mirrors, RequireWellFormedSlug, are held to the same verdicts on (the mirror rule, PRD 13.4): per case the command document and the paths the hook refuses, none for a document it accepts. SlugShapeParityTest holds the hook to the verdicts, and checkParity.test.ts holds the check to them.",
+  "type": "01a0df3e-8cef-7e9f-8daf-9faa60f1faa6",
+  "cases": [
+    {
+      "name": "a well-formed slug set by hand",
+      "document": {
+        "entry": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01",
+        "type": "01a0df3e-8cef-7e9f-8daf-9faa60f1faa6",
+        "home": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a02",
+        "fields": {
+          "fixture_title": "A quiet week",
+          "fixture_featured": false,
+          "ext": { "fixtureaddon": { "fixture_slug": "a-quiet-week" } }
+        }
+      },
+      "refused": []
+    },
+    {
+      "name": "a slug with a space and capitals",
+      "document": {
+        "entry": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01",
+        "type": "01a0df3e-8cef-7e9f-8daf-9faa60f1faa6",
+        "home": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a02",
+        "fields": {
+          "fixture_title": "A quiet week",
+          "fixture_featured": false,
+          "ext": { "fixtureaddon": { "fixture_slug": "A quiet Week" } }
+        }
+      },
+      "refused": ["fields.ext.fixtureaddon.fixture_slug"]
+    },
+    {
+      "name": "a slug with a double hyphen and a hyphen at its end",
+      "document": {
+        "entry": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01",
+        "type": "01a0df3e-8cef-7e9f-8daf-9faa60f1faa6",
+        "home": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a02",
+        "fields": {
+          "fixture_title": "A quiet week",
+          "fixture_featured": false,
+          "ext": { "fixtureaddon": { "fixture_slug": "a--quiet-week-" } }
+        }
+      },
+      "refused": ["fields.ext.fixtureaddon.fixture_slug"]
+    },
+    {
+      "name": "no slug, which DeriveSlug derives from the title",
+      "document": {
+        "entry": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01",
+        "type": "01a0df3e-8cef-7e9f-8daf-9faa60f1faa6",
+        "home": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a02",
+        "fields": { "fixture_title": "A quiet week", "fixture_featured": false }
+      },
+      "refused": []
+    },
+    {
+      "name": "an empty slug",
+      "document": {
+        "entry": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01",
+        "type": "01a0df3e-8cef-7e9f-8daf-9faa60f1faa6",
+        "home": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a02",
+        "fields": {
+          "fixture_title": "!!!",
+          "fixture_featured": false,
+          "ext": { "fixtureaddon": { "fixture_slug": "" } }
+        }
+      },
+      "refused": ["fields.ext.fixtureaddon.fixture_slug"]
+    },
+    {
+      "name": "a long but well-formed slug, whose length is the blueprint's rule",
+      "document": {
+        "entry": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01",
+        "type": "01a0df3e-8cef-7e9f-8daf-9faa60f1faa6",
+        "home": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a02",
+        "fields": {
+          "fixture_title": "A quiet week",
+          "fixture_featured": false,
+          "ext": {
+            "fixtureaddon": {
+              "fixture_slug": "a-quiet-week-that-goes-on-and-on-and-on-and-on-and-on-and-on-and-on-and-on-and-on-and-on-and-on-and-on-and-on-and-on-and-on-and-on"
+            }
+          }
+        }
+      },
+      "refused": []
+    },
+    {
+      "name": "a malformed slug on an entry of another type",
+      "document": {
+        "entry": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01",
+        "type": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a09",
+        "home": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a02",
+        "fields": {
+          "fixture_title": "A quiet week",
+          "ext": { "fixtureaddon": { "fixture_slug": "Not This Type" } }
+        }
+      },
+      "refused": []
+    }
+  ]
+}

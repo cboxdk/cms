@@ -57,6 +57,24 @@ function buildCommand(): array
     return [$status, array_values(array_filter(array_map(trim(...), explode("\n", $artisan->output())), static fn (string $line): bool => $line !== ''))];
 }
 
+/**
+ * The warnings every build of the workbench prints: the fixture addon's four contributions to the
+ * command form's checks and steps, experimental points, one warning each, in the registry's order.
+ *
+ * @return list<string>
+ */
+function fixtureAddonWarnings(): array
+{
+    $warning = static fn (string $contribution, string $point): string => sprintf('[registry_panel_point_experimental] The contribution %s of addon "fixtureaddon" (cboxdk/cms-fixture-addon) contributes to %s, which is experimental and may change in a minor release of the panel API.', $contribution, $point);
+
+    return [
+        $warning('fixtureaddon.slug-hint', 'command.form.checks@1'),
+        $warning('fixtureaddon.slug-override', 'command.form.checks@1'),
+        $warning('fixtureaddon.slug-shape', 'command.form.checks@1'),
+        $warning('fixtureaddon.slug-review', 'command.form.steps@1'),
+    ];
+}
+
 it('is registered', function (): void {
     expect(app(Kernel::class)->all())->toHaveKey('cms:build')
         ->and(app(Kernel::class)->all()['cms:build'])->toBeInstanceOf(BuildCommand::class);
@@ -75,14 +93,17 @@ it('writes the eight registries to the application\'s bootstrap/cache/cms, and r
 
     expect($status)->toBe(0)
         ->and($output)->toBe([
+            // The fixture addon contributes to two experimental points of the command form, which
+            // the build warns about per contribution (decision D4: every point of B1 is experimental).
+            ...fixtureAddonWarnings(),
             'actions: 24',
             // The workbench's fixture addon, which its allowlist names.
             'addons: 1',
             'commands: 17',
-            // The workbench's fixture addon, which package discovery registers: its two hooks and
+            // The workbench's fixture addon, which package discovery registers: its three hooks and
             // its extension of app:fixture_article.
-            'hooks: 2',
-            'panel: 7',
+            'hooks: 3',
+            'panel: 13',
             'rest: 18',
             'schema: 1',
             'subscribers: 1',
@@ -100,7 +121,7 @@ it('adds what an addon provider\'s scan root declares', function (): void {
     [$status, $output] = buildCommand();
 
     expect($status)->toBe(0)
-        ->and(array_slice($output, 0, 6))->toBe(['actions: 26', 'addons: 1', 'commands: 18', 'hooks: 3', 'panel: 8', 'rest: 19'])
+        ->and(array_slice($output, 0, 10))->toBe([...fixtureAddonWarnings(), 'actions: 26', 'addons: 1', 'commands: 18', 'hooks: 4', 'panel: 14', 'rest: 19'])
         ->and(RegistryFixtures::load($directory.'/commands.php'))->toMatchArray(['entries' => [[
             'class' => GrantBootstrapRole::class,
             'name' => 'access.bootstrap',
@@ -231,12 +252,16 @@ it('prints the warnings of a build with their codes before the counts', function
 
     [$status, $output] = buildCommand();
 
+    $warnings = array_values(array_filter($output, static fn (string $line): bool => str_starts_with($line, '[registry_')));
+
     expect($status)->toBe(0)
-        ->and($output[0])->toStartWith('[registry_panel_point_experimental] The contribution approvals.badge of addon "approvals" (acme/cms-approvals) contributes to notes.detail.sections@1')
-        ->and($output[1])->toStartWith('[registry_panel_point_deprecated] The contribution approvals.legacy of addon "approvals" (acme/cms-approvals) contributes to notes.legacy@1')
-        ->and($output[2])->toStartWith('actions: ')
+        ->and($warnings)->toHaveCount(6)
+        ->and($warnings[0])->toStartWith('[registry_panel_point_experimental] The contribution approvals.badge of addon "approvals" (acme/cms-approvals) contributes to notes.detail.sections@1')
+        ->and($warnings[1])->toStartWith('[registry_panel_point_deprecated] The contribution approvals.legacy of addon "approvals" (acme/cms-approvals) contributes to notes.legacy@1')
+        ->and(array_slice($warnings, 2))->toBe(fixtureAddonWarnings())
+        ->and($output[6])->toStartWith('actions: ')
         ->and($output)->toContain('addons: 2')
-        ->and($output)->toContain('panel: 23');
+        ->and($output)->toContain('panel: 29');
 });
 
 it('refuses an installed addon the allowlist does not name, and writes nothing', function (): void {

@@ -24,19 +24,24 @@ final readonly class PointDowncasts
     /**
      * The props of the point $target, from the props of the newest version of its name: those
      * props themselves when $target is the newest version, else what the target's downcast builds
-     * from them.
+     * from them. A point whose props the page holds in the browser has none on the server, so
+     * every version of it gets none: the page builds the newest version's props.
      *
      * @throws UnknownPanelPoint when the registry holds no point $target
      * @throws PointDowncastRefused when $newest are not the props of the newest version, the target
      *                              has no downcast, or the downcast builds something else than its
      *                              own props
      */
-    public function props(PointId $target, object $newest): object
+    public function props(PointId $target, ?object $newest): ?object
     {
         $point = $this->registry->panelPoint($target);
 
         if (! $point instanceof PanelPointEntry) {
             throw UnknownPanelPoint::notRegistered($target, array_map(static fn (PanelPointEntry $entry): PointId => $entry->id(), $this->registry->panel));
+        }
+
+        if ($newest === null) {
+            return null;
         }
 
         $latest = $this->newest($point);

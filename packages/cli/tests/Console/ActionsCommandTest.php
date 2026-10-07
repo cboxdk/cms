@@ -10,6 +10,7 @@ use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Illuminate\Support\Facades\Artisan;
 use RuntimeException;
 use Workbench\FixtureAddon\DeriveSlug;
+use Workbench\FixtureAddon\RequireWellFormedSlug;
 
 /*
  * cms:actions against the workbench (GUARDRAILS 7.1): every action of its registry, compiled from
@@ -50,7 +51,8 @@ it('lists every action of the workbench with its command or query, surfaces, gra
             ."  command   Cbox\\Cms\\Core\\Entries\\Domain\\Commands\\CreateEntry\n"
             ."  surfaces  rest, inertia, mcp, cli\n"
             ."  grant     a role whose permissions hold entry.create\n"
-            ."  hooks     transform  priority 10  budget 2 ms  Workbench\\FixtureAddon\\DeriveSlug (cboxdk/cms-fixture-addon, addon fixtureaddon reading up to public)\n",
+            ."  hooks     transform  priority 10  budget 2 ms  Workbench\\FixtureAddon\\DeriveSlug (cboxdk/cms-fixture-addon, addon fixtureaddon reading up to public)\n"
+            ."            validate   priority 20  budget 2 ms  Workbench\\FixtureAddon\\RequireWellFormedSlug (cboxdk/cms-fixture-addon, addon fixtureaddon reading up to public)\n",
         )
         ->and($output)->toContain(
             "path.resolve v1  query  Cbox\\Cms\\Core\\Routing\\Actions\\ResolvePathAction (cboxdk/cms)\n"
@@ -86,6 +88,14 @@ it('prints the actions of the workbench as one JSON document in the registry ord
                 'package' => 'cboxdk/cms-fixture-addon',
                 'phase' => 'transform',
                 'priority' => 10,
+                'reads' => 'public',
+            ], [
+                'addon' => 'fixtureaddon',
+                'budget_ms' => 2,
+                'class' => RequireWellFormedSlug::class,
+                'package' => 'cboxdk/cms-fixture-addon',
+                'phase' => 'validate',
+                'priority' => 20,
                 'reads' => 'public',
             ]],
             'kind' => 'write',

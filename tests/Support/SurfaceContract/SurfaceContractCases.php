@@ -4,12 +4,9 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Tests\Support\SurfaceContract;
 
-use Cbox\Cms\Core\Registry\Boundary\ProviderAddonManifests;
-use Cbox\Cms\Core\Registry\Boundary\ProviderScanRoots;
 use Cbox\Cms\Core\Registry\Domain\ActionKind;
-use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
-use Cbox\Cms\Core\Registry\Domain\RegistryCompiler;
+use Cbox\Cms\Tests\Support\Registry\InstallationRegistry;
 use Cbox\Cms\Tests\TestCase;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Facades\Facade;
@@ -87,9 +84,6 @@ final readonly class SurfaceContractCases
      */
     public static function installation(Application $app): CompiledRegistry
     {
-        return $app->make(RegistryCompiler::class)->compile(
-            $app->make(DeclarationScanner::class)->scan(ProviderScanRoots::of($app)),
-            ProviderAddonManifests::of($app),
-        );
+        return InstallationRegistry::compile($app);
     }
 }

@@ -9,7 +9,8 @@ use Cbox\Cms\Core\Registry\Domain\Dto\PanelFill;
 use Cbox\Cms\Core\Registry\Domain\Dto\PanelPointEntry;
 
 /**
- * A point a page renders with its props for that version and the fills to it that are enabled
+ * A point a page renders with its props for that version, or none for a point whose props the
+ * page holds in the browser (RenderedPoint::heldByPage()), and the fills to it that are enabled
  * and in scope, before the viewer's permissions are applied (ResolveContributions).
  */
 #[Experimental]
@@ -20,7 +21,7 @@ final readonly class PointInScope
      */
     public function __construct(
         public PanelPointEntry $point,
-        public object $props,
+        public ?object $props,
         public array $fills,
     ) {}
 }

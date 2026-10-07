@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "command.form.receipt props, contract version 1",
+  "description": "The props of the decorator of the receipt a run of the generic command form shows, a decorator point (PRD 13.4): the command's name and contract version, the receipt the command answered with, as receipt.v1.json writes it, and the problem details of a rejection, as problem.v1.json writes them, or null. A contribution to it adds content around the receipt and a badge, and tightens nothing. The page holds the props in the browser, once the command answered. The PHP form is Cbox\\Cms\\Panel\\CommandForm\\Domain\\Dto\\CommandFormReceiptV1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "command",
+    "problem",
+    "receipt",
+    "version"
+  ],
+  "properties": {
+    "command": {
+      "description": "The name of the command the form ran, such as entry.create: lowercase segments in snake_case joined by dots, at least two.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+      "examples": [
+        "entry.create"
+      ],
+      "minLength": 3,
+      "maxLength": 255
+    },
+    "problem": {
+      "description": "The problem details of a rejection, as problem.v1.json writes them, or null for any other outcome.",
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "receipt": {
+      "description": "The receipt the command answered with, as receipt.v1.json writes it.",
+      "type": "object"
+    },
+    "version": {
+      "description": "The contract version of the command the form ran, 1 or more.",
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

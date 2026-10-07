@@ -19,6 +19,14 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
  *   classes and commands (registry_panel_unowned_target). Two replacements of one key fail the
  *   build unless cbox-cms.panel.replacements names the winner
  *   (registry_panel_replacement_conflict).
+ * - data: a #[Query] of the addon, or null, as a SlotFill's. The panel runs it as the viewer
+ *   through the query pipeline, at the lower of the viewer's classification access and the
+ *   addon's reads capability, with the query's input taken from the point's props by name, and
+ *   hands its result to the component beside the point's props, as `data`. A point whose props
+ *   the page holds in the browser gives a query no input, so such a query takes none. cms:build
+ *   refuses a query that is not the addon's or whose input the props cannot give, as
+ *   registry_panel_data_query_invalid. The core's pickers of a command form's fields read the
+ *   kernel's lists this way.
  *
  * The id, point, priority and scope are those of every contribution (PanelContribution).
  */
@@ -31,8 +39,11 @@ final readonly class ReplacementContribution implements PanelContribution
 
     public string $key;
 
+    public ?string $data;
+
     /**
      * @param  string  $key  the target it replaces
+     * @param  string|null  $data  the class of a #[Query] of the addon, such as ListNodes::class
      *
      * @throws InvalidAddonManifest when a value breaks its rule
      */
@@ -40,6 +51,7 @@ final readonly class ReplacementContribution implements PanelContribution
         public ContributionId $id,
         public string $point,
         string $key,
+        ?string $data = null,
         int $priority = self::DEFAULT_PRIORITY,
         public Scope $scope = new Scope,
     ) {
@@ -49,6 +61,7 @@ final readonly class ReplacementContribution implements PanelContribution
         }
 
         $this->key = ltrim($key, '\\');
+        $this->data = $data === null ? null : ContributionRules::className($id->value, 'data query', $data);
     }
 
     public function id(): ContributionId

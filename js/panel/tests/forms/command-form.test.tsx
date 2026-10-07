@@ -89,7 +89,6 @@ const TEXT = {
   actor: 'Actor',
   actorDescription: 'The id of the pending actor to activate.',
   version: 'Version',
-  dryRun: 'Dry run',
   run: 'Run command',
   tryIt: 'Try without saving',
   notSent: 'The form was not sent. Check the fields marked below.',
@@ -110,7 +109,13 @@ function render(
   return {
     calls,
     ...renderHost(
-      <CommandForm command="actor.activate" version={1} read={readForm(schema)} errors={errors} />,
+      <CommandForm
+        command="actor.activate"
+        version={1}
+        read={readForm(schema)}
+        bindings={[]}
+        errors={errors}
+      />,
       {
         contributions: contributions([], { cms: [] }),
         registrations: {},
@@ -164,7 +169,6 @@ describe('the command form', () => {
 
     await user.type(screen.getByLabelText(new RegExp(`^${TEXT.actor}`)), ACTOR);
     await user.type(screen.getByLabelText(new RegExp(`^${TEXT.version}`)), '1');
-    await user.click(screen.getByRole('checkbox', { name: TEXT.dryRun }));
     await user.click(screen.getByRole('button', { name: TEXT.tryIt }));
 
     await screen.findByText(TEXT.dryRunTitle);
@@ -176,7 +180,6 @@ describe('the command form', () => {
     });
     expect(calls[0]?.key).toMatch(/^[0-9a-f-]{36}$/);
 
-    await user.click(screen.getByRole('checkbox', { name: TEXT.dryRun }));
     await user.click(screen.getByRole('button', { name: TEXT.run }));
 
     await screen.findByText(TEXT.saved, { selector: '.cms-callout__title' });

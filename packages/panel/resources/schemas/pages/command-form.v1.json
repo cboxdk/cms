@@ -1,16 +1,24 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Command form page props, contract version 1",
-  "description": "The props of the panel's generic command form, Command (PRD 6.1, 13.4): the address the logout posts to, the command the form runs, by its name and contract version, and the JSON Schema of the command's document, as the command's codec carries it, from which the form is rendered. The PHP form is Cbox\\Cms\\Panel\\Domain\\Dto\\CommandFormPage, and the generated codec CommandFormPageCodecV1 writes its canonical JSON: keys sorted, no whitespace.",
+  "description": "The props of the panel's generic command form, Command (PRD 6.1, 13.4): the address the logout posts to, the command the form runs, by its name and contract version, the JSON Schema of the command's document, as the command's codec carries it, from which the form is rendered, and the value class the command binds each member to, which keys the replacement of the member's input at command.form.field@1. The PHP form is Cbox\\Cms\\Panel\\Domain\\Dto\\CommandFormPage, and the generated codec CommandFormPageCodecV1 writes its canonical JSON: keys sorted, no whitespace.",
   "type": "object",
   "additionalProperties": false,
   "required": [
+    "bindings",
     "command",
     "logout",
     "schema",
     "version"
   ],
   "properties": {
+    "bindings": {
+      "description": "The value class the command binds each member of its document to, by the member's path, for the members bound to a class, sorted by path; a replacement of the member's input at command.form.field@1 is keyed by the class.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/binding"
+      }
+    },
     "command": {
       "description": "The name of the command the form runs, such as entry.create: lowercase segments in snake_case joined by dots, at least two.",
       "type": "string",
@@ -35,6 +43,31 @@
       "description": "The contract version of the command the form runs, 1 or more.",
       "type": "integer",
       "minimum": 1
+    }
+  },
+  "$defs": {
+    "binding": {
+      "description": "One member of the command's document bound to a value class: its path and the class.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "class",
+        "path"
+      ],
+      "properties": {
+        "class": {
+          "description": "The class the member is bound to, such as Cbox\\Cms\\Contracts\\Ids\\NodeId, written without a leading backslash.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "path": {
+          "description": "The member's path in the document, as the kernel writes it, such as node.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      }
     }
   }
 }

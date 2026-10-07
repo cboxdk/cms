@@ -178,12 +178,24 @@ export type Decorator<P, T extends keyof Tightening = never> = (
 ) => Decoration<T>;
 
 /**
- * A contribution to a replacement point: a component with exactly the point's props, which renders
- * in place of the default for a key the addon owns. When it throws, the default renders.
+ * What a replacement receives: exactly the point's props, frozen, and, when the contribution names
+ * a data query, its result as `data`. D is never for a contribution without a data query, whose
+ * component gets no data.
  *
  * @stable
  */
-export type Replacement<P> = ComponentType<Readonly<P>>;
+export type ReplacementProps<P, D = never> = [D] extends [never]
+  ? Readonly<P>
+  : Readonly<P> & { readonly data: DataState<D> };
+
+/**
+ * A contribution to a replacement point: a component with exactly the point's props, which renders
+ * in place of the default for a key the addon owns, and with its data query's result when it names
+ * one. When it throws, the default renders.
+ *
+ * @stable
+ */
+export type Replacement<P, D = never> = ComponentType<ReplacementProps<P, D>>;
 
 /**
  * How serious a form check's issue is: info and warning only inform, acknowledge asks for an
@@ -222,7 +234,9 @@ export interface CheckContext {
 /**
  * A contribution to a form check point: a pure function of the command document D to the issues it
  * finds, synchronous and within 16 ms; a check that throws or overruns is skipped for the session.
- * Checks only add issues; after submit, the server's errors replace them.
+ * The host runs it on the draft as the viewer edits it, which may still lack members the schema
+ * requires, so a check guards what it reads instead of trusting D's required members. Checks only
+ * add issues; after submit, the server's errors replace them.
  *
  * @stable
  */

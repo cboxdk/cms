@@ -5,13 +5,21 @@ declare(strict_types=1);
 namespace Cbox\Cms\Panel\Contributions\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Ids\NodeId;
+use Cbox\Cms\Contracts\Ids\RoleId;
 use Cbox\Cms\Contracts\PanelPoints\ContributionId;
 use Cbox\Cms\Contracts\PanelPoints\NavContribution;
 use Cbox\Cms\Contracts\PanelPoints\PanelContribution;
+use Cbox\Cms\Contracts\PanelPoints\ReplacementContribution;
 use Cbox\Cms\Contracts\PanelPoints\Scope;
+use Cbox\Cms\Core\Access\Domain\Queries\ListRoles;
+use Cbox\Cms\Core\Identity\Domain\Queries\ListActors;
+use Cbox\Cms\Core\Structure\Domain\Queries\ListNodes;
 use Cbox\Cms\Panel\Access\Domain\AccessGrants;
 use Cbox\Cms\Panel\Access\Domain\AccessRoles;
+use Cbox\Cms\Panel\CommandForm\Domain\CommandForm;
 use Cbox\Cms\Panel\Shell\Domain\OwnPage;
 use Cbox\Cms\Panel\Shell\Domain\Shell;
 
@@ -33,6 +41,13 @@ use Cbox\Cms\Panel\Shell\Domain\Shell;
  * viewer who could not read a page is not offered it. A module of cboxdk/cms with pages of its own
  * declares their nav entries the same way through its service provider's DeclaresCoreContributions,
  * each pointing at one of the panel's own pages (OwnPage).
+ *
+ * The core contributes the pickers of the generic command form to command.form.field@1 (section
+ * 8 of the panel extension architecture): a replacement of the input of every member a command
+ * binds to NodeId, ActorId or RoleId, each reading the kernel's own list, node.list, actor.list
+ * or role.list, as its data, run as the viewer, so a viewer who may not read the list types the
+ * id instead. A replacement of the core is keyed by the class as the command binds it, which the
+ * form's page names per member (CommandBindings).
  */
 #[Internal]
 final readonly class CoreContributions
@@ -45,6 +60,15 @@ final readonly class CoreContributions
 
     /** The nav entry of the grants page, for a viewer who holds grant.list. */
     public const string GRANTS_NAV = 'cms.grants';
+
+    /** The picker of a node, the input of every member bound to NodeId. */
+    public const string NODE_PICKER = 'cms.node-picker';
+
+    /** The picker of an actor, the input of every member bound to ActorId. */
+    public const string ACTOR_PICKER = 'cms.actor-picker';
+
+    /** The picker of a role, the input of every member bound to RoleId. */
+    public const string ROLE_PICKER = 'cms.role-picker';
 
     /** The priority of the core's first nav entry; a module's come after it, an addon's at 1000. */
     public const int FIRST = 100;
@@ -61,6 +85,9 @@ final readonly class CoreContributions
             new NavContribution(new ContributionId(self::ACCOUNT_ME_NAV), Shell::NAV.'@1', 'panel.nav.account_me', OwnPage::AccountMe->value, null, self::FIRST),
             new NavContribution(new ContributionId(self::ROLES_NAV), Shell::NAV.'@1', 'panel.nav.roles', OwnPage::AccessRoles->value, null, self::FIRST + self::STEP, new Scope(requires: new CommandName(AccessRoles::QUERY))),
             new NavContribution(new ContributionId(self::GRANTS_NAV), Shell::NAV.'@1', 'panel.nav.grants', OwnPage::AccessGrants->value, null, self::FIRST + 2 * self::STEP, new Scope(requires: new CommandName(AccessGrants::QUERY))),
+            new ReplacementContribution(new ContributionId(self::NODE_PICKER), CommandForm::FIELD.'@1', NodeId::class, ListNodes::class, self::FIRST),
+            new ReplacementContribution(new ContributionId(self::ACTOR_PICKER), CommandForm::FIELD.'@1', ActorId::class, ListActors::class, self::FIRST),
+            new ReplacementContribution(new ContributionId(self::ROLE_PICKER), CommandForm::FIELD.'@1', RoleId::class, ListRoles::class, self::FIRST),
         ];
     }
 }

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Cbox\Cms\Tooling\Protocol\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\Codecs\JsonDocument;
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Identity\IssuerKind;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
@@ -22,7 +24,14 @@ use Cbox\Cms\Generators\Protocol\Domain\Dto\ValueBinding;
 use Cbox\Cms\Panel\Access\Domain\Dto\AccessGrantsSectionsV1;
 use Cbox\Cms\Panel\Access\Domain\Dto\AccessRolesSectionsV1;
 use Cbox\Cms\Panel\Account\Domain\Dto\AccountMeSectionsV1;
+use Cbox\Cms\Panel\CommandForm\Domain\Dto\CommandFormChecksV1;
 use Cbox\Cms\Panel\CommandForm\Domain\Dto\CommandFormContextV1;
+use Cbox\Cms\Panel\CommandForm\Domain\Dto\CommandFormReceiptV1;
+use Cbox\Cms\Panel\CommandForm\Domain\Dto\CommandFormStepsV1;
+use Cbox\Cms\Panel\CommandForm\Domain\Dto\CommandFormSubmitV1;
+use Cbox\Cms\Panel\CommandForm\Domain\Dto\DryRunViewV1;
+use Cbox\Cms\Panel\CommandForm\Domain\Dto\FieldInputPropsV1;
+use Cbox\Cms\Panel\CommandForm\Domain\FieldPresence;
 use Cbox\Cms\Panel\Shell\Domain\Dto\ShellNavV1;
 use Cbox\Cms\Panel\Shell\Domain\Dto\ShellPageV1;
 use Cbox\Cms\Panel\Shell\Domain\Dto\ViewerSummaryV1;
@@ -47,7 +56,7 @@ use Cbox\Cms\Tooling\Protocol\Domain\Dto\PointSchema;
  * generators may not use the panel. The panel's points come with the pages that render them (X5's
  * RenderedPanelPointsTest holds every declared point to a page), and each brings its binding here:
  * the shell's three, which every page behind the login renders, the sections of the who-am-I
- * page and the aside of the generic command form.
+ * page and the seven points of the generic command form.
  */
 final readonly class PanelPointSchemas
 {
@@ -112,6 +121,27 @@ final readonly class PanelPointSchemas
                 '#/properties/actor' => ValueBinding::id(ActorId::class),
             ]),
             self::point('command.form.aside.v1.json', 'CommandFormContextCodecV1', 1, ['#' => CommandFormContextV1::class], [
+                '#/properties/command' => ValueBinding::value(CommandName::class),
+            ]),
+            self::point('command.form.checks.v1.json', 'CommandFormChecksCodecV1', 1, ['#' => CommandFormChecksV1::class]),
+            self::point('command.form.dryrun.v1.json', 'DryRunViewCodecV1', 1, ['#' => DryRunViewV1::class], [
+                '#/properties/command' => ValueBinding::value(CommandName::class),
+                '#/properties/receipt' => ValueBinding::document(JsonDocument::class),
+                '#/properties/summary' => ValueBinding::document(JsonDocument::class),
+            ]),
+            self::point('command.form.field.v1.json', 'FieldInputPropsCodecV1', 1, ['#' => FieldInputPropsV1::class], [
+                '#/properties/command' => ValueBinding::value(CommandName::class),
+                '#/properties/locale' => ValueBinding::value(Locale::class),
+                '#/properties/presence' => ValueBinding::enum(FieldPresence::class),
+                '#/properties/schema' => ValueBinding::document(JsonDocument::class),
+            ], ['#/properties/id' => 'control']),
+            self::point('command.form.receipt.v1.json', 'CommandFormReceiptCodecV1', 1, ['#' => CommandFormReceiptV1::class], [
+                '#/properties/command' => ValueBinding::value(CommandName::class),
+                '#/properties/problem' => ValueBinding::document(JsonDocument::class),
+                '#/properties/receipt' => ValueBinding::document(JsonDocument::class),
+            ]),
+            self::point('command.form.steps.v1.json', 'CommandFormStepsCodecV1', 1, ['#' => CommandFormStepsV1::class]),
+            self::point('command.form.submit.v1.json', 'CommandFormSubmitCodecV1', 1, ['#' => CommandFormSubmitV1::class], [
                 '#/properties/command' => ValueBinding::value(CommandName::class),
             ]),
             self::point('shell.nav.v1.json', 'ShellNavCodecV1', 1, ['#' => ShellNavV1::class]),

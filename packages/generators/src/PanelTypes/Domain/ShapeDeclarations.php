@@ -184,7 +184,7 @@ final class ShapeDeclarations
 
         if ($shape->additional instanceof JsonShape) {
             // An index signature, not Readonly<Record<...>>, so a definition may refer to itself.
-            return TypeExpression::atom('{ readonly [key: string]: '.$this->expression($shape->additional, $this->nested($name, 'value'))->flat().' }');
+            return TypeExpression::indexed($this->expression($shape->additional, $this->nested($name, 'value')));
         }
 
         return $this->import('JsonObject');

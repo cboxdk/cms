@@ -350,7 +350,12 @@ export interface ReceiptV1 {
 }
 
 // @stable
-export type Replacement<P> = ComponentType<Readonly<P>>;
+export type Replacement<P, D = never> = ComponentType<ReplacementProps<P, D>>;
+
+// @stable
+export type ReplacementProps<P, D = never> = [D] extends [never] ? Readonly<P> : Readonly<P> & {
+    readonly data: DataState<D>;
+};
 
 // @stable
 export type RetentionClass = 'evidence' | 'standard';
@@ -487,6 +492,7 @@ import { CommandPalette } from '@cboxdk/cms-ui-kit';
 import { CommandPaletteItem } from '@cboxdk/cms-ui-kit';
 import { CommandPaletteProps } from '@cboxdk/cms-ui-kit';
 import { CommandPaletteSection } from '@cboxdk/cms-ui-kit';
+import type { ComponentType } from 'react';
 import { ConfirmDialog } from '@cboxdk/cms-ui-kit';
 import { ConfirmDialogProps } from '@cboxdk/cms-ui-kit';
 import { createToastQueue } from '@cboxdk/cms-ui-kit';
@@ -597,6 +603,7 @@ import { ReceiptWaitLevel } from '@cboxdk/cms-ui-kit';
 import { RolePicker } from '@cboxdk/cms-ui-kit';
 import { RolePickerProps } from '@cboxdk/cms-ui-kit';
 import { SchemaForm } from '@cboxdk/cms-ui-kit';
+import { SchemaFormField } from '@cboxdk/cms-ui-kit';
 import { SchemaFormProps } from '@cboxdk/cms-ui-kit';
 import { SchemaFormTexts } from '@cboxdk/cms-ui-kit';
 import { Section } from '@cboxdk/cms-ui-kit';
@@ -755,7 +762,28 @@ export { ComboboxOption }
 export { ComboboxProps }
 
 // @experimental
+export type CommandFormChecksV1 = Record<string, never>;
+
+// @experimental
 export interface CommandFormContextV1 {
+    command: string;
+    title: string;
+    version: number;
+}
+
+// @experimental
+export interface CommandFormReceiptV1 {
+    command: string;
+    problem: JsonDocument | null;
+    receipt: JsonDocument;
+    version: number;
+}
+
+// @experimental
+export type CommandFormStepsV1 = Record<string, never>;
+
+// @experimental
+export interface CommandFormSubmitV1 {
     command: string;
     title: string;
     version: number;
@@ -803,6 +831,14 @@ export { DryRunReportProps }
 
 export { DryRunSummary }
 
+// @experimental
+export interface DryRunViewV1 {
+    command: string;
+    receipt: JsonDocument;
+    summary: JsonDocument;
+    version: number;
+}
+
 export { emptied }
 
 export { EmptyState }
@@ -829,9 +865,39 @@ export { FieldError }
 
 export { FieldErrorProps }
 
+// @experimental
+export type FieldInput<D = never> = Replacement<FieldInputProps, D>;
+
+// @experimental
+export type FieldInputData<D> = DataState<D>;
+
+// @experimental
+export type FieldInputProps = FieldInputPropsV1 & {
+    readonly onChange: (value: string | null) => void;
+};
+
+// @experimental
+export interface FieldInputPropsV1 {
+    command: string;
+    description: string | null;
+    errors: readonly string[];
+    id: string;
+    label: string;
+    locale: string;
+    path: string;
+    presence: FieldPresence;
+    read_only: boolean;
+    schema: JsonDocument;
+    value: string | null;
+    version: number;
+}
+
 export { FieldPath }
 
 export { fieldPathText }
+
+// @experimental
+export type FieldPresence = 'required' | 'present' | 'optional' | 'omittable';
 
 export { FieldProps }
 
@@ -881,6 +947,11 @@ export { isSchemaUnsupported }
 
 // @experimental
 export type IssuerKind = 'human' | 'agent' | 'service';
+
+// @experimental
+export type JsonDocument = {
+    readonly [key: string]: unknown;
+};
 
 export { JsonEditor }
 
@@ -991,6 +1062,8 @@ export { RolePicker }
 export { RolePickerProps }
 
 export { SchemaForm }
+
+export { SchemaFormField }
 
 export { SchemaFormProps }
 

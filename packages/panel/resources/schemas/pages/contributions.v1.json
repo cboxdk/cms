@@ -300,8 +300,11 @@
           "maximum": 1000000
         },
         "props": {
-          "description": "The point's props as the point's generated codec wrote them for this contribution, without every member classified above the lower of the viewer's access and the addon's reads.",
-          "type": "object"
+          "description": "The point's props as the point's generated codec wrote them for this contribution, without every member classified above the lower of the viewer's access and the addon's reads; null for a point whose props the page holds in the browser, which the page builds, typed by the point's generated TypeScript, and hands each contribution itself.",
+          "type": [
+            "object",
+            "null"
+          ]
         },
         "replacement": {
           "description": "The key a replacement replaces; null for any other kind.",

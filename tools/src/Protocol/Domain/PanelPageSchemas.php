@@ -38,6 +38,7 @@ use Cbox\Cms\Panel\Domain\Dto\CheckProp;
 use Cbox\Cms\Panel\Domain\Dto\CommandFormPage;
 use Cbox\Cms\Panel\Domain\Dto\ContributionsProp;
 use Cbox\Cms\Panel\Domain\Dto\DecoratorProp;
+use Cbox\Cms\Panel\Domain\Dto\FieldBinding;
 use Cbox\Cms\Panel\Domain\Dto\FillProp;
 use Cbox\Cms\Panel\Domain\Dto\ForgotPasswordPage;
 use Cbox\Cms\Panel\Domain\Dto\ForgotPasswordRefusals;
@@ -158,7 +159,7 @@ final readonly class PanelPageSchemas
                 '#/properties/rejection' => ValueBinding::document(JsonDocument::class),
                 '#/properties/result' => ValueBinding::document(JsonDocument::class),
             ]),
-            self::page('command-form.v1.json', 'CommandFormPageCodecV1', ['#' => CommandFormPage::class], [
+            self::page('command-form.v1.json', 'CommandFormPageCodecV1', ['#' => CommandFormPage::class, '#/$defs/binding' => FieldBinding::class], [
                 '#/properties/command' => ValueBinding::value(CommandName::class),
                 '#/properties/schema' => ValueBinding::document(JsonDocument::class),
             ]),

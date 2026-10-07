@@ -30,6 +30,24 @@ export const AccountMeSectionsV1: Story = pointStory(PANEL_POINTS, 'account.me.s
 /** command.form.aside@1, a slot point of the page command.form. */
 export const CommandFormAsideV1: Story = pointStory(PANEL_POINTS, 'command.form.aside@1');
 
+/** command.form.checks@1, a form_check point of the page command.form. */
+export const CommandFormChecksV1: Story = pointStory(PANEL_POINTS, 'command.form.checks@1');
+
+/** command.form.dryrun@1, a slot point of the page command.form. */
+export const CommandFormDryrunV1: Story = pointStory(PANEL_POINTS, 'command.form.dryrun@1');
+
+/** command.form.field@1, a replacement point of the page command.form. */
+export const CommandFormFieldV1: Story = pointStory(PANEL_POINTS, 'command.form.field@1');
+
+/** command.form.receipt@1, a decorator point of the page command.form. */
+export const CommandFormReceiptV1: Story = pointStory(PANEL_POINTS, 'command.form.receipt@1');
+
+/** command.form.steps@1, a flow_step point of the page command.form. */
+export const CommandFormStepsV1: Story = pointStory(PANEL_POINTS, 'command.form.steps@1');
+
+/** command.form.submit@1, a decorator point of the page command.form. */
+export const CommandFormSubmitV1: Story = pointStory(PANEL_POINTS, 'command.form.submit@1');
+
 /** shell.nav@1, a nav point of the page shell. */
 export const ShellNavV1: Story = pointStory(PANEL_POINTS, 'shell.nav@1');
 

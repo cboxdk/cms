@@ -1,14 +1,31 @@
 {
-  "contributions": [],
+  "contributions": [
+    "fixtureaddon.slug-hint",
+    "fixtureaddon.slug-override",
+    "fixtureaddon.slug-review",
+    "fixtureaddon.slug-shape"
+  ],
   "entry": "panel.js",
   "externals": [
-    "@cboxdk/cms-panel/extend"
+    "@cboxdk/cms-panel/experimental",
+    "@cboxdk/cms-panel/extend",
+    "react/jsx-runtime"
   ],
   "files": [
     {
-      "integrity": "sha384-NI+EFoV9/JcWpuQeB5doE/i5gGfUehiVr3aYY694qWFNiCgKYdnqpjz32lOuCcfm",
+      "integrity": "sha384-EJUFyVD9jN9wrKmOv3pbIJ9SO62Z1rEhyie9WEJ71Hs224iLyRk+hFYmB284uzVq",
+      "kind": "script",
+      "path": "SlugReview-BlvZkDzn.js"
+    },
+    {
+      "integrity": "sha384-irf0UgwMPtVgV5OEnPaexM7JHg52Q1Gb2Fmi+38q63J+BUQblEF7tOGkEpOTFqks",
       "kind": "script",
       "path": "panel.js"
+    },
+    {
+      "integrity": "sha384-2eR0TeBUxNA+5jWwH7R5+kl854+6nUXwhvjBTK90dVm0MLNun/ccYqq+S/t95zZg",
+      "kind": "script",
+      "path": "slug-OJHt0rsu.js"
     }
   ]
 }

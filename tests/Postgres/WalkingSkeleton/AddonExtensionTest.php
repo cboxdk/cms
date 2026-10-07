@@ -40,6 +40,7 @@ use Workbench\App\Cms\Generated\Records\AppFixtureArticle\AppFixtureArticle;
 use Workbench\FixtureAddon\DeriveSlug;
 use Workbench\FixtureAddon\FixtureAddonServiceProvider;
 use Workbench\FixtureAddon\RequireSlugOnRelease;
+use Workbench\FixtureAddon\RequireWellFormedSlug;
 
 /*
  * MILESTONES M1 point 7 (PRD 6.3, 11.12, 13.1 to 13.3, invariant 36): the workbench's fixture
@@ -126,6 +127,7 @@ it('compiles the fixture addon\'s hooks from its scan root and manifest', functi
 
     expect(array_map(static fn (HookEntry $hook): string => $hook->command->value.' '.$hook->phase->value.' '.$hook->class, $hooks))->toEqualCanonicalizing([
         'entry.create transform '.DeriveSlug::class,
+        'entry.create validate '.RequireWellFormedSlug::class,
         'variant.release validate '.RequireSlugOnRelease::class,
     ]);
 

@@ -962,6 +962,30 @@ export interface RolePickerProps {
 export function SchemaForm(input: SchemaFormProps): JSX.Element;
 
 // @experimental
+export interface SchemaFormField {
+    // (undocumented)
+    readonly description: string | undefined;
+    // (undocumented)
+    readonly disabled: boolean;
+    readonly emptied: JsonValue | undefined;
+    // (undocumented)
+    readonly error: string | undefined;
+    readonly id: string;
+    readonly keys: readonly string[];
+    // (undocumented)
+    readonly label: string;
+    // (undocumented)
+    readonly member: FormMember;
+    readonly name: string;
+    readonly onChange: (next: JsonValue | undefined) => void;
+    readonly path: string;
+    // (undocumented)
+    readonly required: boolean;
+    // (undocumented)
+    readonly value: JsonValue | undefined;
+}
+
+// @experimental
 export interface SchemaFormProps {
     readonly checkJson?: ((value: unknown) => readonly string[]) | undefined;
     readonly disabled?: boolean | undefined;
@@ -969,6 +993,7 @@ export interface SchemaFormProps {
     readonly idPrefix?: string | undefined;
     readonly model: FormModel;
     readonly onChange: (value: JsonObject) => void;
+    readonly renderInput?: ((field: SchemaFormField, input: ReactNode) => ReactNode) | undefined;
     readonly texts?: Partial<SchemaFormTexts> | undefined;
     readonly value: JsonObject;
 }

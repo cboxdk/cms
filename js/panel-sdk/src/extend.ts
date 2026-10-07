@@ -29,6 +29,7 @@ export type {
   Provider,
   ProviderProps,
   Replacement,
+  ReplacementProps,
   SlotComponent,
   SlotProps,
   StepProps,

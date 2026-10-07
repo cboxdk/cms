@@ -18,6 +18,7 @@ use Workbench\FixtureAddon\DeriveSlug;
 use Workbench\FixtureAddon\FixtureAddonServiceProvider;
 use Workbench\FixtureAddon\FixtureArticle;
 use Workbench\FixtureAddon\RequireSlugOnRelease;
+use Workbench\FixtureAddon\RequireWellFormedSlug;
 use Workbench\FixtureAddon\Tests\FixtureAddonTestCase;
 
 /**
@@ -33,7 +34,7 @@ final class FixtureAddonBuildTest extends FixtureAddonTestCase
     {
         $manifest = new FixtureAddonServiceProvider(app())->addonManifest();
 
-        foreach ([DeriveSlug::class, RequireSlugOnRelease::class] as $class) {
+        foreach ([DeriveSlug::class, RequireWellFormedSlug::class, RequireSlugOnRelease::class] as $class) {
             $hook = new ReflectionClass($class)->getAttributes(Hook::class)[0]->newInstance();
             $allowed = array_filter($manifest->hooks, static fn (AllowedHook $allowed): bool => $allowed->allows($hook->command, $hook->phase));
 
@@ -80,7 +81,7 @@ final class FixtureAddonBuildTest extends FixtureAddonTestCase
         ));
 
         self::assertSame(
-            [[DeriveSlug::class, 'entry.create', 'transform', 'fixtureaddon', 'public'], [RequireSlugOnRelease::class, 'variant.release', 'validate', 'fixtureaddon', 'public']],
+            [[DeriveSlug::class, 'entry.create', 'transform', 'fixtureaddon', 'public'], [RequireWellFormedSlug::class, 'entry.create', 'validate', 'fixtureaddon', 'public'], [RequireSlugOnRelease::class, 'variant.release', 'validate', 'fixtureaddon', 'public']],
             array_map(static fn (array $hook): array => [$hook['class'] ?? null, $hook['command'] ?? null, $hook['phase'] ?? null, $hook['addon'] ?? null, $hook['reads'] ?? null], $hooks),
         );
         self::assertCount(1, $schema);

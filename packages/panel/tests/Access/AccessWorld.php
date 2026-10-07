@@ -19,12 +19,8 @@ use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\GrantId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\RoleId;
-use Cbox\Cms\Core\Registry\Boundary\ProviderAddonManifests;
-use Cbox\Cms\Core\Registry\Boundary\ProviderScanRoots;
-use Cbox\Cms\Core\Registry\Domain\DeclarationScanner;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
-use Cbox\Cms\Core\Registry\Domain\RegistryCompiler;
 use Cbox\Cms\Core\Tests\Registry\Fakes\FakeRegistryCache;
 use Cbox\Cms\Http\Credentials\Boundary\RequestCredential;
 use Cbox\Cms\Http\Rest\RestRoutes;
@@ -37,6 +33,7 @@ use Cbox\Cms\Testkit\FixtureWriters\Identity\Adapter\PostgresIdentitySeeder;
 use Cbox\Cms\Testkit\FixtureWriters\Structure\Adapter\PostgresStructureFixtures;
 use Cbox\Cms\Testkit\Identity\ServiceCredentialSpec;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
+use Cbox\Cms\Tests\Support\Registry\InstallationRegistry;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Routing\Registrar;
 use Illuminate\Database\ConnectionResolverInterface;
@@ -117,10 +114,7 @@ final readonly class AccessWorld
      */
     public function __construct(Application $app, int $seed = 83, bool $fixtureBuild = true, string $site = 'access')
     {
-        $this->registry = $app->make(RegistryCompiler::class)->compile(
-            $app->make(DeclarationScanner::class)->scan(ProviderScanRoots::of($app)),
-            ProviderAddonManifests::of($app),
-        );
+        $this->registry = InstallationRegistry::compile($app);
         $cache = new FakeRegistryCache;
         $cache->write($this->registry);
         $app->instance(RegistryCache::class, $cache);

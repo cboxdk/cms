@@ -15,6 +15,7 @@ use Cbox\Cms\Core\Codecs\Boundary\JsonValues;
 use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
 use Cbox\Cms\Core\Codecs\Domain\EncodingFailed;
 use Cbox\Cms\Panel\Domain\Dto\CommandFormPage;
+use Cbox\Cms\Panel\Domain\Dto\FieldBinding;
 use Override;
 use stdClass;
 
@@ -62,6 +63,7 @@ final readonly class CommandFormPageCodecV1 implements JsonCodec
     private function encodeCommandFormPage(CommandFormPage $object): stdClass
     {
         $json = new stdClass;
+        $json->bindings = array_map($this->encodeFieldBinding(...), $object->bindings);
         $json->command = $object->command->value;
         $json->logout = $object->logout;
         $json->schema = JsonValues::encodeDocument($object->schema->value);
@@ -72,13 +74,33 @@ final readonly class CommandFormPageCodecV1 implements JsonCodec
 
     private function decodeCommandFormPage(stdClass $value): CommandFormPage
     {
-        $object = JsonValues::object($value, null, ['command', 'logout', 'schema', 'version']);
+        $object = JsonValues::object($value, null, ['bindings', 'command', 'logout', 'schema', 'version']);
 
-        return JsonValues::build(null, static fn (): CommandFormPage => new CommandFormPage(
+        return JsonValues::build(null, fn (): CommandFormPage => new CommandFormPage(
             logout: JsonValues::required($object, 'logout', null, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1, maxLength: 500)),
             command: JsonValues::required($object, 'command', null, static fn (mixed $value, FieldPath $at): CommandName => JsonValues::value($value, $at, static fn (string $text): CommandName => new CommandName($text))),
             version: JsonValues::required($object, 'version', null, static fn (mixed $value, FieldPath $at): int => JsonValues::integer($value, $at, min: 1)),
             schema: JsonValues::required($object, 'schema', null, static fn (mixed $value, FieldPath $at): JsonDocument => JsonValues::document($value, $at, static fn (string $text): JsonDocument => new JsonDocument($text))),
+            bindings: JsonValues::required($object, 'bindings', null, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeFieldBinding(...))),
+        ));
+    }
+
+    private function encodeFieldBinding(FieldBinding $object): stdClass
+    {
+        $json = new stdClass;
+        $json->class = $object->class;
+        $json->path = $object->path;
+
+        return $json;
+    }
+
+    private function decodeFieldBinding(mixed $value, FieldPath $path): FieldBinding
+    {
+        $object = JsonValues::object($value, $path, ['class', 'path']);
+
+        return JsonValues::build($path, static fn (): FieldBinding => new FieldBinding(
+            path: JsonValues::required($object, 'path', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1, maxLength: 500)),
+            class: JsonValues::required($object, 'class', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1, maxLength: 255)),
         ));
     }
 }

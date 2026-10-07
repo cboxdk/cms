@@ -17,7 +17,8 @@ use stdClass;
  * query's JSON Schema names as properties, as a JSON document the query's codec then reads.
  * cms:build checks that the props give every required input of the right type
  * (registry_panel_data_query_invalid); a member the props withheld above the addon's reads is not
- * there to take, so the query's codec refuses an input that requires it.
+ * there to take, so the query's codec refuses an input that requires it. A point whose props the
+ * page holds in the browser gives no input at all.
  */
 #[Internal]
 final readonly class QueryInput
@@ -25,9 +26,9 @@ final readonly class QueryInput
     /**
      * @throws DecodingFailed when the props or the schema are not JSON objects
      */
-    public static function of(JsonDocument $props, JsonSchema $schema): string
+    public static function of(?JsonDocument $props, JsonSchema $schema): string
     {
-        $members = JsonText::decode($props->value);
+        $members = $props instanceof JsonDocument ? JsonText::decode($props->value) : new stdClass;
         $properties = JsonText::decode($schema->json)->properties ?? null;
         $input = new stdClass;
 

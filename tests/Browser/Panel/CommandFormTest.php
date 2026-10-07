@@ -54,9 +54,9 @@ use Pest\Browser\Api\PendingAwaitablePage;
  * panel rendered from the schema of actor.activate, labelled by the catalogue. A value the schema
  * refuses is caught in the browser before anything is sent and shown at its field; the id of an
  * actor that is not pending is refused by the kernel with validation_failed, which the form shows
- * as the problem and at the field, from the errors prop; a dry run shows the dry_run receipt and
- * what would change while the actor stays pending; and a commit shows committed and the actor is
- * active. Every state makes the shared page assertions, the form at the three widths of a phone,
+ * as the problem and at the field, from the errors prop; a dry run, its own button, shows the
+ * dry_run receipt and what would change while the actor stays pending; and a commit shows committed
+ * and the actor is active. Every state makes the shared page assertions, the form at the three widths of a phone,
  * a tablet and a desktop: the translated texts, an empty console, no script error, no axe finding
  * at any impact, every WCAG 2.2 AA rule, and no policy violation.
  *
@@ -198,7 +198,7 @@ it('opens the form from the palette, labelled by the catalogue, and keeps a valu
         'panel.action.actor.activate.field.actor.description',
         'panel.action.actor.activate.field.version.label',
         'panel.command_form.options',
-        'panel.command_form.dry_run',
+        'panel.command_form.try',
         'panel.command_form.wait_level',
         'panel.command_form.run',
     ]);
@@ -241,11 +241,9 @@ it('shows the kernel\'s refusal at its field, a dry run\'s receipt and what woul
     expect(PanelProbe::eventually($page, 'document.querySelector(\'input[name="actor"]\')?.getAttribute(\'aria-invalid\') === "true"'))->toBeTrue();
     PanelPage::assertPage($page, ['panel.command_form.refused_title', 'panel.host.refused']);
 
-    // A dry run of the pending actor's activation commits nothing and shows what would change. The
-    // dry run box is checked through its label, as a person checks it: the kit draws the box over
-    // its native input.
+    // A dry run of the pending actor's activation, its own button, commits nothing and shows what
+    // would change.
     $page->type('actor', $pending->toString())
-        ->click(PanelPage::text('panel.command_form.dry_run'))
         ->click(PanelPage::text('panel.command_form.try'));
 
     $page->assertSee('Dry run: nothing was saved')
@@ -257,8 +255,7 @@ it('shows the kernel\'s refusal at its field, a dry run\'s receipt and what woul
     $page->resize(1440, 900);
 
     // The commit activates the actor at its next version and shows the committed receipt.
-    $page->click(PanelPage::text('panel.command_form.dry_run'))
-        ->click(PanelPage::text('panel.command_form.run'));
+    $page->click(PanelPage::text('panel.command_form.run'));
 
     $page->assertSee(PanelPage::text('panel.command_form.committed_title'))
         ->assertSee(PanelPage::text('panel.command_form.committed_body'));

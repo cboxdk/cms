@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "command.form.steps props, contract version 1",
+  "description": "The props of the flow steps of the generic command form, a flow step point (PRD 13.4): none. A contribution to it runs as a numbered step of the form of the command it names, before the submit or after the receipt, and may patch the paths its manifest declares or cancel; the core's own confirmation runs last before the submit. The PHP form is Cbox\\Cms\\Panel\\CommandForm\\Domain\\Dto\\CommandFormStepsV1.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {}
+}

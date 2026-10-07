@@ -7,7 +7,13 @@
 export type { AccessGrantsSectionsV1 } from './points/AccessGrantsSectionsV1';
 export type { AccessRolesSectionsV1 } from './points/AccessRolesSectionsV1';
 export type { AccountMeSectionsV1 } from './points/AccountMeSectionsV1';
+export type { CommandFormChecksV1 } from './points/CommandFormChecksV1';
 export type { CommandFormContextV1 } from './points/CommandFormContextV1';
+export type { CommandFormReceiptV1 } from './points/CommandFormReceiptV1';
+export type { CommandFormStepsV1 } from './points/CommandFormStepsV1';
+export type { CommandFormSubmitV1 } from './points/CommandFormSubmitV1';
+export type { DryRunViewV1 } from './points/DryRunViewV1';
+export type { FieldInputPropsV1, FieldPresence } from './points/FieldInputPropsV1';
 export type { ShellNavV1 } from './points/ShellNavV1';
 export type { ShellPageV1 } from './points/ShellPageV1';
 export type { IssuerKind, ViewerSummaryV1 } from './points/ViewerSummaryV1';

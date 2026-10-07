@@ -15,7 +15,12 @@ export default defineConfig({
   plugins: [
     cmsPanelAddon({
       namespace: 'fixtureaddon',
-      contributions: [],
+      contributions: [
+        'fixtureaddon.slug-hint',
+        'fixtureaddon.slug-override',
+        'fixtureaddon.slug-review',
+        'fixtureaddon.slug-shape',
+      ],
       sign: {
         privateKey: readFileSync(
           new URL('../../panel-signing-test-key.pem', import.meta.url),

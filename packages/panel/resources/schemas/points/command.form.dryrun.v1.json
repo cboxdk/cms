@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "command.form.dryrun props, contract version 1",
+  "description": "The props of the sections below what a dry run of the generic command form would change, a slot point in the form page's sections region (PRD 13.4, 8.4): the command's name and contract version, the summary of the dry run as dry-run-summary.v1.json writes it, the plan's summary, the blast radius and what becomes visible, and the dry run's receipt as receipt.v1.json writes it. The page holds the props in the browser, once the dry run answered. The PHP form is Cbox\\Cms\\Panel\\CommandForm\\Domain\\Dto\\DryRunViewV1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "command",
+    "receipt",
+    "summary",
+    "version"
+  ],
+  "properties": {
+    "command": {
+      "description": "The name of the command the form tried, such as entry.create: lowercase segments in snake_case joined by dots, at least two.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+      "examples": [
+        "entry.create"
+      ],
+      "minLength": 3,
+      "maxLength": 255
+    },
+    "receipt": {
+      "description": "The dry run's receipt, as receipt.v1.json writes it, with the outcome dry_run.",
+      "type": "object"
+    },
+    "summary": {
+      "description": "What the command would change, as dry-run-summary.v1.json writes it.",
+      "type": "object"
+    },
+    "version": {
+      "description": "The contract version of the command the form tried, 1 or more.",
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}
