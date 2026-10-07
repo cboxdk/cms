@@ -1,0 +1,162 @@
+{
+  "block": "B1",
+  "summary": "B1 part 1, sixth run: the three tasks left after run 5 merged X12, X16, T13, T14, T15, T18 and X14 (X17, X19, T19). Dependencies on merged tasks are satisfied on main.",
+  "tasks": [
+    {
+      "id": "X17",
+      "title": "Fixture addon UI and the browser tests of the extension model",
+      "goal": "The workbench fixture addon contributes to every kind and every B1 point, including a mirrored check on entry.create, a self-grant check on grant.assign backed by an AuthorizeHook, a four-eyes step, a field input for its own field type, a nav entry and page with a data query, a theme and a login notice; Browser tests cover order, isolation, conflicts, experimental opt-in, permission filtering, the reads cap, the CSP with no violations, no addon script on credential routes, hash refusal, the kill switch and INP under 200 ms.",
+      "dependsOn": [
+        "X11",
+        "X12",
+        "X13",
+        "X14",
+        "X15",
+        "X16",
+        "T18"
+      ],
+      "acceptance": [
+        "composer image:run -- vendor/bin/pest --testsuite=Browser --filter=PanelAddons passes",
+        "composer image:run -- vendor/bin/pest --testsuite=Browser --filter=PanelInp passes with every B1 point populated",
+        "cms:panel:fills shows the fixture addon's contributions in the order the tests assert",
+        "composer check passes"
+      ]
+    },
+    {
+      "id": "X19",
+      "title": "Documentation of the kit and the extension model",
+      "goal": "docs/ui (foundations, tokens, layers, accessibility, i18n, component groups linking the stories), docs/addons/panel (overview and trust model, a page per kind and per B1 point with running examples from the scaffold path), the recipes, docs/security/panel-addons.md with the honest scope, and the stability and deprecation page; gate 10 accepts TS examples run by the JS suite.",
+      "dependsOn": [
+        "X3",
+        "X5",
+        "X17"
+      ],
+      "acceptance": [
+        "composer docs:check passes with every #[PanelPoint] documented on exactly one page with a running example",
+        "the TS examples embedded in docs/addons/panel are run by npm run test:js",
+        "composer progress:check -- B1-X19 --changed-checks passes",
+        "composer check passes"
+      ]
+    },
+    {
+      "id": "T19",
+      "title": "Workbench login path, getting-started docs and the part 1 exit browser test",
+      "goal": "Make the documented path real. composer dev:prepare also runs cms:install, cms:sites:sync and composer panel:build through the dev image, each idempotent. Add composer workbench:serve, which serves the workbench in a dev-image container of the checkout with a published port (127.0.0.1:8080 by default, through DevImageRun with a port option, reaching Postgres and Valkey as the gates do), with a test using the fake docker. compose.yaml's php service is left unchanged. Add a page in docs/getting-started that says how to start the services, prepare the dev database, create the first staff member with cms:staff:create, grant access with cms:access:bootstrap on the workbench site's root node, serve the workbench, open http://127.0.0.1:8080/cms and log in. It embeds running examples where gate 10 needs them and gets a screenshot entry if the page warrants one. Add docs/users/_index.md and a first page for people who log in to the panel. The scripted part of the path is tests/Postgres/GettingStartedPathTest.php: dev:prepare's steps twice, with the second run changing nothing; cms:staff:create; cms:access:bootstrap; then an HTTP login against the served application and a request to the who-am-I page. Following the page by hand in a browser stays manual. The exit browser test is tests/Browser/Panel/StaffJourneyTest.php. A local staff member, created through cms:staff:create's action and bootstrapped, logs in, opens the command palette with the keyboard, assigns a non-administrative role to a second staff member, sees the grant, and logs out, with the shared page assertions at each page. Record B1 part 1 in PROGRESS.md 'Seneste kørsel' only through the merge queue. Built on the panel extension architecture (cms-planning/proposals/panel-extension-architecture.md, accepted 2 October 2026): every component from js/ui-kit, the page hosts its declared panel points with the core's own contributions in the cms namespace, WCAG 2.2 AA with axe in its browser test, and its screenshot in docs.",
+      "prdRefs": [
+        "PRD 5.16",
+        "PRD 5.10",
+        "PRD 14.2",
+        "GUARDRAILS 8",
+        "GUARDRAILS 10"
+      ],
+      "acceptance": [
+        "composer panel:build; composer image:run -- vendor/bin/pest tests/Browser/Panel/StaffJourneyTest.php passes",
+        "composer image:run -- vendor/bin/pest tests/Postgres/GettingStartedPathTest.php passes, including dev:prepare's idempotency and an HTTP login",
+        "composer docs:check passes with the new pages",
+        "composer check passes, and docker compose -f compose.ci.yaml run --rm ci passes with its wall time recorded against 15 minutes"
+      ],
+      "dependsOn": [
+        "T12",
+        "T15",
+        "T18",
+        "T24",
+        "T6",
+        "T8",
+        "X14",
+        "X17",
+        "X19"
+      ],
+      "touches": [
+        "composer.json",
+        "tools/DevImage",
+        "tools/bin",
+        "tests/Feature/Tooling/DevImage",
+        "docs/getting-started",
+        "docs/users",
+        "tools/Docs",
+        "tests/Browser/Panel",
+        "tests/Postgres",
+        "workbench",
+        "README.md"
+      ]
+    }
+  ],
+  "exitCriteria": [
+    {
+      "id": "E1",
+      "description": "Exit criterion of B1 part 1 (Sylvester, 2 October): a browser test (gate 8) logs in as a local staff member, opens the command palette, assigns a role and sees it, and logs out, without console logs, JavaScript errors or accessibility issues",
+      "command": "composer panel:build && composer image:run -- vendor/bin/pest tests/Browser/Panel/StaffJourneyTest.php"
+    },
+    {
+      "id": "E2",
+      "description": "Exit criterion of B1 part 1: a documented path in docs/getting-started to start the workbench and log in. The scripted part runs as a test; the manual part is following the page in a browser on the main checkout",
+      "command": "composer image:run -- vendor/bin/pest tests/Postgres/GettingStartedPathTest.php && composer docs:check; manually on the main checkout: composer services:up, composer dev:prepare, the page's commands, composer workbench:serve, log in at http://127.0.0.1:8080/cms"
+    },
+    {
+      "id": "E3",
+      "description": "Login through the identity contract with the local connection; the credential store has its own Postgres schema, connection and role that the app role cannot read (PRD 5.16), checked by the doctor on the dev database",
+      "command": "vendor/bin/pest packages/identity/tests/Postgres/CredentialStoreIsolationTest.php && vendor/bin/pest --testsuite=Contract --filter='LocalCredentialStore|LoginConnection' && composer image:run -- php -d allow_url_fopen=0 vendor/bin/testbench cms:doctor --json (dev database after composer dev:prepare; identity.connection, identity.credential_isolation and identity.argon2id pass)"
+    },
+    {
+      "id": "E4",
+      "description": "Passwords of at least 12 characters, refusal of known breached passwords through the Egress gateway, and the registration order pending, credential, active",
+      "command": "vendor/bin/pest packages/identity/tests/Unit/PasswordPolicyTest.php packages/identity/tests/Actions/RegisterLocalStaffTest.php packages/cli/tests/Postgres/StaffCreateCommandTest.php packages/identity/tests/Unit/HibpRangeRequestTest.php"
+    },
+    {
+      "id": "E5",
+      "description": "Login policy per actor class and environment (with invariant 38), sessions with renewal and expiry as human credentials, logout and password reset",
+      "command": "vendor/bin/pest packages/identity/tests/Unit/LoginPolicyTest.php packages/identity/tests/Unit/SessionLifetimeTest.php packages/identity/tests/Postgres/SessionCredentialTest.php packages/identity/tests/Actions/PasswordResetTest.php packages/panel/tests/Feature/SessionCookieTest.php && composer image:run -- vendor/bin/pest tests/Browser/Panel/LoginTest.php tests/Browser/Panel/PasswordResetTest.php"
+    },
+    {
+      "id": "E6",
+      "description": "Contracts for login connections (verified assertion with issuer, subject, auth_time, amr, acr, groups), issuer resolution with tenant pinning, lifecycle signal receivers (back-channel logout, SSF) and SCIM provisioning, each with a fake and a shared suite that a planted faulty fake fails",
+      "command": "vendor/bin/pest --testsuite=Contract --filter='LoginConnection|IssuerResolver|BackChannelLogout|SecurityEvent|ScimProvisioning' && vendor/bin/pest packages/testkit/tests/Login/PlantedResolverTest.php packages/testkit/tests/Signals/PlantedReceiversTest.php"
+    },
+    {
+      "id": "E7",
+      "description": "Roles and grants in the panel with the guard against escalation (PRD 5.10), as commands through the pipeline and in parity with REST",
+      "command": "vendor/bin/pest packages/core/tests/Actions/EscalationGuardTest.php packages/core/tests/Actions/GrantAssignTest.php packages/core/tests/Actions/GrantRevokeTest.php packages/core/tests/Actions/RoleCommandsTest.php packages/core/tests/Postgres/GrantCommandsTest.php packages/http/tests/Rest/AccessQueriesParityTest.php tests/Feature/Surfaces && composer image:run -- vendor/bin/pest tests/Browser/Panel/RolesAndGrantsTest.php"
+    },
+    {
+      "id": "E8",
+      "description": "The command palette built from the registry, and the generic command form (GUARDRAILS 8)",
+      "command": "vendor/bin/pest packages/core/tests/Actions/ActionListTest.php packages/http/tests/Rest/ActionListParityTest.php && composer image:run -- vendor/bin/pest tests/Browser/Panel/PaletteTest.php tests/Browser/Panel/CommandFormTest.php"
+    },
+    {
+      "id": "E9",
+      "description": "Panel security and quality: a strict CSP with a per-request nonce, da and en translations with equal keys, axe on every panel page test, and the session cookie's attributes per environment",
+      "command": "composer image:run -- vendor/bin/pest tests/Browser/Panel/PublicPageTest.php && npm run lint && vendor/bin/pest packages/identity/tests/Unit/SessionCookieTest.php packages/panel/tests/Feature/SessionCookieTest.php"
+    },
+    {
+      "id": "E10",
+      "description": "Query parity and query surface contract tests: actor.me and action.list on REST and Inertia give the same documents, and every exposed query has a codec",
+      "command": "vendor/bin/pest packages/http/tests/Rest/ActorMeRestTest.php packages/http/tests/Rest/ActionListParityTest.php tests/Codecs/QueryCodecsTest.php tests/Feature/Surfaces"
+    },
+    {
+      "id": "E11",
+      "description": "Everything passes gates 1 to 6 (mutation is opt-in since 2 October), and the PR profile's gates 8 to 10 in the containerized CI run within the 15-minute budget; gate 7 (Storybook) stays not run with its reason for part 1",
+      "command": "composer check && docker compose -f compose.ci.yaml run --rm ci"
+    },
+    {
+      "id": "EX1",
+      "description": "The fixture addon contributes through every B1 panel point kind (slot, action, nav entry, page, decorator, check, flow step, theme) and the browser tests of the extension model pass, with zero axe violations",
+      "command": "composer image:run -- vendor/bin/pest --testsuite=Browser"
+    },
+    {
+      "id": "EX2",
+      "description": "Storybook builds with every kit component and extension point, gate 7 runs (axe, interaction, visual) and passes",
+      "command": "composer check -- --pr (gate 7 pass)"
+    },
+    {
+      "id": "EX3",
+      "description": "Installation branding shows in the shell and on the login page, with a docs page and screenshots",
+      "command": "vendor/bin/pest --filter=Branding and the docs page under docs/"
+    },
+    {
+      "id": "EX4",
+      "description": "S-1 to S-4 are fixed with regression tests",
+      "command": "vendor/bin/pest --filter=\"S1|S2|S4|Publish|Revise|AgentVisibility\""
+    }
+  ],
+  "blockers": []
+}
