@@ -10,14 +10,18 @@
 //
 // `npm run storybook:stories` compares; `npm run storybook:baselines` (--update) removes the
 // baselines and writes one for every story anew, after an intended change of how the kit looks,
-// so a baseline of a story that no longer exists does not linger. The new images are reviewed in
-// the diff like any other change.
+// so a baseline of a story that no longer exists does not linger, and, when every story passed,
+// records the SHA-256 of the files the panel points' stories are rendered from
+// (rendered-from.js), which gate 5 holds the baselines to. The new images are reviewed in the
+// diff like any other change.
 
 import { spawnSync } from 'node:child_process';
-import { rmSync } from 'node:fs';
+import { rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import process from 'node:process';
+
+import { RENDERED_FROM, renderedFrom, renderedFromRecord } from './rendered-from.js';
 
 /** The variable the php-baseimages images set to their tier, and the tier of the dev image. */
 export const IMAGE_TIER_VARIABLE = 'CBOX_IMAGE_TIER';
@@ -58,5 +62,9 @@ const run = spawnSync(
     env: { ...process.env, STORYBOOK_DISABLE_TELEMETRY: '1' },
   },
 );
+
+if (update && run.status === 0) {
+  writeFileSync(join(root, RENDERED_FROM), renderedFromRecord(renderedFrom(root)));
+}
 
 process.exit(run.status ?? 1);

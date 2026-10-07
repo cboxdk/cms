@@ -4,9 +4,19 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Generators\Tests\PanelStories;
 
+use Cbox\Cms\Contracts\Ids\ActorId;
+use Cbox\Cms\Contracts\PanelPoints\CommandRef;
+use Cbox\Cms\Contracts\PanelPoints\ContributionId;
+use Cbox\Cms\Contracts\PanelPoints\Multiplicity;
+use Cbox\Cms\Contracts\PanelPoints\Ownership;
+use Cbox\Cms\Contracts\PanelPoints\PageContribution;
 use Cbox\Cms\Contracts\PanelPoints\PanelPoint;
 use Cbox\Cms\Contracts\PanelPoints\PointKind;
 use Cbox\Cms\Contracts\PanelPoints\Region;
+use Cbox\Cms\Contracts\PanelPoints\ReplacementContribution;
+use Cbox\Cms\Contracts\PanelPoints\ReplacementKey;
+use Cbox\Cms\Core\Identity\Domain\Queries\ListActors;
+use Cbox\Cms\Core\Registry\Domain\Dto\PanelFill;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GeneratedFile;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
@@ -68,6 +78,26 @@ it('writes an overview alone for an installation without points', function (): v
     expect($stories?->contents)->toContain('export const Overview: Story = overviewStory(PANEL_POINTS);')
         ->and($stories?->contents)->not->toContain('pointStory')
         ->and($result->directories)->toBe([PanelStoriesModule::DIRECTORY]);
+});
+
+it('hands data to a fill with a data query, as a page does, but not to a page, whose query runs only on the page itself', function (): void {
+    $field = new PanelPoint('notes.form.field', 1, PointKind::Replacement, 'notes.form', '1.0', 'fixture.points.note_field', multiplicity: Multiplicity::Exclusive, ownership: Ownership::Own, keyedBy: ReplacementKey::ValueClass);
+    $pages = new PanelPoint('notes.pages', 1, PointKind::Page, 'shell', '1.0', 'fixture.points.note_pages');
+    $result = PanelStoriesModule::result([
+        new StoryPoint($field, 'Acme\\Field', 'experimental', null, null, [
+            new PanelFill(new ReplacementContribution(new ContributionId('cms.actor-picker'), 'notes.form.field@1', ActorId::class, ListActors::class), 'cboxdk/cms', 100, query: CommandRef::fromString('actor.list@1')),
+            new PanelFill(new ReplacementContribution(new ContributionId('acme.slug-input'), 'notes.form.field@1', 'Acme\\Slug'), 'acme/cms-slugs', 1000),
+        ]),
+        new StoryPoint($pages, 'Acme\\Pages', 'experimental', null, null, [
+            new PanelFill(new PageContribution(new ContributionId('acme.queue'), 'notes.pages@1', 'queue', ListActors::class), 'acme/cms-queue', 1000, query: CommandRef::fromString('actor.list@1')),
+        ]),
+    ]);
+    $points = array_first(array_filter($result->files, static fn (GeneratedFile $file): bool => str_ends_with($file->path, PanelStoriesModule::DATA)))->contents ?? '';
+    $data = static fn (string $id): ?string => preg_match("/data: (true|false),\n\\s*decorator: null,\n\\s*id: '".preg_quote($id, '/')."'/", $points, $match) === 1 ? $match[1] : null;
+
+    expect($data('cms.actor-picker'))->toBe('true')
+        ->and($data('acme.slug-input'))->toBe('false')
+        ->and($data('acme.queue'))->toBe('false');
 });
 
 it('refuses two points that give one story', function (): void {

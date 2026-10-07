@@ -6,10 +6,12 @@ namespace Cbox\Cms\Generators\PanelStories\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\PanelPoints\ActionContribution;
+use Cbox\Cms\Contracts\PanelPoints\CommandRef;
 use Cbox\Cms\Contracts\PanelPoints\DecoratorContribution;
 use Cbox\Cms\Contracts\PanelPoints\FlowStep;
 use Cbox\Cms\Contracts\PanelPoints\FormCheck;
 use Cbox\Cms\Contracts\PanelPoints\NavContribution;
+use Cbox\Cms\Contracts\PanelPoints\PageContribution;
 use Cbox\Cms\Contracts\PanelPoints\Region;
 use Cbox\Cms\Contracts\PanelPoints\ReplacementContribution;
 use Cbox\Cms\Contracts\PanelPoints\Tighten;
@@ -209,7 +211,7 @@ final readonly class PanelStoriesModule
                 new Property('command', new StringLiteral($command)),
                 new Property('severity', new StringLiteral($declaration->severity->value)),
             ]) : $null),
-            new Property('data', new BooleanLiteral(false)),
+            new Property('data', new BooleanLiteral(self::readsData($fill))),
             new Property('decorator', $declaration instanceof DecoratorContribution ? new ObjectLiteral([
                 new Property('tightens', ArrayLiteral::strings(array_map(static fn (Tighten $tighten): string => $tighten->value, $declaration->tightens))),
             ]) : $null),
@@ -230,5 +232,17 @@ final readonly class PanelStoriesModule
                 new Property('timeout_seconds', NumberLiteral::of($declaration->timeoutSeconds)),
             ]) : $null),
         ]);
+    }
+
+    /**
+     * Whether the contribution gets data on the point's story, as ResolveContributions decides it
+     * on a page: a fill with a data query does, such as the core's pickers at
+     * command.form.field@1, except a page's, whose query runs only on the page itself, which no
+     * point's story is. The story's page has no data yet, so the host hands such a fill the state
+     * loading, as a page does before its addons' deferred prop arrives.
+     */
+    private static function readsData(PanelFill $fill): bool
+    {
+        return $fill->query instanceof CommandRef && ! $fill->declaration instanceof PageContribution;
     }
 }
