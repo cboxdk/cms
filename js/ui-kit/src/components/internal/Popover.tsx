@@ -7,9 +7,20 @@
 // there is no room, and closes on Escape and on a press outside it. A modal popover hides the rest
 // of the page from a screen reader while it is open and traps focus in it, returning focus to the
 // trigger when it closes; a non-modal one, for a combobox, keeps focus in the combobox's input.
+//
+// It keeps hanging from its trigger while it is open. React Aria places it when it opens, when the
+// window resizes and when the popover or its trigger changes size, but not when the trigger moves,
+// and a choice can move it with the list still open: the tags a MultiSelect adds below its button
+// change the height of a dialog centred on the screen, which moves the button. So the popover
+// places itself with React Aria's useOverlayPosition rather than through usePopover, whose
+// placement it switches off, and after every render in which the trigger has moved it is placed
+// again. Left where it was, it would not only hang apart from the trigger: the next time React Aria
+// places it from its ResizeObserver, the first time after it opens included, its height (the room
+// left beside the trigger) would change inside the observer's callback, which the browser reports
+// as an error, "ResizeObserver loop completed with undelivered notifications".
 
 import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { DismissButton, Overlay, usePopover, type Placement } from 'react-aria';
+import { DismissButton, Overlay, useOverlayPosition, usePopover, type Placement } from 'react-aria';
 import type { OverlayTriggerState } from 'react-stately';
 
 import '../shared.css';
@@ -40,9 +51,24 @@ export function Popover({
   const ownRef = useRef<HTMLDivElement>(null);
   const ref = popoverRef ?? ownRef;
   const { popoverProps, underlayProps } = usePopover(
-    { triggerRef, popoverRef: ref, placement, offset: 4, isNonModal: nonModal },
+    {
+      triggerRef,
+      popoverRef: ref,
+      placement,
+      offset: 4,
+      isNonModal: nonModal,
+      shouldUpdatePosition: false,
+    },
     state,
   );
+  const position = useOverlayPosition({
+    targetRef: triggerRef,
+    overlayRef: ref,
+    placement,
+    offset: 4,
+    isOpen: state.isOpen,
+  });
+  const placedBeside = useRef<DOMRect | null>(null);
   const close = () => {
     state.close();
   };
@@ -53,6 +79,25 @@ export function Popover({
     setWidth(matchTriggerWidth && trigger instanceof HTMLElement ? trigger.offsetWidth : undefined);
   }, [matchTriggerWidth, triggerRef]);
 
+  // After every render: the trigger's rectangle the last time, and the popover placed again when
+  // the trigger has moved or changed size since. Placing it renders again, with the trigger where
+  // it was, so the effect settles.
+  useLayoutEffect(() => {
+    const trigger = triggerRef.current;
+
+    if (trigger === null) {
+      return;
+    }
+
+    const rectangle = trigger.getBoundingClientRect();
+    const last = placedBeside.current;
+    placedBeside.current = rectangle;
+
+    if (last !== null && !sameRectangle(last, rectangle)) {
+      position.updatePosition();
+    }
+  });
+
   return (
     <Overlay>
       {nonModal ? null : <div {...underlayProps} className="cms-popover-underlay" />}
@@ -61,7 +106,9 @@ export function Popover({
         ref={ref}
         className="cms-popover"
         style={
-          width === undefined ? popoverProps.style : { ...popoverProps.style, minWidth: width }
+          width === undefined
+            ? position.overlayProps.style
+            : { ...position.overlayProps.style, minWidth: width }
         }
       >
         {nonModal ? null : <DismissButton onDismiss={close} />}
@@ -70,4 +117,9 @@ export function Popover({
       </div>
     </Overlay>
   );
+}
+
+/** Whether two rectangles are at the same place and of the same size. */
+function sameRectangle(a: DOMRect, b: DOMRect): boolean {
+  return a.top === b.top && a.left === b.left && a.width === b.width && a.height === b.height;
 }

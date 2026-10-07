@@ -47,6 +47,19 @@ const ACCESS_PASSWORD = 'correct horse battery staple';
 const ACCESS_WIDTHS = [390, 820, 1440];
 
 /**
+ * Whether the open list of the dialog's multi-select hangs from its button: its popover's lower
+ * edge 4 pixels above the button's upper edge, or its upper edge 4 pixels below the button.
+ */
+const LIST_HANGS_FROM_BUTTON = <<<'JS'
+    (() => {
+        const button = document.querySelector('[role="dialog"] button.cms-select__button')?.getBoundingClientRect();
+        const list = document.querySelector('.cms-popover:has([role="listbox"])')?.getBoundingClientRect();
+        return button !== undefined && list !== undefined
+            && (Math.abs(list.bottom + 4 - button.top) < 1 || Math.abs(list.top - 4 - button.bottom) < 1);
+    })()
+    JS;
+
+/**
  * The world of the test, which beforeEach writes for each test.
  */
 function accessWorld(?AccessWorld $world = null): AccessWorld
@@ -326,6 +339,12 @@ it('lists the roles, creates a role from its form, and changes its permissions',
     $page->keys('[role="dialog"] button.cms-select__button', 'Enter');
     $page->assertVisible('[role="listbox"]');
     $page->keys('[role="listbox"] [role="option"]:first-child', 'Space');
+
+    // The choice adds its tag below the button and takes away the hint that nothing has changed,
+    // so the dialog, centred on the screen, changes height and the button moves; the open list
+    // still hangs from it, 4 pixels above or below.
+    waitUntil($page, LIST_HANGS_FROM_BUTTON);
+
     $page->keys('[role="listbox"] [role="option"]:first-child', 'Escape');
     $page->assertMissing('[role="listbox"]');
 
