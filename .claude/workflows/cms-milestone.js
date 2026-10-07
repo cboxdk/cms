@@ -1,7 +1,7 @@
 export const meta = {
   name: 'cms-milestone',
   description: 'Build one Cbox CMS block from MILESTONES.md: plan, build independent tasks in parallel worktrees, integrate through a merge queue that runs every gate, adversarial review, exit criteria, PROGRESS.md',
-  whenToUse: 'Autopilot development of laravel-cms. Pass args {block: "M1"} (ids in PROGRESS.md). Optional: maxParallel (default 3), maxReviewRounds (default 2, 0 skips review), planFile with planTasks (reuse a plan), exitOnly (regression gate, exit criteria and PROGRESS.md only).',
+  whenToUse: 'Autopilot development of laravel-cms. Pass args {block: "M1"} (ids in PROGRESS.md). Optional: maxParallel (default 3), maxReviewRounds (default 2, 0 skips review), planFile with planTasks (reuse a plan), exitOnly (regression gate, exit criteria and PROGRESS.md only), doneTasks (plan task ids already merged, dropped).',
   phases: [
     { title: 'Plan', detail: 'break the block into small tasks with a dependency graph, acceptance checks and exit criteria' },
     { title: 'Build', detail: 'independent tasks in parallel, each in its own worktree with its own test database; verify and fix there' },
@@ -238,6 +238,10 @@ Return the full revised plan. Keep task ids stable where the task is unchanged. 
 }
 
 if (EXIT_ONLY) plan = Object.assign({}, plan, { tasks: [] })
+// args.doneTasks: ids of plan tasks already merged on main. They are dropped, so a rerun never builds or
+// integrates them again (an integration with nothing to merge reports failure and blocks its dependants).
+const DONE_TASKS = new Set((args && args.doneTasks) || [])
+if (DONE_TASKS.size) plan = Object.assign({}, plan, { tasks: plan.tasks.filter(t => !DONE_TASKS.has(t.id)).map(t => Object.assign({}, t, { dependsOn: (t.dependsOn || []).filter(d => !DONE_TASKS.has(d)) })) })
 log(`${BLOCK}: ${plan.tasks.length} tasks, ${plan.exitCriteria.length} exit criteria, ${(plan.blockers || []).length} blockers, up to ${MAX_PARALLEL} in parallel`)
 
 // ---------------------------------------------------------------- Build and integrate
@@ -522,11 +526,15 @@ await runTasks(plan.tasks, 'Build')
 const results = plan.tasks.map(t => taskResults[t.id])
 const blockedTasks = results.filter(r => r.status === 'blocked').map(r => r.id)
 const failedTasks = results.filter(r => r.status === 'failed')
+// The regression gate and the exit criteria judge a finished block. With a task blocked or failed the
+// block cannot be done, and they cost hours of gates, so they wait for the run that finishes it.
+const unfinished = blockedTasks.length > 0 || failedTasks.length > 0
+if (unfinished) log(`${BLOCK}: tasks left (${[...blockedTasks, ...failedTasks.map(f => f.id)].join(', ')}); skipping the regression gate and the exit criteria`)
 
 // ---------------------------------------------------------------- Review
 phase('Review')
 
-const gate = await agent(
+const gate = unfinished ? null : await agent(
   `${CONTEXT}
 
 Block-wide regression gate for ${BLOCK} on main in ${REPO}, after parallel tasks were merged one by one. The merge queue fast-forwarded main without installing it, so first run "composer install" and "npm ci" in ${REPO}; they change only vendor/ and node_modules/, which git ignores. Then run "composer check", "composer check:selftest" and the containerized CI run (docker compose -f compose.ci.yaml run --rm ci, then down). Also check that no worktree of this block is left in ${WT_ROOT} for a task that was merged, and that "git worktree list" and the branches wip/${BLOCK}-* match the tasks that were not merged. Report failures precisely. Do not change any tracked files.`,
@@ -557,7 +565,7 @@ const seen = new Set()
 const fixed = []
 const keyOf = f => `${f.file}|${f.title}`.toLowerCase()
 
-for (let reviewRound = 1; reviewRound <= (EXIT_ONLY ? 0 : MAX_REVIEW_ROUNDS); reviewRound++) {
+for (let reviewRound = 1; reviewRound <= (EXIT_ONLY || unfinished ? 0 : MAX_REVIEW_ROUNDS); reviewRound++) {
   const found = (await parallel(LENSES.map(lens => () =>
     agent(
       `${CONTEXT}
@@ -609,7 +617,7 @@ Try to refute it. Read the code and, where possible, run or write a quick test t
 // ---------------------------------------------------------------- Exit
 phase('Exit')
 
-const exit = await agent(
+const exit = unfinished ? null : await agent(
   `${CONTEXT}
 
 Check the exit criteria of block ${BLOCK} on main:
