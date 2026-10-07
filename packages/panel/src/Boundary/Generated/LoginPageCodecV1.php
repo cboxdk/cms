@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Panel\Boundary\Generated;
 
+use Cbox\Cms\Contracts\Addons\AddonNamespace;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Codecs\JsonCodec;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Contracts\PanelPoints\ContributionId;
+use Cbox\Cms\Contracts\PanelPoints\Tone;
 use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Core\Codecs\Boundary\JsonText;
 use Cbox\Cms\Core\Codecs\Boundary\JsonValues;
 use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
 use Cbox\Cms\Core\Codecs\Domain\EncodingFailed;
+use Cbox\Cms\Panel\Domain\Dto\LoginNoticeProp;
 use Cbox\Cms\Panel\Domain\Dto\LoginPage;
 use Cbox\Cms\Panel\Domain\Dto\LoginRefusals;
 use Cbox\Cms\Panel\Domain\LoginRefusal;
@@ -65,6 +69,7 @@ final readonly class LoginPageCodecV1 implements JsonCodec
         $json = new stdClass;
         $json->action = $object->action;
         $json->forgot = $object->forgot;
+        $json->notices = array_map($this->encodeLoginNoticeProp(...), $object->notices);
         $json->reason = $object->reason instanceof SignInReason ? $object->reason->value : null;
         $json->refusals = $this->encodeLoginRefusals($object->refusals);
 
@@ -73,13 +78,37 @@ final readonly class LoginPageCodecV1 implements JsonCodec
 
     private function decodeLoginPage(stdClass $value): LoginPage
     {
-        $object = JsonValues::object($value, null, ['action', 'forgot', 'reason', 'refusals']);
+        $object = JsonValues::object($value, null, ['action', 'forgot', 'notices', 'reason', 'refusals']);
 
         return JsonValues::build(null, fn (): LoginPage => new LoginPage(
             action: JsonValues::required($object, 'action', null, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1)),
             forgot: JsonValues::required($object, 'forgot', null, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1)),
             reason: JsonValues::present($object, 'reason', null, static fn (mixed $value, FieldPath $at): SignInReason => JsonValues::enum($value, $at, SignInReason::class)),
             refusals: JsonValues::required($object, 'refusals', null, $this->decodeLoginRefusals(...)),
+            notices: JsonValues::required($object, 'notices', null, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeLoginNoticeProp(...), maxItems: 50)),
+        ));
+    }
+
+    private function encodeLoginNoticeProp(LoginNoticeProp $object): stdClass
+    {
+        $json = new stdClass;
+        $json->addon = $object->addon->value;
+        $json->id = $object->id->value;
+        $json->message = $object->message;
+        $json->tone = $object->tone->value;
+
+        return $json;
+    }
+
+    private function decodeLoginNoticeProp(mixed $value, FieldPath $path): LoginNoticeProp
+    {
+        $object = JsonValues::object($value, $path, ['addon', 'id', 'message', 'tone']);
+
+        return JsonValues::build($path, static fn (): LoginNoticeProp => new LoginNoticeProp(
+            addon: JsonValues::required($object, 'addon', $path, static fn (mixed $value, FieldPath $at): AddonNamespace => JsonValues::value($value, $at, static fn (string $text): AddonNamespace => new AddonNamespace($text))),
+            id: JsonValues::required($object, 'id', $path, static fn (mixed $value, FieldPath $at): ContributionId => JsonValues::value($value, $at, static fn (string $text): ContributionId => new ContributionId($text))),
+            message: JsonValues::required($object, 'message', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 3, maxLength: 200)),
+            tone: JsonValues::required($object, 'tone', $path, static fn (mixed $value, FieldPath $at): Tone => JsonValues::enum($value, $at, Tone::class)),
         ));
     }
 

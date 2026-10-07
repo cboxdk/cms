@@ -37,6 +37,7 @@ use Cbox\Cms\Tests\Support\Phpstan;
 use PHPUnit\Framework\Assert;
 use Workbench\App\Cms\Generated\Boundary\AppFixtureArticleCodecV1;
 use Workbench\App\Cms\Generated\Records\AppFixtureArticle\AppFixtureArticle;
+use Workbench\FixtureAddon\DenySelfGrant;
 use Workbench\FixtureAddon\DeriveSlug;
 use Workbench\FixtureAddon\FixtureAddonServiceProvider;
 use Workbench\FixtureAddon\RequireSlugOnRelease;
@@ -128,6 +129,7 @@ it('compiles the fixture addon\'s hooks from its scan root and manifest', functi
     expect(array_map(static fn (HookEntry $hook): string => $hook->command->value.' '.$hook->phase->value.' '.$hook->class, $hooks))->toEqualCanonicalizing([
         'entry.create transform '.DeriveSlug::class,
         'entry.create validate '.RequireWellFormedSlug::class,
+        'grant.assign authorize '.DenySelfGrant::class,
         'variant.release validate '.RequireSlugOnRelease::class,
     ]);
 

@@ -85,6 +85,12 @@ export interface ContributionsV1 {
    * points.
    */
   points: readonly PointFillsPropV1[];
+  /**
+   * The id of the actor the page is shown to, for whom the contributions were resolved: what a form
+   * check's context names as the viewer, a UUIDv7 in lowercase hex. Null only where the host
+   * renders before the server sent any contributions.
+   */
+  viewer: string | null;
 }
 
 /** An addon with an active contribution that runs code on the page. */
@@ -528,6 +534,14 @@ const contributionsV1Rule: ObjectRule = {
       key: 'pages',
       presence: 'required',
       value: { kind: 'list', item: { kind: 'object', object: pageLinkPropV1Rule }, maxItems: 500 },
+    },
+    {
+      key: 'viewer',
+      presence: 'present',
+      value: {
+        kind: 'string',
+        pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+      },
     },
   ],
 };

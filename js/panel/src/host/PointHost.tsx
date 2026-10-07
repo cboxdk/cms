@@ -145,6 +145,27 @@ export interface ReplacementHostProps {
   readonly fallback: ReactNode;
 }
 
+/**
+ * A notice of a data point, as the page holds it: the addon it comes from, the contribution's id,
+ * the key of its message in the addon's catalogue and its tone.
+ */
+export interface HostNotice {
+  readonly addon: string;
+  readonly id: string;
+  readonly message: string;
+  readonly tone: 'neutral' | 'info' | 'warning' | 'danger';
+}
+
+/**
+ * A data point's host: the notices the page holds, such as the login page's, which the server
+ * resolved in render order, rendered as the kit's callouts without any addon code. A credential
+ * page has no contributions prop and loads no addon, so the notices are its own props.
+ */
+export interface NoticesHostProps {
+  readonly point: string;
+  readonly notices: readonly HostNotice[];
+}
+
 /** The props of PointHost: one shape per kind of point a page renders. */
 export type PointHostProps =
   | SlotHostProps
@@ -152,10 +173,15 @@ export type PointHostProps =
   | ActionHostProps
   | PageHostProps
   | DecoratorHostProps
-  | ReplacementHostProps;
+  | ReplacementHostProps
+  | NoticesHostProps;
 
 /** Renders a panel point of a page with the contributions active on it. */
 export function PointHost(props: PointHostProps) {
+  if ('notices' in props) {
+    return <NoticesHost {...props} />;
+  }
+
   if ('render' in props) {
     return <DecoratorHost {...props} />;
   }
@@ -259,6 +285,36 @@ export function atPointer(document: unknown, pointer: string): JsonValue | undef
 
   // A pointer into a JSON document reaches a JSON value.
   return value as JsonValue;
+}
+
+/**
+ * The notices of a data point, each in the scope element of its contribution, so the page names
+ * which addon said what; a neutral tone is shown as information, the kit's plainest callout.
+ */
+function NoticesHost({ point, notices }: NoticesHostProps) {
+  const runtime = useHostRuntime();
+
+  if (notices.length === 0) {
+    return null;
+  }
+
+  return (
+    <Stack gap="sm">
+      {notices.map((notice) => (
+        <div
+          key={notice.id}
+          className="cms-contribution"
+          data-cms-addon={notice.addon}
+          data-cms-point={point}
+          data-cms-contribution={notice.id}
+        >
+          <Callout tone={notice.tone === 'neutral' ? 'info' : notice.tone}>
+            {runtime.text(notice.addon, notice.message)}
+          </Callout>
+        </div>
+      ))}
+    </Stack>
+  );
 }
 
 function SlotHost({ point, props }: SlotHostProps) {
@@ -1198,7 +1254,11 @@ export function usePointHost(point: string): PointHandle {
       return runChecks(
         entries,
         document,
-        { context: { locale }, skipped: runtime.skippedChecks, report },
+        {
+          context: { locale, viewer: runtime.contributions.viewer },
+          skipped: runtime.skippedChecks,
+          report,
+        },
         edits,
       );
     },

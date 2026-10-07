@@ -31,6 +31,9 @@ final readonly class Shell
     /** The point of the actions of the viewer's menu, `shell.user-menu@1`. */
     public const string USER_MENU = 'shell.user-menu';
 
+    /** The point of the observers of a command that completed, `panel.observe.command@1`. */
+    public const string OBSERVE = 'panel.observe.command';
+
     private function __construct() {}
 
     public static function page(): PageName
@@ -51,5 +54,10 @@ final readonly class Shell
     public static function userMenu(): PointName
     {
         return new PointName(self::USER_MENU);
+    }
+
+    public static function observe(): PointName
+    {
+        return new PointName(self::OBSERVE);
     }
 }

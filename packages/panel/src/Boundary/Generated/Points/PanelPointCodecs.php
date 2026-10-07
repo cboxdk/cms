@@ -36,6 +36,8 @@ final readonly class PanelPointCodecs
             new PointCodec(new PointId(new PointName('command.form.receipt'), 1), new CommandFormReceiptCodecV1),
             new PointCodec(new PointId(new PointName('command.form.steps'), 1), new CommandFormStepsCodecV1),
             new PointCodec(new PointId(new PointName('command.form.submit'), 1), new CommandFormSubmitCodecV1),
+            new PointCodec(new PointId(new PointName('login.notice'), 1), new LoginNoticeCodecV1),
+            new PointCodec(new PointId(new PointName('panel.observe.command'), 1), new CommandCompletedCodecV1),
             new PointCodec(new PointId(new PointName('shell.nav'), 1), new ShellNavCodecV1),
             new PointCodec(new PointId(new PointName('shell.page'), 1), new ShellPageCodecV1),
             new PointCodec(new PointId(new PointName('shell.user-menu'), 1), new ViewerSummaryCodecV1),

@@ -77,6 +77,7 @@ export interface CatalogErrorV1 {
 export interface CheckContext {
     // (undocumented)
     readonly locale: string;
+    readonly viewer: string | null;
 }
 
 // @stable
@@ -762,6 +763,14 @@ export { ComboboxOption }
 export { ComboboxProps }
 
 // @experimental
+export interface CommandCompletedV1 {
+    changeset: string | null;
+    command: string;
+    outcome: Outcome;
+    version: number;
+}
+
+// @experimental
 export type CommandFormChecksV1 = Record<string, never>;
 
 // @experimental
@@ -977,6 +986,9 @@ export { KitToastQueue }
 
 export { ListShape }
 
+// @experimental
+export type LoginNoticeV1 = Record<string, never>;
+
 export { Menu }
 
 export { MenuItemSpec }
@@ -1006,6 +1018,9 @@ export { NumberInputProps }
 export { ObjectShape }
 
 export { OptionItem }
+
+// @experimental
+export type Outcome = 'rejected' | 'committed' | 'committed_wait_timeout' | 'dry_run';
 
 export { Page }
 
@@ -1420,6 +1435,7 @@ export interface FormCheckContractOptions<C extends ContributionMap<C>, D> exten
     readonly namespace: string;
     // (undocumented)
     readonly severity: IssueSeverity;
+    readonly viewer?: string | null;
 }
 
 // @stable
@@ -1488,6 +1504,7 @@ export interface ParityDisagreement {
 export interface ParityOptions {
     // (undocumented)
     readonly locale?: string;
+    readonly viewer?: string | null;
 }
 
 // @stable

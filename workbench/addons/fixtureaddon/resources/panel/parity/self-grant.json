@@ -1,0 +1,57 @@
+{
+  "description": "The documents of grant.assign the fixture addon's blocking check fixtureaddon.self-grant and the hook it mirrors, DenySelfGrant, are held to the same verdicts on (the mirror rule, PRD 13.4): per case the viewer the form is shown to, the actor the command runs as, the command document and the paths the hook refuses, actor for a grant to the viewer themselves, none for a document it accepts. The hook denies the command as a whole, so a denial is recorded at the path of the grantee. DenySelfGrantTest holds the hook to the verdicts, and checkParity.test.ts holds the check to them.",
+  "cases": [
+    {
+      "name": "a grant to another person",
+      "viewer": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01",
+      "document": {
+        "grant": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a10",
+        "actor": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a02",
+        "role": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03",
+        "node": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a04",
+        "effect": "allow",
+        "locales": null
+      },
+      "refused": []
+    },
+    {
+      "name": "a grant to oneself",
+      "viewer": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01",
+      "document": {
+        "grant": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a11",
+        "actor": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01",
+        "role": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03",
+        "node": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a04",
+        "effect": "allow",
+        "locales": ["da"]
+      },
+      "refused": ["actor"]
+    },
+    {
+      "name": "a deny of oneself, which is a grant to oneself too",
+      "viewer": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01",
+      "document": {
+        "grant": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a12",
+        "actor": "0199A3C1-2B4D-7E5F-8A6B-1C2D3E4F5A01",
+        "role": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03",
+        "node": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a04",
+        "effect": "deny",
+        "locales": null
+      },
+      "refused": ["actor"]
+    },
+    {
+      "name": "a grant where the form knows no viewer",
+      "viewer": null,
+      "document": {
+        "grant": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a13",
+        "actor": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01",
+        "role": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03",
+        "node": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a04",
+        "effect": "allow",
+        "locales": null
+      },
+      "refused": []
+    }
+  ]
+}

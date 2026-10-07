@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "login.notice props, contract version 1",
+  "description": "The props of the notices above the panel's login form, a data point (PRD 13.4): none. A contribution to it is a translated plain-text notice with a tone, shown in render order; it is data alone, because no addon code runs on a credential page. The PHP form is Cbox\\Cms\\Panel\\Login\\Domain\\Dto\\LoginNoticeV1.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {}
+}

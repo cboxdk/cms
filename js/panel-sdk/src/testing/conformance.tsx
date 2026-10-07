@@ -309,6 +309,8 @@ export interface FormCheckContractOptions<
   readonly severity: IssueSeverity;
   readonly namespace: string;
   readonly locale?: string;
+  /** The viewer the check's context names; none unless given. */
+  readonly viewer?: string | null;
 }
 
 /**
@@ -331,7 +333,7 @@ export function expectFormCheckContract<C extends ContributionMap<C>, D>(
     throw new ContributionContractBroken(options.id, 'a form check is a function of the document.');
   }
 
-  const context: CheckContext = { locale: options.locale ?? 'en' };
+  const context: CheckContext = { locale: options.locale ?? 'en', viewer: options.viewer ?? null };
   const found: (readonly Issue[])[] = [];
 
   for (const document of options.documents) {

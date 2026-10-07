@@ -13,6 +13,7 @@ import type { SubmitEvent } from 'react';
 
 import type { LoginPageV1, LoginRefusal, SignInReason } from '../../generated/pages/LoginPageV1';
 import { useBrand } from '../../brand';
+import { PointHost } from '../../host';
 import { showcase } from '../../showcase';
 import { useTranslation, type TranslationKey } from '../../i18n/translations';
 
@@ -44,10 +45,12 @@ function refusal(code: LoginRefusal | null): TranslationKey | undefined {
  * The login page of the panel (PRD 5.16): a member of staff signs in with the email and password
  * of their local account, or follows the link to ask for a password reset link. The form posts to
  * the server, which answers with the start page, or back here with the catalog code of the refusal
- * in the refusals prop: under the field it is about, or under `form` for the login as a whole. The
- * props are LoginPageV1, generated from the page's JSON Schema.
+ * in the refusals prop: under the field it is about, or under `form` for the login as a whole.
+ * Above the form it hosts login.notice@1, the notices addons contribute as data, in the order the
+ * server resolved them: a credential page runs no addon code (PRD 13.4). The props are
+ * LoginPageV1, generated from the page's JSON Schema.
  */
-export default function Login({ action, forgot, reason, refusals }: LoginPageV1) {
+export default function Login({ action, forgot, notices, reason, refusals }: LoginPageV1) {
   const { t } = useTranslation();
   const brand = useBrand();
   const form = useForm({ email: '', password: '' });
@@ -76,6 +79,7 @@ export default function Login({ action, forgot, reason, refusals }: LoginPageV1)
         description={t('panel.login.description')}
         footer={<TextLink href={forgot}>{t('panel.login.forgot')}</TextLink>}
       >
+        <PointHost point="login.notice@1" notices={notices} />
         {reason === null || failed !== undefined ? null : <Callout>{t(REASONS[reason])}</Callout>}
         {failed === undefined ? null : (
           <Callout

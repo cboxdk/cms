@@ -124,7 +124,8 @@ final readonly class ContributionProps
     /**
      * The view of a page for the viewer the panel authenticated on the request: the page's own
      * points, then the shell's, which every page behind the login renders around its content: the
-     * navigation, the addons' pages and the viewer's menu, whose props are the viewer.
+     * navigation, the addons' pages, the viewer's menu, whose props are the viewer, and the
+     * observers of a command that completed, whose event the page holds.
      *
      * @param  list<RenderedPoint>  $points  the points the page renders, in its order
      *
@@ -139,6 +140,7 @@ final readonly class ContributionProps
             new RenderedPoint(Shell::nav(), new ShellNavV1),
             new RenderedPoint(Shell::pages(), new ShellPageV1),
             new RenderedPoint(Shell::userMenu(), new ViewerSummaryV1($viewer->actor, $viewer->issuerKind)),
+            RenderedPoint::heldByPage(Shell::observe()),
         ], $subject);
     }
 
@@ -213,6 +215,7 @@ final readonly class ContributionProps
             $this->home().'/'.PanelRoute::COMMANDS_PATH,
             $active->details,
             $this->pages($active),
+            $this->viewer($request, $active->page->value)->actor,
         );
         $props = [self::CMS => [self::CONTRIBUTIONS => InertiaProps::document($this->codec->encode($prop, ClassificationAccess::Public))]];
         ksort($data, SORT_STRING);

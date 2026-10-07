@@ -10,10 +10,14 @@ use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\PanelPoints\CommandRef;
 use Cbox\Cms\Contracts\PanelPoints\ContributionId;
 use Cbox\Cms\Contracts\PanelPoints\FormCheck;
+use Cbox\Cms\Contracts\PanelPoints\Multiplicity;
 use Cbox\Cms\Contracts\PanelPoints\NavContribution;
+use Cbox\Cms\Contracts\PanelPoints\Ownership;
 use Cbox\Cms\Contracts\PanelPoints\PanelPoint;
 use Cbox\Cms\Contracts\PanelPoints\PointKind;
 use Cbox\Cms\Contracts\PanelPoints\Region;
+use Cbox\Cms\Contracts\PanelPoints\ReplacementContribution;
+use Cbox\Cms\Contracts\PanelPoints\ReplacementKey;
 use Cbox\Cms\Contracts\PanelPoints\Severity;
 use Cbox\Cms\Contracts\PanelPoints\SlotFill;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
@@ -27,6 +31,7 @@ use Cbox\Cms\Core\Registry\Domain\Dto\PanelPointEntry;
 use Cbox\Cms\Core\Registry\Domain\PointStability;
 use Cbox\Cms\Core\Tests\Registry\Fakes\FakeRegistryCache;
 use Cbox\Cms\Generators\PanelTypes\Adapter\RegistryAddonUiSource;
+use Cbox\Cms\Generators\Tests\PanelTypes\Fixtures\NoteFieldV1;
 use Cbox\Cms\Panel\Tests\Contributions\Fixtures\Tally\TallyCodecs;
 use Cbox\Cms\Panel\Tests\Contributions\Fixtures\Tally\TallyNotes;
 use Cbox\Cms\Panel\Tests\Points\Fixtures\NoteCardV1;
@@ -35,7 +40,8 @@ use Cbox\Cms\Panel\Tests\Points\Fixtures\NoteToolbarV1;
 /**
  * A registry as cms:build compiles it for an installation with two addons that contribute to the
  * panel: tally, with a slot fill whose data query is tally.notes@1, a form check on the form of
- * entry.create@1, a nav entry, which runs no code, and the command entry.create@1 it may issue;
+ * entry.create@1, a nav entry, which runs no code, a replacement at a point whose props class
+ * names the SDK's NoteFieldProps through HostProps, and the command entry.create@1 it may issue;
  * and approvals, with a slot fill of its own. The source reads it with the kernel's command codecs
  * and the tally queries' codecs, and finds each package in a directory the test gives.
  */
@@ -45,6 +51,7 @@ final class PanelTypesWorld
     {
         $card = new PanelPoint('notes.detail.card', 1, PointKind::Slot, 'notes.detail', '1.0', 'fixture.points.note_card', Region::Sections);
         $checks = new PanelPoint('notes.form.checks', 1, PointKind::FormCheck, 'notes.form', '1.0', 'fixture.points.note_checks');
+        $field = new PanelPoint('notes.form.field', 1, PointKind::Replacement, 'notes.form', '1.0', 'fixture.points.note_field', multiplicity: Multiplicity::Exclusive, ownership: Ownership::Own, keyedBy: ReplacementKey::ValueClass);
 
         return new CompiledRegistry(
             commands: [],
@@ -57,6 +64,9 @@ final class PanelTypesWorld
                 ]),
                 new PanelPointEntry($checks, NoteToolbarV1::class, 'cboxdk/cms', PointStability::Stable, [
                     new PanelFill(new FormCheck(new ContributionId('tally.title-check'), 'notes.form.checks@1', 'entry.create@1', Severity::Warning), 'acme/cms-tally', 1000, command: CommandRef::fromString('entry.create@1')),
+                ]),
+                new PanelPointEntry($field, NoteFieldV1::class, 'cboxdk/cms', PointStability::Experimental, [
+                    new PanelFill(new ReplacementContribution(new ContributionId('tally.slug-input'), 'notes.form.field@1', 'Acme\\Tally\\Slug'), 'acme/cms-tally', 1000),
                 ]),
             ],
             addons: [

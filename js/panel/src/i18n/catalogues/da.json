@@ -107,6 +107,8 @@
   "panel.points.command_form_receipt": "Kvittering i kommandoformularen",
   "panel.points.command_form_field": "Feltinput i kommandoformularen",
   "panel.points.command_form_dryrun": "Prøvekørsel i kommandoformularen",
+  "panel.points.login_notice": "Meddelelser på login",
+  "panel.points.panel_observe_command": "Observatører af en kommando",
   "panel.shell.nav": "Sider",
   "panel.shell.user_menu": "Dine handlinger",
   "panel.palette.open": "Søg",

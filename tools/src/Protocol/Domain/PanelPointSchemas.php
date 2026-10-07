@@ -6,9 +6,11 @@ namespace Cbox\Cms\Tooling\Protocol\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Codecs\JsonDocument;
+use Cbox\Cms\Contracts\Consistency\Outcome;
 use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Identity\IssuerKind;
 use Cbox\Cms\Contracts\Ids\ActorId;
+use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecContract;
 use Cbox\Cms\Generators\Codec\Domain\Dto\PhpLocation;
@@ -32,6 +34,8 @@ use Cbox\Cms\Panel\CommandForm\Domain\Dto\CommandFormSubmitV1;
 use Cbox\Cms\Panel\CommandForm\Domain\Dto\DryRunViewV1;
 use Cbox\Cms\Panel\CommandForm\Domain\Dto\FieldInputPropsV1;
 use Cbox\Cms\Panel\CommandForm\Domain\FieldPresence;
+use Cbox\Cms\Panel\Login\Domain\Dto\LoginNoticeV1;
+use Cbox\Cms\Panel\Shell\Domain\Dto\CommandCompletedV1;
 use Cbox\Cms\Panel\Shell\Domain\Dto\ShellNavV1;
 use Cbox\Cms\Panel\Shell\Domain\Dto\ShellPageV1;
 use Cbox\Cms\Panel\Shell\Domain\Dto\ViewerSummaryV1;
@@ -55,8 +59,9 @@ use Cbox\Cms\Tooling\Protocol\Domain\Dto\PointSchema;
  * The bindings live in the repository's tooling, not in the generators module, because the
  * generators may not use the panel. The panel's points come with the pages that render them (X5's
  * RenderedPanelPointsTest holds every declared point to a page), and each brings its binding here:
- * the shell's three, which every page behind the login renders, the sections of the who-am-I
- * page and the seven points of the generic command form.
+ * the shell's three and its observers of a command that completed, which every page behind the
+ * login renders, the notices of the login page, the sections of the who-am-I, roles and grants
+ * pages and the seven points of the generic command form.
  */
 final readonly class PanelPointSchemas
 {
@@ -143,6 +148,12 @@ final readonly class PanelPointSchemas
             self::point('command.form.steps.v1.json', 'CommandFormStepsCodecV1', 1, ['#' => CommandFormStepsV1::class]),
             self::point('command.form.submit.v1.json', 'CommandFormSubmitCodecV1', 1, ['#' => CommandFormSubmitV1::class], [
                 '#/properties/command' => ValueBinding::value(CommandName::class),
+            ]),
+            self::point('login.notice.v1.json', 'LoginNoticeCodecV1', 1, ['#' => LoginNoticeV1::class]),
+            self::point('panel.observe.command.v1.json', 'CommandCompletedCodecV1', 1, ['#' => CommandCompletedV1::class], [
+                '#/properties/changeset' => ValueBinding::id(ChangesetId::class),
+                '#/properties/command' => ValueBinding::value(CommandName::class),
+                '#/properties/outcome' => ValueBinding::enum(Outcome::class),
             ]),
             self::point('shell.nav.v1.json', 'ShellNavCodecV1', 1, ['#' => ShellNavV1::class]),
             self::point('shell.page.v1.json', 'ShellPageCodecV1', 1, ['#' => ShellPageV1::class]),

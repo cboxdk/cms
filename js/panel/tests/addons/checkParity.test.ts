@@ -16,8 +16,10 @@ import { describe, expect, test } from 'vitest';
 import type {
   Contributions,
   EntryCreateV1,
+  GrantAssignV1,
 } from '../../../../workbench/addons/fixtureaddon/resources/panel/generated/contributions';
 import {
+  selfGrant,
   slugHint,
   slugOverride,
   slugShape,
@@ -43,11 +45,45 @@ const PARITY = JSON.parse(
   ),
 ) as { readonly cases: readonly ParityCase[] };
 
+interface SelfGrantCase {
+  readonly name: string;
+  readonly viewer: string | null;
+  readonly document: GrantAssignV1;
+  readonly refused: readonly string[];
+}
+
+const SELF_GRANT_PARITY = JSON.parse(
+  readFileSync(
+    join(
+      import.meta.dirname,
+      '../../../../workbench/addons/fixtureaddon/resources/panel/parity/self-grant.json',
+    ),
+    'utf8',
+  ),
+) as { readonly cases: readonly SelfGrantCase[] };
+
+/** A module that is never rendered here: the parity tests hold the checks, not the components. */
+const notRendered = () => Promise.reject(new Error('Not rendered here.'));
+
 const addon = definePanelAddon<Contributions>({
+  'fixtureaddon.activity': () => undefined,
+  'fixtureaddon.articles': notRendered,
+  'fixtureaddon.articles-permission': notRendered,
+  'fixtureaddon.dry-run-note': notRendered,
+  'fixtureaddon.faulty': notRendered,
+  'fixtureaddon.four-eyes': notRendered,
+  'fixtureaddon.four-eyes-note': notRendered,
+  'fixtureaddon.my-articles': notRendered,
+  'fixtureaddon.receipt-note': () => ({}),
+  'fixtureaddon.recent-activity': notRendered,
+  'fixtureaddon.self-grant': selfGrant,
+  'fixtureaddon.slug-help': notRendered,
   'fixtureaddon.slug-hint': slugHint,
+  'fixtureaddon.slug-input': notRendered,
   'fixtureaddon.slug-override': slugOverride,
+  'fixtureaddon.slug-review': notRendered,
   'fixtureaddon.slug-shape': slugShape,
-  'fixtureaddon.slug-review': () => Promise.reject(new Error('Not rendered here.')),
+  'fixtureaddon.submit-note': () => ({}),
 });
 
 /** The hook's verdict on a document, as the PHP test recorded it; checkParity hands a frozen copy. */
@@ -72,7 +108,7 @@ describe('the fixture addon s mirrored check', () => {
 
   test('would be caught by checkParity if it blocked more than the hook refuses', async () => {
     const stricter: typeof slugShape = (document) => [
-      ...slugShape(document, { locale: 'en' }),
+      ...slugShape(document, { locale: 'en', viewer: null }),
       ...(document.fields.ext === undefined
         ? [
             {
@@ -153,24 +189,88 @@ describe('the fixture addon s checks', () => {
     };
     const other: EntryCreateV1 = { ...noSlug, type: '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a09' };
 
-    expect(slugHint(noSlug, { locale: 'en' })).toMatchObject([
+    expect(slugHint(noSlug, { locale: 'en', viewer: null })).toMatchObject([
       { path: 'fields.fixture_title', severity: 'warning' },
     ]);
     // The draft as the viewer edits it may lack the fields member, which the form fills last.
-    expect(slugHint({ type: ARTICLE_TYPE } as EntryCreateV1, { locale: 'en' })).toMatchObject([
+    expect(slugHint({ type: ARTICLE_TYPE } as EntryCreateV1, { locale: 'en', viewer: null })).toMatchObject([
       { path: 'fields.fixture_title', severity: 'warning' },
     ]);
-    expect(slugShape({ type: ARTICLE_TYPE } as EntryCreateV1, { locale: 'en' })).toEqual([]);
-    expect(slugOverride({} as EntryCreateV1, { locale: 'en' })).toEqual([]);
-    expect(slugHint(derived, { locale: 'en' })).toEqual([]);
-    expect(slugHint(other, { locale: 'en' })).toEqual([]);
-    expect(slugOverride(derived, { locale: 'en' })).toEqual([]);
-    expect(slugOverride(byHand, { locale: 'en' })).toMatchObject([
+    expect(slugShape({ type: ARTICLE_TYPE } as EntryCreateV1, { locale: 'en', viewer: null })).toEqual([]);
+    expect(slugOverride({} as EntryCreateV1, { locale: 'en', viewer: null })).toEqual([]);
+    expect(slugHint(derived, { locale: 'en', viewer: null })).toEqual([]);
+    expect(slugHint(other, { locale: 'en', viewer: null })).toEqual([]);
+    expect(slugOverride(derived, { locale: 'en', viewer: null })).toEqual([]);
+    expect(slugOverride(byHand, { locale: 'en', viewer: null })).toMatchObject([
       {
         path: 'fields.ext.fixtureaddon.fixture_slug',
         severity: 'acknowledge',
         parameters: { derived: 'a-quiet-week' },
       },
     ]);
+  });
+});
+
+describe('the fixture addon s self-grant check', () => {
+  /** The hook's verdict on a document for the viewer of its case, as DenySelfGrantTest recorded it. */
+  function recordedSelfGrant(viewer: string | null): (document: GrantAssignV1) => readonly string[] {
+    return (document) => {
+      const text = JSON.stringify(document);
+      const found = SELF_GRANT_PARITY.cases.find(
+        (candidate) => candidate.viewer === viewer && JSON.stringify(candidate.document) === text,
+      );
+
+      if (found === undefined) {
+        throw new Error('The document is not a recorded case of the viewer.');
+      }
+
+      return found.refused;
+    };
+  }
+
+  test('blocks exactly the grants its hook refuses, for the viewer of each recorded case', async () => {
+    expect(SELF_GRANT_PARITY.cases.length).toBeGreaterThanOrEqual(4);
+
+    for (const candidate of SELF_GRANT_PARITY.cases) {
+      await expect(
+        checkParity(selfGrant, recordedSelfGrant(candidate.viewer), [candidate.document], {
+          viewer: candidate.viewer,
+        }),
+      ).resolves.toBe(1);
+    }
+  });
+
+  test('reads the viewer from the check s context: the same grant blocks for the grantee and no one else', () => {
+    const self = SELF_GRANT_PARITY.cases.find((candidate) => candidate.refused.length > 0);
+
+    if (self === undefined || self.viewer === null) {
+      throw new Error('No case of a grant to oneself.');
+    }
+
+    expect(selfGrant(self.document, { locale: 'en', viewer: self.viewer })).toEqual([
+      {
+        path: 'actor',
+        code: 'fixtureaddon.self_grant',
+        severity: 'error',
+        message: 'fixtureaddon.self_grant.message',
+      },
+    ]);
+    expect(selfGrant(self.document, { locale: 'en', viewer: self.viewer.toUpperCase() })).toHaveLength(1);
+    expect(selfGrant(self.document, { locale: 'da', viewer: null })).toEqual([]);
+    expect(
+      selfGrant(self.document, { locale: 'en', viewer: '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5aff' }),
+    ).toEqual([]);
+    expect(selfGrant({} as GrantAssignV1, { locale: 'en', viewer: self.viewer })).toEqual([]);
+  });
+
+  test('keeps the contract of a form check at the severity its manifest declares', () => {
+    expectFormCheckContract({
+      addon,
+      id: 'fixtureaddon.self-grant',
+      documents: SELF_GRANT_PARITY.cases.map((candidate) => candidate.document),
+      severity: 'error',
+      namespace: 'fixtureaddon',
+      viewer: SELF_GRANT_PARITY.cases[0]?.viewer ?? null,
+    });
   });
 });

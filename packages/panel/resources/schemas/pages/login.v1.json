@@ -7,6 +7,7 @@
   "required": [
     "action",
     "forgot",
+    "notices",
     "reason",
     "refusals"
   ],
@@ -20,6 +21,14 @@
       "description": "The address of the page that asks for a password reset link.",
       "type": "string",
       "minLength": 1
+    },
+    "notices": {
+      "description": "The notices the addons contribute to login.notice@1 (PRD 13.4), in render order: translated plain text with a tone, data alone, because no addon code runs on the login page. Empty when none is contributed or enabled.",
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "$ref": "#/$defs/notice"
+      }
     },
     "reason": {
       "description": "Why the panel sent the browser to this page, or null when it did not: required (the request carried no session), expired, ended, revoked, signed_out or password_changed.",
@@ -45,6 +54,46 @@
     }
   },
   "$defs": {
+    "notice": {
+      "description": "One notice: the addon it comes from, the contribution's id, the translation key of its message in the addon's catalogue, and its tone.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "addon",
+        "id",
+        "message",
+        "tone"
+      ],
+      "properties": {
+        "addon": {
+          "description": "The namespace of the addon that contributes it.",
+          "type": "string",
+          "maxLength": 20,
+          "pattern": "^[a-z][a-z0-9]{0,19}$"
+        },
+        "id": {
+          "description": "The contribution's id, `<namespace>.<local>`.",
+          "type": "string",
+          "maxLength": 96,
+          "pattern": "^[a-z][a-z0-9]{0,19}(\\.[a-z][a-z0-9_]*(-[a-z0-9_]+)*)+$"
+        },
+        "message": {
+          "description": "The translation key of the notice in the addon's catalogue, `<namespace>.<key>`.",
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 200
+        },
+        "tone": {
+          "description": "The tone the notice is shown in.",
+          "enum": [
+            "neutral",
+            "info",
+            "warning",
+            "danger"
+          ]
+        }
+      }
+    },
     "refusal": {
       "description": "A catalog code a login is refused with: validation_required for a field left empty, login_rejected for an unknown email, a wrong password and a login the policy refused alike, and login_rate_limited.",
       "enum": [

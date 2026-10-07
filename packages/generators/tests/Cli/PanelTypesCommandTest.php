@@ -21,10 +21,11 @@ use Workbench\FixtureAddon\FixtureAddonServiceProvider;
  * cms:panel:types in the testbench application (PRD 13.4): for the workbench's fixture addon, from
  * the registry compiled from the installation's scan roots and manifests as cms:build compiles
  * it, into a scratch copy of the addon's package. It writes exactly the committed
- * workbench/addons/fixtureaddon/resources/panel/generated/contributions.ts, the addon's three
- * checks and its step on entry.create's form typed on the command's document, with no Issues
- * argument for an addon that issues no command, and a second run changes nothing; it refuses a
- * namespace no addon has with the catalog's exit code.
+ * workbench/addons/fixtureaddon/resources/panel/generated/contributions.ts, the addon's checks and
+ * steps typed on the documents of entry.create and grant.assign, its observer on the event of the
+ * point, its sections and page on the result of its query, and Issues as the one command the
+ * addon issues, and a second run changes nothing; it refuses a namespace no addon has with the
+ * catalog's exit code.
  */
 
 afterEach(function (): void {
@@ -63,7 +64,7 @@ it('writes contributions.ts for the fixture addon, and a second run changes noth
     expect($first)->toBe(0)
         ->and($firstOutput)->toContain('written: '.$path)
         ->and($written)->toBe((string) file_get_contents(Phpstan::root().'/workbench/addons/fixtureaddon/'.$path))
-        ->and($written)->toContain("readonly 'fixtureaddon.slug-shape': FormCheck<EntryCreateV1>;", "readonly 'fixtureaddon.slug-review': Lazy<\n    FlowStep<EntryCreateV1, 'fields.ext.fixtureaddon.fixture_slug'>\n  >;", 'export type Issues = NoCommands;')
+        ->and($written)->toContain("readonly 'fixtureaddon.slug-shape': FormCheck<EntryCreateV1>;", "readonly 'fixtureaddon.slug-review': Lazy<\n    FlowStep<EntryCreateV1, 'fields.ext.fixtureaddon.fixture_slug', Issues>\n  >;", "readonly 'fixtureaddon.self-grant': FormCheck<GrantAssignV1>;", "readonly 'fixtureaddon.activity': Observer<CommandCompletedV1>;", "export interface Issues {\n  readonly 'entry.create@1': EntryCreateV1;\n}")
         ->and($second)->toBe(0)
         ->and($kernel->output())->toContain('The panel types of fixtureaddon are current')
         ->and($kernel->output())->not->toContain('written:');

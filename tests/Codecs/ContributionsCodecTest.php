@@ -7,6 +7,7 @@ namespace Cbox\Cms\Tests\Codecs;
 use Cbox\Cms\Contracts\Addons\AddonNamespace;
 use Cbox\Cms\Contracts\Codecs\JsonDocument;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\PanelPoints\Confirm;
 use Cbox\Cms\Contracts\PanelPoints\ContributionId;
 use Cbox\Cms\Contracts\PanelPoints\Multiplicity;
@@ -79,6 +80,7 @@ function contributionsJson(): string
         '/cms/commands',
         true,
         [new PageLinkProp('home', '/cms'), new PageLinkProp('tally.board', '/cms/x/tally/board')],
+        ActorId::fromString('0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01'),
     ), ClassificationAccess::Public);
 }
 
@@ -96,7 +98,7 @@ it('writes JSON valid against its schema and the TypeScript validator, and reads
         ->and($codec->encode($codec->decode($json, ClassificationAccess::Public), ClassificationAccess::Public))->toBe($json)
         ->and(TypeScriptValidators::run(PanelPageSchemas::TYPESCRIPT_DIRECTORY, [
             ['module' => 'pages/ContributionsV1', 'validator' => 'validateContributionsV1', 'document' => $json],
-            ['module' => 'pages/ContributionsV1', 'validator' => 'validateContributionsV1', 'document' => '{"addons":[],"commands":"/cms/commands","details":false,"pages":[],"points":[]}'],
+            ['module' => 'pages/ContributionsV1', 'validator' => 'validateContributionsV1', 'document' => '{"addons":[],"commands":"/cms/commands","details":false,"pages":[],"points":[],"viewer":null}'],
         ]))->toBe([['valid' => true], ['valid' => true]]);
 });
 

@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Codecs\JsonCodec;
 use Cbox\Cms\Contracts\Codecs\JsonDocument;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\PanelPoints\Confirm;
 use Cbox\Cms\Contracts\PanelPoints\ContributionId;
 use Cbox\Cms\Contracts\PanelPoints\Multiplicity;
@@ -87,13 +88,14 @@ final readonly class ContributionsCodecV1 implements JsonCodec
         $json->details = $object->details;
         $json->pages = array_map($this->encodePageLinkProp(...), $object->pages);
         $json->points = array_map($this->encodePointFillsProp(...), $object->points);
+        $json->viewer = $object->viewer instanceof ActorId ? $object->viewer->toString() : null;
 
         return $json;
     }
 
     private function decodeContributionsProp(stdClass $value): ContributionsProp
     {
-        $object = JsonValues::object($value, null, ['addons', 'commands', 'details', 'pages', 'points']);
+        $object = JsonValues::object($value, null, ['addons', 'commands', 'details', 'pages', 'points', 'viewer']);
 
         return JsonValues::build(null, fn (): ContributionsProp => new ContributionsProp(
             points: JsonValues::required($object, 'points', null, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodePointFillsProp(...), maxItems: 200)),
@@ -101,6 +103,7 @@ final readonly class ContributionsCodecV1 implements JsonCodec
             commands: JsonValues::required($object, 'commands', null, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1, maxLength: 200)),
             details: JsonValues::required($object, 'details', null, static fn (mixed $value, FieldPath $at): bool => JsonValues::boolean($value, $at)),
             pages: JsonValues::required($object, 'pages', null, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodePageLinkProp(...), maxItems: 500)),
+            viewer: JsonValues::present($object, 'viewer', null, static fn (mixed $value, FieldPath $at): ActorId => JsonValues::id($value, $at, ActorId::fromString(...))),
         ));
     }
 

@@ -14,6 +14,9 @@ export type LoginRefusal = 'validation_required' | 'login_rejected' | 'login_rat
 export type SignInReason =
   'required' | 'expired' | 'ended' | 'revoked' | 'signed_out' | 'password_changed';
 
+/** The values of Tone. */
+export type Tone = 'neutral' | 'info' | 'warning' | 'danger';
+
 /**
  * The props of the panel's login page (PRD 5.16, 13.4), Auth/Login in js/panel. The PHP form is
  * Cbox\Cms\Panel\Domain\Dto\LoginPage, and the generated codec writes its canonical JSON: keys
@@ -25,6 +28,12 @@ export interface LoginPageV1 {
   /** The address of the page that asks for a password reset link. */
   forgot: string;
   /**
+   * The notices the addons contribute to login.notice@1 (PRD 13.4), in render order: translated
+   * plain text with a tone, data alone, because no addon code runs on the login page. Empty when
+   * none is contributed or enabled.
+   */
+  notices: readonly LoginNoticePropV1[];
+  /**
    * Why the panel sent the browser to this page, or null when it did not: required (the request
    * carried no session), expired, ended, revoked, signed_out or password_changed.
    */
@@ -34,6 +43,21 @@ export interface LoginPageV1 {
    * form for the login as a whole; null where there is none.
    */
   refusals: LoginRefusalsV1;
+}
+
+/**
+ * One notice: the addon it comes from, the contribution's id, the translation key of its message in
+ * the addon's catalogue, and its tone.
+ */
+export interface LoginNoticePropV1 {
+  /** The namespace of the addon that contributes it. */
+  addon: string;
+  /** The contribution's id, `<namespace>.<local>`. */
+  id: string;
+  /** The translation key of the notice in the addon's catalogue, `<namespace>.<key>`. */
+  message: string;
+  /** The tone the notice is shown in. */
+  tone: Tone;
 }
 
 /**
@@ -78,6 +102,31 @@ const loginRefusalsV1Rule: ObjectRule = {
   ],
 };
 
+const loginNoticePropV1Rule: ObjectRule = {
+  properties: [
+    {
+      key: 'addon',
+      presence: 'required',
+      value: { kind: 'string', pattern: '^[a-z][a-z0-9]{0,19}$', maxLength: 20 },
+    },
+    {
+      key: 'id',
+      presence: 'required',
+      value: {
+        kind: 'string',
+        pattern: '^[a-z][a-z0-9]{0,19}(\\.[a-z][a-z0-9_]*(-[a-z0-9_]+)*)+$',
+        maxLength: 96,
+      },
+    },
+    { key: 'message', presence: 'required', value: { kind: 'text', minLength: 3, maxLength: 200 } },
+    {
+      key: 'tone',
+      presence: 'required',
+      value: { kind: 'enum', values: ['neutral', 'info', 'warning', 'danger'] },
+    },
+  ],
+};
+
 const loginPageV1Rule: ObjectRule = {
   properties: [
     { key: 'action', presence: 'required', value: { kind: 'text', minLength: 1 } },
@@ -94,6 +143,15 @@ const loginPageV1Rule: ObjectRule = {
       key: 'refusals',
       presence: 'required',
       value: { kind: 'object', object: loginRefusalsV1Rule },
+    },
+    {
+      key: 'notices',
+      presence: 'required',
+      value: {
+        kind: 'list',
+        item: { kind: 'object', object: loginNoticePropV1Rule },
+        maxItems: 50,
+      },
     },
   ],
 };

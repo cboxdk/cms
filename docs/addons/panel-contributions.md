@@ -37,11 +37,11 @@ Every contribution has an id `<namespace>.<local>` in the addon's namespace, the
 | `PageContribution` | page | yes | `path` below `x/<namespace>/`, and `data`, a query of the addon without required input, run on the page alone. |
 | `DecoratorContribution` | decorator | yes | `tightens`, the props of the point it tightens, and `mirrors`, the hook that enforces a disabled reason on the server. |
 | `ReplacementContribution` | replacement | yes | `key`, the field type, command (`<name>@<version>`) or class it replaces, and `data`, a `#[Query]` of the addon whose result the component gets as `data` beside the point's props, as a `SlotFill`'s; a point whose props the page holds in the browser gives the query no input. |
-| `FormCheck` | form check | yes | `command`, the form's `<name>@<version>`; `severity` (`Info`, `Warning`, `Acknowledge`, `Error`); `mirrors`. |
+| `FormCheck` | form check | yes | `command`, the form's `<name>@<version>`; `severity` (`Info`, `Warning`, `Acknowledge`, `Error`); `mirrors`. The check's context names the panel's locale and the viewer's actor id, or null where the page knows no viewer, so a check can mirror a rule about the viewer, such as a grant to oneself. |
 | `FlowStep` | flow step | yes | `command`; `position` (`BeforeSubmit`, `AfterReceipt`); `patches`, the paths it may change; `timeoutSeconds`, 1 to 30. |
 | `ObserverContribution` | observer | yes | nothing more. |
 | `ProviderContribution` | provider | yes | nothing more. |
-| `LoginNotice` | data | no | `message`, a translation key, and `tone`. |
+| `LoginNotice` | data | no | `message`, a translation key, and `tone`; shown on the login page, which runs no addon code ([panel pages](panel-pages.md#the-login-pages-notices)). |
 
 A value that breaks its rule, such as a priority outside 0 to 1000000, a label that is no translation key, a prefill from a text that is no JSON pointer, a page path that climbs or a step over 30 seconds, throws `InvalidAddonManifest`, and `cms:build` reports it as `registry_invalid_manifest`.
 

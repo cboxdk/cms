@@ -42,6 +42,7 @@ use Cbox\Cms\Panel\Domain\PanelRoute;
 use Cbox\Cms\Panel\Domain\ResetFormRefusal;
 use Cbox\Cms\Panel\Domain\ResetPasswordRefusal;
 use Cbox\Cms\Panel\Domain\SignInReason;
+use Cbox\Cms\Panel\Login\Domain\Dto\LoginNotices;
 use Cbox\Cms\Panel\Shell\Domain\OwnPage;
 use Illuminate\Contracts\Routing\UrlGenerator;
 use Illuminate\Http\JsonResponse;
@@ -146,7 +147,7 @@ final readonly class PanelPages
         private AccessGrantsPageCodecV1 $accessGrantsPage,
     ) {}
 
-    public function login(Request $request): Response|JsonResponse
+    public function login(Request $request, LoginNotices $notices = new LoginNotices): Response|JsonResponse
     {
         $reason = $request->query(SignInReason::PARAMETER);
         $refusal = static fn (string $field): ?LoginRefusal => LoginRefusal::tryFrom(self::refusal($request, $field));
@@ -160,6 +161,7 @@ final readonly class PanelPages
                 form: $refusal(LoginForm::FORM),
                 password: $refusal(LoginForm::PASSWORD),
             ),
+            notices: $notices->notices,
         ), ClassificationAccess::Public));
     }
 

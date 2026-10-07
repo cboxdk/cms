@@ -10,6 +10,7 @@ use Illuminate\Contracts\Config\Repository;
 use Illuminate\Support\Env;
 use Illuminate\Support\ServiceProvider;
 use Workbench\App\Cms\Generated\GeneratedTypesServiceProvider;
+use Workbench\FixtureAddon\FixtureAddonServiceProvider;
 
 /**
  * Boots the workbench application that the packages are tested and developed against.
@@ -99,6 +100,12 @@ final class WorkbenchServiceProvider extends ServiceProvider
         // workbench/addons/fixtureaddon/panel-signing-test-key.pem the bundle is signed with.
         $config->set('cbox-cms.addons.allowed', [self::FIXTURE_ADDON]);
         $config->set('cbox-cms.addons.publishers', [self::FIXTURE_ADDON => [self::FIXTURE_ADDON_PUBLISHER_KEY]]);
+
+        // The kill switch (PRD 13.5): the fixture addon's section that throws when it renders,
+        // which exists to show the panel's isolation of a failing contribution, is disabled at run
+        // time, so a person using the workbench never sees it; cms:panel:fills lists it as disabled
+        // by the activation state, and the browser test that proves the isolation enables it.
+        $config->set('cbox-cms.panel.disabled', ['contributions' => [FixtureAddonServiceProvider::FAULTY]]);
 
         $config->set('cbox-cms.doctor.project_path', dirname(__DIR__, 3));
         $config->set('cbox-cms.doctor.vendor_manifest', dirname(__DIR__, 3).'/vendor/composer/installed.json');

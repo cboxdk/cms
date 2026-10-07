@@ -10,6 +10,7 @@ use Cbox\Cms\Contracts\PanelPoints\CommandRef;
 use Cbox\Cms\Contracts\PanelPoints\DecoratorContribution;
 use Cbox\Cms\Contracts\PanelPoints\FlowStep;
 use Cbox\Cms\Contracts\PanelPoints\FormCheck;
+use Cbox\Cms\Contracts\PanelPoints\HostProps;
 use Cbox\Cms\Contracts\PanelPoints\Tighten;
 use Cbox\Cms\Core\Pipeline\Domain\CommandCodecs;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCodec;
@@ -33,10 +34,12 @@ use Cbox\Cms\Generators\PanelTypes\Domain\Dto\PointType;
 use Cbox\Cms\Generators\PanelTypes\Domain\Dto\UiContribution;
 use Closure;
 use Override;
+use ReflectionClass;
 
 /**
  * An installed addon's UI from the registry cms:build compiled (PRD 13.4): its contributions that
- * run code, from the fills of every panel point, with the point's props class and stability; the
+ * run code, from the fills of every panel point, with the point's props class and stability, or
+ * the SDK's type HostProps names on the class where the host adds to the props in the browser; the
  * commands its UI may issue, from addons.php; the JSON Schemas of the data queries' results and
  * the commands' documents, from their generated codecs (CommandCodecs, QueryCodecs); and the
  * directory of its Composer package.
@@ -129,13 +132,18 @@ final readonly class RegistryAddonUiSource implements AddonUiSource
         return $contributions;
     }
 
+    /**
+     * The point's props as the SDK types them: the type HostProps names on the props class, where
+     * the host adds to the props in the browser, else the short name of the props class.
+     */
     private function pointType(PanelPointEntry $point): PointType
     {
         $separator = strrpos($point->class, '\\');
+        $hostProps = class_exists($point->class) ? new ReflectionClass($point->class)->getAttributes(HostProps::class) : [];
 
         return new PointType(
             $point->id(),
-            $separator === false ? $point->class : substr($point->class, $separator + 1),
+            $hostProps === [] ? ($separator === false ? $point->class : substr($point->class, $separator + 1)) : $hostProps[0]->newInstance()->typeScript,
             $point->stability === PointStability::Stable,
         );
     }

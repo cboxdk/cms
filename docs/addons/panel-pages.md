@@ -14,6 +14,8 @@ description: "The panel's own pages behind the login, the navigation entries a m
 <!-- extension-point: packages/panel/resources/schemas/points/access.roles.sections.v1.json -->
 <!-- extension-point: Cbox\Cms\Panel\Access\Domain\Dto\AccessGrantsSectionsV1 -->
 <!-- extension-point: packages/panel/resources/schemas/points/access.grants.sections.v1.json -->
+<!-- extension-point: Cbox\Cms\Panel\Login\Domain\Dto\LoginNoticeV1 -->
+<!-- extension-point: packages/panel/resources/schemas/points/login.notice.v1.json -->
 
 The panel has pages of its own behind the login (PRD 13.4): the start page, the who-am-I page and the roles and grants pages, each at a fixed address below the panel's prefix, and each rendering the [shell's points](panel-shell.md) around its content. A page that reads gets its props from a query of the kernel, run through the query pipeline as the person who signed in, from the session credential, and written by the query's result codec, so what the page shows is what REST answers the same person with. [The panel module](../developers/panel.md#page-props) lists each page's props schema and generated codec.
 
@@ -24,6 +26,11 @@ The panel has pages of its own behind the login (PRD 13.4): the start page, the 
 | `command.form`, the generic [command form](command-form.md) | `<prefix>/commands/<name>/v<version>` | nothing; its props are the command's JSON Schema | `command.form.aside@1` |
 | `access.roles`, the roles page | `<prefix>/access/roles` | `role.list` version 1 | `access.roles.sections@1` |
 | `access.grants`, the grants page | `<prefix>/access/grants` | `grant.list` version 1, and `actor.list`, `role.list` and `node.list` version 1 for its pickers | `access.grants.sections@1` |
+| `login`, the login page, a credential page that runs no addon code | `<prefix>/login` | nothing | `login.notice@1` |
+
+## The login page's notices
+
+`login.notice@1` is a data point of the login page, experimental, declared on the page `login` by `LoginNoticeV1`, without props: no addon code runs on a credential page, so the page writes no addon into its import map and loads nothing of an addon (decision D13 of the panel extension architecture). An addon contributes a `LoginNotice`, listing the point in `acceptsExperimental`: the translation key of its message in the addon's catalogue and a `Tone` (`Neutral`, `Info`, `Warning` or `Danger`), and the page shows the enabled notices above the login form, in render order, each as the kit's callout in the scope element of its contribution, so a test reads which addon said what. The notices of a request are resolved by the panel without a viewer, because the page has none, so a notice's scope may require nothing; a notice the kill switch disables (`cbox-cms.panel.disabled`) is left out at the next request, and when the registry cannot be read the page shows no notice, recorded in telemetry, so nothing an addon does keeps a person from the login form. The page's prop `notices` carries them, `#/$defs/notice` of `login.v1.json`; the point's schema is `login.notice.v1.json` and its codec `LoginNoticeCodecV1`. The workbench's fixture addon contributes `fixtureaddon.login-notice`.
 
 ## Navigation entries and their permissions
 

@@ -66,7 +66,7 @@ import {
 import type { CommandFormPageV1 } from '../generated/pages/CommandFormPageV1';
 import type { ReceiptV1 } from '../generated/protocol/ReceiptV1';
 import { validate } from '../generated/validation';
-import { FlowHost, PointHost, usePointHost, type Tightened } from '../host';
+import { FlowHost, PointHost, useCoreServices, usePointHost, type Tightened } from '../host';
 import { dryRunReport } from '../host/actions';
 import { useAddonName } from '../host/boundary';
 import {
@@ -212,7 +212,7 @@ function FormBody({
 }) {
   const { t, locale } = useTranslation();
   const runtime = useHostRuntime();
-  const { services } = runtime;
+  const { runCommand: runAsViewer } = useCoreServices();
   const checks = usePointHost('command.form.checks@1');
   const steps = usePointHost('command.form.steps@1');
   const idPrefix = useId();
@@ -285,8 +285,8 @@ function FormBody({
 
   const runCommand = useCallback(
     (draft: JsonObject, dryRun: boolean): Promise<CommandAnswer> =>
-      services.runCommand({ command: ref, document: draft, options: { dryRun, waitLevel }, key }),
-    [services, ref, waitLevel, key],
+      runAsViewer(ref, draft, { dryRun, waitLevel }, key),
+    [runAsViewer, ref, waitLevel, key],
   );
 
   function submit(draft: JsonObject, dryRun: boolean): void {

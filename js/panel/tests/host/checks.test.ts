@@ -22,7 +22,7 @@ function environment() {
   let clock = 0;
   const reports: Omit<HostReport, 'point'>[] = [];
   const env: CheckEnvironment = {
-    context: { locale: 'en' },
+    context: { locale: 'en', viewer: null },
     skipped: new Set<string>(),
     report: (report) => reports.push(report),
     now: () => clock,

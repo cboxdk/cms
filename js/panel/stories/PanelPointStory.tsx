@@ -208,7 +208,14 @@ async function storyContributions(
     })),
   );
 
-  return { addons: entries, commands: '', details: true, pages: [], points: [point.point] };
+  return {
+    addons: entries,
+    commands: '',
+    details: true,
+    pages: [],
+    points: [point.point],
+    viewer: null,
+  };
 }
 
 /** The kinds of contribution an addon's code registers, as runsCode() says in PHP. */

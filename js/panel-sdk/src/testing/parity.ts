@@ -50,6 +50,8 @@ export class ParityBroken extends Error {
  */
 export interface ParityOptions {
   readonly locale?: string;
+  /** The viewer the check's context names on every document; none unless given. */
+  readonly viewer?: string | null;
 }
 
 /**
@@ -65,7 +67,7 @@ export async function checkParity<D>(
   documents: readonly D[],
   options: ParityOptions = {},
 ): Promise<number> {
-  const context: CheckContext = { locale: options.locale ?? 'en' };
+  const context: CheckContext = { locale: options.locale ?? 'en', viewer: options.viewer ?? null };
   const disagreements: ParityDisagreement[] = [];
 
   for (const [index, document] of documents.entries()) {

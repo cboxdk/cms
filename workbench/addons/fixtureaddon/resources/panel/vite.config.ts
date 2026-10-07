@@ -16,10 +16,24 @@ export default defineConfig({
     cmsPanelAddon({
       namespace: 'fixtureaddon',
       contributions: [
+        'fixtureaddon.activity',
+        'fixtureaddon.articles',
+        'fixtureaddon.articles-permission',
+        'fixtureaddon.dry-run-note',
+        'fixtureaddon.faulty',
+        'fixtureaddon.four-eyes',
+        'fixtureaddon.four-eyes-note',
+        'fixtureaddon.my-articles',
+        'fixtureaddon.receipt-note',
+        'fixtureaddon.recent-activity',
+        'fixtureaddon.self-grant',
+        'fixtureaddon.slug-help',
         'fixtureaddon.slug-hint',
+        'fixtureaddon.slug-input',
         'fixtureaddon.slug-override',
         'fixtureaddon.slug-review',
         'fixtureaddon.slug-shape',
+        'fixtureaddon.submit-note',
       ],
       sign: {
         privateKey: readFileSync(

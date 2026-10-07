@@ -152,3 +152,13 @@ describe('a page point', () => {
     expect(container.textContent).toBe('');
   });
 });
+
+describe('the shell s form action', () => {
+  test('opens the form of the action s command below the commands address', async () => {
+    const { commandFormUrl } = await import('../../src/shell/PanelShell');
+
+    expect(commandFormUrl('/cms/commands', 'entry.create@1')).toBe('/cms/commands/entry.create/v1');
+    expect(commandFormUrl('/cms/commands', 'grant.assign@3')).toBe('/cms/commands/grant.assign/v3');
+    expect(commandFormUrl('/cms/commands', 'entry.create')).toBe('/cms/commands/entry.create/v1');
+  });
+});

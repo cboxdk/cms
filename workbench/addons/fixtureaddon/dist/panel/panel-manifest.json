@@ -1,9 +1,23 @@
 {
   "contributions": [
+    "fixtureaddon.activity",
+    "fixtureaddon.articles",
+    "fixtureaddon.articles-permission",
+    "fixtureaddon.dry-run-note",
+    "fixtureaddon.faulty",
+    "fixtureaddon.four-eyes",
+    "fixtureaddon.four-eyes-note",
+    "fixtureaddon.my-articles",
+    "fixtureaddon.receipt-note",
+    "fixtureaddon.recent-activity",
+    "fixtureaddon.self-grant",
+    "fixtureaddon.slug-help",
     "fixtureaddon.slug-hint",
+    "fixtureaddon.slug-input",
     "fixtureaddon.slug-override",
     "fixtureaddon.slug-review",
-    "fixtureaddon.slug-shape"
+    "fixtureaddon.slug-shape",
+    "fixtureaddon.submit-note"
   ],
   "entry": "panel.js",
   "externals": [
@@ -13,12 +27,67 @@
   ],
   "files": [
     {
+      "integrity": "sha384-1E1GDo3ISHjewL9y/P+1NU+L630lGQImZcxgBs0AgCeEv8Js5RT0gTJ4oqRSzWGU",
+      "kind": "script",
+      "path": "Articles-KaCkQHVr.js"
+    },
+    {
+      "integrity": "sha384-mKHPl/xLLmNNUyqMDngEtWVfTQYiI+eD1JVSCu6JGJbbjp0k2ooHTlMGdkkFZomm",
+      "kind": "script",
+      "path": "ArticlesTable-_bgl11PV.js"
+    },
+    {
+      "integrity": "sha384-3WgStzQ+Y4lkzpPyWFDSjYcjRK8nl02EeTKPL2QE2x+KYN+IawGN2k//B4i21pRh",
+      "kind": "script",
+      "path": "DryRunNote-CH_7s8Uw.js"
+    },
+    {
+      "integrity": "sha384-oA9ZH8HyRFVhv/HYJZ6WKk9Tnj96YyfEPCPCshaiji4/CcFP+lepcr0mi5gxjteP",
+      "kind": "script",
+      "path": "Faulty-DcIo0aFr.js"
+    },
+    {
+      "integrity": "sha384-UiadrYxxBnfR4FUMZ6NCN/xyGL5gUV3eOVfmqQgeJA6WzwnH+iWoU3PaBTT+4pL2",
+      "kind": "script",
+      "path": "FourEyes-tbv9mWVy.js"
+    },
+    {
+      "integrity": "sha384-W6RZ9FYFgj9bVixsr8+rdFsB86UGdWlZEmD3kBNRNAN6DLx8Y9QRFkilgZxYQCph",
+      "kind": "script",
+      "path": "MyArticles-BQ0aUbk3.js"
+    },
+    {
+      "integrity": "sha384-5NML//FizuDwO3Cx4W+FziWsefDKxOjAT0STL+lGgUbENFLwCdSD5/BleSTnO2RH",
+      "kind": "script",
+      "path": "RecentActivity-BnsUyLFv.js"
+    },
+    {
+      "integrity": "sha384-ILU3a9LhY4gaEjBSjX8fSJ1S8T3Ya5KNastiqbNGerXVO94vfI3/INGJuFOFf45l",
+      "kind": "script",
+      "path": "SlugHelp-DHkd5cZb.js"
+    },
+    {
+      "integrity": "sha384-4cQ1tDKob0F8U1YMxI4Toq+4zajcbWaqP/3V83M1S78LrdvHR5NB4xpC1ZKoWVJZ",
+      "kind": "script",
+      "path": "SlugInput-Fm21rVD_.js"
+    },
+    {
       "integrity": "sha384-EJUFyVD9jN9wrKmOv3pbIJ9SO62Z1rEhyie9WEJ71Hs224iLyRk+hFYmB284uzVq",
       "kind": "script",
       "path": "SlugReview-BlvZkDzn.js"
     },
     {
-      "integrity": "sha384-irf0UgwMPtVgV5OEnPaexM7JHg52Q1Gb2Fmi+38q63J+BUQblEF7tOGkEpOTFqks",
+      "integrity": "sha384-qHnJLsr/W1z4gDo8x1KLFE65hanWW3LsvDcbzaWTTNPTHXqGdBLyuRnzZixG7OSy",
+      "kind": "script",
+      "path": "activity-MsooxUr4.js"
+    },
+    {
+      "integrity": "sha384-9x7zPsRRkrOndbZB8GHVvePXUvz6jt6qqwZe3yPBGS8pOHkLPpnIoh78G/8E9sQe",
+      "kind": "script",
+      "path": "notes-BjP178BS.js"
+    },
+    {
+      "integrity": "sha384-j6myBAVY0UU30hdkBp6h5C91JS13AgEdRW66nJR4KwbmGyIEL/EURhTuD097YE4c",
       "kind": "script",
       "path": "panel.js"
     },

@@ -48,6 +48,12 @@ export const CommandFormStepsV1: Story = pointStory(PANEL_POINTS, 'command.form.
 /** command.form.submit@1, a decorator point of the page command.form. */
 export const CommandFormSubmitV1: Story = pointStory(PANEL_POINTS, 'command.form.submit@1');
 
+/** login.notice@1, a data point of the page login. */
+export const LoginNoticeV1: Story = pointStory(PANEL_POINTS, 'login.notice@1');
+
+/** panel.observe.command@1, a observer point of the page shell. */
+export const PanelObserveCommandV1: Story = pointStory(PANEL_POINTS, 'panel.observe.command@1');
+
 /** shell.nav@1, a nav point of the page shell. */
 export const ShellNavV1: Story = pointStory(PANEL_POINTS, 'shell.nav@1');
 

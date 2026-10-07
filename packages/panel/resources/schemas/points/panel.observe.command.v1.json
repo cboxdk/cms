@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "panel.observe.command event, contract version 1",
+  "description": "The event of the observers of a command that completed, an observer point (PRD 13.4): the command's name and contract version, how it ended, as the receipt says it, and the changeset it committed, or null when it committed nothing. A contribution to it is called with the event after the command answered and cannot affect the flow. The page holds the event in the browser, once the command answered. The PHP form is Cbox\\Cms\\Panel\\Shell\\Domain\\Dto\\CommandCompletedV1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "changeset",
+    "command",
+    "outcome",
+    "version"
+  ],
+  "properties": {
+    "changeset": {
+      "description": "The id of the changeset the command committed, a UUIDv7 in lowercase hex, or null when it committed nothing: a rejection or a dry run.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/id"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "command": {
+      "description": "The name of the command that completed, such as entry.create: lowercase segments in snake_case joined by dots, at least two.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+      "examples": [
+        "entry.create"
+      ],
+      "minLength": 3,
+      "maxLength": 255
+    },
+    "outcome": {
+      "description": "How the command ended, as its receipt says: rejected (nothing committed), committed, committed_wait_timeout (committed, but the wait level was not reached within the deadline) or dry_run (the plan was computed and nothing committed).",
+      "enum": [
+        "rejected",
+        "committed",
+        "committed_wait_timeout",
+        "dry_run"
+      ]
+    },
+    "version": {
+      "description": "The contract version of the command that completed, 1 or more.",
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7 in lowercase hex.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "examples": [
+        "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"
+      ]
+    }
+  }
+}

@@ -12,6 +12,8 @@ description: "The points of the panel's shell every page behind the login render
 <!-- extension-point: packages/panel/resources/schemas/points/shell.nav.v1.json -->
 <!-- extension-point: packages/panel/resources/schemas/points/shell.page.v1.json -->
 <!-- extension-point: packages/panel/resources/schemas/points/shell.user-menu.v1.json -->
+<!-- extension-point: Cbox\Cms\Panel\Shell\Domain\Dto\CommandCompletedV1 -->
+<!-- extension-point: packages/panel/resources/schemas/points/panel.observe.command.v1.json -->
 
 The shell is what every page behind the login renders around its own content (PRD 13.4): the installation's brand, the viewer's menu, the sign-out and the navigation. Its three points are declared on the page `shell`, and every page behind the login renders them beside its own, so a contribution to them is active on every page, within its scope. All three are version 1 and `#[Experimental]`, so an addon lists them in `acceptsExperimental`. Their props schemas are `shell.nav.v1.json`, `shell.page.v1.json` and `shell.user-menu.v1.json` in `packages/panel/resources/schemas/points`, bound to the props classes as every [panel point](panel-points.md)'s; the first two describe an object without members.
 
@@ -30,6 +32,8 @@ The server decides, per request and viewer, which of the shell's contributions a
 - A page's data query runs only on the page itself. Every page lists the addons' pages, so the shell's navigation and the command palette know them, without running their queries.
 
 The nav entries are the pages of the [command palette](command-palette.md) too: `action.list`, the query the palette is built from, lists every nav entry the viewer may open, and the panel's host gives the palette each with the text and the address the navigation knows, in render order.
+
+The shell declares a fourth point, `panel.observe.command@1`, an observer point whose event is `CommandCompletedV1`, declared on the page `shell` too and so active on every page behind the login: the command's name and contract version, how it ended as its receipt says (`rejected`, `committed`, `committed_wait_timeout` or `dry_run`) and the changeset it committed, or null for a rejection or a dry run. An `ObserverContribution` to it is a function of the addon's bundle the host calls with the event after any command a page ran as the viewer answered, the generic command form's and the roles and grants pages' alike, on a frozen copy, in render order; it cannot affect the answer, and one that throws is reported with its addon and the others still run. The event exists only in the browser, so the page holds it and the point's schema, `panel.observe.command.v1.json`, describes what the host builds; the generated TypeScript `CommandCompletedV1` of `@cboxdk/cms-panel/experimental` types the observer. The workbench's fixture addon observes with `fixtureaddon.activity`, which records the last command in the browser's session storage for its section of the who-am-I page.
 
 ## Pages
 

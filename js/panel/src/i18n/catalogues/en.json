@@ -107,6 +107,8 @@
   "panel.points.command_form_receipt": "Receipt of the command form",
   "panel.points.command_form_field": "Field input of the command form",
   "panel.points.command_form_dryrun": "Dry run of the command form",
+  "panel.points.login_notice": "Login notices",
+  "panel.points.panel_observe_command": "Observers of a command",
   "panel.shell.nav": "Pages",
   "panel.shell.user_menu": "Your actions",
   "panel.palette.open": "Search",

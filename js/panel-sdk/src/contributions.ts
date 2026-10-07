@@ -229,6 +229,12 @@ export interface Issue {
  */
 export interface CheckContext {
   readonly locale: string;
+  /**
+   * The actor id of the viewer the form is shown to, a UUIDv7 in lowercase hex, or null where the
+   * page knows no viewer. A check that mirrors a rule about the viewer, such as a hook that refuses
+   * a grant to oneself, reads it here.
+   */
+  readonly viewer: string | null;
 }
 
 /**

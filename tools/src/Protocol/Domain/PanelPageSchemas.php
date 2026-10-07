@@ -8,6 +8,7 @@ use Cbox\Cms\Contracts\Addons\AddonNamespace;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Codecs\JsonDocument;
 use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\PanelPoints\Confirm;
 use Cbox\Cms\Contracts\PanelPoints\ContributionId;
@@ -44,6 +45,7 @@ use Cbox\Cms\Panel\Domain\Dto\ForgotPasswordPage;
 use Cbox\Cms\Panel\Domain\Dto\ForgotPasswordRefusals;
 use Cbox\Cms\Panel\Domain\Dto\GrantPickers;
 use Cbox\Cms\Panel\Domain\Dto\HomePage;
+use Cbox\Cms\Panel\Domain\Dto\LoginNoticeProp;
 use Cbox\Cms\Panel\Domain\Dto\LoginPage;
 use Cbox\Cms\Panel\Domain\Dto\LoginRefusals;
 use Cbox\Cms\Panel\Domain\Dto\NavProp;
@@ -195,6 +197,7 @@ final readonly class PanelPageSchemas
                 '#/$defs/point/properties/multiplicity' => ValueBinding::enum(Multiplicity::class),
                 '#/$defs/point/properties/region' => ValueBinding::enum(Region::class),
                 '#/$defs/step/properties/position' => ValueBinding::enum(StepPosition::class),
+                '#/properties/viewer' => ValueBinding::id(ActorId::class),
             ]),
             self::page('forgot-password.v1.json', 'ForgotPasswordPageCodecV1', [
                 '#' => ForgotPasswordPage::class,
@@ -205,8 +208,12 @@ final readonly class PanelPageSchemas
             self::page('home.v1.json', 'HomePageCodecV1', ['#' => HomePage::class]),
             self::page('login.v1.json', 'LoginPageCodecV1', [
                 '#' => LoginPage::class,
+                '#/$defs/notice' => LoginNoticeProp::class,
                 '#/$defs/refusals' => LoginRefusals::class,
             ], [
+                '#/$defs/notice/properties/addon' => ValueBinding::value(AddonNamespace::class),
+                '#/$defs/notice/properties/id' => ValueBinding::value(ContributionId::class),
+                '#/$defs/notice/properties/tone' => ValueBinding::enum(Tone::class),
                 '#/properties/reason' => ValueBinding::enum(SignInReason::class),
                 '#/$defs/refusals/properties/email' => ValueBinding::enum(LoginRefusal::class),
                 '#/$defs/refusals/properties/form' => ValueBinding::enum(LoginRefusal::class),

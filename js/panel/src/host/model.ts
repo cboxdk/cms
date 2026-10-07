@@ -31,6 +31,7 @@ export const NO_CONTRIBUTIONS: Contributions = Object.freeze({
   details: false,
   pages: [],
   points: [],
+  viewer: null,
 });
 
 /** The point with the id, `<name>@<version>`, or undefined when no contribution is active on it. */

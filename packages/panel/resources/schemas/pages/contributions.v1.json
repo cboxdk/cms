@@ -9,7 +9,8 @@
     "commands",
     "details",
     "pages",
-    "points"
+    "points",
+    "viewer"
   ],
   "properties": {
     "addons": {
@@ -45,6 +46,17 @@
       "items": {
         "$ref": "#/$defs/point"
       }
+    },
+    "viewer": {
+      "description": "The id of the actor the page is shown to, for whom the contributions were resolved: what a form check's context names as the viewer, a UUIDv7 in lowercase hex. Null only where the host renders before the server sent any contributions.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "examples": [
+        "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"
+      ]
     }
   },
   "$defs": {
