@@ -10,6 +10,8 @@ import './fieldset.css';
  * @experimental
  */
 export interface FieldsetProps {
+  /** The fieldset's id, such as for an ErrorSummary's link to it; one of its own if left out. */
+  readonly id?: string | undefined;
   /** What the fields have in common, from the caller's translations, read before each of them. */
   readonly legend: string;
   /** What the fields are for, below the legend, from the caller's translations. */
@@ -26,11 +28,13 @@ export interface FieldsetProps {
  *
  * @experimental
  */
-export function Fieldset({ legend, description, error, children }: FieldsetProps) {
-  const id = useId();
+export function Fieldset({ id: given, legend, description, error, children }: FieldsetProps) {
+  const generated = useId();
+  const id = given ?? generated;
 
   return (
     <fieldset
+      id={id}
       className="cms-fieldset"
       aria-describedby={describedBy(
         description !== undefined && `${id}-description`,

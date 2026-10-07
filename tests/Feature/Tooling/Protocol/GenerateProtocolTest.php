@@ -77,6 +77,7 @@ const PROTOCOL_CODECS = [
 const PANEL_PAGE_FILES = [
     'js/panel/src/generated/pages/AccountMePageV1.ts',
     'js/panel/src/generated/pages/AddonPageV1.ts',
+    'js/panel/src/generated/pages/CommandFormPageV1.ts',
     'js/panel/src/generated/pages/ContributionsV1.ts',
     'js/panel/src/generated/pages/ForgotPasswordPageV1.ts',
     'js/panel/src/generated/pages/HomePageV1.ts',
@@ -93,6 +94,7 @@ const PANEL_PAGE_FILES = [
     'js/panel/src/generated/validation.ts',
     'packages/panel/src/Boundary/Generated/AccountMePageCodecV1.php',
     'packages/panel/src/Boundary/Generated/AddonPageCodecV1.php',
+    'packages/panel/src/Boundary/Generated/CommandFormPageCodecV1.php',
     'packages/panel/src/Boundary/Generated/ContributionsCodecV1.php',
     'packages/panel/src/Boundary/Generated/ForgotPasswordPageCodecV1.php',
     'packages/panel/src/Boundary/Generated/HomePageCodecV1.php',
@@ -107,6 +109,7 @@ const PANEL_PAGE_FILES = [
 const PANEL_POINT_FILES = [
     'js/panel-sdk/src/generated/experimental.ts',
     'js/panel-sdk/src/generated/points/AccountMeSectionsV1.ts',
+    'js/panel-sdk/src/generated/points/CommandFormContextV1.ts',
     'js/panel-sdk/src/generated/points/ShellNavV1.ts',
     'js/panel-sdk/src/generated/points/ShellPageV1.ts',
     'js/panel-sdk/src/generated/points/ViewerSummaryV1.ts',
@@ -118,6 +121,7 @@ const PANEL_POINT_FILES = [
     'packages/panel/resources/points.lock.json',
     'packages/panel/src/Boundary/Generated/Points/PanelPointCodecs.php',
     'packages/panel/src/Boundary/Generated/Points/AccountMeSectionsCodecV1.php',
+    'packages/panel/src/Boundary/Generated/Points/CommandFormContextCodecV1.php',
     'packages/panel/src/Boundary/Generated/Points/ShellNavCodecV1.php',
     'packages/panel/src/Boundary/Generated/Points/ShellPageCodecV1.php',
     'packages/panel/src/Boundary/Generated/Points/ViewerSummaryCodecV1.php',

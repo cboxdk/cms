@@ -7,6 +7,7 @@ namespace Cbox\Cms\Tooling\Protocol\Domain;
 use Cbox\Cms\Contracts\Addons\AddonNamespace;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Codecs\JsonDocument;
+use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\PanelPoints\Confirm;
 use Cbox\Cms\Contracts\PanelPoints\ContributionId;
 use Cbox\Cms\Contracts\PanelPoints\Multiplicity;
@@ -31,6 +32,7 @@ use Cbox\Cms\Panel\Domain\Dto\ActionProp;
 use Cbox\Cms\Panel\Domain\Dto\AddonPage;
 use Cbox\Cms\Panel\Domain\Dto\AddonProp;
 use Cbox\Cms\Panel\Domain\Dto\CheckProp;
+use Cbox\Cms\Panel\Domain\Dto\CommandFormPage;
 use Cbox\Cms\Panel\Domain\Dto\ContributionsProp;
 use Cbox\Cms\Panel\Domain\Dto\DecoratorProp;
 use Cbox\Cms\Panel\Domain\Dto\FillProp;
@@ -66,8 +68,9 @@ use Cbox\Cms\Panel\Domain\SignInReason;
  * cms.contributions that every page behind the login sends beside its own props (PRD 13.4),
  * addon-page.v1.json the props of an addon's page below /x/<namespace>/, account-me.v1.json
  * the props of the who-am-I page, whose result and rejection are documents of the kernel's
- * contracts, and palette.v1.json the prop `palette` every page behind the login shares, the read
- * of action.list the command palette is built from. Types go one way, from PHP and the schema to
+ * contracts, command-form.v1.json the props of the generic command form, whose schema is the
+ * command's own JSON Schema as a document, and palette.v1.json the prop `palette` every page
+ * behind the login shares, the read of action.list the command palette is built from. Types go one way, from PHP and the schema to
  * TypeScript; no page declares its props by hand.
  *
  * composer generate:protocol writes, from these bindings, the PHP codecs into PHP_DIRECTORY and,
@@ -128,6 +131,10 @@ final readonly class PanelPageSchemas
             self::page('palette.v1.json', 'PalettePropCodecV1', ['#' => PaletteProp::class], [
                 '#/properties/rejection' => ValueBinding::document(JsonDocument::class),
                 '#/properties/result' => ValueBinding::document(JsonDocument::class),
+            ]),
+            self::page('command-form.v1.json', 'CommandFormPageCodecV1', ['#' => CommandFormPage::class], [
+                '#/properties/command' => ValueBinding::value(CommandName::class),
+                '#/properties/schema' => ValueBinding::document(JsonDocument::class),
             ]),
             self::page('brand.v1.json', 'PanelBrandCodecV1', [
                 '#' => PanelBrand::class,

@@ -27,6 +27,24 @@ const PANEL_POINTS: readonly PanelPointStoryData[] = [
     },
   },
   {
+    id: 'command.form.aside@1',
+    page: 'command.form',
+    label: 'panel.points.command_form_aside',
+    since: '1.0',
+    stability: 'experimental',
+    class: 'Cbox\\Cms\\Panel\\CommandForm\\Domain\\Dto\\CommandFormContextV1',
+    schema:
+      '{\n  "$schema": "https://json-schema.org/draft/2020-12/schema",\n  "title": "command.form.aside props, contract version 1",\n  "description": "The props of the aside of the generic command form, a slot point in the form page\'s aside region (PRD 13.4): what the form is about, the command\'s name, its contract version and the title of its JSON Schema, so an addon\'s contribution shows help and context about the command being run. The PHP form is Cbox\\\\Cms\\\\Panel\\\\CommandForm\\\\Domain\\\\Dto\\\\CommandFormContextV1.",\n  "type": "object",\n  "additionalProperties": false,\n  "required": [\n    "command",\n    "title",\n    "version"\n  ],\n  "properties": {\n    "command": {\n      "description": "The name of the command the form runs, such as entry.create: lowercase segments in snake_case joined by dots, at least two.",\n      "type": "string",\n      "pattern": "^[a-z][a-z0-9_]*(\\\\.[a-z][a-z0-9_]*)+$",\n      "examples": [\n        "entry.create"\n      ],\n      "minLength": 3,\n      "maxLength": 255\n    },\n    "title": {\n      "description": "The title of the command\'s JSON Schema, such as \\"entry.create, contract version 1\\".",\n      "type": "string",\n      "minLength": 1,\n      "maxLength": 500\n    },\n    "version": {\n      "description": "The contract version of the command the form runs, 1 or more.",\n      "type": "integer",\n      "minimum": 1\n    }\n  }\n}',
+    point: {
+      fills: [],
+      kind: 'slot',
+      max: null,
+      multiplicity: 'many',
+      point: 'command.form.aside@1',
+      region: 'aside',
+    },
+  },
+  {
     id: 'shell.nav@1',
     page: 'shell',
     label: 'panel.points.shell_nav',

@@ -1,0 +1,28 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as SchemaFormStories from './SchemaForm.stories';
+
+<Meta of={SchemaFormStories} />
+
+# SchemaForm
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={SchemaFormStories} />
+
+<Canvas of={SchemaFormStories.Default} />
+
+## Do and don't
+
+- Do read the schema with `readCommandSchema()` once and keep the model; it throws `SchemaUnsupported` for a keyword the form has no field for, which the page shows instead of a form.
+- Do validate the document with the command's generated validator before you submit, and give the errors back by path, so each is shown at its field.
+- Do pass the catalogue's texts for the labels and descriptions; the schema's title and description are the fallback.
+- Don't use it where a page has a form of its own with pickers for its values; it is the form for any command.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={SchemaFormStories} />

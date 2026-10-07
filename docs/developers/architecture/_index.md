@@ -27,6 +27,6 @@ One page per area of the kernel. Each page says where the code lives, what it do
 - [The surfaces](surfaces.md): REST, Inertia, MCP and the CLI, the shared RunExposedCommand, the surface contract tests, and the inspecting commands.
 - [Routing and delivery](routing-and-delivery.md): The path.resolve query and the delivery API that serves it from fragments.
 - [The doctor, the error catalog and telemetry](doctor-and-errors.md): cms:doctor and its checks, the error catalog every code comes from, and the telemetry contract the pipelines export through.
-- [The panel module](panel.md): The panel module and its routes and policy, the panel's login, the generated props of points and pages, active contributions, the panel SDK, the host runtime, the shell, and themes and branding.
+- [The panel module](panel.md): The panel module and its routes and policy, the panel's login, the generated props of points and pages, active contributions, the panel SDK, the host runtime, the shell, the command palette, the generic command form, and themes and branding.
 - [The gates, the dev image and the test databases](gates.md): How composer check runs in the dev image, test:affected, CI and mutation testing, the selftest, the JS gates, the Pest suites, the gate runner, the test database per checkout, the tool caches, the services and the progress records.
 - [The documentation gate](docs-gate.md): Gate 10: composer docs:check, the inventory of extension points, the embed rules, the layout, the screenshots, the generated reference pages, and the sections of docs/.

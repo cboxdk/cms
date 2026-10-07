@@ -27,6 +27,7 @@ final readonly class PanelPointCodecs
     {
         return [
             new PointCodec(new PointId(new PointName('account.me.sections'), 1), new AccountMeSectionsCodecV1),
+            new PointCodec(new PointId(new PointName('command.form.aside'), 1), new CommandFormContextCodecV1),
             new PointCodec(new PointId(new PointName('shell.nav'), 1), new ShellNavCodecV1),
             new PointCodec(new PointId(new PointName('shell.page'), 1), new ShellPageCodecV1),
             new PointCodec(new PointId(new PointName('shell.user-menu'), 1), new ViewerSummaryCodecV1),

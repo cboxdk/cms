@@ -42,8 +42,7 @@ The components of the kit, `js/ui-kit`, by group. Each one is experimental in bl
 - `Select`, `Combobox` and `MultiSelect`: a choice from a list, a choice found by typing, and a choice of several.
 - `ErrorSummary`: the errors of a refused form, each a link to its field.
 - `JsonEditor`: a JSON value, checked as it is typed.
-
-The form that is rendered from a command's JSON Schema comes with the generic command form (B1-T15).
+- `SchemaForm` with `readCommandSchema`: a form rendered from a command's JSON Schema, a field per member of the command's document, controlled by the caller, which validates the document and gives the errors back by path ([command form](../addons/command-form.md)).
 
 ## Feedback
 

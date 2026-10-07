@@ -38,7 +38,10 @@ export interface NumberInputProps {
   readonly required?: boolean | undefined;
   /** Whether the control cannot be used; it is shown dimmed and the keyboard skips it. */
   readonly disabled?: boolean | undefined;
-  /** The name the value is submitted under in a form. */
+  /**
+   * The name the value is submitted under in a form, through a hidden input that holds the number
+   * itself, as the visible input holds it formatted in the page's locale; empty when the field is.
+   */
   readonly name?: string | undefined;
 }
 
@@ -47,7 +50,8 @@ export interface NumberInputProps {
  * English. The input is a spin button: Up and Down step the value, Page Up and Page Down step it
  * ten times, Home and End go to the bounds, and the value is kept within them when the field loses
  * focus. Two buttons inside its edge step it with a pointer; they are skipped by Tab, because the
- * keys do the same, and named by React Aria in the page's locale.
+ * keys do the same, and named by React Aria in the page's locale. A form submits the number itself
+ * under the field's name, through a hidden input, never the formatted text.
  *
  * @experimental
  */
@@ -119,6 +123,13 @@ export function NumberInput({
         />
         <StepButton {...decrementButtonProps} icon="minus" />
         <StepButton {...incrementButtonProps} icon="plus" />
+        {name === undefined ? null : (
+          <input
+            type="hidden"
+            name={name}
+            value={Number.isNaN(state.numberValue) ? '' : String(state.numberValue)}
+          />
+        )}
       </div>
       {error === undefined ? null : <FieldErrorText {...errorMessageProps}>{error}</FieldErrorText>}
     </div>

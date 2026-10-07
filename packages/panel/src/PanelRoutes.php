@@ -23,6 +23,7 @@ use Cbox\Cms\Panel\Middleware\SharePalette;
 use Cbox\Cms\Panel\Middleware\VerifyPanelCsrfToken;
 use Cbox\Cms\Panel\Pages\AccountMeController;
 use Cbox\Cms\Panel\Pages\AddonPageController;
+use Cbox\Cms\Panel\Pages\CommandFormController;
 use Cbox\Cms\Panel\Pages\ForgotPasswordController;
 use Cbox\Cms\Panel\Pages\ForgotPasswordPageController;
 use Cbox\Cms\Panel\Pages\HomeController;
@@ -68,8 +69,10 @@ use Illuminate\Routing\Route;
  *     VerifyPanelCsrfToken, and SharePalette, which gives every page the prop `palette`, the read
  *     of action.list the command palette is built from: `GET <prefix>`, the start page, `POST <prefix>/logout`, and the
  *     Inertia profile's `POST <prefix>/commands/{command}/v{version}`, which runs a command as the
- *     person (PanelRoute::Home, Logout, Command), `GET <prefix>/account/me`, the who-am-I page,
- *     which reads actor.me as the person (PanelRoute::AccountMe), and
+ *     person (PanelRoute::Home, Logout, Command), `GET <prefix>/commands/{command}/v{version}`,
+ *     the generic command form of a command the profile exposes, rendered from the command's JSON
+ *     Schema, which posts to the same address (PanelRoute::CommandForm), `GET <prefix>/account/me`,
+ *     the who-am-I page, which reads actor.me as the person (PanelRoute::AccountMe), and
  *     `GET <prefix>/x/{namespace}/{path}`, a page of an addon, its PageContribution at the path,
  *     with its data query's result as its props (PanelRoute::AddonPage), or the page for a path the
  *     panel does not have when no addon has such a page or the person may not open it;
@@ -144,6 +147,8 @@ final readonly class PanelRoutes
                     self::page($router->get('', HomeController::class), PanelRoute::Home);
                     self::page($router->post('logout', LogoutController::class), PanelRoute::Logout);
                     self::withAddons(InertiaRoutes::register($router, PanelRoute::COMMANDS_PATH, PanelRoute::Command->value), PanelRoute::Command->allowsAddons());
+                    self::page($router->get(PanelRoute::COMMANDS_PATH.'/{command}/v{version}', CommandFormController::class)
+                        ->where(['command' => InertiaRoutes::COMMAND, 'version' => InertiaRoutes::VERSION]), PanelRoute::CommandForm);
                     self::page($router->get(AccountMe::PATH, AccountMeController::class), PanelRoute::AccountMe);
                     self::page($router->get(PanelRoute::ADDON_PAGES_PATH.'/{namespace}/{path}', AddonPageController::class)
                         ->where(['namespace' => self::NAMESPACE_SEGMENT, 'path' => self::PAGE_PATH]), PanelRoute::AddonPage);

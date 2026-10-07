@@ -82,7 +82,7 @@ it('writes the eight registries to the application\'s bootstrap/cache/cms, and r
             // The workbench's fixture addon, which package discovery registers: its two hooks and
             // its extension of app:fixture_article.
             'hooks: 2',
-            'panel: 4',
+            'panel: 5',
             'rest: 18',
             'schema: 1',
             'subscribers: 1',
@@ -100,7 +100,7 @@ it('adds what an addon provider\'s scan root declares', function (): void {
     [$status, $output] = buildCommand();
 
     expect($status)->toBe(0)
-        ->and(array_slice($output, 0, 6))->toBe(['actions: 26', 'addons: 1', 'commands: 18', 'hooks: 3', 'panel: 5', 'rest: 19'])
+        ->and(array_slice($output, 0, 6))->toBe(['actions: 26', 'addons: 1', 'commands: 18', 'hooks: 3', 'panel: 6', 'rest: 19'])
         ->and(RegistryFixtures::load($directory.'/commands.php'))->toMatchArray(['entries' => [[
             'class' => GrantBootstrapRole::class,
             'name' => 'access.bootstrap',
@@ -236,7 +236,7 @@ it('prints the warnings of a build with their codes before the counts', function
         ->and($output[1])->toStartWith('[registry_panel_point_deprecated] The contribution approvals.legacy of addon "approvals" (acme/cms-approvals) contributes to notes.legacy@1')
         ->and($output[2])->toStartWith('actions: ')
         ->and($output)->toContain('addons: 2')
-        ->and($output)->toContain('panel: 20');
+        ->and($output)->toContain('panel: 21');
 });
 
 it('refuses an installed addon the allowlist does not name, and writes nothing', function (): void {

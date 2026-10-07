@@ -21,6 +21,9 @@ export const Overview: Story = overviewStory(PANEL_POINTS);
 /** account.me.sections@1, a slot point of the page account.me. */
 export const AccountMeSectionsV1: Story = pointStory(PANEL_POINTS, 'account.me.sections@1');
 
+/** command.form.aside@1, a slot point of the page command.form. */
+export const CommandFormAsideV1: Story = pointStory(PANEL_POINTS, 'command.form.aside@1');
+
 /** shell.nav@1, a nav point of the page shell. */
 export const ShellNavV1: Story = pointStory(PANEL_POINTS, 'shell.nav@1');
 

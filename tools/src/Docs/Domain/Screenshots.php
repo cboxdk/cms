@@ -82,6 +82,16 @@ final readonly class Screenshots
                 'tests/Browser/Panel/PaletteTest.php',
             ),
             new BrowserScreenshot(
+                'command-form',
+                'The generic command form on a desktop, rendered from the schema of actor.activate: the fields labelled by the catalogue, the run options, and below them the receipt of a dry run with what would change.',
+                'tests/Browser/Panel/CommandFormTest.php',
+            ),
+            new BrowserScreenshot(
+                'command-form-mobile',
+                'The generic command form on a phone: the same fields and run options filling the width, each field with its label and description.',
+                'tests/Browser/Panel/CommandFormTest.php',
+            ),
+            new BrowserScreenshot(
                 'palette-mobile',
                 'The command palette open on a phone: the same pages and commands, the search field and the entries filling the width.',
                 'tests/Browser/Panel/PaletteTest.php',

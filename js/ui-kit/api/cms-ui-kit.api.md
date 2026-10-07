@@ -92,6 +92,12 @@ export interface BadgeProps {
 }
 
 // @experimental
+export interface BooleanShape {
+    // (undocumented)
+    readonly kind: 'boolean';
+}
+
+// @experimental
 export function Brand(input: BrandProps): JSX.Element;
 
 // @experimental
@@ -379,6 +385,9 @@ export interface DryRunSummary {
 }
 
 // @experimental
+export function emptied(member: FormMember): JsonValue | undefined;
+
+// @experimental
 export function EmptyState(input: EmptyStateProps): JSX.Element;
 
 // @experimental
@@ -387,6 +396,14 @@ export interface EmptyStateProps {
     readonly description?: string | undefined;
     readonly headingLevel?: 2 | 3 | 4;
     readonly title: string;
+}
+
+// @experimental
+export interface EnumShape {
+    // (undocumented)
+    readonly kind: 'enum';
+    // (undocumented)
+    readonly values: readonly string[];
 }
 
 // @experimental
@@ -437,6 +454,12 @@ export interface FieldErrorProps {
 }
 
 // @experimental
+export type FieldPath = readonly (string | number)[];
+
+// @experimental
+export function fieldPathText(path: FieldPath): string;
+
+// @experimental
 export interface FieldProps {
     readonly children: (control: FieldControlProps) => ReactNode;
     readonly description?: string | undefined;
@@ -454,7 +477,17 @@ export interface FieldsetProps {
     readonly children: ReactNode;
     readonly description?: string | undefined;
     readonly error?: string | undefined;
+    readonly id?: string | undefined;
     readonly legend: string;
+}
+
+// @experimental
+export type FieldShape = StringShape | IntegerShape | BooleanShape | EnumShape | ObjectShape | ListShape | FieldsShape;
+
+// @experimental
+export interface FieldsShape {
+    // (undocumented)
+    readonly kind: 'fields';
 }
 
 // @experimental
@@ -466,6 +499,35 @@ export function FormActions(input: FormActionsProps): JSX.Element;
 // @experimental
 export interface FormActionsProps {
     readonly children: ReactNode;
+}
+
+// @experimental
+export interface FormMember {
+    // (undocumented)
+    readonly defaultValue: JsonValue | undefined;
+    // (undocumented)
+    readonly description: string | undefined;
+    readonly hasDefault: boolean;
+    // (undocumented)
+    readonly key: string;
+    // (undocumented)
+    readonly nullable: boolean;
+    // (undocumented)
+    readonly required: boolean;
+    // (undocumented)
+    readonly shape: FieldShape;
+    // (undocumented)
+    readonly title: string | undefined;
+}
+
+// @experimental
+export interface FormModel {
+    // (undocumented)
+    readonly description: string | undefined;
+    // (undocumented)
+    readonly root: ObjectShape;
+    // (undocumented)
+    readonly title: string | undefined;
 }
 
 // @experimental
@@ -503,6 +565,9 @@ export interface IconProps {
 export type IconSize = 'sm' | 'md';
 
 // @experimental
+export function initialDocument(object: ObjectShape): JsonObject;
+
+// @experimental
 export function Inline(input: InlineProps): JSX.Element;
 
 // @experimental
@@ -514,8 +579,21 @@ export interface InlineProps {
     readonly wrap?: boolean;
 }
 
+// @experimental
+export interface IntegerShape {
+    // (undocumented)
+    readonly kind: 'integer';
+    // (undocumented)
+    readonly maximum?: number | undefined;
+    // (undocumented)
+    readonly minimum?: number | undefined;
+}
+
 // @stable
 export function isKitLocale(value: string): value is KitLocale;
+
+// @experimental
+export function isSchemaUnsupported(value: unknown): value is UnsupportedSchema;
 
 // @experimental
 export function JsonEditor(input: JsonEditorProps): JSX.Element;
@@ -524,6 +602,7 @@ export function JsonEditor(input: JsonEditorProps): JSX.Element;
 export interface JsonEditorProps {
     readonly description?: string | undefined;
     readonly error?: string | undefined;
+    readonly id?: string | undefined;
     readonly label: string;
     readonly name?: string | undefined;
     readonly onChange: (text: string, value: unknown) => void;
@@ -532,6 +611,16 @@ export interface JsonEditorProps {
     readonly validate?: ((value: unknown) => readonly string[]) | undefined;
     readonly value: string;
 }
+
+// @experimental
+export type JsonObject = {
+    readonly [key: string]: JsonValue;
+};
+
+// @experimental
+export type JsonValue = string | number | boolean | null | readonly JsonValue[] | {
+    readonly [key: string]: JsonValue;
+};
 
 // @experimental
 export function KeyboardShortcut(input: KeyboardShortcutProps): JSX.Element;
@@ -582,6 +671,18 @@ export interface KitToastQueue {
     add(toast: KitToast, options?: KitToastOptions): string;
     clear(): void;
     close(key: string): void;
+}
+
+// @experimental
+export interface ListShape {
+    // (undocumented)
+    readonly item: FieldShape;
+    // (undocumented)
+    readonly kind: 'list';
+    // (undocumented)
+    readonly maxItems?: number | undefined;
+    // (undocumented)
+    readonly minItems?: number | undefined;
 }
 
 // @experimental
@@ -673,6 +774,14 @@ export interface NumberInputProps {
     readonly required?: boolean | undefined;
     readonly step?: number | undefined;
     readonly value?: number | null | undefined;
+}
+
+// @experimental
+export interface ObjectShape {
+    // (undocumented)
+    readonly kind: 'object';
+    // (undocumented)
+    readonly members: readonly FormMember[];
 }
 
 // @experimental
@@ -803,6 +912,9 @@ export interface RadioOption {
 }
 
 // @experimental
+export function readCommandSchema(schema: unknown): FormModel;
+
+// @experimental
 export type ReceiptOutcome = 'rejected' | 'committed' | 'committed_wait_timeout' | 'dry_run';
 
 // @experimental
@@ -843,6 +955,28 @@ export interface RolePickerProps {
     readonly required?: boolean | undefined;
     readonly roles: readonly PickerRole[];
     readonly value: string | null;
+}
+
+// @experimental
+export function SchemaForm(input: SchemaFormProps): JSX.Element;
+
+// @experimental
+export interface SchemaFormProps {
+    readonly checkJson?: ((value: unknown) => readonly string[]) | undefined;
+    readonly disabled?: boolean | undefined;
+    readonly errors?: Readonly<Record<string, string>> | undefined;
+    readonly idPrefix?: string | undefined;
+    readonly model: FormModel;
+    readonly onChange: (value: JsonObject) => void;
+    readonly texts?: Partial<SchemaFormTexts> | undefined;
+    readonly value: JsonObject;
+}
+
+// @experimental
+export interface SchemaFormTexts {
+    readonly description: (keys: readonly string[], fallback: string | undefined) => string | undefined;
+    readonly label: (keys: readonly string[], fallback: string) => string;
+    readonly option: (keys: readonly string[], value: string) => string;
 }
 
 // @experimental
@@ -955,6 +1089,21 @@ export interface StatusScreenProps {
     readonly code?: string;
     readonly description: string;
     readonly title: string;
+}
+
+// @experimental
+export interface StringShape {
+    readonly examples: readonly string[];
+    // (undocumented)
+    readonly format?: 'date-time' | undefined;
+    // (undocumented)
+    readonly kind: 'string';
+    // (undocumented)
+    readonly maxLength?: number | undefined;
+    // (undocumented)
+    readonly minLength?: number | undefined;
+    // (undocumented)
+    readonly pattern?: string | undefined;
 }
 
 // @experimental
@@ -1135,6 +1284,13 @@ export interface TreeProps {
     readonly onSelectionChange?: ((id: string | null) => void) | undefined;
     readonly selected?: string | null | undefined;
     readonly selectionMode?: 'none' | 'single';
+}
+
+// @experimental
+export interface UnsupportedSchema {
+    readonly keyword: string;
+    readonly message: string;
+    readonly pointer: string;
 }
 
 // @experimental

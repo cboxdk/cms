@@ -58,6 +58,9 @@ enum PanelRoute: string
     /** POST <prefix>/commands/{command}/v{version}: a command through the Inertia profile, as the person. */
     case Command = 'cbox-cms.panel.command';
 
+    /** GET <prefix>/commands/{command}/v{version}: the generic command form, rendered from the command's JSON Schema (PRD 6.1, 13.4). */
+    case CommandForm = 'cbox-cms.panel.command-form';
+
     /** GET <prefix>/x/{namespace}/{path}: a page of an addon, its PageContribution at the path (PRD 13.4). */
     case AddonPage = 'cbox-cms.panel.addon-page';
 
@@ -74,7 +77,7 @@ enum PanelRoute: string
     public function allowsAddons(): bool
     {
         return match ($this) {
-            self::Home, self::Command, self::AddonPage, self::AccountMe => true,
+            self::Home, self::Command, self::CommandForm, self::AddonPage, self::AccountMe => true,
             self::Login, self::LoginSubmit, self::ForgotPassword, self::ForgotPasswordSubmit, self::ResetPassword, self::ResetPasswordSubmit, self::Logout, self::Theme, self::Brand, self::AddonAsset, self::CspReport => false,
         };
     }

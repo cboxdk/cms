@@ -11,6 +11,7 @@ use Cbox\Cms\Http\Inertia\Boundary\InertiaProps;
 use Cbox\Cms\Identity\PasswordReset\Domain\Dto\ResetSettings;
 use Cbox\Cms\Panel\Boundary\Generated\AccountMePageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\AddonPageCodecV1;
+use Cbox\Cms\Panel\Boundary\Generated\CommandFormPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\ForgotPasswordPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\HomePageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\LoginPageCodecV1;
@@ -20,6 +21,7 @@ use Cbox\Cms\Panel\Contributions\Boundary\SharedProps;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\ActiveFill;
 use Cbox\Cms\Panel\Domain\Dto\AccountMePage;
 use Cbox\Cms\Panel\Domain\Dto\AddonPage;
+use Cbox\Cms\Panel\Domain\Dto\CommandFormPage;
 use Cbox\Cms\Panel\Domain\Dto\ForgotPasswordPage;
 use Cbox\Cms\Panel\Domain\Dto\ForgotPasswordRefusals;
 use Cbox\Cms\Panel\Domain\Dto\HomePage;
@@ -74,7 +76,10 @@ use LogicException;
  *   page's own data comes as the deferred prop of its addon;
  * - the who-am-I page (PRD 5.16), at `<prefix>/account/me`, with the address of the logout and the
  *   read of actor.me as the person (PanelReads), the result's document or the rejection's problem
- *   details, beside its contributions.
+ *   details, beside its contributions;
+ * - the generic command form (PRD 6.1), at `<prefix>/commands/<name>/v<version>`, with the address
+ *   of the logout, the command's name and version and its JSON Schema as a document, from which
+ *   the form is rendered, beside its contributions.
  */
 #[Internal]
 final readonly class PanelPages
@@ -97,6 +102,9 @@ final readonly class PanelPages
     /** An addon's page, in js/panel/src/pages, which renders the addon's component of the page. */
     public const string ADDON = 'Addon';
 
+    /** The generic command form, in js/panel/src/pages, rendered from the command's JSON Schema. */
+    public const string COMMAND_FORM = 'Command';
+
     /** The page that asks for a password reset link, in js/panel/src/pages. */
     public const string FORGOT_PASSWORD = 'Auth/ForgotPassword';
 
@@ -117,6 +125,7 @@ final readonly class PanelPages
         private NotFoundPageCodecV1 $notFoundPage,
         private AddonPageCodecV1 $addonPage,
         private AccountMePageCodecV1 $accountMePage,
+        private CommandFormPageCodecV1 $commandFormPage,
     ) {}
 
     public function login(Request $request): Response|JsonResponse
@@ -194,6 +203,15 @@ final readonly class PanelPages
             new AccountMePage($this->urls->route(PanelRoute::Logout->value, [], false), $read->result, $read->rejection),
             ClassificationAccess::Public,
         ), $contributions));
+    }
+
+    /**
+     * The generic command form of the command, with its JSON Schema, and the contributions active
+     * on it (PRD 6.1, 13.4).
+     */
+    public function commandForm(Request $request, CommandFormPage $form, SharedProps $contributions): Response|JsonResponse
+    {
+        return $this->unstored($this->render($request, self::COMMAND_FORM, $this->commandFormPage->encode($form, ClassificationAccess::Public), $contributions));
     }
 
     public function notFound(Request $request): Response|JsonResponse

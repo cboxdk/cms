@@ -460,6 +460,7 @@ import { AppShell } from '@cboxdk/cms-ui-kit';
 import { AppShellProps } from '@cboxdk/cms-ui-kit';
 import { Badge } from '@cboxdk/cms-ui-kit';
 import { BadgeProps } from '@cboxdk/cms-ui-kit';
+import { BooleanShape } from '@cboxdk/cms-ui-kit';
 import { Brand } from '@cboxdk/cms-ui-kit';
 import { BrandLogo } from '@cboxdk/cms-ui-kit';
 import { BrandProps } from '@cboxdk/cms-ui-kit';
@@ -503,8 +504,10 @@ import { DrawerProps } from '@cboxdk/cms-ui-kit';
 import { DryRunReport } from '@cboxdk/cms-ui-kit';
 import { DryRunReportProps } from '@cboxdk/cms-ui-kit';
 import { DryRunSummary } from '@cboxdk/cms-ui-kit';
+import { emptied } from '@cboxdk/cms-ui-kit';
 import { EmptyState } from '@cboxdk/cms-ui-kit';
 import { EmptyStateProps } from '@cboxdk/cms-ui-kit';
+import { EnumShape } from '@cboxdk/cms-ui-kit';
 import { ErrorState } from '@cboxdk/cms-ui-kit';
 import { ErrorStateProps } from '@cboxdk/cms-ui-kit';
 import { ErrorSummary } from '@cboxdk/cms-ui-kit';
@@ -514,12 +517,18 @@ import { Field } from '@cboxdk/cms-ui-kit';
 import { FieldControlProps } from '@cboxdk/cms-ui-kit';
 import { FieldError } from '@cboxdk/cms-ui-kit';
 import { FieldErrorProps } from '@cboxdk/cms-ui-kit';
+import { FieldPath } from '@cboxdk/cms-ui-kit';
+import { fieldPathText } from '@cboxdk/cms-ui-kit';
 import { FieldProps } from '@cboxdk/cms-ui-kit';
 import { Fieldset } from '@cboxdk/cms-ui-kit';
 import { FieldsetProps } from '@cboxdk/cms-ui-kit';
+import { FieldShape } from '@cboxdk/cms-ui-kit';
+import { FieldsShape } from '@cboxdk/cms-ui-kit';
 import { Form } from '@cboxdk/cms-ui-kit';
 import { FormActions } from '@cboxdk/cms-ui-kit';
 import { FormActionsProps } from '@cboxdk/cms-ui-kit';
+import { FormMember } from '@cboxdk/cms-ui-kit';
+import { FormModel } from '@cboxdk/cms-ui-kit';
 import { FormProps } from '@cboxdk/cms-ui-kit';
 import { Gap } from '@cboxdk/cms-ui-kit';
 import { Icon } from '@cboxdk/cms-ui-kit';
@@ -528,10 +537,15 @@ import { IconButtonProps } from '@cboxdk/cms-ui-kit';
 import { IconName } from '@cboxdk/cms-ui-kit';
 import { IconProps } from '@cboxdk/cms-ui-kit';
 import { IconSize } from '@cboxdk/cms-ui-kit';
+import { initialDocument } from '@cboxdk/cms-ui-kit';
 import { Inline } from '@cboxdk/cms-ui-kit';
 import { InlineProps } from '@cboxdk/cms-ui-kit';
+import { IntegerShape } from '@cboxdk/cms-ui-kit';
+import { isSchemaUnsupported } from '@cboxdk/cms-ui-kit';
 import { JsonEditor } from '@cboxdk/cms-ui-kit';
 import { JsonEditorProps } from '@cboxdk/cms-ui-kit';
+import { JsonObject } from '@cboxdk/cms-ui-kit';
+import { JsonValue } from '@cboxdk/cms-ui-kit';
 import { KeyboardShortcut } from '@cboxdk/cms-ui-kit';
 import { KeyboardShortcutProps } from '@cboxdk/cms-ui-kit';
 import { KitRouterProvider } from '@cboxdk/cms-ui-kit';
@@ -539,6 +553,7 @@ import { KitRouterProviderProps } from '@cboxdk/cms-ui-kit';
 import { KitToast } from '@cboxdk/cms-ui-kit';
 import { KitToastOptions } from '@cboxdk/cms-ui-kit';
 import { KitToastQueue } from '@cboxdk/cms-ui-kit';
+import { ListShape } from '@cboxdk/cms-ui-kit';
 import { Menu } from '@cboxdk/cms-ui-kit';
 import { MenuItemSpec } from '@cboxdk/cms-ui-kit';
 import { MenuProps } from '@cboxdk/cms-ui-kit';
@@ -552,6 +567,7 @@ import { NodePicker } from '@cboxdk/cms-ui-kit';
 import { NodePickerProps } from '@cboxdk/cms-ui-kit';
 import { NumberInput } from '@cboxdk/cms-ui-kit';
 import { NumberInputProps } from '@cboxdk/cms-ui-kit';
+import { ObjectShape } from '@cboxdk/cms-ui-kit';
 import { OptionItem } from '@cboxdk/cms-ui-kit';
 import { Page } from '@cboxdk/cms-ui-kit';
 import { PageHeader } from '@cboxdk/cms-ui-kit';
@@ -572,6 +588,7 @@ import { ProgressLabelProps } from '@cboxdk/cms-ui-kit';
 import { RadioGroup } from '@cboxdk/cms-ui-kit';
 import { RadioGroupProps } from '@cboxdk/cms-ui-kit';
 import { RadioOption } from '@cboxdk/cms-ui-kit';
+import { readCommandSchema } from '@cboxdk/cms-ui-kit';
 import { ReceiptOutcome } from '@cboxdk/cms-ui-kit';
 import { ReceiptStatus } from '@cboxdk/cms-ui-kit';
 import { ReceiptStatusProps } from '@cboxdk/cms-ui-kit';
@@ -579,6 +596,9 @@ import { ReceiptSummary } from '@cboxdk/cms-ui-kit';
 import { ReceiptWaitLevel } from '@cboxdk/cms-ui-kit';
 import { RolePicker } from '@cboxdk/cms-ui-kit';
 import { RolePickerProps } from '@cboxdk/cms-ui-kit';
+import { SchemaForm } from '@cboxdk/cms-ui-kit';
+import { SchemaFormProps } from '@cboxdk/cms-ui-kit';
+import { SchemaFormTexts } from '@cboxdk/cms-ui-kit';
 import { Section } from '@cboxdk/cms-ui-kit';
 import { SectionProps } from '@cboxdk/cms-ui-kit';
 import { Select } from '@cboxdk/cms-ui-kit';
@@ -600,6 +620,7 @@ import { Stack } from '@cboxdk/cms-ui-kit';
 import { StackProps } from '@cboxdk/cms-ui-kit';
 import { StatusScreen } from '@cboxdk/cms-ui-kit';
 import { StatusScreenProps } from '@cboxdk/cms-ui-kit';
+import { StringShape } from '@cboxdk/cms-ui-kit';
 import { Switch } from '@cboxdk/cms-ui-kit';
 import { SwitchProps } from '@cboxdk/cms-ui-kit';
 import { Tabs } from '@cboxdk/cms-ui-kit';
@@ -629,6 +650,7 @@ import { TooltipProps } from '@cboxdk/cms-ui-kit';
 import { Tree } from '@cboxdk/cms-ui-kit';
 import { TreeNode } from '@cboxdk/cms-ui-kit';
 import { TreeProps } from '@cboxdk/cms-ui-kit';
+import { UnsupportedSchema } from '@cboxdk/cms-ui-kit';
 import { Wizard } from '@cboxdk/cms-ui-kit';
 import { WizardProps } from '@cboxdk/cms-ui-kit';
 import { WizardStep } from '@cboxdk/cms-ui-kit';
@@ -680,6 +702,8 @@ export { Badge }
 
 export { BadgeProps }
 
+export { BooleanShape }
+
 export { Brand }
 
 export { BrandLogo }
@@ -724,6 +748,13 @@ export { ComboboxOption }
 
 export { ComboboxProps }
 
+// @experimental
+export interface CommandFormContextV1 {
+    command: string;
+    title: string;
+    version: number;
+}
+
 export { CommandPalette }
 
 export { CommandPaletteItem }
@@ -766,9 +797,13 @@ export { DryRunReportProps }
 
 export { DryRunSummary }
 
+export { emptied }
+
 export { EmptyState }
 
 export { EmptyStateProps }
+
+export { EnumShape }
 
 export { ErrorState }
 
@@ -788,17 +823,29 @@ export { FieldError }
 
 export { FieldErrorProps }
 
+export { FieldPath }
+
+export { fieldPathText }
+
 export { FieldProps }
 
 export { Fieldset }
 
 export { FieldsetProps }
 
+export { FieldShape }
+
+export { FieldsShape }
+
 export { Form }
 
 export { FormActions }
 
 export { FormActionsProps }
+
+export { FormMember }
+
+export { FormModel }
 
 export { FormProps }
 
@@ -816,9 +863,15 @@ export { IconProps }
 
 export { IconSize }
 
+export { initialDocument }
+
 export { Inline }
 
 export { InlineProps }
+
+export { IntegerShape }
+
+export { isSchemaUnsupported }
 
 // @experimental
 export type IssuerKind = 'human' | 'agent' | 'service';
@@ -826,6 +879,10 @@ export type IssuerKind = 'human' | 'agent' | 'service';
 export { JsonEditor }
 
 export { JsonEditorProps }
+
+export { JsonObject }
+
+export { JsonValue }
 
 export { KeyboardShortcut }
 
@@ -840,6 +897,8 @@ export { KitToast }
 export { KitToastOptions }
 
 export { KitToastQueue }
+
+export { ListShape }
 
 export { Menu }
 
@@ -866,6 +925,8 @@ export { NodePickerProps }
 export { NumberInput }
 
 export { NumberInputProps }
+
+export { ObjectShape }
 
 export { OptionItem }
 
@@ -907,6 +968,8 @@ export { RadioGroupProps }
 
 export { RadioOption }
 
+export { readCommandSchema }
+
 export { ReceiptOutcome }
 
 export { ReceiptStatus }
@@ -920,6 +983,12 @@ export { ReceiptWaitLevel }
 export { RolePicker }
 
 export { RolePickerProps }
+
+export { SchemaForm }
+
+export { SchemaFormProps }
+
+export { SchemaFormTexts }
 
 export { Section }
 
@@ -968,6 +1037,8 @@ export { StackProps }
 export { StatusScreen }
 
 export { StatusScreenProps }
+
+export { StringShape }
 
 export { Switch }
 
@@ -1026,6 +1097,8 @@ export { Tree }
 export { TreeNode }
 
 export { TreeProps }
+
+export { UnsupportedSchema }
 
 // @experimental
 export interface ViewerSummaryV1 {

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Tests\Codecs;
 
 use Cbox\Cms\Contracts\Codecs\JsonCodec;
+use Cbox\Cms\Contracts\Codecs\JsonSchema;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\GrantEffect;
 use Cbox\Cms\Contracts\Identity\NodePath;
@@ -13,6 +14,8 @@ use Cbox\Cms\Contracts\Ids\RoleId;
 use Cbox\Cms\Core\Access\Domain\Dto\Grant;
 use Cbox\Cms\Core\Access\Domain\HeldPermissions;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\KernelQueryCodecs;
+use Cbox\Cms\Core\Pipeline\Domain\CommandCodecs;
+use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCodec;
 use Cbox\Cms\Core\Reads\Actions\QueryPipeline;
 use Cbox\Cms\Core\Reads\Domain\QueryCodecs;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
@@ -20,10 +23,12 @@ use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Tests\Access\Fakes\FakeAccessContexts;
 use Cbox\Cms\Core\Tests\Access\Fakes\FakeHeldPermissions;
 use Cbox\Cms\Core\Tests\Access\Fakes\FakePermissions;
+use Cbox\Cms\Core\Tests\Pipeline\Tally\AddTallyCodec;
 use Cbox\Cms\Identity\Tests\Login\LocalLoginWorld;
 use Cbox\Cms\Identity\Tests\PasswordReset\PasswordResetWorld;
 use Cbox\Cms\Panel\Boundary\Generated\AccountMePageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\AddonPageCodecV1;
+use Cbox\Cms\Panel\Boundary\Generated\CommandFormPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\ForgotPasswordPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\HomePageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\LoginPageCodecV1;
@@ -87,6 +92,7 @@ final class PanelPageValidatorsTest extends TestCase
         PanelPages::NOT_FOUND => ['module' => 'pages/NotFoundPageV1', 'validator' => 'validateNotFoundPageV1'],
         PanelPages::ADDON => ['module' => 'pages/AddonPageV1', 'validator' => 'validateAddonPageV1'],
         PanelPages::ACCOUNT_ME => ['module' => 'pages/AccountMePageV1', 'validator' => 'validateAccountMePageV1'],
+        PanelPages::COMMAND_FORM => ['module' => 'pages/CommandFormPageV1', 'validator' => 'validateCommandFormPageV1'],
     ];
 
     private ?PasswordResetWorld $resets = null;
@@ -118,6 +124,8 @@ final class PanelPageValidatorsTest extends TestCase
         $app->instance(RegistryCache::class, ContributionWorld::cache($registry));
         $app->instance(PointCodecs::class, ContributionWorld::pointCodecs());
         $app->instance(QueryCodecs::class, new QueryCodecs(...TallyCodecs::all(), ...KernelQueryCodecs::all()));
+        // The command form of the test addon's tally.add, which the registry exposes on Inertia.
+        $app->instance(CommandCodecs::class, new CommandCodecs(new CommandCodec(new CommandName(ContributionWorld::ADD_PERMISSION), 1, new AddTallyCodec, new JsonSchema(AddTallyCodec::SCHEMA))));
         $app->instance(HeldPermissions::class, new FakeHeldPermissions(
             new FakePermissions([])->grant(
                 $second->id,
@@ -301,6 +309,7 @@ final class PanelPageValidatorsTest extends TestCase
         $page('home', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms'));
         $page('addon page', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/x/tally/'.ContributionWorld::BOARD_PATH));
         $page('who am I', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/account/me'));
+        $page('command form', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/commands/'.ContributionWorld::ADD_PERMISSION.'/v1'));
         app()->instance(QueryPipeline::class, ($this->account ?? self::fail('No account world.'))->refusing());
         $page('who am I with the read refused', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/account/me'));
         $page('not found', $this->get('/cms/no-such-page'));
@@ -391,6 +400,7 @@ final class PanelPageValidatorsTest extends TestCase
             PanelPages::NOT_FOUND => $this->through(new NotFoundPageCodecV1, $props),
             PanelPages::ADDON => $this->through(new AddonPageCodecV1, $props),
             PanelPages::ACCOUNT_ME => $this->through(new AccountMePageCodecV1, $props),
+            PanelPages::COMMAND_FORM => $this->through(new CommandFormPageCodecV1, $props),
             default => self::fail('No codec for the page '.$component.'.'),
         };
     }

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Command form page props, contract version 1",
+  "description": "The props of the panel's generic command form, Command (PRD 6.1, 13.4): the address the logout posts to, the command the form runs, by its name and contract version, and the JSON Schema of the command's document, as the command's codec carries it, from which the form is rendered. The PHP form is Cbox\\Cms\\Panel\\Domain\\Dto\\CommandFormPage, and the generated codec CommandFormPageCodecV1 writes its canonical JSON: keys sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "command",
+    "logout",
+    "schema",
+    "version"
+  ],
+  "properties": {
+    "command": {
+      "description": "The name of the command the form runs, such as entry.create: lowercase segments in snake_case joined by dots, at least two.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+      "examples": [
+        "entry.create"
+      ],
+      "minLength": 3,
+      "maxLength": 255
+    },
+    "logout": {
+      "description": "The address the logout posts to.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "schema": {
+      "description": "The JSON Schema of the command's document, draft 2020-12, as the command's codec carries it: an object schema whose keywords are those the kernel's codecs have a form for. The form is read from it with the kit's readCommandSchema().",
+      "type": "object"
+    },
+    "version": {
+      "description": "The contract version of the command the form runs, 1 or more.",
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

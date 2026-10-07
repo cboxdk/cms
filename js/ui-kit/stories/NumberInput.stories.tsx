@@ -49,8 +49,11 @@ export const Default: Story = {
     );
   },
   play: async ({ canvasElement, userEvent }) => {
-    const input = single(canvasElement, 'input', HTMLInputElement);
+    const input = single(canvasElement, 'input.cms-input', HTMLInputElement);
+    const hidden = single(canvasElement, 'input[type="hidden"]', HTMLInputElement);
     const value = () => input.value;
+
+    check(hidden.name === 'priority' && hidden.value === '4', 'the form gets the number by name');
 
     await userEvent.tab();
     check(document.activeElement === input, 'Tab reaches the input');

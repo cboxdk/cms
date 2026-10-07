@@ -1,7 +1,10 @@
 // The transport of the commands a contribution issues: a POST to the panel's Inertia profile at
 // `<commands>/<name>/v<version>` with an envelope of its own, the contribution's provenance as a
 // source of it, answered with the flashed receipt, the flashed summary of a dry run and, for a
-// rejection, the problem the page shares, each read by its generated validator.
+// rejection, the problem the page shares, each read by its generated validator. The fake router
+// answers as Inertia does when the redirect lands on the page the command was run from: the page
+// comes with the `error` event when it carries errors and with `success` otherwise, and `navigate`
+// is never fired, because the address did not change.
 
 import { describe, expect, test } from 'vitest';
 
@@ -10,6 +13,7 @@ import {
   CommandUnanswered,
   inertiaCommands,
   type CommandRouter,
+  type PageEvent,
 } from '../../src/host/commands';
 
 const RECEIPT = {
@@ -46,38 +50,53 @@ const PROBLEM = {
   type: 'https://cbox.dk/cms/errors/unauthorized',
 };
 
+type Listener = Parameters<CommandRouter['on']>[1];
+
 /** A router that answers each post as the profile does, and records what was posted. */
 function router(flash: Readonly<Record<string, unknown>>, props: object) {
   const posts: { readonly url: string; readonly data: Readonly<Record<string, unknown>> }[] = [];
-  const listeners = new Set<
-    (event: { readonly detail: { readonly page: { readonly props: object } } }) => void
-  >();
+  const listeners = new Map<PageEvent, Set<Listener>>([
+    ['success', new Set()],
+    ['error', new Set()],
+  ]);
   const fake: CommandRouter = {
     post: (url, data, options) => {
       posts.push({ url, data });
+      options.onFlash(flash);
 
-      for (const listener of listeners) {
+      const errors = 'errors' in props ? props.errors : undefined;
+      const failed =
+        typeof errors === 'object' && errors !== null && Object.keys(errors).length > 0;
+
+      for (const listener of listeners.get(failed ? 'error' : 'success') ?? []) {
         listener({ detail: { page: { props } } });
       }
 
-      options.onFlash(flash);
       options.onFinish();
     },
-    on: (_event, callback) => {
-      listeners.add(callback);
+    on: (event, callback) => {
+      listeners.get(event)?.add(callback);
 
-      return () => listeners.delete(callback);
+      return () => listeners.get(event)?.delete(callback);
     },
   };
 
-  return { fake, posts, listeners };
+  return {
+    fake,
+    posts,
+    /** The listeners still subscribed, of both events. */
+    get size(): number {
+      return [...listeners.values()].reduce((count, set) => count + set.size, 0);
+    },
+  };
 }
 
 describe('the command transport', () => {
   test('posts the envelope and the document, and answers with the receipt and the problem', async () => {
-    const { fake, posts, listeners } = router({ receipt: RECEIPT }, { problem: PROBLEM });
+    const fake = router({ receipt: RECEIPT }, { problem: PROBLEM });
+    const { posts } = fake;
     const answer = await inertiaCommands(
-      fake,
+      fake.fake,
       '/cms/commands/',
       () => 'key-1',
     )({
@@ -96,7 +115,33 @@ describe('the command transport', () => {
       },
     ]);
     expect(answer).toEqual({ receipt: RECEIPT, problem: PROBLEM, dryRun: null });
-    expect(listeners.size).toBe(0);
+    expect(fake.size).toBe(0);
+  });
+
+  test('reads the problem of a rejection with field errors, which Inertia reports through its error event', async () => {
+    const problem = {
+      ...PROBLEM,
+      code: 'validation_failed',
+      status: 422,
+      errors: [
+        {
+          code: 'validation_failed',
+          detail: 'Only a pending actor is activated.',
+          field: 'command.actor',
+        },
+      ],
+    };
+    const fake = router(
+      { receipt: RECEIPT },
+      { errors: { 'command.actor': 'Only a pending actor is activated.' }, problem },
+    );
+    const answer = await inertiaCommands(
+      fake.fake,
+      '/cms/commands',
+    )({ command: 'actor.activate@1', document: { actor: 'x', version: 1 }, options: {} });
+
+    expect(answer).toEqual({ receipt: RECEIPT, problem, dryRun: null });
+    expect(fake.size).toBe(0);
   });
 
   test('sends the provenance of the contribution as a source, and answers with the summary of a dry run', async () => {
@@ -125,6 +170,22 @@ describe('the command transport', () => {
       receipt: { ...RECEIPT, outcome: 'dry_run' },
       problem: null,
       dryRun: DRY_RUN,
+    });
+  });
+
+  test('sends the key a caller keeps per form instance instead of a new one', async () => {
+    const { fake, posts } = router({ receipt: RECEIPT }, {});
+
+    await inertiaCommands(
+      fake,
+      '/cms/commands',
+      () => 'key-3',
+    )({ command: 'grant.assign@1', document: {}, options: {}, key: 'form-instance-1' });
+
+    expect(posts[0]?.data.envelope).toEqual({
+      dry_run: false,
+      idempotency_key: 'form-instance-1',
+      wait_level: 'commit',
     });
   });
 

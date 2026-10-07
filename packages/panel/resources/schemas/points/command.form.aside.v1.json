@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "command.form.aside props, contract version 1",
+  "description": "The props of the aside of the generic command form, a slot point in the form page's aside region (PRD 13.4): what the form is about, the command's name, its contract version and the title of its JSON Schema, so an addon's contribution shows help and context about the command being run. The PHP form is Cbox\\Cms\\Panel\\CommandForm\\Domain\\Dto\\CommandFormContextV1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "command",
+    "title",
+    "version"
+  ],
+  "properties": {
+    "command": {
+      "description": "The name of the command the form runs, such as entry.create: lowercase segments in snake_case joined by dots, at least two.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+      "examples": [
+        "entry.create"
+      ],
+      "minLength": 3,
+      "maxLength": 255
+    },
+    "title": {
+      "description": "The title of the command's JSON Schema, such as \"entry.create, contract version 1\".",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "version": {
+      "description": "The contract version of the command the form runs, 1 or more.",
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

@@ -94,6 +94,31 @@ export { FormActions } from './components/FormActions';
 export type { FormActionsProps } from './components/FormActions';
 export { JsonEditor } from './components/JsonEditor';
 export type { JsonEditorProps } from './components/JsonEditor';
+export { SchemaForm } from './components/SchemaForm';
+export type { SchemaFormProps, SchemaFormTexts } from './components/SchemaForm';
+export {
+  emptied,
+  fieldPathText,
+  initialDocument,
+  isSchemaUnsupported,
+  readCommandSchema,
+} from './components/schema-form/model';
+export type {
+  BooleanShape,
+  EnumShape,
+  FieldPath,
+  FieldShape,
+  FieldsShape,
+  FormMember,
+  FormModel,
+  IntegerShape,
+  JsonObject,
+  JsonValue,
+  ListShape,
+  ObjectShape,
+  StringShape,
+  UnsupportedSchema,
+} from './components/schema-form/model';
 
 // Feedback
 export { Callout } from './components/Callout';

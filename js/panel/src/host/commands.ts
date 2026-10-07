@@ -1,10 +1,14 @@
 // How the host runs a command a contribution issues (section 3.12 of the panel extension
 // architecture): through the panel's Inertia profile, `POST <commands>/<name>/v<version>`, as the
-// viewer, with an envelope of its own: a new idempotency key per call, the wait level, whether it
-// is a dry run, and the provenance `addon:<namespace>:<contribution>` of the contribution that
+// viewer, with an envelope of its own: a new idempotency key per call, unless the caller keeps one
+// per form instance, the wait level, whether it is a dry run, and the provenance `addon:<namespace>:<contribution>` of the contribution that
 // issued it, as a source of the envelope's provenance, which the changeset records: attribution,
 // not a control (section 5.5). The profile answers every call with a redirect back to the page, the
 // receipt flashed, the summary of a dry run flashed beside it and, for a rejection, the problem
+// details shared as the prop `problem` of the page the redirect lands on. The transport reads the
+// page from Inertia's `success` or `error` event, whichever the visit ends with, never from
+// `navigate`: Inertia fires that one only when the address changes, and the redirect back lands on
+// the page the command was run from.
 // details as the page prop `problem`; the host answers the contribution with all three, read by
 // their generated validators.
 
@@ -25,6 +29,12 @@ export interface CommandCall {
    * sent as a source of the envelope's provenance; undefined for the core's own.
    */
   readonly provenance?: string | undefined;
+  /**
+   * The idempotency key of the call, when the caller keeps one, as the command form does per form
+   * instance, so the same form submitted twice gives one changeset (PRD 6.1); undefined for a new
+   * key per call.
+   */
+  readonly key?: string | undefined;
 }
 
 /** The provenance of a command a contribution of an addon issues. */
@@ -43,6 +53,9 @@ export class CommandUnanswered extends Error {
   }
 }
 
+/** The events of Inertia's router that carry the page a visit ended on: one of the two is fired. */
+export type PageEvent = 'success' | 'error';
+
 /** The part of Inertia's router the transport uses. */
 export interface CommandRouter {
   post(
@@ -55,9 +68,16 @@ export interface CommandRouter {
       readonly onFinish: () => void;
     },
   ): void;
+  /**
+   * Subscribes to the event Inertia fires once the page a visit answered with is set: `success`
+   * when the page carries no errors, `error` when it does, with the page in its detail; returns
+   * the function that unsubscribes.
+   */
   on(
-    event: 'navigate',
-    callback: (event: { readonly detail: { readonly page: { readonly props: object } } }) => void,
+    event: PageEvent,
+    callback: (event: {
+      readonly detail: { readonly page?: { readonly props: object } | undefined };
+    }) => void,
   ): () => void;
 }
 
@@ -79,7 +99,7 @@ export function commandUrl(commands: string, command: string): string {
 
 /**
  * The transport over the panel's Inertia profile at the address `commands`; `key` gives each
- * call a new idempotency key.
+ * call without a key of its own a new idempotency key.
  */
 export function inertiaCommands(
   router: CommandRouter,
@@ -92,16 +112,21 @@ export function inertiaCommands(
       let receipt: unknown;
       let dryRun: unknown;
       let problem: unknown = null;
-      const stop = router.on('navigate', (event) => {
-        problem = 'problem' in event.detail.page.props ? event.detail.page.props.problem : null;
-      });
+      const read = (event: {
+        readonly detail: { readonly page?: { readonly props: object } | undefined };
+      }): void => {
+        const props = event.detail.page?.props;
+
+        problem = props !== undefined && 'problem' in props ? props.problem : null;
+      };
+      const stops = [router.on('success', read), router.on('error', read)];
 
       router.post(
         url,
         {
           envelope: {
             dry_run: call.options.dryRun ?? false,
-            idempotency_key: key(),
+            idempotency_key: call.key ?? key(),
             wait_level: call.options.waitLevel ?? 'commit',
             ...(call.provenance === undefined
               ? {}
@@ -117,7 +142,10 @@ export function inertiaCommands(
             dryRun = flash.dry_run;
           },
           onFinish: () => {
-            stop();
+            for (const stop of stops) {
+              stop();
+            }
+
             const checkedReceipt = validateReceiptV1(receipt);
             const checkedProblem = problem === null ? null : validateProblemV1(problem);
             const checkedDryRun = dryRun === undefined ? null : validateDryRunSummaryV1(dryRun);

@@ -1,0 +1,33 @@
+@layer cms.kit {
+  .cms-schema-form {
+    display: grid;
+    gap: var(--cms-space-4);
+    min-inline-size: 0;
+  }
+
+  .cms-schema-form__list {
+    display: grid;
+    gap: var(--cms-space-3);
+  }
+
+  .cms-schema-form__empty {
+    margin: 0;
+    color: var(--cms-color-text-muted);
+    font-size: var(--cms-font-size-md);
+  }
+
+  .cms-schema-form__item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--cms-space-2);
+    align-items: start;
+  }
+
+  .cms-schema-form__item > .cms-icon-button {
+    margin-block-start: var(--cms-space-6);
+  }
+
+  .cms-schema-form__item-field {
+    min-inline-size: 0;
+  }
+}

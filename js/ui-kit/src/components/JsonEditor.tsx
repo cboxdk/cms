@@ -11,6 +11,8 @@ import './field.css';
  * @experimental
  */
 export interface JsonEditorProps {
+  /** The text area's id, such as for an ErrorSummary's link to it; one of its own if left out. */
+  readonly id?: string | undefined;
   /** The field's label, from the caller's translations. */
   readonly label: string;
   /** What the value must be, from the caller's translations. */
@@ -59,6 +61,7 @@ function read(text: string): { readonly value: unknown; readonly failure: string
  * @experimental
  */
 export function JsonEditor({
+  id: given,
   label,
   description,
   value,
@@ -70,7 +73,8 @@ export function JsonEditor({
   rows = 8,
 }: JsonEditorProps) {
   const t = useKitTranslation();
-  const id = useId();
+  const generated = useId();
+  const id = given ?? generated;
   const [touched, setTouched] = useState(false);
   const parsed = read(value);
   const problems =

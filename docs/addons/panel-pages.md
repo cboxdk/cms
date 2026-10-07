@@ -17,6 +17,7 @@ The panel has pages of its own behind the login (PRD 13.4): the start page and t
 |---|---|---|---|
 | `home`, the start page | `<prefix>` | nothing | none of its own |
 | `account.me`, the who-am-I page | `<prefix>/account/me` | `actor.me` version 1 | `account.me.sections@1` |
+| `command.form`, the generic [command form](command-form.md) | `<prefix>/commands/<name>/v<version>` | nothing; its props are the command's JSON Schema | `command.form.aside@1` |
 
 ## Navigation entries and their permissions
 

@@ -79,7 +79,7 @@ it('lets only the pages behind the login load addons, as their PanelRoute says',
     }
 
     expect(array_values(array_map(static fn (PanelRoute $route): string => $route->value, array_filter(PanelRoute::cases(), static fn (PanelRoute $route): bool => $route->allowsAddons()))))
-        ->toBe([PanelRoute::Home->value, PanelRoute::Command->value, PanelRoute::AddonPage->value, PanelRoute::AccountMe->value]);
+        ->toBe([PanelRoute::Home->value, PanelRoute::Command->value, PanelRoute::CommandForm->value, PanelRoute::AddonPage->value, PanelRoute::AccountMe->value]);
 });
 
 it('reads a request that matched no panel route, or a route that does not say, as one without addons', function (): void {
