@@ -114,7 +114,7 @@ it('prints the one point of an id with its props class and its stability', funct
         ->toContain(NoteSubmitV2::class);
 });
 
-it('lists the panel\'s own points, the shell\'s three, the sections of the who-am-I, roles and grants pages and the command form\'s seven, with the core\'s pickers and the fixture addon\'s checks and step, as text and as JSON', function (): void {
+it('lists the panel\'s own points, the shell\'s three and its observer, the login notice, the sections of the who-am-I, roles and grants pages and the command form\'s seven, with the core\'s pickers and nav entries and the fixture addon\'s contribution on every point, as text and as JSON', function (): void {
     WorkbenchRegistry::bind();
 
     [$status, $output] = panelPointsCli();
@@ -122,22 +122,24 @@ it('lists the panel\'s own points, the shell\'s three, the sections of the who-a
 
     expect([$status, $jsonStatus])->toBe([0, 0])
         ->and($output)->toContain(
-            '13 panel points, by name and version',
-            'access.grants.sections@1  slot in sections, renders many  page access.grants  experimental since 1.0  0 contributions',
-            'access.roles.sections@1  slot in sections, renders many  page access.roles  experimental since 1.0  0 contributions',
-            'account.me.sections@1  slot in sections, renders many  page account.me  experimental since 1.0  0 contributions',
-            'command.form.aside@1  slot in aside, renders many  page command.form  experimental since 1.0  0 contributions',
-            'command.form.checks@1  form_check, renders many  page command.form  experimental since 1.0  3 contributions',
-            'command.form.dryrun@1  slot in sections, renders many  page command.form  experimental since 1.0  0 contributions',
-            'command.form.field@1  replacement, renders one, own keys by value_class  page command.form  experimental since 1.0  3 contributions',
-            'command.form.receipt@1  decorator, renders many  page command.form  experimental since 1.0  0 contributions',
-            'command.form.steps@1  flow_step, renders many  page command.form  experimental since 1.0  1 contribution',
-            'command.form.submit@1  decorator, renders many, tightens disabled_reason and description and tone_towards_danger  page command.form  experimental since 1.0  0 contributions',
-            'shell.nav@1  nav, renders many  page shell  experimental since 1.0  3 contributions',
-            'shell.page@1  page, renders many  page shell  experimental since 1.0  0 contributions',
-            'shell.user-menu@1  action, renders many  page shell  experimental since 1.0  0 contributions',
+            '15 panel points, by name and version',
+            'access.grants.sections@1  slot in sections, renders many  page access.grants  experimental since 1.0  1 contribution',
+            'access.roles.sections@1  slot in sections, renders many  page access.roles  experimental since 1.0  1 contribution',
+            'account.me.sections@1  slot in sections, renders many  page account.me  experimental since 1.0  3 contributions',
+            'command.form.aside@1  slot in aside, renders many  page command.form  experimental since 1.0  1 contribution',
+            'command.form.checks@1  form_check, renders many  page command.form  experimental since 1.0  4 contributions',
+            'command.form.dryrun@1  slot in sections, renders many  page command.form  experimental since 1.0  1 contribution',
+            'command.form.field@1  replacement, renders one, own keys by value_class  page command.form  experimental since 1.0  4 contributions',
+            'command.form.receipt@1  decorator, renders many  page command.form  experimental since 1.0  1 contribution',
+            'command.form.steps@1  flow_step, renders many  page command.form  experimental since 1.0  2 contributions',
+            'command.form.submit@1  decorator, renders many, tightens disabled_reason and description and tone_towards_danger  page command.form  experimental since 1.0  1 contribution',
+            'login.notice@1  data, renders many  page login  experimental since 1.0  1 contribution',
+            'panel.observe.command@1  observer, renders many  page shell  experimental since 1.0  1 contribution',
+            'shell.nav@1  nav, renders many  page shell  experimental since 1.0  4 contributions',
+            'shell.page@1  page, renders many  page shell  experimental since 1.0  1 contribution',
+            'shell.user-menu@1  action, renders many  page shell  experimental since 1.0  1 contribution',
         )
-        ->and(is_array($points = panelPointsDocument($json)['points'] ?? null) ? array_column($points, 'id') : null)->toBe(['access.grants.sections@1', 'access.roles.sections@1', 'account.me.sections@1', 'command.form.aside@1', 'command.form.checks@1', 'command.form.dryrun@1', 'command.form.field@1', 'command.form.receipt@1', 'command.form.steps@1', 'command.form.submit@1', 'shell.nav@1', 'shell.page@1', 'shell.user-menu@1']);
+        ->and(is_array($points = panelPointsDocument($json)['points'] ?? null) ? array_column($points, 'id') : null)->toBe(['access.grants.sections@1', 'access.roles.sections@1', 'account.me.sections@1', 'command.form.aside@1', 'command.form.checks@1', 'command.form.dryrun@1', 'command.form.field@1', 'command.form.receipt@1', 'command.form.steps@1', 'command.form.submit@1', 'login.notice@1', 'panel.observe.command@1', 'shell.nav@1', 'shell.page@1', 'shell.user-menu@1']);
 });
 
 it('exits 64 for a selector that selects no point or is no page\'s name or point\'s id', function (string $selector, string $message): void {

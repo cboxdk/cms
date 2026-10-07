@@ -7,8 +7,6 @@ namespace Cbox\Cms\Http\Tests\Rest;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\TransportCredential;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ActorMeCodecV1;
-use Cbox\Cms\Core\Codecs\Boundary\Generated\KernelCommandCodecs;
-use Cbox\Cms\Core\Codecs\Boundary\Generated\KernelQueryCodecs;
 use Cbox\Cms\Core\Pipeline\Domain\CommandCodecs;
 use Cbox\Cms\Core\Reads\Actions\QueryPipeline;
 use Cbox\Cms\Core\Reads\Domain\QueryCodecs;
@@ -122,7 +120,9 @@ final class ActorMeRestTest extends TestCase
         self::assertTrue(mkdir($directory, 0o755, true));
         $registry = $this->registry ?? self::fail('No registry.');
         $route = $this->restPath();
-        $documents = new FileOpenApiDocuments($directory, new CommandCodecs(...KernelCommandCodecs::all()), new QueryCodecs(...KernelQueryCodecs::all()));
+        // The codecs as the container has them, the kernel's and those the installed addons tag:
+        // the installation's registry exposes the fixture addon's query and command on REST too.
+        $documents = new FileOpenApiDocuments($directory, app(CommandCodecs::class), app(QueryCodecs::class));
         $documents->write($documents->describe($registry));
         $json = file_get_contents($directory.'/'.FileOpenApiDocuments::FILE);
         self::assertIsString($json);

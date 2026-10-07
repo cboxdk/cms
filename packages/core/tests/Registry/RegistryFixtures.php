@@ -25,9 +25,11 @@ use Cbox\Cms\Contracts\PanelPoints\Region;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Contracts\Subscribers\Lane;
 use Cbox\Cms\Contracts\Subscribers\SubscriptionName;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\KernelCommandCodecs;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\KernelQueryCodecs;
 use Cbox\Cms\Core\PanelThemes\Actions\CompilePanelThemes;
 use Cbox\Cms\Core\PanelThemes\Adapter\FileThemeStylesheets;
+use Cbox\Cms\Core\Pipeline\Domain\CommandCodecs;
 use Cbox\Cms\Core\Reads\Domain\QueryCodecs;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
 use Cbox\Cms\Core\Registry\Adapter\FileOpenApiDocuments;
@@ -67,6 +69,8 @@ use FilesystemIterator;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
+use Workbench\FixtureAddon\Articles\Boundary\ArticlesCodecs;
+use Workbench\FixtureAddon\Slug\Boundary\SlugCodecs;
 
 /**
  * Scan roots over the fixtures in Fixtures/, and scratch directories for the cache.
@@ -195,13 +199,19 @@ final class RegistryFixtures
     }
 
     /**
-     * The OpenAPI documents in the directory, with the codec of the fixture root Valid's one
-     * command on REST, fixture.note.create, and the kernel's commands and queries, whose actions a
-     * build of the package's scan roots finds.
+     * The OpenAPI documents in the directory, with the codecs of every action a build in the
+     * testbench application finds on REST: the fixture root Valid's one command,
+     * fixture.note.create, the kernel's commands and queries, and the query fixtureaddon.articles
+     * and the command fixtureaddon.slug.set of the workbench's fixture addon, which package
+     * discovery registers.
      */
     public static function documents(string $directory): FileOpenApiDocuments
     {
-        return new FileOpenApiDocuments($directory, CreateNoteCodec::withKernel(), new QueryCodecs(...KernelQueryCodecs::all()));
+        return new FileOpenApiDocuments(
+            $directory,
+            new CommandCodecs(CreateNoteCodec::commandCodec(), SlugCodecs::setSlug(), ...KernelCommandCodecs::all()),
+            new QueryCodecs(ArticlesCodecs::articles(), ...KernelQueryCodecs::all()),
+        );
     }
 
     public static function cache(string $directory): FileRegistryCache

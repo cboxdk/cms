@@ -2,12 +2,7 @@
 // the addon's observer recorded it in the session storage (activity.ts), or that none was run yet.
 
 import { usePanelHost } from '@cboxdk/cms-panel/extend';
-import {
-  Badge,
-  DescriptionList,
-  EmptyState,
-  Section,
-} from '@cboxdk/cms-panel/experimental';
+import { Badge, DescriptionList, EmptyState, Section } from '@cboxdk/cms-panel/experimental';
 
 import { readActivity } from './activity';
 

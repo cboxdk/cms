@@ -105,7 +105,7 @@ final class WorkbenchServiceProvider extends ServiceProvider
         // which exists to show the panel's isolation of a failing contribution, is disabled at run
         // time, so a person using the workbench never sees it; cms:panel:fills lists it as disabled
         // by the activation state, and the browser test that proves the isolation enables it.
-        $config->set('cbox-cms.panel.disabled', ['contributions' => [FixtureAddonServiceProvider::FAULTY]]);
+        $config->set('cbox-cms.panel.disabled.contributions', [FixtureAddonServiceProvider::FAULTY]);
 
         $config->set('cbox-cms.doctor.project_path', dirname(__DIR__, 3));
         $config->set('cbox-cms.doctor.vendor_manifest', dirname(__DIR__, 3).'/vendor/composer/installed.json');

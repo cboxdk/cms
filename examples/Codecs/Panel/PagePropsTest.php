@@ -9,6 +9,8 @@ use Opis\JsonSchema\Errors\ValidationError;
 // The props of each panel page are a document of the page's JSON Schema in
 // packages/panel/resources/schemas/pages. A refusal is one of the catalog codes the schema lists
 // for its field, and anything else, such as a code the page does not know, is not a valid document.
+// The login page carries the notices the addons contribute to login.notice@1, data alone: the
+// translation key of a message in the addon's catalogue and its tone.
 
 /**
  * The errors of a document against a page's schema, none when it is valid.
@@ -27,8 +29,8 @@ function pagePropsErrors(string $schema, string $document): array
 it('accepts the props of a page', function (string $schema, string $document): void {
     expect(pagePropsErrors($schema, $document))->toBe([]);
 })->with([
-    'the login page after a wrong password' => ['login.v1.json', '{"action":"/cms/login","forgot":"/cms/forgot-password","reason":null,"refusals":{"email":null,"form":"login_rejected","password":null}}'],
-    'the login page after a session expired' => ['login.v1.json', '{"action":"/cms/login","forgot":"/cms/forgot-password","reason":"expired","refusals":{"email":null,"form":null,"password":null}}'],
+    'the login page after a wrong password' => ['login.v1.json', '{"action":"/cms/login","forgot":"/cms/forgot-password","notices":[],"reason":null,"refusals":{"email":null,"form":"login_rejected","password":null}}'],
+    'the login page after a session expired, with an addon\'s notice' => ['login.v1.json', '{"action":"/cms/login","forgot":"/cms/forgot-password","notices":[{"addon":"approvals","id":"approvals.maintenance","message":"approvals.login_notice.maintenance","tone":"info"}],"reason":"expired","refusals":{"email":null,"form":null,"password":null}}'],
     'the page that asks for a link, just asked' => ['forgot-password.v1.json', '{"action":"/cms/forgot-password","login":"/cms/login","minutes":60,"refusals":{"email":null},"requested":true}'],
     'the reset page after a short password' => ['reset-password.v1.json', '{"action":"/cms/reset-password","forgot":"/cms/forgot-password","login":"/cms/login","refusals":{"form":null,"password":"password_too_short"},"token":null}'],
     'the start page' => ['home.v1.json', '{"logout":"/cms/logout"}'],
@@ -43,6 +45,11 @@ it('refuses a logo without its alternative text', function (): void {
 });
 
 it('refuses a refusal code the page does not know', function (): void {
-    expect(pagePropsErrors('login.v1.json', '{"action":"/cms/login","forgot":"/cms/forgot-password","reason":null,"refusals":{"email":null,"form":"password_too_short","password":null}}'))
+    expect(pagePropsErrors('login.v1.json', '{"action":"/cms/login","forgot":"/cms/forgot-password","notices":[],"reason":null,"refusals":{"email":null,"form":"password_too_short","password":null}}'))
+        ->not->toBe([]);
+});
+
+it('refuses a login notice with a tone the page does not know', function (): void {
+    expect(pagePropsErrors('login.v1.json', '{"action":"/cms/login","forgot":"/cms/forgot-password","notices":[{"addon":"approvals","id":"approvals.maintenance","message":"approvals.login_notice.maintenance","tone":"loud"}],"reason":null,"refusals":{"email":null,"form":null,"password":null}}'))
         ->not->toBe([]);
 });

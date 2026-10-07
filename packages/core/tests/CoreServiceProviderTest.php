@@ -77,6 +77,7 @@ use Cbox\Operations\OperationsServiceProvider;
 use Illuminate\Config\Repository;
 use ReflectionClass;
 use ReflectionProperty;
+use Workbench\FixtureAddon\FixtureAddonServiceProvider;
 
 it('is loaded through package discovery', function (): void {
     expect(app()->getLoadedProviders())->toHaveKey(CoreServiceProvider::class)
@@ -119,7 +120,10 @@ it('merges config/cbox-cms.php under cbox-cms, the only root of the configuratio
         ->and($defaults->get('cbox-cms.rebuild'))->toBe(['service_actor' => null, 'chunk_size' => 100])
         ->and(config('cbox-cms.addons.service_actors'))->toBe($defaults->get('cbox-cms.addons.service_actors'))
         ->and($defaults->get('cbox-cms.addons.allowed'))->toBe([])
-        ->and(config('cbox-cms.panel'))->toBe($defaults->get('cbox-cms.panel'))
+        // The workbench disables the fixture addon's faulty section through the kill switch, the one
+        // contribution; the addons list of the activation state and the rest of panel stay the defaults.
+        ->and($defaults->get('cbox-cms.panel.disabled'))->toBe(['addons' => [], 'contributions' => []])
+        ->and(config('cbox-cms.panel'))->toBe([...$defaults->array('cbox-cms.panel'), 'disabled' => ['addons' => [], 'contributions' => [FixtureAddonServiceProvider::FAULTY]]])
         ->and(config('cbox-cms.cli.credential'))->toBeNull()
         ->and($defaults->get('cbox-cms.cli.credential'))->toBeNull()
         ->and(config()->has('cms'))->toBeFalse()

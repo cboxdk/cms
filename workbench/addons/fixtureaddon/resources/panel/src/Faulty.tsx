@@ -6,5 +6,7 @@
 
 /** The section's component: a slot component of account.me.sections@1 that reads none of its props. */
 export default function Faulty(): never {
-  throw new Error('fixtureaddon.faulty throws on purpose: it shows that one failing contribution never blanks a page.');
+  throw new Error(
+    'fixtureaddon.faulty throws on purpose: it shows that one failing contribution never blanks a page.',
+  );
 }

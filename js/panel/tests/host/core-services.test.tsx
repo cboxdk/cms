@@ -15,7 +15,10 @@ import { describe, expect, test } from 'vitest';
 import { commandCompleted, useCoreServices, type CoreServices } from '../../src/host';
 import { contributions, fill, point, registration, renderHost } from './harness';
 
-function answer(outcome: 'committed' | 'rejected' | 'dry_run', changeset: string | null): CommandAnswer {
+function answer(
+  outcome: 'committed' | 'rejected' | 'dry_run',
+  changeset: string | null,
+): CommandAnswer {
   return {
     receipt: {
       changeset_id: changeset,
@@ -40,7 +43,10 @@ function Probe({ onServices }: { readonly onServices: (services: CoreServices) =
 describe('commandCompleted', () => {
   test('reads the name and version from the command and the outcome and changeset from the receipt', () => {
     expect(
-      commandCompleted('entry.create@2', answer('committed', '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01')),
+      commandCompleted(
+        'entry.create@2',
+        answer('committed', '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01'),
+      ),
     ).toEqual({
       changeset: '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01',
       command: 'entry.create',
@@ -96,7 +102,10 @@ describe('the core services', () => {
         answering: {
           runCommand: (call) =>
             Promise.resolve(
-              answer(call.options.dryRun === true ? 'dry_run' : 'committed', call.options.dryRun === true ? null : '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01'),
+              answer(
+                call.options.dryRun === true ? 'dry_run' : 'committed',
+                call.options.dryRun === true ? null : '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01',
+              ),
             ),
         },
       },

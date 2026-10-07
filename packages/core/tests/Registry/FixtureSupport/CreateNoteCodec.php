@@ -9,7 +9,6 @@ use Cbox\Cms\Contracts\Codecs\JsonSchema;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Results\FieldPath;
-use Cbox\Cms\Core\Codecs\Boundary\Generated\KernelCommandCodecs;
 use Cbox\Cms\Core\Codecs\Boundary\JsonText;
 use Cbox\Cms\Core\Codecs\Boundary\JsonValues;
 use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
@@ -46,15 +45,6 @@ final readonly class CreateNoteCodec implements JsonCodec
     public static function codecs(): CommandCodecs
     {
         return new CommandCodecs(self::commandCodec());
-    }
-
-    /**
-     * The fixture's codec next to the kernel's, as the container of an application that installs
-     * the fixture root has them.
-     */
-    public static function withKernel(): CommandCodecs
-    {
-        return new CommandCodecs(self::commandCodec(), ...KernelCommandCodecs::all());
     }
 
     public static function commandCodec(): CommandCodec

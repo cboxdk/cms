@@ -193,10 +193,12 @@ describe('the fixture addon s checks', () => {
       { path: 'fields.fixture_title', severity: 'warning' },
     ]);
     // The draft as the viewer edits it may lack the fields member, which the form fills last.
-    expect(slugHint({ type: ARTICLE_TYPE } as EntryCreateV1, { locale: 'en', viewer: null })).toMatchObject([
-      { path: 'fields.fixture_title', severity: 'warning' },
-    ]);
-    expect(slugShape({ type: ARTICLE_TYPE } as EntryCreateV1, { locale: 'en', viewer: null })).toEqual([]);
+    expect(
+      slugHint({ type: ARTICLE_TYPE } as EntryCreateV1, { locale: 'en', viewer: null }),
+    ).toMatchObject([{ path: 'fields.fixture_title', severity: 'warning' }]);
+    expect(
+      slugShape({ type: ARTICLE_TYPE } as EntryCreateV1, { locale: 'en', viewer: null }),
+    ).toEqual([]);
     expect(slugOverride({} as EntryCreateV1, { locale: 'en', viewer: null })).toEqual([]);
     expect(slugHint(derived, { locale: 'en', viewer: null })).toEqual([]);
     expect(slugHint(other, { locale: 'en', viewer: null })).toEqual([]);
@@ -213,7 +215,9 @@ describe('the fixture addon s checks', () => {
 
 describe('the fixture addon s self-grant check', () => {
   /** The hook's verdict on a document for the viewer of its case, as DenySelfGrantTest recorded it. */
-  function recordedSelfGrant(viewer: string | null): (document: GrantAssignV1) => readonly string[] {
+  function recordedSelfGrant(
+    viewer: string | null,
+  ): (document: GrantAssignV1) => readonly string[] {
     return (document) => {
       const text = JSON.stringify(document);
       const found = SELF_GRANT_PARITY.cases.find(
@@ -255,7 +259,9 @@ describe('the fixture addon s self-grant check', () => {
         message: 'fixtureaddon.self_grant.message',
       },
     ]);
-    expect(selfGrant(self.document, { locale: 'en', viewer: self.viewer.toUpperCase() })).toHaveLength(1);
+    expect(
+      selfGrant(self.document, { locale: 'en', viewer: self.viewer.toUpperCase() }),
+    ).toHaveLength(1);
     expect(selfGrant(self.document, { locale: 'da', viewer: null })).toEqual([]);
     expect(
       selfGrant(self.document, { locale: 'en', viewer: '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5aff' }),

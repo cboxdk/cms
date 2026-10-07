@@ -74,6 +74,16 @@ final class SurfaceContractTest extends TestCase
     ];
 
     /**
+     * The workbench's fixture addon's query fixtureaddon.articles and command fixtureaddon.slug.set,
+     * each on REST and Inertia, by name (B1 point 7): an addon's actions get their surface tests as
+     * the kernel's do, with the codecs the addon's provider tags.
+     */
+    private const array ADDON_ACTIONS = [
+        'fixtureaddon.articles' => ['rest', 'inertia'],
+        'fixtureaddon.slug.set' => ['rest', 'inertia'],
+    ];
+
+    /**
      * The kernel's commands exposed on no surface: access.bootstrap, which only cms:access:bootstrap
      * runs (PRD 5.10), actor.deactivate, whose surfaces come with B1 and B6, and site.register,
      * which only cms:sites:sync runs (PRD 11.14).
@@ -103,7 +113,7 @@ final class SurfaceContractTest extends TestCase
     {
         $registry = SurfaceContractCases::installation(app());
         $expected = [];
-        $commands = [...self::SOME_SURFACES, ...self::ACCESS_QUERIES, ...array_fill_keys(self::EXPOSED, array_map(static fn (Surface $surface): string => $surface->value, Surface::cases()))];
+        $commands = [...self::SOME_SURFACES, ...self::ACCESS_QUERIES, ...self::ADDON_ACTIONS, ...array_fill_keys(self::EXPOSED, array_map(static fn (Surface $surface): string => $surface->value, Surface::cases()))];
         ksort($commands);
 
         foreach ($commands as $command => $surfaces) {

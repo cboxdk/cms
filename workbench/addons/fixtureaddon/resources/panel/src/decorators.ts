@@ -14,6 +14,9 @@ export const submitNote: Decorator<CommandFormSubmitV1, 'description'> = () => (
 export const receiptNote: Decorator<CommandFormReceiptV1> = (props) => ({
   badge: {
     tone: props.problem === null ? 'info' : 'warning',
-    label: props.problem === null ? 'fixtureaddon.receipt_note.saved' : 'fixtureaddon.receipt_note.refused',
+    label:
+      props.problem === null
+        ? 'fixtureaddon.receipt_note.saved'
+        : 'fixtureaddon.receipt_note.refused',
   },
 });

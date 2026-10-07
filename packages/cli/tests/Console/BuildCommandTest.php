@@ -33,6 +33,8 @@ use Cbox\Cms\Core\Tests\Registry\RegistryFixtures;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Console\Kernel;
 use Workbench\App\Providers\WorkbenchServiceProvider;
+use Workbench\FixtureAddon\FixtureAddonServiceProvider;
+use Workbench\FixtureAddon\Slug\Domain\Commands\SetArticleSlug;
 
 /*
  * cms:build in the testbench application: it compiles the scan roots the providers declare and
@@ -58,8 +60,9 @@ function buildCommand(): array
 }
 
 /**
- * The warnings every build of the workbench prints: the fixture addon's four contributions to the
- * command form's checks and steps, experimental points, one warning each, in the registry's order.
+ * The warnings every build of the workbench prints: the fixture addon's twenty-one contributions,
+ * one of every kind on every point of block B1, all experimental points (decision D4), one warning
+ * each, in the registry's order, which is the order of FixtureAddonServiceProvider::contributions().
  *
  * @return list<string>
  */
@@ -72,6 +75,23 @@ function fixtureAddonWarnings(): array
         $warning('fixtureaddon.slug-override', 'command.form.checks@1'),
         $warning('fixtureaddon.slug-shape', 'command.form.checks@1'),
         $warning('fixtureaddon.slug-review', 'command.form.steps@1'),
+        $warning('fixtureaddon.slug-help', 'command.form.aside@1'),
+        $warning('fixtureaddon.submit-note', 'command.form.submit@1'),
+        $warning('fixtureaddon.receipt-note', 'command.form.receipt@1'),
+        $warning('fixtureaddon.dry-run-note', 'command.form.dryrun@1'),
+        $warning('fixtureaddon.slug-input', 'command.form.field@1'),
+        $warning('fixtureaddon.self-grant', 'command.form.checks@1'),
+        $warning('fixtureaddon.four-eyes', 'command.form.steps@1'),
+        $warning('fixtureaddon.articles', 'shell.page@1'),
+        $warning('fixtureaddon.articles-link', 'shell.nav@1'),
+        $warning('fixtureaddon.new-article', 'shell.user-menu@1'),
+        $warning('fixtureaddon.activity', 'panel.observe.command@1'),
+        $warning('fixtureaddon.recent-activity', 'account.me.sections@1'),
+        $warning('fixtureaddon.my-articles', 'account.me.sections@1'),
+        $warning('fixtureaddon.faulty', 'account.me.sections@1'),
+        $warning('fixtureaddon.four-eyes-note', 'access.grants.sections@1'),
+        $warning('fixtureaddon.articles-permission', 'access.roles.sections@1'),
+        $warning('fixtureaddon.login-notice', 'login.notice@1'),
     ];
 }
 
@@ -93,18 +113,20 @@ it('writes the eight registries to the application\'s bootstrap/cache/cms, and r
 
     expect($status)->toBe(0)
         ->and($output)->toBe([
-            // The fixture addon contributes to two experimental points of the command form, which
-            // the build warns about per contribution (decision D4: every point of B1 is experimental).
+            // The fixture addon contributes to every experimental point of block B1, which the build
+            // warns about per contribution (decision D4: every point of B1 is experimental).
             ...fixtureAddonWarnings(),
-            'actions: 24',
+            // The kernel's actions, and the fixture addon's query fixtureaddon.articles and command
+            // fixtureaddon.slug.set, each on REST and Inertia.
+            'actions: 26',
             // The workbench's fixture addon, which its allowlist names.
             'addons: 1',
-            'commands: 17',
-            // The workbench's fixture addon, which package discovery registers: its three hooks and
+            'commands: 18',
+            // The workbench's fixture addon, which package discovery registers: its four hooks and
             // its extension of app:fixture_article.
-            'hooks: 3',
-            'panel: 13',
-            'rest: 18',
+            'hooks: 4',
+            'panel: 15',
+            'rest: 20',
             'schema: 1',
             'subscribers: 1',
             sprintf('Registry written to %s.', $directory),
@@ -121,7 +143,7 @@ it('adds what an addon provider\'s scan root declares', function (): void {
     [$status, $output] = buildCommand();
 
     expect($status)->toBe(0)
-        ->and(array_slice($output, 0, 10))->toBe([...fixtureAddonWarnings(), 'actions: 26', 'addons: 1', 'commands: 18', 'hooks: 4', 'panel: 14', 'rest: 19'])
+        ->and(array_slice($output, 0, 27))->toBe([...fixtureAddonWarnings(), 'actions: 28', 'addons: 1', 'commands: 19', 'hooks: 5', 'panel: 16', 'rest: 21'])
         ->and(RegistryFixtures::load($directory.'/commands.php'))->toMatchArray(['entries' => [[
             'class' => GrantBootstrapRole::class,
             'name' => 'access.bootstrap',
@@ -166,6 +188,11 @@ it('adds what an addon provider\'s scan root declares', function (): void {
             'class' => CreateNote::class,
             'name' => 'fixture.note.create',
             'package' => RegistryFixtures::PACKAGE,
+            'version' => 1,
+        ], [
+            'class' => SetArticleSlug::class,
+            'name' => 'fixtureaddon.slug.set',
+            'package' => FixtureAddonServiceProvider::PACKAGE,
             'version' => 1,
         ], [
             'class' => AssignGrant::class,
@@ -255,13 +282,13 @@ it('prints the warnings of a build with their codes before the counts', function
     $warnings = array_values(array_filter($output, static fn (string $line): bool => str_starts_with($line, '[registry_')));
 
     expect($status)->toBe(0)
-        ->and($warnings)->toHaveCount(6)
+        ->and($warnings)->toHaveCount(23)
         ->and($warnings[0])->toStartWith('[registry_panel_point_experimental] The contribution approvals.badge of addon "approvals" (acme/cms-approvals) contributes to notes.detail.sections@1')
         ->and($warnings[1])->toStartWith('[registry_panel_point_deprecated] The contribution approvals.legacy of addon "approvals" (acme/cms-approvals) contributes to notes.legacy@1')
         ->and(array_slice($warnings, 2))->toBe(fixtureAddonWarnings())
-        ->and($output[6])->toStartWith('actions: ')
+        ->and($output[23])->toStartWith('actions: ')
         ->and($output)->toContain('addons: 2')
-        ->and($output)->toContain('panel: 29');
+        ->and($output)->toContain('panel: 31');
 });
 
 it('refuses an installed addon the allowlist does not name, and writes nothing', function (): void {
