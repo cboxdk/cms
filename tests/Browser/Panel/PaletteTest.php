@@ -34,8 +34,9 @@ use Pest\Browser\Api\PendingAwaitablePage;
  * role may run role.create and grant.list on the site's root, written by the testkit's fixture
  * writers because the grant commands come in a later task, signs in and opens the palette with the
  * keyboard from the start page. The palette lists the pages they may open and the commands they may
- * run, as action.list decided them on the server: the who-am-I page and "Create a role", and not a
- * command their role does not name. Typing filters the entries; Enter on the who-am-I entry lands
+ * run, as action.list decided them on the server: the who-am-I page, the grants page, whose entry
+ * requires grant.list, and "Create a role", and not the roles page, whose entry requires role.list,
+ * nor a command their role does not name. Typing filters the entries; Enter on the who-am-I entry lands
  * on the page, and Enter on a command entry opens the command's form page below the Inertia
  * profile's address. Escape closes the palette and gives the focus back. A member of staff without
  * any grant gets the pages alone. Every state makes the shared page assertions, the open palette at
@@ -131,11 +132,12 @@ it('opens with the keyboard, lists the pages and commands the person may use, fi
     PanelPage::assertPage($page, ['panel.home.body', 'panel.palette.open']);
     openPalette($page);
 
-    expect(paletteOptions($page))->toBe([PanelPage::text('panel.nav.account_me'), PanelPage::text('panel.action.role.create.title')]);
+    expect(paletteOptions($page))->toBe([PanelPage::text('panel.nav.account_me'), PanelPage::text('panel.nav.grants'), PanelPage::text('panel.action.role.create.title')]);
+    $page->assertDontSee(PanelPage::text('panel.nav.roles'));
 
     foreach (PALETTE_WIDTHS as $width) {
         $page->resize($width, 820);
-        PanelPage::assertPage($page, ['panel.palette.pages', 'panel.palette.commands', 'panel.nav.account_me', 'panel.action.role.create.title', 'panel.action.role.create.description']);
+        PanelPage::assertPage($page, ['panel.palette.pages', 'panel.palette.commands', 'panel.nav.account_me', 'panel.nav.grants', 'panel.action.role.create.title', 'panel.action.role.create.description']);
     }
 
     capturePaletteScreenshot($page, 'palette', 1024, 720);

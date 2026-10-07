@@ -708,6 +708,7 @@ export interface MenuProps {
 export interface MenuTriggerSpec {
     readonly icon?: IconName | undefined;
     readonly label: string;
+    readonly tabIndex?: -1 | undefined;
 }
 
 // @experimental

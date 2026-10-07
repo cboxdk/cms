@@ -14,8 +14,9 @@ use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
  * The panel and REST stay in parity for the pages that read (decided by Sylvester on 29 September
  * 2026): a panel page whose props come from a query is an Inertia query page, and its query must
  * be a query action the registry exposes on REST, so what the panel shows a person, the mobile
- * and desktop apps read over REST too. broken() names every own page whose query no query action
- * of the registry handles on REST; SurfaceParityTest fails on one.
+ * and desktop apps read over REST too; the queries the pickers of a page's forms read are held the
+ * same way. broken() names every query of every own page that no query action of the registry
+ * handles on REST; SurfaceParityTest fails on one.
  */
 #[Internal]
 final readonly class QueryPageParity
@@ -23,8 +24,8 @@ final readonly class QueryPageParity
     private function __construct() {}
 
     /**
-     * The own pages whose query is not a query action the registry exposes on REST, each as
-     * `<page> reads <query>@<version>`, in the order of the pages.
+     * The queries of the own pages that are not a query action the registry exposes on REST, each
+     * as `<page> reads <query>@<version>`, in the order of the pages and their queries.
      *
      * @param  list<OwnPage>  $pages
      * @return list<string>
@@ -34,10 +35,10 @@ final readonly class QueryPageParity
         $broken = [];
 
         foreach ($pages as $page) {
-            $query = $page->query();
-
-            if ($query instanceof CommandRef && ! self::exposed($registry, $query)) {
-                $broken[] = sprintf('%s reads %s', $page->value, $query->toString());
+            foreach ($page->queries() as $query) {
+                if (! self::exposed($registry, $query)) {
+                    $broken[] = sprintf('%s reads %s', $page->value, $query->toString());
+                }
             }
         }
 

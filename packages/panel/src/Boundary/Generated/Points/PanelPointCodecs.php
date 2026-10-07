@@ -26,6 +26,8 @@ final readonly class PanelPointCodecs
     public static function all(): array
     {
         return [
+            new PointCodec(new PointId(new PointName('access.grants.sections'), 1), new AccessGrantsSectionsCodecV1),
+            new PointCodec(new PointId(new PointName('access.roles.sections'), 1), new AccessRolesSectionsCodecV1),
             new PointCodec(new PointId(new PointName('account.me.sections'), 1), new AccountMeSectionsCodecV1),
             new PointCodec(new PointId(new PointName('command.form.aside'), 1), new CommandFormContextCodecV1),
             new PointCodec(new PointId(new PointName('shell.nav'), 1), new ShellNavCodecV1),

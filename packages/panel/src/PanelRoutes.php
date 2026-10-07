@@ -6,6 +6,8 @@ namespace Cbox\Cms\Panel;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Http\Inertia\InertiaRoutes;
+use Cbox\Cms\Panel\Access\Domain\AccessGrants;
+use Cbox\Cms\Panel\Access\Domain\AccessRoles;
 use Cbox\Cms\Panel\Account\Domain\AccountMe;
 use Cbox\Cms\Panel\Assets\AddonAssetController;
 use Cbox\Cms\Panel\Assets\AssetController;
@@ -21,6 +23,8 @@ use Cbox\Cms\Panel\Middleware\AuthenticatePanelSession;
 use Cbox\Cms\Panel\Middleware\SendContentSecurityPolicy;
 use Cbox\Cms\Panel\Middleware\SharePalette;
 use Cbox\Cms\Panel\Middleware\VerifyPanelCsrfToken;
+use Cbox\Cms\Panel\Pages\AccessGrantsController;
+use Cbox\Cms\Panel\Pages\AccessRolesController;
 use Cbox\Cms\Panel\Pages\AccountMeController;
 use Cbox\Cms\Panel\Pages\AddonPageController;
 use Cbox\Cms\Panel\Pages\CommandFormController;
@@ -72,7 +76,9 @@ use Illuminate\Routing\Route;
  *     person (PanelRoute::Home, Logout, Command), `GET <prefix>/commands/{command}/v{version}`,
  *     the generic command form of a command the profile exposes, rendered from the command's JSON
  *     Schema, which posts to the same address (PanelRoute::CommandForm), `GET <prefix>/account/me`,
- *     the who-am-I page, which reads actor.me as the person (PanelRoute::AccountMe), and
+ *     the who-am-I page, which reads actor.me as the person (PanelRoute::AccountMe), `GET <prefix>/access/roles` and
+ *     `GET <prefix>/access/grants`, the roles and grants pages, which read role.list and
+ *     grant.list as the person (PanelRoute::AccessRoles, AccessGrants), and
  *     `GET <prefix>/x/{namespace}/{path}`, a page of an addon, its PageContribution at the path,
  *     with its data query's result as its props (PanelRoute::AddonPage), or the page for a path the
  *     panel does not have when no addon has such a page or the person may not open it;
@@ -150,6 +156,8 @@ final readonly class PanelRoutes
                     self::page($router->get(PanelRoute::COMMANDS_PATH.'/{command}/v{version}', CommandFormController::class)
                         ->where(['command' => InertiaRoutes::COMMAND, 'version' => InertiaRoutes::VERSION]), PanelRoute::CommandForm);
                     self::page($router->get(AccountMe::PATH, AccountMeController::class), PanelRoute::AccountMe);
+                    self::page($router->get(AccessRoles::PATH, AccessRolesController::class), PanelRoute::AccessRoles);
+                    self::page($router->get(AccessGrants::PATH, AccessGrantsController::class), PanelRoute::AccessGrants);
                     self::page($router->get(PanelRoute::ADDON_PAGES_PATH.'/{namespace}/{path}', AddonPageController::class)
                         ->where(['namespace' => self::NAMESPACE_SEGMENT, 'path' => self::PAGE_PATH]), PanelRoute::AddonPage);
                 });

@@ -18,6 +18,12 @@ export default meta;
 /** Every panel point of the installation, with its kind, stability and contributions. */
 export const Overview: Story = overviewStory(PANEL_POINTS);
 
+/** access.grants.sections@1, a slot point of the page access.grants. */
+export const AccessGrantsSectionsV1: Story = pointStory(PANEL_POINTS, 'access.grants.sections@1');
+
+/** access.roles.sections@1, a slot point of the page access.roles. */
+export const AccessRolesSectionsV1: Story = pointStory(PANEL_POINTS, 'access.roles.sections@1');
+
 /** account.me.sections@1, a slot point of the page account.me. */
 export const AccountMeSectionsV1: Story = pointStory(PANEL_POINTS, 'account.me.sections@1');
 

@@ -7,6 +7,7 @@ namespace Cbox\Cms\Tooling\Protocol\Domain;
 use Cbox\Cms\Contracts\Addons\AddonNamespace;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Codecs\JsonDocument;
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\PanelPoints\Confirm;
 use Cbox\Cms\Contracts\PanelPoints\ContributionId;
@@ -27,6 +28,8 @@ use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Protocol\Domain\Dto\SchemaBinding;
 use Cbox\Cms\Generators\Protocol\Domain\Dto\ValueBinding;
+use Cbox\Cms\Panel\Domain\Dto\AccessGrantsPage;
+use Cbox\Cms\Panel\Domain\Dto\AccessRolesPage;
 use Cbox\Cms\Panel\Domain\Dto\AccountMePage;
 use Cbox\Cms\Panel\Domain\Dto\ActionProp;
 use Cbox\Cms\Panel\Domain\Dto\AddonPage;
@@ -38,6 +41,7 @@ use Cbox\Cms\Panel\Domain\Dto\DecoratorProp;
 use Cbox\Cms\Panel\Domain\Dto\FillProp;
 use Cbox\Cms\Panel\Domain\Dto\ForgotPasswordPage;
 use Cbox\Cms\Panel\Domain\Dto\ForgotPasswordRefusals;
+use Cbox\Cms\Panel\Domain\Dto\GrantPickers;
 use Cbox\Cms\Panel\Domain\Dto\HomePage;
 use Cbox\Cms\Panel\Domain\Dto\LoginPage;
 use Cbox\Cms\Panel\Domain\Dto\LoginRefusals;
@@ -47,6 +51,7 @@ use Cbox\Cms\Panel\Domain\Dto\PageLinkProp;
 use Cbox\Cms\Panel\Domain\Dto\PaletteProp;
 use Cbox\Cms\Panel\Domain\Dto\PanelBrand;
 use Cbox\Cms\Panel\Domain\Dto\PanelBrandLogo;
+use Cbox\Cms\Panel\Domain\Dto\PickerRead;
 use Cbox\Cms\Panel\Domain\Dto\PointFillsProp;
 use Cbox\Cms\Panel\Domain\Dto\PrefillProp;
 use Cbox\Cms\Panel\Domain\Dto\ReplacementProp;
@@ -69,8 +74,11 @@ use Cbox\Cms\Panel\Domain\SignInReason;
  * addon-page.v1.json the props of an addon's page below /x/<namespace>/, account-me.v1.json
  * the props of the who-am-I page, whose result and rejection are documents of the kernel's
  * contracts, command-form.v1.json the props of the generic command form, whose schema is the
- * command's own JSON Schema as a document, and palette.v1.json the prop `palette` every page
- * behind the login shares, the read of action.list the command palette is built from. Types go one way, from PHP and the schema to
+ * command's own JSON Schema as a document, access-roles.v1.json and access-grants.v1.json the props of the roles and grants
+ * pages, which read role.list and grant.list the same way, access-grant-pickers.v1.json the
+ * optional prop of the grants page's pickers, the reads of actor.list, role.list and node.list,
+ * and palette.v1.json the prop `palette` every page behind the login shares, the read
+ * of action.list the command palette is built from. Types go one way, from PHP and the schema to
  * TypeScript; no page declares its props by hand.
  *
  * composer generate:protocol writes, from these bindings, the PHP codecs into PHP_DIRECTORY and,
@@ -102,12 +110,14 @@ final readonly class PanelPageSchemas
 
     /**
      * The kernel contracts the panel reads, by codec class: a command a contribution issues through
-     * the host answers with its receipt and, for a rejection, the problem details; and the result
-     * of actor.me, which the who-am-I page reads from its props.
+     * the host answers with its receipt and, for a rejection, the problem details; the result of
+     * actor.me, which the who-am-I page reads from its props; the result of action.list, which the
+     * command palette reads; and the results of role.list, grant.list, actor.list and node.list,
+     * which the roles and grants pages and the pickers of the grants page read.
      *
      * @var list<string>
      */
-    public const array PROTOCOL_CODECS = ['ActionListCodecV1', 'ActorMeCodecV1', 'DryRunSummaryCodecV1', 'ProblemCodecV1', 'ReceiptCodecV1'];
+    public const array PROTOCOL_CODECS = ['ActionListCodecV1', 'ActorListCodecV1', 'ActorMeCodecV1', 'DryRunSummaryCodecV1', 'GrantListCodecV1', 'NodeListCodecV1', 'ProblemCodecV1', 'ReceiptCodecV1', 'RoleListCodecV1'];
 
     /** The stability of the generated codecs: the pages' DTOs are the panel's own. */
     public const string ATTRIBUTE = Internal::class;
@@ -120,6 +130,22 @@ final readonly class PanelPageSchemas
     public static function all(): array
     {
         return [
+            self::page('access-grant-pickers.v1.json', 'GrantPickersCodecV1', [
+                '#' => GrantPickers::class,
+                '#/$defs/read' => PickerRead::class,
+            ], [
+                '#/$defs/read/properties/rejection' => ValueBinding::document(JsonDocument::class),
+                '#/$defs/read/properties/result' => ValueBinding::document(JsonDocument::class),
+            ]),
+            self::page('access-grants.v1.json', 'AccessGrantsPageCodecV1', ['#' => AccessGrantsPage::class], [
+                '#/properties/locales/items' => ValueBinding::value(Locale::class),
+                '#/properties/rejection' => ValueBinding::document(JsonDocument::class),
+                '#/properties/result' => ValueBinding::document(JsonDocument::class),
+            ]),
+            self::page('access-roles.v1.json', 'AccessRolesPageCodecV1', ['#' => AccessRolesPage::class], [
+                '#/properties/rejection' => ValueBinding::document(JsonDocument::class),
+                '#/properties/result' => ValueBinding::document(JsonDocument::class),
+            ]),
             self::page('account-me.v1.json', 'AccountMePageCodecV1', ['#' => AccountMePage::class], [
                 '#/properties/rejection' => ValueBinding::document(JsonDocument::class),
                 '#/properties/result' => ValueBinding::document(JsonDocument::class),

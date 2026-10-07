@@ -96,6 +96,31 @@ final readonly class Screenshots
                 'The command palette open on a phone: the same pages and commands, the search field and the entries filling the width.',
                 'tests/Browser/Panel/PaletteTest.php',
             ),
+            new BrowserScreenshot(
+                'access-roles',
+                'The roles page on a desktop: every role with its handle, classification ceiling and permissions, read with role.list, and the button that creates one.',
+                'tests/Browser/Panel/RolesAndGrantsTest.php',
+            ),
+            new BrowserScreenshot(
+                'access-roles-mobile',
+                'The roles page on a phone: the same roles in a table that scrolls, with the shell\'s navigation folded away.',
+                'tests/Browser/Panel/RolesAndGrantsTest.php',
+            ),
+            new BrowserScreenshot(
+                'access-grants',
+                'The grants page on a desktop: who holds which role where, each grant with its member of staff, role, node, effect and languages, read with grant.list, and the button that assigns one.',
+                'tests/Browser/Panel/RolesAndGrantsTest.php',
+            ),
+            new BrowserScreenshot(
+                'access-grants-mobile',
+                'The grants page on a phone: the same grants in a table that scrolls.',
+                'tests/Browser/Panel/RolesAndGrantsTest.php',
+            ),
+            new BrowserScreenshot(
+                'access-grant-assign',
+                'The form that assigns a grant, open over the grants page: the pickers of the member of staff, the role and the node, the effect and the languages.',
+                'tests/Browser/Panel/RolesAndGrantsTest.php',
+            ),
         ];
     }
 

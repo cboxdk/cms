@@ -199,6 +199,7 @@ export function DataTable<RowData>({
                       trigger={{
                         label: rowActionsLabel?.(row) ?? t('kit.table.actions'),
                         icon: 'more',
+                        tabIndex: -1,
                       }}
                       items={rowActions(row)}
                       onAction={(action) => {

@@ -109,6 +109,9 @@ final class ContributionWorld
     /** The tally command's directory in the core's tests, scanned as part of the addon's package. */
     public const string TALLY_COMMAND = __DIR__.'/../../../core/tests/Pipeline/Tally';
 
+    /** The names role.list and grant.list, which the core's nav entries of the access pages require, as queries on no surface. */
+    public const string ACCESS_NAMES = __DIR__.'/Fixtures/Access';
+
     /** The points the addon's manifest accepts: the host's two and the panel's three shell points. */
     public const array POINTS = ['desk.cards@1', 'desk.aside@1', 'shell.nav@1', 'shell.page@1', 'shell.user-menu@1'];
 
@@ -163,6 +166,7 @@ final class ContributionWorld
                 new ScanRoot(self::ADDON, __DIR__.'/Fixtures/Tally'),
                 new ScanRoot(self::ADDON, self::TALLY_COMMAND),
                 new ScanRoot(PanelServiceProvider::PACKAGE, dirname(__DIR__, 2).'/src'),
+                new ScanRoot(PanelServiceProvider::PACKAGE, self::ACCESS_NAMES),
             ),
             new DeclaredAddons([$manifest], [], [self::ADDON => PanelBuildWorld::bundle($manifest)], $core),
             new BuildSettings(null, $overrides),

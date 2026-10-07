@@ -656,6 +656,12 @@ import { WizardProps } from '@cboxdk/cms-ui-kit';
 import { WizardStep } from '@cboxdk/cms-ui-kit';
 
 // @experimental
+export type AccessGrantsSectionsV1 = Record<string, never>;
+
+// @experimental
+export type AccessRolesSectionsV1 = Record<string, never>;
+
+// @experimental
 export interface AccountMeSectionsV1 {
     actor: string;
 }

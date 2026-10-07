@@ -20,16 +20,22 @@ use Cbox\Cms\Core\Reads\Actions\QueryPipeline;
 use Cbox\Cms\Core\Reads\Domain\QueryCodecs;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
+use Cbox\Cms\Core\Structure\Domain\Queries\ListNodes;
 use Cbox\Cms\Core\Tests\Access\Fakes\FakeAccessContexts;
 use Cbox\Cms\Core\Tests\Access\Fakes\FakeHeldPermissions;
 use Cbox\Cms\Core\Tests\Access\Fakes\FakePermissions;
+use Cbox\Cms\Core\Tests\Access\ListingWorld;
 use Cbox\Cms\Core\Tests\Pipeline\Tally\AddTallyCodec;
 use Cbox\Cms\Identity\Tests\Login\LocalLoginWorld;
 use Cbox\Cms\Identity\Tests\PasswordReset\PasswordResetWorld;
+use Cbox\Cms\Panel\Access\Domain\AccessGrants;
+use Cbox\Cms\Panel\Boundary\Generated\AccessGrantsPageCodecV1;
+use Cbox\Cms\Panel\Boundary\Generated\AccessRolesPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\AccountMePageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\AddonPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\CommandFormPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\ForgotPasswordPageCodecV1;
+use Cbox\Cms\Panel\Boundary\Generated\GrantPickersCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\HomePageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\LoginPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\NotFoundPageCodecV1;
@@ -42,7 +48,10 @@ use Cbox\Cms\Panel\Branding\Boundary\BrandingConfig;
 use Cbox\Cms\Panel\Branding\Domain\Dto\Branding;
 use Cbox\Cms\Panel\Contributions\Boundary\ContributionProps;
 use Cbox\Cms\Panel\Contributions\Domain\PointCodecs;
+use Cbox\Cms\Panel\Domain\Dto\PanelBuild;
 use Cbox\Cms\Panel\Palette\Boundary\PaletteProps;
+use Cbox\Cms\Panel\Shell\Domain\OwnPage;
+use Cbox\Cms\Panel\Tests\Access\AccessPagesWorld;
 use Cbox\Cms\Panel\Tests\Account\AccountMeWorld;
 use Cbox\Cms\Panel\Tests\Branding\BrandFixtures;
 use Cbox\Cms\Panel\Tests\Contributions\ContributionWorld;
@@ -53,6 +62,8 @@ use Cbox\Cms\Tests\Support\TypeScript\TypeScriptValidators;
 use Cbox\Cms\Tests\TestCase;
 use Cbox\Cms\Tooling\Protocol\Domain\PanelPageSchemas;
 use Illuminate\Contracts\Config\Repository;
+use Illuminate\Routing\Router;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Testing\TestResponse;
 use JsonException;
 use Override;
@@ -93,11 +104,18 @@ final class PanelPageValidatorsTest extends TestCase
         PanelPages::ADDON => ['module' => 'pages/AddonPageV1', 'validator' => 'validateAddonPageV1'],
         PanelPages::ACCOUNT_ME => ['module' => 'pages/AccountMePageV1', 'validator' => 'validateAccountMePageV1'],
         PanelPages::COMMAND_FORM => ['module' => 'pages/CommandFormPageV1', 'validator' => 'validateCommandFormPageV1'],
+        PanelPages::ACCESS_ROLES => ['module' => 'pages/AccessRolesPageV1', 'validator' => 'validateAccessRolesPageV1'],
+        PanelPages::ACCESS_GRANTS => ['module' => 'pages/AccessGrantsPageV1', 'validator' => 'validateAccessGrantsPageV1'],
     ];
+
+    /** The generated module and validator of the grants page's optional prop, the pickers. */
+    private const array PICKERS = ['module' => 'pages/GrantPickersV1', 'validator' => 'validateGrantPickersV1'];
 
     private ?PasswordResetWorld $resets = null;
 
     private ?AccountMeWorld $account = null;
+
+    private ?AccessPagesWorld $access = null;
 
     #[Override]
     protected function setUp(): void
@@ -113,8 +131,10 @@ final class PanelPageValidatorsTest extends TestCase
         $this->logins->person(self::EMAIL);
         $second = $this->logins->person(self::SECOND_EMAIL);
 
-        // The who-am-I page's read of actor.me as the second person, over fakes (AccountMeWorld).
+        // The who-am-I page's read of actor.me as the second person, over fakes (AccountMeWorld),
+        // and the roles and grants pages' reads as the same person (AccessPagesWorld).
         $this->account = new AccountMeWorld($this->logins->verifier(), $second->id, self::SECOND_EMAIL);
+        $this->access = new AccessPagesWorld($this->logins->verifier(), $second->id, $this->logins->clock, $this->logins->identity);
         $app->instance(QueryPipeline::class, $this->account->pipeline());
 
         // The test addon's page at /cms/x/tally/board, which the second person may open: the
@@ -142,6 +162,7 @@ final class PanelPageValidatorsTest extends TestCase
         $this->tearDownPanelLogins();
         $this->resets = null;
         $this->account = null;
+        $this->access = null;
 
         parent::tearDown();
     }
@@ -179,6 +200,52 @@ final class PanelPageValidatorsTest extends TestCase
 
         self::assertContains('login refused with login_rate_limited', $states);
         self::assertContains('who am I with the read refused', $states);
+        self::assertContains('roles after a role', $states);
+        self::assertContains('grants with the read refused', $states);
+        self::assertStringContainsString('"code":"unauthorized"', $rendered[array_search('grants with the read refused', $states, true)]['props'] ?? '');
+    }
+
+    /**
+     * The pickers of the grants page, the optional prop a partial reload asks for: the generated
+     * validator accepts them as the page reads them, with every picker answered, with one the
+     * person may not read, and with one the pipeline could not make, and they read back through
+     * GrantPickersCodecV1.
+     *
+     * @throws JsonException
+     */
+    #[Test]
+    public function the_typescript_validator_accepts_the_pickers_of_the_grants_page_in_every_state(): void
+    {
+        $access = $this->access ?? self::fail('No access world.');
+        $logins = $this->logins ?? self::fail('No logins.');
+        $this->visitLogin();
+        $session = $this->sessionCookie($this->logIn(self::SECOND_EMAIL, LocalLoginWorld::PASSWORD))?->getValue() ?? self::fail('No session.');
+        $documents = [];
+
+        $this->readWith($access->pipeline());
+        $documents['every picker answered'] = $this->pickers($session);
+        $this->readWith($access->without([ListNodes::class]));
+        Exceptions::fake();
+        $documents['the nodes not made'] = $this->pickers($session);
+        $this->readWith(new AccessPagesWorld($logins->verifier(), $access->person, $logins->clock, $logins->identity, ['grant.list'])->pipeline());
+        $documents['the actors and roles refused'] = $this->pickers($session);
+
+        $verdicts = TypeScriptValidators::run(PanelPageSchemas::TYPESCRIPT_DIRECTORY, array_map(
+            static fn (string $document): array => ['module' => self::PICKERS['module'], 'validator' => self::PICKERS['validator'], 'document' => $document],
+            array_values($documents),
+        ));
+
+        foreach (array_keys($documents) as $index => $state) {
+            self::assertSame(['valid' => true], $verdicts[$index], sprintf('%s: %s', $state, $documents[$state]));
+            self::assertSame(
+                json_decode($documents[$state], true, 16, JSON_THROW_ON_ERROR),
+                json_decode($this->through(new GrantPickersCodecV1, $documents[$state]), true, 16, JSON_THROW_ON_ERROR),
+                sprintf('%s reads back through its PHP codec.', $state),
+            );
+        }
+
+        self::assertStringContainsString('"nodes":{"rejection":null,"result":null}', $documents['the nodes not made']);
+        self::assertStringContainsString('"code":"unauthorized"', $documents['the actors and roles refused']);
     }
 
     /**
@@ -310,8 +377,17 @@ final class PanelPageValidatorsTest extends TestCase
         $page('addon page', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/x/tally/'.ContributionWorld::BOARD_PATH));
         $page('who am I', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/account/me'));
         $page('command form', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/commands/'.ContributionWorld::ADD_PERMISSION.'/v1'));
-        app()->instance(QueryPipeline::class, ($this->account ?? self::fail('No account world.'))->refusing());
+        $this->readWith(($this->account ?? self::fail('No account world.'))->refusing());
         $page('who am I with the read refused', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/account/me'));
+
+        $access = $this->access ?? self::fail('No access world.');
+        $this->readWith($access->pipeline());
+        $page('roles', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/access/roles'));
+        $page('roles after a role', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/access/roles?after='.ListingWorld::ADMIN_ROLE));
+        $page('grants', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/access/grants'));
+        $this->readWith($access->refusing());
+        $page('roles with the read refused', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/access/roles'));
+        $page('grants with the read refused', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/access/grants'));
         $page('not found', $this->get('/cms/no-such-page'));
 
         return $pages;
@@ -401,6 +477,8 @@ final class PanelPageValidatorsTest extends TestCase
             PanelPages::ADDON => $this->through(new AddonPageCodecV1, $props),
             PanelPages::ACCOUNT_ME => $this->through(new AccountMePageCodecV1, $props),
             PanelPages::COMMAND_FORM => $this->through(new CommandFormPageCodecV1, $props),
+            PanelPages::ACCESS_ROLES => $this->through(new AccessRolesPageCodecV1, $props),
+            PanelPages::ACCESS_GRANTS => $this->through(new AccessGrantsPageCodecV1, $props),
             default => self::fail('No codec for the page '.$component.'.'),
         };
     }
@@ -418,5 +496,42 @@ final class PanelPageValidatorsTest extends TestCase
     private function world(): PasswordResetWorld
     {
         return $this->resets ?? self::fail('No world.');
+    }
+
+    /**
+     * Binds the pipeline the pages read with from now on. A route keeps the controller it made for
+     * the first request, so the controllers of the pages that read are flushed, or a later page
+     * would still read through the pipeline bound before.
+     */
+    private function readWith(QueryPipeline $pipeline): void
+    {
+        app()->instance(QueryPipeline::class, $pipeline);
+
+        foreach (OwnPage::cases() as $own) {
+            app(Router::class)->getRoutes()->getByName($own->route()->value)?->flushController();
+        }
+    }
+
+    /**
+     * The JSON of the grants page's pickers, as a partial reload that asks for the optional prop
+     * gets them.
+     *
+     * @throws JsonException
+     */
+    private function pickers(string $session): string
+    {
+        $response = $this->withUnencryptedCookie($this->cookieName(), $session)
+            ->withHeaders([
+                'X-Inertia' => 'true',
+                'X-Inertia-Version' => app(PanelBuild::class)->version,
+                'X-Inertia-Partial-Component' => PanelPages::ACCESS_GRANTS,
+                'X-Inertia-Partial-Data' => AccessGrants::PICKERS,
+            ])
+            ->get('/cms/access/grants');
+        $response->assertOk();
+        $props = $response->json('props');
+        $pickers = is_array($props) ? ($props[AccessGrants::PICKERS] ?? null) : null;
+
+        return json_encode(is_array($pickers) ? (object) $pickers : self::fail('The partial reload carries no pickers.'), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
     }
 }

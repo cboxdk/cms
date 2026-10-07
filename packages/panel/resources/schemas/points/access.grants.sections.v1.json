@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "access.grants.sections props, contract version 1",
+  "description": "The props of the sections of the grants page, a slot point in its sections region (PRD 5.10, 13.4): none. The grants are the page's own, read as the person, and a section's data query reads what it needs as the viewer. The PHP form is Cbox\\Cms\\Panel\\Access\\Domain\\Dto\\AccessGrantsSectionsV1.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {}
+}

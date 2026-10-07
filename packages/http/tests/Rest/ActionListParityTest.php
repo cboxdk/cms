@@ -49,7 +49,9 @@ use Symfony\Component\HttpFoundation\Response;
  * The person, who holds role.create and grant.list on the root, gets from GET
  * /v1/queries/action.list/v1 the same document the panel's shared prop `palette` carries on every
  * page behind the login: the command they may run, the reads they hold and those every actor may
- * run, and the core's entry of the who-am-I page, and not entry.publish, which they do not hold;
+ * run, and the core's entries of the who-am-I page and of the grants page, whose entry requires
+ * grant.list, and not entry.publish, which they do not hold, nor the roles page's entry, which
+ * requires role.list;
  * a rejected read gives the prop the problem details instead; the login page, before any
  * session, carries no palette; and the anonymous principal gets problem details with unauthorized
  * on REST.
@@ -108,7 +110,7 @@ final class ActionListParityTest extends TestCase
         $rest->assertOk()->assertHeader('Content-Type', 'application/json')->assertHeader('Cache-Control', RestResponse::CACHE_CONTROL);
         self::assertIsArray($document);
         self::assertSame(['action.list@1 query', 'actor.me@1 query', 'grant.list@1 query', 'node.list@1 query', 'role.create@1 command'], $this->listed($document));
-        self::assertSame(['cms.account-me'], array_column(is_array($document['navigation'] ?? null) ? $document['navigation'] : [], 'id'));
+        self::assertSame(['cms.account-me', 'cms.grants'], array_column(is_array($document['navigation'] ?? null) ? $document['navigation'] : [], 'id'));
         self::assertSame(self::PATH, $this->restPath());
 
         $session = $this->signIn();

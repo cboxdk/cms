@@ -42,6 +42,12 @@ export interface MenuTriggerSpec {
   readonly label: string;
   /** With an icon, the trigger shows only the icon and the label is its accessible name. */
   readonly icon?: IconName | undefined;
+  /**
+   * -1 for a trigger inside a grid cell: the grid is one tab stop, and its roving focus reaches the
+   * trigger with the arrow keys (the WAI-ARIA grid pattern), so the cell is not obscured by a second
+   * target in the tab order (WCAG 2.2 target size). By default the trigger is a tab stop of its own.
+   */
+  readonly tabIndex?: -1 | undefined;
 }
 
 /**
@@ -82,6 +88,7 @@ export function Menu({ trigger, items, onAction, disabled = false }: MenuProps) 
         ref={ref}
         className={iconOnly ? 'cms-icon-button' : 'cms-button'}
         aria-label={iconOnly ? trigger.label : undefined}
+        tabIndex={trigger.tabIndex}
         data-variant={iconOnly ? 'quiet' : 'secondary'}
       >
         {trigger.icon === undefined ? (

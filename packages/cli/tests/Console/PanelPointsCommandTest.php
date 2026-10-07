@@ -114,15 +114,15 @@ it('prints the one point of an id with its props class and its stability', funct
         ->toContain(NoteSubmitV2::class);
 });
 
-it('lists the panel\'s own points, the shell\'s three, the who-am-I page\'s sections and the command form\'s aside, as text and as JSON', function (): void {
+it('lists the panel\'s own points, the shell\'s three and the sections of the who-am-I, roles and grants pages and the command form\'s aside, as text and as JSON', function (): void {
     WorkbenchRegistry::bind();
 
     [$status, $output] = panelPointsCli();
     [$jsonStatus, $json] = panelPointsCli(json: true);
 
     expect([$status, $jsonStatus])->toBe([0, 0])
-        ->and($output)->toContain('5 panel points, by name and version', 'account.me.sections@1  slot in sections, renders many  page account.me  experimental since 1.0  0 contributions', 'command.form.aside@1  slot in aside, renders many  page command.form  experimental since 1.0  0 contributions', 'shell.nav@1  nav, renders many  page shell  experimental since 1.0  1 contribution', 'shell.page@1  page, renders many  page shell  experimental since 1.0  0 contributions', 'shell.user-menu@1  action, renders many  page shell  experimental since 1.0  0 contributions')
-        ->and(is_array($points = panelPointsDocument($json)['points'] ?? null) ? array_column($points, 'id') : null)->toBe(['account.me.sections@1', 'command.form.aside@1', 'shell.nav@1', 'shell.page@1', 'shell.user-menu@1']);
+        ->and($output)->toContain('7 panel points, by name and version', 'access.grants.sections@1  slot in sections, renders many  page access.grants  experimental since 1.0  0 contributions', 'access.roles.sections@1  slot in sections, renders many  page access.roles  experimental since 1.0  0 contributions', 'account.me.sections@1  slot in sections, renders many  page account.me  experimental since 1.0  0 contributions', 'command.form.aside@1  slot in aside, renders many  page command.form  experimental since 1.0  0 contributions', 'shell.nav@1  nav, renders many  page shell  experimental since 1.0  3 contributions', 'shell.page@1  page, renders many  page shell  experimental since 1.0  0 contributions', 'shell.user-menu@1  action, renders many  page shell  experimental since 1.0  0 contributions')
+        ->and(is_array($points = panelPointsDocument($json)['points'] ?? null) ? array_column($points, 'id') : null)->toBe(['access.grants.sections@1', 'access.roles.sections@1', 'account.me.sections@1', 'command.form.aside@1', 'shell.nav@1', 'shell.page@1', 'shell.user-menu@1']);
 });
 
 it('exits 64 for a selector that selects no point or is no page\'s name or point\'s id', function (string $selector, string $message): void {

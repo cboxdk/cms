@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Grants page props, contract version 1",
+  "description": "The props of the panel's grants page, Access/Grants (PRD 5.10, 13.4): the address the logout posts to; the read of grant.list as the person: its result, the document of grant.list.result.v1.json the query's result codec wrote at the person's classification access, or the rejection, the problem details (problem.v1.json) of a rejected read, one of the two and never both; and the languages the installation's sites publish in, which the form offers as the locales of a grant. The pickers of the form are the optional prop `pickers` beside these, access-grant-pickers.v1.json. The PHP form is Cbox\\Cms\\Panel\\Domain\\Dto\\AccessGrantsPage, and the generated codec AccessGrantsPageCodecV1 writes its canonical JSON: keys sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "locales",
+    "logout",
+    "rejection",
+    "result"
+  ],
+  "properties": {
+    "locales": {
+      "description": "The language tags the installation's sites publish in (cbox-cms.sites), sorted and each once, which the form offers as the locales a grant holds in; a grant without locales holds in every language.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/locale"
+      }
+    },
+    "logout": {
+      "description": "The address the logout posts to.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "rejection": {
+      "description": "The problem details of a rejected read, a document of problem.v1.json, or null for an answered read. Validate it with the validator of ProblemV1.",
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "result": {
+      "description": "The result of grant.list, a document of grant.list.result.v1.json as the query's result codec wrote it, or null for a rejected read. Validate it with the validator of GrantListV1.",
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "$defs": {
+    "locale": {
+      "description": "A language tag of a language, an optional script and an optional region, such as da, en-GB or sr-Latn-RS; the kernel writes the language in lowercase, the script in title case and the region in uppercase.",
+      "type": "string",
+      "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$"
+    }
+  }
+}

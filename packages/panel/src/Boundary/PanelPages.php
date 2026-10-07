@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Cbox\Cms\Panel\Boundary;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\PasswordResetToken;
 use Cbox\Cms\Http\Inertia\Boundary\InertiaProps;
 use Cbox\Cms\Identity\PasswordReset\Domain\Dto\ResetSettings;
+use Cbox\Cms\Panel\Boundary\Generated\AccessGrantsPageCodecV1;
+use Cbox\Cms\Panel\Boundary\Generated\AccessRolesPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\AccountMePageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\AddonPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\CommandFormPageCodecV1;
@@ -19,6 +22,8 @@ use Cbox\Cms\Panel\Boundary\Generated\NotFoundPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\ResetPasswordPageCodecV1;
 use Cbox\Cms\Panel\Contributions\Boundary\SharedProps;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\ActiveFill;
+use Cbox\Cms\Panel\Domain\Dto\AccessGrantsPage;
+use Cbox\Cms\Panel\Domain\Dto\AccessRolesPage;
 use Cbox\Cms\Panel\Domain\Dto\AccountMePage;
 use Cbox\Cms\Panel\Domain\Dto\AddonPage;
 use Cbox\Cms\Panel\Domain\Dto\CommandFormPage;
@@ -79,7 +84,12 @@ use LogicException;
  *   details, beside its contributions;
  * - the generic command form (PRD 6.1), at `<prefix>/commands/<name>/v<version>`, with the address
  *   of the logout, the command's name and version and its JSON Schema as a document, from which
- *   the form is rendered, beside its contributions.
+ *   the form is rendered, beside its contributions;
+ * - the roles page (PRD 5.10), at `<prefix>/access/roles`, with the address of the logout and the
+ *   read of role.list as the person, beside its contributions;
+ * - the grants page (PRD 5.10), at `<prefix>/access/grants`, with the address of the logout, the
+ *   read of grant.list as the person and the locales the form offers, beside its contributions
+ *   and the optional prop of the form's pickers (AccessGrantsRequest::pickers()).
  */
 #[Internal]
 final readonly class PanelPages
@@ -98,6 +108,12 @@ final readonly class PanelPages
 
     /** The who-am-I page, in js/panel/src/pages, which shows the person their own actor, profile and grants. */
     public const string ACCOUNT_ME = 'Account/Me';
+
+    /** The roles page, in js/panel/src/pages, which lists the roles and changes them (PRD 5.10). */
+    public const string ACCESS_ROLES = 'Access/Roles';
+
+    /** The grants page, in js/panel/src/pages, which lists the grants, assigns and revokes them (PRD 5.10). */
+    public const string ACCESS_GRANTS = 'Access/Grants';
 
     /** An addon's page, in js/panel/src/pages, which renders the addon's component of the page. */
     public const string ADDON = 'Addon';
@@ -126,6 +142,8 @@ final readonly class PanelPages
         private AddonPageCodecV1 $addonPage,
         private AccountMePageCodecV1 $accountMePage,
         private CommandFormPageCodecV1 $commandFormPage,
+        private AccessRolesPageCodecV1 $accessRolesPage,
+        private AccessGrantsPageCodecV1 $accessGrantsPage,
     ) {}
 
     public function login(Request $request): Response|JsonResponse
@@ -212,6 +230,33 @@ final readonly class PanelPages
     public function commandForm(Request $request, CommandFormPage $form, SharedProps $contributions): Response|JsonResponse
     {
         return $this->unstored($this->render($request, self::COMMAND_FORM, $this->commandFormPage->encode($form, ClassificationAccess::Public), $contributions));
+    }
+
+    /**
+     * The roles page, with the read of role.list as the person, the result or the problem, and the
+     * contributions active on it (PRD 5.10, 13.4).
+     */
+    public function accessRoles(Request $request, ReadAnswer $read, SharedProps $contributions): Response|JsonResponse
+    {
+        return $this->unstored($this->render($request, self::ACCESS_ROLES, $this->accessRolesPage->encode(
+            new AccessRolesPage($this->urls->route(PanelRoute::Logout->value, [], false), $read->result, $read->rejection),
+            ClassificationAccess::Public,
+        ), $contributions));
+    }
+
+    /**
+     * The grants page, with the read of grant.list as the person, the result or the problem, the
+     * locales the form offers, the contributions active on it and the optional prop of the form's
+     * pickers (PRD 5.10, 13.4).
+     *
+     * @param  list<Locale>  $locales
+     */
+    public function accessGrants(Request $request, ReadAnswer $read, array $locales, SharedProps $contributions, SharedProps $pickers): Response|JsonResponse
+    {
+        return $this->unstored($this->render($request, self::ACCESS_GRANTS, $this->accessGrantsPage->encode(
+            new AccessGrantsPage($this->urls->route(PanelRoute::Logout->value, [], false), $read->result, $read->rejection, $locales),
+            ClassificationAccess::Public,
+        ), new SharedProps([...$contributions->props, ...$pickers->props])));
     }
 
     public function notFound(Request $request): Response|JsonResponse

@@ -1,7 +1,7 @@
 ---
 title: Panel pages
 weight: 52
-description: "The panel's own pages behind the login, the navigation entries a module registers with the permission each needs, the who-am-I page and the query actor.me it reads as the person, and the sections point of the page."
+description: "The panel's own pages behind the login, the navigation entries a module registers with the permission each needs, the who-am-I page and the query actor.me it reads as the person, the roles and grants pages with the commands they run and the pickers they read, and the sections points of the pages."
 ---
 
 # Panel pages
@@ -10,20 +10,26 @@ description: "The panel's own pages behind the login, the navigation entries a m
 <!-- extension-point: packages/core/resources/schemas/queries/actor.me.result.v1.json -->
 <!-- extension-point: Cbox\Cms\Panel\Account\Domain\Dto\AccountMeSectionsV1 -->
 <!-- extension-point: packages/panel/resources/schemas/points/account.me.sections.v1.json -->
+<!-- extension-point: Cbox\Cms\Panel\Access\Domain\Dto\AccessRolesSectionsV1 -->
+<!-- extension-point: packages/panel/resources/schemas/points/access.roles.sections.v1.json -->
+<!-- extension-point: Cbox\Cms\Panel\Access\Domain\Dto\AccessGrantsSectionsV1 -->
+<!-- extension-point: packages/panel/resources/schemas/points/access.grants.sections.v1.json -->
 
-The panel has pages of its own behind the login (PRD 13.4): the start page and the who-am-I page, each at a fixed address below the panel's prefix, and each rendering the [shell's points](panel-shell.md) around its content. A page that reads gets its props from a query of the kernel, run through the query pipeline as the person who signed in, from the session credential, and written by the query's result codec, so what the page shows is what REST answers the same person with. [The panel module](../developers/panel.md#page-props) lists each page's props schema and generated codec.
+The panel has pages of its own behind the login (PRD 13.4): the start page, the who-am-I page and the roles and grants pages, each at a fixed address below the panel's prefix, and each rendering the [shell's points](panel-shell.md) around its content. A page that reads gets its props from a query of the kernel, run through the query pipeline as the person who signed in, from the session credential, and written by the query's result codec, so what the page shows is what REST answers the same person with. [The panel module](../developers/panel.md#page-props) lists each page's props schema and generated codec.
 
 | Page | Address | Reads | Points it declares |
 |---|---|---|---|
 | `home`, the start page | `<prefix>` | nothing | none of its own |
 | `account.me`, the who-am-I page | `<prefix>/account/me` | `actor.me` version 1 | `account.me.sections@1` |
 | `command.form`, the generic [command form](command-form.md) | `<prefix>/commands/<name>/v<version>` | nothing; its props are the command's JSON Schema | `command.form.aside@1` |
+| `access.roles`, the roles page | `<prefix>/access/roles` | `role.list` version 1 | `access.roles.sections@1` |
+| `access.grants`, the grants page | `<prefix>/access/grants` | `grant.list` version 1, and `actor.list`, `role.list` and `node.list` version 1 for its pickers | `access.grants.sections@1` |
 
 ## Navigation entries and their permissions
 
 A module of `cboxdk/cms` registers a page in the shell's navigation with a `NavContribution` to `shell.nav@1`, declared through its service provider's `DeclaresCoreContributions` in the namespace `cms`, as the core's own contributions are ([panel contributions](panel-contributions.md#the-cores-own-contributions)). The entry names the page it opens, one of the panel's own pages by its id, its label, a translation key of the panel's catalogue, and its icon, and in its `Scope` the permission the viewer must hold, `requires`: the name of a command or read. The server decides per request and viewer: an entry is sent only when the viewer holds its permission on some node, as the `PermissionRule` decides it from the viewer's grants, and an entry whose page is an addon's only when the viewer gets that page. An entry the viewer may not see is never sent, not even its id. The entries are the pages of the [command palette](command-palette.md) too, through `action.list`.
 
-The who-am-I page's entry requires nothing, because every actor reads its own self. The panel renders the entries in render order, the lowest priority first: the core's at 100, 200 and so on, an addon's at 1000 unless its manifest says otherwise. There is no registry besides the contributions: `cms:build` compiles the entries with every other contribution onto `panel.php`, and the installation reorders or disables one as it does an addon's ([order, choices and the kill switch](panel-contributions.md#order-choices-and-the-kill-switch)).
+The who-am-I page's entry requires nothing, because every actor reads its own self; the roles page's entry requires `role.list` and the grants page's `grant.list`, the queries the pages read, so a person is offered no page they could not read. The panel renders the entries in render order, the lowest priority first: the core's at 100, 200 and so on, an addon's at 1000 unless its manifest says otherwise. There is no registry besides the contributions: `cms:build` compiles the entries with every other contribution onto `panel.php`, and the installation reorders or disables one as it does an addon's ([order, choices and the kill switch](panel-contributions.md#order-choices-and-the-kill-switch)).
 
 ## The who-am-I page
 
@@ -42,6 +48,26 @@ Who may run it is the rule of a self-read: `WhoAmI` implements `Cbox\Cms\Contrac
 ## The sections of the page
 
 `account.me.sections@1` is a slot in the sections region of the who-am-I page, experimental, declared on the page `account.me` by `AccountMeSectionsV1`, whose props are the viewer's actor id, which a section's data query takes as its input. An addon adds a section about the viewer with a `SlotFill` to it, listing the point in `acceptsExperimental`; the profile and the grants are the page's own and are never handed to a section. The props schema is `account.me.sections.v1.json` in `packages/panel/resources/schemas/points`, with the generated codec `AccountMeSectionsCodecV1` and the TypeScript `AccountMeSectionsV1` of `@cboxdk/cms-panel/experimental` ([panel points](panel-points.md)).
+
+## Roles and grants
+
+The roles and grants pages (PRD 5.10) are where an administrator manages access without leaving the panel, in parity with REST: every list is a query of the kernel read as the person, and every change a command through the Inertia profile as the person, the same commands and queries REST exposes ([role commands](role-commands.md), [grant commands](grant-commands.md), [access queries](access-queries.md)). Both pages read a keyset page at a time, after the id the address names as `?after=<id>`, so the address is the state; Next opens the next page's address, Previous goes back through the pages opened. What a person may do on a page comes from `action.list`, the shared prop the [command palette](command-palette.md) is built from too: a button for a command the person may not run is not shown, and the page says who can instead, so a refusal never ends without a way on.
+
+`GET <prefix>/access/roles` lists the roles with their handle, classification ceiling and permissions, read with `role.list`. A person who may run `role.create` creates a role in a form: its handle, its ceiling and its permissions, chosen among the commands and reads the person may run themselves, because the escalation guard lets an actor give only what it holds (invariant 31), plus those the role already has. A person who may run `role.set_permissions` replaces a role's permissions in full from the row's menu; a list equal to the role's is not sent. The page shows the receipt of each change and, for a refusal, the problem details with what the code means in the person's language, at the form while it is open and the field each error is about marked.
+
+![The roles page on a desktop: every role with its handle, classification ceiling and permissions, read with role.list, and the button that creates one.](../screenshots/access-roles.png)
+
+![The roles page on a phone: the same roles in a table that scrolls, with the shell's navigation folded away.](../screenshots/access-roles-mobile.png)
+
+`GET <prefix>/access/grants` lists the grants that have not ended on the nodes the person reaches, read with `grant.list`: each with its member of staff, whose name and email the page shows when the person's classification access allows personal and withholds otherwise, its role, the node's path, whether it allows or denies, and the languages it holds in. A person who may run `grant.assign` opens the form to assign one; as it opens, the page asks the server for the optional prop `pickers`, the reads of `actor.list`, `role.list` and `node.list` as the person, and the pickers say what they wait for until they arrive. The member of staff is found by name or email, the role chosen by handle with its permissions shown, the node in the content tree of the nodes the person reaches, the effect allow or deny, and the languages among those the installation's sites publish in (`cbox-cms.sites`), none for every language. A person who may run `grant.revoke` revokes a grant from the row's menu after a confirmation. The receipt and any refusal are shown as on the roles page: a grant of an administrative role is refused with `step_up_required` and one of a role the person does not hold with `grant_escalation_refused`, each explained in the person's language with what to do.
+
+![The grants page on a desktop: who holds which role where, each grant with its member of staff, role, node, effect and languages, read with grant.list, and the button that assigns one.](../screenshots/access-grants.png)
+
+![The grants page on a phone: the same grants in a table that scrolls.](../screenshots/access-grants-mobile.png)
+
+![The form that assigns a grant, open over the grants page: the pickers of the member of staff, the role and the node, the effect and the languages.](../screenshots/access-grant-assign.png)
+
+`access.roles.sections@1` and `access.grants.sections@1` are slots in the sections region of each page, experimental, declared by `AccessRolesSectionsV1` and `AccessGrantsSectionsV1` without props: the roles and the grants are the page's own, and a section's data query reads what it needs as the viewer. Their schemas are `access.roles.sections.v1.json` and `access.grants.sections.v1.json` in `packages/panel/resources/schemas/points`, with the generated codecs and the TypeScript of `@cboxdk/cms-panel/experimental`.
 
 [Add a panel page](../recipes/panel-page.md) is the recipe for a page of this kind. The example is in the `Unit` suite:
 

@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Grant pickers prop, contract version 1",
+  "description": "The optional prop `pickers` of the panel's grants page, Access/Grants (PRD 5.10, 13.4), which the page asks for when its form to assign a grant opens: the reads of actor.list, role.list and node.list as the person, each its result as the query's result codec wrote it at the person's classification access, or the problem details (problem.v1.json) of a rejected read, never both, and neither for a read the pipeline could not make, which is reported to the application's exception handler, so each picker shows its options, or why it has none, on its own. The PHP form is Cbox\\Cms\\Panel\\Domain\\Dto\\GrantPickers, and the generated codec GrantPickersCodecV1 writes its canonical JSON: keys sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "actors",
+    "nodes",
+    "roles"
+  ],
+  "properties": {
+    "actors": {
+      "description": "The read of actor.list, the staff actors a grant may be given to. Validate its result with the validator of ActorListV1.",
+      "$ref": "#/$defs/read"
+    },
+    "nodes": {
+      "description": "The read of node.list, the nodes the person reaches, which a grant may hold on. Validate its result with the validator of NodeListV1.",
+      "$ref": "#/$defs/read"
+    },
+    "roles": {
+      "description": "The read of role.list, the roles a grant may give. Validate its result with the validator of RoleListV1.",
+      "$ref": "#/$defs/read"
+    }
+  },
+  "$defs": {
+    "read": {
+      "description": "One picker's read: the result of its query as the result codec wrote it, or the problem details of a rejected read, never both, and neither for a read the pipeline could not make. The PHP form is Cbox\\Cms\\Panel\\Domain\\Dto\\PickerRead.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rejection",
+        "result"
+      ],
+      "properties": {
+        "rejection": {
+          "description": "The problem details of a rejected read, a document of problem.v1.json, or null for an answered read. Validate it with the validator of ProblemV1.",
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "result": {
+          "description": "The result of the picker's query as its result codec wrote it, or null for a rejected read.",
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

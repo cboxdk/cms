@@ -19,6 +19,8 @@ use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Protocol\Domain\Dto\SchemaBinding;
 use Cbox\Cms\Generators\Protocol\Domain\Dto\ValueBinding;
+use Cbox\Cms\Panel\Access\Domain\Dto\AccessGrantsSectionsV1;
+use Cbox\Cms\Panel\Access\Domain\Dto\AccessRolesSectionsV1;
 use Cbox\Cms\Panel\Account\Domain\Dto\AccountMeSectionsV1;
 use Cbox\Cms\Panel\CommandForm\Domain\Dto\CommandFormContextV1;
 use Cbox\Cms\Panel\Shell\Domain\Dto\ShellNavV1;
@@ -104,6 +106,8 @@ final readonly class PanelPointSchemas
     public static function all(): array
     {
         return [
+            self::point('access.grants.sections.v1.json', 'AccessGrantsSectionsCodecV1', 1, ['#' => AccessGrantsSectionsV1::class]),
+            self::point('access.roles.sections.v1.json', 'AccessRolesSectionsCodecV1', 1, ['#' => AccessRolesSectionsV1::class]),
             self::point('account.me.sections.v1.json', 'AccountMeSectionsCodecV1', 1, ['#' => AccountMeSectionsV1::class], [
                 '#/properties/actor' => ValueBinding::id(ActorId::class),
             ]),

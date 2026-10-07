@@ -69,7 +69,7 @@ final class AddonPageTest extends TestCase
 
         $contributions = (array) $page->json('props.'.ContributionProps::CMS.'.'.ContributionProps::CONTRIBUTIONS);
 
-        self::assertSame([['page' => 'account.me', 'url' => '/cms/account/me'], ['page' => 'home', 'url' => '/cms'], ['page' => ContributionWorld::BOARD, 'url' => self::BOARD]], $contributions['pages'] ?? null);
+        self::assertSame([['page' => 'access.grants', 'url' => '/cms/access/grants'], ['page' => 'access.roles', 'url' => '/cms/access/roles'], ['page' => 'account.me', 'url' => '/cms/account/me'], ['page' => 'home', 'url' => '/cms'], ['page' => ContributionWorld::BOARD, 'url' => self::BOARD]], $contributions['pages'] ?? null);
         self::assertSame(['shell.nav@1', 'shell.page@1', 'shell.user-menu@1'], array_keys($this->pointsOf($page)));
         self::assertSame(['icon' => 'inbox', 'label' => 'tally.nav.board', 'page' => ContributionWorld::BOARD], $this->firstFill($page, 'shell.nav@1')['nav'] ?? null);
         self::assertTrue($this->firstFill($page, 'shell.page@1')['data'] ?? null);
@@ -125,7 +125,7 @@ final class AddonPageTest extends TestCase
 
         $contributions = (array) $this->visitPanel($viewer, '/cms')->assertOk()->json('props.'.ContributionProps::CMS.'.'.ContributionProps::CONTRIBUTIONS);
 
-        self::assertSame([['page' => 'account.me', 'url' => '/cms/account/me'], ['page' => 'home', 'url' => '/cms']], $contributions['pages'] ?? null);
+        self::assertSame([['page' => 'access.grants', 'url' => '/cms/access/grants'], ['page' => 'access.roles', 'url' => '/cms/access/roles'], ['page' => 'account.me', 'url' => '/cms/account/me'], ['page' => 'home', 'url' => '/cms']], $contributions['pages'] ?? null);
         self::assertSame([], $contributions['points'] ?? null, 'The viewer holds no permission of the shell\'s contributions, so none is listed, the nav entry included.');
     }
 

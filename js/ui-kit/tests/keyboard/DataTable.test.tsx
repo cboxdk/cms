@@ -86,6 +86,13 @@ describe('the keyboard contract of DataTable', () => {
 
     await user.tab();
     expect(grid.contains(active())).toBe(true);
+    // The rows' menu buttons are reached with the arrow keys, not as tab stops of their own, so a
+    // focused cell is not obscured by a second target in the tab order (WCAG 2.2 target size).
+    expect(
+      within(grid)
+        .getAllByRole('button', { name: /Actions for/ })
+        .map((button) => button.tabIndex),
+    ).toEqual([-1, -1]);
     await user.keyboard('{ArrowRight}');
     expect(active().textContent).toBe('Ada');
     await user.keyboard('{ArrowRight}');
