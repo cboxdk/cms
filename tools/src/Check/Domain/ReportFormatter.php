@@ -6,8 +6,9 @@ namespace Cbox\Cms\Tooling\Check\Domain;
 
 /**
  * The plain text of `composer check`: a line per step while it runs, and a summary with every
- * gate and step marked pass, fail or not run. The notes of a step, such as the abandoned packages
- * composer audit found, are listed below it in both.
+ * gate and step marked pass, fail, not run or elsewhere, which names the part of the run that
+ * runs it. The notes of a step, such as the abandoned packages composer audit found, are listed
+ * below it in both.
  */
 final readonly class ReportFormatter
 {
@@ -32,7 +33,7 @@ final readonly class ReportFormatter
     public static function stepLine(StepResult $result): string
     {
         $detail = match ($result->status) {
-            StepStatus::NotRun => ': '.$result->reason,
+            StepStatus::NotRun, StepStatus::Elsewhere => ': '.$result->reason,
             StepStatus::Pass => sprintf('  %.1f s', $result->seconds),
             StepStatus::Fail => sprintf(
                 '  %.1f s, %s',

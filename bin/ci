@@ -29,9 +29,17 @@
 # and reports what CI does not run as not run: gate 11. tests/Feature/Tooling/Ci keeps this list
 # and the one in ci.yml equal to the profiles.
 #
+# The two slow suites run in shards, because the gates took 14 minutes 50 seconds of the
+# 15-minute budget in B1 and B2 doubles them: the Postgres suite of gate 5 and the Browser suite of
+# gate 8 are split over the 4 shards of a declared plan with Pest's own --shard (ShardPlan),
+# each shard a job of its own, and the gates part reports those two steps as run in the shard jobs,
+# never as not run. `composer shards:verdict` then fails unless the gates and the shard jobs
+# passed and every shard of the plan reported once, having run every sharded step, so a shard that
+# never ran cannot pass as a missing report. Add shards or parallelise; never drop a gate.
+#
 # Mutation testing is deferred until after v1 (Sylvester, 2 October 2026): it made every merge
 # take far longer, and the architecture will change before v1. By default gate 5 reports it as not
-# run, with the reason, and nothing of the plan, the shards or the verdict runs. With
+# run, with the reason, and nothing of the mutation plan, its shards or its verdict runs. With
 # CMS_CI_MUTATION=1, as ci.yml's run by hand with the input mutation sets it, it runs what CI ran
 # before the decision, through `composer check -- --pr --mutation`:
 #   gate 5  vendor/bin/pest --testsuite=Mutation, the tests that need PCOV, and mutation on
@@ -42,23 +50,29 @@
 #           Postgres suite, unless the fast suites caught all of them. The files are split
 #           into shards by file (composer mutation:plan), each run in a job of its own, and
 #           composer mutation:verdict judges every class over all its mutations in all shards
+# Such a run keeps the sharded suites whole in its gates part, so its shards are the shards of
+# mutation on changed files alone.
 #
 # The parts (CMS_CI_PART), each a job of ci.yml, so the run takes as long as its slowest job:
-#   gates         composer check -- --pr: every gate, with mutation testing reported as not run;
-#                 with CMS_CI_MUTATION=1, composer check -- --pr --mutation --only=gates: every
-#                 gate and the Mutation suite, without mutation on changed files
+#   gates         composer check -- --pr --only=gates: every gate, with the sharded suites run in
+#                 the shard jobs and mutation testing reported as not run; with CMS_CI_MUTATION=1,
+#                 composer check -- --pr --mutation --only=gates: every gate, the sharded suites
+#                 whole and the Mutation suite, without mutation on changed files
+#   shard:<i>/<n> composer check -- --pr --shard=<i>/<n> --shard-report=<file>: shard i of the
+#                 4 shards of the sharded suites (ShardPlan), and its report for the verdict;
+#                 with CMS_CI_MUTATION=1, composer check -- --pr --mutation --shard=<i>/<n>:
+#                 shard i of the mutation plan's n shards
+#   verdict       composer shards:verdict over the shards' reports in CMS_CI_ARTIFACTS, with how
+#                 the gates and the shards ended in CMS_CI_GATES_RESULT and CMS_CI_SHARDS_RESULT
+#                 (success, failure, cancelled or skipped); with CMS_CI_MUTATION=1,
+#                 composer mutation:verdict over the mutation plan and those shards' reports
 #   plan          with CMS_CI_MUTATION=1 only: composer mutation:plan, the shards of mutation on
 #                 changed files, as a file for the verdict and, on GitHub, the step outputs count
 #                 and shards for the matrix
-#   shard:<i>/<n> with CMS_CI_MUTATION=1 only: composer check -- --pr --mutation --shard=<i>/<n>:
-#                 shard i of the plan's n shards
-#   verdict       with CMS_CI_MUTATION=1 only: composer mutation:verdict over the plan and the
-#                 shards' reports in CMS_CI_ARTIFACTS, with how the gates and the shards ended in
-#                 CMS_CI_GATES_RESULT and CMS_CI_SHARDS_RESULT (success, failure, cancelled or
-#                 skipped)
-#   all           the default: the gates, as the containerized run does; with CMS_CI_MUTATION=1,
-#                 plan, gates, every shard one after the other, and the verdict. Each part is timed
-#                 against the budget on its own, because CI runs them as parallel jobs.
+#   all           the default: the gates, every shard of the sharded suites one after the other and
+#                 the verdict, as the containerized run does; with CMS_CI_MUTATION=1, plan, gates,
+#                 every mutation shard and the verdict. Each part is timed against the budget on
+#                 its own, because CI runs them as parallel jobs.
 #
 # Environment:
 #   CMS_CI_PART                  the part to run, as above (default all)
@@ -92,17 +106,17 @@
 #                                checkout to that user and runs itself again as that user.
 #   CMS_CI_REPORT                the JSON report of the gates (default build/ci/check.json); a
 #                                shard's reports go next to it
-#   CMS_CI_ARTIFACTS             where the verdict finds the plan, in mutation-plan/, and the
-#                                shards' reports (default build/ci/artifacts); the part all writes
+#   CMS_CI_ARTIFACTS             where the verdict finds the shards' reports, and the mutation plan
+#                                in mutation-plan/ (default build/ci/artifacts); the part all writes
 #                                them there, ci.yml's verdict job downloads them there
 #   CMS_CI_RUNNER                the declared runner, printed with the wall time
 #   GITHUB_OUTPUT                set by GitHub Actions; the part plan writes the matrix to it
 #   GITHUB_STEP_SUMMARY          set by GitHub Actions; each part's summary is appended to it
 #
 # Exit code: 0 when every part that ran passed, 1 when a gate, a shard or the verdict failed, 2 for
-# a CMS_CI_PART it does not know, a part of mutation testing without CMS_CI_MUTATION=1 or a
-# CMS_CI_MUTATION other than 1, 0 or empty, and the failing command's code when provisioning or
-# installing fails.
+# a CMS_CI_PART it does not know, a shard that is not one of the plan's, a part of mutation testing
+# without CMS_CI_MUTATION=1 or a CMS_CI_MUTATION other than 1, 0 or empty, and the failing
+# command's code when provisioning or installing fails.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -119,6 +133,9 @@ if [[ $EUID -eq 0 ]]; then
 fi
 
 readonly budget_minutes=15
+# The declared number of shards of the sharded suites, Check\Domain\ShardPlan::SHARDS, which
+# ci.yml's matrix names too; tests/Feature/Tooling/Ci/CiWorkflowTest.php holds the three equal.
+readonly suite_shards=4
 part="${CMS_CI_PART:-all}"
 report="${CMS_CI_REPORT:-build/ci/check.json}"
 out="$(dirname "$report")"
@@ -147,6 +164,11 @@ case "$part" in
             echo "bin/ci: CMS_CI_PART=${part} is not a shard i/n with i from 1 to n." >&2
             exit 2
         fi
+
+        if [[ $mutation -eq 0 ]] && ((BASH_REMATCH[2] != suite_shards)); then
+            echo "bin/ci: CMS_CI_PART=${part} is not a shard of the plan of the sharded suites, which has ${suite_shards} shards (ShardPlan)." >&2
+            exit 2
+        fi
         ;;
     *)
         echo "bin/ci: CMS_CI_PART=${part} is not a part: all, plan, gates, shard:<i>/<n> or verdict." >&2
@@ -154,7 +176,7 @@ case "$part" in
         ;;
 esac
 
-if [[ $mutation -eq 0 && "$part" != all && "$part" != gates ]]; then
+if [[ $mutation -eq 0 && "$part" == plan ]]; then
     echo "bin/ci: CMS_CI_PART=${part} is a part of mutation testing, which runs only with CMS_CI_MUTATION=1: ${deferred}." >&2
     exit 2
 fi
@@ -194,8 +216,8 @@ check() {
     set -e
 }
 
-# Writes the plan to a directory and sets $shards to its number of shards; the plan's step outputs
-# also go to GitHub's when it is set. Argument: the directory.
+# Writes the mutation plan to a directory and sets $shards to its number of shards; the plan's step
+# outputs also go to GitHub's when it is set. Argument: the directory.
 plan() {
     local outputs="$1/plan.env"
     mkdir -p "$1"
@@ -213,13 +235,30 @@ plan() {
     fi
 }
 
-# Runs one shard and keeps its reports in a directory. Arguments: i, n, the directory.
+# Runs one shard of the sharded suites and keeps its reports in a directory. Arguments: i, n, the
+# directory.
+suite_shard() {
+    check "$3/check.json" --shard="$1/$2" --shard-report="$3/suite-shard.json"
+}
+
+# Runs one shard of mutation on changed files and keeps its reports in a directory. Arguments: i,
+# n, the directory.
 shard() {
     check "$3/check.json" --mutation --shard="$1/$2" --mutation-report="$3/mutation-shard.json"
 }
 
-# Judges the plan and the shards' reports below a directory, and sets $status. Arguments: the
+# Judges the shards of the sharded suites below a directory, and sets $status. Arguments: the
 # directory, how the gates ended, how the shards ended.
+shards_verdict() {
+    mkdir -p "$1"
+    set +e
+    composer shards:verdict -- --reports="$1" --gates="$2" --shards="$3" 2>&1 | tee "$1/verdict.log"
+    status=${PIPESTATUS[0]}
+    set -e
+}
+
+# Judges the mutation plan and the shards' reports below a directory, and sets $status. Arguments:
+# the directory, how the gates ended, how the shards ended.
 verdict() {
     mkdir -p "$1"
     set +e
@@ -286,29 +325,54 @@ case "$part" in
         if [[ $mutation -eq 1 ]]; then
             check "$report" --mutation --only=gates
         else
-            check "$report"
+            check "$report" --only=gates
         fi
         finish_part gates "$part_started" "$status"
         ;;
     shard:*)
-        section "mutation on changed files, ${part}"
-        part_started=$SECONDS
         index="${part#shard:}"
-        shard "${index%/*}" "${index#*/}" "$out"
+        if [[ $mutation -eq 1 ]]; then
+            section "mutation on changed files, ${part}"
+            part_started=$SECONDS
+            shard "${index%/*}" "${index#*/}" "$out"
+        else
+            section "the sharded suites, ${part}"
+            part_started=$SECONDS
+            suite_shard "${index%/*}" "${index#*/}" "$out"
+        fi
         finish_part "$part" "$part_started" "$status"
         ;;
     verdict)
         section 'verdict'
         part_started=$SECONDS
-        verdict "$artifacts" "${CMS_CI_GATES_RESULT:?CMS_CI_GATES_RESULT says how the gates ended}" "${CMS_CI_SHARDS_RESULT:?CMS_CI_SHARDS_RESULT says how the shards ended}"
+        if [[ $mutation -eq 1 ]]; then
+            verdict "$artifacts" "${CMS_CI_GATES_RESULT:?CMS_CI_GATES_RESULT says how the gates ended}" "${CMS_CI_SHARDS_RESULT:?CMS_CI_SHARDS_RESULT says how the shards ended}"
+        else
+            shards_verdict "$artifacts" "${CMS_CI_GATES_RESULT:?CMS_CI_GATES_RESULT says how the gates ended}" "${CMS_CI_SHARDS_RESULT:?CMS_CI_SHARDS_RESULT says how the shards ended}"
+        fi
         finish_part verdict "$part_started" "$status"
         ;;
     all)
         if [[ $mutation -eq 0 ]]; then
             section 'gates'
             part_started=$SECONDS
-            check "$report"
+            check "$report" --only=gates
+            gates_result=$([[ $status -eq 0 ]] && echo success || echo failure)
             finish_part gates "$part_started" "$status"
+
+            shards_result=success
+            for ((i = 1; i <= suite_shards; i++)); do
+                section "the sharded suites, shard ${i} of ${suite_shards}"
+                part_started=$SECONDS
+                suite_shard "$i" "$suite_shards" "$artifacts/suite-shard-${i}"
+                [[ $status -eq 0 ]] || shards_result=failure
+                finish_part "shard:${i}/${suite_shards}" "$part_started" "$status"
+            done
+
+            section 'verdict'
+            part_started=$SECONDS
+            shards_verdict "$artifacts" "$gates_result" "$shards_result"
+            finish_part verdict "$part_started" "$status"
         else
             section 'plan'
             part_started=$SECONDS
@@ -355,7 +419,7 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
         echo '```text'
         for log in "$out/check.log" "$artifacts/verdict.log"; do
             if [[ -f "$log" ]]; then
-                sed -n '/^Summary$/,$p;/^mutation:verdict:/,$p' "$log"
+                sed -n '/^Summary$/,$p;/^mutation:verdict:/,$p;/^shards:verdict:/,$p' "$log"
             fi
         done
         printf '%s\n' "${timings[@]}"

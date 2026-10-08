@@ -141,6 +141,8 @@ it('refuses a step whose status does not match its exit code', function (StepSta
     'fail with exit code 0' => [StepStatus::Fail, 0, null],
     'not run with an exit code' => [StepStatus::NotRun, 0, 'later'],
     'not run without a reason' => [StepStatus::NotRun, null, null],
+    'run elsewhere with an exit code' => [StepStatus::Elsewhere, 0, 'the gates job'],
+    'run elsewhere without a reason' => [StepStatus::Elsewhere, null, null],
     'pass without an exit code, a reason or a note' => [StepStatus::Pass, null, null],
     'pass without an exit code, with a reason' => [StepStatus::Pass, null, 'why'],
 ]);
@@ -149,13 +151,18 @@ it('writes a step decided without a command to the report and reads it back', fu
     $report = new CheckReport('/srv/checkout', [new GateResult(5, 'Pest', [
         StepResult::decided('Mutation on changed files', StepStatus::Pass, '0 changed classes since abc'),
         StepResult::decided('Mutation, again', StepStatus::Fail, 'CMS_CI_BASE_REF is not set'),
+        StepResult::decided('Postgres', StepStatus::Elsewhere, 'run in the shard jobs'),
     ])]);
 
     $decoded = CheckReportJson::decode(CheckReportJson::encode($report));
 
     expect($decoded)->toEqual($report)
         ->and($decoded->gate(5)?->step('Mutation on changed files')?->notes)->toBe(['0 changed classes since abc'])
-        ->and($decoded->gate(5)?->step('Mutation, again')?->reason)->toBe('CMS_CI_BASE_REF is not set');
+        ->and($decoded->gate(5)?->step('Mutation, again')?->reason)->toBe('CMS_CI_BASE_REF is not set')
+        ->and($decoded->gate(5)?->step('Postgres')?->status)->toBe(StepStatus::Elsewhere)
+        ->and($decoded->gate(5)?->step('Postgres')?->reason)->toBe('run in the shard jobs')
+        ->and($decoded->gate(5)?->step('Postgres')?->notes)->toBe([])
+        ->and(CheckReportJson::encode($report))->toContain('"status": "elsewhere"');
 });
 
 it('restores a step that failed with exit code 0 because its output reader found a failure, and its notes', function (): void {

@@ -20,6 +20,7 @@ use Cbox\Cms\Tooling\Check\Domain\Profile;
 use Cbox\Cms\Tooling\Check\Domain\PrPart;
 use Cbox\Cms\Tooling\Check\Domain\PrProfile;
 use Cbox\Cms\Tooling\Check\Domain\ReportFormatter;
+use Cbox\Cms\Tooling\Check\Domain\ShardPlan;
 use Cbox\Cms\Tooling\Check\Domain\Step;
 use Cbox\Cms\Tooling\Check\Domain\StepResult;
 use Cbox\Cms\Tooling\Check\Domain\StepStatus;
@@ -463,13 +464,20 @@ it('runs only its shard of mutation on changed files in a shard job, with the ta
             continue;
         }
 
+        $step = $gate->steps[0];
+        $notRun = isset(PrProfile::NOT_RUN[$gate->number]);
+
         expect($gate->steps)->toHaveCount(1)
-            ->and($gate->steps[0]->notRunReason)->toBe(PrProfile::NOT_RUN[$gate->number] ?? PrProfile::GATE_IN_GATES_JOB);
+            ->and($step->runs())->toBeFalse()
+            ->and($notRun ? $step->notRunReason : $step->decision)->toBe(PrProfile::NOT_RUN[$gate->number] ?? PrProfile::GATE_IN_GATES_JOB)
+            ->and($step->decided)->toBe($notRun ? null : StepStatus::Elsewhere);
     }
 });
 
 it('names the part in the header of a run of the PR profile, whether it runs mutation testing or not', function (): void {
-    expect(ReportFormatter::header('/srv/checkout', Profile::Pr, PrPart::shard(2, 3)))->toContain('; this run: mutation on changed files, shard 2 of 3, in /srv/checkout')
+    expect(ReportFormatter::header('/srv/checkout', Profile::Pr, PrPart::suiteShard(2, ShardPlan::SHARDS)))->toContain('; this run: the Postgres and Browser suites, shard 2 of '.ShardPlan::SHARDS.', in /srv/checkout')
+        ->and(ReportFormatter::header('/srv/checkout', Profile::Pr, PrPart::suiteGates()))->toContain('; this run: the gates, with the Postgres and Browser suites run in their shards')
+        ->and(ReportFormatter::header('/srv/checkout', Profile::Pr, PrPart::shard(2, 3)))->toContain('; this run: mutation on changed files, shard 2 of 3, in /srv/checkout')
         ->and(ReportFormatter::header('/srv/checkout', Profile::Pr, PrPart::gates()))->toContain('; this run: the gates, with mutation on changed files run in its shards')
         ->and(ReportFormatter::header('/srv/checkout', Profile::Pr, PrPart::all()))->toContain('; this run: every gate, with mutation testing, in /srv/checkout')
         ->and(ReportFormatter::header('/srv/checkout', Profile::Pr, PrPart::withoutMutation()))->toContain('; this run: every gate, without mutation testing, which is deferred until after v1, in /srv/checkout')
@@ -477,9 +485,210 @@ it('names the part in the header of a run of the PR profile, whether it runs mut
         ->and(ReportFormatter::header('/srv/checkout', Profile::Local, PrPart::all()))->not->toContain('this run');
 });
 
+it('shards the Postgres and Browser suites only in the parts of a run without mutation testing', function (): void {
+    $plan = [PrPart::suiteGates(), PrPart::suiteShard(1, ShardPlan::SHARDS)];
+    $whole = [PrPart::withoutMutation(), PrPart::all(), PrPart::gates(), PrPart::shard(1, 2)];
+
+    foreach ($plan as $part) {
+        expect($part->shardedSuites)->toBeTrue()
+            ->and($part->mutationTesting)->toBeFalse()
+            ->and($part->isMutationShard())->toBeFalse()
+            ->and($part->runsMutation())->toBeFalse()
+            ->and($part->runsMutationSuite())->toBeFalse();
+    }
+
+    foreach ($whole as $part) {
+        expect($part->shardedSuites)->toBeFalse()
+            ->and($part->isSuiteShard())->toBeFalse();
+    }
+
+    expect([PrPart::suiteGates()->isSuiteShard(), PrPart::suiteGates()->runsGates(), PrPart::suiteGates()->isShard()])->toBe([false, true, false])
+        ->and([PrPart::suiteShard(1, ShardPlan::SHARDS)->isSuiteShard(), PrPart::suiteShard(1, ShardPlan::SHARDS)->runsGates(), PrPart::suiteShard(1, ShardPlan::SHARDS)->isShard()])->toBe([true, false, true])
+        ->and(static fn (): PrPart => PrPart::suiteShard(1, ShardPlan::SHARDS + 1))->toThrow(InvalidArgumentException::class, 'is not the plan of '.ShardPlan::SHARDS.' shards that CI runs')
+        ->and(static fn (): PrPart => PrPart::suiteShard(ShardPlan::SHARDS + 1, ShardPlan::SHARDS))->toThrow(InvalidArgumentException::class, 'is not a shard');
+});
+
+it('shards the slowest suites of the profile, the Postgres suite of gate 5 and the Browser suite of gate 8, and nothing else', function (): void {
+    expect(ShardPlan::SHARDS)->toBeGreaterThan(1)
+        ->and(array_keys(ShardPlan::SUITES))->toBe([5, 8])
+        ->and(ShardPlan::names())->toBe([LocalProfile::POSTGRES_SUITE, PrProfile::BROWSER_SUITE])
+        ->and(LocalProfile::SUITES)->toContain(LocalProfile::POSTGRES_SUITE)
+        ->and(LocalProfile::OTHER_SUITES)->toContain(PrProfile::BROWSER_SUITE)
+        ->and(ShardPlan::steps(5))->toBe([LocalProfile::POSTGRES_SUITE])
+        ->and(ShardPlan::steps(8))->toBe([PrProfile::BROWSER_SUITE])
+        ->and(ShardPlan::steps(1))->toBe([])
+        ->and(ShardPlan::PREPARES)->toBe([PrProfile::PANEL_BUILD])
+        ->and(ShardPlan::indexes())->toBe(range(1, ShardPlan::SHARDS))
+        ->and(ShardPlan::option(2, 4))->toBe('--shard=2/4')
+        ->and(ShardPlan::describe())->toBe('the Postgres and Browser suites')
+        ->and(static fn (): string => ShardPlan::option(3, 2))->toThrow(InvalidArgumentException::class, 'is not a shard');
+});
+
+it('runs every gate in the gates part but the sharded suites, which it reports as run in the shard jobs and never as not run', function (): void {
+    $whole = prGates();
+    $gates = prGates(part: PrPart::suiteGates());
+    $sharded = ['Postgres' => 5, 'Browser' => 8];
+
+    expect(array_map(static fn (Gate $gate): int => $gate->number, $gates))->toBe(range(1, 11))
+        ->and(gatesWithNotRunSteps($gates))->toBe([5, 11]);
+
+    foreach ($gates as $gate) {
+        foreach ($gate->steps as $index => $step) {
+            $whole_step = $whole[$gate->number - 1]->steps[$index];
+
+            if (($sharded[$step->name] ?? null) === $gate->number) {
+                expect($step->runs())->toBeFalse()
+                    ->and($step->decided)->toBe(StepStatus::Elsewhere)
+                    ->and($step->decision)->toBe(PrProfile::SUITES_IN_SHARDS)
+                    ->and($step->notRunReason)->toBeNull();
+
+                continue;
+            }
+
+            expect($step)->toEqual($whole_step);
+        }
+    }
+
+    // The two mutation steps of gate 5 are the only ones reported as not run outside gate 11.
+    expect(array_values(array_filter($gates[4]->steps, static fn (Step $step): bool => $step->notRunReason !== null)))->toHaveCount(2);
+});
+
+it('runs only its share of the sharded suites in a shard part, with Pest\'s --shard and the step the share needs', function (): void {
+    $whole = prGates();
+    $shard = prGates(part: PrPart::suiteShard(3, ShardPlan::SHARDS));
+    $gate5 = $shard[4];
+    $gate8 = $shard[7];
+
+    expect(array_map(static fn (Gate $gate): int => $gate->number, $shard))->toBe(range(1, 11))
+        ->and(array_map(static fn (Step $step): string => $step->name, $gate5->steps))->toBe(array_map(static fn (Step $step): string => $step->name, $whole[4]->steps))
+        ->and(array_values(array_filter($gate5->steps, static fn (Step $step): bool => $step->runs())))->toHaveCount(1)
+        ->and(array_first(array_filter($gate5->steps, static fn (Step $step): bool => $step->runs()))->command ?? [])
+        ->toBe([...$whole[4]->steps[5]->command, '--shard=3/'.ShardPlan::SHARDS])
+        ->and(array_map(static fn (Step $step): string => $step->name, array_values(array_filter($gate8->steps, static fn (Step $step): bool => $step->runs()))))
+        ->toBe([PrProfile::PANEL_BUILD, PrProfile::BROWSER_SUITE])
+        ->and($gate8->steps[1]->command)->toBe([...$whole[7]->steps[1]->command, '--shard=3/'.ShardPlan::SHARDS])
+        ->and($gate8->steps[1]->ownProcessGroup)->toBeTrue()
+        ->and($gate8->steps[0])->toEqual($whole[7]->steps[0])
+        ->and($gate8->steps[2]->decision)->toBe(PrProfile::GATE_IN_GATES_JOB)
+        ->and($gate8->steps[2]->decided)->toBe(StepStatus::Elsewhere);
+
+    foreach ([1, 2, 3, 4, 6, 7, 9, 10] as $number) {
+        expect($shard[$number - 1]->steps)->toHaveCount(1)
+            ->and($shard[$number - 1]->steps[0]->decided)->toBe(StepStatus::Elsewhere)
+            ->and($shard[$number - 1]->steps[0]->decision)->toBe(PrProfile::GATE_IN_GATES_JOB);
+    }
+});
+
+it('keeps the sharded suites whole in a run of the whole profile and in the gates part of a run with mutation testing', function (): void {
+    $scope = MutationScope::changed('abc123', []);
+    $whole = prGates();
+    $mutationGates = prGates($scope, PrPart::gates());
+
+    foreach ([$whole, $mutationGates, prGates($scope, PrPart::all())] as $gates) {
+        foreach (ShardPlan::SUITES as $number => $steps) {
+            foreach ($steps as $name) {
+                $step = array_first(array_filter($gates[$number - 1]->steps, static fn (Step $step): bool => $step->name === $name));
+
+                expect($step?->runs())->toBeTrue()
+                    ->and($step?->command)->not->toContain('--shard=1/'.ShardPlan::SHARDS);
+            }
+        }
+    }
+
+    expect($whole[4]->steps[5]->command)->toBe(['/usr/bin/php', 'vendor/bin/pest', '--testsuite=Postgres', '--fail-on-skipped', '--fail-on-incomplete', '--parallel']);
+});
+
+it('reports a gate as run elsewhere with its reason in the summary, and the gate as elsewhere, never as not run', function (): void {
+    $runner = new ScriptedProcessRunner(static fn (array $command): ProcessOutcome => new ProcessOutcome(0, composerAuditJson(), 0.1));
+    $report = new CheckRunner($runner, new SilentListener)->run(prGates(part: PrPart::suiteShard(1, ShardPlan::SHARDS)), '/srv/checkout');
+    $browser = array_values(array_filter($runner->calls, static fn (RecordedCommand $call): bool => in_array('--testsuite=Browser', $call->command, true)));
+    $postgres = array_values(array_filter($runner->calls, static fn (RecordedCommand $call): bool => in_array('--testsuite=Postgres', $call->command, true)));
+
+    expect($report->passed())->toBeTrue()
+        ->and($report->gate(1)?->status())->toBe(StepStatus::Elsewhere)
+        ->and($report->gate(1)?->notRunReason())->toBe(PrProfile::GATE_IN_GATES_JOB)
+        ->and($report->gate(5)?->status())->toBe(StepStatus::Pass)
+        ->and($report->gate(5)?->step('Unit')?->status)->toBe(StepStatus::Elsewhere)
+        ->and($report->gate(5)?->step('Postgres')?->status)->toBe(StepStatus::Pass)
+        ->and($report->gate(8)?->step('Browser')?->status)->toBe(StepStatus::Pass)
+        ->and($postgres)->toHaveCount(1)
+        ->and($browser)->toHaveCount(1)
+        ->and(ShardPlan::ran($report))->toBe(['Postgres', 'Browser'])
+        ->and(ReportFormatter::summary($report))->toContain(
+            '  Gate 1   elsewhere '.$report->gate(1)?->title.': '.PrProfile::GATE_IN_GATES_JOB,
+            'elsewhere Unit: '.PrProfile::GATE_IN_GATES_JOB,
+        )
+        ->and(ReportFormatter::stepLine($report->gate(5)?->step('Unit') ?? StepResult::notRun('none', 'none')))
+        ->toBe('  elsewhere Unit: '.PrProfile::GATE_IN_GATES_JOB."\n")
+        ->and(CheckReportJson::decode(CheckReportJson::encode($report))->gate(1)?->status())->toBe(StepStatus::Elsewhere)
+        ->and(ShardPlan::ran(CheckReportJson::decode(CheckReportJson::encode($report))))->toBe(['Postgres', 'Browser']);
+});
+
+it('reports a sharded suite the gates part did not run as elsewhere, so the plan sees no step of it', function (): void {
+    $runner = new ScriptedProcessRunner(static fn (array $command): ProcessOutcome => new ProcessOutcome(0, composerAuditJson(), 0.1));
+    $report = new CheckRunner($runner, new SilentListener)->run(prGates(part: PrPart::suiteGates()), '/srv/checkout');
+
+    expect($report->passed())->toBeTrue()
+        ->and($report->gate(5)?->step('Postgres')?->status)->toBe(StepStatus::Elsewhere)
+        ->and($report->gate(5)?->step('Postgres')?->reason)->toBe(PrProfile::SUITES_IN_SHARDS)
+        ->and($report->gate(8)?->step('Browser')?->status)->toBe(StepStatus::Elsewhere)
+        ->and(ShardPlan::ran($report))->toBe([])
+        ->and(array_filter($runner->calls, static fn (RecordedCommand $call): bool => in_array('--testsuite=Postgres', $call->command, true)))->toBe([]);
+});
+
 it('runs the Mutation suite and mutation on changed files only in the parts that opt in to mutation testing', function (): void {
     expect([PrPart::withoutMutation()->runsGates(), PrPart::withoutMutation()->runsMutationSuite(), PrPart::withoutMutation()->runsMutation(), PrPart::withoutMutation()->mutationTesting])->toBe([true, false, false, false])
         ->and([PrPart::all()->runsGates(), PrPart::all()->runsMutationSuite(), PrPart::all()->runsMutation(), PrPart::all()->mutationTesting])->toBe([true, true, true, true])
         ->and([PrPart::gates()->runsGates(), PrPart::gates()->runsMutationSuite(), PrPart::gates()->runsMutation(), PrPart::gates()->mutationTesting])->toBe([true, true, false, true])
         ->and([PrPart::shard(1, 2)->runsGates(), PrPart::shard(1, 2)->runsMutationSuite(), PrPart::shard(1, 2)->runsMutation(), PrPart::shard(1, 2)->mutationTesting])->toBe([false, false, true, true]);
+});
+
+it('runs every step of the profile in the parts together: once in the gates part, or in each shard for a sharded suite and what it needs', function (): void {
+    $parts = [PrPart::suiteGates(), ...array_map(static fn (int $index): PrPart => PrPart::suiteShard($index, ShardPlan::SHARDS), ShardPlan::indexes())];
+    $counts = [];
+
+    foreach ($parts as $part) {
+        foreach (prGates(part: $part) as $gate) {
+            foreach ($gate->steps as $step) {
+                if ($step->runs()) {
+                    $key = $gate->number.' '.$step->name;
+                    $counts[$key] = ($counts[$key] ?? 0) + 1;
+                }
+            }
+        }
+    }
+
+    foreach (prGates() as $gate) {
+        foreach ($gate->steps as $step) {
+            if (! $step->runs()) {
+                continue;
+            }
+
+            $key = $gate->number.' '.$step->name;
+            $expected = match (true) {
+                in_array($step->name, ShardPlan::steps($gate->number), true) => ShardPlan::SHARDS,
+                in_array($step->name, ShardPlan::PREPARES, true) => ShardPlan::SHARDS + 1,
+                default => 1,
+            };
+
+            expect($counts[$key] ?? 0)->toBe($expected, "step {$key} runs in {$expected} of the parts");
+        }
+    }
+
+    // No part runs a step the whole profile does not, so the parts add nothing of their own.
+    $whole = [];
+
+    foreach (prGates() as $gate) {
+        foreach ($gate->steps as $step) {
+            if ($step->runs()) {
+                $whole[] = $gate->number.' '.$step->name;
+            }
+        }
+    }
+
+    $ran = array_keys($counts);
+    sort($ran, SORT_STRING);
+    sort($whole, SORT_STRING);
+
+    expect($ran)->toBe($whole);
 });

@@ -28,7 +28,13 @@ final readonly class LocalProfile
      *
      * @var list<string>
      */
-    public const array SUITES = ['Unit', 'Codecs', 'Contract', 'Postgres', 'Arch', 'Actions'];
+    public const array SUITES = ['Unit', 'Codecs', 'Contract', self::POSTGRES_SUITE, 'Arch', 'Actions'];
+
+    /**
+     * The suite of gate 5 that runs against the real Postgres, the slowest of the local profile,
+     * which the PR profile runs in the shards of ShardPlan.
+     */
+    public const string POSTGRES_SUITE = 'Postgres';
 
     /**
      * The suites that are not part of the local profile's gate 5. Browser is gate 8, in the PR

@@ -15,10 +15,12 @@
 # mounted .git as bin/ci does: HEAD~1 when HEAD is main, and the merge base with origin/main, or
 # main without a remote, on another branch.
 #
-# bin/ci runs every part of ci.yml's jobs one after the other (CMS_CI_PART=all): the gates, and
-# with CMS_CI_MUTATION=1 also the plan of the shards of mutation on changed files, each shard, and
-# the verdict over them, and times each part against the budget, because ci.yml runs them as
-# parallel jobs. One part runs alone with CMS_CI_PART, such as CMS_CI_PART=gates, or
+# bin/ci runs every part of ci.yml's jobs one after the other (CMS_CI_PART=all): the gates, each
+# of the 4 shards of the Postgres and Browser suites (Check\Domain\ShardPlan) and the verdict over
+# them, and with CMS_CI_MUTATION=1 the plan of the shards of mutation on changed files, the gates,
+# each of those shards and the verdict over them. It times each part against the budget on its own,
+# because ci.yml runs them as parallel jobs, and PROGRESS.md records the wall time of each part.
+# One part runs alone with CMS_CI_PART, such as CMS_CI_PART=gates, CMS_CI_PART=shard:3/4 or
 # CMS_CI_MUTATION=1 CMS_CI_PART=shard:3/12.
 #
 # The ci service runs the two steps .github/workflows/ci.yml runs after its checkout,

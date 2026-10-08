@@ -9,8 +9,8 @@ use InvalidArgumentException;
 /**
  * What one step did: its status, the command it ran, the exit code and the combined output of
  * that command, or why it did not run, and the notes its output reader found. A step decided
- * without a command has no command, no exit code and no output: it failed with a reason, or passed
- * with a note.
+ * without a command has no command, no exit code and no output: it failed with a reason, passed
+ * with a note, or runs in another part of the same CI run, which the reason names (Elsewhere).
  */
 final readonly class StepResult
 {
@@ -54,20 +54,22 @@ final readonly class StepResult
     }
 
     /**
-     * The result of a step decided without a command: a pass lists its note, a fail its reason.
+     * The result of a step decided without a command: a pass lists its note, a fail its reason,
+     * and a step another part runs names that part as its reason.
      */
     public static function decided(string $step, StepStatus $status, string $decision): self
     {
         return match ($status) {
             StepStatus::Pass => new self($step, StepStatus::Pass, null, '', 0.0, null, new OutputReading([$decision])->notes),
             StepStatus::Fail => new self($step, StepStatus::Fail, null, '', 0.0, $decision),
+            StepStatus::Elsewhere => new self($step, StepStatus::Elsewhere, null, '', 0.0, $decision),
             StepStatus::NotRun => throw new InvalidArgumentException("Step {$step} is not run; it is not decided."),
         };
     }
 
     /**
-     * Rebuilds a result from a report. The status must fit the rest: a step that did not run has
-     * a reason and no exit code, and a step that ran has an exit code that matches its status,
+     * Rebuilds a result from a report. The status must fit the rest: a step that did not run, and
+     * one another part runs, has a reason and no exit code, and a step that ran has an exit code that matches its status,
      * unless a reason says why a step with exit code 0 failed. A step decided without a command
      * has no exit code: it passed with a note and no reason, or failed with a reason.
      *
@@ -77,7 +79,7 @@ final readonly class StepResult
     public static function restore(string $step, StepStatus $status, ?int $exitCode, string $output, float $seconds, ?string $reason, array $notes = [], array $command = []): self
     {
         $consistent = match ($status) {
-            StepStatus::NotRun => $exitCode === null && $reason !== null && $notes === [],
+            StepStatus::NotRun, StepStatus::Elsewhere => $exitCode === null && $reason !== null && $notes === [],
             StepStatus::Pass => $exitCode === 0 || $exitCode === null && $reason === null && $notes !== [],
             StepStatus::Fail => $exitCode !== 0 || $reason !== null,
         };

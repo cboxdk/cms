@@ -10,12 +10,27 @@
 # gate 9, composer audit and npm audit, and gate 10, composer docs:check. It reports what it did
 # not run: gate 11, with the reason, in the log and the job summary.
 #
+# The two slow suites run in parallel shard jobs, because the gates job took 14 minutes 50 seconds
+# of the 15-minute budget in B1 and B2 roughly doubles them: the Postgres suite of gate 5 and the
+# Browser suite of gate 8 are split over the 4 shards of a declared plan with Pest's own --shard
+# (Check\Domain\ShardPlan; bin/ci and the matrix below carry the same number, and
+# tests/Feature/Tooling/Ci keeps the three equal). The gates job runs every gate but those two
+# steps and reports them as run in the shard jobs, never as not run; each shards job runs its share
+# of them with composer check -- --pr --shard=<i>/4 and reports every other gate as run in the
+# gates job; and the verdict job runs composer shards:verdict, which fails unless the gates and
+# every shard passed and every shard of the plan reported once, having run every sharded step. So
+# the budget is met by parallelising, never by dropping a gate (GUARDRAILS 10).
+#
+# The verdict job is the run's result, and the status check a pull request requires: it runs in
+# every run, after the others, whatever they did, so a failed, cancelled or skipped gates or
+# shards job fails it.
+#
 # Mutation testing is deferred until after v1 (Sylvester, 2 October 2026): it made every merge
 # take far longer, and the architecture will change before v1, so tests of tests are not worth
-# the time now; the ordinary tests stay required. A pull request and a push to main run only the
-# gates job, whose gate 5 reports the Mutation suite and mutation on changed files as not run with
-# that reason. The gates job is the run's result, and the status check a pull request requires:
-# the jobs of mutation testing are skipped there, and GitHub counts a skipped job as passed.
+# the time now; the ordinary tests stay required. A pull request and a push to main run the gates
+# job, the shard jobs of the two suites and the verdict, and the gates job's gate 5 reports the
+# Mutation suite and mutation on changed files as not run with that reason; the jobs of mutation
+# testing are skipped there, and GitHub counts a skipped job as passed.
 #
 # Mutation testing runs only in a run started by hand with the input mutation set to true
 # (workflow_dispatch; Actions > CI > Run workflow, or
@@ -25,11 +40,12 @@
 # on the files below packages/*/src changed since the merge base of CMS_CI_BASE_REF and HEAD. The
 # jobs run in parallel, so the run takes as long as the slowest (Sylvester's decision of
 # 1 October): plan splits mutation on changed files into shards by file (composer mutation:plan;
-# one shard per 10 changed files, at most 100), gates runs every gate and the Mutation suite but
-# not mutation on changed files, mutation runs one job per shard of the plan's matrix, and
-# verdict, which runs whatever the others did, fails unless the plan, the gates and every shard
-# passed and every changed class reaches 80 % over all its mutations in all shards
-# (composer mutation:verdict). Each job's budget is 15 minutes (GUARDRAILS 10).
+# one shard per 10 changed files, at most 100), gates runs every gate, the two suites whole, and
+# the Mutation suite, but not mutation on changed files, mutation runs one job per shard of the
+# plan's matrix, the shards of the two suites do not run, and verdict, which runs whatever the
+# others did, fails unless the plan, the gates and every shard passed and every changed class
+# reaches 80 % over all its mutations in all shards (composer mutation:verdict). Each job's budget
+# is 15 minutes (GUARDRAILS 10).
 #
 # CMS_CI_BASE_REF, which only mutation on changed files reads, is the pull request's base commit,
 # or for a push to main the commit before the push. The checkout fetches the whole history
@@ -198,6 +214,72 @@ jobs:
           path: build/ci/
           if-no-files-found: warn
 
+  shards:
+    name: Shard ${{ matrix.shard }} of 4 of the Postgres and Browser suites
+    # The two slow suites run in shards in every ordinary run, so each job keeps the 15-minute
+    # budget of GUARDRAILS 10; a run with mutation testing keeps them whole in its gates job.
+    if: ${{ ! inputs.mutation }}
+    runs-on: ubuntu-latest
+    # The budget is 15 minutes (GUARDRAILS 10); the limit leaves room for the setup and stops a
+    # hung job long before GitHub's default of six hours.
+    timeout-minutes: 20
+    strategy:
+      # Every shard runs to its end, so the verdict sees every shard of the plan.
+      fail-fast: false
+      matrix:
+        # The shards of Check\Domain\ShardPlan, whose SHARDS bin/ci carries too.
+        shard: [1, 2, 3, 4]
+    # PHP 8.5 of the v1 channel with Node 22, the base of docker/ci.Dockerfile.
+    container:
+      image: ghcr.io/cboxdk/php-baseimages/php-cli:8.5-bookworm-dev-v1
+    services:
+      # The images of compose.yaml: the cboxdk database images, with cbox-init as PID 1. Their
+      # readiness file is the health check, as in compose.yaml. A service starts before the
+      # checkout, so it mounts nothing: bin/ci creates the roles and databases over TCP, and
+      # max_prepared_transactions is Postgres' default, 0 (PRD 4.2), as in compose.ci.yaml.
+      postgres:
+        image: ghcr.io/cboxdk/postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "test -f /tmp/cbox-ready"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+          --health-start-period 60s
+      valkey:
+        image: ghcr.io/cboxdk/valkey:8
+        options: >-
+          --health-cmd "test -f /tmp/cbox-ready"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+          --health-start-period 30s
+    env:
+      CMS_CI_PART: shard:${{ matrix.shard }}/4
+    steps:
+      - name: Check out
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # The whole history, for the merge base of CMS_CI_BASE_REF and HEAD.
+          fetch-depth: 0
+
+      - name: Set up psql, git, the user ci and Chromium, and check PCOV, as compose.ci.yaml does
+        run: docker/ci-setup.sh
+
+      - name: bin/ci
+        run: bin/ci
+
+      - name: Keep the shard's report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: suite-shard-${{ matrix.shard }}
+          path: build/ci/
+          if-no-files-found: warn
+
   mutation:
     name: Mutation shard ${{ matrix.shard }} of ${{ needs.plan.outputs.count }}
     needs: plan
@@ -261,11 +343,12 @@ jobs:
           if-no-files-found: warn
 
   verdict:
-    name: Verdict of mutation testing (GUARDRAILS 10)
-    needs: [plan, gates, mutation]
-    # In a run with mutation testing it runs whatever the other jobs did, so a failed, cancelled or
-    # skipped job fails it; without, it is skipped, so it is never the required status check.
-    if: always() && inputs.mutation
+    name: Verdict of the shards (GUARDRAILS 10)
+    needs: [plan, gates, shards, mutation]
+    # It runs whatever the other jobs did, so a failed, cancelled or skipped job fails it. It is
+    # the run's result and the status check a pull request requires: without it, a shard job that
+    # never ran would leave its share of the two suites unrun.
+    if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # PHP 8.5 of the v1 channel with Node 22, the base of docker/ci.Dockerfile.
@@ -275,8 +358,10 @@ jobs:
       CMS_CI_PART: verdict
       CMS_CI_ARTIFACTS: build/ci/artifacts
       CMS_CI_GATES_RESULT: ${{ needs.gates.result }}
-      # The matrix's result: success only when every shard succeeded.
-      CMS_CI_SHARDS_RESULT: ${{ needs.plan.result == 'success' && needs.mutation.result || 'failure' }}
+      # The result of the shard jobs of this run: the matrix of the two suites, or in a run with
+      # mutation testing the matrix of mutation on changed files, which needs its plan. Success
+      # only when every shard of the matrix succeeded.
+      CMS_CI_SHARDS_RESULT: ${{ inputs.mutation && (needs.plan.result == 'success' && needs.mutation.result || 'failure') || needs.shards.result }}
     steps:
       - name: Check out
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -287,10 +372,11 @@ jobs:
       - name: Set up psql, git, the user ci and Chromium, and check PCOV, as compose.ci.yaml does
         run: docker/ci-setup.sh
 
-      - name: Fetch the plan and the shards' reports
+      # Every artifact of the run, each in a directory of its own: the shards' reports, which the
+      # verdict reads by file name, and the mutation plan in mutation-plan/.
+      - name: Fetch the shards' reports and, with mutation testing, its plan
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          pattern: mutation-*
           path: build/ci/artifacts
 
       - name: bin/ci

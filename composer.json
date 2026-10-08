@@ -159,6 +159,7 @@
         "docs:check": "@php tools/bin/docs-check.php",
         "mutation:plan": "@php tools/bin/mutation-plan.php",
         "mutation:verdict": "@php tools/bin/mutation-verdict.php",
+        "shards:verdict": "@php tools/bin/shard-verdict.php",
         "generate:protocol": "@php tools/bin/generate-protocol.php",
         "docs:errors": "@php tools/bin/docs-errors.php",
         "docs:requirements": "@php tools/bin/docs-requirements.php",

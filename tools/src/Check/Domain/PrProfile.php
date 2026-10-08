@@ -18,20 +18,26 @@ use InvalidArgumentException;
  * (`composer docs:check`, documentation with running examples for every public extension point),
  * and gate 11 reported as not run, with the reason.
  *
+ * CI runs the profile in parts (PrPart), as parallel jobs, so each part has the 15-minute budget
+ * of GUARDRAILS 10 to itself. The slow suites of ShardPlan, the Postgres suite of gate 5 and the
+ * Browser suite of gate 8, run in shards: the gates part reports them as run in the shard jobs
+ * (SUITES_IN_SHARDS), never as not run, each shard part runs its share of them with Pest's
+ * `--shard` and reports every other gate as run in the gates job (GATE_IN_GATES_JOB), and
+ * `composer shards:verdict` fails unless every shard of the plan reported once (ShardVerdict).
+ * `composer check -- --pr` without a part runs the whole profile in one run, the suites whole.
+ *
  * Mutation testing is deferred until after v1 (Sylvester, 2 October 2026), so by default gate 5
  * reports the Mutation suite and mutation on changed files (MutationSteps) as not run, with
  * MUTATION_DEFERRED. With `--mutation` (CMS_CI_MUTATION=1 for bin/ci) gate 5 adds both, as it did
- * before the decision.
+ * before the decision. Such a run shards mutation on changed files instead of the suites: its
+ * gates part runs every gate and the Mutation suite but not mutation on changed files, which it
+ * reports as not run (MUTATION_IN_SHARDS), each shard job runs only its shard of it and reports
+ * the other gates as run in the gates job, and the verdict job judges them together.
  *
  * GUARDRAILS 10 wants every gate that did not run reported explicitly; a gate that starts running
  * in CI moves out of NOT_RUN. The local profile leaves gate 10 out, as GUARDRAILS 10 says, but
  * gate 5 runs the same audit on the repository in tests/Feature/Tooling/Docs/RepositoryDocsTest.php,
  * so `composer check` fails on every finding of gate 10 as well (GUARDRAILS 7.3).
- *
- * With mutation testing, CI runs it in parts (PrPart): the gates job runs every gate but mutation
- * on changed files, which it reports as not run, and each shard job runs only its shard of
- * mutation on changed files and reports the other gates as not run; the verdict job judges them
- * together.
  */
 final readonly class PrProfile
 {
@@ -97,6 +103,11 @@ final readonly class PrProfile
     public const string PANEL_BUILD = 'panel:build';
 
     /**
+     * Why the gates part reports a suite of ShardPlan as run elsewhere: its shards run it.
+     */
+    public const string SUITES_IN_SHARDS = 'run in the shard jobs of the sharded suites, which the verdict judges together (ShardVerdict)';
+
+    /**
      * Why the gates job reports mutation on changed files as not run: its shards run it.
      */
     public const string MUTATION_IN_SHARDS = 'run in the shard jobs of mutation on changed files, which the verdict judges together (MutationVerdict)';
@@ -107,9 +118,9 @@ final readonly class PrProfile
     public const string MUTATION_DEFERRED = 'mutation testing deferred until after v1 (Sylvester, 2 October 2026); run it with --mutation, or CMS_CI_MUTATION=1 for bin/ci';
 
     /**
-     * Why a shard job reports every gate but mutation on changed files as not run.
+     * Why a shard job reports the gates it does not run as run elsewhere.
      */
-    public const string GATE_IN_GATES_JOB = 'run in the gates job; a shard runs only its part of mutation on changed files';
+    public const string GATE_IN_GATES_JOB = 'run in the gates job; a shard runs only its own part of the run';
 
     /**
      * @param  string  $php  the PHP binary
@@ -142,26 +153,89 @@ final readonly class PrProfile
                 $gate->number === 10 => self::docs($gate, $composer),
                 default => $gate,
             };
-            $gates[] = $part->runsGates() || $full->number === 5 || isset(self::NOT_RUN[$full->number])
-                ? $full
-                : new Gate($full->number, $full->title, [Step::notRun($full->title, self::GATE_IN_GATES_JOB)]);
+            $gates[] = self::inPart($full, $part);
         }
 
         return $gates;
     }
 
     /**
-     * Gate 5: the local profile's steps, unless the part is a shard; the Mutation suite with
-     * mutation testing, and reported as not run without it; and mutation on changed files, unless
-     * the part is the default, which reports it as deferred, or the gates job, which reports it as
-     * run in the shards.
+     * The gate as this part runs it. The whole profile in one run, and the gates part of a run
+     * with mutation testing, run every step. A shard of mutation on changed files runs gate 5,
+     * which pest() already limited to those steps, and reports every other gate as run in the
+     * gates job. In a run that shards the suites, the gates part reports each sharded suite as
+     * run in the shards, and a shard part runs its share of them, with the steps those need
+     * (ShardPlan::PREPARES), and reports the rest as run in the gates job.
+     */
+    private static function inPart(Gate $gate, PrPart $part): Gate
+    {
+        if (isset(self::NOT_RUN[$gate->number])) {
+            return $gate;
+        }
+
+        if ($part->isMutationShard()) {
+            return $gate->number === 5 ? $gate : self::elsewhere($gate, self::GATE_IN_GATES_JOB);
+        }
+
+        if (! $part->shardedSuites) {
+            return $gate;
+        }
+
+        $sharded = ShardPlan::steps($gate->number);
+
+        if ($part->isSuiteShard() && $sharded === []) {
+            return self::elsewhere($gate, self::GATE_IN_GATES_JOB);
+        }
+
+        return new Gate($gate->number, $gate->title, array_map(
+            static fn (Step $step): Step => self::shardStep($step, $sharded, $part),
+            $gate->steps,
+        ));
+    }
+
+    /**
+     * One step of a gate the plan shards: the sharded step itself, limited to the shard's share
+     * with Pest's --shard in a shard part and reported as run in the shards in the gates part;
+     * any other step of that gate unchanged in the gates part, and in a shard part run when the
+     * share needs it and reported as run in the gates job otherwise. A step that runs no command,
+     * such as the deferred mutation steps, keeps its own reason.
+     *
+     * @param  list<string>  $sharded  the sharded steps of this step's gate
+     */
+    private static function shardStep(Step $step, array $sharded, PrPart $part): Step
+    {
+        if (in_array($step->name, $sharded, true)) {
+            return $part->isSuiteShard()
+                ? $step->with(ShardPlan::option((int) $part->shard, (int) $part->shards))
+                : Step::elsewhere($step->name, self::SUITES_IN_SHARDS);
+        }
+
+        return $part->isSuiteShard() && $step->runs() && ! in_array($step->name, ShardPlan::PREPARES, true)
+            ? Step::elsewhere($step->name, self::GATE_IN_GATES_JOB)
+            : $step;
+    }
+
+    /**
+     * A gate another part of the run runs, as one step named after the gate: not run here, and not
+     * reported as not run either, because the verdict fails unless that part reported.
+     */
+    private static function elsewhere(Gate $gate, string $where): Gate
+    {
+        return new Gate($gate->number, $gate->title, [Step::elsewhere($gate->title, $where)]);
+    }
+
+    /**
+     * Gate 5: the local profile's steps, unless the part is a shard of mutation on changed files;
+     * the Mutation suite with mutation testing, and reported as not run without it; and mutation
+     * on changed files, unless the part is the default, which reports it as deferred, or the gates
+     * job, which reports it as run in the shards.
      */
     private static function pest(Gate $gate, string $php, ?MutationScope $mutation, PrPart $part, ?MutationTally $tally): Gate
     {
         $suite = $part->runsMutationSuite()
             ? LocalProfile::suiteStep($php, self::MUTATION_SUITE, parallel: false)
             : Step::notRun(self::MUTATION_SUITE, self::MUTATION_DEFERRED);
-        $steps = $part->runsGates() ? [...$gate->steps, $suite] : [];
+        $steps = $part->runsGates() || $part->isSuiteShard() ? [...$gate->steps, $suite] : [];
 
         return new Gate(5, $gate->title, [
             ...$steps,

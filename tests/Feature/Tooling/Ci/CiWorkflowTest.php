@@ -6,6 +6,7 @@ namespace Cbox\Cms\Tests\Feature\Tooling\Ci;
 
 use Cbox\Cms\Tests\Support\Phpstan;
 use Cbox\Cms\Tests\Support\Tooling\CiFiles;
+use Cbox\Cms\Tooling\Check\Domain\ShardPlan;
 use Symfony\Component\Process\Process;
 use Symfony\Component\Yaml\Tag\TaggedValue;
 
@@ -20,28 +21,31 @@ use Symfony\Component\Yaml\Tag\TaggedValue;
 const DECLARED_RUNNER = 'Declared runner: GitHub-hosted ubuntu-latest, 4 vCPU and 16 GB RAM';
 
 /**
- * The jobs of ci.yml, by name: plan, gates, one per shard of mutation on changed files, and the
- * verdict over them (M1-T66). Only gates runs on a pull request and a push; the others run only in
- * a run started by hand with the input mutation, as mutation testing is deferred until after v1
- * (Sylvester, 2 October 2026).
+ * The jobs of ci.yml, by name: plan, gates, one per shard of the sharded suites (B2-T64), one per
+ * shard of mutation on changed files, and the verdict over them (M1-T66). A pull request and a
+ * push run gates, shards and verdict; plan and mutation run only in a run started by hand with the
+ * input mutation, as mutation testing is deferred until after v1 (Sylvester, 2 October 2026), and
+ * the shards of the suites do not run there.
  *
  * @var list<string>
  */
-const WORKFLOW_JOBS = ['plan', 'gates', 'mutation', 'verdict'];
+const WORKFLOW_JOBS = ['plan', 'gates', 'shards', 'mutation', 'verdict'];
 
 /**
  * The jobs that run the Pest suites against Postgres and Valkey, and so have the services.
  *
  * @var list<string>
  */
-const SERVICE_JOBS = ['gates', 'mutation'];
+const SERVICE_JOBS = ['gates', 'shards', 'mutation'];
 
 /**
  * The jobs of mutation testing, which run only when a run started by hand sets the input mutation.
+ * The verdict is not one of them: it judges the shards of whichever matrix the run has, so it runs
+ * in every run.
  *
  * @var list<string>
  */
-const MUTATION_JOBS = ['plan', 'mutation', 'verdict'];
+const MUTATION_JOBS = ['plan', 'mutation'];
 
 /**
  * @return array<array-key, mixed>
@@ -97,7 +101,7 @@ it('runs every job on the declared runner, ubuntu-latest, with PHP 8.5 of the v1
     }
 })->with(WORKFLOW_JOBS);
 
-it('has exactly the jobs plan, gates, mutation and verdict', function (): void {
+it('has exactly the jobs plan, gates, shards, mutation and verdict', function (): void {
     $jobs = CiFiles::at(CiFiles::yaml(CiFiles::WORKFLOW), 'jobs');
 
     expect(is_array($jobs) ? array_keys($jobs) : null)->toBe(WORKFLOW_JOBS);
@@ -141,37 +145,58 @@ it('runs every pull request, push to main and run started by hand, and each job 
 })->with([
     'plan' => ['plan', ['actions/checkout', 'actions/upload-artifact']],
     'gates' => ['gates', ['actions/checkout', 'actions/upload-artifact']],
+    'shards' => ['shards', ['actions/checkout', 'actions/upload-artifact']],
     'mutation' => ['mutation', ['actions/checkout', 'actions/upload-artifact']],
     'verdict' => ['verdict', ['actions/checkout', 'actions/download-artifact']],
 ]);
 
-it('names each job\'s part of bin/ci in CMS_CI_PART, a shard of the plan\'s matrix for the mutation job', function (): void {
+it('names each job\'s part of bin/ci in CMS_CI_PART: the declared shards of the suites, and a shard of the plan\'s matrix for the mutation job', function (): void {
     expect(CiFiles::strings(workflowJob('plan'), 'env'))->toBe(['CMS_CI_PART' => 'plan'])
         ->and(CiFiles::strings(workflowJob('gates'), 'env'))->toBe(['CMS_CI_PART' => 'gates'])
+        ->and(CiFiles::strings(workflowJob('shards'), 'env'))->toBe(['CMS_CI_PART' => 'shard:${{ matrix.shard }}/'.ShardPlan::SHARDS])
         ->and(CiFiles::strings(workflowJob('mutation'), 'env'))->toBe(['CMS_CI_PART' => 'shard:${{ matrix.shard }}/${{ needs.plan.outputs.count }}'])
         ->and(CiFiles::strings(workflowJob('verdict'), 'env'))->toBe([
             'CMS_CI_PART' => 'verdict',
             'CMS_CI_ARTIFACTS' => 'build/ci/artifacts',
             'CMS_CI_GATES_RESULT' => '${{ needs.gates.result }}',
-            'CMS_CI_SHARDS_RESULT' => '${{ needs.plan.result == \'success\' && needs.mutation.result || \'failure\' }}',
+            'CMS_CI_SHARDS_RESULT' => '${{ inputs.mutation && (needs.plan.result == \'success\' && needs.mutation.result || \'failure\') || needs.shards.result }}',
         ]);
 });
 
-it('runs the jobs of mutation testing only in a run started by hand with the input mutation, and the gates job in every run as its result', function (): void {
+it('shards the Postgres and Browser suites over the same number of shards in ShardPlan, bin/ci and ci.yml, as parallel jobs with the services', function (): void {
+    $matrix = CiFiles::at(workflowJob('shards'), 'strategy', 'matrix', 'shard');
+    $entry = CiFiles::codeLines(CiFiles::ENTRY);
+
+    expect(ShardPlan::SHARDS)->toBeGreaterThan(1)
+        ->and($matrix)->toBe(ShardPlan::indexes())
+        ->and(CiFiles::at(workflowJob('shards'), 'strategy', 'fail-fast'))->toBeFalse()
+        ->and(CiFiles::at(workflowJob('shards'), 'if'))->toBe('${{ ! inputs.mutation }}')
+        ->and(CiFiles::at(workflowJob('shards'), 'name'))->toBe('Shard ${{ matrix.shard }} of '.ShardPlan::SHARDS.' of the Postgres and Browser suites')
+        ->and(array_keys(workflowJob('shards')))->not->toContain('needs')
+        ->and($entry)->toContain('readonly suite_shards='.ShardPlan::SHARDS)
+        ->and($entry)->toContain('check "$3/check.json" --shard="$1/$2" --shard-report="$3/suite-shard.json"')
+        ->and($entry)->toContain('composer shards:verdict -- --reports="$1" --gates="$2" --shards="$3" 2>&1 | tee "$1/verdict.log"')
+        ->and(CiFiles::text(CiFiles::ENTRY))->toContain('Add shards or parallelise; never drop a gate.')
+        ->and(CiFiles::text(CiFiles::WORKFLOW))->toContain('the Postgres suite of gate 5 and the', 'Browser suite of gate 8 are split over the '.ShardPlan::SHARDS.' shards of a declared plan')
+        ->and(CiFiles::text(CiFiles::COMPOSE_CI))->toContain('of the '.ShardPlan::SHARDS.' shards of the Postgres and Browser suites');
+});
+
+it('runs the jobs of mutation testing only in a run started by hand with the input mutation, the gates and the shards of the suites in every other run, and the verdict as the run\'s result', function (): void {
     $workflow = CiFiles::yaml(CiFiles::WORKFLOW);
     $on = CiFiles::at($workflow, 'on') ?? CiFiles::at($workflow, '1');
 
     expect(CiFiles::at(workflowJob('plan'), 'if'))->toBe('inputs.mutation')
         ->and(CiFiles::at(workflowJob('mutation'), 'if'))->toBe('inputs.mutation')
-        ->and(CiFiles::at(workflowJob('verdict'), 'if'))->toBe('always() && inputs.mutation')
+        ->and(CiFiles::at(workflowJob('verdict'), 'if'))->toBe('always()')
+        ->and(CiFiles::at(workflowJob('shards'), 'if'))->toBe('${{ ! inputs.mutation }}')
         ->and(array_keys(workflowJob('gates')))->not->toContain('if')
         ->and(array_keys(workflowJob('gates')))->not->toContain('needs')
         ->and(CiFiles::at(workflowJob('gates'), 'name'))->toBe('Gates of the PR profile (GUARDRAILS 10)')
-        ->and(CiFiles::at(workflowJob('verdict'), 'name'))->toBe('Verdict of mutation testing (GUARDRAILS 10)')
+        ->and(CiFiles::at(workflowJob('verdict'), 'name'))->toBe('Verdict of the shards (GUARDRAILS 10)')
         ->and(is_array($on) ? CiFiles::at($on, 'pull_request') : 'missing')->toBeNull()
         ->and(is_array($on) ? CiFiles::at($on, 'push') : null)->toBe(['branches' => ['main']])
         ->and(workflowEnvironment()['CMS_CI_MUTATION'] ?? null)->toBe('${{ inputs.mutation && \'1\' || \'0\' }}')
-        ->and(CiFiles::text(CiFiles::WORKFLOW))->toContain('The gates job is the run\'s result, and the status check a pull request requires');
+        ->and(CiFiles::text(CiFiles::WORKFLOW))->toContain('The verdict job is the run\'s result, and the status check a pull request requires');
 
     foreach (MUTATION_JOBS as $name) {
         expect(CiFiles::at(workflowJob($name), 'if'))->toBeString()->toContain('inputs.mutation');
@@ -187,19 +212,22 @@ it('runs a mutation job per shard of the plan, each to its end, and the verdict 
         ->and(CiFiles::at(workflowJob('mutation'), 'needs'))->toBe('plan')
         ->and(CiFiles::at(workflowJob('mutation'), 'strategy'))->toBe(['fail-fast' => false, 'matrix' => ['shard' => '${{ fromJSON(needs.plan.outputs.shards) }}']])
         ->and(array_keys(workflowJob('gates')))->not->toContain('needs')
-        ->and(CiFiles::at(workflowJob('verdict'), 'needs'))->toBe(['plan', 'gates', 'mutation'])
-        ->and(CiFiles::at(workflowJob('verdict'), 'if'))->toStartWith('always() && ')
-        ->and(CiFiles::at($download, 'with'))->toBe(['pattern' => 'mutation-*', 'path' => 'build/ci/artifacts']);
+        ->and(CiFiles::at(workflowJob('verdict'), 'needs'))->toBe(['plan', 'gates', 'shards', 'mutation'])
+        ->and(CiFiles::at(workflowJob('verdict'), 'if'))->toBe('always()')
+        ->and(CiFiles::at($download, 'with'))->toBe(['path' => 'build/ci/artifacts']);
 });
 
 it('keeps the plan and each shard\'s report as artifacts the verdict fetches, named after the files the verdict reads', function (): void {
     $plan = CiFiles::stepWith(workflowSteps('plan'), 'uses', 'actions/upload-artifact');
     $shard = CiFiles::stepWith(workflowSteps('mutation'), 'uses', 'actions/upload-artifact');
+    $suite = CiFiles::stepWith(workflowSteps('shards'), 'uses', 'actions/upload-artifact');
     $gates = CiFiles::stepWith(workflowSteps('gates'), 'uses', 'actions/upload-artifact');
 
     expect(CiFiles::at($plan, 'with'))->toBe(['name' => 'mutation-plan', 'path' => 'build/ci/', 'if-no-files-found' => 'error'])
         ->and(CiFiles::at($shard, 'with'))->toBe(['name' => 'mutation-shard-${{ matrix.shard }}', 'path' => 'build/ci/', 'if-no-files-found' => 'warn'])
         ->and(CiFiles::at($shard, 'if'))->toBe('always()')
+        ->and(CiFiles::at($suite, 'with'))->toBe(['name' => 'suite-shard-${{ matrix.shard }}', 'path' => 'build/ci/', 'if-no-files-found' => 'warn'])
+        ->and(CiFiles::at($suite, 'if'))->toBe('always()')
         ->and(CiFiles::at($gates, 'with', 'name'))->toBe('gate-report')
         ->and(CiFiles::codeLines(CiFiles::ENTRY))->toContain(
             'composer mutation:plan -- --output="$1/mutation-plan.json" --github-output="$outputs"',
@@ -358,7 +386,7 @@ it('runs the same setup script in ci.yml and compose.ci.yaml: HEAD\'s docker/ci-
 it('pins every action to the commit of a release tag, named in a comment', function (): void {
     $lines = array_values(array_filter(explode("\n", CiFiles::text(CiFiles::WORKFLOW)), static fn (string $line): bool => str_contains($line, 'uses:')));
 
-    expect($lines)->toHaveCount(8);
+    expect($lines)->toHaveCount(10);
 
     foreach ($lines as $line) {
         expect($line)->toMatch('/^\s+(- )?uses: [A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$/');
@@ -367,6 +395,7 @@ it('pins every action to the commit of a release tag, named in a comment', funct
 
 it('stops the jobs that run Pest after 20 minutes, above their budget of 15, and the plan and the verdict after 10', function (): void {
     expect(CiFiles::at(workflowJob('gates'), 'timeout-minutes'))->toBe(20)
+        ->and(CiFiles::at(workflowJob('shards'), 'timeout-minutes'))->toBe(20)
         ->and(CiFiles::at(workflowJob('mutation'), 'timeout-minutes'))->toBe(20)
         ->and(CiFiles::at(workflowJob('plan'), 'timeout-minutes'))->toBe(10)
         ->and(CiFiles::at(workflowJob('verdict'), 'timeout-minutes'))->toBe(10);

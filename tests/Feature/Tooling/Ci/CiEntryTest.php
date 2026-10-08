@@ -7,6 +7,7 @@ namespace Cbox\Cms\Tests\Feature\Tooling\Ci;
 use Cbox\Cms\Tests\Support\Phpstan;
 use Cbox\Cms\Tests\Support\Tooling\ScratchDirectory;
 use Cbox\Cms\Tests\Support\Tooling\ScratchRepository;
+use Cbox\Cms\Tooling\Check\Domain\ShardPlan;
 use Symfony\Component\Process\Process;
 
 /*
@@ -53,8 +54,8 @@ function fakeTools(string $scratch): string
             fi
         done
     fi
-    if [[ "$1" == mutation:verdict ]]; then
-        printf 'mutation:verdict: the fake verdict\nverdict: %s\n' "$([[ "${FAKE_VERDICT_EXIT:-0}" == 0 ]] && echo pass || echo fail)"
+    if [[ "$1" == mutation:verdict || "$1" == shards:verdict ]]; then
+        printf '%s: the fake verdict\nverdict: %s\n' "$1" "$([[ "${FAKE_VERDICT_EXIT:-0}" == 0 ]] && echo pass || echo fail)"
         exit "${FAKE_VERDICT_EXIT:-0}"
     fi
     SH_WRAP);
@@ -123,28 +124,50 @@ function ciWork(array $calls): array
     return array_values(array_filter($calls, static fn (string $call): bool => ! str_contains($call, ' --version')));
 }
 
-it('installs the locked dependencies and by default runs only the gates of the PR profile, with nothing of mutation testing, which is deferred until after v1', function (string|false $mutation): void {
+it('installs the locked dependencies and by default runs the gates, every shard of the sharded suites and the verdict, with nothing of mutation testing, which is deferred until after v1', function (string|false $mutation): void {
     $scratch = ScratchDirectory::make();
     [$process, $calls] = runBinCi($scratch, ['FAKE_SHARDS' => '2', 'CMS_CI_MUTATION' => $mutation, 'CMS_CI_BASE_REF' => 'abc123']);
     $output = $process->getOutput();
+    $artifacts = $scratch.'/build/artifacts';
+    $shards = [];
+
+    foreach (ShardPlan::indexes() as $index) {
+        $shards[] = "composer check -- --pr --report={$artifacts}/suite-shard-{$index}/check.json --shard={$index}/".ShardPlan::SHARDS." --shard-report={$artifacts}/suite-shard-{$index}/suite-shard.json";
+    }
 
     expect($process->getExitCode())->toBe(0, $process->getErrorOutput())
         ->and(ciWork($calls))->toBe([
             'composer install --no-interaction --no-progress --prefer-dist',
             'npm ci --no-audit --no-fund',
-            "composer check -- --pr --report={$scratch}/build/check.json",
+            "composer check -- --pr --report={$scratch}/build/check.json --only=gates",
+            ...$shards,
+            "composer shards:verdict -- --reports={$artifacts} --gates=success --shards=success",
         ])
-        ->and($output)->toContain('runner: the test runner', 'part: all', 'Summary')
+        ->and($output)->toContain('runner: the test runner', 'part: all', 'Summary', 'verdict: pass')
         ->and($output)->toContain("mutation testing: not run, mutation testing deferred until after v1 (Sylvester, 2 October 2026); CMS_CI_MUTATION=1 runs it\n")
         ->and($output)->toMatch('/bin\/ci: gates: 0m \d\ds, pass\n/')
+        ->and($output)->toMatch('/bin\/ci: shard:1\/'.ShardPlan::SHARDS.': 0m \d\ds, pass\n/')
+        ->and($output)->toMatch('/bin\/ci: shard:'.ShardPlan::SHARDS.'\/'.ShardPlan::SHARDS.': 0m \d\ds, pass\n/')
+        ->and($output)->toMatch('/bin\/ci: verdict: 0m \d\ds, pass\n/')
         ->and($output)->not->toContain('base of the change')
-        ->and($output)->not->toContain('verdict')
-        ->and($output)->not->toContain('shard')
         ->and($output)->not->toContain('plan:')
         ->and($output)->toContain('wall time on the test runner for all; the GUARDRAILS 10 budget is 15 minutes for each part')
         ->and((string) file_get_contents($scratch.'/build/check.log'))->toContain('Gate 1   pass')
-        ->and($scratch.'/build/artifacts')->not->toBeDirectory();
+        ->and((string) file_get_contents($artifacts.'/suite-shard-2/check.log'))->toContain('Gate 1   pass')
+        ->and((string) file_get_contents($artifacts.'/verdict.log'))->toContain('verdict: pass');
 })->with(['unset' => [false], 'empty' => [''], '0' => ['0']]);
+
+it('hands the verdict of the sharded suites a failed gate and a failed shard as failure, and exits 1', function (string $variable, string $gates, string $shards): void {
+    $scratch = ScratchDirectory::make();
+    [$process, $calls] = runBinCi($scratch, [$variable => '1', 'FAKE_VERDICT_EXIT' => '1']);
+
+    expect($process->getExitCode())->toBe(1)
+        ->and(array_last(ciWork($calls)))->toEndWith("--gates={$gates} --shards={$shards}")
+        ->and($process->getOutput())->toContain('verdict: fail');
+})->with([
+    'a shard' => ['FAKE_SHARD_EXIT', 'success', 'failure'],
+    'the gates and the shards' => ['FAKE_CHECK_EXIT', 'failure', 'failure'],
+]);
 
 it('installs the locked dependencies and with CMS_CI_MUTATION=1 runs every part with the PR profile, nothing else: the plan, the gates, each shard and the verdict', function (): void {
     $scratch = ScratchDirectory::make();
@@ -197,7 +220,8 @@ it('runs every part when the process that runs the suite is itself a job of ci.y
         ->and(array_last(ciWork($calls)))->toEndWith('--gates=success --shards=success')
         ->and($default->getExitCode())->toBe(0, $default->getErrorOutput())
         ->and($default->getOutput())->toContain('part: all', 'mutation testing: not run')
-        ->and(array_last(ciWork($defaultCalls)))->toEndWith('/build/check.json');
+        ->and(array_last(ciWork($defaultCalls)))->toStartWith('composer shards:verdict -- --reports=')
+        ->and(array_last(ciWork($defaultCalls)))->toEndWith('--gates=success --shards=success');
 });
 
 it('hands the verdict a failed shard and a failed gate as failure, and exits 1', function (string $variable, string $gates, string $shards): void {
@@ -236,8 +260,17 @@ it('runs one part of ci.yml\'s jobs when CMS_CI_PART names it', function (string
     'the gates, without mutation testing' => ['gates', [
         'composer install --no-interaction --no-progress --prefer-dist',
         'npm ci --no-audit --no-fund',
-        'composer check -- --pr --report={scratch}/build/check.json',
+        'composer check -- --pr --report={scratch}/build/check.json --only=gates',
     ], []],
+    'a shard of the sharded suites' => ['shard:3/4', [
+        'composer install --no-interaction --no-progress --prefer-dist',
+        'npm ci --no-audit --no-fund',
+        'composer check -- --pr --report={scratch}/build/check.json --shard=3/4 --shard-report={scratch}/build/suite-shard.json',
+    ], []],
+    'the verdict of the sharded suites, without npm' => ['verdict', [
+        'composer install --no-interaction --no-progress --prefer-dist',
+        'composer shards:verdict -- --reports={scratch}/downloaded --gates=success --shards=cancelled',
+    ], ['CMS_CI_GATES_RESULT' => 'success', 'CMS_CI_SHARDS_RESULT' => 'cancelled', 'CMS_CI_ARTIFACTS' => '{scratch}/downloaded']],
     'the gates, with the Mutation suite' => ['gates', [
         'composer install --no-interaction --no-progress --prefer-dist',
         'npm ci --no-audit --no-fund',
@@ -254,14 +287,24 @@ it('runs one part of ci.yml\'s jobs when CMS_CI_PART names it', function (string
     ], ['CMS_CI_GATES_RESULT' => 'success', 'CMS_CI_SHARDS_RESULT' => 'cancelled', 'CMS_CI_ARTIFACTS' => '{scratch}/downloaded', 'CMS_CI_MUTATION' => '1']],
 ]);
 
-it('refuses a part of mutation testing without CMS_CI_MUTATION=1, before installing anything, because it is deferred until after v1', function (string $part, string|false $mutation): void {
+it('refuses the plan of mutation testing without CMS_CI_MUTATION=1, before installing anything, because it is deferred until after v1', function (string $part, string|false $mutation): void {
     $scratch = ScratchDirectory::make();
     [$process, $calls] = runBinCi($scratch, ['CMS_CI_PART' => $part, 'CMS_CI_MUTATION' => $mutation]);
 
     expect($process->getExitCode())->toBe(2)
         ->and($process->getErrorOutput())->toContain("CMS_CI_PART={$part} is a part of mutation testing, which runs only with CMS_CI_MUTATION=1: mutation testing deferred until after v1 (Sylvester, 2 October 2026)")
         ->and(ciWork($calls))->toBe([]);
-})->with(['plan', 'shard:1/2', 'verdict'])->with(['unset' => [false], '0' => ['0']]);
+})->with(['plan'])->with(['unset' => [false], '0' => ['0']]);
+
+it('refuses a shard that is not one of the declared plan\'s without CMS_CI_MUTATION=1, before installing anything', function (string $part): void {
+    $scratch = ScratchDirectory::make();
+    [$process, $calls] = runBinCi($scratch, ['CMS_CI_PART' => $part]);
+
+    expect($process->getExitCode())->toBe(2)
+        ->and($process->getErrorOutput())->toContain("CMS_CI_PART={$part} is not a shard of the plan of the sharded suites, which has ".ShardPlan::SHARDS.' shards (ShardPlan).')
+        ->and(ciWork($calls))->toBe([])
+        ->and((string) file_get_contents(Phpstan::root().'/bin/ci'))->toContain('readonly suite_shards='.ShardPlan::SHARDS);
+})->with(['shard:1/2', 'shard:1/5', 'shard:3/3']);
 
 it('refuses a CMS_CI_MUTATION other than 1, 0 or empty before installing anything', function (string $value): void {
     $scratch = ScratchDirectory::make();
@@ -288,7 +331,7 @@ it('refuses a part it does not know, and a shard outside its count, before insta
     expect($process->getExitCode())->toBe(2)
         ->and($process->getErrorOutput())->toContain("CMS_CI_PART={$part}")
         ->and(ciWork($calls))->toBe([]);
-})->with(['mutation', 'shard:3/2', 'shard:0/2', 'shard:1', 'shard:a/b']);
+})->with(['mutation', 'shard:3/2', 'shard:0/2', 'shard:1', 'shard:a/b', 'shard:1/2']);
 
 it('runs the gates without a base of the change, and says the base is derived, when CMS_CI_BASE_REF is unset, empty or 40 zeros with CMS_CI_MUTATION=1', function (string|false $ref, string $shown): void {
     $scratch = ScratchDirectory::make();
@@ -311,15 +354,17 @@ it('names the base of the change it was given with CMS_CI_MUTATION=1', function 
         ->and($process->getOutput())->not->toContain('derived');
 });
 
-it('exits 1 when a gate fails, after writing the summary for GitHub without a mutation verdict, as mutation testing is deferred', function (): void {
+it('exits 1 when a gate fails, after writing the summary for GitHub with the verdict of the shards and no mutation verdict, as mutation testing is deferred', function (): void {
     $scratch = ScratchDirectory::make();
     [$process] = runBinCi($scratch, ['FAKE_CHECK_EXIT' => '1', 'GITHUB_STEP_SUMMARY' => $scratch.'/summary.md']);
     $summary = (string) file_get_contents($scratch.'/summary.md');
 
     expect($process->getExitCode())->toBe(1)
-        ->and($summary)->toContain("### PR profile (GUARDRAILS 10): all\n\nmutation testing: not run, mutation testing deferred until after v1 (Sylvester, 2 October 2026); CMS_CI_MUTATION=1 runs it\n\n```text\nSummary\n  Gate 1   pass      Pint and Prettier\ngates: ", 'the GUARDRAILS 10 budget is 15 minutes')
+        ->and($summary)->toContain("### PR profile (GUARDRAILS 10): all\n\nmutation testing: not run, mutation testing deferred until after v1 (Sylvester, 2 October 2026); CMS_CI_MUTATION=1 runs it\n\n```text\nSummary\n  Gate 1   pass      Pint and Prettier\n", 'the GUARDRAILS 10 budget is 15 minutes')
+        ->and($summary)->toContain("shards:verdict: the fake verdict\nverdict: pass\n")
         ->and($summary)->toMatch('/gates: 0m \d\ds, fail\n/')
-        ->and($summary)->not->toContain('verdict')
+        ->and($summary)->toMatch('/shard:1\/'.ShardPlan::SHARDS.': 0m \d\ds, fail\n/')
+        ->and($summary)->not->toContain('mutation:verdict')
         ->and($summary)->not->toContain('Gate 1  Pint and Prettier');
 });
 

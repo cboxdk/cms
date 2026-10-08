@@ -72,6 +72,20 @@ final readonly class Step
     }
 
     /**
+     * A step another part of the same CI run runs, such as the Postgres suite in the gates part,
+     * which the shards run (ShardPlan). It is not run here, and it is not reported as not run
+     * either: the verdict over the parts fails unless every part reported (ShardVerdict).
+     */
+    public static function elsewhere(string $name, string $where): self
+    {
+        if ($where === '' || str_contains($where, "\n")) {
+            throw new InvalidArgumentException("Step {$name} needs a one-line reason that says which part runs it.");
+        }
+
+        return new self($name, [], null, decided: StepStatus::Elsewhere, decision: $where);
+    }
+
+    /**
      * A step that passes without a command, such as mutation on changed files when no file
      * changed. The note says why and is listed with the step.
      */
@@ -95,6 +109,31 @@ final readonly class Step
         }
 
         return new self($name, [], null, decided: StepStatus::Fail, decision: $reason);
+    }
+
+    /**
+     * The same step with more arguments at the end of its command, such as Pest's --shard for the
+     * share of a suite one shard of the plan runs (ShardPlan).
+     */
+    public function with(string ...$arguments): self
+    {
+        if (! $this->runs()) {
+            throw new InvalidArgumentException("Step {$this->name} runs no command, so it takes no arguments.");
+        }
+
+        if ($arguments === []) {
+            throw new InvalidArgumentException("Step {$this->name} was given no argument.");
+        }
+
+        return new self(
+            $this->name,
+            [...$this->command, ...array_values($arguments)],
+            null,
+            $this->ownProcessGroup,
+            $this->reader,
+            $this->environment,
+            precheck: $this->precheck,
+        );
     }
 
     /**
