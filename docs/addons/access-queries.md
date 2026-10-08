@@ -24,7 +24,7 @@ The panel manages who may do what with four queries of the kernel, version 1 of 
 | `actor.list` | the staff actors, each with its state, version and profile | an actor with a role whose permissions name `actor.list` |
 | `node.list` | the nodes the actor's regions reach, in tree order, each with its parent, kind, site, site handle and path label | every actor; the anonymous principal may not |
 
-`node.list` implements `Cbox\Cms\Contracts\Pipeline\ActorQuery`: what it reads is bounded by the actor's own context, so it needs no permission (see [queries](queries.md)); so does `actor.me`, the query of one's own self, described in [panel pages](panel-pages.md). A node's path label has one segment per node from the root of its tree down to it, joined by `/`: the site's handle for the root of a site's tree, and below it the last segment of the node's route, or its kind when it has none, such as `north/news/section`.
+`node.list` implements `Cbox\Cms\Contracts\Pipeline\ActorQuery`: what it reads is bounded by the actor's own context, so it needs no permission (see [queries](queries.md)); so does `actor.me`, the query of one's own self, described in [panel pages](panel/pages.md). A node's path label has one segment per node from the root of its tree down to it, joined by `/`: the site's handle for the root of a site's tree, and below it the last segment of the node's route, or its kind when it has none, such as `north/news/section`.
 
 ## Pages
 

@@ -19,6 +19,7 @@
     "js/*/scripts/**/*",
     "js/*/tests/**/*",
     "js/*/vite.config.ts",
+    "examples/Vitest/**/*",
     "workbench/resources/js/**/*",
     "workbench/addons/*/resources/panel/**/*",
     "packages/*/resources/typescript/**/*",

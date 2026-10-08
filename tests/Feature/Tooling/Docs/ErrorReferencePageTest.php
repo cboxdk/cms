@@ -97,7 +97,7 @@ function errorsTreeWith(?string $page): DocsTree
         }
     };
 
-    return new DocsTree($tree->sources, $tree->schemas, $tree->pages, $tree->examples, $tree->suites, $files, $tree->rootPages, $tree->docsFiles, $tree->docsDirectories, $tree->strayPages);
+    return new DocsTree($tree->sources, $tree->schemas, $tree->pages, $tree->examples, $tree->suites, $files, $tree->rootPages, $tree->docsFiles, $tree->docsDirectories, $tree->strayPages, $tree->jsSuite, $tree->jsExamples);
 }
 
 it('commits the error reference that the catalog gives now', function (): void {

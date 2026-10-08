@@ -38,7 +38,7 @@ use Pest\Browser\Api\PendingAwaitablePage;
  *
  * With CMS_DOCS_SCREENSHOTS=1 the pages are also captured into docs/screenshots/access-roles.png,
  * access-roles-mobile.png, access-grants.png, access-grants-mobile.png and access-grant-assign.png,
- * the images docs/addons/panel-pages.md shows.
+ * the images docs/addons/panel/pages.md shows.
  */
 
 const ACCESS_PASSWORD = 'correct horse battery staple';

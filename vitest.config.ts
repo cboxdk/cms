@@ -2,8 +2,10 @@
 // extension architecture, 2 October 2026):
 //
 // - unit: the JS unit suite of gate 5 (`npm run test:js`), every js/<workspace>/tests/**/*.test.js,
-//   *.test.ts and *.test.tsx, in Node; a test file that renders React components, such as the
-//   keyboard tests of the component kit, asks for jsdom with a `@vitest-environment jsdom` comment.
+//   *.test.ts and *.test.tsx, and the TypeScript examples of the documentation pages in
+//   examples/Vitest, which gate 10 (`composer docs:check`) holds to this include, in Node; a test
+//   file that renders React components, such as the keyboard tests of the component kit, asks for
+//   jsdom with a `@vitest-environment jsdom` comment.
 // - storybook: the story tests of gate 7 (`npm run storybook:stories`), one test per story of the
 //   component kit, in Chromium through Playwright: the story renders, its play function runs, axe
 //   finds no violation, and a screenshot of the page matches the baseline committed in
@@ -35,7 +37,7 @@ export default defineConfig({
         test: {
           name: 'unit',
           root: ROOT,
-          include: ['js/*/tests/**/*.test.{js,ts,tsx}'],
+          include: ['js/*/tests/**/*.test.{js,ts,tsx}', 'examples/Vitest/**/*.test.{ts,tsx}'],
           environment: 'node',
         },
       },

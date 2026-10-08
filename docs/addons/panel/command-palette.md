@@ -1,6 +1,6 @@
 ---
 title: Command palette
-weight: 53
+weight: 16
 description: "The command palette of the panel, opened with Ctrl+K or Command+K from every page behind the login, and the query action.list it is built from: the actions exposed on Inertia the actor may run and the navigation entries it may open, decided on the server and the same on REST."
 ---
 
@@ -9,22 +9,22 @@ description: "The command palette of the panel, opened with Ctrl+K or Command+K 
 <!-- extension-point: packages/core/resources/schemas/queries/action.list.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/queries/action.list.result.v1.json -->
 
-The panel is keyboard first (GUARDRAILS 8): Ctrl+K, or Command+K on a Mac, opens the command palette from every page behind the login, and so does the "Search" button in the shell's top bar. Typing filters its entries, ignoring case and accents; Up and Down move through them while the focus stays in the search field; Enter opens the entry in focus; Escape closes the palette and gives the focus back to where it was. The palette is the kit's `CommandPalette`, the combobox pattern of WAI-ARIA: the search field controls a listbox of options and names the option in focus, the focus stays inside the dialog, and axe finds nothing on it at any width ([the component kit](../ui/components.md)).
+The panel is keyboard first (GUARDRAILS 8): Ctrl+K, or Command+K on a Mac, opens the command palette from every page behind the login, and so does the "Search" button in the shell's top bar. Typing filters its entries, ignoring case and accents; Up and Down move through them while the focus stays in the search field; Enter opens the entry in focus; Escape closes the palette and gives the focus back to where it was. The palette is the kit's `CommandPalette`, the combobox pattern of WAI-ARIA: the search field controls a listbox of options and names the option in focus, the focus stays inside the dialog, and axe finds nothing on it at any width ([the component kit](../../ui/components.md)).
 
-![The command palette open over the start page on a desktop: the search field, the pages the person may open and the commands they may run, as action.list decided them.](../screenshots/palette.png)
+![The command palette open over the start page on a desktop: the search field, the pages the person may open and the commands they may run, as action.list decided them.](../../screenshots/palette.png)
 
-![The command palette open on a phone: the same pages and commands, the search field and the entries filling the width.](../screenshots/palette-mobile.png)
+![The command palette open on a phone: the same pages and commands, the search field and the entries filling the width.](../../screenshots/palette-mobile.png)
 
 Its entries come from the server, never from a list in the panel's code, so the palette names no action, type or field and offers nothing the server would refuse:
 
-- **Pages**: the navigation entries the person may open, the same entries the shell's navigation shows ([panel shell points](panel-shell.md), [panel pages](panel-pages.md)), each opening its page.
-- **Commands**: every command exposed on Inertia whose permission the person holds on some node, labelled by the panel's catalogue when it has a text for the action (`panel.action.<name>.title` and `.description`), and by the title and description of the command's JSON Schema otherwise, found by the command's name too. Choosing one opens the command's form page, `GET <prefix>/commands/<name>/v<version>`, the address the Inertia profile runs the command at ([the panel module](../developers/panel.md)).
+- **Pages**: the navigation entries the person may open, the same entries the shell's navigation shows ([panel shell points](shell.md), [panel pages](pages.md)), each opening its page.
+- **Commands**: every command exposed on Inertia whose permission the person holds on some node, labelled by the panel's catalogue when it has a text for the action (`panel.action.<name>.title` and `.description`), and by the title and description of the command's JSON Schema otherwise, found by the command's name too. Choosing one opens the command's form page, `GET <prefix>/commands/<name>/v<version>`, the address the Inertia profile runs the command at ([the panel module](../../developers/panel.md)).
 
 Every page behind the login shares the prop `palette`, the read of `action.list` as the person who signed in, through the query pipeline from the session credential: its result as the result codec wrote it, or the problem details of a rejected read, which the palette shows in place of its entries with what to do. The prop's schema is `palette.v1.json` in `packages/panel/resources/schemas/pages`, with the generated codec `PalettePropCodecV1` and TypeScript `PalettePropV1`, and the panel checks the result with the generated validator of `ActionListV1` before it builds the entries.
 
 ## action.list
 
-`action.list` version 1 is the query the palette is built from (PRD 13.2, 13.4), exposed on REST, `GET /v1/queries/action.list/v1`, and in the panel. Its document carries nothing: the actor is never a field of a query, so the pipeline takes it from the credential alone. `ListActions` implements `Cbox\Cms\Contracts\Pipeline\ActorQuery`, so every actor may run it without a permission, because it tells an actor no more than what the actor may do, and the anonymous principal is refused as `unauthorized` ([queries](queries.md)). The schemas are `action.list.v1.json` and `action.list.result.v1.json` in `packages/core/resources/schemas/queries`, read and written by the generated codecs `ListActionsCodecV1` and `ActionListCodecV1` ([query JSON](query-json.md)).
+`action.list` version 1 is the query the palette is built from (PRD 13.2, 13.4), exposed on REST, `GET /v1/queries/action.list/v1`, and in the panel. Its document carries nothing: the actor is never a field of a query, so the pipeline takes it from the credential alone. `ListActions` implements `Cbox\Cms\Contracts\Pipeline\ActorQuery`, so every actor may run it without a permission, because it tells an actor no more than what the actor may do, and the anonymous principal is refused as `unauthorized` ([queries](../queries.md)). The schemas are `action.list.v1.json` and `action.list.result.v1.json` in `packages/core/resources/schemas/queries`, read and written by the generated codecs `ListActionsCodecV1` and `ActionListCodecV1` ([query JSON](../query-json.md)).
 
 Its result, `ActionList`, has two lists:
 

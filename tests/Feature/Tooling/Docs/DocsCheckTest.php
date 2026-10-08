@@ -16,6 +16,7 @@ use Cbox\Cms\Tests\Support\Tooling\ScratchDirectory;
 use Cbox\Cms\Tooling\Docs\Boundary\DocsCheckOptions;
 use Cbox\Cms\Tooling\Docs\Boundary\LocalDocsTree;
 use Cbox\Cms\Tooling\Docs\Boundary\PhpTokens;
+use Cbox\Cms\Tooling\Docs\Boundary\VitestUnitSuite;
 use Cbox\Cms\Tooling\Docs\Domain\BrowserScreenshot;
 use Cbox\Cms\Tooling\Docs\Domain\CapturedImage;
 use Cbox\Cms\Tooling\Docs\Domain\DeclaredType;
@@ -24,6 +25,7 @@ use Cbox\Cms\Tooling\Docs\Domain\Exclusion;
 use Cbox\Cms\Tooling\Docs\Domain\Exclusions;
 use Cbox\Cms\Tooling\Docs\Domain\Finding;
 use Cbox\Cms\Tooling\Docs\Domain\Inventory;
+use Cbox\Cms\Tooling\Docs\Domain\JsSuite;
 use Cbox\Cms\Tooling\Docs\Domain\Marker;
 use Cbox\Cms\Tooling\Docs\Domain\MarkerKind;
 use Cbox\Cms\Tooling\Docs\Domain\PageParser;
@@ -91,6 +93,40 @@ const DOCS_PHPUNIT = <<<'XML'
     </phpunit>
 
     XML;
+
+const DOCS_VITEST = <<<'TS'
+    import { defineConfig } from 'vitest/config';
+
+    export default defineConfig({
+      test: {
+        projects: [
+          {
+            test: {
+              name: 'unit',
+              include: ['js/*/tests/**/*.test.{js,ts,tsx}', 'examples/Vitest/**/*.test.{ts,tsx}'],
+              environment: 'node',
+            },
+          },
+          {
+            test: {
+              name: 'storybook',
+              include: ['js/ui-kit/stories/**/*.stories.tsx'],
+            },
+          },
+        ],
+      },
+    });
+
+    TS;
+
+const DOCS_GREETER_SPEC = <<<'TS'
+    import { expect, test } from 'vitest';
+
+    test('greets by name', () => {
+      expect('Hello, Ada').toBe('Hello, Ada');
+    });
+
+    TS;
 
 const DOCS_GREETER_PAGE = 'docs/addons/greeter.md';
 
@@ -315,7 +351,7 @@ it('reports an example file that no gate-5 suite includes, and one that is no *T
 
     expect(docsFindings($root))->toBe([
         'docs/addons/greeter.md:24: examples/Browser/Greeting/GreeterPageTest.php is in none of the gate-5 suites of phpunit.xml (Unit), so it never runs',
-        'docs/addons/greeter.md:35: examples/Unit/Greeting/Greeting.php is not a *Test.php; embed a support file or fixture with <!-- example-file: <path> -->',
+        'docs/addons/greeter.md:35: examples/Unit/Greeting/Greeting.php is not a *Test.php, a *.test.ts or a *.test.tsx; embed a support file or fixture with <!-- example-file: <path> -->',
     ]);
 });
 
@@ -328,6 +364,112 @@ it('reports an example file without an assertion', function (): void {
     expect(docsFindings($root))->toBe([
         'docs/addons/greeter.md:13: examples/Unit/Greeting/GreeterTest.php has no assertion: it calls neither expect() nor an assert method and uses no trait of the inventory',
     ]);
+});
+
+it('takes a TypeScript example the unit project of vitest.config.ts includes, with expect() or an expect or assert helper as its assertion, and reports one no include names and one without an assertion', function (): void {
+    $root = docsTree();
+    $helper = "import { expectSlotContract } from '@cboxdk/cms-panel/testing';\nimport { test } from 'vitest';\n\ntest('keeps the slot contract', async () => {\n  await expectSlotContract({ addon, id: 'greeting.card' });\n});\n";
+    $silent = "import { test } from 'vitest';\n\ntest('greets by name', () => {\n  greet('Ada');\n});\n";
+    docsWrite($root, 'vitest.config.ts', DOCS_VITEST);
+    docsWrite($root, 'examples/Vitest/Greeting/greeter.test.ts', DOCS_GREETER_SPEC);
+    docsWrite($root, 'examples/Vitest/Greeting/card.test.tsx', $helper);
+    docsWrite($root, 'examples/Vitest/Greeting/silent.test.ts', $silent);
+    docsWrite($root, 'js/greeting/stories/greeter.test.ts', DOCS_GREETER_SPEC);
+    docsWrite($root, DOCS_GREETER_PAGE, docsPage(
+        'Cbox\Cms\Contracts\Greeter',
+        docsEmbed('example', DOCS_GREETER_EXAMPLE, DOCS_GREETER_TEST),
+        docsEmbed('example', 'examples/Vitest/Greeting/greeter.test.ts', DOCS_GREETER_SPEC, 'ts'),
+        docsEmbed('example', 'examples/Vitest/Greeting/card.test.tsx', $helper, 'tsx'),
+        docsEmbed('example', 'examples/Vitest/Greeting/silent.test.ts', $silent, 'ts'),
+        docsEmbed('example', 'js/greeting/stories/greeter.test.ts', DOCS_GREETER_SPEC, 'ts'),
+    ));
+
+    expect(docsFindings($root))->toBe([
+        'docs/addons/greeter.md:43: examples/Vitest/Greeting/silent.test.ts has no assertion: it calls neither expect() nor a function whose name starts with expect or assert',
+        'docs/addons/greeter.md:52: js/greeting/stories/greeter.test.ts is in no include of the unit project of vitest.config.ts (js/*/tests/**/*.test.{js,ts,tsx}, examples/Vitest/**/*.test.{ts,tsx}), so it never runs',
+    ]);
+});
+
+it('reports a TypeScript example in a tree without vitest.config.ts as one that never runs, and a Vitest test file under examples/ that no page embeds', function (): void {
+    $root = docsTree();
+    docsWrite($root, 'examples/Vitest/Greeting/greeter.test.ts', DOCS_GREETER_SPEC);
+    docsWrite($root, 'examples/Vitest/Greeting/orphan.test.tsx', DOCS_GREETER_SPEC);
+    docsWrite($root, DOCS_GREETER_PAGE, docsPage(
+        'Cbox\Cms\Contracts\Greeter',
+        docsEmbed('example', DOCS_GREETER_EXAMPLE, DOCS_GREETER_TEST),
+        docsEmbed('example', 'examples/Vitest/Greeting/greeter.test.ts', DOCS_GREETER_SPEC, 'ts'),
+    ));
+
+    expect(docsFindings($root))->toBe([
+        'docs/addons/greeter.md:24: examples/Vitest/Greeting/greeter.test.ts is in no include of the unit project of vitest.config.ts (no include), so it never runs',
+        'examples/Vitest/Greeting/orphan.test.tsx:1: no page embeds this example; embed it on the page of what it shows with <!-- example: examples/Vitest/Greeting/orphan.test.tsx -->',
+    ]);
+});
+
+it('reports a TypeScript example that imports a module an addon cannot import, or the code of js/ by path', function (): void {
+    $root = docsTree();
+    $spec = "import { expectSlotContract } from '@cboxdk/cms-panel/testing';\nimport { Button } from '@cboxdk/cms-ui-kit';\nimport { router } from '@inertiajs/react';\nimport { runtime } from '../../../js/panel/src/host/runtime';\nimport addon from '../../../workbench/addons/greeting/resources/panel/src/panel';\nimport { expect, test } from 'vitest';\n\ntest('greets', async () => {\n  expect(await expectSlotContract({ addon, id: 'greeting.card' })).toBeDefined();\n});\n";
+    docsWrite($root, 'vitest.config.ts', DOCS_VITEST);
+    docsWrite($root, 'examples/Vitest/Greeting/card.test.ts', $spec);
+    docsWrite($root, DOCS_GREETER_PAGE, docsPage(
+        'Cbox\Cms\Contracts\Greeter',
+        docsEmbed('example', DOCS_GREETER_EXAMPLE, DOCS_GREETER_TEST),
+        docsEmbed('example', 'examples/Vitest/Greeting/card.test.ts', $spec, 'ts'),
+    ));
+
+    expect(docsFindings($root))->toBe([
+        'examples/Vitest/Greeting/card.test.ts:1: the example imports ../../../js/panel/src/host/runtime, which an addon cannot import; a TypeScript example uses @cboxdk/cms-panel and the addon\'s own modules, so it shows only what an addon may use',
+        'examples/Vitest/Greeting/card.test.ts:1: the example imports @cboxdk/cms-ui-kit, which an addon cannot import; a TypeScript example uses @cboxdk/cms-panel and the addon\'s own modules, so it shows only what an addon may use',
+        'examples/Vitest/Greeting/card.test.ts:1: the example imports @inertiajs/react, which an addon cannot import; a TypeScript example uses @cboxdk/cms-panel and the addon\'s own modules, so it shows only what an addon may use',
+    ])
+        ->and(JsSuite::refusedImports('examples/Vitest/Panel/page.test.tsx', "const page = await import('react-aria-components');\nexport { x } from '../../../js/ui-kit/src/kit';\nimport '../Panel/local';\n"))->toBe(['react-aria-components', '../../../js/ui-kit/src/kit']);
+});
+
+it('counts a TypeScript example as the test that mentions an embedded support file', function (): void {
+    $root = docsTree();
+    $module = "export function greet(name: string): string {\n  return 'Hello, ' + name;\n}\n";
+    $spec = "import { expect, test } from 'vitest';\n\nimport { greet } from './greeter';\n\ntest('greets by name', () => {\n  expect(greet('Ada')).toBe('Hello, Ada');\n});\n";
+    docsWrite($root, 'vitest.config.ts', DOCS_VITEST);
+    docsWrite($root, 'examples/Vitest/Greeting/greeter.ts', $module);
+    docsWrite($root, 'examples/Vitest/Greeting/greeter.test.ts', $spec);
+    docsWrite($root, DOCS_GREETER_PAGE, docsPage(
+        'Cbox\Cms\Contracts\Greeter',
+        docsEmbed('example', DOCS_GREETER_EXAMPLE, DOCS_GREETER_TEST),
+        docsEmbed('example-file', 'examples/Vitest/Greeting/greeter.ts', $module, 'ts'),
+        docsEmbed('example', 'examples/Vitest/Greeting/greeter.test.ts', $spec, 'ts'),
+    ));
+
+    expect(docsFindings($root))->toBe([]);
+});
+
+it('reads the include patterns of the unit project from vitest.config.ts, matches them as Vitest does, and includes nothing without the file or the project', function (): void {
+    $root = ScratchDirectory::make('cbox-cms-docs-vitest-');
+    docsWrite($root, 'vitest.config.ts', DOCS_VITEST);
+    docsWrite($root, 'other.config.ts', str_replace("name: 'unit'", "name: 'kit'", DOCS_VITEST));
+    $suite = VitestUnitSuite::read($root.'/vitest.config.ts');
+
+    expect($suite->includes)->toBe(['js/*/tests/**/*.test.{js,ts,tsx}', 'examples/Vitest/**/*.test.{ts,tsx}'])
+        ->and($suite->includes('js/panel/tests/host/slots.test.tsx'))->toBeTrue()
+        ->and($suite->includes('js/ui-kit/tests/tokens.test.js'))->toBeTrue()
+        ->and($suite->includes('examples/Vitest/Panel/slot.test.tsx'))->toBeTrue()
+        ->and($suite->includes('examples/Vitest/deep/er/slot.test.ts'))->toBeTrue()
+        ->and($suite->includes('examples/Vitest/Panel/slot.test.js'))->toBeFalse()
+        ->and($suite->includes('examples/Unit/Panel/slot.test.ts'))->toBeFalse()
+        ->and($suite->includes('js/panel/src/slots.test.tsx'))->toBeFalse()
+        ->and($suite->includes('js/panel/tests/slots.tsx'))->toBeFalse()
+        ->and(VitestUnitSuite::read($root.'/missing.config.ts')->includes)->toBe([])
+        ->and(VitestUnitSuite::read($root.'/other.config.ts')->includes)->toBe([])
+        ->and(JsSuite::none()->names())->toBe('no include')
+        ->and(JsSuite::isTestFile('a/b.test.tsx'))->toBeTrue()
+        ->and(JsSuite::isTestFile('a/b.test.js'))->toBeFalse()
+        ->and(JsSuite::isTestFile('a/bTest.php'))->toBeFalse();
+});
+
+it('includes every TypeScript example of this repository in the JS unit suite, so npm run test:js runs it', function (): void {
+    $tree = LocalDocsTree::read(Phpstan::root());
+
+    expect($tree->jsExamples)->not->toBe([])
+        ->and(array_values(array_filter($tree->jsExamples, static fn (string $path): bool => ! $tree->jsSuite->includes($path))))->toBe([]);
 });
 
 it('takes an assert method, or the use of a trait of the inventory as a shared contract suite\'s test class does, as an assertion', function (): void {
@@ -804,7 +946,7 @@ it('exposes the check as composer docs:check', function (): void {
 /**
  * A scratch copy of what the documentation check reads in this repository: the sources and
  * schemas of the packages, docs/, README.md, CONTRIBUTING.md, SECURITY.md, LICENSE, examples/,
- * phpunit.xml and every file a page embeds.
+ * phpunit.xml, vitest.config.ts and every file a page embeds or links to.
  */
 function docsRepositoryCopy(): string
 {
@@ -824,7 +966,7 @@ function docsRepositoryCopy(): string
         }
     };
 
-    foreach ([...(glob($repository.'/packages/*/src', GLOB_ONLYDIR) ?: []), ...(glob($repository.'/packages/*/resources', GLOB_ONLYDIR) ?: []), $repository.'/docs', $repository.'/README.md', $repository.'/CONTRIBUTING.md', $repository.'/SECURITY.md', $repository.'/LICENSE', $repository.'/examples', $repository.'/phpunit.xml'] as $path) {
+    foreach ([...(glob($repository.'/packages/*/src', GLOB_ONLYDIR) ?: []), ...(glob($repository.'/packages/*/resources', GLOB_ONLYDIR) ?: []), $repository.'/docs', $repository.'/README.md', $repository.'/CONTRIBUTING.md', $repository.'/SECURITY.md', $repository.'/LICENSE', $repository.'/examples', $repository.'/phpunit.xml', $repository.'/vitest.config.ts'] as $path) {
         $copy($path, $scratch.substr($path, strlen($repository)));
     }
 
@@ -832,6 +974,14 @@ function docsRepositoryCopy(): string
         foreach ($page->markers as $marker) {
             if ($marker->kind->embeds() && is_file($repository.'/'.$marker->target)) {
                 $copy($repository.'/'.$marker->target, $scratch.'/'.$marker->target);
+            }
+        }
+
+        foreach ($page->links as $link) {
+            $target = $link->isRelative() && $link->path() !== '' ? realpath(dirname($repository.'/'.$page->path).'/'.$link->path()) : false;
+
+            if ($target !== false && is_file($target) && str_starts_with($target, $repository.'/')) {
+                $copy($target, $scratch.substr($target, strlen($repository)));
             }
         }
     }

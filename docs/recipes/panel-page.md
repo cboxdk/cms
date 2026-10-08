@@ -6,7 +6,7 @@ description: "Add a page of the panel behind the login: the page's name and rout
 
 # Add a panel page
 
-A page of the panel behind the login shows a person what a query of the kernel answers them (PRD 13.4): the page reads the query through the query pipeline as the person, from the session credential, and its props carry the result as the query's result codec wrote it, or the problem details of a rejected read. The page renders the [shell's points](../addons/panel-shell.md) around its content and declares the points of its own that addons contribute to, and a nav entry with the permission the viewer must hold puts it in the navigation. The who-am-I page was added this way (B1-T13). [Panel pages](../addons/panel-pages.md) describes the pages; this recipe is the order to build one in.
+A page of the panel behind the login shows a person what a query of the kernel answers them (PRD 13.4): the page reads the query through the query pipeline as the person, from the session credential, and its props carry the result as the query's result codec wrote it, or the problem details of a rejected read. The page renders the [shell's points](../addons/panel/shell.md) around its content and declares the points of its own that addons contribute to, and a nav entry with the permission the viewer must hold puts it in the navigation. The who-am-I page was added this way (B1-T13). [Panel pages](../addons/panel/pages.md) describes the pages; this recipe is the order to build one in.
 
 ## Inputs
 

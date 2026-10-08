@@ -7,6 +7,7 @@ namespace Cbox\Cms\Tooling\Docs\Boundary;
 use Cbox\Cms\Tooling\Docs\Domain\DocsAudit;
 use Cbox\Cms\Tooling\Docs\Domain\DocsLayout;
 use Cbox\Cms\Tooling\Docs\Domain\DocsTree;
+use Cbox\Cms\Tooling\Docs\Domain\JsSuite;
 use Cbox\Cms\Tooling\Docs\Domain\Page;
 use Cbox\Cms\Tooling\Docs\Domain\PageParser;
 use Cbox\Cms\Tooling\Docs\Domain\PhpFile;
@@ -21,8 +22,9 @@ use UnexpectedValueException;
  * the PHP files of packages/<package>/src and the JSON schemas of packages/<package>/resources/schemas,
  * every file and directory below docs/ with its Markdown pages, README.md, CONTRIBUTING.md and
  * SECURITY.md at the root, the Markdown files below
- * packages/, the PHP files below examples/, and the gate-5 suites of the root's phpunit.xml. Every
- * list is sorted by path, and symlinked directories are not followed.
+ * packages/, the PHP files and the Vitest test files below examples/, the gate-5 suites of the
+ * root's phpunit.xml and the JS unit suite of its vitest.config.ts. Every list is sorted by path,
+ * and symlinked directories are not followed.
  */
 final readonly class LocalDocsTree
 {
@@ -70,6 +72,8 @@ final readonly class LocalDocsTree
             $docsFiles,
             self::directories($real, $docs),
             self::files($real, $real.'/packages', '.md'),
+            VitestUnitSuite::read($real.'/vitest.config.ts'),
+            array_values(array_filter(self::files($real, $real.'/'.DocsAudit::EXAMPLES, ''), JsSuite::isTestFile(...))),
         );
     }
 

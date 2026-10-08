@@ -212,9 +212,34 @@ export interface RenderStepOptions<C extends ContributionMap<C>> extends Contrib
 /** The marker the rendered default of a decorator and the children of a provider carry. */
 export const DEFAULT_MARKER = 'data-cms-testing-default';
 
-/** A deep copy of a value, frozen at every level, as the host hands a contribution its props. */
+/**
+ * A deep copy of a value, frozen at every level, as the host hands a contribution its props. A
+ * function among the props, such as the onChange the host adds to the props of a field's input at
+ * command.form.field@1, is kept as it is: the host hands it over by reference, and a copy could not
+ * call back into the page.
+ */
 export function frozenCopy<T>(value: T): T {
-  return deepFreeze(structuredClone(value));
+  return deepFreeze(copyKeepingFunctions(value));
+}
+
+function copyKeepingFunctions<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map(copyKeepingFunctions) as T;
+  }
+
+  if (typeof value === 'object' && value !== null && isPlainObject(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, member]) => [key, copyKeepingFunctions(member)]),
+    ) as T;
+  }
+
+  return typeof value === 'function' ? value : structuredClone(value);
+}
+
+function isPlainObject(value: object): boolean {
+  const prototype: unknown = Object.getPrototypeOf(value);
+
+  return prototype === Object.prototype || prototype === null;
 }
 
 function deepFreeze<T>(value: T): T {

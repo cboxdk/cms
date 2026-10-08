@@ -22,13 +22,13 @@ An addon is a Composer package that declares, in one manifest, everything it doe
 | `hooks` | A list of `AllowedHook`: each command class and phase a hook of the addon may run for. |
 | `subscriptions` | A list of `AllowedSubscription`: each event class a subscriber of the addon may receive, and the lane. |
 | `schema` | A `SchemaContributions`: the field types the addon contributes with the class of their contributor ([Addon field types](field-types.md)), the types it owns, the types of others it extends, and the absolute directory of its blueprint files. |
-| `panel` | A `PanelContributions`, or null for an addon without UI: the panel API version it needs, its prebuilt bundle, the experimental points it accepts and its contributions to the panel's points ([panel contributions](panel-contributions.md)). |
+| `panel` | A `PanelContributions`, or null for an addon without UI: the panel API version it needs, its prebuilt bundle, the experimental points it accepts and its contributions to the panel's points ([panel contributions](panel/contributions.md)). |
 
 All of them live in `Cbox\Cms\Contracts\Addons` and are `#[Experimental]`. A manifest that breaks a rule throws `InvalidAddonManifest` from its constructor, and a reserved namespace throws `ReservedAddonNamespace`; `cms:build` turns either into a build error that names the provider.
 
 ### The allowlist
 
-The installation allows its addons by Composer package in `cbox-cms.addons.allowed` (PRD 13.8). `cms:build` refuses a manifest whose package is not on it with `registry_addon_not_allowed`, so an addon the installation has not reviewed fails at build, never at run time. Add the package when you install the addon, such as `'addons' => ['allowed' => ['acme/cms-reviews']]` in `config/cbox-cms.php`. An addon with panel UI also needs its publisher's key under `cbox-cms.addons.publishers`, which `cms:build` verifies its bundle's signature against; see [Signing the bundle](panel-contributions.md#signing-the-bundle).
+The installation allows its addons by Composer package in `cbox-cms.addons.allowed` (PRD 13.8). `cms:build` refuses a manifest whose package is not on it with `registry_addon_not_allowed`, so an addon the installation has not reviewed fails at build, never at run time. Add the package when you install the addon, such as `'addons' => ['allowed' => ['acme/cms-reviews']]` in `config/cbox-cms.php`. An addon with panel UI also needs its publisher's key under `cbox-cms.addons.publishers`, which `cms:build` verifies its bundle's signature against; see [Signing the bundle](panel/contributions.md#signing-the-bundle).
 
 ### The namespace
 
@@ -81,7 +81,7 @@ A build with any of these writes nothing and exits 65, listing every problem ([e
 | `registry_undeclared_subscriber` | A subscriber of the addon's package receives an event on a lane its manifest does not allow. |
 | `registry_addon_not_allowed` | The manifest's package is not on `cbox-cms.addons.allowed`, or the setting is not a list of package names. |
 
-[Panel contributions](panel-contributions.md) lists the build errors of the panel member.
+[Panel contributions](panel/contributions.md) lists the build errors of the panel member.
 
 ## Example
 

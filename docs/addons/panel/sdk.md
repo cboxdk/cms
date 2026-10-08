@@ -1,6 +1,6 @@
 ---
 title: Panel SDK
-weight: 52
+weight: 11
 description: "The npm package @cboxdk/cms-panel an addon builds its panel UI with: its subpaths, definePanelAddon and usePanelHost, the types cms:panel:types writes from the manifest, and the API report that records what addons may rely on."
 ---
 
@@ -38,7 +38,7 @@ A contribution reaches the panel only through `usePanelHost()`: texts and format
 - `Issues`, with a member per command the addon may issue, by name and version, of its document;
 - the types of those documents, from the JSON Schemas of the commands' and queries' codecs, named after the command or query and its version, such as `ReviewsRequestV1` and `ReviewsPendingResultV1`.
 
-A stable point's props are imported from `/extend` and an experimental point's from `/experimental`; where the host adds to a point's props in the browser, the member is typed on the SDK's type of what the component receives, so a replacement at `command.form.field@1` is `Lazy<Replacement<FieldInputProps>>`, the SDK's `FieldInput`, with `onChange`. tsc in the addon's repository then fails on a registration with a missing key, an extra key or a component of other props. An addon without a contribution that runs code gets `NoContributions`, and one that issues no command `NoCommands`. The command writes the file only when its bytes differ and removes any other file in that directory, so a second run changes nothing and the addon's own `check:generated` can keep it current. It exits 64 for a namespace no installed addon has, 65 for a schema with a structure TypeScript cannot type, such as `patternProperties`, 66 for a command or query without a codec, 73 when it cannot write, and 78 when the registry cannot be read; the codes are in [Error codes](../reference/errors.md).
+A stable point's props are imported from `/extend` and an experimental point's from `/experimental`; where the host adds to a point's props in the browser, the member is typed on the SDK's type of what the component receives, so a replacement at `command.form.field@1` is `Lazy<Replacement<FieldInputProps>>`, the SDK's `FieldInput`, with `onChange`. tsc in the addon's repository then fails on a registration with a missing key, an extra key or a component of other props. An addon without a contribution that runs code gets `NoContributions`, and one that issues no command `NoCommands`. The command writes the file only when its bytes differ and removes any other file in that directory, so a second run changes nothing and the addon's own `check:generated` can keep it current. It exits 64 for a namespace no installed addon has, 65 for a schema with a structure TypeScript cannot type, such as `patternProperties`, 66 for a command or query without a codec, 73 when it cannot write, and 78 when the registry cannot be read; the codes are in [Error codes](../../reference/errors.md).
 
 ## The API report
 

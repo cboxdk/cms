@@ -61,7 +61,7 @@ use Pest\Browser\Api\PendingAwaitablePage;
  * at any impact, every WCAG 2.2 AA rule, and no policy violation.
  *
  * With CMS_DOCS_SCREENSHOTS=1 the form is also captured into docs/screenshots/command-form.png and
- * command-form-mobile.png, the images docs/addons/command-form.md shows.
+ * command-form-mobile.png, the images docs/addons/panel/command-form.md shows.
  */
 
 const FORM_ADMIN_EMAIL = 'ask.vinter@example.com';

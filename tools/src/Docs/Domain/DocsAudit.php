@@ -28,20 +28,27 @@ namespace Cbox\Cms\Tooling\Docs\Domain;
  *   <!-- example: examples/Contract/Clock/SystemClockTest.php -->
  *
  * The file is a *Test.php that one of the gate-5 suites of phpunit.xml includes
- * (LocalProfile::SUITES), and it asserts: it calls expect() or an assert method, or uses a trait of
- * the inventory, as a shared contract suite's test class does. A support file or fixture is
- * embedded with `<!-- example-file: <path> -->` and the same byte-for-byte check, and its name
- * without the extension, a class short name or a fixture name, appears in an example test on the
- * same page. Every fenced block on every page is one of these embeds; a command goes in inline
- * code. Every path in a marker is repo-relative.
+ * (LocalProfile::SUITES), or a *.test.ts or *.test.tsx that the JS unit suite of gate 5 includes,
+ * the `unit` project of vitest.config.ts (JsSuite, decision D11 of the panel extension
+ * architecture), and it asserts: a PHP test calls expect() or an assert method, or uses a trait of
+ * the inventory, as a shared contract suite's test class does; a TypeScript test calls expect() or
+ * a function whose name starts with expect or assert, such as expectSlotContract() of the SDK's
+ * testing subpath. A support file or fixture is embedded with `<!-- example-file: <path> -->` and
+ * the same byte-for-byte check, and its name without the extension, a class short name, a module
+ * name or a fixture name, appears in an example test on the same page. Every fenced block on every
+ * page is one of these embeds; a command goes in inline code. Every path in a marker is
+ * repo-relative.
  *
  * Examples tree. The examples live in examples/<Suite>/<Topic>/, and phpunit.xml adds
- * examples/Unit, examples/Codecs, examples/Contract and examples/Postgres to those suites. Composer
- * maps Examples\ to examples/ (autoload-dev), and PHPStan, Rector and Pint cover the tree. An
- * example PHP file is a Pest file in the global namespace or a class below Examples\, never in
- * Cbox\Cms, so the testkit's cboxCms.internalUse rule reports any use of #[Internal] API and an
- * example shows only what an application or addon may use. Every *Test.php below examples/ is
- * embedded by a page.
+ * examples/Unit, examples/Codecs, examples/Contract and examples/Postgres to those suites, while
+ * vitest.config.ts adds examples/Vitest to the JS unit suite. Composer maps Examples\ to examples/
+ * (autoload-dev), and PHPStan, Rector and Pint cover the tree; tsconfig.json, ESLint and Prettier
+ * cover examples/Vitest. An example PHP file is a Pest file in the global namespace or a class
+ * below Examples\, never in Cbox\Cms, so the testkit's cboxCms.internalUse rule reports any use of
+ * #[Internal] API and an example shows only what an application or addon may use; a TypeScript
+ * example imports the SDK, @cboxdk/cms-panel, and the addon's own modules, as an addon does, and
+ * never a module of JsSuite::REFUSED_IMPORTS or the code of js/ by path. Every *Test.php and every
+ * Vitest test file below examples/ is embedded by a page.
  */
 final readonly class DocsAudit
 {
@@ -50,6 +57,9 @@ final readonly class DocsAudit
     public const string EXAMPLES_NAMESPACE = 'Examples';
 
     private const string KERNEL_NAMESPACE = 'Cbox\Cms';
+
+    /** A call in a TypeScript test that asserts: expect(), or a function named expect... or assert..., such as expectSlotContract(). */
+    private const string JS_ASSERTION = '/\b(?:expect|assert)[A-Za-z0-9_]*\s*\(/';
 
     /**
      * Every finding for the tree, sorted (Finding::sorted()); none when the check passes.
@@ -106,6 +116,16 @@ final readonly class DocsAudit
 
         foreach ($tree->examples as $example) {
             array_push($findings, ...self::exampleFindings($example, $embeddedExamples));
+        }
+
+        foreach ($tree->jsExamples as $example) {
+            if (! array_key_exists($example, $embeddedExamples)) {
+                $findings[] = Finding::at($example, 1, "no page embeds this example; embed it on the page of what it shows with <!-- example: {$example} -->");
+            }
+
+            foreach (JsSuite::refusedImports($example, $tree->files->contents($example) ?? '') as $specifier) {
+                $findings[] = Finding::at($example, 1, "the example imports {$specifier}, which an addon cannot import; a TypeScript example uses @cboxdk/cms-panel and the addon's own modules, so it shows only what an addon may use");
+            }
         }
 
         array_push($findings, ...DocsLayout::findings($tree), ...DocsLinks::findings($tree), ...ScreenshotAudit::findings($tree, $screenshots));
@@ -191,8 +211,20 @@ final readonly class DocsAudit
     {
         $findings = [];
 
+        if (JsSuite::isTestFile($marker->target)) {
+            if (! $tree->jsSuite->includes($marker->target)) {
+                $findings[] = Finding::at($page->path, $marker->line, "{$marker->target} is in no include of the unit project of vitest.config.ts ({$tree->jsSuite->names()}), so it never runs");
+            }
+
+            if (preg_match(self::JS_ASSERTION, $tree->files->contents($marker->target) ?? '') !== 1) {
+                $findings[] = Finding::at($page->path, $marker->line, "{$marker->target} has no assertion: it calls neither expect() nor a function whose name starts with expect or assert");
+            }
+
+            return $findings;
+        }
+
         if (! str_ends_with($marker->target, SuiteDirectory::SUFFIX)) {
-            $findings[] = Finding::at($page->path, $marker->line, "{$marker->target} is not a *Test.php; embed a support file or fixture with <!-- example-file: <path> -->");
+            $findings[] = Finding::at($page->path, $marker->line, "{$marker->target} is not a *Test.php, a *.test.ts or a *.test.tsx; embed a support file or fixture with <!-- example-file: <path> -->");
         } elseif (! $tree->suites->includes($marker->target)) {
             $findings[] = Finding::at($page->path, $marker->line, "{$marker->target} is in none of the gate-5 suites of phpunit.xml ({$tree->suites->names()}), so it never runs");
         }

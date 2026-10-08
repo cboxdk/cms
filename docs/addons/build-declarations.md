@@ -26,7 +26,7 @@ A package's service provider implements `Cbox\Cms\Contracts\Build\DeclaresScanRo
 | `package` | The Composer package name, such as `acme/cms-notes`. It names the package in the registry and in build errors, and it orders hooks with the same priority. |
 | `directory` | An absolute path. Use `__DIR__`, the directory of the provider, usually the package's `src`. |
 
-`cms:build` scans every `.php` file below the directory, in sorted order, and loads each class it declares through the autoloader, so every class there must be autoloadable: the namespace and path follow the package's PSR-4 mapping. A class without one of the attributes `#[Action]`, `#[Command]`, `#[Query]`, `#[Hook]`, `#[Subscription]` and `#[PanelPoint]` is left out; [panel points](panel-points.md) describes the last.
+`cms:build` scans every `.php` file below the directory, in sorted order, and loads each class it declares through the autoloader, so every class there must be autoloadable: the namespace and path follow the package's PSR-4 mapping. A class without one of the attributes `#[Action]`, `#[Command]`, `#[Query]`, `#[Hook]`, `#[Subscription]` and `#[PanelPoint]` is left out; [panel points](panel/points/_index.md) describes the last.
 
 `cms:build` asks every registered provider that implements the interface. It registers the deferred providers first, so a deferred provider is asked too. A package whose provider declares no scan root has nothing in the registry, even when its classes carry the attributes. A directory that is not readable, or a class that is in the scan roots of two packages, stops the build.
 

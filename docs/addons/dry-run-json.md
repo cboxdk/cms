@@ -10,7 +10,7 @@ description: "The JSON form of what a dry run reports, dry-run-summary.v1.json: 
 
 A write with `dry_run` in its envelope runs every phase up to the commit and commits nothing (PRD 6.1, 6.2 phase 6). The kernel's result holds the `DryRunReport`: the plan with its typed mutations, the blast radius and the diff. A surface shows the caller the report without the plan, as `Cbox\Cms\Contracts\Results\DryRunSummary`, built with `DryRunSummary::of($report)`: the blast radius, one `VersionChange` per aggregate the commit would make, sorted by aggregate key, and every placement the write makes visible (`BecomesVisible`). Its JSON form is contract version 1, described by the JSON Schema [`dry-run-summary.v1.json`](../../packages/contracts/resources/schemas/dry-run-summary.v1.json), and written and read only by the generated codec `Cbox\Cms\Core\Codecs\Boundary\Generated\DryRunSummaryCodecV1`. All of it is `#[Experimental]`.
 
-The Inertia profile flashes the summary beside the receipt of a dry run, under `dry_run`, and the panel's host hands it to a contribution as the `dryRun` member of a command's answer, so an action that asks for a dry run shows the viewer what would change before the command runs for real ([panel shell points](panel-shell.md#actions)). REST, MCP and the CLI answer a dry run with the receipt alone.
+The Inertia profile flashes the summary beside the receipt of a dry run, under `dry_run`, and the panel's host hands it to a contribution as the `dryRun` member of a command's answer, so an action that asks for a dry run shows the viewer what would change before the command runs for real ([panel shell points](panel/shell.md#actions)). REST, MCP and the CLI answer a dry run with the receipt alone.
 
 ## The document
 

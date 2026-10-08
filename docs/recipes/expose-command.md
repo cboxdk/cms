@@ -6,12 +6,12 @@ description: "Expose a command in the panel's command palette and generic comman
 
 # Expose a command in the panel
 
-A command is run from the panel without a page of its own (PRD 6.1, 13.4; GUARDRAILS 8): the [command palette](../addons/command-palette.md) lists every command exposed on the Inertia surface that the person may run, and choosing one opens the generic [command form](../addons/command-form.md), rendered from the command's JSON Schema. Exposing a command therefore takes no React: the action's surfaces, the schema with its codec, the texts, and a permission. [Add a kernel action](kernel-action.md) is the recipe for the command and its action; this one is the order to expose an existing command in.
+A command is run from the panel without a page of its own (PRD 6.1, 13.4; GUARDRAILS 8): the [command palette](../addons/panel/command-palette.md) lists every command exposed on the Inertia surface that the person may run, and choosing one opens the generic [command form](../addons/panel/command-form.md), rendered from the command's JSON Schema. Exposing a command therefore takes no React: the action's surfaces, the schema with its codec, the texts, and a permission. [Add a kernel action](kernel-action.md) is the recipe for the command and its action; this one is the order to expose an existing command in.
 
 ## Inputs
 
 - **command**: the command's name and contract version, such as `actor.activate` version 1, and its class, such as `Cbox\Cms\Core\Identity\Domain\Commands\ActivateActor`.
-- **document**: the members of the command's document, each with its type, its bounds, whether it is required and may be null, and its default; the form renders the subset of JSON Schema the [command form](../addons/command-form.md#what-the-form-renders) lists, and refuses anything else.
+- **document**: the members of the command's document, each with its type, its bounds, whether it is required and may be null, and its default; the form renders the subset of JSON Schema the [command form](../addons/panel/command-form.md#what-the-form-renders) lists, and refuses anything else.
 - **texts**: the command's title and description and, for each member, its label and description, in English and Danish.
 
 ## Files

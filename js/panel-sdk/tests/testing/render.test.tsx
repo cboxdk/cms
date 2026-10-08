@@ -37,6 +37,7 @@ import {
   RegistrationMismatch,
   renderDecorator,
   renderPoint,
+  renderReplacement,
   renderSlot,
   renderStep,
 } from '@cboxdk/cms-panel/testing';
@@ -178,6 +179,45 @@ describe('renderPoint()', () => {
     expect(Object.isFrozen(result.host.record)).toBe(false);
     await result.unmount();
     expect(document.body.contains(result.container)).toBe(false);
+  });
+
+  test('hands a function among the props over by reference and freezes the rest, as the host does for a field input s onChange', async () => {
+    const seen: {
+      props?: {
+        readonly value: { readonly text: string };
+        readonly onChange: (value: string) => void;
+      };
+    } = {};
+    const changes: string[] = [];
+    const onChange = (value: string): void => {
+      changes.push(value);
+    };
+    const capture = definePanelAddon({
+      'acme.input': () =>
+        Promise.resolve({
+          default: (props: {
+            readonly value: { readonly text: string };
+            readonly onChange: (value: string) => void;
+          }) => {
+            seen.props = props;
+
+            return null;
+          },
+        }),
+    });
+
+    const result = await renderReplacement({
+      addon: capture,
+      id: 'acme.input',
+      props: { value: { text: 'Weekly' }, onChange },
+    });
+
+    expect(seen.props?.onChange).toBe(onChange);
+    expect(Object.isFrozen(seen.props)).toBe(true);
+    expect(Object.isFrozen(seen.props?.value)).toBe(true);
+    seen.props?.onChange('Monthly');
+    expect(changes).toEqual(['Monthly']);
+    await result.unmount();
   });
 
   test('renders what the host makes of a toolbar item, a column and a tab', async () => {

@@ -44,7 +44,7 @@ use Pest\Browser\Api\PendingAwaitablePage;
  * script error, no axe finding at any impact, every WCAG 2.2 AA rule, and no policy violation.
  *
  * With CMS_DOCS_SCREENSHOTS=1 the open palette is also captured into docs/screenshots/palette.png
- * and palette-mobile.png, the images docs/addons/command-palette.md shows.
+ * and palette-mobile.png, the images docs/addons/panel/command-palette.md shows.
  */
 
 const PALETTE_EMAIL = 'ida.lund@example.com';

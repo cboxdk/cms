@@ -1,13 +1,12 @@
 ---
 title: Panel points
-weight: 50
-description: "Declare an extension point of the panel with #[PanelPoint] on its props class, the rules for its kind, and the panel registry cms:build writes to panel.php."
+weight: 40
+description: "Declare an extension point of the panel with #[PanelPoint] on its props class, the panel registry cms:build writes to panel.php, the props schemas and their generated code, and the points of block B1, each with its own page."
 ---
 
 # Panel points
 
 <!-- extension-point: Cbox\Cms\Contracts\PanelPoints\PanelPoint -->
-<!-- extension-point: Cbox\Cms\Contracts\PanelPoints\DowncastsFromNewest -->
 
 A panel point is a place in the panel that contributions extend: a slot that renders components, an action button, a decorator around a default, a replacement of a default, a check on a command form, and so on (PRD 13.4). A point is declared on the class of its props with `#[PanelPoint]`, and `cms:build` writes it to the panel registry, `panel.php` in `bootstrap/cache/cms/`, under its id `<name>@<version>`, such as `account.me.sections@1`. `#[PanelPoint]` and every type in `Cbox\Cms\Contracts\PanelPoints` are `#[Experimental]`.
 
@@ -33,9 +32,9 @@ An argument that breaks these rules throws `InvalidPanelPoint`, and `cms:build` 
 
 ## The panel registry
 
-`panel.php` holds every point sorted by name and then version, each with its id, kind, page, region, multiplicity, `max`, ownership, key, tightening props, stability, release, label, props class and package, and the contributions to it in the order the panel renders them: priority with the lowest first, then the addon's namespace, then the contribution's id. A contribution's id is `<namespace>.<local>`, such as `approvals.badge`, with `cms` for the core's own, and its scope narrows it to pages, command forms (`<command>@<version>`), types, field types and the permission a viewer must hold. Contributions come from the addon manifests, and [panel contributions](panel-contributions.md) describes them, the checks `cms:build` runs on them and what each fill in `panel.php` holds.
+`panel.php` holds every point sorted by name and then version, each with its id, kind, page, region, multiplicity, `max`, ownership, key, tightening props, stability, release, label, props class and package, and the contributions to it in the order the panel renders them: priority with the lowest first, then the addon's namespace, then the contribution's id. A contribution's id is `<namespace>.<local>`, such as `approvals.badge`, with `cms` for the core's own, and its scope narrows it to pages, command forms (`<command>@<version>`), types, field types and the permission a viewer must hold. Contributions come from the addon manifests, and [panel contributions](../contributions.md) describes them, the checks `cms:build` runs on them and what each fill in `panel.php` holds.
 
-`cms:panel:points [selector]` lists the points, all of them or those a page, a point's name or an id selects, and `cms:panel:fills <point>` lists the contributions to one point in render order. Both take `--json`, and [inspecting the installation](../developers/inspecting.md) describes their output.
+`cms:panel:points [selector]` lists the points, all of them or those a page, a point's name or an id selects, and `cms:panel:fills <point>` lists the contributions to one point in render order. Both take `--json`, and [inspecting the installation](../../../developers/inspecting.md) describes their output.
 
 ## Props schemas, codecs and TypeScript
 
@@ -50,92 +49,33 @@ The sample props are made from the schema alone: every member present, each with
 
 The panel's points come with the pages that render them, and every declared point is rendered by a page, so the panel declares a point, its schema and its binding together.
 
-## Versions and downcasts
+## The points of block B1
 
-A breaking change to a point's props is the point's next version, `<name>@2`, and both are points of their own. The panel builds the props of the newest version only, and a contribution to an older version keeps working: the props class of every older version implements `DowncastsFromNewest`, with the newest props class as its template, and builds its own props from the newest version's in `downcast()`. A downcast reads the newest props and nothing else. When a version after it arrives, each older version's downcast moves to it. `cms:build` refuses an older version without one with `registry_panel_point_without_downcast` and writes nothing, and `Cbox\Cms\Core\Registry\Domain\PointDowncasts` gives the props of any version of a point from the newest version's:
+Each point has its own page, with its props, the core's own contributions to it, the fixture addon's, and a running example. All are version 1 and experimental.
 
-<!-- example-file: examples/Unit/Panel/Reviews/ReviewSubmitV2.php -->
-```php
-<?php
+| Point | Kind | Page |
+|---|---|---|
+| [`shell.nav@1`](shell-nav.md) | nav | `shell` |
+| [`shell.page@1`](shell-page.md) | page | `shell` |
+| [`shell.user-menu@1`](shell-user-menu.md) | action | `shell` |
+| [`panel.observe.command@1`](panel-observe-command.md) | observer | `shell` |
+| [`account.me.sections@1`](account-me-sections.md) | slot, sections | `account.me` |
+| [`access.roles.sections@1`](access-roles-sections.md) | slot, sections | `access.roles` |
+| [`access.grants.sections@1`](access-grants-sections.md) | slot, sections | `access.grants` |
+| [`login.notice@1`](login-notice.md) | data | `login` |
+| [`command.form.aside@1`](command-form-aside.md) | slot, aside | `command.form` |
+| [`command.form.checks@1`](command-form-checks.md) | form check | `command.form` |
+| [`command.form.steps@1`](command-form-steps.md) | flow step | `command.form` |
+| [`command.form.submit@1`](command-form-submit.md) | decorator | `command.form` |
+| [`command.form.receipt@1`](command-form-receipt.md) | decorator | `command.form` |
+| [`command.form.field@1`](command-form-field.md) | replacement | `command.form` |
+| [`command.form.dryrun@1`](command-form-dryrun.md) | slot, sections | `command.form` |
 
-declare(strict_types=1);
-
-namespace Examples\Unit\Panel\Reviews;
-
-use Cbox\Cms\Contracts\Attributes\Experimental;
-use Cbox\Cms\Contracts\PanelPoints\PanelPoint;
-use Cbox\Cms\Contracts\PanelPoints\PointKind;
-use Cbox\Cms\Contracts\PanelPoints\Tighten;
-
-/**
- * The props of the submit button of the review form, version 2: the command and its version as
- * two members, a breaking change to version 1's props, which keeps working through its downcast.
- */
-#[Experimental]
-#[PanelPoint(
-    name: 'reviews.form.submit',
-    version: 2,
-    kind: PointKind::Decorator,
-    page: 'reviews.form',
-    since: '1.1',
-    label: 'reviews.points.form_submit',
-    tightens: [Tighten::DisabledReason, Tighten::Description, Tighten::ToneTowardsDanger],
-)]
-final readonly class ReviewSubmitV2
-{
-    public function __construct(
-        public string $command,
-        public int $commandVersion,
-    ) {}
-}
-```
-
-The test builds the registry and asks for the props of both versions:
-
-<!-- example: examples/Unit/Panel/PointDowncastTest.php -->
-```php
-<?php
-
-declare(strict_types=1);
-
-namespace Examples\Unit\Panel;
-
-use Cbox\Cms\Contracts\PanelPoints\PointId;
-use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
-use Cbox\Cms\Core\Registry\Domain\PointDowncasts;
-use Examples\Unit\Build\BuildTestCase;
-use Examples\Unit\Panel\Reviews\ReviewsServiceProvider;
-use Examples\Unit\Panel\Reviews\ReviewSubmitV1;
-use Examples\Unit\Panel\Reviews\ReviewSubmitV2;
-use PHPUnit\Framework\Attributes\Test;
-
-/**
- * The review form's submit button has two versions. The panel builds the props of the newest,
- * and a contribution to version 1 gets its props through version 1's downcast.
- */
-final class PointDowncastTest extends BuildTestCase
-{
-    #[Test]
-    public function it_builds_the_props_of_an_older_version_from_the_newest_versions(): void
-    {
-        self::assertSame(0, $this->build(ReviewsServiceProvider::class));
-
-        $downcasts = new PointDowncasts(app(CompiledRegistry::class));
-        $newest = new ReviewSubmitV2('review.create', 1);
-
-        self::assertEquals(new ReviewSubmitV1('review.create'), $downcasts->props(PointId::fromString('reviews.form.submit@1'), $newest));
-        self::assertSame($newest, $downcasts->props(PointId::fromString('reviews.form.submit@2'), $newest));
-    }
-}
-```
-
-## The compatibility lock
-
-An addon written against a stable point keeps working for the point's version, so a `#[Stable]` point's props may only gain an optional member. `packages/panel/resources/points.lock.json` holds, for each stable point, its schema's path, the SHA-256 of its contract and the contract itself: the schema as canonical JSON without `title`, `description`, `examples` and `$comment`. `composer generate:protocol` compares each stable point's schema with the committed lock before it writes anything, and refuses with `generate_schema_invalid` a removed or renamed member, a member made required or optional, an added required member, any change to an existing member's schema, narrowing or widening, and a stable point that leaves the lock. A wording change and an added optional member pass, and it records them. Give anything else to the point's next version, with a downcast from it. Every point is experimental until it is promoted, so the lock holds no point yet.
+A page of its own per point is a rule: `tests/Feature/Tooling/Docs/PanelDocsTest.php` fails when a point that is not `#[Internal]` has no page `docs/addons/panel/points/<name>.md`, with the dots of its name as hyphens, that declares its props class and its schema, and nothing else. [Add a point to a core page](../../../recipes/panel-point.md) is the recipe for a new one, and [stability and deprecation](../stability.md) says how a point changes once addons use it.
 
 ## Example
 
-The package `acme/cms-reviews` declares its scan root, as for any [build declaration](build-declarations.md):
+The package `acme/cms-reviews` declares its scan root, as for any [build declaration](../../build-declarations.md):
 
 <!-- example-file: examples/Unit/Panel/Reviews/ReviewsServiceProvider.php -->
 ```php
@@ -200,7 +140,7 @@ final readonly class ReviewSectionsV1
 }
 ```
 
-The submit button of the review form, which decorators may tighten. Version 1 builds its props from version 2's through its downcast (see [versions and downcasts](#versions-and-downcasts)):
+The submit button of the review form, which decorators may tighten. Version 1 builds its props from version 2's through its downcast (see [versions and downcasts](../stability.md#versions-and-downcasts)):
 
 <!-- example-file: examples/Unit/Panel/Reviews/ReviewSubmitV1.php -->
 ```php

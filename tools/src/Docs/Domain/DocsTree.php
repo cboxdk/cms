@@ -18,6 +18,8 @@ final readonly class DocsTree
      * @param  list<string>  $docsFiles  the repo-relative path of every file below docs/, Markdown or not
      * @param  list<string>  $docsDirectories  the repo-relative path of every directory below docs/, docs/ itself not included
      * @param  list<string>  $strayPages  the repo-relative *.md files below packages/, which belong in docs/
+     * @param  JsSuite  $jsSuite  the JS unit suite of gate 5, the `unit` project of the root's vitest.config.ts
+     * @param  list<string>  $jsExamples  the repo-relative Vitest test files below examples (JsSuite::SUFFIXES)
      */
     public function __construct(
         public array $sources,
@@ -30,5 +32,7 @@ final readonly class DocsTree
         public array $docsFiles,
         public array $docsDirectories,
         public array $strayPages,
+        public JsSuite $jsSuite,
+        public array $jsExamples,
     ) {}
 }

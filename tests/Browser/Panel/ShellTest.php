@@ -42,7 +42,7 @@ use Pest\Browser\Api\PendingAwaitablePage;
  * impact, every WCAG 2.2 AA rule, and no policy violation.
  *
  * With CMS_DOCS_SCREENSHOTS=1 the page is also captured into docs/screenshots/account-me.png, the
- * image docs/addons/panel-pages.md shows.
+ * image docs/addons/panel/pages.md shows.
  */
 
 const SHELL_EMAIL = 'mette.holm@example.com';

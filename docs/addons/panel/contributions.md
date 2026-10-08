@@ -1,6 +1,6 @@
 ---
 title: Panel contributions
-weight: 51
+weight: 12
 description: "What an addon adds to the panel in its manifest: the kinds of contribution, the checks cms:build runs on them, the bundle manifest, how the installation orders, chooses, disables and allows them, and what a page sends each viewer."
 ---
 
@@ -11,7 +11,7 @@ description: "What an addon adds to the panel in its manifest: the kinds of cont
 <!-- extension-point: packages/core/resources/schemas/panel-bundle-signature.v1.json -->
 <!-- extension-point: packages/panel/resources/schemas/pages/contributions.v1.json -->
 
-An addon adds to the panel through the `panel` member of its [manifest](manifest.md): a `Cbox\Cms\Contracts\PanelPoints\PanelContributions` that lists every contribution it makes to the [panel points](panel-points.md) (PRD 13.4). The list is the allowance: what it names is exactly what the addon may touch, and the install screen shows it. `cms:build` checks every contribution against the points the scan roots declare, the addon's manifest, the commands, queries and hooks the build registered and their JSON Schemas, and writes the result to `panel.php` and `addons.php` in `bootstrap/cache/cms/`. Every type on this page is `#[Experimental]`.
+An addon adds to the panel through the `panel` member of its [manifest](../manifest.md): a `Cbox\Cms\Contracts\PanelPoints\PanelContributions` that lists every contribution it makes to the [panel points](points/_index.md) (PRD 13.4). The list is the allowance: what it names is exactly what the addon may touch, and the install screen shows it. `cms:build` checks every contribution against the points the scan roots declare, the addon's manifest, the commands, queries and hooks the build registered and their JSON Schemas, and writes the result to `panel.php` and `addons.php` in `bootstrap/cache/cms/`. Every type on this page is `#[Experimental]`.
 
 ## The panel member
 
@@ -21,9 +21,9 @@ An addon adds to the panel through the `panel` member of its [manifest](manifest
 | `bundle` | The absolute directory of the addon's prebuilt bundle, which holds `panel-manifest.json`, or null when no contribution runs code. |
 | `acceptsExperimental` | The ids of the experimental points the addon contributes to, such as `account.me.sections@1`, each once. An experimental point may change in a minor release of the panel API, so the addon opts in to each. |
 | `contributions` | The contributions, each a `PanelContribution`. |
-| `themes` | The addon's themes of token values by a local name, each the absolute path of its JSON file, such as `['brand' => __DIR__.'/../resources/panel/theme.json']`. The installation selects one as `<namespace>:<name>`; a theme nothing selects has no effect. See [Branding and theming the panel](../developers/panel-branding.md#themes). |
+| `themes` | The addon's themes of token values by a local name, each the absolute path of its JSON file, such as `['brand' => __DIR__.'/../resources/panel/theme.json']`. The installation selects one as `<namespace>:<name>`; a theme nothing selects has no effect. See [Branding and theming the panel](../../developers/panel-branding.md#themes). |
 
-The capabilities that go with it are in `AddonCapabilities`: `issues`, the command classes the addon's UI may run, and `uiTheme`, whether it may ship a theme ([manifest](manifest.md#capabilities)).
+The capabilities that go with it are in `AddonCapabilities`: `issues`, the command classes the addon's UI may run, and `uiTheme`, whether it may ship a theme ([manifest](../manifest.md#capabilities)).
 
 ## The kinds of contribution
 
@@ -41,13 +41,13 @@ Every contribution has an id `<namespace>.<local>` in the addon's namespace, the
 | `FlowStep` | flow step | yes | `command`; `position` (`BeforeSubmit`, `AfterReceipt`); `patches`, the paths it may change; `timeoutSeconds`, 1 to 30. |
 | `ObserverContribution` | observer | yes | nothing more. |
 | `ProviderContribution` | provider | yes | nothing more. |
-| `LoginNotice` | data | no | `message`, a translation key, and `tone`; shown on the login page, which runs no addon code ([panel pages](panel-pages.md#the-login-pages-notices)). |
+| `LoginNotice` | data | no | `message`, a translation key, and `tone`; shown on the login page, which runs no addon code ([panel pages](pages.md#the-login-pages-notices)). |
 
 A value that breaks its rule, such as a priority outside 0 to 1000000, a label that is no translation key, a prefill from a text that is no JSON pointer, a page path that climbs or a step over 30 seconds, throws `InvalidAddonManifest`, and `cms:build` reports it as `registry_invalid_manifest`.
 
 ## What cms:build checks
 
-A build with any of these writes nothing and exits 65, listing every problem ([error codes](../reference/errors.md)):
+A build with any of these writes nothing and exits 65, listing every problem ([error codes](../../reference/errors.md)):
 
 | Code | When |
 |---|---|
@@ -82,7 +82,7 @@ An addon builds its panel UI with the SDK's Vite plugin, `@cboxdk/cms-panel/vite
 
 The prebuilt bundle holds `panel-manifest.json`, a document of `panel-bundle.v1.json`: the entry module, every file with its path, its SHA-384 as `sha384-<base64>` and its kind (`script`, `style` or `asset`), the bare module specifiers it imports, and the ids of the contributions it registers code for. `cms:build` reads it through the generated codec `PanelBundleCodecV1` and refuses the bundle with `registry_panel_bundle_invalid` when a file is missing or has another hash, a stylesheet has a rule outside `@layer cms.addon` (or a layer below it), the entry is not one of its scripts, it imports a module other than the shared React modules and `@cboxdk/cms-panel` with its subpaths, or its contributions are not exactly the manifest's contributions that run code. `addons.php` keeps the entry and the files with their hashes, so the panel serves only those files, by hash, and no path on disk.
 
-The panel serves the files below `<prefix>/addons/<namespace>/<hash>/<path>`, where the hash is the SHA-256 of the compiled files' paths and hashes, so an address changes with any file of the bundle and a browser may keep what it fetched for good. Before a file is sent its bytes are hashed again, and a file that is not what `cms:build` compiled is refused with the problem details of `panel_asset_hash_mismatch`; `cms:doctor`'s `panel.addons` reports the same. Every page behind the login writes the bundle into its import map, the entry under `cms-addons/<namespace>`, a scope below the bundle's address that refuses the modules an addon may not import, and the integrity of each script, and links the bundle's stylesheets; a credential page writes none of it. [The panel module](../developers/panel.md#addon-files-and-the-dev-server) describes the serving and the dev server an addon's UI can be loaded from while it is developed.
+The panel serves the files below `<prefix>/addons/<namespace>/<hash>/<path>`, where the hash is the SHA-256 of the compiled files' paths and hashes, so an address changes with any file of the bundle and a browser may keep what it fetched for good. Before a file is sent its bytes are hashed again, and a file that is not what `cms:build` compiled is refused with the problem details of `panel_asset_hash_mismatch`; `cms:doctor`'s `panel.addons` reports the same. Every page behind the login writes the bundle into its import map, the entry under `cms-addons/<namespace>`, a scope below the bundle's address that refuses the modules an addon may not import, and the integrity of each script, and links the bundle's stylesheets; a credential page writes none of it. [The panel module](../../developers/panel.md#addon-files-and-the-dev-server) describes the serving and the dev server an addon's UI can be loaded from while it is developed.
 
 <!-- example-file: examples/Unit/Panel/Approvals/dist/panel-manifest.json -->
 ```json
@@ -215,13 +215,13 @@ final class PanelBundleSignatureTest extends TestCase
 
 ## Order, choices and the kill switch
 
-The panel renders a point's contributions by priority, the lowest first, then by the addon's namespace, then by id. The installation changes that without touching an addon, and `cbox-cms.panel.*` in the [configuration](../developers/configuration.md) holds it:
+The panel renders a point's contributions by priority, the lowest first, then by the addon's namespace, then by id. The installation changes that without touching an addon, and `cbox-cms.panel.*` in the [configuration](../../developers/configuration.md) holds it:
 
 - `cbox-cms.panel.contributions`, per point id and contribution id, sets another `priority` or `enabled => false`. `cms:build` compiles it.
 - `cbox-cms.panel.replacements`, per replaceable point id and key, names the contribution id of the replacement that wins when several claim the key. `cms:build` compiles it, and the others stay listed, passed over.
 - `cbox-cms.panel.disabled` is the activation state (PRD 13.5): the namespaces of addons whose panel UI is off under `addons`, and contribution ids under `contributions`. The panel reads it at each request, so an incident is handled without a rebuild.
 
-`cms:panel:fills <point>` shows each contribution with where its priority comes from (the addon or the installation) and whether it is enabled and why (the addon, the installation, a replacement the installation chose or passed over, or the activation state), as text and with `--json` ([inspecting](../developers/inspecting.md)).
+`cms:panel:fills <point>` shows each contribution with where its priority comes from (the addon or the installation) and whether it is enabled and why (the addon, the installation, a replacement the installation chose or passed over, or the activation state), as text and with `--json` ([inspecting](../../developers/inspecting.md)).
 
 ## The core's own contributions
 
@@ -231,13 +231,13 @@ The panel's pages contribute to their own points too, in the namespace `cms`: th
 
 The server works out, per request and page, which contributions a viewer gets (`Cbox\Cms\Panel\Contributions\Actions\ResolveContributions`):
 
-1. The points the page renders. A page names each point it renders with its props, an object of the newest version's props class; a contribution to an older version of the point gets what that version's downcast builds from them ([panel points](panel-points.md)).
+1. The points the page renders. A page names each point it renders with its props, an object of the newest version's props class; a contribution to an older version of the point gets what that version's downcast builds from them ([panel points](points/_index.md)).
 2. The contributions in scope: each compiled fill of those points that the installation's settings and the activation state of now leave enabled, whose `Scope` names the page, if it names pages, and what the page is about, if it names commands, types or field types.
 3. `requires`: the viewer must hold the permission of the command or read the scope names, decided by the viewer's grants as the kernel decides any read (`PermissionRule`), asked once per page for every name; an action also needs the permission of the command it runs, and a nav entry a page the viewer gets. A contribution the viewer may not see is never sent, not even its id.
 4. Access: each contribution is handed the point's props, and runs its data, at the lower of the viewer's classification access and the addon's `reads` capability. The point's generated codec writes the props at that access, so a member classified above what the addon reads is absent from what it gets, whatever the viewer may read.
-5. The shell: the points of the shell, which every page behind the login renders around its content, are resolved with the page's, so a nav entry, a page or an action of the viewer's menu is active on every page within its scope ([panel shell points](panel-shell.md)).
+5. The shell: the points of the shell, which every page behind the login renders around its content, are resolved with the page's, so a nav entry, a page or an action of the viewer's menu is active on every page within its scope ([panel shell points](shell.md)).
 
-The page sends the result as the prop `cms.contributions`, a document of `contributions.v1.json`, which the panel's [host](../developers/panel.md#the-host-runtime) renders every point from:
+The page sends the result as the prop `cms.contributions`, a document of `contributions.v1.json`, which the panel's [host](../../developers/panel.md#the-host-runtime) renders every point from:
 
 - per point, its kind, its region when it is a slot, how many contributions it shows (`many`, at most `max`, or `exclusive`), and the fills in render order, each with its id, its addon, its kind, the priority it renders at, the props, whether it reads data, and what its kind needs besides: an action's command, label, icon, prefill, confirmation and tone, a nav entry's label, icon and page, a check's form command and severity, a step's form command, position, paths and timeout, what a decorator may tighten, or the key a replacement replaces;
 - per addon whose contributions that run code are on the page, the core's namespace `cms` included, the registration its code must match: the SHA-256 of the ids of every contribution of the addon that runs code, as `cms:build` compiled them, sorted and joined by line feeds, so the digest names none the viewer does not get; and the commands its contributions may issue through the host, any for the core's own;
@@ -246,7 +246,7 @@ The page sends the result as the prop `cms.contributions`, a document of `contri
 
 A slot fill or a page with a `data` query gets its data as a deferred prop, a page's on the page itself alone: the host asks for `ext.<namespace>` once the page has rendered, one deferred prop per addon in the group of its namespace, and gets the result of each of the addon's queries under the contribution's id. The query's input is taken from the props by name and read by the query's codec. It runs through the query pipeline as the viewer, from the viewer's own credential, never as the addon, so the viewer's grants, row level security and the actor's query budget (`cbox-cms.queries.budgets.actor`) all hold, with the read capped at the contribution's access, and the query's result codec writes the answer at that access. A query the pipeline rejects, such as one over the budget or one whose permission the viewer does not hold, one that throws, or one whose input the props do not give, leaves the contribution's data absent, so the contribution renders its error state, and the page still answers 200. A failure is reported to the application's exception handler.
 
-Nothing one addon does blanks a page. When the registry cache or the activation state cannot be read, the page has no contribution at all; a point without a codec for its props loses its contributions. The panel records each case, and each data query, per addon through the [telemetry contract](contracts/telemetry.md#what-the-panel-exports).
+Nothing one addon does blanks a page. When the registry cache or the activation state cannot be read, the page has no contribution at all; a point without a codec for its props loses its contributions. The panel records each case, and each data query, per addon through the [telemetry contract](../contracts/telemetry.md#what-the-panel-exports).
 
 This example checks `cms.contributions` documents against the schema. It is in the `Codecs` suite:
 
@@ -307,7 +307,7 @@ it('refuses a viewer that is not a lowercase UUIDv7', function (): void {
 
 ## Example
 
-The addon `acme/cms-approvals` contributes a section to the experimental slot `reviews.detail.sections@1` of the review package on [panel points](panel-points.md), with its component in the bundle in `dist`:
+The addon `acme/cms-approvals` contributes a section to the experimental slot `reviews.detail.sections@1` of the review package on [panel points](points/_index.md), with its component in the bundle in `dist`:
 
 <!-- example-file: examples/Unit/Panel/Approvals/ApprovalsServiceProvider.php -->
 ```php

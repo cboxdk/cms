@@ -13,5 +13,6 @@ The kernel's security rests on rules that the code, the tests and `cms:doctor` h
 - [Local accounts](local-accounts.md): how a member of staff gets a local account with `cms:staff:create`, the password policy, Argon2id hashing, and the local connection.
 - [Login policy](login-policy.md): the login policy per actor class and environment, which every login path asks before a session is issued.
 - [Sessions](sessions.md): the session of a person who logged in, how long it lives, how it ends, and its cookie.
+- [Panel addons](panel-addons.md): what an installed addon's UI in the panel can do, what the server, the build and the Content-Security-Policy enforce against it, and what they do not.
 - [Egress](egress.md): the rule for outbound requests, and `allow_url_fopen`.
 - [Scope](scope.md): what the kernel protects today, and what it does not.

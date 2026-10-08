@@ -1,6 +1,6 @@
 ---
 title: Testing and scaffolding addon UI
-weight: 53
+weight: 17
 description: "What an addon's own CI runs on its panel UI: the SDK's test helpers in @cboxdk/cms-panel/testing, cms-panel-addon verify on the committed bundle, the testkit's PanelContributionsContract and PanelVisit, and the scaffolds cms:make:addon-ui and cms:make:panel write."
 ---
 
@@ -32,9 +32,9 @@ The addon's prebuilt bundle, `dist/panel`, is committed in its release commit (d
 
 ## The testkit's PanelContributionsContract
 
-`Cbox\Cms\Testkit\Panel\PanelContributionsContract` is the shared suite an addon's PHP tests run on its manifest: use the trait in a PHPUnit test class on the addon's Testbench application, with package discovery on, so the addon's provider is registered, and a bootstrap directory of the test's own, so `cms:build` writes its cache there, and give the manifest the provider declares. Its case allows the addon's package in `cbox-cms.addons.allowed`, runs `cms:build` on the whole installation and fails with the build's output on any problem, an unknown point, a kind mismatch, an experimental point the manifest does not accept, a bundle whose files or ids are not the manifest's, a bundle whose [signature](panel-contributions.md#signing-the-bundle) the installation does not trust (the test trusts the publisher's key in `cbox-cms.addons.publishers`, as an installation does; only the local environment accepts an unsigned bundle), a blocking check without a mirrored hook and every other refusal of [panel contributions](panel-contributions.md#what-cmsbuild-checks). It then reads what the build wrote and asserts that the addon was compiled and that every contribution of the manifest is on its point.
+`Cbox\Cms\Testkit\Panel\PanelContributionsContract` is the shared suite an addon's PHP tests run on its manifest: use the trait in a PHPUnit test class on the addon's Testbench application, with package discovery on, so the addon's provider is registered, and a bootstrap directory of the test's own, so `cms:build` writes its cache there, and give the manifest the provider declares. Its case allows the addon's package in `cbox-cms.addons.allowed`, runs `cms:build` on the whole installation and fails with the build's output on any problem, an unknown point, a kind mismatch, an experimental point the manifest does not accept, a bundle whose files or ids are not the manifest's, a bundle whose [signature](contributions.md#signing-the-bundle) the installation does not trust (the test trusts the publisher's key in `cbox-cms.addons.publishers`, as an installation does; only the local environment accepts an unsigned bundle), a blocking check without a mirrored hook and every other refusal of [panel contributions](contributions.md#what-cmsbuild-checks). It then reads what the build wrote and asserts that the addon was compiled and that every contribution of the manifest is on its point.
 
-The approvals addon of the [panel contributions](panel-contributions.md#example) example runs it in its own tests:
+The approvals addon of the [panel contributions](contributions.md#example) example runs it in its own tests:
 
 <!-- example: examples/Unit/Panel/PanelContributionsContractTest.php -->
 ```php

@@ -23,5 +23,11 @@ There is no generator for these tasks yet. When one comes, it takes a recipe's i
 - [Add a kernel action](kernel-action.md): a command, its write action with `#[Action]` and surfaces, the mutation writer, the Actions-suite tests and the surface tests.
 - [Expose a command in the panel](expose-command.md): the surfaces of a command's action, its JSON Schema and codec, the texts of its form, the permission a role needs, and the tests that hold the form to the schema and to the browser.
 - [Add a panel page](panel-page.md): a page of the panel behind the login, the query it reads as the person with its schema and codec, its props, its React page, its navigation entry with the permission it needs, the point it declares, and the tests that hold it to REST and to the browser.
+- [Add a panel action without code](panel-action.md): a button that runs a command of the addon as the viewer, from the manifest alone, with its prefill and confirmation.
+- [Add a section with data](panel-section.md): a section of a page with a data query of the addon read as the viewer, the component in each state of its data, and the bundle.
+- [Add a form check mirrored by a hook](panel-check.md): a check that blocks a command form's submit, the hook it mirrors, and the shared cases that hold the two to the same verdicts.
+- [Add a flow step](panel-step.md): a step before the submit or after the receipt that patches only its declared paths.
+- [Ship a theme](panel-theme.md): a theme of token values, the capability, the installation's selection and the contrast checks.
+- [Add a point to a core page](panel-point.md): a panel point in `cboxdk/cms`, its schema and generated code, the page that renders it, its story, its docs page and the fixture addon's contribution.
 
 Before any recipe, read `CLAUDE.md` and `PROGRESS.md`, and work in a worktree of your own. Every recipe ends with `composer check`, and with every changed or new test recorded in `CHECKS-LOG.md` (GUARDRAILS 7.3).
