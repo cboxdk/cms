@@ -18,7 +18,7 @@ The parts every component builds on, under Foundations in the Storybook.
 
 ## Layout
 
-- [`AppShell`](../../js/ui-kit/stories/AppShell.stories.tsx): the frame of every page, with the top bar, the navigation and the main landmark, and a skip link.
+- [`AppShell`](../../js/ui-kit/stories/AppShell.stories.tsx): the frame of every page, with the top bar, the navigation and the main landmark, and a skip link. The bar wraps: where the brand and the actions do not fit on one line, as on a phone, the actions go to a line of their own instead of widening the page, and a control in the bar whose text a narrow bar has no room for marks it `cms-app-shell__label`, which leaves the text to a screen reader below 48rem of shell ([Width](foundations.md#width)).
 - [`Page`](../../js/ui-kit/stories/Page.stories.tsx) and [`PageHeader`](../../js/ui-kit/stories/PageHeader.stories.tsx): the content of a page and its top, with the page's one heading.
 - [`Card`](../../js/ui-kit/stories/Card.stories.tsx) and [`Section`](../../js/ui-kit/stories/Section.stories.tsx): a panel on the raised surface, and a part of a page with a heading.
 - [`Stack`](../../js/ui-kit/stories/Stack.stories.tsx) and [`Inline`](../../js/ui-kit/stories/Inline.stories.tsx): children one below the other, and side by side, with the kit's spacing.
@@ -68,7 +68,7 @@ The parts every component builds on, under Foundations in the Storybook.
 
 ## Data display
 
-- [`DataTable`](../../js/ui-kit/stories/DataTable.stories.tsx): a table of rows with sorting, row actions and keyset pages.
+- [`DataTable`](../../js/ui-kit/stories/DataTable.stories.tsx): a table of rows with sorting, row actions and keyset pages. A table wider than the room it has scrolls in its own region, which never widens the page ([Width](foundations.md#width)).
 - [`DescriptionList`](../../js/ui-kit/stories/DescriptionList.stories.tsx): facts about one thing.
 - [`Tree`](../../js/ui-kit/stories/Tree.stories.tsx): a tree of nodes.
 - [`Tag`](../../js/ui-kit/stories/Tag.stories.tsx) and [`Timestamp`](../../js/ui-kit/stories/Timestamp.stories.tsx): a short value as a chip, and a point in time in the reader's locale.

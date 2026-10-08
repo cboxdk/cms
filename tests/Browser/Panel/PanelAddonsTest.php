@@ -60,7 +60,9 @@ use Workbench\FixtureAddon\FixtureArticle;
  *   slug, and the run writes the slug in a new revision, which the addon's sections and page then
  *   show.
  *
- * The addon's texts show as their keys: an addon's catalogue is not loaded by the panel yet.
+ * The addon's texts show as their keys: an addon's catalogue is not loaded by the panel yet, so
+ * the action of the addon in the shell's bar carries a long text; the addon's page is asserted
+ * at a phone's width as well, where the bar has to fit it.
  */
 
 /** The title of the article the editor writes, which the fixture addon's reads cap keeps from it. */
@@ -346,6 +348,12 @@ it('shows the addon\'s notice on the login page as data alone, and every contrib
         ->assertDontSee(ADDONS_TITLE);
     $page->assertSee(PanelPage::addonText('fixtureaddon.articles.page_title'));
     PanelPage::assertPage($page, ['panel.home.sign_out']);
+
+    // The addon's page on a phone: the bar, with the addon's action and its long text, and the
+    // page itself fit the screen, which PanelPage asserts at every width a page is shown at.
+    $page->resize(390, 844);
+    PanelPage::assertPage($page, ['panel.home.sign_out']);
+    $page->resize(1440, 900);
 
     expect($page->script('document.querySelector(\'nav a[aria-current="page"]\')?.textContent'))->toBe(PanelPage::addonText('fixtureaddon.nav.articles'))
         ->and(StorageTables::superuser()->table('app__fixture_article')->where('fixture_title', ADDONS_TITLE)->count())->toBeGreaterThanOrEqual(1);

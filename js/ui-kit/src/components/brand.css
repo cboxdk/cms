@@ -3,11 +3,19 @@
     display: inline-flex;
     align-items: center;
     gap: var(--cms-space-3);
+    min-inline-size: 0;
     color: var(--cms-color-text);
     font-size: var(--cms-font-size-lg);
     font-weight: var(--cms-font-weight-bold);
     line-height: var(--cms-line-height-tight);
     letter-spacing: -0.01em;
+  }
+
+  /* A name longer than the room it has, as in a narrow top bar, ends in an ellipsis. */
+  .cms-brand__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .cms-brand__logo {

@@ -5,7 +5,14 @@
     min-inline-size: 0;
   }
 
+  /*
+   * A table too wide for the screen scrolls here, inside its own region, and never widens the
+   * page. The region is positioned, so that it is the containing block of the absolutely
+   * positioned content of its cells, such as the text of the row actions' column that only a
+   * screen reader reads, which the clip would otherwise let past the right edge of the page.
+   */
   .cms-data-table__scroller {
+    position: relative;
     overflow-x: auto;
     border: 1px solid var(--cms-color-border);
     border-radius: var(--cms-radius-lg);

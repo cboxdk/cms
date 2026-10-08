@@ -38,8 +38,9 @@ use Pest\Browser\Api\PendingAwaitablePage;
  * as actor.me read them through the query pipeline as the person; the entry is marked as the
  * current page there. A member of staff who holds no grant at all still reaches the page, because
  * actor.me needs no permission, and sees that they hold no access. Every page makes the shared
- * assertions: its translated text, an empty console, no script error, no axe finding at any
- * impact, every WCAG 2.2 AA rule, and no policy violation.
+ * assertions at the three widths of a phone, a tablet and a desktop: its translated text, an
+ * empty console, no script error, no axe finding at any impact, every WCAG 2.2 AA rule, no
+ * policy violation, and nothing that scrolls the page sideways.
  *
  * With CMS_DOCS_SCREENSHOTS=1 the page is also captured into docs/screenshots/account-me.png, the
  * image docs/addons/panel/pages.md shows.
@@ -52,6 +53,9 @@ const SHELL_NAME = 'Mette Holm';
 const SHELL_PASSWORD = 'correct horse battery staple';
 
 const SHELL_ROLE = 'shelleditor';
+
+/** The widths every page is checked at: a phone, a tablet and a desktop. */
+const SHELL_WIDTHS = [390, 820, 1440];
 
 /**
  * The world of the test, which beforeEach writes for each test.
@@ -82,6 +86,21 @@ function signInToPanel(string $email): PendingAwaitablePage
     $page->assertPathIs('/cms');
 
     return $page;
+}
+
+/**
+ * Makes the shared assertions at the three widths, and leaves the page at a desktop width.
+ *
+ * @param  list<string>  $texts
+ */
+function assertShellPage(PendingAwaitablePage $page, array $texts): void
+{
+    foreach (SHELL_WIDTHS as $width) {
+        $page->resize($width, 900);
+        PanelPage::assertPage($page, $texts);
+    }
+
+    $page->resize(1440, 900);
 }
 
 /**
@@ -129,12 +148,15 @@ it('opens the who-am-I page from the navigation and shows the person their profi
     $world = shellWorld();
     $page = signInToPanel(SHELL_EMAIL);
 
+    // The start page at every width; the navigation itself is behind the bar's button on a phone,
+    // so its entry is read where the page is wide enough to show it, as the click below needs.
+    assertShellPage($page, ['panel.home.body']);
     PanelPage::assertPage($page, ['panel.home.body', 'panel.nav.account_me']);
 
     $page->click('nav a:has-text("'.PanelPage::text('panel.nav.account_me').'")');
 
     $page->assertPathIs('/cms/account/me');
-    PanelPage::assertPage($page, accountMeTexts('panel.account_me.class.staff', 'panel.account_me.state.active', 'panel.account_me.effect.allow', 'panel.account_me.grant.role', 'panel.account_me.grant.node', 'panel.account_me.grant.effect', 'panel.account_me.grant.locales'));
+    assertShellPage($page, accountMeTexts('panel.account_me.class.staff', 'panel.account_me.state.active', 'panel.account_me.effect.allow', 'panel.account_me.grant.role', 'panel.account_me.grant.node', 'panel.account_me.grant.effect', 'panel.account_me.grant.locales'));
     $page->assertSee(SHELL_NAME)
         ->assertSee(SHELL_EMAIL)
         ->assertSee($world->actor->toString())
@@ -166,7 +188,7 @@ it('shows a member of staff without any grant their account and that they hold n
     $page->navigate('/cms/account/me');
 
     $page->assertPathIs('/cms/account/me');
-    PanelPage::assertPage($page, accountMeTexts('panel.account_me.no_grants_title', 'panel.account_me.no_grants_body'));
+    assertShellPage($page, accountMeTexts('panel.account_me.no_grants_title', 'panel.account_me.no_grants_body'));
     $page->assertSee($email)
         ->assertSee($actor->toString())
         ->assertDontSee($world->actor->toString())

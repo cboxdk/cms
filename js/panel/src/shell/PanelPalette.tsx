@@ -73,6 +73,9 @@ export function PanelPalette({ palette }: PanelPaletteProps) {
 
   return (
     <>
+      {/* A narrow top bar, as on a phone, has room for the icon alone: the shell's class leaves
+          the button's text to a screen reader, and the shortcut, which a phone has no keys for,
+          is left out of the page there. */}
       <Button
         variant="quiet"
         icon="search"
@@ -80,7 +83,9 @@ export function PanelPalette({ palette }: PanelPaletteProps) {
           setOpen(true);
         }}
       >
-        {t('panel.palette.open')} <KeyboardShortcut keys={['Mod', 'K']} />
+        <span className="cms-app-shell__label">
+          {t('panel.palette.open')} <KeyboardShortcut keys={['Mod', 'K']} />
+        </span>
       </Button>
       <CommandPalette
         label={t('panel.palette.label')}

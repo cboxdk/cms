@@ -26,6 +26,10 @@ The kit's transitions take their length from the `--cms-duration-*` tokens. When
 
 `--cms-target-size` is the least size of a pointer target, 24 pixels (WCAG 2.2, 2.5.8), and the kit's buttons, icon buttons and controls keep to it. A theme cannot set it lower: `cms:build` refuses a composition that does.
 
+## Width
+
+Every page fits the screen it is shown on, from the 320 pixels of WCAG 2.2 AA (1.4.10 Reflow) and a phone's 390 up: no page of the panel scrolls sideways, and nothing on it is cut off at the right edge. The shell's top bar wraps, as `ShellHeader` does, so its actions take a line of their own where the brand and they do not fit on one; the text of a control in the bar that a narrow bar has no room for is marked `cms-app-shell__label`, as the command palette's button marks its text and its shortcut, and is left to a screen reader alone below 48rem of shell, where the control keeps its icon. What has to stay as wide as it is, such as a table of many columns, scrolls inside its own region and never widens the page: `DataTable`'s scroller is also the containing block of the positioned content of its cells, so nothing of a wide table reaches past the page. `tests/Support/Browser/PanelPage.php` asserts it for every panel page the Browser suite visits, at each width it is shown at.
+
 ## Tokens
 
 Every value of the kit is a design token, a custom property `--cms-*` written from one source, `js/ui-kit/tokens.json`, in three tiers:

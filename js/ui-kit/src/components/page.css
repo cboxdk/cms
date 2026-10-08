@@ -58,6 +58,7 @@
 
   .cms-page-header__meta {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--cms-space-2);
   }
 
@@ -70,6 +71,7 @@
 
   .cms-page-header__actions {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--cms-space-2);
   }
 }
