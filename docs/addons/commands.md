@@ -462,7 +462,7 @@ A write ends in a `Cbox\Cms\Contracts\Results\WriteResult`, which carries the ca
 
 A dry run's `BlastRadius` counts the mutations of the plan and the distinct aggregates they change, by kind: `of('entry')`, `of('variant')` and `total()`. Its diff is one `AggregateChange` per aggregate the plan changes, sorted by aggregate key, with the version it was read at (`before`, null when the write creates it), the version the commit would give it (`after`) and the number of mutations that change it. Its `visible` lists the placements the plan makes visible, sorted by placement and locale, when the action `ReportsVisibility`, and none otherwise.
 
-A `FieldPath` is a list of names and indexes, written `blocks[2].text` or `fields.ext.app.tax_code`. Each surface translates the result for its transport. No code serialises a result to JSON by hand: the receipt's JSON form is on [Receipt JSON](receipt-json.md), and a rejection's catalog errors become the field errors of [problem details](problem-details.md), each written by its generated codec.
+A `FieldPath` is a list of names, list indexes and the keys of list items, written `blocks[2].text`, `fields.ext.app.tax_code` or `fields.body[#k3f9].heading`; the grammar is in [the JSON contracts](../developers/architecture/json-contracts.md). Each surface translates the result for its transport. No code serialises a result to JSON by hand: the receipt's JSON form is on [Receipt JSON](receipt-json.md), and a rejection's catalog errors become the field errors of [problem details](problem-details.md), each written by its generated codec.
 
 ## The CLI surface
 

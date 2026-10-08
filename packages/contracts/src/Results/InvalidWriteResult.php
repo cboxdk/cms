@@ -85,7 +85,15 @@ final class InvalidWriteResult extends InvalidArgumentException
     public static function path(string $value): self
     {
         return new self(sprintf(
-            'A field path is a name followed by names after dots and indexes in brackets, such as "blocks[2].text", got "%s".',
+            'A field path is a name followed by names after dots, indexes in brackets and item keys in brackets after a hash, such as "fields.body[#k3f9].heading", got "%s".',
+            self::shown($value),
+        ));
+    }
+
+    public static function itemKey(string $value): self
+    {
+        return new self(sprintf(
+            'An item key of a field path is 1 to 64 letters, digits, underscores and hyphens, got "%s".',
             self::shown($value),
         ));
     }

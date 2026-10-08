@@ -9,6 +9,7 @@
 
 import type { JsonObject, JsonValue } from '@cboxdk/cms-panel/extend';
 
+import { isItemKey, pathSegments } from '../forms/field-path';
 import { frozenCopy } from './checks';
 import type { HostReport } from './reports';
 
@@ -69,17 +70,6 @@ const PLATFORM_TIMERS: FlowTimers = {
   },
 };
 
-/** The segments of a path as FieldPath::toString() writes it, such as `fields.ext.a.b[0]`. */
-export function pathSegments(path: string): readonly (string | number)[] {
-  const segments: (string | number)[] = [];
-
-  for (const match of path.matchAll(/([^.[\]]+)|\[(\d+)\]/g)) {
-    segments.push(match[2] === undefined ? (match[1] ?? '') : Number(match[2]));
-  }
-
-  return segments;
-}
-
 function isJson(value: unknown): value is JsonValue {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') {
     return true;
@@ -100,9 +90,20 @@ function isJson(value: unknown): value is JsonValue {
   return false;
 }
 
-/** The document with the value at the path, made where the path's objects do not exist yet. */
+/**
+ * The document with the value at the path, made where the path's objects do not exist yet. The
+ * path is one a step's manifest declared, so it names places by name and by index; a segment that
+ * names an item of a list by its key is no place a declared path can know, and such a path leaves
+ * the document as it was, as a path the parser does not read does.
+ */
 export function patched(document: JsonObject, path: string, value: JsonValue): JsonObject {
-  const segments = pathSegments(path);
+  const read = pathSegments(path);
+  const segments = read.filter((segment): segment is string | number => !isItemKey(segment));
+
+  if (segments.length !== read.length) {
+    return structuredClone(document);
+  }
+
   const copy = structuredClone(document) as Record<string, unknown>;
   let parent: Record<string | number, unknown> = copy;
 

@@ -1,0 +1,95 @@
+{
+  "description": "The written form of Cbox\\Cms\\Contracts\\Results\\FieldPath (PRD 6.1, 11.10, decision D3 of the editing experience proposal), read by its PHP parser and by the panel's TypeScript twin js/panel/src/forms/field-path.ts, so both give the same segments for the same input and refuse the same input. A segment is {\"name\": <an object key>}, {\"index\": <a place in a list>} or {\"key\": <the key of one item of a list>}. The grammar is on docs/developers/architecture/json-contracts.md, and the tests that read this file are packages/contracts/tests/Results/FieldPathTest.php and js/panel/tests/forms/field-path.test.ts. Every index here is one both parsers hold exactly; PHP reads an index of up to 18 digits, and the TypeScript twin refuses one past Number.MAX_SAFE_INTEGER, each held by a case of its own in its test.",
+  "paths": [
+    {
+      "why": "a name",
+      "written": "title",
+      "segments": [{ "name": "title" }]
+    },
+    {
+      "why": "names",
+      "written": "fields.ext.app.tax_code",
+      "segments": [{ "name": "fields" }, { "name": "ext" }, { "name": "app" }, { "name": "tax_code" }]
+    },
+    {
+      "why": "indexes",
+      "written": "blocks[2].children[0].text",
+      "segments": [{ "name": "blocks" }, { "index": 2 }, { "name": "children" }, { "index": 0 }, { "name": "text" }]
+    },
+    {
+      "why": "indexes in a row",
+      "written": "matrix[10][0]",
+      "segments": [{ "name": "matrix" }, { "index": 10 }, { "index": 0 }]
+    },
+    {
+      "why": "underscores and digits",
+      "written": "_a1.B_2",
+      "segments": [{ "name": "_a1" }, { "name": "B_2" }]
+    },
+    {
+      "why": "the largest index both parsers hold exactly",
+      "written": "list[9007199254740991]",
+      "segments": [{ "name": "list" }, { "index": 9007199254740991 }]
+    },
+    {
+      "why": "a key segment",
+      "written": "fields.body[#k3f9].heading",
+      "segments": [{ "name": "fields" }, { "name": "body" }, { "key": "k3f9" }, { "name": "heading" }]
+    },
+    {
+      "why": "a path that ends in a key segment",
+      "written": "fields.body[#k3f9]",
+      "segments": [{ "name": "fields" }, { "name": "body" }, { "key": "k3f9" }]
+    },
+    {
+      "why": "key segments in a row",
+      "written": "body[#k3f9][#q9b3]",
+      "segments": [{ "name": "body" }, { "key": "k3f9" }, { "key": "q9b3" }]
+    },
+    {
+      "why": "key and index segments mixed",
+      "written": "fields.body[#k3f9].columns[1][#c-2_D].text",
+      "segments": [{ "name": "fields" }, { "name": "body" }, { "key": "k3f9" }, { "name": "columns" }, { "index": 1 }, { "key": "c-2_D" }, { "name": "text" }]
+    },
+    {
+      "why": "a key of digits only, which is not an index",
+      "written": "body[#0]",
+      "segments": [{ "name": "body" }, { "key": "0" }]
+    },
+    {
+      "why": "the longest key",
+      "written": "body[#kaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa]",
+      "segments": [{ "name": "body" }, { "key": "kaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }]
+    }
+  ],
+  "refused": [
+    { "why": "nothing", "written": "" },
+    { "why": "an index first", "written": "[0]" },
+    { "why": "a number first", "written": "0" },
+    { "why": "a key first", "written": "[#k3f9]" },
+    { "why": "a leading dot", "written": ".a" },
+    { "why": "a trailing dot", "written": "a." },
+    { "why": "two dots", "written": "a..b" },
+    { "why": "an unclosed bracket", "written": "a[" },
+    { "why": "empty brackets", "written": "a[]" },
+    { "why": "a padded index", "written": "a[01]" },
+    { "why": "a negative index", "written": "a[-1]" },
+    { "why": "an index of more than 18 digits", "written": "a[1000000000000000000]" },
+    { "why": "a space", "written": "a b" },
+    { "why": "a number as a name", "written": "a.1" },
+    { "why": "a name after an index without a dot", "written": "a[0]b" },
+    { "why": "a newline", "written": "a\n" },
+    { "why": "an empty key", "written": "a[#]" },
+    { "why": "an empty key before a name", "written": "a[#].b" },
+    { "why": "a key with a dot", "written": "a[#k.3]" },
+    { "why": "a key with a space", "written": "a[#k 3]" },
+    { "why": "a key with a hash", "written": "a[#k#3]" },
+    { "why": "two hashes", "written": "a[##k3]" },
+    { "why": "a key with a bracket", "written": "a[#k]3]" },
+    { "why": "an unclosed key", "written": "a[#k3f9" },
+    { "why": "a key of more than 64 characters", "written": "a[#kaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa]" },
+    { "why": "a name in brackets", "written": "a[k3f9]" },
+    { "why": "a hash outside brackets", "written": "a.#k3f9" },
+    { "why": "a name after a key without a dot", "written": "a[#k3f9]b" }
+  ]
+}

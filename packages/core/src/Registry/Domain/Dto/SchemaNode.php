@@ -92,14 +92,16 @@ final readonly class SchemaNode
     }
 
     /**
-     * The schema at the path below this one, or null when the schema does not have it.
+     * The schema at the path below this one, or null when the schema does not have it. A segment
+     * that is a list index or the key of one item of a list goes to the schema of the list's
+     * items, which every item of a list shares.
      */
     public function at(FieldPath $path): ?self
     {
         $node = $this;
 
         foreach ($path->segments as $segment) {
-            $node = is_int($segment) ? $node->item() : $node->member($segment);
+            $node = is_string($segment) ? $node->member($segment) : $node->item();
 
             if (! $node instanceof self) {
                 return null;

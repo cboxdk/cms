@@ -6,13 +6,8 @@
 
 import { describe, expect, test } from 'vitest';
 
-import {
-  FlowRun,
-  pathSegments,
-  patched,
-  type FlowStepEntry,
-  type FlowTimers,
-} from '../../src/host/flow';
+import { pathSegments } from '../../src/forms/field-path';
+import { FlowRun, patched, type FlowStepEntry, type FlowTimers } from '../../src/host/flow';
 import type { HostReport } from '../../src/host/reports';
 
 function step(
@@ -166,5 +161,11 @@ describe('the flow runner', () => {
     expect(patched({ fields: {} }, 'fields.items[0].name', 'One')).toEqual({
       fields: { items: [{ name: 'One' }] },
     });
+  });
+
+  test('places nothing for a path that names an item of a list by its key', () => {
+    expect(
+      patched({ fields: { items: [{ name: 'Two' }] } }, 'fields.items[#k3f9].name', 'One'),
+    ).toEqual({ fields: { items: [{ name: 'Two' }] } });
   });
 });

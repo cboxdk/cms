@@ -23,7 +23,7 @@ Every key is always present, sorted, without whitespace. The first five are the 
 | `instance` | a URI reference that names the occurrence, or `null` |
 | `code` | the catalog code, such as `validation_failed` |
 | `retryable` | whether the same call may succeed later, as the catalog says |
-| `errors` | the reasons a write was rejected, in order: each a `code`, a `detail` and a `field`, the path of the input such as `fields.blocks[2].text`, or `null` when the reason is about the command as a whole |
+| `errors` | the reasons a write was rejected, in order: each a `code`, a `detail` and a `field`, the path of the input such as `fields.blocks[2].text` or `fields.body[#k3f9].heading`, which names a block by its key, or `null` when the reason is about the command as a whole |
 
 `Problem::of()` builds the document from a code: the type, title, status and retryable come from its entry, and the surface gives the cause, the reasons and the instance. The constructor refuses a type, a status or a retryable that is not the catalog's, so no surface answers a code otherwise than the catalog says. A field error is a `Cbox\Cms\Contracts\Results\CatalogError`, the same type a rejected `WriteResult` carries, and its path is a `FieldPath`, written by `toString()` and read by `FieldPath::fromString()`.
 

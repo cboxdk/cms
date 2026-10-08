@@ -8,7 +8,7 @@
 import type { FormMember, FormModel, SchemaFormTexts } from '@cboxdk/cms-ui-kit';
 
 import type { FoundIssue } from '../host/checks';
-import { pathSegments } from '../host/flow';
+import { fieldPathText, isItemKey, pathSegments } from './field-path';
 
 /** The field errors to show: the validator's issue at a path, else the check's error there. */
 export function fieldErrors(
@@ -56,7 +56,7 @@ function controlAt(model: FormModel, path: string): string | undefined {
   const segments = pathSegments(path);
 
   for (let length = segments.length; length > 0; length -= 1) {
-    const candidate = pathText(segments.slice(0, length));
+    const candidate = fieldPathText(segments.slice(0, length));
     const member = memberAt(model, candidate);
 
     if (member !== undefined && (length === segments.length || member.shape.kind === 'fields')) {
@@ -65,18 +65,6 @@ function controlAt(model: FormModel, path: string): string | undefined {
   }
 
   return undefined;
-}
-
-function pathText(segments: readonly (string | number)[]): string {
-  return segments.reduce<string>(
-    (text, segment) =>
-      typeof segment === 'number'
-        ? `${text}[${String(segment)}]`
-        : text === ''
-          ? segment
-          : `${text}.${segment}`,
-    '',
-  );
 }
 
 /**
@@ -90,13 +78,16 @@ export function withoutServerPaths<I extends { readonly path: string }>(
   return issues.filter((issue) => !Object.hasOwn(server, issue.path));
 }
 
-/** The member of the model at the path, or undefined when the model has none there. */
+/**
+ * The member of the model at the path, or undefined when the model has none there. A segment that
+ * is a list index or the key of one item of a list goes to the member of the list's items.
+ */
 export function memberAt(model: FormModel, path: string): FormMember | undefined {
   let members: readonly FormMember[] = model.root.members;
   let found: FormMember | undefined;
 
   for (const segment of pathSegments(path)) {
-    if (typeof segment === 'number') {
+    if (typeof segment === 'number' || isItemKey(segment)) {
       if (found?.shape.kind !== 'list') {
         return undefined;
       }

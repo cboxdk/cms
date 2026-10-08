@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Errors\Problem;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Contracts\Results\FieldPath;
+use Cbox\Cms\Contracts\Results\ItemKey;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ProblemCodecV1;
 use Throwable;
 
@@ -56,6 +57,19 @@ it('writes a problem with field errors as canonical JSON that validates against 
         ->and(ProblemCodecV1::VERSION)->toBe(1);
 });
 
+it('carries a field error on a block named by its key, so the path survives a reorder of the list', function (): void {
+    $problem = Problem::of(
+        ErrorCode::ValidationFailed,
+        'A field of a block breaks its rules.',
+        [new CatalogError(ErrorCode::ValidationFailed, new FieldPath('fields', 'body', new ItemKey('k3f9'), 'heading'), 'The heading is required.')],
+    );
+    $json = problemCodec()->encode($problem, ClassificationAccess::Public);
+
+    expect($json)->toContain('"field":"fields.body[#k3f9].heading"')
+        ->and(KernelSchema::errors('problem.v1.json', $json))->toBe([])
+        ->and(problemCodec()->decode($json, ClassificationAccess::Public))->toEqual($problem);
+});
+
 it('round-trips a problem without errors or an instance, for a code that may be retried', function (): void {
     $problem = Problem::of(ErrorCode::IdempotencyInFlight, 'Another call with the key order-1042 is still running.');
     $json = problemCodec()->encode($problem, ClassificationAccess::Public);
@@ -74,7 +88,7 @@ it('refuses a document that breaks problem.v1.json, as the schema does', functio
     'a code that is not a code' => ['"code":"validation_failed","detail":"Two', '"code":"Validation Failed","detail":"Two', 'code', 'is not one of '.implode(', ', array_map(static fn (ErrorCode $code): string => $code->value, ErrorCode::cases()))],
     'a status that is a string' => ['"status":422', '"status":"422"', 'status', 'is not an integer'],
     'an empty detail' => ['"detail":"Two fields of the command break their rules."', '"detail":""', 'detail', 'has 0 characters, fewer than the 1 the field requires'],
-    'a field that is not a path' => ['fields.blocks[2].text', 'fields..blocks', 'errors[0].field', 'is not a valid id: A field path is a name followed by names after dots and indexes in brackets, such as "blocks[2].text", got "fields..blocks".'],
+    'a field that is not a path' => ['fields.blocks[2].text', 'fields..blocks', 'errors[0].field', 'is not a valid id: A field path is a name followed by names after dots, indexes in brackets and item keys in brackets after a hash, such as "fields.body[#k3f9].heading", got "fields..blocks".'],
     'an error without its detail' => ['"detail":"The entry changed after it was read.",', '', 'errors[1].detail', 'is missing, and the field is required'],
     'an unknown member' => ['"retryable":false', '"retryable":false,"trace":"x"', null, 'has the key "trace", which is not a field of the contract'],
 ]);

@@ -313,8 +313,9 @@ export interface CatalogErrorV1 {
   /** The concrete cause, in plain language. */
   detail: string;
   /**
-   * The path of the input, names joined by dots and list indexes in brackets, such as
-   * blocks[2].text, or null when the reason is about the command as a whole.
+   * The path of the input, names joined by dots, list indexes in brackets and the keys of list
+   * items in brackets after a hash, such as blocks[2].text or fields.body[#k3f9].heading, or null
+   * when the reason is about the command as a whole.
    */
   field: string | null;
 }
@@ -589,7 +590,8 @@ const catalogErrorV1Rule: ObjectRule = {
       presence: 'present',
       value: {
         kind: 'string',
-        pattern: '^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*|\\[(0|[1-9][0-9]{0,17})\\])*$',
+        pattern:
+          '^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*|\\[(0|[1-9][0-9]{0,17})\\]|\\[#[A-Za-z0-9_-]{1,64}\\])*$',
       },
     },
     { key: 'detail', presence: 'required', value: { kind: 'text', minLength: 1 } },

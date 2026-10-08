@@ -382,6 +382,8 @@ it('accepts every problem details document v1 the PHP codec writes, and refuses 
         'an instance that is empty' => [problemJson(fields: ['instance' => '']), 'instance'],
         'retryable missing' => [str_replace('"retryable":false,', '', problemJson()), 'retryable'],
         'a field path that is not one' => [problemJson(fields: ['errors' => [['code' => 'validation_failed', 'detail' => 'x', 'field' => 'fields..text']]]), 'errors[0].field'],
+        'a field error on a block named by its key' => [problemJson(fields: ['errors' => [['code' => 'validation_failed', 'detail' => 'x', 'field' => 'fields.body[#k3f9].heading']]]), null],
+        'a field path with an empty key' => [problemJson(fields: ['errors' => [['code' => 'validation_failed', 'detail' => 'x', 'field' => 'fields.body[#].heading']]]), 'errors[0].field'],
         'a field error without its field' => [problemJson(fields: ['errors' => [['code' => 'validation_failed', 'detail' => 'x']]]), 'errors[0].field'],
     ]);
 });
