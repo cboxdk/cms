@@ -150,6 +150,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`login_tenant_claim_missing`](#login_tenant_claim_missing) | 401 | 77 | tool_error | no |
 | [`login_tenant_mismatch`](#login_tenant_mismatch) | 401 | 77 | tool_error | no |
 | [`maintenance_process_required`](#maintenance_process_required) | 500 | 78 | internal_error | no |
+| [`node_route_taken`](#node_route_taken) | 409 | 65 | tool_error | no |
 | [`owner_credentials_exposed`](#owner_credentials_exposed) | 500 | 78 | internal_error | no |
 | [`panel_asset_hash_mismatch`](#panel_asset_hash_mismatch) | 500 | 78 | internal_error | no |
 | [`panel_dev_addons_invalid`](#panel_dev_addons_invalid) | 500 | 78 | internal_error | no |
@@ -1493,6 +1494,15 @@ The command runs only in the maintenance process (PRD 4.2, 5.16), the console pr
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 78 (EX_CONFIG)
 - MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### node_route_taken
+
+Another node already has this route on the site in this language, and a route resolves to one node (PRD 5.9), so nothing was committed. Choose another route, or move the route of the other node first.
+
+- HTTP status: 409 Conflict
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
 - Retry: no, the same call gives the same answer until something changes
 
 ### owner_credentials_exposed

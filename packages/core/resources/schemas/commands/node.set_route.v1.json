@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "node.set_route, contract version 1",
+  "description": "Gives a node its route on a site in one language (PRD 5.9) in one changeset: the route is the path the public asks for, and the longest route that is a prefix of a request's path decides the node, while the rest of the path is the slug of a placement below it. A route makes the node, and whatever is live below it, reachable from the public internet, so an agent or a token is refused with agent_visibility_forbidden. The issuing actor needs node.set_route on the node in the language, and a node its grants do not reach is unauthorized. A node at another version than the caller read, and a route another command claimed between the read and the commit, are version_conflict; a route another node holds already is node_route_taken. A node that is archived or a mount, a site the installation does not have, a language the site does not publish in, a node that is not below the site's root, and a node that has a route on the site in that language already are validation_failed: moving a route needs the redirects that keep the old URLs working, which the redirect manager brings. The PHP form is Cbox\\Cms\\Core\\Structure\\Domain\\Commands\\SetNodeRoute, and the generated codec SetNodeRouteCodecV1 reads it and writes its canonical JSON: every key, sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "node",
+    "version",
+    "site",
+    "locale",
+    "route"
+  ],
+  "properties": {
+    "node": {
+      "description": "The id of the node to address.",
+      "$ref": "#/$defs/id"
+    },
+    "version": {
+      "description": "The version of the node the caller read.",
+      "$ref": "#/$defs/version"
+    },
+    "site": {
+      "description": "The id of the site the route is on.",
+      "$ref": "#/$defs/id"
+    },
+    "locale": {
+      "description": "The language the route is in, one the site publishes in.",
+      "$ref": "#/$defs/locale"
+    },
+    "route": {
+      "description": "The route: / or segments of no slash and no white space, at most 32 segments and 2048 bytes, without . or .. segments and without a trailing slash.",
+      "type": "string",
+      "pattern": "^(/|(/[^/\\s]+)+)$",
+      "examples": [
+        "/news"
+      ]
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+      "examples": [
+        "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"
+      ]
+    },
+    "locale": {
+      "description": "A language tag of a language, an optional script and an optional region, such as da, en-GB or sr-Latn-RS; the kernel writes the language in lowercase, the script in title case and the region in uppercase.",
+      "type": "string",
+      "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$",
+      "examples": [
+        "en"
+      ]
+    },
+    "version": {
+      "description": "The version of an aggregate that the caller read, an integer of 1 or more; the command is version_conflict when the aggregate is at another version when it commits.",
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

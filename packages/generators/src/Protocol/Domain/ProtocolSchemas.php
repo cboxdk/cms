@@ -135,7 +135,10 @@ use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Routing\Domain\ResolveOutcome;
 use Cbox\Cms\Core\Routing\Domain\SiteHandle;
 use Cbox\Cms\Core\Routing\Domain\VisibilityDecision;
+use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\RegisterSite;
+use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeRoute;
 use Cbox\Cms\Core\Structure\Domain\Dto\ListedNode;
 use Cbox\Cms\Core\Structure\Domain\Dto\NodeList;
 use Cbox\Cms\Core\Structure\Domain\Queries\ListNodes;
@@ -640,6 +643,22 @@ final readonly class ProtocolSchemas
             ]),
             self::command('grant.revoke.v1.json', 'RevokeGrantCodecV1', RevokeGrant::class, [
                 '#/properties/grant' => $id(GrantId::class),
+                '#/properties/version' => $version,
+            ]),
+            self::command('node.archive.v1.json', 'ArchiveNodeCodecV1', ArchiveNode::class, [
+                '#/properties/node' => $id(NodeId::class),
+                '#/properties/version' => $version,
+            ]),
+            self::command('node.create.v1.json', 'CreateNodeCodecV1', CreateNode::class, [
+                '#/properties/kind' => ValueBinding::enum(NodeKind::class),
+                '#/properties/node' => $id(NodeId::class),
+                '#/properties/parent' => $id(NodeId::class),
+            ]),
+            self::command('node.set_route.v1.json', 'SetNodeRouteCodecV1', SetNodeRoute::class, [
+                '#/properties/locale' => ValueBinding::value(Locale::class),
+                '#/properties/node' => $id(NodeId::class),
+                '#/properties/route' => ValueBinding::value(RequestPath::class),
+                '#/properties/site' => $id(SiteId::class),
                 '#/properties/version' => $version,
             ]),
             self::command('placement.create.v1.json', 'CreatePlacementCodecV1', CreatePlacement::class, [

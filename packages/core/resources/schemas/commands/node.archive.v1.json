@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "node.archive, contract version 1",
+  "description": "Archives a node (PRD 5.8, 6.4) in one changeset: the node becomes read-only structure, nothing is created below it, it takes no route, and the content placed below it keeps the visibility it has. The issuing actor needs node.archive on the node, and a node its grants do not reach is unauthorized. A node that does not exist, or one at another version than the caller read, is version_conflict. A node that is archived already, a site root, which belongs to its site's registration, and a node below which a placement is visible now or later are validation_failed: archiving never takes content off the public internet, which is what entry.unpublish is for. The PHP form is Cbox\\Cms\\Core\\Structure\\Domain\\Commands\\ArchiveNode, and the generated codec ArchiveNodeCodecV1 reads it and writes its canonical JSON: every key, sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "node",
+    "version"
+  ],
+  "properties": {
+    "node": {
+      "description": "The id of the node to archive.",
+      "$ref": "#/$defs/id"
+    },
+    "version": {
+      "description": "The version of the node the caller read.",
+      "$ref": "#/$defs/version"
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+      "examples": [
+        "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"
+      ]
+    },
+    "version": {
+      "description": "The version of an aggregate that the caller read, an integer of 1 or more; the command is version_conflict when the aggregate is at another version when it commits.",
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

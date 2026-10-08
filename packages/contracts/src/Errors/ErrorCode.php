@@ -162,6 +162,7 @@ enum ErrorCode: string
     case LoginTenantClaimMissing = 'login_tenant_claim_missing';
     case LoginTenantMismatch = 'login_tenant_mismatch';
     case MaintenanceProcessRequired = 'maintenance_process_required';
+    case NodeRouteTaken = 'node_route_taken';
     case OwnerCredentialsExposed = 'owner_credentials_exposed';
     case PanelAssetHashMismatch = 'panel_asset_hash_mismatch';
     case PanelDevAddonsInvalid = 'panel_dev_addons_invalid';
@@ -793,6 +794,11 @@ enum ErrorCode: string
             ),
             self::MaintenanceProcessRequired => $this->violation(
                 'The command runs only in the maintenance process (PRD 4.2, 5.16), the console process that has the owner connection and runs the migrations, and this process serves HTTP, runs queued jobs or has no owner connection. Nothing ran. Run it from the console of the maintenance process, with cbox-cms.database.owner_connection naming the owner role\'s connection.',
+            ),
+            self::NodeRouteTaken => $this->caller(
+                HttpStatus::Conflict,
+                ExitCode::DataErr,
+                'Another node already has this route on the site in this language, and a route resolves to one node (PRD 5.9), so nothing was committed. Choose another route, or move the route of the other node first.',
             ),
             self::OwnerCredentialsExposed => $this->violation(
                 'The core refused to boot a process that serves HTTP or runs queued jobs, because the owner connection is configured in it (PRD 4.2). Give the owner connection to the maintenance process alone, which runs the migrations and cms:partitions:maintain.',

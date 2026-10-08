@@ -145,6 +145,7 @@ export type ErrorCode =
   | 'login_tenant_claim_missing'
   | 'login_tenant_mismatch'
   | 'maintenance_process_required'
+  | 'node_route_taken'
   | 'owner_credentials_exposed'
   | 'panel_asset_hash_mismatch'
   | 'panel_dev_addons_invalid'
@@ -464,6 +465,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'login_tenant_claim_missing',
           'login_tenant_mismatch',
           'maintenance_process_required',
+          'node_route_taken',
           'owner_credentials_exposed',
           'panel_asset_hash_mismatch',
           'panel_dev_addons_invalid',
@@ -747,6 +749,7 @@ const problemV1Rule: ObjectRule = {
           'login_tenant_claim_missing',
           'login_tenant_mismatch',
           'maintenance_process_required',
+          'node_route_taken',
           'owner_credentials_exposed',
           'panel_asset_hash_mismatch',
           'panel_dev_addons_invalid',

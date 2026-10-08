@@ -30,6 +30,14 @@ final readonly class StoredSite
     ) {}
 
     /**
+     * Whether the site publishes in the locale.
+     */
+    public function publishes(Locale $locale): bool
+    {
+        return array_any($this->locales, static fn (Locale $held): bool => $held->equals($locale));
+    }
+
+    /**
      * Whether the site publishes in exactly these locales, in any order.
      *
      * @param  list<Locale>  $locales

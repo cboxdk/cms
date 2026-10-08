@@ -680,8 +680,11 @@ use PHPUnit\Framework\ExpectationFailedException;
  */
 final class SurfaceContractTest extends TestCase
 {
-    /** The commands of M1 point 3 that the kernel exposes on every surface. */
-    private const array EXPOSED = ['entry.create', 'entry.publish', 'entry.revise', 'entry.unpublish', 'placement.create', 'placement.set_window', 'variant.release'];
+    /** The commands of M1 point 3 and the node commands of B2 that the kernel exposes on every surface. */
+    private const array EXPOSED = [
+        'entry.create', 'entry.publish', 'entry.revise', 'entry.unpublish', 'node.archive', 'node.create', 'node.set_route',
+        'placement.create', 'placement.set_window', 'variant.release',
+    ];
 
     /**
      * The kernel's commands exposed on some surfaces, by name, with those surfaces (B1 point 4):

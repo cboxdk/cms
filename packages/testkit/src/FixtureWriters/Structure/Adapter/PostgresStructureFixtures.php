@@ -13,19 +13,26 @@ use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Testkit\FixtureWriters\Structure\Domain\Dto\StructureNode;
 use Cbox\Cms\Testkit\FixtureWriters\Structure\Domain\Dto\StructureSite;
+use Closure;
 use DateTimeZone;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\ConnectionResolverInterface;
 use InvalidArgumentException;
 
 /**
- * Writes the structure to the core's tables on Postgres as the owner role (PRD 5.8, 5.9), for tests
- * that run placements, routing and access against real Postgres: sites with their locales, nodes
- * below them, mounts and node routes.
+ * Writes the structure to the core's tables on Postgres (PRD 5.8, 5.9), for tests that run
+ * placements, routing and access against real Postgres: sites with their locales, nodes below them,
+ * mounts and node routes.
  *
- * Node and site commands come with block B2, so in M1 the structure is written only here. The app
- * role writes none of these tables, and their row level security lets the owner write them (see
- * the core's migration of the placement commands), so the fixtures write on the owner connection.
+ * It writes each table the way the kernel writes it. `sites` and `site_locales` are written by a
+ * site's registration as the owner role, through the `<table>_owner_write` policies, so the
+ * fixtures write them on the owner connection. `nodes` and `node_routes` are written by the node
+ * commands as the app role under an actor context, through `nodes_actor` and `node_routes_write`,
+ * so the fixtures write them on the app connection in a transaction of their own, with the context
+ * of ACTOR and the one region the row needs set for that transaction, exactly as a command's
+ * actor context is set (PRD 5.10). A fixture therefore writes no row the kernel's own policies
+ * would refuse.
+ *
  * A node's path is the labels of its ancestors' ids and its own, each the id's 32 hex digits, as
  * the core's `nodes` table requires; a site's root is a node of kind `site` with the route `/` in
  * each of its locales.
@@ -43,6 +50,22 @@ final readonly class PostgresStructureFixtures
 
     /** The kinds of node the core's `nodes` table takes (PRD 5.8), but a mount, which mount() makes. */
     public const array KINDS = ['site', 'section', 'page', 'list', 'storage'];
+
+    /** The actor the fixtures write as: the one whose regions row level security sees them through. */
+    public const string ACTOR = '0192a0c0-0000-7000-8000-00000000f1c0';
+
+    /** The lifecycle state of a node the fixtures write (PRD 6.4). */
+    public const string ACTIVE = 'active';
+
+    /** Sets the actor context of the fixtures' transaction, with the one region the row needs. */
+    private const string CONTEXT = <<<'SQL'
+        select set_config('cbox_cms.principal', 'actor', true),
+            set_config('cbox_cms.actor', ?, true),
+            set_config('cbox_cms.access_allowed', ?, true),
+            set_config('cbox_cms.access_denied', '{}', true),
+            set_config('cbox_cms.classification', 'sensitive', true),
+            set_config('plan_cache_mode', 'force_custom_plan', true)
+        SQL;
 
     public function __construct(
         private ConnectionResolverInterface $connections,
@@ -120,13 +143,13 @@ final readonly class PostgresStructureFixtures
      */
     public function route(StructureSite $site, Locale $locale, string $route, StructureNode $node): void
     {
-        $this->owner()->table(self::ROUTES)->insert([
+        $this->asActor($node->path, fn (ConnectionInterface $db): bool => $db->table(self::ROUTES)->insert([
             'site_id' => $site->id->toString(),
             'locale' => $locale->value,
             'route' => $route,
             'node_id' => $node->id->toString(),
             'created_at' => $this->now(),
-        ]);
+        ]));
     }
 
     private function write(?StructureNode $parent, string $kind, ?NodeId $source): StructureNode
@@ -135,17 +158,34 @@ final readonly class PostgresStructureFixtures
         $label = str_replace('-', '', $id->toString());
         $path = new NodePath($parent instanceof StructureNode ? $parent->path->value.'.'.$label : $label);
 
-        $this->owner()->table(self::NODES)->insert([
+        $this->asActor($path, fn (ConnectionInterface $db): bool => $db->table(self::NODES)->insert([
             'id' => $id->toString(),
             'parent_id' => $parent?->id->toString(),
             'kind' => $kind,
             'path' => $path->value,
             'mount_source_id' => $source?->toString(),
+            'lifecycle' => self::ACTIVE,
             'version' => 1,
             'created_at' => $this->now(),
-        ]);
+        ]));
 
         return new StructureNode($id, $path);
+    }
+
+    /**
+     * Runs the write on the app connection, in a transaction of its own, under the actor context of
+     * ACTOR with the one region the row needs, which ends with the transaction.
+     *
+     * @param  Closure(ConnectionInterface): bool  $write
+     */
+    private function asActor(NodePath $region, Closure $write): void
+    {
+        $db = $this->connections->connection();
+
+        $db->transaction(function (ConnectionInterface $db) use ($region, $write): void {
+            $db->statement(self::CONTEXT, [self::ACTOR, '{'.$region->value.'}']);
+            $write($db);
+        });
     }
 
     private function now(): string

@@ -24,7 +24,10 @@ use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
 use Cbox\Cms\Core\Registry\Domain\OpenApiDocuments;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Seeding\Domain\Commands\SeedEntries;
+use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\RegisterSite;
+use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeRoute;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNote;
 use Cbox\Cms\Core\Tests\Registry\PanelBuildWorld;
 use Cbox\Cms\Core\Tests\Registry\Providers\FixtureRootProvider;
@@ -118,15 +121,15 @@ it('writes the eight registries to the application\'s bootstrap/cache/cms, and r
             ...fixtureAddonWarnings(),
             // The kernel's actions, and the fixture addon's query fixtureaddon.articles and command
             // fixtureaddon.slug.set, each on REST and Inertia.
-            'actions: 26',
+            'actions: 29',
             // The workbench's fixture addon, which its allowlist names.
             'addons: 1',
-            'commands: 18',
+            'commands: 21',
             // The workbench's fixture addon, which package discovery registers: its four hooks and
             // its extension of app:fixture_article.
             'hooks: 4',
             'panel: 15',
-            'rest: 20',
+            'rest: 23',
             'schema: 1',
             'subscribers: 1',
             sprintf('Registry written to %s.', $directory),
@@ -143,7 +146,7 @@ it('adds what an addon provider\'s scan root declares', function (): void {
     [$status, $output] = buildCommand();
 
     expect($status)->toBe(0)
-        ->and(array_slice($output, 0, 27))->toBe([...fixtureAddonWarnings(), 'actions: 28', 'addons: 1', 'commands: 19', 'hooks: 5', 'panel: 16', 'rest: 21'])
+        ->and(array_slice($output, 0, 27))->toBe([...fixtureAddonWarnings(), 'actions: 31', 'addons: 1', 'commands: 22', 'hooks: 5', 'panel: 16', 'rest: 24'])
         ->and(RegistryFixtures::load($directory.'/commands.php'))->toMatchArray(['entries' => [[
             'class' => GrantBootstrapRole::class,
             'name' => 'access.bootstrap',
@@ -202,6 +205,21 @@ it('adds what an addon provider\'s scan root declares', function (): void {
         ], [
             'class' => RevokeGrant::class,
             'name' => 'grant.revoke',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 1,
+        ], [
+            'class' => ArchiveNode::class,
+            'name' => 'node.archive',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 1,
+        ], [
+            'class' => CreateNode::class,
+            'name' => 'node.create',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 1,
+        ], [
+            'class' => SetNodeRoute::class,
+            'name' => 'node.set_route',
             'package' => CoreServiceProvider::PACKAGE,
             'version' => 1,
         ], [

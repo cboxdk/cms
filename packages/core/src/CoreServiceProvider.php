@@ -253,13 +253,19 @@ use Cbox\Cms\Core\Seeding\Domain\Dto\SeedSettings;
 use Cbox\Cms\Core\Seeding\Domain\SeedAuthorizer;
 use Cbox\Cms\Core\Seeding\Domain\SeedReader;
 use Cbox\Cms\Core\Seeding\Domain\SeedTargets;
+use Cbox\Cms\Core\Structure\Adapter\NodeArchivedWriter;
+use Cbox\Cms\Core\Structure\Adapter\NodeCreatedWriter;
+use Cbox\Cms\Core\Structure\Adapter\NodeRouteSetWriter;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeListing;
+use Cbox\Cms\Core\Structure\Adapter\PostgresNodeReader;
+use Cbox\Cms\Core\Structure\Adapter\PostgresNodeRouteLock;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeVersionLock;
 use Cbox\Cms\Core\Structure\Adapter\PostgresSiteDirectory;
 use Cbox\Cms\Core\Structure\Adapter\PostgresSiteHandleLock;
 use Cbox\Cms\Core\Structure\Adapter\PostgresSiteVersionLock;
 use Cbox\Cms\Core\Structure\Adapter\SiteRegisteredWriter;
 use Cbox\Cms\Core\Structure\Domain\NodeListing;
+use Cbox\Cms\Core\Structure\Domain\NodeReader;
 use Cbox\Cms\Core\Structure\Domain\SiteDirectory;
 use Cbox\Cms\Core\Subscriptions\Adapter\PostgresSubscriptionLog;
 use Cbox\Cms\Core\Subscriptions\Adapter\RegistryLaneSubscribers;
@@ -593,6 +599,14 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->bind(SiteDirectory::class, PostgresSiteDirectory::class);
         $this->app->tag([PostgresSiteHandleLock::class], VersionLocks::TAG);
         $this->app->tag([SiteRegisteredWriter::class], MutationWriters::TAG);
+
+        // node.create, node.archive and node.set_route (PRD 5.8, 5.9, 6.4): the reads of a node,
+        // of a route's holder and of the placements below a node, each past the actor's regions,
+        // the lock of a route, and the writers, which create a node, archive one and give one its
+        // route.
+        $this->app->bind(NodeReader::class, PostgresNodeReader::class);
+        $this->app->tag([PostgresNodeRouteLock::class], VersionLocks::TAG);
+        $this->app->tag([NodeCreatedWriter::class, NodeArchivedWriter::class, NodeRouteSetWriter::class], MutationWriters::TAG);
         $this->app->bind(
             VersionLocks::class,
             static fn (Application $app): VersionLocks => new VersionLocks(...self::tagged($app, VersionLocks::TAG, VersionLock::class)),

@@ -17,9 +17,11 @@ use InvalidArgumentException;
 
 /*
  * The structure fixtures (PRD 5.8, 5.9): a site with its root node, its locales and the route `/`
- * to its root in each, nodes and mounts below it with paths of their ancestors' labels, and routes,
- * written as the owner role, which the core's tables let write the structure until node and site
- * commands come.
+ * to its root in each, nodes and mounts below it with paths of their ancestors' labels, and routes.
+ * They write each table the way the kernel writes it: the site and its locales as the owner role,
+ * which a site's registration writes them as, and the nodes and routes as the app role under an
+ * actor context whose one region is the row's own path, which the node commands write them as, so
+ * no fixture writes a row the kernel's own policies would refuse.
  */
 
 function structureFixtures(): PostgresStructureFixtures
@@ -43,7 +45,7 @@ it('writes a site with its root, its locales and the route to its root in each',
 
     expect($site->root->path->value)->toBe($root)
         ->and(structureRows("select handle || ' ' || root_node_id::text as value from sites"))->toBe(['harbour_town '.$site->root->id->toString()])
-        ->and(structureRows("select kind || ' ' || path::text as value from nodes"))->toBe(['site '.$root])
+        ->and(structureRows("select kind || ' ' || path::text || ' ' || lifecycle as value from nodes"))->toBe(['site '.$root.' active'])
         ->and(structureRows('select locale as value from site_locales order by locale'))->toBe(['da', 'en'])
         ->and(structureRows("select locale || ' ' || route || ' ' || node_id::text as value from node_routes order by locale"))
         ->toBe(['da / '.$site->root->id->toString(), 'en / '.$site->root->id->toString()]);

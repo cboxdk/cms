@@ -14,10 +14,11 @@ use Illuminate\Support\Facades\DB;
  * which sites exist and in which locales they publish is what the public resolves a URL against
  * (PRD 5.9), and it holds no content.
  *
- * Writing the structure. Node and site commands come with block B2. Until then the structure is
- * written only by the testkit's structure fixtures, as the owner role, as the access fixtures write
- * roles and grants: `nodes`, `sites`, `site_locales` and `node_routes` get a policy for the role
- * that runs this migration (`<table>_owner_write`), and the app role still writes none of them.
+ * Writing the structure. `sites` and `site_locales` are written by a site's registration, as the
+ * owner role, as the access fixtures write roles and grants: both get a policy for the role that
+ * runs this migration (`<table>_owner_write`), and the app role writes neither. `nodes` and
+ * `node_routes` are written by the node commands, as the app role under the call's actor context
+ * (the migration that adds them).
  *
  * The placements of an entry across the actor's regions. Placement rights are decided on the
  * placement's node (PRD 5.10), so the app role reads and writes only the placements below the nodes
@@ -52,8 +53,8 @@ use Illuminate\Support\Facades\DB;
  */
 return new class extends Migration
 {
-    /** @var list<string> the tables the owner writes directly in M1: the structure */
-    private const array STRUCTURE = ['nodes', 'sites', 'site_locales', 'node_routes'];
+    /** @var list<string> the tables the owner writes directly: the sites and their locales */
+    private const array STRUCTURE = ['sites', 'site_locales'];
 
     /** @var list<string> the tables the owner reads and updates in the functions */
     private const array PLACEMENTS = ['placements', 'placement_locales'];

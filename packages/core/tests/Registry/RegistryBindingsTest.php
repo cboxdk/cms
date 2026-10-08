@@ -61,9 +61,15 @@ use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
 use Cbox\Cms\Core\Routing\Actions\ResolvePathAction;
 use Cbox\Cms\Core\Seeding\Actions\SeedEntriesAction;
 use Cbox\Cms\Core\Seeding\Domain\Commands\SeedEntries;
+use Cbox\Cms\Core\Structure\Actions\ArchiveNodeAction;
+use Cbox\Cms\Core\Structure\Actions\CreateNodeAction;
 use Cbox\Cms\Core\Structure\Actions\ListNodesAction;
 use Cbox\Cms\Core\Structure\Actions\RegisterSiteAction;
+use Cbox\Cms\Core\Structure\Actions\SetNodeRouteAction;
+use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\RegisterSite;
+use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeRoute;
 use Cbox\Cms\Core\Structure\Domain\Queries\ListNodes;
 use Cbox\Cms\Core\Tests\Registry\Providers\DeferredRootProvider;
 use Cbox\Cms\Core\Tests\Registry\Providers\FixtureRootProvider;
@@ -142,6 +148,9 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'entry.unpublish@1 '.UnpublishEntry::class,
             'grant.assign@1 '.AssignGrant::class,
             'grant.revoke@1 '.RevokeGrant::class,
+            'node.archive@1 '.ArchiveNode::class,
+            'node.create@1 '.CreateNode::class,
+            'node.set_route@1 '.SetNodeRoute::class,
             'placement.create@1 '.CreatePlacement::class,
             'placement.set_window@1 '.SetPlacementWindow::class,
             'role.create@1 '.CreateRole::class,
@@ -166,7 +175,10 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'grant.assign@1 '.AssignGrantAction::class.' write',
             'grant.list@1 '.ListGrantsAction::class.' query',
             'grant.revoke@1 '.RevokeGrantAction::class.' write',
+            'node.archive@1 '.ArchiveNodeAction::class.' write',
+            'node.create@1 '.CreateNodeAction::class.' write',
             'node.list@1 '.ListNodesAction::class.' query',
+            'node.set_route@1 '.SetNodeRouteAction::class.' write',
             'path.resolve@1 '.ResolvePathAction::class.' query',
             'placement.create@1 '.CreatePlacementAction::class.' write',
             'placement.set_window@1 '.SetPlacementWindowAction::class.' write',
@@ -189,7 +201,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
         ->and($registry->actionFor(CreateEntry::class)?->class)->toBe(CreateEntryAction::class)
         ->and($registry->actionFor(ReviseEntry::class)?->class)->toBe(ReviseEntryAction::class)
         ->and($registry->actionFor(ListNodes::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia])
-        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([24, 0, 17, 0, 15, 18, 0, 1])
+        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([27, 0, 20, 0, 15, 21, 0, 1])
         ->and($registry->hooks)->toBe([])
         ->and(array_map(static fn (SubscriberEntry $entry): string => $entry->name->value.' '.$entry->class.' '.$entry->lane->value.' '.$entry->projection?->value, $registry->subscribers))
         ->toBe(['fragments.invalidate '.InvalidateFragments::class.' critical origin'])

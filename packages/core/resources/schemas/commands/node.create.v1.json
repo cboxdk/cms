@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "node.create, contract version 1",
+  "description": "Creates a node below another (PRD 5.8) in one changeset: the tree every site shares holds site roots, sections, pages, lists, storage folders and mounts, never articles. The new node's path is the parent's with the node's own label below it, so the grants that reach the parent reach the new node too, and the issuing actor needs node.create on the parent. A parent the actor's grants do not reach is unauthorized; a parent that does not exist, one that is archived or a mount, and the kinds site, which a site's registration makes, and mount, which mount.create makes, are validation_failed. A node whose id exists is version_conflict. The PHP form is Cbox\\Cms\\Core\\Structure\\Domain\\Commands\\CreateNode, and the generated codec CreateNodeCodecV1 reads it and writes its canonical JSON: every key, sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "node",
+    "parent",
+    "kind"
+  ],
+  "properties": {
+    "node": {
+      "description": "The new node's id, which the caller makes.",
+      "$ref": "#/$defs/id"
+    },
+    "parent": {
+      "description": "The id of the node the new node goes below, which is neither archived nor a mount.",
+      "$ref": "#/$defs/id"
+    },
+    "kind": {
+      "description": "What kind of structure the node is: section for a part of the tree, page for a node with a page entry on it, list for a listing, storage for a folder that holds content without addressing it. site is refused, because a site root comes with the site's registration, and mount is refused until mount.create comes.",
+      "enum": [
+        "site",
+        "section",
+        "page",
+        "list",
+        "storage",
+        "mount"
+      ]
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+      "examples": [
+        "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"
+      ]
+    }
+  }
+}

@@ -16,6 +16,9 @@ description: "The JSON form of the kernel's commands, one JSON Schema per comman
 <!-- extension-point: packages/core/resources/schemas/commands/entry.unpublish.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/commands/grant.assign.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/commands/grant.revoke.v1.json -->
+<!-- extension-point: packages/core/resources/schemas/commands/node.archive.v1.json -->
+<!-- extension-point: packages/core/resources/schemas/commands/node.create.v1.json -->
+<!-- extension-point: packages/core/resources/schemas/commands/node.set_route.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/commands/placement.create.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/commands/placement.set_window.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/commands/role.create.v1.json -->
@@ -44,6 +47,9 @@ A caller sends a command to a surface as a JSON document: the body of a REST cal
 | `role.set_permissions` | `role.set_permissions.v1.json` | `SetRolePermissionsCodecV1` | [`SetRolePermissions`](role-commands.md) |
 | `site.register` | `site.register.v1.json` | `RegisterSiteCodecV1` | [`RegisterSite`](site-commands.md) |
 | `access.bootstrap` | `access.bootstrap.v1.json` | `GrantBootstrapRoleCodecV1` | [`GrantBootstrapRole`](role-commands.md#the-access-bootstraps-command) |
+| `node.create` | `node.create.v1.json` | `CreateNodeCodecV1` | [`CreateNode`](node-commands.md) |
+| `node.archive` | `node.archive.v1.json` | `ArchiveNodeCodecV1` | [`ArchiveNode`](node-commands.md) |
+| `node.set_route` | `node.set_route.v1.json` | `SetNodeRouteCodecV1` | [`SetNodeRoute`](node-commands.md) |
 
 ## The documents
 
@@ -58,6 +64,8 @@ A document is an object of the command's keys in snake_case and no other key. Ev
 - `access.bootstrap` has the keys of `role.create` and the `grant`, `actor` and `node` of `grant.assign`; its grant allows in every locale, so it has no `effect` or `locales`.
 - `handle` of `site.register` is a lowercase letter followed by at most 62 lowercase letters, digits or underscores, and `locales` a list of at least one locale; a locale named twice is refused by the action with `validation_failed`.
 - A slug of `placement.create` is an object of `locale` and `slug`: 1 to 255 characters without a slash or white space, and not `.` or `..`.
+- `kind` of `node.create` is one of `site`, `section`, `page`, `list`, `storage` and `mount`; the action refuses `site`, which a site's registration makes, and `mount`, which `mount.create` will make, with `validation_failed`.
+- `route` of `node.set_route` is `/` or `/`-separated segments of anything but slashes and white space, at most 32 segments and 2048 bytes, with no trailing slash and no `.` or `..` segment, the same form as the `path` of `path.resolve`.
 - `display_name` of `actor.register` is 1 to 200 characters without control characters that start and end with a character that is not white space, and `email` a local part, an `@` and a domain with a dot, at most 254 characters, without white space or control characters. Both are personal data (PRD 12.2), and no error message repeats them.
 
 ## The fields of a revision

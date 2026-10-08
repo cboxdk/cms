@@ -17,10 +17,11 @@ use Illuminate\Support\Facades\DB;
  * `site_locales_read`); the lookups give no more than that, one site at a time, never a list.
  *
  * `cms_structure_register_site(site, handle, root, locales, version, time, changeset)` writes a
- * registration as the owner role, which `nodes_owner_write`, `sites_owner_write`,
- * `site_locales_owner_write` and `node_routes_owner_write` let through the forced row level
- * security: the root node, a node of kind site at the top of the tree with its id as its one path
- * label, at version 1; the site at the version given, which is 1; a row of `site_locales` per
+ * registration as the owner role, which `sites_owner_write` and `site_locales_owner_write` let
+ * through the forced row level security for the site and its locales, and `nodes_site_root` and
+ * `node_routes_site_root` for the root node and its routes, each only while this transaction holds
+ * a site.register changeset by the actor of the context: the root node, a node of kind site at the
+ * top of the tree with its id as its one path label, at version 1; the site at the version given, which is 1; a row of `site_locales` per
  * locale; and in each locale the route `/` to the root node, all at the time given. It runs only
  * where the command runs: under an actor context, in the transaction that wrote the changeset as a
  * site.register by the context's actor (the changeset's xid is the transaction's). A version other

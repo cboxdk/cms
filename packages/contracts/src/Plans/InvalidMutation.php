@@ -7,10 +7,13 @@ namespace Cbox\Cms\Contracts\Plans;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\RevisionNumber;
+use Cbox\Cms\Contracts\Identity\NodePath;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\GrantId;
+use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\RoleId;
 use Cbox\Cms\Contracts\Ids\SiteId;
+use Cbox\Cms\Contracts\Plans\Mutations\NodeCreated;
 use InvalidArgumentException;
 
 /**
@@ -56,5 +59,34 @@ final class InvalidMutation extends InvalidArgumentException
     public static function repeatedSiteLocale(SiteId $site, Locale $locale): self
     {
         return new self(sprintf('The site %s names the locale %s twice.', $site->toString(), $locale->value));
+    }
+
+    public static function nodeKind(NodeId $node, string $kind): self
+    {
+        return new self(sprintf(
+            'The node %s is created with the kind "%s"; a node below another is one of %s.',
+            $node->toString(),
+            mb_substr($kind, 0, 80),
+            implode(', ', NodeCreated::KINDS),
+        ));
+    }
+
+    public static function nodePath(NodeId $node, NodePath $path): self
+    {
+        return new self(sprintf(
+            'The node %s is created with the path "%s"; a node\'s path is its parent\'s with the label %s below it.',
+            $node->toString(),
+            $path->value,
+            NodeCreated::label($node),
+        ));
+    }
+
+    public static function nodeRoute(NodeId $node, string $route): self
+    {
+        return new self(sprintf(
+            'The node %s is given the route "%s"; a route is "/" or "/"-separated segments of anything but slashes and white space, without a trailing slash.',
+            $node->toString(),
+            mb_substr($route, 0, 80),
+        ));
     }
 }

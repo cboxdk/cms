@@ -119,8 +119,10 @@ it('writes the PHP enum, the record DTO and codec, the validator, the TypeScript
             'written: resources/js/cms/generated/protocol/ActivateActorV1.ts',
             'written: resources/js/cms/generated/protocol/ActorListV1.ts',
             'written: resources/js/cms/generated/protocol/ActorMeV1.ts',
+            'written: resources/js/cms/generated/protocol/ArchiveNodeV1.ts',
             'written: resources/js/cms/generated/protocol/AssignGrantV1.ts',
             'written: resources/js/cms/generated/protocol/CreateEntryV1.ts',
+            'written: resources/js/cms/generated/protocol/CreateNodeV1.ts',
             'written: resources/js/cms/generated/protocol/CreatePlacementV1.ts',
             'written: resources/js/cms/generated/protocol/CreateRoleV1.ts',
             'written: resources/js/cms/generated/protocol/DeactivateActorV1.ts',
@@ -152,16 +154,17 @@ it('writes the PHP enum, the record DTO and codec, the validator, the TypeScript
             'written: resources/js/cms/generated/protocol/ReviseEntryV1.ts',
             'written: resources/js/cms/generated/protocol/RevokeGrantV1.ts',
             'written: resources/js/cms/generated/protocol/RoleListV1.ts',
+            'written: resources/js/cms/generated/protocol/SetNodeRouteV1.ts',
             'written: resources/js/cms/generated/protocol/SetPlacementWindowV1.ts',
             'written: resources/js/cms/generated/protocol/SetRolePermissionsV1.ts',
             'written: resources/js/cms/generated/protocol/UnpublishEntryV1.ts',
             'written: resources/js/cms/generated/protocol/WhoAmIV1.ts',
             'written: resources/js/cms/generated/records/AppPageV1.ts',
             'written: resources/js/cms/generated/validation.ts',
-            'Generated 61 files: 61 written, 0 unchanged, 0 stale removed.',
+            'Generated 64 files: 64 written, 0 unchanged, 0 stale removed.',
         ])
         ->and($second)->toBe(0)
-        ->and($secondOutput)->toBe(['Generated 61 files: 0 written, 61 unchanged, 0 stale removed.'])
+        ->and($secondOutput)->toBe(['Generated 64 files: 0 written, 64 unchanged, 0 stale removed.'])
         ->and(array_map(static fn (string $file): string => (string) hash_file('sha256', $root.'/'.$file), SchemaFixtures::files($root)))->toBe($hashes)
         ->and(SchemaFixtures::files($root))->toBe([
             'app/Cms/Generated/Boundary/AppPageCodecV1.php',
@@ -186,8 +189,10 @@ it('writes the PHP enum, the record DTO and codec, the validator, the TypeScript
             'resources/js/cms/generated/protocol/ActivateActorV1.ts',
             'resources/js/cms/generated/protocol/ActorListV1.ts',
             'resources/js/cms/generated/protocol/ActorMeV1.ts',
+            'resources/js/cms/generated/protocol/ArchiveNodeV1.ts',
             'resources/js/cms/generated/protocol/AssignGrantV1.ts',
             'resources/js/cms/generated/protocol/CreateEntryV1.ts',
+            'resources/js/cms/generated/protocol/CreateNodeV1.ts',
             'resources/js/cms/generated/protocol/CreatePlacementV1.ts',
             'resources/js/cms/generated/protocol/CreateRoleV1.ts',
             'resources/js/cms/generated/protocol/DeactivateActorV1.ts',
@@ -219,6 +224,7 @@ it('writes the PHP enum, the record DTO and codec, the validator, the TypeScript
             'resources/js/cms/generated/protocol/ReviseEntryV1.ts',
             'resources/js/cms/generated/protocol/RevokeGrantV1.ts',
             'resources/js/cms/generated/protocol/RoleListV1.ts',
+            'resources/js/cms/generated/protocol/SetNodeRouteV1.ts',
             'resources/js/cms/generated/protocol/SetPlacementWindowV1.ts',
             'resources/js/cms/generated/protocol/SetRolePermissionsV1.ts',
             'resources/js/cms/generated/protocol/UnpublishEntryV1.ts',
@@ -289,7 +295,7 @@ it('generates when a module release adds a type with the handle of an app type, 
             'written: database/migrations/cms/acme__page_0001_create.php',
             'written: resources/js/cms/generated/index.ts',
             'written: resources/js/cms/generated/records/AcmePageV1.ts',
-            'Generated 74 files: 19 written, 55 unchanged, 0 stale removed.',
+            'Generated 77 files: 19 written, 58 unchanged, 0 stale removed.',
         ])
         ->and(is_file($root.'/app/Cms/Generated/Validators/AppPageValidator.php'))->toBeTrue()
         ->and((string) file_get_contents($root.'/app/Cms/Generated/TypeHandle.php'))->toContain("    case AcmePage = 'acme:page';\n    case AppPage = 'app:page';\n")

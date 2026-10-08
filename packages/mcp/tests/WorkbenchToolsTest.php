@@ -99,7 +99,7 @@ it('offers each kernel command the workbench exposes on MCP as a tool whose inpu
     $offered = array_map(static fn (McpTool $tool): string => ($tool->command?->command->value ?? '').' '.($tool->command->version ?? 0), $tools->tools);
     sort($offered);
 
-    expect($exposed)->toBe(['entry.create 1', 'entry.publish 1', 'entry.revise 1', 'entry.unpublish 1', 'placement.create 1', 'placement.set_window 1', 'variant.release 1'])
+    expect($exposed)->toBe(['entry.create 1', 'entry.publish 1', 'entry.revise 1', 'entry.unpublish 1', 'node.archive 1', 'node.create 1', 'node.set_route 1', 'placement.create 1', 'placement.set_window 1', 'variant.release 1'])
         ->and(workbenchMcpActions(app(CompiledRegistry::class)))->toBe($exposed)
         ->and($tools->undescribed)->toBe([])
         ->and($offered)->toBe($exposed);
@@ -121,7 +121,7 @@ it('names each kernel command without a codec in a world whose codecs read none 
     $tools = McpWorld::tools(workbenchRegistry());
 
     expect($tools->tools)->toBe([])
-        ->and(undescribedActions($tools))->toBe(['entry.create 1', 'entry.publish 1', 'entry.revise 1', 'entry.unpublish 1', 'placement.create 1', 'placement.set_window 1', 'variant.release 1'])
+        ->and(undescribedActions($tools))->toBe(['entry.create 1', 'entry.publish 1', 'entry.revise 1', 'entry.unpublish 1', 'node.archive 1', 'node.create 1', 'node.set_route 1', 'placement.create 1', 'placement.set_window 1', 'variant.release 1'])
         ->and($tools->undescribed[0]->reason)->toContain('No codec reads version 1 of the command')
         ->and($tools->undescribed[0]->reason)->toContain('cbox-cms.command-codecs');
 });
@@ -134,7 +134,7 @@ it('lists the compiled tools of the workbench with the test-only actions and run
 
     expect(Route::has(McpRoutes::NAME))->toBeTrue()
         ->and(array_map(static fn (McpTool $tool): string => $tool->name->value, $tools->tools))->toBe([McpWorld::READ_TOOL, McpWorld::WRITE_TOOL])
-        ->and(undescribedActions($tools))->toBe(['entry.create 1', 'entry.publish 1', 'entry.revise 1', 'entry.unpublish 1', 'placement.create 1', 'placement.set_window 1', 'variant.release 1']);
+        ->and(undescribedActions($tools))->toBe(['entry.create 1', 'entry.publish 1', 'entry.revise 1', 'entry.unpublish 1', 'node.archive 1', 'node.create 1', 'node.set_route 1', 'placement.create 1', 'placement.set_window 1', 'variant.release 1']);
 
     $listed = McpClient::tools();
     $called = McpClient::call(McpWorld::WRITE_TOOL, McpClient::writeArguments($world, ['idempotency_key' => 'mcp-workbench']), $world->exposed->credential(IssuerKind::Agent));
