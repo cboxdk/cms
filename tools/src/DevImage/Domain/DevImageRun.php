@@ -23,6 +23,8 @@ namespace Cbox\Cms\Tooling\DevImage\Domain;
  *   writes into the comment of each test database for `composer test-db:prune`;
  * - it joins the network of the shared services and reaches them by their service names, with
  *   the variables compose.yaml's php service sets, which win over phpunit.xml's host ports;
+ * - a run that serves something, such as `composer workbench:serve`, publishes its port on the
+ *   host's 127.0.0.1 only (PublishedPort);
  * - the image's entry point is replaced, because it runs chown -R on /var/www/html, and tini
  *   (--init) passes signals on, so Ctrl-C stops the command;
  * - the command starts through tools/bin/dev-image-entry.php, which first brings the node_modules
@@ -120,6 +122,7 @@ final readonly class DevImageRun
             '--user', $target->user->uid.':'.$target->user->gid,
             '--hostname', $target->hostname,
             '--network', $target->network,
+            ...($target->port instanceof PublishedPort ? ['--publish', $target->port->option()] : []),
             '--workdir', $root,
             ...$options,
             DevImage::IMAGE,

@@ -28,13 +28,14 @@ The first milestone built the toolchain and the foundations the kernel stands on
 - `cms:doctor` with its checks, exit codes and JSON document;
 - the gates every change passes, `composer check` locally and `bin/ci` in CI.
 
-The command pipeline, the event log, delivery, the surfaces and the panel come with the next milestones. The documentation describes only what the code does today.
+The walking skeleton of the second milestone added the command pipeline, the event log, delivery of content by path, and the REST, CLI and MCP surfaces. The first part of the panel's block added the identity module with local accounts and sessions for staff, the panel's shell with the command palette and the generic command form, roles and grants with the guard against escalation, the component kit and the panel's extension points; [Serve the workbench and log in](getting-started/first-login.md) gets you into it. Editing content in the panel comes with the next blocks. The documentation describes only what the code does today.
 
 ## Sections
 
 - [Quickstart](quickstart.md): from a clone to a green `composer check` and `cms:doctor`.
 - [Requirements](requirements.md): the versions Composer enforces and the services `cms:doctor` checks.
-- [Getting started](getting-started/_index.md): the development environment, and testing with the testkit's fakes.
+- [Getting started](getting-started/_index.md): the development environment, the first login to the panel, and testing with the testkit's fakes.
+- [Using the panel](users/_index.md): for people who log in to the panel: signing in and out, a forgotten password, the navigation and the command palette.
 - [Developers](developers/_index.md): the architecture and its layers, the gates and CI, `cms:doctor`, partitions, the services and the configuration.
 - [Addons](addons/_index.md): the extension points: the contracts, build declarations, doctor checks, the blueprint schema, and the testkit for an addon's own tests.
 - [The component kit](ui/_index.md): the panel's component kit, its design tokens, cascade layers and texts.

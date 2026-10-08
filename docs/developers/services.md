@@ -40,4 +40,4 @@ The tests use Valkey database 15, and every PHP process of a test run writes und
 
 ## The dev database
 
-`cms` is the workbench's database and is shared by every checkout. `composer dev:prepare` migrates it and creates its partitions; run it from the main checkout only.
+`cms` is the workbench's database and is shared by every checkout. `composer dev:prepare` migrates it, creates its partitions, the installation operator and the workbench's site, in the dev image; run it from the main checkout only. `composer workbench:serve` serves the workbench on it, in a container of the dev image on the services' network, with its port published on `127.0.0.1:8080` only ([Serve the workbench and log in](../getting-started/first-login.md)).

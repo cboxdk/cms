@@ -76,13 +76,13 @@ it('reports a site whose configured locales drifted as a data error that a retry
 
 ## cms:sites:sync
 
-`php artisan cms:sites:sync` runs in the maintenance process at deploy, after `cms:install`, because each registration runs as the installation operator through the [maintenance pipeline](../developers/maintenance-commands.md). In the workbench, `composer dev:prepare` runs it as its last step. For each site of `cbox-cms.sites`, in the configured order, it reads the registered site with the handle and:
+`php artisan cms:sites:sync` runs in the maintenance process at deploy, after `cms:install`, because each registration runs as the installation operator through the [maintenance pipeline](../developers/maintenance-commands.md). In the workbench, `composer dev:prepare` runs it after `cms:install`. For each site of `cbox-cms.sites`, in the configured order, it reads the registered site with the handle and:
 
 - registers a site the database lacks: a new site id and root node id from the `IdGenerator`, the configured locales, one changeset per site;
 - leaves a site registered with the same locales, in any order, alone, so a second run writes nothing;
 - reports a site registered with other locales as `site_locales_drift` and writes nothing of it.
 
-A drift or a rejection of one site never stops the others. The command prints one line per site, `registered`, `unchanged`, `drifted` or `rejected`, and each error on standard error with its catalog code. It exits 0 when every configured site is registered with its locales, 78 for a setting it cannot read, and otherwise with the exit code of the first error of the first site that did not sync: 65 for `site_locales_drift`, 78 for `installation_operator_missing` before `cms:install`.
+A drift or a rejection of one site never stops the others. The command prints one line per site, `registered`, `unchanged`, `drifted` or `rejected`; a `registered` and an `unchanged` line name the site's id and its root node, the node a first grant such as `cms:access:bootstrap`'s is given on. Each error goes on standard error with its catalog code. It exits 0 when every configured site is registered with its locales, 78 for a setting it cannot read, and otherwise with the exit code of the first error of the first site that did not sync: 65 for `site_locales_drift`, 78 for `installation_operator_missing` before `cms:install`.
 
 The idempotency key of a registration is derived from the unit of work `sites:<handle>:<sha256 of the sorted locale tags joined by commas>`, the same for the same configuration, so a run that is repeated before its first run's receipt has expired replays it.
 

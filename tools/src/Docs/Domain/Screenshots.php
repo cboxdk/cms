@@ -121,6 +121,41 @@ final readonly class Screenshots
                 'The form that assigns a grant, open over the grants page: the pickers of the member of staff, the role and the node, the effect and the languages.',
                 'tests/Browser/Panel/RolesAndGrantsTest.php',
             ),
+            new BrowserScreenshot(
+                'login',
+                'The login page of the workbench on a desktop: the email and password fields, the link for a forgotten password, and the notices above the form, among them why the panel sent you here.',
+                'tests/Browser/Panel/StaffJourneyTest.php',
+            ),
+            new BrowserScreenshot(
+                'login-mobile',
+                'The login page on a phone: the same notices and fields filling the width.',
+                'tests/Browser/Panel/StaffJourneyTest.php',
+            ),
+            new BrowserScreenshot(
+                'home',
+                'The start page after the first login: the navigation the bootstrap role gives, the search that opens the command palette, and the button that signs out.',
+                'tests/Browser/Panel/StaffJourneyTest.php',
+            ),
+            new BrowserScreenshot(
+                'password-forgot',
+                'The page that asks for a password reset link on a desktop: the email field and the way back to the login.',
+                'tests/Browser/Panel/PasswordResetTest.php',
+            ),
+            new BrowserScreenshot(
+                'password-forgot-mobile',
+                'The page that asks for a password reset link on a phone.',
+                'tests/Browser/Panel/PasswordResetTest.php',
+            ),
+            new BrowserScreenshot(
+                'password-reset',
+                'The page a reset link opens, on a desktop: the new password with the rule it must keep.',
+                'tests/Browser/Panel/PasswordResetTest.php',
+            ),
+            new BrowserScreenshot(
+                'password-reset-mobile',
+                'The page a reset link opens, on a phone.',
+                'tests/Browser/Panel/PasswordResetTest.php',
+            ),
         ];
     }
 

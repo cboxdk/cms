@@ -59,7 +59,7 @@ describe('the keyboard contract of CommandPalette', () => {
     await screen.findByRole('dialog', { name: 'Command palette' });
     await waitFor(() => {
       expect(document.activeElement).toBe(
-        screen.getByRole('searchbox', { name: 'Find a page or a command' }),
+        screen.getByRole('combobox', { name: 'Find a page or a command' }),
       );
     });
 
@@ -76,10 +76,11 @@ describe('the keyboard contract of CommandPalette', () => {
 
     await user.keyboard('{Control>}k{/Control}');
     await screen.findByRole('dialog');
-    const field = screen.getByRole('searchbox', { name: 'Find a page or a command' });
+    const field = screen.getByRole('combobox', { name: 'Find a page or a command' });
     const list = screen.getByRole('listbox', { name: 'Command palette' });
 
     expect(field.getAttribute('aria-controls')).toBe(list.id);
+    expect(field.getAttribute('aria-expanded')).toBe('true');
     expect(field.getAttribute('aria-autocomplete')).toBe('list');
     expect(screen.getAllByRole('option')).toHaveLength(3);
 

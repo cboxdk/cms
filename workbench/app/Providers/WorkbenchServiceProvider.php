@@ -67,6 +67,9 @@ final class WorkbenchServiceProvider extends ServiceProvider
     /** The handle of the workbench's site. */
     public const string SITE = 'workbench';
 
+    /** The origin of the workbench's site: the address composer workbench:serve publishes the workbench on. */
+    public const string ORIGIN = 'http://127.0.0.1:8080';
+
     /** The Composer package of the workbench's fixture addon, the one addon its allowlist names. */
     public const string FIXTURE_ADDON = 'cboxdk/cms-fixture-addon';
 
@@ -112,11 +115,11 @@ final class WorkbenchServiceProvider extends ServiceProvider
 
         $this->configureEventRunner($config);
 
-        // The workbench's one site (PRD 11.14), served by vendor/bin/testbench serve at its default
-        // address, in Danish and English. cms:sites:sync, the last step of composer dev:prepare,
-        // registers it with its root node, so a grant has a node to hold on.
+        // The workbench's one site (PRD 11.14), at the address composer workbench:serve publishes,
+        // in Danish and English. cms:sites:sync, a step of composer dev:prepare, registers it with
+        // its root node, so a grant has a node to hold on.
         $config->set('cbox-cms.sites', [
-            self::SITE => ['origin' => 'http://localhost:8000', 'locales' => ['da', 'en'], 'hosts' => ['127.0.0.1:8000']],
+            self::SITE => ['origin' => self::ORIGIN, 'locales' => ['da', 'en'], 'hosts' => ['localhost:8080']],
         ]);
 
         // The workbench is a development environment, and B1 part 1 offers no passkey or second
@@ -129,7 +132,7 @@ final class WorkbenchServiceProvider extends ServiceProvider
         // The links point at the panel served at the site's origin.
         $config->set('mail.default', 'array');
         $config->set('mail.from', ['address' => 'cms@workbench.localhost', 'name' => 'Cbox CMS workbench']);
-        $config->set('cbox-cms.identity.password_reset.url', 'http://localhost:8000/cms/reset-password');
+        $config->set('cbox-cms.identity.password_reset.url', self::ORIGIN.'/cms/reset-password');
 
         $app = $config->get('database.connections.pgsql');
 

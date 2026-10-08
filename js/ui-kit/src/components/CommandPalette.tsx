@@ -78,8 +78,10 @@ export interface CommandPaletteProps {
 /**
  * The panel's command palette (GUARDRAILS 8, keyboard first): a dialog with a search field and the
  * pages and commands that match what is typed, in sections, built as the combobox pattern of WAI-ARIA:
- * the search field controls a listbox of options and names the option in focus through
- * aria-activedescendant, so a screen reader hears each entry as it is reached. Ctrl+K, or Command+K
+ * the search field is a combobox, expanded while it shows the entries, that controls a listbox of
+ * options and names the option in focus through aria-activedescendant, so a screen reader hears
+ * each entry as it is reached, and a list longer than the dialog scrolls as the focus moves through
+ * it, from the keyboard in the field, as the listbox of a combobox does. Ctrl+K, or Command+K
  * on a Mac, opens it from anywhere on the page and closes it again. Focus starts in the search
  * field and stays inside the dialog; typing filters the entries, ignoring case and accents, and Up
  * and Down move through them while focus stays in the field. Enter runs the entry in focus, and
@@ -176,7 +178,12 @@ export function CommandPalette({
         <Autocomplete filter={contains}>
           <SearchField aria-label={searchLabel} autoFocus className="cms-palette__search">
             <Icon name="search" />
-            <Input className="cms-palette__input" placeholder={searchLabel} />
+            <Input
+              className="cms-palette__input"
+              placeholder={searchLabel}
+              role="combobox"
+              aria-expanded={loading === undefined && error === undefined}
+            />
           </SearchField>
           {body}
         </Autocomplete>

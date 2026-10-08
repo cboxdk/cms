@@ -12,7 +12,8 @@ use InvalidArgumentException;
  * What a run in the dev image needs from the host: the checkout and its main checkout, the host
  * user, the host's name, the host's `~/.pest` directory, the network of the shared services, the
  * directories outside the checkout the command writes to, whether the terminal is interactive, the
- * host variables passed on, and the command.
+ * host variables passed on, the command, and the port of the container published on the host, if
+ * any.
  */
 final readonly class DevImageTarget
 {
@@ -31,6 +32,7 @@ final readonly class DevImageTarget
         public bool $interactive,
         public array $passedEnvironment,
         public array $command,
+        public ?PublishedPort $port = null,
     ) {
         if ($command === []) {
             throw new InvalidArgumentException('A run in the dev image needs a command.');

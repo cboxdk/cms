@@ -1,6 +1,6 @@
 ---
 title: Testing with the testkit
-weight: 12
+weight: 13
 description: Test code that uses the kernel's contracts with the testkit's fakes, pick the right test suite, and run the suites locally.
 ---
 

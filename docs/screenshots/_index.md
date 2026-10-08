@@ -14,6 +14,8 @@ The screenshots of the documentation are the real output of commands, drawn as a
 
 The output of `cms:doctor` depends on the clock, the versions, the paths and the services of the machine it runs on, so a shot of it runs in a scene: `php tools/bin/docs-scene.php <scene> <command>` boots the workbench application as `vendor/bin/testbench` does, binds a fixed clock and the core's fake probes of the doctor, and runs the command. The doctor's checks, their order and their messages are the real ones; the answers of PHP, Postgres, Valkey and the files are fixed, and the probes name their targets `fake`. The prompt line shows the command a developer types. So the shots need no services, and capturing them again on any machine and any day gives the same bytes: a test compares every committed image with what its command draws now, and fails when a change to a command's output leaves an image stale.
 
+The pages of the panel are screenshots from the browser, `docs/screenshots/<key>.png`, listed in `Screenshots::browser()` with the Browser test that takes each: `composer image:run -- env CMS_DOCS_SCREENSHOTS=1 vendor/bin/pest --testsuite=Browser <test>`, after `composer panel:build`, captures them with the deterministic data of the test. They are not compared again, because a browser draws text with the fonts of its machine; the test asserts what the page shows.
+
 `composer docs:check` holds the list, the files and the pages together: every entry has its file, every file here has an entry, a page outside this folder embeds every entry, and every embed uses the entry's caption as its alt text.
 
 ## The shots

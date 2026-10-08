@@ -16,6 +16,7 @@ use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\FixtureWriters\Identity\Adapter\PostgresIdentitySeeder;
 use Cbox\Cms\Testkit\Identity\FakeBreachedPasswords;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
+use Cbox\Cms\Tests\Support\Arch\Codebase;
 use Cbox\Cms\Tests\Support\Browser\PanelPage;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Database\DatabaseManager;
@@ -34,6 +35,10 @@ use Symfony\Component\Mime\Email;
  * mailer in the in-process application, sets a new password on the page the link opens and lands
  * on the start page, signs out and signs in with the new password; the old one no longer works, and
  * the link does not work a second time. Every page makes the shared assertions.
+ *
+ * With CMS_DOCS_SCREENSHOTS=1 the page that asks for a link and the page the link opens are also
+ * captured into docs/screenshots/password-forgot.png, password-forgot-mobile.png,
+ * password-reset.png and password-reset-mobile.png, the images docs/users/signing-in.md shows.
  */
 
 const RESET_PANEL_EMAIL = 'mette.holm@example.com';
@@ -52,6 +57,21 @@ beforeEach(function (): void {
 
     app(LocalCredentialStore::class)->bind($actor->id, new LoginIdentifier(RESET_PANEL_EMAIL), app(PasswordHasher::class)->hash(new Password(RESET_OLD_PASSWORD)));
 });
+
+/**
+ * Saves the page as docs/screenshots/<key>.png when CMS_DOCS_SCREENSHOTS is set, and leaves it at
+ * a desktop width.
+ */
+function captureResetScreenshot(PendingAwaitablePage $page, string $key, int $width, int $height): void
+{
+    if (getenv('CMS_DOCS_SCREENSHOTS') !== '1') {
+        return;
+    }
+
+    $page->resize($width, $height)->screenshot(false, 'docs-'.$key);
+    copy(Codebase::root().'/tests/Browser/Screenshots/docs-'.$key.'.png', Codebase::root().'/docs/screenshots/'.$key.'.png');
+    $page->resize(1440, 900);
+}
 
 /**
  * The mails the workbench's array mailer holds.
@@ -101,6 +121,8 @@ it('asks for a link, sets a new password with it and signs in with the new passw
 
     $page->assertPathIs('/cms/forgot-password');
     PanelPage::assertPage($page, ['panel.forgot.title', 'panel.forgot.description', 'panel.forgot.email', 'panel.forgot.back']);
+    captureResetScreenshot($page, 'password-forgot', 1024, 720);
+    captureResetScreenshot($page, 'password-forgot-mobile', 390, 760);
 
     $page->type('email', 'Mette.Holm@Example.com')
         ->click('button[type="submit"]');
@@ -112,6 +134,8 @@ it('asks for a link, sets a new password with it and signs in with the new passw
     $page->navigate($path);
 
     PanelPage::assertPage($page, ['panel.reset.title', 'panel.reset.description', 'panel.reset.password', 'panel.reset.hint']);
+    captureResetScreenshot($page, 'password-reset', 1024, 720);
+    captureResetScreenshot($page, 'password-reset-mobile', 390, 760);
 
     $page->type('password', 'too short')
         ->click('button[type="submit"]');

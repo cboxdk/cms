@@ -10,6 +10,9 @@ use Cbox\Cms\Tests\Support\Tooling\ScratchRepository;
 use Cbox\Cms\Tooling\DevImage\Domain\CheckoutVolume;
 use Cbox\Cms\Tooling\DevImage\Domain\DevImage;
 use Cbox\Cms\Tooling\DevImage\Domain\VolumeKind;
+use Cbox\Cms\Tooling\Workbench\Boundary\WorkbenchServeOptions;
+use Cbox\Cms\Tooling\Workbench\Domain\WorkbenchEnvironment;
+use Cbox\Cms\Tooling\Workbench\Domain\WorkbenchServe;
 use Symfony\Component\Process\Process;
 
 /*
@@ -19,6 +22,8 @@ use Symfony\Component\Process\Process;
  * path, as the host user, on the network of the shared services, which it never starts. The script
  * runs here on a scratch repository with a linked worktree and a fake docker on the PATH that
  * records how it was called and answers docker compose ps with the containers a test gives it.
+ * composer workbench:serve, tools/bin/workbench-serve.php, starts the same container for the
+ * development server and publishes its port on the host's 127.0.0.1 only.
  */
 
 afterEach(function (): void {
@@ -349,4 +354,119 @@ it('checks the options of composer check on the host and exits 2 on an unknown o
     expect($run['exitCode'])->toBe(2)
         ->and($run['errors'])->toContain('Unknown option --bogus')
         ->and($run['calls'])->toBe([]);
+});
+
+/**
+ * A worktree that has what the served panel needs: an application key in workbench/.env and the
+ * panel's build manifest.
+ *
+ * @return array{main: string, worktree: string}
+ */
+function servableCheckouts(bool $key = true, bool $build = true): array
+{
+    $checkouts = devImageCheckouts();
+
+    if ($key) {
+        ScratchDirectory::write($checkouts['worktree'].'/'.WorkbenchEnvironment::FILE, "APP_NAME=\"Cbox CMS\"\nAPP_KEY=base64:".base64_encode(str_repeat('k', 32))."\n");
+    }
+
+    if ($build) {
+        ScratchDirectory::write($checkouts['worktree'].'/'.WorkbenchServe::PANEL_MANIFEST, '{}');
+    }
+
+    return $checkouts;
+}
+
+it('serves the workbench from a worktree in the dev image, with the server\'s port published on the host\'s 127.0.0.1:8080, on the services\' network', function (): void {
+    ['main' => $main, 'worktree' => $worktree] = servableCheckouts();
+
+    $run = runDevImageScript($worktree, 'workbench-serve.php', [], healthyServices(), runExit: 130);
+    $docker = dockerRun($run['calls']);
+
+    expect($run['exitCode'])->toBe(130)
+        ->and($run['calls'][0])->toBe(['compose', '--file', $main.'/compose.yaml', '--project-directory', $main, 'ps', '--all', '--format', 'json', 'postgres', 'valkey'])
+        ->and(optionValues($docker, '--publish'))->toBe(['127.0.0.1:8080:8080'])
+        ->and(optionValues($docker, '--network'))->toBe(['scratch_default'])
+        ->and(optionValues($docker, '--workdir'))->toBe([$worktree])
+        ->and(optionValues($docker, '--user'))->toBe([devImageHostId('-u').':'.devImageHostId('-g')])
+        ->and(optionValues($docker, '--volume'))->toContain($worktree.':'.$worktree)
+        ->and(optionValues($docker, '--env'))->toContain('DB_HOST=postgres', 'DB_PORT=5432', 'REDIS_HOST=valkey', 'REDIS_PORT=6379')
+        ->and(array_slice($docker, -9))->toBe([DevImage::IMAGE, 'php', 'tools/bin/dev-image-entry.php', 'php', 'vendor/bin/testbench', 'serve', '--host=0.0.0.0', '--port=8080', '--no-interaction'])
+        ->and($run['output'])->toContain('http://127.0.0.1:8080/cms');
+});
+
+it('publishes another host port with --port, always on 127.0.0.1 and to the server\'s port 8080', function (): void {
+    ['worktree' => $worktree] = servableCheckouts();
+
+    $run = runDevImageScript($worktree, 'workbench-serve.php', ['--port=9001'], healthyServices());
+    $docker = dockerRun($run['calls']);
+
+    expect($run['exitCode'])->toBe(0)
+        ->and(optionValues($docker, '--publish'))->toBe(['127.0.0.1:9001:8080'])
+        ->and(array_slice($docker, -2))->toBe(['--port=8080', '--no-interaction'])
+        ->and($run['output'])->toContain('http://127.0.0.1:9001/cms');
+});
+
+it('publishes no port for any other run in the dev image', function (): void {
+    ['worktree' => $worktree] = devImageCheckouts();
+
+    $run = runDevImageScript($worktree, 'dev-image.php', ['--', 'true'], healthyServices());
+
+    expect(optionValues(dockerRun($run['calls']), '--publish'))->toBe([]);
+});
+
+it('refuses a port that is no TCP port and an unknown argument with exit 2, and calls no docker', function (string $argument, string $message): void {
+    ['worktree' => $worktree] = servableCheckouts();
+
+    $run = runDevImageScript($worktree, 'workbench-serve.php', [$argument], healthyServices());
+
+    expect($run['exitCode'])->toBe(2)
+        ->and($run['errors'])->toContain($message)
+        ->and($run['errors'])->toContain(WorkbenchServeOptions::USAGE)
+        ->and($run['calls'])->toBe([]);
+})->with([
+    'zero' => ['--port=0', 'The port is a TCP port from 1 to 65535, not [0].'],
+    'too high' => ['--port=65536', 'The port is a TCP port from 1 to 65535, not [65536].'],
+    'not a number' => ['--port=http', 'The port is a TCP port from 1 to 65535, not [http].'],
+    'unknown' => ['--host=0.0.0.0', 'Unknown argument [--host=0.0.0.0].'],
+]);
+
+it('says how to make the application key and the panel\'s build when they are missing, exits 1 and calls no docker', function (bool $key, bool $build, array $fixes): void {
+    ['worktree' => $worktree] = servableCheckouts($key, $build);
+
+    $run = runDevImageScript($worktree, 'workbench-serve.php', [], healthyServices());
+
+    expect($run['exitCode'])->toBe(1)
+        ->and($run['calls'])->toBe([]);
+
+    foreach ($fixes as $fix) {
+        expect($run['errors'])->toContain($fix);
+    }
+})->with([
+    'no key' => [false, true, ['workbench/.env has no APP_KEY', 'Run composer dev:prepare']],
+    'no build' => [true, false, ['The panel has no build', 'Run composer panel:build']],
+    'neither' => [false, false, ['workbench/.env has no APP_KEY', 'The panel has no build']],
+]);
+
+it('says to copy workbench/.env again when Testbench\'s application holds another copy, exits 1 and calls no docker', function (): void {
+    ['worktree' => $worktree] = servableCheckouts();
+    ScratchDirectory::write($worktree.'/'.WorkbenchEnvironment::APPLICATION_FILE, "APP_KEY=\n");
+
+    $run = runDevImageScript($worktree, 'workbench-serve.php', [], healthyServices());
+
+    expect($run['exitCode'])->toBe(1)
+        ->and($run['calls'])->toBe([])
+        ->and($run['errors'])->toContain(WorkbenchEnvironment::APPLICATION_FILE.' is not what workbench/.env holds')
+        ->and($run['errors'])->toContain('Run composer dev:prepare, which copies it.');
+});
+
+it('fails with the fix and serves nothing when the shared services do not run', function (): void {
+    ['main' => $main, 'worktree' => $worktree] = servableCheckouts();
+
+    $run = runDevImageScript($worktree, 'workbench-serve.php', [], composeContainer('postgres', 'exited', '')."\n".composeContainer('valkey'));
+
+    expect($run['exitCode'])->toBe(1)
+        ->and($run['calls'])->toHaveCount(1)
+        ->and($run['errors'])->toContain('The shared services are not running: postgres (exited).')
+        ->and($run['errors'])->toContain("cd {$main} && composer services:up");
 });

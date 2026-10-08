@@ -32,15 +32,17 @@ The services are shared by every checkout of the repository on the machine, git 
 
 ## The dev database
 
-The workbench's database is `cms` on the shared Postgres. `composer dev:prepare` readies it, from the main checkout after `composer services:up`:
+The workbench's database is `cms` on the shared Postgres. `composer dev:prepare` readies it and the workbench, from the main checkout after `composer services:up`, each step in the dev image as `composer image:run` runs it:
 
-1. the migrations, as the owner role on the connection `pgsql_owner`;
-2. `cms:partitions:maintain`, which creates the partitions from now to 14 days ahead;
-3. `cms:build`, the registry cache;
-4. `cms:install`, which creates the installation operator once, the service actor the maintenance commands run as (see [Maintenance commands](../developers/maintenance-commands.md));
-5. `cms:sites:sync`, which registers the workbench's site, `workbench` in Danish and English at `http://localhost:8000`, with its root node, as that operator (see [Site commands](../addons/site-commands.md)).
+1. `tools/bin/workbench-env.php`, which gives `workbench/.env` an `APP_KEY` once, made from `workbench/.env.example` when the file is missing, and copies the file to Testbench's application;
+2. the migrations, as the owner role on the connection `pgsql_owner`;
+3. `cms:partitions:maintain`, which creates the partitions from now to 14 days ahead;
+4. `cms:build`, the registry cache;
+5. `cms:install`, which creates the installation operator once, the service actor the maintenance commands run as (see [Maintenance commands](../developers/maintenance-commands.md));
+6. `cms:sites:sync`, which registers the workbench's site, `workbench` in Danish and English at `http://127.0.0.1:8080`, with its root node, as that operator, and prints the root node (see [Site commands](../addons/site-commands.md));
+7. `composer panel:build`, the panel's build.
 
-Every step is idempotent, and the script stops at the first step that fails. The workbench reads its settings from `workbench/.env`; Testbench copies `workbench/.env.example` there when the file is missing.
+Every step is idempotent, and the script stops at the first step that fails. The workbench reads its settings from `workbench/.env`, which git ignores. `composer workbench:serve` then serves the workbench at `http://127.0.0.1:8080`; [Serve the workbench and log in](first-login.md) takes it from there to the first login.
 
 ## Running a command in the workbench
 

@@ -177,8 +177,8 @@ it('registers the configured sites with their root nodes and locales, writes not
     [$again, $againOutput] = artisanRun('cms:sites:sync');
 
     expect($again)->toBe(0, $againOutput)
-        ->and($againOutput)->toContain(sprintf('unchanged north: site %s, locales da, en', $north['id']))
-        ->and($againOutput)->toContain(sprintf('unchanged south: site %s, locales da', $south['id']))
+        ->and($againOutput)->toContain(sprintf('unchanged north: site %s, root node %s, locales da, en', $north['id'], $north['root']))
+        ->and($againOutput)->toContain(sprintf('unchanged south: site %s, root node %s, locales da', $south['id'], $south['root']))
         ->and(siteRows())->toBe($after)
         ->and(explainedSite('https://north.example/', 'en'))->toMatchArray(['handle' => 'north', 'host' => 'north.example', 'locale' => 'en', 'locale_published' => true, 'site' => $north['id']])
         ->and(explainedSite('https://south.example/', 'da'))->toMatchArray(['handle' => 'south', 'host' => 'south.example', 'locale' => 'da', 'locale_published' => true, 'site' => $south['id']]);

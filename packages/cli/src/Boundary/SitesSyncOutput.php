@@ -19,7 +19,9 @@ use InvalidArgumentException;
 
 /**
  * What cms:sites:sync answers (PRD 11.14, GUARDRAILS 2.1), with exit codes from the error catalog:
- * one line per configured site on standard output, each error of a site that did not sync on
+ * one line per configured site on standard output, with the root node of a registered site also
+ * when it was registered before, since a first grant such as cms:access:bootstrap's needs a node;
+ * each error of a site that did not sync on
  * standard error with its catalog code, and the exit code 0 when every site synced, or the exit code
  * of the first error of the first site that did not; ExitCode::Config for a setting that cannot be
  * read.
@@ -67,7 +69,7 @@ final readonly class SitesSyncOutput
                 self::locales($site->registered),
                 $site->changeset instanceof ChangesetId ? $site->changeset->toString() : '-',
             ),
-            SiteSyncOutcome::Unchanged => sprintf('unchanged %s: site %s, locales %s', $handle, self::id($site->site), self::locales($site->registered)),
+            SiteSyncOutcome::Unchanged => sprintf('unchanged %s: site %s, root node %s, locales %s', $handle, self::id($site->site), self::id($site->root), self::locales($site->registered)),
             SiteSyncOutcome::Drifted => sprintf(
                 'drifted %s: site %s publishes in %s, the configuration says %s; left unchanged',
                 $handle,

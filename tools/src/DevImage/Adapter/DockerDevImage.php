@@ -8,6 +8,7 @@ use Cbox\Cms\Tooling\DevImage\Boundary\ComposePsJson;
 use Cbox\Cms\Tooling\DevImage\Domain\CheckoutVolume;
 use Cbox\Cms\Tooling\DevImage\Domain\DevImageRun;
 use Cbox\Cms\Tooling\DevImage\Domain\DevImageTarget;
+use Cbox\Cms\Tooling\DevImage\Domain\PublishedPort;
 use Cbox\Cms\Tooling\DevImage\Domain\SharedServices;
 use Cbox\Cms\Tooling\Services\Boundary\CurrentHostUser;
 use Cbox\Cms\Tooling\Services\Boundary\GitCheckout;
@@ -36,8 +37,9 @@ final readonly class DockerDevImage
     /**
      * @param  list<string>  $command
      * @param  list<string>  $extraMounts  directories outside the checkout the command writes to
+     * @param  PublishedPort|null  $port  the container's port to publish on the host, for a command that serves
      */
-    public function run(string $directory, array $command, array $extraMounts = []): int
+    public function run(string $directory, array $command, array $extraMounts = [], ?PublishedPort $port = null): int
     {
         try {
             $checkout = GitCheckout::resolve($directory);
@@ -59,6 +61,7 @@ final readonly class DockerDevImage
                 $interactive,
                 $this->passedEnvironment(),
                 $command,
+                $port,
             );
             $this->claimVolume($target);
         } catch (UnexpectedValueException|InvalidArgumentException $exception) {

@@ -69,11 +69,11 @@ it('prints a link with a token the store keeps as its hash, and sends no mail', 
 
     $exit = app(Kernel::class)->call('cms:staff:reset-link', ['email' => ' Mette.Holm@Example.com ']);
     $lines = explode("\n", trim(app(Kernel::class)->output()));
-    $token = PasswordResetToken::parse(substr($lines[0], strlen('http://localhost:8000/cms/reset-password/')));
+    $token = PasswordResetToken::parse(substr($lines[0], strlen('http://127.0.0.1:8080/cms/reset-password/')));
     $stored = DB::connection(PostgresLocalAccounts::CONNECTION)->table(CredentialStore::table(PostgresLocalCredentialStore::TOKENS))->first(['token_hash', 'expires_at']);
 
     expect($exit)->toBe(0)
-        ->and($lines[0])->toStartWith('http://localhost:8000/cms/reset-password/cms_pr_')
+        ->and($lines[0])->toStartWith('http://127.0.0.1:8080/cms/reset-password/cms_pr_')
         ->and($lines[1])->toBe('The link expires at 2026-03-10T13:00:00Z and sets the password once.')
         ->and($token)->toBeInstanceOf(PasswordResetToken::class)
         ->and($stored->token_hash ?? null)->toBe($token?->hash())
