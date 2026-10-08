@@ -22,7 +22,7 @@ The panel has pages of its own behind the login (PRD 13.4): the start page, the 
 
 ## The login page's notices
 
-The login page is a credential page: no addon code runs on it, so the page writes no addon into its import map and loads nothing of an addon (decision D13). An addon shows a notice above the login form with a `LoginNotice`, plain data the page renders itself as the kit's callout, in render order, at [`login.notice@1`](points/login-notice.md). The page's prop `notices` carries them, `#/$defs/notice` of `login.v1.json`. The workbench's fixture addon contributes `fixtureaddon.login-notice`.
+The login page is a credential page: no addon code runs on it, so the page writes no addon into its import map and loads nothing of an addon (decision D13). An addon shows a notice above the login form with a `LoginNotice`, plain data the page renders itself as the kit's callout, in render order, at [`login.notice@1`](points/login-notice.md). The page's prop `notices` carries them, `#/$defs/notice` of `login.v1.json`, each with its message already in the page's locale: a credential page carries no catalogue, so `cms:build`'s compiled catalogue of the addon is read on the server ([i18n](../../ui/i18n.md#an-addons-texts)), and a key the addon ships no text for travels as the key. The workbench's fixture addon contributes `fixtureaddon.login-notice`.
 
 ## Navigation entries and their permissions
 

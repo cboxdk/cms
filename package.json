@@ -15,7 +15,7 @@
     "lint": "eslint --max-warnings=0 .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint:translations": "node js/tooling/translation-parity.js js/panel/src/i18n/catalogues && node js/tooling/translation-parity.js js/ui-kit/src/i18n/catalogues",
+    "lint:translations": "node js/tooling/translation-parity.js js/panel/src/i18n/catalogues && node js/tooling/translation-parity.js js/ui-kit/src/i18n/catalogues && node js/tooling/translation-parity.js workbench/addons/fixtureaddon/resources/panel/lang",
     "generate:tokens": "node js/ui-kit/scripts/generate-tokens.js",
     "generate:sdk": "node js/panel-sdk/scripts/generate-entries.js",
     "build:fixture-addon": "vite build --config workbench/addons/fixtureaddon/resources/panel/vite.config.ts",

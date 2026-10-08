@@ -8,6 +8,7 @@ use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\TransportCredential;
 use Cbox\Cms\Contracts\PanelPoints\PageName;
+use Cbox\Cms\Contracts\PanelPoints\PanelLocale;
 use Cbox\Cms\Contracts\PanelPoints\PointName;
 use Cbox\Cms\Core\Reads\Domain\QueryCodecs;
 use Cbox\Cms\Panel\Boundary\Generated\ContributionsCodecV1;
@@ -50,7 +51,7 @@ use stdClass;
 
 function contributionProps(FakeTelemetry $telemetry, ?QueryCodecs $queries = null): ContributionProps
 {
-    return new ContributionProps(new ContributionsCodecV1, ContributionWorld::pointCodecs(), $queries ?? new QueryCodecs(...TallyCodecs::all()), new ContributionTelemetry($telemetry), app(ExceptionHandler::class), app(UrlGenerator::class));
+    return new ContributionProps(new ContributionsCodecV1, ContributionWorld::pointCodecs(), $queries ?? new QueryCodecs(...TallyCodecs::all()), new ContributionTelemetry($telemetry), app(ExceptionHandler::class), app(UrlGenerator::class), app());
 }
 
 function viewerRequest(): Request
@@ -61,7 +62,7 @@ function viewerRequest(): Request
     return $request;
 }
 
-function deskActive(string $note = 'Weekly desk', bool $aside = false): ActiveContributions
+function deskActive(string $note = 'Weekly desk', bool $aside = false, PanelLocale $locale = PanelLocale::FALLBACK): ActiveContributions
 {
     $points = [new RenderedPoint(new PointName('desk.cards'), new DeskCardsV1($note, 'Call the printer'))];
 
@@ -69,7 +70,7 @@ function deskActive(string $note = 'Weekly desk', bool $aside = false): ActiveCo
         $points[] = new RenderedPoint(new PointName('desk.aside'), new DeskAsideV1('Aside'));
     }
 
-    return new ResolveWorld()->action()->resolve(new PanelView(new PageName(ContributionWorld::PAGE), ResolveWorld::principal(ResolveWorld::AUDITOR), $points));
+    return new ResolveWorld()->action()->resolve(new PanelView(new PageName(ContributionWorld::PAGE), ResolveWorld::principal(ResolveWorld::AUDITOR), $points, locale: $locale));
 }
 
 /**
@@ -183,6 +184,21 @@ it('builds every page s view with the shell, and writes the nav entries, the add
     expect(deferredData($board))->toBe([ContributionWorld::BOARD => ['count' => 7, 'summary' => 's']])
         ->and($calls)->toBe([ContributionWorld::BOARD]);
 });
+
+it('carries the texts of the active locale for each addon with an active contribution, and no other locale', function (string $locale, string $board): void {
+    $props = contributionProps(new FakeTelemetry)->props(viewerRequest(), deskActive(locale: PanelLocale::from($locale)), static fn (ContributionDataCall $call): ContributionData => ContributionData::refused(DataRefusal::NoCodec), static fn (PageName $page, ActiveFill $fill, DataRefusal $refusal): ContributionData => ContributionData::refused($refusal))->props;
+    $cms = $props[ContributionProps::CMS] ?? null;
+    $contributions = json_decode((string) json_encode(is_array($cms) ? $cms[ContributionProps::CONTRIBUTIONS] ?? null : null), true);
+
+    expect(is_array($contributions) ? $contributions['texts'] ?? null : null)->toBe([[
+        'addon' => 'tally',
+        'entries' => [
+            ['key' => 'tally.add.label', 'text' => $locale === 'da' ? 'Tæl en op' : 'Add one'],
+            ['key' => 'tally.count.title', 'text' => $locale === 'da' ? 'Optælling' : 'Tally'],
+            ['key' => 'tally.nav.board', 'text' => $board],
+        ],
+    ]]);
+})->with([['da', 'Tavle'], ['en', 'Board']]);
 
 it('sends contributions only for a request the panel authenticated', function (): void {
     $props = contributionProps(new FakeTelemetry);

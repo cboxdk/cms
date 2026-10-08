@@ -34,6 +34,9 @@ final class PanelPage
     /** The component kit's English catalogue, the kit's own few texts, such as a picker's buttons. */
     public const string KIT_CATALOGUE = 'js/ui-kit/src/i18n/catalogues/en.json';
 
+    /** The English catalogue of the workbench's fixture addon, which its contributions read. */
+    public const string ADDON_CATALOGUE = 'workbench/addons/fixtureaddon/resources/panel/lang/en.json';
+
     /** The axe tags of WCAG 2.2 at levels A and AA, with the criteria of 2.0 and 2.1 it keeps. */
     public const array WCAG_22_AA = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22a', 'wcag22aa'];
 
@@ -123,6 +126,20 @@ final class PanelPage
     public static function kitText(string $key, array $parameters = []): string
     {
         return self::textOf(self::KIT_CATALOGUE, $key, $parameters);
+    }
+
+    /**
+     * A text of the workbench fixture addon's English catalogue, with its parameters filled in as
+     * the host's t() fills them for a contribution (section 2.6 of the panel extension
+     * architecture), so an assertion reads what the panel shows and never a translation key.
+     *
+     * @param  array<string, string|int>  $parameters
+     *
+     * @throws JsonException
+     */
+    public static function addonText(string $key, array $parameters = []): string
+    {
+        return self::textOf(self::ADDON_CATALOGUE, $key, $parameters);
     }
 
     /**

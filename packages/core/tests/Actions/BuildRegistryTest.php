@@ -316,7 +316,7 @@ it('writes the seven files, and reading them back gives the registry that was bu
         'entries' => [
             ['class' => CreateNote::class, 'name' => 'fixture.note.create', 'package' => RegistryFixtures::PACKAGE, 'version' => 1],
         ],
-        'format' => 10,
+        'format' => 11,
         'registry' => 'commands',
     ])
         ->and($actions)->toBe([
@@ -341,7 +341,7 @@ it('writes the seven files, and reading them back gives the registry that was bu
                     'surfaces' => [],
                 ],
             ],
-            'format' => 10,
+            'format' => 11,
             'registry' => 'actions',
         ])
         ->and($subscribers)->toBe([
@@ -383,7 +383,7 @@ it('writes the seven files, and reading them back gives the registry that was bu
                     'projection' => null,
                 ],
             ],
-            'format' => 10,
+            'format' => 11,
             'registry' => 'subscribers',
         ])
         ->and($commands['build'])->toMatch('/\A[0-9a-f]{64}\z/');
@@ -397,7 +397,7 @@ it('replaces the actions.php of format 2, which listed actions without the comma
     $built = RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
     expect(array_map(static fn (RegistryName $name): string => $name->fileName(), RegistryName::cases()))->toBe(['actions.php', 'addons.php', 'commands.php', 'hooks.php', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php'])
-        ->and(RegistryFixtures::load($directory.'/actions.php'))->toMatchArray(['format' => 10, 'registry' => 'actions'])
+        ->and(RegistryFixtures::load($directory.'/actions.php'))->toMatchArray(['format' => 11, 'registry' => 'actions'])
         ->and(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'addons.php', 'commands.php', 'hooks.php', 'openapi.json', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php'])
         ->and(RegistryFixtures::cache($directory)->read())->toEqual($built);
 });
@@ -416,7 +416,7 @@ it('writes seven empty registries when there are no scan roots', function (): vo
 
     foreach (RegistryName::cases() as $name) {
         expect(RegistryFixtures::load($directory.'/'.$name->fileName()))
-            ->toBe(['build' => $build, 'entries' => [], 'format' => 10, 'registry' => $name->value]);
+            ->toBe(['build' => $build, 'entries' => [], 'format' => 11, 'registry' => $name->value]);
     }
 });
 
@@ -431,8 +431,8 @@ it('removes the slot file an earlier version wrote, and replaces its schema.php 
     $built = RegistryFixtures::builder($directory)->build(new ScanRoots(RegistryFixtures::root('Valid')));
 
     expect(RegistryFixtures::files($directory))->toBe(['.lock', 'actions.php', 'addons.php', 'commands.php', 'hooks.php', 'openapi.json', 'panel.php', 'rest.php', 'schema.php', 'subscribers.php'])
-        ->and(RegistryFixtures::load($directory.'/subscribers.php'))->toMatchArray(['format' => 10, 'registry' => 'subscribers'])
-        ->and(RegistryFixtures::load($directory.'/schema.php'))->toMatchArray(['entries' => [], 'format' => 10, 'registry' => 'schema'])
+        ->and(RegistryFixtures::load($directory.'/subscribers.php'))->toMatchArray(['format' => 11, 'registry' => 'subscribers'])
+        ->and(RegistryFixtures::load($directory.'/schema.php'))->toMatchArray(['entries' => [], 'format' => 11, 'registry' => 'schema'])
         ->and(RegistryFixtures::cache($directory)->read())->toEqual($built);
 });
 
@@ -840,7 +840,7 @@ it('writes schema.php with each addon\'s contributions, byte for byte the same w
                     'types' => ['reviews:review'],
                 ],
             ],
-            'format' => 10,
+            'format' => 11,
             'registry' => 'schema',
         ]);
 });
@@ -972,7 +972,7 @@ it('writes panel.php with each panel point under its id, sorted by name and vers
             builtPanelPoint(NoteSubmitV2::class, 'notes.form.submit@2', 'decorator', 'notes.form', '1.2', 'fixture.points.note_submit', 'internal', ['tightens' => ['tone_towards_danger']]),
             builtPanelPoint(NotesToolbarV1::class, 'notes.list.toolbar@1', 'slot', 'notes.list', '1.1', 'fixture.points.notes_toolbar', 'experimental', ['max' => 3, 'multiplicity' => 'max', 'region' => 'toolbar']),
         ],
-        'format' => 10,
+        'format' => 11,
         'registry' => 'panel',
     ])
         ->and($built->count(RegistryName::Panel))->toBe(5)

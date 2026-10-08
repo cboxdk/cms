@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Panel\Tests\Feature;
 
+use Cbox\Cms\Contracts\PanelPoints\PanelLocale;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Tests\Registry\Fakes\FakeRegistryCache;
 use Cbox\Cms\Panel\Tests\FixtureBuild;
@@ -19,8 +20,10 @@ use Workbench\FixtureAddon\FixtureAddonServiceProvider;
  * The login page's notices over HTTP (PRD 13.4): the page carries, in the prop notices, every
  * LoginNotice to login.notice@1 of the installation's registry, the workbench's fixture addon's
  * among them, each as data alone, its import map naming no addon, because a credential page runs
- * no addon code; a notice the kill switch disables is left out at the next request; and a
- * registry that cannot be read leaves the page with no notice and still answers 200.
+ * no addon code; each notice's message is the text of the addon's compiled catalogue in the page's
+ * locale, not its translation key, because the page carries no catalogue; a notice the kill switch
+ * disables is left out at the next request; and a registry that cannot be read leaves the page
+ * with no notice and still answers 200.
  */
 final class LoginNoticesPageTest extends TestCase
 {
@@ -53,11 +56,25 @@ final class LoginNoticesPageTest extends TestCase
         self::assertSame([[
             'addon' => FixtureAddonServiceProvider::NAMESPACE,
             'id' => FixtureAddonServiceProvider::LOGIN_NOTICE,
-            'message' => 'fixtureaddon.login_notice.message',
+            'message' => $this->addonText('fixtureaddon.login_notice.message'),
             'tone' => 'info',
         ]], $this->notices($response));
         self::assertStringNotContainsString('cms-addons/', (string) $response->getContent());
         self::assertStringNotContainsString('/cms/addons/', (string) $response->getContent());
+    }
+
+    /**
+     * The fixture addon's text of the key in English, the application's locale, read from the
+     * catalogue the addon ships, so the expectation is the catalogue's and not a copy of it.
+     */
+    private function addonText(string $key): string
+    {
+        $lang = new FixtureAddonServiceProvider(app())->addonManifest()->panel->lang
+            ?? self::fail('The fixture addon names no panel language directory.');
+        $decoded = json_decode((string) file_get_contents($lang.'/'.PanelLocale::English->file()), true, 8, JSON_THROW_ON_ERROR);
+        $text = is_array($decoded) ? $decoded[$key] ?? null : null;
+
+        return is_string($text) ? $text : self::fail(sprintf('The fixture addon\'s English catalogue has no key "%s".', $key));
     }
 
     #[Test]

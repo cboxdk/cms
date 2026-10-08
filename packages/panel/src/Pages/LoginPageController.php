@@ -27,6 +27,6 @@ final readonly class LoginPageController
 
     public function __invoke(Request $request): Response|JsonResponse
     {
-        return $this->sessions->signedIn($request) ?? $this->pages->login($request, $this->notices->resolve());
+        return $this->sessions->signedIn($request) ?? $this->pages->login($request, $this->notices->resolve($this->pages->locale()));
     }
 }

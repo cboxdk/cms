@@ -8,6 +8,7 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\PasswordResetToken;
+use Cbox\Cms\Contracts\PanelPoints\PanelLocale;
 use Cbox\Cms\Http\Inertia\Boundary\InertiaProps;
 use Cbox\Cms\Identity\PasswordReset\Domain\Dto\ResetSettings;
 use Cbox\Cms\Panel\Boundary\Generated\AccessGrantsPageCodecV1;
@@ -44,6 +45,7 @@ use Cbox\Cms\Panel\Domain\ResetPasswordRefusal;
 use Cbox\Cms\Panel\Domain\SignInReason;
 use Cbox\Cms\Panel\Login\Domain\Dto\LoginNotices;
 use Cbox\Cms\Panel\Shell\Domain\OwnPage;
+use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Routing\UrlGenerator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -145,7 +147,17 @@ final readonly class PanelPages
         private CommandFormPageCodecV1 $commandFormPage,
         private AccessRolesPageCodecV1 $accessRolesPage,
         private AccessGrantsPageCodecV1 $accessGrantsPage,
+        private Application $app,
     ) {}
+
+    /**
+     * The locale the panel's pages are shown in, the application's, which the root view also
+     * writes on `<html lang>`; the texts of a page's contributions are read in it.
+     */
+    public function locale(): PanelLocale
+    {
+        return PanelLocale::of($this->app->getLocale());
+    }
 
     public function login(Request $request, LoginNotices $notices = new LoginNotices): Response|JsonResponse
     {

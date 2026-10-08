@@ -28,9 +28,9 @@ export interface LoginPageV1 {
   /** The address of the page that asks for a password reset link. */
   forgot: string;
   /**
-   * The notices the addons contribute to login.notice@1 (PRD 13.4), in render order: translated
-   * plain text with a tone, data alone, because no addon code runs on the login page. Empty when
-   * none is contributed or enabled.
+   * The notices the addons contribute to login.notice@1 (PRD 13.4), in render order: plain text in
+   * the page's locale with a tone, data alone, because no addon code runs on the login page. Empty
+   * when none is contributed or enabled.
    */
   notices: readonly LoginNoticePropV1[];
   /**
@@ -46,15 +46,19 @@ export interface LoginPageV1 {
 }
 
 /**
- * One notice: the addon it comes from, the contribution's id, the translation key of its message in
- * the addon's catalogue, and its tone.
+ * One notice: the addon it comes from, the contribution's id, its message in the page's locale, and
+ * its tone.
  */
 export interface LoginNoticePropV1 {
   /** The namespace of the addon that contributes it. */
   addon: string;
   /** The contribution's id, `<namespace>.<local>`. */
   id: string;
-  /** The translation key of the notice in the addon's catalogue, `<namespace>.<key>`. */
+  /**
+   * The notice in the page's locale, as cms:build compiled the addon's catalogue; the translation
+   * key itself when the addon ships no text for it. A credential page carries no catalogue, so the
+   * text travels and not its key.
+   */
   message: string;
   /** The tone the notice is shown in. */
   tone: Tone;

@@ -36,6 +36,7 @@ use Cbox\Cms\Contracts\PanelPoints\PageContribution;
 use Cbox\Cms\Contracts\PanelPoints\PageName;
 use Cbox\Cms\Contracts\PanelPoints\PanelApiVersion;
 use Cbox\Cms\Contracts\PanelPoints\PanelContribution;
+use Cbox\Cms\Contracts\PanelPoints\PanelLocale;
 use Cbox\Cms\Contracts\PanelPoints\PanelPoint;
 use Cbox\Cms\Contracts\PanelPoints\PointDeprecation;
 use Cbox\Cms\Contracts\PanelPoints\PointId;
@@ -68,6 +69,7 @@ use Cbox\Cms\Core\Registry\Domain\Dto\CompiledBundle;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Dto\HookEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\IssuedCommand;
+use Cbox\Cms\Core\Registry\Domain\Dto\PanelCatalogue;
 use Cbox\Cms\Core\Registry\Domain\Dto\PanelFill;
 use Cbox\Cms\Core\Registry\Domain\Dto\PanelPointEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\RestRoute;
@@ -99,7 +101,7 @@ use LogicException;
 #[Internal]
 final readonly class RegistryCacheCodec
 {
-    public const int FORMAT = 10;
+    public const int FORMAT = 11;
 
     /** The keys of a declaration of panel.php that only some kinds of contribution have. */
     private const array DECLARATION_KEYS = ['command', 'confirm', 'data', 'icon', 'key', 'label', 'message', 'mirrors', 'page', 'patches', 'path', 'position', 'prefill', 'severity', 'tightens', 'timeout_seconds', 'tone'];
@@ -746,6 +748,10 @@ final readonly class RegistryCacheCodec
                         'path' => $file->path->value,
                     ], $panel->bundle->files),
                 ] : null,
+                'catalogues' => array_map(static fn (PanelCatalogue $catalogue): array => [
+                    'locale' => $catalogue->locale->value,
+                    'texts' => $catalogue->texts,
+                ], $panel->catalogues),
                 'sdk' => $panel->sdk->toString(),
             ] : null,
             'reads' => $addon->reads->value,
@@ -771,7 +777,7 @@ final readonly class RegistryCacheCodec
         $panel = null;
 
         if ($data['panel'] !== null) {
-            $panelData = $this->map($data['panel'], $path, $at.'.panel', ['accepts_experimental', 'bundle', 'sdk']);
+            $panelData = $this->map($data['panel'], $path, $at.'.panel', ['accepts_experimental', 'bundle', 'catalogues', 'sdk']);
             $accepted = [];
 
             foreach ($this->list($panelData['accepts_experimental'], $path, $at.'.panel.accepts_experimental') as $position => $point) {
@@ -779,10 +785,24 @@ final readonly class RegistryCacheCodec
                 $accepted[] = $this->panel($path, $pointAt, fn (): PointId => PointId::fromString($this->string($point, $path, $pointAt)));
             }
 
+            $catalogues = [];
+
+            foreach ($this->list($panelData['catalogues'], $path, $at.'.panel.catalogues') as $position => $catalogue) {
+                $catalogueAt = sprintf('%s.panel.catalogues[%d]', $at, $position);
+                $read = $this->map($catalogue, $path, $catalogueAt, ['locale', 'texts']);
+                $texts = $this->texts($read['texts'], $path, $catalogueAt.'.texts');
+
+                $catalogues[] = new PanelCatalogue(
+                    $this->enum(PanelLocale::class, $read['locale'], $path, $catalogueAt.'.locale', 'panel locale'),
+                    $texts,
+                );
+            }
+
             $panel = new AddonPanel(
                 $this->panelApi($panelData['sdk'], $path, $at.'.panel.sdk'),
                 $accepted,
                 $panelData['bundle'] === null ? null : $this->bundle($panelData['bundle'], $path, $at.'.panel.bundle'),
+                $catalogues,
             );
         }
 
@@ -803,6 +823,31 @@ final readonly class RegistryCacheCodec
             $uiTheme,
             $panel,
         ));
+    }
+
+    /**
+     * The texts of a panel catalogue: a map of keys to texts, sorted by key.
+     *
+     * @return array<string, string>
+     *
+     * @throws MalformedRegistryCache
+     */
+    private function texts(mixed $value, string $path, string $at): array
+    {
+        if (! is_array($value) || ($value !== [] && array_is_list($value))) {
+            throw MalformedRegistryCache::at($path, $at, sprintf('expected a map of keys to texts, got %s', get_debug_type($value)));
+        }
+
+        $texts = [];
+
+        foreach ($value as $key => $text) {
+            $key = (string) $key;
+            $texts[$key] = $this->string($text, $path, $at.'.'.$key);
+        }
+
+        ksort($texts, SORT_STRING);
+
+        return $texts;
     }
 
     /**

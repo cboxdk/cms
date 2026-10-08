@@ -289,11 +289,11 @@ export function atPointer(document: unknown, pointer: string): JsonValue | undef
 
 /**
  * The notices of a data point, each in the scope element of its contribution, so the page names
- * which addon said what; a neutral tone is shown as information, the kit's plainest callout.
+ * which addon said what; a neutral tone is shown as information, the kit's plainest callout. The
+ * message is the text the server read from the addon's catalogue in the page's locale, because a
+ * credential page carries no catalogue (section 2.6 of the panel extension architecture).
  */
 function NoticesHost({ point, notices }: NoticesHostProps) {
-  const runtime = useHostRuntime();
-
   if (notices.length === 0) {
     return null;
   }
@@ -309,7 +309,7 @@ function NoticesHost({ point, notices }: NoticesHostProps) {
           data-cms-contribution={notice.id}
         >
           <Callout tone={notice.tone === 'neutral' ? 'info' : notice.tone}>
-            {runtime.text(notice.addon, notice.message)}
+            {notice.message}
           </Callout>
         </div>
       ))}

@@ -19,6 +19,7 @@ use Cbox\Cms\Contracts\PanelPoints\Multiplicity;
 use Cbox\Cms\Contracts\PanelPoints\Ownership;
 use Cbox\Cms\Contracts\PanelPoints\PageName;
 use Cbox\Cms\Contracts\PanelPoints\PanelApiVersion;
+use Cbox\Cms\Contracts\PanelPoints\PanelLocale;
 use Cbox\Cms\Contracts\PanelPoints\PanelPoint;
 use Cbox\Cms\Contracts\PanelPoints\PointId;
 use Cbox\Cms\Contracts\PanelPoints\PointKind;
@@ -44,6 +45,7 @@ use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Dto\ContributionOverride;
 use Cbox\Cms\Core\Registry\Domain\Dto\HookEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\IssuedCommand;
+use Cbox\Cms\Core\Registry\Domain\Dto\PanelCatalogue;
 use Cbox\Cms\Core\Registry\Domain\Dto\PanelFill;
 use Cbox\Cms\Core\Registry\Domain\Dto\PanelPointEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\RestRoute;
@@ -93,6 +95,10 @@ function codecRegistry(): CompiledRegistry
                         new BundleFile(new BundlePath('addon.js'), BundleIntegrity::of('export {};'), BundleFileKind::Script),
                         new BundleFile(new BundlePath('addon.css'), BundleIntegrity::of('@layer cms.addon {}'), BundleFileKind::Style),
                     ]),
+                    [
+                        new PanelCatalogue(PanelLocale::Danish, ['reviews.badge.title' => 'Mærke']),
+                        new PanelCatalogue(PanelLocale::English, ['reviews.badge.title' => 'Badge']),
+                    ],
                 ),
             ),
             new AddonEntry(new AddonNamespace('stamps'), 'acme/cms-stamps', new CoreApiVersion(1, 0), ClassificationAccess::Public, [], false),
@@ -188,14 +194,14 @@ function codecFailure(mixed $damaged): MalformedRegistryCache
     Assert::fail('The codec read a malformed cache.');
 }
 
-it('writes the exact bytes of format 10', function (): void {
+it('writes the exact bytes of format 11', function (): void {
     $files = new RegistryCacheCodec()->encode(codecRegistry());
     $header = "<?php\n\ndeclare(strict_types=1);\n\n// Written by php artisan cms:build from the declared scan roots and addon manifests (PRD 13.2).\n// Do not edit and do not commit; run cms:build again instead.\n\n";
 
     expect(array_keys($files))->toBe(['actions', 'addons', 'commands', 'hooks', 'panel', 'rest', 'schema', 'subscribers'])
         ->and($files['actions'])->toBe($header.<<<'PHP'
             return [
-                'build' => '4161adefb2946681d295b0b84de7b39fc50ea300977cf6472449b9d217d59200',
+                'build' => 'd4af2bb759d613ca7c9605c1216825dbf50d71852238799bcc0e8cb5d3d30ee9',
                 'entries' => [
                     [
                         'class' => 'App\\Actions\\CreateNoteAction',
@@ -210,14 +216,14 @@ it('writes the exact bytes of format 10', function (): void {
                         ],
                     ],
                 ],
-                'format' => 10,
+                'format' => 11,
                 'registry' => 'actions',
             ];
 
             PHP)
         ->and($files['addons'])->toBe($header.<<<'PHP'
             return [
-                'build' => '4161adefb2946681d295b0b84de7b39fc50ea300977cf6472449b9d217d59200',
+                'build' => 'd4af2bb759d613ca7c9605c1216825dbf50d71852238799bcc0e8cb5d3d30ee9',
                 'entries' => [
                     [
                         'core_api' => '1.0',
@@ -248,6 +254,20 @@ it('writes the exact bytes of format 10', function (): void {
                                     ],
                                 ],
                             ],
+                            'catalogues' => [
+                                [
+                                    'locale' => 'da',
+                                    'texts' => [
+                                        'reviews.badge.title' => 'Mærke',
+                                    ],
+                                ],
+                                [
+                                    'locale' => 'en',
+                                    'texts' => [
+                                        'reviews.badge.title' => 'Badge',
+                                    ],
+                                ],
+                            ],
                             'sdk' => '1.0',
                         ],
                         'reads' => 'internal',
@@ -263,14 +283,14 @@ it('writes the exact bytes of format 10', function (): void {
                         'ui_theme' => false,
                     ],
                 ],
-                'format' => 10,
+                'format' => 11,
                 'registry' => 'addons',
             ];
 
             PHP)
         ->and($files['commands'])->toBe($header.<<<'PHP'
             return [
-                'build' => '4161adefb2946681d295b0b84de7b39fc50ea300977cf6472449b9d217d59200',
+                'build' => 'd4af2bb759d613ca7c9605c1216825dbf50d71852238799bcc0e8cb5d3d30ee9',
                 'entries' => [
                     [
                         'class' => 'App\\Commands\\CreateNote',
@@ -279,14 +299,14 @@ it('writes the exact bytes of format 10', function (): void {
                         'version' => 1,
                     ],
                 ],
-                'format' => 10,
+                'format' => 11,
                 'registry' => 'commands',
             ];
 
             PHP)
         ->and($files['hooks'])->toBe($header.<<<'PHP'
             return [
-                'build' => '4161adefb2946681d295b0b84de7b39fc50ea300977cf6472449b9d217d59200',
+                'build' => 'd4af2bb759d613ca7c9605c1216825dbf50d71852238799bcc0e8cb5d3d30ee9',
                 'entries' => [
                     [
                         'addon' => null,
@@ -313,14 +333,14 @@ it('writes the exact bytes of format 10', function (): void {
                         'reads' => 'internal',
                     ],
                 ],
-                'format' => 10,
+                'format' => 11,
                 'registry' => 'hooks',
             ];
 
             PHP)
         ->and($files['panel'])->toBe($header.<<<'PHP'
             return [
-                'build' => '4161adefb2946681d295b0b84de7b39fc50ea300977cf6472449b9d217d59200',
+                'build' => 'd4af2bb759d613ca7c9605c1216825dbf50d71852238799bcc0e8cb5d3d30ee9',
                 'entries' => [
                     [
                         'class' => 'App\\Panel\\AccountMeSectionsV1',
@@ -447,14 +467,14 @@ it('writes the exact bytes of format 10', function (): void {
                         'tightens' => [],
                     ],
                 ],
-                'format' => 10,
+                'format' => 11,
                 'registry' => 'panel',
             ];
 
             PHP)
         ->and($files['rest'])->toBe($header.<<<'PHP'
             return [
-                'build' => '4161adefb2946681d295b0b84de7b39fc50ea300977cf6472449b9d217d59200',
+                'build' => 'd4af2bb759d613ca7c9605c1216825dbf50d71852238799bcc0e8cb5d3d30ee9',
                 'entries' => [
                     [
                         'kind' => 'write',
@@ -464,14 +484,14 @@ it('writes the exact bytes of format 10', function (): void {
                         'version' => 1,
                     ],
                 ],
-                'format' => 10,
+                'format' => 11,
                 'registry' => 'rest',
             ];
 
             PHP)
         ->and($files['schema'])->toBe($header.<<<'PHP'
             return [
-                'build' => '4161adefb2946681d295b0b84de7b39fc50ea300977cf6472449b9d217d59200',
+                'build' => 'd4af2bb759d613ca7c9605c1216825dbf50d71852238799bcc0e8cb5d3d30ee9',
                 'entries' => [
                     [
                         'extends' => [
@@ -489,14 +509,14 @@ it('writes the exact bytes of format 10', function (): void {
                         ],
                     ],
                 ],
-                'format' => 10,
+                'format' => 11,
                 'registry' => 'schema',
             ];
 
             PHP)
         ->and($files['subscribers'])->toBe($header.<<<'PHP'
             return [
-                'build' => '4161adefb2946681d295b0b84de7b39fc50ea300977cf6472449b9d217d59200',
+                'build' => 'd4af2bb759d613ca7c9605c1216825dbf50d71852238799bcc0e8cb5d3d30ee9',
                 'entries' => [
                     [
                         'addon' => null,
@@ -534,12 +554,12 @@ it('writes the exact bytes of format 10', function (): void {
                         'projection' => null,
                     ],
                 ],
-                'format' => 10,
+                'format' => 11,
                 'registry' => 'subscribers',
             ];
 
             PHP)
-        ->and(new RegistryCacheCodec()->encode(CompiledRegistry::empty())['commands'])->toBe($header."return [\n    'build' => '".hash('sha256', "actions => [];\naddons => [];\ncommands => [];\nhooks => [];\npanel => [];\nrest => [];\nschema => [];\nsubscribers => [];\n")."',\n    'entries' => [],\n    'format' => 10,\n    'registry' => 'commands',\n];\n");
+        ->and(new RegistryCacheCodec()->encode(CompiledRegistry::empty())['commands'])->toBe($header."return [\n    'build' => '".hash('sha256', "actions => [];\naddons => [];\ncommands => [];\nhooks => [];\npanel => [];\nrest => [];\nschema => [];\nsubscribers => [];\n")."',\n    'entries' => [],\n    'format' => 11,\n    'registry' => 'commands',\n];\n");
 });
 
 it('reads back what it writes', function (): void {
@@ -577,48 +597,48 @@ it('refuses a malformed cache with the file and the place in it', function (call
         $files['commands'] = ['entries' => [], 'format' => 1, 'registry' => 'commands'];
 
         return $files;
-    }, 'commands.php', 'at format: format 1 is not format 10, which this version of the core reads'],
+    }, 'commands.php', 'at format: format 1 is not format 11, which this version of the core reads'],
     'a file of format 2, whose actions had no command' => [static function (array $files): array {
         $files['actions'] = [...codecFile($files, 'actions'), 'format' => 2];
 
         return $files;
-    }, 'actions.php', 'at format: format 2 is not format 10, which this version of the core reads'],
+    }, 'actions.php', 'at format: format 2 is not format 11, which this version of the core reads'],
     'a file of format 3, whose cache had no actions.php' => [static function (array $files): array {
         $files['commands'] = [...codecFile($files, 'commands'), 'format' => 3];
 
         return $files;
-    }, 'commands.php', 'at format: format 3 is not format 10, which this version of the core reads'],
+    }, 'commands.php', 'at format: format 3 is not format 11, which this version of the core reads'],
     'a file of format 4, whose cache had no subscribers.php' => [static function (array $files): array {
         $files['hooks'] = [...codecFile($files, 'hooks'), 'format' => 4];
 
         return $files;
-    }, 'hooks.php', 'at format: format 4 is not format 10, which this version of the core reads'],
+    }, 'hooks.php', 'at format: format 4 is not format 11, which this version of the core reads'],
     'a file of format 5, whose cache had no schema.php' => [static function (array $files): array {
         $files['subscribers'] = [...codecFile($files, 'subscribers'), 'format' => 5];
 
         return $files;
-    }, 'subscribers.php', 'at format: format 5 is not format 10, which this version of the core reads'],
+    }, 'subscribers.php', 'at format: format 5 is not format 11, which this version of the core reads'],
     'a file of format 6, whose schema.php named no field type contributor' => [static function (array $files): array {
         $files['schema'] = [...codecFile($files, 'schema'), 'format' => 6];
 
         return $files;
-    }, 'schema.php', 'at format: format 6 is not format 10, which this version of the core reads'],
+    }, 'schema.php', 'at format: format 6 is not format 11, which this version of the core reads'],
     'a file of format 7, whose cache had no rest.php' => [static function (array $files): array {
         $files['actions'] = [...codecFile($files, 'actions'), 'format' => 7];
 
         return $files;
-    }, 'actions.php', 'at format: format 7 is not format 10, which this version of the core reads'],
+    }, 'actions.php', 'at format: format 7 is not format 11, which this version of the core reads'],
     'a file of format 8, whose cache had no panel.php' => [static function (array $files): array {
         $files['hooks'] = [...codecFile($files, 'hooks'), 'format' => 8];
 
         return $files;
-    }, 'hooks.php', 'at format: format 8 is not format 10, which this version of the core reads'],
+    }, 'hooks.php', 'at format: format 8 is not format 11, which this version of the core reads'],
     'a file of format 9, whose cache had no addons.php' => [static function (array $files): array {
         unset($files['addons']);
         $files['actions'] = [...codecFile($files, 'actions'), 'format' => 9];
 
         return $files;
-    }, 'actions.php', 'at format: format 9 is not format 10, which this version of the core reads'],
+    }, 'actions.php', 'at format: format 9 is not format 11, which this version of the core reads'],
     'a missing addons.php' => [static function (array $files): array {
         unset($files['addons']);
 
@@ -765,7 +785,7 @@ it('refuses a malformed cache with the file and the place in it', function (call
         return $files;
     }, 'addons.php', 'at entries[0].issues[0].command: "note.create" is not a command and version'],
     'a bundle file whose path climbs out of the bundle' => [static function (array $files): array {
-        $files['addons'] = [...codecFile($files, 'addons'), 'entries' => [codecAddon(['panel' => ['accepts_experimental' => [], 'bundle' => ['entry' => 'addon.js', 'files' => [['integrity' => BundleIntegrity::of('')->value, 'kind' => 'script', 'path' => '../addon.js']]], 'sdk' => '1.0']])]];
+        $files['addons'] = [...codecFile($files, 'addons'), 'entries' => [codecAddon(['panel' => ['accepts_experimental' => [], 'bundle' => ['entry' => 'addon.js', 'files' => [['integrity' => BundleIntegrity::of('')->value, 'kind' => 'script', 'path' => '../addon.js']]], 'catalogues' => [], 'sdk' => '1.0']])]];
 
         return $files;
     }, 'addons.php', 'at entries[0].panel.bundle.files[0]: "../addon.js" is not the path of a file in a panel bundle'],

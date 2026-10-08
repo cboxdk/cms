@@ -161,4 +161,10 @@ enum BuildErrorCode: string
 
     /** The selected panel themes, composed, draw a contrast pair of the token catalogue below WCAG 2.2 AA in a mode. */
     case PanelThemeContrast = 'registry_panel_theme_contrast';
+
+    /** An addon's panel catalogue cannot be read, is not a flat object of keys to texts, or holds a key outside the addon's namespace. */
+    case PanelCatalogueInvalid = 'registry_panel_catalogue_invalid';
+
+    /** An addon's panel catalogues do not cover every locale the panel ships, or a key one locale has another has not. */
+    case PanelTranslationsIncomplete = 'registry_panel_translations_incomplete';
 }

@@ -247,7 +247,7 @@ it('shows the addon\'s notice on the login page as data alone, and every contrib
     $login = visit('/cms/login');
 
     PanelPage::assertPage($login, ['panel.login.title']);
-    $login->assertSeeIn('[data-cms-contribution="'.FixtureAddonServiceProvider::LOGIN_NOTICE.'"]', 'fixtureaddon.login_notice.message');
+    $login->assertSeeIn('[data-cms-contribution="'.FixtureAddonServiceProvider::LOGIN_NOTICE.'"]', PanelPage::addonText('fixtureaddon.login_notice.message'));
 
     expect(addonsFillOrder($login, 'login.notice@1'))->toBe([FixtureAddonServiceProvider::LOGIN_NOTICE])
         ->and(array_keys(addonsImports($login)))->not->toContain(ImportMap::ADDON_SPECIFIER.FixtureAddonServiceProvider::NAMESPACE)
@@ -257,17 +257,17 @@ it('shows the addon\'s notice on the login page as data alone, and every contrib
     $page = FixtureAddonWorld::signIn(FixtureAddonWorld::EDITOR_EMAIL);
 
     PanelPage::assertPage($page, ['panel.home.body', 'panel.nav.account_me']);
-    $page->assertSee('fixtureaddon.nav.articles');
+    $page->assertSee(PanelPage::addonText('fixtureaddon.nav.articles'));
 
     expect(addonsFillOrder($page, 'shell.user-menu@1'))->toBe([FixtureAddonServiceProvider::NEW_ARTICLE])
         ->and(addonsImports($page))->toHaveKey(ImportMap::ADDON_SPECIFIER.FixtureAddonServiceProvider::NAMESPACE);
 
     // The action opens the form of entry.create, where the aside and the submit decorator show.
-    $page->click('button:has-text("fixtureaddon.new_article.label")');
+    $page->click('button:has-text("'.PanelPage::addonText('fixtureaddon.new_article.label').'")');
     $page->assertPathIs('/cms/commands/entry.create/v1');
     PanelPage::assertPage($page, ['panel.action.entry.create.title', 'panel.command_form.run', 'panel.command_form.try']);
-    $page->assertSeeIn('[data-cms-contribution="'.FixtureAddonServiceProvider::SLUG_HELP.'"]', 'fixtureaddon.slug_help.title')
-        ->assertSee('fixtureaddon.submit_note.description');
+    $page->assertSeeIn('[data-cms-contribution="'.FixtureAddonServiceProvider::SLUG_HELP.'"]', PanelPage::addonText('fixtureaddon.slug_help.title'))
+        ->assertSee(PanelPage::addonText('fixtureaddon.submit_note.description'));
 
     addonsChooseRoot($page);
     $page->type('entry', $entry->toString())
@@ -277,16 +277,16 @@ it('shows the addon\'s notice on the login page as data alone, and every contrib
     // A dry run: the addon's section below what would change.
     $page->click(PanelPage::text('panel.command_form.try'));
     $page->assertSee(PanelPage::text('panel.command_form.dry_run_report'))
-        ->assertSeeIn('[data-cms-contribution="'.FixtureAddonServiceProvider::DRY_RUN_NOTE.'"]', 'fixtureaddon.dry_run_note.title');
+        ->assertSeeIn('[data-cms-contribution="'.FixtureAddonServiceProvider::DRY_RUN_NOTE.'"]', PanelPage::addonText('fixtureaddon.dry_run_note.title'));
     PanelPage::assertPage($page, ['panel.command_form.dry_run_report']);
 
     // The run: the addon's step, the core's confirmation, the commit, and the receipt decorator.
     $page->click(PanelPage::text('panel.command_form.run'));
-    $page->assertSee('fixtureaddon.slug_review.slug');
-    $page->click('button:has-text("fixtureaddon.slug_review.use")');
+    $page->assertSee(PanelPage::addonText('fixtureaddon.slug_review.slug', ['slug' => ADDONS_SLUG]));
+    $page->click('button:has-text("'.PanelPage::addonText('fixtureaddon.slug_review.use').'")');
     $page->click('button:text-is("'.PanelPage::text('panel.host.confirm').'")');
     $page->assertSee(PanelPage::text('panel.command_form.committed_title'))
-        ->assertSee('fixtureaddon.receipt_note.saved');
+        ->assertSee(PanelPage::addonText('fixtureaddon.receipt_note.saved'));
     PanelPage::assertPage($page, ['panel.command_form.committed_title']);
 
     // The addon's own command, from the palette: the input of the member bound to its value class
@@ -302,8 +302,8 @@ it('shows the addon\'s notice on the login page as data alone, and every contrib
     $page->assertPathIs('/cms/commands/fixtureaddon.slug.set/v1');
     PanelPage::assertPage($page, ['panel.command_form.run']);
     $page->assertVisible('[data-cms-contribution="'.FixtureAddonServiceProvider::SLUG_INPUT.'"] input[name="slug"]')
-        ->assertSee('fixtureaddon.slug_input.description')
-        ->assertDontSee('fixtureaddon.slug_help.title');
+        ->assertSee(PanelPage::addonText('fixtureaddon.slug_input.description'))
+        ->assertDontSee(PanelPage::addonText('fixtureaddon.slug_help.title'));
 
     expect(addonsFillOrder($page, 'command.form.field@1'))->toBe([FixtureAddonServiceProvider::SLUG_INPUT]);
 
@@ -327,38 +327,38 @@ it('shows the addon\'s notice on the login page as data alone, and every contrib
     $page->click('nav a:has-text("'.PanelPage::text('panel.nav.account_me').'")');
     $page->assertPathIs('/cms/account/me');
     $page->assertSeeIn('[data-cms-contribution="'.FixtureAddonServiceProvider::RECENT_ACTIVITY.'"]', 'fixtureaddon.slug.set@1')
-        ->assertSeeIn('[data-cms-contribution="'.FixtureAddonServiceProvider::RECENT_ACTIVITY.'"]', 'fixtureaddon.recent_activity.outcome.committed')
+        ->assertSeeIn('[data-cms-contribution="'.FixtureAddonServiceProvider::RECENT_ACTIVITY.'"]', PanelPage::addonText('fixtureaddon.recent_activity.outcome.committed'))
         ->assertSeeIn('[data-cms-contribution="'.FixtureAddonServiceProvider::MY_ARTICLES.'"]', ADDONS_NEW_SLUG)
         ->assertDontSeeIn('[data-cms-contribution="'.FixtureAddonServiceProvider::MY_ARTICLES.'"]', ADDONS_SLUG)
         ->assertDontSeeIn('[data-cms-contribution="'.FixtureAddonServiceProvider::MY_ARTICLES.'"]', ADDONS_TITLE)
-        ->assertDontSee('fixtureaddon.articles.title');
-    $page->assertSee('fixtureaddon.recent_activity.title')
-        ->assertSee('fixtureaddon.my_articles.title');
+        ->assertDontSee(PanelPage::addonText('fixtureaddon.articles.title'));
+    $page->assertSee(PanelPage::addonText('fixtureaddon.recent_activity.title'))
+        ->assertSee(PanelPage::addonText('fixtureaddon.my_articles.title'));
     PanelPage::assertPage($page, ['panel.account_me.title']);
 
     expect(addonsFillOrder($page, 'account.me.sections@1'))->toBe([FixtureAddonServiceProvider::RECENT_ACTIVITY, FixtureAddonServiceProvider::MY_ARTICLES]);
 
     // The addon's page, from its nav entry: the same data, without the title.
-    $page->click('nav a:has-text("fixtureaddon.nav.articles")');
+    $page->click('nav a:has-text("'.PanelPage::addonText('fixtureaddon.nav.articles').'")');
     $page->assertPathIs('/cms/x/fixtureaddon/articles');
     $page->assertSeeIn('[data-cms-contribution="'.FixtureAddonServiceProvider::ARTICLES.'"]', ADDONS_NEW_SLUG)
         ->assertSeeIn('[data-cms-contribution="'.FixtureAddonServiceProvider::ARTICLES.'"]', $entry->toString())
         ->assertDontSee(ADDONS_TITLE);
-    $page->assertSee('fixtureaddon.articles.page_title');
+    $page->assertSee(PanelPage::addonText('fixtureaddon.articles.page_title'));
     PanelPage::assertPage($page, ['panel.home.sign_out']);
 
-    expect($page->script('document.querySelector(\'nav a[aria-current="page"]\')?.textContent'))->toBe('fixtureaddon.nav.articles')
+    expect($page->script('document.querySelector(\'nav a[aria-current="page"]\')?.textContent'))->toBe(PanelPage::addonText('fixtureaddon.nav.articles'))
         ->and(StorageTables::superuser()->table('app__fixture_article')->where('fixture_title', ADDONS_TITLE)->count())->toBeGreaterThanOrEqual(1);
 
     // The grants and roles pages: the addon's notes.
     $page->click('nav a:has-text("'.PanelPage::text('panel.nav.grants').'")');
     $page->assertPathIs('/cms/access/grants');
-    $page->assertSeeIn('[data-cms-contribution="'.FixtureAddonServiceProvider::FOUR_EYES_NOTE.'"]', 'fixtureaddon.four_eyes_note.title');
+    $page->assertSeeIn('[data-cms-contribution="'.FixtureAddonServiceProvider::FOUR_EYES_NOTE.'"]', PanelPage::addonText('fixtureaddon.four_eyes_note.title'));
     PanelPage::assertPage($page, ['panel.grants.title']);
 
     $page->click('nav a:has-text("'.PanelPage::text('panel.nav.roles').'")');
     $page->assertPathIs('/cms/access/roles');
-    $page->assertSeeIn('[data-cms-contribution="'.FixtureAddonServiceProvider::ARTICLES_PERMISSION_NOTE.'"]', 'fixtureaddon.articles_permission.title');
+    $page->assertSeeIn('[data-cms-contribution="'.FixtureAddonServiceProvider::ARTICLES_PERMISSION_NOTE.'"]', PanelPage::addonText('fixtureaddon.articles_permission.title'));
     PanelPage::assertPage($page, ['panel.roles.title']);
 
     expect($world->editor->toString())->not->toBe('');
@@ -369,8 +369,8 @@ it('never sends a viewer without the permission the addon\'s page, nav entry, ac
     $page = FixtureAddonWorld::signIn(FixtureAddonWorld::READER_EMAIL);
 
     PanelPage::assertPage($page, ['panel.home.body']);
-    $page->assertDontSee('fixtureaddon.nav.articles')
-        ->assertDontSee('fixtureaddon.new_article.label');
+    $page->assertDontSee(PanelPage::addonText('fixtureaddon.nav.articles'))
+        ->assertDontSee(PanelPage::addonText('fixtureaddon.new_article.label'));
 
     $home = $sent['/cms'] ?? [];
 
@@ -383,7 +383,7 @@ it('never sends a viewer without the permission the addon\'s page, nav entry, ac
     PanelPage::assertPage($page, ['panel.not_found.title']);
 
     $page->navigate('/cms/account/me');
-    $page->assertSee('fixtureaddon.recent_activity.none_title');
+    $page->assertSee(PanelPage::addonText('fixtureaddon.recent_activity.none_title'));
     PanelPage::assertPage($page, ['panel.account_me.title']);
 
     expect(addonsFillOrder($page, 'account.me.sections@1'))->toBe([FixtureAddonServiceProvider::RECENT_ACTIVITY])
@@ -405,8 +405,8 @@ it('isolates a contribution that throws in a notice that names the addon, keeps 
 
     $page->assertSee(PanelPage::text('panel.host.failed_title', ['addon' => FixtureAddonServiceProvider::NAMESPACE]))
         ->assertSee('fixtureaddon.faulty throws on purpose')
-        ->assertSee('fixtureaddon.recent_activity.title')
-        ->assertSee('fixtureaddon.my_articles.title')
+        ->assertSee(PanelPage::addonText('fixtureaddon.recent_activity.title'))
+        ->assertSee(PanelPage::addonText('fixtureaddon.my_articles.title'))
         ->assertSee(PanelPage::text('panel.account_me.profile'))
         ->assertSee(FixtureAddonWorld::EDITOR_EMAIL);
 
@@ -424,8 +424,8 @@ it('isolates a contribution that throws in a notice that names the addon, keeps 
     $page->navigate('/cms/account/me');
 
     PanelPage::assertPage($page, ['panel.account_me.title']);
-    $page->assertDontSee('fixtureaddon.nav.articles')
-        ->assertDontSee('fixtureaddon.recent_activity.title');
+    $page->assertDontSee(PanelPage::addonText('fixtureaddon.nav.articles'))
+        ->assertDontSee(PanelPage::addonText('fixtureaddon.recent_activity.title'));
 
     expect(addonsFillOrder($page, 'account.me.sections@1'))->toBe([])
         ->and(array_keys($sent['/cms/account/me'] ?? []))->not->toContain('account.me.sections@1', 'shell.page@1', 'shell.user-menu@1', 'panel.observe.command@1')
@@ -437,7 +437,7 @@ it('isolates a contribution that throws in a notice that names the addon, keeps 
     app(Repository::class)->set('cbox-cms.panel.disabled', ['contributions' => [FixtureAddonServiceProvider::MY_ARTICLES, FixtureAddonServiceProvider::FAULTY]]);
     $page->navigate('/cms/account/me');
 
-    $page->assertSee('fixtureaddon.recent_activity.title');
+    $page->assertSee(PanelPage::addonText('fixtureaddon.recent_activity.title'));
     PanelPage::assertPage($page, ['panel.account_me.title']);
 
     expect(addonsFillOrder($page, 'account.me.sections@1'))->toBe([FixtureAddonServiceProvider::RECENT_ACTIVITY]);
@@ -450,7 +450,7 @@ it('holds a grant to the viewer themselves with the mirrored check, and runs the
 
     $page->navigate('/cms/commands/grant.assign/v1');
     PanelPage::assertPage($page, ['panel.action.grant.assign.title', 'panel.command_form.run']);
-    $page->assertDontSee('fixtureaddon.slug_help.title');
+    $page->assertDontSee(PanelPage::addonText('fixtureaddon.slug_help.title'));
 
     $page->type('grant', $grant->toString());
     $page->click(':nth-match(form button.cms-select__button, 1)');
@@ -460,7 +460,7 @@ it('holds a grant to the viewer themselves with the mirrored check, and runs the
 
     // A grant to oneself: the addon's error at the grantee, mirrored by DenySelfGrant, holds the run.
     addonsChoose($page, 'cms.actor-picker', FixtureAddonWorld::EDITOR_NAME);
-    $page->assertSee('fixtureaddon.self_grant.message');
+    $page->assertSee(PanelPage::addonText('fixtureaddon.self_grant.message'));
     $page->click(PanelPage::text('panel.command_form.run'));
     $page->assertSee(PanelPage::text('panel.command_form.held_title'));
     PanelPage::assertPage($page, ['panel.command_form.held_title']);
@@ -470,21 +470,21 @@ it('holds a grant to the viewer themselves with the mirrored check, and runs the
     // A grant to a colleague: the step asks for a second person's review; stopping cancels the
     // flow in the addon's name, and going on reaches the core's confirmation and the commit.
     addonsChoose($page, 'cms.actor-picker', FixtureAddonWorld::COLLEAGUE_NAME);
-    $page->assertDontSee('fixtureaddon.self_grant.message');
+    $page->assertDontSee(PanelPage::addonText('fixtureaddon.self_grant.message'));
     $page->click(PanelPage::text('panel.command_form.run'));
-    $page->assertSee('fixtureaddon.four_eyes.title')
+    $page->assertSee(PanelPage::addonText('fixtureaddon.four_eyes.title'))
         ->assertSee(PanelPage::text('panel.command_form.step_of', ['step' => 1, 'addon' => FixtureAddonServiceProvider::NAMESPACE]));
 
     expect($page->script('document.querySelector("[data-fixtureaddon-grantee]")?.dataset.fixtureaddonGrantee'))->toBe($world->colleague->toString());
 
-    $page->click('button:has-text("fixtureaddon.four_eyes.stop")');
+    $page->click('button:has-text("'.PanelPage::addonText('fixtureaddon.four_eyes.stop').'")');
     $page->assertSee(PanelPage::text('panel.host.step_cancelled', ['addon' => FixtureAddonServiceProvider::NAMESPACE]));
 
     expect(StorageTables::superuser()->table('grants')->where('id', $grant->toString())->count())->toBe(0);
 
     $page->click(PanelPage::text('panel.command_form.back'));
     $page->click(PanelPage::text('panel.command_form.run'));
-    $page->click('button:has-text("fixtureaddon.four_eyes.reviewed")');
+    $page->click('button:has-text("'.PanelPage::addonText('fixtureaddon.four_eyes.reviewed').'")');
     $page->assertSee(PanelPage::text('panel.host.confirm_title'));
     $page->click('button:text-is("'.PanelPage::text('panel.host.confirm').'")');
     $page->assertSee(PanelPage::text('panel.command_form.committed_title'));

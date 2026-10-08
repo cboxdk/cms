@@ -58,7 +58,7 @@ The panel's React code is the npm workspace `js/panel`, `@cboxdk/cms-panel-app`,
 Every text of the panel comes from the translations, in Danish and English (GUARDRAILS 8): the catalogues `js/panel/src/i18n/catalogues/da.json` and `en.json`, flat objects from a dotted key to its text, read in a component with `t()` from `useTranslation()`. Two checks hold this:
 
 - The ESLint rule `cms/no-literal-ui-text` of `js/tooling` fails `npm run lint` on letters written straight into JSX in a `.tsx` file: text between tags, a string or template literal as a child, and a string given to an attribute a person reads or hears, such as `aria-label`, `title`, `alt` or the input hint of a form control. Attributes only code reads, such as `className` or `role`, and text without letters are left alone.
-- `npm run lint:translations` fails when the catalogues do not have the same keys, when a text is empty or not a string, or when a catalogue is missing or another lies beside them. It checks the panel's catalogues and the kit's own, `js/ui-kit/src/i18n/catalogues`. The Unit suite of gate 5 runs it, so `composer check` fails on it.
+- `npm run lint:translations` fails when the catalogues do not have the same keys, when a text is empty or not a string, or when a catalogue is missing or another lies beside them. It checks the panel's catalogues, the kit's own, `js/ui-kit/src/i18n/catalogues`, and the workbench fixture addon's, `workbench/addons/fixtureaddon/resources/panel/lang`, because an addon ships a catalogue per locale too. The Unit suite of gate 5 runs it, so `composer check` fails on it.
 
 The kit has rules of its own, which `eslint.config.js` turns on by naming the kit's directory and the code that uses it:
 

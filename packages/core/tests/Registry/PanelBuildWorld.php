@@ -40,6 +40,7 @@ use Cbox\Cms\Core\PanelThemes\Domain\Dto\ThemeSelection;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
 use Cbox\Cms\Core\Registry\Boundary\JsonSchemaNodes;
 use Cbox\Cms\Core\Registry\Boundary\PanelBundles;
+use Cbox\Cms\Core\Registry\Boundary\PanelCatalogues;
 use Cbox\Cms\Core\Registry\Domain\BundleFileKind;
 use Cbox\Cms\Core\Registry\Domain\BundleIntegrity;
 use Cbox\Cms\Core\Registry\Domain\BundlePath;
@@ -79,7 +80,8 @@ use RuntimeException;
  * query notes.search and a validate hook) and of the addon fixture PanelAddon
  * (acme/cms-approvals, namespace approvals: its commands, its query, its hooks and a value class),
  * the JSON Schemas of their contracts, and manifests that contribute to the points. A manifest's
- * bundle is made to match its contributions unless a test gives another.
+ * bundle is made to match its contributions unless a test gives another, and the catalogues of a
+ * manifest that names a language directory are read from disk as cms:build reads them.
  */
 final class PanelBuildWorld
 {
@@ -136,6 +138,7 @@ final class PanelBuildWorld
      * @param  list<string>  $accepts
      * @param  list<string>|null  $issues  null for the addon's commands on Inertia
      * @param  array<string, string>  $themes  theme files by name, read from THEMES
+     * @param  string|null  $lang  the directory of the addon's panel catalogues, written by writtenCatalogues()
      */
     public static function manifest(
         array $contributions,
@@ -146,6 +149,7 @@ final class PanelBuildWorld
         string $package = self::ADDON,
         ?string $bundle = self::BUNDLE,
         array $themes = [],
+        ?string $lang = null,
     ): AddonManifest {
         return new AddonManifest(
             $package,
@@ -160,7 +164,7 @@ final class PanelBuildWorld
             ] : [],
             [],
             new SchemaContributions([new ContributedFieldType($namespace.':stars')], fieldTypeContributor: AddonFieldTypes::class),
-            new PanelContributions($sdk ?? PanelApiVersion::current(), $bundle, $accepts, $contributions, $themes),
+            new PanelContributions($sdk ?? PanelApiVersion::current(), $bundle, $accepts, $contributions, $themes, $lang),
         );
     }
 
@@ -173,13 +177,46 @@ final class PanelBuildWorld
      */
     public static function addons(array $manifests, array $bundles = []): DeclaredAddons
     {
+        $catalogues = [];
+
         foreach ($manifests as $manifest) {
             if ($manifest->panel?->bundle !== null && ! array_key_exists($manifest->package, $bundles)) {
                 $bundles[$manifest->package] = self::bundle($manifest);
             }
+
+            $lang = $manifest->panel?->lang;
+
+            if ($lang !== null) {
+                $catalogues[$manifest->package] ??= PanelCatalogues::read($lang);
+            }
         }
 
-        return new DeclaredAddons($manifests, [], $bundles);
+        return new DeclaredAddons($manifests, [], $bundles, [], $catalogues);
+    }
+
+    /**
+     * Writes the catalogues into a scratch directory (RegistryFixtures::cleanUp() removes it), one
+     * file per locale given, each the JSON of its texts, as an addon ships them in
+     * resources/panel/lang, and gives the directory.
+     *
+     * @param  array<string, array<string, string>|string>  $files  the texts by locale, or the bytes of the file
+     */
+    public static function writtenCatalogues(array $files): string
+    {
+        $directory = RegistryFixtures::scratch();
+
+        if (! mkdir($directory, 0o755, true)) {
+            throw new RuntimeException("Cannot make {$directory}.");
+        }
+
+        foreach ($files as $locale => $texts) {
+            file_put_contents(
+                $directory.'/'.$locale.'.json',
+                is_string($texts) ? $texts : json_encode($texts, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n",
+            );
+        }
+
+        return $directory;
     }
 
     /**

@@ -22,6 +22,7 @@ use Cbox\Cms\Core\Tests\Codecs\KernelSchema;
 use Cbox\Cms\Panel\Boundary\Generated\ContributionsCodecV1;
 use Cbox\Cms\Panel\Domain\Dto\ActionProp;
 use Cbox\Cms\Panel\Domain\Dto\AddonProp;
+use Cbox\Cms\Panel\Domain\Dto\AddonTextsProp;
 use Cbox\Cms\Panel\Domain\Dto\CheckProp;
 use Cbox\Cms\Panel\Domain\Dto\ContributionsProp;
 use Cbox\Cms\Panel\Domain\Dto\DecoratorProp;
@@ -32,6 +33,7 @@ use Cbox\Cms\Panel\Domain\Dto\PointFillsProp;
 use Cbox\Cms\Panel\Domain\Dto\PrefillProp;
 use Cbox\Cms\Panel\Domain\Dto\ReplacementProp;
 use Cbox\Cms\Panel\Domain\Dto\StepProp;
+use Cbox\Cms\Panel\Domain\Dto\TextProp;
 use Cbox\Cms\Tests\Support\TypeScript\TypeScriptValidators;
 use Cbox\Cms\Tooling\Protocol\Domain\PanelPageSchemas;
 
@@ -81,6 +83,10 @@ function contributionsJson(): string
         true,
         [new PageLinkProp('home', '/cms'), new PageLinkProp('tally.board', '/cms/x/tally/board')],
         ActorId::fromString('0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01'),
+        [new AddonTextsProp(new AddonNamespace('tally'), [
+            new TextProp('tally.nav.board', 'Board'),
+            new TextProp('tally.recount.label', 'Count again'),
+        ])],
     ), ClassificationAccess::Public);
 }
 
@@ -94,11 +100,14 @@ it('writes JSON valid against its schema and the TypeScript validator, and reads
         ->and($json)->toContain('"step":{"command":"tally.recount@1","patches":["fields.ext.tally.reason"],"position":"before_submit","timeout_seconds":20}')
         ->and($json)->toContain('"kind":"nav","nav":{"icon":"inbox","label":"tally.nav.board","page":"tally.board"},"priority":80')
         ->and($json)->toContain('"pages":[{"page":"home","url":"/cms"},{"page":"tally.board","url":"/cms/x/tally/board"}]')
+        // The texts of the active locale per addon, which the host serves a contribution's t()
+        // from (section 2.6 of the panel extension architecture).
+        ->and($json)->toContain('"texts":[{"addon":"tally","entries":[{"key":"tally.nav.board","text":"Board"},{"key":"tally.recount.label","text":"Count again"}]}]')
         ->and(KernelSchema::errors(CONTRIBUTIONS_SCHEMA, $json, PanelPageSchemas::SCHEMA_DIRECTORY))->toBe([])
         ->and($codec->encode($codec->decode($json, ClassificationAccess::Public), ClassificationAccess::Public))->toBe($json)
         ->and(TypeScriptValidators::run(PanelPageSchemas::TYPESCRIPT_DIRECTORY, [
             ['module' => 'pages/ContributionsV1', 'validator' => 'validateContributionsV1', 'document' => $json],
-            ['module' => 'pages/ContributionsV1', 'validator' => 'validateContributionsV1', 'document' => '{"addons":[],"commands":"/cms/commands","details":false,"pages":[],"points":[],"viewer":null}'],
+            ['module' => 'pages/ContributionsV1', 'validator' => 'validateContributionsV1', 'document' => '{"addons":[],"commands":"/cms/commands","details":false,"pages":[],"points":[],"texts":[],"viewer":null}'],
         ]))->toBe([['valid' => true], ['valid' => true]]);
 });
 

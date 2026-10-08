@@ -14,6 +14,7 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
  *     panel: new PanelContributions(
  *         sdk: new PanelApiVersion(1, 0),
  *         bundle: __DIR__.'/../dist/panel',
+ *         lang: __DIR__.'/../resources/panel/lang',
  *         acceptsExperimental: ['account.me.sections@1'],
  *         contributions: [new SlotFill('approvals.badge', 'account.me.sections@1')],
  *         themes: ['brand' => __DIR__.'/../resources/panel/theme.json'],
@@ -26,6 +27,14 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
  *   the bundle manifest lists against its SHA-384, its stylesheets against the addon's cascade
  *   layer, its imports against the panel's shared modules and its contributions against these, as
  *   registry_panel_bundle_invalid.
+ * - lang: the absolute directory of the addon's panel catalogues, which holds one JSON file per
+ *   locale the panel ships (PanelLocale), such as da.json and en.json, each a flat object from a
+ *   key in the addon's own namespace to its text, or null when the addon ships no texts and every
+ *   key its contributions name shows as the key. cms:build refuses a file that cannot be read or
+ *   is not of that form, and a key outside the addon's namespace, as
+ *   registry_panel_catalogue_invalid, and a locale without a file, or a key one locale has and
+ *   another has not, as registry_panel_translations_incomplete. Only the active locale's
+ *   catalogue reaches the browser.
  * - acceptsExperimental: the ids of the experimental points the addon contributes to, each once.
  *   An experimental point may change in a minor release of the panel's API, so the addon opts in
  *   to each; cms:build refuses a contribution to one it does not list, as
@@ -44,6 +53,8 @@ final readonly class PanelContributions
 {
     public ?string $bundle;
 
+    public ?string $lang;
+
     /** @var list<string> */
     public array $acceptsExperimental;
 
@@ -58,11 +69,12 @@ final readonly class PanelContributions
 
     /**
      * @param  string|null  $bundle  the absolute directory of the addon's bundle, built from __DIR__
+     * @param  string|null  $lang  the absolute directory of the addon's panel catalogues, built from __DIR__
      * @param  list<string>  $acceptsExperimental  point ids, such as "account.me.sections@1"
      * @param  list<PanelContribution>  $contributions
      * @param  array<string, string>  $themes  absolute theme files by local name, built from __DIR__
      *
-     * @throws InvalidAddonManifest when the bundle directory is not absolute, a point is accepted twice, or a theme's name or file is not of its form
+     * @throws InvalidAddonManifest when the bundle or language directory is not absolute, a point is accepted twice, or a theme's name or file is not of its form
      */
     public function __construct(
         public PanelApiVersion $sdk,
@@ -70,8 +82,10 @@ final readonly class PanelContributions
         array $acceptsExperimental = [],
         public array $contributions = [],
         array $themes = [],
+        ?string $lang = null,
     ) {
         $this->bundle = $bundle === null ? null : ClassNames::absoluteDirectory('panel bundle', $bundle);
+        $this->lang = $lang === null ? null : ClassNames::absoluteDirectory('panel language', $lang);
 
         foreach (array_count_values($acceptsExperimental) as $point => $times) {
             if ($times > 1) {

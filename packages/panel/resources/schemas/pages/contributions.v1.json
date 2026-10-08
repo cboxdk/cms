@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "the active contributions of a panel page, contract version 1",
-  "description": "The prop cms.contributions of every panel page behind the login (PRD 13.4), which the panel's host renders the page's points from: for each point the page renders, its kind and how many contributions it shows, with the contributions the server resolved for this viewer and request, in the order the host renders them; the addons those contributions come from, each with the digest of the contributions its code must register and the commands it may issue; whether the viewer sees the detail of a contribution that failed; the panel's pages a contribution may navigate to; and the address the host runs commands through. A contribution is listed only when it is enabled, in scope and the viewer holds the permission its scope requires; any other is never sent, not even by name. Each carries the point's props as the point's generated codec wrote them at the lower of the viewer's classification access and the addon's reads capability, and what its kind needs besides. A contribution with data gets it as the deferred prop ext.<addon>, under its id. The PHP form is Cbox\\Cms\\Panel\\Domain\\Dto\\ContributionsProp, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
+  "description": "The prop cms.contributions of every panel page behind the login (PRD 13.4), which the panel's host renders the page's points from: for each point the page renders, its kind and how many contributions it shows, with the contributions the server resolved for this viewer and request, in the order the host renders them; the addons those contributions come from, each with the digest of the contributions its code must register and the commands it may issue; whether the viewer sees the detail of a contribution that failed; the panel's pages a contribution may navigate to; the texts of the active locale for each of those addons, as cms:build compiled its catalogue; and the address the host runs commands through. A contribution is listed only when it is enabled, in scope and the viewer holds the permission its scope requires; any other is never sent, not even by name. Each carries the point's props as the point's generated codec wrote them at the lower of the viewer's classification access and the addon's reads capability, and what its kind needs besides. A contribution with data gets it as the deferred prop ext.<addon>, under its id. The PHP form is Cbox\\Cms\\Panel\\Domain\\Dto\\ContributionsProp, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -10,6 +10,7 @@
     "details",
     "pages",
     "points",
+    "texts",
     "viewer"
   ],
   "properties": {
@@ -45,6 +46,14 @@
       "maxItems": 200,
       "items": {
         "$ref": "#/$defs/point"
+      }
+    },
+    "texts": {
+      "description": "The texts of the active locale, by addon, sorted by namespace: for each addon with an active contribution on the page, the catalogue cms:build compiled from its resources/panel/lang/<locale>.json, every key in the addon's own namespace. The core's own contributions, in the namespace cms, read the panel's own catalogue in the browser and are not listed. Only the active locale travels, so a key the catalogue has not, or one outside the addon's namespace, shows as the key.",
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "$ref": "#/$defs/texts"
       }
     },
     "viewer": {
@@ -557,6 +566,54 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 30
+        }
+      }
+    },
+    "text": {
+      "description": "One text of an addon's catalogue: the translation key a contribution names and its text in the active locale.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "text"
+      ],
+      "properties": {
+        "key": {
+          "description": "The translation key, dot-separated lower-case words below the addon's namespace, such as fixtureaddon.nav.articles.",
+          "type": "string",
+          "maxLength": 200,
+          "minLength": 1
+        },
+        "text": {
+          "description": "The text in the active locale, which the host fills the parameters {name} of before it is shown.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        }
+      }
+    },
+    "texts": {
+      "description": "The catalogue of one addon in the active locale.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "addon",
+        "entries"
+      ],
+      "properties": {
+        "addon": {
+          "description": "The addon's namespace, whose contributions read these texts.",
+          "type": "string",
+          "maxLength": 20,
+          "pattern": "^[a-z][a-z0-9]{0,19}$"
+        },
+        "entries": {
+          "description": "The addon's texts, sorted by key; empty when the addon ships no catalogue.",
+          "type": "array",
+          "maxItems": 2000,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
         }
       }
     }

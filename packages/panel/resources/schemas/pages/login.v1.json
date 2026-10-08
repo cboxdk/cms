@@ -23,7 +23,7 @@
       "minLength": 1
     },
     "notices": {
-      "description": "The notices the addons contribute to login.notice@1 (PRD 13.4), in render order: translated plain text with a tone, data alone, because no addon code runs on the login page. Empty when none is contributed or enabled.",
+      "description": "The notices the addons contribute to login.notice@1 (PRD 13.4), in render order: plain text in the page's locale with a tone, data alone, because no addon code runs on the login page. Empty when none is contributed or enabled.",
       "type": "array",
       "maxItems": 50,
       "items": {
@@ -55,7 +55,7 @@
   },
   "$defs": {
     "notice": {
-      "description": "One notice: the addon it comes from, the contribution's id, the translation key of its message in the addon's catalogue, and its tone.",
+      "description": "One notice: the addon it comes from, the contribution's id, its message in the page's locale, and its tone.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -78,7 +78,7 @@
           "pattern": "^[a-z][a-z0-9]{0,19}(\\.[a-z][a-z0-9_]*(-[a-z0-9_]+)*)+$"
         },
         "message": {
-          "description": "The translation key of the notice in the addon's catalogue, `<namespace>.<key>`.",
+          "description": "The notice in the page's locale, as cms:build compiled the addon's catalogue; the translation key itself when the addon ships no text for it. A credential page carries no catalogue, so the text travels and not its key.",
           "type": "string",
           "minLength": 3,
           "maxLength": 200

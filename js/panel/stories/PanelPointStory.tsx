@@ -6,12 +6,12 @@
 // registered by the panel's build and an addon's from its bundle.
 
 import { Button, Card, DescriptionList, EmptyState, Stack } from '@cboxdk/cms-ui-kit';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import type { PointFillsPropV1 } from '../src/generated/pages/ContributionsV1';
 import { PointHost, usePointHost, type Tightened } from '../src/host';
 import { AddonSource, CORE_NAMESPACE } from '../src/host/addons';
-import type { Contributions } from '../src/host/model';
+import { NO_CONTRIBUTIONS, catalogues, type Contributions } from '../src/host/model';
 import { importAddon } from '../src/host/PanelRuntime';
 import type { HostServices } from '../src/host/panel-host';
 import { registrationDigest } from '../src/host/registration';
@@ -175,10 +175,13 @@ function PointCard({
 }
 
 /** Services for a story: nothing leaves the page, and every report is dispatched as the panel does. */
-function storyServices(locale: string): HostServices {
+function storyServices(locale: string, contributions: Contributions): HostServices {
+  const texts = catalogues(contributions);
+
   return {
     locale,
-    text: (addon, key) => (addon === CORE_NAMESPACE ? lookup(localeOf(locale), key) : undefined),
+    text: (addon, key) =>
+      addon === CORE_NAMESPACE ? lookup(localeOf(locale), key) : texts.get(addon)?.get(key),
     notify: () => undefined,
     visit: () => undefined,
     runCommand: () => Promise.reject(new Error('A story runs no command.')),
@@ -214,6 +217,10 @@ async function storyContributions(
     details: true,
     pages: [],
     points: [point.point],
+    // A story carries no addon catalogue, so an addon's contribution shows its keys; the panel's
+    // own pages carry the catalogue of their locale (section 2.6 of the panel extension
+    // architecture).
+    texts: [],
     viewer: null,
   };
 }
@@ -242,7 +249,10 @@ function PointRuntime({
   const [source] = useState(
     () => new AddonSource(importAddon, { [CORE_NAMESPACE]: CORE_CONTRIBUTIONS }, () => undefined),
   );
-  const [services] = useState(() => storyServices(locale));
+  const services = useMemo(
+    () => storyServices(locale, contributions ?? NO_CONTRIBUTIONS),
+    [locale, contributions],
+  );
 
   useEffect(() => {
     let live = true;

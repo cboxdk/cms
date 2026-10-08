@@ -11,8 +11,10 @@ use Cbox\Cms\Contracts\PanelPoints\Tone;
 
 /**
  * One notice of the login page (PRD 13.4), `#/$defs/notice` of login.v1.json: the addon it comes
- * from, the contribution's id, the translation key of its message in the addon's catalogue and
- * its tone. Written by the generated LoginPageCodecV1.
+ * from, the contribution's id, its message in the page's locale, as ResolveLoginNotices read it
+ * from the addon's compiled catalogue, and its tone. A credential page carries no catalogue, so
+ * the text travels and not its key; a key the addon ships no text for travels as the key. Written
+ * by the generated LoginPageCodecV1.
  */
 #[Internal]
 final readonly class LoginNoticeProp

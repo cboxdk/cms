@@ -29,6 +29,7 @@ use Cbox\Cms\Core\Codecs\Boundary\Generated\ListRolesCodecV1;
 use Cbox\Cms\Core\PanelThemes\Actions\CompilePanelThemes;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
 use Cbox\Cms\Core\Registry\Boundary\JsonSchemaNodes;
+use Cbox\Cms\Core\Registry\Boundary\PanelCatalogues;
 use Cbox\Cms\Core\Registry\Domain\Dto\BuildSettings;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Dto\ContractShapes;
@@ -70,7 +71,9 @@ use Cbox\Cms\Panel\Tests\Contributions\Fixtures\Tally\TallyNotes;
  * declares: the page BOARD at /x/tally/board, reading its data with tally.board and shown only to
  * a viewer who holds tally.board, the nav entry BOARD_LINK that opens it, and the action ADD of the
  * viewer's menu, which runs the core tests' tally.add for the viewer's own tally after a dry run;
- * the addon's capabilities let it issue tally.add.
+ * the addon's capabilities let it issue tally.add. Its texts are Fixtures/Tally/lang/da.json and
+ * en.json, which cms:build compiles into the addon's catalogues (section 2.6 of the panel
+ * extension architecture).
  */
 final class ContributionWorld
 {
@@ -108,6 +111,9 @@ final class ContributionWorld
 
     /** The permission ADD needs: the command it runs. */
     public const string ADD_PERMISSION = 'tally.add';
+
+    /** The addon's panel catalogues, one file per locale the panel ships. */
+    public const string LANG = __DIR__.'/Fixtures/Tally/lang';
 
     /** The tally command's directory in the core's tests, scanned as part of the addon's package. */
     public const string TALLY_COMMAND = __DIR__.'/../../../core/tests/Pipeline/Tally';
@@ -156,7 +162,7 @@ final class ContributionWorld
             new CoreApiVersion(CoreApiVersion::CURRENT_MAJOR, CoreApiVersion::CURRENT_MINOR),
             __DIR__.'/Fixtures/Tally',
             new AddonCapabilities($reads, [AddTally::class]),
-            panel: new PanelContributions(PanelApiVersion::current(), PanelBuildWorld::BUNDLE, self::POINTS, $contributions ?? self::contributions()),
+            panel: new PanelContributions(PanelApiVersion::current(), PanelBuildWorld::BUNDLE, self::POINTS, $contributions ?? self::contributions(), lang: self::LANG),
         );
     }
 
@@ -178,7 +184,7 @@ final class ContributionWorld
                 new ScanRoot(PanelServiceProvider::PACKAGE, dirname(__DIR__, 2).'/src'),
                 ...array_map(static fn (string $directory): ScanRoot => new ScanRoot(PanelServiceProvider::PACKAGE, $directory), self::CORE_QUERIES),
             ),
-            new DeclaredAddons([$manifest], [], [self::ADDON => PanelBuildWorld::bundle($manifest)], $core),
+            new DeclaredAddons([$manifest], [], [self::ADDON => PanelBuildWorld::bundle($manifest)], $core, [self::ADDON => PanelCatalogues::read(self::LANG)]),
             new BuildSettings(null, $overrides),
         );
     }

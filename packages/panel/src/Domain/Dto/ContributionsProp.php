@@ -13,8 +13,9 @@ use Cbox\Cms\Contracts\Ids\ActorId;
  * active contribution, with those contributions in render order; the addons they come from, each
  * with the digest its code's registration must match and the commands it may issue; whether the
  * viewer sees the detail of a contribution that failed; the pages a contribution may navigate to;
- * the address the host runs commands through; and the viewer's actor id, which a form check's
- * context names. Written by its generated codec, ContributionsCodecV1.
+ * the texts of the active locale per addon, as cms:build compiled its catalogue; the address the
+ * host runs commands through; and the viewer's actor id, which a form check's context names.
+ * Written by its generated codec, ContributionsCodecV1.
  */
 #[Internal]
 final readonly class ContributionsProp
@@ -23,6 +24,7 @@ final readonly class ContributionsProp
      * @param  list<PointFillsProp>  $points
      * @param  list<AddonProp>  $addons
      * @param  list<PageLinkProp>  $pages
+     * @param  list<AddonTextsProp>  $texts  sorted by the addon's namespace
      */
     public function __construct(
         public array $points,
@@ -31,5 +33,6 @@ final readonly class ContributionsProp
         public bool $details,
         public array $pages,
         public ?ActorId $viewer,
+        public array $texts = [],
     ) {}
 }

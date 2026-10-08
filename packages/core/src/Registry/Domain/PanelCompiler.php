@@ -23,6 +23,7 @@ use Cbox\Cms\Contracts\PanelPoints\PageContribution;
 use Cbox\Cms\Contracts\PanelPoints\PanelApiVersion;
 use Cbox\Cms\Contracts\PanelPoints\PanelContribution;
 use Cbox\Cms\Contracts\PanelPoints\PanelContributions;
+use Cbox\Cms\Contracts\PanelPoints\PanelLocale;
 use Cbox\Cms\Contracts\PanelPoints\PointDeprecation;
 use Cbox\Cms\Contracts\PanelPoints\PointId;
 use Cbox\Cms\Contracts\PanelPoints\PointKind;
@@ -34,6 +35,7 @@ use Cbox\Cms\Contracts\PanelPoints\Tighten;
 use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\AddonBundle;
+use Cbox\Cms\Core\Registry\Domain\Dto\AddonCatalogues;
 use Cbox\Cms\Core\Registry\Domain\Dto\AddonEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\AddonPanel;
 use Cbox\Cms\Core\Registry\Domain\Dto\BuildProblem;
@@ -48,6 +50,7 @@ use Cbox\Cms\Core\Registry\Domain\Dto\ContractShapes;
 use Cbox\Cms\Core\Registry\Domain\Dto\DiscoveredHook;
 use Cbox\Cms\Core\Registry\Domain\Dto\Discovery;
 use Cbox\Cms\Core\Registry\Domain\Dto\IssuedCommand;
+use Cbox\Cms\Core\Registry\Domain\Dto\PanelCatalogue;
 use Cbox\Cms\Core\Registry\Domain\Dto\PanelCompilation;
 use Cbox\Cms\Core\Registry\Domain\Dto\PanelFill;
 use Cbox\Cms\Core\Registry\Domain\Dto\PanelPointEntry;
@@ -99,6 +102,7 @@ final readonly class PanelCompiler
      * @param  list<ActionEntry>  $actions  the compiled actions
      * @param  array<string, AddonBundle>  $bundles  by package
      * @param  list<PanelContribution>  $core  the core's own contributions, in the namespace cms
+     * @param  array<string, AddonCatalogues>  $catalogues  by package
      */
     public function compile(
         array $points,
@@ -109,6 +113,7 @@ final readonly class PanelCompiler
         ContractShapes $shapes,
         array $bundles,
         array $core = [],
+        array $catalogues = [],
     ): PanelCompilation {
         $context = new PanelContext($points, $discovery, $actions, $shapes);
         $problems = [];
@@ -125,7 +130,7 @@ final readonly class PanelCompiler
             $compiled = null;
 
             if ($panel instanceof PanelContributions) {
-                $compiled = $this->addonPanel($manifest, $panel, $context, $bundles[$manifest->package] ?? null, $settings, $owners, $fills, $problems, $warnings);
+                $compiled = $this->addonPanel($manifest, $panel, $context, $bundles[$manifest->package] ?? null, $catalogues[$manifest->package] ?? null, $settings, $owners, $fills, $problems, $warnings);
             }
 
             $addons[] = new AddonEntry($manifest->namespace, $manifest->package, $manifest->coreApi, $manifest->capabilities->reads, $issues, $manifest->capabilities->uiTheme, $compiled);
@@ -194,6 +199,7 @@ final readonly class PanelCompiler
         PanelContributions $panel,
         PanelContext $context,
         ?AddonBundle $bundle,
+        ?AddonCatalogues $catalogues,
         BuildSettings $settings,
         array &$owners,
         array &$fills,
@@ -273,7 +279,122 @@ final readonly class PanelCompiler
 
         sort($code, SORT_STRING);
 
-        return new AddonPanel($panel->sdk, $accepted, $this->bundle($manifest, $panel, $bundle, $code, $settings, $problems));
+        return new AddonPanel(
+            $panel->sdk,
+            $accepted,
+            $this->bundle($manifest, $panel, $bundle, $code, $settings, $problems),
+            $this->catalogues($manifest, $panel, $catalogues, $problems),
+        );
+    }
+
+    /**
+     * Checks an addon's panel catalogues (section 2.6 of the panel extension architecture) and
+     * gives what the registry keeps of them: the texts of each locale the panel ships, every key in
+     * the addon's own namespace, because a contribution's t() reads its own namespace alone.
+     *
+     * An addon that names no language directory ships no texts, and every key its contributions
+     * name shows as the key; one that names a directory ships a catalogue for every locale, with
+     * the same keys, so no locale shows a key where another shows a text.
+     *
+     * @param  list<BuildProblem>  $problems
+     * @return list<PanelCatalogue>
+     */
+    private function catalogues(AddonManifest $manifest, PanelContributions $panel, ?AddonCatalogues $catalogues, array &$problems): array
+    {
+        $addon = $manifest->namespace->value;
+        $named = sprintf('The panel catalogues of addon "%s" (%s)', $addon, $manifest->package);
+
+        if ($panel->lang === null) {
+            return [];
+        }
+
+        if (! $catalogues instanceof AddonCatalogues) {
+            $problems[] = new BuildProblem(BuildErrorCode::PanelCatalogueInvalid, sprintf('%s in %s were not read.', $named, $panel->lang));
+
+            return [];
+        }
+
+        $wrong = $catalogues->problems !== [];
+
+        foreach ($catalogues->problems as $problem) {
+            $problems[] = new BuildProblem(BuildErrorCode::PanelCatalogueInvalid, sprintf(
+                '%s in %s: %s. A catalogue is one JSON object from a key of the addon\'s namespace to its text, as the panel\'s own catalogues are.',
+                $named,
+                $panel->lang,
+                $problem,
+            ));
+        }
+
+        $prefix = $addon.'.';
+        $kept = [];
+        $keys = [];
+
+        foreach ($catalogues->catalogues as $catalogue) {
+            $texts = [];
+
+            foreach ($catalogue->texts as $key => $text) {
+                if (! str_starts_with($key, $prefix)) {
+                    $wrong = true;
+                    $problems[] = new BuildProblem(BuildErrorCode::PanelCatalogueInvalid, sprintf(
+                        '%s in %s hold the key "%s" in %s, which is not in the addon\'s namespace. A contribution reads the texts of its own namespace alone: name every key "%s<rest>".',
+                        $named,
+                        $panel->lang,
+                        $key,
+                        $catalogue->locale->file(),
+                        $prefix,
+                    ));
+
+                    continue;
+                }
+
+                $texts[$key] = $text;
+                $keys[$key] = true;
+            }
+
+            $kept[] = new PanelCatalogue($catalogue->locale, $texts);
+        }
+
+        if ($wrong) {
+            // The files themselves are wrong; what they cover is checked once they can be read.
+            return $kept;
+        }
+
+        $missing = [];
+
+        foreach (PanelLocale::cases() as $locale) {
+            if (! array_any($kept, static fn (PanelCatalogue $catalogue): bool => $catalogue->locale === $locale)) {
+                $missing[] = $locale->file();
+            }
+        }
+
+        if ($missing !== []) {
+            $problems[] = new BuildProblem(BuildErrorCode::PanelTranslationsIncomplete, sprintf(
+                '%s in %s have no %s. The panel ships its texts in %s (GUARDRAILS 8), so an addon ships a catalogue for each.',
+                $named,
+                $panel->lang,
+                implode(' and no ', $missing),
+                implode(' and ', array_map(static fn (PanelLocale $locale): string => $locale->value, PanelLocale::cases())),
+            ));
+
+            return $kept;
+        }
+
+        foreach ($kept as $catalogue) {
+            $absent = array_values(array_diff(array_keys($keys), array_keys($catalogue->texts)));
+            sort($absent, SORT_STRING);
+
+            if ($absent !== []) {
+                $problems[] = new BuildProblem(BuildErrorCode::PanelTranslationsIncomplete, sprintf(
+                    '%s in %s give no text in %s for %s, which another locale has. Every text the panel shows exists in every locale it ships.',
+                    $named,
+                    $panel->lang,
+                    $catalogue->locale->file(),
+                    implode(', ', $absent),
+                ));
+            }
+        }
+
+        return $kept;
     }
 
     /**

@@ -217,7 +217,7 @@ it('shows a warning check, holds for an acknowledge check and a mirrored blockin
     // A title with no letter or digit derives no slug: the addon's warning, listed with its field,
     // blocks nothing.
     fillFields($page, '!!!');
-    $page->assertSee('fixtureaddon.slug_hint.message')
+    $page->assertSee(PanelPage::addonText('fixtureaddon.slug_hint.message'))
         ->assertSee(PanelPage::text('panel.command_form.issue_title', ['addon' => FixtureAddonServiceProvider::NAMESPACE, 'field' => 'fields.fixture_title']));
 
     foreach (POINTS_WIDTHS as $width) {
@@ -230,8 +230,8 @@ it('shows a warning check, holds for an acknowledge check and a mirrored blockin
     // A slug that is not well formed is the addon's error, which mirrors its hook: the run is held
     // and nothing is sent.
     fillFields($page, 'A quiet week', 'Bad Slug');
-    $page->assertSee('fixtureaddon.slug_shape.message')
-        ->assertDontSee('fixtureaddon.slug_hint.message');
+    $page->assertSee(PanelPage::addonText('fixtureaddon.slug_shape.message', ['slug' => 'Bad Slug']))
+        ->assertDontSee(PanelPage::addonText('fixtureaddon.slug_hint.message'));
     $page->click(PanelPage::text('panel.command_form.run'));
     $page->assertSee(PanelPage::text('panel.command_form.held_title'));
     expect(articleCount())->toBe(0);
@@ -239,8 +239,8 @@ it('shows a warning check, holds for an acknowledge check and a mirrored blockin
     // A slug set by hand, well formed but not the one the title derives, asks for an
     // acknowledgement: the run is held until it is ticked.
     fillFields($page, 'A quiet week', LONG_SLUG);
-    $page->assertSee('fixtureaddon.slug_override.message')
-        ->assertDontSee('fixtureaddon.slug_shape.message');
+    $page->assertSee(PanelPage::addonText('fixtureaddon.slug_override.message', ['derived' => 'a-quiet-week']))
+        ->assertDontSee(PanelPage::addonText('fixtureaddon.slug_shape.message', ['slug' => LONG_SLUG]));
     $page->click(PanelPage::text('panel.command_form.run'));
     $page->assertSee(PanelPage::text('panel.command_form.held_title'));
     expect(articleCount())->toBe(0);
@@ -249,12 +249,12 @@ it('shows a warning check, holds for an acknowledge check and a mirrored blockin
     $page->click(PanelPage::text('panel.command_form.run'));
 
     // The addon's step runs before the submit; stopping it cancels the flow in the addon's name.
-    $page->assertSee('fixtureaddon.slug_review.title')
+    $page->assertSee(PanelPage::addonText('fixtureaddon.slug_review.title'))
         ->assertSee(PanelPage::text('panel.command_form.step_of', ['step' => 1, 'addon' => FixtureAddonServiceProvider::NAMESPACE]));
     PanelPage::assertPage($page, ['panel.command_form.flow']);
-    $page->click('button:has-text("fixtureaddon.slug_review.stop")');
+    $page->click('button:has-text("'.PanelPage::addonText('fixtureaddon.slug_review.stop').'")');
     $page->assertSee(PanelPage::text('panel.host.step_cancelled', ['addon' => FixtureAddonServiceProvider::NAMESPACE]))
-        ->assertSee('fixtureaddon.slug_review.cancelled');
+        ->assertSee(PanelPage::addonText('fixtureaddon.slug_review.cancelled'));
     expect(articleCount())->toBe(0);
 
     // Run again, the step takes the slug and the core's confirmation sends the draft; the kernel
@@ -262,13 +262,13 @@ it('shows a warning check, holds for an acknowledge check and a mirrored blockin
     // acknowledged issue at the same path, shown at the fields control.
     $page->click(PanelPage::text('panel.command_form.back'));
     $page->click(PanelPage::text('panel.command_form.run'));
-    $page->click('button:has-text("fixtureaddon.slug_review.use")');
+    $page->click('button:has-text("'.PanelPage::addonText('fixtureaddon.slug_review.use').'")');
     $page->assertSee(PanelPage::text('panel.host.confirm_title'));
     $page->click('button:text-is("'.PanelPage::text('panel.host.confirm').'")');
 
     $page->assertSee(PanelPage::text('panel.command_form.refused_title'))
         ->assertSee('validation_failed')
-        ->assertDontSee('fixtureaddon.slug_override.message');
+        ->assertDontSee(PanelPage::addonText('fixtureaddon.slug_override.message', ['derived' => 'a-quiet-week']));
     expect(PanelProbe::eventually($page, 'document.querySelector(\'textarea[name="fields"]\')?.getAttribute(\'aria-invalid\') === "true"'))->toBeTrue()
         ->and(articleCount())->toBe(0);
     PanelPage::assertPage($page, ['panel.command_form.refused_title', 'panel.host.refused']);
@@ -276,10 +276,10 @@ it('shows a warning check, holds for an acknowledge check and a mirrored blockin
     // With a slug the title derives, nothing is asked: the step shows it, the confirmation sends
     // the draft, and the article is written with it.
     fillFields($page, 'A quiet week', 'a-quiet-week');
-    $page->assertDontSee('fixtureaddon.slug_override.message');
+    $page->assertDontSee(PanelPage::addonText('fixtureaddon.slug_override.message', ['derived' => 'a-quiet-week']));
     $page->click(PanelPage::text('panel.command_form.run'));
-    $page->assertSee('fixtureaddon.slug_review.slug');
-    $page->click('button:has-text("fixtureaddon.slug_review.use")');
+    $page->assertSee(PanelPage::addonText('fixtureaddon.slug_review.slug', ['slug' => 'a-quiet-week']));
+    $page->click('button:has-text("'.PanelPage::addonText('fixtureaddon.slug_review.use').'")');
     $page->click('button:text-is("'.PanelPage::text('panel.host.confirm').'")');
 
     $page->assertSee(PanelPage::text('panel.command_form.committed_title'))

@@ -161,6 +161,10 @@ use Workbench\FixtureAddon\Slug\Domain\ArticleSlug;
  * - and one theme, brand, a magenta accent, which has no effect until the installation selects it
  *   in cbox-cms.panel.themes; the workbench does not.
  *
+ * Its texts are resources/panel/lang/da.json and en.json, the same keys in both, every key below
+ * fixtureaddon. (section 2.6 of the panel extension architecture): cms:build reads them, the page
+ * carries the active locale's alone, and a contribution's t() gives the text.
+ *
  * The addon reads public fields, so the panel hands its contributions the query's result at
  * public access: an article's title, classified internal, is never among what MY_ARTICLES and
  * ARTICLES get, whatever the viewer may read (the reads cap of section 3.2). Their code is the
@@ -336,6 +340,7 @@ final class FixtureAddonServiceProvider extends ServiceProvider implements Decla
                 acceptsExperimental: self::ACCEPTS_EXPERIMENTAL,
                 contributions: self::contributions(),
                 themes: [self::THEME => __DIR__.'/../resources/panel/theme.json'],
+                lang: __DIR__.'/../resources/panel/lang',
             ),
         );
     }

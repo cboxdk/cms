@@ -113,6 +113,12 @@ it('holds the panel contributions to an absolute bundle and each accepted point 
         ->and(static fn (): PanelContributions => new PanelContributions(PanelApiVersion::current(), null, ['notes.a@1', 'notes.a@1']))->toThrow(InvalidAddonManifest::class, 'accept the experimental point "notes.a@1" 2 times');
 });
 
+it('holds the addon\'s panel catalogues as an absolute directory, or none', function (): void {
+    expect(new PanelContributions(PanelApiVersion::current(), lang: '/srv/addons/approvals/resources/panel/lang')->lang)->toBe('/srv/addons/approvals/resources/panel/lang')
+        ->and(new PanelContributions(PanelApiVersion::current())->lang)->toBeNull()
+        ->and(static fn (): PanelContributions => new PanelContributions(PanelApiVersion::current(), lang: 'resources/panel/lang'))->toThrow(InvalidAddonManifest::class, 'The panel language directory "resources/panel/lang" is not an absolute path');
+});
+
 it('holds the addon\'s themes by a local name to absolute JSON files, sorted by name', function (): void {
     $panel = new PanelContributions(PanelApiVersion::current(), themes: ['quiet' => '/srv/addons/brand/quiet.json', 'brand' => '/srv/addons/brand/theme.json']);
 

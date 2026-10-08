@@ -21,7 +21,7 @@ Notices above the form of the [login page](../pages.md#the-login-pages-notices),
 | The core's own | none |
 | Fixture addon | `fixtureaddon.login-notice`, in the tone `Info` |
 
-A contribution is a `LoginNotice`: the translation key of its message and a `Tone` (`Neutral`, `Info`, `Warning` or `Danger`). The page shows the enabled notices in render order, each as the kit's callout. The page has no viewer, so a notice is never held to a permission. The kill switch turns a notice off at the next request, and when the registry cannot be read the page shows none, so nothing an addon does keeps a person from the login form.
+A contribution is a `LoginNotice`: the translation key of its message and a `Tone` (`Neutral`, `Info`, `Warning` or `Danger`). The page shows the enabled notices in render order, each as the kit's callout, with the text of the key in the page's locale, which the server reads from the addon's compiled catalogue, because a credential page carries no catalogue ([i18n](../../../ui/i18n.md#an-addons-texts)); a key the addon ships no text for shows as the key. The page has no viewer, so a notice is never held to a permission. The kill switch turns a notice off at the next request, and when the registry cannot be read the page shows none, so nothing an addon does keeps a person from the login form.
 
 ## Example
 

@@ -53,7 +53,7 @@ it('keeps every interaction under 200 ms with every B1 point populated', functio
 
     $page->assertPathIs('/cms/login');
     PanelPage::assertPage($page, ['panel.login.title']);
-    $page->assertSee('fixtureaddon.login_notice.message');
+    $page->assertSee(PanelPage::addonText('fixtureaddon.login_notice.message'));
     Interactions::observe($page);
     $page->type('email', FixtureAddonWorld::EDITOR_EMAIL)
         ->type('password', FixtureAddonWorld::PASSWORD);
@@ -71,24 +71,24 @@ it('keeps every interaction under 200 ms with every B1 point populated', functio
 
     $page->click('nav a:has-text("'.PanelPage::text('panel.nav.account_me').'")');
     $page->assertPathIs('/cms/account/me');
-    $page->assertSee('fixtureaddon.recent_activity.title')
-        ->assertSee('fixtureaddon.articles.none_title');
+    $page->assertSee(PanelPage::addonText('fixtureaddon.recent_activity.title'))
+        ->assertSee(PanelPage::addonText('fixtureaddon.articles.none_title'));
     PanelPage::assertPage($page, ['panel.account_me.title']);
 
-    $page->click('nav a:has-text("fixtureaddon.nav.articles")');
+    $page->click('nav a:has-text("'.PanelPage::addonText('fixtureaddon.nav.articles').'")');
     $page->assertPathIs('/cms/x/fixtureaddon/articles');
-    $page->assertSee('fixtureaddon.articles.none_title');
-    $page->assertSee('fixtureaddon.articles.page_title');
+    $page->assertSee(PanelPage::addonText('fixtureaddon.articles.none_title'));
+    $page->assertSee(PanelPage::addonText('fixtureaddon.articles.page_title'));
     PanelPage::assertPage($page, ['panel.home.sign_out']);
 
     $page->click('nav a:has-text("'.PanelPage::text('panel.nav.grants').'")');
     $page->assertPathIs('/cms/access/grants');
-    $page->assertSee('fixtureaddon.four_eyes_note.title');
+    $page->assertSee(PanelPage::addonText('fixtureaddon.four_eyes_note.title'));
     PanelPage::assertPage($page, ['panel.grants.title']);
 
     $page->click('nav a:has-text("'.PanelPage::text('panel.nav.roles').'")');
     $page->assertPathIs('/cms/access/roles');
-    $page->assertSee('fixtureaddon.articles_permission.title');
+    $page->assertSee(PanelPage::addonText('fixtureaddon.articles_permission.title'));
     PanelPage::assertPage($page, ['panel.roles.title']);
 
     // The addon's own command from the palette: typing into the addon's input shapes a slug.
@@ -100,15 +100,15 @@ it('keeps every interaction under 200 ms with every B1 point populated', functio
     $page->assertPathIs('/cms/commands/fixtureaddon.slug.set/v1');
     $page->assertVisible('[data-cms-contribution="fixtureaddon.slug-input"] input[name="slug"]');
     $page->type('slug', 'A Quiet Week');
-    $page->assertSee('fixtureaddon.slug_input.description');
+    $page->assertSee(PanelPage::addonText('fixtureaddon.slug_input.description'));
     PanelPage::assertPage($page, ['panel.command_form.run']);
 
     expect($page->script('document.querySelector("[data-fixtureaddon-slug-preview]")?.dataset.fixtureaddonSlugPreview'))->toBe('a-quiet-week');
 
-    $page->click('button:has-text("fixtureaddon.new_article.label")');
+    $page->click('button:has-text("'.PanelPage::addonText('fixtureaddon.new_article.label').'")');
     $page->assertPathIs('/cms/commands/entry.create/v1');
-    $page->assertSee('fixtureaddon.slug_help.title')
-        ->assertSee('fixtureaddon.submit_note.description');
+    $page->assertSee(PanelPage::addonText('fixtureaddon.slug_help.title'))
+        ->assertSee(PanelPage::addonText('fixtureaddon.submit_note.description'));
 
     $page->click('[data-cms-contribution="cms.node-picker"] .cms-node-picker button');
     $page->assertVisible('[role="dialog"]');
@@ -121,19 +121,19 @@ it('keeps every interaction under 200 ms with every B1 point populated', functio
     // Each edit of the fields runs the checks: a title that derives no slug warns, a slug set by
     // hand asks to acknowledge, a well-formed one shows nothing.
     $page->fill('fields', json_encode(['fixture_title' => '!!!', 'fixture_featured' => true], JSON_THROW_ON_ERROR));
-    $page->assertSee('fixtureaddon.slug_hint.message');
+    $page->assertSee(PanelPage::addonText('fixtureaddon.slug_hint.message'));
     $page->fill('fields', json_encode(['fixture_title' => 'A quiet week', 'fixture_featured' => true, 'ext' => ['fixtureaddon' => ['fixture_slug' => 'quiet-week']]], JSON_THROW_ON_ERROR));
-    $page->assertSee('fixtureaddon.slug_override.message');
+    $page->assertSee(PanelPage::addonText('fixtureaddon.slug_override.message', ['derived' => 'a-quiet-week']));
     $page->click(PanelPage::text('panel.command_form.acknowledge'));
     $page->fill('fields', json_encode(['fixture_title' => 'A quiet week', 'fixture_featured' => true], JSON_THROW_ON_ERROR));
-    $page->assertDontSee('fixtureaddon.slug_override.message');
+    $page->assertDontSee(PanelPage::addonText('fixtureaddon.slug_override.message', ['derived' => 'a-quiet-week']));
 
     // The dry run and the step, up to the core's confirmation, which is not pressed.
     $page->click(PanelPage::text('panel.command_form.try'));
-    $page->assertSee('fixtureaddon.dry_run_note.title');
+    $page->assertSee(PanelPage::addonText('fixtureaddon.dry_run_note.title'));
     $page->click(PanelPage::text('panel.command_form.run'));
-    $page->assertSee('fixtureaddon.slug_review.slug');
-    $page->click('button:has-text("fixtureaddon.slug_review.use")');
+    $page->assertSee(PanelPage::addonText('fixtureaddon.slug_review.slug', ['slug' => 'a-quiet-week']));
+    $page->click('button:has-text("'.PanelPage::addonText('fixtureaddon.slug_review.use').'")');
     $page->assertSee(PanelPage::text('panel.host.confirm_title'));
     PanelPage::assertPage($page, ['panel.command_form.flow']);
 

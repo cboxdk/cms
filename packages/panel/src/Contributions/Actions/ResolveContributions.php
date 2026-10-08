@@ -24,6 +24,7 @@ use Cbox\Cms\Core\Registry\Domain\PointDowncastRefused;
 use Cbox\Cms\Core\Registry\Domain\PointDowncasts;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Registry\Domain\RegistryCacheMissing;
+use Cbox\Cms\Panel\Contributions\Domain\Catalogues;
 use Cbox\Cms\Panel\Contributions\Domain\ContributionTelemetry;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\ActiveContributions;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\ActiveFill;
@@ -64,6 +65,8 @@ use Cbox\Cms\Panel\Shell\Domain\Shell;
  *    every page without running their queries (ActiveFill::data()).
  * 6. The host's checks: the registration each addon's code must match (Registrations), with the
  *    commands its contributions may issue, and whether the viewer sees the detail of a failure.
+ * 7. The texts: for each addon with an active contribution, its catalogue in the view's locale
+ *    alone (Catalogues), which the host serves its contributions' t() from.
  *
  * Nothing an addon does blanks the page: when the registry or the activation state cannot be
  * read the page gets no contribution, recorded in telemetry (Withheld). A page that renders no
@@ -159,6 +162,7 @@ final readonly class ResolveContributions
             $points,
             Registrations::of($registry, $points),
             $held->access->classificationAccess->allows(ClassificationAccess::Internal),
+            Catalogues::of($registry, $points, $view->locale),
         );
     }
 

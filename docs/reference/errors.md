@@ -194,6 +194,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`registry_panel_action_prefill_invalid`](#registry_panel_action_prefill_invalid) | 500 | 65 | internal_error | no |
 | [`registry_panel_bundle_invalid`](#registry_panel_bundle_invalid) | 500 | 65 | internal_error | no |
 | [`registry_panel_bundle_unsigned`](#registry_panel_bundle_unsigned) | 500 | 65 | internal_error | no |
+| [`registry_panel_catalogue_invalid`](#registry_panel_catalogue_invalid) | 500 | 65 | internal_error | no |
 | [`registry_panel_check_unmirrored`](#registry_panel_check_unmirrored) | 500 | 65 | internal_error | no |
 | [`registry_panel_command_not_issuable`](#registry_panel_command_not_issuable) | 500 | 65 | internal_error | no |
 | [`registry_panel_data_query_invalid`](#registry_panel_data_query_invalid) | 500 | 65 | internal_error | no |
@@ -213,6 +214,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`registry_panel_theme_invalid`](#registry_panel_theme_invalid) | 500 | 65 | internal_error | no |
 | [`registry_panel_theme_overlap`](#registry_panel_theme_overlap) | 200 | 0 | result | no |
 | [`registry_panel_tightening_undeclared`](#registry_panel_tightening_undeclared) | 500 | 65 | internal_error | no |
+| [`registry_panel_translations_incomplete`](#registry_panel_translations_incomplete) | 500 | 65 | internal_error | no |
 | [`registry_panel_unknown_command`](#registry_panel_unknown_command) | 500 | 65 | internal_error | no |
 | [`registry_panel_unknown_point`](#registry_panel_unknown_point) | 500 | 65 | internal_error | no |
 | [`registry_panel_unowned_target`](#registry_panel_unowned_target) | 500 | 65 | internal_error | no |
@@ -1892,6 +1894,15 @@ An addon's panel bundle is not vouched for by its publisher (PRD 13.8): panel-si
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
+### registry_panel_catalogue_invalid
+
+An addon's panel catalogue cannot be used (PRD 13.4): a file in its PanelContributions::$lang directory cannot be read, is not one JSON object of keys to non-empty texts, holds a key that is not dot-separated lower-case words, or holds a key outside the addon's own namespace. A contribution reads texts of its own namespace alone: name every key "<namespace>.<rest>", and give each a text in every locale the panel ships.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
 ### registry_panel_check_unmirrored
 
 A form check with severity error, or a decorator that tightens the disabled reason, blocks a submit in the panel, and it names no ValidateHook or AuthorizeHook of its own addon on the same command in mirrors (the mirror rule, PRD 13.4); a decorator must also be scoped to that one command. Mirror the rule with a hook that enforces it on the server, so it holds over REST, MCP and the CLI too, or lower the check to a warning.
@@ -2057,6 +2068,15 @@ A warning, not a failure: more than one theme that cbox-cms.panel.themes selects
 ### registry_panel_tightening_undeclared
 
 A decorator tightens a prop that its panel point does not let decorators tighten (#[PanelPoint] tightens). A decorator may only tighten what its point declares (PRD 13.4); tighten only those props.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### registry_panel_translations_incomplete
+
+An addon ships panel texts that do not cover every locale the panel ships, da and en (PRD 13.4, GUARDRAILS 8): its PanelContributions::$lang directory has no catalogue for a locale, or a key one locale's catalogue holds another does not. Every text the panel shows exists in Danish and English from day one: add the missing catalogue or the missing key.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)

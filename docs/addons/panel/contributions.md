@@ -21,6 +21,7 @@ An addon adds to the panel through the `panel` member of its [manifest](../manif
 | `bundle` | The absolute directory of the addon's prebuilt bundle, which holds `panel-manifest.json`, or null when no contribution runs code. |
 | `acceptsExperimental` | The ids of the experimental points the addon contributes to, such as `account.me.sections@1`, each once. An experimental point may change in a minor release of the panel API, so the addon opts in to each. |
 | `contributions` | The contributions, each a `PanelContribution`. |
+| `lang` | The absolute directory of the addon's panel catalogues, which holds one JSON file per locale the panel ships, `da.json` and `en.json`, each a flat object from a key below the addon's namespace to its text, or null when the addon ships no texts. Only the active locale's catalogue reaches the browser. See [i18n](../../ui/i18n.md#an-addons-texts). |
 | `themes` | The addon's themes of token values by a local name, each the absolute path of its JSON file, such as `['brand' => __DIR__.'/../resources/panel/theme.json']`. The installation selects one as `<namespace>:<name>`; a theme nothing selects has no effect. See [Branding and theming the panel](../../developers/panel-branding.md#themes). |
 
 The capabilities that go with it are in `AddonCapabilities`: `issues`, the command classes the addon's UI may run, and `uiTheme`, whether it may ship a theme ([manifest](../manifest.md#capabilities)).
@@ -71,6 +72,8 @@ A build with any of these writes nothing and exits 65, listing every problem ([e
 | `registry_panel_override_invalid` | `cbox-cms.panel.contributions` or `cbox-cms.panel.replacements` is malformed or names what the build does not have. |
 | `registry_panel_theme_invalid` | The addon ships a theme without `uiTheme`, or a selected theme of it cannot be read or is not of the theme's form. |
 | `registry_panel_theme_contrast` | The selected themes, composed, draw a contrast pair of the token catalogue below WCAG 2.2 AA. |
+| `registry_panel_catalogue_invalid` | A catalogue in `lang` cannot be read, is not one JSON object of keys to non-empty texts, holds a key that is not dot-separated lower-case words, or holds a key outside the addon's namespace. |
+| `registry_panel_translations_incomplete` | `lang` has no catalogue for a locale the panel ships, or a key one locale's catalogue holds another does not. |
 
 The JSON Schemas the checks read are each command's and query's, from their generated codecs, and the props schema of each point, `<name>.v<version>.json` in the directories the modules that declare points register as a `PointSchemaDirectory` under `PointSchemaDirectory::TAG`; the panel registers `packages/panel/resources/schemas/points`.
 
@@ -265,8 +268,9 @@ use Opis\JsonSchema\Errors\ValidationError;
 // per point the page renders, its kind and multiplicity and the fills in render order, each with
 // the point's props as the point's codec wrote them for it, whether its data comes as the deferred
 // prop ext.<addon> and what its kind needs besides; the registration of each addon whose code runs
-// on the page; what the host needs to navigate and run commands; and the id of the viewer the
-// contributions were resolved for, a UUIDv7, which a form check's context names.
+// on the page; the texts of the active locale for each of those addons, which the host serves a
+// contribution's t() from; what the host needs to navigate and run commands; and the id of the
+// viewer the contributions were resolved for, a UUIDv7, which a form check's context names.
 
 /**
  * The errors of a cms.contributions document, none when it is valid.
@@ -285,18 +289,18 @@ function contributionsErrors(string $document): array
 it('accepts the contributions of a page', function (string $document): void {
     expect(contributionsErrors($document))->toBe([]);
 })->with([
-    'a page with no active contribution' => ['{"addons":[],"commands":"/cms/commands","details":false,"pages":[{"page":"home","url":"/cms"}],"points":[],"viewer":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a02"}'],
-    'a section that reads its data' => ['{"addons":[{"addon":"approvals","any_command":false,"issues":["approvals.request@1"],"registration":"0000000000000000000000000000000000000000000000000000000000000000"}],"commands":"/cms/commands","details":false,"pages":[{"page":"home","url":"/cms"}],"points":[{"fills":[{"action":null,"addon":"approvals","check":null,"data":true,"decorator":null,"id":"approvals.badge","kind":"slot","nav":null,"priority":1000,"props":{"note":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"},"replacement":null,"step":null}],"kind":"slot","max":null,"multiplicity":"many","point":"reviews.detail.sections@1","region":"sections"}],"viewer":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a02"}'],
-    'the host before the server sent any contributions' => ['{"addons":[],"commands":"/cms/commands","details":false,"pages":[],"points":[],"viewer":null}'],
+    'a page with no active contribution' => ['{"addons":[],"commands":"/cms/commands","details":false,"pages":[{"page":"home","url":"/cms"}],"points":[],"texts":[],"viewer":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a02"}'],
+    'a section that reads its data' => ['{"addons":[{"addon":"approvals","any_command":false,"issues":["approvals.request@1"],"registration":"0000000000000000000000000000000000000000000000000000000000000000"}],"commands":"/cms/commands","details":false,"pages":[{"page":"home","url":"/cms"}],"points":[{"fills":[{"action":null,"addon":"approvals","check":null,"data":true,"decorator":null,"id":"approvals.badge","kind":"slot","nav":null,"priority":1000,"props":{"note":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"},"replacement":null,"step":null}],"kind":"slot","max":null,"multiplicity":"many","point":"reviews.detail.sections@1","region":"sections"}],"texts":[{"addon":"approvals","entries":[{"key":"approvals.badge.title","text":"Badge"}]}],"viewer":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a02"}'],
+    'the host before the server sent any contributions' => ['{"addons":[],"commands":"/cms/commands","details":false,"pages":[],"points":[],"texts":[],"viewer":null}'],
 ]);
 
 it('refuses a fill that does not say whether it reads data', function (): void {
-    expect(contributionsErrors('{"addons":[{"addon":"approvals","any_command":false,"issues":["approvals.request@1"],"registration":"0000000000000000000000000000000000000000000000000000000000000000"}],"commands":"/cms/commands","details":false,"pages":[{"page":"home","url":"/cms"}],"points":[{"fills":[{"action":null,"addon":"approvals","check":null,"decorator":null,"id":"approvals.badge","kind":"slot","nav":null,"priority":1000,"props":{"note":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"},"replacement":null,"step":null}],"kind":"slot","max":null,"multiplicity":"many","point":"reviews.detail.sections@1","region":"sections"}],"viewer":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a02"}'))
+    expect(contributionsErrors('{"addons":[{"addon":"approvals","any_command":false,"issues":["approvals.request@1"],"registration":"0000000000000000000000000000000000000000000000000000000000000000"}],"commands":"/cms/commands","details":false,"pages":[{"page":"home","url":"/cms"}],"points":[{"fills":[{"action":null,"addon":"approvals","check":null,"decorator":null,"id":"approvals.badge","kind":"slot","nav":null,"priority":1000,"props":{"note":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"},"replacement":null,"step":null}],"kind":"slot","max":null,"multiplicity":"many","point":"reviews.detail.sections@1","region":"sections"}],"texts":[{"addon":"approvals","entries":[{"key":"approvals.badge.title","text":"Badge"}]}],"viewer":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a02"}'))
         ->not->toBe([]);
 });
 
 it('refuses a viewer that is not a lowercase UUIDv7', function (): void {
-    expect(contributionsErrors('{"addons":[],"commands":"/cms/commands","details":false,"pages":[{"page":"home","url":"/cms"}],"points":[],"viewer":"ada@example.com"}'))
+    expect(contributionsErrors('{"addons":[],"commands":"/cms/commands","details":false,"pages":[{"page":"home","url":"/cms"}],"points":[],"texts":[],"viewer":"ada@example.com"}'))
         ->not->toBe([]);
 });
 ```

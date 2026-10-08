@@ -100,6 +100,7 @@ export function contributions(
     details: false,
     pages: [{ page: 'home', url: '/cms' }],
     points,
+    texts: [],
     viewer: null,
     ...extra,
   };

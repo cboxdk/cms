@@ -4,6 +4,7 @@
 
 import type {
   AddonPropV1,
+  AddonTextsPropV1,
   ContributionsV1,
   FillPropV1,
   PointFillsPropV1,
@@ -21,6 +22,9 @@ export type Fill = FillPropV1;
 /** An addon whose code runs on the page, with the registration its code must match. */
 export type AddonEntry = AddonPropV1;
 
+/** The texts of one addon in the page's locale, as cms:build compiled its catalogue. */
+export type AddonCatalogue = AddonTextsPropV1;
+
 /** The kinds of point, as the server names them. */
 export type PointKind = PointFillsPropV1['kind'];
 
@@ -31,6 +35,7 @@ export const NO_CONTRIBUTIONS: Contributions = Object.freeze({
   details: false,
   pages: [],
   points: [],
+  texts: [],
   viewer: null,
 });
 
@@ -42,6 +47,23 @@ export function pointOf(contributions: Contributions, point: string): ActivePoin
 /** The entry of an addon, or undefined when none of its code runs on the page. */
 export function addonOf(contributions: Contributions, addon: string): AddonEntry | undefined {
   return contributions.addons.find((candidate) => candidate.addon === addon);
+}
+
+/**
+ * The texts the page carries for the addons, by namespace and then by key: the catalogue of the
+ * page's locale that cms:build compiled for each addon with an active contribution (section 2.6 of
+ * the panel extension architecture). An addon the page carries no catalogue for has none, and every
+ * key it names shows as the key.
+ */
+export function catalogues(
+  contributions: Contributions,
+): ReadonlyMap<string, ReadonlyMap<string, string>> {
+  return new Map(
+    contributions.texts.map((catalogue) => [
+      catalogue.addon,
+      new Map(catalogue.entries.map((entry) => [entry.key, entry.text])),
+    ]),
+  );
 }
 
 /**

@@ -206,6 +206,7 @@ enum ErrorCode: string
     case RegistryPanelActionPrefillInvalid = 'registry_panel_action_prefill_invalid';
     case RegistryPanelBundleInvalid = 'registry_panel_bundle_invalid';
     case RegistryPanelBundleUnsigned = 'registry_panel_bundle_unsigned';
+    case RegistryPanelCatalogueInvalid = 'registry_panel_catalogue_invalid';
     case RegistryPanelCheckUnmirrored = 'registry_panel_check_unmirrored';
     case RegistryPanelCommandNotIssuable = 'registry_panel_command_not_issuable';
     case RegistryPanelDataQueryInvalid = 'registry_panel_data_query_invalid';
@@ -225,6 +226,7 @@ enum ErrorCode: string
     case RegistryPanelThemeInvalid = 'registry_panel_theme_invalid';
     case RegistryPanelThemeOverlap = 'registry_panel_theme_overlap';
     case RegistryPanelTighteningUndeclared = 'registry_panel_tightening_undeclared';
+    case RegistryPanelTranslationsIncomplete = 'registry_panel_translations_incomplete';
     case RegistryPanelUnknownCommand = 'registry_panel_unknown_command';
     case RegistryPanelUnknownPoint = 'registry_panel_unknown_point';
     case RegistryPanelUnownedTarget = 'registry_panel_unowned_target';
@@ -966,6 +968,9 @@ enum ErrorCode: string
             self::RegistryPanelBundleUnsigned => $this->refusedInput(
                 'An addon\'s panel bundle is not vouched for by its publisher (PRD 13.8): panel-signature.json is missing or not a document of panel-bundle-signature.v1.json, its Ed25519 signature over panel-manifest.json does not verify, so the manifest changed after the bundle was signed, its key is not one the installation trusts for the addon in cbox-cms.addons.publishers, or the installation trusts no key for the addon outside the local environment, the one environment that accepts a bundle without a signature. Build the bundle with the publisher\'s key, and add the publisher\'s public key to cbox-cms.addons.publishers after reviewing where it came from.',
             ),
+            self::RegistryPanelCatalogueInvalid => $this->refusedInput(
+                'An addon\'s panel catalogue cannot be used (PRD 13.4): a file in its PanelContributions::$lang directory cannot be read, is not one JSON object of keys to non-empty texts, holds a key that is not dot-separated lower-case words, or holds a key outside the addon\'s own namespace. A contribution reads texts of its own namespace alone: name every key "<namespace>.<rest>", and give each a text in every locale the panel ships.',
+            ),
             self::RegistryPanelCheckUnmirrored => $this->refusedInput(
                 'A form check with severity error, or a decorator that tightens the disabled reason, blocks a submit in the panel, and it names no ValidateHook or AuthorizeHook of its own addon on the same command in mirrors (the mirror rule, PRD 13.4); a decorator must also be scoped to that one command. Mirror the rule with a hook that enforces it on the server, so it holds over REST, MCP and the CLI too, or lower the check to a warning.',
             ),
@@ -1016,6 +1021,9 @@ enum ErrorCode: string
             ),
             self::RegistryPanelTighteningUndeclared => $this->refusedInput(
                 'A decorator tightens a prop that its panel point does not let decorators tighten (#[PanelPoint] tightens). A decorator may only tighten what its point declares (PRD 13.4); tighten only those props.',
+            ),
+            self::RegistryPanelTranslationsIncomplete => $this->refusedInput(
+                'An addon ships panel texts that do not cover every locale the panel ships, da and en (PRD 13.4, GUARDRAILS 8): its PanelContributions::$lang directory has no catalogue for a locale, or a key one locale\'s catalogue holds another does not. Every text the panel shows exists in Danish and English from day one: add the missing catalogue or the missing key.',
             ),
             self::RegistryPanelUnknownCommand => $this->refusedInput(
                 'A form check or flow step is for a command form, or a contribution\'s scope names a command or the permission of a command or query, that no scan root registers (PRD 13.4). Name a registered command and version, `<name>@<version>`, or a registered command\'s or query\'s name.',

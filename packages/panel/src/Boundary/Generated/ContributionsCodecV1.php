@@ -26,6 +26,7 @@ use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
 use Cbox\Cms\Core\Codecs\Domain\EncodingFailed;
 use Cbox\Cms\Panel\Domain\Dto\ActionProp;
 use Cbox\Cms\Panel\Domain\Dto\AddonProp;
+use Cbox\Cms\Panel\Domain\Dto\AddonTextsProp;
 use Cbox\Cms\Panel\Domain\Dto\CheckProp;
 use Cbox\Cms\Panel\Domain\Dto\ContributionsProp;
 use Cbox\Cms\Panel\Domain\Dto\DecoratorProp;
@@ -36,6 +37,7 @@ use Cbox\Cms\Panel\Domain\Dto\PointFillsProp;
 use Cbox\Cms\Panel\Domain\Dto\PrefillProp;
 use Cbox\Cms\Panel\Domain\Dto\ReplacementProp;
 use Cbox\Cms\Panel\Domain\Dto\StepProp;
+use Cbox\Cms\Panel\Domain\Dto\TextProp;
 use Override;
 use stdClass;
 
@@ -88,6 +90,7 @@ final readonly class ContributionsCodecV1 implements JsonCodec
         $json->details = $object->details;
         $json->pages = array_map($this->encodePageLinkProp(...), $object->pages);
         $json->points = array_map($this->encodePointFillsProp(...), $object->points);
+        $json->texts = array_map($this->encodeAddonTextsProp(...), $object->texts);
         $json->viewer = $object->viewer instanceof ActorId ? $object->viewer->toString() : null;
 
         return $json;
@@ -95,7 +98,7 @@ final readonly class ContributionsCodecV1 implements JsonCodec
 
     private function decodeContributionsProp(stdClass $value): ContributionsProp
     {
-        $object = JsonValues::object($value, null, ['addons', 'commands', 'details', 'pages', 'points', 'viewer']);
+        $object = JsonValues::object($value, null, ['addons', 'commands', 'details', 'pages', 'points', 'texts', 'viewer']);
 
         return JsonValues::build(null, fn (): ContributionsProp => new ContributionsProp(
             points: JsonValues::required($object, 'points', null, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodePointFillsProp(...), maxItems: 200)),
@@ -104,6 +107,7 @@ final readonly class ContributionsCodecV1 implements JsonCodec
             details: JsonValues::required($object, 'details', null, static fn (mixed $value, FieldPath $at): bool => JsonValues::boolean($value, $at)),
             pages: JsonValues::required($object, 'pages', null, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodePageLinkProp(...), maxItems: 500)),
             viewer: JsonValues::present($object, 'viewer', null, static fn (mixed $value, FieldPath $at): ActorId => JsonValues::id($value, $at, ActorId::fromString(...))),
+            texts: JsonValues::required($object, 'texts', null, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeAddonTextsProp(...), maxItems: 200)),
         ));
     }
 
@@ -355,6 +359,44 @@ final readonly class ContributionsCodecV1 implements JsonCodec
             position: JsonValues::required($object, 'position', $path, static fn (mixed $value, FieldPath $at): StepPosition => JsonValues::enum($value, $at, StepPosition::class)),
             patches: JsonValues::required($object, 'patches', $path, static fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, static fn (mixed $item, FieldPath $itemAt): string => JsonValues::text($item, $itemAt, minLength: 1, maxLength: 500), maxItems: 100)),
             timeoutSeconds: JsonValues::required($object, 'timeout_seconds', $path, static fn (mixed $value, FieldPath $at): int => JsonValues::integer($value, $at, min: 1, max: 30)),
+        ));
+    }
+
+    private function encodeAddonTextsProp(AddonTextsProp $object): stdClass
+    {
+        $json = new stdClass;
+        $json->addon = $object->addon->value;
+        $json->entries = array_map($this->encodeTextProp(...), $object->entries);
+
+        return $json;
+    }
+
+    private function decodeAddonTextsProp(mixed $value, FieldPath $path): AddonTextsProp
+    {
+        $object = JsonValues::object($value, $path, ['addon', 'entries']);
+
+        return JsonValues::build($path, fn (): AddonTextsProp => new AddonTextsProp(
+            addon: JsonValues::required($object, 'addon', $path, static fn (mixed $value, FieldPath $at): AddonNamespace => JsonValues::value($value, $at, static fn (string $text): AddonNamespace => new AddonNamespace($text))),
+            entries: JsonValues::required($object, 'entries', $path, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeTextProp(...), maxItems: 2000)),
+        ));
+    }
+
+    private function encodeTextProp(TextProp $object): stdClass
+    {
+        $json = new stdClass;
+        $json->key = $object->key;
+        $json->text = $object->text;
+
+        return $json;
+    }
+
+    private function decodeTextProp(mixed $value, FieldPath $path): TextProp
+    {
+        $object = JsonValues::object($value, $path, ['key', 'text']);
+
+        return JsonValues::build($path, static fn (): TextProp => new TextProp(
+            key: JsonValues::required($object, 'key', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1, maxLength: 200)),
+            text: JsonValues::required($object, 'text', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1, maxLength: 1000)),
         ));
     }
 }

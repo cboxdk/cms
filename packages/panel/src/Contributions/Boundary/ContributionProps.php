@@ -18,6 +18,7 @@ use Cbox\Cms\Contracts\PanelPoints\FormCheck;
 use Cbox\Cms\Contracts\PanelPoints\NavContribution;
 use Cbox\Cms\Contracts\PanelPoints\PageContribution;
 use Cbox\Cms\Contracts\PanelPoints\PageName;
+use Cbox\Cms\Contracts\PanelPoints\PanelLocale;
 use Cbox\Cms\Contracts\PanelPoints\ReplacementContribution;
 use Cbox\Cms\Contracts\Pipeline\Result;
 use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
@@ -33,6 +34,7 @@ use Cbox\Cms\Panel\Contributions\Domain\DataRefusal;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\ActiveContributions;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\ActiveFill;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\AddonRegistration;
+use Cbox\Cms\Panel\Contributions\Domain\Dto\AddonTexts;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\ContributionData;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\ContributionDataCall;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\PanelView;
@@ -43,6 +45,7 @@ use Cbox\Cms\Panel\Contributions\Domain\PointCodecs;
 use Cbox\Cms\Panel\Contributions\Domain\Withheld;
 use Cbox\Cms\Panel\Domain\Dto\ActionProp;
 use Cbox\Cms\Panel\Domain\Dto\AddonProp;
+use Cbox\Cms\Panel\Domain\Dto\AddonTextsProp;
 use Cbox\Cms\Panel\Domain\Dto\CheckProp;
 use Cbox\Cms\Panel\Domain\Dto\ContributionsProp;
 use Cbox\Cms\Panel\Domain\Dto\DecoratorProp;
@@ -53,6 +56,7 @@ use Cbox\Cms\Panel\Domain\Dto\PointFillsProp;
 use Cbox\Cms\Panel\Domain\Dto\PrefillProp;
 use Cbox\Cms\Panel\Domain\Dto\ReplacementProp;
 use Cbox\Cms\Panel\Domain\Dto\StepProp;
+use Cbox\Cms\Panel\Domain\Dto\TextProp;
 use Cbox\Cms\Panel\Domain\PanelRoute;
 use Cbox\Cms\Panel\Shell\Domain\Dto\ShellNavV1;
 use Cbox\Cms\Panel\Shell\Domain\Dto\ShellPageV1;
@@ -61,6 +65,7 @@ use Cbox\Cms\Panel\Shell\Domain\OwnPage;
 use Cbox\Cms\Panel\Shell\Domain\Shell;
 use Closure;
 use Illuminate\Contracts\Debug\ExceptionHandler;
+use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Routing\UrlGenerator;
 use Illuminate\Http\Request;
 use Inertia\DeferProp;
@@ -82,7 +87,9 @@ use Throwable;
  *   region and multiplicity; the registration of each addon whose code runs on the page; whether
  *   the viewer sees the detail of a failure; the panel's pages a contribution may navigate to,
  *   the panel's own pages (OwnPage) and every addon's page the viewer may open, each at
- *   `<prefix>/x/<namespace>/<path>`; and
+ *   `<prefix>/x/<namespace>/<path>`; the texts of the active locale, the application's, for each
+ *   addon with an active contribution, as cms:build compiled its catalogue (Catalogues), so a
+ *   contribution's t() gives its text and no other locale is ever sent; and
  *   the address of the Inertia profile the host runs commands through, which is everything the
  *   panel's host (js/panel/src/host) renders the points from. A point without a codec, or props
  *   its codec cannot write, loses its contributions, recorded in telemetry
@@ -119,6 +126,7 @@ final readonly class ContributionProps
         private ContributionTelemetry $telemetry,
         private ExceptionHandler $exceptions,
         private UrlGenerator $urls,
+        private Application $app,
     ) {}
 
     /**
@@ -141,7 +149,7 @@ final readonly class ContributionProps
             new RenderedPoint(Shell::pages(), new ShellPageV1),
             new RenderedPoint(Shell::userMenu(), new ViewerSummaryV1($viewer->actor, $viewer->issuerKind)),
             RenderedPoint::heldByPage(Shell::observe()),
-        ], $subject);
+        ], $subject, PanelLocale::of($this->app->getLocale()));
     }
 
     /**
@@ -216,6 +224,10 @@ final readonly class ContributionProps
             $active->details,
             $this->pages($active),
             $this->viewer($request, $active->page->value)->actor,
+            array_map(static fn (AddonTexts $texts): AddonTextsProp => new AddonTextsProp(
+                $texts->addon,
+                array_map(static fn (string $key, string $text): TextProp => new TextProp($key, $text), array_keys($texts->texts), array_values($texts->texts)),
+            ), $active->texts),
         );
         $props = [self::CMS => [self::CONTRIBUTIONS => InertiaProps::document($this->codec->encode($prop, ClassificationAccess::Public))]];
         ksort($data, SORT_STRING);

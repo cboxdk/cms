@@ -189,6 +189,7 @@ export type ErrorCode =
   | 'registry_panel_action_prefill_invalid'
   | 'registry_panel_bundle_invalid'
   | 'registry_panel_bundle_unsigned'
+  | 'registry_panel_catalogue_invalid'
   | 'registry_panel_check_unmirrored'
   | 'registry_panel_command_not_issuable'
   | 'registry_panel_data_query_invalid'
@@ -208,6 +209,7 @@ export type ErrorCode =
   | 'registry_panel_theme_invalid'
   | 'registry_panel_theme_overlap'
   | 'registry_panel_tightening_undeclared'
+  | 'registry_panel_translations_incomplete'
   | 'registry_panel_unknown_command'
   | 'registry_panel_unknown_point'
   | 'registry_panel_unowned_target'
@@ -509,6 +511,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'registry_panel_action_prefill_invalid',
           'registry_panel_bundle_invalid',
           'registry_panel_bundle_unsigned',
+          'registry_panel_catalogue_invalid',
           'registry_panel_check_unmirrored',
           'registry_panel_command_not_issuable',
           'registry_panel_data_query_invalid',
@@ -528,6 +531,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'registry_panel_theme_invalid',
           'registry_panel_theme_overlap',
           'registry_panel_tightening_undeclared',
+          'registry_panel_translations_incomplete',
           'registry_panel_unknown_command',
           'registry_panel_unknown_point',
           'registry_panel_unowned_target',
@@ -793,6 +797,7 @@ const problemV1Rule: ObjectRule = {
           'registry_panel_action_prefill_invalid',
           'registry_panel_bundle_invalid',
           'registry_panel_bundle_unsigned',
+          'registry_panel_catalogue_invalid',
           'registry_panel_check_unmirrored',
           'registry_panel_command_not_issuable',
           'registry_panel_data_query_invalid',
@@ -812,6 +817,7 @@ const problemV1Rule: ObjectRule = {
           'registry_panel_theme_invalid',
           'registry_panel_theme_overlap',
           'registry_panel_tightening_undeclared',
+          'registry_panel_translations_incomplete',
           'registry_panel_unknown_command',
           'registry_panel_unknown_point',
           'registry_panel_unowned_target',

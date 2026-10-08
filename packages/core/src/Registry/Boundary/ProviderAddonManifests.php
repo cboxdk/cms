@@ -30,8 +30,9 @@ use ReflectionClass;
  * implements FieldTypeContributor. A panel contribution or scope that refuses its values counts as
  * a manifest that cannot be built.
  *
- * The panel bundle of a manifest that names one is read here, through PanelBundles, so the
- * compiler checks it without touching the disk (PRD 13.4).
+ * The panel bundle of a manifest that names one is read here, through PanelBundles, and its panel
+ * catalogues through PanelCatalogues, so the compiler checks both without touching the disk
+ * (PRD 13.4).
  *
  * The core's own panel contributions come from the providers of cboxdk/cms's modules that
  * implement DeclaresCoreContributions, in the namespace cms (PRD 13.4). A provider outside the
@@ -68,6 +69,7 @@ final readonly class ProviderAddonManifests
         $problems = [];
         $bundles = [];
         $core = [];
+        $catalogues = [];
 
         foreach ($providers as $provider) {
             if ($provider instanceof DeclaresCoreContributions) {
@@ -124,9 +126,15 @@ final readonly class ProviderAddonManifests
             if ($bundle !== null) {
                 $bundles[$manifest->package] ??= PanelBundles::read($bundle);
             }
+
+            $lang = $manifest->panel?->lang;
+
+            if ($lang !== null) {
+                $catalogues[$manifest->package] ??= PanelCatalogues::read($lang);
+            }
         }
 
-        return new DeclaredAddons($manifests, $problems, $bundles, $core);
+        return new DeclaredAddons($manifests, $problems, $bundles, $core, $catalogues);
     }
 
     /**

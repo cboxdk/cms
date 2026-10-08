@@ -50,13 +50,14 @@ export type Tone = 'neutral' | 'info' | 'warning' | 'danger';
  * in the order the host renders them; the addons those contributions come from, each with the
  * digest of the contributions its code must register and the commands it may issue; whether the
  * viewer sees the detail of a contribution that failed; the panel's pages a contribution may
- * navigate to; and the address the host runs commands through. A contribution is listed only when
- * it is enabled, in scope and the viewer holds the permission its scope requires; any other is
- * never sent, not even by name. Each carries the point's props as the point's generated codec wrote
- * them at the lower of the viewer's classification access and the addon's reads capability, and
- * what its kind needs besides. A contribution with data gets it as the deferred prop ext.<addon>,
- * under its id. The PHP form is Cbox\Cms\Panel\Domain\Dto\ContributionsProp, and the generated
- * codec writes its canonical JSON: keys sorted, no whitespace.
+ * navigate to; the texts of the active locale for each of those addons, as cms:build compiled its
+ * catalogue; and the address the host runs commands through. A contribution is listed only when it
+ * is enabled, in scope and the viewer holds the permission its scope requires; any other is never
+ * sent, not even by name. Each carries the point's props as the point's generated codec wrote them
+ * at the lower of the viewer's classification access and the addon's reads capability, and what its
+ * kind needs besides. A contribution with data gets it as the deferred prop ext.<addon>, under its
+ * id. The PHP form is Cbox\Cms\Panel\Domain\Dto\ContributionsProp, and the generated codec writes
+ * its canonical JSON: keys sorted, no whitespace.
  */
 export interface ContributionsV1 {
   /**
@@ -85,6 +86,15 @@ export interface ContributionsV1 {
    * points.
    */
   points: readonly PointFillsPropV1[];
+  /**
+   * The texts of the active locale, by addon, sorted by namespace: for each addon with an active
+   * contribution on the page, the catalogue cms:build compiled from its
+   * resources/panel/lang/<locale>.json, every key in the addon's own namespace. The core's own
+   * contributions, in the namespace cms, read the panel's own catalogue in the browser and are not
+   * listed. Only the active locale travels, so a key the catalogue has not, or one outside the
+   * addon's namespace, shows as the key.
+   */
+  texts: readonly AddonTextsPropV1[];
   /**
    * The id of the actor the page is shown to, for whom the contributions were resolved: what a form
    * check's context names as the viewer, a UUIDv7 in lowercase hex. Null only where the host
@@ -276,6 +286,53 @@ export interface StepPropV1 {
   /** How long it may take before the host cancels it in its addon's name. */
   timeout_seconds: number;
 }
+
+/** The catalogue of one addon in the active locale. */
+export interface AddonTextsPropV1 {
+  /** The addon's namespace, whose contributions read these texts. */
+  addon: string;
+  /** The addon's texts, sorted by key; empty when the addon ships no catalogue. */
+  entries: readonly TextPropV1[];
+}
+
+/**
+ * One text of an addon's catalogue: the translation key a contribution names and its text in the
+ * active locale.
+ */
+export interface TextPropV1 {
+  /**
+   * The translation key, dot-separated lower-case words below the addon's namespace, such as
+   * fixtureaddon.nav.articles.
+   */
+  key: string;
+  /**
+   * The text in the active locale, which the host fills the parameters {name} of before it is
+   * shown.
+   */
+  text: string;
+}
+
+const textPropV1Rule: ObjectRule = {
+  properties: [
+    { key: 'key', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 200 } },
+    { key: 'text', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 1000 } },
+  ],
+};
+
+const addonTextsPropV1Rule: ObjectRule = {
+  properties: [
+    {
+      key: 'addon',
+      presence: 'required',
+      value: { kind: 'string', pattern: '^[a-z][a-z0-9]{0,19}$', maxLength: 20 },
+    },
+    {
+      key: 'entries',
+      presence: 'required',
+      value: { kind: 'list', item: { kind: 'object', object: textPropV1Rule }, maxItems: 2000 },
+    },
+  ],
+};
 
 const stepPropV1Rule: ObjectRule = {
   properties: [
@@ -541,6 +598,15 @@ const contributionsV1Rule: ObjectRule = {
       value: {
         kind: 'string',
         pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+      },
+    },
+    {
+      key: 'texts',
+      presence: 'required',
+      value: {
+        kind: 'list',
+        item: { kind: 'object', object: addonTextsPropV1Rule },
+        maxItems: 200,
       },
     },
   ],

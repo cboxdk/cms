@@ -184,12 +184,17 @@ it('passes the lint on text from translations and on attributes only code reads'
     expect($process->getExitCode())->toBe(0, $process->getOutput());
 });
 
-it('passes the translation parity check on the panel catalogues', function (): void {
+it('passes the translation parity check on the panel and addon catalogues', function (): void {
     $process = Node::run(['npm', 'run', '--silent', 'lint:translations']);
 
     expect($process->getExitCode())->toBe(0, $process->getErrorOutput())
         ->and(Phpstan::root().'/js/panel/src/i18n/catalogues/da.json')->toBeFile()
-        ->and(Phpstan::root().'/js/panel/src/i18n/catalogues/en.json')->toBeFile();
+        ->and(Phpstan::root().'/js/panel/src/i18n/catalogues/en.json')->toBeFile()
+        // An addon ships its own catalogue, one per locale with the same keys (section 2.6 of the
+        // panel extension architecture), and the parity check covers the workbench's fixture addon
+        // too, so a key the one locale has and the other has not fails gate 5 as the panel's own do.
+        ->and(Phpstan::root().'/workbench/addons/fixtureaddon/resources/panel/lang/da.json')->toBeFile()
+        ->and(Phpstan::root().'/workbench/addons/fixtureaddon/resources/panel/lang/en.json')->toBeFile();
 });
 
 it('passes the translation parity check on catalogues with the same keys', function (): void {

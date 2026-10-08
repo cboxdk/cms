@@ -14,6 +14,7 @@ use Cbox\Cms\Contracts\PanelPoints\FormCheck;
 use Cbox\Cms\Contracts\PanelPoints\NavContribution;
 use Cbox\Cms\Contracts\PanelPoints\PanelApiVersion;
 use Cbox\Cms\Contracts\PanelPoints\PanelContribution;
+use Cbox\Cms\Contracts\PanelPoints\PanelLocale;
 use Cbox\Cms\Contracts\PanelPoints\PointId;
 use Cbox\Cms\Contracts\PanelPoints\ReplacementContribution;
 use Cbox\Cms\Contracts\PanelPoints\Scope;
@@ -29,6 +30,7 @@ use Cbox\Cms\Core\Registry\Domain\Dto\BuildProblem;
 use Cbox\Cms\Core\Registry\Domain\Dto\BuildWarning;
 use Cbox\Cms\Core\Registry\Domain\Dto\ContributionOverride;
 use Cbox\Cms\Core\Registry\Domain\Dto\IssuedCommand;
+use Cbox\Cms\Core\Registry\Domain\Dto\PanelCatalogue;
 use Cbox\Cms\Core\Registry\Domain\Dto\PanelFill;
 use Cbox\Cms\Core\Registry\Domain\Dto\PanelPointEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\ReplacementChoice;
@@ -199,6 +201,21 @@ function panelFailures(): array
             PanelBuildWorld::addons([PanelBuildWorld::manifest([], themes: ['pale' => array_key_first(PanelBuildWorld::THEMES)])]),
             PanelBuildWorld::settings(themes: new ThemeSelection([new ThemeName('approvals:pale')])),
         )],
+        'a catalogue with a key outside the addon\'s namespace' => ['registry_panel_catalogue_invalid', static fn (): array => panelRefusalWithTexts([
+            'da' => ['approvals.badge.title' => 'Mærke', 'notes.badge.title' => 'Mærke'],
+            'en' => ['approvals.badge.title' => 'Badge', 'notes.badge.title' => 'Badge'],
+        ])],
+        'a catalogue that is not one JSON object of keys to texts' => ['registry_panel_catalogue_invalid', static fn (): array => panelRefusalWithTexts([
+            'da' => '["Mærke"]',
+            'en' => ['approvals.badge.title' => 'Badge'],
+        ])],
+        'catalogues without a file for a locale the panel ships' => ['registry_panel_translations_incomplete', static fn (): array => panelRefusalWithTexts([
+            'en' => ['approvals.badge.title' => 'Badge'],
+        ])],
+        'a key one locale has and another has not' => ['registry_panel_translations_incomplete', static fn (): array => panelRefusalWithTexts([
+            'da' => ['approvals.badge.title' => 'Mærke'],
+            'en' => ['approvals.badge.title' => 'Badge', 'approvals.badge.body' => 'One waits'],
+        ])],
         'an addon the installation\'s allowlist does not name' => ['registry_addon_not_allowed', static fn (): array => PanelBuildWorld::refused(PanelBuildWorld::addons([PanelBuildWorld::manifest([])]), PanelBuildWorld::settings(allowed: [PanelBuildWorld::STAMPS]))],
     ];
 }
@@ -212,6 +229,23 @@ function panelFailures(): array
 function panelRefusalWithout(array $contributions): array
 {
     return PanelBuildWorld::refused(PanelBuildWorld::addons([PanelBuildWorld::manifest($contributions, bundle: null)]));
+}
+
+/**
+ * The problems of a build of the addon with the catalogue files written to disk, and one slot fill
+ * that needs no bundle, so only the catalogues are in question.
+ *
+ * @param  array<string, array<string, string>|string>  $files  the texts by locale, or the bytes of the file
+ * @return list<BuildProblem>
+ */
+function panelRefusalWithTexts(array $files): array
+{
+    $manifest = PanelBuildWorld::manifest(
+        [new SlotFill(new ContributionId('approvals.badge'), 'notes.detail.sections@1')],
+        lang: PanelBuildWorld::writtenCatalogues($files),
+    );
+
+    return PanelBuildWorld::refused(PanelBuildWorld::addons([$manifest]));
 }
 
 afterEach(function (): void {
@@ -300,6 +334,29 @@ it('makes the replacement the installation names win its key and passes over the
 
     expect([panelFillOf($point, 'stamps.reason-input')->enabled, panelFillOf($point, 'stamps.reason-input')->enabling])->toBe([true, FillSource::Installation])
         ->and([panelFillOf($point, 'approvals.reason-input')->enabled, panelFillOf($point, 'approvals.reason-input')->enabling])->toBe([false, FillSource::Installation]);
+});
+
+it('compiles the addon\'s catalogues, one per locale, with every key of its own namespace', function (): void {
+    $manifest = PanelBuildWorld::manifest(
+        [new SlotFill(new ContributionId('approvals.badge'), 'notes.detail.sections@1')],
+        lang: PanelBuildWorld::writtenCatalogues([
+            'da' => ['approvals.badge.title' => 'Mærke', 'approvals.badge.body' => 'En venter'],
+            'en' => ['approvals.badge.title' => 'Badge', 'approvals.badge.body' => 'One waits'],
+        ]),
+    );
+    $registry = PanelBuildWorld::build(PanelBuildWorld::addons([$manifest]));
+    $panel = $registry->addons[0]->panel ?? throw new LogicException('The addon has no panel.');
+
+    expect(array_map(static fn (PanelCatalogue $catalogue): string => $catalogue->locale->value, $panel->catalogues))->toBe(['da', 'en'])
+        ->and($panel->texts(PanelLocale::Danish))->toBe(['approvals.badge.body' => 'En venter', 'approvals.badge.title' => 'Mærke'])
+        ->and($panel->texts(PanelLocale::English))->toBe(['approvals.badge.body' => 'One waits', 'approvals.badge.title' => 'Badge']);
+});
+
+it('gives an addon that ships no catalogue none, so its contributions show their keys', function (): void {
+    $registry = PanelBuildWorld::build(PanelBuildWorld::addons([PanelBuildWorld::manifest(PanelBuildWorld::everyKind())]));
+
+    expect($registry->addons[0]->panel?->catalogues)->toBe([])
+        ->and($registry->addons[0]->panel?->texts(PanelLocale::Danish))->toBe([]);
 });
 
 it('lets a step patch any path of the addon\'s own command and a check warn without a mirror', function (): void {

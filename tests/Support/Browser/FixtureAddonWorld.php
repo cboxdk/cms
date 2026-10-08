@@ -174,7 +174,7 @@ final readonly class FixtureAddonWorld
             hooks: $own->hooks,
             subscriptions: $own->subscriptions,
             schema: $own->schema,
-            panel: new PanelContributions($panel->sdk, $panel->bundle, $acceptsExperimental ?? $panel->acceptsExperimental, $contributions ?? $panel->contributions, $panel->themes),
+            panel: new PanelContributions($panel->sdk, $panel->bundle, $acceptsExperimental ?? $panel->acceptsExperimental, $contributions ?? $panel->contributions, $panel->themes, $panel->lang),
         );
     }
 
@@ -192,6 +192,7 @@ final readonly class FixtureAddonWorld
             $declared->problems,
             $declared->bundles,
             $declared->core,
+            $declared->catalogues,
         );
 
         try {

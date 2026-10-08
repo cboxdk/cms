@@ -1,10 +1,12 @@
 // The host runtime of the panel's pages (PRD 13.4): every page renders inside it, with the
 // contributions and data its props carry. It builds the services a contribution's host reaches
 // once per session: commands through the Inertia profile, navigation through Inertia's router,
-// texts of the panel's and the addons' catalogues, notices in the kit's toast region and
-// confirmations in the kit's dialog. A report of a contribution that failed is dispatched on the
-// window as the event `cms:panel-report`, whose detail names the code, the addon, the point and the
-// contribution and nothing a contribution wrote.
+// texts of the panel's own catalogue for the core's contributions and of the page's compiled
+// catalogue of the active locale for each addon (section 2.6 of the panel extension architecture),
+// notices in the kit's toast region and confirmations in the kit's dialog. A report of a
+// contribution that failed is dispatched on the window as the event `cms:panel-report`, whose
+// detail names the code, the addon, the point and the contribution and nothing a contribution
+// wrote.
 
 import { ConfirmDialog, ToastRegion, createToastQueue } from '@cboxdk/cms-ui-kit';
 import { router } from '@inertiajs/react';
@@ -15,7 +17,7 @@ import { localeOf, lookup, useTranslation } from '../i18n/translations';
 import { AddonSource, CORE_NAMESPACE } from './addons';
 import { inertiaCommands, type CommandRouter } from './commands';
 import { CORE_CONTRIBUTIONS } from './core';
-import { NO_CONTRIBUTIONS, type Contributions } from './model';
+import { NO_CONTRIBUTIONS, catalogues, type Contributions } from './model';
 import type { HostServices } from './panel-host';
 import type { HostReport } from './reports';
 import { HostRuntimeProvider } from './runtime';
@@ -78,7 +80,8 @@ export interface PanelRuntimeProps {
 export function PanelRuntime({ props, children }: PanelRuntimeProps) {
   const { t } = useTranslation();
   const locale = localeOf(document.documentElement.lang);
-  const contributions = contributionsOf(props);
+  const contributions = useMemo(() => contributionsOf(props), [props]);
+  const texts = useMemo(() => catalogues(contributions), [contributions]);
   const [toasts] = useState(createToastQueue);
   const [source] = useState(
     () => new AddonSource(importAddon, { [CORE_NAMESPACE]: CORE_CONTRIBUTIONS }, dispatchReport),
@@ -89,7 +92,8 @@ export function PanelRuntime({ props, children }: PanelRuntimeProps) {
   const services = useMemo<HostServices>(
     () => ({
       locale,
-      text: (addon, key) => (addon === CORE_NAMESPACE ? lookup(locale, key) : undefined),
+      text: (addon, key) =>
+        addon === CORE_NAMESPACE ? lookup(locale, key) : texts.get(addon)?.get(key),
       notify: (_addon, notice) => {
         toasts.add({
           title: notice.message,
@@ -106,7 +110,7 @@ export function PanelRuntime({ props, children }: PanelRuntimeProps) {
         }),
       report: dispatchReport,
     }),
-    [locale, toasts, commands],
+    [locale, texts, toasts, commands],
   );
 
   return (

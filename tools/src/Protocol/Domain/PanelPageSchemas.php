@@ -35,6 +35,7 @@ use Cbox\Cms\Panel\Domain\Dto\AccountMePage;
 use Cbox\Cms\Panel\Domain\Dto\ActionProp;
 use Cbox\Cms\Panel\Domain\Dto\AddonPage;
 use Cbox\Cms\Panel\Domain\Dto\AddonProp;
+use Cbox\Cms\Panel\Domain\Dto\AddonTextsProp;
 use Cbox\Cms\Panel\Domain\Dto\CheckProp;
 use Cbox\Cms\Panel\Domain\Dto\CommandFormPage;
 use Cbox\Cms\Panel\Domain\Dto\ContributionsProp;
@@ -61,6 +62,7 @@ use Cbox\Cms\Panel\Domain\Dto\ReplacementProp;
 use Cbox\Cms\Panel\Domain\Dto\ResetPasswordPage;
 use Cbox\Cms\Panel\Domain\Dto\ResetPasswordRefusals;
 use Cbox\Cms\Panel\Domain\Dto\StepProp;
+use Cbox\Cms\Panel\Domain\Dto\TextProp;
 use Cbox\Cms\Panel\Domain\ForgotPasswordRefusal;
 use Cbox\Cms\Panel\Domain\LoginRefusal;
 use Cbox\Cms\Panel\Domain\ResetFormRefusal;
@@ -173,6 +175,8 @@ final readonly class PanelPageSchemas
                 '#' => ContributionsProp::class,
                 '#/$defs/action' => ActionProp::class,
                 '#/$defs/addon' => AddonProp::class,
+                '#/$defs/text' => TextProp::class,
+                '#/$defs/texts' => AddonTextsProp::class,
                 '#/$defs/check' => CheckProp::class,
                 '#/$defs/decorator' => DecoratorProp::class,
                 '#/$defs/fill' => FillProp::class,
@@ -186,6 +190,7 @@ final readonly class PanelPageSchemas
                 '#/$defs/action/properties/confirm' => ValueBinding::enum(Confirm::class),
                 '#/$defs/action/properties/tone' => ValueBinding::enum(Tone::class),
                 '#/$defs/addon/properties/addon' => ValueBinding::value(AddonNamespace::class),
+                '#/$defs/texts/properties/addon' => ValueBinding::value(AddonNamespace::class),
                 '#/$defs/check/properties/severity' => ValueBinding::enum(Severity::class),
                 '#/$defs/decorator/properties/tightens/items' => ValueBinding::enum(Tighten::class),
                 '#/$defs/fill/properties/addon' => ValueBinding::value(AddonNamespace::class),
