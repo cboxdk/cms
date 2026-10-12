@@ -7,6 +7,7 @@ namespace Cbox\Cms\Generators\Generation\Domain\Generators;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Codecs\InvalidRecordDocument;
 use Cbox\Cms\Contracts\Codecs\RecordCodecs;
+use Cbox\Cms\Contracts\Editors\TypeEditors;
 use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\FieldTypes\FieldBase;
@@ -53,8 +54,8 @@ use Override;
  *   generated record codec of every type (PhpRecordDtos), sorted by type id: it writes an entry a
  *   read returned as its type's record DTO through RecordDocument (PRD 8.9).
  * - `GeneratedTypesServiceProvider`, a Laravel service provider that binds TypeCatalog to the
- *   catalog, TypeValidators to the validators, RecordCodecs to the record codecs and each type's
- *   record factory interface to the
+ *   catalog, TypeValidators to the validators, RecordCodecs to the record codecs, TypeEditors to
+ *   the editor descriptors (PhpTypeEditors) and each type's record factory interface to the
  *   composite record's factory (PhpRecords), so the owner's code gets the composite record
  *   without knowing the extenders, and registers the migrations directory, where
  *   TypeTableMigrations writes the migrations of the type tables, with the migrator, by its path
@@ -310,7 +311,7 @@ final readonly class PhpTypeCatalog implements Generator
      */
     private function provider(CompiledSchema $schema, GenerationTarget $target): GeneratedFile
     {
-        $imports = [$this->serviceProvider, RecordCodecs::class, TypeCatalog::class, TypeValidators::class, Override::class];
+        $imports = [$this->serviceProvider, RecordCodecs::class, TypeCatalog::class, TypeEditors::class, TypeValidators::class, Override::class];
         $bindings = [];
 
         foreach ($schema->types as $type) {
@@ -322,7 +323,7 @@ final readonly class PhpTypeCatalog implements Generator
 
         return PhpSource::file($target->phpDirectory.'/'.self::PROVIDER.'.php', $target->phpNamespace, $imports, [
             ...PhpSource::docblock([
-                'Binds what the generated code gives the kernel and the owners\' code (PRD 8.9, 11.12): the TypeCatalog contract to the generated catalog, the TypeValidators contract to the generated validators, the RecordCodecs contract to the generated record codecs, and each type\'s record factory interface to the factory of its composite record, with every extender\'s fields. Registers the generated migrations of the type tables with the migrator; they run with migrate, never on their own. Register it once in the application.',
+                'Binds what the generated code gives the kernel and the owners\' code (PRD 8.9, 11.12, 14.1): the TypeCatalog contract to the generated catalog, the TypeValidators contract to the generated validators, the RecordCodecs contract to the generated record codecs, the TypeEditors contract to the generated editor descriptors, and each type\'s record factory interface to the factory of its composite record, with every extender\'s fields. Registers the generated migrations of the type tables with the migrator; they run with migrate, never on their own. Register it once in the application.',
             ]),
             'final class '.self::PROVIDER.' extends '.PhpSource::shortName($this->serviceProvider),
             '{',
@@ -332,6 +333,7 @@ final readonly class PhpTypeCatalog implements Generator
             '        $this->app->singleton(TypeCatalog::class, '.self::CATALOG.'::class);',
             '        $this->app->singleton(TypeValidators::class, '.self::VALIDATORS.'::class);',
             '        $this->app->singleton(RecordCodecs::class, '.self::RECORD_CODECS.'::class);',
+            '        $this->app->singleton(TypeEditors::class, '.PhpTypeEditors::EDITORS.'::class);',
             ...$bindings,
             '    }',
             '',

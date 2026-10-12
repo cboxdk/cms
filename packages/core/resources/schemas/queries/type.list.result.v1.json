@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "type.list result, contract version 1",
+  "description": "The result of type.list (PRD 11.12, 14.1): the editor descriptor of every type of the installation, sorted by type name, each as the reader may see it: without the fields above the reader's classification access and, for an agent, without the fields the blueprint does not open to agents (PRD 2.31, 12.2). The PHP form is Cbox\\Cms\\Core\\Schema\\Domain\\Dto\\TypeList, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["types"],
+  "properties": {
+    "types": {
+      "description": "The descriptors, sorted by type name, each a document of type-editor.v1.json.",
+      "type": "array",
+      "items": {
+        "description": "The editor descriptor of one type, a document of type-editor.v1.json.",
+        "type": "object"
+      }
+    }
+  }
+}

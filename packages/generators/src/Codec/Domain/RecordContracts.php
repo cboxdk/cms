@@ -109,6 +109,22 @@ final readonly class RecordContracts
     }
 
     /**
+     * The codec value of one field of a type: what its property of the record holds, with the
+     * field's rules, so the editor descriptor and the record share one mapping of a field to its
+     * rule (PRD 11.12). A group is an object of its nested fields, or a list of them when it
+     * repeats.
+     *
+     * @throws GenerationFailed with GenerateErrorCode::InvalidOutput for a field type without a mapping
+     */
+    public static function fieldValue(FieldDescriptor $field, TypeDescriptor $type): CodecValue
+    {
+        $rules = $field->validation;
+        array_shift($rules);
+
+        return self::value($field, $rules, PhpTypeHandleEnum::caseName($type).'V'.self::VERSION, $type);
+    }
+
+    /**
      * The name of a handle or a namespace in camelCase, for a property.
      */
     public static function propertyName(string $handle): string

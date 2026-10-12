@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Codec\Domain\Dto;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Generators\Codec\Domain\CodecKind;
 
 /**
  * A class of generated DTO and the JSON object it encodes to (GUARDRAILS 2.2): its short class
@@ -59,6 +60,28 @@ final readonly class CodecObject
         }
 
         return $value->object instanceof self && $value->object->classified();
+    }
+
+    /**
+     * Whether a property of this object, or of an object it holds once or in a list, embeds a
+     * document of another contract (CodecKind::Embedded), so the codec writes and reads it with
+     * the classification access it was given.
+     */
+    public function embeds(): bool
+    {
+        return array_any($this->properties, static fn (CodecProperty $property): bool => self::holdsEmbedded($property->value));
+    }
+
+    /**
+     * Whether the value is an embedded document, an object that embeds one, or a list of either.
+     */
+    private static function holdsEmbedded(CodecValue $value): bool
+    {
+        while ($value->item instanceof CodecValue) {
+            $value = $value->item;
+        }
+
+        return $value->kind === CodecKind::Embedded || ($value->object instanceof self && $value->object->embeds());
     }
 
     /**

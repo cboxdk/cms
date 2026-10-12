@@ -25,6 +25,7 @@ use Cbox\Cms\Generators\Generation\Domain\GeneratorRunner;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecordDtos;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecords;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeCatalog;
+use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeEditors;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeHandleEnum;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeQueries;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeValidators;
@@ -47,6 +48,8 @@ use Cbox\Cms\Generators\Schema\Boundary\RegisteredFieldTypes;
 use Cbox\Cms\Generators\Schema\Boundary\YamlBlueprintSource;
 use Cbox\Cms\Generators\Schema\Domain\BlueprintSource;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypeRegistry;
+use Cbox\Cms\Generators\TypeEditors\Boundary\RuleJson;
+use Cbox\Cms\Generators\TypeEditors\Domain\TypeEditorCompiler;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
 use Override;
@@ -103,6 +106,7 @@ final class GeneratorsServiceProvider extends ServiceProvider implements Declare
                 new PhpTypeHandleEnum,
                 new PhpRecords,
                 new PhpTypeCatalog(ServiceProvider::class),
+                new PhpTypeEditors(new TypeEditorCompiler(RuleJson::of(...))),
                 new PhpTypeQueries,
                 new PhpTypeValidators,
                 new TypeScriptTypeHandles,

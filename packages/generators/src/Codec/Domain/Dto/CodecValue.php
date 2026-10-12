@@ -13,15 +13,17 @@ use Cbox\Cms\Generators\Descriptor\Domain\Dto\ValidationRule;
  * What a property of a generated DTO holds (GUARDRAILS 2.2): its kind, the rules its codec checks
  * when it reads the value, in the type descriptor's vocabulary without `required` and `nullable`,
  * which belong to the property, and what the kind needs besides: the object of an Object, the item
- * of a List, and the class of an Id, an Enum, a Value, an IntegerValue, Fields or a Document, with the form of an Id's or a Value's
- * string when it is known, which the TypeScript validator checks.
+ * of a List, and the class of an Id, an Enum, a Value, an IntegerValue, Fields, a Document or an
+ * Embedded document, with the form of an Id's or a Value's string when it is known, which the
+ * TypeScript validator checks, and the codec class of an Embedded document.
  */
 #[Internal]
 final readonly class CodecValue
 {
     /**
      * @param  list<ValidationRule>  $rules
-     * @param  ?string  $class  the fully qualified class of an Id, an Enum, a Value, an IntegerValue, Fields or a Document
+     * @param  ?string  $class  the fully qualified class of an Id, an Enum, a Value, an IntegerValue, Fields, a Document or an Embedded document
+     * @param  ?string  $codec  the codec class of an Embedded document, without its namespace, in the namespace of the codec that holds it
      */
     private function __construct(
         public CodecKind $kind,
@@ -30,6 +32,7 @@ final readonly class CodecValue
         public ?self $item = null,
         public ?string $class = null,
         public ?StringForm $form = null,
+        public ?string $codec = null,
     ) {}
 
     /**
@@ -105,5 +108,14 @@ final readonly class CodecValue
     public static function document(string $class): self
     {
         return new self(CodecKind::Document, [], class: $class);
+    }
+
+    /**
+     * @param  class-string  $class  the bound class of the embedded contract's document
+     * @param  string  $codec  the embedded contract's codec class, without its namespace
+     */
+    public static function embedded(string $class, string $codec): self
+    {
+        return new self(CodecKind::Embedded, [], class: $class, codec: $codec);
     }
 }

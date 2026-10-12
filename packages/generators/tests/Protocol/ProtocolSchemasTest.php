@@ -84,6 +84,7 @@ it('writes exactly the committed codecs of the receipt, problem details, envelop
         'packages/core/src/Codecs/Boundary/Generated/DeliveryCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/DeliveryExplanationCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/DeliveryFragmentCodecV1.php',
+        'packages/core/src/Codecs/Boundary/Generated/DescribeTypeCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/DryRunSummaryCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/EnvelopeCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/ExplainedPathCodecV1.php',
@@ -96,6 +97,7 @@ it('writes exactly the committed codecs of the receipt, problem details, envelop
         'packages/core/src/Codecs/Boundary/Generated/ListGrantsCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/ListNodesCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/ListRolesCodecV1.php',
+        'packages/core/src/Codecs/Boundary/Generated/ListTypesCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/MoveNodeCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/NodeListCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/PanelBundleCodecV1.php',
@@ -117,6 +119,9 @@ it('writes exactly the committed codecs of the receipt, problem details, envelop
         'packages/core/src/Codecs/Boundary/Generated/SetNodeRouteCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/SetPlacementWindowCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/SetRolePermissionsCodecV1.php',
+        'packages/core/src/Codecs/Boundary/Generated/TypeDescriptionCodecV1.php',
+        'packages/core/src/Codecs/Boundary/Generated/TypeEditorCodecV1.php',
+        'packages/core/src/Codecs/Boundary/Generated/TypeListCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/UnpublishEntryCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/WhoAmICodecV1.php',
     ]);
@@ -125,7 +130,7 @@ it('writes exactly the committed codecs of the receipt, problem details, envelop
         expect(file_get_contents(kernelRoot().'/'.$file->path))->toBe($file->contents, $file->path.' is not what composer generate:protocol writes.');
     }
 
-    expect(glob(kernelRoot().'/'.ProtocolSchemas::PHP_DIRECTORY.'/*'))->toHaveCount(50);
+    expect(glob(kernelRoot().'/'.ProtocolSchemas::PHP_DIRECTORY.'/*'))->toHaveCount(55);
 });
 
 it('gives each command\'s codec the command\'s name and version from its #[Command] and its schema, and lists each in KernelCommandCodecs', function (SchemaBinding $binding): void {
@@ -222,7 +227,7 @@ it('sorts the codecs by path, owns their directory and refuses two schemas with 
 
     expect(array_map(static fn (GeneratedFile $file): string => $file->path, $result->files))->toBe(['Generated/AParcelCodecV1.php', 'Generated/ParcelCodecV1.php'])
         ->and($result->directories)->toBe(['Generated'])
-        ->and($receipt)->toHaveCount(50);
+        ->and($receipt)->toHaveCount(55);
 
     try {
         ProtocolSchemas::result([$parcel, $parcel], $location);

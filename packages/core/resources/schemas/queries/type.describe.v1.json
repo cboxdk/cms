@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "type.describe, contract version 1",
+  "description": "The editor descriptor of one type of the installation (PRD 11.12, 14.1), by its name. Every actor may run it without a permission, because it tells an actor only the shape of the type, filtered to what the actor may read, while the anonymous principal may not. The PHP form is Cbox\\Cms\\Core\\Schema\\Domain\\Queries\\DescribeType, and the generated codec reads it and writes its canonical JSON. Its result is type.describe.result.v1.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name"],
+  "properties": {
+    "name": {
+      "description": "The name of the type, <owner>:<handle>, such as app:blog_post.",
+      "type": "string",
+      "maxLength": 84,
+      "pattern": "^[a-z][a-z0-9]{0,19}:[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+    }
+  }
+}

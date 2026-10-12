@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "type.describe result, contract version 1",
+  "description": "The result of type.describe (PRD 11.12, 14.1): the editor descriptor of the type named, as the reader may see it, without the fields above the reader's classification access and, for an agent, without the fields the blueprint does not open to agents (PRD 2.31, 12.2); or null when the installation has no type of that name. The PHP form is Cbox\\Cms\\Core\\Schema\\Domain\\Dto\\TypeDescription, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type"],
+  "properties": {
+    "type": {
+      "description": "The editor descriptor of the type, a document of type-editor.v1.json, or null when the installation has no type of that name.",
+      "type": ["object", "null"]
+    }
+  }
+}

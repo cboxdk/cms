@@ -1,0 +1,261 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Type editor descriptor, contract version 1",
+  "description": "What the panel's forms render a type from (PRD 11.12, 14.1, GUARDRAILS 2.4): the type's name, labels, capabilities and inferred title field, and its field tree as a flat list in form order, each field with its type and base, labels, presence, classification, agents flag, the choices of a select, how a group repeats, and its value rule in the form of the generated validation runtime. The PHP form is Cbox\\Cms\\Contracts\\Editors\\TypeEditor, compiled by cms:generate into the application's TypeEditors, and the generated codec TypeEditorCodecV1 writes its canonical JSON: keys sorted, no whitespace. The queries type.list and type.describe answer with it, filtered to the reader.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "capabilities",
+    "description",
+    "extensions",
+    "fields",
+    "id",
+    "label",
+    "name",
+    "title_field",
+    "version"
+  ],
+  "properties": {
+    "capabilities": {
+      "description": "The capabilities the type declares (PRD 3.1, 5, 10.1), so a form knows whether the type has stages to release and routes to give.",
+      "$ref": "#/$defs/capabilities"
+    },
+    "description": {
+      "description": "What the type holds, as its blueprint describes it, or null.",
+      "type": ["string", "null"],
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "extensions": {
+      "description": "The extenders of the type, sorted by namespace, each with the version of its extension; the fields each adds are under ext.<namespace> among the fields.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/extension"
+      }
+    },
+    "fields": {
+      "description": "The field tree as a flat list in form order: the owner's top-level fields in blueprint order, each group followed by the fields below it, then each extender's fields the same way, by namespace. A nested field names its group's path as parent, and every group comes before the fields below it.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/field"
+      }
+    },
+    "id": {
+      "description": "The id of the type, a UUIDv7, which never changes.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "label": {
+      "description": "The label of the type, as its blueprint gives it.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "name": {
+      "description": "The name of the type, <owner>:<handle>, such as app:blog_post.",
+      "type": "string",
+      "maxLength": 84,
+      "pattern": "^[a-z][a-z0-9]{0,19}:[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+    },
+    "title_field": {
+      "description": "The path of the field a form shows an entry by: the first required text field of the owner in blueprint order, else the owner's first text field, or null when the owner has no text field.",
+      "type": ["string", "null"]
+    },
+    "version": {
+      "description": "The owner's version of the type.",
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "$defs": {
+    "capabilities": {
+      "description": "The capabilities a type declares in its blueprint.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["history", "localization", "routable", "stages"],
+      "properties": {
+        "history": {
+          "description": "How much of the type's history is kept: every revision, the audit trail only, or nothing.",
+          "type": "string",
+          "enum": ["full", "audit-only", "none"]
+        },
+        "localization": {
+          "description": "How the type is localized.",
+          "type": "string",
+          "enum": ["none"]
+        },
+        "routable": {
+          "description": "Whether the type's entries have routes.",
+          "type": "boolean"
+        },
+        "stages": {
+          "description": "Whether the type's entries have stages: none, or a draft that is released.",
+          "type": "string",
+          "enum": ["none", "draft-release"]
+        }
+      }
+    },
+    "extension": {
+      "description": "An extender of the type and the version of its extension.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["namespace", "version"],
+      "properties": {
+        "namespace": {
+          "description": "The extender's namespace, the owner that added the fields, such as app.",
+          "type": "string",
+          "maxLength": 20,
+          "pattern": "^[a-z][a-z0-9]{0,19}$"
+        },
+        "version": {
+          "description": "The version of the extension.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "choice": {
+      "description": "One option of a select field: the value the field stores and its label.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "value"],
+      "properties": {
+        "label": {
+          "description": "The label of the option, as its blueprint gives it.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "value": {
+          "description": "The value the field stores, a handle.",
+          "type": "string",
+          "maxLength": 63,
+          "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+        }
+      }
+    },
+    "repeat": {
+      "description": "How a repeated group repeats: the fewest and the most items the form lets an editor add, each null when the blueprint leaves it out.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_items", "min_items"],
+      "properties": {
+        "max_items": {
+          "description": "The most items, or null for the blueprint's default.",
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "min_items": {
+          "description": "The fewest items, or null for none.",
+          "type": ["integer", "null"],
+          "minimum": 0
+        }
+      }
+    },
+    "field": {
+      "description": "A field of the type as a form renders it: one input, and its value rule.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agents",
+        "base",
+        "choices",
+        "classification",
+        "description",
+        "encrypted",
+        "handle",
+        "label",
+        "namespace",
+        "parent",
+        "path",
+        "presence",
+        "repeat",
+        "rule",
+        "type"
+      ],
+      "properties": {
+        "agents": {
+          "description": "Whether MCP tools and agents see the field (PRD 2.31, 12.2): a public or internal field unless its blueprint says no, a confidential field only when its blueprint says yes, never a personal or sensitive field.",
+          "type": "boolean"
+        },
+        "base": {
+          "description": "The core field type whose form the value takes: the field type itself for a core field type, and the base of its shape for an addon's. A form picks its input by it.",
+          "type": "string",
+          "enum": ["boolean", "date", "datetime", "decimal", "group", "integer", "long_text", "rich_text", "select", "text"]
+        },
+        "choices": {
+          "description": "The options of a select, in the blueprint's order, each value once; empty for any other base.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/choice"
+          }
+        },
+        "classification": {
+          "description": "The classification of the field (PRD 12.2), which decides who may read it.",
+          "type": "string",
+          "enum": ["public", "internal", "confidential", "personal", "sensitive"]
+        },
+        "description": {
+          "description": "What the field holds, as its blueprint describes it, the help text of its input; or null.",
+          "type": ["string", "null"],
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "encrypted": {
+          "description": "Whether the value is stored as ciphertext (PRD 12.2).",
+          "type": "boolean"
+        },
+        "handle": {
+          "description": "The handle of the field, as the blueprint declares it.",
+          "type": "string",
+          "maxLength": 63,
+          "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+        },
+        "label": {
+          "description": "The label of the field, as its blueprint gives it.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "namespace": {
+          "description": "The extender's namespace for an extension field, which a nested field takes from its group; null for a field of the type's owner.",
+          "type": ["string", "null"],
+          "maxLength": 20,
+          "pattern": "^[a-z][a-z0-9]{0,19}$"
+        },
+        "parent": {
+          "description": "The path of the group the field is nested in, which comes before it in the list, or null for a top-level field.",
+          "type": ["string", "null"]
+        },
+        "path": {
+          "description": "The address of the field: its handle for a top-level field of the owner, ext.<namespace>.<handle> for a top-level extension field, and the parent's path, a dot and the handle inside a group.",
+          "type": "string"
+        },
+        "presence": {
+          "description": "What the generated validator requires: required at every write, required_on_release for an extension field the blueprint requires (PRD 11.12, point 1), else optional.",
+          "type": "string",
+          "enum": ["required", "required_on_release", "optional"]
+        },
+        "repeat": {
+          "description": "How a repeated group repeats, or null for a group that does not repeat and for any other base.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/repeat"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rule": {
+          "description": "The field's value rule in the form of the generated validation runtime, a ValueRule as the generated TypeScript module of the type's record declares it, so a form validates with the same interpreter; null for a group, whose object or list rule the form builds from the fields below it and repeat.",
+          "type": ["object", "null"]
+        },
+        "type": {
+          "description": "The field type as the blueprint names it: a core field type such as text, or <namespace>:<handle> for a field type an addon contributes (PRD 13.1).",
+          "type": "string"
+        }
+      }
+    }
+  }
+}

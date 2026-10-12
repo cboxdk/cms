@@ -34,6 +34,7 @@ final class SampleDocument
         'fixture%d',
         'fixture%d@example.com',
         '/fixture%d',
+        'sample:card%d',
     ];
 
     private const string DATE_TIME = '2026-03-09T10:00:00+00:00';

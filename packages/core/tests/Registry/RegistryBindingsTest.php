@@ -59,6 +59,8 @@ use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Registry\Domain\RegistryName;
 use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
 use Cbox\Cms\Core\Routing\Actions\ResolvePathAction;
+use Cbox\Cms\Core\Schema\Actions\DescribeTypeAction;
+use Cbox\Cms\Core\Schema\Actions\ListTypesAction;
 use Cbox\Cms\Core\Seeding\Actions\SeedEntriesAction;
 use Cbox\Cms\Core\Seeding\Domain\Commands\SeedEntries;
 use Cbox\Cms\Core\Structure\Actions\AddSiteLocaleAction;
@@ -203,6 +205,8 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'site.add_locale@1 '.AddSiteLocaleAction::class.' write',
             'site.register@1 '.RegisterSiteAction::class.' write',
             'site.remove_locale@1 '.RemoveSiteLocaleAction::class.' write',
+            'type.describe@1 '.DescribeTypeAction::class.' query',
+            'type.list@1 '.ListTypesAction::class.' query',
             'variant.release@1 '.ReleaseVariantAction::class.' write',
         ])
         ->and($registry->actionFor(DeactivateActor::class)?->surfaces)->toBe([])
@@ -219,7 +223,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
         ->and($registry->actionFor(CreateEntry::class)?->class)->toBe(CreateEntryAction::class)
         ->and($registry->actionFor(ReviseEntry::class)?->class)->toBe(ReviseEntryAction::class)
         ->and($registry->actionFor(ListNodes::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia])
-        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([31, 0, 24, 0, 15, 25, 0, 1])
+        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([33, 0, 24, 0, 15, 27, 0, 1])
         ->and($registry->hooks)->toBe([])
         ->and(array_map(static fn (SubscriberEntry $entry): string => $entry->name->value.' '.$entry->class.' '.$entry->lane->value.' '.$entry->projection?->value, $registry->subscribers))
         ->toBe(['fragments.invalidate '.InvalidateFragments::class.' critical origin'])

@@ -85,6 +85,15 @@ enum CodecKind: string
     case Document = 'document';
 
     /**
+     * A JSON object of another kernel contract whose class is bound and whose codec is known, such
+     * as a type editor descriptor inside the result of type.list: written and read inline by that
+     * contract's own generated codec, named in CodecValue::$codec, at the classification access the
+     * holding codec was given, and held as the bound class itself. The contract that holds it
+     * checks only that it is an object; the embedded codec checks its keys. No rules.
+     */
+    case Embedded = 'embedded';
+
+    /**
      * The rules a value of this kind takes, in the type descriptor's vocabulary. The emitters refuse
      * any other, so no rule of a blueprint is ever dropped without being checked.
      *
@@ -104,7 +113,7 @@ enum CodecKind: string
             self::Object => [ValidationRuleName::Object],
             self::List => [ValidationRuleName::List, ValidationRuleName::Distinct, ValidationRuleName::MinItems, ValidationRuleName::MaxItems],
             self::IntegerValue => [ValidationRuleName::Min, ValidationRuleName::Max],
-            self::Id, self::Enum, self::Value, self::Fields, self::Document => [],
+            self::Id, self::Enum, self::Value, self::Fields, self::Document, self::Embedded => [],
         };
     }
 
@@ -115,7 +124,7 @@ enum CodecKind: string
     public function isClass(): bool
     {
         return match ($this) {
-            self::Date, self::Datetime, self::PortableText, self::Object, self::Id, self::Enum, self::Value, self::IntegerValue, self::Fields, self::Document => true,
+            self::Date, self::Datetime, self::PortableText, self::Object, self::Id, self::Enum, self::Value, self::IntegerValue, self::Fields, self::Document, self::Embedded => true,
             default => false,
         };
     }

@@ -20,6 +20,11 @@ use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\RevisionNumber;
 use Cbox\Cms\Contracts\Content\Slug;
 use Cbox\Cms\Contracts\Content\TimeWindow;
+use Cbox\Cms\Contracts\Editors\EditorBase;
+use Cbox\Cms\Contracts\Editors\EditorChoice;
+use Cbox\Cms\Contracts\Editors\EditorField;
+use Cbox\Cms\Contracts\Editors\EditorRepeat;
+use Cbox\Cms\Contracts\Editors\TypeEditor;
 use Cbox\Cms\Contracts\Envelope\CorrelationId;
 use Cbox\Cms\Contracts\Envelope\GenerationModel;
 use Cbox\Cms\Contracts\Envelope\ModelParameter;
@@ -30,6 +35,8 @@ use Cbox\Cms\Contracts\Envelope\SourceReference;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Contracts\Errors\HttpStatus;
 use Cbox\Cms\Contracts\Errors\Problem;
+use Cbox\Cms\Contracts\Fields\FieldHandle;
+use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Idempotency\IdempotencyKey;
 use Cbox\Cms\Contracts\Identity\ActorClass;
@@ -64,7 +71,13 @@ use Cbox\Cms\Contracts\Results\DryRunSummary;
 use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Contracts\Results\ReadContent;
 use Cbox\Cms\Contracts\Results\VersionChange;
+use Cbox\Cms\Contracts\Schema\ExtensionVersion;
+use Cbox\Cms\Contracts\Schema\History;
+use Cbox\Cms\Contracts\Schema\Localization;
+use Cbox\Cms\Contracts\Schema\Stages;
+use Cbox\Cms\Contracts\Schema\TypeCapabilities;
 use Cbox\Cms\Contracts\Schema\TypeName;
+use Cbox\Cms\Contracts\Validation\Presence;
 use Cbox\Cms\Core\Access\Domain\Commands\AssignGrant;
 use Cbox\Cms\Core\Access\Domain\Commands\CreateRole;
 use Cbox\Cms\Core\Access\Domain\Commands\RevokeGrant;
@@ -135,6 +148,10 @@ use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Routing\Domain\ResolveOutcome;
 use Cbox\Cms\Core\Routing\Domain\SiteHandle;
 use Cbox\Cms\Core\Routing\Domain\VisibilityDecision;
+use Cbox\Cms\Core\Schema\Domain\Dto\TypeDescription;
+use Cbox\Cms\Core\Schema\Domain\Dto\TypeList;
+use Cbox\Cms\Core\Schema\Domain\Queries\DescribeType;
+use Cbox\Cms\Core\Schema\Domain\Queries\ListTypes;
 use Cbox\Cms\Core\Structure\Domain\Commands\AddSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
@@ -231,11 +248,13 @@ final readonly class ProtocolSchemas
     /**
      * The bindings of the kernel's documents, sorted by file: the schemas of the contracts module,
      * the delivery explanation, the delivery API's answers, the dry run summary, the envelope, the explained path, the
-     * path explanation, the problem details and the receipt, then the core's own, the delivery
-     * API's fragment and the manifest of an addon's panel bundle. A member of a document that is a
-     * document of another contract, such as the record of a delivery answer or the explanation
-     * inside a delivery explanation, is bound with ValueBinding::document(), so its own contract's
-     * codec writes it.
+     * path explanation, the problem details, the receipt and the type editor descriptor, then the
+     * core's own, the delivery API's fragment and the manifest of an addon's panel bundle. A member
+     * of a document that is a document of another contract, such as the record of a delivery answer
+     * or the explanation inside a delivery explanation, is bound with ValueBinding::document(), so
+     * its own contract's codec writes it; one that is a document of another kernel contract held
+     * as its bound class, such as a type editor descriptor in the result of type.list, is bound
+     * with ValueBinding::embedded(), so that contract's codec writes and reads it inline.
      *
      * @return list<SchemaBinding>
      */
@@ -373,6 +392,37 @@ final readonly class ProtocolSchemas
                 ],
             ),
             new SchemaBinding(
+                schema: 'type-editor.v1.json',
+                codecClass: 'TypeEditorCodecV1',
+                version: 1,
+                objects: [
+                    '#' => TypeEditor::class,
+                    '#/$defs/capabilities' => TypeCapabilities::class,
+                    '#/$defs/choice' => EditorChoice::class,
+                    '#/$defs/extension' => ExtensionVersion::class,
+                    '#/$defs/field' => EditorField::class,
+                    '#/$defs/repeat' => EditorRepeat::class,
+                ],
+                values: [
+                    '#/properties/id' => $id(TypeId::class),
+                    '#/properties/name' => ValueBinding::value(TypeName::class),
+                    '#/$defs/capabilities/properties/history' => ValueBinding::enum(History::class),
+                    '#/$defs/capabilities/properties/localization' => ValueBinding::enum(Localization::class),
+                    '#/$defs/capabilities/properties/stages' => ValueBinding::enum(Stages::class),
+                    '#/$defs/choice/properties/value' => ValueBinding::value(FieldHandle::class),
+                    '#/$defs/extension/properties/namespace' => ValueBinding::value(FieldNamespace::class),
+                    '#/$defs/field/properties/base' => ValueBinding::enum(EditorBase::class),
+                    '#/$defs/field/properties/classification' => ValueBinding::enum(ClassificationAccess::class),
+                    '#/$defs/field/properties/handle' => ValueBinding::value(FieldHandle::class),
+                    '#/$defs/field/properties/namespace' => ValueBinding::value(FieldNamespace::class),
+                    '#/$defs/field/properties/presence' => ValueBinding::enum(Presence::class),
+                    '#/$defs/field/properties/rule' => $document,
+                ],
+                names: [
+                    '#/$defs/field/properties/type' => 'fieldType',
+                ],
+            ),
+            new SchemaBinding(
                 schema: 'delivery-fragment.v1.json',
                 codecClass: 'DeliveryFragmentCodecV1',
                 version: 1,
@@ -435,7 +485,10 @@ final readonly class ProtocolSchemas
      * them a name, a kind or a text. actor.me carries nothing and answers with the principal's
      * own actor, whose profile is the subject's own and so unclassified. path.resolve is public and answers with the entry the
      * placement places and the explanation of the resolution (PRD 5.9), whose objects are those of
-     * path-explanation.v1.json below `#/$defs/path_explanation`.
+     * path-explanation.v1.json below `#/$defs/path_explanation`. type.list and type.describe answer
+     * with type editor descriptors (PRD 11.12, 14.1), each embedded as its bound class TypeEditor
+     * through TypeEditorCodecV1 (ValueBinding::embedded()), which the query pipeline filters to the
+     * reader before the result codec writes them.
      *
      * @return list<SchemaBinding>
      */
@@ -575,6 +628,24 @@ final readonly class ProtocolSchemas
                     '#/$defs/listed_role/properties/permissions/items' => ValueBinding::value(CommandName::class),
                     '#/$defs/listed_role/properties/version' => $version,
                 ],
+            ),
+            ...self::query(
+                'type.describe',
+                DescribeType::class,
+                'DescribeTypeCodecV1',
+                ['#/properties/name' => ValueBinding::value(TypeName::class)],
+                'TypeDescriptionCodecV1',
+                ['#' => TypeDescription::class],
+                ['#/properties/type' => ValueBinding::embedded(TypeEditor::class, 'TypeEditorCodecV1')],
+            ),
+            ...self::query(
+                'type.list',
+                ListTypes::class,
+                'ListTypesCodecV1',
+                [],
+                'TypeListCodecV1',
+                ['#' => TypeList::class],
+                ['#/properties/types/items' => ValueBinding::embedded(TypeEditor::class, 'TypeEditorCodecV1')],
             ),
         ];
     }

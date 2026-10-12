@@ -1,0 +1,577 @@
+{
+    "capabilities": {
+        "history": "full",
+        "localization": "none",
+        "routable": true,
+        "stages": "draft-release"
+    },
+    "description": "A product of the shop, with its price, stock and supplier.",
+    "extensions": [
+        {
+            "namespace": "app",
+            "version": 2
+        }
+    ],
+    "fields": [
+        {
+            "agents": true,
+            "base": "text",
+            "choices": [],
+            "classification": "public",
+            "description": "The name of the product, as the shop shows it.",
+            "encrypted": false,
+            "handle": "name",
+            "label": "Name",
+            "namespace": null,
+            "parent": null,
+            "path": "name",
+            "presence": "required",
+            "repeat": null,
+            "rule": {
+                "kind": "text",
+                "minLength": 1,
+                "maxLength": 120
+            },
+            "type": "text"
+        },
+        {
+            "agents": true,
+            "base": "text",
+            "choices": [],
+            "classification": "public",
+            "description": "Where customers write about the product.",
+            "encrypted": false,
+            "handle": "support_email",
+            "label": "Support email",
+            "namespace": null,
+            "parent": null,
+            "path": "support_email",
+            "presence": "optional",
+            "repeat": null,
+            "rule": {
+                "kind": "text",
+                "maxLength": 255,
+                "format": "email"
+            },
+            "type": "text"
+        },
+        {
+            "agents": false,
+            "base": "long_text",
+            "choices": [],
+            "classification": "internal",
+            "description": null,
+            "encrypted": false,
+            "handle": "summary",
+            "label": "Summary",
+            "namespace": null,
+            "parent": null,
+            "path": "summary",
+            "presence": "optional",
+            "repeat": null,
+            "rule": {
+                "kind": "text",
+                "maxLength": 2000
+            },
+            "type": "long_text"
+        },
+        {
+            "agents": true,
+            "base": "integer",
+            "choices": [],
+            "classification": "internal",
+            "description": "How many items the warehouse holds.",
+            "encrypted": false,
+            "handle": "stock",
+            "label": "Stock",
+            "namespace": null,
+            "parent": null,
+            "path": "stock",
+            "presence": "optional",
+            "repeat": null,
+            "rule": {
+                "kind": "integer",
+                "min": 0,
+                "max": 1000000
+            },
+            "type": "integer"
+        },
+        {
+            "agents": true,
+            "base": "integer",
+            "choices": [],
+            "classification": "public",
+            "description": "The weight of one item in grams.",
+            "encrypted": false,
+            "handle": "weight",
+            "label": "Weight",
+            "namespace": null,
+            "parent": null,
+            "path": "weight",
+            "presence": "optional",
+            "repeat": null,
+            "rule": {
+                "kind": "integer",
+                "min": 1
+            },
+            "type": "integer"
+        },
+        {
+            "agents": true,
+            "base": "decimal",
+            "choices": [],
+            "classification": "public",
+            "description": "The price of one item, in euro.",
+            "encrypted": false,
+            "handle": "price",
+            "label": "Price",
+            "namespace": null,
+            "parent": null,
+            "path": "price",
+            "presence": "required",
+            "repeat": null,
+            "rule": {
+                "kind": "decimal",
+                "precision": 10,
+                "scale": 2,
+                "min": "0.00",
+                "max": "99999999.99"
+            },
+            "type": "decimal"
+        },
+        {
+            "agents": true,
+            "base": "boolean",
+            "choices": [],
+            "classification": "public",
+            "description": "Whether the shop no longer sells the product.",
+            "encrypted": false,
+            "handle": "discontinued",
+            "label": "Discontinued",
+            "namespace": null,
+            "parent": null,
+            "path": "discontinued",
+            "presence": "optional",
+            "repeat": null,
+            "rule": {
+                "kind": "boolean"
+            },
+            "type": "boolean"
+        },
+        {
+            "agents": true,
+            "base": "date",
+            "choices": [],
+            "classification": "public",
+            "description": "The day the product went on sale.",
+            "encrypted": false,
+            "handle": "launch_date",
+            "label": "Launch date",
+            "namespace": null,
+            "parent": null,
+            "path": "launch_date",
+            "presence": "optional",
+            "repeat": null,
+            "rule": {
+                "kind": "date",
+                "min": "2000-01-01",
+                "max": "2099-12-31"
+            },
+            "type": "date"
+        },
+        {
+            "agents": true,
+            "base": "datetime",
+            "choices": [],
+            "classification": "internal",
+            "description": "When the product data was last checked.",
+            "encrypted": false,
+            "handle": "checked_at",
+            "label": "Checked at",
+            "namespace": null,
+            "parent": null,
+            "path": "checked_at",
+            "presence": "optional",
+            "repeat": null,
+            "rule": {
+                "kind": "datetime",
+                "min": "2000-01-01T00:00:00Z"
+            },
+            "type": "datetime"
+        },
+        {
+            "agents": true,
+            "base": "select",
+            "choices": [
+                {
+                    "label": "Red",
+                    "value": "red"
+                },
+                {
+                    "label": "Green",
+                    "value": "green"
+                },
+                {
+                    "label": "Blue",
+                    "value": "blue"
+                }
+            ],
+            "classification": "public",
+            "description": "The colour of the product.",
+            "encrypted": false,
+            "handle": "colour",
+            "label": "Colour",
+            "namespace": null,
+            "parent": null,
+            "path": "colour",
+            "presence": "required",
+            "repeat": null,
+            "rule": {
+                "kind": "choice",
+                "choices": [
+                    "red",
+                    "green",
+                    "blue"
+                ]
+            },
+            "type": "select"
+        },
+        {
+            "agents": true,
+            "base": "select",
+            "choices": [
+                {
+                    "label": "New",
+                    "value": "new"
+                },
+                {
+                    "label": "Sale",
+                    "value": "sale"
+                },
+                {
+                    "label": "Eco",
+                    "value": "eco"
+                }
+            ],
+            "classification": "public",
+            "description": "The tags the shop lists the product under.",
+            "encrypted": false,
+            "handle": "tags",
+            "label": "Tags",
+            "namespace": null,
+            "parent": null,
+            "path": "tags",
+            "presence": "optional",
+            "repeat": null,
+            "rule": {
+                "kind": "list",
+                "item": {
+                    "kind": "choice",
+                    "choices": [
+                        "new",
+                        "sale",
+                        "eco"
+                    ]
+                },
+                "minItems": 1,
+                "maxItems": 3,
+                "distinct": true
+            },
+            "type": "select"
+        },
+        {
+            "agents": true,
+            "base": "rich_text",
+            "choices": [],
+            "classification": "public",
+            "description": "The description of the product on its page.",
+            "encrypted": false,
+            "handle": "body",
+            "label": "Body",
+            "namespace": null,
+            "parent": null,
+            "path": "body",
+            "presence": "optional",
+            "repeat": null,
+            "rule": {
+                "kind": "portable_text",
+                "styles": [
+                    "normal",
+                    "h2",
+                    "h3"
+                ],
+                "marks": [
+                    "strong",
+                    "em"
+                ],
+                "lists": [
+                    "bullet"
+                ],
+                "links": [
+                    "url"
+                ]
+            },
+            "type": "rich_text"
+        },
+        {
+            "agents": true,
+            "base": "rich_text",
+            "choices": [],
+            "classification": "public",
+            "description": "How to take care of the product.",
+            "encrypted": false,
+            "handle": "care",
+            "label": "Care",
+            "namespace": null,
+            "parent": null,
+            "path": "care",
+            "presence": "optional",
+            "repeat": null,
+            "rule": {
+                "kind": "portable_text",
+                "styles": [
+                    "normal",
+                    "h2",
+                    "h3",
+                    "h4",
+                    "h5",
+                    "h6",
+                    "blockquote"
+                ],
+                "marks": [
+                    "strong",
+                    "em",
+                    "underline",
+                    "strike",
+                    "code",
+                    "sub",
+                    "sup"
+                ],
+                "lists": [
+                    "bullet",
+                    "number"
+                ],
+                "links": [
+                    "url"
+                ]
+            },
+            "type": "rich_text"
+        },
+        {
+            "agents": true,
+            "base": "group",
+            "choices": [],
+            "classification": "confidential",
+            "description": "Who supplies the product, and how to reach them.",
+            "encrypted": true,
+            "handle": "supplier",
+            "label": "Supplier",
+            "namespace": null,
+            "parent": null,
+            "path": "supplier",
+            "presence": "optional",
+            "repeat": null,
+            "rule": null,
+            "type": "group"
+        },
+        {
+            "agents": true,
+            "base": "text",
+            "choices": [],
+            "classification": "confidential",
+            "description": "The name of the supplier.",
+            "encrypted": true,
+            "handle": "company",
+            "label": "Company",
+            "namespace": null,
+            "parent": "supplier",
+            "path": "supplier.company",
+            "presence": "required",
+            "repeat": null,
+            "rule": {
+                "kind": "text",
+                "maxLength": 255
+            },
+            "type": "text"
+        },
+        {
+            "agents": true,
+            "base": "text",
+            "choices": [],
+            "classification": "confidential",
+            "description": "The supplier's website.",
+            "encrypted": true,
+            "handle": "website",
+            "label": "Website",
+            "namespace": null,
+            "parent": "supplier",
+            "path": "supplier.website",
+            "presence": "optional",
+            "repeat": null,
+            "rule": {
+                "kind": "text",
+                "maxLength": 255,
+                "format": "url"
+            },
+            "type": "text"
+        },
+        {
+            "agents": false,
+            "base": "long_text",
+            "choices": [],
+            "classification": "confidential",
+            "description": null,
+            "encrypted": true,
+            "handle": "notes",
+            "label": "Notes",
+            "namespace": null,
+            "parent": "supplier",
+            "path": "supplier.notes",
+            "presence": "optional",
+            "repeat": null,
+            "rule": {
+                "kind": "text",
+                "maxLength": 10000
+            },
+            "type": "long_text"
+        },
+        {
+            "agents": true,
+            "base": "group",
+            "choices": [],
+            "classification": "public",
+            "description": "The sizes the product comes in.",
+            "encrypted": false,
+            "handle": "dimensions",
+            "label": "Dimensions",
+            "namespace": null,
+            "parent": null,
+            "path": "dimensions",
+            "presence": "optional",
+            "repeat": {
+                "max_items": 5,
+                "min_items": 1
+            },
+            "rule": null,
+            "type": "group"
+        },
+        {
+            "agents": true,
+            "base": "select",
+            "choices": [
+                {
+                    "label": "Small",
+                    "value": "small"
+                },
+                {
+                    "label": "Large",
+                    "value": "large"
+                }
+            ],
+            "classification": "public",
+            "description": "The name of the size.",
+            "encrypted": false,
+            "handle": "size",
+            "label": "Size",
+            "namespace": null,
+            "parent": "dimensions",
+            "path": "dimensions.size",
+            "presence": "required",
+            "repeat": null,
+            "rule": {
+                "kind": "choice",
+                "choices": [
+                    "small",
+                    "large"
+                ]
+            },
+            "type": "select"
+        },
+        {
+            "agents": true,
+            "base": "integer",
+            "choices": [],
+            "classification": "public",
+            "description": "The width in millimetres.",
+            "encrypted": false,
+            "handle": "width",
+            "label": "Width",
+            "namespace": null,
+            "parent": "dimensions",
+            "path": "dimensions.width",
+            "presence": "optional",
+            "repeat": null,
+            "rule": {
+                "kind": "integer",
+                "min": 1
+            },
+            "type": "integer"
+        },
+        {
+            "agents": false,
+            "base": "decimal",
+            "choices": [],
+            "classification": "confidential",
+            "description": "What the shop pays the supplier for one item.",
+            "encrypted": true,
+            "handle": "purchase_price",
+            "label": "Purchase price",
+            "namespace": null,
+            "parent": null,
+            "path": "purchase_price",
+            "presence": "optional",
+            "repeat": null,
+            "rule": {
+                "kind": "decimal",
+                "precision": 10,
+                "scale": 2
+            },
+            "type": "decimal"
+        },
+        {
+            "agents": true,
+            "base": "text",
+            "choices": [],
+            "classification": "internal",
+            "description": "The customer's tax code for the product.",
+            "encrypted": false,
+            "handle": "tax_code",
+            "label": "Tax code",
+            "namespace": "app",
+            "parent": null,
+            "path": "ext.app.tax_code",
+            "presence": "required_on_release",
+            "repeat": null,
+            "rule": {
+                "kind": "text",
+                "maxLength": 20
+            },
+            "type": "text"
+        },
+        {
+            "agents": true,
+            "base": "text",
+            "choices": [],
+            "classification": "public",
+            "description": "The name the customer's own systems use for the product.",
+            "encrypted": false,
+            "handle": "name",
+            "label": "Local name",
+            "namespace": "app",
+            "parent": null,
+            "path": "ext.app.name",
+            "presence": "optional",
+            "repeat": null,
+            "rule": {
+                "kind": "text",
+                "maxLength": 255
+            },
+            "type": "text"
+        }
+    ],
+    "id": "0198d2a4-5c3e-7a41-9b2f-3c8e1f6a7d20",
+    "label": "Product",
+    "name": "shop:product",
+    "title_field": "name",
+    "version": 3
+}

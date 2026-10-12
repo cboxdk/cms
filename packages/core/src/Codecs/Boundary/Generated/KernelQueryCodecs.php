@@ -31,6 +31,8 @@ final readonly class KernelQueryCodecs
             ListNodesCodecV1::queryCodec(),
             ResolvePathCodecV1::queryCodec(),
             ListRolesCodecV1::queryCodec(),
+            DescribeTypeCodecV1::queryCodec(),
+            ListTypesCodecV1::queryCodec(),
         ];
     }
 }

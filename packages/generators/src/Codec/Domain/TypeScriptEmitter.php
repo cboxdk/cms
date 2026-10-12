@@ -126,6 +126,7 @@ final readonly class TypeScriptEmitter
             ...array_map(static fn (string $line): string => rtrim('// '.$line), $header),
             '',
             ...self::import($imports, $runtime),
+            ...self::embeddedImports(array_values($objects)),
             ...self::aliases($aliases),
             ...$interfaces,
             ...$rules,
@@ -298,6 +299,8 @@ final readonly class TypeScriptEmitter
                 return 'FieldValues';
             case CodecKind::Document:
                 return 'JsonObject';
+            case CodecKind::Embedded:
+                return self::embeddedName($value);
             case CodecKind::Object:
                 return $names[self::object($value)->className];
             case CodecKind::List:
@@ -395,6 +398,29 @@ final readonly class TypeScriptEmitter
     }
 
     /**
+     * The rule of a value that holds no object, with every rule of its kind, as the runtime's
+     * ValueRule: what the editor descriptor carries per field (RuleJson), so a form validates with
+     * the rule the record's module declares. An object, whose rule names the constant of another
+     * object, is refused: the form builds a group's rule from its nested fields.
+     *
+     * @throws GenerationFailed with GenerateErrorCode::InvalidOutput
+     */
+    public static function rule(CodecValue $value): ObjectLiteral
+    {
+        $inner = $value;
+
+        while ($inner->item instanceof CodecValue) {
+            $inner = $inner->item;
+        }
+
+        if ($inner->kind === CodecKind::Object) {
+            throw GenerationFailed::because(GenerateErrorCode::InvalidOutput, 'The rule of an object names the rule of its properties, which only its module declares; a form builds a group\'s rule from its nested fields.');
+        }
+
+        return self::valueRule($value, []);
+    }
+
+    /**
      * The rule of a value, with every rule of its kind.
      *
      * @param  array<string, string>  $names
@@ -413,7 +439,7 @@ final readonly class TypeScriptEmitter
             ],
             CodecKind::Integer, CodecKind::IntegerValue => [$kind('integer'), ...self::bounds($value)],
             CodecKind::Fields => [$kind('fields')],
-            CodecKind::Document => [$kind('document')],
+            CodecKind::Document, CodecKind::Embedded => [$kind('document')],
             CodecKind::Decimal => [
                 $kind('decimal'),
                 ...self::precisionAndScale($value),
@@ -580,6 +606,51 @@ final readonly class TypeScriptEmitter
             $object->properties,
             static fn (CodecProperty $property): bool => $property->value->kind === $kind || $property->value->item?->kind === $kind,
         ));
+    }
+
+    /**
+     * The TypeScript name of an embedded document's contract: its codec class without `Codec`,
+     * such as `TypeEditorV1`, the root type of the module next to this one.
+     *
+     * @throws GenerationFailed with GenerateErrorCode::InvalidOutput
+     */
+    private static function embeddedName(CodecValue $value): string
+    {
+        $codec = $value->codec ?? throw GenerationFailed::because(GenerateErrorCode::InvalidOutput, 'An embedded document names no codec.');
+
+        return (string) preg_replace('/Codec(V[0-9]+)\z/', '$1', $codec);
+    }
+
+    /**
+     * The type imports of the embedded documents' modules, which sit next to this one, each once
+     * and sorted by name.
+     *
+     * @param  list<CodecObject>  $objects
+     * @return list<string>
+     *
+     * @throws GenerationFailed with GenerateErrorCode::InvalidOutput
+     */
+    private static function embeddedImports(array $objects): array
+    {
+        $names = [];
+
+        foreach ($objects as $object) {
+            foreach ($object->properties as $property) {
+                $value = $property->value;
+
+                while ($value->item instanceof CodecValue) {
+                    $value = $value->item;
+                }
+
+                if ($value->kind === CodecKind::Embedded) {
+                    $names[self::embeddedName($value)] = true;
+                }
+            }
+        }
+
+        ksort($names, SORT_STRING);
+
+        return array_map(static fn (string $name): string => sprintf("import type { %s } from './%s';", $name, $name), array_keys($names));
     }
 
     /**

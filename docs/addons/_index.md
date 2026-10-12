@@ -36,6 +36,7 @@ An extension point is `#[Stable]` or `#[Experimental]`. Every extension point do
 - [Plans and mutations](plans.md): the `Plan` a write action returns, the typed mutations and the kernel-generic field values of a revision.
 - [Queries and query actions](queries.md): `Query`, `QueryAction` and the typed `Result` of a read.
 - [Access queries](access-queries.md): `role.list`, `grant.list`, `actor.list` and `node.list`, the pages they read, who may run them, and the profiles they leave out below personal access.
+- [Type editor descriptors](type-editors.md): the `TypeEditors` contract and the descriptor `cms:generate` writes per type, which the panel's forms render a type from, the queries `type.list` and `type.describe` that answer it filtered to the reader, `type-editor.v1.json`, the fake and the shared suite.
 - [Records and JSON codecs](codecs.md): the record DTO and the JSON codec `cms:generate` writes for every type, the JSON form of each kind of value, classification access and `Omitted`, and the `JsonCodec` contract.
 - [Runtime validators](validation.md): the validator `cms:generate` writes per type, its rules, and the kernel's `InputValidator`, which checks input from outside against them.
 - [Dry run JSON](dry-run-json.md): the JSON form of what a dry run reports, the blast radius, each aggregate's version change and what becomes visible, and its generated codec.

@@ -11,6 +11,7 @@ use Cbox\Cms\Generators\Generation\Domain\GeneratorRunner;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecordDtos;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecords;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeCatalog;
+use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeEditors;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeHandleEnum;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeQueries;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeValidators;
@@ -28,6 +29,8 @@ use Cbox\Cms\Generators\Schema\Domain\FieldTypeRegistry;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypes\CoreFieldTypes;
 use Cbox\Cms\Generators\Schema\Domain\Owner;
 use Cbox\Cms\Generators\Tests\Migrations\Fakes\FakeSchemaLocks;
+use Cbox\Cms\Generators\TypeEditors\Boundary\RuleJson;
+use Cbox\Cms\Generators\TypeEditors\Domain\TypeEditorCompiler;
 use FilesystemIterator;
 use Illuminate\Support\ServiceProvider;
 use RecursiveDirectoryIterator;
@@ -145,7 +148,7 @@ final class ComprehensiveExample
     {
         $files = [];
 
-        foreach (new GeneratorRunner([new PhpRecordDtos, new PhpTypeHandleEnum, new PhpRecords, new PhpTypeCatalog(ServiceProvider::class), new PhpTypeQueries, new PhpTypeValidators])->run(self::compile(), self::target())->files as $file) {
+        foreach (new GeneratorRunner([new PhpRecordDtos, new PhpTypeHandleEnum, new PhpRecords, new PhpTypeCatalog(ServiceProvider::class), new PhpTypeEditors(new TypeEditorCompiler(RuleJson::of(...))), new PhpTypeQueries, new PhpTypeValidators])->run(self::compile(), self::target())->files as $file) {
             $files[$file->path] = $file->contents;
         }
 

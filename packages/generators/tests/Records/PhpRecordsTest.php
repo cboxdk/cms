@@ -158,7 +158,7 @@ it('writes an empty catalog, empty validators and empty record codecs, and binds
         ->and($codecs)->not->toContain('RecordDocument::write')
         ->and($codecs)->not->toContain('use Cbox\Cms\Core\Codecs\Boundary\RecordDocument;')
         ->and($codecs)->not->toContain('GeneratedTypeCatalog')
-        ->and($files['app/Cms/Generated/GeneratedTypesServiceProvider.php'])->toContain("        \$this->app->singleton(TypeCatalog::class, GeneratedTypeCatalog::class);\n        \$this->app->singleton(TypeValidators::class, GeneratedTypeValidators::class);\n        \$this->app->singleton(RecordCodecs::class, GeneratedRecordCodecs::class);\n    }");
+        ->and($files['app/Cms/Generated/GeneratedTypesServiceProvider.php'])->toContain("        \$this->app->singleton(TypeCatalog::class, GeneratedTypeCatalog::class);\n        \$this->app->singleton(TypeValidators::class, GeneratedTypeValidators::class);\n        \$this->app->singleton(RecordCodecs::class, GeneratedRecordCodecs::class);\n        \$this->app->singleton(TypeEditors::class, GeneratedTypeEditors::class);\n    }");
 });
 
 it('gives the same bytes whatever the order of the fields in the blueprint', function (): void {

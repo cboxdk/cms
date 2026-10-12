@@ -12,7 +12,9 @@ use Cbox\Cms\Generators\Codec\Domain\CodecKind;
  * static fromString() and written by toString(); a value object of one string or one integer, made
  * with `new` and written from its `value`; a backed enum, by its value; or the fields of a revision
  * of any type, FieldValues, in the form FieldValuesSchema fixes; or a JSON object of another
- * contract, a value object of its JSON text that its own codec writes and reads.
+ * contract, a value object of its JSON text that its own codec writes and reads; or a JSON object
+ * of another kernel contract embedded as its bound class, which that contract's codec, named in
+ * $codec, writes and reads inline.
  */
 #[Internal]
 final readonly class ValueBinding
@@ -23,6 +25,7 @@ final readonly class ValueBinding
     private function __construct(
         public CodecKind $kind,
         public string $class,
+        public ?string $codec = null,
     ) {}
 
     public static function id(string $class): self
@@ -48,5 +51,14 @@ final readonly class ValueBinding
     public static function document(string $class): self
     {
         return new self(CodecKind::Document, $class);
+    }
+
+    /**
+     * @param  string  $class  the class the embedded contract's document is bound to
+     * @param  string  $codec  the embedded contract's codec class, without its namespace
+     */
+    public static function embedded(string $class, string $codec): self
+    {
+        return new self(CodecKind::Embedded, $class, $codec);
     }
 }

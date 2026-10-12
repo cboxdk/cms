@@ -17,8 +17,9 @@ use Symfony\Component\Process\Process;
 
 /*
  * `composer generate:protocol` (tools/bin/generate-protocol.php, GUARDRAILS 2.2): it writes the
- * codecs of the kernel's JSON Schemas, the codecs and TypeScript of the panel's page schemas, and
- * the codecs, TypeScript and compatibility lock of the panel's point schemas, below a root, the same bytes as the committed codecs,
+ * codecs of the kernel's JSON Schemas, the codecs and TypeScript of the panel's page schemas, the
+ * codecs, TypeScript and compatibility lock of the panel's point schemas, and the TypeScript of
+ * the type editor descriptor for the component kit, below a root, the same bytes as the committed codecs,
  * removes every other file in their directory, changes nothing on a second run, and writes nothing
  * when a schema is missing or invalid, with the catalog's exit code.
  */
@@ -43,6 +44,7 @@ const PROTOCOL_CODECS = [
     'DeliveryCodecV1.php',
     'DeliveryExplanationCodecV1.php',
     'DeliveryFragmentCodecV1.php',
+    'DescribeTypeCodecV1.php',
     'DryRunSummaryCodecV1.php',
     'EnvelopeCodecV1.php',
     'ExplainedPathCodecV1.php',
@@ -55,6 +57,7 @@ const PROTOCOL_CODECS = [
     'ListGrantsCodecV1.php',
     'ListNodesCodecV1.php',
     'ListRolesCodecV1.php',
+    'ListTypesCodecV1.php',
     'MoveNodeCodecV1.php',
     'NodeListCodecV1.php',
     'PanelBundleCodecV1.php',
@@ -76,8 +79,17 @@ const PROTOCOL_CODECS = [
     'SetNodeRouteCodecV1.php',
     'SetPlacementWindowCodecV1.php',
     'SetRolePermissionsCodecV1.php',
+    'TypeDescriptionCodecV1.php',
+    'TypeEditorCodecV1.php',
+    'TypeListCodecV1.php',
     'UnpublishEntryCodecV1.php',
     'WhoAmICodecV1.php',
+];
+
+/** What generate:protocol writes for the component kit, below the root, sorted: the TypeScript of the type editor descriptor and the validators' runtime. */
+const UI_KIT_FILES = [
+    'js/ui-kit/src/generated/protocol/TypeEditorV1.ts',
+    'js/ui-kit/src/generated/protocol/validation.ts',
 ];
 
 /** What generate:protocol writes for the panel's pages, below the root, sorted: their codecs and TypeScript, and the receipt and problem details the panel's host reads answers with. */
@@ -208,7 +220,7 @@ it('writes the committed codecs into a tree, removes other files there, and a se
     $directory = ProtocolSchemas::PHP_DIRECTORY;
     ScratchDirectory::write($root.'/'.$directory.'/HandWrittenCodec.php', "<?php\n");
     ScratchDirectory::write($root.'/'.PanelPageSchemas::TYPESCRIPT_DIRECTORY.'/pages/HandWritten.ts', "export {};\n");
-    $written = [...PANEL_PAGE_FILES, ...PANEL_POINT_FILES, ...array_map(static fn (string $file): string => $directory.'/'.$file, PROTOCOL_CODECS)];
+    $written = [...PANEL_PAGE_FILES, ...PANEL_POINT_FILES, ...UI_KIT_FILES, ...array_map(static fn (string $file): string => $directory.'/'.$file, PROTOCOL_CODECS)];
     sort($written, SORT_STRING);
     $removed = [PanelPageSchemas::TYPESCRIPT_DIRECTORY.'/pages/HandWritten.ts', $directory.'/HandWrittenCodec.php'];
 

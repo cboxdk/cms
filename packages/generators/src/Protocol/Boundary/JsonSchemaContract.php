@@ -61,6 +61,9 @@ use Throwable;
  *   `$ref` to `#/$defs/fields`, with the definitions of FieldValuesSchema exactly as they are there;
  * - a property bound with ValueBinding::document() is a JSON object of another contract, `"type":
  *   "object"` (or it and null) without keys of its own, which its own contract's codec reads;
+ * - a property bound with ValueBinding::embedded() is a JSON object of another kernel contract,
+ *   `"type": "object"` (or it and null) without keys of its own, held as the class that contract
+ *   binds its document to and written and read inline by that contract's codec;
  * - a property with `x-cms-classification` (CLASSIFICATION), a class above public such as
  *   `personal`, is withheld from a reader whose classification access does not allow it (PRD 12.2):
  *   it is not in `required` and has no default, because a document for such a reader leaves it
@@ -383,6 +386,10 @@ final readonly class JsonSchemaContract
 
         if (($this->binding->values[$pointer] ?? null)?->kind === CodecKind::Document) {
             return $this->document($node, $this->binding->values[$pointer], $pointer);
+        }
+
+        if (($this->binding->values[$pointer] ?? null)?->kind === CodecKind::Embedded) {
+            return $this->embedded($node, $this->binding->values[$pointer], $pointer);
         }
 
         if (property_exists($node, 'anyOf')) {
@@ -714,6 +721,39 @@ final readonly class JsonSchemaContract
         }
 
         return [CodecValue::document($binding->class), $nullable];
+    }
+
+    /**
+     * A JSON object of another kernel contract, embedded: `"type": "object"`, or `["object",
+     * "null"]` when it may be null, with a description at most, and no keys of its own, because
+     * the embedded contract's codec reads them; bound to the class that contract binds its
+     * document to, and to that contract's codec class, which the holding codec calls inline.
+     *
+     * @return array{CodecValue, bool}
+     *
+     * @throws GenerationFailed
+     */
+    private function embedded(stdClass $node, ValueBinding $binding, string $pointer): array
+    {
+        if (array_diff(array_keys(get_object_vars($node)), ['type', 'description']) !== []) {
+            throw $this->problem($pointer, 'is bound as an embedded document of another contract, but has keywords besides "type" and "description"; the embedded contract fixes its keys');
+        }
+
+        $nullable = match ($node->type ?? null) {
+            'object' => false,
+            ['object', 'null'], ['null', 'object'] => true,
+            default => throw $this->problem($pointer, 'is bound as an embedded document of another contract, but its "type" is not "object" or ["object", "null"]'),
+        };
+
+        if (! class_exists($binding->class)) {
+            throw $this->problem($pointer, sprintf('is bound to %s, which is not a class', $binding->class));
+        }
+
+        if ($binding->codec === null || preg_match('/\A[A-Z][A-Za-z0-9]*Codec(V[0-9]+)\z/', $binding->codec) !== 1) {
+            throw $this->problem($pointer, sprintf('is bound to %s as an embedded document without the codec class of its contract, such as TypeEditorCodecV1', $binding->class));
+        }
+
+        return [CodecValue::embedded($binding->class, $binding->codec), $nullable];
     }
 
     /**
@@ -1060,7 +1100,7 @@ final readonly class JsonSchemaContract
             CodecKind::Date, CodecKind::Datetime => DateTimeImmutable::class,
             CodecKind::List, CodecKind::PortableText => 'array',
             CodecKind::Object => (string) $value->object?->class,
-            CodecKind::Id, CodecKind::Enum, CodecKind::Value, CodecKind::IntegerValue, CodecKind::Fields, CodecKind::Document => (string) $value->class,
+            CodecKind::Id, CodecKind::Enum, CodecKind::Value, CodecKind::IntegerValue, CodecKind::Fields, CodecKind::Document, CodecKind::Embedded => (string) $value->class,
         };
     }
 

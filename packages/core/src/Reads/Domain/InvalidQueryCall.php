@@ -24,6 +24,14 @@ final class InvalidQueryCall extends LogicException
         return new self(sprintf('The result %s holds other entries or fields after withContents() than it was given. ReadsContent::withContents() holds exactly the entries it is given, in their order, so no field the pipeline stripped is left.', $result));
     }
 
+    /**
+     * @param  class-string  $result
+     */
+    public static function editorsChanged(string $result): self
+    {
+        return new self(sprintf('The result %s holds other type editor descriptors after withEditors() than it was given. DescribesTypes::withEditors() holds exactly the descriptors it is given, in their order, so no field the pipeline left out is kept.', $result));
+    }
+
     public static function auditWithoutFields(EntryId $entry): self
     {
         return new self(sprintf('The read audit of the entry %s names no field. An entry is audited only for the fields that require it.', $entry->toString()));

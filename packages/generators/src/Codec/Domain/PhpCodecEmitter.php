@@ -187,7 +187,7 @@ final readonly class PhpCodecEmitter
             sprintf(
                 '        return JsonText::encode($this->%s(%s));',
                 self::encoderName($root),
-                $root->properties === [] ? '' : ($root->classified() ? '$dto->visibleTo($access)' : '$dto'),
+                $root->properties === [] ? '' : ($root->classified() ? '$dto->visibleTo($access)' : '$dto').($root->embeds() ? ', $access' : ''),
             ),
             '    }',
             '',
@@ -203,7 +203,7 @@ final readonly class PhpCodecEmitter
             sprintf(
                 '        return $this->%s(JsonText::decode($json)%s);',
                 self::decoderName($root),
-                $root->classified() ? ', $access' : '',
+                $root->classified() || $root->embeds() ? ', $access' : '',
             ),
             '    }',
             ...$methods,
@@ -355,7 +355,7 @@ final readonly class PhpCodecEmitter
         }
 
         $lines = [
-            sprintf('    private function %s(%s $object): stdClass', self::encoderName($object), $object->className),
+            sprintf('    private function %s(%s $object%s): stdClass', self::encoderName($object), $object->className, $object->embeds() ? ', ClassificationAccess $access' : ''),
             '    {',
             '        $json = new stdClass;',
         ];
@@ -399,7 +399,7 @@ final readonly class PhpCodecEmitter
         $keys = PhpSource::strings(array_map(static fn (CodecProperty $property): string => $property->key, $object->properties));
         $parameters = $root ? ['stdClass $value'] : ['mixed $value', 'FieldPath $path'];
 
-        if ($object->classified()) {
+        if ($object->classified() || $object->embeds()) {
             $parameters[] = 'ClassificationAccess $access';
         }
 
@@ -480,7 +480,7 @@ final readonly class PhpCodecEmitter
     {
         $object = $value->object;
 
-        if ($value->kind === CodecKind::Object && $object instanceof CodecObject && ! $object->classified()) {
+        if ($value->kind === CodecKind::Object && $object instanceof CodecObject && ! $object->classified() && ! $object->embeds()) {
             return sprintf('$this->%s(...)', self::decoderName($object));
         }
 
@@ -532,7 +532,7 @@ final readonly class PhpCodecEmitter
                 self::decoderName(self::object($value)),
                 $raw,
                 $at,
-                self::object($value)->classified() ? ', $access' : '',
+                self::object($value)->classified() || self::object($value)->embeds() ? ', $access' : '',
             ),
             CodecKind::List => self::call('list', [
                 $raw,
@@ -550,6 +550,7 @@ final readonly class PhpCodecEmitter
             ], [])]),
             CodecKind::Fields => self::call('fieldValues', [$raw, $at]),
             CodecKind::Document => self::call('document', [$raw, $at, sprintf('static fn (string $text): %1$s => new %1$s($text)', PhpSource::native($value))]),
+            CodecKind::Embedded => self::call('embedded', [$raw, $at, sprintf('static fn (string $text): %s => new %s()->decode($text, $access)', PhpSource::native($value), self::codec($value))]),
         };
     }
 
@@ -566,12 +567,13 @@ final readonly class PhpCodecEmitter
             CodecKind::Date => sprintf('JsonValues::encodeDate(%s)', $read),
             CodecKind::Datetime => sprintf('JsonValues::encodeDatetime(%s)', $read),
             CodecKind::PortableText => sprintf('JsonValues::encodeFieldValue(%s)', $read),
-            CodecKind::Object => sprintf('$this->%s(%s)', self::encoderName(self::object($value)), $read),
+            CodecKind::Object => sprintf('$this->%s(%s%s)', self::encoderName(self::object($value)), $read, self::object($value)->embeds() ? ', $access' : ''),
             CodecKind::List => self::writtenList(self::item($value), $read, $depth + 1),
             CodecKind::Id => $read.'->toString()',
             CodecKind::Enum, CodecKind::Value, CodecKind::IntegerValue => $read.'->value',
             CodecKind::Fields => sprintf('JsonValues::encodeFieldValues(%s)', $read),
             CodecKind::Document => sprintf('JsonValues::encodeDocument(%s->value)', $read),
+            CodecKind::Embedded => sprintf('JsonValues::encodeDocument(new %s()->encode(%s, $access))', self::codec($value), $read),
         };
     }
 
@@ -589,7 +591,7 @@ final readonly class PhpCodecEmitter
             return $read;
         }
 
-        if ($item->kind === CodecKind::Object) {
+        if ($item->kind === CodecKind::Object && ! self::object($item)->embeds()) {
             return sprintf('array_map($this->%s(...), %s)', self::encoderName(self::object($item)), $read);
         }
 
@@ -652,6 +654,16 @@ final readonly class PhpCodecEmitter
     private static function object(CodecValue $value): CodecObject
     {
         return $value->object ?? throw GenerationFailed::because(GenerateErrorCode::InvalidOutput, 'An object value has no object.');
+    }
+
+    /**
+     * The codec class of an embedded document, in the namespace of the codec that holds it.
+     *
+     * @throws GenerationFailed with GenerateErrorCode::InvalidOutput
+     */
+    private static function codec(CodecValue $value): string
+    {
+        return $value->codec ?? throw GenerationFailed::because(GenerateErrorCode::InvalidOutput, 'An embedded document names no codec.');
     }
 
     /**

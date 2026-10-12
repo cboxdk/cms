@@ -711,6 +711,44 @@ final readonly class JsonValues
     }
 
     /**
+     * A JSON object of another kernel contract, embedded: read by that contract's codec through
+     * $decode, which takes the object's JSON text in the canonical form and gives the bound class,
+     * at the classification access the holding codec was given. A value that is not an object is
+     * refused at $at, and a document the embedded codec refuses is refused at $at followed by the
+     * path the embedded codec named, so the caller learns where in the whole document the value
+     * is.
+     *
+     * @template T of object
+     *
+     * @param  Closure(string): T  $decode
+     * @return T
+     *
+     * @throws DecodingFailed with json_invalid
+     */
+    public static function embedded(mixed $value, FieldPath $at, Closure $decode): object
+    {
+        if (! $value instanceof stdClass) {
+            throw DecodingFailed::invalid($at, 'is not an object');
+        }
+
+        try {
+            $text = JsonText::encode($value);
+        } catch (EncodingFailed $exception) {
+            throw DecodingFailed::invalid($at, 'is not a valid document: '.$exception->getMessage(), $exception);
+        }
+
+        try {
+            return $decode($text);
+        } catch (DecodingFailed $failed) {
+            throw DecodingFailed::invalid(
+                $failed->path instanceof FieldPath ? $at->then(...$failed->path->segments) : $at,
+                $failed->reason,
+                $failed,
+            );
+        }
+    }
+
+    /**
      * A JSON object of another contract, from the JSON text its own codec wrote: the reverse of
      * document(), so the text is embedded as it is.
      *

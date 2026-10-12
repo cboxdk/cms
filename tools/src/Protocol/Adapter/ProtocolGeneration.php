@@ -25,6 +25,7 @@ use Cbox\Cms\Tooling\Protocol\Boundary\PointsLock;
 use Cbox\Cms\Tooling\Protocol\Domain\Dto\PointSchema;
 use Cbox\Cms\Tooling\Protocol\Domain\PanelPageSchemas;
 use Cbox\Cms\Tooling\Protocol\Domain\PanelPointSchemas;
+use Cbox\Cms\Tooling\Protocol\Domain\UiKitSchemas;
 
 /**
  * `composer generate:protocol` (GUARDRAILS 2.2): reads each kernel JSON Schema of
@@ -34,8 +35,10 @@ use Cbox\Cms\Tooling\Protocol\Domain\PanelPointSchemas;
  * whose TypeScript, with the validators' runtime module, goes into js/panel, and for the props of
  * the panel's points (PanelPointSchemas), whose codecs go into the panel and whose TypeScript, with
  * sample props, goes into js/panel-sdk, with the compatibility lock of the stable points
- * (PointsLock), which refuses a change to one that is not an added optional member. Nothing is written
- * unless every schema is valid; the problems of all schemas are reported together.
+ * (PointsLock), which refuses a change to one that is not an added optional member, and for the
+ * component kit (UiKitSchemas), which gets the TypeScript of the type editor descriptor and the
+ * validators' runtime module in js/ui-kit. Nothing is written unless every schema is valid; the
+ * problems of all schemas are reported together.
  */
 final readonly class ProtocolGeneration
 {
@@ -92,9 +95,10 @@ final readonly class ProtocolGeneration
         $panel = PanelPageSchemas::result($pages, $runtime, $contracts);
         $pointsResult = PanelPointSchemas::result($points, $runtime, new PhpLocation(PanelPointSchemas::PHP_DIRECTORY, PanelPointSchemas::PHP_NAMESPACE), PanelPointSchemas::TYPESCRIPT_DIRECTORY, protocol: $contracts);
         $lock = PointsLock::file($points, LocalFile::contents($root.'/'.PanelPointSchemas::LOCK), PanelPointSchemas::LOCK);
-        $files = [...$kernel->files, ...$panel->files, ...$pointsResult->files, $lock];
+        $kit = UiKitSchemas::result($contracts, $runtime);
+        $files = [...$kernel->files, ...$panel->files, ...$pointsResult->files, ...$kit->files, $lock];
         usort($files, static fn (GeneratedFile $a, GeneratedFile $b): int => strcmp($a->path, $b->path));
-        $directories = [...$kernel->directories, ...$panel->directories, ...$pointsResult->directories];
+        $directories = [...$kernel->directories, ...$panel->directories, ...$pointsResult->directories, ...$kit->directories];
         sort($directories, SORT_STRING);
 
         return new FilesystemGeneratedOutput()->write($root, new GenerationResult($files, $directories));

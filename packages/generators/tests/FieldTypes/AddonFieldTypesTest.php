@@ -24,6 +24,7 @@ use Cbox\Cms\Generators\Generation\Domain\Generator;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecordDtos;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpRecords;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeCatalog;
+use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeEditors;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeHandleEnum;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeQueries;
 use Cbox\Cms\Generators\Generation\Domain\Generators\PhpTypeValidators;
@@ -44,6 +45,8 @@ use Cbox\Cms\Generators\Tests\FieldTypes\Fixtures\SchemaAtFieldTypes;
 use Cbox\Cms\Generators\Tests\FieldTypes\Fixtures\StarsFieldType;
 use Cbox\Cms\Generators\Tests\Migrations\Fakes\FakeSchemaLocks;
 use Cbox\Cms\Generators\Tests\SchemaFixtures;
+use Cbox\Cms\Generators\TypeEditors\Boundary\RuleJson;
+use Cbox\Cms\Generators\TypeEditors\Domain\TypeEditorCompiler;
 use Cbox\Cms\Tests\Support\Phpstan;
 use Closure;
 use Illuminate\Contracts\Console\Kernel;
@@ -207,6 +210,7 @@ function everyGenerator(): array
         new PhpTypeHandleEnum,
         new PhpRecords,
         new PhpTypeCatalog(ServiceProvider::class),
+        new PhpTypeEditors(new TypeEditorCompiler(RuleJson::of(...))),
         new PhpTypeQueries,
         new PhpTypeValidators,
         new TypeScriptTypeHandles,
@@ -244,6 +248,7 @@ it('generates a field of an addon field type in every generator, as the core fie
             'app/Cms/Generated/Records/AppReview/GradeChoice.php' => ["case Good = 'good';", "case Poor = 'poor';"],
         ],
         PhpTypeCatalog::class => ['app/Cms/Generated/GeneratedTypeCatalog.php' => ["fieldType: 'acme:stars',", 'base: FieldBase::Integer,', "fieldType: 'acme:grade',", 'base: FieldBase::Select,']],
+        PhpTypeEditors::class => ['app/Cms/Generated/GeneratedTypeEditors.php' => ["fieldType: 'acme:stars',", 'base: EditorBase::Integer,', "fieldType: 'acme:grade',", 'base: EditorBase::Select,', "rule: new JsonDocument('{\"kind\":\"integer\",\"min\":1,\"max\":7}'),", "path: 'details.stars',"]],
         PhpTypeQueries::class => [
             'app/Cms/Generated/QueryBuilders/AppReview/AppReviewQuery.php' => ['public function whereRating(FilterOperator $operator, int ...$values): self'],
             'app/Cms/Generated/QueryBuilders/AppReview/AppReviewSortField.php' => ["case Rating = 'rating';"],

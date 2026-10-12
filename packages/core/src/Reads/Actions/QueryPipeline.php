@@ -7,6 +7,7 @@ namespace Cbox\Cms\Core\Reads\Actions;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Cache\DependencyKey;
 use Cbox\Cms\Contracts\Consistency\CommitPosition;
+use Cbox\Cms\Contracts\Editors\TypeEditor;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Contracts\Identity\AccessContext;
 use Cbox\Cms\Contracts\Identity\ActorPrincipal;
@@ -15,6 +16,7 @@ use Cbox\Cms\Contracts\Identity\CredentialRejected;
 use Cbox\Cms\Contracts\Identity\CredentialVerifier;
 use Cbox\Cms\Contracts\Identity\IssuerKind;
 use Cbox\Cms\Contracts\Identity\Principal;
+use Cbox\Cms\Contracts\Pipeline\DescribesTypes;
 use Cbox\Cms\Contracts\Pipeline\ReadsContent;
 use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Contracts\Results\QueryResult;
@@ -57,7 +59,10 @@ use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
  *    classification access left out, and every field their type does not declare (ReadableFields).
  *    For an agent's credential, every field its blueprint does not open to agents is left out too
  *    (PRD 2.31, 12.2): public and internal fields unless they say `agents: false`, confidential
- *    fields only with `agents: true`, and never a personal or sensitive field.
+ *    fields only with `agents: true`, and never a personal or sensitive field. A result that
+ *    DescribesTypes gets its type editor descriptors back by the same rule, each without the
+ *    fields the context may not see (TypeEditor::visibleTo()), so not even a label of such a
+ *    field leaves the pipeline.
  * 7. Read audit. The fields of the stripped entries whose classification requires it are recorded
  *    through the ReadAudit in the same transaction, with the read's position, so the audit commits
  *    with the answer.
@@ -139,6 +144,10 @@ final readonly class QueryPipeline
             $contents = $result->contents();
         }
 
+        if ($result instanceof DescribesTypes) {
+            $result = $this->described($result, $access, $this->isAgent($principal));
+        }
+
         $position = $this->transaction->position();
         $this->audit($principal, $binding, $contents, $position);
 
@@ -168,6 +177,26 @@ final readonly class QueryPipeline
         }
 
         return $stripped;
+    }
+
+    /**
+     * The result with every type editor descriptor as the context may see it: without the fields
+     * above its classification access and, for an agent, those the blueprint does not open to
+     * agents, and without the fields below a group that is left out (TypeEditor::visibleTo()).
+     */
+    private function described(DescribesTypes $result, AccessContext $access, bool $agent): DescribesTypes
+    {
+        $editors = array_map(
+            static fn (TypeEditor $editor): TypeEditor => $editor->visibleTo($access->classificationAccess, $agent),
+            $result->editors(),
+        );
+        $described = $result->withEditors($editors);
+
+        if ($described->editors() !== $editors) {
+            throw InvalidQueryCall::editorsChanged($result::class);
+        }
+
+        return $described;
     }
 
     /**

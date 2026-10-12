@@ -14,6 +14,7 @@ use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\RoleId;
 use Cbox\Cms\Contracts\PanelPoints\ContributionId;
 use Cbox\Cms\Contracts\PanelPoints\PageName;
+use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Core\Access\Domain\Dto\GrantList;
 use Cbox\Cms\Core\Access\Domain\Dto\ListedGrant;
 use Cbox\Cms\Core\Access\Domain\Dto\RoleList;
@@ -22,6 +23,7 @@ use Cbox\Cms\Core\Access\Domain\Queries\ListRoles;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ActionListCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ActorListCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ActorMeCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\DescribeTypeCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\GrantListCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\KernelQueryCodecs;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ListActionsCodecV1;
@@ -29,10 +31,14 @@ use Cbox\Cms\Core\Codecs\Boundary\Generated\ListActorsCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ListGrantsCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ListNodesCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ListRolesCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\ListTypesCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\NodeListCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ResolvedPathCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ResolvePathCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\RoleListCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\TypeDescriptionCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\TypeEditorCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\TypeListCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\WhoAmICodecV1;
 use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
 use Cbox\Cms\Core\Identity\Domain\Dto\ActorList;
@@ -48,12 +54,17 @@ use Cbox\Cms\Core\Registry\Domain\Queries\ListActions;
 use Cbox\Cms\Core\Routing\Domain\Host;
 use Cbox\Cms\Core\Routing\Domain\Queries\ResolvePath;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
+use Cbox\Cms\Core\Schema\Domain\Dto\TypeDescription;
+use Cbox\Cms\Core\Schema\Domain\Dto\TypeList;
+use Cbox\Cms\Core\Schema\Domain\Queries\DescribeType;
+use Cbox\Cms\Core\Schema\Domain\Queries\ListTypes;
 use Cbox\Cms\Core\Structure\Domain\Dto\NodeList;
 use Cbox\Cms\Core\Structure\Domain\Queries\ListNodes;
 use Cbox\Cms\Core\Tests\Access\ListingWorld;
 use Cbox\Cms\Core\Tests\Routing\ResolveWorld;
 use Cbox\Cms\Generators\Protocol\Domain\Dto\SchemaBinding;
 use Cbox\Cms\Generators\Protocol\Domain\ProtocolSchemas;
+use Cbox\Cms\Testkit\Editors\SampleEditors;
 use Cbox\Cms\Tests\Support\Phpstan;
 use Cbox\Cms\Tests\Support\TypeScript\TypeScriptValidators;
 use Closure;
@@ -215,6 +226,42 @@ function queryFixtures(): array
             foreach ([new RoleList(ListingWorld::roles(), null), new RoleList([], RoleId::fromString(ListingWorld::DESK))] as $index => $result) {
                 queryRoundTrip(new RoleListCodecV1, $result, 'role.list.result.v1.json', 'result '.$index);
             }
+        },
+        'type.describe v1' => static function (QueryCodec $codec): void {
+            expect($codec->query)->toBeInstanceOf(DescribeTypeCodecV1::class)
+                ->and($codec->result)->toBeInstanceOf(TypeDescriptionCodecV1::class)
+                ->and(queryRefusedAt(new DescribeTypeCodecV1, '{"name":"card"}'))->toBe('name')
+                ->and(queryRefusedAt(new DescribeTypeCodecV1, '{}'))->toBe('name')
+                ->and(queryRefusedAt(new DescribeTypeCodecV1, '{"name":"sample:card_1","extra":true}'))->toBe('');
+
+            queryRoundTrip(new DescribeTypeCodecV1, new DescribeType(new TypeName('sample:card_1')), 'type.describe.v1.json', 'query');
+
+            foreach ([new TypeDescription(SampleEditors::type(1)), new TypeDescription(null)] as $index => $result) {
+                queryRoundTrip(new TypeDescriptionCodecV1, $result, 'type.describe.result.v1.json', 'result '.$index);
+            }
+
+            // The descriptor is embedded as its own codec writes it, at the reader's access: the
+            // pipeline has already left out what the reader may not see, so the document is the
+            // same at every access.
+            expect(new TypeDescriptionCodecV1()->encode(new TypeDescription(SampleEditors::type(1)), ClassificationAccess::Public))
+                ->toBe('{"type":'.new TypeEditorCodecV1()->encode(SampleEditors::type(1), ClassificationAccess::Public).'}')
+                ->and(queryRefusedAt(new TypeDescriptionCodecV1, '{"type":{"name":"sample:card_1"}}'))->toBe('type.id')
+                ->and(queryRefusedAt(new TypeDescriptionCodecV1, '{"type":[]}'))->toBe('type');
+        },
+        'type.list v1' => static function (QueryCodec $codec): void {
+            expect($codec->query)->toBeInstanceOf(ListTypesCodecV1::class)
+                ->and($codec->result)->toBeInstanceOf(TypeListCodecV1::class)
+                ->and(new ListTypesCodecV1()->encode(new ListTypes, ClassificationAccess::Public))->toBe('{}')
+                ->and(queryRefusedAt(new ListTypesCodecV1, '{"name":"sample:card_1"}'))->toBe('');
+
+            queryRoundTrip(new ListTypesCodecV1, new ListTypes, 'type.list.v1.json', 'query');
+
+            foreach ([new TypeList(SampleEditors::many(2)), new TypeList([])] as $index => $result) {
+                queryRoundTrip(new TypeListCodecV1, $result, 'type.list.result.v1.json', 'result '.$index);
+            }
+
+            expect(queryRefusedAt(new TypeListCodecV1, '{"types":[{"name":"sample:card_1"}]}'))->toBe('types[0].id')
+                ->and(queryRefusedAt(new TypeListCodecV1, '{"types":[1]}'))->toBe('types[0]');
         },
     ];
 }
