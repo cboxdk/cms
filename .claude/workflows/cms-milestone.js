@@ -199,7 +199,7 @@ async function loadPlan() {
 let plan = PLAN_FILE ? await loadPlan() : await agent(
   `${CONTEXT}
 
-Plan block ${BLOCK}. Read PROGRESS.md, the block in MILESTONES.md, the PRD sections it depends on, GUARDRAILS.md and the current repo state (git log, files). Work that is already committed and green counts as done; plan only what remains.
+Plan block ${BLOCK}. Read PROGRESS.md, the block in MILESTONES.md, the PRD sections it depends on, GUARDRAILS.md and the current repo state (git log, files). Work that is already committed and green counts as done; plan only what remains. Never reuse a task id that a commit on main already names ("git log --oneline main" for "${BLOCK}-<id>:"); number new tasks after the highest id used.
 
 Break the remaining work into small tasks that one agent can finish, test and commit in one go. The tasks are built in parallel by up to ${MAX_PARALLEL} agents in separate worktrees, so dependsOn must be complete and exact: a task lists every task whose code or files it needs. Tasks without a dependency between them must be safe to build at the same time; when two tasks would change the same central file heavily (a schema, a shared config, the same class), make one depend on the other. Fill touches with the paths or areas each task changes. Every task needs concrete acceptance items that can be checked by running something (a test, a command, a query), not opinions.
 
