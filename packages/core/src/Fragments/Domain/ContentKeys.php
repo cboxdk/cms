@@ -23,6 +23,9 @@ use Cbox\Cms\Contracts\Ids\NodeId;
  *   its slug is looked up under, so its key adds n-{node}. Every answer of a path below that node
  *   depends on it, a 404 of a slug nothing was placed at included (PathAnswers::contentKeys()), and
  *   a mount looks its slugs up below its source, so the mounts that show the node are reached too.
+ * - A node event, which carries no entry, is about the node its datum "node" names: its key is
+ *   n-{node}. A move is also about every node below it, which the invalidation reads page by page
+ *   (SubtreeNodes), because the event lists no descendant.
  */
 #[Internal]
 final readonly class ContentKeys
@@ -36,15 +39,30 @@ final readonly class ContentKeys
     /**
      * @return non-empty-list<DependencyKey>
      *
-     * @throws InvalidEvent when the event carries no entry id
+     * @throws InvalidEvent when the event carries neither an entry id nor a node id
      * @throws InvalidUuid7 when the entry or node id is not a UUIDv7
      */
     public static function of(StoredEvent $event): array
     {
+        if (! $event->data->has(self::ENTRY)) {
+            return [DependencyKey::node(self::node($event))];
+        }
+
         $entry = DependencyKey::entry(EntryId::fromString($event->data->get(self::ENTRY)->asIdentifier()->toString()));
 
         return $event->data->has(self::NODE)
-            ? [$entry, DependencyKey::node(NodeId::fromString($event->data->get(self::NODE)->asIdentifier()->toString()))]
+            ? [$entry, DependencyKey::node(self::node($event))]
             : [$entry];
+    }
+
+    /**
+     * The node an event carries in its datum "node".
+     *
+     * @throws InvalidEvent when the event carries no node id
+     * @throws InvalidUuid7 when the node id is not a UUIDv7
+     */
+    public static function node(StoredEvent $event): NodeId
+    {
+        return NodeId::fromString($event->data->get(self::NODE)->asIdentifier()->toString());
     }
 }

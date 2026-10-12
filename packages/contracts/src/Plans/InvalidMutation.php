@@ -14,6 +14,7 @@ use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\RoleId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Plans\Mutations\NodeCreated;
+use Cbox\Cms\Contracts\Plans\Mutations\NodeLabelSet;
 use InvalidArgumentException;
 
 /**
@@ -78,6 +79,21 @@ final class InvalidMutation extends InvalidArgumentException
             $node->toString(),
             $path->value,
             NodeCreated::label($node),
+        ));
+    }
+
+    public static function nodeMoveWithoutChange(NodeId $node, NodeId $parent): self
+    {
+        return new self(sprintf('The node %s is moved from the parent %s to the same parent; a move changes the parent.', $node->toString(), $parent->toString()));
+    }
+
+    public static function nodeLabel(NodeId $node, Locale $locale): self
+    {
+        return new self(sprintf(
+            'The node %s is given a label in %s that is not a label; a label is 1 to %d characters without control characters that starts and ends with a character that is not white space.',
+            $node->toString(),
+            $locale->value,
+            NodeLabelSet::MAX_LENGTH,
         ));
     }
 

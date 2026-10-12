@@ -137,10 +137,13 @@ use Cbox\Cms\Core\Routing\Domain\SiteHandle;
 use Cbox\Cms\Core\Routing\Domain\VisibilityDecision;
 use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\MoveNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\RegisterSite;
+use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeLabel;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeRoute;
 use Cbox\Cms\Core\Structure\Domain\Dto\ListedNode;
 use Cbox\Cms\Core\Structure\Domain\Dto\NodeList;
+use Cbox\Cms\Core\Structure\Domain\NodeLabel;
 use Cbox\Cms\Core\Structure\Domain\Queries\ListNodes;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecCommand;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecContract;
@@ -653,6 +656,17 @@ final readonly class ProtocolSchemas
                 '#/properties/kind' => ValueBinding::enum(NodeKind::class),
                 '#/properties/node' => $id(NodeId::class),
                 '#/properties/parent' => $id(NodeId::class),
+            ]),
+            self::command('node.move.v1.json', 'MoveNodeCodecV1', MoveNode::class, [
+                '#/properties/node' => $id(NodeId::class),
+                '#/properties/parent' => $id(NodeId::class),
+                '#/properties/version' => $version,
+            ]),
+            self::command('node.set_label.v1.json', 'SetNodeLabelCodecV1', SetNodeLabel::class, [
+                '#/properties/label' => ValueBinding::value(NodeLabel::class),
+                '#/properties/locale' => ValueBinding::value(Locale::class),
+                '#/properties/node' => $id(NodeId::class),
+                '#/properties/version' => $version,
             ]),
             self::command('node.set_route.v1.json', 'SetNodeRouteCodecV1', SetNodeRoute::class, [
                 '#/properties/locale' => ValueBinding::value(Locale::class),

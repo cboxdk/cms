@@ -82,9 +82,13 @@ use Cbox\Cms\Core\Routing\Domain\NodeKind;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Structure\Actions\ArchiveNodeAction;
 use Cbox\Cms\Core\Structure\Actions\CreateNodeAction;
+use Cbox\Cms\Core\Structure\Actions\MoveNodeAction;
+use Cbox\Cms\Core\Structure\Actions\SetNodeLabelAction;
 use Cbox\Cms\Core\Structure\Actions\SetNodeRouteAction;
 use Cbox\Cms\Core\Structure\Adapter\NodeArchivedWriter;
 use Cbox\Cms\Core\Structure\Adapter\NodeCreatedWriter;
+use Cbox\Cms\Core\Structure\Adapter\NodeLabelSetWriter;
+use Cbox\Cms\Core\Structure\Adapter\NodeMovedWriter;
 use Cbox\Cms\Core\Structure\Adapter\NodeRouteSetWriter;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeReader;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeRouteLock;
@@ -93,7 +97,10 @@ use Cbox\Cms\Core\Structure\Adapter\PostgresSiteDirectory;
 use Cbox\Cms\Core\Structure\Adapter\PostgresSiteVersionLock;
 use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\MoveNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeLabel;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeRoute;
+use Cbox\Cms\Core\Structure\Domain\NodeLabel;
 use Cbox\Cms\Core\Subscriptions\Adapter\SystemPacing;
 use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\Tests\Entries\EntryFields;
@@ -121,9 +128,10 @@ use Illuminate\Database\ConnectionResolverInterface;
 use LogicException;
 
 /**
- * The real command pipeline on Postgres for node.create, node.archive and node.set_route, with
- * entry.create, variant.release, placement.create and placement.set_window to put live content
- * below a node (PRD 5.8, 5.9, 6.2, 6.4), on the default connection or the one named: the command
+ * The real command pipeline on Postgres for node.create, node.archive, node.set_route, node.move
+ * and node.set_label, with entry.create, variant.release, placement.create and
+ * placement.set_window to put live content below a node (PRD 5.8, 5.9, 6.2, 6.4), on the default
+ * connection or the one named: the command
  * transaction, the Postgres stores, the actor directory, the entry, placement and node readers, the
  * site directory, and the PostgresChangesetCommitter with the locks and writers of entries,
  * placements and nodes. Fakes, so a test decides what they answer: the authorizer, which allows,
@@ -255,6 +263,22 @@ final class NodeWorld
         return $this->run($command, $key, $agentCredential, $agentEnvelope);
     }
 
+    /**
+     * node.move of the node, read at the version given, below the parent.
+     */
+    public function moveNode(NodeId $node, StructureNode $parent, string $key, int $version = 1, bool $agentCredential = false, bool $agentEnvelope = false): WriteResult
+    {
+        return $this->run(new MoveNode($node, new AggregateVersion($version), $parent->id), $key, $agentCredential, $agentEnvelope);
+    }
+
+    /**
+     * node.set_label of the node, read at the version given, in the locale.
+     */
+    public function setLabel(NodeId $node, string $label, string $key, int $version = 1, string $locale = 'da'): WriteResult
+    {
+        return $this->run(new SetNodeLabel($node, new AggregateVersion($version), new Locale($locale), new NodeLabel($label)), $key);
+    }
+
     public function run(Command $command, string $key, bool $agentCredential = false, bool $agentEnvelope = false): WriteResult
     {
         $envelope = Envelope::external(
@@ -294,6 +318,8 @@ final class NodeWorld
                 CreateNode::class => $this->binding('node.create', $this->interleaved(new CreateNodeAction($nodes))),
                 ArchiveNode::class => $this->binding('node.archive', $this->interleaved(new ArchiveNodeAction($nodes, $this->clock))),
                 SetNodeRoute::class => $this->binding('node.set_route', $this->interleaved(new SetNodeRouteAction($nodes, $sites))),
+                MoveNode::class => $this->binding('node.move', $this->interleaved(new MoveNodeAction($nodes, $this->clock))),
+                SetNodeLabel::class => $this->binding('node.set_label', $this->interleaved(new SetNodeLabelAction($nodes))),
             ]),
             new PostgresActorDirectory($connections, $this->connection),
             new FakeCommandAuthorizer,
@@ -329,6 +355,8 @@ final class NodeWorld
                     new NodeCreatedWriter($connections, $this->connection),
                     new NodeArchivedWriter($connections, $this->connection),
                     new NodeRouteSetWriter($connections, $this->connection),
+                    new NodeMovedWriter($connections, $this->connection),
+                    new NodeLabelSetWriter($connections, $this->connection),
                 ),
                 app(AffectedProjections::class),
                 new PostgresReceiptStore($connections, $this->clock, $this->connection),

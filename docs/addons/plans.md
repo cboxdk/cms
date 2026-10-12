@@ -45,6 +45,8 @@ A mutation implements `Cbox\Cms\Contracts\Plans\Mutation`: a final readonly clas
 | `NodeCreated(node, parent, kind, path)` | the node | a node of the kind `section`, `page`, `list` or `storage` is created below the parent (PRD 5.8), on the `NodePath` of the parent with the node's own label below it |
 | `NodeArchived(node)` | the node | the node becomes read-only structure (PRD 6.4): nothing is created below it, it takes no route, and what is placed below it keeps its visibility |
 | `NodeRouteSet(node, site, locale, route)` | the node | the node gets the route on the site in the language (PRD 5.9), the path the public asks for; it always makes content public, so an agent may not plan it (invariant 18) |
+| `NodeMoved(node, from, to, path, crossesSites, visible)` | the node | the node moves with its subtree from the one parent to the other (PRD 5.8), onto the `NodePath` of the new parent with the node's own label below it; it makes content public when it takes a visible placement to another site, so an agent may not plan that (invariant 18) |
+| `NodeLabelSet(node, locale, label)` | the node | the node gets its label in the language (PRD 5.8), 1 to 200 characters without control characters that start and end with a character that is not white space, replacing the label it had there |
 
 A mutation that can make content public implements `Cbox\Cms\Contracts\Plans\ChangesPublicVisibility`, whose `makesPublic()` says whether it does, now or later, such as a `PlacementWindowSet` with a window, or a `VariantReleased`, which always does. The kernel refuses a plan with one that does from an agent or a token with `agent_visibility_forbidden` (invariant 18): the envelope's issuer is an agent, or the credential was issued for one.
 

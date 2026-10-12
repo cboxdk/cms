@@ -29,7 +29,9 @@ use Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry;
 use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
 use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\MoveNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\RegisterSite;
+use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeLabel;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeRoute;
 use Cbox\Cms\Tests\Support\SurfaceContract\SampleDocument;
 use ReflectionClass;
@@ -61,6 +63,8 @@ function kernelCommandClasses(): array
         'grant.revoke' => RevokeGrant::class,
         'node.archive' => ArchiveNode::class,
         'node.create' => CreateNode::class,
+        'node.move' => MoveNode::class,
+        'node.set_label' => SetNodeLabel::class,
         'node.set_route' => SetNodeRoute::class,
         'placement.create' => CreatePlacement::class,
         'placement.set_window' => SetPlacementWindow::class,

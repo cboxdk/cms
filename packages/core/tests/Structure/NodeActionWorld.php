@@ -42,12 +42,17 @@ use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Routing\Domain\SiteHandle;
 use Cbox\Cms\Core\Structure\Actions\ArchiveNodeAction;
 use Cbox\Cms\Core\Structure\Actions\CreateNodeAction;
+use Cbox\Cms\Core\Structure\Actions\MoveNodeAction;
+use Cbox\Cms\Core\Structure\Actions\SetNodeLabelAction;
 use Cbox\Cms\Core\Structure\Actions\SetNodeRouteAction;
 use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\MoveNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeLabel;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeRoute;
 use Cbox\Cms\Core\Structure\Domain\Dto\StoredNode;
 use Cbox\Cms\Core\Structure\Domain\Dto\StoredSite;
+use Cbox\Cms\Core\Structure\Domain\NodeLabel;
 use Cbox\Cms\Core\Structure\Domain\NodeLifecycle;
 use Cbox\Cms\Core\Structure\Domain\NodeRouteRef;
 use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
@@ -76,16 +81,18 @@ use DateTimeImmutable;
 use LogicException;
 
 /**
- * The node actions, node.create, node.archive and node.set_route, in the command pipeline with the
- * fakes of its ports and of the contracts it reads (GUARDRAILS 9): an active editor, a
- * FakeNodeReader, a FakeSiteDirectory and a committer that records what it is asked to commit.
- * Nothing touches a database. The clock stands at NOW.
+ * The node actions, node.create, node.archive, node.set_route, node.move and node.set_label, in the
+ * command pipeline with the fakes of its ports and of the contracts it reads (GUARDRAILS 9): an
+ * active editor, a FakeNodeReader, a FakeSiteDirectory and a committer that records what it is
+ * asked to commit. Nothing touches a database. The clock stands at NOW.
  *
  * The reader knows the site NORTH on the root ROOT, publishing in da and en, with the section
  * SECTION at version SECTION_VERSION, the archived section ARCHIVED, the mount MOUNT and the
- * section SPARE, which has no route, below the root, and FAR, the root of the site SOUTH, which the
- * editor's regions do not reach. The routes are `/` to ROOT in da and en and `/nyheder` to SECTION
- * in da, and the placement LIVE below SECTION is live without an end.
+ * section SPARE, which has no route, below the root, the page CHILD below SECTION, FAR, the root
+ * of the site SOUTH, which the editor's regions do not reach, with the section FAR_CHILD below it,
+ * and WEST_ROOT, the root of the site WEST, which they do reach. The routes are `/` to ROOT in da
+ * and en and `/nyheder` to SECTION in da, the placement LIVE below SECTION is live without an end,
+ * and so is SPARE_LIVE below SPARE.
  */
 final class NodeActionWorld
 {
@@ -106,6 +113,16 @@ final class NodeActionWorld
     public const string SPARE = '01936f5e-8a2b-7c3d-9e4f-000000000b15';
 
     public const string FAR = '01936f5e-8a2b-7c3d-9e4f-000000000b21';
+
+    public const string FAR_CHILD = '01936f5e-8a2b-7c3d-9e4f-000000000b22';
+
+    public const string WEST = '01936f5e-8a2b-7c3d-9e4f-000000000b03';
+
+    public const string WEST_ROOT = '01936f5e-8a2b-7c3d-9e4f-000000000b23';
+
+    public const string CHILD = '01936f5e-8a2b-7c3d-9e4f-000000000b16';
+
+    public const string SPARE_LIVE = '01936f5e-8a2b-7c3d-9e4f-000000000b52';
 
     public const string NOWHERE = '01936f5e-8a2b-7c3d-9e4f-000000000b31';
 
@@ -136,6 +153,10 @@ final class NodeActionWorld
 
     public readonly StoredNode $spare;
 
+    public readonly StoredNode $child;
+
+    public readonly StoredNode $westRoot;
+
     private int $keys = 0;
 
     public function __construct()
@@ -152,15 +173,20 @@ final class NodeActionWorld
         $this->archived = $this->nodes->withNode(self::node(self::ARCHIVED), $this->root, lifecycle: NodeLifecycle::Archived);
         $this->nodes->withNode(self::node(self::MOUNT), $this->root, kind: NodeKind::Mount);
         $this->spare = $this->nodes->withNode(self::node(self::SPARE), $this->root);
+        $this->child = $this->nodes->withNode(self::node(self::CHILD), $this->section, NodeKind::Page);
         $far = $this->nodes->withNode(self::node(self::FAR), kind: NodeKind::Site, reachable: false);
+        $this->nodes->withNode(self::node(self::FAR_CHILD), $far, reachable: false);
+        $this->westRoot = $this->nodes->withNode(self::node(self::WEST_ROOT), kind: NodeKind::Site);
 
         $this->nodes->withRoute(self::site(self::NORTH), new Locale('da'), new RequestPath('/'), $this->root->id);
         $this->nodes->withRoute(self::site(self::NORTH), new Locale('en'), new RequestPath('/'), $this->root->id);
         $this->nodes->withRoute(self::site(self::NORTH), new Locale('da'), new RequestPath('/nyheder'), $this->section->id);
         $this->nodes->withPlacement(PlacementId::fromString(self::LIVE), $this->section);
+        $this->nodes->withPlacement(PlacementId::fromString(self::SPARE_LIVE), $this->spare);
 
         $this->sites->add(new StoredSite(self::site(self::NORTH), new SiteHandle('north'), $this->root->id, AggregateVersion::first(), [new Locale('da'), new Locale('en')]));
         $this->sites->add(new StoredSite(self::site(self::SOUTH), new SiteHandle('south'), $far->id, AggregateVersion::first(), [new Locale('da')]));
+        $this->sites->add(new StoredSite(self::site(self::WEST), new SiteHandle('west'), $this->westRoot->id, AggregateVersion::first(), [new Locale('da')]));
     }
 
     public static function node(string $id): NodeId
@@ -208,6 +234,22 @@ final class NodeActionWorld
         return $this->run($command, $agent, $agentEnvelope);
     }
 
+    /**
+     * node.move of the node, read at the version given, below the parent.
+     */
+    public function move(string $node = self::SPARE, int $version = 1, string $parent = self::SECTION, bool $agent = false, bool $agentEnvelope = false): WriteResult
+    {
+        return $this->run(new MoveNode(self::node($node), new AggregateVersion($version), self::node($parent)), $agent, $agentEnvelope);
+    }
+
+    /**
+     * node.set_label of the node, read at the version given, in the locale.
+     */
+    public function setLabel(string $node = self::SECTION, int $version = self::SECTION_VERSION, string $locale = 'da', string $label = 'Nyheder', bool $agent = false): WriteResult
+    {
+        return $this->run(new SetNodeLabel(self::node($node), new AggregateVersion($version), new Locale($locale), new NodeLabel($label)), $agent);
+    }
+
     public function run(Command $command, bool $agentCredential = false, bool $agentEnvelope = false): WriteResult
     {
         $clock = new FakeClock;
@@ -220,6 +262,8 @@ final class NodeActionWorld
                 CreateNode::class => $this->binding('node.create', new CreateNodeAction($this->nodes)),
                 ArchiveNode::class => $this->binding('node.archive', new ArchiveNodeAction($this->nodes, $this->clock)),
                 SetNodeRoute::class => $this->binding('node.set_route', new SetNodeRouteAction($this->nodes, $this->sites)),
+                MoveNode::class => $this->binding('node.move', new MoveNodeAction($this->nodes, $this->clock)),
+                SetNodeLabel::class => $this->binding('node.set_label', new SetNodeLabelAction($this->nodes)),
             ]),
             $this->identity,
             new FakeCommandAuthorizer,

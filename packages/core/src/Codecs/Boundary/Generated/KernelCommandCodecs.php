@@ -36,6 +36,8 @@ final readonly class KernelCommandCodecs
             RevokeGrantCodecV1::commandCodec(),
             ArchiveNodeCodecV1::commandCodec(),
             CreateNodeCodecV1::commandCodec(),
+            MoveNodeCodecV1::commandCodec(),
+            SetNodeLabelCodecV1::commandCodec(),
             SetNodeRouteCodecV1::commandCodec(),
             CreatePlacementCodecV1::commandCodec(),
             SetPlacementWindowCodecV1::commandCodec(),

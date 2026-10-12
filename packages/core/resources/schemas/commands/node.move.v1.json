@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "node.move, contract version 1",
+  "description": "Moves a node with its subtree under another parent (PRD 5.8) in one changeset: the node goes below the parent, and the path of every descendant is rewritten with it, so the subtree stays one. Routes belong to their nodes and move with them, so a move within a site changes no URL. The issuing actor needs node.move on both the parent the node leaves and the parent it goes below, and a node, or a parent, its grants do not reach is unauthorized. A node that does not exist, or one at another version than the caller read, is version_conflict, as is a move whose node, parents or ancestors changed before the commit, so two moves that would make a cycle together commit one after the other. A site root, an archived node, a parent that does not exist, is archived or is a mount, a parent that is the node itself or below it, the parent the node is below already, and a move under another site while the node or a descendant has a route are validation_failed. A move under another site while a placement below the node is visible now or later makes that content public there, so an agent or a token is refused with agent_visibility_forbidden. The PHP form is Cbox\\Cms\\Core\\Structure\\Domain\\Commands\\MoveNode, and the generated codec MoveNodeCodecV1 reads it and writes its canonical JSON: every key, sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "node",
+    "version",
+    "parent"
+  ],
+  "properties": {
+    "node": {
+      "description": "The id of the node to move.",
+      "$ref": "#/$defs/id"
+    },
+    "version": {
+      "description": "The version of the node the caller read.",
+      "$ref": "#/$defs/version"
+    },
+    "parent": {
+      "description": "The id of the node the node goes below.",
+      "$ref": "#/$defs/id"
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+      "examples": [
+        "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"
+      ]
+    },
+    "version": {
+      "description": "The version of an aggregate that the caller read, an integer of 1 or more; the command is version_conflict when the aggregate is at another version when it commits.",
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

@@ -17,6 +17,8 @@ use Cbox\Cms\Core\Fragments\Domain\Dto\InvalidationSettings;
 use Cbox\Cms\Core\Placements\Domain\Events\PlacementCreated;
 use Cbox\Cms\Core\Placements\Domain\Events\PlacementVisibilityChanged;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
+use Cbox\Cms\Core\Structure\Domain\Events\NodeLabelChanged;
+use Cbox\Cms\Core\Structure\Domain\Events\NodeMoved;
 use DateInterval;
 use DateTimeImmutable;
 use Illuminate\Config\Repository;
@@ -38,7 +40,7 @@ it('declares fragments.invalidate on the critical lane for the content events, a
     expect($subscription->name)->toBe('fragments.invalidate')
         ->and($subscription->lane)->toBe(Lane::Critical)
         ->and($subscription->projection)->toBe('origin')
-        ->and($subscription->events)->toBe([EntryCreated::class, VariantReleased::class, VariantRevised::class, VariantUnreleased::class, PlacementCreated::class, PlacementVisibilityChanged::class]);
+        ->and($subscription->events)->toBe([EntryCreated::class, VariantReleased::class, VariantRevised::class, VariantUnreleased::class, PlacementCreated::class, PlacementVisibilityChanged::class, NodeLabelChanged::class, NodeMoved::class]);
 });
 
 it('is in the compiled registry, so a receipt of a content event lists origin', function (): void {

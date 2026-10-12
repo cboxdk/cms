@@ -1,7 +1,7 @@
 ---
 title: Node commands
 weight: 45
-description: "The kernel's commands for a site's tree: node.create, node.archive and node.set_route, what each reads and writes, the row level security they write through, and their rejections."
+description: "The kernel's commands for a site's tree: node.create, node.archive, node.set_route, node.move and node.set_label, what each reads and writes, the row level security they write through, and their rejections."
 ---
 
 # Node commands
@@ -9,14 +9,18 @@ description: "The kernel's commands for a site's tree: node.create, node.archive
 <!-- extension-point: Cbox\Cms\Core\Structure\Domain\Commands\CreateNode -->
 <!-- extension-point: Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode -->
 <!-- extension-point: Cbox\Cms\Core\Structure\Domain\Commands\SetNodeRoute -->
+<!-- extension-point: Cbox\Cms\Core\Structure\Domain\Commands\MoveNode -->
+<!-- extension-point: Cbox\Cms\Core\Structure\Domain\Commands\SetNodeLabel -->
 
-Nodes are the structure every site shares (PRD 5.8): site roots, sections, pages, lists, storage folders and mounts, never articles. A site's root comes with the site's registration ([site commands](site-commands.md)); everything below it is written by these three commands, each version 1 and on every surface.
+Nodes are the structure every site shares (PRD 5.8): site roots, sections, pages, lists, storage folders and mounts, never articles. A site's root comes with the site's registration ([site commands](site-commands.md)); everything below it is written by these five commands, each version 1 and on every surface.
 
 | Command | What it does | Surfaces |
 |---|---|---|
 | `node.create` | creates a node of a kind below another node | rest, inertia, mcp, cli |
 | `node.archive` | makes a node read-only structure | rest, inertia, mcp, cli |
 | `node.set_route` | gives a node its route on a site in one language | rest, inertia, mcp, cli |
+| `node.move` | moves a node with its subtree under another parent | rest, inertia, mcp, cli |
+| `node.set_label` | sets the label a breadcrumb shows for a node, in one language | rest, inertia, mcp, cli |
 
 The commands, their events and their mutations are `#[Experimental]`.
 
@@ -35,27 +39,39 @@ use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Plans\Mutations\NodeCreated;
+use Cbox\Cms\Contracts\Plans\Mutations\NodeLabelSet;
+use Cbox\Cms\Contracts\Plans\Mutations\NodeMoved;
 use Cbox\Cms\Contracts\Plans\Mutations\NodeRouteSet;
 use Cbox\Cms\Core\Routing\Domain\NodeKind;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\MoveNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeLabel;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeRoute;
 use Cbox\Cms\Core\Structure\Domain\Events\NodeArchived;
 use Cbox\Cms\Core\Structure\Domain\Events\NodeArchivedV1;
+use Cbox\Cms\Core\Structure\Domain\Events\NodeLabelChanged;
+use Cbox\Cms\Core\Structure\Domain\Events\NodeLabelChangedV1;
+use Cbox\Cms\Core\Structure\Domain\Events\NodeMoved as NodeMovedEvent;
+use Cbox\Cms\Core\Structure\Domain\Events\NodeMovedV1;
 use Cbox\Cms\Core\Structure\Domain\Events\NodeRouteChanged;
 use Cbox\Cms\Core\Structure\Domain\Events\NodeRouteChangedV1;
+use Cbox\Cms\Core\Structure\Domain\NodeLabel;
 
 // A newsroom gives its site a section for sport: node.create puts the node below the site's root,
-// node.set_route gives it the URL /sport in Danish, and node.archive closes it again once nothing
-// below it is visible. The ids are the caller's, so a repeat with the same idempotency key is the
-// same node.
+// node.set_route gives it the URL /sport in Danish, node.set_label the text a breadcrumb shows,
+// node.move takes it below another section with everything below it, and node.archive closes it
+// again once nothing below it is visible. The ids are the caller's, so a repeat with the same
+// idempotency key is the same node.
 
 const NODE_EXAMPLE_SITE = '01936f5e-8a2b-7c3d-9e4f-000000000d01';
 
 const NODE_EXAMPLE_ROOT = '01936f5e-8a2b-7c3d-9e4f-000000000d02';
 
 const NODE_EXAMPLE_SECTION = '01936f5e-8a2b-7c3d-9e4f-000000000d03';
+
+const NODE_EXAMPLE_OTHER = '01936f5e-8a2b-7c3d-9e4f-000000000d04';
 
 it('creates a node below a parent and expects the node absent', function (): void {
     $create = new CreateNode(NodeId::fromString(NODE_EXAMPLE_SECTION), NodeId::fromString(NODE_EXAMPLE_ROOT), NodeKind::Section);
@@ -108,6 +124,35 @@ it('archives a node at the version the caller read, and tells about it with ids 
         ->and(NodeRouteChanged::type()->name)->toBe('node.route_changed')
         ->and(array_keys($changed->payload()->data()->fields()))->toBe(['locale', 'node', 'site']);
 });
+
+it('moves the node with its subtree below another parent, which makes content public only across sites', function (): void {
+    $node = NodeId::fromString(NODE_EXAMPLE_SECTION);
+    $move = new MoveNode($node, new AggregateVersion(2), NodeId::fromString(NODE_EXAMPLE_OTHER));
+    $path = new NodePath(NodeCreated::label(NodeId::fromString(NODE_EXAMPLE_ROOT)).'.'.NodeCreated::label($move->parent).'.'.NodeCreated::label($node));
+    $within = new NodeMoved($node, NodeId::fromString(NODE_EXAMPLE_ROOT), $move->parent, $path, crossesSites: false, visible: true);
+    $across = new NodeMoved($node, NodeId::fromString(NODE_EXAMPLE_ROOT), $move->parent, $path, crossesSites: true, visible: true);
+    $moved = new NodeMovedEvent(3, new NodeMovedV1($node, $within->from, $within->to));
+
+    expect(array_map(static fn (ReadVersion $read): string => $read->aggregate->aggregateKey(), $move->expectedVersions()->reads))
+        ->toBe(['node:'.NODE_EXAMPLE_SECTION])
+        ->and($within->makesPublic())->toBeFalse()
+        ->and($across->makesPublic())->toBeTrue()
+        ->and(NodeMovedEvent::type()->name)->toBe('node.moved')
+        ->and(array_keys($moved->payload()->data()->fields()))->toBe(['from', 'node', 'to']);
+});
+
+it('gives the node a label in one language, which no event repeats', function (): void {
+    $node = NodeId::fromString(NODE_EXAMPLE_SECTION);
+    $label = new SetNodeLabel($node, new AggregateVersion(3), new Locale('da'), new NodeLabel('Sport'));
+    $set = new NodeLabelSet($label->node, $label->locale, $label->label->value);
+    $changed = new NodeLabelChanged(4, new NodeLabelChangedV1($node, $label->locale));
+
+    expect($set->label)->toBe('Sport')
+        ->and(NodeLabelSet::MAX_LENGTH)->toBe(200)
+        ->and(fn (): NodeLabel => new NodeLabel(' Sport'))->toThrow(InvalidArgumentException::class)
+        ->and(NodeLabelChanged::type()->name)->toBe('node.label_changed')
+        ->and(array_keys($changed->payload()->data()->fields()))->toBe(['locale', 'node']);
+});
 ```
 
 ## node.create
@@ -132,28 +177,44 @@ The route is an aggregate of its own, `node_route:<site>:<locale>:<route>`, whic
 
 A node that has a route on the site in that language already is `validation_failed`: moving a route changes URLs that are out there, which needs the redirects of PRD 5.9, and those come with the redirect manager. Until then the kernel refuses the change instead of breaking the old URLs silently.
 
+## node.move
+
+`MoveNode` takes the node, the `AggregateVersion` the caller read, and the `NodeId` of the parent it goes below. The node's new path is the parent's path with the node's own label below it, and the kernel rewrites the path of every descendant in the same changeset, in one statement however many there are, so the subtree stays one and every grant that reaches the new parent reaches the moved nodes (PRD 5.10). Each descendant goes one version up with its path, so a command that read one of them before the move is `version_conflict`. Routes belong to their nodes and move with them, so a move within a site changes no URL.
+
+The issuing actor needs `node.move` on both the parent the node leaves and the parent it goes below, and the action reads the node, both parents and every ancestor of the new parent, each once, so the commit locks the whole path the node lands under: two moves that would make a cycle together, A under B while B goes under A, each read the other's node, and the second finds it at another version and is `version_conflict`.
+
+A move that lands under another site's root is refused while the node or a descendant has a route, because a route belongs to the site its node is in; take the routes off the subtree first. Such a move while a placement below the node is visible now or later makes that content public on the other site, so `NodeMoved` is a `ChangesPublicVisibility` mutation that makes content public exactly then, and the kernel refuses it from an agent or a token with `agent_visibility_forbidden` (invariant 18). The writer reads the placements once more in the commit when the move crosses sites and none was visible, because a window opened meanwhile does not change the node's version, and rolls the commit back if one became visible.
+
+## node.set_label
+
+`SetNodeLabel` takes the node, the `AggregateVersion` the caller read, the `Locale` and the `NodeLabel`: 1 to 200 characters without control characters, that start and end with a character that is not white space. A node has one label per language, so the command replaces the label the node had in that language, and the node goes one version up. A label is presentation, never an address: it changes no route and no URL, and `node.label_changed` carries the node and the language, never the text. Breadcrumbs and the panel's tree read the labels; every context does, the anonymous one included.
+
 ## What a command writes
 
-The plans are `NodeCreated`, `NodeArchived` and `NodeRouteSet` (see [plans](plans.md)). The writers run as the app role under the call's actor context, so row level security decides what they may write:
+The plans are `NodeCreated`, `NodeArchived`, `NodeRouteSet`, `NodeMoved` and `NodeLabelSet` (see [plans](plans.md)). The writers run as the app role under the call's actor context, so row level security decides what they may write, except the move, which rewrites a whole subtree through an owner function:
 
 | What | Where | The policy that takes it |
 |---|---|---|
 | the node, active, at version 1, below its parent on its path | `nodes` | `nodes_actor`, over `cms_access_reaches(path)` |
 | the node set to the lifecycle `archived` at the next version | `nodes` | `nodes_actor` |
 | the route of the node on the site in the language, and the node at the next version | `node_routes`, `nodes` | `node_routes_write`, over `cms_access_node(node_id)` |
+| the node below its new parent at the next version, and every descendant on its new path one version up, through the owner function `cms_structure_move_node`, which runs only in the transaction of a `node.move` changeset by the actor of the context | `nodes` | `nodes_owner_move`, over `cms_structure_moving()` |
+| the label of the node in the language, inserted or replaced, and the node at the next version | `node_labels`, `nodes` | `node_labels_write` and `node_labels_change`, over `cms_access_node(node_id)` |
 | the changeset, its audit row with the node's key, and its receipt | the changeset tables, `audit`, `receipts` |  |
-| `node.created` with the parent and the kind, `node.archived`, and `node.route_changed` with the site and the language, never the route, which is text | `events` |  |
+| `node.created` with the parent and the kind, `node.archived`, `node.route_changed` with the site and the language, never the route, which is text, `node.moved` with the parent left and the parent gone below, and `node.label_changed` with the language, never the label | `events` |  |
 
-A node outside the actor's regions is read through the owner lookup `cms_structure_node`, so a command on it is `unauthorized` and not a conflict with an aggregate that looks absent; the route's holder and the placements below a node are read past the regions the same way, because a route resolves to one node whoever reads it and archiving must not hide content the reader cannot see.
+A node outside the actor's regions is read through the owner lookup `cms_structure_node`, so a command on it is `unauthorized` and not a conflict with an aggregate that looks absent; the route's holder, the placements below a node, the ancestors of a node and the routed node of a subtree are read past the regions the same way, because a route resolves to one node whoever reads it, archiving must not hide content the reader cannot see, and a move must lock the path it lands under and weigh the routes of the whole subtree.
+
+The invalidation subscriber receives `node.moved` and `node.label_changed` and purges the `n-` key of the node, and for a move of every node below it, a batch of the subtree at a time, so a breadcrumb or a tree below any of them is rebuilt (see [subscribers](subscribers.md)).
 
 ## Rejections
 
 | Code | When |
 |---|---|
-| `unauthorized` | the node, or the parent a node is created below, exists but the actor's grants do not reach it |
+| `unauthorized` | the node, the parent a node is created below, or a parent a node is moved from or to, exists but the actor's grants do not reach it |
 | `node_route_taken` | another node has the route on the site in that language |
-| `agent_visibility_forbidden` | an agent or a token issued `node.set_route`, which makes the node public (invariant 18) |
-| `validation_failed` | the parent does not exist, is archived or is a mount; the kind is `site` or `mount`; the node is archived already, is a site root or has a placement below it that is visible now or later; the site does not exist, does not publish in the language or does not hold the node; the node has a route on the site in that language already |
-| `version_conflict` | the node has an id that exists, is at another version than the caller read, or the node or the route changed before the commit |
+| `agent_visibility_forbidden` | an agent or a token issued `node.set_route`, which makes the node public, or a `node.move` that takes a visible placement to another site (invariant 18) |
+| `validation_failed` | the parent does not exist, is archived or is a mount; the kind is `site` or `mount`; the node is archived already, is a site root or has a placement below it that is visible now or later; the site does not exist, does not publish in the language or does not hold the node; the node has a route on the site in that language already; a moved node is a site root or archived, its new parent is the node itself or below it, a mount, archived or the parent already, or the move lands under another site while a node of the subtree has a route; a labelled node is archived |
+| `version_conflict` | the node has an id that exists, is at another version than the caller read, or the node, the route, a parent or an ancestor of the new parent changed before the commit |
 
 The [error reference](../reference/errors.md) explains each code.

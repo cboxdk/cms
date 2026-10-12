@@ -24,16 +24,21 @@ use Override;
 use UnexpectedValueException;
 
 /**
- * The NodeReader on Postgres: one row per read, through the owner lookups `cms_structure_node`,
+ * The NodeReader on Postgres: one statement per read, through the owner lookups `cms_structure_node`,
  * `cms_structure_route_holder`, `cms_structure_node_route` and `cms_structure_node_placement` (see
- * the migration that adds the node commands), which read past the actor's regions and raise 42501
- * without an actor context. It reads on the write PDO, inside the command transaction, on the
+ * the migration that adds the node commands) and `cms_structure_ancestors` and
+ * `cms_structure_routed_node` (the migration that adds node.move), which read past the actor's
+ * regions and raise 42501 without an actor context. It reads on the write PDO, inside the command transaction, on the
  * default connection or the one named.
  */
 #[Internal]
 final readonly class PostgresNodeReader implements NodeReader
 {
     public const string NODE = 'select parent_id::text as parent_id, kind, path, lifecycle, version, reachable from cms_structure_node(?::uuid)';
+
+    public const string ANCESTORS = 'select id::text as id, parent_id::text as parent_id, kind, path, lifecycle, version, reachable from cms_structure_ancestors(?::uuid)';
+
+    public const string ROUTED_BELOW = 'select cms_structure_routed_node(?::uuid)::text as node_id';
 
     public const string ROUTE_HOLDER = 'select cms_structure_route_holder(?::uuid, ?, ?)::text as node_id';
 
@@ -58,18 +63,28 @@ final readonly class PostgresNodeReader implements NodeReader
             return null;
         }
 
-        $row = NodeRows::object($row);
-        $parent = NodeRows::textOrNull($row, 'parent_id');
+        return $this->stored($node, NodeRows::object($row));
+    }
 
-        return new StoredNode(
-            $node,
-            $parent === null ? null : NodeId::fromString($parent),
-            NodeKind::from(NodeRows::text($row, 'kind')),
-            new NodePath(NodeRows::text($row, 'path')),
-            NodeLifecycle::from(NodeRows::text($row, 'lifecycle')),
-            new AggregateVersion(NodeRows::integer($row, 'version')),
-            NodeRows::boolean($row, 'reachable'),
-        );
+    #[Override]
+    public function ancestors(NodeId $node): array
+    {
+        $ancestors = [];
+
+        foreach ($this->db()->select(self::ANCESTORS, [$node->toString()], false) as $row) {
+            $row = NodeRows::object($row);
+            $ancestors[] = $this->stored(NodeId::fromString(NodeRows::text($row, 'id')), $row);
+        }
+
+        return $ancestors;
+    }
+
+    #[Override]
+    public function routedBelow(NodeId $node): ?NodeId
+    {
+        $routed = $this->value(self::ROUTED_BELOW, [$node->toString()], 'node_id');
+
+        return $routed === null ? null : NodeId::fromString($routed);
     }
 
     #[Override]
@@ -94,6 +109,24 @@ final readonly class PostgresNodeReader implements NodeReader
         $placement = $this->value(self::VISIBLE_PLACEMENT, [$node->toString(), Timestamps::of($at)], 'placement_id');
 
         return $placement === null ? null : PlacementId::fromString($placement);
+    }
+
+    /**
+     * The node a row of a node lookup describes.
+     */
+    private function stored(NodeId $node, object $row): StoredNode
+    {
+        $parent = NodeRows::textOrNull($row, 'parent_id');
+
+        return new StoredNode(
+            $node,
+            $parent === null ? null : NodeId::fromString($parent),
+            NodeKind::from(NodeRows::text($row, 'kind')),
+            new NodePath(NodeRows::text($row, 'path')),
+            NodeLifecycle::from(NodeRows::text($row, 'lifecycle')),
+            new AggregateVersion(NodeRows::integer($row, 'version')),
+            NodeRows::boolean($row, 'reachable'),
+        );
     }
 
     /**

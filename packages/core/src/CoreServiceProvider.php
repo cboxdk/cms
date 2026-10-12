@@ -129,8 +129,10 @@ use Cbox\Cms\Core\Entries\Adapter\RevisionCreatedWriter;
 use Cbox\Cms\Core\Entries\Adapter\VariantReleasedWriter;
 use Cbox\Cms\Core\Entries\Adapter\VariantUnreleasedWriter;
 use Cbox\Cms\Core\Entries\Domain\EntryReader;
+use Cbox\Cms\Core\Fragments\Adapter\PostgresSubtreeNodes;
 use Cbox\Cms\Core\Fragments\Boundary\InvalidationConfig;
 use Cbox\Cms\Core\Fragments\Domain\Dto\InvalidationSettings;
+use Cbox\Cms\Core\Fragments\Domain\SubtreeNodes;
 use Cbox\Cms\Core\IdempotencyStore\Boundary\IdempotencyConfig;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
 use Cbox\Cms\Core\Identity\Adapter\ActorActivatedWriter;
@@ -255,6 +257,8 @@ use Cbox\Cms\Core\Seeding\Domain\SeedReader;
 use Cbox\Cms\Core\Seeding\Domain\SeedTargets;
 use Cbox\Cms\Core\Structure\Adapter\NodeArchivedWriter;
 use Cbox\Cms\Core\Structure\Adapter\NodeCreatedWriter;
+use Cbox\Cms\Core\Structure\Adapter\NodeLabelSetWriter;
+use Cbox\Cms\Core\Structure\Adapter\NodeMovedWriter;
 use Cbox\Cms\Core\Structure\Adapter\NodeRouteSetWriter;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeListing;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeReader;
@@ -607,6 +611,11 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->bind(NodeReader::class, PostgresNodeReader::class);
         $this->app->tag([PostgresNodeRouteLock::class], VersionLocks::TAG);
         $this->app->tag([NodeCreatedWriter::class, NodeArchivedWriter::class, NodeRouteSetWriter::class], MutationWriters::TAG);
+
+        // node.move and node.set_label (PRD 5.8): the writers, which move a subtree through the
+        // owner function and set a node's label, and the subtree the invalidation purges a move by.
+        $this->app->tag([NodeMovedWriter::class, NodeLabelSetWriter::class], MutationWriters::TAG);
+        $this->app->bind(SubtreeNodes::class, PostgresSubtreeNodes::class);
         $this->app->bind(
             VersionLocks::class,
             static fn (Application $app): VersionLocks => new VersionLocks(...self::tagged($app, VersionLocks::TAG, VersionLock::class)),

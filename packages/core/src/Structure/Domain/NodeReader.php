@@ -35,6 +35,22 @@ interface NodeReader
     public function node(NodeId $node): ?StoredNode;
 
     /**
+     * The ancestors of the node, the root of its tree first and its parent last, each with whether
+     * the actor's regions reach it; empty for a root and for a node that does not exist. A move
+     * reads them, so the commit locks the whole path a node lands under.
+     *
+     * @return list<StoredNode>
+     */
+    public function ancestors(NodeId $node): array;
+
+    /**
+     * A node below the node, the node itself included, that has a route on some site, the one
+     * nearest the top of the tree and then the lowest id, or null when none has: what a move under
+     * another site weighs, because a route belongs to the site its node is in.
+     */
+    public function routedBelow(NodeId $node): ?NodeId;
+
+    /**
      * The node that has the route on the site in the locale, or null when the route is free.
      */
     public function routeHolder(SiteId $site, Locale $locale, RequestPath $route): ?NodeId;

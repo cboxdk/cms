@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "node.set_label, contract version 1",
+  "description": "Sets a node's label in one language (PRD 5.8) in one changeset: the text a breadcrumb and the panel's tree show for the node. A node has one label per language, so the command replaces the label the node had in that language. A label is presentation: it changes no route and no URL, and the event that tells about it carries the node and the language, never the text. The issuing actor needs node.set_label on the node in the language, and a node its grants do not reach is unauthorized. A node that does not exist, or one at another version than the caller read, is version_conflict. An archived node is validation_failed. The PHP form is Cbox\\Cms\\Core\\Structure\\Domain\\Commands\\SetNodeLabel, and the generated codec SetNodeLabelCodecV1 reads it and writes its canonical JSON: every key, sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "node",
+    "version",
+    "locale",
+    "label"
+  ],
+  "properties": {
+    "node": {
+      "description": "The id of the node to label.",
+      "$ref": "#/$defs/id"
+    },
+    "version": {
+      "description": "The version of the node the caller read.",
+      "$ref": "#/$defs/version"
+    },
+    "locale": {
+      "description": "The language the label is in.",
+      "$ref": "#/$defs/locale"
+    },
+    "label": {
+      "description": "The label: 1 to 200 characters without control characters, that starts and ends with a character that is not white space.",
+      "type": "string",
+      "pattern": "^[^\\s\\x00-\\x1F\\x7F]([^\\x00-\\x1F\\x7F]*[^\\s\\x00-\\x1F\\x7F])?$",
+      "examples": [
+        "Sport"
+      ],
+      "minLength": 1,
+      "maxLength": 200
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+      "examples": [
+        "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"
+      ]
+    },
+    "locale": {
+      "description": "A language tag of a language, an optional script and an optional region, such as da, en-GB or sr-Latn-RS; the kernel writes the language in lowercase, the script in title case and the region in uppercase.",
+      "type": "string",
+      "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$",
+      "examples": [
+        "en"
+      ]
+    },
+    "version": {
+      "description": "The version of an aggregate that the caller read, an integer of 1 or more; the command is version_conflict when the aggregate is at another version when it commits.",
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

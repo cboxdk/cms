@@ -38,6 +38,7 @@ final class KernelTables
         'idempotency_keys',
         'installation',
         'mount_overrides',
+        'node_labels',
         'node_routes',
         'nodes',
         'placement_generations',

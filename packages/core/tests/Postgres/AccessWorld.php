@@ -109,7 +109,7 @@ final class AccessWorld
      */
     public const array TABLES = [
         'actor_profiles', 'actors', 'audit', 'changeset_principals', 'changeset_reason_texts', 'changeset_register', 'changesets', 'entries',
-        'grants', 'head_snapshots', 'installation', 'mount_overrides', 'node_routes', 'nodes', 'placement_generations', 'placement_locales',
+        'grants', 'head_snapshots', 'installation', 'mount_overrides', 'node_labels', 'node_routes', 'nodes', 'placement_generations', 'placement_locales',
         'placements', 'read_audit', 'release_log', 'revision_payloads', 'revisions', 'role_permissions', 'roles',
         'service_credential_delegations', 'service_credentials', 'site_locales', 'sites', 'variant_heads',
     ];
@@ -160,6 +160,7 @@ final class AccessWorld
         $superuser->table('sites')->insert(['id' => self::SITE, 'handle' => 'north', 'root_node_id' => self::ROOT, 'version' => 1, 'created_at' => self::CREATED_AT]);
         $superuser->table('site_locales')->insert(['site_id' => self::SITE, 'locale' => 'da', 'created_at' => self::CREATED_AT]);
         $superuser->table('node_routes')->insert(['site_id' => self::SITE, 'locale' => 'da', 'route' => '/', 'node_id' => self::ROOT, 'created_at' => self::CREATED_AT]);
+        $superuser->table('node_labels')->insert(['node_id' => self::NEWS, 'locale' => 'da', 'label' => 'Nyheder', 'created_at' => self::CREATED_AT, 'updated_at' => self::CREATED_AT]);
 
         foreach ([self::ALICE => 'staff', self::BOB => 'staff', self::SERVICE => 'service'] as $actor => $class) {
             $superuser->table('actors')->insert(['id' => $actor, 'actor_class' => $class, 'state' => 'active', 'version' => 1, 'credential_generation' => 1, 'created_at' => self::CREATED_AT]);

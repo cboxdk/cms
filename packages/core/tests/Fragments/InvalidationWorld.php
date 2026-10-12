@@ -43,6 +43,11 @@ use Cbox\Cms\Core\Placements\Domain\Events\PlacementCreatedV1;
 use Cbox\Cms\Core\Placements\Domain\Events\PlacementVisibilityChanged;
 use Cbox\Cms\Core\Placements\Domain\Events\PlacementVisibilityChangedV1;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
+use Cbox\Cms\Core\Structure\Domain\Events\NodeLabelChanged;
+use Cbox\Cms\Core\Structure\Domain\Events\NodeLabelChangedV1;
+use Cbox\Cms\Core\Structure\Domain\Events\NodeMoved;
+use Cbox\Cms\Core\Structure\Domain\Events\NodeMovedV1;
+use Cbox\Cms\Core\Tests\Fragments\Fakes\FakeSubtreeNodes;
 use Cbox\Cms\Testkit\Cache\FakeFragmentStore;
 use Cbox\Cms\Testkit\Cdn\FakeCdnDriver;
 use Cbox\Cms\Testkit\Clock\FakeClock;
@@ -53,9 +58,11 @@ use DateTimeImmutable;
 
 /**
  * The invalidation subscriber with the fakes of what it uses: a fragment store, a CDN that purges
- * softly or only hard, a receipt store and a clock at 2026-03-10T12:00:00Z. changeset() commits a
- * receipt that lists the projections pending, stored() gives a content event as the log gives it,
- * and write() puts a fragment of an entry's key into the store built at a position.
+ * softly or only hard, a receipt store, a clock at 2026-03-10T12:00:00Z and the subtree of the
+ * tree ROOT, with NODE and OTHER_NODE below it and the nodes withDescendants() adds below NODE.
+ * changeset() commits a receipt that lists the projections pending, stored() gives a content event
+ * as the log gives it, and write() puts a fragment of an entry's key into the store built at a
+ * position.
  */
 final readonly class InvalidationWorld
 {
@@ -71,6 +78,10 @@ final readonly class InvalidationWorld
 
     public const string SITE = '0192a0c0-0000-7000-8000-0000000001b1';
 
+    public const string ROOT = '0192a0c0-0000-7000-8000-0000000001a1';
+
+    public const string OTHER_NODE = '0192a0c0-0000-7000-8000-0000000001a3';
+
     public FakeClock $clock;
 
     public FakeFragmentStore $fragments;
@@ -81,6 +92,8 @@ final readonly class InvalidationWorld
 
     public InvalidateFragments $subscriber;
 
+    public FakeSubtreeNodes $subtree;
+
     private FakeIdGenerator $ids;
 
     public function __construct(int $fenceSeconds = 30, bool $softPurge = true)
@@ -90,7 +103,43 @@ final readonly class InvalidationWorld
         $this->cdn = new FakeCdnDriver($softPurge);
         $this->receipts = new FakeReceiptStore($this->clock);
         $this->ids = new FakeIdGenerator(clock: $this->clock);
-        $this->subscriber = new InvalidateFragments($this->fragments, $this->cdn, $this->receipts, $this->clock, new InvalidationSettings($fenceSeconds));
+        $this->subtree = new FakeSubtreeNodes;
+        $root = $this->subtree->withNode(NodeId::fromString(self::ROOT));
+        $this->subtree->withNode(NodeId::fromString(self::NODE), $root);
+        $this->subtree->withNode(NodeId::fromString(self::OTHER_NODE), $root);
+        $this->subscriber = new InvalidateFragments($this->fragments, $this->cdn, $this->receipts, $this->clock, new InvalidationSettings($fenceSeconds), $this->subtree);
+    }
+
+    /**
+     * $count nodes below NODE, with ids above NODE's in order.
+     *
+     * @return list<NodeId>
+     */
+    public function withDescendants(int $count): array
+    {
+        $nodes = [];
+
+        for ($n = 1; $n <= $count; $n++) {
+            $nodes[] = $this->subtree->withNode(NodeId::fromString(sprintf('0192a0c0-0000-7000-8000-0000000002%02x', $n)), NodeId::fromString(self::NODE));
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * node.moved of NODE, or the node given, from ROOT to OTHER_NODE.
+     */
+    public static function moved(int $version, string $node = self::NODE): NodeMoved
+    {
+        return new NodeMoved($version, new NodeMovedV1(NodeId::fromString($node), NodeId::fromString(self::ROOT), NodeId::fromString(self::OTHER_NODE)));
+    }
+
+    /**
+     * node.label_changed of NODE in da.
+     */
+    public static function labelled(int $version): NodeLabelChanged
+    {
+        return new NodeLabelChanged($version, new NodeLabelChangedV1(NodeId::fromString(self::NODE), new Locale('da')));
     }
 
     public static function entry(string $id = self::ENTRY): EntryId
@@ -130,11 +179,11 @@ final readonly class InvalidationWorld
     }
 
     /**
-     * The key of the node the world's placements sit under.
+     * The key of the node the world's placements sit under, or of the node given.
      */
-    public static function nodeKey(): DependencyKey
+    public static function nodeKey(string $node = self::NODE): DependencyKey
     {
-        return DependencyKey::node(NodeId::fromString(self::NODE));
+        return DependencyKey::node(NodeId::fromString($node));
     }
 
     public static function released(int $version, int $revision): VariantReleased
@@ -216,12 +265,12 @@ final readonly class InvalidationWorld
      * Writes a fragment that depends only on the node the world's placements sit under, as a 404 of
      * a slug nothing was placed at, built at the position and valid for an hour.
      */
-    public function writeUnderNode(string $name, int $builtAt): FragmentWriteOutcome
+    public function writeUnderNode(string $name, int $builtAt, string $node = self::NODE): FragmentWriteOutcome
     {
         return $this->fragments->write(new Fragment(
             new FragmentKey($name),
             'body of '.$name,
-            [self::nodeKey()],
+            [self::nodeKey($node)],
             new CommitPosition((string) $builtAt),
             $this->clock->now()->add(new DateInterval('PT1H')),
         ));

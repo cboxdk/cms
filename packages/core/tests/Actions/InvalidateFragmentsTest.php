@@ -26,6 +26,8 @@ use Cbox\Cms\Core\Fragments\Actions\InvalidateFragments;
 use Cbox\Cms\Core\Placements\Domain\Events\PlacementCreated;
 use Cbox\Cms\Core\Placements\Domain\Events\PlacementVisibilityChanged;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
+use Cbox\Cms\Core\Structure\Domain\Events\NodeLabelChanged;
+use Cbox\Cms\Core\Structure\Domain\Events\NodeMoved;
 use Cbox\Cms\Core\Tests\Events\Fixtures\CounterRaised;
 use Cbox\Cms\Core\Tests\Fragments\InvalidationWorld;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
@@ -35,8 +37,8 @@ use ReflectionClass;
 /*
  * The invalidation subscriber, fragments.invalidate (PRD 7.6, 8.4, 8.12, 9.4), called directly
  * with stored content events and the fakes of the fragment store, the CDN driver, the receipt
- * store and the clock (GUARDRAILS 9). It covers success, a CDN that refuses the purge, and events
- * handled twice or out of order.
+ * store, the clock and the subtree (GUARDRAILS 9). It covers success, a CDN that refuses the purge,
+ * events handled twice or out of order, and a moved subtree purged in batches.
  */
 
 it('purges the fragments of the entry behind a fence at the event position, purges the edge softly and acknowledges origin', function (): void {
@@ -215,7 +217,64 @@ it('subscribes on the critical lane to every event that changes what a fragment 
     $world->handle($world->stored(InvalidationWorld::revised(2), $world->changeset('origin'), 100));
     $subscription = new ReflectionClass(InvalidateFragments::class)->getAttributes(Subscription::class)[0]->newInstance();
 
-    expect($subscription->events)->toBe([EntryCreated::class, VariantReleased::class, VariantRevised::class, VariantUnreleased::class, PlacementCreated::class, PlacementVisibilityChanged::class])
+    expect($subscription->events)->toBe([EntryCreated::class, VariantReleased::class, VariantRevised::class, VariantUnreleased::class, PlacementCreated::class, PlacementVisibilityChanged::class, NodeLabelChanged::class, NodeMoved::class])
         ->and($subscription->lane)->toBe(Lane::Critical)
         ->and($subscription->projection)->toBe(InvalidateFragments::PROJECTION);
+});
+
+it('purges the node of node.label_changed softly, so a breadcrumb that shows the node is rebuilt', function (): void {
+    $world = new InvalidationWorld;
+    $world->writeUnderNode('crumbs:node', 90);
+    $world->write('page:a', 90);
+    $changeset = $world->changeset('origin');
+
+    $world->handle($world->stored(InvalidationWorld::labelled(2), $changeset, 100));
+
+    expect($world->fragments->read(new FragmentKey('crumbs:node')))->toBeNull()
+        ->and($world->fragments->read(new FragmentKey('page:a')))->not->toBeNull()
+        ->and($world->writeUnderNode('crumbs:node', 100))->toBeInstanceOf(FragmentFenced::class)
+        ->and($world->cdn->requests())->toEqual([new CdnPurge([InvalidationWorld::nodeKey()], PurgeMode::Soft)])
+        ->and($world->subtree->reads)->toBe([])
+        ->and($world->origin($changeset)?->state)->toBe(ProjectionState::Acknowledged);
+});
+
+it('purges the node of node.moved and every node below it, one batch of the subtree at a time', function (): void {
+    $world = new InvalidationWorld;
+    $descendants = $world->withDescendants(InvalidateFragments::BATCH + 1);
+    $last = $descendants[count($descendants) - 1];
+    $world->writeUnderNode('crumbs:node', 90);
+    $world->writeUnderNode('crumbs:last', 90, $last->toString());
+    $world->writeUnderNode('crumbs:other', 90, InvalidationWorld::OTHER_NODE);
+    $changeset = $world->changeset('origin');
+
+    $world->handle($world->stored(InvalidationWorld::moved(2), $changeset, 100));
+
+    $purged = array_merge(...array_map(static fn (CdnPurge $purge): array => $purge->keyStrings(), $world->cdn->requests()));
+
+    expect($world->fragments->read(new FragmentKey('crumbs:node')))->toBeNull()
+        ->and($world->fragments->read(new FragmentKey('crumbs:last')))->toBeNull()
+        ->and($world->fragments->read(new FragmentKey('crumbs:other')))->not->toBeNull()
+        ->and($world->writeUnderNode('crumbs:last', 100, $last->toString()))->toBeInstanceOf(FragmentFenced::class)
+        ->and($world->writeUnderNode('crumbs:last', 101, $last->toString()))->toBeInstanceOf(FragmentStored::class)
+        ->and(array_map(static fn (CdnPurge $purge): int => count($purge->keys), $world->cdn->requests()))->toBe([InvalidateFragments::BATCH, 2])
+        ->and(array_map(static fn (CdnPurge $purge): PurgeMode => $purge->mode, $world->cdn->requests()))->toBe([PurgeMode::Soft, PurgeMode::Soft])
+        ->and(count($purged))->toBe(InvalidateFragments::BATCH + 2)
+        ->and($purged)->toContain(InvalidationWorld::nodeKey()->toString(), InvalidationWorld::nodeKey($last->toString())->toString())
+        ->and($world->subtree->reads)->toBe([
+            InvalidationWorld::NODE.' - '.InvalidateFragments::BATCH,
+            InvalidationWorld::NODE.' '.$descendants[InvalidateFragments::BATCH - 2]->toString().' '.InvalidateFragments::BATCH,
+        ])
+        ->and($world->origin($changeset)?->state)->toBe(ProjectionState::Acknowledged);
+});
+
+it('purges the node of node.moved alone when the subtree reads as empty, as it does for a node that is gone', function (): void {
+    $world = new InvalidationWorld;
+    $world->writeUnderNode('crumbs:gone', 90, '0192a0c0-0000-7000-8000-0000000001a9');
+    $changeset = $world->changeset('origin');
+
+    $world->handle($world->stored(InvalidationWorld::moved(2, '0192a0c0-0000-7000-8000-0000000001a9'), $changeset, 100));
+
+    expect($world->fragments->read(new FragmentKey('crumbs:gone')))->toBeNull()
+        ->and($world->cdn->requests())->toEqual([new CdnPurge([InvalidationWorld::nodeKey('0192a0c0-0000-7000-8000-0000000001a9')], PurgeMode::Soft)])
+        ->and($world->origin($changeset)?->state)->toBe(ProjectionState::Acknowledged);
 });

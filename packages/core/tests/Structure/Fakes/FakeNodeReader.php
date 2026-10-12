@@ -33,7 +33,7 @@ final class FakeNodeReader implements NodeReader
     /** @var list<array{PlacementId, NodePath, ?DateTimeImmutable, bool}> the placement, the path of its node, the end of its window and whether its state shows it */
     public array $placements = [];
 
-    /** @var list<string> each read, as "node <uuid>", "holder <site>|<locale>|<route>", "route <site>|<locale>|<node>" or "placement <node>" */
+    /** @var list<string> each read, as "node <uuid>", "ancestors <uuid>", "routed <uuid>", "holder <site>|<locale>|<route>", "route <site>|<locale>|<node>" or "placement <node>" */
     public array $reads = [];
 
     /**
@@ -85,6 +85,41 @@ final class FakeNodeReader implements NodeReader
         $this->reads[] = 'node '.$node->toString();
 
         return $this->nodes[$node->toString()] ?? null;
+    }
+
+    #[Override]
+    public function ancestors(NodeId $node): array
+    {
+        $this->reads[] = 'ancestors '.$node->toString();
+        $path = ($this->nodes[$node->toString()] ?? null)?->path;
+
+        if (! $path instanceof NodePath) {
+            return [];
+        }
+
+        $ancestors = array_values(array_filter($this->nodes, static fn (StoredNode $other): bool => $other->path->isAbove($path)));
+        usort($ancestors, static fn (StoredNode $a, StoredNode $b): int => substr_count($a->path->value, '.') <=> substr_count($b->path->value, '.'));
+
+        return $ancestors;
+    }
+
+    #[Override]
+    public function routedBelow(NodeId $node): ?NodeId
+    {
+        $this->reads[] = 'routed '.$node->toString();
+        $path = ($this->nodes[$node->toString()] ?? null)?->path;
+
+        if (! $path instanceof NodePath) {
+            return null;
+        }
+
+        $routed = array_values(array_filter(
+            $this->nodes,
+            fn (StoredNode $other): bool => $path->contains($other->path) && in_array($other->id->toString(), $this->routes, true),
+        ));
+        usort($routed, static fn (StoredNode $a, StoredNode $b): int => [substr_count($a->path->value, '.'), $a->id->toString()] <=> [substr_count($b->path->value, '.'), $b->id->toString()]);
+
+        return $routed[0]->id ?? null;
     }
 
     #[Override]

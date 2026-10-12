@@ -26,8 +26,10 @@ use PHPUnit\Framework\Attributes\Test;
  * UNTIL, and a hidden placement HIDDEN below ARCHIVED.
  *
  * A node outside the regions is read, so a command on it is unauthorized and not a conflict with an
- * aggregate that looks absent; a route is read whoever holds it; and a placement below the node is
- * read past the regions, so archiving never hides content the reader cannot see.
+ * aggregate that looks absent; a route is read whoever holds it; a placement below the node is
+ * read past the regions, so archiving never hides content the reader cannot see; the ancestors of
+ * a node are read from the root down, so a move locks the path it lands under; and the routed node
+ * nearest the top of a subtree is read, so a move to another site weighs the routes below it.
  */
 trait NodeReaderBehaviour
 {
@@ -109,6 +111,30 @@ trait NodeReaderBehaviour
         Assert::assertInstanceOf(StoredNode::class, $far);
         Assert::assertFalse($far->reachable);
         Assert::assertSame('site', $far->kind->value);
+    }
+
+    #[Test]
+    public function it_reads_the_ancestors_of_a_node_from_the_root_down_and_none_for_a_root_or_a_node_that_does_not_exist(): void
+    {
+        $reader = $this->nodeReader();
+        $ancestors = $reader->ancestors(NodeId::fromString(self::NODE));
+
+        Assert::assertSame([self::ROOT], array_map(static fn (StoredNode $ancestor): string => $ancestor->id->toString(), $ancestors));
+        Assert::assertSame([1, true, 'site'], [$ancestors[0]->version->value, $ancestors[0]->reachable, $ancestors[0]->kind->value]);
+        Assert::assertSame([], $reader->ancestors(NodeId::fromString(self::ROOT)));
+        Assert::assertSame([], $reader->ancestors(NodeId::fromString(self::NOWHERE)));
+    }
+
+    #[Test]
+    public function it_reads_the_routed_node_nearest_the_top_below_a_node_and_none_below_an_unrouted_one(): void
+    {
+        $reader = $this->nodeReader();
+
+        Assert::assertSame(self::ROOT, $reader->routedBelow(NodeId::fromString(self::ROOT))?->toString());
+        Assert::assertSame(self::NODE, $reader->routedBelow(NodeId::fromString(self::NODE))?->toString());
+        Assert::assertNull($reader->routedBelow(NodeId::fromString(self::ARCHIVED)));
+        Assert::assertNull($reader->routedBelow(NodeId::fromString(self::MOUNT)));
+        Assert::assertNull($reader->routedBelow(NodeId::fromString(self::NOWHERE)));
     }
 
     #[Test]

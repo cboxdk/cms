@@ -88,7 +88,7 @@ it('forces row level security on every table, with the access migration\'s polic
         ->and(StorageTables::texts($owner, 'select policyname::text as value from pg_policies where tablename = any (?::text[]) order by 1', [$tables]))
         ->toBe([
             'entries_actor', 'entries_owner_lock', 'entries_owner_read', 'entries_released', 'node_routes_owner_read', 'node_routes_read', 'node_routes_site_root', 'node_routes_write',
-            'nodes_actor', 'nodes_granted', 'nodes_owner_read', 'nodes_site_root', 'site_locales_owner_write', 'site_locales_read', 'sites_owner_write', 'sites_read',
+            'nodes_actor', 'nodes_granted', 'nodes_owner_move', 'nodes_owner_read', 'nodes_site_root', 'site_locales_owner_write', 'site_locales_read', 'sites_owner_write', 'sites_read',
             'variant_heads_actor', 'variant_heads_owner_lock', 'variant_heads_owner_read', 'variant_heads_released',
         ])
         ->and($result->status)->toBe(CheckStatus::Pass, (string) $result->cause);

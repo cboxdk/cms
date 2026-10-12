@@ -19,6 +19,7 @@ use Cbox\Cms\Contracts\Consistency\ProjectionState;
 use Cbox\Cms\Contracts\Events\EventStream;
 use Cbox\Cms\Contracts\Identity\ActorClass;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
+use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\ReceiptStore;
 use Cbox\Cms\Contracts\Results\WriteResult;
@@ -31,6 +32,8 @@ use Cbox\Cms\Core\Subscriptions\Domain\SubscriptionLog;
 use Cbox\Cms\Core\Tests\Entries\EntryFields;
 use Cbox\Cms\Core\Tests\Entries\EntryWorld;
 use Cbox\Cms\Core\Tests\Identity\PostgresIdentity;
+use Cbox\Cms\Core\Tests\Placements\PlacementStructure;
+use Cbox\Cms\Core\Tests\Structure\NodeWorld;
 use Cbox\Cms\Core\Tests\Subscriptions\Fakes\StopAfterRounds;
 use Cbox\Cms\Testkit\Cdn\FakeCdnDriver;
 use DateInterval;
@@ -43,8 +46,16 @@ use PHPUnit\Framework\AssertionFailedError;
  * lane's runner, built by the container with the compiled registry, has handled the event, the
  * fragment of the entry is gone from Valkey, its key is fenced at the revise's position, the edge
  * is purged through the CDN driver, and origin is acknowledged on the receipt. The CDN driver is
- * the testkit's fake, bound as an application binds its driver.
+ * the testkit's fake, bound as an application binds its driver. A node moved with its subtree and
+ * a node given a label are invalidated the same way, by the n- key of the node and, for a move,
+ * of every node below it.
  */
+
+const INVALIDATION_NODE = '0192a0c0-0000-7000-8000-0000000009a1';
+
+const INVALIDATION_CHILD = '0192a0c0-0000-7000-8000-0000000009a2';
+
+const INVALIDATION_TARGET = '0192a0c0-0000-7000-8000-0000000009a3';
 
 beforeEach(function (): void {
     EntryWorld::seed();
@@ -67,6 +78,36 @@ function invalidationWorld(): EntryWorld
     config()->set('cbox-cms.events.runner.idle_sleep_ms', 5);
 
     return $world;
+}
+
+/**
+ * A node world on the structure fixtures' sites, with the container's clock at the world's, the
+ * fake CDN configured and the critical lane's runner set to run as a new service actor.
+ */
+function invalidationNodeWorld(PlacementStructure $structure): NodeWorld
+{
+    $world = new NodeWorld([$structure->north->root]);
+    app()->instance(Clock::class, $world->clock);
+    config()->set('cbox-cms.contracts.'.CdnDriver::class, FakeCdnDriver::class);
+    config()->set('cbox-cms.events.runner.service_actor', PostgresIdentity::at($world->clock)->addActor(ActorClass::Service)->id->toString());
+    config()->set('cbox-cms.events.runner.idle_sleep_ms', 5);
+
+    return $world;
+}
+
+/**
+ * A fragment that depends only on the node's key, as a breadcrumb or a 404 below it does, built at
+ * the position and valid for an hour.
+ */
+function invalidationNodeFragment(string $name, string $node, CommitPosition $builtAt, NodeWorld $world): Fragment
+{
+    return new Fragment(
+        new FragmentKey($name),
+        '<nav>'.$name.'</nav>',
+        [DependencyKey::node(NodeId::fromString($node))],
+        $builtAt,
+        $world->clock->now()->add(new DateInterval('PT1H')),
+    );
 }
 
 /**
@@ -169,4 +210,63 @@ it('lets a fragment built after the revise committed into the store', function (
     invalidationRunUntilOrigin($revised);
 
     expect(app(FragmentStore::class)->write(invalidationFragment('page:measurement', invalidationReadPosition(), $world)))->toBeInstanceOf(FragmentStored::class);
+});
+
+it('lists origin pending on a move\'s receipt and purges the fragments of the node and of every node below it once the runner has handled node.moved', function (): void {
+    $structure = NodeWorld::seed();
+    $world = invalidationNodeWorld($structure);
+    $node = NodeId::fromString(INVALIDATION_NODE);
+    $child = NodeId::fromString(INVALIDATION_CHILD);
+    $target = NodeWorld::childOf($structure->north->root, NodeId::fromString(INVALIDATION_TARGET));
+    $world->createNode($node, $structure->north->root, 'create-node');
+    $world->createNode($child, NodeWorld::childOf($structure->north->root, $node), 'create-child');
+    $world->createNode($target->id, $structure->north->root, 'create-target');
+
+    $fragments = app(FragmentStore::class);
+    $stale = invalidationReadPosition();
+    expect($fragments->write(invalidationNodeFragment('crumbs:node', INVALIDATION_NODE, $stale, $world)))->toBeInstanceOf(FragmentStored::class)
+        ->and($fragments->write(invalidationNodeFragment('crumbs:child', INVALIDATION_CHILD, $stale, $world)))->toBeInstanceOf(FragmentStored::class)
+        ->and($fragments->write(invalidationNodeFragment('crumbs:target', INVALIDATION_TARGET, $stale, $world)))->toBeInstanceOf(FragmentStored::class);
+
+    $move = $world->moveNode($node, $target, 'move-node');
+    $moved = invalidationChangeset($move);
+
+    expect($move->receipt->projections)->toEqual([ProjectionStatus::pending(new ProjectionName('origin'))])
+        ->and($fragments->read(new FragmentKey('crumbs:child')))->not->toBeNull();
+
+    $world->clock->advance(new DateInterval('PT2S'));
+    invalidationRunUntilOrigin($moved);
+    $cdn = app(CdnDriver::class);
+
+    expect($fragments->read(new FragmentKey('crumbs:node')))->toBeNull()
+        ->and($fragments->read(new FragmentKey('crumbs:child')))->toBeNull()
+        ->and($fragments->read(new FragmentKey('crumbs:target')))->not->toBeNull()
+        ->and($fragments->write(invalidationNodeFragment('crumbs:child', INVALIDATION_CHILD, $stale, $world)))->toBeInstanceOf(FragmentFenced::class)
+        ->and($cdn instanceof FakeCdnDriver ? $cdn->purgedWith(DependencyKey::node($node)) : null)->toBe(PurgeMode::Soft)
+        ->and($cdn instanceof FakeCdnDriver ? $cdn->purgedWith(DependencyKey::node($child)) : null)->toBe(PurgeMode::Soft)
+        ->and($cdn instanceof FakeCdnDriver ? $cdn->purgedWith(DependencyKey::node($target->id)) : null)->toBeNull()
+        ->and(invalidationOrigin($moved)?->acknowledgedAt)->toEqual($world->clock->now());
+});
+
+it('purges the fragments of the node once the runner has handled node.label_changed', function (): void {
+    $structure = NodeWorld::seed();
+    $world = invalidationNodeWorld($structure);
+    $node = NodeId::fromString(INVALIDATION_NODE);
+    $world->createNode($node, $structure->north->root, 'create-node');
+
+    $fragments = app(FragmentStore::class);
+    $stale = invalidationReadPosition();
+    expect($fragments->write(invalidationNodeFragment('crumbs:node', INVALIDATION_NODE, $stale, $world)))->toBeInstanceOf(FragmentStored::class)
+        ->and($fragments->write(invalidationNodeFragment('crumbs:section', $structure->northSection->id->toString(), $stale, $world)))->toBeInstanceOf(FragmentStored::class);
+
+    $labelled = invalidationChangeset($world->setLabel($node, 'Sport', 'label-node'));
+    $world->clock->advance(new DateInterval('PT2S'));
+    invalidationRunUntilOrigin($labelled);
+    $cdn = app(CdnDriver::class);
+
+    expect($fragments->read(new FragmentKey('crumbs:node')))->toBeNull()
+        ->and($fragments->read(new FragmentKey('crumbs:section')))->not->toBeNull()
+        ->and($fragments->write(invalidationNodeFragment('crumbs:node', INVALIDATION_NODE, $stale, $world)))->toBeInstanceOf(FragmentFenced::class)
+        ->and($cdn instanceof FakeCdnDriver ? $cdn->purgedWith(DependencyKey::node($node)) : null)->toBe(PurgeMode::Soft)
+        ->and(invalidationOrigin($labelled)?->state)->toBe(ProjectionState::Acknowledged);
 });

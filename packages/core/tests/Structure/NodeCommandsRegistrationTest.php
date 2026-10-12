@@ -14,6 +14,8 @@ use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Plans\Mutations\NodeArchived;
 use Cbox\Cms\Contracts\Plans\Mutations\NodeCreated;
+use Cbox\Cms\Contracts\Plans\Mutations\NodeLabelSet;
+use Cbox\Cms\Contracts\Plans\Mutations\NodeMoved;
 use Cbox\Cms\Contracts\Plans\Mutations\NodeRouteSet;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\MutationContext;
 use Cbox\Cms\Core\Pipeline\Domain\LockStrength;
@@ -25,15 +27,22 @@ use Cbox\Cms\Core\Routing\Domain\NodeKind;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Structure\Actions\ArchiveNodeAction;
 use Cbox\Cms\Core\Structure\Actions\CreateNodeAction;
+use Cbox\Cms\Core\Structure\Actions\MoveNodeAction;
+use Cbox\Cms\Core\Structure\Actions\SetNodeLabelAction;
 use Cbox\Cms\Core\Structure\Actions\SetNodeRouteAction;
 use Cbox\Cms\Core\Structure\Adapter\NodeArchivedWriter;
 use Cbox\Cms\Core\Structure\Adapter\NodeCreatedWriter;
+use Cbox\Cms\Core\Structure\Adapter\NodeLabelSetWriter;
+use Cbox\Cms\Core\Structure\Adapter\NodeMovedWriter;
 use Cbox\Cms\Core\Structure\Adapter\NodeRouteSetWriter;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeReader;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeRouteLock;
 use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\MoveNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeLabel;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeRoute;
+use Cbox\Cms\Core\Structure\Domain\NodeLabel;
 use Cbox\Cms\Core\Structure\Domain\NodeReader;
 use Cbox\Cms\Core\Structure\Domain\NodeRouteRef;
 use DateTimeImmutable;
@@ -42,7 +51,8 @@ use InvalidArgumentException;
 
 /*
  * The node commands are wired into the kernel (PRD 5.8, 5.9, 6.2, 13.2): cms:build registers their
- * actions under node.create, node.archive and node.set_route version 1 on every surface, the
+ * actions under node.create, node.archive, node.set_route, node.move and node.set_label version 1
+ * on every surface, the
  * container gives the pipeline those actions with the Postgres reader, and the commit finds the
  * lock of every aggregate they read and the writer of every mutation they plan. The route lock
  * refuses an aggregate of another kind.
@@ -54,13 +64,15 @@ const NODE_REGISTRATION_PARENT = '01936f5e-8a2b-7c3d-9e4f-000000000c02';
 
 const NODE_REGISTRATION_SITE = '01936f5e-8a2b-7c3d-9e4f-000000000c11';
 
-it('registers node.create, node.archive and node.set_route version 1 on every surface', function (): void {
+it('registers node.create, node.archive, node.set_route, node.move and node.set_label version 1 on every surface', function (): void {
     $registry = app(CompiledRegistry::class);
 
     foreach ([
         CreateNode::class => [CreateNodeAction::class, 'node.create'],
         ArchiveNode::class => [ArchiveNodeAction::class, 'node.archive'],
         SetNodeRoute::class => [SetNodeRouteAction::class, 'node.set_route'],
+        MoveNode::class => [MoveNodeAction::class, 'node.move'],
+        SetNodeLabel::class => [SetNodeLabelAction::class, 'node.set_label'],
     ] as $command => [$action, $name]) {
         $entry = $registry->actionFor($command);
 
@@ -77,10 +89,16 @@ it('gives the pipeline the node actions with the Postgres reader', function (): 
     $create = app(WriteActions::class)->for(new CreateNode($node, NodeId::fromString(NODE_REGISTRATION_PARENT), NodeKind::Section));
     $archive = app(WriteActions::class)->for(new ArchiveNode($node, AggregateVersion::first()));
     $route = app(WriteActions::class)->for(new SetNodeRoute($node, AggregateVersion::first(), SiteId::fromString(NODE_REGISTRATION_SITE), new Locale('da'), new RequestPath('/sport')));
+    $move = app(WriteActions::class)->for(new MoveNode($node, AggregateVersion::first(), NodeId::fromString(NODE_REGISTRATION_PARENT)));
+    $label = app(WriteActions::class)->for(new SetNodeLabel($node, AggregateVersion::first(), new Locale('da'), new NodeLabel('Sport')));
 
     expect($create->action)->toBeInstanceOf(CreateNodeAction::class)
         ->and($archive->action)->toBeInstanceOf(ArchiveNodeAction::class)
         ->and($route->action)->toBeInstanceOf(SetNodeRouteAction::class)
+        ->and($move->action)->toBeInstanceOf(MoveNodeAction::class)
+        ->and($label->action)->toBeInstanceOf(SetNodeLabelAction::class)
+        ->and($move->command->value)->toBe('node.move')
+        ->and($label->command->value)->toBe('node.set_label')
         ->and($route->command->value)->toBe('node.set_route')
         ->and(app(NodeReader::class))->toBeInstanceOf(PostgresNodeReader::class);
 });
@@ -95,7 +113,9 @@ it('gives the commit the lock of a route and the writers of the node mutations',
     expect(app(VersionLocks::class)->for($route))->toBeInstanceOf(PostgresNodeRouteLock::class)
         ->and($writers->for(new NodeCreated($node, $parent, 'section', new NodePath($label($parent).'.'.$label($node)))))->toBeInstanceOf(NodeCreatedWriter::class)
         ->and($writers->for(new NodeArchived($node)))->toBeInstanceOf(NodeArchivedWriter::class)
-        ->and($writers->for(new NodeRouteSet($node, SiteId::fromString(NODE_REGISTRATION_SITE), new Locale('da'), '/sport')))->toBeInstanceOf(NodeRouteSetWriter::class);
+        ->and($writers->for(new NodeRouteSet($node, SiteId::fromString(NODE_REGISTRATION_SITE), new Locale('da'), '/sport')))->toBeInstanceOf(NodeRouteSetWriter::class)
+        ->and($writers->for(new NodeMoved($node, $parent, NodeId::fromString(NODE_REGISTRATION_SITE), new NodePath($label(NodeId::fromString(NODE_REGISTRATION_SITE)).'.'.$label($node)), false, false)))->toBeInstanceOf(NodeMovedWriter::class)
+        ->and($writers->for(new NodeLabelSet($node, new Locale('da'), 'Sport')))->toBeInstanceOf(NodeLabelSetWriter::class);
 });
 
 it('refuses to lock an aggregate that is not a route of a node', function (): void {
@@ -113,6 +133,8 @@ it('names the class of mutation each node writer writes, and refuses another', f
     foreach ([
         [new NodeCreatedWriter($connections), NodeCreated::class],
         [new NodeRouteSetWriter($connections), NodeRouteSet::class],
+        [new NodeMovedWriter($connections), NodeMoved::class],
+        [new NodeLabelSetWriter($connections), NodeLabelSet::class],
     ] as [$writer, $class]) {
         expect($writer->writes())->toBe($class)
             ->and(fn (): array => $writer->write($other, nodeWriterContext()))->toThrow(InvalidArgumentException::class, NodeArchived::class);
@@ -137,7 +159,15 @@ it('refuses a mutation whose kind or path the tree does not take', function (): 
         ->and(fn (): NodeCreated => new NodeCreated($node, $parent, 'section', new NodePath($label($parent).'.'.$label($parent))))
         ->toThrow(InvalidArgumentException::class, 'is its parent\'s with the label')
         ->and(fn (): NodeRouteSet => new NodeRouteSet($node, SiteId::fromString(NODE_REGISTRATION_SITE), new Locale('da'), 'sport'))
-        ->toThrow(InvalidArgumentException::class, 'a route is "/" or "/"-separated segments');
+        ->toThrow(InvalidArgumentException::class, 'a route is "/" or "/"-separated segments')
+        ->and(fn (): NodeMoved => new NodeMoved($node, $parent, $parent, new NodePath($label($parent).'.'.$label($node)), false, false))
+        ->toThrow(InvalidArgumentException::class, 'a move changes the parent')
+        ->and(fn (): NodeMoved => new NodeMoved($node, $parent, NodeId::fromString(NODE_REGISTRATION_SITE), new NodePath($label($node)), false, false))
+        ->toThrow(InvalidArgumentException::class, 'is its parent\'s with the label')
+        ->and(fn (): NodeLabelSet => new NodeLabelSet($node, new Locale('da'), ' Sport'))
+        ->toThrow(InvalidArgumentException::class, 'starts and ends with a character that is not white space')
+        ->and(fn (): NodeLabelSet => new NodeLabelSet($node, new Locale('da'), str_repeat('a', 201)))
+        ->toThrow(InvalidArgumentException::class, '1 to 200 characters');
 });
 
 /**
