@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "entry.list result, contract version 1",
+  "description": "The result of entry.list (PRD 5.4, 8.8): a page of the entries the reader reaches, newest first, each with its system columns. The PHP form is Cbox\\Cms\\Core\\Entries\\Domain\\Dto\\EntryList, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "entries",
+    "next"
+  ],
+  "properties": {
+    "entries": {
+      "description": "The page, newest first.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/listed_entry"
+      }
+    },
+    "next": {
+      "description": "The id to read the next page after, or null when this page is the last.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/id"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "listed_entry": {
+      "description": "An entry's system columns (PRD 5.4).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed_at",
+        "home",
+        "id",
+        "lifecycle",
+        "state",
+        "type",
+        "version"
+      ],
+      "properties": {
+        "changed_at": {
+          "description": "The entry's last change: the newest of its creation, its revisions, its head snapshots and its releases and withdrawals, RFC 3339 in UTC with six decimals, such as 2026-09-30T12:00:00.000000Z. Any offset is read.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "home": {
+          "description": "The entry's home node.",
+          "$ref": "#/$defs/id"
+        },
+        "id": {
+          "description": "The entry.",
+          "$ref": "#/$defs/id"
+        },
+        "lifecycle": {
+          "description": "The entry's lifecycle state (PRD 6.4).",
+          "enum": [
+            "active",
+            "archived",
+            "merged",
+            "tombstoned",
+            "purged"
+          ]
+        },
+        "state": {
+          "description": "The release state of the shared variant's head, or null for an entry without one.",
+          "anyOf": [
+            {
+              "enum": [
+                "unreleased",
+                "released",
+                "withdrawn"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "type": {
+          "description": "The entry's type.",
+          "$ref": "#/$defs/id"
+        },
+        "version": {
+          "description": "The entry's version, from 1.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

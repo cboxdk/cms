@@ -17,9 +17,11 @@ use Cbox\Cms\Contracts\Consistency\ProjectionState;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
 use Cbox\Cms\Contracts\Consistency\WaitLevel;
 use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Content\ReleaseState;
 use Cbox\Cms\Contracts\Content\RevisionNumber;
 use Cbox\Cms\Contracts\Content\Slug;
 use Cbox\Cms\Contracts\Content\TimeWindow;
+use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Editors\EditorBase;
 use Cbox\Cms\Contracts\Editors\EditorChoice;
 use Cbox\Cms\Contracts\Editors\EditorField;
@@ -96,6 +98,14 @@ use Cbox\Cms\Core\Delivery\Domain\Dto\StoredAnswer;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
+use Cbox\Cms\Core\Entries\Domain\Dto\EntryDetail;
+use Cbox\Cms\Core\Entries\Domain\Dto\EntryHead;
+use Cbox\Cms\Core\Entries\Domain\Dto\EntryList;
+use Cbox\Cms\Core\Entries\Domain\Dto\EntryPlacement;
+use Cbox\Cms\Core\Entries\Domain\Dto\EntryPlacementLocale;
+use Cbox\Cms\Core\Entries\Domain\Dto\ListedEntry;
+use Cbox\Cms\Core\Entries\Domain\Queries\GetEntry;
+use Cbox\Cms\Core\Entries\Domain\Queries\ListEntries;
 use Cbox\Cms\Core\Identity\Domain\Commands\ActivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\RegisterActor;
@@ -143,7 +153,6 @@ use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
 use Cbox\Cms\Core\Routing\Domain\Host;
 use Cbox\Cms\Core\Routing\Domain\NodeKind;
 use Cbox\Cms\Core\Routing\Domain\Queries\ResolvePath;
-use Cbox\Cms\Core\Routing\Domain\ReleaseState;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Routing\Domain\ResolveOutcome;
 use Cbox\Cms\Core\Routing\Domain\SiteHandle;
@@ -554,6 +563,62 @@ final readonly class ProtocolSchemas
                     '#/$defs/own_grant/properties/version' => $version,
                     '#/$defs/profile/properties/display_name' => ValueBinding::value(DisplayName::class),
                     '#/$defs/profile/properties/email' => ValueBinding::value(EmailAddress::class),
+                ],
+            ),
+            ...self::query(
+                'entry.get',
+                GetEntry::class,
+                'GetEntryCodecV1',
+                ['#/properties/entry' => $id(EntryId::class)],
+                'EntryDetailCodecV1',
+                [
+                    '#' => EntryDetail::class,
+                    '#/$defs/head' => EntryHead::class,
+                    '#/$defs/placement' => EntryPlacement::class,
+                    '#/$defs/placement_locale' => EntryPlacementLocale::class,
+                    '#/$defs/time_window' => TimeWindow::class,
+                ],
+                [
+                    '#/properties/home' => $id(NodeId::class),
+                    '#/properties/id' => $id(EntryId::class),
+                    '#/properties/lifecycle' => ValueBinding::enum(EntryLifecycle::class),
+                    '#/properties/type' => $id(TypeId::class),
+                    '#/properties/version' => $version,
+                    '#/$defs/head/properties/fields' => ValueBinding::fields(FieldValues::class),
+                    '#/$defs/head/properties/latest' => ValueBinding::value(RevisionNumber::class),
+                    '#/$defs/head/properties/released' => ValueBinding::value(RevisionNumber::class),
+                    '#/$defs/head/properties/revision' => ValueBinding::value(RevisionNumber::class),
+                    '#/$defs/head/properties/state' => ValueBinding::enum(ReleaseState::class),
+                    '#/$defs/head/properties/variant' => ValueBinding::value(VariantKey::class),
+                    '#/$defs/head/properties/version' => $version,
+                    '#/$defs/placement/properties/id' => $id(PlacementId::class),
+                    '#/$defs/placement/properties/node' => $id(NodeId::class),
+                    '#/$defs/placement/properties/version' => $version,
+                    '#/$defs/placement_locale/properties/locale' => ValueBinding::value(Locale::class),
+                    '#/$defs/placement_locale/properties/slug' => ValueBinding::value(Slug::class),
+                    '#/$defs/placement_locale/properties/visibility' => ValueBinding::enum(Visibility::class),
+                ],
+            ),
+            ...self::query(
+                'entry.list',
+                ListEntries::class,
+                'ListEntriesCodecV1',
+                [
+                    '#/properties/after' => $id(EntryId::class),
+                    '#/properties/node' => $id(NodeId::class),
+                    '#/properties/state' => ValueBinding::enum(ReleaseState::class),
+                    '#/properties/type' => $id(TypeId::class),
+                ],
+                'EntryListCodecV1',
+                ['#' => EntryList::class, '#/$defs/listed_entry' => ListedEntry::class],
+                [
+                    '#/properties/next' => $id(EntryId::class),
+                    '#/$defs/listed_entry/properties/home' => $id(NodeId::class),
+                    '#/$defs/listed_entry/properties/id' => $id(EntryId::class),
+                    '#/$defs/listed_entry/properties/lifecycle' => ValueBinding::enum(EntryLifecycle::class),
+                    '#/$defs/listed_entry/properties/state' => ValueBinding::enum(ReleaseState::class),
+                    '#/$defs/listed_entry/properties/type' => $id(TypeId::class),
+                    '#/$defs/listed_entry/properties/version' => $version,
                 ],
             ),
             ...self::query(

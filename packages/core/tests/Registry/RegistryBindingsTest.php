@@ -19,6 +19,8 @@ use Cbox\Cms\Core\Access\Domain\Commands\RevokeGrant;
 use Cbox\Cms\Core\Access\Domain\Commands\SetRolePermissions;
 use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Core\Entries\Actions\CreateEntryAction;
+use Cbox\Cms\Core\Entries\Actions\GetEntryAction;
+use Cbox\Cms\Core\Entries\Actions\ListEntriesAction;
 use Cbox\Cms\Core\Entries\Actions\ReleaseVariantAction;
 use Cbox\Cms\Core\Entries\Actions\ReviseEntryAction;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
@@ -189,6 +191,8 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'actor.me@1 '.WhoAmIAction::class.' query',
             'actor.register@1 '.RegisterActorAction::class.' write',
             'entry.create@1 '.CreateEntryAction::class.' write',
+            'entry.get@1 '.GetEntryAction::class.' query',
+            'entry.list@1 '.ListEntriesAction::class.' query',
             'entry.publish@1 '.PublishEntryAction::class.' write',
             'entry.revise@1 '.ReviseEntryAction::class.' write',
             'entry.unpublish@1 '.UnpublishEntryAction::class.' write',
@@ -231,7 +235,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
         ->and($registry->actionFor(CreateEntry::class)?->class)->toBe(CreateEntryAction::class)
         ->and($registry->actionFor(ReviseEntry::class)?->class)->toBe(ReviseEntryAction::class)
         ->and($registry->actionFor(ListNodes::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia])
-        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([35, 0, 26, 0, 15, 29, 0, 1])
+        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([37, 0, 26, 0, 15, 31, 0, 1])
         ->and($registry->hooks)->toBe([])
         ->and(array_map(static fn (SubscriberEntry $entry): string => $entry->name->value.' '.$entry->class.' '.$entry->lane->value.' '.$entry->projection?->value, $registry->subscribers))
         ->toBe(['fragments.invalidate '.InvalidateFragments::class.' critical origin'])

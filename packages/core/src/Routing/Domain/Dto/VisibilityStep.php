@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Routing\Domain\Dto;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\Content\ReleaseState;
 use Cbox\Cms\Contracts\Content\TimeWindow;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
-use Cbox\Cms\Core\Routing\Domain\ReleaseState;
 use Cbox\Cms\Core\Routing\Domain\VisibilityDecision;
 use DateTimeImmutable;
 

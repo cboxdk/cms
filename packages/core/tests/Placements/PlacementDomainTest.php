@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Placements;
 
 use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Content\ReleaseState;
 use Cbox\Cms\Contracts\Content\Slug;
 use Cbox\Cms\Contracts\Content\TimeWindow;
 use Cbox\Cms\Contracts\Events\EventType;
@@ -33,7 +34,6 @@ use Cbox\Cms\Core\Placements\Domain\Events\PlacementVisibilityChangedV1;
 use Cbox\Cms\Core\Placements\Domain\PlacementSlugRef;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
-use Cbox\Cms\Core\Routing\Domain\ReleaseState;
 use DateTimeImmutable;
 use Illuminate\Database\ConnectionResolverInterface;
 use InvalidArgumentException;

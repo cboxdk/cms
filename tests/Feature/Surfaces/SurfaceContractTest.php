@@ -83,6 +83,12 @@ final class SurfaceContractTest extends TestCase
         'type.list' => ['rest', 'inertia', 'mcp'],
     ];
 
+    /** The kernel's entry reads of B2, entry.get and entry.list, each on REST, Inertia and MCP, by name. */
+    private const array ENTRY_QUERIES = [
+        'entry.get' => ['rest', 'inertia', 'mcp'],
+        'entry.list' => ['rest', 'inertia', 'mcp'],
+    ];
+
     /**
      * The workbench's fixture addon's query fixtureaddon.articles and command fixtureaddon.slug.set,
      * each on REST and Inertia, by name (B1 point 7): an addon's actions get their surface tests as
@@ -123,7 +129,7 @@ final class SurfaceContractTest extends TestCase
     {
         $registry = SurfaceContractCases::installation(app());
         $expected = [];
-        $commands = [...self::SOME_SURFACES, ...self::ACCESS_QUERIES, ...self::ADDON_ACTIONS, ...array_fill_keys(self::EXPOSED, array_map(static fn (Surface $surface): string => $surface->value, Surface::cases()))];
+        $commands = [...self::SOME_SURFACES, ...self::ACCESS_QUERIES, ...self::ENTRY_QUERIES, ...self::ADDON_ACTIONS, ...array_fill_keys(self::EXPOSED, array_map(static fn (Surface $surface): string => $surface->value, Surface::cases()))];
         ksort($commands);
 
         foreach ($commands as $command => $surfaces) {

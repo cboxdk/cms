@@ -75,7 +75,7 @@ trait EntryReaderBehaviour
         $withdrawn = $this->entryReader(released: 'withdrawn')->entry(EntryId::fromString(self::ENTRY), VariantKey::shared())?->head;
 
         Assert::assertEquals(new StoredHead(new AggregateVersion(5), new RevisionNumber(4), new RevisionNumber(5), new RevisionNumber(5)), $released);
-        Assert::assertEquals(new StoredHead(new AggregateVersion(5), new RevisionNumber(4), new RevisionNumber(5), null), $withdrawn);
+        Assert::assertEquals(new StoredHead(new AggregateVersion(5), new RevisionNumber(4), new RevisionNumber(5), null, withdrawn: true), $withdrawn);
     }
 
     #[Test]

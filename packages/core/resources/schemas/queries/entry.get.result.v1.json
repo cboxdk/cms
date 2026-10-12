@@ -1,0 +1,308 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "entry.get result, contract version 1",
+  "description": "The result of entry.get (PRD 5.4, 5.7): the entry's type, home node, lifecycle and version, every variant head in the order of the variants, the shared variant first, each with the fields of its draft revision as the reader may read them, and every placement of the entry the reader reaches in the order of their ids, each with its locales. The PHP form is Cbox\\Cms\\Core\\Entries\\Domain\\Dto\\EntryDetail, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "heads",
+    "home",
+    "id",
+    "lifecycle",
+    "placements",
+    "type",
+    "version"
+  ],
+  "properties": {
+    "heads": {
+      "description": "The variant heads, the shared variant first and then the locales in order.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/head"
+      }
+    },
+    "home": {
+      "description": "The entry's home node (PRD 5.4).",
+      "$ref": "#/$defs/id"
+    },
+    "id": {
+      "description": "The entry.",
+      "$ref": "#/$defs/id"
+    },
+    "lifecycle": {
+      "description": "The entry's lifecycle state (PRD 6.4).",
+      "enum": [
+        "active",
+        "archived",
+        "merged",
+        "tombstoned",
+        "purged"
+      ]
+    },
+    "placements": {
+      "description": "The entry's placements the reader reaches, in the order of their ids.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/placement"
+      }
+    },
+    "type": {
+      "description": "The entry's type.",
+      "$ref": "#/$defs/id"
+    },
+    "version": {
+      "description": "The entry's version, from 1.",
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "fields": {
+      "description": "The fields by handle, in the input form the type's validator reads: the owner's fields, and each extender's fields under ext by its namespace. A text, a decimal (its canonical string), a date (YYYY-MM-DD) and a date-time (RFC 3339) are strings, an integer is an integer, a boolean a boolean, a list a list and a group an object of its fields. The kernel checks the values against the type's schema when it writes them.",
+      "type": "object",
+      "properties": {
+        "ext": {
+          "$ref": "#/$defs/extension_fields"
+        }
+      },
+      "propertyNames": {
+        "anyOf": [
+          {
+            "const": "ext"
+          },
+          {
+            "$ref": "#/$defs/field_handle"
+          }
+        ]
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/field_value"
+      }
+    },
+    "extension_fields": {
+      "description": "The extension fields, an object of fields by handle for each extender's namespace.",
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/field_namespace"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "propertyNames": {
+          "$ref": "#/$defs/field_handle"
+        },
+        "additionalProperties": {
+          "$ref": "#/$defs/field_value"
+        }
+      }
+    },
+    "field_handle": {
+      "description": "A field's handle: lowercase snake_case of at most 63 characters without a double underscore, never ext and never starting with cms_.",
+      "type": "string",
+      "maxLength": 63,
+      "pattern": "^(?!cms_)(?!ext$)[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+    },
+    "field_namespace": {
+      "description": "An extender's namespace: 1 to 20 lowercase letters and digits, starting with a letter, never ext.",
+      "type": "string",
+      "pattern": "^(?!ext$)[a-z][a-z0-9]{0,19}$"
+    },
+    "field_value": {
+      "description": "A field's value: a string, an integer, a boolean, null, a list of values or an object of values by a key of 1 to 255 bytes.",
+      "type": [
+        "string",
+        "integer",
+        "boolean",
+        "null",
+        "array",
+        "object"
+      ],
+      "items": {
+        "$ref": "#/$defs/field_value"
+      },
+      "propertyNames": {
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/field_value"
+      }
+    },
+    "head": {
+      "description": "One variant head (PRD 5.4, 5.6).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fields",
+        "latest",
+        "released",
+        "revision",
+        "schema_version",
+        "state",
+        "variant",
+        "version"
+      ],
+      "properties": {
+        "fields": {
+          "description": "The fields of the head's draft revision in the input form, left out of the answer above the reader's classification access, and empty when the revision was written under another schema version than the type's, whose fields the type cannot read.",
+          "$ref": "#/$defs/fields"
+        },
+        "latest": {
+          "description": "The highest number any revision of the variant has, which the next revision follows.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "released": {
+          "description": "The number of the released revision, or null when none is released.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "revision": {
+          "description": "The number of the current draft revision.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "schema_version": {
+          "description": "The schema version of the type the draft revision was written under; its fields are read when it is the type's current version.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "state": {
+          "description": "The head's release state (PRD 5.6, 6.4).",
+          "enum": [
+            "unreleased",
+            "released",
+            "withdrawn"
+          ]
+        },
+        "variant": {
+          "description": "The variant: shared, or a locale.",
+          "type": "string",
+          "pattern": "^(shared|[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?)$"
+        },
+        "version": {
+          "description": "The variant's version, which a command that revises it expects.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "placement": {
+      "description": "A placement of the entry (PRD 5.7).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "locales",
+        "node",
+        "version"
+      ],
+      "properties": {
+        "id": {
+          "description": "The placement.",
+          "$ref": "#/$defs/id"
+        },
+        "locales": {
+          "description": "The placement's locales, in order.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/placement_locale"
+          }
+        },
+        "node": {
+          "description": "The node the placement's released generation sits under.",
+          "$ref": "#/$defs/id"
+        },
+        "version": {
+          "description": "The placement's version.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "placement_locale": {
+      "description": "The placement in one locale (PRD 5.7).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canonical",
+        "locale",
+        "slug",
+        "visibility",
+        "window"
+      ],
+      "properties": {
+        "canonical": {
+          "description": "Whether this is the entry's canonical placement in the locale (invariant 14).",
+          "type": "boolean"
+        },
+        "locale": {
+          "description": "The locale, a language tag.",
+          "type": "string",
+          "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$"
+        },
+        "slug": {
+          "description": "The last segment of the placement's path in the locale.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^(?!\\.\\.?$)[^/\\s]+$"
+        },
+        "visibility": {
+          "description": "The stored visibility state (PRD 5.7, 6.4).",
+          "enum": [
+            "hidden",
+            "scheduled",
+            "live",
+            "expired",
+            "withdrawn"
+          ]
+        },
+        "window": {
+          "description": "The placement's window in the locale, or null when it has none.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/time_window"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "time_window": {
+      "description": "A placement's window: from when and until when it is live, each null when it is open at that end.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "until"
+      ],
+      "properties": {
+        "from": {
+          "description": "The start of the window, RFC 3339 in UTC with six decimals, such as 2026-09-30T12:00:00.000000Z. Any offset is read. Null when it is open at the start.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "until": {
+          "description": "The end of the window, RFC 3339 in UTC with six decimals, such as 2026-09-30T12:00:00.000000Z. Any offset is read. Null when it never ends.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}

@@ -86,6 +86,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`egress_mail_failed`](#egress_mail_failed) | 503 | 75 | internal_error | yes |
 | [`egress_redirect_refused`](#egress_redirect_refused) | 503 | 69 | internal_error | no |
 | [`egress_unavailable`](#egress_unavailable) | 503 | 75 | internal_error | yes |
+| [`entry_not_found`](#entry_not_found) | 404 | 66 | tool_error | no |
 | [`fake_check_failed`](#fake_check_failed) | 500 | 78 | internal_error | no |
 | [`field_encryption_unavailable`](#field_encryption_unavailable) | 422 | 65 | tool_error | no |
 | [`generate_column_name_too_long`](#generate_column_name_too_long) | 500 | 65 | internal_error | no |
@@ -921,6 +922,15 @@ The destination of an outbound request did not answer within the egress gateway'
 - CLI exit code: 75 (EX_TEMPFAIL)
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: yes, the same call may succeed later
+
+### entry_not_found
+
+No entry with this id is within the reader's reach (PRD 5.4, 5.10): none exists, or its home node lies outside the regions of the reader's grants and the reader does not own it. The read tells the two apart for no one. Check the id, or ask for a grant on the entry's home.
+
+- HTTP status: 404 Not Found
+- CLI exit code: 66 (EX_NOINPUT)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
 
 ### fake_check_failed
 

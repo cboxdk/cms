@@ -88,7 +88,10 @@ final readonly class PlacementRows
         return $at?->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s.uP');
     }
 
-    private static function instant(?string $value): ?DateTimeImmutable
+    /**
+     * A timestamptz as Postgres writes it, with its offset, read as UTC.
+     */
+    public static function instant(?string $value): ?DateTimeImmutable
     {
         return $value === null ? null : new DateTimeImmutable($value, new DateTimeZone('UTC'));
     }

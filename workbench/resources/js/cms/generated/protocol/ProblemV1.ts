@@ -81,6 +81,7 @@ export type ErrorCode =
   | 'egress_mail_failed'
   | 'egress_redirect_refused'
   | 'egress_unavailable'
+  | 'entry_not_found'
   | 'fake_check_failed'
   | 'field_encryption_unavailable'
   | 'generate_column_name_too_long'
@@ -403,6 +404,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'egress_mail_failed',
           'egress_redirect_refused',
           'egress_unavailable',
+          'entry_not_found',
           'fake_check_failed',
           'field_encryption_unavailable',
           'generate_column_name_too_long',
@@ -689,6 +691,7 @@ const problemV1Rule: ObjectRule = {
           'egress_mail_failed',
           'egress_redirect_refused',
           'egress_unavailable',
+          'entry_not_found',
           'fake_check_failed',
           'field_encryption_unavailable',
           'generate_column_name_too_long',

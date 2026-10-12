@@ -39,6 +39,7 @@ final class FakeEntryReaderBehaviourTest extends TestCase
                 new RevisionNumber(4),
                 new RevisionNumber($released === null ? 4 : 5),
                 $released === 'released' ? new RevisionNumber(5) : null,
+                $released === 'withdrawn',
             ))
             ->withEntry(EntryId::fromString(self::BARE_ENTRY), $type, $node, new AggregateVersion(1));
     }

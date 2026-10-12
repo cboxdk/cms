@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "entry.list, contract version 1",
+  "description": "Lists entries across types (PRD 5.4, 8.8, 13.4): a page of the entries the actor's regions reach or it owns, newest first, each with its system columns, filtered by type, node subtree and the shared variant's release state. Every actor may run it; the anonymous principal may not. The PHP form is Cbox\\Cms\\Core\\Entries\\Domain\\Queries\\ListEntries, and the generated codec reads it and writes its canonical JSON: every key, sorted, no whitespace. Its result is entry.list.result.v1.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [],
+  "properties": {
+    "after": {
+      "description": "The id of the last entry the caller has; the page starts after it, newest first. Null, or missing, starts at the newest entry.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/id"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "limit": {
+      "description": "The most entries the page holds, from 1 to 100. Missing is 50.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 50
+    },
+    "node": {
+      "description": "The node whose subtree the entries are homed in, the node itself included; null, or missing, for every node. A node the reader does not reach lists nothing.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/id"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "state": {
+      "description": "The release state of the shared variant the entries have; null, or missing, for every state.",
+      "anyOf": [
+        {
+          "enum": [
+            "unreleased",
+            "released",
+            "withdrawn"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "type": {
+      "description": "The type the entries are of; null, or missing, for every type.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/id"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    }
+  }
+}

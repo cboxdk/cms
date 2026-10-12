@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Placements;
 
 use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Content\ReleaseState;
 use Cbox\Cms\Contracts\Content\Slug;
 use Cbox\Cms\Contracts\Content\TimeWindow;
 use Cbox\Cms\Contracts\Envelope\CorrelationId;
@@ -51,7 +52,6 @@ use Cbox\Cms\Core\Placements\Domain\Dto\StoredPlacementLocale;
 use Cbox\Cms\Core\Placements\Domain\Dto\StoredSite;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
-use Cbox\Cms\Core\Routing\Domain\ReleaseState;
 use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\Tests\Entries\NoteType;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeChangesetCommitter;

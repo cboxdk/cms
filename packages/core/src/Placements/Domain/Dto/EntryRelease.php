@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Placements\Domain\Dto;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Content\ReleaseState;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Schema\Stages;
 use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
-use Cbox\Cms\Core\Routing\Domain\ReleaseState;
 
 /**
  * An entry as a placement command reads it before it makes a placement live or scheduled (PRD

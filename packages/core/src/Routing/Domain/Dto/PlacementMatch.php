@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Routing\Domain\Dto;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Content\ReleaseState;
 use Cbox\Cms\Contracts\Content\TimeWindow;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
-use Cbox\Cms\Core\Routing\Domain\ReleaseState;
 
 /**
  * The placement with a slug below a node in a locale (PRD 5.9 step 3), in its released stage, as

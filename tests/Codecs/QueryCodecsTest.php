@@ -6,9 +6,11 @@ namespace Cbox\Cms\Tests\Codecs\Queries;
 
 use Cbox\Cms\Contracts\Codecs\JsonCodec;
 use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Content\ReleaseState;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\GrantId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\RoleId;
@@ -24,10 +26,14 @@ use Cbox\Cms\Core\Codecs\Boundary\Generated\ActionListCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ActorListCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ActorMeCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\DescribeTypeCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\EntryDetailCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\EntryListCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\GetEntryCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\GrantListCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\KernelQueryCodecs;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ListActionsCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ListActorsCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\ListEntriesCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ListGrantsCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ListNodesCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ListRolesCodecV1;
@@ -41,6 +47,9 @@ use Cbox\Cms\Core\Codecs\Boundary\Generated\TypeEditorCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\TypeListCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\WhoAmICodecV1;
 use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
+use Cbox\Cms\Core\Entries\Domain\Dto\EntryList;
+use Cbox\Cms\Core\Entries\Domain\Queries\GetEntry;
+use Cbox\Cms\Core\Entries\Domain\Queries\ListEntries;
 use Cbox\Cms\Core\Identity\Domain\Dto\ActorList;
 use Cbox\Cms\Core\Identity\Domain\Dto\ListedActor;
 use Cbox\Cms\Core\Identity\Domain\Queries\ListActors;
@@ -61,6 +70,7 @@ use Cbox\Cms\Core\Schema\Domain\Queries\ListTypes;
 use Cbox\Cms\Core\Structure\Domain\Dto\NodeList;
 use Cbox\Cms\Core\Structure\Domain\Queries\ListNodes;
 use Cbox\Cms\Core\Tests\Access\ListingWorld;
+use Cbox\Cms\Core\Tests\Entries\EntryListingWorld;
 use Cbox\Cms\Core\Tests\Routing\ResolveWorld;
 use Cbox\Cms\Generators\Protocol\Domain\Dto\SchemaBinding;
 use Cbox\Cms\Generators\Protocol\Domain\ProtocolSchemas;
@@ -163,6 +173,40 @@ function queryFixtures(): array
 
             expect(new ActorMeCodecV1()->encode(ListingWorld::own(ListingWorld::BOB), ClassificationAccess::Public))->toContain('"profile":null')
                 ->and(new ActorMeCodecV1()->encode(ListingWorld::own(ListingWorld::ADMIN), ClassificationAccess::Public))->toContain('"email":"ada@example.com"');
+        },
+        'entry.get v1' => static function (QueryCodec $codec): void {
+            expect($codec->query)->toBeInstanceOf(GetEntryCodecV1::class)
+                ->and($codec->result)->toBeInstanceOf(EntryDetailCodecV1::class)
+                ->and(queryRefusedAt(new GetEntryCodecV1, '{}'))->toBe('entry');
+
+            queryRoundTrip(new GetEntryCodecV1, new GetEntry(EntryId::fromString(EntryListingWorld::SECOND)), 'entry.get.v1.json', 'query');
+
+            // A head's fields are the kernel's generic form, where a group is a map, so the fixture
+            // is the detail as the codec reads it back, as a caller holds it.
+            foreach (EntryListingWorld::details() as $index => $detail) {
+                $result = new EntryDetailCodecV1()->decode(new EntryDetailCodecV1()->encode($detail, ClassificationAccess::Sensitive), ClassificationAccess::Sensitive);
+                queryRoundTrip(new EntryDetailCodecV1, $result, 'entry.get.result.v1.json', 'result '.$index);
+            }
+
+            expect(new EntryDetailCodecV1()->encode(EntryListingWorld::detail(EntryListingWorld::SECOND), ClassificationAccess::Sensitive))
+                ->toContain('"heads":[{"fields":{', '"released":2,"revision":1,"schema_version":2,"state":"released","variant":"shared","version":3}', '"window":{"from":"2026-03-10T12:00:00.000000Z","until":null}');
+        },
+        'entry.list v1' => static function (QueryCodec $codec): void {
+            expect($codec->query)->toBeInstanceOf(ListEntriesCodecV1::class)
+                ->and($codec->result)->toBeInstanceOf(EntryListCodecV1::class)
+                ->and(new ListEntriesCodecV1()->encode(new ListEntries, ClassificationAccess::Public))->toBe('{"after":null,"limit":50,"node":null,"state":null,"type":null}')
+                ->and(queryRefusedAt(new ListEntriesCodecV1, '{"state":"draft"}'))->toBe('state');
+
+            foreach ([
+                new ListEntries,
+                new ListEntries(EntryListingWorld::type()->id, NodeId::fromString(EntryListingWorld::NORTH), ReleaseState::Released, EntryId::fromString(EntryListingWorld::SECOND), 1),
+            ] as $index => $query) {
+                queryRoundTrip(new ListEntriesCodecV1, $query, 'entry.list.v1.json', 'query '.$index);
+            }
+
+            foreach ([new EntryList(EntryListingWorld::listed(), EntryId::fromString(EntryListingWorld::FIRST)), new EntryList([], null)] as $index => $result) {
+                queryRoundTrip(new EntryListCodecV1, $result, 'entry.list.result.v1.json', 'result '.$index);
+            }
         },
         'grant.list v1' => static function (QueryCodec $codec): void {
             expect($codec->query)->toBeInstanceOf(ListGrantsCodecV1::class)

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Cbox\Cms\Contracts\Cache\FragmentStore;
 use Cbox\Cms\Contracts\Clock;
+use Cbox\Cms\Contracts\Content\VariantHeadReader;
 use Cbox\Cms\Contracts\Egress\EgressGateway;
 use Cbox\Cms\Contracts\Egress\MailGateway;
 use Cbox\Cms\Contracts\IdempotencyStore;
@@ -17,6 +18,7 @@ use Cbox\Cms\Core\Cache\Adapter\ValkeyFragmentStore;
 use Cbox\Cms\Core\Clock\Adapter\SystemClock;
 use Cbox\Cms\Core\Egress\Adapter\LaravelMailGateway;
 use Cbox\Cms\Core\Egress\Adapter\SsrfEgressGateway;
+use Cbox\Cms\Core\Entries\Adapter\ReaderVariantHeads;
 use Cbox\Cms\Core\IdempotencyStore\Adapter\PostgresIdempotencyStore;
 use Cbox\Cms\Core\Identity\Adapter\PostgresActorDirectory;
 use Cbox\Cms\Core\Identity\Adapter\PostgresCredentialVerifier;
@@ -40,6 +42,7 @@ return [
         CredentialVerifier::class => PostgresCredentialVerifier::class,
         FragmentStore::class => ValkeyFragmentStore::class,
         TypeTableReader::class => PostgresTypeTableReader::class,
+        VariantHeadReader::class => ReaderVariantHeads::class,
         Telemetry::class => LogTelemetry::class,
         EgressGateway::class => SsrfEgressGateway::class,
         MailGateway::class => LaravelMailGateway::class,

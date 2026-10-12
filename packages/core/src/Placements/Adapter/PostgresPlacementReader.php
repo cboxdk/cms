@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\Placements\Adapter;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Content\ReleaseState;
 use Cbox\Cms\Contracts\Content\Slug;
 use Cbox\Cms\Contracts\Identity\NodePath;
 use Cbox\Cms\Contracts\Ids\EntryId;
@@ -23,7 +24,6 @@ use Cbox\Cms\Core\Placements\Domain\Dto\StoredPlacementLocale;
 use Cbox\Cms\Core\Placements\Domain\Dto\StoredSite;
 use Cbox\Cms\Core\Placements\Domain\PlacementReader;
 use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
-use Cbox\Cms\Core\Routing\Domain\ReleaseState;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\ConnectionResolverInterface;
 use Override;

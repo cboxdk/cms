@@ -17,6 +17,7 @@ use Cbox\Cms\Contracts\Identity\CredentialVerifier;
 use Cbox\Cms\Contracts\Identity\IssuerKind;
 use Cbox\Cms\Contracts\Identity\Principal;
 use Cbox\Cms\Contracts\Pipeline\DescribesTypes;
+use Cbox\Cms\Contracts\Pipeline\ReadRejected;
 use Cbox\Cms\Contracts\Pipeline\ReadsContent;
 use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Contracts\Results\QueryResult;
@@ -53,7 +54,9 @@ use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
  * 3. Authorize, through the QueryAuthorizer with the context; a refusal is unauthorized.
  * 4. Budget. The action's cost() of the query, from the query alone, is checked against the
  *    principal's budget (QuerySettings); a read above it is query_over_budget, before it reads.
- * 5. Execute: the action's handle(), on the primary, where the transaction runs. Routing a read to a
+ * 5. Execute: the action's handle(), on the primary, where the transaction runs. An action that
+ *    throws ReadRejected rejects the read with the catalog error it carries, as entry.get does for
+ *    an entry out of the reader's reach. Routing a read to a
  *    replica by a consistency token comes with the replicas (PRD 8.5).
  * 6. Strip. A result that ReadsContent gets its entries back with every field above the context's
  *    classification access left out, and every field their type does not declare (ReadableFields).
@@ -136,7 +139,12 @@ final readonly class QueryPipeline
             )));
         }
 
-        $result = $binding->action->handle($call->query);
+        try {
+            $result = $binding->action->handle($call->query);
+        } catch (ReadRejected $rejected) {
+            return QueryResult::rejected($rejected->error);
+        }
+
         $contents = [];
 
         if ($result instanceof ReadsContent) {

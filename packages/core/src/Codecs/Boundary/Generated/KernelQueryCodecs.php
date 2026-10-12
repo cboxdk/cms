@@ -27,6 +27,8 @@ final readonly class KernelQueryCodecs
             ListActionsCodecV1::queryCodec(),
             ListActorsCodecV1::queryCodec(),
             WhoAmICodecV1::queryCodec(),
+            GetEntryCodecV1::queryCodec(),
+            ListEntriesCodecV1::queryCodec(),
             ListGrantsCodecV1::queryCodec(),
             ListNodesCodecV1::queryCodec(),
             ResolvePathCodecV1::queryCodec(),

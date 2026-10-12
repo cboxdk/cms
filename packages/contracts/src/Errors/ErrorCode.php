@@ -98,6 +98,7 @@ enum ErrorCode: string
     case EgressMailFailed = 'egress_mail_failed';
     case EgressRedirectRefused = 'egress_redirect_refused';
     case EgressUnavailable = 'egress_unavailable';
+    case EntryNotFound = 'entry_not_found';
     case FakeCheckFailed = 'fake_check_failed';
     case FieldEncryptionUnavailable = 'field_encryption_unavailable';
     case GenerateColumnNameTooLong = 'generate_column_name_too_long';
@@ -527,6 +528,11 @@ enum ErrorCode: string
             ),
             self::EgressUnavailable => $this->dependency(
                 'The destination of an outbound request did not answer within the egress gateway\'s timeouts, cbox-cms.egress.connect_timeout_ms and timeout_ms, or the connection failed (PRD 7.14). Try again later; if it keeps failing, check that the destination is up and reachable from the server.',
+            ),
+            self::EntryNotFound => $this->caller(
+                HttpStatus::NotFound,
+                ExitCode::NoInput,
+                'No entry with this id is within the reader\'s reach (PRD 5.4, 5.10): none exists, or its home node lies outside the regions of the reader\'s grants and the reader does not own it. The read tells the two apart for no one. Check the id, or ask for a grant on the entry\'s home.',
             ),
             self::FakeCheckFailed => $this->violation(
                 'A FakeDoctorCheck of the testkit failed, because a test told it to. Only tests see this code.',

@@ -30,7 +30,8 @@ use UnexpectedValueException;
  * draft revision, from `revisions` for a type with full history and from `head_snapshots` for one
  * whose history is audit-only or none, which keeps no revisions, the highest number of the
  * variant's revisions, by the unique key (entry_id, variant, rev_no), and the number of the
- * released revision when the head's release state is released. node() reads one node's version.
+ * released revision when the head's release state is released, and whether the head is withdrawn.
+ * node() reads one node's version.
  * Row level security hides what the actor's regions do not reach, so it reads as absent.
  */
 #[Internal]
@@ -38,6 +39,9 @@ final readonly class PostgresEntryReader implements EntryReader
 {
     /** The release state of a head whose published revision readers see (PRD 6.4). */
     public const string RELEASED = 'released';
+
+    /** The release state of a head taken down everywhere (PRD 6.4). */
+    public const string WITHDRAWN = 'withdrawn';
 
     /**
      * @param  string|null  $connection  the connection name; null for the default connection
@@ -68,6 +72,7 @@ final readonly class PostgresEntryReader implements EntryReader
                 'e.home_node_id',
                 'e.version as entry_version',
                 'h.version as head_version',
+                'h.release_state',
                 'r.rev_no as revision_number',
                 's.rev_no as snapshot_number',
                 'p.rev_no as released_number',
@@ -110,6 +115,7 @@ final readonly class PostgresEntryReader implements EntryReader
                 new RevisionNumber($revision),
                 new RevisionNumber($latest),
                 $released === null ? null : new RevisionNumber($released),
+                $this->textOrNull($row, 'release_state') === self::WITHDRAWN,
             ),
         );
     }
@@ -132,6 +138,13 @@ final readonly class PostgresEntryReader implements EntryReader
         }
 
         return new AggregateVersion($version);
+    }
+
+    private function textOrNull(object $row, string $column): ?string
+    {
+        $value = property_exists($row, $column) ? $row->{$column} : null;
+
+        return $value === null || is_string($value) ? $value : throw new UnexpectedValueException(sprintf('The column %s of an entry is text, got %s.', $column, get_debug_type($value)));
     }
 
     private function text(object $row, string $column): string

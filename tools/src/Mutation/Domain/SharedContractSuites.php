@@ -26,6 +26,7 @@ final readonly class SharedContractSuites
         'packages/testkit/src/Cdn/CdnDriverContract.php',
         'packages/testkit/src/Clock/ClockContract.php',
         'packages/testkit/src/Codecs/RecordCodecsContract.php',
+        'packages/testkit/src/Content/VariantHeadReaderContract.php',
         'packages/testkit/src/Doctor/DoctorCheckContract.php',
         'packages/testkit/src/Editors/TypeEditorsContract.php',
         'packages/testkit/src/Egress/EgressGatewayContract.php',

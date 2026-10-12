@@ -10,6 +10,7 @@ use Cbox\Cms\Contracts\Build\ScanRoot;
 use Cbox\Cms\Contracts\Cache\FragmentStore;
 use Cbox\Cms\Contracts\Cdn\CdnDriver;
 use Cbox\Cms\Contracts\Clock;
+use Cbox\Cms\Contracts\Content\VariantHeadReader;
 use Cbox\Cms\Contracts\Doctor\InvalidDoctorCheck;
 use Cbox\Cms\Contracts\Egress\EgressGateway;
 use Cbox\Cms\Contracts\Egress\MailGateway;
@@ -121,6 +122,7 @@ use Cbox\Cms\Core\Egress\Boundary\EgressConfig;
 use Cbox\Cms\Core\Egress\Domain\Dto\EgressSettings;
 use Cbox\Cms\Core\Entries\Adapter\EntryCreatedWriter;
 use Cbox\Cms\Core\Entries\Adapter\HeadMovedWriter;
+use Cbox\Cms\Core\Entries\Adapter\PostgresEntryListing;
 use Cbox\Cms\Core\Entries\Adapter\PostgresEntryReader;
 use Cbox\Cms\Core\Entries\Adapter\PostgresEntryVersionLock;
 use Cbox\Cms\Core\Entries\Adapter\PostgresRevisionContents;
@@ -128,6 +130,7 @@ use Cbox\Cms\Core\Entries\Adapter\PostgresVariantVersionLock;
 use Cbox\Cms\Core\Entries\Adapter\RevisionCreatedWriter;
 use Cbox\Cms\Core\Entries\Adapter\VariantReleasedWriter;
 use Cbox\Cms\Core\Entries\Adapter\VariantUnreleasedWriter;
+use Cbox\Cms\Core\Entries\Domain\EntryListing;
 use Cbox\Cms\Core\Entries\Domain\EntryReader;
 use Cbox\Cms\Core\Fragments\Adapter\PostgresSubtreeNodes;
 use Cbox\Cms\Core\Fragments\Boundary\InvalidationConfig;
@@ -373,6 +376,11 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         );
 
         $this->app->singleton(
+            VariantHeadReader::class,
+            static fn (Application $app): VariantHeadReader => $app->make(ContractBindings::class)->resolve($app, VariantHeadReader::class),
+        );
+
+        $this->app->singleton(
             Telemetry::class,
             static fn (Application $app): Telemetry => $app->make(ContractBindings::class)->resolve($app, Telemetry::class),
         );
@@ -551,6 +559,9 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         // published revision, the release log and the type table's rows (PRD 4.1, 11.6).
         $this->app->bind(EntryReader::class, PostgresEntryReader::class);
         $this->app->bind(RevisionContents::class, PostgresRevisionContents::class);
+        // entry.get and entry.list (PRD 5.4, 5.7, 8.8): what the entry reads read, under the read's
+        // actor context and the explicit access predicate.
+        $this->app->bind(EntryListing::class, PostgresEntryListing::class);
         $this->app->bind(PublicPlacements::class, ReaderPublicPlacements::class);
         $this->app->tag([EntryCreatedWriter::class, RevisionCreatedWriter::class, HeadMovedWriter::class, VariantReleasedWriter::class], MutationWriters::TAG);
 

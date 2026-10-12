@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Placements;
 
 use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Content\ReleaseState;
 use Cbox\Cms\Contracts\Content\Slug;
 use Cbox\Cms\Contracts\Content\TimeWindow;
 use Cbox\Cms\Contracts\Identity\NodePath;
@@ -22,7 +23,6 @@ use Cbox\Cms\Core\Placements\Domain\Dto\StoredSite;
 use Cbox\Cms\Core\Placements\Domain\PlacementReader;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
-use Cbox\Cms\Core\Routing\Domain\ReleaseState;
 use Cbox\Cms\Core\Tests\Placements\Fakes\FakePlacementReader;
 use DateTimeImmutable;
 use Override;

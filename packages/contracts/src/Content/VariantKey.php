@@ -17,19 +17,25 @@ final readonly class VariantKey
 
     public string $value;
 
-    private function __construct(public ?Locale $locale)
+    public ?Locale $locale;
+
+    /**
+     * @param  string  $value  SHARED, or a locale tag; anything else throws InvalidContentValue
+     */
+    public function __construct(string $value)
     {
-        $this->value = $locale instanceof Locale ? $locale->value : self::SHARED;
+        $this->locale = $value === self::SHARED ? null : new Locale($value);
+        $this->value = $this->locale instanceof Locale ? $this->locale->value : self::SHARED;
     }
 
     public static function shared(): self
     {
-        return new self(null);
+        return new self(self::SHARED);
     }
 
     public static function of(Locale $locale): self
     {
-        return new self($locale);
+        return new self($locale->value);
     }
 
     /**
@@ -37,7 +43,7 @@ final readonly class VariantKey
      */
     public static function fromString(string $value): self
     {
-        return $value === self::SHARED ? self::shared() : self::of(new Locale($value));
+        return new self($value);
     }
 
     public function isShared(): bool

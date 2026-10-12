@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "entry.get, contract version 1",
+  "description": "Reads one entry as the editor opens it (PRD 5.4, 5.7, 13.4): its type, home node and lifecycle, every variant head with the fields of its draft revision, and its placements with their locales and windows. Every actor may run it; the anonymous principal may not. An entry that is absent or whose home the reader neither reaches nor owns is rejected with entry_not_found. The PHP form is Cbox\\Cms\\Core\\Entries\\Domain\\Queries\\GetEntry, and the generated codec reads it and writes its canonical JSON: every key, sorted, no whitespace. Its result is entry.get.result.v1.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "entry"
+  ],
+  "properties": {
+    "entry": {
+      "description": "The entry to read.",
+      "$ref": "#/$defs/id"
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    }
+  }
+}

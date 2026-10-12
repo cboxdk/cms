@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Cbox\Cms\Core\Routing\Domain;
+namespace Cbox\Cms\Contracts\Content;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
 
