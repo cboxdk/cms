@@ -32,9 +32,11 @@ import { validateUnpublishEntryV1 } from '../../../../workbench/resources/js/cms
 import { validateAssignGrantV1 } from '../../../../workbench/resources/js/cms/generated/protocol/AssignGrantV1';
 import { validateRevokeGrantV1 } from '../../../../workbench/resources/js/cms/generated/protocol/RevokeGrantV1';
 import { validateArchiveNodeV1 } from '../../../../workbench/resources/js/cms/generated/protocol/ArchiveNodeV1';
+import { validateCreateMountV1 } from '../../../../workbench/resources/js/cms/generated/protocol/CreateMountV1';
 import { validateCreateNodeV1 } from '../../../../workbench/resources/js/cms/generated/protocol/CreateNodeV1';
 import { validateSetNodeRouteV1 } from '../../../../workbench/resources/js/cms/generated/protocol/SetNodeRouteV1';
 import { validateMoveNodeV1 } from '../../../../workbench/resources/js/cms/generated/protocol/MoveNodeV1';
+import { validateSetMountOverrideV1 } from '../../../../workbench/resources/js/cms/generated/protocol/SetMountOverrideV1';
 import { validateSetNodeLabelV1 } from '../../../../workbench/resources/js/cms/generated/protocol/SetNodeLabelV1';
 import { validateCreatePlacementV1 } from '../../../../workbench/resources/js/cms/generated/protocol/CreatePlacementV1';
 import { validateSetPlacementWindowV1 } from '../../../../workbench/resources/js/cms/generated/protocol/SetPlacementWindowV1';
@@ -65,6 +67,8 @@ const GENERATED: Readonly<Record<string, Validator>> = {
   'entry.unpublish.v1.json': validateUnpublishEntryV1,
   'grant.assign.v1.json': validateAssignGrantV1,
   'grant.revoke.v1.json': validateRevokeGrantV1,
+  'mount.create.v1.json': validateCreateMountV1,
+  'mount.set_override.v1.json': validateSetMountOverrideV1,
   'node.archive.v1.json': validateArchiveNodeV1,
   'node.create.v1.json': validateCreateNodeV1,
   'node.set_route.v1.json': validateSetNodeRouteV1,

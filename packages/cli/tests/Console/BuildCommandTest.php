@@ -26,10 +26,12 @@ use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Seeding\Domain\Commands\SeedEntries;
 use Cbox\Cms\Core\Structure\Domain\Commands\AddSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\CreateMount;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\MoveNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\RegisterSite;
 use Cbox\Cms\Core\Structure\Domain\Commands\RemoveSiteLocale;
+use Cbox\Cms\Core\Structure\Domain\Commands\SetMountOverride;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeLabel;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeRoute;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNote;
@@ -125,15 +127,15 @@ it('writes the eight registries to the application\'s bootstrap/cache/cms, and r
             ...fixtureAddonWarnings(),
             // The kernel's actions, and the fixture addon's query fixtureaddon.articles and command
             // fixtureaddon.slug.set, each on REST and Inertia.
-            'actions: 35',
+            'actions: 37',
             // The workbench's fixture addon, which its allowlist names.
             'addons: 1',
-            'commands: 25',
+            'commands: 27',
             // The workbench's fixture addon, which package discovery registers: its four hooks and
             // its extension of app:fixture_article.
             'hooks: 4',
             'panel: 15',
-            'rest: 29',
+            'rest: 31',
             'schema: 1',
             'subscribers: 1',
             sprintf('Registry written to %s.', $directory),
@@ -150,7 +152,7 @@ it('adds what an addon provider\'s scan root declares', function (): void {
     [$status, $output] = buildCommand();
 
     expect($status)->toBe(0)
-        ->and(array_slice($output, 0, 27))->toBe([...fixtureAddonWarnings(), 'actions: 37', 'addons: 1', 'commands: 26', 'hooks: 5', 'panel: 16', 'rest: 30'])
+        ->and(array_slice($output, 0, 27))->toBe([...fixtureAddonWarnings(), 'actions: 39', 'addons: 1', 'commands: 28', 'hooks: 5', 'panel: 16', 'rest: 32'])
         ->and(RegistryFixtures::load($directory.'/commands.php'))->toMatchArray(['entries' => [[
             'class' => GrantBootstrapRole::class,
             'name' => 'access.bootstrap',
@@ -209,6 +211,16 @@ it('adds what an addon provider\'s scan root declares', function (): void {
         ], [
             'class' => RevokeGrant::class,
             'name' => 'grant.revoke',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 1,
+        ], [
+            'class' => CreateMount::class,
+            'name' => 'mount.create',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 1,
+        ], [
+            'class' => SetMountOverride::class,
+            'name' => 'mount.set_override',
             'package' => CoreServiceProvider::PACKAGE,
             'version' => 1,
         ], [

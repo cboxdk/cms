@@ -34,9 +34,10 @@ interface RouteReader
     /**
      * The released stage of the placement with the slug below the node in the locale: the one that
      * is not withdrawn when there is one, else a withdrawn one, the lowest id first; null when the
-     * reader can read none.
+     * reader can read none. Looked up through a mount, the match also says whether the mount's
+     * site hides the entry there (PRD 5.8), in the same statement.
      */
-    public function placement(NodeId $node, Locale $locale, Slug $slug): ?PlacementMatch;
+    public function placement(NodeId $node, Locale $locale, Slug $slug, ?NodeId $mount = null): ?PlacementMatch;
 
     /**
      * The canonical placement of the entry in the locale, in its released stage, with the route of

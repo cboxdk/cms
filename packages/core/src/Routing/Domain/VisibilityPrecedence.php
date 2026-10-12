@@ -14,9 +14,10 @@ use DateTimeImmutable;
 
 /**
  * The precedence of PRD 6.6 over the rungs M1 reaches (VisibilityDecision), strongest first, at a
- * time: the entry's lifecycle, the variant's release state, the placement's own state, the release
- * of a type with stages, and the placement's window at the time, not the state stored when the
- * window was set, which nothing moves before the scheduler (PRD 6.7, block B3).
+ * time: the entry's lifecycle, the variant's release state, the placement's own state, the mount's
+ * exception, the release of a type with stages, and the placement's window at the time, not the
+ * state stored when the window was set, which nothing moves before the scheduler (PRD 6.7, block
+ * B3).
  */
 #[Internal]
 final readonly class VisibilityPrecedence
@@ -31,6 +32,7 @@ final readonly class VisibilityPrecedence
             $placement->lifecycle !== EntryLifecycle::Active => VisibilityDecision::EntryNotActive,
             $placement->release === ReleaseState::Withdrawn => VisibilityDecision::VariantWithdrawn,
             $placement->visibility === Visibility::Withdrawn => VisibilityDecision::PlacementWithdrawn,
+            $placement->hiddenOnMount => VisibilityDecision::MountHidden,
             $stages !== Stages::None && $placement->release !== ReleaseState::Released => VisibilityDecision::NoReleasedRevision,
             default => self::window($placement, $at),
         };

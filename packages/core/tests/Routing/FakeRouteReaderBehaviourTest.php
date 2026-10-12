@@ -69,7 +69,8 @@ final class FakeRouteReaderBehaviourTest extends TestCase
             ->withPlacement($section, $da, new Slug('gone'), $withdrawn(self::GONE_B))
             ->withPlacement($section, $da, new Slug('gone'), $withdrawn(self::GONE_A))
             ->withPlacement($sport, $da, new Slug('match'), new PlacementMatch(PlacementId::fromString(self::DRAFTED), EntryId::fromString(self::DRAFT), Visibility::Hidden, null, true, $type, EntryLifecycle::Active, null))
-            ->withReleased($this->releasedType()->id, $entry, self::released());
+            ->withReleased($this->releasedType()->id, $entry, self::released())
+            ->withOverride(NodeId::fromString(self::MOUNT), $entry);
     }
 
     #[Override]

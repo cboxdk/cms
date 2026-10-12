@@ -19,6 +19,7 @@ use Cbox\Cms\Contracts\Consistency\ProjectionState;
 use Cbox\Cms\Contracts\Events\EventStream;
 use Cbox\Cms\Contracts\Identity\ActorClass;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
+use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\ReceiptStore;
@@ -49,7 +50,8 @@ use PHPUnit\Framework\AssertionFailedError;
  * the testkit's fake, bound as an application binds its driver. A node moved with its subtree and
  * a node given a label are invalidated the same way, by the n- key of the node and, for a move,
  * of every node below it; a site.remove_locale purges the site root's node key the same way, hard
- * at the edge.
+ * at the edge; a site's exception to a mount by the e- key of the entry and the n- key of the
+ * mount node, hard when the entry is hidden.
  */
 
 const INVALIDATION_NODE = '0192a0c0-0000-7000-8000-0000000009a1';
@@ -57,6 +59,10 @@ const INVALIDATION_NODE = '0192a0c0-0000-7000-8000-0000000009a1';
 const INVALIDATION_CHILD = '0192a0c0-0000-7000-8000-0000000009a2';
 
 const INVALIDATION_TARGET = '0192a0c0-0000-7000-8000-0000000009a3';
+
+const INVALIDATION_MOUNT = '0192a0c0-0000-7000-8000-0000000009a4';
+
+const INVALIDATION_ENTRY = '0192a0c0-0000-7000-8000-0000000009e1';
 
 beforeEach(function (): void {
     EntryWorld::seed();
@@ -297,4 +303,43 @@ it('purges the fragments of the node once the runner has handled node.label_chan
         ->and($fragments->write(invalidationNodeFragment('crumbs:node', INVALIDATION_NODE, $stale, $world)))->toBeInstanceOf(FragmentFenced::class)
         ->and($cdn instanceof FakeCdnDriver ? $cdn->purgedWith(DependencyKey::node($node)) : null)->toBe(PurgeMode::Soft)
         ->and(invalidationOrigin($labelled)?->state)->toBe(ProjectionState::Acknowledged);
+});
+
+it('purges the entry and the mount node hard once the runner has handled a mount.override_set that hides the entry', function (): void {
+    $structure = NodeWorld::seed();
+    $world = invalidationNodeWorld($structure);
+    $mount = NodeId::fromString(INVALIDATION_MOUNT);
+    $entry = EntryId::fromString(INVALIDATION_ENTRY);
+    $world->createEntry($entry, $structure->northSection, 'create-entry');
+    $world->createMount($mount, $structure->north->root, $structure->northSection, 'create-mount');
+
+    $fragments = app(FragmentStore::class);
+    $stale = invalidationReadPosition();
+    $mounted = new Fragment(
+        new FragmentKey('mounted:harbour'),
+        '<article>harbour</article>',
+        [DependencyKey::entry($entry), DependencyKey::node($mount)],
+        $stale,
+        $world->clock->now()->add(new DateInterval('PT1H')),
+    );
+    expect($fragments->write($mounted))->toBeInstanceOf(FragmentStored::class)
+        ->and($fragments->write(invalidationNodeFragment('crumbs:mount', INVALIDATION_MOUNT, $stale, $world)))->toBeInstanceOf(FragmentStored::class)
+        ->and($fragments->write(invalidationNodeFragment('crumbs:section', $structure->northSection->id->toString(), $stale, $world)))->toBeInstanceOf(FragmentStored::class);
+
+    $hide = $world->setOverride($mount, $entry, true, 'hide-entry');
+    $hidden = invalidationChangeset($hide);
+
+    expect($hide->receipt->projections)->toEqual([ProjectionStatus::pending(new ProjectionName('origin'))]);
+
+    $world->clock->advance(new DateInterval('PT2S'));
+    invalidationRunUntilOrigin($hidden);
+    $cdn = app(CdnDriver::class);
+
+    expect($fragments->read(new FragmentKey('mounted:harbour')))->toBeNull()
+        ->and($fragments->read(new FragmentKey('crumbs:mount')))->toBeNull()
+        ->and($fragments->read(new FragmentKey('crumbs:section')))->not->toBeNull()
+        ->and($fragments->write(invalidationNodeFragment('crumbs:mount', INVALIDATION_MOUNT, $stale, $world)))->toBeInstanceOf(FragmentFenced::class)
+        ->and($cdn instanceof FakeCdnDriver ? $cdn->purgedWith(DependencyKey::node($mount)) : null)->toBe(PurgeMode::Hard)
+        ->and($cdn instanceof FakeCdnDriver ? $cdn->purgedWith(DependencyKey::entry($entry)) : null)->toBe(PurgeMode::Hard)
+        ->and(invalidationOrigin($hidden)?->state)->toBe(ProjectionState::Acknowledged);
 });

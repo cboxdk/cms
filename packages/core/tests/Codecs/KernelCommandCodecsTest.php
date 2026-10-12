@@ -29,10 +29,12 @@ use Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry;
 use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
 use Cbox\Cms\Core\Structure\Domain\Commands\AddSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\CreateMount;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\MoveNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\RegisterSite;
 use Cbox\Cms\Core\Structure\Domain\Commands\RemoveSiteLocale;
+use Cbox\Cms\Core\Structure\Domain\Commands\SetMountOverride;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeLabel;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeRoute;
 use Cbox\Cms\Tests\Support\SurfaceContract\SampleDocument;
@@ -63,6 +65,8 @@ function kernelCommandClasses(): array
         'entry.unpublish' => UnpublishEntry::class,
         'grant.assign' => AssignGrant::class,
         'grant.revoke' => RevokeGrant::class,
+        'mount.create' => CreateMount::class,
+        'mount.set_override' => SetMountOverride::class,
         'node.archive' => ArchiveNode::class,
         'node.create' => CreateNode::class,
         'node.move' => MoveNode::class,

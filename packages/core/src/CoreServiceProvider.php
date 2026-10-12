@@ -255,6 +255,8 @@ use Cbox\Cms\Core\Seeding\Domain\Dto\SeedSettings;
 use Cbox\Cms\Core\Seeding\Domain\SeedAuthorizer;
 use Cbox\Cms\Core\Seeding\Domain\SeedReader;
 use Cbox\Cms\Core\Seeding\Domain\SeedTargets;
+use Cbox\Cms\Core\Structure\Adapter\MountCreatedWriter;
+use Cbox\Cms\Core\Structure\Adapter\MountOverrideSetWriter;
 use Cbox\Cms\Core\Structure\Adapter\NodeArchivedWriter;
 use Cbox\Cms\Core\Structure\Adapter\NodeCreatedWriter;
 use Cbox\Cms\Core\Structure\Adapter\NodeLabelSetWriter;
@@ -627,6 +629,10 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         // owner function and set a node's label, and the subtree the invalidation purges a move by.
         $this->app->tag([NodeMovedWriter::class, NodeLabelSetWriter::class], MutationWriters::TAG);
         $this->app->bind(SubtreeNodes::class, PostgresSubtreeNodes::class);
+
+        // mount.create and mount.set_override (PRD 5.8): the writers, which create a mount below a
+        // node and set a site's exception to a mount for an entry.
+        $this->app->tag([MountCreatedWriter::class, MountOverrideSetWriter::class], MutationWriters::TAG);
         $this->app->bind(
             VersionLocks::class,
             static fn (Application $app): VersionLocks => new VersionLocks(...self::tagged($app, VersionLocks::TAG, VersionLock::class)),

@@ -143,8 +143,9 @@ it('lets each actor read what its regions reach, its own rows and what is public
         'placement_generations' => [AccessWorld::PLACEMENT_PUBLIC.' released'],
         'placement_locales' => [AccessWorld::PLACEMENT_PUBLIC.' released'],
         'sites' => [AccessWorld::SITE],
+        'mount_overrides' => [AccessWorld::ENTRY_PUBLIC],
     ];
-    $structure = ['sites' => [AccessWorld::SITE]];
+    $structure = ['sites' => [AccessWorld::SITE], 'mount_overrides' => [AccessWorld::ENTRY_PUBLIC]];
     $roles = ['roles' => ['desk', 'legal'], 'role_permissions' => ['entry.create', 'entry.revise']];
 
     expect(readsAs(null))->toBe($nothing)

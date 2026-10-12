@@ -6,12 +6,15 @@ namespace Cbox\Cms\Core\Tests\Structure\Fakes;
 
 use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Identity\NodePath;
+use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Core\Routing\Domain\NodeKind;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
+use Cbox\Cms\Core\Structure\Domain\Dto\MountedEntry;
+use Cbox\Cms\Core\Structure\Domain\Dto\StoredMountOverride;
 use Cbox\Cms\Core\Structure\Domain\Dto\StoredNode;
 use Cbox\Cms\Core\Structure\Domain\NodeLifecycle;
 use Cbox\Cms\Core\Structure\Domain\NodeReader;
@@ -30,10 +33,16 @@ final class FakeNodeReader implements NodeReader
     /** @var array<string, string> the node's id by "<site>|<locale>|<route>" */
     public array $routes = [];
 
-    /** @var list<array{PlacementId, NodePath, ?DateTimeImmutable, bool}> the placement, the path of its node, the end of its window and whether its state shows it */
+    /** @var list<array{PlacementId, NodePath, ?DateTimeImmutable, bool, ?EntryId}> the placement, the path of its node, the end of its window, whether its state shows it, and its entry */
     public array $placements = [];
 
-    /** @var list<string> each read, as "node <uuid>", "ancestors <uuid>", "routed <uuid>", "holder <site>|<locale>|<route>", "route <site>|<locale>|<node>" or "placement <node>" */
+    /** @var array<string, StoredMountOverride> by "<mount>|<entry>" */
+    public array $overrides = [];
+
+    /** @var array<string, EntryId> the entries that exist, by id */
+    public array $entries = [];
+
+    /** @var list<string> each read, as "node <uuid>", "ancestors <uuid>", "routed <uuid>", "holder <site>|<locale>|<route>", "route <site>|<locale>|<node>", "placement <node>", "override <mount>|<entry>" or "mounted <node>|<entry>" */
     public array $reads = [];
 
     /**
@@ -46,10 +55,11 @@ final class FakeNodeReader implements NodeReader
         NodeLifecycle $lifecycle = NodeLifecycle::Active,
         int $version = 1,
         bool $reachable = true,
+        ?NodeId $mountSource = null,
     ): StoredNode {
         $label = str_replace('-', '', $node->toString());
         $path = new NodePath($parent instanceof StoredNode ? $parent->path->value.'.'.$label : $label);
-        $stored = new StoredNode($node, $parent?->id, $kind, $path, $lifecycle, new AggregateVersion($version), $reachable);
+        $stored = new StoredNode($node, $parent?->id, $kind, $path, $lifecycle, new AggregateVersion($version), $reachable, $mountSource);
         $this->nodes[$node->toString()] = $stored;
 
         return $stored;
@@ -74,9 +84,29 @@ final class FakeNodeReader implements NodeReader
      * A placement below the node, whose window ends at $until, null for a window without an end,
      * and whose stored state shows it unless $shown is false.
      */
-    public function withPlacement(PlacementId $placement, StoredNode $node, ?DateTimeImmutable $until = null, bool $shown = true): void
+    public function withPlacement(PlacementId $placement, StoredNode $node, ?DateTimeImmutable $until = null, bool $shown = true, ?EntryId $entry = null): void
     {
-        $this->placements[] = [$placement, $node->path, $until, $shown];
+        $this->placements[] = [$placement, $node->path, $until, $shown, $entry];
+
+        if ($entry instanceof EntryId) {
+            $this->withEntry($entry);
+        }
+    }
+
+    /**
+     * An entry that exists, which a mount's override may name.
+     */
+    public function withEntry(EntryId $entry): void
+    {
+        $this->entries[$entry->toString()] = $entry;
+    }
+
+    /**
+     * The mount hides the entry, set at the version of the mount node given.
+     */
+    public function withOverride(NodeId $mount, EntryId $entry, int $version = 1): void
+    {
+        $this->overrides[$mount->toString().'|'.$entry->toString()] = new StoredMountOverride($mount, $entry, true, new AggregateVersion($version));
     }
 
     #[Override]
@@ -169,6 +199,38 @@ final class FakeNodeReader implements NodeReader
         usort($found, static fn (PlacementId $a, PlacementId $b): int => strcmp($a->toString(), $b->toString()));
 
         return $found[0] ?? null;
+    }
+
+    #[Override]
+    public function mountOverride(NodeId $mount, EntryId $entry): ?StoredMountOverride
+    {
+        $key = $mount->toString().'|'.$entry->toString();
+        $this->reads[] = 'override '.$key;
+
+        return $this->overrides[$key] ?? null;
+    }
+
+    #[Override]
+    public function mountedEntry(NodeId $node, EntryId $entry, DateTimeImmutable $at): ?MountedEntry
+    {
+        $this->reads[] = 'mounted '.$node->toString().'|'.$entry->toString();
+
+        if (! isset($this->entries[$entry->toString()])) {
+            return null;
+        }
+
+        $path = ($this->nodes[$node->toString()] ?? null)?->path;
+        $found = [];
+
+        foreach ($this->placements as [$placement, $below, $until, $shown, $placed]) {
+            if ($placed instanceof EntryId && $placed->equals($entry) && $shown && $path instanceof NodePath && $path->contains($below) && (! $until instanceof DateTimeImmutable || $until > $at)) {
+                $found[] = $placement;
+            }
+        }
+
+        usort($found, static fn (PlacementId $a, PlacementId $b): int => strcmp($a->toString(), $b->toString()));
+
+        return new MountedEntry($entry, $found[0] ?? null);
     }
 
     private function routeKey(SiteId $site, Locale $locale, string $route): string

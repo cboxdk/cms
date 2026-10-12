@@ -48,8 +48,9 @@ use UnexpectedValueException;
  * - PLACEMENT: the released stage of the placement with the slug below the node in the locale, the
  *   one that is not withdrawn first (the partial unique index of invariant 15), else a withdrawn
  *   one (`placement_locales_withdrawn_slug`), with the entry's type and lifecycle and the release
- *   state of its shared variant's head. The first edition of the blueprint schema has no localized
- *   types, so every entry has the one variant `shared`.
+ *   state of its shared variant's head, and whether the mount given, if any, hides the entry
+ *   (`mount_overrides`, which every context reads). The first edition of the blueprint schema has
+ *   no localized types, so every entry has the one variant `shared`.
  * - CANONICAL: the canonical placement of the entry in the locale, its node's route in the site
  *   whose root is the root of the node's tree, and that site's handle; both null when the node has
  *   no route.
@@ -79,14 +80,16 @@ final readonly class PostgresRouteReader implements RouteReader
     public const string PLACEMENT = <<<'SQL'
         select found.* from (
             select pl.placement_id::text as placement_id, pl.entry_id::text as entry_id, pl.visibility, pl.live_from, pl.live_until,
-                   pl.canonical, e.type_id::text as type_id, e.lifecycle, h.release_state, false as withdrawn
+                   pl.canonical, e.type_id::text as type_id, e.lifecycle, h.release_state, false as withdrawn,
+                   exists (select 1 from mount_overrides as o where o.mount_node_id = ?::uuid and o.entry_id = pl.entry_id and o.hidden) as hidden_on_mount
             from placement_locales as pl
             left join entries as e on e.id = pl.entry_id
             left join variant_heads as h on h.entry_id = pl.entry_id and h.variant = ?
             where pl.node_id = ?::uuid and pl.locale = ? and pl.slug = ? and pl.stage = 'released' and pl.visibility <> 'withdrawn'
             union all
             select pl.placement_id::text, pl.entry_id::text, pl.visibility, pl.live_from, pl.live_until,
-                   pl.canonical, e.type_id::text, e.lifecycle, h.release_state, true
+                   pl.canonical, e.type_id::text, e.lifecycle, h.release_state, true,
+                   exists (select 1 from mount_overrides as o where o.mount_node_id = ?::uuid and o.entry_id = pl.entry_id and o.hidden)
             from placement_locales as pl
             left join entries as e on e.id = pl.entry_id
             left join variant_heads as h on h.entry_id = pl.entry_id and h.variant = ?
@@ -147,10 +150,10 @@ final readonly class PostgresRouteReader implements RouteReader
     }
 
     #[Override]
-    public function placement(NodeId $node, Locale $locale, Slug $slug): ?PlacementMatch
+    public function placement(NodeId $node, Locale $locale, Slug $slug, ?NodeId $mount = null): ?PlacementMatch
     {
         $variant = VariantKey::shared()->value;
-        $lookup = [$variant, $node->toString(), $locale->value, $slug->value];
+        $lookup = [$mount?->toString(), $variant, $node->toString(), $locale->value, $slug->value];
         $row = $this->db()->selectOne(self::PLACEMENT, [...$lookup, ...$lookup], false);
 
         if ($row === null) {
@@ -171,6 +174,7 @@ final readonly class PostgresRouteReader implements RouteReader
             $type === null ? null : TypeId::fromString($type),
             $lifecycle === null ? null : (EntryLifecycle::tryFrom($lifecycle) ?? throw new UnexpectedValueException(sprintf('The lifecycle "%s" is not a state of PRD 6.4.', $lifecycle))),
             $release === null ? null : (ReleaseState::tryFrom($release) ?? throw new UnexpectedValueException(sprintf('The release state "%s" is not a state of PRD 6.4.', $release))),
+            PlacementRows::boolean($row, 'hidden_on_mount'),
         );
     }
 

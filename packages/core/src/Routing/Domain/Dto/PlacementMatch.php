@@ -17,8 +17,9 @@ use Cbox\Cms\Core\Routing\Domain\ReleaseState;
  * The placement with a slug below a node in a locale (PRD 5.9 step 3), in its released stage, as
  * the reader may read it, with what the precedence of PRD 6.6 needs: its stored visibility, its
  * window and whether it is canonical; the entry's type and lifecycle, null when the reader cannot
- * read the entry; and the release state of the variant's head, null when the reader cannot read the
- * head.
+ * read the entry; the release state of the variant's head, null when the reader cannot read the
+ * head; and whether the site hides the entry on the mount the slug was looked up through (PRD
+ * 5.8), false when no mount was.
  */
 #[Internal]
 final readonly class PlacementMatch
@@ -32,5 +33,6 @@ final readonly class PlacementMatch
         public ?TypeId $type,
         public ?EntryLifecycle $lifecycle,
         public ?ReleaseState $release,
+        public bool $hiddenOnMount = false,
     ) {}
 }

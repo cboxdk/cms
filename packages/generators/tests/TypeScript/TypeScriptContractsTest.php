@@ -119,6 +119,8 @@ it('writes the runtime module unchanged, a module per record and a module per ke
         $directory.'/protocol/UnpublishEntryV1.ts',
         $directory.'/protocol/AssignGrantV1.ts',
         $directory.'/protocol/RevokeGrantV1.ts',
+        $directory.'/protocol/CreateMountV1.ts',
+        $directory.'/protocol/SetMountOverrideV1.ts',
         $directory.'/protocol/ArchiveNodeV1.ts',
         $directory.'/protocol/CreateNodeV1.ts',
         $directory.'/protocol/MoveNodeV1.ts',
@@ -190,6 +192,8 @@ it('reads the kernel\'s contracts in the order of their schemas, and names every
         'UnpublishEntryCodecV1',
         'AssignGrantCodecV1',
         'RevokeGrantCodecV1',
+        'CreateMountCodecV1',
+        'SetMountOverrideCodecV1',
         'ArchiveNodeCodecV1',
         'CreateNodeCodecV1',
         'MoveNodeCodecV1',
@@ -230,21 +234,22 @@ it('reads the kernel\'s contracts in the order of their schemas, and names every
         $problems = $failed->problems;
     }
 
-    expect(count($problems))->toBe(53)
+    expect(count($problems))->toBe(55)
         ->and($problems[0]->code)->toBe(GenerateErrorCode::SchemaMissing)
         ->and($problems[3]->message)->toContain('packages/contracts/resources/schemas/envelope.v1.json')
         ->and($problems[7]->message)->toContain('receipt.v1.json')
         ->and($problems[8]->message)->toContain('type-editor.v1.json')
         ->and($problems[13]->message)->toContain('packages/core/resources/schemas/commands/entry.create.v1.json')
-        ->and($problems[32]->message)->toContain('packages/core/resources/schemas/delivery-fragment.v1.json')
-        ->and($problems[33]->message)->toContain('packages/core/resources/schemas/panel-bundle-signature.v1.json')
-        ->and($problems[34]->message)->toContain('packages/core/resources/schemas/panel-bundle.v1.json')
-        ->and($problems[35]->message)->toContain('packages/core/resources/schemas/queries/action.list.result.v1.json')
-        ->and($problems[37]->message)->toContain('packages/core/resources/schemas/queries/actor.list.result.v1.json')
-        ->and($problems[45]->message)->toContain('packages/core/resources/schemas/queries/path.resolve.result.v1.json')
-        ->and($problems[46]->message)->toContain('packages/core/resources/schemas/queries/path.resolve.v1.json')
-        ->and($problems[48]->message)->toContain('packages/core/resources/schemas/queries/role.list.v1.json')
-        ->and($problems[52]->message)->toContain('packages/core/resources/schemas/queries/type.list.v1.json');
+        ->and($problems[19]->message)->toContain('packages/core/resources/schemas/commands/mount.create.v1.json')
+        ->and($problems[34]->message)->toContain('packages/core/resources/schemas/delivery-fragment.v1.json')
+        ->and($problems[35]->message)->toContain('packages/core/resources/schemas/panel-bundle-signature.v1.json')
+        ->and($problems[36]->message)->toContain('packages/core/resources/schemas/panel-bundle.v1.json')
+        ->and($problems[37]->message)->toContain('packages/core/resources/schemas/queries/action.list.result.v1.json')
+        ->and($problems[39]->message)->toContain('packages/core/resources/schemas/queries/actor.list.result.v1.json')
+        ->and($problems[47]->message)->toContain('packages/core/resources/schemas/queries/path.resolve.result.v1.json')
+        ->and($problems[48]->message)->toContain('packages/core/resources/schemas/queries/path.resolve.v1.json')
+        ->and($problems[50]->message)->toContain('packages/core/resources/schemas/queries/role.list.v1.json')
+        ->and($problems[54]->message)->toContain('packages/core/resources/schemas/queries/type.list.v1.json');
 });
 
 it('refuses a kernel schema that is not valid with generate_schema_invalid', function (): void {

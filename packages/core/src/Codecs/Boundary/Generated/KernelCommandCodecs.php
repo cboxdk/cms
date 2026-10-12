@@ -34,6 +34,8 @@ final readonly class KernelCommandCodecs
             UnpublishEntryCodecV1::commandCodec(),
             AssignGrantCodecV1::commandCodec(),
             RevokeGrantCodecV1::commandCodec(),
+            CreateMountCodecV1::commandCodec(),
+            SetMountOverrideCodecV1::commandCodec(),
             ArchiveNodeCodecV1::commandCodec(),
             CreateNodeCodecV1::commandCodec(),
             MoveNodeCodecV1::commandCodec(),

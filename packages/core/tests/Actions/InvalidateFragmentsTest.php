@@ -26,6 +26,7 @@ use Cbox\Cms\Core\Fragments\Actions\InvalidateFragments;
 use Cbox\Cms\Core\Placements\Domain\Events\PlacementCreated;
 use Cbox\Cms\Core\Placements\Domain\Events\PlacementVisibilityChanged;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
+use Cbox\Cms\Core\Structure\Domain\Events\MountOverrideSet;
 use Cbox\Cms\Core\Structure\Domain\Events\NodeLabelChanged;
 use Cbox\Cms\Core\Structure\Domain\Events\NodeMoved;
 use Cbox\Cms\Core\Structure\Domain\Events\SiteLocaleAdded;
@@ -239,10 +240,28 @@ it('subscribes on the critical lane to every event that changes what a fragment 
     $world->handle($world->stored(InvalidationWorld::revised(2), $world->changeset('origin'), 100));
     $subscription = new ReflectionClass(InvalidateFragments::class)->getAttributes(Subscription::class)[0]->newInstance();
 
-    expect($subscription->events)->toBe([EntryCreated::class, VariantReleased::class, VariantRevised::class, VariantUnreleased::class, PlacementCreated::class, PlacementVisibilityChanged::class, NodeLabelChanged::class, NodeMoved::class, SiteLocaleAdded::class, SiteLocaleRemoved::class])
+    expect($subscription->events)->toBe([EntryCreated::class, VariantReleased::class, VariantRevised::class, VariantUnreleased::class, PlacementCreated::class, PlacementVisibilityChanged::class, MountOverrideSet::class, NodeLabelChanged::class, NodeMoved::class, SiteLocaleAdded::class, SiteLocaleRemoved::class])
         ->and($subscription->lane)->toBe(Lane::Critical)
         ->and($subscription->projection)->toBe(InvalidateFragments::PROJECTION);
 });
+
+it('purges the entry and the mount node of mount.override_set, hard when the entry is hidden and softly when it is shown again', function (bool $hidden, PurgeMode $mode): void {
+    $world = new InvalidationWorld;
+    $world->write('page:a', 90);
+    $world->writeUnderNode('mounted:harbour', 90, InvalidationWorld::MOUNT);
+    $world->writeUnderNode('crumbs:node', 90);
+    $changeset = $world->changeset('origin');
+
+    $world->handle($world->stored(InvalidationWorld::overridden(2, $hidden), $changeset, 100));
+
+    expect($world->fragments->read(new FragmentKey('page:a')))->toBeNull()
+        ->and($world->fragments->read(new FragmentKey('mounted:harbour')))->toBeNull()
+        ->and($world->fragments->read(new FragmentKey('crumbs:node')))->not->toBeNull()
+        ->and($world->writeUnderNode('mounted:harbour', 100, InvalidationWorld::MOUNT))->toBeInstanceOf(FragmentFenced::class)
+        ->and($world->cdn->requests())->toEqual([new CdnPurge([InvalidationWorld::key(), InvalidationWorld::nodeKey(InvalidationWorld::MOUNT)], $mode)])
+        ->and($world->subtree->reads)->toBe([])
+        ->and($world->origin($changeset)?->state)->toBe(ProjectionState::Acknowledged);
+})->with(['hidden' => [true, PurgeMode::Hard], 'shown again' => [false, PurgeMode::Soft]]);
 
 it('purges the node of node.label_changed softly, so a breadcrumb that shows the node is rebuilt', function (): void {
     $world = new InvalidationWorld;

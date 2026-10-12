@@ -45,7 +45,7 @@ use PHPUnit\Framework\Attributes\Test;
  * two withdrawn placements of ENTRY with the slug "gone". DRAFT, of the type TYPE, active and with
  * no head, is placed by DRAFTED below SPORT in da with the slug "match", hidden and canonical.
  * ENTRY has a released row with the fields released() in the table of releasedType(), the
- * workbench's fixture measurement; DRAFT has none.
+ * workbench's fixture measurement; DRAFT has none. The site south hides ENTRY on MOUNT.
  */
 trait RouteReaderBehaviour
 {
@@ -148,6 +148,23 @@ trait RouteReaderBehaviour
             ),
             $this->routeReader()->placement(NodeId::fromString(self::SECTION), new Locale('da'), new Slug('harbour')),
         );
+    }
+
+    #[Test]
+    public function it_reads_whether_the_mount_hides_the_entry_when_the_slug_is_looked_up_through_a_mount(): void
+    {
+        $reader = $this->routeReader();
+        $section = NodeId::fromString(self::SECTION);
+        $da = new Locale('da');
+
+        $direct = $reader->placement($section, $da, new Slug('harbour'));
+        $mounted = $reader->placement($section, $da, new Slug('harbour'), NodeId::fromString(self::MOUNT));
+        $elsewhere = $reader->placement($section, $da, new Slug('harbour'), NodeId::fromString(self::SPORT));
+
+        Assert::assertFalse($direct?->hiddenOnMount);
+        Assert::assertTrue($mounted?->hiddenOnMount);
+        Assert::assertSame(self::PLACED, $mounted->placement->toString());
+        Assert::assertFalse($elsewhere?->hiddenOnMount);
     }
 
     #[Test]

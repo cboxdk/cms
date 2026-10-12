@@ -50,7 +50,8 @@ use Override;
  *    request says; then the site with that handle and whether it publishes in the locale.
  * 2. The longest route of the site in the locale that is a prefix of the path (`node_routes`),
  *    and the node it reaches. A mount shows its source's placements: the slug is looked up below
- *    the source, and what is found there is shown exactly as the source shows it (PRD 5.8).
+ *    the source, and what is found there is shown exactly as the source shows it (PRD 5.8), unless
+ *    the mount's site hides the entry there, which the same lookup reads.
  * 3. The rest of the path, one slug, in (node, locale, slug) of the placements' released stage.
  * 4. Whether the entry's type has URLs, then the precedence of PRD 6.6 at the Clock's time.
  * 5. For a visible placement, the fields of the entry's released row in its type's table, and the
@@ -134,7 +135,7 @@ final readonly class ResolvePathAction implements QueryAction
             return $this->ended(new PathExplanation(ResolveOutcome::NoSlug, $site, $route, $node, $mount));
         }
 
-        $placement = $this->routes->placement($under, $query->locale, $slug);
+        $placement = $this->routes->placement($under, $query->locale, $slug, $mount?->mount);
 
         if (! $placement instanceof PlacementMatch) {
             return $this->ended(new PathExplanation(ResolveOutcome::NoPlacement, $site, $route, $node, $mount, new PlacementStep($under, $slug)));

@@ -154,10 +154,12 @@ use Cbox\Cms\Core\Schema\Domain\Queries\DescribeType;
 use Cbox\Cms\Core\Schema\Domain\Queries\ListTypes;
 use Cbox\Cms\Core\Structure\Domain\Commands\AddSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\CreateMount;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\MoveNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\RegisterSite;
 use Cbox\Cms\Core\Structure\Domain\Commands\RemoveSiteLocale;
+use Cbox\Cms\Core\Structure\Domain\Commands\SetMountOverride;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeLabel;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeRoute;
 use Cbox\Cms\Core\Structure\Domain\Dto\ListedNode;
@@ -719,6 +721,16 @@ final readonly class ProtocolSchemas
             ]),
             self::command('grant.revoke.v1.json', 'RevokeGrantCodecV1', RevokeGrant::class, [
                 '#/properties/grant' => $id(GrantId::class),
+                '#/properties/version' => $version,
+            ]),
+            self::command('mount.create.v1.json', 'CreateMountCodecV1', CreateMount::class, [
+                '#/properties/node' => $id(NodeId::class),
+                '#/properties/parent' => $id(NodeId::class),
+                '#/properties/source' => $id(NodeId::class),
+            ]),
+            self::command('mount.set_override.v1.json', 'SetMountOverrideCodecV1', SetMountOverride::class, [
+                '#/properties/entry' => $id(EntryId::class),
+                '#/properties/mount' => $id(NodeId::class),
                 '#/properties/version' => $version,
             ]),
             self::command('node.archive.v1.json', 'ArchiveNodeCodecV1', ArchiveNode::class, [

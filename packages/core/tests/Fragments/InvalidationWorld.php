@@ -43,6 +43,8 @@ use Cbox\Cms\Core\Placements\Domain\Events\PlacementCreatedV1;
 use Cbox\Cms\Core\Placements\Domain\Events\PlacementVisibilityChanged;
 use Cbox\Cms\Core\Placements\Domain\Events\PlacementVisibilityChangedV1;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
+use Cbox\Cms\Core\Structure\Domain\Events\MountOverrideSet;
+use Cbox\Cms\Core\Structure\Domain\Events\MountOverrideSetV1;
 use Cbox\Cms\Core\Structure\Domain\Events\NodeLabelChanged;
 use Cbox\Cms\Core\Structure\Domain\Events\NodeLabelChangedV1;
 use Cbox\Cms\Core\Structure\Domain\Events\NodeMoved;
@@ -63,7 +65,8 @@ use DateTimeImmutable;
 /**
  * The invalidation subscriber with the fakes of what it uses: a fragment store, a CDN that purges
  * softly or only hard, a receipt store, a clock at 2026-03-10T12:00:00Z and the subtree of the
- * tree ROOT, with NODE and OTHER_NODE below it and the nodes withDescendants() adds below NODE.
+ * tree ROOT, with NODE, OTHER_NODE and the mount MOUNT below it and the nodes withDescendants()
+ * adds below NODE.
  * changeset() commits a receipt that lists the projections pending, stored() gives a content event
  * as the log gives it, and write() puts a fragment of an entry's key into the store built at a
  * position.
@@ -85,6 +88,8 @@ final readonly class InvalidationWorld
     public const string ROOT = '0192a0c0-0000-7000-8000-0000000001a1';
 
     public const string OTHER_NODE = '0192a0c0-0000-7000-8000-0000000001a3';
+
+    public const string MOUNT = '0192a0c0-0000-7000-8000-0000000001a4';
 
     public FakeClock $clock;
 
@@ -111,6 +116,7 @@ final readonly class InvalidationWorld
         $root = $this->subtree->withNode(NodeId::fromString(self::ROOT));
         $this->subtree->withNode(NodeId::fromString(self::NODE), $root);
         $this->subtree->withNode(NodeId::fromString(self::OTHER_NODE), $root);
+        $this->subtree->withNode(NodeId::fromString(self::MOUNT), $root);
         $this->subscriber = new InvalidateFragments($this->fragments, $this->cdn, $this->receipts, $this->clock, new InvalidationSettings($fenceSeconds), $this->subtree);
     }
 
@@ -136,6 +142,14 @@ final readonly class InvalidationWorld
     public static function moved(int $version, string $node = self::NODE): NodeMoved
     {
         return new NodeMoved($version, new NodeMovedV1(NodeId::fromString($node), NodeId::fromString(self::ROOT), NodeId::fromString(self::OTHER_NODE)));
+    }
+
+    /**
+     * mount.override_set of ENTRY on MOUNT, hidden or shown again.
+     */
+    public static function overridden(int $version, bool $hidden): MountOverrideSet
+    {
+        return new MountOverrideSet($version, new MountOverrideSetV1(NodeId::fromString(self::MOUNT), self::entry(), $hidden));
     }
 
     /**

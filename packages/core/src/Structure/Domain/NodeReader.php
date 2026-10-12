@@ -6,10 +6,13 @@ namespace Cbox\Cms\Core\Structure\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
+use Cbox\Cms\Core\Structure\Domain\Dto\MountedEntry;
+use Cbox\Cms\Core\Structure\Domain\Dto\StoredMountOverride;
 use Cbox\Cms\Core\Structure\Domain\Dto\StoredNode;
 use DateTimeImmutable;
 
@@ -65,4 +68,18 @@ interface NodeReader
      * or null when none is: what archiving the node weighs, so it never hides live content.
      */
     public function visiblePlacement(NodeId $node, DateTimeImmutable $at): ?PlacementId;
+
+    /**
+     * The exception the mount has for the entry (PRD 5.8), or null when it has none. Every
+     * context reads the overrides, so the read needs no owner lookup.
+     */
+    public function mountOverride(NodeId $mount, EntryId $entry): ?StoredMountOverride;
+
+    /**
+     * What the node shows of the entry, past the actor's regions: the entry, with a placement of
+     * it below the node, the node itself included, that is visible at the time or later, or none;
+     * null when no entry has the id. What un-hiding an entry on a mount weighs, so an agent never
+     * makes content public there (invariant 18).
+     */
+    public function mountedEntry(NodeId $node, EntryId $entry, DateTimeImmutable $at): ?MountedEntry;
 }

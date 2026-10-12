@@ -103,6 +103,31 @@ it('resolves an alias host to its site and builds the canonical URL from the sit
         ->and($result->explanation->visibility?->validUntil)->toBeNull();
 });
 
+it('answers not_visible at the mount where the site hides the entry, naming the exception as rung 6, while the source resolves', function (): void {
+    $world = new World()->place(World::PLACEMENT, World::SECTION, 'harbour');
+    $world->reader->withOverride(NodeId::fromString(World::MOUNT), EntryId::fromString(World::ENTRY));
+
+    $mounted = $world->resolve('south.example', '/national/harbour');
+    $direct = $world->resolve('north.example', '/nyheder/harbour');
+
+    expect($mounted->outcome())->toBe(ResolveOutcome::NotVisible)
+        ->and($mounted->explanation->mount)->toEqual(new MountStep(NodeId::fromString(World::MOUNT), NodeId::fromString(World::SECTION)))
+        ->and($mounted->explanation->visibility?->decision)->toBe(VisibilityDecision::MountHidden)
+        ->and($mounted->explanation->visibility?->decision->rung())->toBe(6)
+        ->and($mounted->explanation->canonical)->toBeNull()
+        ->and($mounted->resolved())->toBeFalse()
+        ->and(resolvedKeys($mounted))->toBe(['e-'.World::ENTRY, 'n-'.World::SECTION])
+        ->and($direct->outcome())->toBe(ResolveOutcome::Resolved);
+
+    $unreleased = new World()->place(World::PLACEMENT, World::SECTION, 'harbour', release: ReleaseState::Unreleased);
+    $unreleased->reader->withOverride(NodeId::fromString(World::MOUNT), EntryId::fromString(World::ENTRY));
+    $withdrawn = new World()->place(World::PLACEMENT, World::SECTION, 'harbour', visibility: Visibility::Withdrawn, release: ReleaseState::Unreleased);
+    $withdrawn->reader->withOverride(NodeId::fromString(World::MOUNT), EntryId::fromString(World::ENTRY));
+
+    expect($unreleased->resolve('south.example', '/national/harbour')->explanation->visibility?->decision)->toBe(VisibilityDecision::MountHidden)
+        ->and($withdrawn->resolve('south.example', '/national/harbour')->explanation->visibility?->decision)->toBe(VisibilityDecision::PlacementWithdrawn);
+});
+
 it('resolves a mount on a second site below its source, identical to the source, which stays canonical', function (): void {
     $world = new World()->place(World::PLACEMENT, World::SECTION, 'harbour');
 

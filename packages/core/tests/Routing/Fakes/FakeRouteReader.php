@@ -47,6 +47,9 @@ final class FakeRouteReader implements RouteReader
     /** @var array<string, FieldValues> by "<type> <entry>" */
     private array $released = [];
 
+    /** @var list<string> the entries a mount hides, as "<mount> <entry>" */
+    private array $hidden = [];
+
     /** How many reads were made. */
     public int $reads = 0;
 
@@ -88,6 +91,16 @@ final class FakeRouteReader implements RouteReader
         return $this;
     }
 
+    /**
+     * The mount's site hides the entry on the mount (PRD 5.8).
+     */
+    public function withOverride(NodeId $mount, EntryId $entry): self
+    {
+        $this->hidden[] = $mount->toString().' '.$entry->toString();
+
+        return $this;
+    }
+
     #[Override]
     public function route(SiteHandle $site, Locale $locale, RequestPath $path): ?SiteRoute
     {
@@ -115,7 +128,7 @@ final class FakeRouteReader implements RouteReader
     }
 
     #[Override]
-    public function placement(NodeId $node, Locale $locale, Slug $slug): ?PlacementMatch
+    public function placement(NodeId $node, Locale $locale, Slug $slug, ?NodeId $mount = null): ?PlacementMatch
     {
         $this->reads++;
         $found = array_values(array_map(
@@ -123,8 +136,13 @@ final class FakeRouteReader implements RouteReader
             array_filter($this->placements, static fn (array $placed): bool => $placed[0]->equals($node) && $placed[1]->equals($locale) && $placed[2]->equals($slug)),
         ));
         usort($found, static fn (PlacementMatch $a, PlacementMatch $b): int => [$a->visibility === Visibility::Withdrawn, $a->placement->toString()] <=> [$b->visibility === Visibility::Withdrawn, $b->placement->toString()]);
+        $match = $found[0] ?? null;
 
-        return $found[0] ?? null;
+        if (! $match instanceof PlacementMatch || ! $mount instanceof NodeId || ! in_array($mount->toString().' '.$match->entry->toString(), $this->hidden, true)) {
+            return $match;
+        }
+
+        return new PlacementMatch($match->placement, $match->entry, $match->visibility, $match->window, $match->canonical, $match->type, $match->lifecycle, $match->release, true);
     }
 
     #[Override]

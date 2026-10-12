@@ -56,13 +56,17 @@ final class PostgresNodeReaderBehaviourTest extends TestCase
             ['site_id' => self::SITE, 'locale' => 'da', 'route' => '/', 'node_id' => self::ROOT, 'created_at' => StorageTables::CREATED_AT],
             ['site_id' => self::SITE, 'locale' => 'da', 'route' => '/nyheder', 'node_id' => self::NODE, 'created_at' => StorageTables::CREATED_AT],
         ]);
-        $superuser->table('entries')->insert([...StorageTables::entry(), 'home_node_id' => self::NODE]);
+        $superuser->table('entries')->insert([...StorageTables::entry(self::ENTRY), 'home_node_id' => self::NODE]);
+        $superuser->table('mount_overrides')->insert(StorageTables::mountOverride([
+            'mount_node_id' => self::MOUNT, 'source_node_id' => self::NODE, 'entry_id' => self::ENTRY, 'version' => self::OVERRIDE_VERSION,
+        ]));
 
         foreach ([[self::LIVE, self::NODE, 'live', self::UNTIL], [self::HIDDEN, self::ARCHIVED, 'hidden', null]] as [$placement, $node, $visibility, $until]) {
-            $superuser->table('placements')->insert(StorageTables::placement($placement));
+            $superuser->table('placements')->insert(StorageTables::placement($placement, self::ENTRY));
             $superuser->table('placement_generations')->insert(StorageTables::generation($placement, node: $node));
             $superuser->table('placement_locales')->insert(StorageTables::placementLocale([
                 'placement_id' => $placement,
+                'entry_id' => self::ENTRY,
                 'node_id' => $node,
                 'slug' => 'harbour-'.substr($placement, -4),
                 'visibility' => $visibility,

@@ -88,7 +88,7 @@ it('forces row level security on every table, with the access migration\'s polic
         ->and(StorageTables::texts($owner, 'select policyname::text as value from pg_policies where tablename = any (?::text[]) order by 1', [$tables]))
         ->toBe([
             'entries_actor', 'entries_owner_lock', 'entries_owner_read', 'entries_released', 'node_routes_owner_read', 'node_routes_read', 'node_routes_site_root', 'node_routes_write',
-            'nodes_actor', 'nodes_granted', 'nodes_owner_move', 'nodes_owner_read', 'nodes_site_root', 'site_locales_owner_read', 'site_locales_read', 'site_locales_update', 'site_locales_write', 'sites_owner_lock', 'sites_owner_read', 'sites_read', 'sites_update', 'sites_write',
+            'nodes_actor', 'nodes_granted', 'nodes_owner_lock', 'nodes_owner_move', 'nodes_owner_read', 'nodes_site_root', 'site_locales_owner_read', 'site_locales_read', 'site_locales_update', 'site_locales_write', 'sites_owner_lock', 'sites_owner_read', 'sites_read', 'sites_update', 'sites_write',
             'variant_heads_actor', 'variant_heads_owner_lock', 'variant_heads_owner_read', 'variant_heads_released',
         ])
         ->and($result->status)->toBe(CheckStatus::Pass, (string) $result->cause);
@@ -325,6 +325,7 @@ it('forces row level security on the placement tables, with the access migration
         ->toBe(array_map(static fn (string $table): string => $table.' true true', StorageTables::PLACEMENT_TABLES))
         ->and(StorageTables::texts($owner, 'select policyname::text as value from pg_policies where tablename = any (?::text[]) order by 1', [$tables]))
         ->toBe([
+            'mount_overrides_change', 'mount_overrides_read', 'mount_overrides_remove', 'mount_overrides_write',
             'placement_generations_actor', 'placement_generations_released', 'placement_locales_actor', 'placement_locales_owner_write',
             'placement_locales_released', 'placements_actor', 'placements_owner_write', 'placements_released', 'placements_write',
         ])

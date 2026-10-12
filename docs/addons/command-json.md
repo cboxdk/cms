@@ -18,6 +18,8 @@ description: "The JSON form of the kernel's commands, one JSON Schema per comman
 <!-- extension-point: packages/core/resources/schemas/commands/grant.revoke.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/commands/node.archive.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/commands/node.create.v1.json -->
+<!-- extension-point: packages/core/resources/schemas/commands/mount.create.v1.json -->
+<!-- extension-point: packages/core/resources/schemas/commands/mount.set_override.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/commands/node.move.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/commands/node.set_label.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/commands/node.set_route.v1.json -->
@@ -56,6 +58,8 @@ A caller sends a command to a surface as a JSON document: the body of a REST cal
 | `node.create` | `node.create.v1.json` | `CreateNodeCodecV1` | [`CreateNode`](node-commands.md) |
 | `node.archive` | `node.archive.v1.json` | `ArchiveNodeCodecV1` | [`ArchiveNode`](node-commands.md) |
 | `node.set_route` | `node.set_route.v1.json` | `SetNodeRouteCodecV1` | [`SetNodeRoute`](node-commands.md) |
+| `mount.create` | `mount.create.v1.json` | `CreateMountCodecV1` | [`CreateMount`](mount-commands.md) |
+| `mount.set_override` | `mount.set_override.v1.json` | `SetMountOverrideCodecV1` | [`SetMountOverride`](mount-commands.md) |
 | `node.move` | `node.move.v1.json` | `MoveNodeCodecV1` | [`MoveNode`](node-commands.md) |
 | `node.set_label` | `node.set_label.v1.json` | `SetNodeLabelCodecV1` | [`SetNodeLabel`](node-commands.md) |
 

@@ -82,11 +82,15 @@ use Cbox\Cms\Core\Routing\Domain\NodeKind;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Structure\Actions\AddSiteLocaleAction;
 use Cbox\Cms\Core\Structure\Actions\ArchiveNodeAction;
+use Cbox\Cms\Core\Structure\Actions\CreateMountAction;
 use Cbox\Cms\Core\Structure\Actions\CreateNodeAction;
 use Cbox\Cms\Core\Structure\Actions\MoveNodeAction;
 use Cbox\Cms\Core\Structure\Actions\RemoveSiteLocaleAction;
+use Cbox\Cms\Core\Structure\Actions\SetMountOverrideAction;
 use Cbox\Cms\Core\Structure\Actions\SetNodeLabelAction;
 use Cbox\Cms\Core\Structure\Actions\SetNodeRouteAction;
+use Cbox\Cms\Core\Structure\Adapter\MountCreatedWriter;
+use Cbox\Cms\Core\Structure\Adapter\MountOverrideSetWriter;
 use Cbox\Cms\Core\Structure\Adapter\NodeArchivedWriter;
 use Cbox\Cms\Core\Structure\Adapter\NodeCreatedWriter;
 use Cbox\Cms\Core\Structure\Adapter\NodeLabelSetWriter;
@@ -103,9 +107,11 @@ use Cbox\Cms\Core\Structure\Adapter\SiteLocaleAddedWriter;
 use Cbox\Cms\Core\Structure\Adapter\SiteLocaleRemovedWriter;
 use Cbox\Cms\Core\Structure\Domain\Commands\AddSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\CreateMount;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\MoveNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\RemoveSiteLocale;
+use Cbox\Cms\Core\Structure\Domain\Commands\SetMountOverride;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeLabel;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeRoute;
 use Cbox\Cms\Core\Structure\Domain\NodeLabel;
@@ -137,12 +143,13 @@ use LogicException;
 
 /**
  * The real command pipeline on Postgres for node.create, node.archive, node.set_route, node.move,
- * node.set_label, site.add_locale and site.remove_locale, with entry.create, variant.release,
- * placement.create and placement.set_window to put live content below a node (PRD 5.8, 5.9, 6.2,
- * 6.4, 11.14), on the default connection or the one named: the command transaction, the Postgres
- * stores, the actor directory, the entry, placement and node readers, the site directory and the
- * site's locale use, and the PostgresChangesetCommitter with the locks and writers of entries,
- * placements, nodes and sites. Fakes, so a test decides what they answer: the authorizer, which allows,
+ * node.set_label, mount.create, mount.set_override, site.add_locale and site.remove_locale, with
+ * entry.create, variant.release, placement.create and placement.set_window to put live content
+ * below a node (PRD 5.8, 5.9, 6.2, 6.4, 11.14), on the default connection or the one named: the
+ * command transaction, the Postgres stores, the actor directory, the entry, placement and node
+ * readers, the site directory and the site's locale use, and the PostgresChangesetCommitter with
+ * the locks and writers of entries, placements, nodes and sites. Fakes, so a test decides what
+ * they answer: the authorizer, which allows,
  * the content hasher and the hooks.
  *
  * seed() writes the structure through the testkit's structure fixtures: the site NORTH, publishing
@@ -297,6 +304,22 @@ final class NodeWorld
         return $this->run(new RemoveSiteLocale($site->id, new AggregateVersion($version), new Locale($locale)), $key);
     }
 
+    /**
+     * mount.create of the mount below the parent, showing the source.
+     */
+    public function createMount(NodeId $node, StructureNode $parent, StructureNode $source, string $key, bool $agentCredential = false): WriteResult
+    {
+        return $this->run(new CreateMount($node, $parent->id, $source->id), $key, $agentCredential);
+    }
+
+    /**
+     * mount.set_override of the mount, read at the version given, for the entry.
+     */
+    public function setOverride(NodeId $mount, EntryId $entry, bool $hidden, string $key, int $version = 1, bool $agentCredential = false, bool $agentEnvelope = false): WriteResult
+    {
+        return $this->run(new SetMountOverride($mount, new AggregateVersion($version), $entry, $hidden), $key, $agentCredential, $agentEnvelope);
+    }
+
     public function run(Command $command, string $key, bool $agentCredential = false, bool $agentEnvelope = false): WriteResult
     {
         $envelope = Envelope::external(
@@ -340,6 +363,8 @@ final class NodeWorld
                 SetNodeLabel::class => $this->binding('node.set_label', $this->interleaved(new SetNodeLabelAction($nodes))),
                 AddSiteLocale::class => $this->binding('site.add_locale', $this->interleaved(new AddSiteLocaleAction($sites))),
                 RemoveSiteLocale::class => $this->binding('site.remove_locale', $this->interleaved(new RemoveSiteLocaleAction($sites, new PostgresSiteLocaleUse($connections, $this->connection)))),
+                CreateMount::class => $this->binding('mount.create', $this->interleaved(new CreateMountAction($nodes))),
+                SetMountOverride::class => $this->binding('mount.set_override', $this->interleaved(new SetMountOverrideAction($nodes, $this->clock))),
             ]),
             new PostgresActorDirectory($connections, $this->connection),
             new FakeCommandAuthorizer,
@@ -380,6 +405,8 @@ final class NodeWorld
                     new NodeLabelSetWriter($connections, $this->connection),
                     new SiteLocaleAddedWriter($connections, $this->connection),
                     new SiteLocaleRemovedWriter($connections, $this->connection),
+                    new MountCreatedWriter($connections, $this->connection),
+                    new MountOverrideSetWriter($connections, $this->connection),
                 ),
                 app(AffectedProjections::class),
                 new PostgresReceiptStore($connections, $this->clock, $this->connection),

@@ -7,15 +7,18 @@ namespace Cbox\Cms\Core\Tests\Postgres;
 use Cbox\Cms\Contracts\Cache\DependencyKey;
 use Cbox\Cms\Contracts\Consistency\Outcome;
 use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Contracts\Identity\AccessContext;
 use Cbox\Cms\Contracts\Identity\CredentialVerifier;
 use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Pipeline\QueryCost;
 use Cbox\Cms\Contracts\Results\QueryResult;
 use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Core\Access\Domain\AccessResolver;
 use Cbox\Cms\Core\Access\Infrastructure\ActorContext;
+use Cbox\Cms\Core\Delivery\Domain\PathAnswers;
 use Cbox\Cms\Core\Reads\Actions\QueryPipeline;
 use Cbox\Cms\Core\Reads\Domain\Dto\QueryCall;
 use Cbox\Cms\Core\Reads\Domain\Dto\QuerySettings;
@@ -44,6 +47,7 @@ use Cbox\Cms\Core\Tests\Publishing\PublishingWorld;
 use Cbox\Cms\Core\Tests\Reads\Fakes\FakeQueryActions;
 use Cbox\Cms\Core\Tests\Reads\Fakes\FakeQueryAuthorizer;
 use Cbox\Cms\Core\Tests\Reads\Probe\ProbeQueryBinding;
+use Cbox\Cms\Core\Tests\Structure\NodeWorld;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\FixtureWriters\Structure\Adapter\PostgresStructureFixtures;
 use Cbox\Cms\Testkit\FixtureWriters\Structure\Domain\Dto\StructureNode;
@@ -60,7 +64,9 @@ use LogicException;
  * each with the section "/nyheder", and the mount "/national" on south of north's section. An
  * article published on north's section resolves there, and through the mount on south, identical
  * to the source, whose placement stays canonical; row level security lets the anonymous context
- * read the routes, the routed nodes and what is public. Both resolutions cost the same queries
+ * read the routes, the routed nodes and what is public. An entry the south site hides on the
+ * mount answers not_visible there, which the delivery API turns into 404, and resolves at its
+ * source; an archived mount keeps showing its source. Both resolutions cost the same queries
  * whether 20 or 200 placements are below the section.
  */
 
@@ -255,4 +261,59 @@ it('lets the anonymous context read the routes and the kind of a node that has o
         ->and($nodes)->toBe(0)
         ->and($section)->toBe(['section - '.$root])
         ->and($storage)->toBe([]);
+});
+
+/**
+ * The mount on south, as the superuser reads it after resolvedWorld().
+ */
+function resolvedMount(): NodeId
+{
+    $mount = StorageTables::superuser()->table('nodes')->where('kind', 'mount')->value('id');
+
+    return is_string($mount) ? NodeId::fromString($mount) : throw new LogicException('The world has no mount.');
+}
+
+it('answers 404 at the mount URL for an entry the site hides there, naming the exception as the decision, and 200 at the source', function (): void {
+    $structure = resolvedWorld();
+    $pipeline = resolvePipeline();
+    $mount = resolvedMount();
+    $section = $structure->northSection->id->toString();
+
+    $hidden = new NodeWorld([$structure->south->root], seed: 7)->setOverride($mount, EntryId::fromString(RESOLVED_ENTRY), true, 'hide-harbour');
+    $mounted = resolveAnonymously($pipeline, 'south.example', '/national/harbour');
+    $direct = resolveAnonymously($pipeline, 'north.example', '/nyheder/harbour');
+    $mountedPath = resolvedPath($mounted);
+    $directPath = resolvedPath($direct);
+
+    expect($hidden->outcome())->toBe(Outcome::Committed)
+        ->and($mountedPath->outcome())->toBe(ResolveOutcome::NotVisible)
+        ->and($mountedPath->explanation->mount?->mount->toString())->toBe($mount->toString())
+        ->and($mountedPath->explanation->visibility?->decision)->toBe(VisibilityDecision::MountHidden)
+        ->and($mountedPath->explanation->visibility?->decision->rung())->toBe(6)
+        ->and($mountedPath->resolved())->toBeFalse()
+        ->and(PathAnswers::code($mountedPath->explanation))->toBe(ErrorCode::PathNotFound)
+        ->and(PathAnswers::detail($mountedPath->explanation))->toContain('mount_hidden')
+        ->and(array_map(static fn (DependencyKey $key): string => $key->toString(), PathAnswers::contentKeys($mountedPath->explanation, $mounted->contentKeys)))
+        ->toBe(['e-'.RESOLVED_ENTRY, 'n-'.$section, 'n-'.$section, 'n-'.$mount->toString()])
+        ->and($directPath->outcome())->toBe(ResolveOutcome::Resolved)
+        ->and(PathAnswers::code($directPath->explanation))->toBeNull();
+
+    $shown = new NodeWorld([$structure->south->root], seed: 8)->setOverride($mount, EntryId::fromString(RESOLVED_ENTRY), false, 'show-harbour', version: 2);
+
+    expect($shown->outcome())->toBe(Outcome::Committed)
+        ->and(resolvedPath(resolveAnonymously($pipeline, 'south.example', '/national/harbour'))->outcome())->toBe(ResolveOutcome::Resolved);
+});
+
+it('keeps showing the source through an archived mount, because archiving changes no visibility and a mount holds no placement of its own', function (): void {
+    $structure = resolvedWorld();
+    $pipeline = resolvePipeline();
+    $mount = resolvedMount();
+
+    $archived = new NodeWorld([$structure->south->root], seed: 7)->archiveNode($mount, 'archive-mount');
+    $mounted = resolvedPath(resolveAnonymously($pipeline, 'south.example', '/national/harbour'));
+
+    expect($archived->outcome())->toBe(Outcome::Committed)
+        ->and(StorageTables::superuser()->table('nodes')->where('id', $mount->toString())->value('lifecycle'))->toBe('archived')
+        ->and($mounted->outcome())->toBe(ResolveOutcome::Resolved)
+        ->and($mounted->explanation->mount?->source->toString())->toBe($structure->northSection->id->toString());
 });

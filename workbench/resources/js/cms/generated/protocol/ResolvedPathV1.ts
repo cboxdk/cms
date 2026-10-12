@@ -36,6 +36,7 @@ export type VisibilityDecision =
   | 'entry_not_active'
   | 'variant_withdrawn'
   | 'placement_withdrawn'
+  | 'mount_hidden'
   | 'no_released_revision'
   | 'placement_hidden'
   | 'before_window'
@@ -220,7 +221,8 @@ export interface VisibilityStepV1 {
   /**
    * The rung of PRD 6.6 that decided, strongest first: entry_not_active (rung 2: the entry is not
    * active, or the reader cannot read it), variant_withdrawn (rung 3), placement_withdrawn (rung
-   * 5), no_released_revision (rung 8), placement_hidden (rung 9: no window), before_window and
+   * 5), mount_hidden (rung 6: the site hides the entry on the mount the path reached),
+   * no_released_revision (rung 8), placement_hidden (rung 9: no window), before_window and
    * after_window (rung 9), or visible (rung 11, live).
    */
   decision: VisibilityDecision;
@@ -274,6 +276,7 @@ const visibilityStepV1Rule: ObjectRule = {
           'entry_not_active',
           'variant_withdrawn',
           'placement_withdrawn',
+          'mount_hidden',
           'no_released_revision',
           'placement_hidden',
           'before_window',

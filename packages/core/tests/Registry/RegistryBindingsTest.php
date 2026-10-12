@@ -65,19 +65,23 @@ use Cbox\Cms\Core\Seeding\Actions\SeedEntriesAction;
 use Cbox\Cms\Core\Seeding\Domain\Commands\SeedEntries;
 use Cbox\Cms\Core\Structure\Actions\AddSiteLocaleAction;
 use Cbox\Cms\Core\Structure\Actions\ArchiveNodeAction;
+use Cbox\Cms\Core\Structure\Actions\CreateMountAction;
 use Cbox\Cms\Core\Structure\Actions\CreateNodeAction;
 use Cbox\Cms\Core\Structure\Actions\ListNodesAction;
 use Cbox\Cms\Core\Structure\Actions\MoveNodeAction;
 use Cbox\Cms\Core\Structure\Actions\RegisterSiteAction;
 use Cbox\Cms\Core\Structure\Actions\RemoveSiteLocaleAction;
+use Cbox\Cms\Core\Structure\Actions\SetMountOverrideAction;
 use Cbox\Cms\Core\Structure\Actions\SetNodeLabelAction;
 use Cbox\Cms\Core\Structure\Actions\SetNodeRouteAction;
 use Cbox\Cms\Core\Structure\Domain\Commands\AddSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\CreateMount;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\MoveNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\RegisterSite;
 use Cbox\Cms\Core\Structure\Domain\Commands\RemoveSiteLocale;
+use Cbox\Cms\Core\Structure\Domain\Commands\SetMountOverride;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeLabel;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeRoute;
 use Cbox\Cms\Core\Structure\Domain\Queries\ListNodes;
@@ -158,6 +162,8 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'entry.unpublish@1 '.UnpublishEntry::class,
             'grant.assign@1 '.AssignGrant::class,
             'grant.revoke@1 '.RevokeGrant::class,
+            'mount.create@1 '.CreateMount::class,
+            'mount.set_override@1 '.SetMountOverride::class,
             'node.archive@1 '.ArchiveNode::class,
             'node.create@1 '.CreateNode::class,
             'node.move@1 '.MoveNode::class,
@@ -189,6 +195,8 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'grant.assign@1 '.AssignGrantAction::class.' write',
             'grant.list@1 '.ListGrantsAction::class.' query',
             'grant.revoke@1 '.RevokeGrantAction::class.' write',
+            'mount.create@1 '.CreateMountAction::class.' write',
+            'mount.set_override@1 '.SetMountOverrideAction::class.' write',
             'node.archive@1 '.ArchiveNodeAction::class.' write',
             'node.create@1 '.CreateNodeAction::class.' write',
             'node.list@1 '.ListNodesAction::class.' query',
@@ -223,7 +231,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
         ->and($registry->actionFor(CreateEntry::class)?->class)->toBe(CreateEntryAction::class)
         ->and($registry->actionFor(ReviseEntry::class)?->class)->toBe(ReviseEntryAction::class)
         ->and($registry->actionFor(ListNodes::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia])
-        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([33, 0, 24, 0, 15, 27, 0, 1])
+        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([35, 0, 26, 0, 15, 29, 0, 1])
         ->and($registry->hooks)->toBe([])
         ->and(array_map(static fn (SubscriberEntry $entry): string => $entry->name->value.' '.$entry->class.' '.$entry->lane->value.' '.$entry->projection?->value, $registry->subscribers))
         ->toBe(['fragments.invalidate '.InvalidateFragments::class.' critical origin'])

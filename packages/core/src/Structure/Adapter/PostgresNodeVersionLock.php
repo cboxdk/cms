@@ -16,16 +16,26 @@ use Override;
 use UnexpectedValueException;
 
 /**
- * The version lock of the node aggregate (PRD 5.8, 6.2 phase 7), as the app role under the call's
- * actor context: the node's row in `nodes`, FOR SHARE for Share and FOR NO KEY UPDATE for Update,
- * so an entry created below a node waits for a change of the node, such as a move, and is checked
- * against the node's version after it. It runs on the default connection, or the one named, inside
- * the command transaction.
+ * The version lock of the node aggregate (PRD 5.8, 6.2 phase 7): the node's row in `nodes`, FOR
+ * SHARE for Share and FOR NO KEY UPDATE for Update, so an entry created below a node waits for a
+ * change of the node, such as a move, and is checked against the node's version after it. It runs
+ * on the default connection, or the one named, inside the command transaction.
+ *
+ * It locks through the owner lookup `cms_structure_lock_nodes` (see the migration that adds the
+ * mount commands), which reads past the actor's regions and raises 42501 without an actor context,
+ * because a command reads nodes past the regions too: the source of a mount, the ancestors of a
+ * parent, a node it refuses as unauthorized. As the app role, `nodes_actor` would hide such a node
+ * at commit and the command would be version_conflict against a node that is there. The lookup
+ * takes a row lock and gives a version, nothing more; what a command may change is decided before
+ * the commit, and the commit refuses a plan that changes an aggregate the action did not read.
  */
 #[Internal]
 final readonly class PostgresNodeVersionLock implements BatchVersionLock
 {
     public const string KIND = 'node';
+
+    /** The lock of the rows of the ids, as the owner role, each with its version. */
+    public const string LOCK = 'select id::text as id, version from cms_structure_lock_nodes(?::uuid[], ?::boolean)';
 
     /**
      * @param  string|null  $connection  the connection name; null for the default connection
@@ -48,22 +58,7 @@ final readonly class PostgresNodeVersionLock implements BatchVersionLock
             throw new InvalidArgumentException(sprintf('The node version lock locks nodes, not "%s".', $aggregate->aggregateKey()));
         }
 
-        $version = $this->connections->connection($this->connection)
-            ->table('nodes')
-            ->where('id', $aggregate->toString())
-            ->lock($strength === LockStrength::Update ? 'for no key update' : 'for share')
-            ->useWritePdo()
-            ->value('version');
-
-        if ($version === null) {
-            return null;
-        }
-
-        if (! is_int($version)) {
-            throw new UnexpectedValueException(sprintf('The version of a node is an integer, got %s.', get_debug_type($version)));
-        }
-
-        return new AggregateVersion($version);
+        return $this->lockAll([$aggregate], $strength)[$aggregate->aggregateKey()] ?? null;
     }
 
     #[Override]
@@ -80,11 +75,11 @@ final readonly class PostgresNodeVersionLock implements BatchVersionLock
         }
 
         $rows = $this->connections->connection($this->connection)->select(
-            sprintf(
-                'select id::text as id, version from nodes where id = any(?::uuid[]) order by id %s',
-                $strength === LockStrength::Update ? 'for no key update' : 'for share',
-            ),
-            ['{'.implode(',', array_map(static fn (NodeId $node): string => $node->toString(), $aggregates)).'}'],
+            self::LOCK,
+            [
+                '{'.implode(',', array_map(static fn (NodeId $node): string => $node->toString(), $aggregates)).'}',
+                $strength === LockStrength::Update ? 'true' : 'false',
+            ],
             false,
         );
 

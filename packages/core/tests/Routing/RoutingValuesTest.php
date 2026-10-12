@@ -115,7 +115,7 @@ it('writes the path of a canonical placement from its node\'s route and its slug
 });
 
 it('names the rung of PRD 6.6 each decision is, and only live is visible', function (): void {
-    expect(array_map(static fn (VisibilityDecision $decision): int => $decision->rung(), VisibilityDecision::cases()))->toBe([2, 3, 5, 8, 9, 9, 9, 11])
+    expect(array_map(static fn (VisibilityDecision $decision): int => $decision->rung(), VisibilityDecision::cases()))->toBe([2, 3, 5, 6, 8, 9, 9, 9, 11])
         ->and(array_values(array_filter(VisibilityDecision::cases(), static fn (VisibilityDecision $decision): bool => $decision->visible())))->toBe([VisibilityDecision::Visible]);
 });
 

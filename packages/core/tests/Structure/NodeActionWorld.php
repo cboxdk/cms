@@ -18,6 +18,7 @@ use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\IssuerKind;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Ids\SiteId;
@@ -42,16 +43,20 @@ use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Routing\Domain\SiteHandle;
 use Cbox\Cms\Core\Structure\Actions\AddSiteLocaleAction;
 use Cbox\Cms\Core\Structure\Actions\ArchiveNodeAction;
+use Cbox\Cms\Core\Structure\Actions\CreateMountAction;
 use Cbox\Cms\Core\Structure\Actions\CreateNodeAction;
 use Cbox\Cms\Core\Structure\Actions\MoveNodeAction;
 use Cbox\Cms\Core\Structure\Actions\RemoveSiteLocaleAction;
+use Cbox\Cms\Core\Structure\Actions\SetMountOverrideAction;
 use Cbox\Cms\Core\Structure\Actions\SetNodeLabelAction;
 use Cbox\Cms\Core\Structure\Actions\SetNodeRouteAction;
 use Cbox\Cms\Core\Structure\Domain\Commands\AddSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\CreateMount;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\MoveNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\RemoveSiteLocale;
+use Cbox\Cms\Core\Structure\Domain\Commands\SetMountOverride;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeLabel;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeRoute;
 use Cbox\Cms\Core\Structure\Domain\Dto\StoredNode;
@@ -87,18 +92,19 @@ use LogicException;
 
 /**
  * The structure actions, node.create, node.archive, node.set_route, node.move, node.set_label,
- * site.add_locale and site.remove_locale, in the command pipeline with the fakes of its ports and
- * of the contracts it reads (GUARDRAILS 9): an active editor, a FakeNodeReader, a
- * FakeSiteDirectory, a FakeSiteLocaleUse and a committer that records what it is asked to commit.
- * Nothing touches a database. The clock stands at NOW.
+ * mount.create, mount.set_override, site.add_locale and site.remove_locale, in the command
+ * pipeline with the fakes of its ports and of the contracts it reads (GUARDRAILS 9): an active
+ * editor, a FakeNodeReader, a FakeSiteDirectory, a FakeSiteLocaleUse and a committer that records
+ * what it is asked to commit. Nothing touches a database. The clock stands at NOW.
  *
  * The reader knows the site NORTH on the root ROOT, publishing in da and en, with the section
- * SECTION at version SECTION_VERSION, the archived section ARCHIVED, the mount MOUNT and the
- * section SPARE, which has no route, below the root, the page CHILD below SECTION, FAR, the root
- * of the site SOUTH, which the editor's regions do not reach, with the section FAR_CHILD below it,
- * and WEST_ROOT, the root of the site WEST, which they do reach. The routes are `/` to ROOT in da
- * and en and `/nyheder` to SECTION in da, the placement LIVE below SECTION is live without an end,
- * and so is SPARE_LIVE below SPARE, so NORTH has placements in da and none in en.
+ * SECTION at version SECTION_VERSION, the archived section ARCHIVED, the mount MOUNT of SECTION
+ * and the section SPARE, which has no route, below the root, the page CHILD below SECTION, FAR,
+ * the root of the site SOUTH, which the editor's regions do not reach, with the section FAR_CHILD
+ * and the mount FAR_MOUNT of SECTION below it, and WEST_ROOT, the root of the site WEST, which
+ * they do reach. The routes are `/` to ROOT in da and en and `/nyheder` to SECTION in da, the
+ * placement LIVE of the entry ENTRY below SECTION is live without an end, and so is SPARE_LIVE
+ * below SPARE, so NORTH has placements in da and none in en; NO_ENTRY is the id of no entry.
  */
 final class NodeActionWorld
 {
@@ -121,6 +127,12 @@ final class NodeActionWorld
     public const string FAR = '01936f5e-8a2b-7c3d-9e4f-000000000b21';
 
     public const string FAR_CHILD = '01936f5e-8a2b-7c3d-9e4f-000000000b22';
+
+    public const string FAR_MOUNT = '01936f5e-8a2b-7c3d-9e4f-000000000b24';
+
+    public const string ENTRY = '01936f5e-8a2b-7c3d-9e4f-000000000b61';
+
+    public const string NO_ENTRY = '01936f5e-8a2b-7c3d-9e4f-000000000b62';
 
     public const string WEST = '01936f5e-8a2b-7c3d-9e4f-000000000b03';
 
@@ -180,17 +192,18 @@ final class NodeActionWorld
         $this->root = $this->nodes->withNode(self::node(self::ROOT), kind: NodeKind::Site);
         $this->section = $this->nodes->withNode(self::node(self::SECTION), $this->root, version: self::SECTION_VERSION);
         $this->archived = $this->nodes->withNode(self::node(self::ARCHIVED), $this->root, lifecycle: NodeLifecycle::Archived);
-        $this->nodes->withNode(self::node(self::MOUNT), $this->root, kind: NodeKind::Mount);
+        $this->nodes->withNode(self::node(self::MOUNT), $this->root, kind: NodeKind::Mount, mountSource: $this->section->id);
         $this->spare = $this->nodes->withNode(self::node(self::SPARE), $this->root);
         $this->child = $this->nodes->withNode(self::node(self::CHILD), $this->section, NodeKind::Page);
         $far = $this->nodes->withNode(self::node(self::FAR), kind: NodeKind::Site, reachable: false);
         $this->nodes->withNode(self::node(self::FAR_CHILD), $far, reachable: false);
+        $this->nodes->withNode(self::node(self::FAR_MOUNT), $far, kind: NodeKind::Mount, reachable: false, mountSource: $this->section->id);
         $this->westRoot = $this->nodes->withNode(self::node(self::WEST_ROOT), kind: NodeKind::Site);
 
         $this->nodes->withRoute(self::site(self::NORTH), new Locale('da'), new RequestPath('/'), $this->root->id);
         $this->nodes->withRoute(self::site(self::NORTH), new Locale('en'), new RequestPath('/'), $this->root->id);
         $this->nodes->withRoute(self::site(self::NORTH), new Locale('da'), new RequestPath('/nyheder'), $this->section->id);
-        $this->nodes->withPlacement(PlacementId::fromString(self::LIVE), $this->section);
+        $this->nodes->withPlacement(PlacementId::fromString(self::LIVE), $this->section, entry: EntryId::fromString(self::ENTRY));
         $this->nodes->withPlacement(PlacementId::fromString(self::SPARE_LIVE), $this->spare);
 
         $this->sites->add(new StoredSite(self::site(self::NORTH), new SiteHandle('north'), $this->root->id, AggregateVersion::first(), [new Locale('da'), new Locale('en')]));
@@ -252,6 +265,22 @@ final class NodeActionWorld
     }
 
     /**
+     * mount.create of NODE, or the id given, below the parent, showing the source.
+     */
+    public function createMount(string $parent = self::SECTION, string $source = self::SPARE, string $node = self::NODE, bool $agent = false): WriteResult
+    {
+        return $this->run(new CreateMount(self::node($node), self::node($parent), self::node($source)), $agent);
+    }
+
+    /**
+     * mount.set_override of the mount, read at the version given, for the entry.
+     */
+    public function setOverride(string $mount = self::MOUNT, int $version = 1, string $entry = self::ENTRY, bool $hidden = true, bool $agent = false, bool $agentEnvelope = false): WriteResult
+    {
+        return $this->run(new SetMountOverride(self::node($mount), new AggregateVersion($version), EntryId::fromString($entry), $hidden), $agent, $agentEnvelope);
+    }
+
+    /**
      * node.set_label of the node, read at the version given, in the locale.
      */
     public function setLabel(string $node = self::SECTION, int $version = self::SECTION_VERSION, string $locale = 'da', string $label = 'Nyheder', bool $agent = false): WriteResult
@@ -285,6 +314,8 @@ final class NodeActionWorld
                 SetNodeLabel::class => $this->binding('node.set_label', new SetNodeLabelAction($this->nodes)),
                 AddSiteLocale::class => $this->binding('site.add_locale', new AddSiteLocaleAction($this->sites)),
                 RemoveSiteLocale::class => $this->binding('site.remove_locale', new RemoveSiteLocaleAction($this->sites, $this->use)),
+                CreateMount::class => $this->binding('mount.create', new CreateMountAction($this->nodes)),
+                SetMountOverride::class => $this->binding('mount.set_override', new SetMountOverrideAction($this->nodes, $this->clock)),
             ]),
             $this->identity,
             new FakeCommandAuthorizer,

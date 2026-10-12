@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Structure;
 
 use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Core\Routing\Domain\NodeKind;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
+use Cbox\Cms\Core\Structure\Domain\Dto\MountedEntry;
+use Cbox\Cms\Core\Structure\Domain\Dto\StoredMountOverride;
 use Cbox\Cms\Core\Structure\Domain\Dto\StoredNode;
 use Cbox\Cms\Core\Structure\Domain\NodeLifecycle;
 use Cbox\Cms\Core\Structure\Domain\NodeReader;
@@ -22,14 +25,17 @@ use PHPUnit\Framework\Attributes\Test;
  * action tests use and PostgresNodeReader, over one world the implementation's test writes: the
  * site root ROOT with the section NODE, the archived section ARCHIVED and the mount MOUNT below it,
  * the root FAR of another site outside the reader's regions, the site SITE publishing in da and en
- * with the route `/` to ROOT and `/nyheder` to NODE in da, a placement LIVE below NODE live until
- * UNTIL, and a hidden placement HIDDEN below ARCHIVED.
+ * with the route `/` to ROOT and `/nyheder` to NODE in da, a placement LIVE of the entry ENTRY
+ * below NODE live until UNTIL, a hidden placement HIDDEN of ENTRY below ARCHIVED, and the
+ * exception on MOUNT that hides ENTRY, set at version OVERRIDE_VERSION of the mount.
  *
  * A node outside the regions is read, so a command on it is unauthorized and not a conflict with an
  * aggregate that looks absent; a route is read whoever holds it; a placement below the node is
  * read past the regions, so archiving never hides content the reader cannot see; the ancestors of
- * a node are read from the root down, so a move locks the path it lands under; and the routed node
- * nearest the top of a subtree is read, so a move to another site weighs the routes below it.
+ * a node are read from the root down, so a move locks the path it lands under; the routed node
+ * nearest the top of a subtree is read, so a move to another site weighs the routes below it; a
+ * mount's exception for an entry is read as every context reads it; and what a node shows of an
+ * entry is read past the regions, so un-hiding on a mount weighs what the source shows.
  */
 trait NodeReaderBehaviour
 {
@@ -50,6 +56,13 @@ trait NodeReaderBehaviour
     public const string LIVE = '0192a0c0-0000-7000-8000-00000000b020';
 
     public const string HIDDEN = '0192a0c0-0000-7000-8000-00000000b021';
+
+    public const string ENTRY = '0192a0c0-0000-7000-8000-00000000b030';
+
+    public const string NO_ENTRY = '0192a0c0-0000-7000-8000-00000000b031';
+
+    /** The version of MOUNT at which its exception for ENTRY was set. */
+    public const int OVERRIDE_VERSION = 2;
 
     /** The version NODE is written at, so a read gives the version the commit checks. */
     public const int NODE_VERSION = 3;
@@ -100,6 +113,8 @@ trait NodeReaderBehaviour
         Assert::assertTrue($archived->archived());
         Assert::assertSame(NodeKind::Mount, $mount?->kind);
         Assert::assertFalse($mount->archived());
+        Assert::assertSame(self::NODE, $mount->mountSource?->toString());
+        Assert::assertNull($archived->mountSource);
         Assert::assertNull($reader->node(NodeId::fromString(self::NOWHERE)));
     }
 
@@ -173,5 +188,39 @@ trait NodeReaderBehaviour
         Assert::assertNull($reader->visiblePlacement(NodeId::fromString(self::ARCHIVED), $now));
         Assert::assertNull($reader->visiblePlacement(NodeId::fromString(self::ROOT), new DateTimeImmutable(self::UNTIL)));
         Assert::assertInstanceOf(PlacementId::class, $reader->visiblePlacement(NodeId::fromString(self::ROOT), $now));
+    }
+
+    #[Test]
+    public function it_reads_the_exception_a_mount_has_for_an_entry_and_none_for_another_entry_or_node(): void
+    {
+        $reader = $this->nodeReader();
+        $override = $reader->mountOverride(NodeId::fromString(self::MOUNT), EntryId::fromString(self::ENTRY));
+
+        Assert::assertInstanceOf(StoredMountOverride::class, $override);
+        Assert::assertSame(
+            [self::MOUNT, self::ENTRY, true, self::OVERRIDE_VERSION],
+            [$override->mount->toString(), $override->entry->toString(), $override->hidden, $override->version->value],
+        );
+        Assert::assertNull($reader->mountOverride(NodeId::fromString(self::MOUNT), EntryId::fromString(self::NO_ENTRY)));
+        Assert::assertNull($reader->mountOverride(NodeId::fromString(self::NODE), EntryId::fromString(self::ENTRY)));
+    }
+
+    #[Test]
+    public function it_reads_what_a_node_shows_of_an_entry_past_the_regions_and_nothing_for_an_entry_that_does_not_exist(): void
+    {
+        $reader = $this->nodeReader();
+        $entry = EntryId::fromString(self::ENTRY);
+        $now = new DateTimeImmutable(self::NOW);
+        $shown = $reader->mountedEntry(NodeId::fromString(self::ROOT), $entry, $now);
+        $unshown = $reader->mountedEntry(NodeId::fromString(self::ARCHIVED), $entry, $now);
+        $ended = $reader->mountedEntry(NodeId::fromString(self::NODE), $entry, new DateTimeImmutable(self::UNTIL));
+
+        Assert::assertInstanceOf(MountedEntry::class, $shown);
+        Assert::assertSame([self::ENTRY, self::LIVE], [$shown->entry->toString(), $shown->visible?->toString()]);
+        Assert::assertInstanceOf(MountedEntry::class, $unshown);
+        Assert::assertNull($unshown->visible);
+        Assert::assertInstanceOf(MountedEntry::class, $ended);
+        Assert::assertNull($ended->visible);
+        Assert::assertNull($reader->mountedEntry(NodeId::fromString(self::ROOT), EntryId::fromString(self::NO_ENTRY), $now));
     }
 }

@@ -100,6 +100,9 @@ return new class extends Migration
         $connection->statement("create policy node_routes_site_root on node_routes for insert with check (route = '/' and cms_structure_registering())");
         $connection->statement('create policy node_routes_write on node_routes for insert with check (cms_access_node(node_id))');
 
+        // The migration that adds the mount commands gives this lookup one more column, and a
+        // function's return type cannot be replaced, so the lookup is dropped before it is created.
+        $connection->statement('drop function if exists cms_structure_node(uuid)');
         $this->definer(
             'cms_structure_node(p_node uuid) returns table (parent_id uuid, kind text, path text, lifecycle text, version bigint, reachable boolean) language plpgsql stable',
             <<<'SQL'

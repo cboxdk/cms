@@ -9,9 +9,12 @@ use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Identity\NodePath;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
+use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Contracts\Plans\Mutations\MountCreated;
+use Cbox\Cms\Contracts\Plans\Mutations\MountOverrideSet;
 use Cbox\Cms\Contracts\Plans\Mutations\NodeArchived;
 use Cbox\Cms\Contracts\Plans\Mutations\NodeCreated;
 use Cbox\Cms\Contracts\Plans\Mutations\NodeLabelSet;
@@ -26,10 +29,14 @@ use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Routing\Domain\NodeKind;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Structure\Actions\ArchiveNodeAction;
+use Cbox\Cms\Core\Structure\Actions\CreateMountAction;
 use Cbox\Cms\Core\Structure\Actions\CreateNodeAction;
 use Cbox\Cms\Core\Structure\Actions\MoveNodeAction;
+use Cbox\Cms\Core\Structure\Actions\SetMountOverrideAction;
 use Cbox\Cms\Core\Structure\Actions\SetNodeLabelAction;
 use Cbox\Cms\Core\Structure\Actions\SetNodeRouteAction;
+use Cbox\Cms\Core\Structure\Adapter\MountCreatedWriter;
+use Cbox\Cms\Core\Structure\Adapter\MountOverrideSetWriter;
 use Cbox\Cms\Core\Structure\Adapter\NodeArchivedWriter;
 use Cbox\Cms\Core\Structure\Adapter\NodeCreatedWriter;
 use Cbox\Cms\Core\Structure\Adapter\NodeLabelSetWriter;
@@ -38,8 +45,10 @@ use Cbox\Cms\Core\Structure\Adapter\NodeRouteSetWriter;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeReader;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeRouteLock;
 use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\CreateMount;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\MoveNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\SetMountOverride;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeLabel;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeRoute;
 use Cbox\Cms\Core\Structure\Domain\NodeLabel;
@@ -51,7 +60,8 @@ use InvalidArgumentException;
 
 /*
  * The node commands are wired into the kernel (PRD 5.8, 5.9, 6.2, 13.2): cms:build registers their
- * actions under node.create, node.archive, node.set_route, node.move and node.set_label version 1
+ * actions under node.create, node.archive, node.set_route, node.move, node.set_label, mount.create
+ * and mount.set_override version 1
  * on every surface, the
  * container gives the pipeline those actions with the Postgres reader, and the commit finds the
  * lock of every aggregate they read and the writer of every mutation they plan. The route lock
@@ -62,9 +72,11 @@ const NODE_REGISTRATION_NODE = '01936f5e-8a2b-7c3d-9e4f-000000000c01';
 
 const NODE_REGISTRATION_PARENT = '01936f5e-8a2b-7c3d-9e4f-000000000c02';
 
+const NODE_REGISTRATION_ENTRY = '01936f5e-8a2b-7c3d-9e4f-000000000c03';
+
 const NODE_REGISTRATION_SITE = '01936f5e-8a2b-7c3d-9e4f-000000000c11';
 
-it('registers node.create, node.archive, node.set_route, node.move and node.set_label version 1 on every surface', function (): void {
+it('registers node.create, node.archive, node.set_route, node.move, node.set_label, mount.create and mount.set_override version 1 on every surface', function (): void {
     $registry = app(CompiledRegistry::class);
 
     foreach ([
@@ -73,6 +85,8 @@ it('registers node.create, node.archive, node.set_route, node.move and node.set_
         SetNodeRoute::class => [SetNodeRouteAction::class, 'node.set_route'],
         MoveNode::class => [MoveNodeAction::class, 'node.move'],
         SetNodeLabel::class => [SetNodeLabelAction::class, 'node.set_label'],
+        CreateMount::class => [CreateMountAction::class, 'mount.create'],
+        SetMountOverride::class => [SetMountOverrideAction::class, 'mount.set_override'],
     ] as $command => [$action, $name]) {
         $entry = $registry->actionFor($command);
 
@@ -91,14 +105,20 @@ it('gives the pipeline the node actions with the Postgres reader', function (): 
     $route = app(WriteActions::class)->for(new SetNodeRoute($node, AggregateVersion::first(), SiteId::fromString(NODE_REGISTRATION_SITE), new Locale('da'), new RequestPath('/sport')));
     $move = app(WriteActions::class)->for(new MoveNode($node, AggregateVersion::first(), NodeId::fromString(NODE_REGISTRATION_PARENT)));
     $label = app(WriteActions::class)->for(new SetNodeLabel($node, AggregateVersion::first(), new Locale('da'), new NodeLabel('Sport')));
+    $mount = app(WriteActions::class)->for(new CreateMount($node, NodeId::fromString(NODE_REGISTRATION_PARENT), NodeId::fromString(NODE_REGISTRATION_SITE)));
+    $override = app(WriteActions::class)->for(new SetMountOverride($node, AggregateVersion::first(), EntryId::fromString(NODE_REGISTRATION_ENTRY), true));
 
     expect($create->action)->toBeInstanceOf(CreateNodeAction::class)
         ->and($archive->action)->toBeInstanceOf(ArchiveNodeAction::class)
         ->and($route->action)->toBeInstanceOf(SetNodeRouteAction::class)
         ->and($move->action)->toBeInstanceOf(MoveNodeAction::class)
         ->and($label->action)->toBeInstanceOf(SetNodeLabelAction::class)
+        ->and($mount->action)->toBeInstanceOf(CreateMountAction::class)
+        ->and($override->action)->toBeInstanceOf(SetMountOverrideAction::class)
         ->and($move->command->value)->toBe('node.move')
         ->and($label->command->value)->toBe('node.set_label')
+        ->and($mount->command->value)->toBe('mount.create')
+        ->and($override->command->value)->toBe('mount.set_override')
         ->and($route->command->value)->toBe('node.set_route')
         ->and(app(NodeReader::class))->toBeInstanceOf(PostgresNodeReader::class);
 });
@@ -115,7 +135,9 @@ it('gives the commit the lock of a route and the writers of the node mutations',
         ->and($writers->for(new NodeArchived($node)))->toBeInstanceOf(NodeArchivedWriter::class)
         ->and($writers->for(new NodeRouteSet($node, SiteId::fromString(NODE_REGISTRATION_SITE), new Locale('da'), '/sport')))->toBeInstanceOf(NodeRouteSetWriter::class)
         ->and($writers->for(new NodeMoved($node, $parent, NodeId::fromString(NODE_REGISTRATION_SITE), new NodePath($label(NodeId::fromString(NODE_REGISTRATION_SITE)).'.'.$label($node)), false, false)))->toBeInstanceOf(NodeMovedWriter::class)
-        ->and($writers->for(new NodeLabelSet($node, new Locale('da'), 'Sport')))->toBeInstanceOf(NodeLabelSetWriter::class);
+        ->and($writers->for(new NodeLabelSet($node, new Locale('da'), 'Sport')))->toBeInstanceOf(NodeLabelSetWriter::class)
+        ->and($writers->for(new MountCreated($node, $parent, NodeId::fromString(NODE_REGISTRATION_SITE), new NodePath($label($parent).'.'.$label($node)))))->toBeInstanceOf(MountCreatedWriter::class)
+        ->and($writers->for(new MountOverrideSet($node, EntryId::fromString(NODE_REGISTRATION_ENTRY), true, false)))->toBeInstanceOf(MountOverrideSetWriter::class);
 });
 
 it('refuses to lock an aggregate that is not a route of a node', function (): void {
@@ -135,6 +157,8 @@ it('names the class of mutation each node writer writes, and refuses another', f
         [new NodeRouteSetWriter($connections), NodeRouteSet::class],
         [new NodeMovedWriter($connections), NodeMoved::class],
         [new NodeLabelSetWriter($connections), NodeLabelSet::class],
+        [new MountCreatedWriter($connections), MountCreated::class],
+        [new MountOverrideSetWriter($connections), MountOverrideSet::class],
     ] as [$writer, $class]) {
         expect($writer->writes())->toBe($class)
             ->and(fn (): array => $writer->write($other, nodeWriterContext()))->toThrow(InvalidArgumentException::class, NodeArchived::class);
@@ -167,7 +191,11 @@ it('refuses a mutation whose kind or path the tree does not take', function (): 
         ->and(fn (): NodeLabelSet => new NodeLabelSet($node, new Locale('da'), ' Sport'))
         ->toThrow(InvalidArgumentException::class, 'starts and ends with a character that is not white space')
         ->and(fn (): NodeLabelSet => new NodeLabelSet($node, new Locale('da'), str_repeat('a', 201)))
-        ->toThrow(InvalidArgumentException::class, '1 to 200 characters');
+        ->toThrow(InvalidArgumentException::class, '1 to 200 characters')
+        ->and(fn (): MountCreated => new MountCreated($node, $parent, $node, new NodePath($label($parent).'.'.$label($node))))
+        ->toThrow(InvalidArgumentException::class, 'itself as its source')
+        ->and(fn (): MountCreated => new MountCreated($node, $parent, NodeId::fromString(NODE_REGISTRATION_SITE), new NodePath($label($node))))
+        ->toThrow(InvalidArgumentException::class, 'is its parent\'s with the label');
 });
 
 /**

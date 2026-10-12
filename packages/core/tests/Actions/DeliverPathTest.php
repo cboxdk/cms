@@ -71,7 +71,7 @@ it('answers a resolved path with its record at the public access, and stores it 
         ->and($fragment?->validUntil)->toEqual(new DateTimeImmutable(ResolveWorld::NOW)->modify('+600 seconds'));
 });
 
-it('answers the same placement through a mount on a second site, with the same content keys', function (): void {
+it('answers the same placement through a mount on a second site, with the same content keys and the mount\'s key', function (): void {
     $world = new DeliveryWorld;
     $world->resolve->place(ResolveWorld::PLACEMENT, ResolveWorld::SECTION, 'harbour');
 
@@ -80,7 +80,7 @@ it('answers the same placement through a mount on a second site, with the same c
     expect($delivery->status)->toBe(HttpStatus::Ok)
         ->and($delivery->body)->toContain('record {"cms_id":"'.DELIVERED_ENTRY.'","title":"The harbour opens"}')
         ->and($delivery->body)->toContain('https://north.example/nyheder/harbour')
-        ->and(deliveredKeys($delivery))->toBe(['e-'.DELIVERED_ENTRY, 'n-'.ResolveWorld::SECTION]);
+        ->and(deliveredKeys($delivery))->toBe(['e-'.DELIVERED_ENTRY, 'n-'.ResolveWorld::SECTION, 'n-'.ResolveWorld::MOUNT]);
 });
 
 it('serves the next request from the fragment without running the query pipeline, for what is left of its lifetime', function (): void {

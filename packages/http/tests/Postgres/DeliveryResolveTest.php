@@ -88,14 +88,18 @@ final class DeliveryResolveTest extends TestCase
     public function it_resolves_the_published_article_on_its_site_and_through_the_mount_with_the_record_the_keys_and_the_cache_headers(): void
     {
         $section = $this->world()->northSection->id->toString();
+        $mount = StorageTables::superuser()->table('nodes')->where('kind', 'mount')->value('id');
+        self::assertIsString($mount);
 
-        foreach (['north.example' => '/nyheder/harbour', 'south.example' => '/national/harbour'] as $site => $path) {
+        foreach (['north.example' => ['/nyheder/harbour', []], 'south.example' => ['/national/harbour', ['n-'.$mount]]] as $site => [$path, $mounted]) {
             $response = $this->resolve($site, $path);
             $document = $this->document($response);
+            $keys = ['e-'.self::ENTRY, 'n-'.$section, ...$mounted];
+            sort($keys, SORT_STRING);
 
             $response->assertOk()
                 ->assertHeader('Content-Type', 'application/json')
-                ->assertHeader(DeliveryOutput::SURROGATE_KEY, 'e-'.self::ENTRY.' n-'.$section)
+                ->assertHeader(DeliveryOutput::SURROGATE_KEY, implode(' ', $keys))
                 ->assertHeader(DeliveryOutput::SOURCE, 'miss')
                 ->assertHeaderMissing('Set-Cookie')
                 ->assertHeaderMissing('Vary');

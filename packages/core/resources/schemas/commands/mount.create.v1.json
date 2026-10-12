@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "mount.create, contract version 1",
+  "description": "Creates a mount below a node (PRD 5.8) in one changeset: a node of kind mount that shows another node's placements on this site without creating rows for them. A mount is identical with its source: same slugs, same visibility, canonical at the source; a site that needs its own slug or window makes a placement of its own instead. The mount's path in the tree is the parent's with the mount's own label below it, so the grants that reach the parent reach the mount too, and the issuing actor needs mount.create on the parent (PRD 5.10); the source need not lie in the actor's regions, because a mount shows only what the source shows the public. The caller makes the mount's id, so a repeat with the same idempotency key is the same mount, and a create of an id that exists is version_conflict. A parent the actor's grants do not reach is unauthorized. A parent that does not exist, is archived or is a mount, and a source that does not exist, is the mount itself, is a mount, is archived, or is the parent or above it, so the mount would sit below its own source, are validation_failed. The source and every ancestor of the parent are read as aggregates, so a node.move that meanwhile puts the source above the parent is version_conflict. The PHP form is Cbox\\Cms\\Core\\Structure\\Domain\\Commands\\CreateMount, and the generated codec CreateMountCodecV1 reads it and writes its canonical JSON: every key, sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "node",
+    "parent",
+    "source"
+  ],
+  "properties": {
+    "node": {
+      "description": "The id of the new mount node, made by the caller.",
+      "$ref": "#/$defs/id"
+    },
+    "parent": {
+      "description": "The id of the node the mount goes below.",
+      "$ref": "#/$defs/id"
+    },
+    "source": {
+      "description": "The id of the node whose placements the mount shows.",
+      "$ref": "#/$defs/id"
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+      "examples": [
+        "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"
+      ]
+    }
+  }
+}

@@ -105,6 +105,7 @@ final class PostgresRouteReaderBehaviourTest extends TestCase
             ]));
         }
 
+        $superuser->table('mount_overrides')->insert(StorageTables::mountOverride(['mount_node_id' => self::MOUNT, 'source_node_id' => self::SECTION, 'entry_id' => self::ENTRY]));
         $superuser->table($this->releasedType()->name->table())->insert([
             ...TypeTableColumns::encode($this->releasedType(), self::released()),
             'cms_entry_id' => self::ENTRY, 'cms_locale' => 'shared', 'cms_stage' => 'released', 'cms_home_node' => self::SECTION,

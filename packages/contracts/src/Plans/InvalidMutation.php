@@ -82,6 +82,11 @@ final class InvalidMutation extends InvalidArgumentException
         ));
     }
 
+    public static function mountSource(NodeId $node, NodeId $source): self
+    {
+        return new self(sprintf('The mount %s is created with itself as its source %s; a mount shows another node\'s placements.', $node->toString(), $source->toString()));
+    }
+
     public static function nodeMoveWithoutChange(NodeId $node, NodeId $parent): self
     {
         return new self(sprintf('The node %s is moved from the parent %s to the same parent; a move changes the parent.', $node->toString(), $parent->toString()));

@@ -13,9 +13,10 @@ use Cbox\Cms\Core\Structure\Domain\NodeLifecycle;
 
 /**
  * A node as a node command reads it (PRD 5.8), past the actor's regions: its id, its parent, its
- * kind, its path in the tree, its lifecycle state, its version, and whether the actor's regions
- * reach it. A node that exists but is not reached is read, so a command on it is unauthorized
- * instead of a conflict with an aggregate that looks absent (PRD 5.10).
+ * kind, its path in the tree, its lifecycle state, its version, whether the actor's regions reach
+ * it, and for a mount the source whose placements it shows. A node that exists but is not reached
+ * is read, so a command on it is unauthorized instead of a conflict with an aggregate that looks
+ * absent (PRD 5.10).
  */
 #[Internal]
 final readonly class StoredNode
@@ -28,6 +29,7 @@ final readonly class StoredNode
         public NodeLifecycle $lifecycle,
         public AggregateVersion $version,
         public bool $reachable,
+        public ?NodeId $mountSource = null,
     ) {}
 
     public function archived(): bool

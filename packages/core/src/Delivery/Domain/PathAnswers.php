@@ -7,6 +7,7 @@ namespace Cbox\Cms\Core\Delivery\Domain;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Cache\DependencyKey;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
+use Cbox\Cms\Core\Routing\Domain\Dto\MountStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation;
 use Cbox\Cms\Core\Routing\Domain\Dto\PlacementStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\VisibilityStep;
@@ -26,7 +27,8 @@ use DateTimeImmutable;
  *   (invariant 7). Everything else is path_not_found (404): nothing answers the path now, and a
  *   publication, a placement or an opening window can change that.
  * - The keys are the read's `e-{entry}` and `n-{node}` and, once a route was matched, `n-{node}` of
- *   the node the slug was looked up under, so a 404 and a 410 are purged too when what they depend
+ *   the node the slug was looked up under, and of the mount the route reached, whose exceptions
+ *   change what its URLs answer (PRD 5.8), so a 404 and a 410 are purged too when what they depend
  *   on changes (point 10).
  * - The answer holds until the placement's window next changes the decision, its end for a visible
  *   placement and its start for one that has not opened (invariant 17), the same cap for 200, 404
@@ -69,16 +71,19 @@ final readonly class PathAnswers
     }
 
     /**
-     * The content keys of the answer: the read's, and the node a slug was looked up under.
+     * The content keys of the answer: the read's, the node a slug was looked up under, and the
+     * mount the route reached.
      *
      * @param  list<DependencyKey>  $read
      * @return list<DependencyKey>
      */
     public static function contentKeys(PathExplanation $explanation, array $read): array
     {
-        return $explanation->placement instanceof PlacementStep
+        $keys = $explanation->placement instanceof PlacementStep
             ? [...$read, DependencyKey::node($explanation->placement->lookedUnder)]
             : $read;
+
+        return $explanation->mount instanceof MountStep ? [...$keys, DependencyKey::node($explanation->mount->mount)] : $keys;
     }
 
     /**
