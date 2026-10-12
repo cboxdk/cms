@@ -13,7 +13,7 @@ Rækkefølgen er `MILESTONES.md`. Id'erne bruges af workflowen `cms-milestone`.
 | M0 | Milepæl 0: værktøjskæde | done |
 | M1 | Milepæl 1: gående skelet | done |
 | B1 | Panel-skelet | done |
-| B2 | Model | next |
+| B2 | Model | in_progress |
 | B3 | Tid og schema-evolution | todo |
 | B4 | Invalidering i fuld skala | todo |
 | B5 | Forespørgsler | todo |
@@ -1607,6 +1607,7 @@ B1-X17: Ny `#[Internal]`-attribut `Cbox\Cms\Contracts\PanelPoints\HostProps` på
 
 ## Info
 
+- B2 (12. oktober 2026): Tabellen stod på `next`, selvom B2-T1, B2-T2 og B2-T64 er flettet (8. oktober); den står nu på `in_progress`. Resten af B2 er ikke planlagt: `.harness/plans` har ingen B2-plan. Gates-delen af den containeriserede CI-kørsel tog 19 min 04 s mod budgettet på 15 minutter (se B2-T64 (integration) under "Kontroller kørt" og Info), og den største enkeltpost i den lokale profil er Unit-suiten (ca. 450 s) efterfulgt af Vitest (ca. 122 s); de to er naturlige kandidater, hvis gates-delen skal deles videre.
 
 - B1-review (addonernes panelkataloger): `composer image:run -- npm run storybook:baselines` blev kørt, fordi gate 5's `js/ui-kit/tests/story-screenshots.test.js` holder panelpunkternes baselines til de filer, de er gengivet fra, og opgaven ændrer `js/panel/stories/PanelPointStory.tsx` (storyen skal nu bære `texts` i sidens bidrag; den bærer `[]`, så ingen story viser en addons tekst, og gengivelsen er uændret). Kørslen skrev ingen af de 16 `panel-points-*.png` om, hvilket bekræfter det, men den skrev 21 urelaterede baselines om (actorpicker, combobox, tooltip, switch, skiplink og flere). De 21 er rullet tilbage og ikke committet: de er en afvigelse mellem de committede baselines og hvad dev-imaget gengiver på denne vært nu, ikke noget denne opgave ændrer (samme slags belastnings- og antialias-følsomhed som B1-T19 og B1 kørsel 7 beskriver). Kun `rendered-from.json` er committet, som registrerer, at panelpunkternes baselines svarer til storykilderne som de er nu.
 - B1-review (7. oktober 2026): Spørgsmålet fra B1-T18 om den ustabile `RolesAndGrantsTest` og meddelelsen "ResizeObserver loop completed with undelivered notifications" er afklaret uden en beslutning: årsagen var ikke viewport-ændringen men kittets popover. Når testen vælger den første rettighed i rollens rettighedsdialog, lægger `MultiSelect` et mærke under knappen, og sidens hint om at intet er ændret forsvinder, så den centrerede dialog skifter højde og knappen flytter sig ca. 19 px, mens listen er åben. React Aria placerer ikke popoveren igen, når udløseren flytter sig; kom popoverens første ResizeObserver-levering efter flytningen, ændrede React Arias placering popoverens højde inde i observerens callback (løkkefejlen), ellers hang listen skævt fra knappen. Kittets `Popover` placerer sig nu igen efter hver rendering, hvor udløseren har flyttet sig. Den delte påstand `assertNoJavaScriptErrors` er urørt.
